@@ -1,0 +1,471 @@
+{
+  "name": "M12-04b4g1 batch-aware result-conditioned prospective study",
+  "protocol_version": 6,
+  "status": "PREREGISTERED_BEFORE_ANY_PILOT_CALL",
+  "candidate_calls_authorized": true,
+  "unresolved_fields": [],
+  "decision_scope": {
+    "question": "Whether one bounded result-conditioned PubMed follow-up recovers source-backed prior art over a matched draft-only follow-up without degrading distinct-control retrieval.",
+    "unit": "Six fixed positive/distinct-control draft pairs in bank7 order; all six pairs and all twelve drafts are mandatory.",
+    "claim_limit": "Exploratory only. A pass requires a new independently eligible three-pair confirmatory comparison before implementation or release; a failure rejects only this frozen adaptation.",
+    "design_reference": "references/external/sakana/novelty-result-conditioned-design-v1.md",
+    "design_sha256": "abf89e4661a73632ef514625ce8f5a7f9c89700fdb58506fd0f68558f04c312c",
+    "historical_study": "Earlier study versions and consumed admissions are immutable and never replayed or rescored. This sixth study uses fresh bank7 sources and the existing batch-aware trace boundary.",
+    "source_sampling_limit": "Purposive exploratory source bank selected from public title/abstract metadata before any draft-query, model, validator, or performance screening. Abstract-only identity/support and finite checked-set disjointness only; no representative, novelty, quality, or generalized-efficacy claim. The source author retained the raw XML for the 140-ID broad candidate batch and a separate exact-12 selected fetch.",
+    "design_reference_scope": "The pinned v1 design is historical technique evidence only; this protocol retains the shared-first union/dedup scoring method with bank7 inputs and does not rescore any historical protocol or result."
+  },
+  "fixture_bank_path": "references/external/sakana/novelty-fixture-bank-prereg-v7.json",
+  "fixture_bank_sha256": "9bce919fee438c50943f23d08e8524ab3acaaa3b8c9328c9e0c50c3c42ab5ff4",
+  "runner_path": "references/external/sakana/novelty_result_conditioned_pilot.py",
+  "runner_sha256": "58a50e43a52f32a547b7f939a77198d7b9205a4a01f30e160be7d9fb7a496fe0",
+  "validation_boundary": {
+    "code_commit_before_registration": "16276921b8a0f8275edc70835928c22e6e10ee0a",
+    "validator_path": "engine/src/co_scientist/agents/generation/literature_tools/validate_search.py",
+    "validator_sha256": "93d794fd510188d03b5923d6759945bdfa6bdf05dc11e8609b4870c40b783b03",
+    "response_parser_path": "engine/src/co_scientist/tools/response_parser.py",
+    "response_parser_sha256": "9be8110bfbe8d3851ff10dedc0e20bd9d37fea63ef99bd5f1b874055e515aea8",
+    "tool_config_path": "engine/src/co_scientist/config/tools.yaml",
+    "tool_config_sha256": "8beb24b52fc15d1d8b79ce657f98cba48836fa49a1a9b8600fb80b35afc337e6",
+    "configured_tool": "first validation search-category tool: pubmed_fulltext -> pubmed_search_with_fulltext",
+    "mapping": "ToolConfig.map_parameters, then _search_papers_via_tool_config and ResponseParser.parse_to_articles",
+    "batch_trace_reader_path": "references/external/sakana/novelty_batch_trace.py",
+    "batch_trace_reader_sha256": "63ed3ebfdde0d20bd840b1bf1d97f3fc2e98208b6ba6ac94b9d449efd67cbb69"
+  },
+  "model_boundary_sha256": {
+    "engine/src/co_scientist/llm_free_catalog.py": "c1a3dfe640d25e878151ea7ec60dfb045bf33b022df99ad39545cbe3b7efa6d0",
+    "engine/src/co_scientist/llm_free_policy.py": "c5ef287ba11261967b713f937763d15d7f962d4c10f53bcaf56c6e7eb4184445",
+    "engine/src/co_scientist/llm_request.py": "64b2a2911c5d0a136b535e3b5cae9e887cc92fdd25637fe7c3f6dec57ce9c309",
+    "engine/src/co_scientist/llm_call.py": "ad9d2afaa34e102243e9bc8e7100109ebbea4b788db5b46ca60e8ed19ccc6f52",
+    "engine/src/co_scientist/llm_json_retry.py": "b246d0da9a0c3f50b849f2155261d4bceb4cb8aa6c4fe04fdb27537f13874eb2",
+    "engine/src/co_scientist/llm.py": "1cec1a98c9cb688168c93e207c87fb433da54d5aaf5e987cd1e4fd331ab83d40",
+    "engine/src/co_scientist/llm_telemetry.py": "74e0cd5ad6b030047ec16bc97ff0c934d715f4f5239a38290878bf0d56a66bd9",
+    "engine/src/co_scientist/llm_gateway_routing.py": "2a689876b938dd3048b6c1f082d728eb89e1a4a84eaab9309f4ee4e295c1d06f"
+  },
+  "mcp_tree": "393349bdfa39609c15abf994f823fdf64d9d0958",
+  "mcp_build_id": "393349bdfa39609c15abf994f823fdf64d9d0958",
+  "model_name": "openrouter/stealth/space-bunny-alpha",
+  "selected_model_condition": {
+    "status": "PREPARATION_ROUTE_PINNED_LAUNCH_RECHECK_REQUIRED",
+    "official_exact_zero_route": {
+      "source": "https://openrouter.ai/api/v1/models/stealth/space-bunny-alpha/endpoints",
+      "observed_at_utc": "2026-09-30T22:57:36.598989+00:00",
+      "requested_model": "openrouter/stealth/space-bunny-alpha",
+      "catalog_model_id": "stealth/space-bunny-alpha",
+      "endpoint_count": 1,
+      "provider_name": "Stealth",
+      "endpoint_status": 0,
+      "pricing": {
+        "prompt": "0",
+        "completion": "0",
+        "discount": 0
+      },
+      "route_constraint": {
+        "provider_only": "Stealth",
+        "provider_only_parameter": [
+          "Stealth"
+        ],
+        "allow_fallbacks": false,
+        "max_price": {
+          "prompt": 0,
+          "completion": 0,
+          "request": 0
+        }
+      },
+      "served_model_rule": "Every completion must report served_model exactly equal to the selected protocol model_name openrouter/stealth/space-bunny-alpha; missing telemetry or any mismatch stops this admitted study. No alias, fallback, paid substitution, retry, or cache reuse.",
+      "public_qualification": {
+        "scientific_screen": "references/external/m12-space-bunny-corrected-result-2026-09-30.md",
+        "production_flow_receipt": "references/external/m12-free-default-public-acceptance-2026-09-30.json",
+        "production_flow_status": "completed",
+        "production_flow_run_id": "6c9b464a-e32c-47fa-85e2-88e47428ffde",
+        "completed_tasks": 71,
+        "total_tasks": 71,
+        "observed_model_responses": 178,
+        "reported_cost_usd": 0,
+        "account_usage_unchanged": true
+      },
+      "catalog_source": "https://openrouter.ai/api/v1/models",
+      "endpoint_model_name": "Space Bunny Alpha",
+      "observation_scope": "Read-only public preparation evidence; fresh root catalog/endpoint/account checks are mandatory immediately before g3 admission. This does not authorize stale prices or claim invoice audit."
+    },
+    "served_model_rule": "Each response must expose served_model exactly equal to openrouter/stealth/space-bunny-alpha. The route is pinned to only Stealth and allow_fallbacks=false; the request has zero prompt, completion, and request price ceilings. Missing telemetry, route mismatch, admission or price failure stops before another call; no alias, fallback, paid substitution, retry, or cache reuse.",
+    "prior_route_not_selected": "nex-agi/nex-n2.5-pro:free",
+    "prior_evidence": {
+      "campaign_run_id": "987574df-557e-48fa-a77b-1f5692e3876b",
+      "observed_on": "2026-09-25",
+      "outcome": "The exact-zero Nex row was present immediately before create/start, but disappeared from the official catalog by 13:14 UTC while the run was active. Eight strategy tasks failed exact explicit-route admission; zero hypotheses and $0.00 model cost resulted. This route is not pinned or qualified for this pilot.",
+      "record": "PLAN.md M11-OPS-02b execution note, 2026-09-25 13:42 UTC"
+    },
+    "activation_gate": "Only after source review, coordinator review, and commitment of exact bank7/protocol6 bytes: recheck the current zero-price catalog, active Stealth endpoint and account projection; use a fresh credential-free loopback MCP process, empty isolated cache, current source hashes, batch=1, recovery=0, and no study ID. Preflight makes no scientific calls. After admission, no model/MCP/Entrez retry or recovery, and no replay.",
+    "current_preparation_eligibility_receipt": {
+      "path": "references/external/sakana/novelty-pilot-v5-eligibility-2026-09-30.json",
+      "sha256": "25c40f0ae8fb3ce28a2b765b198e00f7c3ca8c1fca2edcab27cb5c7d3519db0e",
+      "use": "Historical Study5 route evidence only; it does not establish Study6 eligibility. Root must recheck the official route and account projection before any future Study6 call."
+    }
+  },
+  "prompts": {
+    "static_template": "Generate one concise PubMed search query for the scientific draft below. Use the draft alone. Do not add identifiers. Return JSON with one string field named query, at most 200 characters.\n\nDraft:\n{draft}",
+    "static_prompt_sha256": "a43f7c96c12e54b2c31b764387a7556b954351a1205bfdc14075324e72003c65",
+    "conditioned_template": "Generate one concise PubMed search query for the scientific draft below. Use only the draft and the supplied first-search titles and abstracts to choose useful terminology. Do not add or infer publication identifiers. Return JSON with one string field named query, at most 200 characters.\n\nDraft:\n{draft}\n\nFirst-search titles and abstracts:\n{evidence}",
+    "conditioned_prompt_sha256": "5e17fac7c276dafc7100242e464ee12db191b33de06453f10872cb1c12925ab2",
+    "query_schema": {
+      "type": "object",
+      "required": [
+        "query"
+      ],
+      "properties": {
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "additionalProperties": false
+    },
+    "query_max_characters": 200,
+    "rendering_rule": "Use full frozen draft in each prompt. The static prompt receives the draft only. The conditioned prompt receives that same draft plus the shared first-search result titles and available abstracts in maintained parser order; no IDs, authors, ranks, arm names, or target/anchor PMIDs are added."
+  },
+  "request_config": {
+    "max_attempts": 1,
+    "max_tokens": 1200,
+    "temperature": 0.0,
+    "enable_thinking": false,
+    "use_cache": false,
+    "max_price": {
+      "prompt": 0,
+      "completion": 0,
+      "request": 0
+    }
+  },
+  "max_model_calls": 24,
+  "max_outer_mcp_calls": 36,
+  "search_design": {
+    "pair_count": 6,
+    "draft_count": 12,
+    "fixed_pair_manifest": [
+      {
+        "pair_id": "atgata5-aba",
+        "positive_draft_sha256": "03ace6c99efc59a21bac341f431549c70a36917af059b08fe9f5e8b72d7b8988",
+        "positive_target_pmid_scorer_only": "42275480",
+        "distinct_control_draft_sha256": "66468c1700baa9df0e6d597f06c06c4dd9fcaf252f0f268a1c0294e1dbc9f6dc",
+        "distinct_control_anchor_pmid_scorer_only": "41808014",
+        "initial_query_sha256": {
+          "positive": "03ace6c99efc59a21bac341f431549c70a36917af059b08fe9f5e8b72d7b8988",
+          "distinct_control": "66468c1700baa9df0e6d597f06c06c4dd9fcaf252f0f268a1c0294e1dbc9f6dc"
+        }
+      },
+      {
+        "pair_id": "brucella-epec",
+        "positive_draft_sha256": "295d91f19a2d43e3e70d2ae24c416d73f0a900bbd0d23fcba3d26316d93443dd",
+        "positive_target_pmid_scorer_only": "42664262",
+        "distinct_control_draft_sha256": "ba56b13371dd90205f38c64a6cd37baedb84d09f1266e2938ec58202f797c123",
+        "distinct_control_anchor_pmid_scorer_only": "42678059",
+        "initial_query_sha256": {
+          "positive": "295d91f19a2d43e3e70d2ae24c416d73f0a900bbd0d23fcba3d26316d93443dd",
+          "distinct_control": "ba56b13371dd90205f38c64a6cd37baedb84d09f1266e2938ec58202f797c123"
+        }
+      },
+      {
+        "pair_id": "neural-organoid-ahr",
+        "positive_draft_sha256": "db0dd82ba046bb51f39e2f80a993d8cf9fb3b47228039c3264ac7de6d8e2e082",
+        "positive_target_pmid_scorer_only": "42759501",
+        "distinct_control_draft_sha256": "37036b644895945b7b49d7159474c045c90a017cd85f769700885e8832563497",
+        "distinct_control_anchor_pmid_scorer_only": "42667716",
+        "initial_query_sha256": {
+          "positive": "db0dd82ba046bb51f39e2f80a993d8cf9fb3b47228039c3264ac7de6d8e2e082",
+          "distinct_control": "37036b644895945b7b49d7159474c045c90a017cd85f769700885e8832563497"
+        }
+      },
+      {
+        "pair_id": "uchl1-cardiac",
+        "positive_draft_sha256": "512798acfa25da4c4cb22dc580cb69e3e75155422790c4b2d5ade8688a948abb",
+        "positive_target_pmid_scorer_only": "42811467",
+        "distinct_control_draft_sha256": "2f8916238265cb0a5436a1bf728d0f9404db0fc296cd81ae30d4d20696438625",
+        "distinct_control_anchor_pmid_scorer_only": "42799126",
+        "initial_query_sha256": {
+          "positive": "512798acfa25da4c4cb22dc580cb69e3e75155422790c4b2d5ade8688a948abb",
+          "distinct_control": "2f8916238265cb0a5436a1bf728d0f9404db0fc296cd81ae30d4d20696438625"
+        }
+      },
+      {
+        "pair_id": "myeloid-gr-muscle",
+        "positive_draft_sha256": "6f4e821493eaa1be06e061b015e1814d0d1256c11722542fec7db281d9eac07b",
+        "positive_target_pmid_scorer_only": "42733273",
+        "distinct_control_draft_sha256": "7739b1f30574a42aae503eb246ff8f06b66c10d91f6ec7d7745606c7e7653ca3",
+        "distinct_control_anchor_pmid_scorer_only": "42786917",
+        "initial_query_sha256": {
+          "positive": "6f4e821493eaa1be06e061b015e1814d0d1256c11722542fec7db281d9eac07b",
+          "distinct_control": "7739b1f30574a42aae503eb246ff8f06b66c10d91f6ec7d7745606c7e7653ca3"
+        }
+      },
+      {
+        "pair_id": "lamp2-ctsz-tumor",
+        "positive_draft_sha256": "cd796f59302b90ddb3e4f8795ae3e642ab2e75d0f4b53e8e5464e16079df2122",
+        "positive_target_pmid_scorer_only": "42776282",
+        "distinct_control_draft_sha256": "e30e6c6f68c101c8abc29ee0d55b4f2c8db3325e2b0012653526adbba56eec72",
+        "distinct_control_anchor_pmid_scorer_only": "42476336",
+        "initial_query_sha256": {
+          "positive": "cd796f59302b90ddb3e4f8795ae3e642ab2e75d0f4b53e8e5464e16079df2122",
+          "distinct_control": "e30e6c6f68c101c8abc29ee0d55b4f2c8db3325e2b0012653526adbba56eec72"
+        }
+      }
+    ],
+    "all_cases_required_in_order": true,
+    "first_search": {
+      "count": 12,
+      "tool": "pubmed_search_with_fulltext via configured validation search tool pubmed_fulltext",
+      "query_rule": "Exact full frozen draft; every draft must be at most 200 characters before admission, so the existing draft[:200] wire slice changes no input. No query rewrite, identifier injection, extra term, date filter, or result-conditioned request.",
+      "papers_returned_per_call_max": 3,
+      "matched_evidence_rule": "For each draft, issue one shared first search. Generate the static draft-only query before that first search. Then generate one candidate query from the same draft plus the exact shared result titles and available abstracts, preserving parser order. Both follow-up records link to the same first-search event; the first-search result is not separately rerun for either arm.",
+      "sort": "pub_date (newest first), fixed by the pinned current MCP source tree",
+      "recency_years": 0
+    },
+    "followups": {
+      "static_count": 12,
+      "candidate_count": 12,
+      "tool": "Same maintained PubMed validation tool and mapping as first search.",
+      "papers_returned_per_call_max": 3,
+      "matched_settings": "Same selected route, query schema, model request options, maintained MCP source tree, tool parameters, and date-window behavior. Only first-search title/abstract visibility differs.",
+      "sort": "pub_date (newest first), same as first search",
+      "recency_years": 0
+    },
+    "internal_mcp_bounds_per_outer_call": {
+      "esearch_relaxation_attempts_max": 3,
+      "candidate_ids_selected_max": 9,
+      "metadata_ids_fetched_max": 9,
+      "returned_papers_max": 3,
+      "trace_required": [
+        "attempts",
+        "selected rung/query/IDs",
+        "fetched IDs and outcomes",
+        "final IDs",
+        "shared-pool supplements",
+        "metadata_batching ledger with selected IDs, cache hits, EFetch groups, returned IDs, ELink IDs and per-PMID outcomes",
+        "serving process attestation"
+      ],
+      "note": "The 36 outer MCP tool-call ceiling is not an upstream NCBI HTTP-request ceiling. The batch ledger describes maintained metadata EFetch and ELink wrapper entries; PMC fulltext EFetch pagination is separate.",
+      "esearch_retmax_max": 9,
+      "result_order": "Maintained parser / source response order after pinned PubMed newest-first retrieval and existing fulltext-first, abstract-only fill behavior; no additional pilot ranking.",
+      "count_semantics": "Use the raw metadata_batching ledger for exact metadata EFetch and ELink batch counts. It is not physical HTTP-wire telemetry. The batch-count comparison covers metadata retrieval only; exclude search ESearch, PMC fulltext EFetch and its retstart pages, and do not infer an aggregate or total upstream HTTP count. Selected metadata IDs remain bounded by nine; fulltext remains the existing separately paginated path.",
+      "metadata_efetch_batch_groups_max": 1,
+      "metadata_efetch_ids_per_group_max": 9,
+      "elink_batch_groups_max": 1,
+      "elink_ids_per_group_max": 9
+    },
+    "unit": "Six fixed positive/distinct-control draft pairs from fresh, independently reviewed bank7; all six pairs and all twelve drafts are mandatory.",
+    "historical_study": "Prior study versions and their admissions remain immutable, incomplete or unscored as recorded, and are never replayed or rescored. This is a separately prepared sixth study with fresh bank7 inputs and the pinned batch-aware retrieval boundary.",
+    "design_reference_scope": "The pinned v1 design remains historical conceptual technique evidence only. Exposed earlier banks and follow-up-only scoring are superseded for this prospective study by protocol6, fresh bank7 and unchanged shared-first union/dedup criteria. No historical protocol or result is rescored."
+  },
+  "target_blinding": {
+    "source_ids_location": "Scorer-only fields in frozen bank7; the runner derives them locally for guard checks.",
+    "forbidden_surfaces": [
+      "static prompt",
+      "conditioned prompt",
+      "generated PubMed query",
+      "MCP wire query parameters",
+      "blinded reviewer packet"
+    ],
+    "runner_checks": [
+      "Reject a generated prompt or query containing any frozen target/anchor PMID before PubMed dispatch.",
+      "Reject retrieved title/abstract text containing a frozen target/anchor PMID.",
+      "Retain result PMIDs only in the private result/provenance report for scoring; omit PMIDs and arm/rank labels from the blind packet."
+    ]
+  },
+  "blinding": {
+    "review_unit": "Each returned paper from all shared first-search and arm-specific follow-up calls, paired with its full frozen draft. The shared first-search items are labeled for context but excluded from arm-comparison unrelated-paper fractions.",
+    "reviewer_view": [
+      "random blind ID",
+      "full draft",
+      "title",
+      "public abstract"
+    ],
+    "hidden_from_reviewer": [
+      "arm",
+      "rank",
+      "PMID",
+      "target/anchor identity",
+      "query text",
+      "retrieval trace"
+    ],
+    "labels": [
+      "central-mechanism support",
+      "related-only",
+      "unrelated"
+    ],
+    "process": "The packet contains random blind IDs, drafts, titles, and abstracts only and is shuffled by blind ID. Label before revealing any arm, rank, PMID, target, or anchor. Use only arm-specific follow-up items for static-versus-candidate unrelated-paper fractions; the LLM relevance judgment may supplement but never replace exact-ID retrieval scoring."
+  },
+  "outcome_criteria": {
+    "primary": "Across the six positive drafts, compare exact target-PMID coverage in shared-first-search union candidate-follow-up results against the matched shared-first-search union static-follow-up results. Candidate must cover at least one additional positive target in aggregate and lose none of the positive target coverage in static. A target already present in shared-first search cannot earn incremental credit by reappearing in either follow-up.",
+    "non_regression": [
+      "Candidate loses none of the six distinct-control own-anchor coverage in matched shared-first-search union static-follow-up results, evaluated against shared-first-search union candidate-follow-up results.",
+      "Candidate does not increase cross-pair positive-target coverage among distinct controls; deduplicate each shared-first-search union follow-up PMID set identically for both arms.",
+      "Candidate does not increase the blinded unrelated-paper fraction among returned follow-up papers; incomplete blind labels make the outcome inconclusive.",
+      "Every returned paper has complete query, selected relaxation rung, selected/fetched/final PMID, source/tool, and actual server-process provenance."
+    ],
+    "shared_first_search_scoring": "The identical shared-first-search set enters both arm coverage unions. Follow-up hits already present in that shared set cannot contribute an incremental gain or loss. Keep returned follow-up-paper blinded unrelated fractions as separately declared; no packet item may be missing a blind label.",
+    "failure_interpretation": "A primary or non-regression failure rejects this exact frozen adaptation only. It does not establish that every iterative search method fails.",
+    "pass_interpretation": "A pass retains the mechanism as promising only; no product adoption or release until the separately preregistered independent three-pair confirmatory comparison passes.",
+    "prospective_clarification": "Independent review before any study3 scientific call found that counting a follow-up re-retrieval of a seed target could fabricate incremental prior-art discovery. Union/dedup prevents this, retaining original at-least-one improvement/no-loss/control/provenance thresholds. v1/v2 remain interrupted and are not retrospectively rescored."
+  },
+  "stop_rules": [
+    "Stop scientific requests on the first unresolved provider, model-admission, price, rate-limit, MCP retrieval, parser, trace, payload, process-attestation or provenance error. No transient Entrez error is retried or recovered.",
+    "Never retry a model, outer MCP call or Entrez request; never resume a consumed study, substitute routes/tools, or restart after admission. No recovery policy is authorized.",
+    "Any interruption after the one-shot admission marker leaves the pilot incomplete; do not replay it.",
+    "Require exactly one observed uncached provider response per model query, zero model/outer-call/Entrez retries and zero cache hits, and exact selected served-model identity.",
+    "Any nonzero billed/provider price evidence fails closed; model request caps remain zero for prompt, completion, and request."
+  ],
+  "campaign_admission": {
+    "one_shot": true,
+    "marker_path": "references/external/sakana/novelty-result-conditioned-pilot-prereg-v6.admission.json",
+    "creation": "Atomic exclusive-create before the first external model or MCP call.",
+    "scope": "One exclusive claim for prospective protocol6, fresh bank7, and the exact maintained batch-aware evidence boundary; new output names never authorize replay.",
+    "limits": {
+      "max_model_calls": 24,
+      "max_outer_mcp_calls": 36
+    }
+  },
+  "cache_isolation": {
+    "root": "One fresh absolute, non-symlink, empty campaign cache directory, checked before admission.",
+    "per_outer_call": "Unique campaign nonce and outer-call-number slug/run ID across all 36 possible MCP calls; no result or shared cache reuse.",
+    "llm_cache": false
+  },
+  "provenance": {
+    "result_report": "Private file with request parameters, exact query, model telemetry, papers/PMIDs for scoring, trace, validation outcome, and attested MCP serving PID/listener/source path/source tree.",
+    "blind_packet": "Separate private file with randomized IDs and draft/title/abstract only; no arm, rank, PMID, or scorer IDs.",
+    "live_mcp_attestation": "Pin the maintained MCP source tree/build ID; require one owned credential-free loopback process, working directory/import source, trace build ID and batch=1/recovery disabled/no study ID. Require empty isolated campaign cache before admission. Verify unchanged process/source/cache-root binding around each outer call; the strict per-slug raw trace proves fresh metadata origins and zero cache hits, while retaining trace and downloaded-cache artifacts.",
+    "raw_trace_required": [
+      "run_id",
+      "server_build_id",
+      "process_id",
+      "source_file",
+      "sort",
+      "entrez_retry_policy",
+      "entrez_calls",
+      "incomplete_fetch_count",
+      "fetch_errors",
+      "metadata_origins",
+      "attempts",
+      "selected",
+      "pre_search_shared_pool",
+      "fetched",
+      "final_ids",
+      "shared_pool_supplements",
+      "error",
+      "outcome",
+      "metadata_batching"
+    ],
+    "raw_trace_gate": "Use the pinned novelty_batch_trace.validate_batch_trace on the actual raw trace. Require exact selected-ID coverage, ASCII-numeric distinct ordered inputs, batches of at most nine, fresh EFetch requested/returned set equality (returned order may be shuffled), exact ELink coverage, one valid linked/no-link result per ID, no errors/incomplete/truncation/unknown cache origins, fresh per-slug cache isolation, and agreement between every returned pmc_full_text_id and the raw ELink result. Any mismatch stops before accepting the event or blind evidence. The raw wrapper ledger proves metadata EFetch/ELink batch counts only; it is not wire HTTP telemetry. Exclude PMC fulltext fetches and retstart pages from metadata counts; make no total-HTTP-count claim.",
+    "tool_run_id_namespace": "Use distinct protocol6, admission, result and blind-packet paths. The maintained runner uses a fresh nonce and outer-call number for every MCP slug and m12_nov_v6 model telemetry run ID; no previous admission/result is reused.",
+    "metadata_batching_schema": {
+      "search_members": [
+        "sampled_pmids",
+        "cache_hits"
+      ],
+      "per_batch_members": [
+        "batch_index",
+        "input_pmids",
+        "cache_hit_pmids",
+        "efetch_pmids",
+        "efetch_returned_pmids",
+        "elink_pmids",
+        "elink_results"
+      ],
+      "per_elink_outcome": [
+        "pmid",
+        "status",
+        "pmc_id"
+      ],
+      "maximum_pmid_group_size": 9,
+      "maximum_batch_groups_per_search": 1
+    }
+  },
+  "source_evidence": {
+    "selected_route": "The exact Space Bunny Alpha / Stealth route and zero-price request configuration are preserved. Study5 eligibility evidence is preparation-only; root must recheck the current catalog, active endpoint and account projection before any future Study6 call.",
+    "fixture_source_review": "references/external/sakana/novelty-v7-source-review-2026-10-01.json",
+    "fixture_source_review_sha256": "196626290ede52e0bcd1eabac85ab5282cd51a2f5ad064e2ad682fd128784a4f",
+    "fixture_source_review_status": "ACCEPT_SOURCE_VALIDATION_ONLY",
+    "offline_bank_draft_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study6/preflight/novelty-fixture-bank-v7-offline-draft.json",
+    "offline_bank_draft_sha256": "2cd98ef9461e0427adfb6169644e1d632807b0d13c410facb9ef22dc38e00d30",
+    "trace_readiness": "references/external/sakana/novelty-pilot-v6-process-readiness-2026-10-01.json",
+    "source_metadata_preparation": "The native reviewer accepted all twelve sources against the exact author XML and finite prior818; the fresh peer accepted the corrected source cases. The scope is source identity, abstract-supported draft wording, distinct controls and finite prior-exposure disjointness only; no scientific-performance or universal novelty claim.",
+    "model_inference_during_preparation": 0,
+    "scientific_mcp_calls_during_preparation": 0,
+    "model_metadata_reads": "Read-only official catalog/endpoint evidence is retained separately; no model inference or maintained scientific retrieval was used for this offline draft.",
+    "reuse": "Independent implementation of an external technique; no claim of Google private implementation or copied restricted source.",
+    "prospective_inclusion_rule": "Use all six bank7 pairs in source-author order only after independent source acceptance and coordinator review. Selection after public metadata discovery remains exploratory, not retrospectively preregistered.",
+    "source_review_before_registration": true,
+    "runner_code_committed_before_protocol": "16276921b8a0f8275edc70835928c22e6e10ee0a",
+    "batch_trace_reader": {
+      "path": "references/external/sakana/novelty_batch_trace.py",
+      "sha256": "63ed3ebfdde0d20bd840b1bf1d97f3fc2e98208b6ba6ac94b9d449efd67cbb69",
+      "role": "Strict raw batch-trace validator for the actual maintained producer output."
+    },
+    "official_eligibility_receipt_path": "references/external/sakana/novelty-pilot-v5-eligibility-2026-09-30.json",
+    "official_eligibility_receipt_sha256": "25c40f0ae8fb3ce28a2b765b198e00f7c3ca8c1fca2edcab27cb5c7d3519db0e",
+    "trace_readiness_sha256": "7d31d7ac9b73263c683ae3bf84c1faafe9a0095c9d2294c0057d8ba32353a274",
+    "registration_commit_boundary": "Root review must bind exact committed protocol6 and bank7 bytes before admission; these private offline drafts are not registration evidence.",
+    "fixture_source_proposal": "references/external/sakana/novelty-v7-source-proposal-2026-10-01.json",
+    "fixture_source_proposal_sha256": "0e47f9419de4e32592d9589c2106b6d43c46e29475b3d1d73e652cc3b610347f",
+    "prior_source_exposure_manifest_path": "references/external/sakana/novelty-v7-prior-exposure-manifest-2026-10-01.json",
+    "prior_source_exposure_manifest_sha256": "bb83e183131b5dd6608e2c6ae68f1bc0a5086bd3ee2ab55578d18c20697ba6ea",
+    "prior_source_exposure_union_count": 818,
+    "post_discovery_exposure_manifest_path": "references/external/sakana/novelty-v7-exposure-manifest-2026-10-01.json",
+    "post_discovery_exposure_manifest_sha256": "75a9087f318c26788b6a88b4a87978f3d6767d818cb3ec462bbdbbfdb84a2ea0",
+    "post_discovery_exposure_union_count": 958,
+    "source_disjointness_baseline": "Use only the pre-discovery prior-818 manifest for prior-source disjointness; the expanded958 manifest is post-discovery context.",
+    "selected_candidate_prior_collision_count": 0,
+    "source_review_scope": "Source identity, abstract-supported draft wording, distinct controls and finite prior-exposure disjointness only. Not scientific-performance or universal novelty acceptance."
+  },
+  "static_prompt_sha256": "a43f7c96c12e54b2c31b764387a7556b954351a1205bfdc14075324e72003c65",
+  "conditioned_prompt_sha256": "5e17fac7c276dafc7100242e464ee12db191b33de06453f10872cb1c12925ab2",
+  "launch_requirements": [
+    "Recheck official zero-price catalog, active exact Stealth endpoint and read-only account projection immediately before any live batch.",
+    "Use one fresh empty isolated cache root before admission. Before and after each outer call verify the same process/source/cache root, and require the raw trace to prove a fresh per-slug pool, fresh metadata origin and no cache hits; retain per-call traces.",
+    "Verify unchanged model/prompt/request settings, batch-reader and maintained producer hashes, validator/parser/tool boundary and process/source/cache-root binding around each call. Require an empty campaign cache before admission, and fresh per-slug origins/no metadata cache hits in every retained raw trace; preserve traces and downloads.",
+    "Claim the one-shot admission before MCP initialize or any scientific call.",
+    "No model, outer-MCP or Entrez retries/recovery, route/tool substitution, paid service, consumed-study replay or historical rescoring."
+  ],
+  "study_version": 6,
+  "fixture_bank_version": 7,
+  "preparation_verification": {
+    "source_review_status": "ACCEPT_SOURCE_VALIDATION_ONLY",
+    "offline_cli_preflight": {
+      "status": "COMPLETED_OFFLINE_WITH_NO_ADMISSION_OR_CALLS",
+      "required_entrypoint": "python references/external/sakana/novelty_result_conditioned_pilot.py --study-version 6 --preflight-only --preflight-protocol <private-draft> --preflight-bank <private-bank>",
+      "receipt_path": "references/external/sakana/novelty-pilot-v6-process-readiness-2026-10-01.json",
+      "receipt_sha256": "7d31d7ac9b73263c683ae3bf84c1faafe9a0095c9d2294c0057d8ba32353a274",
+      "private_protocol_sha256": "9b1610bca55f6f26616c2a172d31c34e4ab4c1b53aa53f5db720613d88c5f71d",
+      "private_bank_sha256": "2cd98ef9461e0427adfb6169644e1d632807b0d13c410facb9ef22dc38e00d30",
+      "process_stopped_and_listener_absent": true,
+      "scope": "Actual maintained CLI/process/cache/env only; no provider credentials, model client, scientific transport, admission or scientific calls."
+    },
+    "model_requests": 0,
+    "scientific_mcp_calls": 0,
+    "admission_marker_created": false,
+    "source_review_receipt_sha256": "196626290ede52e0bcd1eabac85ab5282cd51a2f5ad064e2ad682fd128784a4f",
+    "offline_code_verification": {
+      "path": "references/external/sakana/novelty-study6-dispatch-verification-2026-10-01.json",
+      "sha256": "0221ff97882f022fdc97353d0f7f12e94b768f9fccf5e13be7bd64d122fea744",
+      "coordinator_runner_cases_passed": 103,
+      "coordinator_reader_cases_passed": 26,
+      "scope": "Source-pinned offline behavior; no live or scientific-performance evidence."
+    }
+  },
+  "stop_rule_scope": "Batching is an operational retrieval boundary, not a relaxed scientific threshold. No retry or recovery is enabled. Any unresolved error permanently stops this admission unscored; no partial scientific rejection/adoption or old-study replay.",
+  "prepared_at_utc": "2026-10-01T00:04:00.600585+00:00",
+  "registration_boundary": "Effective only when these exact protocol6 and bank7 bytes are committed unchanged before any scientific request. Actual registration commit/time and committed-loader check are retained in a separate registration receipt. No historical admission is replayed.",
+  "batch_trace_source_sha256": {
+    "references/external/sakana/novelty_batch_trace.py": "63ed3ebfdde0d20bd840b1bf1d97f3fc2e98208b6ba6ac94b9d449efd67cbb69",
+    "engine/mcp_server/entrez_rate_limit.py": "6f263d534105a2274475feeceecae17d94216c0289502edae11f89ba7cd0deab",
+    "engine/mcp_server/pubmed_client.py": "d95a9f3e9f8a803b65da599d039ba5f69bceb8650d0e58ad3ddb3aa2eec2f857",
+    "engine/mcp_server/pubmed_metadata_batch.py": "52e2cfaf5ba38402aca0b4c4bbd84ae57ebfbd6d768a3493c79542a04cfa73e0",
+    "engine/mcp_server/pubmed_pilot_trace.py": "9a5feff61786c0b3d3f00f166cb4cc25dc7aad57d7167f36c1beacd07868583a",
+    "engine/mcp_server/shared_pool.py": "6e85241b4981bda4e8e51c23e28012cc5fad2d8b8a7c8f0f37292bcff64b1a54",
+    "engine/mcp_server/tools/lit_review/pubmed_search_with_fulltext.py": "596da1a66d53cee54c36bda77082c2d1d46702334cbf90055f81ac9085bb74df"
+  },
+  "workflow_item_mapping": {
+    "preparation_item": "M12-04b4g2",
+    "execution_item": "M12-04b4g3",
+    "study_version": 6,
+    "registry_identity_note": "M12-04b4g1 anchors the registration name; g2 is private preparation and g3 is execution. Checklist IDs do not rename the unique study6 registration/admission/results."
+  }
+}

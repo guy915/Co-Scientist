@@ -71,6 +71,18 @@ admission. Their metadata-only preparation does not authorize scoring partial re
 or close scientific gates. The f4-v5 registry labels are the fixed workflow-integration
 anchor; f5 prepares and f6 executes study_version5. No historical replay follows.
 
+The corrected runner now supports a distinct study6 registration, verified by the
+[dispatch checks](sakana/novelty-study6-dispatch-verification-2026-10-01.json).
+Its [bank7 source review](sakana/novelty-v7-source-review-2026-10-01.json) checks
+twelve fixed papers against the finite 818-ID prior exposure set; the separate
+958-ID manifest includes current discovery for future exclusion. Two draft scope
+errors were corrected before performance queries. The [actual process preflight](sakana/novelty-pilot-v6-process-readiness-2026-10-01.json)
+passed with no credentials, scientific calls or admission; its process and listener
+are stopped. Protocol6/bank7 registration and committed-loader proof are recorded
+separately. Preparation establishes no scientific gain and authorizes no historical
+replay. Study6 requires fresh free-route/account/process checks before its one
+admission; all five interrupted studies remain unscored.
+
 The current verified release is [PR #80](https://github.com/guy915/Co-Scientist/pull/80),
 `73459c6c85726864c97a1b4aa28cb184bfca9976`, with healthy existing-service
 deployments and 5/5 keyless smoke. Its reference-only changes preserve PR #79
