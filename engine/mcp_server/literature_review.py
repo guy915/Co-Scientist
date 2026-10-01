@@ -231,6 +231,7 @@ class PubmedSource(_SharedPoolMixin):
         papers_to_use: list[str],
         all_details: dict[str, Any],
         fulltext_shortfall: int,
+        include_fulltext: bool = True,
     ) -> None:
         """Downloads fulltexts, tops up shortfalls, and records the run.
 
@@ -239,10 +240,12 @@ class PubmedSource(_SharedPoolMixin):
             papers_to_use: Selected paper IDs; mutated with supplements.
             all_details: Metadata keyed by paper_id; mutated with supplements.
             fulltext_shortfall: Additional papers needed to reach max_papers.
+            include_fulltext: Whether to fetch PMC fulltext for selected papers.
         """
-        await self._download_fulltexts_for_papers(
-            papers_to_use, all_details, run.slug, run.run_id, run.semaphore
-        )
+        if include_fulltext:
+            await self._download_fulltexts_for_papers(
+                papers_to_use, all_details, run.slug, run.run_id, run.semaphore
+            )
         self._maybe_supplement_from_pool(
             run, papers_to_use, all_details, fulltext_shortfall
         )
@@ -283,13 +286,16 @@ class PubmedSource(_SharedPoolMixin):
                 run.max_papers,
             )
 
-    async def pubmed_search(
+    # Keep the five positional arguments; the opt-out is keyword-only.
+    async def pubmed_search(  # noqa: PLR0913
         self,
         query: str,
         slug: str,
         max_papers: int = 10,
         recency_years: int = 0,
         run_id: str | None = None,
+        *,
+        include_fulltext: bool = True,
     ) -> dict[str, Any]:
         """Searches PubMed and downloads fulltext HTML from PMC.
 
@@ -299,66 +305,72 @@ class PubmedSource(_SharedPoolMixin):
         - Papers stored in slug/shared/ (accumulated across runs)
         - Per-run view in slug/runs/{run_id}/ (symlinks to shared)
 
-        Target fulltext strategy:
+        Target selection strategy:
         - Requests 3x the target number of papers to account for missing
           fulltexts
-        - Processes in order (most recent first) until reaching max_papers
-          WITH fulltext
+        - Selects PMC-linked metadata in most-recent-first order, then fills
+          any remaining result slots from the search order
+        - Downloads fulltext for selected papers unless include_fulltext
+          is false
         - If PubMed is exhausted, supplements from shared pool
-        - Returns fulltext papers first, then ranked abstract-only papers to
-          fill the requested corpus size
+        - Returns selected PMC-linked papers first, then abstract-only papers
+          to fill the requested corpus size
 
         Args:
             query: PubMed boolean query.
             slug: Identifier for organizing results (research goal hash).
-            max_papers: Target number of papers WITH fulltext to collect.
+            max_papers: Maximum number of papers to return.
             recency_years: Filter to papers from last N years (0 = no filter).
             run_id: Unique run identifier for this execution (enables per-run
                 tracking).
-
-        Returns:
-            Dict mapping paper_id to metadata, with fulltext where available.
-        """
-        return await self._pubmed_search_impl(
-            query, slug, max_papers, recency_years, run_id
-        )
-
-    async def _pubmed_search_impl(
-        self,
-        query: str,
-        slug: str,
-        max_papers: int,
-        recency_years: int,
-        run_id: str | None,
-    ) -> dict[str, Any]:
-        """Runs the full PubMed search, download, and assembly pipeline.
-
-        Args:
-            query: PubMed boolean query.
-            slug: Identifier for organizing results (research goal hash).
-            max_papers: Target number of papers WITH fulltext to collect.
-            recency_years: Filter to papers from last N years (0 = no filter).
-            run_id: Unique run identifier, or None to skip per-run tracking.
+            include_fulltext: Whether to download PMC fulltext. PMC-linked
+                metadata selection and provenance are retained when false.
 
         Returns:
             Dict mapping paper_id to metadata, with fulltext where available.
         """
         run = self._build_run(query, slug, max_papers, run_id)
+        return await self._pubmed_search_impl(
+            run, recency_years, include_fulltext=include_fulltext
+        )
+
+    async def _pubmed_search_impl(
+        self,
+        run: _PubmedRun,
+        recency_years: int,
+        *,
+        include_fulltext: bool = True,
+    ) -> dict[str, Any]:
+        """Runs the full PubMed search, download, and assembly pipeline.
+
+        Args:
+            run: Filesystem, query, and provenance context for this search.
+            recency_years: Filter to papers from last N years (0 = no filter).
+            include_fulltext: Whether to download PMC fulltext for selected
+                papers.
+
+        Returns:
+            Dict mapping paper_id to metadata, with fulltext where available.
+        """
         with pilot_trace_context(run.trace):
             try:
                 all_details = await self._search_and_collect_metadata(
-                    query, max_papers, recency_years, run
+                    run.query, run.max_papers, recency_years, run
                 )
                 papers_to_use, fulltext_shortfall = (
-                    self._select_fulltext_papers(all_details, max_papers)
+                    self._select_fulltext_papers(all_details, run.max_papers)
                 )
                 await self._download_and_record(
-                    run, papers_to_use, all_details, fulltext_shortfall
+                    run,
+                    papers_to_use,
+                    all_details,
+                    fulltext_shortfall,
+                    include_fulltext,
                 )
                 if run.trace is not None:
                     _record_fetched_papers(run.trace, all_details)
                 final_results = self._assemble_final_results(
-                    papers_to_use, all_details, max_papers
+                    papers_to_use, all_details, run.max_papers
                 )
             except Exception as exc:
                 self._write_pilot_error_trace(run, exc)

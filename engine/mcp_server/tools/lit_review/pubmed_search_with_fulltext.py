@@ -134,6 +134,7 @@ class _PubmedSearchParams:
         max_papers: Maximum papers to retrieve.
         recency_years: Filter to papers from last N years (0 = no filter).
         run_id: Unique run identifier, enabling per-run tracking.
+        include_fulltext: Whether to download and extract PMC fulltext.
     """
 
     query: str
@@ -141,6 +142,7 @@ class _PubmedSearchParams:
     max_papers: int
     recency_years: int
     run_id: str | None
+    include_fulltext: bool = True
 
 
 async def _run_pubmed_search(
@@ -174,6 +176,7 @@ async def _run_pubmed_search(
         params.max_papers,
         params.recency_years,
         params.run_id,
+        include_fulltext=params.include_fulltext,
     )
     logger.info("Pubmed search complete - found %s papers", len(results))
     return results
@@ -197,12 +200,15 @@ async def _attach_fulltexts(
     )
 
 
-async def pubmed_search_with_fulltext(
+# Keep the five positional arguments; the opt-out is keyword-only.
+async def pubmed_search_with_fulltext(  # noqa: PLR0913
     query: str,
     slug: str,
     max_papers: int = 10,
     recency_years: int = 0,
     run_id: str | None = None,
+    *,
+    include_fulltext: bool = True,
 ) -> dict[str, Any]:
     """Searches PubMed and downloads fulltexts (HTML from PMC).
 
@@ -218,6 +224,8 @@ async def pubmed_search_with_fulltext(
         recency_years: Filter to papers from last N years (0 = no filter).
         run_id: Unique run identifier for this execution (enables per-run
             tracking).
+        include_fulltext: Set false to retain PMC-linked selection and
+            metadata provenance while skipping PMC fulltext download/extraction.
 
     Returns:
         Dict mapping paper_id to metadata (title, abstract, authors, doi,
@@ -232,12 +240,14 @@ async def pubmed_search_with_fulltext(
             max_papers=max_papers,
             recency_years=recency_years,
             run_id=run_id,
+            include_fulltext=include_fulltext,
         ),
     )
 
     # Extract fulltext from HTML and add to metadata.
     run_dir = _fulltext_run_dir(lit_review_dir, slug, run_id)
-    await _attach_fulltexts(results, run_dir)
+    if include_fulltext:
+        await _attach_fulltexts(results, run_dir)
 
     # `results` metadata dicts were mutated in place by extract_fulltext,
     # so the fulltext (where available) is already attached here.
