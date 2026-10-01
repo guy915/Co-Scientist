@@ -21,7 +21,7 @@ generator = HypothesisGenerator(
 ```
 
 Only the four run-size knobs are top-level constructor arguments; every other
-knob lives on `GeneratorOptions` and is passed as `options=`. See constants.py
+knob lives on `GeneratorOptions` and is passed as `options=`. See constants/__init__.py
 for other defaults.
 
 ## Configuration Parameters
@@ -212,11 +212,11 @@ COSCIENTIST_LIT_REVIEW_DIR=./cache/literature_review
 
 ## Constants and Internal Parameters
 
-Most users won't need to modify these, but they're centralized in `src/co_scientist/constants.py`:
+Most users won't need to modify these, but they're centralized in `src/co_scientist/constants/__init__.py`:
 
 ### Elo Rating Parameters
 
-Defined in `src/co_scientist/constants_tournament.py` (re-exported from `constants.py`):
+Defined in `src/co_scientist/constants/tournament.py` (re-exported from `constants/__init__.py`):
 
 ```python
 INITIAL_ELO_RATING = 1200  # Starting Elo rating for all hypotheses
@@ -250,8 +250,8 @@ DUPLICATE_SIMILARITY_THRESHOLD = 0.95  # Remove near-identical hypotheses
 
 ### Modifying Constants
 
-If you need to tune these parameters, edit `src/co_scientist/constants.py` (or
-`constants_tournament.py` for the Elo/tournament parameters above).
+If you need to tune these parameters, edit `src/co_scientist/constants/__init__.py` (or
+`constants/tournament.py` for the Elo/tournament parameters above).
 
 Modifying constants may affect result quality and should be done with careful evaluation.
 

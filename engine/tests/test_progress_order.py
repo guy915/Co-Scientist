@@ -78,13 +78,13 @@ _NODE_CHECKPOINTS: dict[str, tuple[int, ...]] = {
     ),
 }
 
-# Walked nodes that emit no checkpoint from constants.py.
+# Walked nodes that emit no checkpoint from constants/__init__.py.
 _EXEMPT_NODES = {
     # Emits no PROGRESS_* checkpoint at all.
     "comprehensive_reflection",
     # Its progress values are hardcoded fractions (0.1-0.2) in its node
     # module -- a 0-1 vs 0-100 scale mismatch that predates this invariant
-    # and lives outside constants.py, so it cannot join the walk yet.
+    # and lives outside constants/__init__.py, so it cannot join the walk yet.
     "literature_review",
 }
 

@@ -168,7 +168,7 @@ _ARRAY_LENGTH_HINTS: dict[str, Callable[[str], dict[str, int]]] = {
 # _SCORE_CRITERIA, mirrored here rather than imported across that privacy
 # boundary) plus the descriptive overall_score. Every offline review's
 # every score otherwise defaults through _SCALAR_DEFAULTS to exactly
-# NEEDS_REVISION_SCORE (constants.py, currently 4), which the initial
+# NEEDS_REVISION_SCORE (constants/__init__.py, currently 4), which the initial
 # review gate reads with a <=, not a <: every offline-reviewed hypothesis
 # therefore lands in "needs_revision", never "viable" --
 # review_gate._disposition_for -- and only a "viable" hypothesis reaches

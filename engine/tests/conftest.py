@@ -79,7 +79,7 @@ def _patch_mcp_seam(
 @pytest.fixture(autouse=True)
 def _free_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
     """Synthetic metadata keeps mocked free-model requests hermetic."""
-    from co_scientist.constants_pricing import MODEL_PRICING
+    from co_scientist.constants.pricing import MODEL_PRICING
     from co_scientist.llm.admission import free_catalog
 
     catalog = {

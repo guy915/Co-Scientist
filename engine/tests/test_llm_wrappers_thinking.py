@@ -306,7 +306,7 @@ def test_the_gateway_route_is_pinned_to_hosts_that_honour_the_call(
     own 600s ceiling outright. And they differ by 6.5x in price, which
     neither ``order`` nor ``preferred_min_throughput`` considers at all,
     so without a ceiling the run cost this project reports bounds nothing
-    -- the cap is what makes ``constants_pricing`` an estimate of the
+    -- the cap is what makes ``constants.pricing`` an estimate of the
     worst case rather than of one arbitrary host.
 
     The mechanism guarding the first risk changed since that measurement:

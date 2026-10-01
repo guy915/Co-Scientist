@@ -274,12 +274,12 @@ class DebatePromptRequest:
 # The paper's generation-debate turn envelope (SSR note 9.1): sufficient
 # discussion "typically 3-5 conversational turns, with a maximum of 10",
 # concluded by the panel writing the HYPOTHESIS termination token. These
-# live here, not in constants.py, because the debate turn loop
+# live here, not in constants/__init__.py, because the debate turn loop
 # (agents/generation/debate.py) and the template prose below must share a
 # single source: the panel paces itself against whatever number it is
 # told, so a stale figure in the template reads as a real instruction.
-# constants.py holds values shared across nodes; this envelope belongs to
-# the debate alone.
+# The constants package holds values shared across nodes; this envelope
+# belongs to the debate alone.
 _DEBATE_TYPICAL_MIN_TURNS: Final = 3
 """Lower end of the paper's typical convergence range for a debate."""
 

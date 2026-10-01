@@ -27,7 +27,7 @@ from co_scientist.constants import (
     DEFAULT_CACHE_ENABLED,
     truncate,
 )
-from co_scientist.constants_cache import (
+from co_scientist.constants.cache import (
     DEFAULT_CACHE_TTL_SECONDS,
     LLM_CACHE_SCHEMA_VERSION,
 )

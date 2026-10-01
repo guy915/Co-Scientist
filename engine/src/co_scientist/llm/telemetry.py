@@ -33,7 +33,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
 
-from co_scientist.constants_pricing import MODEL_PRICING, estimate_cost_usd
+from co_scientist.constants.pricing import MODEL_PRICING, estimate_cost_usd
 from co_scientist.llm.request.response import extract_token_usage
 
 UNSPECIFIED_PHASE = "unspecified"
@@ -69,7 +69,7 @@ class ModelCallStats:
             response cache: a call can miss ours and still be almost
             entirely cached at the provider, which is the normal case for
             a tool loop re-sending its transcript.
-        cost_usd: Estimated cost in USD (see ``constants_pricing``).
+        cost_usd: Estimated cost in USD (see ``constants.pricing``).
         latency_seconds: Wall-clock time spent in the physical calls.
         retries: Retries of either LLM retry loop -- ``call_llm_json``'s
             schema-repair loop or ``call_llm``'s own budget-escalation loop

@@ -9,7 +9,7 @@ aggregation and scoping contract in isolation.
 
 from types import SimpleNamespace
 
-from co_scientist.constants_pricing import estimate_cost_usd
+from co_scientist.constants.pricing import estimate_cost_usd
 from co_scientist.llm import (
     ModelCallStats,
     record_call,

@@ -16,7 +16,7 @@ engine/
 │       ├── llm/                # LLM dispatch package (call, request, attempts, tools)
 │       ├── cache.py            # LLM response caching
 │       ├── mcp_client.py       # MCP server integration
-│       ├── constants.py        # Configuration constants
+│       ├── constants/          # Configuration constants
 │       ├── config/             # YAML-based tool/domain configuration
 │       │   ├── registry.py     # Config loading and merge logic
 │       │   ├── schema.py       # Config schema validation

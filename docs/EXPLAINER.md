@@ -108,7 +108,7 @@ Key facts:
 - The topology is declared once in `workflow_topology.py` (`generator/graph.py` wires the graph from it; the durable `task_runtime.next_task_type` resolves through it): every work phase converges on `review → comprehensive_reflection → safety_screen → deep_verification → ranking → orchestrator` — deep verification precedes tournament entry, mirroring `03-reflection.md`, and `proximity` returns to the orchestrator too. The orchestrator's decision (a `TaskType` value: `generate`/`reflect`/`rank`/`evolve`/`proximity`/`terminate`) maps through `TASK_ROUTES` to the node that begins that task — note `rank` enters at `safety_screen`, not directly at `ranking`, and `evolve` enters at `meta_review` (whose critique feeds `evolve`), not at the `evolve` node itself.
 - The policy is a pure function of `SchedulerStats` and a `Budget` (`scheduling/policy.py`). An LLM supervisor may only *recommend* a next task; `validate_decision` enforces the allowed transitions and budget — the code decides, the model only advises.
 - `current_iteration` is incremented by the orchestrator when it schedules a work task (generate/evolve); maintenance tasks (proximity/rank/reflect) and termination do not advance it (`agents/supervisor/orchestrator.py`).
-- `max_iterations` defaults to `1` (`constants.py::DEFAULT_MAX_ITERATIONS`) and acts as the budget's satisfied-completion cap; runs can also terminate early on convergence (top Elo stable across cycles) or an exhausted budget (`scheduling/policy.py`).
+- `max_iterations` defaults to `1` (`constants/__init__.py::DEFAULT_MAX_ITERATIONS`) and acts as the budget's satisfied-completion cap; runs can also terminate early on convergence (top Elo stable across cycles) or an exhausted budget (`scheduling/policy.py`).
 - A checkpoint-restored run re-enters at the orchestrator loop point via the START router (`generator/graph.py::_resume_router`); a fresh run starts at the supervisor.
 - The graph is built once per `HypothesisGenerator` instance (`generator/configuration.py::_build_graph`, edges in `generator/graph.py`) and invoked with `recursion_limit=100` (`_GRAPH_RECURSION_LIMIT` in `generator/run_execution.py`).
 
@@ -192,10 +192,10 @@ flowchart LR
 ```
 
 - **Debate** (`debate.py::generate_with_debate`, line 414) runs `count` parallel multi-turn debates, each yielding one hypothesis. Diversity angles (`_DEBATE_DIVERSITY_ANGLES`, defined in the sibling `debate_support.py:25` and re-exported into `debate.py`) seed each parallel debate. Generation calls use `use_cache=False` (`debate.py:98,238`) to preserve diversity.
-- **Tool-based** (`agents/generation/literature_tools/`) is two-phase: **draft** (`draft.py::draft_hypotheses`, line 384) — an agent reads pre-curated papers via MCP tools and drafts hypotheses using `call_llm_with_tools` with a dynamic iteration budget (`constants.py::get_draft_max_iterations`, `min(5+count*2,30)`); **validate** (`validate_stages.py::_run_validate_novelty_stage`, line 180, re-exported from `validate.py`) — per-hypothesis novelty analysis searches papers, then a synthesis agent in batches of `VALIDATION_SYNTHESIS_BATCH_SIZE=3` decides approve/refine/pivot. Failed batches retry individually with accumulated context (`validate_stages.py::_run_synthesis_stage_batches`, line 103).
+- **Tool-based** (`agents/generation/literature_tools/`) is two-phase: **draft** (`draft.py::draft_hypotheses`, line 384) — an agent reads pre-curated papers via MCP tools and drafts hypotheses using `call_llm_with_tools` with a dynamic iteration budget (`constants/__init__.py::get_draft_max_iterations`, `min(5+count*2,30)`); **validate** (`validate_stages.py::_run_validate_novelty_stage`, line 180, re-exported from `validate.py`) — per-hypothesis novelty analysis searches papers, then a synthesis agent in batches of `VALIDATION_SYNTHESIS_BATCH_SIZE=3` decides approve/refine/pivot. Failed batches retry individually with accumulated context (`validate_stages.py::_run_synthesis_stage_batches`, line 103).
 - **Citations** are domain-agnostic: `ReferenceIndex` (`citations.py:24`) is built from papers (`used_in_analysis=True`) **then** knowledge-graph enrichment sources, assigning sequential `[C1]`, `[C2]`, … keys in one namespace (`citations.py::build_reference_index`). The LLM emits `[Cn]` in `literature_grounding`; `resolve_citation_keys` (`citations.py:213`) maps them back to source metadata.
 - **Degraded mode** (`coordinator_results.py::_apply_degraded_mode_fallback`) stamps `literature_grounding` with an explicit "No literature review available" warning to prevent hallucinated citations; the MCP/lit-review availability check that decides degraded mode is `coordinator_strategy.py::_check_literature_availability`.
-- **Parallelism** is bounded by `MAX_CONCURRENT_LLM_CALLS=5` (`constants.py:174`). Review, reflection, and evolve all parallelize under it. Ranking is the exception: its fan-out is the tournament's whole shape, so it carries its own `RANKING_WAVE_SIZE=12` bound (`constants_tournament.py`), narrowing to `RANKING_WAVE_MIN_SIZE=3` under provider throttling.
+- **Parallelism** is bounded by `MAX_CONCURRENT_LLM_CALLS=5` (`constants/__init__.py:174`). Review, reflection, and evolve all parallelize under it. Ranking is the exception: its fan-out is the tournament's whole shape, so it carries its own `RANKING_WAVE_SIZE=12` bound (`constants/tournament.py`), narrowing to `RANKING_WAVE_MIN_SIZE=3` under provider throttling.
 
 ---
 
@@ -311,27 +311,27 @@ Key endpoints (full list in `AGENTS.md`): `POST /api/runs` (create draft), `POST
 
 ## 11. Fidelity & constants
 
-The implementation-defined values (see [`docs/FIDELITY.md`](FIDELITY.md) for the full invariant catalogue). Most live in `engine/src/co_scientist/constants.py`; the Elo/tournament values below live in the sibling `constants_tournament.py` and are re-exported from `constants.py`.
+The implementation-defined values (see [`docs/FIDELITY.md`](FIDELITY.md) for the full invariant catalogue). Most live in `engine/src/co_scientist/constants/__init__.py`; the Elo/tournament values below live in the sibling `constants/tournament.py` and are re-exported from `constants/__init__.py`.
 
 Cited by file rather than by line: a line number is a promise this table has repeatedly failed to keep as the module evolved.
 
 | Constant | Value | Where |
 | --- | --- | --- |
-| `INITIAL_ELO_RATING` | `1200` | `constants_tournament.py` |
-| `ELO_K_FACTOR` | `24` | `constants_tournament.py` |
-| `COMPARATIVE_BATCH_THRESHOLD` | `5` (≤5 → comparative batch; >5 → parallel individual) | `constants.py` |
-| `MAX_CONCURRENT_LLM_CALLS` | `5` | `constants.py` |
-| `DEFAULT_MAX_ITERATIONS` | `1` | `constants.py` |
-| `DEFAULT_INITIAL_HYPOTHESES_COUNT` | `5` | `constants.py` |
-| `DEFAULT_EVOLUTION_MAX_COUNT` | `3` | `constants.py` |
+| `INITIAL_ELO_RATING` | `1200` | `constants/tournament.py` |
+| `ELO_K_FACTOR` | `24` | `constants/tournament.py` |
+| `COMPARATIVE_BATCH_THRESHOLD` | `5` (≤5 → comparative batch; >5 → parallel individual) | `constants/__init__.py` |
+| `MAX_CONCURRENT_LLM_CALLS` | `5` | `constants/__init__.py` |
+| `DEFAULT_MAX_ITERATIONS` | `1` | `constants/__init__.py` |
+| `DEFAULT_INITIAL_HYPOTHESES_COUNT` | `5` | `constants/__init__.py` |
+| `DEFAULT_EVOLUTION_MAX_COUNT` | `3` | `constants/__init__.py` |
 | `_DEBATE_MAX_DISCUSSION_TURNS` | `10` (free-form discussion turns before the final synthesis turn; a converged panel stops sooner) | `prompts/generation_debate.py` |
-| `RESEARCH_OVERVIEW_TOP_K` | `10` | `constants.py` |
-| `DUPLICATE_SIMILARITY_THRESHOLD` | `0.95` (evolve anti-dup guard) | `constants.py` |
-| `LITERATURE_REVIEW_PAPERS_COUNT` | `10` (`_DEV=4`, `RECENCY_YEARS=7`) | `constants.py` |
-| `get_draft_max_iterations` | `min(5 + count*2, 30)` | `constants.py` |
-| `get_validate_max_iterations` | `min(count*10, 50)` | `constants.py` |
+| `RESEARCH_OVERVIEW_TOP_K` | `10` | `constants/__init__.py` |
+| `DUPLICATE_SIMILARITY_THRESHOLD` | `0.95` (evolve anti-dup guard) | `constants/__init__.py` |
+| `LITERATURE_REVIEW_PAPERS_COUNT` | `10` (`_DEV=4`, `RECENCY_YEARS=7`) | `constants/__init__.py` |
+| `get_draft_max_iterations` | `min(5 + count*2, 30)` | `constants/__init__.py` |
+| `get_validate_max_iterations` | `min(count*10, 50)` | `constants/__init__.py` |
 
-Temperatures: `LOW=0.3`, `MEDIUM=0.5`, `HIGH=0.7` (`constants.py`). Token budgets: `DEFAULT_MAX_TOKENS=4000`, `EXTENDED=8000`, `LONG=10000`, `THINKING=18000` (`constants_tokens.py`, re-exported from `constants.py`).
+Temperatures: `LOW=0.3`, `MEDIUM=0.5`, `HIGH=0.7` (`constants/__init__.py`). Token budgets: `DEFAULT_MAX_TOKENS=4000`, `EXTENDED=8000`, `LONG=10000`, `THINKING=18000` (`constants/tokens.py`, re-exported from `constants/__init__.py`).
 
 ---
 

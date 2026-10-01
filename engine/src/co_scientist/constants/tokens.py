@@ -6,8 +6,8 @@ reasons, the escalation budget a retry climbs to, and the per-node scaling
 inputs and caps that ``scaled_max_tokens`` combines. They are one subject
 -- each of the budgets below only means what it says relative to the floor,
 and the "no cap below the floor" rule is a property of this module read as
-a whole -- so they were split out of ``constants.py`` together (size cap;
-see ``constants_cache.py`` for the same pattern). ``co_scientist.constants``
+a whole -- so they were split out of the ``constants`` package root together
+(size cap; see ``constants/cache.py`` for the same pattern). ``co_scientist.constants``
 re-exports every name, so it stays the one import path for all of them.
 """
 

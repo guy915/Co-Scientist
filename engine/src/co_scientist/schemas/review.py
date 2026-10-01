@@ -70,7 +70,7 @@ _SCORE_CRITERIA: tuple[str, ...] = (
 # ("score 1-10 for each", bands 1-2 "not viable" through 9-10
 # "outstanding"). Declared here so the schema bounds and the parse-time
 # validation in agents/reflection/review_helpers.py share one source --
-# the initial review gate's thresholds (constants.py) are calibrated
+# the initial review gate's thresholds (constants/__init__.py) are calibrated
 # against these same bands.
 REVIEW_SCORE_MINIMUM: int = 1
 REVIEW_SCORE_MAXIMUM: int = 10

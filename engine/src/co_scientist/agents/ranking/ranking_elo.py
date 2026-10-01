@@ -8,10 +8,10 @@ from co_scientist.constants import (
 )
 
 # The K-annealing and margin-scaling knobs are local reconstruction choices
-# (paper-unspecified; see constants_tournament for each one's rationale).
+# (paper-unspecified; see constants.tournament for each one's rationale).
 # Imported from their home module rather than the constants re-export so the
 # tournament-shaping values stay the sole subject of that file.
-from co_scientist.constants_tournament import (
+from co_scientist.constants.tournament import (
     ELO_K_ANNEALED_MINIMUM,
     ELO_K_ANNEALING_HALF_LIFE,
     ELO_MARGIN_MULTIPLIER_CAP,
@@ -21,7 +21,7 @@ from co_scientist.constants_tournament import (
 # Judge confidence levels mapped to a fraction of a full victory margin.
 # The judge reports a verdict plus confidence rather than scores, so this is
 # the margin-of-victory reconstruction's signal (see ELO_MARGIN_VICTORY_SCALE
-# in constants_tournament). Unrecognized values score no margin at all.
+# in constants.tournament). Unrecognized values score no margin at all.
 _CONFIDENCE_MARGINS = {"high": 1.0, "medium": 0.5}
 
 

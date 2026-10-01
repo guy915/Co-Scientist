@@ -6,7 +6,7 @@ file-length ceiling, and these two are read together -- the outline
 prompt decides a structure the theme prompt is then handed back.
 
 Why the pass is split at all is recorded on
-``constants_tokens.KNOWLEDGE_BASE_OUTLINE_MAX_TOKENS``: one call asking
+``constants.tokens.KNOWLEDGE_BASE_OUTLINE_MAX_TOKENS``: one call asking
 for the whole ~20,000-token span cannot be served inside the 600s
 per-call ceiling, whatever budget it carries.
 """

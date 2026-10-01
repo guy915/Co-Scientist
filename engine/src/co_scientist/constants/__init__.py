@@ -15,82 +15,82 @@ from typing import Final
 # ``co_scientist.constants`` stays the single import path; the tournament
 # block below explains the redundant ``X as X`` alias form and why the
 # longest names cannot fit it in 80 columns.
-from co_scientist.constants_tokens import (
+from co_scientist.constants.tokens import (
     BUDGET_ESCALATION_MAX_INCREMENT as BUDGET_ESCALATION_MAX_INCREMENT,
 )
-from co_scientist.constants_tokens import (
+from co_scientist.constants.tokens import (
     BUDGET_ESCALATION_MAX_TOKENS as BUDGET_ESCALATION_MAX_TOKENS,
 )
-from co_scientist.constants_tokens import (
+from co_scientist.constants.tokens import (
     DEBATE_FINAL_TURN_MAX_TOKENS_CAP as DEBATE_FINAL_TURN_MAX_TOKENS_CAP,
 )
-from co_scientist.constants_tokens import (
+from co_scientist.constants.tokens import (
     DEBATE_FINAL_TURN_TOKENS_PER_HYPOTHESIS as DEBATE_FINAL_TURN_TOKENS_PER_HYPOTHESIS,  # noqa: E501
 )
-from co_scientist.constants_tokens import (
+from co_scientist.constants.tokens import (
     DEEP_HYPOTHESIS_MAX_TOKENS as DEEP_HYPOTHESIS_MAX_TOKENS,
 )
-from co_scientist.constants_tokens import (
+from co_scientist.constants.tokens import (
     DEFAULT_MAX_TOKENS as DEFAULT_MAX_TOKENS,
 )
-from co_scientist.constants_tokens import (
+from co_scientist.constants.tokens import (
     DRAFT_MAX_TOKENS_CAP as DRAFT_MAX_TOKENS_CAP,
 )
-from co_scientist.constants_tokens import (
+from co_scientist.constants.tokens import (
     DRAFT_TOKENS_PER_HYPOTHESIS as DRAFT_TOKENS_PER_HYPOTHESIS,
 )
-from co_scientist.constants_tokens import (
+from co_scientist.constants.tokens import (
     EVOLVE_MAX_TOKENS_CAP as EVOLVE_MAX_TOKENS_CAP,
 )
-from co_scientist.constants_tokens import (
+from co_scientist.constants.tokens import (
     EVOLVE_TOKENS_PER_CONTEXT_HYPOTHESIS as EVOLVE_TOKENS_PER_CONTEXT_HYPOTHESIS,  # noqa: E501
 )
-from co_scientist.constants_tokens import (
+from co_scientist.constants.tokens import (
     EXTENDED_MAX_TOKENS as EXTENDED_MAX_TOKENS,
 )
-from co_scientist.constants_tokens import (
+from co_scientist.constants.tokens import (
     KNOWLEDGE_BASE_OUTLINE_MAX_TOKENS as KNOWLEDGE_BASE_OUTLINE_MAX_TOKENS,
 )
-from co_scientist.constants_tokens import (
+from co_scientist.constants.tokens import (
     KNOWLEDGE_BASE_THEME_MAX_TOKENS as KNOWLEDGE_BASE_THEME_MAX_TOKENS,
 )
-from co_scientist.constants_tokens import (
+from co_scientist.constants.tokens import (
     LONG_MAX_TOKENS as LONG_MAX_TOKENS,
 )
-from co_scientist.constants_tokens import (
+from co_scientist.constants.tokens import (
     MINIMAL_REASONING_MAX_TOKENS as MINIMAL_REASONING_MAX_TOKENS,
 )
-from co_scientist.constants_tokens import (
+from co_scientist.constants.tokens import (
     RESEARCH_OVERVIEW_DIRECTION_MAX_TOKENS as RESEARCH_OVERVIEW_DIRECTION_MAX_TOKENS,  # noqa: E501
 )
-from co_scientist.constants_tokens import (
+from co_scientist.constants.tokens import (
     RESEARCH_OVERVIEW_INTERIM_MAX_TOKENS as RESEARCH_OVERVIEW_INTERIM_MAX_TOKENS,  # noqa: E501
 )
-from co_scientist.constants_tokens import (
+from co_scientist.constants.tokens import (
     RESEARCH_OVERVIEW_MAX_TOKENS as RESEARCH_OVERVIEW_MAX_TOKENS,
 )
-from co_scientist.constants_tokens import (
+from co_scientist.constants.tokens import (
     REVIEW_BATCH_FREE_HYPOTHESES as REVIEW_BATCH_FREE_HYPOTHESES,
 )
-from co_scientist.constants_tokens import (
+from co_scientist.constants.tokens import (
     REVIEW_BATCH_MAX_TOKENS_CAP as REVIEW_BATCH_MAX_TOKENS_CAP,
 )
-from co_scientist.constants_tokens import (
+from co_scientist.constants.tokens import (
     REVIEW_BATCH_TOKENS_PER_HYPOTHESIS as REVIEW_BATCH_TOKENS_PER_HYPOTHESIS,
 )
-from co_scientist.constants_tokens import (
+from co_scientist.constants.tokens import (
     THINKING_FLOOR_MAX_TOKENS as THINKING_FLOOR_MAX_TOKENS,
 )
-from co_scientist.constants_tokens import (
+from co_scientist.constants.tokens import (
     THINKING_MAX_TOKENS as THINKING_MAX_TOKENS,
 )
-from co_scientist.constants_tokens import (
+from co_scientist.constants.tokens import (
     VALIDATION_SYNTHESIS_MAX_TOKENS_CAP as VALIDATION_SYNTHESIS_MAX_TOKENS_CAP,
 )
-from co_scientist.constants_tokens import (
+from co_scientist.constants.tokens import (
     VALIDATION_SYNTHESIS_TOKENS_PER_HYPOTHESIS as VALIDATION_SYNTHESIS_TOKENS_PER_HYPOTHESIS,  # noqa: E501
 )
-from co_scientist.constants_tokens import (
+from co_scientist.constants.tokens import (
     scaled_max_tokens as scaled_max_tokens,
 )
 
@@ -102,28 +102,28 @@ from co_scientist.constants_tokens import (
 # The redundant ``X as X`` is what marks a re-export under mypy's strict
 # no-implicit-reexport; the last name below is long enough that the alias form
 # cannot fit in 80 columns, and renaming it would break every caller.
-from co_scientist.constants_tournament import (
+from co_scientist.constants.tournament import (
     ELO_K_FACTOR as ELO_K_FACTOR,
 )
-from co_scientist.constants_tournament import (
+from co_scientist.constants.tournament import (
     ELO_UPSET_MARGIN as ELO_UPSET_MARGIN,
 )
-from co_scientist.constants_tournament import (
+from co_scientist.constants.tournament import (
     INITIAL_ELO_RATING as INITIAL_ELO_RATING,
 )
-from co_scientist.constants_tournament import (
+from co_scientist.constants.tournament import (
     RANKING_WAVE_MIN_SIZE as RANKING_WAVE_MIN_SIZE,
 )
-from co_scientist.constants_tournament import (
+from co_scientist.constants.tournament import (
     RANKING_WAVE_SIZE as RANKING_WAVE_SIZE,
 )
-from co_scientist.constants_tournament import (
+from co_scientist.constants.tournament import (
     SINGLE_TURN_DEBATE_TURNS as SINGLE_TURN_DEBATE_TURNS,
 )
-from co_scientist.constants_tournament import (
+from co_scientist.constants.tournament import (
     TOURNAMENT_MATCHES_PER_HYPOTHESIS as TOURNAMENT_MATCHES_PER_HYPOTHESIS,
 )
-from co_scientist.constants_tournament import (
+from co_scientist.constants.tournament import (
     TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS as TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS,  # noqa: E501
 )
 
