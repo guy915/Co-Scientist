@@ -20,11 +20,11 @@ from app import (
     engine_adapter,
     engine_tasks,
     qa,
-    qa_run_state,
     run_start_announcement,
     store,
 )
 from app.execution_policy import CAMPAIGN, campaign_model_for_config
+from app.qa import run_state as qa_run_state
 from app.runs.models import (
     AskRequest,
     SendMessageRequest,
@@ -223,7 +223,7 @@ async def ask_question(
     byok = _resolve_qa_byok(run, request)
     question_msg = _persist_question(run_id, req.question)
 
-    # Prompt assembly and streaming are delegated to qa.py; the endpoint
+    # Prompt assembly and streaming are delegated to app.qa; the endpoint
     # only gathers state and wires the SSE response.
     context = _gather_qa_context(run)
     if engine_adapter.offline_mode() and byok is None:

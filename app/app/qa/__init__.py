@@ -5,7 +5,7 @@ Q&A domain logic it delegates to: building the numbered, citation-ranked
 evidence manifest (using the four-state citation model in ``citations.py``),
 assembling the system prompt from the run's hypotheses/reviews/matches, and
 streaming the LLM answer while persisting the exchange. The manifest and
-prompt-assembly half lives in ``app.qa_manifest`` and is re-exported here so
+prompt-assembly half lives in ``app.qa.manifest`` and is re-exported here so
 callers keep importing from this module, as is the shared SSE encoder
 ``sse_frame`` (now ``app.sse``).
 """
@@ -21,10 +21,10 @@ from typing import Any
 from app import credentials, store
 from app.config import settings
 from app.execution_policy import scoped_execution_policy
-from app.qa_manifest import QaRunContext as QaRunContext
-from app.qa_manifest import build_evidence_manifest as build_evidence_manifest
-from app.qa_manifest import build_system_prompt as build_system_prompt
-from app.qa_stream import stream_llm_deltas as stream_llm_deltas
+from app.qa.manifest import QaRunContext as QaRunContext
+from app.qa.manifest import build_evidence_manifest as build_evidence_manifest
+from app.qa.manifest import build_system_prompt as build_system_prompt
+from app.qa.stream import stream_llm_deltas as stream_llm_deltas
 from app.sse import sse_frame as sse_frame
 
 logger = logging.getLogger(__name__)
@@ -245,7 +245,7 @@ async def _framed_answer(
     offline paths so the workbench chat renders both identically: the cited
     sources first (so the UI can resolve ``[n]`` markers while the answer is
     still arriving), then one ``reasoning``/``chunk`` frame per delta (see
-    ``qa_stream.stream_llm_deltas``), then ``done``. The persisted text and
+    ``qa.stream.stream_llm_deltas``), then ``done``. The persisted text and
     reasoning are the exact concatenation of the emitted frames of each
     kind, written before ``done`` so a reload right after completion shows
     the exchange -- reasoning included, matching what

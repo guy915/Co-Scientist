@@ -15,7 +15,7 @@ from collections.abc import Iterator
 from typing import Any
 
 from app.citations import STATE_RANK
-from app.qa_run_state import (
+from app.qa.run_state import (
     ReportFacts,
     RunProgress,
     render_idea_index,

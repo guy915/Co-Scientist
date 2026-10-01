@@ -87,7 +87,7 @@ function buildAskSinks(
 //
 // A stopped turn drops the partial answer rather than resyncing: unlike an
 // interview turn, nothing is persisted server-side until the stream
-// completes (see qa.py's `_framed_answer`), so there is nothing to recover
+// completes (see qa/__init__.py's `_framed_answer`), so there is nothing to recover
 // -- the abort itself is enough.
 async function runAskRequest(
   deps: AskComposerDeps,

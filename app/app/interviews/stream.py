@@ -104,7 +104,7 @@ async def _advance_stream(
     turn resolved to, including the deterministic fallback when the provider
     fails.
 
-    ``chunk`` is deliberately the frame name ``qa.py`` already streams
+    ``chunk`` is deliberately the frame name ``qa/__init__.py`` already streams
     prose under, so a client has one streaming contract for both chat
     surfaces rather than one per surface.
 

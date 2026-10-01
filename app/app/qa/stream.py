@@ -7,7 +7,7 @@ the monkeypatch surface tests already use.
 
 The shape worth knowing: the prompt carries an *index* of the run's ideas,
 never their bodies, so the first round is offered the ``search_ideas`` tool
-(``app.qa_ideas``) and a model that needs idea text asks for it. That costs
+(``app.qa.ideas``) and a model that needs idea text asks for it. That costs
 a second round only when it is used.
 """
 
@@ -17,7 +17,7 @@ import logging
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from app import credentials, offline_guard, qa_ideas
+from app import credentials, offline_guard
 from app.config import (
     CONVERSATIONAL_REASONING_EFFORT,
     THINKING_FLOOR_TIMEOUT_SECONDS,
@@ -25,6 +25,7 @@ from app.config import (
     thinking_safe_max_tokens,
 )
 from app.llm_stream import stream_chunks
+from app.qa import ideas as qa_ideas
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +152,7 @@ async def stream_llm_deltas(
     """Stream the answer, letting the model look up idea bodies once first.
 
     The prompt carries an index of the run's ideas but not their text (see
-    ``qa_run_state.render_idea_index``), so the first round is offered the
+    ``qa.run_state.render_idea_index``), so the first round is offered the
     ``search_ideas`` tool. A model that answers straight away costs exactly
     what it did before; only a model that asks for ideas pays for a second
     round, which is offered no tools and therefore has to answer.

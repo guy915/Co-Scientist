@@ -232,7 +232,7 @@ pessimistic 75 tok/s, well under what the provider sustains in practice.
 A long deadline is only acceptable where nobody is watching a blank screen
 for the length of it. The interview, the post-run Q&A chat, and the session
 announcement all relay their chain of thought to the scientist as it
-arrives (``qa_stream.stream_llm_deltas`` yields ``reasoning`` fragments the
+arrives (``qa.stream.stream_llm_deltas`` yields ``reasoning`` fragments the
 same way ``run_start_announcement`` does), so a stalled provider is caught
 by the stall timeout long before this floor matters and a long reasoning
 pass reads as visible progress rather than a quiet chat. Titling is the

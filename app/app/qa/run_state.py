@@ -7,7 +7,7 @@ that half of the context -- live progress while the run executes, and the
 finished report's synthesis once it completes -- and renders both as prompt
 sections.
 
-Split from ``app.qa_manifest`` (evidence and prompt assembly) so neither
+Split from ``app.qa.manifest`` (evidence and prompt assembly) so neither
 file carries two subjects; ``app.qa`` re-exports the names, keeping the
 one import surface callers already use.
 
@@ -36,7 +36,7 @@ _MAX_STEPS = 12
 
 # Ideas listed in the prompt's index. Every idea the run has is named there
 # (title, Elo, status) so the model knows what exists; the bodies are
-# fetched on demand with the search tool (see ``app.qa_ideas``), because a
+# fetched on demand with the search tool (see ``app.qa.ideas``), because a
 # run's full ideas together are larger than the whole rest of the prompt.
 _MAX_INDEXED_IDEAS = 40
 
