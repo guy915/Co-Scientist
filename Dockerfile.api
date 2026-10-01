@@ -46,6 +46,10 @@ COPY engine/src/ /workspace/co-scientist-engine/src/
 
 # Copy app source
 COPY app/app/ ./app/
+# Every engine module must reach the image: a broad .dockerignore pattern
+# (`**/cache`) once matched a source package, so prove the import here.
+RUN python -c "import importlib, pkgutil, co_scientist; \
+[importlib.import_module(m.name) for m in pkgutil.walk_packages(co_scientist.__path__, 'co_scientist.')]"
 COPY LICENSE NOTICE /usr/share/doc/co-scientist/
 
 # The vendored Google DeepMind Science Skills bundle, pinned in
