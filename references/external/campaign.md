@@ -2,7 +2,7 @@
 
 ## Current execution state
 
-Current state — 1 October 2026: all nine source assessments are closed; the campaign remains incomplete. [PR #88](https://github.com/guy915/Co-Scientist/pull/88) is the current verified release (`a7767153`), with [existing-service release evidence](m12-pubmed-batching-release-2026-10-01.json). Metadata batching and bounded recovery remain disabled by default in production. The [seventh novelty comparison](sakana/novelty-pilot-v7-terminal-2026-10-01.json) stopped on PMC fulltext HTTP400 after16 valid model responses and24 retrieval events; three of six pairs completed. All seven consumed comparisons are incomplete and unscored. The four original scientific/final gates remain open, with a bounded default-preserving fulltext opt-out correction and its release observation now recorded as preparatory items i1/i2 in PLAN. No further model qualification, replay or new comparison registration is authorized by this update.
+Current state — 1 October 2026: all nine source assessments are closed; the campaign remains incomplete. [PR #89](https://github.com/guy915/Co-Scientist/pull/89) is the verified product release (`11b72791`), with [release and real metadata-only retrieval evidence](m12-fulltext-optout-release-2026-10-01.json). The optional fulltext switch preserves default behavior and passed strict provenance through a real local MCP call on the identical deployed source. Production batching and recovery remain disabled. All seven consumed novelty comparisons are incomplete and unscored; the four original scientific/final acceptance gates remain open. No new comparison registration, replay or model qualification follows from this operational release.
 
 ### Historical preparation record through studies5–6
 
@@ -531,3 +531,7 @@ zero-cost code rollback anchor `11285e63ca619bfdfb76d8d2a2c6111c9379738b`
 were recorded before merge. The merged API's three additive columns are present,
 and post-merge production smoke passed. Continue using the exact free route only
 while its current catalog price and availability are verified.
+
+### Operational retrieval exposure — 1 October 2026
+
+The single fulltext-opt-out acceptance call exposed PMIDs42473009,42629436,42627243,41923451,41749333,41740236,41628905,41663958,41353907. Include this release receipt with all previous study/source evidence when deriving any future fresh-bank exclusion set. The public query, response identities and manifest are operational evidence only; no comparison labels or scores were generated.
