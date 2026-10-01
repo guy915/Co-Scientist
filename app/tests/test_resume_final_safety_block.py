@@ -7,8 +7,9 @@ from typing import Any
 
 import pytest
 
-from app import engine_tasks, store, task_worker
+from app import store, task_worker
 from app.config import settings
+from app.engine_tasks import support as engine_tasks_support
 from app.report import build as report_build
 from app.report import finalize as report_finalize
 from app.safety import SafetyDecision
@@ -81,7 +82,7 @@ async def test_resume_rejects_final_safety_block_after_finalize_succeeded(
             last_event_seq=checkpoint["last_event_seq"],
             state={
                 **checkpoint["state"],
-                "resume_successor": engine_tasks.FINALIZE_TASK,
+                "resume_successor": engine_tasks_support.FINALIZE_TASK,
             },
         ),
         db_path=isolated_db,
@@ -89,9 +90,9 @@ async def test_resume_rejects_final_safety_block_after_finalize_succeeded(
     finalizer = store.enqueue_task(
         store.NewTask(
             run_id=run_id,
-            task_type=engine_tasks.FINALIZE_TASK,
+            task_type=engine_tasks_support.FINALIZE_TASK,
             inputs={"checkpoint_seq": checkpoint_seq},
-            idempotency_key=f"{engine_tasks.FINALIZE_TASK}:after:{predecessor.id}",
+            idempotency_key=f"{engine_tasks_support.FINALIZE_TASK}:after:{predecessor.id}",
             dependencies=(predecessor.id,),
         ),
         db_path=isolated_db,
@@ -168,7 +169,7 @@ async def test_resume_rejects_final_safety_block_after_finalize_succeeded(
     tasks = store.list_tasks(run_id, db_path=isolated_db)
     assert [(task.task_type, task.status) for task in tasks] == [
         ("engine.node.overview", "completed"),
-        (engine_tasks.FINALIZE_TASK, "completed"),
+        (engine_tasks_support.FINALIZE_TASK, "completed"),
     ]
     events_response = owner.get(
         f"/api/runs/{run_id}/events?stream=false", headers=owner_headers

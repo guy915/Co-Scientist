@@ -10,6 +10,7 @@ import pytest
 from app import engine_tasks, store, task_worker
 from app.config import settings
 from app.engine_tasks import node as engine_tasks_node
+from app.engine_tasks import support as engine_tasks_support
 from app.report import build as report_build
 from app.report import finalize as report_finalize
 from app.safety import SafetyDecision, apply_safety_gate
@@ -64,7 +65,7 @@ def _seed_leased_finalize(
     queued = store.enqueue_task(
         store.NewTask(
             run_id=run_id,
-            task_type=engine_tasks.FINALIZE_TASK,
+            task_type=engine_tasks_support.FINALIZE_TASK,
             inputs={"checkpoint_seq": checkpoint_seq},
             idempotency_key="final-safety-cancel-readiness",
         ),

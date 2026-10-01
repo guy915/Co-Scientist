@@ -14,7 +14,8 @@ from co_scientist.models import (
     Hypothesis,
 )
 
-from app import engine_tasks
+from app.engine_tasks import gate as engine_tasks_gate
+from app.engine_tasks import ranking as engine_tasks_ranking
 from tests._engine_tasks_helpers import _add_fixture_review
 
 
@@ -50,7 +51,7 @@ async def test_pre_ranking_gate_keeps_unsupported_ideas_rankable() -> None:
         ],
     }
 
-    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
 
     assert supported.review_disposition == "viable"
     assert supported.enrichments["claim_gate"]["decision"] == "allow"
@@ -69,7 +70,7 @@ async def test_pre_ranking_gate_records_support_when_evidence_arrives() -> None:
     )
     hypothesis.review_disposition = "viable"
     state: dict[str, Any] = {"hypotheses": [hypothesis], "articles": []}
-    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
     # No evidence yet, but a merely-unsupported idea still ranks.
     assert hypothesis.review_disposition == "viable"
 
@@ -79,7 +80,7 @@ async def test_pre_ranking_gate_records_support_when_evidence_arrives() -> None:
             abstract="Astrocyte lactate accelerates synaptic ATP recovery.",
         )
     ]
-    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
 
     assert hypothesis.review_disposition == "viable"
     assert hypothesis.enrichments["claim_gate"]["decision"] == "allow"
@@ -107,7 +108,7 @@ def test_evidence_blocked_idea_is_excluded_from_ranking() -> None:
     undermined.review_disposition = "viable"
     undermined.deep_verification_verdict = "undermined"
 
-    eligible = engine_tasks._ranking_eligible(
+    eligible = engine_tasks_ranking._ranking_eligible(
         {"hypotheses": [supported, blocked, undermined]}
     )
 

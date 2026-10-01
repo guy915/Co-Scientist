@@ -16,6 +16,11 @@ from co_scientist.models import (
 
 from app import engine_tasks, store
 from app.config import settings
+from app.engine_tasks import fanout_aggregates as engine_tasks_fanout_aggregates
+from app.engine_tasks import fanout_generation as engine_tasks_fanout_generation
+from app.engine_tasks import fanout_items as engine_tasks_fanout_items
+from app.engine_tasks import fanout_reflection as engine_tasks_fanout_reflection
+from app.engine_tasks import support as engine_tasks_support
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _Generator,
@@ -136,14 +141,16 @@ async def _run_generation_strategies_and_aggregate(
     assert all(item is not None for item in strategies)
     assert all(
         item is not None
-        and item.task_type == engine_tasks.GENERATION_STRATEGY_TASK
+        and item.task_type == engine_tasks_support.GENERATION_STRATEGY_TASK
         for item in strategies
     )
     _assert_debate_fanout_carries_the_batch_shape(strategies)
     _debate_calls.clear()
     strategy_results = await asyncio.gather(
         *[
-            engine_tasks.execute_generation_strategy(item, db_path=db_path)
+            engine_tasks_fanout_generation.execute_generation_strategy(
+                item, db_path=db_path
+            )
             for item in strategies
             if item is not None
         ]
@@ -177,8 +184,10 @@ async def _run_generation_strategies_and_aggregate(
         )
     aggregate = store.claim_task("aggregate", run_id=run_id, db_path=db_path)
     assert aggregate is not None
-    aggregated = await engine_tasks.execute_generation_aggregate(
-        aggregate, db_path=db_path
+    aggregated = (
+        await engine_tasks_fanout_aggregates.execute_generation_aggregate(
+            aggregate, db_path=db_path
+        )
     )
     assert aggregated["hypotheses_generated"] == 8
     assert store.complete_task(
@@ -285,14 +294,16 @@ async def test_generation_fanout_created_during_pause_waits_for_resume(
         aggregate = next(
             task
             for task in store.list_tasks(run_id, db_path=isolated_db)
-            if task.task_type == engine_tasks.GENERATION_AGGREGATE_TASK
+            if task.task_type == engine_tasks_support.GENERATION_AGGREGATE_TASK
         )
         assert aggregate.status == "queued"
         claimed = store.claim_task(
             "after-resume", run_id=run_id, db_path=isolated_db
         )
         assert claimed is not None
-        assert claimed.task_type == engine_tasks.GENERATION_STRATEGY_TASK
+        assert (
+            claimed.task_type == engine_tasks_support.GENERATION_STRATEGY_TASK
+        )
 
 
 async def _fake_mature_review(
@@ -371,7 +382,9 @@ async def _run_mature_reflection_items_and_aggregate(
     assert all(item is not None for item in items)
     results = await asyncio.gather(
         *[
-            engine_tasks.execute_mature_reflection_item(item, db_path=db_path)
+            engine_tasks_fanout_items.execute_mature_reflection_item(
+                item, db_path=db_path
+            )
             for item in items
             if item is not None
         ]
@@ -389,9 +402,8 @@ async def _run_mature_reflection_items_and_aggregate(
         )
     aggregate = store.claim_task("aggregate", run_id=run_id, db_path=db_path)
     assert aggregate is not None
-    aggregated = await engine_tasks.execute_mature_reflection_aggregate(
-        aggregate, db_path=db_path
-    )
+    execute = engine_tasks_fanout_reflection.execute_mature_reflection_aggregate
+    aggregated = await execute(aggregate, db_path=db_path)
     assert aggregated["successful_reviews"] == 4
     assert store.complete_task(
         aggregate.id, "aggregate", aggregated, db_path=db_path

@@ -24,7 +24,9 @@ from co_scientist.agents.meta_review import research_overview as ro
 from co_scientist.models import Article, Hypothesis
 from litellm.exceptions import APIError
 
-from app import engine_tasks, store, task_worker
+from app import store, task_worker
+from app.engine_tasks import restore as engine_tasks_restore
+from app.engine_tasks import support as engine_tasks_support
 from tests._engine_tasks_helpers import (
     _Generator,
     _patch_generator,
@@ -95,7 +97,7 @@ async def test_degraded_overview_still_reaches_a_written_report(
         for task in store.list_tasks(run.id, db_path=isolated_db)
     }
     assert by_type["engine.node.research_overview"] == "completed"
-    assert by_type[engine_tasks.FINALIZE_TASK] == "completed"
+    assert by_type[engine_tasks_support.FINALIZE_TASK] == "completed"
 
     report = store.get_latest_report(run.id, db_path=isolated_db)
     assert report is not None
@@ -167,7 +169,7 @@ def _restored_state(attempt: int, run_id: str, db_path: str) -> dict[str, Any]:
             **serialize_workflow_state(state, last_event_seq=0),
         }
     }
-    return engine_tasks._restore_node_task_state(
+    return engine_tasks_restore._restore_node_task_state(
         dataclasses.replace(task, attempt=attempt),
         checkpoint,
         _Generator(state),

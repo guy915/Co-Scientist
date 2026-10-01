@@ -15,6 +15,9 @@ from co_scientist.models import Hypothesis, HypothesisReview
 
 from app import engine_tasks, store, task_worker
 from app.config import settings
+from app.engine_tasks import fanout_aggregates as engine_tasks_fanout_aggregates
+from app.engine_tasks import fanout_items as engine_tasks_fanout_items
+from app.engine_tasks import support as engine_tasks_support
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _Generator,
@@ -74,10 +77,14 @@ async def _run_review_children_and_aggregate(run_id: str, db_path: str) -> None:
     first = store.claim_task("child-a", run_id=run_id, db_path=db_path)
     second = store.claim_task("child-b", run_id=run_id, db_path=db_path)
     assert first is not None and second is not None
-    assert first.task_type == second.task_type == engine_tasks.REVIEW_ITEM_TASK
+    assert (
+        first.task_type
+        == second.task_type
+        == engine_tasks_support.REVIEW_ITEM_TASK
+    )
     first_result, second_result = await asyncio.gather(
-        engine_tasks.execute_review_item(first, db_path=db_path),
-        engine_tasks.execute_review_item(second, db_path=db_path),
+        engine_tasks_fanout_items.execute_review_item(first, db_path=db_path),
+        engine_tasks_fanout_items.execute_review_item(second, db_path=db_path),
     )
     assert store.complete_task(
         first.id, "child-a", first_result, db_path=db_path
@@ -87,8 +94,10 @@ async def _run_review_children_and_aggregate(run_id: str, db_path: str) -> None:
     )
     aggregate = store.claim_task("aggregate", run_id=run_id, db_path=db_path)
     assert aggregate is not None
-    aggregate_result = await engine_tasks.execute_review_aggregate(
-        aggregate, db_path=db_path
+    aggregate_result = (
+        await engine_tasks_fanout_aggregates.execute_review_aggregate(
+            aggregate, db_path=db_path
+        )
     )
     assert aggregate_result["successful_reviews"] == 2
     assert store.complete_task(
@@ -178,8 +187,8 @@ async def test_review_fanout_created_during_pause_waits_for_resume(
             for task in tasks
             if task.task_type
             in {
-                engine_tasks.REVIEW_ITEM_TASK,
-                engine_tasks.REVIEW_AGGREGATE_TASK,
+                engine_tasks_support.REVIEW_ITEM_TASK,
+                engine_tasks_support.REVIEW_AGGREGATE_TASK,
             }
         ]
         assert len(review_work) == 3
@@ -202,7 +211,7 @@ async def test_review_fanout_created_during_pause_waits_for_resume(
         ]
         assert all(item is not None for item in claimed)
         assert {item.task_type for item in claimed if item is not None} == {
-            engine_tasks.REVIEW_ITEM_TASK
+            engine_tasks_support.REVIEW_ITEM_TASK
         }
 
 
@@ -215,7 +224,7 @@ async def test_review_aggregate_is_ready_after_isolated_child_failure(
     failed = store.enqueue_task(
         store.NewTask(
             run_id=run.id,
-            task_type=engine_tasks.REVIEW_ITEM_TASK,
+            task_type=engine_tasks_support.REVIEW_ITEM_TASK,
             inputs={},
             idempotency_key="failed-child",
             max_attempts=1,
@@ -225,7 +234,7 @@ async def test_review_aggregate_is_ready_after_isolated_child_failure(
     aggregate = store.enqueue_task(
         store.NewTask(
             run_id=run.id,
-            task_type=engine_tasks.REVIEW_AGGREGATE_TASK,
+            task_type=engine_tasks_support.REVIEW_AGGREGATE_TASK,
             inputs={},
             idempotency_key="aggregate",
             dependencies=(failed.id,),

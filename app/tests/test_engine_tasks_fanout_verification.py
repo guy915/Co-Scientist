@@ -16,6 +16,12 @@ from co_scientist.models import Article, Hypothesis
 
 from app import engine_tasks, store
 from app.config import settings
+from app.engine_tasks import fanout as engine_tasks_fanout
+from app.engine_tasks import fanout_items as engine_tasks_fanout_items
+from app.engine_tasks import (
+    fanout_verification as engine_tasks_fanout_verification,
+)
+from app.engine_tasks import support as engine_tasks_support
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _Generator,
@@ -61,7 +67,7 @@ async def test_verification_fanout_materializes_one_task_per_unverified_idea(
         for index in range(5)
     ]
 
-    result = engine_tasks._enqueue_verification_fanout(
+    result = engine_tasks_fanout._enqueue_verification_fanout(
         leased, state, 4, db_path=isolated_db
     )
     assert len(result["fanout_task_ids"]) == 5
@@ -72,7 +78,7 @@ async def test_verification_fanout_materializes_one_task_per_unverified_idea(
     ]
     assert all(item is not None for item in claimed)
     assert {item.task_type for item in claimed if item is not None} == {
-        engine_tasks.VERIFICATION_ITEM_TASK
+        engine_tasks_support.VERIFICATION_ITEM_TASK
     }
 
 
@@ -97,7 +103,7 @@ async def test_a_resumed_run_fans_out_only_the_ideas_still_owed_one(
         Hypothesis.from_dict(fresh.to_dict()),
     ]
 
-    result = engine_tasks._enqueue_verification_fanout(
+    result = engine_tasks_fanout._enqueue_verification_fanout(
         leased, state, 4, db_path=isolated_db
     )
 
@@ -150,8 +156,10 @@ async def test_a_pool_with_nothing_left_to_verify_advances_into_ranking(
         "aggregate", run_id=run.id, db_path=isolated_db
     )
     assert aggregate is not None
-    result = await engine_tasks.execute_verification_aggregate(
-        aggregate, db_path=isolated_db
+    result = (
+        await engine_tasks_fanout_verification.execute_verification_aggregate(
+            aggregate, db_path=isolated_db
+        )
     )
 
     assert result["successful_verifications"] == 0
@@ -224,7 +232,9 @@ async def _run_verification_children_and_aggregate(
     assert all(child is not None for child in children)
     child_results = await asyncio.gather(
         *[
-            engine_tasks.execute_verification_item(child, db_path=db_path)
+            engine_tasks_fanout_items.execute_verification_item(
+                child, db_path=db_path
+            )
             for child in children
             if child is not None
         ]
@@ -240,8 +250,10 @@ async def _run_verification_children_and_aggregate(
     assert aggregate is not None
     if before_aggregate is not None:
         before_aggregate()
-    result = await engine_tasks.execute_verification_aggregate(
-        aggregate, db_path=db_path
+    result = (
+        await engine_tasks_fanout_verification.execute_verification_aggregate(
+            aggregate, db_path=db_path
+        )
     )
     assert result["successful_verifications"] == 3
     assert store.complete_task(
@@ -382,7 +394,7 @@ async def test_verification_aggregate_pauses_and_resumes_to_ranking(
         verification_items = [
             task
             for task in store.list_tasks(run_id, db_path=isolated_db)
-            if task.task_type == engine_tasks.VERIFICATION_ITEM_TASK
+            if task.task_type == engine_tasks_support.VERIFICATION_ITEM_TASK
         ]
         assert len(verification_items) == 3
         assert all(
@@ -447,8 +459,10 @@ async def test_failed_verification_items_record_explicit_unverified(
         "aggregate", run_id=run.id, db_path=isolated_db
     )
     assert aggregate is not None
-    result = await engine_tasks.execute_verification_aggregate(
-        aggregate, db_path=isolated_db
+    result = (
+        await engine_tasks_fanout_verification.execute_verification_aggregate(
+            aggregate, db_path=isolated_db
+        )
     )
     assert result["successful_verifications"] == 0
     assert result["failed_verifications"] == 3

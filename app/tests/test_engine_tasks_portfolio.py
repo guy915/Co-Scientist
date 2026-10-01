@@ -218,7 +218,7 @@ async def test_resume_from_a_pre_portfolio_checkpoint_settles_the_run(
     # this module.
     monkeypatch.setitem(
         engine_tasks._ENGINE_TASK_DISPATCH,
-        engine_tasks.FINALIZE_TASK,
+        engine_tasks_support.FINALIZE_TASK,
         finalize,
     )
     await task_worker.run_run_until_idle(run.id, "worker", db_path=isolated_db)

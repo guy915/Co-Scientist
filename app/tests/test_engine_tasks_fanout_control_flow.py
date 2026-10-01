@@ -22,7 +22,8 @@ from co_scientist.exceptions import (
 )
 from co_scientist.models import Hypothesis
 
-from app import engine_tasks, store
+from app import store
+from app.engine_tasks import fanout_items as engine_tasks_fanout_items
 from app.engine_tasks.support import MATURE_REFLECTION_ITEM_TASK
 from tests._engine_tasks_helpers import (
     _Generator,
@@ -106,7 +107,7 @@ async def test_a_control_flow_error_leaves_the_item_unchanged(
     _install_failing_review(monkeypatch, error)
 
     with pytest.raises(type(error)):
-        await engine_tasks.execute_mature_reflection_item(
+        await engine_tasks_fanout_items.execute_mature_reflection_item(
             leased, db_path=isolated_db
         )
 
@@ -120,7 +121,7 @@ async def test_an_ordinary_provider_failure_is_still_a_retryable_failure(
     _install_failing_review(monkeypatch, ValueError("unparseable answer"))
 
     with pytest.raises(RuntimeError):
-        await engine_tasks.execute_mature_reflection_item(
+        await engine_tasks_fanout_items.execute_mature_reflection_item(
             leased, db_path=isolated_db
         )
 
