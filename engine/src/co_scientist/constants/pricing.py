@@ -2,8 +2,9 @@
 
 Split out of the ``constants`` package root (size cap; see
 ``constants/cache.py`` for the same pattern) rather than grown into it.
-Deliberately a plain lookup rather than a live pricing service or third-party dependency: this is an estimate,
-not a billing record, and every field is named for what it is.
+Deliberately a plain lookup rather than a live pricing service or
+third-party dependency: this is an estimate, not a billing record, and every
+field is named for what it is.
 
 The prices themselves are stated, with their provenance, in the model
 profile table (``co_scientist.llm.profile.routes``); ``MODEL_PRICING`` is that
