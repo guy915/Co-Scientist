@@ -1,19 +1,6 @@
 # External reference campaign
 
-Current retrieval work: [batching](sakana/novelty-pubmed-batching-verification-2026-09-30.json),
-[strict trace reader](sakana/novelty-batch-reader-verification-2026-09-30.json) and
-[workflow integration](sakana/novelty-batch-pilot-integration-verification-2026-09-30.json)
-close PLAN f1–f4; [committed registration](sakana/novelty-pilot-v5-registration-verification-2026-09-30.json)
-closes f5. The [sole fifth-study launch](sakana/novelty-pilot-v5-launch-2026-09-30.json)
-[terminated incomplete](sakana/novelty-pilot-v5-terminal-2026-09-30.json) after
-14 free model responses and 21 outer searches. A valid empty PubMed trace passed
-strict attestation but a later guard incorrectly required per-paper link proof.
-Its actual result, consumed admission, unscored blind packet and raw cache are retained;
-account usage did not increase. No scientific adoption/rejection follows.
-[The empty-result guard repair](sakana/novelty-empty-result-guard-verification-2026-10-01.json)
-passes offline behavioral and independent review; it authorizes no replay,
-continuation, new bank or live run. Batching remains unreleased; the four
-original scientific/final gates stay open. No further model qualification is authorized.
+Current state — 1 October 2026: all nine source assessments are closed; the campaign remains incomplete. [PR #88](https://github.com/guy915/Co-Scientist/pull/88) is the current verified release (`a7767153`), with [existing-service release evidence](m12-pubmed-batching-release-2026-10-01.json). Metadata batching and bounded recovery remain disabled by default in production. The [seventh novelty comparison](sakana/novelty-pilot-v7-terminal-2026-10-01.json) stopped on PMC fulltext HTTP400 after16 valid model responses and24 retrieval events; three of six pairs completed. All seven consumed comparisons are incomplete and unscored. The four original scientific/final gates remain open, with a bounded default-preserving fulltext opt-out correction and its release observation now recorded as preparatory items i1/i2 in PLAN. No further model qualification, replay or new comparison registration is authorized by this update.
 
 [PLAN.md](../../PLAN.md) owns execution state. [Campaign procedures](campaign.md)
 record the evaluation and release contract. [M1 dossier](baseline/README.md)

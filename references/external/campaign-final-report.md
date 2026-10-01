@@ -1,17 +1,6 @@
 # External source campaign — evidence and acceptance status
 
-Current retrieval work: [batching](sakana/novelty-pubmed-batching-verification-2026-09-30.json),
-[strict trace reader](sakana/novelty-batch-reader-verification-2026-09-30.json) and
-[workflow integration](sakana/novelty-batch-pilot-integration-verification-2026-09-30.json)
-close PLAN f1–f4. [Fresh comparison registration](sakana/novelty-pilot-v5-registration-verification-2026-09-30.json)
-closes f5: six exploratory pairs, twelve independently verified primary sources,
-exact committed bank6/protocol5, and an actual credential-free CLI/MCP preflight.
-The normal loader accepted the committed bytes; no admission or scientific call occurred.
-The pinned 88 runner and 26 reader tests remain applicable; batching is unreleased.
-Next is the sole f6 comparison after fresh free-route and serving-process checks,
-with the unchanged 24-model/36-outer-call caps and scientific gates. All four
-historical admissions remain consumed, immutable and unscored. Four original
-scientific/final gates remain open; no further model qualification is authorized.
+Current state — 1 October 2026: all nine source assessments are closed; the campaign remains incomplete. [PR #88](https://github.com/guy915/Co-Scientist/pull/88) is the current verified release (`a7767153`), with [existing-service release evidence](m12-pubmed-batching-release-2026-10-01.json). Metadata batching and bounded recovery remain disabled by default in production. The [seventh novelty comparison](sakana/novelty-pilot-v7-terminal-2026-10-01.json) stopped on PMC fulltext HTTP400 after16 valid model responses and24 retrieval events; three of six pairs completed. All seven consumed comparisons are incomplete and unscored. The four original scientific/final gates remain open, with a bounded default-preserving fulltext opt-out correction and its release observation now recorded as preparatory items i1/i2 in PLAN. No further model qualification, replay or new comparison registration is authorized by this update.
 
 ## Current update — 30 September 2026
 
