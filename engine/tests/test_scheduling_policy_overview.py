@@ -30,10 +30,6 @@ from co_scientist.agents.meta_review.interim_overview import (
     build_interim_overview,
     format_interim_overview,
 )
-from co_scientist.generator.graph import (
-    _TASK_ROUTES,
-    _route_after_research_overview,
-)
 from co_scientist.scheduling import (
     ALLOWED_LOOP_TASKS,
     Budget,
@@ -45,6 +41,10 @@ from co_scientist.scheduling.policy_checks import (
     _check_research_overview_cadence,
 )
 from co_scientist.task_runtime import next_task_type
+from co_scientist.workflow_topology import (
+    TASK_ROUTES,
+    route_after_research_overview,
+)
 from tests._state import make_state
 
 # Extended's own ceiling: the cheapest tier that funds a periodic firing.
@@ -129,20 +129,20 @@ def test_cadence_never_outranks_a_review_backlog() -> None:
 def test_a_periodic_firing_returns_to_the_loop_point() -> None:
     """Both execution paths share one resolver, so neither can drift."""
     state = make_state(next_task=TaskType.SYNTHESIZE.value)
-    assert _route_after_research_overview(state) == "orchestrator"
+    assert route_after_research_overview(state) == "orchestrator"
     assert next_task_type("research_overview", state) == "orchestrator"
 
 
 def test_the_terminal_firing_still_ends_the_run() -> None:
     """TERMINATE's own synthesis is unchanged: it is the last node."""
     state = make_state(next_task=TaskType.TERMINATE.value)
-    assert _route_after_research_overview(state) is None
+    assert route_after_research_overview(state) is None
     assert next_task_type("research_overview", state) is None
 
 
 def test_synthesize_enters_at_the_overview_node() -> None:
     """The task value routes to the node that writes the overview."""
-    assert _TASK_ROUTES[TaskType.SYNTHESIZE.value] == "research_overview"
+    assert TASK_ROUTES[TaskType.SYNTHESIZE.value] == "research_overview"
 
 
 def test_the_interim_overview_reaches_generation() -> None:

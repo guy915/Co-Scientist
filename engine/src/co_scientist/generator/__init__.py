@@ -4,7 +4,7 @@ Provides an interface inspired by the original AI-CoScientist integration,
 but uses LangGraph under the hood.
 
 The public entry point is ``HypothesisGenerator`` (defined in ``core``).
-The package splits the implementation by responsibility: graph topology
+The package splits the implementation by responsibility: graph wiring
 (``graph``), per-run setup (``run_setup``), initial-state assembly
 (``initial_state``), and stream/result shaping (``streaming``). Every
 module-level name historically defined by the old single-module
@@ -19,9 +19,6 @@ from co_scientist.generator.graph import (
 )
 from co_scientist.generator.graph import (
     _add_workflow_nodes as _add_workflow_nodes,
-)
-from co_scientist.generator.graph import (
-    _route_next_task as _route_next_task,
 )
 from co_scientist.generator.graph import _WorkflowBuilder as _WorkflowBuilder
 from co_scientist.generator.initial_state import (

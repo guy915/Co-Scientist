@@ -116,7 +116,7 @@ def _apply_supervisor_enqueue_actions(
 
     Bounded three ways. Only a task the loop-point router can actually
     dispatch is accepted -- the name is resolved through the graph's own
-    ``_TASK_ROUTES``, so an unrecognized value creates nothing rather than
+    ``TASK_ROUTES``, so an unrecognized value creates nothing rather than
     an unclaimable row of an invented type. The row is anchored to this
     run's own predecessor, so no pass can reach another run's queue. And
     the count is capped.
@@ -146,14 +146,14 @@ def _apply_supervisor_enqueue_actions(
         priority: Queue priority for the stacked rows.
         conn: The open connection of the checkpoint commit.
     """
-    from co_scientist.generator.graph import _TASK_ROUTES
     from co_scientist.scheduling import stacked_task_values
+    from co_scientist.workflow_topology import TASK_ROUTES
 
     from app.engine_tasks_portfolio import _enqueue_after
     from app.engine_tasks_support import NODE_TASK_PREFIX
 
     for value in stacked_task_values(actions)[:_MAX_STACKED_TASKS]:
-        node = _TASK_ROUTES.get(value)
+        node = TASK_ROUTES.get(value)
         if node is None:
             continue
         predecessor = _enqueue_after(

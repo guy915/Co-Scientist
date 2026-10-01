@@ -4,11 +4,11 @@ The durable task path is the only path production runs, and every node
 commit on it used to name its successor as a literal --
 ``"comprehensive_reflection"``, ``"ranking"``, ``"orchestrator"``, and a
 verbatim re-implementation of the graph's MCP branch after ``generate``.
-``co_scientist.task_runtime.next_task_type`` is what the in-process graph
-routes on, and ``engine/tests/test_task_runtime.py`` pins that table
-against the graph's topology -- so a re-route would have applied to the
-engine's own routing and silently not to production, while a green suite
-reported routing as verified.
+``co_scientist.workflow_topology.WORKFLOW_ROUTES`` is the table both the
+in-process graph and ``co_scientist.task_runtime.next_task_type`` read, and
+``engine/tests/test_task_runtime.py`` pins the two against each other -- so
+a re-route would have applied to the engine's own routing and silently not
+to production, while a green suite reported routing as verified.
 
 These tests divert the route table and require the durable commits to
 follow the diversion, so spelling a successor out on the app side again
@@ -18,6 +18,7 @@ fails rather than passing until it reaches a run.
 from typing import Any
 
 import pytest
+from co_scientist.workflow_topology import LiteratureGated
 
 from app import (
     engine_tasks,
@@ -129,17 +130,16 @@ async def test_durable_successor_follows_a_rerouted_graph(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch, node: str
 ) -> None:
     """A graph re-route reaches production, not just the engine's routing."""
-    import co_scientist.task_runtime as task_runtime
+    from co_scientist import workflow_topology
 
-    monkeypatch.setitem(task_runtime._NEXT_TASK_ROUTES, node, _DIVERTED_TO)
+    monkeypatch.setitem(workflow_topology.WORKFLOW_ROUTES, node, _DIVERTED_TO)
     run = store.create_run("Durable routing", "standard", "engine", {})
     scheduled = await _commit_node(run.id, node, isolated_db)
     assert scheduled == f"{engine_tasks.NODE_TASK_PREFIX}{_DIVERTED_TO}"
 
 
-def _inverted_generate_route(state: Any) -> str:
-    """``generate``'s MCP branch, re-routed to the opposite successor."""
-    return "review" if state.get("mcp_available") else "reflection"
+# ``generate``'s MCP branch, re-routed to the opposite successor.
+_INVERTED_GENERATE_ROUTE = LiteratureGated(on="review", off="reflection")
 
 
 @pytest.mark.asyncio
@@ -153,17 +153,18 @@ async def test_generate_mcp_branch_is_not_reimplemented(
     mcp_available: bool,
     expected: str,
 ) -> None:
-    """The branch after ``generate`` is the table's resolver, not a copy.
+    """The branch after ``generate`` is the table's route, not a copy.
 
-    ``_route_after_generate`` is a state-dependent route, and the durable
-    path carried a verbatim re-implementation of it. Inverting the real
-    resolver separates the two: anything still deriving the branch from
-    ``mcp_available`` itself schedules the opposite of the live graph.
+    The route after ``generate`` depends on ``mcp_available``, and the
+    durable path carried a verbatim re-implementation of that branch.
+    Inverting the real route separates the two: anything still deriving the
+    branch from ``mcp_available`` itself schedules the opposite of the
+    live table.
     """
-    import co_scientist.task_runtime as task_runtime
+    from co_scientist import workflow_topology
 
     monkeypatch.setitem(
-        task_runtime._NEXT_TASK_ROUTES, "generate", _inverted_generate_route
+        workflow_topology.WORKFLOW_ROUTES, "generate", _INVERTED_GENERATE_ROUTE
     )
     run = store.create_run("Durable routing", "standard", "engine", {})
     scheduled = await _commit_node(

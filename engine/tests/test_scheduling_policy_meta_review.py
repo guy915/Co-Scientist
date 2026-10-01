@@ -18,10 +18,6 @@ rather than only falling through to evolve.
 
 from __future__ import annotations
 
-from co_scientist.generator.graph import (
-    _TASK_ROUTES,
-    _route_after_meta_review,
-)
 from co_scientist.scheduling import (
     ALLOWED_LOOP_TASKS,
     Budget,
@@ -31,6 +27,10 @@ from co_scientist.scheduling import (
 from co_scientist.scheduling.policy import decide_next_task, validate_decision
 from co_scientist.scheduling.policy_checks import _check_meta_review_cadence
 from co_scientist.task_runtime import next_task_type
+from co_scientist.workflow_topology import (
+    TASK_ROUTES,
+    route_after_meta_review,
+)
 from tests._state import make_state
 
 _BUDGET = Budget(max_iterations=4)
@@ -105,19 +105,19 @@ def test_a_run_that_never_evolves_still_reaches_meta_review() -> None:
     The route table is what made it dependent -- ``meta_review`` was
     reachable only as the node EVOLVE enters at.
     """
-    assert _TASK_ROUTES[TaskType.META_REVIEW.value] == "meta_review"
-    assert _TASK_ROUTES[TaskType.EVOLVE.value] == "meta_review"
+    assert TASK_ROUTES[TaskType.META_REVIEW.value] == "meta_review"
+    assert TASK_ROUTES[TaskType.EVOLVE.value] == "meta_review"
 
 
 def test_meta_review_returns_to_the_loop_point_when_standalone() -> None:
     """Both paths share one resolver, so the shape cannot drift apart."""
     state = make_state(next_task=TaskType.META_REVIEW.value)
-    assert _route_after_meta_review(state) == "orchestrator"
+    assert route_after_meta_review(state) == "orchestrator"
     assert next_task_type("meta_review", state) == "orchestrator"
 
 
 def test_meta_review_still_prefixes_evolve() -> None:
     """The existing critique-feeds-evolve edge is unchanged."""
     state = make_state(next_task=TaskType.EVOLVE.value)
-    assert _route_after_meta_review(state) == "evolve"
+    assert route_after_meta_review(state) == "evolve"
     assert next_task_type("meta_review", state) == "evolve"

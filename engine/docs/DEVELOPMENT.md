@@ -135,17 +135,19 @@ Your prompt instructions here.
 `co_scientist.agents.NODE_REGISTRY` is the single source of truth for durable
 graph-node keys: `graph.py` registers nodes by iterating it, `task_runtime`
 derives its task nodes from it, and `NODE_TO_AGENT` is projected from it. Add
-a `NodeSpec` there, then add the edges in
-`src/co_scientist/generator/graph.py`:
+a `NodeSpec` there, then name its successor once in
+`src/co_scientist/workflow_topology.py` -- the compiled graph is wired from
+that table and the durable runtime resolves through it, so both paths get the
+edge:
 
 ```python
 # In src/co_scientist/agents/__init__.py: import my_agent alongside the
 # other agent packages, then add its node inside NODE_REGISTRY:
 "my_node": NodeSpec("my_agent", my_agent.my_node),
 
-# In graph.py, in the relevant _add_*_edges helper:
-workflow.add_edge("previous_node", "my_node")
-workflow.add_edge("my_node", "next_node")
+# In workflow_topology.py, in WORKFLOW_ROUTES:
+"previous_node": "my_node",
+"my_node": "next_node",
 ```
 
 Node keys are persisted verbatim in durable tasks, checkpoints, and

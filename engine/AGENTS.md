@@ -37,6 +37,20 @@ Individual nodes can be exercised in isolation via the scripts in `dev/` (`run_s
 | Proximity (dedup) | `agents/proximity/proximity.py` |
 | Safety screen (cross-cutting) | `agents/safety/safety_screen.py` |
 
+**The topology is declared once.** `workflow_topology.WORKFLOW_ROUTES` names
+every node's successor -- a fixed node, a `LiteratureGated` pair, or a resolver
+over the committed state -- and both execution paths read it:
+`generator/graph.py` wires the compiled graph from it (streaming path) and
+`task_runtime.next_task_type` resolves through it (durable path, the only one
+production runs). A new node or edge is one entry there, and
+`tests/test_workflow_topology.py` fails if the registry and the table disagree.
+The paths differ only where that module's docstring says, each with a test: the
+literature-review shape (a build-time flag on the graph, `state["mcp_available"]`
+on the durable path), the durable-only `safety_blocked` halt, the graph-only
+START entry branch, the `None`/`END` terminal encoding, and the graph's path
+maps. `plan_portfolio` and `FANNING_NODES` are durable scheduling policy over
+the table, not part of it.
+
 **The simulation review can run what it simulates.** Reflection's
 `simulation` review asks the model to step through a hypothesis's mechanism
 and find where it breaks; its prompt used to say *mentally, in your mind's
@@ -208,7 +222,7 @@ Key supporting modules: `models.py` (dataclasses: `Hypothesis`, `HypothesisRevie
 
 **MCP and the web.** Literature-review tools are pulled from an external MCP server via `mcp_client.py` using `langchain-mcp-adapters`, bounded independently by `COSCIENTIST_MCP_TOOL_TIMEOUT_SECONDS` (default 300s). The graph auto-detects MCP availability — without a server, the literature/reflection nodes fall back to LLM-only mode. The literature-review pre-flight gate checks **server** reachability (`check_mcp_available`), not any single source's health: gating on one source let an unreachable remote service veto sources that were otherwise fine. For conditionally-registered tools, ask `mcp_client.check_tool_available(tool_name)`.
 
-**A run that reaches no source now says so.** "Falls back to LLM-only" is four silent branches, not one: the graph routes around `literature_review` and `reflection` (`task_runtime`), `run_setup._resolve_research_tier` resolves to no research, and the deep reviews' probes and evolution's grounding each refuse themselves on `mcp_available`. All four are correct, and none of them is visible — the run publishes ideas, reviews and a tournament that look exactly like a healthy run's, with nothing saying they were never checked against a paper. `retrieval_degradation.py` turns that into a fact the run carries: set at setup and again if the server is lost mid-node, drained into the report payload, and carried on every node event after it so a watcher sees it live. The only thing that survives an MCP outage is a run's own attached documents, searched in-process (`run_attachments`); without those the floor is `none`.
+**A run that reaches no source now says so.** "Falls back to LLM-only" is four silent branches, not one: both paths route around `literature_review` and `reflection` (`workflow_topology`), `run_setup._resolve_research_tier` resolves to no research, and the deep reviews' probes and evolution's grounding each refuse themselves on `mcp_available`. All four are correct, and none of them is visible — the run publishes ideas, reviews and a tournament that look exactly like a healthy run's, with nothing saying they were never checked against a paper. `retrieval_degradation.py` turns that into a fact the run carries: set at setup and again if the server is lost mid-node, drained into the report payload, and carried on every node event after it so a watcher sees it live. The only thing that survives an MCP outage is a run's own attached documents, searched in-process (`run_attachments`); without those the floor is `none`.
 
 The engine can also search and read the open web. `web_search` (MCP `search_web`) is a default `literature_review` search source alongside PubMed/OpenAlex, weighted lower (`papers_per_query: 2` against their 4) with `read_url` as its content tool; its results carry `source: "web"` so web evidence stays distinguishable downstream. It is deliberately absent from `validation` and `reflection`, which are direct-call paths. The agentic path — the model deciding when to search and what to open — lives in `draft_generation` and is active only when a caller passes `enable_tool_calling_generation=True`; the tools being available is a precondition, never on its own a request. The app opts in **by tier**, not by user toggle: `engine_adapter/opts.py::_resolve_tool_calling_generation_toggle` asks for it on `extended` and `ultra` only. Each tool call is an LLM round-trip that re-sends every prior result, so one hypothesis costs ~9 calls on prompts growing past 12k tokens, per cycle — measured as the largest single line in an express run's token budget during the window this was default-on. See `engine/docs/WEB_SEARCH.md`.
 

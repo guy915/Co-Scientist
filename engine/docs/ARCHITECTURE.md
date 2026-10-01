@@ -21,7 +21,7 @@ Each agent is a package under [`co_scientist.agents`](../src/co_scientist/agents
 
 ## Workflow Graph
 
-The workflow consists of specialized nodes that handle different aspects of hypothesis generation and refinement, wired in `generator/graph.py`. Every work phase converges on the same review-through-ranking spine, and every completion path (a work phase's own end, or a maintenance task) returns to a single **orchestrator** loop point rather than following a fixed iteration count:
+The workflow consists of specialized nodes that handle different aspects of hypothesis generation and refinement, declared once in `workflow_topology.py` and wired into the graph by `generator/graph.py`. Every work phase converges on the same review-through-ranking spine, and every completion path (a work phase's own end, or a maintenance task) returns to a single **orchestrator** loop point rather than following a fixed iteration count:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -98,7 +98,7 @@ The workflow consists of specialized nodes that handle different aspects of hypo
        └──── [terminate] ────► RESEARCH OVERVIEW ────► END
 ```
 
-A rendered (mermaid) version of the same graph, plus the exact orchestrator routing table (`_TASK_ROUTES`), is in [`docs/EXPLAINER.md`](../../docs/EXPLAINER.md) §4.
+A rendered (mermaid) version of the same graph, plus the exact orchestrator routing table (`TASK_ROUTES`), is in [`docs/EXPLAINER.md`](../../docs/EXPLAINER.md) §4.
 
 ### Dynamic orchestration
 

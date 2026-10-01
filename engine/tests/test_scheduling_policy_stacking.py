@@ -45,9 +45,6 @@ from co_scientist.generator.graph import (
     _OVERVIEW_ROUTE_NODES,
     _add_workflow_edges,
     _add_workflow_nodes,
-    _route_after_meta_review,
-    _route_after_research_overview,
-    _route_next_task,
 )
 from co_scientist.scheduling import (
     Budget,
@@ -59,6 +56,11 @@ from co_scientist.scheduling import (
 from co_scientist.scheduling.policy import decide_next_task, stack_companions
 from co_scientist.state import WorkflowState
 from co_scientist.task_runtime import plan_portfolio
+from co_scientist.workflow_topology import (
+    route_after_meta_review,
+    route_after_research_overview,
+    route_next_task,
+)
 from tests._state import make_state
 
 # Extended's own ceiling: the smallest tier that funds a periodic overview
@@ -161,15 +163,15 @@ def test_a_stacked_pass_runs_the_companion_before_the_primary() -> None:
             "reason": "periodic system feedback",
         }
     ]
-    assert _route_next_task(state) == "meta_review"
-    assert _route_after_meta_review(state) == "review"
+    assert route_next_task(state) == "meta_review"
+    assert route_after_meta_review(state) == "review"
     assert plan_portfolio("meta_review", state) == ["meta_review", "review"]
 
 
 def test_an_unstacked_pass_routes_straight_to_the_primary() -> None:
     """Without a companion the loop point is exactly as it was."""
     state = make_state(next_task=TaskType.REFLECT.value)
-    assert _route_next_task(state) == "review"
+    assert route_next_task(state) == "review"
 
 
 def _overview_due(**overrides: object) -> SchedulerStats:
@@ -244,9 +246,9 @@ def test_the_routers_walk_companion_to_companion_to_primary() -> None:
         {"action": "enqueue", "task_type": TaskType.META_REVIEW.value},
         {"action": "enqueue", "task_type": TaskType.SYNTHESIZE.value},
     ]
-    assert _route_next_task(state) == "meta_review"
-    assert _route_after_meta_review(state) == "research_overview"
-    assert _route_after_research_overview(state) == "review"
+    assert route_next_task(state) == "meta_review"
+    assert route_after_meta_review(state) == "research_overview"
+    assert route_after_research_overview(state) == "review"
     assert plan_portfolio("meta_review", state) == [
         "meta_review",
         "research_overview",
@@ -271,15 +273,15 @@ def test_a_stacked_overview_is_an_interim_firing() -> None:
     assert is_interim_firing(state)
     # And it hands over to the primary rather than ending the run: None
     # here would finalize the report from the middle of a cycle.
-    assert _route_next_task(state) == "research_overview"
-    assert _route_after_research_overview(state) == "review"
+    assert route_next_task(state) == "research_overview"
+    assert route_after_research_overview(state) == "review"
 
 
 def test_a_terminal_firing_is_still_terminal() -> None:
     """No companion, so the overview publishes and the graph ends."""
     state = make_state(next_task=TaskType.TERMINATE.value)
     assert not is_interim_firing(state)
-    assert _route_after_research_overview(state) is None
+    assert route_after_research_overview(state) is None
 
 
 def test_a_stacked_overview_resets_its_own_cadence_anchor() -> None:
@@ -335,6 +337,6 @@ def test_the_stacked_list_survives_a_checkpoint_round_trip() -> None:
         TaskType.SYNTHESIZE.value,
     )
     assert is_interim_firing(cast(WorkflowState, restored))
-    assert _route_after_meta_review(cast(WorkflowState, restored)) == (
+    assert route_after_meta_review(cast(WorkflowState, restored)) == (
         "research_overview"
     )

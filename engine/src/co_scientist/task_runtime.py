@@ -1,10 +1,11 @@
 """Node-level runtime for independently leased durable scientific tasks.
 
-This module mirrors the workflow topology without invoking a monolithic graph.
-Each call executes exactly one specialist node, applies the same state reducers
-as LangGraph, and returns the next task type(s) to persist after the checkpoint
-commit. The app worker owns leases and transactions; this module owns scientific
-state semantics.
+This module runs the workflow without invoking a monolithic graph, resolving
+successors from the topology declared once in ``workflow_topology`` that the
+compiled graph is wired from too. Each call executes exactly one specialist
+node, applies the same state reducers as LangGraph, and returns the next task
+type(s) to persist after the checkpoint commit. The app worker owns leases
+and transactions; this module owns scientific state semantics.
 """
 
 from __future__ import annotations
@@ -13,16 +14,14 @@ from collections.abc import Awaitable, Callable
 from typing import Annotated, Any, get_args, get_origin, get_type_hints
 
 from co_scientist.agents import NODE_REGISTRY
-from co_scientist.generator.graph import (
-    _route_after_meta_review as _route_after_meta_review,
-)
-from co_scientist.generator.graph import (
-    _route_after_research_overview as _route_after_research_overview,
-)
-from co_scientist.generator.graph import _route_next_task
 from co_scientist.llm import scoped_telemetry
 from co_scientist.models import create_metrics_update, merge_metrics
 from co_scientist.state import WorkflowState
+from co_scientist.workflow_topology import (
+    WORKFLOW_ROUTES,
+    LiteratureGated,
+    Route,
+)
 
 TaskNode = Callable[[WorkflowState], Awaitable[dict[str, Any]]]
 
@@ -84,65 +83,24 @@ def _from_empty(reducer: Reducer, base: Any) -> Reducer:
 _CHANNEL_REDUCERS = channel_reducers(WorkflowState)
 
 
-def _route_after_supervisor(state: WorkflowState) -> str:
-    """Route to literature review when MCP is available, else generate."""
-    return "literature_review" if state.get("mcp_available") else "generate"
+def _resolve(route: Route, state: WorkflowState) -> str | None:
+    """Resolve one declared route against committed state.
 
-
-def _route_after_generate(state: WorkflowState) -> str:
-    """Route to reflection when MCP is available, else straight to review."""
-    return "reflection" if state.get("mcp_available") else "review"
-
-
-def _route_after_orchestrator(state: WorkflowState) -> str:
-    """Resolve the orchestrator's chosen next task to a task node name.
-
-    Delegates to the graph's own conditional-edge function rather than
-    repeating its lookup: the decision may also carry a stacked companion
-    that runs ahead of the chosen task (listing 01's independent ``IF``s,
-    ``scheduling.policy.stack_companions``), and a second implementation
-    of that rule here would apply on one execution path only.
+    The durable path picks the literature-review shape of a gated route
+    here, at commit time, from ``mcp_available`` (absent means off); the
+    compiled graph picks it when it is built. See ``workflow_topology``.
     """
-    return _route_next_task(state)
-
-
-# Successor for each completed node: a fixed task name, ``None`` for the
-# terminal node, or a resolver called with the committed state when the
-# successor depends on live state (MCP availability, orchestrator choice).
-_NEXT_TASK_ROUTES: dict[
-    str, str | None | Callable[[WorkflowState], str | None]
-] = {
-    "supervisor": _route_after_supervisor,
-    "literature_review": "generate",
-    "generate": _route_after_generate,
-    "reflection": "review",
-    "review": "comprehensive_reflection",
-    "comprehensive_reflection": "safety_screen",
-    # Deep verification precedes tournament entry, mirroring
-    # ``03-reflection.md``: ReviewHypothesis performs the deep
-    # verification and only then creates that hypothesis's
-    # AddToTournament task, so no idea is ranked or bred from before its
-    # core assumptions have been probed.
-    "safety_screen": "deep_verification",
-    "deep_verification": "ranking",
-    "ranking": "orchestrator",
-    "proximity": "orchestrator",
-    # Meta-review is EVOLVE's prefix *and* a periodic task of its own
-    # (listing 01 L60-63), so its successor is the graph's own conditional
-    # edge function rather than a fixed route -- imported rather than
-    # restated so the durable path cannot answer this differently.
-    "meta_review": _route_after_meta_review,
-    "evolve": "review",
-    "orchestrator": _route_after_orchestrator,
-    # The terminal node for a TERMINATE decision, and a loop-point return
-    # for the periodic firing (FIX-6) -- the graph's own edge function
-    # answers both, imported rather than restated.
-    "research_overview": _route_after_research_overview,
-}
+    if isinstance(route, LiteratureGated):
+        return route.pick(bool(state.get("mcp_available")))
+    return route(state) if callable(route) else route
 
 
 def next_task_type(completed: str, state: WorkflowState) -> str | None:
     """Return the next specialist task after one committed node.
+
+    Reads ``workflow_topology.WORKFLOW_ROUTES``, the declaration the
+    compiled graph is wired from, so the two paths cannot disagree about an
+    edge; the only differences are the ones that module lists.
 
     Args:
         completed: The task node that just committed.
@@ -154,25 +112,25 @@ def next_task_type(completed: str, state: WorkflowState) -> str | None:
     Raises:
         ValueError: If ``completed`` is not a recognized task node.
     """
-    if completed not in _NEXT_TASK_ROUTES:
+    if completed not in WORKFLOW_ROUTES:
         raise ValueError(f"unsupported completed task node: {completed}")
     # A halt written by the mid-flight safety monitor (J6) ends the run from
     # whichever node observed it, rather than letting the rest of the cycle
     # run and stopping only at the next orchestrator loop point. The
     # scheduler's own safety stop still covers the graph path, which has no
-    # equivalent of this table.
+    # equivalent of this halt.
     if state.get("safety_blocked"):
         return None
-    route = _NEXT_TASK_ROUTES[completed]
-    return route(state) if callable(route) else route
+    return _resolve(WORKFLOW_ROUTES[completed], state)
 
 
 # Nodes whose real successor is decided only once their own execution
 # commits: the fan-out family (its aggregate is created dynamically, at a
 # size unknown until the node runs) plus the orchestrator (whose successor
 # is the adaptive decision made during its own run, never a fixed route --
-# see _route_after_orchestrator). A portfolio plan may include one of these
-# as its last entry, but must never resolve what follows it (finding F4).
+# see ``workflow_topology.route_next_task``). A portfolio plan may include
+# one of these as its last entry, but must never resolve what follows it
+# (finding F4).
 FANNING_NODES = frozenset(
     {
         "generate",
@@ -218,10 +176,10 @@ def _resolve_walkable_hop(current: str, state: WorkflowState) -> str | None:
     required = _RESOLVER_REQUIRES.get(current)
     if required is not None and required not in state:
         return None
-    route = _NEXT_TASK_ROUTES.get(current)
+    route = WORKFLOW_ROUTES.get(current)
     if route is None:
         return None
-    return route(state) if callable(route) else route
+    return _resolve(route, state)
 
 
 def plan_portfolio(start: str, state: WorkflowState) -> list[str]:
@@ -229,7 +187,7 @@ def plan_portfolio(start: str, state: WorkflowState) -> list[str]:
 
     Execution otherwise enqueues one successor at a time even across a run
     of nodes whose outcome the route table already fixes. This walks
-    ``_NEXT_TASK_ROUTES`` forward from ``start`` using only state already
+    ``WORKFLOW_ROUTES`` forward from ``start`` using only state already
     committed, stopping at a fanning node (its own successor cannot be
     known until its dynamically sized fan-out aggregate commits), at
     ``orchestrator`` (an adaptive decision made during its own run, never

@@ -18,8 +18,8 @@ executes, without coupling to the Orchestrator's own scheduling policy
 (owned elsewhere and independently in flux): it sequences the same two
 real node calls the durable task runtime chains on a real run --
 ``generate`` then, later, ``meta_review`` then ``generate`` again (see
-``task_runtime.py``'s ``_NEXT_TASK_ROUTES``: "meta_review": "evolve", and
-the Orchestrator alternates back to "generate" -- see
+``workflow_topology.WORKFLOW_ROUTES``, where meta-review hands over to
+evolve, and the Orchestrator alternates back to "generate" -- see
 ``test_integration_pipeline.py``'s adaptive-orchestration test) -- and
 diffs the rendered generation prompts from before and after a real
 meta-review synthesis. Both cycles go through the actual coordinator and
