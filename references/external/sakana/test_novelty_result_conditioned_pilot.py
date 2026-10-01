@@ -760,7 +760,9 @@ def test_plain_text_scanner_preserves_quoted_boolean_and_brace_literals() -> Non
 
 
 def test_query_output_format_is_version_bound_and_future_study_stays_disabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setattr(pilot, "PILOT_PREREG_V7", tmp_path / "missing-protocol.json")
     assert pilot._query_output_format({}, 1) == pilot.JSON_QUERY_OUTPUT_FORMAT
     assert pilot._query_output_format(
         {"query_output_format": "plain_text"}, 7
