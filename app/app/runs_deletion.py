@@ -27,7 +27,7 @@ router = APIRouter()
 # Statuses with a live or claimable worker lease. Everything else -- draft
 # (never started), paused (its task is parked, not leased), and every
 # terminal status -- has no in-flight writer to race, so deletion is safe.
-# Mirrors the frontend's ACTIVE_STATUSES (see api/runs.ts::isActiveStatus).
+# Mirrors the frontend's active phase (api/run_lifecycle.ts::isActiveStatus).
 _ACTIVE_STATUSES = frozenset({"queued", "running", "synthesizing"})
 
 

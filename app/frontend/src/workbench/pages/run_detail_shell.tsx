@@ -1,6 +1,6 @@
 import {useCallback, useState} from 'react';
 import {Link, useParams, useSearchParams} from 'react-router-dom';
-import {type RunStatus} from '@/api/runs';
+import {isCancelledStatus, type TerminalNonCompletedStatus} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {TruncatedLabel} from '../components/truncated_label';
 import {useIsMobile} from '../hooks/use_is_mobile';
@@ -288,28 +288,6 @@ export function RunToast({message}: {message: string}) {
   );
 }
 
-/** Terminal run statuses that ended without a completed goal report. */
-export type TerminalNonCompletedStatus = 'failed' | 'cancelled' | 'blocked';
-
-const TERMINAL_NON_COMPLETED_STATUSES: readonly RunStatus[] = [
-  'failed',
-  'cancelled',
-  'blocked',
-];
-
-/**
- * Whether a run status is terminal but not `completed` — a run that ended
- * without producing a report.
- *
- * @param status The run status (may be undefined before load).
- * @returns True when the run ended failed, cancelled, or blocked.
- */
-export function isTerminalNonCompletedStatus(
-  status: RunStatus | undefined,
-): status is TerminalNonCompletedStatus {
-  return Boolean(status && TERMINAL_NON_COMPLETED_STATUSES.includes(status));
-}
-
 // Status and description for each non-completed terminal state.
 const END_STATE_COPY: Record<
   TerminalNonCompletedStatus,
@@ -379,7 +357,7 @@ export function RunEndState({
         <div
           role="status"
           className={
-            status === 'cancelled'
+            isCancelledStatus(status)
               ? END_STATE_NEUTRAL_ERROR_CLASSES
               : END_STATE_ERROR_CLASSES
           }

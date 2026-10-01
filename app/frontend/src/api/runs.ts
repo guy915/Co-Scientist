@@ -6,15 +6,10 @@
 // - runs_interviews.ts: the research-goal interview
 // - runs_qa.ts: grounded Q&A over a started run
 // - runs_collections.ts: per-run collections, reports, and shares
+// - run_lifecycle.ts: what a run's status means (isActiveStatus, ...)
 
 import {mergeByIdNewestFirst} from '@/lib/merge';
-import type {
-  Run,
-  RunFocus,
-  RunStatus,
-  RunTier,
-  RunWithSummary,
-} from './run_types';
+import type {Run, RunFocus, RunTier, RunWithSummary} from './run_types';
 export type {
   AgentInsights,
   IdeaBucketEntry,
@@ -129,44 +124,25 @@ export {
   uploadRunDocument,
 } from './runs_collections';
 
-/** Statuses for a run whose workflow is still in progress. */
-const ACTIVE_STATUSES: readonly RunStatus[] = [
-  'running',
-  'queued',
-  'synthesizing',
-];
-
-/**
- * Whether a run status represents in-progress work.
- *
- * @param status The run status (may be undefined before load).
- * @returns True if the run's workflow is still in progress.
- */
-export function isActiveStatus(status: RunStatus | undefined): boolean {
-  return Boolean(status && ACTIVE_STATUSES.includes(status));
-}
-
-/** Statuses for a run that has settled and will run no further tasks. */
-const TERMINAL_STATUSES: readonly RunStatus[] = [
-  'completed',
-  'failed',
-  'blocked',
-  'cancelled',
-];
-
-/**
- * Whether a run has reached a terminal state.
- *
- * Distinct from `!isActiveStatus`: a `draft` run is neither active nor
- * terminal — it has not started, so new documents it is given will still be
- * indexed once it runs.
- *
- * @param status The run status (may be undefined before load).
- * @returns True if the run has settled and will run no further tasks.
- */
-export function isTerminalStatus(status: RunStatus | undefined): boolean {
-  return Boolean(status && TERMINAL_STATUSES.includes(status));
-}
+export {
+  isActiveStatus,
+  isCancelledStatus,
+  isCompletedStatus,
+  isDraftStatus,
+  isFailureStatus,
+  isStartedStatus,
+  isStoppableStatus,
+  isTerminalNonCompletedStatus,
+  isTerminalStatus,
+  retiresStartIntent,
+  runActivity,
+  runLifecycle,
+} from './run_lifecycle';
+export type {
+  RunActivity,
+  RunPhase,
+  TerminalNonCompletedStatus,
+} from './run_lifecycle';
 
 /**
  * The run's effective goal: the durable setup goal when set, else the

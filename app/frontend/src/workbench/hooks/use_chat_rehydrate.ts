@@ -4,6 +4,8 @@ import {
   getRun,
   getInterview,
   getRunMessages,
+  isCancelledStatus,
+  isDraftStatus,
   type ChatSummary,
   type Run,
   type RunMessage,
@@ -62,7 +64,7 @@ async function pendingIntentForRun(
   target: LinkedRunTarget,
   run: Run,
 ): Promise<PendingRunCreatePayload | undefined> {
-  if (run.status !== 'draft') return undefined;
+  if (!isDraftStatus(run.status)) return undefined;
   const intent = await readPendingCreateIntent<PendingRunCreatePayload>(
     target.chatId,
   );
@@ -74,7 +76,7 @@ function recoverySpecForStatus(
   run: Run,
   intent: PendingRunCreatePayload | undefined,
 ): InferredRunSpec | undefined {
-  if (run.status !== 'draft') return undefined;
+  if (!isDraftStatus(run.status)) return undefined;
   return recoverySpecForRun(target, run, intent);
 }
 
@@ -142,7 +144,7 @@ function applyResolvedRun(
     run,
     recoverySpec,
   });
-  if (run.status === 'draft' || run.status === 'cancelled') {
+  if (isDraftStatus(run.status) || isCancelledStatus(run.status)) {
     callbacks.setStartedSession(current =>
       current?.id === runId ? null : current,
     );
