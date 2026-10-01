@@ -1,11 +1,13 @@
 """LLM dispatch: entry points, value objects and run-scoped contexts.
 
 The one module the rest of the engine, the app and the evaluations call the
-model through. Everything outside this package imports from
-``co_scientist.llm`` and from nowhere beneath it; ``__all__`` is the whole
-interface: three entry points (``call_llm``, ``call_llm_json``,
-``call_llm_with_tools``), the value objects they take, and the run-scoped
-contexts and counters their callers establish and read.
+model through. Production code outside this package imports from
+``co_scientist.llm`` alone, except ``offline_llm`` (which replaces the
+completion boundary) and ``constants_pricing`` (which reads the route table),
+and tests patch internals directly; ``__all__`` is the whole interface: three
+entry points (``call_llm``, ``call_llm_json``, ``call_llm_with_tools``), the
+value objects they take, and the run-scoped contexts and counters their
+callers establish and read.
 
 Layout, lowest layer first. Each layer imports only from itself and the
 layers before it in this list, at the module that defines the name
