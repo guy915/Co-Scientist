@@ -123,7 +123,7 @@ def _install_report(
         return built
 
     monkeypatch.setattr(
-        report_render, "_build_report_content", fake_build_report
+        report_render, "build_report_content", fake_build_report
     )
 
 

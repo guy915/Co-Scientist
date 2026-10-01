@@ -217,7 +217,7 @@ async def _build_report(run: Any, db_path: str) -> tuple[dict[str, Any], str]:
 
     Returns the payload plus ``built.markdown``, the rendered Goal Report.
     """
-    built = await report_render._build_report_content(
+    built = await report_render.build_report_content(
         run.id,
         report_render.ReportRequest(
             research_goal=run.research_goal,

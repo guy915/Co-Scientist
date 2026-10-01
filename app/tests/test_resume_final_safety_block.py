@@ -140,7 +140,7 @@ async def test_resume_rejects_final_safety_block_after_finalize_succeeded(
         engine_tasks_node, "_drain_and_persist_final_state", fake_drain
     )
     monkeypatch.setattr(
-        report_render, "_build_report_content", fake_build_report
+        report_render, "build_report_content", fake_build_report
     )
     monkeypatch.setattr(
         report_render, "screen_with_escalation", block_final_report

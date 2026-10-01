@@ -141,7 +141,7 @@ async def test_a_built_report_pulls_its_own_runs_retrieval_calls(
         db_path=isolated_db,
     )
 
-    built = await report_render._build_report_content(
+    built = await report_render.build_report_content(
         run.id,
         report_render.ReportRequest(
             research_goal=run.research_goal,

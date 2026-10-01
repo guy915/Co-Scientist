@@ -5,7 +5,13 @@ moved to ``test_goal_report_empty_leaderboard.py`` when this file passed
 the module-size budget.
 """
 
-from app import report_markdown, report_render, store
+from app import (
+    report_content,
+    report_content_gates,
+    report_markdown,
+    report_render,
+    store,
+)
 from tests._drain_helpers import _build_report
 from tests._store_helpers import _add
 
@@ -220,10 +226,10 @@ def test_contradictions_name_ideas_the_report_withholds() -> None:
         _edge("h2", "The bypass is constitutively active.", "contradicts"),
     ]
 
-    published = report_render._exclude_unsafe_hypotheses(
+    published = report_content_gates.exclude_unsafe_hypotheses(
         "run-1", [released, contradicted], None, edges
     )
-    released_edges = report_render._released_claim_evidence(
+    released_edges = report_content.released_claim_evidence(
         published, edges, []
     )
     insights = report_render._agent_insights(published, edges, {})

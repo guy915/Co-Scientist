@@ -4,7 +4,7 @@ Holds the pure data-shaping helpers the report builder composes: knowledge-
 base topic builders, agent-insight and idea-bucket derivation, and claim-
 evidence enrichment. The exclusion filters (contradicted/unverified/unsafe)
 live in ``report_content_gates`` and are re-exported here. The finalize path
--- ``_build_report_content`` and ``finalize_report`` -- stays in
+-- ``build_report_content`` and ``finalize_report`` -- stays in
 ``report_render``, which re-exports the names callers use from here.
 """
 
@@ -22,9 +22,6 @@ from app.report_content_gates import (
     _empty_leaderboard_reason as _empty_leaderboard_reason,
 )
 from app.report_content_gates import (
-    _exclude_unsafe_hypotheses as _exclude_unsafe_hypotheses,
-)
-from app.report_content_gates import (
     _exclusion_tally as _exclusion_tally,
 )
 
@@ -32,9 +29,6 @@ from app.report_content_gates import (
 # the gates split; the redundant-alias form does not fit in 80 columns.
 from app.report_content_gates import (  # noqa: F401
     _legacy_hypothesis_passes_safety_gate,
-)
-from app.report_content_gates import (
-    _unverified_hypothesis_ids as _unverified_hypothesis_ids,
 )
 from app.report_content_gates import (
     _verified_hypothesis_count as _verified_hypothesis_count,
@@ -463,7 +457,7 @@ def _enrich_claim_edge(
     return enriched
 
 
-def _released_claim_evidence(
+def released_claim_evidence(
     hypotheses: list[dict[str, Any]],
     claim_edges: list[dict[str, Any]],
     evidence: list[dict[str, Any]],

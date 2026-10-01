@@ -184,7 +184,7 @@ class GroundingResult:
 
     # Store ids of hypotheses that did not clear the publication gate.
     # Advisory: the report withholds only *contradicted* ideas (see
-    # report_content_gates._exclude_unsafe_hypotheses) and publishes merely
+    # report_content_gates.exclude_unsafe_hypotheses) and publishes merely
     # unsupported ones with an "Unverified" badge. Nothing reads this set but
     # the count, which the run's citation.grounding event reports.
     blocked_ids: frozenset[str]
@@ -464,7 +464,7 @@ def _record_blocked_hypothesis(
     )
     # The quarantine line (logged by the caller) says what actually happens.
     # Under the rank-and-publish policy (see
-    # report_content_gates._unverified_hypothesis_ids) failing this gate does
+    # report_content_gates.unverified_hypothesis_ids) failing this gate does
     # not withhold an idea: only a *contradicted* claim does that. An
     # unsupported one is published, and it carries the "Unverified" badge only
     # when it has no supported claim at all. This line used to announce a

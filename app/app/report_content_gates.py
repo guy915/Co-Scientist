@@ -66,7 +66,7 @@ def _supported_hypothesis_ids(edges: list[dict[str, Any]]) -> set[str]:
     The one definition of "supported" the report uses. A ``partial``
     (near-miss) verdict counts alongside ``supports``: it still means
     relevant, consistent evidence was found. Shared by
-    :func:`_unverified_hypothesis_ids` and :func:`_verified_hypothesis_count`
+    :func:`unverified_hypothesis_ids` and :func:`_verified_hypothesis_count`
     because those two are exact complements of each other over the published
     set -- the "Unverified" badge and the "Verified ideas" tile are one fact
     shown twice, and two independently-editable copies of this rule could
@@ -85,7 +85,7 @@ def _supported_hypothesis_ids(edges: list[dict[str, Any]]) -> set[str]:
     }
 
 
-def _unverified_hypothesis_ids(
+def unverified_hypothesis_ids(
     run_id: str,
     db_path: str | None,
     hyps: list[dict[str, Any]] | None = None,
@@ -125,7 +125,7 @@ def _verified_hypothesis_count(
 ) -> int:
     """How many of the published ideas carry an evidence-supported claim.
 
-    The exact complement of :func:`_unverified_hypothesis_ids` over the
+    The exact complement of :func:`unverified_hypothesis_ids` over the
     published set, and deliberately derived from the same ``supports``/
     ``partial`` rule: the report's "Verified ideas" tile and the per-idea
     "Unverified" badge are the same fact shown twice, so they must not be
@@ -142,7 +142,7 @@ def _verified_hypothesis_count(
     return sum(1 for hyp in hyps if str(hyp.get("id")) in supported)
 
 
-def _exclude_unsafe_hypotheses(
+def exclude_unsafe_hypotheses(
     run_id: str,
     hyps: list[dict[str, Any]],
     db_path: str | None,
@@ -357,7 +357,7 @@ def _hypothesis_passes_safety_gate(
         return False
     # Contradicted ideas have evidence against them and are withheld
     # entirely; merely-unsupported ideas are published with an "Unverified"
-    # badge (see _unverified_hypothesis_ids), not excluded here.
+    # badge (see unverified_hypothesis_ids), not excluded here.
     if str(hyp.get("id")) in contradicted:
         logger.info(
             "Excluding hypothesis %s from synthesis: contradicted claim",

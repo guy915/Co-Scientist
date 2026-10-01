@@ -18,14 +18,14 @@ from app.knowledge_facts import derive_knowledge_facts
 from app.report_content import (
     _agent_insights,
     _contradicted_hypothesis_ids,
-    _exclude_unsafe_hypotheses,
     _exclusion_tally,
     _idea_buckets,
     _knowledge_base_topics,
-    _released_claim_evidence,
     _synthesized_knowledge_base_topics,
     _verified_hypothesis_count,
+    released_claim_evidence,
 )
+from app.report_content_gates import exclude_unsafe_hypotheses
 from app.report_markdown import (
     ReportMarkdownInputs,
     ReportPayloadInputs,
@@ -141,7 +141,7 @@ class _ReportData(NamedTuple):
     retrieval_calls: list[dict[str, Any]]
     # Why each hypothesis NOT in ``hyps`` left the ranked report (review
     # rejection, duplication, contradiction, or a safety hold), computed
-    # once here from the same data ``_exclude_unsafe_hypotheses`` used --
+    # once here from the same data ``exclude_unsafe_hypotheses`` used --
     # never by re-running that gate, whose legacy fallback path can write
     # an audit row as a side effect.
     exclusion_tally: dict[str, int]
@@ -168,7 +168,7 @@ class _BuiltReport(NamedTuple):
     exclusion_tally: dict[str, int]
 
 
-async def _build_report_content(
+async def build_report_content(
     run_id: str, req: _ReportBuildArgs
 ) -> _BuiltReport:
     """Gather store data and build the report payload and markdown.
@@ -311,10 +311,10 @@ def _gather_report_data(run_id: str, db_path: str | None) -> _ReportData:
     # beside them open with the same idea. The store returns rows by raw
     # Elo, which puts an undermined idea first.
     hyps = rank_for_publication(
-        _exclude_unsafe_hypotheses(run_id, all_hyps, db_path, claim_edges)
+        exclude_unsafe_hypotheses(run_id, all_hyps, db_path, claim_edges)
     )
     evidence = store.list_evidence(run_id, db_path=db_path)
-    released_claim_edges = _released_claim_evidence(hyps, claim_edges, evidence)
+    released_claim_edges = released_claim_evidence(hyps, claim_edges, evidence)
     # Derived here from the same inputs the gate above just used, rather
     # than by re-running it: its legacy fallback path writes an audit row
     # as a side effect, so calling it twice would double that row.

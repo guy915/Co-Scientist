@@ -157,7 +157,7 @@ def _install_report_stubs(
         return SafetyDecision(stage="final", decision="allow")
 
     monkeypatch.setattr(
-        report_render, "_build_report_content", fake_build_report
+        report_render, "build_report_content", fake_build_report
     )
     monkeypatch.setattr(
         report_render, "screen_with_escalation", allow_final_screen

@@ -8,7 +8,7 @@ implementation.
 The report content builders live in ``report_markdown``, the
 content-derivation helpers (topics, insights, buckets, claim filters) in
 ``report_content``, the gathering and assembly of the payload/markdown pair
-(``ReportRequest``, ``_BuiltReport``, ``_build_report_content``) in
+(``ReportRequest``, ``_BuiltReport``, ``build_report_content``) in
 ``report_build``, and the completion-email scheduling in ``report_notify``;
 the names callers use are re-exported here so ``app.report_render`` stays
 their import surface. Run-event emission (``make_emitter`` and the event
@@ -23,9 +23,9 @@ from typing import Any
 
 from app import store
 from app.report_build import ReportRequest as ReportRequest
-from app.report_build import _build_report_content as _build_report_content
 from app.report_build import _BuiltReport as _BuiltReport
 from app.report_build import _ReportBuildArgs as _ReportBuildArgs
+from app.report_build import build_report_content as build_report_content
 from app.report_content import _agent_insights as _agent_insights
 from app.report_content import (
     _contradicted_hypothesis_ids as _contradicted_hypothesis_ids,
@@ -33,21 +33,12 @@ from app.report_content import (
 from app.report_content import (
     _empty_leaderboard_reason as _empty_leaderboard_reason,
 )
-from app.report_content import (
-    _exclude_unsafe_hypotheses as _exclude_unsafe_hypotheses,
-)
 from app.report_content import _idea_buckets as _idea_buckets
 from app.report_content import (
     _knowledge_base_topics as _knowledge_base_topics,
 )
 from app.report_content import (
-    _released_claim_evidence as _released_claim_evidence,
-)
-from app.report_content import (
     _synthesized_knowledge_base_topics as _synthesized_knowledge_base_topics,
-)
-from app.report_content import (
-    _unverified_hypothesis_ids as _unverified_hypothesis_ids,
 )
 from app.report_markdown import (
     format_deep_verification_critique as format_deep_verification_critique,
@@ -170,7 +161,7 @@ async def _build_and_gate_report(
         A tuple of (built report, blocked, safety-gate events to yield in
         order before checking ``blocked``).
     """
-    built = await _build_report_content(run_id, req)
+    built = await build_report_content(run_id, req)
     final = await _screen_final_report(
         run_id, built.markdown, req.provider, db_path=req.db_path
     )

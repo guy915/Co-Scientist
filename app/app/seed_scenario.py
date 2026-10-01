@@ -28,7 +28,7 @@ from app.demo_seed_data import (
     scenario_hypotheses,
     scenario_key,
 )
-from app.report_render import ReportRequest, _build_report_content
+from app.report_build import ReportRequest, build_report_content
 from app.seed_config_synthesis import (
     curated_critical_criteria,
     curated_stratification_attributes,
@@ -376,7 +376,7 @@ async def _save_scenario_report(
         seed.scenario, seed.evidence, seed.hypotheses, hypothesis_ids
     )
     meta_review = _curated_meta_review(seed.scenario, seed.hypotheses)
-    built = await _build_report_content(
+    built = await build_report_content(
         seed.run.id,
         _scenario_report_request(seed, hypothesis_ids, overview, meta_review),
     )

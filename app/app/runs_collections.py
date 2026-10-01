@@ -18,6 +18,7 @@ from fastapi.responses import PlainTextResponse
 from app import store
 from app.auth import client_id, require_bearer_principal
 from app.logs_api import RunLogQuery, logs_payload
+from app.report_content_gates import unverified_hypothesis_ids
 from app.runs_models import SafetyAdjudicationRequest
 from app.runs_support import _require_run, _run_or_404
 from app.store import RunStatus
@@ -29,8 +30,6 @@ router = APIRouter()
 async def get_hypotheses(run_id: str) -> dict[str, Any]:
     """Return the run's hypotheses with Elo state, lineage, and verification."""
     run = _run_or_404(run_id)
-    from app.report_render import _unverified_hypothesis_ids
-
     hyps = store.list_hypotheses(run_id)
     # Flag ideas without an evidence-supported claim so the UI can badge them
     # "Unverified" (they are ranked and published under the rank-and-publish
@@ -44,7 +43,7 @@ async def get_hypotheses(run_id: str) -> dict[str, Any]:
         for hyp in hyps:
             hyp["unverified"] = False
     else:
-        unverified = _unverified_hypothesis_ids(run_id, None, hyps)
+        unverified = unverified_hypothesis_ids(run_id, None, hyps)
         for hyp in hyps:
             hyp["unverified"] = str(hyp.get("id")) in unverified
     return {"hypotheses": hyps}

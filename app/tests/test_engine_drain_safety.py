@@ -18,7 +18,7 @@ from typing import Any
 import pytest
 from co_scientist import models as engine_models
 
-from app import report_render, store
+from app import report_content_gates, report_render, store
 from tests._drain_helpers import (
     _final_state_with_lineage,
     _persist,
@@ -95,9 +95,9 @@ def test_rank_and_publish_splits_contradicted_from_unverified(
 ) -> None:
     """Contradicted ideas are withheld; unsupported ones publish unverified.
 
-    Batch 9 rank-and-publish: ``_exclude_unsafe_hypotheses`` drops a
+    Batch 9 rank-and-publish: ``exclude_unsafe_hypotheses`` drops a
     contradicted idea but keeps a merely-unsupported one, which
-    ``_unverified_hypothesis_ids`` flags for the "Unverified" badge. A run with
+    ``unverified_hypothesis_ids`` flags for the "Unverified" badge. A run with
     no claim-evidence at all (mock demo runs) flags nothing.
     """
     run = store.create_run("gate split", "standard", "engine", {})
@@ -108,7 +108,9 @@ def test_rank_and_publish_splits_contradicted_from_unverified(
     contradicted = report_render._contradicted_hypothesis_ids(
         run.id, isolated_db
     )
-    unverified = report_render._unverified_hypothesis_ids(run.id, isolated_db)
+    unverified = report_content_gates.unverified_hypothesis_ids(
+        run.id, isolated_db
+    )
     assert contradicted == {contradicted_id}
     # Only the supported idea has a ``supports`` edge; the other two lack one.
     assert unverified == {unsupported_id, contradicted_id}
@@ -116,7 +118,7 @@ def test_rank_and_publish_splits_contradicted_from_unverified(
     hyps = store.list_hypotheses(run.id, db_path=isolated_db)
     kept_ids = {
         h["id"]
-        for h in report_render._exclude_unsafe_hypotheses(
+        for h in report_content_gates.exclude_unsafe_hypotheses(
             run.id, hyps, isolated_db
         )
     }
@@ -135,7 +137,10 @@ def _assert_demo_run_badges_nothing(db_path: str) -> None:
         ),
         db_path=db_path,
     )
-    assert report_render._unverified_hypothesis_ids(demo.id, db_path) == set()
+    assert (
+        report_content_gates.unverified_hypothesis_ids(demo.id, db_path)
+        == set()
+    )
 
 
 def test_partial_edge_clears_the_unverified_badge(isolated_db: str) -> None:
@@ -188,7 +193,9 @@ def test_partial_edge_clears_the_unverified_badge(isolated_db: str) -> None:
         db_path=isolated_db,
     )
 
-    unverified = report_render._unverified_hypothesis_ids(run.id, isolated_db)
+    unverified = report_content_gates.unverified_hypothesis_ids(
+        run.id, isolated_db
+    )
     # The partial idea clears the badge; only the insufficient one is flagged.
     assert unverified == {insufficient_id}
 
@@ -208,7 +215,9 @@ def test_gate_reports_exclusions_once_and_at_info(
     hyps = store.list_hypotheses(run.id, db_path=isolated_db)
 
     with caplog.at_level(logging.INFO, logger="app.report_content_gates"):
-        report_render._exclude_unsafe_hypotheses(run.id, hyps, isolated_db)
+        report_content_gates.exclude_unsafe_hypotheses(
+            run.id, hyps, isolated_db
+        )
 
     assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
     assert any(contradicted_id in r.getMessage() for r in caplog.records)
@@ -238,7 +247,7 @@ def test_gate_warns_when_it_excludes_everything(
     hyps = store.list_hypotheses(run.id, db_path=isolated_db)
 
     with caplog.at_level(logging.INFO, logger="app.report_content_gates"):
-        kept = report_render._exclude_unsafe_hypotheses(
+        kept = report_content_gates.exclude_unsafe_hypotheses(
             run.id, hyps, isolated_db
         )
 
@@ -267,7 +276,7 @@ def test_gate_warning_names_review_rejection_not_safety(
     ]
 
     with caplog.at_level(logging.INFO, logger="app.report_content_gates"):
-        kept = report_render._exclude_unsafe_hypotheses(
+        kept = report_content_gates.exclude_unsafe_hypotheses(
             "run-review-rejected", hyps, None, claim_edges=[]
         )
 

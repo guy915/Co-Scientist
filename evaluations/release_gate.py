@@ -21,7 +21,7 @@ are reported as observations instead:
 
 - **Verified-claim ratio.** Production publishes an unsupported (but
   uncontradicted) idea with an explicit "Unverified" badge rather than
-  withholding it -- see ``_unverified_hypothesis_ids``. A gate demanding
+  withholding it -- see ``unverified_hypothesis_ids``. A gate demanding
   80% supported claims would withhold essentially every real run, and
   asserting it here while production does the opposite is exactly the
   divergence ``L1`` is about. The ratio is still computed and returned,
