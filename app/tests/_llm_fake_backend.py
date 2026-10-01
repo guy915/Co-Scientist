@@ -76,7 +76,7 @@ def install_completion_backend(
         The installed ``FakeBackend``.
     """
     from co_scientist.llm.request import backend
-    from co_scientist.offline_llm import OfflineRouter
+    from co_scientist.offline.llm import OfflineRouter
 
     engine_fake = load_engine_fake()
     fake = engine_fake.FakeBackend(
