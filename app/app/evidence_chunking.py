@@ -32,8 +32,7 @@ import itertools
 import re
 from collections.abc import Sequence
 
-from app.claims_assessor import _SENTENCE_SPLIT as _SENTENCE_SPLIT
-from app.claims_assessor import EvidencePassage
+from app.claims_assessor import SENTENCE_SPLIT, EvidencePassage
 
 # Passage-sized chunk target (paragraph/sentence-window units are packed up
 # to this many characters). Chosen so five retrieved chunks -- the retrieval
@@ -68,7 +67,7 @@ def parent_evidence_id(evidence_id: str) -> str:
 
 def _split_long_unit(unit: str, max_chars: int) -> list[str]:
     """Split one paragraph too long for one chunk into sentence windows."""
-    sentences = [s.strip() for s in _SENTENCE_SPLIT.split(unit) if s.strip()]
+    sentences = [s.strip() for s in SENTENCE_SPLIT.split(unit) if s.strip()]
     windows: list[str] = []
     for sentence in sentences or [unit]:
         if len(sentence) <= max_chars:

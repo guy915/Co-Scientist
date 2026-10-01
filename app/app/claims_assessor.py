@@ -54,7 +54,9 @@ def as_passages(texts: Sequence[str]) -> list[EvidencePassage]:
 # --- Per-claim entailment ---------------------------------------------------
 
 
-_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
+# Public: claim extraction, evidence chunking and the citation drain all
+# split prose on this one boundary, so they agree on what a sentence is.
+SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
 
 # Phrases that flip a passage's polarity toward contradiction. Deterministic
 # stand-in for an NLI contradiction signal; the real assessor is an LLM/NLI
@@ -360,7 +362,7 @@ def _contradicting_sentence(claim: str, text: str) -> str | None:
 
 def _split_sentences(text: str) -> list[str]:
     """Split ``text`` into non-empty, stripped sentences."""
-    return [s.strip() for s in _SENTENCE_SPLIT.split(text) if s.strip()]
+    return [s.strip() for s in SENTENCE_SPLIT.split(text) if s.strip()]
 
 
 def _best_sentence(claim: str, text: str) -> str:

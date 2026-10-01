@@ -67,7 +67,7 @@ from app.citation_metadata import (
 )
 from app.claims_assessor import (
     _DEFAULT_RETRIEVAL_TOP_K,
-    _SENTENCE_SPLIT,
+    SENTENCE_SPLIT,
 )
 
 # --- Retrieval and the deterministic assessor -------------------------------
@@ -208,7 +208,7 @@ def extract_atomic_claims(text: str) -> list[str]:
     """
     claims: list[str] = []
     seen: set[str] = set()
-    for raw in _SENTENCE_SPLIT.split(text or ""):
+    for raw in SENTENCE_SPLIT.split(text or ""):
         claim = raw.strip()
         if len(claim.split()) < _MIN_CLAIM_WORDS:
             continue

@@ -18,7 +18,7 @@ from typing import Any
 
 from app import store
 from app.citations import CitationRecord, classify_citation
-from app.claims_assessor import _SENTENCE_SPLIT
+from app.claims_assessor import SENTENCE_SPLIT
 
 # Bracketed citation groups inside a grounding sentence: "[C1]", "[C1, C3]".
 _BRACKET_GROUP = re.compile(r"\[([^\[\]]+)\]")
@@ -133,7 +133,7 @@ def _claim_cited_by(grounding: str, cite_key: str) -> str:
     marker = f"[{cite_key}]"
     cited = [
         sentence
-        for sentence in _SENTENCE_SPLIT.split(grounding)
+        for sentence in SENTENCE_SPLIT.split(grounding)
         # A sentence may list several keys ("[C1, C3]"), so match the key
         # inside a bracket group rather than only a lone marker.
         if marker in sentence
