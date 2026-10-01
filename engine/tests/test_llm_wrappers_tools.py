@@ -19,8 +19,8 @@ from co_scientist.llm import (
     CompletionSpec,
     ToolLoop,
     call_llm_with_tools,
+    precall,
 )
-from co_scientist.llm.tools import loop as tool_loop
 from tests._llm_fake import disable_llm_cache as _disable_cache
 from tests._llm_wrapper_fakes import (
     SEARCH_TOOL as _SEARCH_TOOL,
@@ -314,7 +314,7 @@ async def test_tool_contract_change_is_a_cache_miss(
     and schema alone would wrongly replay the first call's answer.
     """
     cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True)
-    monkeypatch.setattr(tool_loop, "get_cache", lambda: cache_obj)
+    monkeypatch.setattr(precall, "get_cache", lambda: cache_obj)
     state = _patch_acompletion(
         monkeypatch,
         [
@@ -344,7 +344,7 @@ async def test_identical_tool_contract_is_a_cache_hit(
     cache, not re-completed.
     """
     cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True)
-    monkeypatch.setattr(tool_loop, "get_cache", lambda: cache_obj)
+    monkeypatch.setattr(precall, "get_cache", lambda: cache_obj)
     state = _patch_acompletion(monkeypatch, [_completion(_message("answer"))])
     contract = {"pubmed": {"enabled": True}}
 

@@ -17,6 +17,7 @@ from co_scientist.llm.admission.credentials import (
     scoped_api_key,
 )
 from co_scientist.llm.attempts.failure import _report_call_llm_failure
+from co_scientist.llm.precall import _prepare_llm_call
 from co_scientist.llm.request.completion import (
     CompletionShape,
     _acompletion_within_timeout,
@@ -24,7 +25,6 @@ from co_scientist.llm.request.completion import (
     _build_completion_args,
 )
 from co_scientist.llm.request.response import _extract_completion_content
-from co_scientist.llm.tools.loop import _prepare_llm_call
 from co_scientist.llm.values import CompletionSpec, LLMCallOptions
 
 logger = logging.getLogger(__name__)

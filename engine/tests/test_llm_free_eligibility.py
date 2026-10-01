@@ -372,11 +372,10 @@ async def test_campaign_does_not_reuse_paid_byok_cache(
     kind: str,
 ) -> None:
     from co_scientist.cache import LLMCache
-    from co_scientist.llm import ToolLoop, call_llm_with_tools
-    from co_scientist.llm.tools import loop as tool_loop
+    from co_scientist.llm import ToolLoop, call_llm_with_tools, precall
 
     cache = LLMCache(cache_dir=str(tmp_path), enabled=True)
-    monkeypatch.setattr(tool_loop, "get_cache", lambda: cache)
+    monkeypatch.setattr(precall, "get_cache", lambda: cache)
     requests: list[dict[str, Any]] = []
     patch_acompletion(
         monkeypatch,

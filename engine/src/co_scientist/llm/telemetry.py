@@ -3,7 +3,7 @@
 Every ``litellm.acompletion`` call funnels through
 ``llm.request.completion._acompletion_within_timeout`` (see that module's
 docstring), so that is the single point recording one physical call's tokens,
-latency, and outcome; cache hits/misses are recorded in ``llm.tools.loop`` where
+latency, and outcome; cache hits/misses are recorded in ``llm.precall`` where
 the cache lookup itself happens, and retries of ``call_llm_json``'s
 schema-repair loop and ``call_llm``'s own budget-escalation loop (see
 ``llm.attempts.text_retry``) are both recorded here via ``record_retry``.

@@ -30,11 +30,11 @@ from co_scientist.llm.attempts.retry import (
 )
 from co_scientist.llm.attempts.single import _call_llm_single_attempt
 from co_scientist.llm.attempts.text_retry import run_with_budget_escalation
+from co_scientist.llm.precall import _prepare_llm_call
 from co_scientist.llm.request.gateway_body import scoped_minimal_reasoning
 from co_scientist.llm.structured.errors import _handle_json_retries_exhausted
 from co_scientist.llm.structured.repair import extract_response_json
 from co_scientist.llm.telemetry import record_retry as _record_retry
-from co_scientist.llm.tools.loop import _prepare_llm_call
 from co_scientist.llm.values import CompletionSpec, LLMCallOptions
 
 logger = logging.getLogger(__name__)

@@ -10,7 +10,7 @@ response object (a ``SimpleNamespace`` tree mirroring
 touched.
 
 Caching is disabled deterministically by patching
-``co_scientist.llm.tools.loop.get_cache``
+``co_scientist.llm.precall.get_cache``
 to return a fresh ``LLMCache(enabled=False)``: a disabled cache's ``get`` always
 returns ``None`` and ``set`` is a no-op, so each call exercises the real
 completion path. Patching the env var is unreliable because ``get_cache``
@@ -38,8 +38,8 @@ from co_scientist.llm import (
     call_llm,
     call_llm_json,
     call_llm_with_tools,
+    precall,
 )
-from co_scientist.llm.tools import loop as tool_loop
 from tests._llm_fake import disable_llm_cache as _disable_cache
 from tests._llm_wrapper_fakes import (
     SEARCH_TOOL as _SEARCH_TOOL,
@@ -131,7 +131,7 @@ async def test_scoped_cache_override_false_skips_get_cache(
         calls["get_cache"] += 1
         return LLMCache(enabled=True)
 
-    monkeypatch.setattr(tool_loop, "get_cache", _tracking_get_cache)
+    monkeypatch.setattr(precall, "get_cache", _tracking_get_cache)
     _patch_acompletion(monkeypatch, [_completion(_message("fresh"))])
 
     with cache_mod.scoped_cache_override(False):
@@ -160,7 +160,7 @@ async def test_no_scoped_override_still_uses_get_cache(
         calls["get_cache"] += 1
         return LLMCache(enabled=False)
 
-    monkeypatch.setattr(tool_loop, "get_cache", _tracking_get_cache)
+    monkeypatch.setattr(precall, "get_cache", _tracking_get_cache)
     _patch_acompletion(monkeypatch, [_completion(_message("fresh"))])
 
     await call_llm(

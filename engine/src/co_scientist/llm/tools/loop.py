@@ -6,37 +6,24 @@ tool messages to the history; a successful loop result is cached only once
 the final content is validated. The bounded loop driver itself -- per-turn
 budget bookkeeping, the degraded-but-answered exit, and the cache-write
 glue its success path calls -- is split out into ``llm.tools.loop_run`` to
-keep this module within the size cap, and re-exported below.
+keep this module within the size cap.
 
-Also home to ``_prepare_llm_call``, the shared pre-call sequence consumed by
-every public entry point (``call_llm``/``call_llm_json`` in ``llm``, and
-``call_llm_with_tools`` here). It lives in this module rather than ``llm``
-because ``llm`` imports this module, and the loop needing it from ``llm``
-would be a cycle. Note for tests: caching is therefore stubbed by patching
-``get_cache`` on *this* module, not on ``llm`` -- which is also why the
-cache-lookup sequence stays here rather than moving to
-``llm.tools.loop_run`` alongside the driver it feeds.
+The shared pre-call sequence (``_prepare_llm_call``) is ``llm.precall``'s, so
+caching is stubbed by patching ``get_cache`` there.
 """
 
 import logging
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.cache import (
     LLMCache,
     LLMCacheRequest,
     NullCache,
-    cache_enabled_override,
-    get_cache,
 )
 from co_scientist.llm.admission.credentials import scoped_api_key
-from co_scientist.llm.admission.free_policy import campaign_free_mode
-from co_scientist.llm.request.completion import (
-    _clamp_temperature,
-    _save_prompt_if_named,
-)
-from co_scientist.llm.telemetry import record_cache_result
+from co_scientist.llm.precall import _prepare_llm_call
 from co_scientist.llm.tools.loop_run import _run_tool_call_loop
 from co_scientist.llm.tools.policy import (
     DEFAULT_TOOL_LOOP_TOKEN_BUDGET,
@@ -44,86 +31,7 @@ from co_scientist.llm.tools.policy import (
 )
 from co_scientist.llm.values import CompletionSpec, LLMCallOptions
 
-# `_message_to_history_dict` is re-exported above under its original
-# private name: the transcript-shaping helpers moved to
-# `llm.tools.transcript` to keep this module under the size ceiling, and
-# tests and `llm.py` patch the name here.
 logger = logging.getLogger(__name__)
-
-
-def _resolve_cache(use_cache: bool) -> "LLMCache | NullCache":
-    """Resolves the cache to use for a call, honoring the disable overrides.
-
-    Campaign mode also bypasses cached completions so every evaluation
-    request reaches current-price admission.
-
-    NullCache when this call opted out, or the current task's generator was
-    constructed with enable_cache=False (see cache.scoped_cache_override) --
-    scoped to this task rather than the process-wide get_cache() singleton,
-    so it never disables caching for any other concurrently-running
-    generator.
-    """
-    cache_active = (
-        use_cache
-        and cache_enabled_override() is not False
-        and not campaign_free_mode()
-    )
-    return get_cache() if cache_active else NullCache()
-
-
-def _log_cache_lookup(
-    prompt: str, cached_response: dict[str, Any] | None
-) -> None:
-    """Logs a cache miss for a lookup; a hit is logged by the call site."""
-    if cached_response is None:
-        logger.debug(
-            "cache miss for prompt: %s%s",
-            prompt[:200],
-            "..." if len(prompt) > 200 else "",
-        )
-
-
-async def _prepare_llm_call(
-    request: LLMCacheRequest, opts: LLMCallOptions
-) -> tuple[LLMCacheRequest, "LLMCache | NullCache", dict[str, Any] | None]:
-    """Runs the shared pre-call sequence for the public LLM entry points.
-
-    Saves the prompt debug artifact (when named), clamps the temperature
-    before the cache key is built so requested temperatures that execute
-    identically share one cache entry, and performs the cache lookup.
-
-    Args:
-        request: The request as the caller asked for it; its response-shape
-            fields (``json_schema``/``force_json``/``tools``) are what make
-            the cache key caller-specific.
-        opts: Cache and debug-artifact options for this call.
-
-    Returns:
-        A (clamped_request, cache, cached_response) tuple where the request
-        carries the clamped temperature the call must actually use, and
-        cached_response is None on a cache miss.
-    """
-    await _save_prompt_if_named(
-        request.prompt, opts.run_id, opts.prompt_name, opts.prompt_metadata
-    )
-
-    request = replace(
-        request,
-        temperature=_clamp_temperature(request.model_name, request.temperature),
-    )
-
-    cache = _resolve_cache(opts.use_cache)
-    cached_response = cache.get(request)
-    _log_cache_lookup(request.prompt, cached_response)
-    # Only a genuinely active cache is worth a hit/miss telemetry record.
-    # ``call_llm_json``'s retry loop deliberately calls back into
-    # ``call_llm`` with ``use_cache=False`` for every attempt (see that
-    # module's docstring): a NullCache lookup there always "misses" by
-    # construction, and counting it would double-count one logical request
-    # as two cache attempts for no informative reason.
-    if isinstance(cache, LLMCache):
-        record_cache_result(request.model_name, hit=cached_response is not None)
-    return request, cache, cached_response
 
 
 async def _prepare_tool_call(

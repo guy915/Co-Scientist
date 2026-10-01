@@ -5,8 +5,7 @@ from typing import Any
 import pytest
 
 from co_scientist.cache import LLMCache
-from co_scientist.llm import CompletionSpec, call_llm
-from co_scientist.llm.tools import loop as tool_loop
+from co_scientist.llm import CompletionSpec, call_llm, precall
 from co_scientist.models import (
     Hypothesis,
     MetricDeltas,
@@ -130,7 +129,7 @@ async def test_execute_task_node_captures_llm_telemetry_by_phase(
     stand-in.
     """
     monkeypatch.setattr(
-        tool_loop,
+        precall,
         "get_cache",
         lambda: LLMCache(cache_dir=str(tmp_path), enabled=True),
     )

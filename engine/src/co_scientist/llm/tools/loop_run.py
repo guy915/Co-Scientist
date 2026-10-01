@@ -5,10 +5,7 @@ Holds the per-turn budget bookkeeping (spend tracking, the wrap-up-turn
 timing, dropping dead transcript weight), the degraded-but-answered exit
 when a ceiling is reached, the loop driver that ties them together, and
 the small cache-write glue the driver's success path calls. The
-cache-*lookup* sequence (``_prepare_llm_call``/``_resolve_cache``) stays in
-``llm.tools.loop``, since its ``get_cache()`` call is what tests patch by
-that module's name. Every name is re-exported from ``llm.tools.loop``, so
-callers and monkeypatching tests are unaffected.
+cache-*lookup* sequence is ``llm.precall``'s.
 """
 
 import logging
