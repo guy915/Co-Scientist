@@ -37,7 +37,7 @@ export const Ranked: React.FC = () => {
     <Cuts at={[0, b(4)]}>
       <Glide len={b(4)} />
       <AbsoluteFill>
-        <ProofList start={-40} width={900} x={0} y={40} ringAt={0} />
+        <ProofList start={-40} width={780} x={-160} y={-10} ringAt={0} chip="right" />
         <Sfx at={0} name="ding" volume={0.55} />
         <Sfx at={3} name="pop6" volume={0.45} />
       </AbsoluteFill>

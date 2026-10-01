@@ -97,9 +97,10 @@ export const Question: React.FC = () => {
 };
 
 const GOAL = 'What mechanisms drive antibiotic resistance in S. aureus biofilms?';
-// 24 characters a second: the question is the film's anchor, so it types at
-// a pace that can be read along with.
-const SPEED = 0.8;
+// 27 characters a second, starting as the box sharpens: the question is the
+// film's anchor, so it types at a pace that can be read along with and then
+// holds whole for over a second before the click.
+const SPEED = 0.9;
 
 /**
  * Beats 7-15: the composer blurs into focus, the goal is typed, and the click
@@ -109,7 +110,7 @@ export const Prompt: React.FC = () => {
   const f = useCurrentFrame();
   const b = useBeats();
   const focus = ramp(f, 0, b(1), emphasized);
-  const typeAt = b(1) - 4;
+  const typeAt = 6;
   const typed = Math.ceil(GOAL.length / SPEED);
   const send = b(6);
   const lift = ramp(f, send + 4, 16, accel);

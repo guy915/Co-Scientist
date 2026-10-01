@@ -15,7 +15,9 @@ mkdir -p out previews
 uv run -q --with numpy --with scipy python scripts/sfx.py
 render() { npx remotion render src/index.ts "$@" --concurrency=8 --log=error; }
 
-render Launch out/launch.mkv --codec=h264-mkv --audio-codec=pcm-16 --scale="$scale"
+# The master: lossless PNG frames and a low CRF, since the big pastel gradients
+# band visibly at the config's JPEG frames and ~2 Mbps.
+render Launch out/launch.mkv --codec=h264-mkv --audio-codec=pcm-16 --scale="$scale" --image-format=png --crf=10 --x264-preset=slow
 render Launch out/sfx.mkv --codec=h264-mkv --audio-codec=pcm-16 --scale=0.25 --props='{"stem":"sfx"}'
 lufs=$(ffmpeg -hide_banner -nostats -i out/launch.mkv -af ebur128 -f null - 2>&1 | awk '$1 == "I:" {i = $2} END {print i}')
 gain=$(echo "-16 - ($lufs)" | bc -l)

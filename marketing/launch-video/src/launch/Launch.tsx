@@ -35,7 +35,7 @@ export const Launch: React.FC = () => (
     <AtBeat from={31} to={33}><Clash /></AtBeat>
     <AtBeat from={33} to={35}><VerbShot word="Evolve." gloss="The strongest are refined" look={3} /></AtBeat>
     <AtBeat from={35} to={37}><Child /></AtBeat>
-    <AtBeat from={37} to={39}><VerbShot word="Rank." gloss="A tournament decides which lead" look={2} /></AtBeat>
+    <AtBeat from={37} to={39}><VerbShot word="Rank." gloss="A tournament decides which ideas lead" look={2} /></AtBeat>
     <AtBeat from={39} to={41}><Chart /></AtBeat>
     <AtBeat from={41} to={47}><Ranked /></AtBeat>
     <AtBeat from={47} to={53}><Evidence /></AtBeat>

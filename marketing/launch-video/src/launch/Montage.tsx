@@ -10,26 +10,24 @@ import {Backdrop, LOOKS} from './Macro';
 import {Sfx} from './Sfx';
 
 type Crop = {x: number; y: number; w: number; h: number};
-type Shot = {ui: string; crop: Crop; width: number} | 'agents';
+// `fade` marks crops that end inside running text.
+type Shot = {ui: string; crop: Crop; width: number; fade?: boolean} | 'agents';
 
-// Real screens from the demo run the film has not shown yet (home, run
-// specification, idea detail, insights, other runs), in both themes, each framed
-// on the one region that reads at a glance. Crops are fractions of the
-// 1600x1000 captures.
-const HERO = {x: 0.1, y: 0.1, w: 0.6, h: 0.42};
-const SPECS = {x: 0.215, y: 0.22, w: 0.62, h: 0.4};
-const DETAIL = {x: 0.33, y: 0.215, w: 0.47, h: 0.4};
+// Real screens from the demo run, each region shown once and none the film
+// has already shown (home, run specification, idea detail, other runs,
+// insights, lower-ranked ideas), alternating themes, each framed on the one
+// region that reads at a glance. Crops are fractions of the 1600x1000 captures.
 const SHOTS: Shot[] = [
-  {ui: 'ui/light-home.png', crop: HERO, width: 1500},
-  {ui: 'ui/dark-details.png', crop: SPECS, width: 1500},
-  {ui: 'ui/light-home.png', crop: {x: 0.79, y: 0.06, w: 0.2, h: 0.33}, width: 560},
+  {ui: 'ui/light-home.png', crop: {x: 0.1, y: 0.1, w: 0.6, h: 0.42}, width: 1500},
+  {ui: 'ui/dark-details.png', crop: {x: 0.215, y: 0.22, w: 0.62, h: 0.4}, width: 1500, fade: true},
+  {ui: 'ui/light-home.png', crop: {x: 0.79, y: 0.06, w: 0.2, h: 0.315}, width: 560, fade: true},
   'agents',
-  {ui: 'ui/light-ideas.png', crop: DETAIL, width: 1400},
-  {ui: 'ui/dark-overview.png', crop: {x: 0.215, y: 0.23, w: 0.61, h: 0.25}, width: 1500},
-  {ui: 'ui/light-overview.png', crop: {x: 0.215, y: 0.49, w: 0.6, h: 0.37}, width: 1500},
-  {ui: 'ui/dark-home.png', crop: HERO, width: 1500},
-  {ui: 'ui/light-details.png', crop: SPECS, width: 1500},
-  {ui: 'ui/dark-ideas.png', crop: DETAIL, width: 1400},
+  {ui: 'ui/light-ideas.png', crop: {x: 0.33, y: 0.215, w: 0.49, h: 0.4}, width: 1440, fade: true},
+  {ui: 'ui/dark-home.png', crop: {x: 0.79, y: 0.52, w: 0.2, h: 0.3}, width: 560, fade: true},
+  {ui: 'ui/light-overview.png', crop: {x: 0.215, y: 0.475, w: 0.6, h: 0.37}, width: 1500, fade: true},
+  {ui: 'ui/dark-ideas.png', crop: {x: 0.045, y: 0.675, w: 0.265, h: 0.135}, width: 900, fade: true},
+  {ui: 'ui/light-details.png', crop: {x: 0.215, y: 0.65, w: 0.62, h: 0.15}, width: 1600, fade: true},
+  {ui: 'ui/dark-learning.png', crop: {x: 0.22, y: 0.72, w: 0.62, h: 0.27}, width: 1500, fade: true},
 ];
 
 const Agents: React.FC<{f: number}> = ({f}) => (
@@ -67,7 +65,7 @@ export const Montage: React.FC = () => {
         <Agents f={local} />
       ) : (
         <>
-          <FloatCard src={shot.ui} width={shot.width} crop={shot.crop} dark={shot.ui.includes('dark')} scale={1 + local * 0.006} ry={(i % 2 ? -1 : 1) * (4 - local * 0.3)} glow={0.9} fade={shot.crop.h > 0.3} />
+          <FloatCard src={shot.ui} width={shot.width} crop={shot.crop} dark={shot.ui.includes('dark')} scale={1 + local * 0.006} ry={(i % 2 ? -1 : 1) * (4 - local * 0.3)} glow={0.9} fade={shot.fade} />
           <Footnote text="Screens from a demo run on ai-co-scientist.com." band />
         </>
       )}

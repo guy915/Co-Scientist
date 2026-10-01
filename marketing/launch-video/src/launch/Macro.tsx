@@ -72,7 +72,7 @@ export const WordFrame: React.FC<{word: string; chip?: string; mono?: boolean; l
 /** B's opening: the rendered glass flask as the hero, the name under it. */
 const Mark: React.FC<{f: number; reveal: number}> = ({f, reveal}) => (
   <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', fontFamily: FONT}}>
-    <Img src={flaskSrc(f)} style={{width: 620, height: 620, margin: '-150px 0 -70px', opacity: reveal, transform: `translateY(${mix(60, 0, reveal)}px) scale(${mix(0.85, 1, reveal)})`}} />
+    <Img src={flaskSrc(f)} style={{width: 620, height: 620, margin: '-150px 0 -70px', opacity: reveal, transform: `translateY(${mix(60, 0, reveal)}px) scale(${mix(0.85, 1, reveal)})`, background: 'radial-gradient(circle at 50% 52%, rgba(255,255,255,0.95) 0, rgba(255,255,255,0.7) 22%, rgba(255,255,255,0) 40%)'}} />
     <TypeLine text="Introducing" start={4} size={52} color={C.inkSoft} rate={1} style={{marginBottom: 2}} />
     <div style={{fontSize: 140, fontWeight: 500, letterSpacing: '-0.03em', color: C.ink, opacity: reveal, filter: `blur(${mix(14, 0, reveal)}px)`}}>Open Co-Scientist</div>
   </div>
