@@ -87,7 +87,7 @@ export const Question: React.FC = () => {
         <WordReveal text="breakthrough" start={3} size={124} stagger={2} />
       </div>
       <div style={{marginTop: 34}}>
-        <WordReveal text="starts with a *question.*" start={b(1.5)} size={124} stagger={2} />
+        <WordReveal text="starts with a *question.*" start={b(0.75)} size={124} stagger={1.5} />
       </div>
       <Sfx at={0} name="pop0" volume={0.5} />
       {steps.map((s, k) => <Sfx key={s} at={s} name={`blip${k + 1}`} volume={0.32} />)}
@@ -128,10 +128,11 @@ export const Prompt: React.FC = () => {
       <div style={{position: 'absolute', opacity: pill, transform: `scale(${mix(0.7, 1.3, pill)})`}}>
         <StatusPill label="Planning the research" f={f} />
       </div>
+      <Sfx at={0} name="shutter" volume={0.5} />
       <Sfx at={b(1)} name="rise" volume={0.4} />
-      {/* A key every 3 frames, nudged a frame either way so it reads as hands, not a metronome. */}
-      {Array.from({length: Math.floor(typed / 3)}, (_, k) => (
-        <Sfx key={k} at={typeAt + k * 3 + ((k * 5) % 3) - 1} name={`key${(k * 7) % 4}`} volume={0.3 + 0.08 * ((k * 5) % 3)} />
+      {/* A key every 2-3 frames (12 a second), uneven so it reads as hands, not a metronome. */}
+      {Array.from({length: Math.floor(typed / 2.5)}, (_, k) => (
+        <Sfx key={k} at={typeAt + Math.floor(k * 2.5)} name={`key${(k * 7) % 4}`} volume={0.3 + 0.08 * ((k * 5) % 3)} />
       ))}
       <Sfx at={send} name="click" volume={0.8} />
       <Sfx at={send + 2} name="send" volume={0.5} />

@@ -9,18 +9,21 @@ import {C, FONT, MONO} from '../shared/tokens';
 import {Cuts, useBeats} from './Beat';
 import {Sfx} from './Sfx';
 
+// The whole ideas screen less the app's left icon rail, which reads as a stray sliver once pushed in.
+const NO_RAIL = {x: 0.05, y: 0, w: 0.95, h: 1};
+
 /** B's glide: the whole ranked-ideas screen rises flat, then the camera pushes into the list. */
 const Glide: React.FC<{len: number}> = ({len}) => {
   const f = useCurrentFrame();
-  // The list's centre in the 1500-wide card: (0.18, 0.44) of the capture.
+  // The list's centre in the 1500-wide card: (0.14, 0.44) of the crop.
   const keys: Pose[] = [
     {f: 0, y: 420, rx: 24, scale: 0.86, opacity: 0},
-    {f: 16, y: 70, rx: 0, scale: 1, opacity: 1},
-    {f: len - 4, x: 960, y: 170, scale: 2.0, glow: 0.2},
+    {f: 16, y: 80, rx: 0, scale: 1, opacity: 1},
+    {f: len - 4, x: 1090, y: 180, scale: 2.0, glow: 0.2},
   ];
   return (
     <AbsoluteFill>
-      <FloatCard src="ui/light-ideas.png" width={1500} {...posed(f, keys)} />
+      <FloatCard src="ui/light-ideas.png" width={1500} crop={NO_RAIL} {...posed(f, keys)} />
       <Caption text="Every idea ranked in a head-to-head tournament." start={4} end={len + 20} />
       <Sfx at={8} name="whoosh" volume={0.45} />
     </AbsoluteFill>
@@ -36,7 +39,7 @@ export const Ranked: React.FC = () => {
       <AbsoluteFill>
         <ProofList start={-40} width={900} x={0} y={40} ringAt={0} />
         <Sfx at={0} name="ding" volume={0.55} />
-        <Sfx at={3} name="pop6" volume={0.35} />
+        <Sfx at={3} name="pop6" volume={0.45} />
       </AbsoluteFill>
     </Cuts>
   );
@@ -86,7 +89,7 @@ const Verdicts: React.FC = () => {
         })}
       </div>
       <Sfx at={2} name="swish" volume={0.4} />
-      {sources.map(s => <Sfx key={s} at={s} name="tick" volume={0.35} />)}
+      {sources.map(s => <Sfx key={s} at={s} name="tick" volume={0.55} />)}
       {chips.map((c, i) => <Sfx key={c} at={c} name={`pop${[3, 2, 4][i]}`} volume={0.4} />)}
     </AbsoluteFill>
   );
@@ -143,8 +146,9 @@ export const Report: React.FC = () => {
         <FloatCard src="ui/light-overview.png" width={1500} crop={REPORT_CROP} y={90} scale={(1 + local * 0.001) * mix(1, 0.3, pinch)} opacity={1 - pinch * 0.6} blur={pinch * 40} glow={mix(0.9, 1.4, pinch)} />
       )}
       <Caption text="Every run ends in a report you can act on." start={2} end={b(3) - 6} />
-      <Sfx at={4} name="whoosh" volume={0.4} />
-      <Sfx at={cut} name="shutter" volume={0.5} />
+      <Sfx at={0} name="shutter" volume={0.6} />
+      <Sfx at={8} name="whoosh" volume={0.45} />
+      <Sfx at={cut} name="shutter" volume={0.75} />
       <Sfx at={b(4)} name="rise" volume={0.45} />
     </AbsoluteFill>
   );

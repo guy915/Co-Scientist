@@ -48,9 +48,8 @@ export const Launch: React.FC = () => (
       <AtBeat key={at} from={at} to={at + 2}><Footnote text="Ideas from a demo run on ai-co-scientist.com." /></AtBeat>
     ))}
     <AtBeat from={39} to={41}><Footnote text="Illustrative tournament. Sequences shortened." /></AtBeat>
-    <AtBeat from={41} to={47}><Footnote text="Screens from a demo run on ai-co-scientist.com." /></AtBeat>
+    <AtBeat from={41} to={47}><Footnote text="Screens from a demo run on ai-co-scientist.com." band /></AtBeat>
     <AtBeat from={47} to={51}><Footnote text="Illustrative verdicts on an idea from the demo run." /></AtBeat>
-    <AtBeat from={51} to={57}><Footnote text="Screens from a demo run on ai-co-scientist.com." /></AtBeat>
-    <AtBeat from={65} to={75}><Footnote text="Screens from a demo run on ai-co-scientist.com. Sequences shortened." /></AtBeat>
+    <AtBeat from={51} to={57}><Footnote text="Screens from a demo run on ai-co-scientist.com." band /></AtBeat>
   </AbsoluteFill>
 );

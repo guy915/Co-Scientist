@@ -33,7 +33,7 @@ export const Caption: React.FC<{text: string; start: number; end: number}> = ({t
   if (f < start - 2 || f > end + 12) return null;
   return (
     <AbsoluteFill style={{alignItems: 'center'}}>
-      <div style={{position: 'absolute', inset: '0 0 auto 0', height: 200, background: 'linear-gradient(#fff 62%, rgba(255,255,255,0))', opacity: envelope(f, start - 2, end + 12, 8, 10)}} />
+      <div style={{position: 'absolute', inset: '0 0 auto 0', height: 230, background: 'linear-gradient(#fff 74%, rgba(255,255,255,0))', opacity: envelope(f, start - 2, end + 12, 8, 10)}} />
       <TypeLine text={text} start={start} end={end} size={60} style={{marginTop: 84, position: 'relative'}} />
     </AbsoluteFill>
   );

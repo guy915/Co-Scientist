@@ -67,6 +67,7 @@ export const Clash: React.FC = () => {
       {card(1, 1, false)}
       {card(-1, 0, true)}
       <div style={{...at(960, 540, `scale(${mix(0.4, 1.2, hit)})`), fontFamily: FONT, fontSize: 84, fontWeight: 700, color: C.teal, opacity: hit}}>vs</div>
+      <Sfx at={0} name="shutter" volume={0.5} />
       <Sfx at={hitAt - 2} name="whoosh" volume={0.35} />
       <Sfx at={hitAt} name="clack" volume={0.65} />
       <Sfx at={winAt} name="ding" volume={0.45} />
@@ -96,6 +97,7 @@ export const Child: React.FC = () => {
       <div style={{...at(960, 740, `translateY(${mix(90, 0, child)}px) scale(${mix(0.88, 1, child)})`), opacity: Math.min(1, child * 1.4)}}>
         <IdeaCard tag="Generation 1 · refined" title={`Refined: ${SEEDS[0].title}`} width={820} lead />
       </div>
+      <Sfx at={0} name="shutter" volume={0.5} />
       <Sfx at={childAt} name="pop5" volume={0.5} />
       <Sfx at={childAt + 2} name="sparkle" volume={0.3} />
     </AbsoluteFill>

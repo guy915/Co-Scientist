@@ -45,7 +45,7 @@ export const Team: React.FC = () => {
           );
         })}
       </div>
-      {pops.map((p, i) => <Sfx key={p} at={p} name={`pop${i}`} volume={0.4} />)}
+      {pops.map((p, i) => <Sfx key={p} at={p} name={`pop${i}`} volume={0.65} />)}
       {stutter.map(s => <Sfx key={s} at={s} name="morph" volume={0.4} />)}
     </AbsoluteFill>
   );
@@ -77,7 +77,7 @@ export const Working: React.FC = () => {
           <StatusPill label={STAGES[stage]} f={f} />
         </div>
       </AbsoluteFill>
-      {at.map((s, k) => <Sfx key={s} at={s} name={k ? 'tick' : 'whoosh'} volume={k ? 0.6 : 0.4} />)}
+      {at.map((s, k) => <Sfx key={s} at={s} name={k ? 'tick' : 'shutter'} volume={k ? 0.85 : 0.6} />)}
     </AbsoluteFill>
   );
 };

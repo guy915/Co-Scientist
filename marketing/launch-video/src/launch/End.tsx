@@ -20,7 +20,8 @@ export const Wordmark: React.FC = () => {
   const pop = spring({frame: f, fps, config: {damping: 14, stiffness: 110}});
   const rise = ramp(f, 0, 24, emphasized);
   const word = ramp(f, b(1), 16);
-  const gone = ramp(f, b(3), b(4) - b(3) + 4, accel);
+  // Still blurring away on the cut, so the end card lands on it rather than on blank white.
+  const gone = ramp(f, b(3.5), b(5) - b(3.5) + 6, accel) * 0.85;
   return (
     <AbsoluteFill style={{opacity: 1 - gone, filter: `blur(${gone * 26}px)`}}>
       <div style={{position: 'absolute', left: 560 - 360, top: 540 - 360, transform: `scale(${pop * (1 + f * 0.0015)})`}}>
@@ -43,7 +44,7 @@ export const Wordmark: React.FC = () => {
 /** Beat 81 to the end: the end card lands on the final hit and builds fast enough to read. */
 export const Close: React.FC = () => (
   <AbsoluteFill>
-    <Lockup start={0} pace={0.45} />
+    <Lockup start={0} pace={0.45} scale={1.12} />
     <Sfx at={0} name="ding-hi" volume={0.5} />
     <Sfx at={4} name="sparkle" volume={0.22} />
   </AbsoluteFill>
