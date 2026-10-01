@@ -34,9 +34,9 @@ _INT_SCHEMA: dict[str, Any] = {
     "required": ["a"],
 }
 
-# Not a declared ``_GATEWAY_MODELS`` entry -- the recovery this ladder
+# Not a declared gateway route -- the recovery this ladder
 # performs must not depend on the per-model shim in
-# ``llm.request.gateway_body._declared_gateway_body`` already knowing to avoid a
+# ``llm.request.gateway_body._gateway_body`` already knowing to avoid a
 # bare disable; it must also save a caller that reaches this 400 some other way
 # (a model wrongly believed to honour a disable, or one absent from the table
 # entirely).
@@ -159,11 +159,11 @@ async def test_a_second_mandatory_reasoning_refusal_still_terminates(
     }
 
 
-# ``_NEMO`` is declared in ``_GATEWAY_MODELS`` with
+# ``_NEMO`` is a declared gateway route with
 # ``reasoning_can_disable=False``, so a disable request never reaches the
 # wire as a literal ``{"enabled": False}`` at all -- it goes out as minimal
 # reasoning from the very first attempt (see
-# ``llm.request.gateway_body._declared_gateway_body``), unlike
+# ``llm.request.gateway_body._gateway_body``), unlike
 # ``_UNDECLARED_GATEWAY_MODEL`` above, which has to be rejected once before
 # the ladder redirects it. This
 # is the shape production run 323ff72c (2026-09-06 06:57 UTC) actually hit:

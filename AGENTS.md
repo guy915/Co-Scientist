@@ -87,7 +87,9 @@ safety. Set its provider credential to use it. The exact route is pinned to
 Stealth with provider/model fallback disabled and a checked zero-price ceiling.
 Explicit production environment overrides take precedence; an old deployment
 snapshot is not evidence of the current configuration. Do not append paid
-fallbacks under free routes. See `llm/request/gateway_routing.py` for routing behavior.
+fallbacks under free routes. Every model fact (capabilities, routing pin and
+fallbacks, price) is one `ModelProfile` declared in `engine/src/co_scientist/llm/profile/`;
+`llm/request/gateway_routing.py` holds the routing policy applied to it.
 
 With no usable provider credential, or `COSCIENTIST_FORCE_OFFLINE=1`, the
 viewer uses the deterministic offline backend. Use this for local checks;

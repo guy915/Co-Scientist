@@ -11,10 +11,10 @@ import litellm
 
 from co_scientist.exceptions import FreeModelEligibilityError
 from co_scientist.llm.admission.free_catalog import (
-    PROMOTIONAL_FREE_MODELS,
     current_catalog,
     verify_model,
 )
+from co_scientist.llm.profile import promotional_free_route
 
 FREE_MODE_ENV = "COSCIENTIST_REQUIRE_FREE_MODELS"
 _API_BASE = "https://openrouter.ai/api/v1"
@@ -67,7 +67,7 @@ def _requires_free(args: dict[str, Any], byok: bool) -> bool:
         not byok
         and (
             ":free" in model
-            or model.removeprefix("openrouter/") in PROMOTIONAL_FREE_MODELS
+            or promotional_free_route(model.removeprefix("openrouter/"))
         )
     )
 

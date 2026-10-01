@@ -9,12 +9,10 @@ from typing import Any
 import httpx
 
 from co_scientist.exceptions import FreeModelEligibilityError
+from co_scientist.llm.profile import promotional_free_route
 
 CATALOG_URL = "https://openrouter.ai/api/v1/models"
 CATALOG_TTL_SECONDS = 60
-# The official model page calls this exact preview free despite its unsuffixed
-# ID. Fresh catalog prices and zero token-price ceilings gate campaign calls.
-PROMOTIONAL_FREE_MODELS = frozenset({"stealth/space-bunny-alpha"})
 _lock = threading.Lock()
 _snapshot: tuple[float, dict[str, Any]] | None = None
 
@@ -121,7 +119,7 @@ def _verify_pricing(model: str, pricing: Any) -> None:
     }
     required = {"prompt", "completion"} | (
         set()
-        if model.endswith(":free") or model in PROMOTIONAL_FREE_MODELS
+        if model.endswith(":free") or promotional_free_route(model)
         else ancillary
     )
     if not required <= pricing.keys():

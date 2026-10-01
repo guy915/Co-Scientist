@@ -288,7 +288,7 @@ async def _call_llm_entailment_async(
     gateway exposes instead of a bare disable for a model declared unable
     to honour one, and funds that with the thinking-token floor exactly as
     it would a normal thinking call -- see
-    ``GatewayModel.reasoning_can_disable`` and
+    ``ModelProfile.reasoning_can_disable`` and
     ``effective_thinking_enabled``. ``max_attempts=3`` (not the historical
     2) keeps a plain re-ask available for a schema or parse failure now
     that no rung of the escalation ladder needs to spend an attempt

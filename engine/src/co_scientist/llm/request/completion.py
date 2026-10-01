@@ -29,12 +29,9 @@ from co_scientist.exceptions import LLMTimeoutError
 from co_scientist.llm.admission.call_budget import record_provider_request
 from co_scientist.llm.admission.credentials import current_api_key
 from co_scientist.llm.admission.free_policy import enforce_free_request
-from co_scientist.llm.request.gateway_routing import _GATEWAY_MODELS
+from co_scientist.llm.profile import model_profile
 from co_scientist.llm.request.schema import _apply_response_format
-from co_scientist.llm.request.thinking import (
-    _JSON_OBJECT_ONLY_MODEL_FAMILIES,
-    _apply_thinking_args,
-)
+from co_scientist.llm.request.thinking import _apply_thinking_args
 from co_scientist.llm.telemetry import (
     record_completion_failure as _record_completion_failure,
 )
@@ -235,9 +232,10 @@ warnings.filterwarnings(
 
 
 def _clamp_temperature(model_name: str, temperature: float) -> float:
-    """Clamps temperature to model-specific minimums.
+    """Clamps temperature to the model's minimum, when it has one.
 
-    Gemini 3 models require temperature >= 1.0 to avoid degraded performance.
+    Gemini 3 models require temperature >= 1.0 to avoid degraded
+    performance (``ModelProfile.min_temperature``).
 
     Args:
         model_name: LLM model identifier.
@@ -246,23 +244,18 @@ def _clamp_temperature(model_name: str, temperature: float) -> float:
     Returns:
         The temperature to actually use for the call.
     """
-    if "gemini-3" in model_name.lower() and temperature < 1.0:
+    floor = model_profile(model_name).min_temperature
+    if floor is not None and temperature < floor:
         logger.debug(
-            "clamping temperature %s -> 1.0 for gemini 3 model "
-            "(gemini 3 requires temp >= 1.0 to avoid degraded performance)",
+            "clamping temperature %s -> %s for %s (it requires temp >= %s "
+            "to avoid degraded performance)",
             temperature,
+            floor,
+            model_name,
+            floor,
         )
-        return 1.0
+        return floor
     return temperature
-
-
-# Exact endpoint evidence, ahead of the generic gateway downgrade. Gemma's
-# endpoint has JSON object mode only; pinned Qwen has native structured output
-# but no JSON object mode (a JSON object request hard-404ed on 2026-09-25).
-_SCHEMA_ROUTE_OVERRIDES = {
-    "openrouter/google/gemma-4-26b-a4b-it:free": False,
-    "openrouter/qwen/qwen3.8-27b:free": True,
-}
 
 
 @functools.cache
@@ -271,38 +264,24 @@ def _supports_json_schema_response_format(model_name: str) -> bool:
 
     The result is a process-static property of the model, so it is cached to
     avoid re-running litellm's registry lookup on every LLM call and retry.
+    A profile that states the answer (``ModelProfile.json_schema``) decides
+    before the registry does; see that field for why the registry cannot be
+    trusted for the models that state one.
 
     Args:
         model_name: Model name in litellm format.
 
     Returns:
-        False when the model belongs to a known json_object-only family,
-        when it is an exact route with a known provider capability mismatch,
-        when it is one of the declared OpenRouter gateway models without a
-        proven native-schema endpoint, or when
-        litellm's capability registry reports no json_schema support. True
-        otherwise, including when the registry lookup itself raises, so the
-        default json_schema path is preserved for unknown models.
+        The profile's stated answer when it has one -- False for a
+        json_object-only family or a declared OpenRouter gateway model
+        without a proven native-schema endpoint, True for an exact route
+        with one -- else whether litellm's capability registry reports
+        json_schema support. True when the registry lookup itself raises,
+        so the default json_schema path is preserved for unknown models.
     """
-    lowered = model_name.lower()
-    if any(family in lowered for family in _JSON_OBJECT_ONLY_MODEL_FAMILIES):
-        return False
-    if lowered in _SCHEMA_ROUTE_OVERRIDES:
-        return _SCHEMA_ROUTE_OVERRIDES[lowered]
-    if lowered in _GATEWAY_MODELS:
-        # Declared rather than left to the registry lookup below: every
-        # rung in a gateway chain is paired with ``require_parameters``
-        # (see ``llm.request.gateway_routing._GATEWAY_PROVIDER``), which turns
-        # an unsupported ``response_format`` into a hard 404 instead of a soft
-        # degradation, and litellm's own answer for a free variant has been
-        # observed to flip between True and False across runs on the same day --
-        # these are volatile stealth/free listings, not stable capability data.
-        # At least one declared fallback
-        # (``nvidia/nemotron-3.5-lightning:free``) lists no ``response_format``
-        # support at all in its own OpenRouter listing, so json_object is the
-        # only format proven safe across every rung a chain might actually land
-        # on.
-        return False
+    stated = model_profile(model_name).json_schema
+    if stated is not None:
+        return stated
     try:
         return bool(litellm.supports_response_schema(model=model_name))
     except Exception:

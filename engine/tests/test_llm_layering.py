@@ -16,10 +16,13 @@ import co_scientist.llm as llm
 _PACKAGE = "co_scientist.llm"
 _ROOT = pathlib.Path(llm.__file__).parent
 
-# Lowest first. ``telemetry`` sits between two ``request`` modules: it reads
-# token counts off ``request.response`` while ``request.completion`` records
-# into it, so that one edge is allowed upward.
+# Lowest first. ``profile`` states what is known about each model and imports
+# nothing else here, so admission and request shaping can both read it.
+# ``telemetry`` sits between two ``request`` modules: it reads token counts
+# off ``request.response`` while ``request.completion`` records into it, so
+# that one edge is allowed upward.
 _LAYERS = (
+    "profile",
     "values",
     "admission",
     "structured",

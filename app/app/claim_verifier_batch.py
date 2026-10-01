@@ -231,7 +231,7 @@ async def _call_llm_batch_entailment_async(
     every batched call failing identically on both attempts), so
     ``co_scientist.llm.request.thinking`` sends the smallest reasoning tier the
     gateway exposes instead, funded by the same thinking-token floor a
-    normal thinking call gets -- see ``GatewayModel.reasoning_can_disable``
+    normal thinking call gets -- see ``ModelProfile.reasoning_can_disable``
     and ``effective_thinking_enabled``. ``max_attempts=3`` (not the
     historical 2) keeps a plain re-ask available for a schema or parse
     failure now that no rung of the escalation ladder needs to spend an

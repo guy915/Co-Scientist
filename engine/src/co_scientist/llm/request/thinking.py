@@ -9,58 +9,34 @@ import logging
 from typing import Any, Final
 
 from co_scientist.constants import THINKING_FLOOR_MAX_TOKENS
+from co_scientist.llm.profile import Thinking, model_profile
 from co_scientist.llm.request.gateway_body import (
-    _is_gateway_route,
+    _REASONING_EFFORT,
     deepseek_thinking_extra_body,
     effective_thinking_enabled,
 )
-from co_scientist.llm.request.gateway_routing import _GATEWAY_MODELS
 
 logger = logging.getLogger(__name__)
-
-# Provider-capability shim: some providers reject
-# response_format={"type": "json_schema", ...} outright (DeepSeek returns an
-# invalid-request error). For those models every schema'd call is downgraded,
-# per call, to {"type": "json_object"} with the schema restated as prompt
-# text, and missing required fields are back-filled with empty defaults
-# (json_object mode has no server-side schema enforcement, so nested
-# required fields are routinely omitted). Models that support json_schema
-# are untouched.
-#
-# Checked BEFORE litellm's capability registry: it marks deepseek/* as
-# supporting response schema, but the DeepSeek API only accepts json_object.
-#
-# The free gateway models (``z-ai/glm-5.2:free`` and its fallback chain)
-# don't need an entry here: litellm's own registry already reports no
-# response-schema support for them, so ``_supports_json_schema_response_format``
-# downgrades them via that path, not this family list. If a future model
-# in the chain fails that check the other way (registry says yes, host
-# says no -- a hard 404 paired with ``require_parameters``, not a soft
-# degradation), add it here rather than assuming the registry is right.
-_JSON_OBJECT_ONLY_MODEL_FAMILIES: tuple[str, ...] = ("deepseek",)
 
 
 def model_reasons(model_name: str) -> bool:
     """Whether this model can spend its whole budget before answering.
 
     The question the token floor actually asks, and deliberately not "does
-    it take the reasoning parameter". The two came apart in production: Ox
-    Alpha answers no to the second and yes to this one, and conflating them
-    withheld the floor from a model that needed it, costing 24 answerless
-    round-trips in one express run.
+    it take the reasoning parameter" (``ModelProfile.thinking``). The two
+    came apart in production: Ox Alpha answers no to the second and yes to
+    this one, and conflating them withheld the floor from a model that
+    needed it, costing 24 answerless round-trips in one express run.
 
     Args:
         model_name: Model name in litellm format.
 
     Returns:
-        True for a declared gateway model that spends its budget thinking,
-        and for any DeepSeek model, whose whole family does.
+        ``ModelProfile.reasons``: True for a declared gateway model that
+        spends its budget thinking, and for any DeepSeek model, whose whole
+        family does.
     """
-    lowered = model_name.lower()
-    declared = _GATEWAY_MODELS.get(lowered)
-    if declared is not None:
-        return declared.spends_budget_thinking
-    return "deepseek" in lowered
+    return model_profile(model_name).reasons
 
 
 def reasoning_effort_args(
@@ -97,10 +73,8 @@ def reasoning_effort_args(
         ``{"reasoning_effort": "high"}`` when the tier applies and the route
         has nowhere else to state it, else ``{}``.
     """
-    if _is_gateway_route(model_name):
-        return {}
-    if enabled and deepseek_thinking_extra_body(model_name):
-        return {"reasoning_effort": "high"}
+    if enabled and model_profile(model_name).thinking is Thinking.NATIVE:
+        return {"reasoning_effort": _REASONING_EFFORT}
     return {}
 
 

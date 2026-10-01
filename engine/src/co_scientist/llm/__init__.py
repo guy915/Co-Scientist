@@ -11,6 +11,9 @@ Layout, lowest layer first. Each layer imports only from itself and the
 layers before it in this list, at the module that defines the name
 (``tests/test_llm_layering.py`` enforces it):
 
+* ``profile``: what is known about each model route -- capabilities,
+  routing, price -- as one ``ModelProfile``. Imports nothing from the
+  rest of the package.
 * ``values``: ``CompletionSpec``, ``LLMCallOptions``.
 * ``admission``: credentials, per-run call budget, free-model policy.
 * ``structured``: parse, repair, validate and reshape structured output.
@@ -60,6 +63,7 @@ if TYPE_CHECKING:
     )
     from co_scientist.llm.attempts.retry import rate_limited_attempt_count
     from co_scientist.llm.call import call_llm, call_llm_json
+    from co_scientist.llm.profile import ModelProfile, model_profile
     from co_scientist.llm.request.gateway_body import (
         deepseek_thinking_extra_body,
     )
@@ -89,6 +93,7 @@ __all__ = [
     "CompletionSpec",
     "LLMCallOptions",
     "ModelCallStats",
+    "ModelProfile",
     "ToolLoop",
     "call_llm",
     "call_llm_json",
@@ -100,6 +105,7 @@ __all__ = [
     "deepseek_thinking_extra_body",
     "enforce_free_request",
     "indexed_prompt_name",
+    "model_profile",
     "model_reasons",
     "parse_tool_loop_json",
     "provider_outage_backoff_seconds",
@@ -123,6 +129,7 @@ _EXPORTS: dict[str, str] = {
     "CompletionSpec": "co_scientist.llm.values",
     "LLMCallOptions": "co_scientist.llm.values",
     "ModelCallStats": "co_scientist.llm.telemetry",
+    "ModelProfile": "co_scientist.llm.profile",
     "ToolLoop": "co_scientist.llm.tools.loop",
     "call_llm": "co_scientist.llm.call",
     "call_llm_json": "co_scientist.llm.call",
@@ -134,6 +141,7 @@ _EXPORTS: dict[str, str] = {
     "deepseek_thinking_extra_body": "co_scientist.llm.request.gateway_body",
     "enforce_free_request": "co_scientist.llm.admission.free_policy",
     "indexed_prompt_name": "co_scientist.llm.values",
+    "model_profile": "co_scientist.llm.profile",
     "model_reasons": "co_scientist.llm.request.thinking",
     "parse_tool_loop_json": "co_scientist.llm.structured.validate",
     "provider_outage_backoff_seconds": "co_scientist.llm.attempts.backoff",

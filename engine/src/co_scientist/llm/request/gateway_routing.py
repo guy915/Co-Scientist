@@ -1,14 +1,15 @@
 """OpenRouter gateway routing: provider order, throughput floor, price cap.
 
 Split out of ``llm.request.thinking`` to keep that module under the repo's
-file-length ceiling.
+file-length ceiling. What each model's routing is -- its pin, its fallback
+chain, its price -- is stated in ``llm.profile``; this is the policy applied
+to it.
 """
 
-from dataclasses import dataclass
 from typing import Any, Final
 
 from co_scientist.config.env_vars import parse_list_env
-from co_scientist.constants_pricing import MODEL_PRICING
+from co_scientist.llm.profile import ModelProfile, model_profile
 
 # How a gateway route is addressed, beyond the reasoning knob itself.
 # ``require_parameters`` makes the reasoning knob above binding instead
@@ -86,10 +87,11 @@ _MIN_THROUGHPUT_TOKENS_PER_SEC: Final[int] = 25
 # gateway refuses the request outright rather than degrading, per
 # ``require_parameters``/``max_price`` semantics. If every gateway call
 # starts failing with "No endpoints found that can handle the requested
-# parameters", check whether ``MODEL_PRICING`` has drifted below what
-# the headline hosts now actually charge -- raising this multiple is
-# the wrong fix; updating the pricing constant is the right one, since
-# that constant is also this project's own cost estimate.
+# parameters", check whether the route's price in the model profile
+# table (``llm.profile.routes``) has drifted below what the headline
+# hosts now actually charge -- raising this multiple is the wrong fix;
+# updating that price is the right one, since it is also this project's
+# own cost estimate (``MODEL_PRICING``).
 #
 # ``COSCIENTIST_GATEWAY_PROVIDER_ORDER`` can only reorder hosts that
 # already pass this cap -- naming a 2x host there is a silent no-op,
@@ -149,225 +151,29 @@ def _upstream_order() -> tuple[str, ...]:
     return parse_list_env(_UPSTREAM_ORDER_ENV, _DEFAULT_UPSTREAM_ORDER)
 
 
-@dataclass(frozen=True)
-class GatewayModel:
-    """What a gateway route needs to know about one model.
-
-    Every fact here is a property of the model, stated rather than
-    inferred from a family substring -- inferring them is what made a
-    rival vendor's model run with no reasoning knob and no price ceiling
-    while looking configured.
-
-    Attributes:
-        takes_reasoning_knob: Whether to send the gateway's ``reasoning``
-            parameter; a model that rejects it gains nothing from asking.
-        spends_budget_thinking: Whether the model can consume its whole
-            ``max_tokens`` before answering, needing
-            ``THINKING_FLOOR_MAX_TOKENS``. Separate from the knob above:
-            a model reporting ``reasoning_tokens=0`` and no reasoning
-            parameter still returned ``finish_reason="length"`` with
-            empty content at an 8000-token budget in production, costing
-            24 answerless round-trips in one express run. When unsure,
-            fund it: a ceiling is not a spend.
-        fallbacks: Gateway-relative ids to try, in order, when unavailable.
-            The gateway walks the list itself: a 429 from a saturated
-            pool is not a transport error the engine's retry ladder fixes.
-            One entry, `nvidia/nemotron-3.5-lightning:free`, lists no
-            `response_format` in its own `supported_parameters` (checked
-            against OpenRouter's public model listing 2026-09-05) -- paired
-            with `require_parameters`, a schema'd call cannot land there at
-            all. Pre-existing on the paid chain this deployment inherited
-            it from; not a reason to reorder, just a rung that is
-            effectively text-only if a call ever reaches it.
-        reasoning_can_disable: Whether ``{"enabled": False}`` on this
-            model's own endpoint is honoured rather than 400ing. Default
-            False: every declared model here is an OpenRouter free
-            variant and none has evidence it accepts a disable -- one of
-            them, `minimax/minimax-m3:free`, is *confirmed* to reject it
-            outright ("Reasoning is mandatory for this endpoint and
-            cannot be disabled", production run b82f9162's recovered
-            finalize, 2026-09-06 04:39:30 UTC), and a request can land on
-            any host `models` lists, including this one, from a chain
-            whose head never disables. A model with real evidence of
-            honouring a disable earns ``True`` from a live probe against
-            *every* rung of its own chain, not by assumption -- see
-            ``test_no_chain_head_claims_disable_support_a_fallback_lacks``.
-            When False, a caller asking for disabled reasoning instead
-            gets it enabled at the smallest effort this gateway exposes
-            (see ``llm.request.gateway_body._MINIMAL_REASONING_EFFORT``) --
-            never a bare resend of the rejected request.
-        verified_provider: Pin a provisional route to the one provider whose
-            current pricing and data-use terms were inspected. The request
-            also requires zero retention and denies data collection.
-        provider_only: Pin an inspected provider without imposing a data-use
-            policy. Promotional free routes use this to avoid another host.
-    """
-
-    takes_reasoning_knob: bool
-    spends_budget_thinking: bool
-    fallbacks: tuple[str, ...] = ()
-    reasoning_can_disable: bool = False
-    verified_provider: str | None = None
-    provider_only: str | None = None
-
-
 # OpenRouter's own ceiling on the ``models`` fallback array: "'models'
 # array must have 3 items or fewer." Hit in production on run b82f9162
-# (2026-09-06 00:19 UTC): the six-rung ``minimax-m3:free`` chain below
-# (added in 61c4be3d) sent all six as ``models``, every gateway call
-# 400'd on the first request of the run, and the semantic safety screen
-# -- the first caller -- fell back to "assessment unavailable" and held
-# the run at intake. Declared here so the shape is checked once, in
-# ``test_llm_gateway_fallback.py``, rather than re-discovered per chain.
+# (2026-09-06 00:19 UTC): the six-rung ``minimax-m3:free`` chain (added in
+# 61c4be3d) sent all six as ``models``, every gateway call 400'd on the
+# first request of the run, and the semantic safety screen -- the first
+# caller -- fell back to "assessment unavailable" and held the run at
+# intake. Declared here, beside the rest of the routing policy, so the shape
+# is checked once over the declared routes (``llm.profile.routes``) in
+# ``test_llm_gateway_pricing.py`` rather than re-discovered per chain.
 _GATEWAY_MAX_FALLBACKS: Final[int] = 3
-
-# The models this deployment reaches through the gateway, and the order it
-# falls through them.
-#
-# **No chain's ``fallbacks`` may exceed ``_GATEWAY_MAX_FALLBACKS``** --
-# OpenRouter's own cap on the ``models`` array (see the comment on that
-# constant above).
-#
-# **A fallback may only ever be cheaper than the model above it.** Wired the
-# other way once -- free primary, paid last resort -- a "last resort" priced
-# at $1.25/$4.25 served 3.17M tokens and billed $5.23 in an afternoon,
-# because 429 is the *normal* state of a shared free pool, so the expensive
-# rung was the routine destination rather than the emergency one. The guard
-# against it already existed -- ``_gateway_provider`` caps a routed call at
-# ``_MAX_PRICE_MULTIPLE`` times the primary's listed rate -- but a primary
-# priced at zero previously skipped the cap, leaving the request unbounded.
-# Zero is now an explicit ceiling for free routes, including per-request
-# fees. Current model eligibility still needs verification before live use.
-_GATEWAY_MODELS: Final[dict[str, GatewayModel]] = {
-    # Former system default, retained for explicit deployment overrides.
-    # Campaign probes observed reasoning on both Nex variants; use bounded-
-    # minimal reasoning and fund its answer. No model fallback is declared.
-    "openrouter/nex-agi/nex-n2.5-pro:free": GatewayModel(
-        takes_reasoning_knob=True, spends_budget_thinking=True
-    ),
-    "openrouter/nex-agi/nex-n2.5-mini:free": GatewayModel(
-        takes_reasoning_knob=True, spends_budget_thinking=True
-    ),
-    # Provisional successor, not a system default. The listed ModelRun host
-    # alone has been checked for exact-zero pricing and zero retention.
-    "openrouter/qwen/qwen3.8-27b:free": GatewayModel(
-        takes_reasoning_knob=True,
-        spends_budget_thinking=True,
-        verified_provider="modelrun",
-    ),
-    # A non-default chain head kept for a deployment that opts into it. It
-    # was the deployed primary from 2026-09-05 until a real express
-    # run measured its single host (Decart) answering only 7 of 85 calls --
-    # a shared free pool saturated most of the day (1 of 11 live probes
-    # answered, matching the same shape noted 2026-08-26) -- against its
-    # own first fallback rung, Minimax M3, serving 74 of those calls at $0.
-    # The 2026-09-06 default switch went straight to that rung; this entry's
-    # chain remains for deployments that explicitly select it.
-    "openrouter/z-ai/glm-5.2:free": GatewayModel(
-        takes_reasoning_knob=True,
-        spends_budget_thinking=True,
-        fallbacks=(
-            "minimax/minimax-m3:free",
-            "nvidia/nemotron-3-super-120b-a12b:free",
-            "nvidia/nemotron-3.5-lightning:free",
-        ),
-    ),
-    # The previously deployed primary, retained with its all-free chain for
-    # deployments that explicitly select it. Measured 2026-09-05/06 through
-    # this account's OpenRouter key:
-    # every ``:free`` variant carries its own per-model daily cap (~100
-    # requests/day, plus a shared 20 req/min across all free variants), not
-    # the "one saturated pool" shape the 2026-09-06 single-model switch
-    # assumed -- the 429 body for a different free model read "Daily limit
-    # reached... Credits don't affect this cap", `limit_source:
-    # openrouter_shared_capacity`. A single free primary with nothing behind
-    # it therefore stops the whole run dead the moment its own ~100/day is
-    # spent, however healthy every other free model is. OpenRouter's
-    # ``models`` fallback array falls through on a 429 exactly as it does on
-    # a provider error, so a chain of N free models buys roughly N x 100
-    # free calls/day before any of them needs a real spend.
-    #
-    # Every rung must be priced $0/$0. The provider's zero ceiling also
-    # binds fallback selection; a paid rung cannot escape it on a 429.
-    # ``test_no_fallback_costs_more_than_the_model_above_it`` keeps the
-    # declared chain consistent with that request-level constraint.
-    #
-    # Order follows the live probe (3 concurrent JSON requests each,
-    # 2026-09-05/06): Nemotron Super and GLM M2.7 answered 3/3 fast
-    # (~1-3s, GMICloud/Nvidia); Gemma answered 2/3 (Google AI Studio, one
-    # upstream 429). Every rung reasons and spends its budget thinking
-    # (checked against each model's ``supported_parameters`` listing,
-    # which carries ``reasoning`` for all of them), so none is inferred
-    # rather than declared.
-    #
-    # Trimmed from six rungs to three (production run b82f9162,
-    # 2026-09-06) to respect ``_GATEWAY_MAX_FALLBACKS`` -- see that
-    # constant's comment above. Dots Note (3/3 at 1-5s, AtlasCloud),
-    # Nemotron Lightning (3/3 but slow, 8-23s, and its own listing
-    # carries no ``response_format`` at all -- paired with
-    # ``require_parameters`` a schema'd call cannot land there) and GLM
-    # 5.2 (0/3, saturated) stay declared below as standalone entries, at
-    # $0/$0, so a deployment can still name one directly as its own
-    # primary or hand-edit it back into a trio; they no longer ride in
-    # this default chain.
-    "openrouter/minimax/minimax-m3:free": GatewayModel(
-        takes_reasoning_knob=True,
-        spends_budget_thinking=True,
-        fallbacks=(
-            "nvidia/nemotron-3-super-120b-a12b:free",
-            "google/gemma-4-31b-it:free",
-            "minimax/minimax-m2.7:free",
-        ),
-    ),
-    "openrouter/nvidia/nemotron-3-super-120b-a12b:free": GatewayModel(
-        takes_reasoning_knob=True, spends_budget_thinking=True
-    ),
-    "openrouter/google/gemma-4-31b-it:free": GatewayModel(
-        takes_reasoning_knob=True, spends_budget_thinking=True
-    ),
-    "openrouter/minimax/minimax-m2.7:free": GatewayModel(
-        takes_reasoning_knob=True, spends_budget_thinking=True
-    ),
-    "openrouter/dots-studio/dots-3-note-preview:free": GatewayModel(
-        takes_reasoning_knob=True, spends_budget_thinking=True
-    ),
-    "openrouter/nvidia/nemotron-3.5-lightning:free": GatewayModel(
-        takes_reasoning_knob=True, spends_budget_thinking=True
-    ),
-    # Selected zero-price system default; promotional admission rechecks the
-    # current listing, while this route pins Stealth with no fallbacks.
-    "openrouter/stealth/space-bunny-alpha": GatewayModel(
-        takes_reasoning_knob=True,
-        spends_budget_thinking=True,
-        provider_only="Stealth",
-    ),
-    # The paid alternative chain head, kept for a deployment that opts back
-    # into it (``app.config`` no longer defaults here). Its own chain and
-    # rationale are unchanged.
-    "openrouter/z-ai/glm-5.3-flash": GatewayModel(
-        takes_reasoning_knob=True,
-        spends_budget_thinking=True,
-        fallbacks=(
-            "minimax/minimax-m3:free",
-            "nvidia/nemotron-3.5-lightning:free",
-        ),
-    ),
-}
 
 
 def _apply_provider_pin(
-    provider: dict[str, Any], declared: GatewayModel | None
+    provider: dict[str, Any], profile: ModelProfile
 ) -> None:
-    if declared is None:
-        return
-    if declared.verified_provider:
+    if profile.verified_provider:
         provider.pop("order", None)
-        provider["only"] = [declared.verified_provider]
+        provider["only"] = [profile.verified_provider]
         provider["zdr"] = True
         provider["data_collection"] = "deny"
-    elif declared.provider_only:
+    elif profile.provider_only:
         provider.pop("order", None)
-        provider["only"] = [declared.provider_only]
+        provider["only"] = [profile.provider_only]
         provider["allow_fallbacks"] = False
 
 
@@ -381,16 +187,16 @@ def _gateway_provider(model_name: str) -> dict[str, Any]:
         ``_GATEWAY_PROVIDER`` plus ``preferred_min_throughput``, the
         preferred upstream ``order`` (unless env-disabled), and a
         ``max_price`` ceiling from the model's listed rate -- omitted for
-        a model absent from ``MODEL_PRICING``, which has no rate to cap.
+        a model with no price in its profile, which has no rate to cap.
     """
+    profile = model_profile(model_name)
     provider = dict(_GATEWAY_PROVIDER)
     provider["preferred_min_throughput"] = _MIN_THROUGHPUT_TOKENS_PER_SEC
     order = _upstream_order()
     if order:
         provider["order"] = list(order)
-    declared = _GATEWAY_MODELS.get(model_name)
-    _apply_provider_pin(provider, declared)
-    price = MODEL_PRICING.get(model_name)
+    _apply_provider_pin(provider, profile)
+    price = profile.price
     if price is None:
         return provider
     provider["max_price"] = {

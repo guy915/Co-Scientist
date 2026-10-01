@@ -1,10 +1,11 @@
 """Gateway ``extra_body`` construction for LiteLLM completion calls.
 
 Split from ``llm.request.thinking`` on the same grounds that module was
-split from ``llm.request.completion``: this holds the routes and functions
-that build the actual ``extra_body``/``reasoning`` payload a gateway call
-carries -- distinct from ``llm.request.thinking``'s own concern of deciding
-*whether* a call will effectively reason and what budget that funds.
+split from ``llm.request.completion``: this holds the functions that build
+the actual ``extra_body``/``reasoning`` payload a call carries from a model's
+profile (``llm.profile``) -- distinct from ``llm.request.thinking``'s own
+concern of deciding *whether* a call will effectively reason and what budget
+that funds.
 """
 
 import contextlib
@@ -13,22 +14,8 @@ from contextvars import ContextVar
 from typing import Any, Final
 
 from co_scientist.constants import MINIMAL_REASONING_MAX_TOKENS
-from co_scientist.llm.request.gateway_routing import (
-    _GATEWAY_MODELS,
-    GatewayModel,
-    _gateway_provider,
-)
-
-# Routes that normalize reasoning control into their own parameter rather
-# than forwarding the provider's. A gateway serves many models through one
-# schema, so it cannot honour each provider's native knob, and the failure
-# is silent in the worst direction: sending DeepSeek's ``thinking`` object
-# through OpenRouter does not disable thinking, it *enables* it. Measured
-# on `openrouter/deepseek/deepseek-v4-flash`: a max_tokens=24 call carrying
-# ``{"thinking": {"type": "disabled"}}` spent all 24 tokens reasoning and
-# returned empty content -- the budget-exhaustion shape AGENTS.md
-# documents, from a parameter asking for the opposite.
-_REASONING_PARAM_ROUTES: tuple[str, ...] = ("openrouter/",)
+from co_scientist.llm.profile import ModelProfile, Thinking, model_profile
+from co_scientist.llm.request.gateway_routing import _gateway_provider
 
 # The tier requested when thinking is on. DeepSeek implements only `high`
 # and `max`, so this is the floor rather than a high setting.
@@ -117,7 +104,7 @@ def effective_thinking_enabled(model_name: str, enable_thinking: bool) -> bool:
     Distinct from the call site's own ``enable_thinking``: a caller asking
     to disable reasoning can still be sent a request that reasons, either
     because the declared model rejects disabling outright
-    (``GatewayModel.reasoning_can_disable``) or because the retry loop is
+    (``ModelProfile.reasoning_can_disable``) or because the retry loop is
     mid-recovery from exactly that rejection (``scoped_minimal_reasoning``).
     Both funding (``effective_max_tokens``) and failure reporting
     (``annotate_failure_context``) need this real answer, not the request
@@ -134,19 +121,11 @@ def effective_thinking_enabled(model_name: str, enable_thinking: bool) -> bool:
     """
     if enable_thinking or _minimal_reasoning_forced.get():
         return True
-    lowered = model_name.lower()
-    declared = _GATEWAY_MODELS.get(lowered)
-    return bool(
-        declared is not None
-        and declared.takes_reasoning_knob
-        and not declared.reasoning_can_disable
+    profile = model_profile(model_name)
+    return (
+        profile.thinking is Thinking.GATEWAY
+        and not profile.reasoning_can_disable
     )
-
-
-def _is_gateway_route(model_name: str) -> bool:
-    """Whether this route is served through a model gateway."""
-    lowered = model_name.lower()
-    return any(lowered.startswith(r) for r in _REASONING_PARAM_ROUTES)
 
 
 def deepseek_thinking_extra_body(
@@ -167,9 +146,9 @@ def deepseek_thinking_extra_body(
     does not earn its keep on. Whether the wire actually carries a
     disable is this function's decision, not the caller's: a declared
     gateway model that rejects disabling outright
-    (``GatewayModel.reasoning_can_disable``) is sent bounded minimal
+    (``ModelProfile.reasoning_can_disable``) is sent bounded minimal
     reasoning instead, never the literal request already known to 400 --
-    see ``_declared_gateway_body`` and ``_minimal_reasoning_knob``.
+    see ``_gateway_body`` and ``_minimal_reasoning_knob``.
 
     Args:
         model_name: Model name in litellm format.
@@ -183,76 +162,42 @@ def deepseek_thinking_extra_body(
         model with no thinking mode.
     """
     lowered = model_name.lower()
-    declared = _GATEWAY_MODELS.get(lowered)
-    if declared is not None:
-        return _declared_gateway_body(lowered, declared, enabled)
-    if "deepseek" not in lowered:
-        return {}
-    if not _is_gateway_route(lowered):
+    profile = model_profile(lowered)
+    if profile.thinking is Thinking.NATIVE:
         return {"thinking": {"type": "enabled" if enabled else "disabled"}}
-    return _undeclared_deepseek_gateway_body(lowered, enabled)
+    if not profile.gateway:
+        return {}
+    return _gateway_body(lowered, profile, enabled)
 
 
-def _undeclared_deepseek_gateway_body(
-    lowered: str, enabled: bool
+def _gateway_body(
+    lowered: str, profile: ModelProfile, enabled: bool
 ) -> dict[str, Any]:
-    """The ``extra_body`` for an undeclared DeepSeek model on the gateway.
-
-    Split out of ``deepseek_thinking_extra_body`` to keep that function's
-    branching within the repo's complexity ceiling.
+    """Build the ``extra_body`` for a model reached through the gateway.
 
     Args:
         lowered: Model name in litellm format, already lowercased.
-        enabled: Whether thinking mode is requested for this call.
-
-    Returns:
-        Minimal reasoning (``_minimal_reasoning_knob``), not a bare
-        disable, when the retry loop is mid-recovery from a
-        mandatory-reasoning refusal (``scoped_minimal_reasoning``);
-        otherwise the reasoning knob as requested.
-    """
-    if not enabled and _minimal_reasoning_forced.get():
-        return {
-            "reasoning": _minimal_reasoning_knob(recovering=True),
-            "provider": _gateway_provider(lowered),
-        }
-    reasoning: dict[str, Any] = {"enabled": enabled}
-    if enabled:
-        reasoning["effort"] = _REASONING_EFFORT
-    return {"reasoning": reasoning, "provider": _gateway_provider(lowered)}
-
-
-def _declared_gateway_body(
-    lowered: str, declared: GatewayModel, enabled: bool
-) -> dict[str, Any]:
-    """Build the ``extra_body`` for a model declared in ``_GATEWAY_MODELS``.
-
-    Args:
-        lowered: Model name in litellm format, already lowercased.
-        declared: What the gateway needs to know about this model.
+        profile: What the gateway needs to know about this model.
         enabled: Whether thinking mode is requested for this call.
 
     Returns:
         The routing constraint always, the fallback chain when one is
-        declared, and the reasoning knob only for a model that reasons --
+        declared, and the reasoning knob only for a model that takes it --
         bounded (``_minimal_reasoning_knob``) rather than a bare disable
         when either the model itself rejects disabling
-        (``declared.reasoning_can_disable``) or the retry loop is
+        (``profile.reasoning_can_disable``) or the retry loop is
         recovering from exactly that rejection
         (``scoped_minimal_reasoning``); see ``effective_thinking_enabled``
         for the matching token-floor decision.
     """
     body: dict[str, Any] = {"provider": _gateway_provider(lowered)}
-    if declared.fallbacks:
-        body["models"] = list(declared.fallbacks)
-    if not declared.takes_reasoning_knob:
+    if profile.fallbacks:
+        body["models"] = list(profile.fallbacks)
+    if profile.thinking is not Thinking.GATEWAY:
         return body
-    if not enabled and (
-        not declared.reasoning_can_disable or _minimal_reasoning_forced.get()
-    ):
-        body["reasoning"] = _minimal_reasoning_knob(
-            recovering=_minimal_reasoning_forced.get()
-        )
+    forced = _minimal_reasoning_forced.get()
+    if not enabled and (not profile.reasoning_can_disable or forced):
+        body["reasoning"] = _minimal_reasoning_knob(recovering=forced)
         return body
     reasoning: dict[str, Any] = {"enabled": enabled}
     if enabled:

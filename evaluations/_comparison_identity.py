@@ -11,6 +11,8 @@ _POLICY_FILES = (
     "constants.py",
     "constants_tokens.py",
     "llm/values.py",
+    "llm/profile/families.py",
+    "llm/profile/routes.py",
     "llm/request/completion.py",
     "llm/admission/free_policy.py",
     "llm/admission/free_catalog.py",

@@ -32,7 +32,7 @@ from co_scientist.scheduling import (
 )
 from tests._state import make_state
 
-# A model in llm.request.thinking._JSON_OBJECT_ONLY_MODEL_FAMILIES, i.e. the
+# A model whose profile states json_schema=False (DeepSeek), i.e. the
 # production shape: the json_schema response format is unavailable, so
 # whatever holds has to hold in-process.
 _JSON_OBJECT_MODEL = "deepseek/deepseek-v4-flash"

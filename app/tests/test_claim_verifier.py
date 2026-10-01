@@ -365,7 +365,7 @@ def test_entailment_call_on_the_free_chain_does_not_disable_reasoning(
     be disabled"``, because ``enable_thinking=False`` reached the wire as
     a literal ``reasoning: {"enabled": False}``. The engine now redirects
     that to the smallest reasoning tier the gateway exposes for a model
-    declared unable to honour a disable (``GatewayModel
+    declared unable to honour a disable (``ModelProfile
     .reasoning_can_disable``) -- and bounds it in the request itself.
     Funding the redirect instead was tried and lost: production measured
     ~20-21k reasoning tokens against the 18000-token floor (run 323ff72c,

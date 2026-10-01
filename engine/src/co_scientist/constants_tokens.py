@@ -253,7 +253,7 @@ a bound on the chain of thought alone
 (``llm.request.gateway_body._minimal_reasoning_knob``), which is the only
 lever that answers this failure. A call site sizes its ``max_tokens`` around
 ``enable_thinking=False``, but a declared gateway model with
-``reasoning_can_disable=False`` (``GatewayModel``) never goes out
+``reasoning_can_disable=False`` (``ModelProfile``) never goes out
 disabled -- and the tier name it was redirected to bounds nothing.
 Production measured exactly that, twice, at two different budgets:
 ~20-21k reasoning tokens against the 18000-token
