@@ -8,7 +8,7 @@ array ``seed/overview.py`` already renders on the Research Overview
 document. A real run's meta-review call produces this narrative; a
 curated demo has no such call, so this module hand-authors the same shape
 -- grounded in each scenario's own top-3 hypotheses
-(``demo_seed_data_scenarios.py``), mechanistic prose only, no invented
+(``demo_seed_data/scenarios.py``), mechanistic prose only, no invented
 citations, PMIDs, or attributed findings.
 
 Split out of ``seed.overview`` so that module stays within the line-count
@@ -22,7 +22,7 @@ from __future__ import annotations
 from app.demo_seed_data import _SCENARIO_KEYS
 
 # Each entry weaves together that scenario's own top-3 hypotheses
-# (demo_seed_data_scenarios.py, in Elo-descending order -- the same
+# (demo_seed_data/scenarios.py, in Elo-descending order -- the same
 # ``hypotheses[:3]`` slice ``_curated_meta_review`` passes to
 # ``_candidate_comparison``), never a fourth mechanism the scenario does
 # not carry. Two paragraphs, bolded direction names inline, closing on an

@@ -10,8 +10,8 @@ records and derives the evolved and second-pass generations from them.
 
 from __future__ import annotations
 
-from app.demo_seed_data_scenarios import _SCENARIO_KEYS
-from app.demo_seed_data_types import DemoProposal
+from app.demo_seed_data.scenarios import _SCENARIO_KEYS
+from app.demo_seed_data.types import DemoProposal
 
 _PROPOSALS: dict[str, tuple[DemoProposal, ...]] = {
     _SCENARIO_KEYS[0]: (

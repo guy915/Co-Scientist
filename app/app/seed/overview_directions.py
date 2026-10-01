@@ -26,7 +26,7 @@ from typing import Any
 from app.demo_seed_data import _SCENARIO_KEYS
 
 # Grounded in each scenario's own top-3 hypotheses
-# (demo_seed_data_scenarios.py) -- every entry connects two of those
+# (demo_seed_data/scenarios.py) -- every entry connects two of those
 # hypotheses in a way neither states on its own, or reframes one of their
 # shared assumptions, rather than describing a specific published finding.
 # Order matches ``_curated_research_overview``'s own ``top = hypotheses[:3]``

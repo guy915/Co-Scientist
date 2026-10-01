@@ -1,6 +1,6 @@
 """The three curated demo scenarios and their primary sources.
 
-Content only: the record types live in ``demo_seed_data_types`` and the
+Content only: the record types live in ``demo_seed_data.types`` and the
 functions that derive run artifacts from this content in ``demo_seed_data``.
 """
 
@@ -10,7 +10,7 @@ functions that derive run artifacts from this content in ``demo_seed_data``.
 
 from __future__ import annotations
 
-from app.demo_seed_data_types import (
+from app.demo_seed_data.types import (
     DemoEvidence,
     DemoHypothesis,
     DemoScenario,

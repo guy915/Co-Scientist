@@ -14,8 +14,8 @@ import re
 from app import store
 from app.demo_seed_data import DemoEvidence
 
-# Every curated source is a real PubMed record (see demo_seed_data_evidence
-# / demo_seed_data_scenarios); the pmid rides along in the url the fixture
+# Every curated source is a real PubMed record (see demo_seed_data.evidence
+# / demo_seed_data.scenarios); the pmid rides along in the url the fixture
 # already carries rather than as a separately authored field, so the
 # run-wide bibliography section (R12-12) can show the real identifier
 # instead of inventing one.

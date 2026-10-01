@@ -53,7 +53,7 @@ class _ComparisonTable(NamedTuple):
     existing_rows: tuple[tuple[str, tuple[str, ...]], ...] = ()
 
 
-# Grounded in each scenario's own top-3 hypotheses (demo_seed_data_scenarios.py)
+# Grounded in each scenario's own top-3 hypotheses (demo_seed_data/scenarios.py)
 # -- every value below restates a real mechanism or review note from that
 # hypothesis, not generic filler. Order matches _curated_research_overview's
 # ``top = hypotheses[:3]``.

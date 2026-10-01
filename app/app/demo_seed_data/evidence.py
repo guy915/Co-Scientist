@@ -10,8 +10,8 @@ the primary sources a scenario carries.
 
 from __future__ import annotations
 
-from app.demo_seed_data_scenarios import _SCENARIO_KEYS
-from app.demo_seed_data_types import DemoEvidence
+from app.demo_seed_data.scenarios import _SCENARIO_KEYS
+from app.demo_seed_data.types import DemoEvidence
 
 # These are source records selected for browseability in the demo, not a
 # systematic review. Their PubMed pages remain the durable primary links.

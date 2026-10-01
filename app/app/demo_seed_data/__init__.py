@@ -6,9 +6,9 @@ mechanism and experiment explicitly exploratory.  The data is intentionally
 small enough to browse while still exercising the complete run surface.
 
 The curated content itself lives in sibling modules -- scenarios in
-``demo_seed_data_scenarios``, extra sources in ``demo_seed_data_evidence``,
-generation-wave seeds in ``demo_seed_data_proposals``, and the record types
-in ``demo_seed_data_types`` -- so this module holds only the functions that
+``demo_seed_data.scenarios``, extra sources in ``demo_seed_data.evidence``,
+generation-wave seeds in ``demo_seed_data.proposals``, and the record types
+in ``demo_seed_data.types`` -- so this module holds only the functions that
 derive one run's artifacts from them. Every moved name is re-exported here,
 so ``app.demo_seed_data`` remains the stable import surface.
 """
@@ -19,28 +19,28 @@ so ``app.demo_seed_data`` remains the stable import surface.
 
 from __future__ import annotations
 
-from app.demo_seed_data_evidence import (
+from app.demo_seed_data.evidence import (
     _EXTRA_EVIDENCE as _EXTRA_EVIDENCE,
 )
-from app.demo_seed_data_proposals import (
+from app.demo_seed_data.proposals import (
     _PROPOSALS as _PROPOSALS,
 )
-from app.demo_seed_data_scenarios import (
+from app.demo_seed_data.scenarios import (
     _SCENARIO_KEYS as _SCENARIO_KEYS,
 )
-from app.demo_seed_data_scenarios import (
+from app.demo_seed_data.scenarios import (
     DEMO_SCENARIOS as DEMO_SCENARIOS,
 )
-from app.demo_seed_data_types import (
+from app.demo_seed_data.types import (
     DemoEvidence as DemoEvidence,
 )
-from app.demo_seed_data_types import (
+from app.demo_seed_data.types import (
     DemoHypothesis as DemoHypothesis,
 )
-from app.demo_seed_data_types import (
+from app.demo_seed_data.types import (
     DemoProposal as DemoProposal,
 )
-from app.demo_seed_data_types import (
+from app.demo_seed_data.types import (
     DemoScenario as DemoScenario,
 )
 
