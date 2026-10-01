@@ -1,0 +1,120 @@
+{
+  "item": "M12-04b4h3b",
+  "status": "VERIFIED_NONEXECUTING_PROCESS_READINESS_ONLY",
+  "observed_at_utc": "2026-10-01T02:49:29.157174+00:00",
+  "target_commit": "0f163098e6761f841342ee4e5ac92c3d3f07776a",
+  "runner_sha256": "80bd43e1bd02ac6b68081bdd959a28c21c0cf60de62dc49abdb0ea6229d31fb4",
+  "mcp_tree": "393349bdfa39609c15abf994f823fdf64d9d0958",
+  "private_protocol_sha256": "f52c1a96bec97943aab494b3b4a4db537ed60310917f2abc004a0559b27408be",
+  "private_bank_sha256": "13132f450bef3544687e8678373c310aad66d760d61cd847c22ce05965612b43",
+  "launcher_sha256": "4e0781748f6158408319e923d3ce164d2074f275d66c9428652ce30c02b6cbf1",
+  "raw_receipt_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study7/preflight/run-20261001T024925Z/preparation-receipt.json",
+  "raw_receipt_sha256": "1751db1382c83a3060011a72a139013f29ab803499b1ecf7d85e99a7112188a9",
+  "post_reap_verification_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study7/preflight/run-20261001T024925Z/coordinator-post-reap-verification.json",
+  "post_reap_verification_sha256": "1e45f9e883a53e572cbc31ee262853c2cd24e45f58b394de9a2de7383d88d68f",
+  "preflight": {
+    "status": "OFFLINE_PREFLIGHT_ONLY_NOT_REGISTERED",
+    "study_version": 7,
+    "endpoint": "http://127.0.0.1:55737/mcp",
+    "mcp_build_id": "393349bdfa39609c15abf994f823fdf64d9d0958",
+    "model_name": "openrouter/stealth/space-bunny-alpha",
+    "serving_process": {
+      "pid": 91813,
+      "listener_address": "127.0.0.1:55737",
+      "source_path": "/private/tmp/cosci-m12-study7-preflight-runtime-20261001/engine/mcp_server/server.py",
+      "mcp_tree": "393349bdfa39609c15abf994f823fdf64d9d0958",
+      "metadata_batching": {
+        "enabled": true
+      },
+      "study4_recovery_enabled": false,
+      "study_id": null
+    },
+    "cache_empty": true,
+    "admission_claimed": false,
+    "scientific_calls": 0
+  },
+  "environment_attestation": {
+    "server_environment_names": [
+      "COSCIENTIST_CAMPAIGN_MCP_URL",
+      "COSCIENTIST_LIT_REVIEW_DIR",
+      "COSCIENTIST_MCP_SHARED_SECRET",
+      "COSCIENTIST_PUBMED_METADATA_BATCH",
+      "COSCIENTIST_PUBMED_PILOT_BUILD_ID",
+      "COSCIENTIST_PUBMED_PILOT_TRACE",
+      "COSCIENTIST_PUBMED_STUDY4_RECOVERY",
+      "COSCIENTIST_REQUIRE_FREE_MODELS",
+      "HOME",
+      "MCP_SERVER_URL",
+      "PATH",
+      "PYTHONPATH",
+      "PYTHONUNBUFFERED",
+      "PYTHON_DOTENV_DISABLED"
+    ],
+    "runner_environment_names": [
+      "COSCIENTIST_CAMPAIGN_MCP_URL",
+      "COSCIENTIST_LIT_REVIEW_DIR",
+      "COSCIENTIST_MCP_SHARED_SECRET",
+      "COSCIENTIST_PUBMED_METADATA_BATCH",
+      "COSCIENTIST_PUBMED_PILOT_BUILD_ID",
+      "COSCIENTIST_PUBMED_PILOT_TRACE",
+      "COSCIENTIST_PUBMED_STUDY4_RECOVERY",
+      "COSCIENTIST_REQUIRE_FREE_MODELS",
+      "HOME",
+      "MCP_SERVER_URL",
+      "PATH",
+      "PYTHONPATH",
+      "PYTHONUNBUFFERED",
+      "PYTHON_DOTENV_DISABLED"
+    ],
+    "provider_credentials_forwarded": false,
+    "provider_credential_file_read": false,
+    "mcp_shared_secret_present": true,
+    "mcp_shared_secret_recorded": false,
+    "metadata_batching": true,
+    "study4_recovery": false,
+    "study_id_present": false,
+    "pilot_trace_enabled": true,
+    "free_mode_required": true,
+    "campaign_endpoint_loopback": true
+  },
+  "mcp": {
+    "pid": 91813,
+    "port": 55737,
+    "listener": "127.0.0.1:55737",
+    "source_tree": "393349bdfa39609c15abf994f823fdf64d9d0958",
+    "source_path": "/private/tmp/cosci-m12-study7-preflight-runtime-20261001/engine/mcp_server/server.py",
+    "status_http": 200,
+    "service": "coscientist-lit-review",
+    "tool_count": 18,
+    "api_keys_configured": {
+      "ENTREZ_EMAIL": false,
+      "WEB_SEARCH": false
+    },
+    "terminated_after_preflight": true,
+    "exit_code_after_termination": -15
+  },
+  "cleanup": {
+    "pid_absent": true,
+    "listener_closed": true,
+    "empty_private_cache": true,
+    "runtime_removed": true,
+    "env_absence_check": "Maintained CLI only before removal."
+  },
+  "source_preparation_receipt_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-plain-query-source-preparation-2026-10-01.json",
+  "source_preparation_receipt_sha256": "618d7b4e66e3f22c8bcb942d77ba5958144a413f06ea522356399448057dd61a",
+  "observations": {
+    "scientific_model_calls": 0,
+    "scientific_mcp_calls": 0,
+    "admission_claimed": false,
+    "model_client_initialized": false,
+    "scientific_transport_initialized": false
+  },
+  "observation_correction": "First post-reap probe passed PID/listener/cache checks then incorrectly expected a Boolean api_keys_configured field. Actual status has a mapping; all mapped values are false. No process/preflight restart or scientific request.",
+  "requires_before_scientific_execution": [
+    "Exact canonical committed loaders.",
+    "Fresh official current zero-price catalog/active exact Stealth endpoint/read-only account check.",
+    "Fresh isolated credential-free MCP process and empty cache.",
+    "Exclusive study7 admission before the first scientific request."
+  ],
+  "production_mutation": false
+}
