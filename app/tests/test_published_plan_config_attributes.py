@@ -23,7 +23,8 @@ import pathlib
 import re
 from dataclasses import dataclass
 
-from app.run_modes import attribute_display_strings, clean_attributes_list
+from app.run_modes import attribute_display_strings
+from app.run_modes_attributes import clean_attributes_list
 
 _CORPUS_EXTRACTION = (
     pathlib.Path(__file__).resolve().parents[2]

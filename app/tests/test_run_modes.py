@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from app import run_modes
+from app import run_modes, run_modes_criteria
+from app import run_modes_attributes as run_modes_attributes_mod
 
 
 def test_every_tier_caps_its_llm_call_spend() -> None:
@@ -44,7 +45,7 @@ def test_default_attributes_are_goal_agnostic_scaled_axes() -> None:
     shape itself is still fully supported; pinned on stored producer input
     by ``test_setup_config_keeps_accepting_a_categorical_attribute`` below.
     """
-    for attribute in run_modes.DEFAULT_ATTRIBUTES:
+    for attribute in run_modes_attributes_mod.DEFAULT_ATTRIBUTES:
         assert set(attribute) == {"name", "scale"}
         assert attribute["name"]
         assert set(attribute["scale"]) == {"1", "3", "5"}
@@ -55,7 +56,9 @@ def test_setup_config_defaults_attributes_to_independent_copies() -> None:
     """Two runs never share a mutable default-attribute dict."""
     first = run_modes.setup_config(research_goal="goal one")
     second = run_modes.setup_config(research_goal="goal two")
-    assert first["attributes"] == list(run_modes.DEFAULT_ATTRIBUTES)
+    assert first["attributes"] == list(
+        run_modes_attributes_mod.DEFAULT_ATTRIBUTES
+    )
     first["attributes"][0]["scale"]["1"] = "mutated"
     assert second["attributes"][0]["scale"]["1"] != "mutated"
 
@@ -128,7 +131,7 @@ def test_setup_guidance_renders_attributes_for_both_stored_shapes() -> None:
 
 def test_default_criteria_are_named_settings_with_values() -> None:
     """R12-4: the default shape is name/value pairs, not free prose."""
-    for pair in run_modes.DEFAULT_CRITERIA:
+    for pair in run_modes_criteria.DEFAULT_CRITERIA:
         assert set(pair) == {"name", "value"}
         assert pair["name"] and pair["value"]
 
@@ -137,7 +140,7 @@ def test_setup_config_defaults_criteria_to_independent_copies() -> None:
     """Two runs never share a mutable default-criteria dict."""
     first = run_modes.setup_config(research_goal="goal one")
     second = run_modes.setup_config(research_goal="goal two")
-    assert first["criteria"] == list(run_modes.DEFAULT_CRITERIA)
+    assert first["criteria"] == list(run_modes_criteria.DEFAULT_CRITERIA)
     first["criteria"][0]["value"] = "mutated"
     assert second["criteria"][0]["value"] != "mutated"
 

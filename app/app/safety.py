@@ -30,7 +30,6 @@ from app import process_mode, store
 from app.config import settings
 from app.execution_policy import effective_execution_model
 from app.safety_gate import apply_safety_gate as apply_safety_gate
-from app.safety_redaction import REDACTED_PLACEHOLDER as REDACTED_PLACEHOLDER
 from app.safety_redaction import redact_matched_spans as redact_matched_spans
 from app.safety_redaction import redact_payload_text as redact_payload_text
 from app.safety_semantic import (
@@ -45,7 +44,6 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "POLICY_VERSION",
-    "REDACTED_PLACEHOLDER",
     "SAFETY_MODE",
     "SafetyDecision",
     "SafetyMode",

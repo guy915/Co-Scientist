@@ -15,7 +15,8 @@ import pytest
 
 from app import engine_tasks, safety, store, task_worker
 from app.config import settings
-from app.safety import REDACTED_PLACEHOLDER, SafetyDecision
+from app.safety import SafetyDecision
+from app.safety_redaction import REDACTED_PLACEHOLDER
 from app.task_worker_outcomes import _LeaseLostError
 from tests._client import make_client
 from tests._engine_tasks_helpers import _install_runtime

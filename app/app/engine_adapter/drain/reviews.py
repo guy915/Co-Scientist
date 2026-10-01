@@ -31,25 +31,12 @@ from app.engine_adapter.drain.review_detail import (
     _ASSUMPTION_SUPPORT_LABELS as _ASSUMPTION_SUPPORT_LABELS,
 )
 from app.engine_adapter.drain.review_detail import (
-    _deep_verification_detail as _deep_verification_detail,
+    _deep_verification_detail,
+    _initial_review_detail,
+    _review_detail_json,
 )
 from app.engine_adapter.drain.review_detail import (
     _detail_json as _detail_json,
-)
-from app.engine_adapter.drain.review_detail import (
-    _initial_review_detail as _initial_review_detail,
-)
-from app.engine_adapter.drain.review_detail import (
-    _mature_review_detail as _mature_review_detail,
-)
-from app.engine_adapter.drain.review_detail import (
-    _review_detail_json as _review_detail_json,
-)
-from app.engine_adapter.drain.review_detail import (
-    _simulation_detail as _simulation_detail,
-)
-from app.engine_adapter.drain.review_detail import (
-    _verdict_detail as _verdict_detail,
 )
 from app.report import format_deep_verification_critique
 

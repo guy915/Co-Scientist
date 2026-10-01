@@ -17,8 +17,12 @@ from app import safety, store
 from app.report import ReportRequest, finalize_report
 from app.report import finalize as report_finalize
 from app.run_events import make_emitter
-from app.safety import REDACTED_PLACEHOLDER, SafetyDecision
-from app.safety_redaction import redact_matched_spans, redact_payload_text
+from app.safety import SafetyDecision
+from app.safety_redaction import (
+    REDACTED_PLACEHOLDER,
+    redact_matched_spans,
+    redact_payload_text,
+)
 
 _DUAL_USE_GOAL = (
     "Map the dual-use risk surface of engineered metabolic pathways."

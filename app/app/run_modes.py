@@ -8,9 +8,6 @@ from typing import Any
 
 from app.elo import DEFAULT_K_FACTOR
 from app.run_modes_attributes import (
-    DEFAULT_ATTRIBUTES as DEFAULT_ATTRIBUTES,
-)
-from app.run_modes_attributes import (
     _default_attributes as _default_attributes,
 )
 from app.run_modes_attributes import (
@@ -19,12 +16,7 @@ from app.run_modes_attributes import (
 from app.run_modes_attributes import (
     attribute_names as attribute_names,
 )
-from app.run_modes_attributes import (
-    clean_attributes_list as clean_attributes_list,
-)
-from app.run_modes_criteria import (
-    DEFAULT_CRITERIA as DEFAULT_CRITERIA,
-)
+from app.run_modes_attributes import clean_attributes_list
 from app.run_modes_criteria import (
     _default_criteria as _default_criteria,
 )

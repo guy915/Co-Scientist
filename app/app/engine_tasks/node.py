@@ -20,9 +20,6 @@ from app.engine_tasks import runtime as engine_tasks_runtime
 from app.engine_tasks.checkpoint_guard import (
     _check_node_task_checkpoint as _check_node_task_checkpoint,
 )
-from app.engine_tasks.checkpoint_guard import (
-    _check_portfolio_predecessor as _check_portfolio_predecessor,
-)
 from app.engine_tasks.context import TaskCommit
 from app.engine_tasks.fanout import (
     _enqueue_generation_fanout,

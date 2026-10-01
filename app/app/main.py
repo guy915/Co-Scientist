@@ -55,9 +55,6 @@ from app.logging_setup import (
 )
 from app.logs_api import router as logs_router
 from app.main_lifespan import (
-    _launch_embedded_recovery_workers as _launch_embedded_recovery_workers,
-)
-from app.main_lifespan import (
     _reclaim_disk_space as _reclaim_disk_space,
 )
 from app.main_lifespan import (

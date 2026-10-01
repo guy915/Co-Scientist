@@ -65,9 +65,6 @@ from app.interviews_prompts import (
     _normalized_fields as _normalized_fields,
 )
 from app.interviews_prompts import (
-    _prompt as _prompt,
-)
-from app.interviews_prompts import (
     _ready as _ready,
 )
 from app.interviews_question_repair import (

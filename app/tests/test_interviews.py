@@ -15,7 +15,7 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from app import interviews
+from app import interviews, interviews_prompts
 from app.config import settings
 from app.main import app
 
@@ -326,7 +326,7 @@ def test_persisted_reasoning_returns_to_the_model_next_turn(
             f"/api/interviews/{interview_id}", headers=headers
         ).json()
 
-    prompt = json.loads(interviews._prompt(interview))
+    prompt = json.loads(interviews_prompts._prompt(interview))
     reasoning = [turn.get("reasoning") for turn in prompt["transcript"]]
     assert "No mechanism named yet, so ask for one." in reasoning
 
