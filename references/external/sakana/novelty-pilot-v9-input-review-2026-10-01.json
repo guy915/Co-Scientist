@@ -1,0 +1,21 @@
+{
+  "item": "M12-04b4k3",
+  "status": "ACCEPT_PROSPECTIVE_EXPOSED_BANK9_REUSE_ONLY",
+  "created_at_utc": "2026-10-01T06:30:57.620857+00:00",
+  "peer": "Antigravity Gemini3.8FlashHigh",
+  "model": "gemini-3.8-flash-high",
+  "conversation_id": "757fa797-76d9-423e-9374-8658e2c6299a",
+  "private_review_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/registration/input-review.json",
+  "private_review_sha256": "e5eac5dd76aaf677bb81bbd3006becfbd0c6a0adb795ea0e891aa743f8ebc72a",
+  "private_protocol_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/registration/protocol9-offline.json",
+  "private_protocol_sha256": "fe758e2cbc24c16973e3ddefbda3ec14bb5c59b0d88e906d397c50fd92c2a77a",
+  "private_bank_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/registration/bank9-offline-copy.json",
+  "private_bank_sha256": "94c50421209be98be502b7c9874e821139a23d71347e8cc6436789cefe095892",
+  "canonical_bank9_sha256": "219efb8855ba361348f106c3e1af6b5dee173e1077efafe837dcc34cd9ad3f6c",
+  "scope": "Supplied exact private protocol, frozen scientific objects, fixed case text and zero-call launcher. Peer did not independently execute/read files/processes.",
+  "coordinator_verification": "Exact scientific JSON objects/cases equal prior protocol/bank; exact input/source hashes computed locally. Peer byte-for-byte claim is bounded to semantic objects, not serialized formatting.",
+  "development_reuse": "All six unchanged bank9 pairs/order previously exposed in study8, never fresh/holdout. Scientific pass still requires separate unexposed three-pair confirmation.",
+  "scientific_acceptance": false,
+  "model_requests": 0,
+  "source_bank_changed": false
+}
