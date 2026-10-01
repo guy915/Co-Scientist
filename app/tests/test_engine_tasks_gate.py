@@ -14,11 +14,19 @@ from co_scientist.models import (
 from app import claim_grounding, engine_tasks
 from app.claims import (
     AssessorDraft,
+    ClaimAssessment,
     EntailmentLabel,
     deterministic_assessor,
 )
+from app.claims_gate import SupportSpan
 from app.config import settings
-from app.engine_tasks_gate import _GatePlan, _GateWave, _log_gate_wave
+from app.engine_tasks_gate import (
+    _apply_gate_verdict,
+    _GatePlan,
+    _GateWave,
+    _harvest_hypothesis_claims,
+    _log_gate_wave,
+)
 
 
 def _private_corpus_source() -> dict[str, Any]:
@@ -422,3 +430,63 @@ def test_log_gate_wave_reports_entailment_calls(
 
     assert "claims_assessed=2" in caplog.text
     assert "entailment_calls=7" in caplog.text
+
+
+def test_harvest_reads_each_field_in_its_role_and_strict_wins_a_tie() -> None:
+    """Each field is read in its role, and the strict role wins a tie.
+
+    Rationale is categorical and the proposed-idea fields are speculative; a
+    sentence appearing under both is categorical. The role map is what
+    ``_apply_gate_verdict`` hands the publication gate as its excused set, so
+    a mislabelled field would either block ideas for proposing something or
+    let an unevidenced "established" claim through.
+    """
+    shared = "Kinase X inhibition reduces AML relapse rates."
+    hypothesis = Hypothesis(
+        text=f"{shared} Kinase Y blockade may slow tumor growth.",
+        literature_grounding=f"{shared} Kinase Z is expressed in blasts.",
+        explanation="Kinase W signalling may sustain quiescence.",
+        experiment="Measure relapse in a pilot cohort.",
+    )
+
+    ordered, roles = _harvest_hypothesis_claims(hypothesis)
+
+    assert list(roles) == ordered
+    assert roles[shared] == "categorical"
+    assert roles["Kinase Y blockade may slow tumor growth."] == "speculative"
+    assert roles["Kinase Z is expressed in blasts."] == "categorical"
+    assert roles["Kinase W signalling may sustain quiescence."] == "speculative"
+    assert roles["Measure relapse in a pilot cohort."] == "speculative"
+
+
+@pytest.mark.parametrize(
+    ("role", "disposition"),
+    [("categorical", "evidence_blocked"), ("speculative", "viable")],
+)
+def test_gate_verdict_blocks_only_a_categorical_contradiction(
+    role: str, disposition: str
+) -> None:
+    """A contradicted claim blocks the idea unless it is only a proposal."""
+    claim = "Kinase X inhibition reduces AML relapse rates."
+    hypothesis = Hypothesis(text=claim)
+    hypothesis.review_disposition = "viable"
+    span = SupportSpan(evidence_id="e1", quote="no effect", start=0, end=9)
+    assessment = ClaimAssessment(
+        claim=claim,
+        label=EntailmentLabel.CONTRADICTS,
+        supporting_passages=(),
+        contradicting_passages=(span,),
+        assessor="test",
+    )
+    plan = _GatePlan(
+        hypothesis=hypothesis,
+        claims=(claim,),
+        roles={claim: role},
+        fingerprint="f",
+        claim_fingerprints={claim: "f"},
+        prior_disposition="viable",
+    )
+
+    _apply_gate_verdict(plan, [assessment], "test")
+
+    assert hypothesis.review_disposition == disposition
