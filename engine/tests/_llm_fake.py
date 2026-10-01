@@ -1,4 +1,4 @@
-"""Fakes for the ``litellm.acompletion`` boundary.
+"""Fakes for the completion backend boundary.
 
 Also exposes ``disable_llm_cache``, a small shared helper that patches
 ``co_scientist.llm.precall.get_cache`` (the module where the shared
@@ -8,9 +8,10 @@ completion path.
 
 Used by the integration and system tests to run the *real* compiled
 LangGraph workflow end-to-end with only the network boundary faked.
-Patches ``litellm.acompletion`` directly -- the single external call every
-``co_scientist.llm`` entry point (``call_llm``, ``call_llm_json``) funnels
-through -- rather than patching individual node modules' imported
+Installs a fake completion backend (``tests/_llm_backend_fake.py``) -- the
+single external call every ``co_scientist.llm`` entry point (``call_llm``,
+``call_llm_json``) funnels through -- rather than patching individual node
+modules' imported
 ``call_llm``/``call_llm_json`` references (the idiom used by the
 node-level unit tests, and available here as ``stub_call_llm_json``). This
 keeps one patch point instead of one per node module, and it exercises the
@@ -74,6 +75,7 @@ from co_scientist.offline_llm import (
     _build_response as _fake_response,
 )
 from co_scientist.offline_schema_fill import _fill_schema, _FillHints
+from tests._llm_backend_fake import install_fake_backend
 
 # Shared across every fake call in a test run so no two generated leaves
 # (hypothesis text, free-form turns, etc.) ever collide.
@@ -205,7 +207,7 @@ async def _fake_acompletion(**kwargs: Any) -> Any:
 def install_fake_llm(monkeypatch: pytest.MonkeyPatch) -> None:
     """Patches the LLM and cache boundaries for a fast, deterministic run.
 
-    Patches ``litellm.acompletion`` (see module docstring) and forces LLM
+    Installs a fake completion backend (see module docstring) and forces LLM
     caching off. The cache override resets the process-wide singleton in
     ``co_scientist.cache`` in addition to setting the env var: the
     singleton is memoized on first use and other test modules may have
@@ -224,15 +226,10 @@ def install_fake_llm(monkeypatch: pytest.MonkeyPatch) -> None:
     Args:
         monkeypatch: The pytest monkeypatch fixture.
     """
-    import litellm
-
-    from co_scientist.llm.request import completion
-
-    monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
-    monkeypatch.setattr(
-        completion,
-        "_supports_json_schema_response_format",
-        lambda _model_name: True,
+    install_fake_backend(
+        monkeypatch,
+        _fake_acompletion,
+        supports_json_schema=lambda _model_name: True,
     )
     monkeypatch.setenv("COSCIENTIST_CACHE_ENABLED", "false")
     monkeypatch.setattr(cache, "_global_cache", None)

@@ -20,7 +20,7 @@ from typing import Any
 import litellm
 import pytest
 from co_scientist import offline_llm
-from co_scientist.llm.request import completion
+from co_scientist.llm.request import backend
 
 from app import store, task_worker
 from app.store import RunStatus
@@ -30,21 +30,15 @@ from app.store import RunStatus
 def _isolate_offline_router(monkeypatch: pytest.MonkeyPatch) -> None:
     """Reset the router's install bookkeeping so each test installs fresh.
 
-    ``install_offline_router`` mutates real module attributes directly (not
-    through ``monkeypatch``), so recording their current values registers
-    them for automatic restoration at teardown, and clearing the idempotency
-    flag guarantees this test's ``install_offline_router`` wraps the recording
-    stub installed below rather than no-opping over a prior install.
+    ``install_offline_router`` installs a backend process-wide (not through
+    ``monkeypatch``), so recording the installed backend registers it for
+    automatic restoration at teardown, and clearing the idempotency flag
+    guarantees this test's ``install_offline_router`` routes over the
+    recording stub installed below rather than no-opping over a prior install.
     """
     monkeypatch.setattr(litellm, "acompletion", litellm.acompletion)
-    monkeypatch.setattr(
-        completion,
-        "_supports_json_schema_response_format",
-        completion._supports_json_schema_response_format,
-    )
+    monkeypatch.setattr(backend, "_installed", backend._installed)
     monkeypatch.setattr(offline_llm, "_installed", False)
-    monkeypatch.setattr(offline_llm, "_original_acompletion", None)
-    monkeypatch.setattr(offline_llm, "_original_supports_json_schema", None)
 
 
 def _install_recording_router(

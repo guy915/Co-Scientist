@@ -3,7 +3,6 @@
 Leading underscore so pytest does not collect this module.
 """
 
-import litellm
 import pytest
 
 from co_scientist import offline_llm
@@ -11,32 +10,23 @@ from co_scientist.generator import (
     GeneratorOptions,
     HypothesisGenerator,
 )
-from co_scientist.llm.request import completion
+from tests._llm_backend_fake import restore_backend_at_teardown
 
 
 def isolate_offline_router(monkeypatch: pytest.MonkeyPatch) -> None:
     """Isolates ``install_offline_router``'s state to one test at a time.
 
-    ``install_offline_router`` mutates real module attributes directly
-    (not through ``monkeypatch``), so a permanent install in one test
-    would otherwise leak into every later test in the process. Recording
-    the current value of each patched attribute with ``monkeypatch``
-    (even when re-set to itself) registers it for automatic restoration
-    at teardown, and resetting the module's own idempotency bookkeeping
-    guarantees a fresh install every test.
+    ``install_offline_router`` installs a backend process-wide, so a permanent
+    install in one test would otherwise leak into every later test in the
+    process. Registering the installed backend for restoration at teardown,
+    and resetting the module's own idempotency flag, guarantees a fresh
+    install every test.
 
     Args:
         monkeypatch: The pytest monkeypatch fixture.
     """
-    monkeypatch.setattr(litellm, "acompletion", litellm.acompletion)
-    monkeypatch.setattr(
-        completion,
-        "_supports_json_schema_response_format",
-        completion._supports_json_schema_response_format,
-    )
+    restore_backend_at_teardown(monkeypatch)
     monkeypatch.setattr(offline_llm, "_installed", False)
-    monkeypatch.setattr(offline_llm, "_original_acompletion", None)
-    monkeypatch.setattr(offline_llm, "_original_supports_json_schema", None)
 
 
 def make_offline_generator() -> HypothesisGenerator:

@@ -26,7 +26,7 @@ from co_scientist.agents.reflection.review_helpers import (
 from co_scientist.agents.supervisor.supervisor_decision import (
     _DECISION_SCHEMA,
 )
-from co_scientist.llm.request import completion
+from co_scientist.llm.request.backend import active_backend
 from co_scientist.schemas.generation import GENERATION_SCHEMA
 from co_scientist.schemas.meta_review_schema import META_REVIEW_SCHEMA
 from co_scientist.schemas.ranking import RANKING_SCHEMA
@@ -64,7 +64,7 @@ async def test_router_passthrough_calls_original_for_non_offline_model(
     monkeypatch.setattr(litellm, "acompletion", _stub)
     offline_llm.install_offline_router()
 
-    result = await litellm.acompletion(
+    result = await active_backend().complete(
         model="gemini/gemini-2.5-flash",
         messages=[{"role": "user", "content": "hi"}],
     )
@@ -87,7 +87,7 @@ async def test_router_answers_offline_model_without_reaching_original(
     monkeypatch.setattr(litellm, "acompletion", _stub)
     offline_llm.install_offline_router()
 
-    response = await litellm.acompletion(
+    response = await active_backend().complete(
         model=offline_llm.DEFAULT_OFFLINE_MODEL,
         messages=[{"role": "user", "content": "hi"}],
     )
@@ -351,13 +351,11 @@ async def test_offline_acompletion_differs_for_different_prompts() -> None:
 def test_install_offline_router_is_idempotent() -> None:
     """A second ``install_offline_router`` call does not double-wrap."""
     offline_llm.install_offline_router()
-    routed_once = litellm.acompletion
-    supports_once = completion._supports_json_schema_response_format
+    routed_once = active_backend()
 
     offline_llm.install_offline_router()
 
-    assert litellm.acompletion is routed_once
-    assert completion._supports_json_schema_response_format is supports_once
+    assert active_backend() is routed_once
 
 
 async def test_install_offline_router_idempotency_does_not_lose_passthrough(
@@ -380,7 +378,7 @@ async def test_install_offline_router_idempotency_does_not_lose_passthrough(
     offline_llm.install_offline_router()
     offline_llm.install_offline_router()
 
-    await litellm.acompletion(
+    await active_backend().complete(
         model="gemini/gemini-2.5-flash",
         messages=[{"role": "user", "content": "hi"}],
     )
