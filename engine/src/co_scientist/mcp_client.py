@@ -20,7 +20,7 @@ import threading
 import weakref
 from typing import TYPE_CHECKING, Any, Optional
 
-from co_scientist.llm_free_policy import campaign_free_mode
+from co_scientist.llm import campaign_free_mode
 from co_scientist.mcp_client_availability import (
     _call_check_tool,
     _has_any_tools,

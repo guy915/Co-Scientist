@@ -5,10 +5,7 @@ from __future__ import annotations
 import contextvars
 from concurrent.futures import ThreadPoolExecutor
 
-from co_scientist.llm_free_policy import (
-    campaign_free_mode,
-    scoped_campaign_mode,
-)
+from co_scientist.llm import campaign_free_mode, scoped_campaign_mode
 
 from app.async_bridge import propagate_context, run_coroutine_sync
 

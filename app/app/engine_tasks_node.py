@@ -394,7 +394,7 @@ async def execute_finalize(
 
 def _settle_and_release(run_id: str, db_path: str | None) -> dict[str, Any]:
     """Settle and free call-budget tracking, including nonterminal exits."""
-    from co_scientist.llm_call_budget import release_run_call_budget
+    from co_scientist.llm import release_run_call_budget
 
     outcome = _settle_finalize_outcome(run_id, db_path)
     release_run_call_budget(run_id)

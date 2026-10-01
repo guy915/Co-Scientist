@@ -11,7 +11,7 @@ reasoning_tokens`` -- 10,080 to 20,949 tokens of reasoning and not one
 answer token written before the stream died. On this deployment's declared
 chain ``enable_thinking=False`` does not disable reasoning (no free
 gateway model claims ``reasoning_can_disable``); it reaches
-``llm_gateway_body._minimal_reasoning_knob``, which sends an explicit
+``llm.request.gateway_body._minimal_reasoning_knob``, which sends an explicit
 ``MINIMAL_REASONING_MAX_TOKENS`` bound instead. That is what these calls
 want. Neither is a task a long chain of thought earns its keep on: the
 outline selects and names subjects the corpus already contains, and each
@@ -33,8 +33,12 @@ from co_scientist.constants import (
     MEDIUM_TEMPERATURE,
 )
 from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
-from co_scientist.llm import CompletionSpec, LLMCallOptions, call_llm_json
-from co_scientist.llm_telemetry import scoped_telemetry_phase
+from co_scientist.llm import (
+    CompletionSpec,
+    LLMCallOptions,
+    call_llm_json,
+    scoped_telemetry_phase,
+)
 from co_scientist.prompts import (
     ThemeWritingMaterial,
     get_knowledge_base_outline_prompt,

@@ -1,7 +1,7 @@
 """Tests for DeepSeek thinking-mode completion parameters.
 
 Split from ``test_llm_wrappers.py``: covers how
-``co_scientist.llm_request._build_completion_args`` maps the thinking
+``co_scientist.llm.request.completion._build_completion_args`` maps the thinking
 opt-in/opt-out onto DeepSeek's ``thinking`` object and
 ``reasoning_effort``. Every engine node thinks; the opt-out cases below
 cover the seam itself, which no call site uses today.
@@ -25,7 +25,7 @@ from tests._llm_wrapper_fakes import (
 
 def test_thinking_enabled_by_default_for_deepseek() -> None:
     """Every DeepSeek call thinks unless a call site opts out."""
-    from co_scientist.llm_request import (
+    from co_scientist.llm.request.completion import (
         CompletionShape,
         _build_completion_args,
     )
@@ -44,7 +44,7 @@ def test_thinking_disabled_drops_reasoning_effort() -> None:
     ``reasoning_effort`` must not survive the opt-out: it would ask the
     provider to size a reasoning budget for a call that does not reason.
     """
-    from co_scientist.llm_request import (
+    from co_scientist.llm.request.completion import (
         CompletionShape,
         _build_completion_args,
     )
@@ -73,7 +73,7 @@ def test_gateway_route_carries_the_effort_only_inside_extra_body() -> None:
     invoke litellm directly and do not, so the redundant field failed the
     contextual safety screen outright and parked runs for human review.
     """
-    from co_scientist.llm_request import (
+    from co_scientist.llm.request.completion import (
         CompletionShape,
         _build_completion_args,
     )
@@ -95,7 +95,7 @@ def test_gateway_route_carries_the_effort_only_inside_extra_body() -> None:
 
 def test_thinking_params_absent_for_non_deepseek_models() -> None:
     """The thinking params are DeepSeek-specific and never sent elsewhere."""
-    from co_scientist.llm_request import (
+    from co_scientist.llm.request.completion import (
         CompletionShape,
         _build_completion_args,
     )
@@ -119,7 +119,7 @@ def test_thinking_call_raised_to_the_token_floor() -> None:
     allowance and return empty content -- billed in full, then retried.
     """
     from co_scientist.constants import THINKING_FLOOR_MAX_TOKENS
-    from co_scientist.llm_request import (
+    from co_scientist.llm.request.completion import (
         CompletionShape,
         _build_completion_args,
     )
@@ -139,7 +139,7 @@ def test_token_floor_never_lowers_a_larger_budget() -> None:
     for -- the exact failure this floor exists to prevent.
     """
     from co_scientist.constants import THINKING_FLOOR_MAX_TOKENS
-    from co_scientist.llm_request import (
+    from co_scientist.llm.request.completion import (
         CompletionShape,
         _build_completion_args,
     )
@@ -158,7 +158,7 @@ def test_token_floor_never_lowers_a_larger_budget() -> None:
 
 def test_token_floor_not_applied_when_thinking_is_off() -> None:
     """A non-thinking call keeps its budget; there is no reasoning to fund."""
-    from co_scientist.llm_request import (
+    from co_scientist.llm.request.completion import (
         CompletionShape,
         _build_completion_args,
     )
@@ -176,7 +176,7 @@ def test_token_floor_not_applied_when_thinking_is_off() -> None:
 
 def test_token_floor_not_applied_to_non_thinking_models() -> None:
     """Models without a thinking mode spend the budget on the answer alone."""
-    from co_scientist.llm_request import (
+    from co_scientist.llm.request.completion import (
         CompletionShape,
         _build_completion_args,
     )
@@ -248,7 +248,7 @@ def test_a_gateway_route_gets_its_own_reasoning_parameter(
     chain of thought consumes entirely.
     """
     monkeypatch.delenv("COSCIENTIST_GATEWAY_PROVIDER_ORDER", raising=False)
-    from co_scientist.llm_request import deepseek_thinking_extra_body
+    from co_scientist.llm import deepseek_thinking_extra_body
 
     routed = "openrouter/deepseek/deepseek-v4-flash"
 
@@ -272,7 +272,7 @@ def test_a_gateway_route_gets_its_own_reasoning_parameter(
 
 def test_the_direct_route_still_speaks_deepseek() -> None:
     """Adding a gateway must not change what the first-party call sends."""
-    from co_scientist.llm_request import deepseek_thinking_extra_body
+    from co_scientist.llm import deepseek_thinking_extra_body
 
     direct = "deepseek/deepseek-v4-flash"
 
@@ -286,7 +286,7 @@ def test_the_direct_route_still_speaks_deepseek() -> None:
 
 def test_a_model_without_thinking_is_untouched_on_either_route() -> None:
     """The route decides the shape, never whether there is one at all."""
-    from co_scientist.llm_request import deepseek_thinking_extra_body
+    from co_scientist.llm import deepseek_thinking_extra_body
 
     assert deepseek_thinking_extra_body("gemini/gemini-2.5-flash") == {}
     assert deepseek_thinking_extra_body("openrouter/openai/gpt-4o") == {}
@@ -337,7 +337,7 @@ def test_the_gateway_route_is_pinned_to_hosts_that_honour_the_call(
     override exist to cover without a re-pin.
     """
     monkeypatch.delenv("COSCIENTIST_GATEWAY_PROVIDER_ORDER", raising=False)
-    from co_scientist.llm_request import deepseek_thinking_extra_body
+    from co_scientist.llm import deepseek_thinking_extra_body
 
     body = deepseek_thinking_extra_body("openrouter/deepseek/deepseek-v4-flash")
 

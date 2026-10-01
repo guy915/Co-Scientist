@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 from co_scientist.agents.evolution import evolve as evolution
-from co_scientist.llm_telemetry import ModelCallStats, record_call
+from co_scientist.llm import ModelCallStats, record_call
 from co_scientist.models import Hypothesis
 from co_scientist.models_metrics import ExecutionMetrics
 

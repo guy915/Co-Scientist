@@ -13,7 +13,7 @@ million. The account was billed $5.23; the run's own telemetry said zero.
 
 from typing import Any
 
-from co_scientist.llm_telemetry import record_completion_response
+from co_scientist.llm.telemetry import record_completion_response
 
 
 class _Usage:
@@ -43,11 +43,11 @@ def test_cost_follows_the_model_that_answered(monkeypatch: Any) -> None:
     the route it was reached by, since a call served through a gateway is
     billed as a gateway call whichever rung answered it.
     """
-    from co_scientist import llm_telemetry
+    from co_scientist.llm import telemetry
 
     seen: dict[str, Any] = {}
     monkeypatch.setattr(
-        llm_telemetry,
+        telemetry,
         "record_call",
         lambda model, stats: seen.update(model=model, stats=stats),
     )
@@ -70,11 +70,11 @@ def test_a_response_naming_no_model_keeps_the_requested_name(
     Not every provider echoes the served model, and a missing field must
     not blank out a run's whole cost attribution.
     """
-    from co_scientist import llm_telemetry
+    from co_scientist.llm import telemetry
 
     seen: dict[str, Any] = {}
     monkeypatch.setattr(
-        llm_telemetry,
+        telemetry,
         "record_call",
         lambda model, stats: seen.update(model=model, stats=stats),
     )
@@ -98,11 +98,11 @@ def test_the_served_name_keeps_the_route_that_billed_it(
     The route is a property of how the call was billed, so it is carried
     over from the request; only the model part comes from the response.
     """
-    from co_scientist import llm_telemetry
+    from co_scientist.llm import telemetry
 
     seen: dict[str, Any] = {}
     monkeypatch.setattr(
-        llm_telemetry,
+        telemetry,
         "record_call",
         lambda model, stats: seen.update(model=model, stats=stats),
     )
@@ -123,11 +123,11 @@ def test_a_fallback_is_still_named_as_itself(monkeypatch: Any) -> None:
     The whole point of reading the served model is telling them apart, so
     re-prefixing has to keep the model half the response reported.
     """
-    from co_scientist import llm_telemetry
+    from co_scientist.llm import telemetry
 
     seen: dict[str, Any] = {}
     monkeypatch.setattr(
-        llm_telemetry,
+        telemetry,
         "record_call",
         lambda model, stats: seen.update(model=model, stats=stats),
     )

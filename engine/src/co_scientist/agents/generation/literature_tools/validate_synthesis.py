@@ -27,7 +27,7 @@ from co_scientist.constants import (
     scaled_max_tokens,
 )
 from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
-from co_scientist.llm_json import parse_tool_loop_json
+from co_scientist.llm import parse_tool_loop_json
 from co_scientist.models import GenerationMethod, Hypothesis
 from co_scientist.prompts import (
     ValidationSynthesisRequest,

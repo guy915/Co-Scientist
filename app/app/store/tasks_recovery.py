@@ -36,9 +36,9 @@ def _stop_run_after_unknown_provider_outcome(
 
 # A campaign run's policy is persisted at creation and never weakens, and
 # under it every provider request must pass the exact zero-price gate
-# (``co_scientist.llm_free_policy.enforce_free_request``) or it is refused
-# before transport. So a lease such a run lost cannot have spent anything,
-# provided no caller credential rode along -- the same evidence
+# (``co_scientist.llm.admission.free_policy.enforce_free_request``) or it is
+# refused before transport. So a lease such a run lost cannot have spent
+# anything, provided no caller credential rode along -- the same evidence
 # ``LLMTimeoutError.zero_cost_admitted`` carries for a live timeout. Those
 # leases are left to the ordinary expired-lease rescue, which retries them
 # within the task's attempt budget. Failing them instead stopped a healthy

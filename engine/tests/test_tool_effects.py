@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 
 from co_scientist import tool_effects
-from co_scientist.llm_tool_loop import _execute_tool_calls
+from co_scientist.llm.tools.iteration import _execute_tool_calls
 from co_scientist.tool_effects import (
     ToolEffect,
     batch_by_effects,

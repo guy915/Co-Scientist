@@ -1,7 +1,7 @@
 """Shared fold for fan-out/ranking item telemetry snapshots.
 
 Every durable fan-out item and ranking-match wave captures its own LLM
-usage via ``co_scientist.llm_telemetry.scoped_telemetry`` and carries the
+usage via ``co_scientist.llm.telemetry.scoped_telemetry`` and carries the
 snapshot home in its own task result or successor inputs -- an item task
 never commits workflow state itself (see ``app.engine_tasks_fanout_items``
 and ``app.engine_tasks_ranking_wave``). The family's aggregate (or, for
@@ -19,7 +19,7 @@ from typing import Any
 def merge_usage_snapshots(
     snapshots: Sequence[Mapping[str, Any]],
 ) -> dict[str, dict[str, Any]]:
-    """Fold per-item ``llm_telemetry`` snapshots into one usage dict.
+    """Fold per-item ``llm.telemetry`` snapshots into one usage dict.
 
     Args:
         snapshots: One ``TelemetryAccumulator.snapshot()`` per fan-out item

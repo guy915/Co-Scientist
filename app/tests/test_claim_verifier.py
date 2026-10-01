@@ -301,7 +301,7 @@ def test_call_reaches_the_engine_completion_boundary_with_the_model(
     """The assessor's call is sent to the resolved model via the engine seam.
 
     Thinking/reasoning-argument shaping is the engine's own responsibility
-    now (``co_scientist.llm_thinking``, exercised by the engine's own
+    now (``co_scientist.llm.request.thinking``, exercised by the engine's own
     tests) -- this only pins that this module's call reaches that seam at
     all, with the model this assessor was built for.
     """
@@ -393,8 +393,8 @@ def test_entailment_call_on_the_free_chain_does_not_disable_reasoning(
         )
 
     _install(monkeypatch, _capturing_completion)
-    from co_scientist import llm_free_catalog
     from co_scientist.constants_pricing import MODEL_PRICING
+    from co_scientist.llm.admission import free_catalog
 
     catalog = {
         model.removeprefix("openrouter/"): {
@@ -410,8 +410,8 @@ def test_entailment_call_on_the_free_chain_does_not_disable_reasoning(
         for model, price in MODEL_PRICING.items()
         if model.startswith("openrouter/")
     }
-    monkeypatch.setattr(llm_free_catalog, "_snapshot", None)
-    monkeypatch.setattr(llm_free_catalog, "_fetch_catalog", lambda: catalog)
+    monkeypatch.setattr(free_catalog, "_snapshot", None)
+    monkeypatch.setattr(free_catalog, "_fetch_catalog", lambda: catalog)
     assessor, _ = make_llm_assessor("openrouter/minimax/minimax-m3:free")
     assessor("some claim", [_PASSAGE])
 

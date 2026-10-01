@@ -245,7 +245,7 @@ def _fail_llm_budget_exceeded_task(
     ceiling, so the run's recorded failure reads as a ceiling hit rather
     than a generic task failure.
     """
-    from co_scientist.llm_call_budget import release_run_call_budget
+    from co_scientist.llm import release_run_call_budget
 
     _cancel_downstream_before_terminal_failure(
         task, retryable=False, db_path=db_path
@@ -271,7 +271,7 @@ def _fail_retryable_task(
     retryable = not isinstance(exc, LLMTimeoutError) or exc.zero_cost_admitted
     retry_at = None
     if isinstance(exc, LLMTimeoutError) and exc.zero_cost_admitted:
-        from co_scientist.llm_retry_backoff import (
+        from co_scientist.llm.attempts.backoff import (
             _provider_outage_backoff_seconds,
         )
 

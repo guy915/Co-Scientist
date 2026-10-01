@@ -23,7 +23,7 @@ def _identity(
     model: str,
     live: bool,
 ) -> dict[str, Any]:
-    from co_scientist.llm_gateway_body import deepseek_thinking_extra_body
+    from co_scientist.llm import deepseek_thinking_extra_body
 
     source = Path(__file__).parent / _PANEL_FILES[panel]
     fields = {

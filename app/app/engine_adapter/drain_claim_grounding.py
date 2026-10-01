@@ -64,7 +64,7 @@ async def _assess_claims(
         A tuple of (per hypothesis id its ``(assessment, role)`` pairs in
         claim order, this pass's LLM telemetry snapshot).
     """
-    from co_scientist.llm_telemetry import scoped_telemetry
+    from co_scientist.llm import scoped_telemetry
 
     from app.async_bridge import run_off_loop
 

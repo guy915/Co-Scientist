@@ -13,7 +13,7 @@ balanced object whose only fault was a blank line inside one field.
 
 import json
 
-from co_scientist.llm_json_repair import _try_minor_repairs
+from co_scientist.llm.structured.repair import _try_minor_repairs
 
 _JUDGEMENT = (
     '{\n  "comparison": "Hypothesis B commits to a negative control.\n\n'

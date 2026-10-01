@@ -7,7 +7,7 @@ from typing import Any, ClassVar, cast
 
 import pytest
 from co_scientist.checkpoint import serialize_workflow_state
-from co_scientist.llm_credentials import current_api_key
+from co_scientist.llm import current_api_key
 from fastapi import Request
 
 from app import (

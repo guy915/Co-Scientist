@@ -1,7 +1,7 @@
 """Jittered exponential backoff, shared by the retry paths that wait.
 
 Two retry loops sleep before re-issuing a call a remote source pushed back
-on: the ``call_llm_json`` attempt loop (``llm_json_retry``) and the
+on: the ``call_llm_json`` attempt loop (``llm.attempts.retry``) and the
 literature search tool call
 (``agents/generation/literature_review/search_retry``). They wait on very
 different scales -- a throttled LLM provider clears in seconds, a

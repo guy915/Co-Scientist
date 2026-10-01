@@ -22,11 +22,8 @@ from typing import Any
 
 import pytest
 
-from co_scientist.llm_tool_loop import (
-    ToolLoop,
-    _guard_cache_for_local_tools,
-)
-from co_scientist.llm_types import LLMCallOptions
+from co_scientist.llm import LLMCallOptions, ToolLoop
+from co_scientist.llm.tools.policy import _guard_cache_for_local_tools
 from co_scientist.sandbox import SandboxKind, SandboxPolicy, workspace_write
 from co_scientist.tool_effects import batch_by_effects
 from co_scientist.workspace import (

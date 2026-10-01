@@ -54,7 +54,7 @@ def _mcp_auth_headers() -> dict[str, Any] | None:
     if not secret:
         return None
     headers = {MCP_AUTH_HEADER: secret}
-    from co_scientist.llm_free_policy import campaign_free_mode
+    from co_scientist.llm import campaign_free_mode
 
     if campaign_free_mode():
         headers[MCP_CAMPAIGN_HEADER] = "1"

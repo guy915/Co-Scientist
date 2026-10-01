@@ -450,12 +450,11 @@ async def execute_engine_task(
     credential for this task only, without touching any shared state.
 
     The run's LLM-call ceiling is scoped the same way, into the engine's
-    ``llm_call_budget`` context: every completion this task makes,
+    ``llm.admission.call_budget`` context: every completion this task makes,
     however many retries or tool-loop turns deep, is counted against the
     run without any of that machinery needing to know the run id.
     """
-    from co_scientist.llm_call_budget import scoped_llm_call_budget
-    from co_scientist.llm_credentials import scoped_api_key
+    from co_scientist.llm import scoped_api_key, scoped_llm_call_budget
 
     from app.credentials import get_run_credential, scoped_byok
 

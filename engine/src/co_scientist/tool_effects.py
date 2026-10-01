@@ -7,7 +7,7 @@ the same model turn, because two writers (or a writer and a reader) racing
 inside one turn produce a result the transcript cannot explain.
 
 The vocabulary is deliberately reused rather than re-derived at each
-enforcement point: today it gates concurrency in ``llm_tool_loop``; the
+enforcement point: today it gates concurrency in ``llm.tools.loop``; the
 same declaration is what a plan-mode gate and an approval gate should read
 when those exist, so a tool is described once and enforced in several
 places.

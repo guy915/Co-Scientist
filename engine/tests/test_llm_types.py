@@ -1,6 +1,6 @@
-"""Tests for the pure value objects/helpers in ``co_scientist.llm_types``."""
+"""Tests for the pure value objects/helpers in ``co_scientist.llm.values``."""
 
-from co_scientist.llm_types import indexed_prompt_name
+from co_scientist.llm import indexed_prompt_name
 
 # --- indexed_prompt_name -----------------------------------------------------
 

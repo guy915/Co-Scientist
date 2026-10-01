@@ -76,7 +76,7 @@ def make_completion(
         finish_reason: Why the provider stopped. Omitted (``None``) leaves
             the attribute off the choice entirely, mirroring a provider
             that does not report one -- which is what the readers in
-            ``llm_response`` are written to tolerate.
+            ``llm.request.response`` are written to tolerate.
 
     Returns:
         A response namespace with a single choice carrying ``message``,

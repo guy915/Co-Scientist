@@ -360,7 +360,7 @@ def test_unlocated_or_unrelated_quotes_never_request_verification(
 def test_unavailable_verification_is_observable_without_deterministic_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from co_scientist.llm_telemetry import scoped_telemetry
+    from co_scientist.llm import scoped_telemetry
 
     install_replies(
         monkeypatch,

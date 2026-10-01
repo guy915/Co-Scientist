@@ -33,8 +33,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from co_scientist.llm_free_policy import campaign_free_mode
-from co_scientist.llm_tool_policy import DEFAULT_TOOL_LOOP_TOKEN_BUDGET
+from co_scientist.llm import DEFAULT_TOOL_LOOP_TOKEN_BUDGET, campaign_free_mode
 from co_scientist.skills import (
     catalogue_section,
     seed_licence_notices,
@@ -63,7 +62,7 @@ logger = logging.getLogger(__name__)
 # added here, which keeps the pass the same number of *working* turns it
 # had before rather than trading drafting for lookups.
 #
-# Since `llm_tool_transcript.elide_aged_evidence` this ceiling is a
+# Since `llm.tools.transcript.elide_aged_evidence` this ceiling is a
 # backstop rather than the thing that ends the pass: spend per turn no
 # longer grows with the searches run, so thirteen turns cost ~300k and
 # healthy passes finish inside it.

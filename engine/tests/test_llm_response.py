@@ -1,4 +1,4 @@
-"""Tests for ``co_scientist.llm_response``."""
+"""Tests for ``co_scientist.llm.request.response``."""
 
 from types import SimpleNamespace
 
@@ -8,7 +8,7 @@ from co_scientist.exceptions import (
     LLMBudgetExhaustedError,
     LLMThinkingOnlyError,
 )
-from co_scientist.llm_response import (
+from co_scientist.llm.request.response import (
     TokenUsage,
     _extract_completion_content,
     extract_token_usage,

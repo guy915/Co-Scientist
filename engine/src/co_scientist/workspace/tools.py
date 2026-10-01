@@ -35,7 +35,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from co_scientist.llm_free_policy import campaign_free_mode
+from co_scientist.llm import campaign_free_mode
 from co_scientist.patch import PatchError
 from co_scientist.sandbox import (
     SandboxKind,

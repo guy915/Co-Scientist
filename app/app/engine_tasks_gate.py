@@ -393,7 +393,7 @@ def _log_gate_wave(wave: _GateWave, entailment_calls: int) -> None:
 
 async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
     """Quarantine ungrounded ideas before a decisive Elo tournament."""
-    from co_scientist.llm_telemetry import scoped_telemetry
+    from co_scientist.llm import scoped_telemetry
 
     from app.claim_grounding import (
         AssessorSpec,

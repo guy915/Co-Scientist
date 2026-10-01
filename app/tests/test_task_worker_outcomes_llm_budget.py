@@ -12,11 +12,8 @@ generic task failure.
 from __future__ import annotations
 
 from co_scientist.exceptions import LLMCallBudgetExceededError
-from co_scientist.llm_call_budget import (
-    current_run_call_count,
-    record_provider_request,
-    scoped_llm_call_budget,
-)
+from co_scientist.llm import current_run_call_count, scoped_llm_call_budget
+from co_scientist.llm.admission.call_budget import record_provider_request
 
 from app import store, task_worker_outcomes
 

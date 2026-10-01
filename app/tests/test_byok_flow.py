@@ -227,7 +227,7 @@ def test_generator_for_a_byok_run_uses_the_runs_key(
 async def test_execute_engine_task_scopes_the_credential(
     byok_deployment: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from co_scientist.llm_credentials import current_api_key
+    from co_scientist.llm import current_api_key
 
     _fake_validation(monkeypatch)
     with TestClient(app) as client:

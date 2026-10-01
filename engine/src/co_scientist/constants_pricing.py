@@ -74,10 +74,10 @@ MODEL_PRICING: Final[dict[str, ModelPrice]] = {
     # The same DeepSeek weights reached through OpenRouter, which routes
     # across seventeen hosts spanning 6.5x on input and 7.9x on output.
     # Which one a call lands on is a routing decision, not a property of
-    # the model (see ``llm_thinking._GATEWAY_PROVIDER``), so these are the
-    # rates a price-capped route can actually be held to rather than an
-    # average over hosts the cap excludes.
-    # Listed separately because they are a different bill, not a different
+    # the model (see ``llm.request.thinking._GATEWAY_PROVIDER``), so these are
+    # the rates a price-capped route can actually be held to rather than an
+    # average over hosts the cap excludes. Listed separately because they are a
+    # different bill, not a different
     # model: the worker tier costs roughly a fifth of first-party peak.
     # Rates move as hosts come and go -- these were OpenRouter's quoted
     # prices in August 2026, and OpenRouter reports the exact cost of each

@@ -8,7 +8,7 @@ primaries) -- distinct concerns from that
 file's routing-shape and reasoning-knob tests.
 """
 
-from co_scientist.llm_request import deepseek_thinking_extra_body
+from co_scientist.llm import deepseek_thinking_extra_body
 
 
 def test_no_fallback_costs_more_than_the_model_above_it() -> None:
@@ -24,7 +24,7 @@ def test_no_fallback_costs_more_than_the_model_above_it() -> None:
     a rung added later cannot reintroduce the shape.
     """
     from co_scientist.constants_pricing import MODEL_PRICING
-    from co_scientist.llm_thinking import _GATEWAY_MODELS
+    from co_scientist.llm.request.gateway_routing import _GATEWAY_MODELS
 
     def rate(gateway_relative: str) -> tuple[float, float]:
         price = MODEL_PRICING[f"openrouter/{gateway_relative}"]
@@ -57,7 +57,7 @@ def test_no_declared_chain_exceeds_openrouters_fallback_cap() -> None:
     over the declared table, not one hand-picked chain, so a rung added
     later cannot reintroduce the shape.
     """
-    from co_scientist.llm_thinking import (
+    from co_scientist.llm.request.gateway_routing import (
         _GATEWAY_MAX_FALLBACKS,
         _GATEWAY_MODELS,
     )
@@ -80,7 +80,7 @@ def test_no_chain_head_claims_disable_support_a_fallback_lacks() -> None:
     over the whole declared table, not one hand-picked chain, so a rung
     added later cannot reintroduce the shape.
     """
-    from co_scientist.llm_thinking import _GATEWAY_MODELS
+    from co_scientist.llm.request.gateway_routing import _GATEWAY_MODELS
 
     for primary, declared in _GATEWAY_MODELS.items():
         if not declared.reasoning_can_disable:
@@ -101,7 +101,7 @@ def test_the_routing_body_never_sends_more_than_the_cap() -> None:
     ``_declared_gateway_body`` that appended to a chain would be caught
     here even if the table itself stayed correct.
     """
-    from co_scientist.llm_thinking import (
+    from co_scientist.llm.request.gateway_routing import (
         _GATEWAY_MAX_FALLBACKS,
         _GATEWAY_MODELS,
     )
@@ -114,7 +114,10 @@ def test_the_routing_body_never_sends_more_than_the_cap() -> None:
 def test_every_catalogued_route_arms_the_routing_ceiling() -> None:
     """A zero-priced primary must keep the provider ceiling armed too."""
     from co_scientist.constants_pricing import MODEL_PRICING
-    from co_scientist.llm_thinking import _GATEWAY_MODELS, _gateway_provider
+    from co_scientist.llm.request.gateway_routing import (
+        _GATEWAY_MODELS,
+        _gateway_provider,
+    )
 
     for primary in _GATEWAY_MODELS:
         price = MODEL_PRICING[primary]
@@ -147,7 +150,7 @@ def test_the_price_cap_excludes_the_2x_tier() -> None:
     someone reading this: the next host above the headline rate is
     Morph at 1.29x, well clear of the current cap.
     """
-    from co_scientist.llm_thinking import _MAX_PRICE_MULTIPLE
+    from co_scientist.llm.request.gateway_routing import _MAX_PRICE_MULTIPLE
 
     assert 1.0 <= _MAX_PRICE_MULTIPLE < 1.29
 
@@ -162,7 +165,10 @@ def test_the_price_cap_admits_the_headline_rate() -> None:
     represent the listed rate with the same rounding this process does.
     """
     from co_scientist.constants_pricing import MODEL_PRICING
-    from co_scientist.llm_thinking import _MAX_PRICE_MULTIPLE, _gateway_provider
+    from co_scientist.llm.request.gateway_routing import (
+        _MAX_PRICE_MULTIPLE,
+        _gateway_provider,
+    )
 
     primary = "openrouter/z-ai/glm-5.3-flash"
     price = MODEL_PRICING[primary]

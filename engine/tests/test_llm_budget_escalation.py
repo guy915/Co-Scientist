@@ -41,7 +41,7 @@ from co_scientist.exceptions import (
     LLMThinkingOnlyError,
 )
 from co_scientist.llm import CompletionSpec, call_llm, call_llm_json
-from co_scientist.llm_json_escalation import (
+from co_scientist.llm.attempts.escalation import (
     BudgetEscalation,
     escalated_max_tokens,
 )

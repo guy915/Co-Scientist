@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 from co_scientist.exceptions import FreeModelEligibilityError
-from co_scientist.llm_credentials import current_api_key
+from co_scientist.llm import current_api_key
 
 from app import async_bridge, credentials, engine_tasks, store, task_worker
 from app.config import settings
@@ -23,15 +23,15 @@ async def test_durable_auxiliary_admission_with_stored_credential(
     mode: str,
 ) -> None:
     import litellm
-    from co_scientist import llm_free_catalog
+    from co_scientist.llm.admission import free_catalog
 
     from app import claim_verifier, claim_verifier_batch, safety_semantic
 
     monkeypatch.setattr(settings, "byok_encryption_key", "campaign-test-secret")
     monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
-    monkeypatch.setattr(llm_free_catalog, "_snapshot", None)
+    monkeypatch.setattr(free_catalog, "_snapshot", None)
     monkeypatch.setattr(
-        llm_free_catalog,
+        free_catalog,
         "_fetch_catalog",
         lambda: {
             "campaign/free:free": {

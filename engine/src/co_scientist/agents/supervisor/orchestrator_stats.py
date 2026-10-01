@@ -23,7 +23,7 @@ from co_scientist.agents.reflection.owed_review import (
     owed_review_count as _owed_review_count,
 )
 from co_scientist.constants import INITIAL_ELO_RATING
-from co_scientist.llm_call_budget import current_run_call_count
+from co_scientist.llm import current_run_call_count
 from co_scientist.models import Hypothesis, has_peer_review
 from co_scientist.scheduling import (
     Budget,
@@ -183,7 +183,7 @@ def _scheduler_scalars(
 ) -> tuple[int, float, float, float]:
     """Return (llm_calls, generation_yield, evolution_yield, elapsed_s).
 
-    ``llm_calls`` reads the seam-counted total (``llm_call_budget``,
+    ``llm_calls`` reads the seam-counted total (``llm.admission.call_budget``,
     incremented once per actual provider request regardless of which node
     made it) rather than the self-reported ``metrics.llm_calls``: a dozen
     nodes never reported into the metric at all, so it structurally

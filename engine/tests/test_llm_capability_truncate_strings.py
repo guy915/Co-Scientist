@@ -23,7 +23,9 @@ truncation fixes a wrong answer.
 
 from typing import Any
 
-from co_scientist.llm_json_truncate_strings import _truncate_oversized_strings
+from co_scientist.llm.structured.truncate_strings import (
+    _truncate_oversized_strings,
+)
 
 _SCHEMA: dict[str, Any] = {
     "type": "object",

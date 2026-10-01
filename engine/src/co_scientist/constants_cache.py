@@ -14,8 +14,9 @@ from typing import Final
 # entries age out even when nothing about the key changed. A value of zero
 # (or unset/negative) disables expiry, matching the "0 disables" convention
 # every other wall-clock ceiling in this codebase uses (see
-# llm_request.LLM_TIMEOUT_ENV). Checked against the cache file's own mtime,
-# not a value stored in the entry, so no cache-format migration is needed.
+# llm.request.completion.LLM_TIMEOUT_ENV). Checked against the cache file's own
+# mtime, not a value stored in the entry, so no cache-format migration is
+# needed.
 DEFAULT_CACHE_TTL_SECONDS: Final = 7 * 24 * 60 * 60
 """Default age, in seconds, after which a cached entry is treated as a miss."""
 

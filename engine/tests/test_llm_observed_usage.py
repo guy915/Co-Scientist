@@ -2,8 +2,12 @@
 
 import pytest
 
-from co_scientist.llm import CompletionSpec, LLMCallOptions, call_llm
-from co_scientist.llm_telemetry import scoped_telemetry
+from co_scientist.llm import (
+    CompletionSpec,
+    LLMCallOptions,
+    call_llm,
+    scoped_telemetry,
+)
 from co_scientist.models_metrics import ExecutionMetrics, merge_metrics
 from tests._llm_wrapper_fakes import (
     make_completion,

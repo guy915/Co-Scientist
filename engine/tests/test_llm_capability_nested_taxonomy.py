@@ -20,13 +20,15 @@ from typing import Any
 
 import pytest
 
-from co_scientist import llm_json_attempt
-from co_scientist.llm_json import (
+from co_scientist.llm.attempts import json_attempt
+from co_scientist.llm.structured.truncate_strings import (
+    _truncate_oversized_strings,
+)
+from co_scientist.llm.structured.validate import (
     _backfill_required_fields,
     _prune_unknown_properties,
     _truncate_oversized_arrays,
 )
-from co_scientist.llm_json_truncate_strings import _truncate_oversized_strings
 from co_scientist.schemas.meta_review_schema import META_REVIEW_SCHEMA
 
 _SCHEMA: dict[str, Any] = META_REVIEW_SCHEMA["schema"]
@@ -219,7 +221,7 @@ def test_a_mangled_nested_taxonomy_validates_after_the_shims(
     that ``_backfill_and_validate`` does not raise.
     """
     monkeypatch.setattr(
-        llm_json_attempt,
+        json_attempt,
         "_supports_json_schema_response_format",
         lambda _model: False,
     )
@@ -235,7 +237,7 @@ def test_a_mangled_nested_taxonomy_validates_after_the_shims(
         _theme(sub_themes=[mangled for _ in range(caps["maxItems"] + 2)])
     ]
 
-    llm_json_attempt._backfill_and_validate(
+    json_attempt._backfill_and_validate(
         response, META_REVIEW_SCHEMA, "openrouter/minimax/minimax-m3:free"
     )
 
@@ -257,7 +259,7 @@ def test_the_published_taxonomy_shape_survives_the_shims(
     unchanged.
     """
     monkeypatch.setattr(
-        llm_json_attempt,
+        json_attempt,
         "_supports_json_schema_response_format",
         lambda _model: False,
     )
@@ -273,7 +275,7 @@ def test_the_published_taxonomy_shape_survives_the_shims(
     response = _minimal_valid_response()
     response["recurring_themes"] = published
 
-    llm_json_attempt._backfill_and_validate(
+    json_attempt._backfill_and_validate(
         response, META_REVIEW_SCHEMA, "openrouter/minimax/minimax-m3:free"
     )
 

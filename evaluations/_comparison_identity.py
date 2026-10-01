@@ -10,15 +10,15 @@ _ROOT = Path(__file__).resolve().parents[1]
 _POLICY_FILES = (
     "constants.py",
     "constants_tokens.py",
-    "llm_types.py",
-    "llm_request.py",
-    "llm_free_policy.py",
-    "llm_free_catalog.py",
-    "llm_gateway_routing.py",
-    "llm_gateway_body.py",
-    "llm_thinking.py",
-    "llm_request_schema.py",
-    "llm_json_escalation.py",
+    "llm/values.py",
+    "llm/request/completion.py",
+    "llm/admission/free_policy.py",
+    "llm/admission/free_catalog.py",
+    "llm/request/gateway_routing.py",
+    "llm/request/gateway_body.py",
+    "llm/request/thinking.py",
+    "llm/request/schema.py",
+    "llm/attempts/escalation.py",
 )
 
 
@@ -79,7 +79,7 @@ def _baseline_config(goal: str, tier: str) -> dict[str, Any]:
 
 def _model_policy() -> dict[str, Any]:
     from app.config import settings
-    from co_scientist.llm_gateway_body import deepseek_thinking_extra_body
+    from co_scientist.llm import deepseek_thinking_extra_body
 
     models = _configured_models()
     policy = _request_policy()

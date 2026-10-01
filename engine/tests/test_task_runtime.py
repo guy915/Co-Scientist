@@ -4,9 +4,9 @@ from typing import Any
 
 import pytest
 
-from co_scientist import llm_tool_loop
 from co_scientist.cache import LLMCache
 from co_scientist.llm import CompletionSpec, call_llm
+from co_scientist.llm.tools import loop as tool_loop
 from co_scientist.models import (
     Hypothesis,
     MetricDeltas,
@@ -119,18 +119,18 @@ async def test_execute_task_node_captures_llm_telemetry_by_phase(
     """A node's real LLM calls are captured into its committed metrics.
 
     Drives the actual dispatch boundary (``co_scientist.llm.call_llm`` ->
-    ``llm_request._acompletion_within_timeout``) with only the network
-    edge faked, the same convention every other engine LLM test uses --
-    not a fixture of this feature's own logic. Without
-    ``execute_task_node`` scoping telemetry around the handler call (and
-    without the dispatch boundary recording it), ``model_usage`` stays the
-    all-zero default forever, however many LLM calls a node makes. Uses a
-    real (empty, per-test-tmp-dir) ``LLMCache`` rather than
-    ``disable_llm_cache`` so the resulting cache-miss telemetry is also
-    exercised against genuine cache behavior, not a NullCache stand-in.
+    ``llm.request.completion._acompletion_within_timeout``) with only the
+    network edge faked, the same convention every other engine LLM test uses --
+    not a fixture of this feature's own logic. Without ``execute_task_node``
+    scoping telemetry around the handler call (and without the dispatch boundary
+    recording it), ``model_usage`` stays the all-zero default forever, however
+    many LLM calls a node makes. Uses a real (empty, per-test-tmp-dir)
+    ``LLMCache`` rather than ``disable_llm_cache`` so the resulting cache-miss
+    telemetry is also exercised against genuine cache behavior, not a NullCache
+    stand-in.
     """
     monkeypatch.setattr(
-        llm_tool_loop,
+        tool_loop,
         "get_cache",
         lambda: LLMCache(cache_dir=str(tmp_path), enabled=True),
     )

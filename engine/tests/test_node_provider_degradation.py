@@ -8,7 +8,7 @@ returned an upstream overload, the run settled ``failed``, and because
 successor, no report was written at all.
 
 Each of these nodes already has a registered fallback in
-``llm_json._ENHANCEMENT_NODE_FALLBACKS``, but only the JSON-parse
+``llm.structured.validate._ENHANCEMENT_NODE_FALLBACKS``, but only the JSON-parse
 exhaustion path serves it -- a provider error or a timeout leaves
 ``call_llm_json`` by a different door. These tests pin the missing half:
 a provider failure degrades the node to its documented empty result and

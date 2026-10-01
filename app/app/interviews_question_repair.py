@@ -26,8 +26,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from co_scientist.llm import call_llm_json
-from co_scientist.llm_types import CompletionSpec, LLMCallOptions
+from co_scientist.llm import CompletionSpec, LLMCallOptions, call_llm_json
 from co_scientist.schemas.builders import obj
 
 from app import credentials, offline_guard

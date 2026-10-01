@@ -39,11 +39,7 @@ from co_scientist.constants import (
     KNOWLEDGE_BASE_THEME_MAX_TOKENS,
     THINKING_FLOOR_MAX_TOKENS,
 )
-from co_scientist.llm_telemetry import (
-    ModelCallStats,
-    record_call,
-    scoped_telemetry,
-)
+from co_scientist.llm import ModelCallStats, record_call, scoped_telemetry
 from tests._state import make_state
 
 _ASKED = "Theme to write:"

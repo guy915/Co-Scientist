@@ -11,8 +11,6 @@ from co_scientist.llm import (
     LLMCallOptions,
     call_llm,
     call_llm_json,
-)
-from co_scientist.llm_call_budget import (
     current_run_call_count,
     scoped_llm_call_budget,
 )
@@ -106,9 +104,9 @@ async def test_ancillary_and_conditional_charges_are_unavailable(
 async def test_retry_rechecks_expired_prices_before_counting_or_transport(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from co_scientist import llm_free_catalog
+    from co_scientist.llm.admission import free_catalog
 
-    monkeypatch.setattr(llm_free_catalog, "CATALOG_TTL_SECONDS", 0)
+    monkeypatch.setattr(free_catalog, "CATALOG_TTL_SECONDS", 0)
     catalog_reads: list[str] = []
 
     def get(url: str, **kwargs: Any) -> httpx.Response:
@@ -171,7 +169,7 @@ async def test_byok_separation_and_campaign_override(
     campaign: bool,
     scoped: bool,
 ) -> None:
-    from co_scientist.llm_credentials import scoped_api_key
+    from co_scientist.llm import scoped_api_key
 
     monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", str(int(campaign)))
     catalog = _catalog({"prompt": "0", "completion": "1"})
@@ -209,7 +207,7 @@ async def test_unqualified_fallbacks_and_addons_are_rejected(
     monkeypatch: pytest.MonkeyPatch,
     body: dict[str, Any],
 ) -> None:
-    from co_scientist.llm_free_policy import enforce_free_request
+    from co_scientist.llm import enforce_free_request
 
     _mock_catalog(monkeypatch, _catalog({"prompt": "0", "completion": "0"}))
     args = {
@@ -243,7 +241,7 @@ async def test_campaign_rejects_unverified_request_shapes(
     monkeypatch: pytest.MonkeyPatch,
     changes: dict[str, Any],
 ) -> None:
-    from co_scientist.llm_free_policy import enforce_free_request
+    from co_scientist.llm import enforce_free_request
 
     monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
     _mock_catalog(monkeypatch, _catalog({"prompt": "0", "completion": "0"}))
@@ -259,9 +257,9 @@ async def test_campaign_rejects_unverified_request_shapes(
 async def test_catalog_failure_after_expiry_never_uses_stale_prices(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from co_scientist import llm_free_catalog
+    from co_scientist.llm.admission import free_catalog
 
-    monkeypatch.setattr(llm_free_catalog, "CATALOG_TTL_SECONDS", 0)
+    monkeypatch.setattr(free_catalog, "CATALOG_TTL_SECONDS", 0)
     _mock_catalog(monkeypatch, _catalog({"prompt": "0", "completion": "0"}))
     requests: list[dict[str, Any]] = []
     patch_acompletion(
@@ -295,8 +293,8 @@ async def test_invalid_catalog_fails_closed(
 async def test_unknown_promotion_needs_explicit_ancillary_prices(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from co_scientist import llm_free_catalog
-    from co_scientist.llm_free_policy import enforce_free_request
+    from co_scientist.llm import enforce_free_request
+    from co_scientist.llm.admission import free_catalog
 
     monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
     data = _catalog({"prompt": "0", "completion": "0"})
@@ -319,7 +317,7 @@ async def test_unknown_promotion_needs_explicit_ancillary_prices(
             "0",
         )
     )
-    monkeypatch.setattr(llm_free_catalog, "_snapshot", None)
+    monkeypatch.setattr(free_catalog, "_snapshot", None)
     await enforce_free_request(args)
     assert args["extra_body"]["provider"]["max_price"]["request"] == 0
 
@@ -330,7 +328,7 @@ def test_catalog_cache_is_shared_across_worker_event_loops(
     import asyncio
     from concurrent.futures import ThreadPoolExecutor
 
-    from co_scientist.llm_free_policy import enforce_free_request
+    from co_scientist.llm import enforce_free_request
 
     catalog = _catalog({"prompt": "0", "completion": "0"})
     catalog["data"][0]["expiration_date"] = None
@@ -373,12 +371,12 @@ async def test_campaign_does_not_reuse_paid_byok_cache(
     tmp_path: Any,
     kind: str,
 ) -> None:
-    from co_scientist import llm_tool_loop
     from co_scientist.cache import LLMCache
     from co_scientist.llm import ToolLoop, call_llm_with_tools
+    from co_scientist.llm.tools import loop as tool_loop
 
     cache = LLMCache(cache_dir=str(tmp_path), enabled=True)
-    monkeypatch.setattr(llm_tool_loop, "get_cache", lambda: cache)
+    monkeypatch.setattr(tool_loop, "get_cache", lambda: cache)
     requests: list[dict[str, Any]] = []
     patch_acompletion(
         monkeypatch,
@@ -423,7 +421,7 @@ async def test_malformed_containers_raise_terminal_policy_error(
     changes: dict[str, Any],
 ) -> None:
     from co_scientist.exceptions import FreeModelEligibilityError
-    from co_scientist.llm_free_policy import enforce_free_request
+    from co_scientist.llm import enforce_free_request
 
     _mock_catalog(monkeypatch, _catalog({"prompt": "0", "completion": "0"}))
     with pytest.raises(FreeModelEligibilityError):

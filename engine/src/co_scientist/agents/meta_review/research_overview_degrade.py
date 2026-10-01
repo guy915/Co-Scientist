@@ -23,8 +23,8 @@ from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
-# The node's key in ``llm_json._ENHANCEMENT_NODE_FALLBACKS``, and the label
-# the report reads back as a degraded section.
+# The node's key in ``llm.structured.validate._ENHANCEMENT_NODE_FALLBACKS``, and
+# the label the report reads back as a degraded section.
 _OVERVIEW_SCHEMA = "research_overview"
 
 _LOST = (
@@ -116,8 +116,8 @@ def _degraded_overview_result() -> dict[str, Any]:
     The same empty ``research_overview`` the node already returns when the
     publication gates withhold every hypothesis, so the report renderer
     needs no new branch. No metrics delta: the requests that failed were
-    already counted by ``llm_call_budget.record_provider_request``, and
-    this produced no overview to attribute a successful call to.
+    already counted by ``llm.admission.call_budget.record_provider_request``,
+    and this produced no overview to attribute a successful call to.
     """
     return {
         "research_overview": {},

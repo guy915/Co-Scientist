@@ -20,7 +20,10 @@ from co_scientist.exceptions import (
     LLMBudgetExhaustedError,
     LLMThinkingOnlyError,
 )
-from co_scientist.llm_json_escalation import BudgetEscalation, log_escalation
+from co_scientist.llm.attempts.escalation import (
+    BudgetEscalation,
+    log_escalation,
+)
 
 # Declared in ``_GATEWAY_MODELS`` with the default ``reasoning_can_disable
 # =False`` -- the deployed free-chain primary, and the exact model the

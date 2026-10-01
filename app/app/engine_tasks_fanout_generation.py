@@ -393,7 +393,7 @@ async def execute_generation_strategy(
     see ``co_scientist.skills.usage``. Empty without skills installed.
     """
     from co_scientist.agents.generation.citations import ReferenceIndex
-    from co_scientist.llm_telemetry import scoped_telemetry
+    from co_scientist.llm import scoped_telemetry
     from co_scientist.skills import scoped_skill_usage
 
     state, expected_seq = _restore_item_checkpoint(

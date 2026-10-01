@@ -1,7 +1,7 @@
 """Fakes for the ``litellm.acompletion`` boundary.
 
 Also exposes ``disable_llm_cache``, a small shared helper that patches
-``co_scientist.llm_tool_loop.get_cache`` (the module where the shared
+``co_scientist.llm.tools.loop.get_cache`` (the module where the shared
 pre-call sequence ``_prepare_llm_call`` lives) to a disabled cache so the
 llm-wrapper and capability-shim unit tests always exercise the real
 completion path.
@@ -61,9 +61,10 @@ from typing import Any
 
 import pytest
 
-from co_scientist import cache, llm_tool_loop
+from co_scientist import cache
 from co_scientist.cache import LLMCache
 from co_scientist.generator import GeneratorOptions, HypothesisGenerator
+from co_scientist.llm.tools import loop as tool_loop
 from co_scientist.offline_llm import (
     _ARRAY_LENGTH_HINTS,
     _prompt_text,
@@ -93,7 +94,7 @@ def _next_leaf(_field: str = "") -> str:
 
 
 def disable_llm_cache(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Force ``llm_tool_loop.get_cache`` to hand back a disabled cache.
+    """Force ``llm.tools.loop.get_cache`` to hand back a disabled cache.
 
     A disabled ``LLMCache`` returns ``None`` from ``get`` and no-ops in
     ``set``, so the completion path always runs and nothing leaks between
@@ -102,9 +103,7 @@ def disable_llm_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     Args:
         monkeypatch: The pytest monkeypatch fixture.
     """
-    monkeypatch.setattr(
-        llm_tool_loop, "get_cache", lambda: LLMCache(enabled=False)
-    )
+    monkeypatch.setattr(tool_loop, "get_cache", lambda: LLMCache(enabled=False))
 
 
 def stub_call_llm_json(
@@ -227,11 +226,11 @@ def install_fake_llm(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     import litellm
 
-    from co_scientist import llm_request
+    from co_scientist.llm.request import completion
 
     monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
     monkeypatch.setattr(
-        llm_request,
+        completion,
         "_supports_json_schema_response_format",
         lambda _model_name: True,
     )

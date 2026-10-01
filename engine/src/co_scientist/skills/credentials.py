@@ -26,7 +26,7 @@ from __future__ import annotations
 import os
 import pathlib
 
-from co_scientist.llm_free_policy import campaign_free_mode
+from co_scientist.llm import campaign_free_mode
 from co_scientist.skills.catalog import (
     available_skills,
     skills_directory,

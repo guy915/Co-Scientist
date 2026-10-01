@@ -6,8 +6,10 @@ import contextvars
 import pytest
 
 from co_scientist.exceptions import FreeModelEligibilityError
-from co_scientist.llm import CompletionSpec, LLMCallOptions, call_llm
-from co_scientist.llm_free_policy import (
+from co_scientist.llm import (
+    CompletionSpec,
+    LLMCallOptions,
+    call_llm,
     campaign_free_mode,
     scoped_campaign_mode,
 )
@@ -116,11 +118,11 @@ async def test_campaign_scope_rejects_paid_byok_before_transport(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Campaign and ordinary BYOK tasks keep their admission policies apart."""
-    from co_scientist import llm_free_policy
+    from co_scientist.llm.admission import free_policy
 
     monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
     monkeypatch.setattr(
-        llm_free_policy,
+        free_policy,
         "current_catalog",
         lambda: {
             "campaign/paid": {

@@ -65,11 +65,11 @@ def captured(
     monkeypatch: pytest.MonkeyPatch, reachable_provider: None
 ) -> list[dict[str, Any]]:
     import litellm
-    from co_scientist import llm_free_catalog
+    from co_scientist.llm.admission import free_catalog
 
-    monkeypatch.setattr(llm_free_catalog, "_snapshot", None)
+    monkeypatch.setattr(free_catalog, "_snapshot", None)
     monkeypatch.setattr(
-        llm_free_catalog,
+        free_catalog,
         "_fetch_catalog",
         lambda: {
             "campaign/chat:free": {
@@ -240,8 +240,8 @@ async def test_interview_reasoning_retry_rechecks_admission(
     monkeypatch: pytest.MonkeyPatch, captured: list[dict[str, Any]]
 ) -> None:
     import litellm
-    from co_scientist import llm_free_catalog
     from co_scientist.exceptions import FreeModelEligibilityError
+    from co_scientist.llm.admission import free_catalog
 
     monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
 
@@ -259,8 +259,8 @@ async def test_interview_reasoning_retry_rechecks_admission(
                 ]
             )
             # The catalog expires between the reasoning-only reply and re-ask.
-            monkeypatch.setattr(llm_free_catalog, "_snapshot", None)
-            monkeypatch.setattr(llm_free_catalog, "_fetch_catalog", lambda: {})
+            monkeypatch.setattr(free_catalog, "_snapshot", None)
+            monkeypatch.setattr(free_catalog, "_fetch_catalog", lambda: {})
 
         return chunks()
 

@@ -23,7 +23,7 @@ worker that dies takes its sessions with it. Making one survive a
 restart means a supervisor outside the worker, which is a deployment
 change, not a code change. What matters is that the loss is *legible*
 rather than silent: a resumed turn carries a tool call whose result
-never arrived, which `llm_tool_transcript` turns into an explicit
+never arrived, which `llm.tools.transcript` turns into an explicit
 aborted result rather than an invalid conversation.
 
 **Output is capped per stream** and marked when it is cut, because a

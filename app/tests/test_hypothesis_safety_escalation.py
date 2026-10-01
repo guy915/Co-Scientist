@@ -37,12 +37,12 @@ _MODEL = "openrouter/test/safety:free"
 
 @pytest.fixture(autouse=True)
 def _qualified_model_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
-    from co_scientist import llm_free_catalog
+    from co_scientist.llm.admission import free_catalog
 
     monkeypatch.setattr(settings, "semantic_safety_model", _MODEL)
-    monkeypatch.setattr(llm_free_catalog, "_snapshot", None)
+    monkeypatch.setattr(free_catalog, "_snapshot", None)
     monkeypatch.setattr(
-        llm_free_catalog,
+        free_catalog,
         "_fetch_catalog",
         lambda: {
             "test/safety:free": {

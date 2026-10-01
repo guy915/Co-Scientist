@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from co_scientist.llm_json_lists import coerce_json_list
+from co_scientist.llm import coerce_json_list
 
 from app import store
 from app.config import settings

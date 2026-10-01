@@ -21,7 +21,7 @@ from co_scientist.constants import (
     RANKING_WAVE_SIZE as RANKING_WAVE_SIZE,
 )
 from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
-from co_scientist.llm_telemetry import scoped_telemetry
+from co_scientist.llm import scoped_telemetry
 
 from app.engine_tasks_telemetry import merge_usage_snapshots
 from app.store import ScientificTask

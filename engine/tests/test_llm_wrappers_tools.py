@@ -14,13 +14,13 @@ from typing import Any
 
 import pytest
 
-from co_scientist import llm_tool_loop
 from co_scientist.cache import LLMCache
 from co_scientist.llm import (
     CompletionSpec,
     ToolLoop,
     call_llm_with_tools,
 )
+from co_scientist.llm.tools import loop as tool_loop
 from tests._llm_fake import disable_llm_cache as _disable_cache
 from tests._llm_wrapper_fakes import (
     SEARCH_TOOL as _SEARCH_TOOL,
@@ -149,8 +149,8 @@ async def test_tool_loop_applies_provider_quirks(
     """The tool loop's turn carries the same provider handling as call_llm.
 
     The thinking knob and the reasoning tier come from the shared helpers
-    in ``llm_request`` rather than being rebuilt here, and every turn asks
-    the provider client to give up on its own via the ``timeout`` argument.
+    in ``llm.request.completion`` rather than being rebuilt here, and every turn
+    asks the provider client to give up on its own via the ``timeout`` argument.
     """
     _disable_cache(monkeypatch)
     captured: dict[str, Any] = {}
@@ -258,7 +258,7 @@ def test_message_to_history_preserves_reasoning_content() -> None:
     DeepSeek rejects a follow-up turn whose assistant tool-call message drops
     the reasoning_content it emitted, so the replayed history must keep it.
     """
-    from co_scientist.llm_tool_loop import _message_to_history_dict
+    from co_scientist.llm.tools.transcript import _message_to_history_dict
 
     message = _message(
         "", tool_calls=[_tool_call("call-1", "search", '{"q": 1}')]
@@ -273,7 +273,7 @@ def test_message_to_history_preserves_reasoning_content() -> None:
 
 def test_message_to_history_omits_absent_reasoning_content() -> None:
     """A non-thinking message carries no reasoning_content key."""
-    from co_scientist.llm_tool_loop import _message_to_history_dict
+    from co_scientist.llm.tools.transcript import _message_to_history_dict
 
     result = _message_to_history_dict(_message("final answer"))
 
@@ -314,7 +314,7 @@ async def test_tool_contract_change_is_a_cache_miss(
     and schema alone would wrongly replay the first call's answer.
     """
     cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True)
-    monkeypatch.setattr(llm_tool_loop, "get_cache", lambda: cache_obj)
+    monkeypatch.setattr(tool_loop, "get_cache", lambda: cache_obj)
     state = _patch_acompletion(
         monkeypatch,
         [
@@ -344,7 +344,7 @@ async def test_identical_tool_contract_is_a_cache_hit(
     cache, not re-completed.
     """
     cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True)
-    monkeypatch.setattr(llm_tool_loop, "get_cache", lambda: cache_obj)
+    monkeypatch.setattr(tool_loop, "get_cache", lambda: cache_obj)
     state = _patch_acompletion(monkeypatch, [_completion(_message("answer"))])
     contract = {"pubmed": {"enabled": True}}
 

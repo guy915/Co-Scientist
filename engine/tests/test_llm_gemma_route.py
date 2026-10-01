@@ -15,9 +15,11 @@ import pytest
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,
-    _supports_json_schema_response_format,
     call_llm,
     call_llm_json,
+)
+from co_scientist.llm.request.completion import (
+    _supports_json_schema_response_format,
 )
 from tests._llm_fake import NESTED_SCHEMA as _NESTED_SCHEMA
 from tests._llm_fake import disable_llm_cache as _disable_cache

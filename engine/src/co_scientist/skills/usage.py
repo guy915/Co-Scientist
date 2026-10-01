@@ -9,7 +9,7 @@ surface that reaches a person is the run's report, and it can only name
 the sources a run actually used if something counted them.
 
 The counter is a context variable rather than an argument threaded
-through the draft pipeline, mirroring ``llm_telemetry.scoped_telemetry``:
+through the draft pipeline, mirroring ``llm.telemetry.scoped_telemetry``:
 the invocation happens deep inside a tool handler and the number is
 wanted at the node boundary, which is exactly the shape that module
 already solved. A context variable is also the only safe choice here --

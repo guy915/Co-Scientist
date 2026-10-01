@@ -1,4 +1,4 @@
-"""Tests for ``co_scientist.llm_telemetry``'s in-memory accumulator.
+"""Tests for ``co_scientist.llm.telemetry``'s in-memory accumulator.
 
 The dispatch-boundary integration (does a real ``call_llm`` populate this)
 is covered by ``test_task_runtime.py`` (see
@@ -10,15 +10,17 @@ aggregation and scoping contract in isolation.
 from types import SimpleNamespace
 
 from co_scientist.constants_pricing import estimate_cost_usd
-from co_scientist.llm_telemetry import (
+from co_scientist.llm import (
     ModelCallStats,
-    TelemetryAccumulator,
-    record_cache_result,
     record_call,
-    record_completion_response,
-    record_retry,
     scoped_telemetry,
     scoped_telemetry_phase,
+)
+from co_scientist.llm.telemetry import (
+    TelemetryAccumulator,
+    record_cache_result,
+    record_completion_response,
+    record_retry,
 )
 
 

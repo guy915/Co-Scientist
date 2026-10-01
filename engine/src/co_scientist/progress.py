@@ -2,9 +2,9 @@
 
 Also home to the schema-degradation recorder: when a non-critical node's
 LLM output cannot be parsed after all retries and a fallback is served
-(see ``llm_json.get_fallback_response``), the degradation is recorded here
-so the run's report can say a section is blank because generation failed,
-rather than showing silence.
+(see ``llm.structured.validate.get_fallback_response``), the degradation is
+recorded here so the run's report can say a section is blank because generation
+failed, rather than showing silence.
 """
 
 import asyncio
@@ -26,12 +26,12 @@ logger = logging.getLogger(__name__)
 # The workflow state dict the currently executing node reports progress
 # against. Every agent node calls emit_progress with its own state, so this
 # is refreshed at each phase boundary; the fallback path in
-# ``llm_json.get_fallback_response`` -- which runs deep below any node and
-# receives no state of its own -- reads it to record a served fallback into
-# the run's ``degraded_nodes`` state key. ContextVar-scoped, like the
+# ``llm.structured.validate.get_fallback_response`` -- which runs deep below any
+# node and receives no state of its own -- reads it to record a served fallback
+# into the run's ``degraded_nodes`` state key. ContextVar-scoped, like the
 # run-scoped id factory in ``models_ids``: each durable task runs in its own
-# asyncio task context, so concurrent runs never see each other's state. A
-# stale value is harmless -- see ``record_schema_degradation``.
+# asyncio task context, so concurrent runs never see each other's state. A stale
+# value is harmless -- see ``record_schema_degradation``.
 _ACTIVE_WORKFLOW_STATE: contextvars.ContextVar["WorkflowState | None"] = (
     contextvars.ContextVar("co_scientist_active_workflow_state", default=None)
 )
@@ -86,9 +86,9 @@ def record_schema_degradation(
 
     Appends the schema name to the workflow state's ``degraded_nodes`` and
     emits a ``schema_degraded`` progress event when a callback is
-    listening. Called by ``llm_json.get_fallback_response`` the moment a
-    fallback is served; the run-continues behavior is decided there, this
-    only makes the degradation durable and visible.
+    listening. Called by ``llm.structured.validate.get_fallback_response`` the
+    moment a fallback is served; the run-continues behavior is decided there,
+    this only makes the degradation durable and visible.
 
     Best-effort by design: without an active workflow state in this context
     (no node has reported progress yet, or the call happens outside a

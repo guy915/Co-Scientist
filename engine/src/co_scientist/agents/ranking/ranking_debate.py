@@ -62,8 +62,8 @@ from co_scientist.llm import (
     LLMCallOptions,
     call_llm_json,
     indexed_prompt_name,
+    record_deterministic_fallback,
 )
-from co_scientist.llm_telemetry import record_deterministic_fallback
 from co_scientist.models import Hypothesis
 
 logger = logging.getLogger(__name__)
@@ -98,7 +98,7 @@ def effective_ranking_wave_size() -> int:
     the account and the moment, not of one wave, so widening again on the
     next quiet wave would just re-provoke it.
     """
-    from co_scientist.llm_json_retry import rate_limited_attempt_count
+    from co_scientist.llm import rate_limited_attempt_count
 
     if rate_limited_attempt_count():
         return RANKING_WAVE_MIN_SIZE

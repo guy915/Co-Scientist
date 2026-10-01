@@ -8,9 +8,9 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def _free_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
-    from co_scientist import llm_free_catalog
+    from co_scientist.llm.admission import free_catalog
 
-    monkeypatch.setattr(llm_free_catalog, "_snapshot", None)
+    monkeypatch.setattr(free_catalog, "_snapshot", None)
     monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
 
 

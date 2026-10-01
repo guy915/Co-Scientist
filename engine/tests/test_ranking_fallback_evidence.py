@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from co_scientist.agents.ranking import ranking_debate
-from co_scientist.llm_telemetry import scoped_telemetry
+from co_scientist.llm import scoped_telemetry
 from co_scientist.models import Hypothesis
 
 

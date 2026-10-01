@@ -22,8 +22,8 @@ from typing import Any
 
 import pytest
 
-from co_scientist import llm as llm_mod
 from co_scientist.agents.supervisor import supervisor_decision
+from co_scientist.llm import call as llm_call
 from co_scientist.scheduling import (
     Budget,
     SchedulerStats,
@@ -32,7 +32,7 @@ from co_scientist.scheduling import (
 )
 from tests._state import make_state
 
-# A model in llm_thinking._JSON_OBJECT_ONLY_MODEL_FAMILIES, i.e. the
+# A model in llm.request.thinking._JSON_OBJECT_ONLY_MODEL_FAMILIES, i.e. the
 # production shape: the json_schema response format is unavailable, so
 # whatever holds has to hold in-process.
 _JSON_OBJECT_MODEL = "deepseek/deepseek-v4-flash"
@@ -89,7 +89,7 @@ async def _allocate(
         prompts.append(prompt)
         return raw_response
 
-    monkeypatch.setattr(llm_mod, "_call_llm_for_json", _fake_call)
+    monkeypatch.setattr(llm_call, "_call_llm_for_json", _fake_call)
     state = make_state(
         research_goal="Find a testable mechanism.",
         model_name=model,

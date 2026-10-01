@@ -5,11 +5,12 @@ concurrently on a plain ``ThreadPoolExecutor`` (``claim_grounding_assess.
 _assess_flat_claims``), because the entailment ``Assessor`` protocol is
 synchronous. ``ThreadPoolExecutor`` does not copy the submitting thread's
 ``contextvars`` into its worker threads (unlike ``asyncio.to_thread``), so
-a run-scoped context -- ``co_scientist.llm_call_budget.scoped_llm_call_
-budget``, ``co_scientist.llm_telemetry.scoped_telemetry`` -- set on the
-durable task's own coroutine would otherwise silently vanish for every
-claim assessed on a pool thread, which is exactly the blindness this
-module exists to close (see the root AGENTS.md entailment-gate finding).
+a run-scoped context --
+``co_scientist.llm.scoped_llm_call_budget``,
+``co_scientist.llm.scoped_telemetry`` -- set on the durable task's own
+coroutine would otherwise silently vanish for every claim assessed on a pool
+thread, which is exactly the blindness this module exists to close (see the root
+AGENTS.md entailment-gate finding).
 
 ``propagate_context`` replays the calling thread's contextvar values at
 the start of the wrapped call rather than trying to hand the *same*

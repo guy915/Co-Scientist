@@ -20,7 +20,7 @@ from co_scientist.generator.graph import (
     _route_after_research_overview as _route_after_research_overview,
 )
 from co_scientist.generator.graph import _route_next_task
-from co_scientist.llm_telemetry import scoped_telemetry
+from co_scientist.llm import scoped_telemetry
 from co_scientist.models import create_metrics_update, merge_metrics
 from co_scientist.state import WorkflowState
 

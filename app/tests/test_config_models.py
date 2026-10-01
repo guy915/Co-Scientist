@@ -2,7 +2,7 @@
 
 An unpriced model is not a cosmetic gap. ``estimate_cost_usd`` returns 0.0
 for a model absent from ``MODEL_PRICING``, so every run reports a cost of
-zero -- and, on an OpenRouter route, ``llm_thinking._gateway_provider``
+zero -- and, on an OpenRouter route, ``llm.request.thinking._gateway_provider``
 derives its ``max_price`` ceiling from the same table and simply omits the
 cap when there is no entry, which lets a call land on the most expensive
 host serving that model. Both failures are silent, which is why the

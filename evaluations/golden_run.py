@@ -384,7 +384,7 @@ def run() -> dict[str, Any]:
     """Execute the golden run and return the reproducibility report."""
     # LiteLLM may load dotenv during the engine import itself.
     os.environ["PYTHON_DOTENV_DISABLED"] = "1"
-    from co_scientist.llm_free_policy import campaign_free_mode
+    from co_scientist.llm import campaign_free_mode
 
     if campaign_free_mode():
         raise RuntimeError(

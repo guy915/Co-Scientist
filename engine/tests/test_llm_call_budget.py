@@ -1,6 +1,6 @@
 """The run-scoped provider-request counter and the ceiling it enforces.
 
-Pins ``llm_call_budget`` directly (scope entry/exit, no-run-id safety,
+Pins ``llm.admission.call_budget`` directly (scope entry/exit, no-run-id safety,
 per-run isolation, eviction) and, through ``call_llm``/``call_llm_json``/
 ``call_llm_with_tools``, that the seam actually counts one increment per
 outbound request -- retries and tool-loop turns included -- and that the
@@ -24,13 +24,13 @@ from co_scientist.llm import (
     call_llm,
     call_llm_json,
     call_llm_with_tools,
-)
-from co_scientist.llm_call_budget import (
-    _MAX_TRACKED_RUNS,
     current_run_call_count,
-    record_provider_request,
     release_run_call_budget,
     scoped_llm_call_budget,
+)
+from co_scientist.llm.admission.call_budget import (
+    _MAX_TRACKED_RUNS,
+    record_provider_request,
 )
 from co_scientist.state import WorkflowState
 from tests._llm_fake import disable_llm_cache as _disable_cache

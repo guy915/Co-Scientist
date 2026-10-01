@@ -19,8 +19,7 @@ from typing import Any
 import pytest
 
 from co_scientist.constants import THINKING_FLOOR_MAX_TOKENS
-from co_scientist.llm import CompletionSpec, call_llm_json
-from co_scientist.llm_types import LLMCallOptions
+from co_scientist.llm import CompletionSpec, LLMCallOptions, call_llm_json
 from tests._llm_fake import disable_llm_cache as _disable_cache
 from tests._llm_wrapper_fakes import (
     make_completion as _completion,
@@ -37,10 +36,10 @@ _INT_SCHEMA: dict[str, Any] = {
 
 # Not a declared ``_GATEWAY_MODELS`` entry -- the recovery this ladder
 # performs must not depend on the per-model shim in
-# ``llm_gateway_body._declared_gateway_body`` already knowing to avoid a bare
-# disable; it must also save a caller that reaches this 400 some other way
-# (a model wrongly believed to honour a disable, or one absent from the
-# table entirely).
+# ``llm.request.gateway_body._declared_gateway_body`` already knowing to avoid a
+# bare disable; it must also save a caller that reaches this 400 some other way
+# (a model wrongly believed to honour a disable, or one absent from the table
+# entirely).
 _UNDECLARED_GATEWAY_MODEL = "openrouter/deepseek/deepseek-v4-flash"
 
 
@@ -164,7 +163,7 @@ async def test_a_second_mandatory_reasoning_refusal_still_terminates(
 # ``reasoning_can_disable=False``, so a disable request never reaches the
 # wire as a literal ``{"enabled": False}`` at all -- it goes out as minimal
 # reasoning from the very first attempt (see
-# ``llm_gateway_body._declared_gateway_body``), unlike
+# ``llm.request.gateway_body._declared_gateway_body``), unlike
 # ``_UNDECLARED_GATEWAY_MODEL`` above, which has to be rejected once before
 # the ladder redirects it. This
 # is the shape production run 323ff72c (2026-09-06 06:57 UTC) actually hit:
@@ -329,7 +328,7 @@ def test_a_budget_failure_is_not_read_as_a_rejected_cap() -> None:
     retire the escalation ladder.
     """
     from co_scientist.exceptions import LLMBudgetExhaustedError
-    from co_scientist.llm_json_escalation import (
+    from co_scientist.llm.attempts.escalation import (
         BudgetEscalation,
         escalation_for_error,
     )

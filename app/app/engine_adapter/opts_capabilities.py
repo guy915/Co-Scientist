@@ -72,7 +72,7 @@ def _resolve_tool_calling_generation_toggle(cfg: dict[str, Any]) -> bool:
 # Two things make the per-hypothesis figure a floor rather than the
 # cost. A turn that comes back answerless is retried at a raised budget
 # and then with thinking off, so one turn can be up to three completions
-# (`llm_json_escalation.BudgetEscalation`). And the maturity scheduler
+# (`llm.attempts.escalation.BudgetEscalation`). And the maturity scheduler
 # keys on the full review alone, so a hypothesis whose *full* review
 # fails re-issues its simulation review -- tool loop included -- on
 # every later iteration.

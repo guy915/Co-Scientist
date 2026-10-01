@@ -6,7 +6,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
-from co_scientist.llm_telemetry import scoped_telemetry
+from co_scientist.llm import scoped_telemetry
 from co_scientist.models import MetricDeltas
 from co_scientist.models_metrics import (
     ExecutionMetrics,

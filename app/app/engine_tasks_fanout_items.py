@@ -41,7 +41,7 @@ async def execute_review_item(
         ReviewContext,
         review_single_hypothesis,
     )
-    from co_scientist.llm_telemetry import scoped_telemetry
+    from co_scientist.llm import scoped_telemetry
 
     state, expected_seq = _restore_item_checkpoint(
         task, db_path, superseded="review item"
@@ -71,7 +71,7 @@ async def execute_verification_item(
         _VerificationContext,
         _verify_one,
     )
-    from co_scientist.llm_telemetry import scoped_telemetry
+    from co_scientist.llm import scoped_telemetry
 
     state, expected_seq = _restore_item_checkpoint(
         task, db_path, superseded="verification item"
@@ -135,7 +135,7 @@ async def execute_mature_reflection_item(
         _run_review,
     )
     from co_scientist.agents.reflection.review_types import ReviewType
-    from co_scientist.llm_telemetry import scoped_telemetry
+    from co_scientist.llm import scoped_telemetry
 
     state, expected_seq = _restore_item_checkpoint(
         task, db_path, superseded="mature reflection"

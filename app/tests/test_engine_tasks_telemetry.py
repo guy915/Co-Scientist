@@ -1,6 +1,6 @@
 """Per-call telemetry attribution for fan-out items and ranking matches.
 
-``co_scientist.llm_telemetry.scoped_telemetry`` has a single call site on
+``co_scientist.llm.telemetry.scoped_telemetry`` has a single call site on
 the plain node path (``task_runtime.execute_task_node``), which the durable
 fan-out item tasks and ranking match tasks never go through -- they call
 engine functions directly from app-side handlers. These tests pin that the
@@ -11,7 +11,7 @@ the committed run metrics, rather than silently dropping it.
 from typing import Any
 
 import pytest
-from co_scientist.llm_telemetry import ModelCallStats, record_call
+from co_scientist.llm import ModelCallStats, record_call
 from co_scientist.models import Hypothesis, HypothesisReview
 
 from app import engine_tasks, store
@@ -73,7 +73,7 @@ async def test_review_fanout_folds_item_telemetry_into_committed_metrics(
     """Telemetry captured inside a review item survives to the aggregate.
 
     Every completed review item records one call via
-    ``llm_telemetry.record_call``; the aggregate must fold both items'
+    ``llm.telemetry.record_call``; the aggregate must fold both items'
     usage into the checkpoint's ``metrics.model_usage`` rather than
     dropping it, the way the plain node path already does for
     ``task_runtime.execute_task_node``.

@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 
-from co_scientist.llm_telemetry import record_deterministic_fallback
+from co_scientist.llm import record_deterministic_fallback
 
 from app.claims_assessor import (
     _DEFAULT_RETRIEVAL_TOP_K,

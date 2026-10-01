@@ -15,17 +15,15 @@ import pytest
 
 from co_scientist.cache import LLMCacheRequest
 from co_scientist.llm import (
+    CompletionSpec,
     LLMCallOptions,
     ToolLoop,
     call_llm,
     call_llm_json,
     call_llm_with_tools,
-)
-from co_scientist.llm_credentials import (
     current_api_key,
     scoped_api_key,
 )
-from co_scientist.llm_types import CompletionSpec
 
 # These tests assert on the completion kwargs, so every call must reach
 # the patched acompletion rather than a cache entry.

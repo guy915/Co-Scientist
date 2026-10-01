@@ -20,8 +20,7 @@ from co_scientist.cache_storage import (
 )
 from co_scientist.constants import DEFAULT_CACHE_DIR
 from co_scientist.constants_cache import DEFAULT_CACHE_TTL_SECONDS
-from co_scientist.llm_credentials import current_api_key
-from co_scientist.llm_free_policy import campaign_free_mode
+from co_scientist.llm import campaign_free_mode, current_api_key
 
 logger = logging.getLogger(__name__)
 
