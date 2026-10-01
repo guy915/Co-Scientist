@@ -2,21 +2,92 @@
 
 ## Current execution state
 
-As of 30 September, all nine required source investigations are closed. The
+As of 1 October local time, all nine required source investigations are closed. The
 [corrected Space Bunny screen](m12-space-bunny-corrected-result-2026-09-30.md),
 [71-task public flow](m12-free-default-public-acceptance-2026-09-30.json) and
 [17-task Robin continuation](m12-robin-continuation-acceptance-2026-09-30.json)
 have recorded acceptance evidence, including their scientific limits. The four
-remaining M12 checks concern result-conditioned novelty, its disposition,
+original M12 gates concern result-conditioned novelty, its disposition,
 candidate reconciliation and final acceptance. No further model qualification
 is authorized. The third novelty study has its own
 [frozen registration](sakana/novelty-result-conditioned-pilot-prereg-v3.json);
-its result must be recorded before resolving that candidate.
+its [recorded result](sakana/novelty-pilot-v3-interruption-2026-09-30.json)
+stopped on an upstream metadata-fetch error. All three admissions are consumed;
+no replay or scientific disposition follows from those interruptions.
+The separately registered fourth study completed its operational preparation:
+[protocol4](sakana/novelty-result-conditioned-pilot-prereg-v4.json), fresh bank5,
+independent review, committed loaders and actual credential-free MCP/CLI preflight.
+Its [sole admission stopped incomplete](sakana/novelty-pilot-v4-terminal-2026-09-30.json)
+after 13 model responses and 19 outer searches. Both permitted EFetch 429 recoveries
+succeeded; a later ELink 429 exhausted the two-retry study ceiling. All four
+admissions are consumed, with no scientific scoring, replay, adoption or rejection.
+Original scientific thresholds and four acceptance gates remain unchanged.
+The [request-volume audit](sakana/novelty-study4-retrieval-audit-2026-09-30.json)
+and [batching feasibility review](sakana/novelty-pubmed-batching-feasibility-2026-09-30.json)
+support a default-off, bounded metadata/PMC-link batching path. PLAN f1/f2 are
+closed by [offline implementation and independent verification](sakana/novelty-pubmed-batching-verification-2026-09-30.json):
+371 MCP tests, strict typing and preserved legacy studies/full-text downloads.
+The code remains unreleased. The separately registered fifth comparison
+[was admitted once](sakana/novelty-pilot-v5-launch-2026-09-30.json), then
+[stopped incomplete](sakana/novelty-pilot-v5-terminal-2026-09-30.json) after 14
+zero-cost model responses and 21 outer searches. The last search was empty with
+no recorded upstream error; strict raw-trace validation passed, but returned-link
+validation falsely demanded batching metadata despite zero returned papers.
+No arm scoring, scientific disposition, confirmation or replay is authorized.
+All five admissions are consumed. The [offline empty-result guard repair](sakana/novelty-empty-result-guard-verification-2026-10-01.json)
+passes 89 runner and 26 reader tests and independent review, retaining all nonempty
+link and upstream-error proof requirements. It does not authorize another bank or run.
 
-The current verified release is [PR #79](https://github.com/guy915/Co-Scientist/pull/79),
-`a4a06abd723f8af8392a307457301837b15dc244`, with healthy existing-service
-deployments and 5/5 keyless smoke. See the
-[release receipt](m12-pubmed-trace-release-2026-09-30.json) and
+The [strict batch reader](sakana/novelty-batch-reader-verification-2026-09-30.json)
+now passes 26 offline tests, including the maintained public-tool producer with
+one metadata batch and two PMC pages. Its exact metadata proof excludes search,
+full-text and recovery from savings; it makes no total-request or page-completeness
+claim. [PLAN f4 integration](sakana/novelty-batch-pilot-integration-verification-2026-09-30.json)
+now routes prospective v5 traces through that reader and validates a non-executing
+outside-repo draft preflight; 88 runner tests pass. Actual execution still requires
+an unchanged committed bank6/protocol5 with a distinct exclusive admission, and
+[f5 preparation and committed loaders](sakana/novelty-pilot-v5-registration-verification-2026-09-30.json)
+now pass with the real isolated CLI/MCP preflight. Source review verifies all twelve
+primary records and finite-set disjointness against 644 prior IDs; selection is exploratory.
+The preflight process is stopped. F6 rechecked the exact current free route/account,
+attested a fresh isolated MCP, and consumed its sole admission; both live PIDs and
+listener are now absent. Historical records and assertions are unchanged; their exact original runner is retained in Git. Strict typing of
+new tests passes, with inherited whole-reference diagnostics explicitly retained.
+The [required maintained-code checks](m12-batching-release-checks-2026-09-30.json)
+passed on pinned product trees; they do not establish live scientific acceptance.
+
+The registered v5 comparison uses the strict batch reader to validate records
+instead of historical per-ID call-count assertions:
+
+- Pin the opted-in producer and versioned reader before admission; retain all four historical registrations and consumed markers unchanged.
+- Require every selected PMID to have resolved metadata and an unambiguous `pubmed_pmc` link outcome, or a digest-verified cache origin; reject fetch errors, missing mappings and truncated proof.
+- Reconcile each batch's inputs, cache hits, EFetch requested/returned IDs and actual ELink subset with per-record provenance, search order and retained artifacts. The batch bound is nine; sampled traces cannot prove an unsampled record.
+- Verify that logical request counts and separately counted client attempts cover actual batches, search and unchanged full-text downloads. Never describe these as wire-level HTTP counts or infer scientific reliability from request-volume savings.
+- Preserve the scientific metrics, model settings, zero-cost checks, isolation, blind labels and outer/model call caps. Any retrieval recovery policy needs prospective bounds; batching adds no retries. A new comparison needs its own source preparation and exclusive admission, without replaying exposed studies.
+
+The [protocol5](sakana/novelty-result-conditioned-pilot-prereg-v5.json) and
+[bank6](sakana/novelty-fixture-bank-prereg-v6.json) are committed together before
+admission. Their metadata-only preparation does not authorize scoring partial results
+or close scientific gates. The f4-v5 registry labels are the fixed workflow-integration
+anchor; f5 prepares and f6 executes study_version5. No historical replay follows.
+
+The corrected runner now supports a distinct study6 registration, verified by the
+[dispatch checks](sakana/novelty-study6-dispatch-verification-2026-10-01.json).
+Its [bank7 source review](sakana/novelty-v7-source-review-2026-10-01.json) checks
+twelve fixed papers against the finite 818-ID prior exposure set; the separate
+958-ID manifest includes current discovery for future exclusion. Two draft scope
+errors were corrected before performance queries. The [actual process preflight](sakana/novelty-pilot-v6-process-readiness-2026-10-01.json)
+passed with no credentials, scientific calls or admission; its process and listener
+are stopped. Protocol6/bank7 registration and committed-loader proof are recorded
+separately. Preparation establishes no scientific gain and authorizes no historical
+replay. Study6 requires fresh free-route/account/process checks before its one
+admission; all five interrupted studies remain unscored.
+
+The current verified release is [PR #80](https://github.com/guy915/Co-Scientist/pull/80),
+`73459c6c85726864c97a1b4aa28cb184bfca9976`, with healthy existing-service
+deployments and 5/5 keyless smoke. Its reference-only changes preserve PR #79
+product content. See the
+[release receipt](m12-reference-evidence-release-2026-09-30.json) and
 [rollback reconciliation](m12-current-release-reconciliation-2026-09-30.json).
 
 ### Historical M1/M2 decisions

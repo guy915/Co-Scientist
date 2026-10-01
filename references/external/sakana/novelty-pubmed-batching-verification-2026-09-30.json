@@ -1,0 +1,243 @@
+{
+  "purpose": "Offline acceptance of bounded PubMed metadata/PMC-link batching; no scientific comparison or release",
+  "recorded_at_utc": "2026-09-30T16:46:30.459705+00:00",
+  "status": "OFFLINE_IMPLEMENTATION_AND_INDEPENDENT_VERIFICATION_ACCEPTED",
+  "scope_items": [
+    "M12-04b4f1",
+    "M12-04b4f2"
+  ],
+  "candidate": "M11-NOV-01 operational prerequisite; scientific disposition remains unresolved",
+  "classification": "local design choice supported by documented external Entrez technique, not evidence of Google implementation",
+  "implementation_commit": "cbfa5164367291959d34c5ed5a1bf053417a4612",
+  "reuse": "independent implementation using the existing Biopython dependency and maintained parser/pacer/cache interfaces; no copied upstream code or new dependency",
+  "evidence": [
+    "novelty-study4-retrieval-audit-2026-09-30.json",
+    "novelty-pubmed-batching-feasibility-2026-09-30.json"
+  ],
+  "behavior": {
+    "activation": "COSCIENTIST_PUBMED_METADATA_BATCH=1; disabled by default",
+    "bound": 9,
+    "mapping": "EFetch records keyed by PMID; ELink source groups keyed by IdList with pubmed_pmc destination",
+    "cache": "Per-PMID metadata remains public JSON. Successful no-link result has a hidden digest sidecar; either fresh writer invalidates old proof before rewriting. Legacy ambiguous no-link cache entries are revalidated only in the opt-in path.",
+    "failures": "Missing, malformed or duplicate groups are per-ID errors. Usable metadata survives ELink failure without caching failed absence. Failed fresh EFetch IDs are excluded from the actual ELink subset.",
+    "provenance": "Bounded batch memberships, requested/returned metadata IDs, cache hits and actual ELink subsets/outcomes accompany existing per-ID origins/errors; truncated sample is explicitly recorded.",
+    "preserved": "First-seen search order, per-PMID files/run links, slug isolation, public metadata shape, full-text selection/download/pagination, pacer and existing retries; no per-ID fallback or added retry"
+  },
+  "red_evidence": [
+    {
+      "boundary": "public retrieval request grouping",
+      "observed": "Existing code sent fresh101 and103 as separate EFetch requests instead of one batch[101,103].",
+      "record": "PLAN.md dated f1 red entry before implementation; worker observation retained, no reconstructed raw log"
+    },
+    {
+      "boundary": "interrupted integration",
+      "observed": "Coordinator resume focused run:1 failed/4 passed because record_pilot_metadata_batch helper import was unfinished. This is separate from the earlier behavioral red."
+    },
+    {
+      "boundary": "strict test typing",
+      "observed": "Three union-attribute errors on Request.data.decode; fixed with an asserted bytes boundary, retaining GET/POST assertions."
+    },
+    {
+      "boundary": "existing repository limits",
+      "observed": "Initial make parity exit2: two new functions45/53 code lines exceed existing40 limit; cohesive helpers corrected it without exemptions or threshold changes."
+    }
+  ],
+  "verification": [
+    {
+      "command": "make test-mcp",
+      "result": "exit0;371 passed, strict mypy88 source files",
+      "scope": "coordinator independent final run after worker froze source; five existing dependency/Entrez warnings retained"
+    },
+    {
+      "command": "pytest tests/test_pubmed_batch_encoding.py -q (MCP venv, cwd engine/mcp_server)",
+      "result": "4 passed",
+      "scope": "installed Bio.Entrez GET/POST request builder intercepted before network I/O"
+    },
+    {
+      "command": "focused batch and encoding test modules",
+      "result": "21 passed",
+      "scope": "worker post-refactor result:17 integrated batch cases plus4 installed encoding cases"
+    },
+    {
+      "command": "make parity",
+      "result": "exit0; requirement ledger115 rows valid, evaluation suite passed",
+      "scope": "began during final helper extraction; affected size gates independently repeated on final frozen source"
+    },
+    {
+      "command": ".venv/bin/python -m pytest evaluations/tests/test_function_length.py::test_no_function_exceeds_the_code_line_ceiling evaluations/tests/test_file_length.py -q",
+      "result": "exit0;2 passed",
+      "scope": "coordinator after final source freeze; ceilings40/500 unchanged"
+    },
+    {
+      "command": ".venv/bin/python -m ruff format --check engine/mcp_server; .venv/bin/python -m ruff check engine/mcp_server",
+      "result": "88 files already formatted; all checks passed",
+      "scope": "final source; no new lint suppressions in runtime"
+    },
+    {
+      "command": "git diff --check",
+      "result": "exit0",
+      "scope": "final implementation and records"
+    }
+  ],
+  "independent_review": {
+    "agent": "batch_semantic_review",
+    "model": "gpt-6-luna",
+    "effort": "xhigh",
+    "access": "fresh-context read-only; no tests, network or edits",
+    "result": "No remaining flaws found in final delta; captured exact hashes for all9 runtime/config/test files.",
+    "corrected_findings": [
+      "Private JSON cache sentinel leaked to run artifacts: replaced by hidden digest sidecar and actual artifact assertions.",
+      "ELink requested failed fresh metadata IDs: filter to successful fresh records plus eligible cached-null records, with actual-subset assertions."
+    ],
+    "final_refactor": "Extracted PMID validation and trace construction into existing cohesive modules; no changes to mapping/cache/error semantics."
+  },
+  "cleanup": {
+    "scope": "changed files only; retained maintained runtime, useful behavioral tests and campaign evidence",
+    "result": "No scratch or abandoned source remains in the maintained diff; hidden helper intent documented, formatting/types/size gates pass.",
+    "ui_scan": "not applicable: no UI change"
+  },
+  "final_source_files": [
+    {
+      "path": "engine/mcp_server/.env.example",
+      "sha256": "a9d19804349b7c2504f617ca6928adeebd4d46b7c0e65a356cef738086cc6656",
+      "lines": 82
+    },
+    {
+      "path": "engine/mcp_server/pubmed_client.py",
+      "sha256": "d95a9f3e9f8a803b65da599d039ba5f69bceb8650d0e58ad3ddb3aa2eec2f857",
+      "lines": 355
+    },
+    {
+      "path": "engine/mcp_server/pubmed_metadata_batch.py",
+      "sha256": "52e2cfaf5ba38402aca0b4c4bbd84ae57ebfbd6d768a3493c79542a04cfa73e0",
+      "lines": 481
+    },
+    {
+      "path": "engine/mcp_server/pubmed_pilot_trace.py",
+      "sha256": "9a5feff61786c0b3d3f00f166cb4cc25dc7aad57d7167f36c1beacd07868583a",
+      "lines": 330
+    },
+    {
+      "path": "engine/mcp_server/shared_pool.py",
+      "sha256": "6e85241b4981bda4e8e51c23e28012cc5fad2d8b8a7c8f0f37292bcff64b1a54",
+      "lines": 488
+    },
+    {
+      "path": "engine/mcp_server/tests/test_pubmed_batch_encoding.py",
+      "sha256": "b0755e33d14d2d9a5665b5fd78419b840311438d0957ac94398436e5d78ca97e",
+      "lines": 104
+    },
+    {
+      "path": "engine/mcp_server/tests/test_pubmed_metadata_batch.py",
+      "sha256": "51b612e28fccc63e90c869ec3f14d5f2925e1460f1530f62feb2b5237e64e615",
+      "lines": 290
+    },
+    {
+      "path": "engine/mcp_server/tests/test_pubmed_metadata_batch_failures.py",
+      "sha256": "41ccd32073366e6c9dbc5942d48ac5ea53660299b79700a78bf6d201b10e1271",
+      "lines": 269
+    },
+    {
+      "path": "engine/mcp_server/tests/test_pubmed_metadata_batch_pool.py",
+      "sha256": "650c90f0208a160e7b331892c6aba3e45bc51b8514ecbe8864dfcc0af7bf969e",
+      "lines": 309
+    }
+  ],
+  "unchanged_historical_files": [
+    {
+      "path": "engine/mcp_server/entrez_rate_limit.py",
+      "sha256": "6f263d534105a2274475feeceecae17d94216c0289502edae11f89ba7cd0deab"
+    },
+    {
+      "path": "engine/mcp_server/fulltext_download.py",
+      "sha256": "a5e6e649f93890b5b4e51f0f8202942ce7e42dd84c74341f27a7ccaceae16e41"
+    },
+    {
+      "path": "references/external/sakana/novelty_result_conditioned_pilot.py",
+      "sha256": "e1901d069cddc3593d8520efd59fa1a3a4b5e5fe13f528d99139c31ea3c325b3"
+    },
+    {
+      "path": "references/external/sakana/test_novelty_result_conditioned_pilot.py",
+      "sha256": "9c6e0bb0c8739b3d3a51a05d4c70cda4cb3b249a05d9f853f1ef98aa599231a8"
+    },
+    {
+      "path": "references/external/sakana/novelty-result-conditioned-pilot-prereg-v1.json",
+      "sha256": "2aab9b9519893c970ef1edf6043bdf06fa7a4293d59450949d47c41979183f08"
+    },
+    {
+      "path": "references/external/sakana/novelty-result-conditioned-pilot-prereg-v1.admission.json",
+      "sha256": "a01438e012aaef86b66633e099413449005aafdf56cffdf6dda36ff889834296"
+    },
+    {
+      "path": "references/external/sakana/novelty-result-conditioned-pilot-prereg-v2.json",
+      "sha256": "2fecde382ba33116ca530e030c6d24128d99824138b0130a4ad232513b50bd8c"
+    },
+    {
+      "path": "references/external/sakana/novelty-result-conditioned-pilot-prereg-v2.admission.json",
+      "sha256": "38ea0d368be5f8c605a093e9ae086e0168e176dc2435084e512970a7fb5e74f0"
+    },
+    {
+      "path": "references/external/sakana/novelty-result-conditioned-pilot-prereg-v3.json",
+      "sha256": "948381f74ef0582946872b457e79df9c612ced5b85808d5da54cf4321f404f66"
+    },
+    {
+      "path": "references/external/sakana/novelty-result-conditioned-pilot-prereg-v3.admission.json",
+      "sha256": "0def3646965379face286c101c8c0e7b2e1807c47063841046a1560d50d20b60"
+    },
+    {
+      "path": "references/external/sakana/novelty-result-conditioned-pilot-prereg-v4.json",
+      "sha256": "1404a9c9e960ef0eed29666abcceb488d78d93d93166c97768e278baa70429fc"
+    },
+    {
+      "path": "references/external/sakana/novelty-result-conditioned-pilot-prereg-v4.admission.json",
+      "sha256": "1a9e4697cc7af07762655526b2e4a149bdac1842fa5fcde37090c389da54db83"
+    }
+  ],
+  "historical_base_commit": "07b1564be99f3b43e973a3a82d32bb6330ac4d76",
+  "private_command_log_receipts": [
+    {
+      "private_log": "/private/tmp/cosci-batch-resume-focused-20260930.log",
+      "sha256": "5283416350bb671de1a54b35a661d3e19fc65d4c0fc35d8684084df23b327010",
+      "bytes": 6140
+    },
+    {
+      "private_log": "/private/tmp/cosci-batch-encoding-type-red-20260930.log",
+      "sha256": "5fb25a9745860bd6b90983fdfa68defe3dba6d3609fa7bfa2415eae3faa72670",
+      "bytes": 530
+    },
+    {
+      "private_log": "/private/tmp/cosci-batch-final-parity-20260930.log",
+      "sha256": "5e08690cdcb525f15d8bc82df4545afe34487f16801de44a895fb861affc9886",
+      "bytes": 2195
+    },
+    {
+      "private_log": "/private/tmp/cosci-batch-final-mcp-v3-20260930.log",
+      "sha256": "395088ed0c774f3bc7c39caf69c9194f6e6375f5013d625772b61957ad3d4546",
+      "bytes": 2810
+    },
+    {
+      "private_log": "/private/tmp/cosci-batch-final-parity-v2-20260930.log",
+      "sha256": "aa762612249a08d7997500672f0aa8b4c7c259c1918eee4d7fef5220c3e46fc6",
+      "bytes": 401
+    },
+    {
+      "private_log": "/private/tmp/cosci-batch-final-size-v3-20260930.log",
+      "sha256": "99db33d5c94c6f7da021687c7391181685cc33299c5435b1c861e2db3be3ec87",
+      "bytes": 80
+    }
+  ],
+  "prospective_comparison_requirements": [
+    "New producer/reader pins and immutable registration before admission; historical per-ID efetch/elink assertions remain untouched.",
+    "Complete per-selected-PMID metadata and unambiguous link outcome or proven cache origin; reject errors, omissions, ambiguous mappings and truncated proof.",
+    "Reconcile batch membership, requested/returned IDs, cache provenance, actual ELink subsets, search order and artifacts; sampled evidence cannot prove unsampled records.",
+    "Count actual batch/search/full-text logical requests and client attempts separately; no wire-level HTTP or scientific-reliability inference from request arithmetic.",
+    "Preserve scientific metrics, model settings, zero-cost enforcement, cache isolation, blind labels and model/outer call caps. Any bounded recovery is prospectively registered; no exposed-study replay or new model qualification."
+  ],
+  "limits": [
+    "No live Entrez calls or model inference occurred in this slice; offline proof does not establish live server reliability or improved scientific quality.",
+    "Four historical comparisons remain incomplete and unscored with consumed admissions; no fifth source bank, registration or comparison launched.",
+    "New batching and earlier recovery support remain branch changes, not the currently deployed product. No service config or deployment was changed.",
+    "Conditional request-volume savings exclude cache hits, ESearch, full-text and recovery; they are not measured live throughput.",
+    "Four original scientific/final gates remain open. Full release checks, exact pre-PR acceptance and existing-service deployment remain necessary for a code-bearing release."
+  ]
+}

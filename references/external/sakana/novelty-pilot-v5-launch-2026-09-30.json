@@ -1,0 +1,42 @@
+{
+  "purpose": "Actual one-shot study5 launch; no scientific outcome yet",
+  "status": "ADMITTED_RUNNING",
+  "observed_at_utc": "2026-09-30T22:01:35.753716+00:00",
+  "registration_commit": "8949c5af41961159fc6c96f91642a7a46c60f6fd",
+  "runtime_commit": "1b0e45fdb71fefc9da415d897e97d97312ac5783",
+  "runtime_checkout": "/private/tmp/cosci-m12-study5-runtime-20260930",
+  "private_archive": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study5/live-execution/run-20260930T220131Z",
+  "owned_handle": {
+    "exec_session_id": 29149,
+    "mcp_pid": 75085,
+    "runner_pid": 75093
+  },
+  "launcher_sha256": "fa442c125c9bf50d4709a45c93c54b7fefbb1188ec8c3269fdc07c88ecfe4b99",
+  "protocol_sha256": "eeaf7fd39db1d73d7dabb50a73c6911df83869645306b37e1a65200acda8e4bb",
+  "fixture_bank_sha256": "1ff8cfcdcb1e065a296efb70813656b3c722e7c76b8d5e2e536488773082cb99",
+  "authoritative_actual_admission_path": "/Users/guy/.codex/worktrees/external-m11-ops/co-scientist/references/external/sakana/novelty-result-conditioned-pilot-prereg-v5.admission.json",
+  "admission_sha256": "2e82c9d438a737878cf301a4d86d671571e69b18f7ba9ebd2138fa498a308453",
+  "fresh_official_eligibility_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study5/live-launch/20260930T220131Z/eligibility.json",
+  "fresh_official_eligibility_sha256": "a1767d25c777b7e88bab8796026e30ea816c8808d388fa0ac55c24dd023d1d2e",
+  "account_usage_before": 39.240436083,
+  "reviews": {
+    "native": {
+      "agent": "study5_launch_gate",
+      "requested_model": "gpt-6-luna",
+      "effort": "xhigh",
+      "verdict": "ACCEPT",
+      "launcher_sha256": "fa442c125c9bf50d4709a45c93c54b7fefbb1188ec8c3269fdc07c88ecfe4b99",
+      "assumption": "Root independently verified fresh <=60s exact zero-price catalog/sole active Stealth endpoint/account receipt.",
+      "caveat": "After terminal verify result, blind packet, logs, cache archive even if one copy/parse fails; never replay."
+    },
+    "external": {
+      "requested_model": "gemini-3.8-flash-high",
+      "effort": "high",
+      "conversation_id": "95bf8d70-6a72-4697-a0c8-250eddebbfb5",
+      "verdict": "ACCEPT",
+      "launcher_sha256": "fa442c125c9bf50d4709a45c93c54b7fefbb1188ec8c3269fdc07c88ecfe4b99",
+      "scope": "Supplied wrapper static reasoning only; no tool/source investigation claimed."
+    }
+  },
+  "remaining": "Observe same handle to terminal; retain actual artifacts/cost/process cleanup, score only complete."
+}

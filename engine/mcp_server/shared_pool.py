@@ -14,6 +14,10 @@ from mcp_server.entrez_rate_limit import (
     record_pilot_metadata_origin,
 )
 from mcp_server.fulltext_download import _FulltextMixin, _symlink_into_run
+from mcp_server.pubmed_client import (
+    PUBMED_METADATA_BATCH_ENV,
+    _write_metadata_cache_file,
+)
 
 if TYPE_CHECKING:
     # asyncio is imported lazily inside the async methods below (see their
@@ -227,8 +231,7 @@ class _SharedPoolMixin(_FulltextMixin):
                     paper_details = await asyncio.to_thread(
                         self._fetch_paper_details, paper_id
                     )
-                with open(metadata_file, "w", encoding="utf-8") as f:
-                    json.dump(paper_details, f)
+                _write_metadata_cache_file(metadata_file, paper_details)
                 logger.debug("Saved metadata for %s to shared pool", paper_id)
                 _link_metadata_to_run(run_dir, paper_id)
                 record_pilot_metadata_origin(paper_id, "entrez_fetch")
@@ -293,6 +296,13 @@ class _SharedPoolMixin(_FulltextMixin):
             Dict mapping paper_id to successfully-fetched metadata.
         """
         import asyncio  # Local: importable without asyncio available.
+
+        if os.getenv(PUBMED_METADATA_BATCH_ENV) == "1":
+            from mcp_server.pubmed_metadata_batch import gather_metadata
+
+            return await gather_metadata(
+                self, paper_ids, shared_dir, run_dir, semaphore
+            )
 
         logger.debug(
             "fetching metadata for %s papers in parallel (max 3 concurrent)",

@@ -1,0 +1,75 @@
+{
+  "status": "READ_ONLY_RETRIEVAL_AUDIT_COMPLETE_NO_NEW_STUDY",
+  "recorded_at_utc": "2026-09-30T14:17:31.805671+00:00",
+  "reviewer": {
+    "model": "gpt-6-luna",
+    "effort": "xhigh",
+    "agent": "study4_registration_gate_review",
+    "constraints": "No edits, scientific/model/retrieval calls, credentials, fresh bank or agent spawning."
+  },
+  "observed": {
+    "stop": "Third HTTP429 at ELink after two successful registered EFetch recoveries; Retry-After2 seconds. Configured study ceiling, not a parser failure.",
+    "science": "Three of six pairs traversed. Consumed admission cannot be completed or replayed; no partial scoring.",
+    "request_totals": {
+      "logical_entries": 278,
+      "client_entry_attempts": 280,
+      "model_responses": 13,
+      "outer_searches": 19
+    },
+    "report_counter_scope": "Top-level aggregate excludes failed nineteenth trace; terminal receipt correctly includes it. Local ValueError is a trace gate classification, not upstream HTTP status."
+  },
+  "source_findings": [
+    {
+      "path": "engine/mcp_server/entrez_rate_limit.py",
+      "lines": [
+        41,
+        424
+      ],
+      "finding": "Maintained process-wide keyless pacing0.4seconds."
+    },
+    {
+      "path": "engine/mcp_server/pubmed_client.py",
+      "lines": [
+        192,
+        227
+      ],
+      "finding": "Per-PMID metadata EFetch and PMC ELink calls."
+    },
+    {
+      "path": "engine/mcp_server/shared_pool.py",
+      "line": 288,
+      "finding": "Metadata gathering uses up to three concurrent workers through maintained pacing."
+    },
+    {
+      "path": "engine/mcp_server/fulltext_download.py",
+      "line": 45,
+      "finding": "Existing cached, paginated PMC full-text EFetch path should stay intact."
+    },
+    {
+      "path": "references/external/sakana/novelty_result_conditioned_pilot.py",
+      "line": 953,
+      "finding": "Rejects unrecovered trace before aggregate accumulation."
+    }
+  ],
+  "primary_documentation": [
+    {
+      "title": "NCBI E-utilities usage guidance",
+      "url": "https://www.ncbi.nlm.nih.gov/books/NBK25497/?report=printable",
+      "claim": "Keyless request-rate guidance applies per IP; another process sharing egress could explain429s, but shared traffic is unproven."
+    },
+    {
+      "title": "NCBI E-utilities parameter reference",
+      "url": "https://www.ncbi.nlm.nih.gov/books/NBK25499/",
+      "claim": "EFetch supports multiple records. ELink can preserve per-input associations with separate id parameters; comma-list mode can merge groups."
+    }
+  ],
+  "classification": "Local design choice informed by primary NCBI transport documentation; no Google behavior claim.",
+  "bounded_next_step": "Assess offline batching feasibility at the existing metadata/PMC mapping seam, including source-order preservation, per-PMID ELink groups, partial/error accounting and current trace/validator compatibility. Any accepted implementation or separately prospective study must first become explicit PLAN items with criteria before building/launching.",
+  "prohibited_shortcuts": [
+    "Simply increase retry ceiling or replay study4.",
+    "Weaken scientific completeness/provenance gates.",
+    "Treat outages as scientific rejection or disqualify the qualified model based on PubMed errors.",
+    "Prepare another bank or launch fifth comparison without a justified prospective registration."
+  ],
+  "outcome": "A materially different batching approach is plausible, not implemented or live-validated. No scientific acceptance gate closes from this audit."
+}

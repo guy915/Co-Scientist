@@ -1,0 +1,97 @@
+{
+  "purpose": "Offline maintained public-tool/request/trace verification of default-off prospective Study4 retrieval recovery; not a scientific result or live readiness claim",
+  "status": "VERIFIED_OFFLINE_STUDY4_RECOVERY_BOUNDARY",
+  "recorded_at_utc": "2026-09-30T12:55:49.639552+00:00",
+  "starting_commit": "19d127a01677a3ab0958baa5a5a3a5ad3ca186fd",
+  "study_id": "M12-04b4-study4-20260930",
+  "classification": "local design choice for a separately registered external-technique comparison",
+  "design_path": "references/external/sakana/novelty-study4-recovery-design-2026-09-30.json",
+  "design_sha256": "03c79eec70c4d12a12369db216ec579e62029550de7796645190d3d12b05d9ef",
+  "source_sha256": {
+    "engine/mcp_server/entrez_rate_limit.py": "6f263d534105a2274475feeceecae17d94216c0289502edae11f89ba7cd0deab",
+    "engine/mcp_server/entrez_study4_recovery.py": "fd23e6c03252b59d57cd751cd1519b62d15ce78263bc6c7b3a3e2b0effd80014",
+    "engine/mcp_server/pubmed_pilot_trace.py": "8a6bd3042ea4d2ec4c545a4a135b0b112481e0090508f6837ee42f6700ef2eca",
+    "engine/mcp_server/tests/test_entrez_study4_recovery.py": "d6968028572705e4024661246a2d85042697329b250ff35eb9b67628e93101bd",
+    "engine/mcp_server/tests/test_pubmed_study4_recovery_trace.py": "690c6c22ca961f416cb2da96a278ccabf0f1f68ad329111bd0898c45c9b72065",
+    "references/external/sakana/novelty_result_conditioned_pilot.py": "e1901d069cddc3593d8520efd59fa1a3a4b5e5fe13f528d99139c31ea3c325b3",
+    "references/external/sakana/test_novelty_result_conditioned_pilot.py": "9c6e0bb0c8739b3d3a51a05d4c70cda4cb3b249a05d9f853f1ef98aa599231a8"
+  },
+  "contract": {
+    "default_off": true,
+    "activation": "recovery=1, tracing=1, exact study ID, keyless campaign mode",
+    "eligible_operations": [
+      "esearch",
+      "efetch",
+      "elink"
+    ],
+    "eligible_http_statuses": [
+      429,
+      502
+    ],
+    "max_retries_per_logical_request": 1,
+    "max_retries_per_process_study": 2,
+    "retry_after_max_seconds": 60,
+    "invalid_or_missing_header_delay_seconds": 15,
+    "pacer_seconds": 0.4,
+    "biopython_max_tries": 1,
+    "biopython_sleep_between_tries": 0,
+    "request_parameters_unchanged": true,
+    "accounting": "Logical calls, client-entry attempts and recovered/exhausted outcomes are separate. These are not wire-level HTTP telemetry. Process snapshots do not reset per trace; the prospective outer collector requires sequential continuity and first budget zero.",
+    "header_audit": "Canonical semantic header value; separately retained raw prefix capped at128 characters with explicit truncation. Decisions use the original header; opaque raw audit text is never used as a decision input.",
+    "legacy": "Versions1-3 retain their prior trace validation and immutable one-shot records."
+  },
+  "red_to_green": {
+    "initial_behavior": "11 focused failures before implementation; default-off baseline already passed",
+    "review_defects": [
+      "legal trailing whitespace parsed differently by producer/consumer",
+      "long leading-zero header changed meaning when raw prefix was clipped",
+      "invalid non-ASCII header fallback recovered but raw-audit ASCII restriction rejected it"
+    ],
+    "final_regressions": "All three header variants traverse actual maintained pubmed_search_with_fulltext -> trace writer -> exact prospective consumer, with original delay, bounded audit, and accepted accounting.",
+    "root_invalid_header_red_log_sha256": "6dd0ea153af6d6f77461540172c0620bef3b9e0cfbf0a5a7c39d0031c84f3456"
+  },
+  "verification": {
+    "mcp_tests": 350,
+    "strict_mcp_mypy_source_files": 83,
+    "reference_tests": 68,
+    "parity_and_full_evaluation_suite": "PASS after unweakened file/function-length gates; split test modules under500 lines",
+    "root_rerun_commands": [
+      "make test-mcp",
+      ".venv/bin/python -m pytest references/external/sakana/test_novelty_result_conditioned_pilot.py -q",
+      "make parity",
+      "make lint"
+    ],
+    "final_log_sha256": {
+      "mcp": "cd8373bc929c9217a0bfcf90c74163f8864a1dbb6f2f5627a9144d78e6af3558",
+      "reference": "64ec1caa225303ebd4a8899b9ff12b6b14a07bd46a272bed6edc1dcdb1d4c9db",
+      "parity": "aa762612249a08d7997500672f0aa8b4c7c259c1918eee4d7fef5220c3e46fc6",
+      "lint": "cc2a87993c8209ce84306f0af021d477dc516d41a22bbe8fe4193377dd858aed"
+    },
+    "unchanged_component_evidence": {
+      "engine_tests": 3171,
+      "existing_engine_skips": 2,
+      "app_tests": 2055,
+      "build": "PASS",
+      "frontend_tests": 813,
+      "typecheck": "PASS",
+      "eval_smoke": "PASS/offline",
+      "browser_tests": 18,
+      "reuse_boundary": "app, engine core/tests, evaluations, e2e, build/container/dependency configuration unchanged from starting commit; final affected MCP/reference/parity/lint rerun separately. The initial make test-all exit2 from file length is retained, not relabeled as an exit0 invocation."
+    }
+  },
+  "independent_review": {
+    "reviewer": "fresh-context GPT-6 Luna/xhigh study4_final_semantic_review",
+    "verdict": "ACCEPT in the stated offline recovery boundary",
+    "observed_cases": [
+      "trailing OWS",
+      "129-character leading-zero delay",
+      "invalid non-ASCII15-second fallback"
+    ],
+    "limits": "No full-suite rerun by reviewer, live call, immutable protocol4, admission, price/billing guarantee or scientific completion claim."
+  },
+  "cleanup": "Reused identical budget/trace/error fixtures and existing canned PubMed handle/article helpers. No changed UI or temporary reference checkout dependency. Runtime491/109 lines and focused test337/409 lines satisfy existing500-line ceiling.",
+  "external_model_calls": 0,
+  "live_retrieval_calls": 0,
+  "production_activation": false,
+  "next": "Commit source before freezing actual protocol4/MCP-tree hashes; verify actual committed loaders and isolated process/admission boundary before any scientific call."
+}

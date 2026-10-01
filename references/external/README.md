@@ -1,5 +1,20 @@
 # External reference campaign
 
+Current retrieval work: [batching](sakana/novelty-pubmed-batching-verification-2026-09-30.json),
+[strict trace reader](sakana/novelty-batch-reader-verification-2026-09-30.json) and
+[workflow integration](sakana/novelty-batch-pilot-integration-verification-2026-09-30.json)
+close PLAN f1–f4; [committed registration](sakana/novelty-pilot-v5-registration-verification-2026-09-30.json)
+closes f5. The [sole fifth-study launch](sakana/novelty-pilot-v5-launch-2026-09-30.json)
+[terminated incomplete](sakana/novelty-pilot-v5-terminal-2026-09-30.json) after
+14 free model responses and 21 outer searches. A valid empty PubMed trace passed
+strict attestation but a later guard incorrectly required per-paper link proof.
+Its actual result, consumed admission, unscored blind packet and raw cache are retained;
+account usage did not increase. No scientific adoption/rejection follows.
+[The empty-result guard repair](sakana/novelty-empty-result-guard-verification-2026-10-01.json)
+passes offline behavioral and independent review; it authorizes no replay,
+continuation, new bank or live run. Batching remains unreleased; the four
+original scientific/final gates stay open. No further model qualification is authorized.
+
 [PLAN.md](../../PLAN.md) owns execution state. [Campaign procedures](campaign.md)
 record the evaluation and release contract. [M1 dossier](baseline/README.md)
 records the starting system and baseline work.
@@ -20,7 +35,14 @@ Sakana's result-conditioned search remains unresolved. The separately registered
 after one model response and one retrieval call at reported $0. All three study
 admissions are consumed and incomplete; none may be replayed. No scientific
 adoption or rejection follows from an interrupted comparison.
-Four M12 items remain open in [PLAN.md](../../PLAN.md). The
+[PR #80](m12-reference-evidence-release-2026-09-30.json) preserves the reference
+repair and study evidence; its unchanged product is healthy in existing services.
+Four original M12 gates remain open in [PLAN.md](../../PLAN.md). The prospective
+fourth-study preparation passed actual isolated process/CLI gates, then its
+[sole admission stopped incomplete](sakana/novelty-pilot-v4-terminal-2026-09-30.json)
+after 13 model responses and 19 outer searches at reported $0. Two EFetch 429 recoveries
+succeeded; a later ELink 429 exhausted the registered budget. All four admissions
+are now consumed and unscored; no replay or scientific disposition follows. The
 [deferred register](deferred-followups-2026-09-25.md) preserves earlier decisions,
 and [current release reconciliation](m12-current-release-reconciliation-2026-09-30.json)
 identifies the verified production and rollback points.

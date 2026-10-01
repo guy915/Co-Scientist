@@ -1,0 +1,52 @@
+{
+  "item": "M12-04b4g1",
+  "status": "VERIFIED_OFFLINE_REGISTRATION_SUPPORT_ONLY",
+  "source_sha256": {
+    "references/external/sakana/novelty_result_conditioned_pilot.py": "58a50e43a52f32a547b7f939a77198d7b9205a4a01f30e160be7d9fb7a496fe0",
+    "references/external/sakana/test_novelty_result_conditioned_study6.py": "fbeb29561379c50914d16858ed3e2545fb6aa20049f1aaa341ecde46f1495300",
+    "references/external/sakana/test_novelty_result_conditioned_batch_pilot.py": "633339ac4b21f4728396d7d41dc569c6ca078cede7489aaa24388f504a5b74b7",
+    "references/external/sakana/test_novelty_result_conditioned_batch_preflight.py": "96b7150a0ffbe8e196f2367beb956ba4199273ad5f72ec1f4d4f26226cceda77",
+    "references/external/sakana/test_novelty_result_conditioned_empty_search.py": "3b59cb319c1686ca8b2390967afa884ae54728504188f7eda5505694e1f998c1"
+  },
+  "checks": {
+    "red": "Worker reproduced newstudy6 test argparse rejection choices1-5 before runner edits; transcript report retained, separate RED log not saved.",
+    "root_final_runner_tests": "103 passed in3.51s;5files; scrubbed .venv/bin/python with PYTHONPATH=engine/src",
+    "root_reader_tests": "26 passed in0.08s; dedicated .venv-mcp/bin/python with PYTHONPATH=engine/mcp_server",
+    "logs": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study6/verification",
+    "worker_combined_suite": "129 passed in3.46s reported; /tmp/cosci-study6-runner-tests-20261001-final.log",
+    "first_root_combined_attempt": "Collection failed: Bio missing in runner runtime. Corrected using existing dedicated MCP runtime; no dependency install/skip/assertion weakening.",
+    "root_earlier_runner_pass": "98 passed; subsequently added invalid-empty and4runtime-environment cases required final103rerun. Earlier log retained.",
+    "ruff": "check/format5files PASS",
+    "diff_check": "PASS",
+    "typing": "Worker reports27 inherited strict-mypy diagnostics in unchanged untyped runner regions; no full-reference strict typing pass is claimed. No diagnostics observed in changed logic by worker; root has not independently audited baseline diagnostics.",
+    "actual_unregistered_cli": "Scrubbed real --study-version6 exit1 at missing preregistration gate before clients/admission; log /Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study6/preparation/unregistered-cli.log"
+  },
+  "independent_reviews": {
+    "luna": "Same-context independent diagnostician ACCEPT exact5finalhashes; supplemental finaltestdelta ACCEPT fbeb2956. No reviewer tests or fresh-context claim.",
+    "fresh_peer": {
+      "verdict": "ACCEPT",
+      "conversation_id": "052706df-988b-4b16-a43b-9c1861576601",
+      "requested_model": "gemini-3.8-flash-high",
+      "requested_effort": "high",
+      "served_model_observed": false,
+      "runner_sha256": "58a50e43a52f32a547b7f939a77198d7b9205a4a01f30e160be7d9fb7a496fe0",
+      "raw_response": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study6/final-code-review/inline-stdout.json",
+      "raw_response_sha256": "4eb5ae1f4a6b4592d70f0d1d9bc2f6ef797927889e0574e1d289940bc0c58e59",
+      "scope": "Fresh static pasted exactrunner snapshot only, no tools/tests. Three test snapshots match final; two subsequently strengthened/revised testfiles are covered by final Luna review and root103tests. No fresh whole-final-test-diff review claimed."
+    },
+    "failed_peer_file_attempt": "Denied read_file produced emptySUCCESS; not acceptance. Changed method to supplied exactsource inline."
+  },
+  "historical_admission_sha256": {
+    "references/external/sakana/novelty-result-conditioned-pilot-prereg-v1.admission.json": "a01438e012aaef86b66633e099413449005aafdf56cffdf6dda36ff889834296",
+    "references/external/sakana/novelty-result-conditioned-pilot-prereg-v2.admission.json": "38ea0d368be5f8c605a093e9ae086e0168e176dc2435084e512970a7fb5e74f0",
+    "references/external/sakana/novelty-result-conditioned-pilot-prereg-v5.admission.json": "2e82c9d438a737878cf301a4d86d671571e69b18f7ba9ebd2138fa498a308453",
+    "references/external/sakana/novelty-result-conditioned-pilot-prereg-v4.admission.json": "1a9e4697cc7af07762655526b2e4a149bdac1842fa5fcde37090c389da54db83",
+    "references/external/sakana/novelty-result-conditioned-pilot-prereg-v3.admission.json": "0def3646965379face286c101c8c0e7b2e1807c47063841046a1560d50d20b60"
+  },
+  "canonical_bank7_protocol6_admission_absent": true,
+  "scientific_calls": 0,
+  "openrouter_requests": 0,
+  "production_mutation": false,
+  "product_check_scope": "Campaign branch app/engine/evaluations/E2E/vendor/dependency trees still match verified852ac4. Origin/main newerUI must be preserved/integrated/reverified at release. No deployment acceptance.",
+  "limits": "g2 source selection/review/owned-process preflight/canonical commit remain open; g3 originalscience/blindlabels remain open. No historicalreplay/partialscore/adoption/rejection."
+}

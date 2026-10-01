@@ -1,5 +1,18 @@
 # SakanaAI/AI-Scientist — pinned source assessment
 
+Current retrieval work: [batching](sakana/novelty-pubmed-batching-verification-2026-09-30.json),
+[strict trace reader](sakana/novelty-batch-reader-verification-2026-09-30.json) and
+[workflow integration](sakana/novelty-batch-pilot-integration-verification-2026-09-30.json)
+close PLAN f1–f4. [Fresh comparison registration](sakana/novelty-pilot-v5-registration-verification-2026-09-30.json)
+closes f5: six exploratory pairs, twelve independently verified primary sources,
+exact committed bank6/protocol5, and an actual credential-free CLI/MCP preflight.
+The normal loader accepted the committed bytes; no admission or scientific call occurred.
+The pinned 88 runner and 26 reader tests remain applicable; batching is unreleased.
+Next is the sole f6 comparison after fresh free-route and serving-process checks,
+with the unchanged 24-model/36-outer-call caps and scientific gates. All four
+historical admissions remain consumed, immutable and unscored. Four original
+scientific/final gates remain open; no further model qualification is authorized.
+
 **Source:** https://github.com/SakanaAI/AI-Scientist at [`1de1dbc1f4ee2c5f61e9c94348d55eb51d7fa2eb`](https://github.com/SakanaAI/AI-Scientist/commit/1de1dbc1f4ee2c5f61e9c94348d55eb51d7fa2eb) (committed 2025-12-19). The ignored checkout at `references/work/sakana-ai-scientist/` was removed after release; it was never a runtime dependency. This is an external technique source, not evidence of Google's Co-Scientist implementation.
 
 ## Terms and reuse boundary
@@ -89,7 +102,7 @@ This rejects only the **local design choice** to retain first-seen PMIDs from al
 
 ## 30 September prospective result-conditioned study
 
-The [fresh-bank v2 preregistration](sakana/novelty-result-conditioned-pilot-prereg-v2.json) followed independent source review, offline maintained-trace repair, raw-trace/one-shot gates and actual isolated runtime verification. The sole launch [stopped on PubMed HTTP502](sakana/novelty-pilot-v2-interruption-2026-09-30.json) after3model responses/4outerMCP calls at reported$0; first positive draft follow-ups completed, but the distinct control and remaining five pairs did not. The [five partial blind labels](sakana/novelty-pilot-v2-partial-blind-labels-2026-09-30.json) neither establish aggregate quality nor dispose of the candidate. Both v1/v2 admissions are consumed, no retry or adoption occurred, and M11-NOV-01 remains unresolved. The [support release](m12-pubmed-trace-release-2026-09-30.json) changes optional provenance instrumentation, not scientific search behavior or production trace settings.
+The [fresh-bank v2 preregistration](sakana/novelty-result-conditioned-pilot-prereg-v2.json) followed independent source review, offline maintained-trace repair, raw-trace/one-shot gates and actual isolated runtime verification. The sole launch [stopped on PubMed HTTP502](sakana/novelty-pilot-v2-interruption-2026-09-30.json) after3model responses/4outerMCP calls at reported $0; first positive draft follow-ups completed, but the distinct control and remaining five pairs did not. The [five partial blind labels](sakana/novelty-pilot-v2-partial-blind-labels-2026-09-30.json) neither establish aggregate quality nor dispose of the candidate. Both v1/v2 admissions are consumed, no retry or adoption occurred, and M11-NOV-01 remains unresolved. The [support release](m12-pubmed-trace-release-2026-09-30.json) changes optional provenance instrumentation, not scientific search behavior or production trace settings.
 
 ## Third prospective study preparation
 
@@ -106,3 +119,31 @@ The [prospective source-only amendment](sakana/novelty-pilot-v3-runtime-amendmen
 The [sealed interruption record](sakana/novelty-pilot-v3-interruption-2026-09-30.json) links the sole admitted protocol948381f result and consumed marker. One static-query response completed through the selected Space Bunny route at reported $0, without an application retry or cache hit. The first shared PubMed retrieval recorded a metadata-fetch HTTPError and one incomplete fetched record. A bounded private process-log line identifies HTTP 429; the public raw trace itself has no HTTP status. Three returned papers did not satisfy the frozen no-error provenance gate. Maintained Entrez entry-point counts were 3 ESearch, 12 EFetch and 8 ELink, not wire HTTP counts. The runner stopped before a candidate query, follow-up comparison or control.
 
 This is an incomplete comparison, not a failed scientific-quality metric or model rejection. No arm comparison or confirmatory result can be inferred; M11-NOV-01 remains unadopted and unresolved. No request replay, output substitution, fourth study, product behavior change or deployment is part of this disposition. All three prior admissions remain consumed. Private blind and raw retrieval records are retained as partial evidence; no labels are claimed from this incomplete pilot.
+
+## Separately justified recovery preparation
+
+An independent authority audit after the third interruption found no owner-set study-count limit. The prior no-fourth wording describes what that interruption disposition did, rather than imposing a new user restriction. PLAN now records M12-04b4e1/e1a/e2/e3 for one bounded, distinct prospective comparison: a justified operational recovery design, twelve independently verified fresh primary sources, and an immutable integrated registration with actual offline admission/source-pin checks. All three historical admissions and stop rules remain unchanged. No replay, relaxed scientific threshold, extra model qualification or fourth scientific admission has occurred. The candidate remains promising and unresolved.
+
+The [bounded recovery design](sakana/novelty-study4-recovery-design-2026-09-30.json) is independently accepted for the distinct prospective fourth study. Its [fresh bank5](sakana/novelty-fixture-bank-prereg-v5.json) and [source audit](sakana/novelty-fixture-bank-v5-source-review-2026-09-30.json) are committed: all 12 source records match, drafts are at most 180 characters, and the audited prior-source sets have zero collisions. These are source and preparation results only. Default-off transport implementation, integrated trace verification and full protocol registration remain open; no fourth admission or scientific outcome exists.
+
+The [offline recovery verification](sakana/novelty-study4-recovery-verification-2026-09-30.json) closes the maintained implementation boundary: default-off exact-study activation, one retry per logical request and two per process study, original pacing and request parameters, and retained recovered/exhausted accounting. Public-tool trace regressions cover whitespace, leading-zero clipping and invalid-header fallback. Root checks pass for350 MCP tests, strict types and68 reference tests; file/function-length gates and lint remain intact. Canonical header values drive validation while a bounded raw prefix preserves audit context. This is local preparation evidence; protocol4 registration, isolated admission and all scientific acceptance gates remain open.
+
+Fourth-study registration is frozen at `1bdc99ba`, with preparation receipt at `1204ed38`. The [process readiness receipt](sakana/novelty-pilot-v4-process-readiness-2026-09-30.json) records actual credential-free pinned MCP/CLI preflight, expected missing-key stop before admission, empty cache and stopped process. Prompts, scientific criteria and 24/36 call ceilings remain unchanged; only separately registered Entrez429/502 recovery differs. This is operational readiness, not scientific success; all three prior interrupted admissions remain unscored.
+
+The fourth study [terminated incomplete](sakana/novelty-pilot-v4-terminal-2026-09-30.json) after13zero-cost model responses and 19 outer searches. Both permitted EFetch 429 recoveries succeeded; a subsequent ELink 429 exhausted the study-wide budget. Only three of six pairs traversed, so the packet is unscored and no scientific adoption/rejection is inferred. All recorded traces contain 278 logical/280 client-entry requests; the top-level recovery aggregate excludes the final rejected trace. Further work is a bounded request-volume/pacing audit, not replay or model requalification.
+
+## Fifth-study terminal evidence and empty-result defect
+
+The batch-aware comparison's [source registration](sakana/novelty-pilot-v5-registration-verification-2026-09-30.json) preceded its [sole admission](sakana/novelty-pilot-v5-launch-2026-09-30.json). The [terminal record](sakana/novelty-pilot-v5-terminal-2026-09-30.json) retains14 completed Space Bunny responses,21 outer searches, $0 reported model cost and unchanged account usage. Three pairs traversed operationally; the fourth pair stopped when an empty candidate search triggered a local returned-link validation error. These are operational counts, not scientific scores.
+
+Independent offline reproduction confirms that the strict batch reader accepts the actual zero-ID/no-error trace. The next guard requires `metadata_batching.batches` even when no paper needs ELink proof. M12-04b4f7 will test and minimally repair this guard while retaining rejection of invalid nonempty proof and upstream errors. The actual study remains incomplete and unscored; its admission and historical artifacts remain immutable. No continuation, replay, new fixture bank or scientific acceptance is authorized by this repair. M11-NOV-01 remains promising, unadopted and unresolved.
+
+The [empty-result guard repair](sakana/novelty-empty-result-guard-verification-2026-10-01.json) now passes 89 offline runner tests and 26 reader tests, plus independent semantic review. Per-paper link checks are skipped only when strict trace attestation has already proved a genuinely empty search. Nonempty links and real error rejection remain unchanged. The fixture test now checks an isolated missing-bank root; the registered bank is preserved. This closes the engineering defect, with no scientific outcome or new admission.
+
+## Corrected-runner prospective registration support
+
+The [study6 dispatch verification](sakana/novelty-study6-dispatch-verification-2026-10-01.json) adds a distinct protocol6/bank7 registration to the existing corrected batch-aware runner. Root103runner and26strict-reader checks, lint and formatting pass. Independent current-source review preserves source/process, empty/nonempty trace, cost, one-shot and historical-record gates. This is offline support only: source inputs and canonical registration are unfinished, no sixth admission or OpenRouter request exists, and M11-NOV-01 remains scientifically unresolved. No interrupted study was replayed, scored or rejected.
+
+The [bank7 source review](sakana/novelty-v7-source-review-2026-10-01.json) independently validates twelve official PubMed records against the finite 818-ID prior exposure set. The source proposal remains unregistered and exploratory. Two abstract-scope errors were corrected before performance queries: AtGATA5 overexpression and knockout share ABA hypersensitivity, and conductive-substrate effects are distinct from localized photostimulation. All identifiers and pair order remain; the source review establishes identity and abstract-level support only. Actual non-executing process readiness and canonical registration are still required before study6.
+
+Study6 preparation is now committed and verified: the [registration receipt](sakana/novelty-pilot-v6-registration-verification-2026-10-01.json) binds exact protocol6/bank7 hashes and actual offline process readiness. Normal committed-file loaders accept all six pairs; no admission or scientific calls occurred. The one-shot comparison and scientific disposition remain open.

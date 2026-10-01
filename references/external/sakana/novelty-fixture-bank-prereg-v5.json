@@ -1,0 +1,914 @@
+{
+  "name": "Fourth prospective result-conditioned novelty study: fresh bank5",
+  "version": 5,
+  "status": "PREREGISTERED_FRESH_FOURTH_STUDY_INPUTS",
+  "purpose": "Six fresh mechanism-specific positive/distinct-control pairs, independently validated for source identity, abstract support and disjointness from the explicitly audited prior-source sets. This source-input registration does not establish novelty, retrieval performance or general scientific quality; a separate committed protocol and admission gate remain required before scientific calls.",
+  "source_snapshot": {
+    "source_method": "Broad cross-domain PubMed discovery followed by a single exact-ID official NCBI EFetch XML metadata batch. Discovery phrases were broad topic categories, not drafts; no scientific draft-query search, maintained literature tool call, validator/model performance screen, or retrieval loop was used.",
+    "retrieved_at_date": "2026-09-30",
+    "search_batches": [
+      {
+        "batch": "A",
+        "queries": [
+          "site:pubmed.ncbi.nlm.nih.gov 2024 primary research plant biology molecular mechanism Arabidopsis Article",
+          "site:pubmed.ncbi.nlm.nih.gov 2024 primary research bacterial cell biology mechanism",
+          "site:pubmed.ncbi.nlm.nih.gov 2024 primary research neuroscience synaptic mechanism",
+          "site:pubmed.ncbi.nlm.nih.gov 2024 primary research immunology metabolism mechanism"
+        ]
+      },
+      {
+        "batch": "B",
+        "queries": [
+          "site:pubmed.ncbi.nlm.nih.gov 2024 primary research plant development Arabidopsis mechanism study",
+          "site:pubmed.ncbi.nlm.nih.gov 2024 primary research fungi molecular mechanism cellular",
+          "site:pubmed.ncbi.nlm.nih.gov 2024 primary research neuroscience cellular mechanism synapse",
+          "site:pubmed.ncbi.nlm.nih.gov 2024 primary research microbiome host mechanism study"
+        ]
+      },
+      {
+        "batch": "C",
+        "queries": [
+          "site:pubmed.ncbi.nlm.nih.gov 2023 2024 Arabidopsis primary study plant development signaling gene mechanism",
+          "site:pubmed.ncbi.nlm.nih.gov 2023 2024 cancer primary research protein mechanism tumor study",
+          "site:pubmed.ncbi.nlm.nih.gov 2023 2024 host pathogen primary research mechanism parasite vector",
+          "site:pubmed.ncbi.nlm.nih.gov 2023 2024 ecology microbiology primary research mechanism organism"
+        ]
+      }
+    ],
+    "endpoint": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi",
+    "http_status": 200,
+    "response_bytes": 394753,
+    "requested_source_count": 12,
+    "returned_source_count": 12,
+    "candidate_pool_count": null,
+    "raw_xml_retention": "Initial author response was not retained; a different reviewer independently fetched these exact12records. That retained HTTP200 XML, not the missing author response, supports this registration.",
+    "prior_source_exclusion_check": {
+      "scope": "Every JSON file under references/external was parsed recursively for PMID-named fields, and every file under references/external/sakana was checked for literal matches of the twelve candidate PMIDs.",
+      "candidate_pmid_count": 12,
+      "prior_field_or_text_collision_count": 0,
+      "v4_candidate_ledger_overlap_count": 0,
+      "note": "This field preserves the author initial overlap check. The completed independent finite exposure scan is recorded in the v5 source audit: zero collisions in its named prior-study/ledger/XML/current-Sakana-JSON corpora. No exhaustive discovery pool, universal novelty or eligibility claim is made."
+    },
+    "source_selection_transparency": "Selected after public title/abstract inspection for direct mechanism support and cross-domain breadth. Candidate order and selected identities were not preregistered before discovery. No source was chosen by observed validator, model, retrieval, or search success.",
+    "independently_retained_raw_xml": {
+      "path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study4/pubmed-exact-source-records.xml",
+      "sha256": "210d3f5f39a2393bd5e4bbe960a0761ae1276407e583014e0e65d26d5d480e29",
+      "bytes": 394753,
+      "http_status": 200
+    },
+    "initial_proposal_sha256": "96d3023bb22f873aace91a3dcf6632e05cab662c2361c06515d8541e2b1f3209",
+    "corrected_proposal_sha256": "c0bd971d2fd6295ab9eba320efc4eb568cbbc6c9e9e244cd981e915d299a2d75"
+  },
+  "source_review": {
+    "status": "ACCEPT_SOURCE_VALIDATION_ONLY",
+    "reviewer": "Independent Luna 6 xhigh corrected-source audit",
+    "review_path": "references/external/sakana/novelty-fixture-bank-v5-source-review-2026-09-30.json",
+    "review_sha256": "6da74ec3e7f76f9237d19234d5f3ab4523d1eda2d3cf6941e703351da8b2468f",
+    "boundary": "ACCEPT applies only to corrected source identity, abstract-level claim support, excerpt substrings after Unicode-whitespace normalization (27/28 are literal XML-decoded substrings; the remaining 1 differs only by NBSP versus SPACE), draft limits, and checked-set source disjointness. Registration/freezing and any scientific or validator claims remain the coordinator’s responsibility.",
+    "limits": [
+      "Abstract-only source validation; no full-text, figures, methods, or supplementary information review.",
+      "No scientific novelty or quality judgment, representative sampling claim, or validator-performance screening.",
+      "All six pairs are purposive exploratory fixtures, not a representative scientific benchmark.",
+      "The old preparer retrieval body was not retained; this acceptance rests on the reviewer’s preserved exact-ID NCBI EFetch batch.",
+      "One zero-byte JSON file under the public scan root is included in the file manifest and raw token pass; 95 nonempty files parsed successfully."
+    ],
+    "changes_before_registration": [
+      "Three draft scope corrections and two excerpt punctuation corrections before any scientific call; PMIDs/order unchanged.",
+      "All drafts at most200characters. 27of28excerpts literal; one differs only by Unicode whitespace."
+    ],
+    "prior_source_overlap_check": "Zero collisions with419-IDreceipt,101bank4ledger,113allbank4XMLPMIDs,and96currentSakanaJSONpaths; no universal novelty claim."
+  },
+  "validation_boundary": {
+    "maintained_validator": "engine/src/co_scientist/agents/generation/literature_tools/validate_search.py",
+    "parser": "engine/src/co_scientist/tools/response_parser.py",
+    "tool_config": "engine/src/co_scientist/config/tools.yaml",
+    "inheritance_note": "Reuse the maintained validator/parser/tool contract. Exact current source hashes must be committed in separate protocol4 and checked by the actual loader before requests; this source registration does not activate transport recovery or authorize admission."
+  },
+  "cases_in_fixed_order": [
+    {
+      "id": "ftsex-ilc2",
+      "positive": {
+        "draft": "In E. coli, ATP-bound FtsEX activates septal peptidoglycan hydrolysis by EnvC-AmiB; EnvC-AmiB alone is autoinhibited.",
+        "target_pmid": "38814940",
+        "year": 2024,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/38814940/"
+      },
+      "distinct_control": {
+        "draft": "Adipose ILC2 LKB1 loss activates NFAT-dependent PD-1, heightening mitophagy and worsening obesity-linked insulin resistance.",
+        "anchor_pmid": "38772366",
+        "year": 2024,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/38772366/"
+      },
+      "overlap_rule": "The positive is a bacterial cytokinetic ATPase–amidase mechanism; the control is an adipose immune-cell metabolic checkpoint. Their organisms, systems, and causal pathways are distinct.",
+      "source_metadata": {
+        "positive": {
+          "authors": "Yatian Chen, Jiayue Gu, Biao Yang et al.",
+          "title": "Structure and activity of the septal peptidoglycan hydrolysis machinery crucial for bacterial cell division.",
+          "first_author": "Yatian Chen",
+          "author_count": 12,
+          "journal": "PLoS biology",
+          "doi": "10.1371/journal.pbio.3002628",
+          "doi_url": "https://doi.org/10.1371/journal.pbio.3002628",
+          "publication_date": "2024-05",
+          "electronic_publication_date": null,
+          "publication_types": [
+            "Journal Article",
+            "Research Support, Non-U.S. Gov't"
+          ],
+          "claim_basis": "The abstract reports ATP-bound FtsEX activating E. coli septal peptidoglycan hydrolysis through EnvC-AmiB, while EnvC-AmiB alone is autoinhibited.",
+          "abstract_support_excerpts": [
+            "Our PG degradation assays in E. coli reveal that the ATP-bound conformation of FtsEX activates sPG hydrolysis of EnvC-AmiB, whereas EnvC-AmiB alone exhibits autoinhibition.",
+            "Furthermore, PG degradation assays of AmiB mutants confirm that the regulation of AmiB by FtsEX-EnvC is achieved through the interaction between EnvC-AmiB."
+          ],
+          "draft_role": "positive",
+          "selection_reason": "Selected by title/abstract evidence for a concise, mechanism-specific claim and cross-domain pair separation; no validator, model, search-recall, or retrieval-performance outcome was observed.",
+          "verified_pubmed_metadata": {
+            "title": "Structure and activity of the septal peptidoglycan hydrolysis machinery crucial for bacterial cell division.",
+            "first_author": "Yatian Chen",
+            "authors": [
+              "Yatian Chen",
+              "Jiayue Gu",
+              "Biao Yang",
+              "Lili Yang",
+              "Jie Pang",
+              "Qinghua Luo",
+              "Yirong Li",
+              "Danyang Li",
+              "Zixin Deng",
+              "Changjiang Dong",
+              "Haohao Dong",
+              "Zhengyu Zhang"
+            ],
+            "author_count": 12,
+            "journal": "PLoS biology",
+            "doi": "10.1371/journal.pbio.3002628",
+            "journal_issue_date": "2024-05",
+            "electronic_publication_date": null,
+            "publication_types": [
+              "Journal Article",
+              "Research Support, Non-U.S. Gov't"
+            ]
+          },
+          "source_validation": {
+            "url": "https://pubmed.ncbi.nlm.nih.gov/38814940/",
+            "route": "Official NCBI PubMed EFetch XML; this exact PMID was requested in the single 12-ID batch and returned as a PubmedArticle record.",
+            "validated_at": "2026-09-30",
+            "http_status": 200
+          }
+        },
+        "control": {
+          "authors": "Jiping Sun, Youqin Zhang, Qingbing Zhang et al.",
+          "title": "Metabolic regulator LKB1 controls adipose tissue ILC2 PD-1 expression and mitochondrial homeostasis to prevent insulin resistance.",
+          "first_author": "Jiping Sun",
+          "author_count": 21,
+          "journal": "Immunity",
+          "doi": "10.1016/j.immuni.2024.04.024",
+          "doi_url": "https://doi.org/10.1016/j.immuni.2024.04.024",
+          "publication_date": "2024-06-11",
+          "electronic_publication_date": "2024-05-20",
+          "publication_types": [
+            "Journal Article",
+            "Research Support, Non-U.S. Gov't"
+          ],
+          "claim_basis": "The abstract links LKB1 deficiency in adipose ILC2s to NFAT-driven PD-1, mitophagy, impaired ILC2 responses, and insulin resistance.",
+          "abstract_support_excerpts": [
+            "Mechanistically, LKB1 deficiency induced aberrant PD-1 expression through activation of NFAT, which in turn enhanced mitophagy by suppressing Bcl-xL expression.",
+            "Blockade of PD-1 restored the normal functions of ILC2s and reversed obesity-induced insulin resistance in mice."
+          ],
+          "draft_role": "distinct_control",
+          "selection_reason": "Selected by title/abstract evidence for a concise, mechanism-specific claim and cross-domain pair separation; no validator, model, search-recall, or retrieval-performance outcome was observed.",
+          "verified_pubmed_metadata": {
+            "title": "Metabolic regulator LKB1 controls adipose tissue ILC2 PD-1 expression and mitochondrial homeostasis to prevent insulin resistance.",
+            "first_author": "Jiping Sun",
+            "authors": [
+              "Jiping Sun",
+              "Youqin Zhang",
+              "Qingbing Zhang",
+              "Lin Hu",
+              "Linfeng Zhao",
+              "Hongdong Wang",
+              "Yue Yuan",
+              "Hongshen Niu",
+              "Dongdi Wang",
+              "Huasheng Zhang",
+              "Jianyue Liu",
+              "Xujiao Feng",
+              "Xiaohui Su",
+              "Ju Qiu",
+              "Jing Sun",
+              "Heping Xu",
+              "Catherine Zhang",
+              "Kathleen Wang",
+              "Yan Bi",
+              "Edgar G Engleman",
+              "Lei Shen"
+            ],
+            "author_count": 21,
+            "journal": "Immunity",
+            "doi": "10.1016/j.immuni.2024.04.024",
+            "journal_issue_date": "2024-06-11",
+            "electronic_publication_date": "2024-05-20",
+            "publication_types": [
+              "Journal Article",
+              "Research Support, Non-U.S. Gov't"
+            ]
+          },
+          "source_validation": {
+            "url": "https://pubmed.ncbi.nlm.nih.gov/38772366/",
+            "route": "Official NCBI PubMed EFetch XML; this exact PMID was requested in the single 12-ID batch and returned as a PubmedArticle record.",
+            "validated_at": "2026-09-30",
+            "http_status": 200
+          }
+        }
+      },
+      "draft_character_counts": {
+        "positive": 117,
+        "distinct_control": 124
+      }
+    },
+    {
+      "id": "neurocan-protist",
+      "positive": {
+        "draft": "Astrocyte-derived neurocan is cleaved, and its C-terminal domain localizes to somatostatin-positive synapses to promote cortical inhibitory synapse formation.",
+        "target_pmid": "38574730",
+        "year": 2024,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/38574730/"
+      },
+      "distinct_control": {
+        "draft": "Soil protist predation can spread antibiotic resistance by favoring bacteria that release antagonistic metabolites, which in turn support resistant bacteria.",
+        "anchor_pmid": "39259188",
+        "year": 2024,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/39259188/"
+      },
+      "overlap_rule": "The positive concerns extracellular-matrix control of mammalian inhibitory synapses; the control concerns soil food-web effects on antimicrobial resistance.",
+      "source_metadata": {
+        "positive": {
+          "authors": "Dolores Irala, Shiyi Wang, Kristina Sakers et al.",
+          "title": "Astrocyte-secreted neurocan controls inhibitory synapse formation and function.",
+          "first_author": "Dolores Irala",
+          "author_count": 8,
+          "journal": "Neuron",
+          "doi": "10.1016/j.neuron.2024.03.007",
+          "doi_url": "https://doi.org/10.1016/j.neuron.2024.03.007",
+          "publication_date": "2024-05-15",
+          "electronic_publication_date": "2024-04-03",
+          "publication_types": [
+            "Journal Article",
+            "Research Support, N.I.H., Extramural"
+          ],
+          "claim_basis": "The abstract identifies neurocan as an astrocyte-secreted inhibitory synaptogenic protein and localizes its C-terminal domain to somatostatin-positive inhibitory synapses.",
+          "abstract_support_excerpts": [
+            "Here, we identify neurocan as an astrocyte-secreted inhibitory synaptogenic protein.",
+            "The neurocan C-terminal fragment localizes to synapses and controls cortical inhibitory synapse formation and function.",
+            "Through super-resolution microscopy, in vivo proximity labeling by secreted TurboID, and astrocyte-specific rescue approaches, we discovered that the synaptogenic domain of neurocan localizes to somatostatin-positive inhibitory synapses and strongly regulates their formation."
+          ],
+          "draft_role": "positive",
+          "selection_reason": "Selected by title/abstract evidence for a concise, mechanism-specific claim and cross-domain pair separation; no validator, model, search-recall, or retrieval-performance outcome was observed.",
+          "verified_pubmed_metadata": {
+            "title": "Astrocyte-secreted neurocan controls inhibitory synapse formation and function.",
+            "first_author": "Dolores Irala",
+            "authors": [
+              "Dolores Irala",
+              "Shiyi Wang",
+              "Kristina Sakers",
+              "Leykashree Nagendren",
+              "Francesco Paolo Ulloa Severino",
+              "Dhanesh Sivadasan Bindu",
+              "Justin T Savage",
+              "Cagla Eroglu"
+            ],
+            "author_count": 8,
+            "journal": "Neuron",
+            "doi": "10.1016/j.neuron.2024.03.007",
+            "journal_issue_date": "2024-05-15",
+            "electronic_publication_date": "2024-04-03",
+            "publication_types": [
+              "Journal Article",
+              "Research Support, N.I.H., Extramural"
+            ]
+          },
+          "source_validation": {
+            "url": "https://pubmed.ncbi.nlm.nih.gov/38574730/",
+            "route": "Official NCBI PubMed EFetch XML; this exact PMID was requested in the single 12-ID batch and returned as a PubmedArticle record.",
+            "validated_at": "2026-09-30",
+            "http_status": 200
+          }
+        },
+        "control": {
+          "authors": "Chen Liu, Yijin Wang, Zeyuan Zhou et al.",
+          "title": "Protist predation promotes antimicrobial resistance spread through antagonistic microbiome interactions.",
+          "first_author": "Chen Liu",
+          "author_count": 10,
+          "journal": "The ISME journal",
+          "doi": "10.1093/ismejo/wrae169",
+          "doi_url": "https://doi.org/10.1093/ismejo/wrae169",
+          "publication_date": "2024-01-08",
+          "electronic_publication_date": null,
+          "publication_types": [
+            "Journal Article"
+          ],
+          "claim_basis": "The abstract reports controlled evidence that protist predation favors secondary-metabolite-producing bacteria, whose antagonistic products promote antibiotic-resistant bacteria in soil communities.",
+          "abstract_support_excerpts": [
+            "Using a combination of metagenomics and controlled experiments in this study, we demonstrate that protists cause an increase in antibiotic resistance.",
+            "Protist predation gives a competitive edge to bacteria capable of producing antagonistic secondary metabolites, which secondary metabolites promote in turn antibiotic-resistant bacteria."
+          ],
+          "draft_role": "distinct_control",
+          "selection_reason": "Selected by title/abstract evidence for a concise, mechanism-specific claim and cross-domain pair separation; no validator, model, search-recall, or retrieval-performance outcome was observed.",
+          "verified_pubmed_metadata": {
+            "title": "Protist predation promotes antimicrobial resistance spread through antagonistic microbiome interactions.",
+            "first_author": "Chen Liu",
+            "authors": [
+              "Chen Liu",
+              "Yijin Wang",
+              "Zeyuan Zhou",
+              "Shimei Wang",
+              "Zhong Wei",
+              "Mohammadhossein Ravanbakhsh",
+              "Qirong Shen",
+              "Wu Xiong",
+              "George A Kowalchuk",
+              "Alexandre Jousset"
+            ],
+            "author_count": 10,
+            "journal": "The ISME journal",
+            "doi": "10.1093/ismejo/wrae169",
+            "journal_issue_date": "2024-01-08",
+            "electronic_publication_date": null,
+            "publication_types": [
+              "Journal Article"
+            ]
+          },
+          "source_validation": {
+            "url": "https://pubmed.ncbi.nlm.nih.gov/39259188/",
+            "route": "Official NCBI PubMed EFetch XML; this exact PMID was requested in the single 12-ID batch and returned as a PubmedArticle record.",
+            "validated_at": "2026-09-30",
+            "http_status": 200
+          }
+        }
+      },
+      "draft_character_counts": {
+        "positive": 158,
+        "distinct_control": 157
+      }
+    },
+    {
+      "id": "basehit-bap31",
+      "positive": {
+        "draft": "Human-associated bacterial strains show tissue-specific exoprotein binding; distinct strain profiles correspond to different host-cell and immune effects.",
+        "target_pmid": "38509360",
+        "year": 2024,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/38509360/"
+      },
+      "distinct_control": {
+        "draft": "In colorectal cancer cells, p20BAP31 competitively binds GRP78 away from PERK, amplifying the unfolded-protein response and apoptosis.",
+        "anchor_pmid": "38844291",
+        "year": 2024,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/38844291/"
+      },
+      "overlap_rule": "The positive is a cross-kingdom host–microbiota interaction map; the control is an intracellular ER-stress mechanism in cancer cells.",
+      "source_metadata": {
+        "positive": {
+          "authors": "Nicole D Sonnert, Connor E Rosen, Andrew R Ghazi et al.",
+          "title": "A host-microbiota interactome reveals extensive transkingdom connectivity.",
+          "first_author": "Nicole D Sonnert",
+          "author_count": 21,
+          "journal": "Nature",
+          "doi": "10.1038/s41586-024-07162-0",
+          "doi_url": "https://doi.org/10.1038/s41586-024-07162-0",
+          "publication_date": "2024-04",
+          "electronic_publication_date": null,
+          "publication_types": [
+            "Journal Article",
+            "Research Support, N.I.H., Intramural"
+          ],
+          "claim_basis": "The abstract describes BASEHIT proteome-scale measurement of human exoproteome–microbiome interactions and strain-specific links to host-cell and immune effects.",
+          "abstract_support_excerpts": [
+            "Here we developed and validated a novel technology, BASEHIT, that enables proteome-scale assessment of human exoproteome-microbiome interactions.",
+            "The resulting interactome revealed an extensive network of transkingdom connectivity consisting of thousands of previously undescribed host-microorganism interactions involving 383 strains and 651 host proteins.",
+            "Furthermore, we observed dozens of unique and often strain-specific interactions with potential roles in niche colonization, tissue remodelling and immunomodulation, and found that strains with differing host interaction profiles had divergent interactions with host cells in vitro and effects on the host immune system in vivo."
+          ],
+          "draft_role": "positive",
+          "selection_reason": "Selected by title/abstract evidence for a concise, mechanism-specific claim and cross-domain pair separation; no validator, model, search-recall, or retrieval-performance outcome was observed.",
+          "verified_pubmed_metadata": {
+            "title": "A host-microbiota interactome reveals extensive transkingdom connectivity.",
+            "first_author": "Nicole D Sonnert",
+            "authors": [
+              "Nicole D Sonnert",
+              "Connor E Rosen",
+              "Andrew R Ghazi",
+              "Eric A Franzosa",
+              "Brianna Duncan-Lowey",
+              "Jaime A González-Hernández",
+              "John D Huck",
+              "Yi Yang",
+              "Yile Dai",
+              "Tyler A Rice",
+              "Mytien T Nguyen",
+              "Deguang Song",
+              "Yiyun Cao",
+              "Anjelica L Martin",
+              "Agata A Bielecka",
+              "Suzanne Fischer",
+              "Changhui Guan",
+              "Julia Oh",
+              "Curtis Huttenhower",
+              "Aaron M Ring",
+              "Noah W Palm"
+            ],
+            "author_count": 21,
+            "journal": "Nature",
+            "doi": "10.1038/s41586-024-07162-0",
+            "journal_issue_date": "2024-04",
+            "electronic_publication_date": null,
+            "publication_types": [
+              "Journal Article",
+              "Research Support, N.I.H., Intramural"
+            ]
+          },
+          "source_validation": {
+            "url": "https://pubmed.ncbi.nlm.nih.gov/38509360/",
+            "route": "Official NCBI PubMed EFetch XML; this exact PMID was requested in the single 12-ID batch and returned as a PubmedArticle record.",
+            "validated_at": "2026-09-30",
+            "http_status": 200
+          }
+        },
+        "control": {
+          "authors": "Xiaohan Jiang, Benzhi Zhu, Guoxun Li et al.",
+          "title": "p20BAP31 promotes cell apoptosis via interaction with GRP78 and activating the PERK pathway in colorectal cancer.",
+          "first_author": "Xiaohan Jiang",
+          "author_count": 7,
+          "journal": "International journal of biological macromolecules",
+          "doi": "10.1016/j.ijbiomac.2024.132870",
+          "doi_url": "https://doi.org/10.1016/j.ijbiomac.2024.132870",
+          "publication_date": "2024-06",
+          "electronic_publication_date": null,
+          "publication_types": [
+            "Journal Article"
+          ],
+          "claim_basis": "The abstract reports p20BAP31 displacing PERK from GRP78, hyperactivating the unfolded-protein response, and promoting tumor-cell apoptosis.",
+          "abstract_support_excerpts": [
+            "Importantly, mechanistic investigations indicated that p20BAP31 competitively binds to GRP78 from PERK and causes hyperactivation of the UPR.",
+            "The activation of the PERK pathway is prominent in p20BAP31-induced reactive oxygen species (ROS) accumulation and apoptosis."
+          ],
+          "draft_role": "distinct_control",
+          "selection_reason": "Selected by title/abstract evidence for a concise, mechanism-specific claim and cross-domain pair separation; no validator, model, search-recall, or retrieval-performance outcome was observed.",
+          "verified_pubmed_metadata": {
+            "title": "p20BAP31 promotes cell apoptosis via interaction with GRP78 and activating the PERK pathway in colorectal cancer.",
+            "first_author": "Xiaohan Jiang",
+            "authors": [
+              "Xiaohan Jiang",
+              "Benzhi Zhu",
+              "Guoxun Li",
+              "Shuyu Cui",
+              "Jiaying Yang",
+              "Rui Jiang",
+              "Bing Wang"
+            ],
+            "author_count": 7,
+            "journal": "International journal of biological macromolecules",
+            "doi": "10.1016/j.ijbiomac.2024.132870",
+            "journal_issue_date": "2024-06",
+            "electronic_publication_date": null,
+            "publication_types": [
+              "Journal Article"
+            ]
+          },
+          "source_validation": {
+            "url": "https://pubmed.ncbi.nlm.nih.gov/38844291/",
+            "route": "Official NCBI PubMed EFetch XML; this exact PMID was requested in the single 12-ID batch and returned as a PubmedArticle record.",
+            "validated_at": "2026-09-30",
+            "http_status": 200
+          }
+        }
+      },
+      "draft_character_counts": {
+        "positive": 154,
+        "distinct_control": 134
+      }
+    },
+    {
+      "id": "pma1-pontine",
+      "positive": {
+        "draft": "Cyclo(Pro-Tyr) disrupts fungal membrane polarization; damage is associated with destabilization of Pma1-containing plasma-membrane domains.",
+        "target_pmid": "39362977",
+        "year": 2024,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/39362977/"
+      },
+      "distinct_control": {
+        "draft": "In the pontine threat pathway, neuropeptides rather than glutamate encode the unconditioned stimulus during Pavlovian threat learning.",
+        "anchor_pmid": "39043179",
+        "year": 2024,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/39043179/"
+      },
+      "overlap_rule": "The positive concerns fungal membrane integrity under a microbial metabolite; the control concerns peptidergic signaling in a mammalian threat circuit.",
+      "source_metadata": {
+        "positive": {
+          "authors": "D Vela-Corcia, J Hierrezuelo, A I Pérez-Lorente et al.",
+          "title": "Cyclo(Pro-Tyr) elicits conserved cellular damage in fungi by targeting the [H+]ATPase Pma1 in plasma membrane domains.",
+          "first_author": "D Vela-Corcia",
+          "author_count": 13,
+          "journal": "Communications biology",
+          "doi": "10.1038/s42003-024-06947-3",
+          "doi_url": "https://doi.org/10.1038/s42003-024-06947-3",
+          "publication_date": "2024-10-03",
+          "electronic_publication_date": null,
+          "publication_types": [
+            "Journal Article",
+            "Research Support, Non-U.S. Gov't"
+          ],
+          "claim_basis": "The abstract reports the metabolite cyclo(Pro-Tyr) disrupting fungal membrane polarization and integrity, with changes that may arise from destabilized Pma1-containing membrane domains.",
+          "abstract_support_excerpts": [
+            "Based on our investigation, cyclo(Pro-Tyr) disrupts plasma membrane polarization, induces oxidative stress and increases membrane fluidity, which compromises fungal membrane integrity.",
+            "These cytological and physiological changes induced by cyclo(Pro-Tyr) may be triggered by the destabilization of membrane microdomains containing the [H+]ATPase Pma1."
+          ],
+          "draft_role": "positive",
+          "selection_reason": "Selected by title/abstract evidence for a concise, mechanism-specific claim and cross-domain pair separation; no validator, model, search-recall, or retrieval-performance outcome was observed.",
+          "verified_pubmed_metadata": {
+            "title": "Cyclo(Pro-Tyr) elicits conserved cellular damage in fungi by targeting the [H+]ATPase Pma1 in plasma membrane domains.",
+            "first_author": "D Vela-Corcia",
+            "authors": [
+              "D Vela-Corcia",
+              "J Hierrezuelo",
+              "A I Pérez-Lorente",
+              "P Stincone",
+              "A K Pakkir Shah",
+              "A Grélard",
+              "Y Zi-Long",
+              "A de Vicente",
+              "A Pérez García",
+              "L Bai",
+              "A Loquet",
+              "D Petras",
+              "D Romero"
+            ],
+            "author_count": 13,
+            "journal": "Communications biology",
+            "doi": "10.1038/s42003-024-06947-3",
+            "journal_issue_date": "2024-10-03",
+            "electronic_publication_date": null,
+            "publication_types": [
+              "Journal Article",
+              "Research Support, Non-U.S. Gov't"
+            ]
+          },
+          "source_validation": {
+            "url": "https://pubmed.ncbi.nlm.nih.gov/39362977/",
+            "route": "Official NCBI PubMed EFetch XML; this exact PMID was requested in the single 12-ID batch and returned as a PubmedArticle record.",
+            "validated_at": "2026-09-30",
+            "http_status": 200
+          }
+        },
+        "control": {
+          "authors": "Dong-Il Kim, Sekun Park, Seahyung Park et al.",
+          "title": "Presynaptic sensor and silencer of peptidergic transmission reveal neuropeptides as primary transmitters in pontine fear circuit.",
+          "first_author": "Dong-Il Kim",
+          "author_count": 14,
+          "journal": "Cell",
+          "doi": "10.1016/j.cell.2024.06.035",
+          "doi_url": "https://doi.org/10.1016/j.cell.2024.06.035",
+          "publication_date": "2024-09-05",
+          "electronic_publication_date": "2024-07-22",
+          "publication_types": [
+            "Journal Article"
+          ],
+          "claim_basis": "The abstract reports genetically encoded tools and evidence that neuropeptides, rather than glutamate, encode the unconditioned stimulus in a defined threat-learning pathway.",
+          "abstract_support_excerpts": [
+            "Using these tools, we show that neuropeptides, not glutamate, encode the unconditioned stimulus in the parabrachial-to-amygdalar threat pathway during Pavlovian threat learning.",
+            "We also show that neuropeptides play important roles in encoding positive valence and suppressing conditioned threat response in the amygdala-to-parabrachial endogenous opioidergic circuit."
+          ],
+          "draft_role": "distinct_control",
+          "selection_reason": "Selected by title/abstract evidence for a concise, mechanism-specific claim and cross-domain pair separation; no validator, model, search-recall, or retrieval-performance outcome was observed.",
+          "verified_pubmed_metadata": {
+            "title": "Presynaptic sensor and silencer of peptidergic transmission reveal neuropeptides as primary transmitters in pontine fear circuit.",
+            "first_author": "Dong-Il Kim",
+            "authors": [
+              "Dong-Il Kim",
+              "Sekun Park",
+              "Seahyung Park",
+              "Mao Ye",
+              "Jane Y Chen",
+              "Sukjae J Kang",
+              "Jinho Jhang",
+              "Avery C Hunker",
+              "Larry S Zweifel",
+              "Kathleen M Caron",
+              "Joan M Vaughan",
+              "Alan Saghatelian",
+              "Richard D Palmiter",
+              "Sung Han"
+            ],
+            "author_count": 14,
+            "journal": "Cell",
+            "doi": "10.1016/j.cell.2024.06.035",
+            "journal_issue_date": "2024-09-05",
+            "electronic_publication_date": "2024-07-22",
+            "publication_types": [
+              "Journal Article"
+            ]
+          },
+          "source_validation": {
+            "url": "https://pubmed.ncbi.nlm.nih.gov/39043179/",
+            "route": "Official NCBI PubMed EFetch XML; this exact PMID was requested in the single 12-ID batch and returned as a PubmedArticle record.",
+            "validated_at": "2026-09-30",
+            "http_status": 200
+          }
+        }
+      },
+      "draft_character_counts": {
+        "positive": 139,
+        "distinct_control": 134
+      }
+    },
+    {
+      "id": "rac1-bbx14",
+      "positive": {
+        "draft": "In human monocytes, glucose-oxygen deprivation constrains HMGCR function, reduces GGPP synthesis and Rac1 prenylation, increases IQGAP1 binding, and activates NLRP3.",
+        "target_pmid": "39012939",
+        "year": 2024,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/39012939/"
+      },
+      "distinct_control": {
+        "draft": "In Arabidopsis seedlings, GLK1 directly targets BBX14 downstream of GUN1; BBX14 supports high-light acclimation and early chlorophyll production.",
+        "anchor_pmid": "38128030",
+        "year": 2024,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/38128030/"
+      },
+      "overlap_rule": "The positive is a nutrient-limitation mechanism in human innate immune cells; the control is chloroplast retrograde signaling and light acclimation in plants.",
+      "source_metadata": {
+        "positive": {
+          "authors": "Nora Raulien, Kathleen Friedrich, Sarah Strobel et al.",
+          "title": "Glucose-oxygen deprivation constrains HMGCR function and Rac1 prenylation and activates the NLRP3 inflammasome in human monocytes.",
+          "first_author": "Nora Raulien",
+          "author_count": 19,
+          "journal": "Science signaling",
+          "doi": "10.1126/scisignal.add8913",
+          "doi_url": "https://doi.org/10.1126/scisignal.add8913",
+          "publication_date": "2024-07-16",
+          "electronic_publication_date": null,
+          "publication_types": [
+            "Journal Article"
+          ],
+          "claim_basis": "The abstract links simultaneous hypoxia and low glucose to reduced HMGCR/GGPP, reduced Rac1 prenylation, IQGAP1 association, and NLRP3 activation.",
+          "abstract_support_excerpts": [
+            "We found that concomitant glucose deprivation and hypoxia activated the NLRP3 inflammasome by constraining the function of HMG-CoA reductase (HMGCR), the rate-limiting enzyme of the mevalonate kinase pathway.",
+            "Under glucose-oxygen deprivation, GGPP synthesis was decreased, leading to reduced prenylation of the small GTPase Rac1, increased binding of nonprenylated Rac1 to the scaffolding protein IQGAP1, and enhanced activation of the NLRP3 inflammasome."
+          ],
+          "draft_role": "positive",
+          "selection_reason": "Selected by title/abstract evidence for a concise, mechanism-specific claim and cross-domain pair separation; no validator, model, search-recall, or retrieval-performance outcome was observed.",
+          "verified_pubmed_metadata": {
+            "title": "Glucose-oxygen deprivation constrains HMGCR function and Rac1 prenylation and activates the NLRP3 inflammasome in human monocytes.",
+            "first_author": "Nora Raulien",
+            "authors": [
+              "Nora Raulien",
+              "Kathleen Friedrich",
+              "Sarah Strobel",
+              "Stefanie Raps",
+              "Friederike Hecker",
+              "Matthias Pierer",
+              "Erik Schilling",
+              "Elke Lainka",
+              "Tilmann Kallinich",
+              "Sven Baumann",
+              "Katarina Fritz-Wallace",
+              "Ulrike Rolle-Kampczyk",
+              "Martin von Bergen",
+              "Achim Aigner",
+              "Alexander Ewe",
+              "Georg Schett",
+              "Michael Cross",
+              "Manuela Rossol",
+              "Ulf Wagner"
+            ],
+            "author_count": 19,
+            "journal": "Science signaling",
+            "doi": "10.1126/scisignal.add8913",
+            "journal_issue_date": "2024-07-16",
+            "electronic_publication_date": null,
+            "publication_types": [
+              "Journal Article"
+            ]
+          },
+          "source_validation": {
+            "url": "https://pubmed.ncbi.nlm.nih.gov/39012939/",
+            "route": "Official NCBI PubMed EFetch XML; this exact PMID was requested in the single 12-ID batch and returned as a PubmedArticle record.",
+            "validated_at": "2026-09-30",
+            "http_status": 200
+          }
+        },
+        "control": {
+          "authors": "Vasil Atanasov, Julia Schumacher, Jose M Muiño et al.",
+          "title": "Arabidopsis BBX14 is involved in high light acclimation and seedling development.",
+          "first_author": "Vasil Atanasov",
+          "author_count": 8,
+          "journal": "The Plant journal : for cell and molecular biology",
+          "doi": "10.1111/tpj.16597",
+          "doi_url": "https://doi.org/10.1111/tpj.16597",
+          "publication_date": "2024-04",
+          "electronic_publication_date": "2023-12-21",
+          "publication_types": [
+            "Journal Article",
+            "Research Support, Non-U.S. Gov't"
+          ],
+          "claim_basis": "The abstract identifies BBX14 as a direct GLK1 target, places it downstream of GUN1/GLK1 biogenic signaling, and reports a requirement for high-light acclimation.",
+          "abstract_support_excerpts": [
+            "Our chromatin immunoprecipitation-Seq experiments revealed that BBX14 is a direct target of GLK1, and RNA-Seq analysis suggests that BBX14 may function as a regulator of the circadian clock.",
+            "Furthermore, BBX14 is required to acclimate plants to HL stress.",
+            "We propose that BBX14 is an integrator of biogenic signals and that BBX14 is a nuclear target of retrograde signals downstream of the GUN1/GLK1 module."
+          ],
+          "draft_role": "distinct_control",
+          "selection_reason": "Selected by title/abstract evidence for a concise, mechanism-specific claim and cross-domain pair separation; no validator, model, search-recall, or retrieval-performance outcome was observed.",
+          "verified_pubmed_metadata": {
+            "title": "Arabidopsis BBX14 is involved in high light acclimation and seedling development.",
+            "first_author": "Vasil Atanasov",
+            "authors": [
+              "Vasil Atanasov",
+              "Julia Schumacher",
+              "Jose M Muiño",
+              "Catharina Larasati",
+              "Liangsheng Wang",
+              "Kerstin Kaufmann",
+              "Dario Leister",
+              "Tatjana Kleine"
+            ],
+            "author_count": 8,
+            "journal": "The Plant journal : for cell and molecular biology",
+            "doi": "10.1111/tpj.16597",
+            "journal_issue_date": "2024-04",
+            "electronic_publication_date": "2023-12-21",
+            "publication_types": [
+              "Journal Article",
+              "Research Support, Non-U.S. Gov't"
+            ]
+          },
+          "source_validation": {
+            "url": "https://pubmed.ncbi.nlm.nih.gov/38128030/",
+            "route": "Official NCBI PubMed EFetch XML; this exact PMID was requested in the single 12-ID batch and returned as a PubmedArticle record.",
+            "validated_at": "2026-09-30",
+            "http_status": 200
+          }
+        }
+      },
+      "draft_character_counts": {
+        "positive": 165,
+        "distinct_control": 145
+      }
+    },
+    {
+      "id": "pep1-neutrophil",
+      "positive": {
+        "draft": "Following Arabidopsis PEP1 danger signaling, STZ differentially regulates root-meristem cell-cycle, differentiation, and stress-response programs.",
+        "target_pmid": "39700410",
+        "year": 2024,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/39700410/"
+      },
+      "distinct_control": {
+        "draft": "Resting human neutrophils rely on glycogen as a major metabolic source; activation drives a GLUT1-enabled switch to primarily extracellular glucose, with function-specific effects.",
+        "anchor_pmid": "39284072",
+        "year": 2024,
+        "source": "https://pubmed.ncbi.nlm.nih.gov/39284072/"
+      },
+      "overlap_rule": "The positive concerns a plant root growth–defense balance; the control concerns nutrient-source switching across functions in mammalian innate immune cells.",
+      "source_metadata": {
+        "positive": {
+          "authors": "Souvik Dhar, Soo Youn Kim, Hee-Ji Shin et al.",
+          "title": "The molecular framework balancing growth and defense in response to plant elicitor peptide-induced signals in Arabidopsis.",
+          "first_author": "Souvik Dhar",
+          "author_count": 5,
+          "journal": "The Plant cell",
+          "doi": "10.1093/plcell/koae327",
+          "doi_url": "https://doi.org/10.1093/plcell/koae327",
+          "publication_date": "2024-12-23",
+          "electronic_publication_date": null,
+          "publication_types": [
+            "Journal Article"
+          ],
+          "claim_basis": "The abstract reports PEP1-induced root-meristem stress responses and STZ-dependent regulation of cell-cycle, differentiation, and defense programs, including a critical STZ expression level for the growth-defense tradeoff.",
+          "abstract_support_excerpts": [
+            "Through functional, phenotypic, and transcriptomic analyses, we observed that STZ differentially controls the cell cycle, cell differentiation, and stress response genes in various tissue layers of the root meristem.",
+            "Moreover, we determined the STZ expression level critical for enabling the growth-defense tradeoff."
+          ],
+          "draft_role": "positive",
+          "selection_reason": "Selected by title/abstract evidence for a concise, mechanism-specific claim and cross-domain pair separation; no validator, model, search-recall, or retrieval-performance outcome was observed.",
+          "verified_pubmed_metadata": {
+            "title": "The molecular framework balancing growth and defense in response to plant elicitor peptide-induced signals in Arabidopsis.",
+            "first_author": "Souvik Dhar",
+            "authors": [
+              "Souvik Dhar",
+              "Soo Youn Kim",
+              "Hee-Ji Shin",
+              "Jongsung Park",
+              "Ji-Young Lee"
+            ],
+            "author_count": 5,
+            "journal": "The Plant cell",
+            "doi": "10.1093/plcell/koae327",
+            "journal_issue_date": "2024-12-23",
+            "electronic_publication_date": null,
+            "publication_types": [
+              "Journal Article"
+            ]
+          },
+          "source_validation": {
+            "url": "https://pubmed.ncbi.nlm.nih.gov/39700410/",
+            "route": "Official NCBI PubMed EFetch XML; this exact PMID was requested in the single 12-ID batch and returned as a PubmedArticle record.",
+            "validated_at": "2026-09-30",
+            "http_status": 200
+          }
+        },
+        "control": {
+          "authors": "Emily C Britt, Xin Qing, James A Votava et al.",
+          "title": "Activation induces shift in nutrient utilization that differentially impacts cell functions in human neutrophils.",
+          "first_author": "Emily C Britt",
+          "author_count": 12,
+          "journal": "Proceedings of the National Academy of Sciences of the United States of America",
+          "doi": "10.1073/pnas.2321212121",
+          "doi_url": "https://doi.org/10.1073/pnas.2321212121",
+          "publication_date": "2024-09-24",
+          "electronic_publication_date": "2024-09-16",
+          "publication_types": [
+            "Journal Article",
+            "Research Support, N.I.H., Extramural"
+          ],
+          "claim_basis": "The abstract reports resting neutrophil reliance on glycogen, an activation-linked switch to extracellular glucose enabled by GLUT1, and function-specific consequences.",
+          "abstract_support_excerpts": [
+            "Human peripheral blood neutrophils, in contrast to a neutrophil-like cell line, rely on glycogen storage as a major metabolic source under resting state but rapidly switch to primarily using extracellular glucose upon activation with various stimuli.",
+            "This shift is driven by a substantial increase in glucose uptake, enabled by rapidly increased GLUT1 on cell membrane, that dominates the simultaneous increase in gross glycogen cycling capacity.",
+            "Shifts in nutrient utilization impact neutrophil functions in a function-specific manner: oxidative burst depends on glucose utilization, whereas NETosis and phagocytosis can be flexibly supported by either glucose or glycogen, and neutrophil migration and fungal control are enhanced by the shift from glycogen utilization to glucose utilization."
+          ],
+          "draft_role": "distinct_control",
+          "selection_reason": "Selected by title/abstract evidence for a concise, mechanism-specific claim and cross-domain pair separation; no validator, model, search-recall, or retrieval-performance outcome was observed.",
+          "verified_pubmed_metadata": {
+            "title": "Activation induces shift in nutrient utilization that differentially impacts cell functions in human neutrophils.",
+            "first_author": "Emily C Britt",
+            "authors": [
+              "Emily C Britt",
+              "Xin Qing",
+              "James A Votava",
+              "Jorgo Lika",
+              "Andrew S Wagner",
+              "Simone Shen",
+              "Nicholas L Arp",
+              "Hamidullah Khan",
+              "Stefan M Schieke",
+              "Christopher D Fletcher",
+              "Anna Huttenlocher",
+              "Jing Fan"
+            ],
+            "author_count": 12,
+            "journal": "Proceedings of the National Academy of Sciences of the United States of America",
+            "doi": "10.1073/pnas.2321212121",
+            "journal_issue_date": "2024-09-24",
+            "electronic_publication_date": "2024-09-16",
+            "publication_types": [
+              "Journal Article",
+              "Research Support, N.I.H., Extramural"
+            ]
+          },
+          "source_validation": {
+            "url": "https://pubmed.ncbi.nlm.nih.gov/39284072/",
+            "route": "Official NCBI PubMed EFetch XML; this exact PMID was requested in the single 12-ID batch and returned as a PubmedArticle record.",
+            "validated_at": "2026-09-30",
+            "http_status": 200
+          }
+        }
+      },
+      "draft_character_counts": {
+        "positive": 146,
+        "distinct_control": 180
+      }
+    }
+  ],
+  "screening_protocol": {
+    "order": "All six fixed pairs, positive then distinct control; all six are mandatory, with no enrollment, post-result substitution, or cherry-picked triplet.",
+    "no_screen_needed": "The v5 source set uses all listed inputs. No validator eligibility/performance claim or query experiment has occurred.",
+    "comparison_gate": "The separate fourth-study protocol novelty-result-conditioned-pilot-prereg-v4.json must be committed with exact current runner/model/MCP/prompt/request hashes before any model or maintained-tool request.",
+    "criteria": {
+      "primary": "Across the six positive drafts, compare exact target-PMID coverage in shared-first-search union candidate-follow-up results against the matched shared-first-search union static-follow-up results. Candidate must cover at least one additional positive target in aggregate and lose none of the positive target coverage in static. A target already present in shared-first search cannot earn incremental credit by reappearing in either follow-up.",
+      "non_regression": [
+        "Candidate loses none of the six distinct-control own-anchor coverage in matched shared-first-search union static-follow-up results, evaluated against shared-first-search union candidate-follow-up results.",
+        "Candidate does not increase cross-pair positive-target coverage among distinct controls; deduplicate each shared-first-search union follow-up PMID set identically for both arms.",
+        "Candidate does not increase the blinded unrelated-paper fraction among returned follow-up papers; incomplete blind labels make the outcome inconclusive.",
+        "Every returned paper has complete query, selected relaxation rung, selected/fetched/final PMID, source/tool, and actual server-process provenance."
+      ],
+      "shared_first_search_scoring": "The identical shared-first-search set enters both arm coverage unions. Follow-up hits already present in that shared set cannot contribute an incremental gain or loss. Keep returned follow-up-paper blinded unrelated fractions as separately declared; no packet item may be missing a blind label.",
+      "failure_interpretation": "A primary or non-regression failure rejects this exact frozen adaptation only. It does not establish that every iterative search method fails.",
+      "pass_interpretation": "A pass retains the mechanism as promising only; no product adoption or release until the separately preregistered independent three-pair confirmatory comparison passes.",
+      "prospective_clarification": "Independent review before the earlier study found that counting a follow-up re-retrieval of a seed target could fabricate incremental prior-art discovery. Union/dedup prevents this, retaining the original at-least-one improvement/no-loss/control/provenance thresholds."
+    },
+    "shared_first_search_scoring": "The identical shared-first-search set enters both arm coverage unions. Follow-up hits already present in that shared set cannot contribute an incremental gain or loss. Keep returned follow-up-paper blinded unrelated fractions as separately declared; no packet item may be missing a blind label.",
+    "cache": "New empty isolated cache, unique namespace for each outer call; no old trial/cache reuse.",
+    "stops": "Any unresolved retrieval/model/provenance/price/error ambiguity stops the admitted study unscored. Only explicitly preregistered fourth-study429/502 Entrez-entry recovery (<=1/logicalrequest,<=2study-wide) may proceed; no model or outer-call replay, result substitution or old-study resume.",
+    "privacy": "Public inputs only; no other researchers’ documents or runs."
+  },
+  "cost": {
+    "source_acquisition": "Two documented official exact-ID EFetch batches: the initial author response was not retained; the independent reviewer batch was retained and verified. No paid source, model inference or maintained-tool draft search occurred.",
+    "future_study": "Unestimated; the coordinator must freeze request/cost bounds in the separate protocol."
+  },
+  "prepared_at_utc": "2026-09-30",
+  "registration_note": "Source inputs frozen after independent corrected-abstract/exposure validation and before any draft-query retrieval or model call. A distinct committed protocol4 and verified default-off recovery integration are still required before admission. This file does not itself authorize inference.",
+  "trace_readiness_record": {
+    "status": "PENDING_INTEGRATED_OFFLINE_RECOVERY_AND_PROTOCOL_GATE",
+    "no_scientific_calls_authorized_by_bank": true
+  },
+  "registered_at_utc": "2026-09-30T09:55:34.864067+00:00"
+}

@@ -1,5 +1,18 @@
 # External source campaign — evidence and acceptance status
 
+Current retrieval work: [batching](sakana/novelty-pubmed-batching-verification-2026-09-30.json),
+[strict trace reader](sakana/novelty-batch-reader-verification-2026-09-30.json) and
+[workflow integration](sakana/novelty-batch-pilot-integration-verification-2026-09-30.json)
+close PLAN f1–f4. [Fresh comparison registration](sakana/novelty-pilot-v5-registration-verification-2026-09-30.json)
+closes f5: six exploratory pairs, twelve independently verified primary sources,
+exact committed bank6/protocol5, and an actual credential-free CLI/MCP preflight.
+The normal loader accepted the committed bytes; no admission or scientific call occurred.
+The pinned 88 runner and 26 reader tests remain applicable; batching is unreleased.
+Next is the sole f6 comparison after fresh free-route and serving-process checks,
+with the unchanged 24-model/36-outer-call caps and scientific gates. All four
+historical admissions remain consumed, immutable and unscored. Four original
+scientific/final gates remain open; no further model qualification is authorized.
+
 ## Current update — 30 September 2026
 
 All nine source assessments and accepted releases are retained; the dated sections below preserve their original evidence. The campaign is **not complete**.
@@ -8,7 +21,9 @@ All nine source assessments and accepted releases are retained; the dated sectio
 - **Robin:** the [distinct production continuation](m12-robin-continuation-acceptance-2026-09-30.json) completed 17 new durable tasks, preserving source lineage, ownership, model/cost metrics and browser refresh. Its child traversed ordinary downstream gates; deep verification weakened it and a claim assessment blocked it before the final run-level decision. Those outcomes are retained rather than described as scientific validation.
 - **Novelty:** the [historical v1 interruption](sakana/novelty-pilot-interruption-2026-09-30.json) exposed missing trace instrumentation. After offline correction and independent review, a [separately committed prospective study](sakana/novelty-result-conditioned-pilot-prereg-v2.json) used fresh public inputs. Its sole launch [stopped on PubMed HTTP502](sakana/novelty-pilot-v2-interruption-2026-09-30.json) after three model responses and four retrieval calls at observed $0. Both admissions are consumed; neither study may be replayed. Partial blind labels are evidence only, not a complete treatment-effect score. Result-conditioned search remains unadopted and unresolved.
 - **Third novelty study:** the [source-pin-only runtime amendment](sakana/novelty-pilot-v3-runtime-amendment-2026-09-30.json) passed 42 offline cases and committed-loader verification before admission. Its sole registered launch then [stopped at the first metadata-fetch error](sakana/novelty-pilot-v3-interruption-2026-09-30.json), after one model response and one outer retrieval call at reported $0. Three returned papers do not repair the incomplete source fetch or establish either arm's quality. No replay, confirmatory comparison or adoption occurred; all three admissions are now consumed and the four original acceptance items remain open.
-- **Support release:** [PR #79](https://github.com/guy915/Co-Scientist/pull/79) merged as `a4a06abd`; [all required local checks, existing-service deployment and 5/5 keyless production smoke passed](m12-pubmed-trace-release-2026-09-30.json). Production tracing stays disabled. Four M12 items remain: complete novelty evidence, its conditional adoption/disposition, candidate reconciliation and final acceptance. The support release does not satisfy those scientific gates in [PLAN.md](../../PLAN.md).
+- **Fourth novelty study:** [protocol4](sakana/novelty-result-conditioned-pilot-prereg-v4.json) and [actual isolated CLI/process readiness](sakana/novelty-pilot-v4-process-readiness-2026-09-30.json) completed the prospective support gates. The [sole fourth admission stopped incomplete](sakana/novelty-pilot-v4-terminal-2026-09-30.json) after 13 model responses and 19 outer searches at reported $0 and unchanged account usage. Two EFetch 429 recoveries succeeded; a subsequent ELink 429 exhausted the registered two-retry ceiling. Three of six pairs traversed; no partial scoring, replay, adoption or rejection. The request-volume audit and subsequent offline batching correction are complete; four original acceptance gates remain open. No further model qualification was run.
+- **Current evidence release:** [PR #80](https://github.com/guy915/Co-Scientist/pull/80) merged the reference-only runner repair and immutable study records as `73459c6c`; [API/MCP SUCCESS, frontend READY and post-deployment smoke 5/5](m12-reference-evidence-release-2026-09-30.json) are verified. Maintained product content is unchanged from PR #79; its full checks remain applicable, and 42 affected reference tests passed. Hosted CI was waived, not passing. The four scientific/final-acceptance gates remain open.
+- **Preceding support release:** [PR #79](https://github.com/guy915/Co-Scientist/pull/79) merged as `a4a06abd`; [all required local checks, existing-service deployment and 5/5 keyless production smoke passed](m12-pubmed-trace-release-2026-09-30.json). Production tracing stays disabled. The four original M12 gates remain: complete novelty evidence, its conditional adoption/disposition, candidate reconciliation and final acceptance. The support release does not satisfy those scientific gates in [PLAN.md](../../PLAN.md).
 
 
 **Historical PR #46 snapshot, 25 September 2026:** Nine required source assessments and accepted product releases were reconciled. Eight M11 follow-ups were then open in `PLAN.md`; none was completed, verified, or rejected by deferral. Later updates below supersede that count.

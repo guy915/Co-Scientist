@@ -19,6 +19,23 @@ from co_scientist.config.registry import ToolRegistry
 
 MODEL = "openrouter/campaign/zero:free"
 SERVED_MODEL = "campaign/zero:free"
+STUDY4_IDENTITY = "M12-04b4-study4-20260930"
+STUDY4_RECOVERY_POLICY = {
+    "study_id": STUDY4_IDENTITY,
+    "activation_env": "COSCIENTIST_PUBMED_STUDY4_RECOVERY",
+    "activation_value": "1",
+    "study_id_env": "COSCIENTIST_PUBMED_STUDY_ID",
+    "study_id_env_value": STUDY4_IDENTITY,
+    "trace_env": "COSCIENTIST_PUBMED_PILOT_TRACE",
+    "trace_value": "1",
+    "policy": "study4-entrez-429-502-v1",
+    "retryable_http_statuses": [429, 502],
+    "max_retries_per_logical_request": 1,
+    "max_retries_per_study": 2,
+    "retry_after_max_seconds": 60,
+    "retry_after_default_seconds": 15,
+    "pacer_interval_seconds": 0.4,
+}
 MODEL_BOUNDARY_FILES = (
     "engine/src/co_scientist/llm_free_catalog.py",
     "engine/src/co_scientist/llm_free_policy.py",
@@ -42,6 +59,7 @@ class FakeMCPClient:
         response_override: str | None = None,
         include_v2_trace: bool = False,
         incomplete_fetch: bool = False,
+        study4_trace: dict[str, Any] | None = None,
     ) -> None:
         self.cache_root = cache_root
         self.events = events
@@ -51,6 +69,7 @@ class FakeMCPClient:
         self.response_override = response_override
         self.include_v2_trace = include_v2_trace
         self.incomplete_fetch = incomplete_fetch
+        self.study4_trace = study4_trace
         self.calls: list[tuple[str, dict[str, Any]]] = []
         self.last_response: str | None = None
         self.initialize_calls = 0
@@ -169,6 +188,8 @@ class FakeMCPClient:
                 "error": None,
                 "outcome": "nonempty" if ids else "empty",
             }
+            if self.study4_trace is not None:
+                raw_trace.update(self.study4_trace)
             trace.write_text(json.dumps(raw_trace), encoding="utf-8")
         return self.last_response
 
@@ -943,44 +964,67 @@ def test_study_version_is_explicit_and_uses_separate_output_paths(
     assert pilot._parse_args([]).study_version == 1
     assert pilot._parse_args(["--study-version", "2"]).study_version == 2
     assert pilot._parse_args(["--study-version", "3"]).study_version == 3
-    with pytest.raises(SystemExit):
-        pilot._parse_args(["--study-version", "4"])
-    with pytest.raises(
-        ValueError, match="Unsupported result-conditioned pilot study version: 4"
-    ):
-        pilot._new_output_paths(4)
+    assert pilot._parse_args(["--study-version", "4"]).study_version == 4
 
     monkeypatch.setattr(pilot, "RESULT_DIR", tmp_path)
     v1_result, v1_blind = pilot._new_output_paths(1)
     v2_result, v2_blind = pilot._new_output_paths(2)
     v3_result, v3_blind = pilot._new_output_paths(3)
+    v4_result, v4_blind = pilot._new_output_paths(4)
 
     assert v1_result.name.startswith("novelty-result-conditioned-pilot-v1-")
     assert v2_result.name.startswith("novelty-result-conditioned-pilot-v2-")
     assert v3_result.name.startswith("novelty-result-conditioned-pilot-v3-")
+    assert v4_result.name.startswith("novelty-result-conditioned-pilot-v4-")
     assert "-v1-blind-" in v1_blind.name
     assert "-v2-blind-" in v2_blind.name
     assert "-v3-blind-" in v3_blind.name
-    assert len({v1_result, v1_blind, v2_result, v2_blind, v3_result, v3_blind}) == 6
+    assert "-v4-blind-" in v4_blind.name
+    assert (
+        len(
+            {
+                v1_result,
+                v1_blind,
+                v2_result,
+                v2_blind,
+                v3_result,
+                v3_blind,
+                v4_result,
+                v4_blind,
+            }
+        )
+        == 8
+    )
 
 
-def test_v3_admission_uses_a_distinct_exclusive_marker(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("study_version", "protocol_constant"),
+    [(3, "PILOT_PREREG_V3"), (4, "PILOT_PREREG_V4")],
+)
+def test_versioned_admission_uses_a_distinct_exclusive_marker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    study_version: int,
+    protocol_constant: str,
 ) -> None:
-    protocol_path = tmp_path / "novelty-result-conditioned-pilot-prereg-v3.json"
-    protocol_bytes = b"committed prospective study v3 protocol\n"
+    protocol_path = (
+        tmp_path / f"novelty-result-conditioned-pilot-prereg-v{study_version}.json"
+    )
+    protocol_bytes = f"committed prospective study v{study_version} protocol\n".encode()
     protocol_path.write_bytes(protocol_bytes)
-    monkeypatch.setattr(pilot, "PILOT_PREREG_V3", protocol_path)
+    monkeypatch.setattr(pilot, protocol_constant, protocol_path)
 
-    admission_path = pilot._claim_campaign_admission({"model_name": MODEL}, 3)
+    admission_path = pilot._claim_campaign_admission(
+        {"model_name": MODEL}, study_version
+    )
 
     assert admission_path == protocol_path.with_suffix(".admission.json")
     admission = json.loads(admission_path.read_text(encoding="utf-8"))
-    assert admission["study_version"] == 3
+    assert admission["study_version"] == study_version
     assert admission["protocol_sha256"] == hashlib.sha256(protocol_bytes).hexdigest()
     assert admission_path.stat().st_mode & 0o777 == 0o600
     with pytest.raises(ValueError, match="campaign admission already exists"):
-        pilot._claim_campaign_admission({"model_name": MODEL}, 3)
+        pilot._claim_campaign_admission({"model_name": MODEL}, study_version)
 
 
 @pytest.mark.parametrize("study_version", [2, 3])
@@ -1082,6 +1126,15 @@ def test_prospective_partial_fulltext_fetch_is_rejected_and_admission_cannot_be_
             "references/external/sakana/novelty-fixture-bank-prereg-v4.json",
             "PREREGISTERED_BEFORE_ANY_V4_VALIDATOR_SCREEN",
         ),
+        (
+            4,
+            "PILOT_PREREG_V4",
+            "novelty-result-conditioned-pilot-prereg-v4.json",
+            4,
+            5,
+            "references/external/sakana/novelty-fixture-bank-prereg-v5.json",
+            "PREREGISTERED_FRESH_FOURTH_STUDY_INPUTS",
+        ),
     ],
 )
 def test_versioned_protocol_binds_committed_bank_path_and_hash(
@@ -1095,6 +1148,7 @@ def test_versioned_protocol_binds_committed_bank_path_and_hash(
     bank_path_relative: str,
     bank_status: str,
 ) -> None:
+    assert pilot._study_registration(study_version).requires_raw_trace
     repository = tmp_path / "repository"
     bank_path = repository / bank_path_relative
     protocol_path = repository / "references/external/sakana" / protocol_filename
@@ -1129,6 +1183,8 @@ def test_versioned_protocol_binds_committed_bank_path_and_hash(
         "mcp_tree": "offline-build",
         "mcp_build_id": "offline-build",
     }
+    if study_version == 4:
+        protocol["entrez_recovery_policy"] = STUDY4_RECOVERY_POLICY
     protocol_path.write_text(json.dumps(protocol), encoding="utf-8")
     subprocess.run(["git", "init", "-q"], cwd=repository, check=True)
     subprocess.run(
@@ -1177,6 +1233,107 @@ def test_versioned_protocol_binds_committed_bank_path_and_hash(
     bank_path.write_text(json.dumps({**bank, "name": "changed"}), encoding="utf-8")
     with pytest.raises(ValueError, match="Fixture bank must be committed unchanged"):
         pilot._load_fixture_bank(loaded, study_version)
+
+
+def _study4_loader_protocol(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    policy: dict[str, Any] | None,
+) -> None:
+    protocol_path = tmp_path / "novelty-result-conditioned-pilot-prereg-v4.json"
+    protocol: dict[str, Any] = {
+        "status": "PREREGISTERED_BEFORE_ANY_PILOT_CALL",
+        "study_version": 4,
+        "protocol_version": 4,
+        "fixture_bank_version": 5,
+        "fixture_bank_path": pilot.V4_FIXTURE_BANK_PATH,
+        "fixture_bank_sha256": "offline-bank-hash",
+        "runner_sha256": hashlib.sha256(Path(pilot.__file__).read_bytes()).hexdigest(),
+        "static_prompt_sha256": hashlib.sha256(
+            pilot.STATIC_PROMPT.encode()
+        ).hexdigest(),
+        "conditioned_prompt_sha256": hashlib.sha256(
+            pilot.CONDITIONED_PROMPT.encode()
+        ).hexdigest(),
+        "request_config": pilot.MODEL_REQUEST_CONFIG,
+        "max_outer_mcp_calls": pilot.OUTER_MCP_CALL_LIMIT,
+        "max_model_calls": pilot.MODEL_CALL_LIMIT,
+        "model_name": MODEL,
+        "model_boundary_sha256": {},
+    }
+    if policy is not None:
+        protocol["entrez_recovery_policy"] = policy
+    protocol_path.write_text(json.dumps(protocol), encoding="utf-8")
+    monkeypatch.setattr(pilot, "PILOT_PREREG_V4", protocol_path)
+    monkeypatch.setattr(
+        pilot, "_committed_protocol_bytes", lambda path: path.read_bytes()
+    )
+    monkeypatch.setattr(pilot, "_model_boundary_hashes", lambda: {})
+    monkeypatch.setattr(pilot, "_load_fixture_bank", lambda *_args: {})
+
+
+@pytest.mark.parametrize(
+    "policy",
+    [
+        None,
+        {**STUDY4_RECOVERY_POLICY, "study_id": "M12-04b4e1a"},
+        {**STUDY4_RECOVERY_POLICY, "max_retries_per_study": 3},
+    ],
+)
+def test_study4_protocol_requires_exact_recovery_policy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    policy: dict[str, Any] | None,
+) -> None:
+    _study4_loader_protocol(tmp_path, monkeypatch, policy)
+    with pytest.raises(ValueError, match="Study 4 protocol does not pin"):
+        pilot._load_pilot_protocol(4)
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("COSCIENTIST_PUBMED_STUDY_ID", "M12-04b4e1a"),
+        ("COSCIENTIST_PUBMED_STUDY4_RECOVERY", "0"),
+        ("COSCIENTIST_PUBMED_PILOT_TRACE", "0"),
+    ],
+)
+def test_study4_runner_requires_matching_recovery_environment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    value: str,
+) -> None:
+    protocol, bank, cache_root = _study4_runtime_inputs(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        pilot,
+        "_check_mcp_process",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("process gate")),
+    )
+    monkeypatch.setenv(name, value)
+
+    with pytest.raises(ValueError, match="Study 4 recovery activation"):
+        pilot._check_runtime(protocol, bank, cache_root=cache_root)
+
+
+def test_study4_loader_accepts_only_committed_actual_bank5(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bank_path = pilot.ROOT / pilot.V4_FIXTURE_BANK_PATH
+    bank_bytes = bank_path.read_bytes()
+    protocol = {
+        "study_version": 4,
+        "protocol_version": 4,
+        "fixture_bank_version": 5,
+        "fixture_bank_path": pilot.V4_FIXTURE_BANK_PATH,
+        "fixture_bank_sha256": hashlib.sha256(bank_bytes).hexdigest(),
+    }
+
+    bank = pilot._load_fixture_bank(protocol, 4)
+
+    assert bank == json.loads(bank_bytes)
+    assert bank["version"] == 5
+    assert bank["status"] == "PREREGISTERED_FRESH_FOURTH_STUDY_INPUTS"
 
 
 @pytest.mark.parametrize("study_version", [2, 3])
@@ -1438,6 +1595,62 @@ def _study3_runtime_inputs(
     )
 
 
+def _study4_runtime_inputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[dict[str, Any], dict[str, Any], Path]:
+    current_root = pilot.ROOT
+    protocol, bank, cache_root = _runtime_inputs(tmp_path, monkeypatch)
+    boundary_paths = {
+        "validator_path": "engine/src/co_scientist/agents/generation/literature_tools/validate_search.py",
+        "response_parser_path": "engine/src/co_scientist/tools/response_parser.py",
+        "tool_config_path": "engine/src/co_scientist/config/tools.yaml",
+    }
+    source_hashes: dict[str, str] = {}
+    for relative_path in boundary_paths.values():
+        source_path = current_root / relative_path
+        test_source_path = pilot.ROOT / relative_path
+        test_source_path.parent.mkdir(parents=True, exist_ok=True)
+        test_source_path.write_bytes(source_path.read_bytes())
+        source_hashes[relative_path] = hashlib.sha256(
+            source_path.read_bytes()
+        ).hexdigest()
+
+    protocol.update(
+        {
+            "study_version": 4,
+            "fixture_bank_version": 5,
+            "entrez_recovery_policy": STUDY4_RECOVERY_POLICY,
+            "validation_boundary": {
+                **boundary_paths,
+                "validator_sha256": source_hashes[boundary_paths["validator_path"]],
+                "response_parser_sha256": source_hashes[
+                    boundary_paths["response_parser_path"]
+                ],
+                "tool_config_sha256": source_hashes[boundary_paths["tool_config_path"]],
+            },
+        }
+    )
+    bank.update(
+        {
+            "version": 5,
+            "status": "PREREGISTERED_FRESH_FOURTH_STUDY_INPUTS",
+            "validation_boundary": {
+                "maintained_validator": boundary_paths["validator_path"],
+                "parser": boundary_paths["response_parser_path"],
+                "tool_config": boundary_paths["tool_config_path"],
+            },
+        }
+    )
+    monkeypatch.setattr(
+        pilot.fixture,
+        "_sha256",
+        lambda path: hashlib.sha256(Path(path).read_bytes()).hexdigest(),
+    )
+    monkeypatch.setenv("COSCIENTIST_PUBMED_STUDY4_RECOVERY", "1")
+    monkeypatch.setenv("COSCIENTIST_PUBMED_STUDY_ID", STUDY4_IDENTITY)
+    return protocol, bank, cache_root
+
+
 def test_study3_cli_reaches_science_boundary_with_current_v4_bank(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1458,6 +1671,418 @@ def test_study3_cli_reaches_science_boundary_with_current_v4_bank(
 
     assert protocol["study_version"] == 3
     assert bank["version"] == 4
+
+
+def test_study4_runtime_checks_registered_source_paths_and_hashes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    protocol, bank, cache_root = _study4_runtime_inputs(tmp_path, monkeypatch)
+    serving_process = {"pid": 123, "mcp_tree": "server-tree"}
+    process_check: dict[str, Any] = {}
+
+    def check_process(*_args: Any, **kwargs: Any) -> dict[str, Any]:
+        process_check.update(kwargs)
+        return serving_process
+
+    monkeypatch.setattr(pilot, "_check_mcp_process", check_process)
+
+    endpoint, checked_cache, build_id, checked_process = pilot._check_runtime(
+        protocol, bank, cache_root=cache_root
+    )
+
+    assert (endpoint, checked_cache, build_id, checked_process) == (
+        "http://127.0.0.1:8123/mcp",
+        cache_root,
+        "server-tree",
+        serving_process,
+    )
+    assert process_check["expected_study_id"] == STUDY4_IDENTITY
+
+
+@pytest.mark.parametrize(
+    ("recovery_flag", "study_id", "accept"),
+    [
+        ("1", STUDY4_IDENTITY, True),
+        ("0", STUDY4_IDENTITY, False),
+        ("1", "M12-04b4e1a", False),
+    ],
+)
+def test_study4_serving_process_attestation_binds_exact_activation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    recovery_flag: str,
+    study_id: str,
+    accept: bool,
+) -> None:
+    _protocol, _prereg, cache_root = _runtime_inputs(tmp_path, monkeypatch)
+    monkeypatch.setattr(pilot.fixture, "_check_server_tree_clean", lambda: None)
+    monkeypatch.setattr(pilot.fixture, "_git", lambda *_args: "server-tree")
+    output = iter(
+        [
+            SimpleNamespace(
+                returncode=0,
+                stdout="p123\nn127.0.0.1:8123\n",
+                stderr="",
+            ),
+            SimpleNamespace(
+                returncode=0,
+                stdout=f"n{pilot.ROOT / 'engine'}\n",
+                stderr="",
+            ),
+            SimpleNamespace(
+                returncode=0,
+                stdout=(
+                    "python -m uvicorn mcp_server.server:app "
+                    "COSCIENTIST_MCP_SHARED_SECRET=offline-loopback-secretoffline-loopback-secret "
+                    "COSCIENTIST_REQUIRE_FREE_MODELS=1 "
+                    "COSCIENTIST_PUBMED_PILOT_TRACE=1 "
+                    f"COSCIENTIST_PUBMED_STUDY4_RECOVERY={recovery_flag} "
+                    f"COSCIENTIST_PUBMED_STUDY_ID={study_id} "
+                    "COSCIENTIST_PUBMED_PILOT_BUILD_ID=server-tree "
+                    f"COSCIENTIST_LIT_REVIEW_DIR={cache_root} "
+                    "PYTHONPATH=."
+                ),
+                stderr="",
+            ),
+        ]
+    )
+    monkeypatch.setattr(pilot.subprocess, "run", lambda *_args, **_kwargs: next(output))
+
+    if accept:
+        process = pilot._check_mcp_process(
+            "http://127.0.0.1:8123/mcp",
+            expected_secret="offline-loopback-secret" * 2,
+            expected_build_id="server-tree",
+            cache_root=cache_root,
+            expected_study_id=STUDY4_IDENTITY,
+        )
+        assert process["study4_recovery"] == {
+            "enabled": True,
+            "study_id": STUDY4_IDENTITY,
+        }
+    else:
+        with pytest.raises(ValueError, match="study recovery binding differs"):
+            pilot._check_mcp_process(
+                "http://127.0.0.1:8123/mcp",
+                expected_secret="offline-loopback-secret" * 2,
+                expected_build_id="server-tree",
+                cache_root=cache_root,
+                expected_study_id=STUDY4_IDENTITY,
+            )
+
+
+@pytest.mark.parametrize("mismatch", ["path", "hash"])
+def test_study4_runtime_rejects_validation_source_mismatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mismatch: str,
+) -> None:
+    protocol, bank, cache_root = _study4_runtime_inputs(tmp_path, monkeypatch)
+    if mismatch == "path":
+        bank["validation_boundary"]["parser"] = "engine/unexpected.py"
+        expected_error = "validation source path differs"
+    else:
+        protocol["validation_boundary"]["response_parser_sha256"] = "0" * 64
+        expected_error = "Frozen validation source changed"
+
+    with pytest.raises(ValueError, match=expected_error):
+        pilot._check_runtime(protocol, bank, cache_root=cache_root)
+
+
+def _study4_empty_recovery_fields(
+    run_id: str,
+    *,
+    process_start: int = 0,
+    process_end: int = 1,
+    final_outcome: str = "recovered",
+) -> dict[str, Any]:
+    retry_count = int(final_outcome in {"recovered", "exhausted"})
+    client_entry_attempts = 1 + retry_count
+    attempts = [
+        {
+            "study_id": STUDY4_IDENTITY,
+            "run_id": run_id,
+            "server_build_id": "offline-build",
+            "process_id": 123,
+            "operation": "esearch",
+            "logical_request_ordinal": 1,
+            "attempt_ordinal": 1,
+            "http_status": 502,
+            "retry_after_value": None,
+            "retry_after_raw_prefix": None,
+            "retry_after_raw_truncated": False,
+            "wait_seconds": 15,
+            "outcome": final_outcome,
+        }
+    ]
+    if final_outcome == "exhausted":
+        attempts.append({**attempts[0], "attempt_ordinal": 2})
+    return {
+        "entrez_recovery": {
+            "study_id": STUDY4_IDENTITY,
+            "policy": "study4-entrez-429-502-v1",
+            "max_retries_per_logical_request": 1,
+            "max_retries_per_study": 2,
+            "retries_used": retry_count,
+            "recovered_calls": int(final_outcome == "recovered"),
+            "exhausted_calls": int(final_outcome != "recovered"),
+            "client_entry_attempts": {
+                "esearch": client_entry_attempts,
+                "efetch": 0,
+                "elink": 0,
+            },
+            "process_retries_used_at_start": process_start,
+            "process_retries_used_at_end": process_end,
+        },
+        "recovered_transient_attempts": attempts,
+        "entrez_recovery_call_outcomes": [
+            {
+                "study_id": STUDY4_IDENTITY,
+                "run_id": run_id,
+                "operation": "esearch",
+                "logical_request_ordinal": 1,
+                "retry_count": retry_count,
+                "client_entry_attempts": client_entry_attempts,
+                "final_outcome": final_outcome,
+            }
+        ],
+    }
+
+
+def test_study4_search_boundary_preserves_recovery_and_enforces_global_budget(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, _, cache_root = _study4_runtime_inputs(tmp_path, monkeypatch)
+    serving_process = {"pid": 123, "mcp_tree": "offline-build"}
+    monkeypatch.setattr(
+        pilot, "_require_same_serving_process", lambda *_args, **_kwargs: None
+    )
+    registry = _registry()
+    _, tool = pilot.fixture._find_search_tool(registry)
+    recorder = pilot.fixture._RecordingClient(
+        FakeMCPClient(
+            cache_root,
+            [],
+            response_override="{}",
+            include_v2_trace=True,
+        )
+    )
+    accounting = {
+        "study_id": STUDY4_IDENTITY,
+        "policy": "study4-entrez-429-502-v1",
+        "max_retries_per_study": 2,
+        "retries_used": 0,
+        "recovered_calls": 0,
+        "exhausted_calls": 0,
+        "client_entry_attempts": {"esearch": 0, "efetch": 0, "elink": 0},
+        "process_retries_used_at_start": 0,
+        "process_retries_used_at_end": 0,
+        "recovered_transient_attempts": [],
+        "entrez_recovery_call_outcomes": [],
+    }
+
+    async def search_once(
+        outer_call_number: int,
+        process_start: int,
+        process_end: int,
+        *,
+        final_outcome: str = "recovered",
+    ) -> tuple[list[dict[str, Any]] | None, dict[str, Any]]:
+        run_id = f"m11_nov_01a3b3_offline_{outer_call_number:02d}"
+        recorder.client.study4_trace = _study4_empty_recovery_fields(
+            run_id,
+            process_start=process_start,
+            process_end=process_end,
+            final_outcome=final_outcome,
+        )
+        event: dict[str, Any] = {"event_id": outer_call_number}
+        result = await pilot._search_once(
+            "offline query",
+            pair_id=f"pair-{outer_call_number}",
+            arm="shared",
+            stage="first_search",
+            registry=registry,
+            recorder=recorder,
+            parser=pilot.ResponseParser(tool),
+            cache_root=cache_root,
+            expected_build_id="offline-build",
+            nonce="offline",
+            outer_call_number=outer_call_number,
+            endpoint="http://127.0.0.1:8123/mcp",
+            serving_process=serving_process,
+            draft="offline draft",
+            draft_id=f"pair-{outer_call_number}:shared",
+            source_ids=set(),
+            first_search_event_id=None,
+            study_version=4,
+            blind_items=[],
+            event=event,
+            study4_recovery_accounting=accounting,
+        )
+        return result, event
+
+    first, first_event = asyncio.run(search_once(1, 0, 1))
+    assert first == [], {
+        key: first_event.get(key)
+        for key in ("trace_error", "exception_type", "trace_attestation")
+    }
+    assert first_event["trace_attestation"]["recovered_transient_attempts"]
+    assert accounting["retries_used"] == accounting["process_retries_used_at_end"] == 1
+    assert len(accounting["recovered_transient_attempts"]) == 1
+
+    interleaved, interleaved_event = asyncio.run(search_once(2, 0, 2))
+    assert interleaved is None
+    assert interleaved_event["trace_error"] == "ValueError"
+    assert accounting["retries_used"] == accounting["process_retries_used_at_end"] == 1
+    assert len(accounting["recovered_transient_attempts"]) == 1
+
+    second, second_event = asyncio.run(search_once(3, 1, 2))
+    assert second == []
+    assert (
+        second_event["trace_attestation"]["entrez_recovery"][
+            "process_retries_used_at_start"
+        ]
+        == 1
+    )
+    assert accounting["retries_used"] == accounting["process_retries_used_at_end"] == 2
+    assert len(accounting["recovered_transient_attempts"]) == 2
+
+    exhausted, exhausted_event = asyncio.run(
+        search_once(4, 2, 2, final_outcome="study_budget_exhausted")
+    )
+    assert exhausted is None
+    assert exhausted_event["trace_error"] == "ValueError"
+    assert accounting["retries_used"] == 2
+    assert len(accounting["recovered_transient_attempts"]) == 2
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    [
+        "missing",
+        "malformed",
+        "over_budget",
+        "unreconciled",
+        "exhausted",
+        "wrong_retry_count",
+    ],
+)
+def test_study4_recovery_validator_fails_closed(corruption: str) -> None:
+    run_id = "m12_nov_v4_offline_01"
+    trace = {
+        "run_id": run_id,
+        "server_build_id": "offline-build",
+        "process_id": 123,
+        "entrez_calls": {"esearch": 1, "efetch": 0, "elink": 0},
+        **_study4_empty_recovery_fields(run_id),
+    }
+    if corruption == "missing":
+        trace.pop("entrez_recovery")
+    elif corruption == "malformed":
+        trace["entrez_recovery"]["retries_used"] = True
+    elif corruption == "over_budget":
+        trace["entrez_recovery"]["process_retries_used_at_end"] = 3
+    elif corruption == "unreconciled":
+        trace["entrez_recovery_call_outcomes"][0]["retry_count"] = 0
+    elif corruption == "exhausted":
+        trace["entrez_recovery_call_outcomes"][0]["final_outcome"] = "exhausted"
+    else:
+        trace["entrez_recovery_call_outcomes"][0]["retry_count"] = 0
+        trace["entrez_recovery_call_outcomes"][0]["client_entry_attempts"] = 1
+        trace["entrez_recovery"]["retries_used"] = 0
+        trace["entrez_recovery"]["process_retries_used_at_end"] = 0
+        trace["entrez_recovery"]["client_entry_attempts"]["esearch"] = 1
+        trace["recovered_transient_attempts"][0]["wait_seconds"] = 0
+
+    with pytest.raises(ValueError):
+        pilot._validate_study4_recovery_trace(
+            trace,
+            run_id=run_id,
+            expected_build_id="offline-build",
+            serving_process={"pid": 123},
+            study_retries_used_so_far=0,
+        )
+
+
+def test_study4_recovery_validator_accepts_unusable_retry_after_fallback() -> None:
+    run_id = "m12_nov_v4_offline_01"
+    trace = {
+        "run_id": run_id,
+        "server_build_id": "offline-build",
+        "process_id": 123,
+        "entrez_calls": {"esearch": 1, "efetch": 0, "elink": 0},
+        **_study4_empty_recovery_fields(run_id),
+    }
+    trace["recovered_transient_attempts"][0]["retry_after_value"] = (
+        "Wed, 32 Foo 2026 12:00:00 GMT"
+    )
+    trace["recovered_transient_attempts"][0]["retry_after_raw_prefix"] = (
+        "Wed, 32 Foo 2026 12:00:00 GMT"
+    )
+
+    attestation = pilot._validate_study4_recovery_trace(
+        trace,
+        run_id=run_id,
+        expected_build_id="offline-build",
+        serving_process={"pid": 123},
+        study_retries_used_so_far=0,
+    )
+
+    assert attestation["recovered_transient_attempts"][0]["wait_seconds"] == 15
+
+
+@pytest.mark.parametrize("retry_after", ["1 ", "\t1\t"])
+def test_study4_recovery_validator_accepts_retry_after_optional_whitespace(
+    retry_after: str,
+) -> None:
+    run_id = "m12_nov_v4_retry_after_ows"
+    trace = {
+        "run_id": run_id,
+        "server_build_id": "offline-build",
+        "process_id": 123,
+        "entrez_calls": {"esearch": 1, "efetch": 0, "elink": 0},
+        **_study4_empty_recovery_fields(run_id),
+    }
+    event = trace["recovered_transient_attempts"][0]
+    event["retry_after_value"] = retry_after
+    event["retry_after_raw_prefix"] = retry_after
+    event["wait_seconds"] = 1
+
+    attestation = pilot._validate_study4_recovery_trace(
+        trace,
+        run_id=run_id,
+        expected_build_id="offline-build",
+        serving_process={"pid": 123},
+        study_retries_used_so_far=0,
+    )
+
+    assert (
+        attestation["recovered_transient_attempts"][0]["retry_after_value"]
+        == retry_after
+    )
+
+
+def test_study4_completion_requires_process_snapshot_to_equal_retries_used() -> None:
+    accounting = {
+        "study_id": STUDY4_IDENTITY,
+        "policy": "study4-entrez-429-502-v1",
+        "retries_used": 1,
+        "recovered_calls": 1,
+        "exhausted_calls": 0,
+        "client_entry_attempts": {"esearch": 2, "efetch": 0, "elink": 0},
+        "process_retries_used_at_start": 0,
+        "process_retries_used_at_end": 1,
+        "recovered_transient_attempts": [{"outcome": "recovered"}],
+        "entrez_recovery_call_outcomes": [
+            {"retry_count": 1, "final_outcome": "recovered"}
+        ],
+    }
+
+    pilot._validate_complete_study4_recovery(accounting)
+
+    accounting["process_retries_used_at_end"] = 2
+    with pytest.raises(ValueError, match="accounting is incomplete"):
+        pilot._validate_complete_study4_recovery(accounting)
 
 
 @pytest.mark.parametrize(

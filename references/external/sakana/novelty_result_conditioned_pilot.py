@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import email.utils
 import hashlib
 import json
 import os
@@ -13,10 +14,14 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Mapping, NamedTuple
+from typing import Any, Mapping, NamedTuple, cast
 from urllib.parse import urlsplit
 
 import novelty_fixture_bank_screen as fixture
+import novelty_batch_trace as batch_trace_reader
+from co_scientist.agents.generation.literature_tools.validate_search import (
+    _find_search_tool,
+)
 from co_scientist.config.registry import ToolRegistry
 from co_scientist.llm import CompletionSpec, LLMCallOptions, call_llm_json
 from co_scientist.llm_free_policy import scoped_campaign_mode
@@ -29,10 +34,55 @@ RESULT_DIR = ROOT / "references/external/sakana"
 PILOT_PREREG = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v1.json"
 PILOT_PREREG_V2 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v2.json"
 PILOT_PREREG_V3 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v3.json"
+PILOT_PREREG_V4 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v4.json"
+PILOT_PREREG_V5 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v5.json"
+PILOT_PREREG_V6 = RESULT_DIR / "novelty-result-conditioned-pilot-prereg-v6.json"
 V2_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v3.json"
 V2_FIXTURE_BANK_STATUS = "PREREGISTERED_BEFORE_ANY_V3_VALIDATOR_SCREEN"
 V3_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v4.json"
 V3_FIXTURE_BANK_STATUS = "PREREGISTERED_BEFORE_ANY_V4_VALIDATOR_SCREEN"
+V4_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v5.json"
+V4_FIXTURE_BANK_STATUS = "PREREGISTERED_FRESH_FOURTH_STUDY_INPUTS"
+V5_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v6.json"
+V5_FIXTURE_BANK_STATUS = "PREREGISTERED_FRESH_BATCH_AWARE_FIFTH_STUDY_INPUTS"
+V6_FIXTURE_BANK_PATH = "references/external/sakana/novelty-fixture-bank-prereg-v7.json"
+V6_FIXTURE_BANK_STATUS = "PREREGISTERED_FRESH_BATCH_AWARE_SIXTH_STUDY_INPUTS"
+OFFLINE_PREFLIGHT_BANK_STATUS = "OFFLINE_PREFLIGHT_ONLY_NOT_REGISTERED"
+STUDY4_IDENTITY = "M12-04b4-study4-20260930"
+STUDY4_RECOVERY_ENV = "COSCIENTIST_PUBMED_STUDY4_RECOVERY"
+STUDY_ID_ENV = "COSCIENTIST_PUBMED_STUDY_ID"
+BATCH_METADATA_ENV = "COSCIENTIST_PUBMED_METADATA_BATCH"
+STUDY4_RECOVERY_POLICY = "study4-entrez-429-502-v1"
+STUDY4_MAX_RETRIES_PER_LOGICAL_REQUEST = 1
+STUDY4_MAX_RETRIES_PER_STUDY = 2
+STUDY4_RETRYABLE_HTTP_STATUSES = (429, 502)
+STUDY4_RETRY_AFTER_MAX_SECONDS = 60
+STUDY4_RETRY_AFTER_DEFAULT_SECONDS = 15
+STUDY4_PACER_INTERVAL_SECONDS = 0.4
+STUDY4_MAX_TRACE_RECOVERY_ROWS = 256
+STUDY4_RECOVERY_PROTOCOL = MappingProxyType(
+    {
+        "study_id": STUDY4_IDENTITY,
+        "activation_env": STUDY4_RECOVERY_ENV,
+        "activation_value": "1",
+        "study_id_env": STUDY_ID_ENV,
+        "study_id_env_value": STUDY4_IDENTITY,
+        "trace_env": "COSCIENTIST_PUBMED_PILOT_TRACE",
+        "trace_value": "1",
+        "policy": STUDY4_RECOVERY_POLICY,
+        "retryable_http_statuses": [429, 502],
+        "max_retries_per_logical_request": STUDY4_MAX_RETRIES_PER_LOGICAL_REQUEST,
+        "max_retries_per_study": STUDY4_MAX_RETRIES_PER_STUDY,
+        "retry_after_max_seconds": STUDY4_RETRY_AFTER_MAX_SECONDS,
+        "retry_after_default_seconds": STUDY4_RETRY_AFTER_DEFAULT_SECONDS,
+        "pacer_interval_seconds": STUDY4_PACER_INTERVAL_SECONDS,
+    }
+)
+_STUDY4_OPERATION_ORDER = ("esearch", "efetch", "elink")
+_STUDY4_OPERATIONS = frozenset(_STUDY4_OPERATION_ORDER)
+_STUDY4_RECOVERY_OUTCOMES = frozenset(
+    {"recovered", "exhausted", "study_budget_exhausted", "retry_after_over_cap"}
+)
 TOOL_CONFIG = fixture.TOOL_CONFIG
 
 PAIR_COUNT = 6
@@ -62,6 +112,15 @@ MODEL_BOUNDARY_FILES = (
     "engine/src/co_scientist/llm_telemetry.py",
     "engine/src/co_scientist/llm_gateway_routing.py",
 )
+BATCH_TRACE_SOURCE_FILES = (
+    "references/external/sakana/novelty_batch_trace.py",
+    "engine/mcp_server/entrez_rate_limit.py",
+    "engine/mcp_server/pubmed_client.py",
+    "engine/mcp_server/pubmed_metadata_batch.py",
+    "engine/mcp_server/pubmed_pilot_trace.py",
+    "engine/mcp_server/shared_pool.py",
+    "engine/mcp_server/tools/lit_review/pubmed_search_with_fulltext.py",
+)
 
 
 class _StudyRegistration(NamedTuple):
@@ -73,6 +132,7 @@ class _StudyRegistration(NamedTuple):
     report_name: str
     result_prefix: str
     blind_prefix: str
+    requires_batch_metadata: bool
 
 
 _STUDY_REGISTRATIONS: Mapping[int, _StudyRegistration] = MappingProxyType(
@@ -86,6 +146,7 @@ _STUDY_REGISTRATIONS: Mapping[int, _StudyRegistration] = MappingProxyType(
             "M11-NOV-01a3b3 result-conditioned exploratory paired pilot",
             "novelty-result-conditioned-pilot-v1",
             "cosci-m11-nov-01a3b3-v1-blind",
+            False,
         ),
         2: _StudyRegistration(
             2,
@@ -96,6 +157,7 @@ _STUDY_REGISTRATIONS: Mapping[int, _StudyRegistration] = MappingProxyType(
             "M12-NOV-04b4c result-conditioned prospective paired study",
             "novelty-result-conditioned-pilot-v2",
             "cosci-m12-nov-04b4c-v2-blind",
+            False,
         ),
         3: _StudyRegistration(
             3,
@@ -106,6 +168,40 @@ _STUDY_REGISTRATIONS: Mapping[int, _StudyRegistration] = MappingProxyType(
             "M12-NOV-04b4d2 result-conditioned prospective paired study",
             "novelty-result-conditioned-pilot-v3",
             "cosci-m12-nov-04b4d2-v3-blind",
+            False,
+        ),
+        4: _StudyRegistration(
+            4,
+            5,
+            V4_FIXTURE_BANK_PATH,
+            V4_FIXTURE_BANK_STATUS,
+            True,
+            "M12-NOV-04b4e3 result-conditioned prospective paired study",
+            "novelty-result-conditioned-pilot-v4",
+            "cosci-m12-nov-04b4e3-v4-blind",
+            False,
+        ),
+        5: _StudyRegistration(
+            5,
+            6,
+            V5_FIXTURE_BANK_PATH,
+            V5_FIXTURE_BANK_STATUS,
+            True,
+            "M12-NOV-04b4f4 batch-aware result-conditioned prospective study",
+            "novelty-result-conditioned-pilot-v5",
+            "cosci-m12-nov-04b4f4-v5-blind",
+            True,
+        ),
+        6: _StudyRegistration(
+            6,
+            7,
+            V6_FIXTURE_BANK_PATH,
+            V6_FIXTURE_BANK_STATUS,
+            True,
+            "M12-NOV-04b4g1 batch-aware result-conditioned prospective study",
+            "novelty-result-conditioned-pilot-v6",
+            "cosci-m12-nov-04b4g1-v6-blind",
+            True,
         ),
     }
 )
@@ -158,6 +254,38 @@ def _contains_source_id(text: str, source_ids: set[str]) -> bool:
         re.search(rf"(?<!\d){re.escape(source_id)}(?!\d)", text)
         for source_id in source_ids
     )
+
+
+def _pilot_pairs(prereg: dict[str, Any], study_version: int) -> list[dict[str, Any]]:
+    pairs = prereg["cases_in_fixed_order"]
+    if not isinstance(pairs, list) or len(pairs) != PAIR_COUNT:
+        raise ValueError(
+            "Pilot requires every pair from the frozen v1 bank"
+            if study_version == 1
+            else "Pilot requires every pair from the frozen bank"
+        )
+    return cast(list[dict[str, Any]], pairs)
+
+
+def _validate_pilot_drafts(
+    prereg: dict[str, Any], pairs: list[dict[str, Any]]
+) -> set[str]:
+    source_ids = _source_ids(prereg)
+    for pair in pairs:
+        for arm in ("positive", "distinct_control"):
+            draft = pair[arm]["draft"]
+            if len(draft) > MAX_QUERY_CHARS or _contains_source_id(draft, source_ids):
+                raise ValueError("Frozen draft violates the PMID/query boundary")
+    return source_ids
+
+
+def _pilot_search_tool(registry: ToolRegistry) -> Any:
+    tool_id, tool = _find_search_tool(registry)
+    if tool_id != "pubmed_fulltext" or not tool:
+        raise ValueError("Configured PubMed validation tool is unavailable")
+    if tool.mcp_tool_name != "pubmed_search_with_fulltext":
+        raise ValueError("Configured PubMed validation tool differs from the pilot")
+    return tool
 
 
 def _prompt(
@@ -245,6 +373,37 @@ async def _generate_query(
     return query
 
 
+def _validate_batch_returned_links(
+    raw_trace: dict[str, Any],
+    records: dict[str, Any],
+    returned_ids: list[str],
+) -> None:
+    # _search_once strictly attests the empty trace before checking returned links.
+    if not returned_ids:
+        return
+    batching = raw_trace.get("metadata_batching")
+    batches = batching.get("batches") if isinstance(batching, dict) else None
+    if not isinstance(batches, list):
+        raise ValueError("PubMed batch trace has no per-ID ELink results")
+    pmc_ids = {
+        result["pmid"]: result["pmc_id"]
+        for batch in batches
+        if isinstance(batch, dict)
+        for result in batch.get("elink_results", [])
+        if isinstance(result, dict) and isinstance(result.get("pmid"), str)
+    }
+    for paper_id in returned_ids:
+        record = records.get(paper_id)
+        if (
+            not isinstance(record, dict)
+            or "pmc_full_text_id" not in record
+            or record.get("pmc_full_text_id") != pmc_ids.get(paper_id)
+        ):
+            raise ValueError(
+                "Returned PMC link identity differs from batch ELink proof"
+            )
+
+
 async def _search_once(
     query: str,
     *,
@@ -267,7 +426,9 @@ async def _search_once(
     study_version: int,
     blind_items: list[dict[str, Any]],
     event: dict[str, Any],
+    study4_recovery_accounting: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]] | None:
+    registration = _study_registration(study_version)
     slug = f"m11_nov_01a3b3_{nonce}_{outer_call_number:02d}"
     event.update(
         {
@@ -293,13 +454,23 @@ async def _search_once(
     papers: dict[str, dict[str, Any]] = {}
     try:
         _require_same_serving_process(
-            endpoint, serving_process, cache_root, expected_build_id
+            endpoint,
+            serving_process,
+            cache_root,
+            expected_build_id,
+            expected_study_id=STUDY4_IDENTITY if study_version == 4 else None,
+            expected_metadata_batch=registration.requires_batch_metadata,
         )
         papers = await fixture._search_papers_for_hypothesis(
             query, context, max_papers=MAX_PAPERS
         )
         _require_same_serving_process(
-            endpoint, serving_process, cache_root, expected_build_id
+            endpoint,
+            serving_process,
+            cache_root,
+            expected_build_id,
+            expected_study_id=STUDY4_IDENTITY if study_version == 4 else None,
+            expected_metadata_batch=registration.requires_batch_metadata,
         )
         payload_error = fixture._payload_error(recorder.last_response)
         if payload_error is not None:
@@ -328,6 +499,29 @@ async def _search_once(
         ):
             error = ValueError("Malformed nonempty PubMed response payload")
     records = payload if isinstance(payload, dict) else {}
+    batch_raw_trace: dict[str, Any] | None = None
+    batch_trace_attestation: dict[str, Any] | None = None
+    batch_trace_error: Exception | None = None
+    if registration.requires_batch_metadata and error is None:
+        try:
+            trace_path = fixture._trace_path(cache_root, slug, slug)
+            batch_raw_trace = json.loads(trace_path.read_text(encoding="utf-8"))
+            batch_returned_ids = (
+                [str(pmid) for pmid in payload] if isinstance(payload, dict) else []
+            )
+            batch_trace_attestation = batch_trace_reader.validate_batch_trace(
+                batch_raw_trace,
+                run_id=slug,
+                expected_build_id=expected_build_id,
+                serving_process=serving_process,
+                returned_ids=batch_returned_ids,
+            )
+            _validate_batch_returned_links(batch_raw_trace, records, batch_returned_ids)
+        except Exception as exc:
+            batch_trace_error = exc
+            error = error or exc
+    if registration.requires_batch_metadata and error is not None:
+        papers = {}
     private_papers: list[dict[str, Any]] = []
     for rank, (paper_id, metadata) in enumerate(papers.items(), start=1):
         raw = records.get(str(paper_id), {})
@@ -381,10 +575,10 @@ async def _search_once(
         )
         event["trace"]["serving_process"] = serving_process
         if _study_registration(study_version).requires_raw_trace:
-            raw_trace = json.loads(
+            raw_trace = batch_raw_trace or json.loads(
                 fixture._trace_path(cache_root, slug, slug).read_text(encoding="utf-8")
             )
-            raw_fields = (
+            raw_fields = [
                 "run_id",
                 "server_build_id",
                 "process_id",
@@ -403,19 +597,55 @@ async def _search_once(
                 "shared_pool_supplements",
                 "error",
                 "outcome",
-            )
+            ]
+            if study_version == 4:
+                raw_fields += (
+                    "entrez_recovery",
+                    "recovered_transient_attempts",
+                    "entrez_recovery_call_outcomes",
+                )
+            if registration.requires_batch_metadata:
+                raw_fields += ("metadata_batching",)
+                if batch_trace_error is not None:
+                    raise batch_trace_error
+                if "metadata_batching" in raw_trace:
+                    event["trace"]["metadata_batching"] = raw_trace["metadata_batching"]
             event["trace_attestation"] = {key: raw_trace.get(key) for key in raw_fields}
-            event["trace_attestation"].update(
-                _validate_v2_trace(
+            returned_ids: list[str] | None = (
+                [str(pmid) for pmid in payload] if isinstance(payload, dict) else None
+            )
+            if registration.requires_batch_metadata:
+                if batch_trace_attestation is None:
+                    raise ValueError(
+                        f"Study {study_version} batch trace attestation is unavailable"
+                    )
+                event["trace_attestation"].update(batch_trace_attestation)
+            else:
+                event["trace_attestation"].update(
+                    _validate_v2_trace(
+                        raw_trace,
+                        run_id=slug,
+                        expected_build_id=expected_build_id,
+                        serving_process=serving_process,
+                        returned_ids=returned_ids,
+                    )
+                )
+            if study_version == 4:
+                if study4_recovery_accounting is None:
+                    raise ValueError("Study 4 recovery accounting is unavailable")
+                recovery_attestation = _validate_study4_recovery_trace(
                     raw_trace,
                     run_id=slug,
                     expected_build_id=expected_build_id,
                     serving_process=serving_process,
-                    returned_ids=[str(pmid) for pmid in payload]
-                    if isinstance(payload, dict)
-                    else None,
+                    study_retries_used_so_far=study4_recovery_accounting[
+                        "retries_used"
+                    ],
                 )
-            )
+                event["trace_attestation"].update(recovery_attestation)
+                _accumulate_study4_recovery(
+                    study4_recovery_accounting, recovery_attestation
+                )
         selected = event["trace"].get("selected") or {}
         if (
             len(event["trace"].get("attempts", [])) > 3
@@ -604,6 +834,346 @@ def _validate_v2_trace(
     }
 
 
+def _validate_study4_recovery_trace(
+    trace: dict[str, Any],
+    *,
+    run_id: str,
+    expected_build_id: str,
+    serving_process: dict[str, Any],
+    study_retries_used_so_far: int,
+) -> dict[str, Any]:
+    """Validate and return one bounded v4 retry ledger delta."""
+
+    def reject() -> None:
+        raise ValueError("Study 4 Entrez recovery trace is incomplete or inconsistent")
+
+    def parse_retry_after(value: str) -> tuple[str, float | None]:
+        value = value.strip()
+        if value.isascii() and value.isdecimal():
+            try:
+                seconds = int(value)
+            except ValueError:
+                return "invalid", None
+            return "seconds", float(seconds)
+        try:
+            parsed = email.utils.parsedate_to_datetime(value)
+        except (TypeError, ValueError, OverflowError):
+            return "invalid", None
+        return ("date", None) if parsed is not None else ("invalid", None)
+
+    recovery = trace.get("entrez_recovery")
+    if (
+        trace.get("run_id") != run_id
+        or trace.get("server_build_id") != expected_build_id
+        or trace.get("process_id") != serving_process.get("pid")
+        or not isinstance(recovery, dict)
+        or recovery.get("study_id") != STUDY4_IDENTITY
+        or recovery.get("policy") != STUDY4_RECOVERY_POLICY
+        or recovery.get("max_retries_per_logical_request")
+        != STUDY4_MAX_RETRIES_PER_LOGICAL_REQUEST
+        or recovery.get("max_retries_per_study") != STUDY4_MAX_RETRIES_PER_STUDY
+    ):
+        reject()
+
+    calls = trace.get("entrez_calls")
+    client_attempts = recovery.get("client_entry_attempts")
+    if (
+        not isinstance(calls, dict)
+        or set(calls) != _STUDY4_OPERATIONS
+        or any(type(count) is not int or count < 0 for count in calls.values())
+        or not isinstance(client_attempts, dict)
+        or set(client_attempts) != _STUDY4_OPERATIONS
+        or any(
+            type(count) is not int or count < 0 for count in client_attempts.values()
+        )
+    ):
+        reject()
+
+    counters = {
+        name: recovery.get(name)
+        for name in ("retries_used", "recovered_calls", "exhausted_calls")
+    }
+    if any(type(value) is not int or value < 0 for value in counters.values()):
+        reject()
+    process_start = recovery.get("process_retries_used_at_start")
+    process_end = recovery.get("process_retries_used_at_end")
+    if (
+        type(study_retries_used_so_far) is not int
+        or not 0 <= study_retries_used_so_far <= STUDY4_MAX_RETRIES_PER_STUDY
+        or type(process_start) is not int
+        or type(process_end) is not int
+        or not 0 <= process_start <= process_end
+        or process_end > STUDY4_MAX_RETRIES_PER_STUDY
+        or counters["retries_used"] > process_end - process_start
+        or study_retries_used_so_far + counters["retries_used"]
+        > STUDY4_MAX_RETRIES_PER_STUDY
+    ):
+        reject()
+
+    attempts = trace.get("recovered_transient_attempts")
+    outcomes = trace.get("entrez_recovery_call_outcomes")
+    total_logical_calls = sum(calls.values())
+    if (
+        not isinstance(attempts, list)
+        or len(attempts)
+        > min(
+            STUDY4_MAX_TRACE_RECOVERY_ROWS,
+            total_logical_calls * (STUDY4_MAX_RETRIES_PER_LOGICAL_REQUEST + 1),
+        )
+        or not isinstance(outcomes, list)
+        or len(outcomes) > min(STUDY4_MAX_TRACE_RECOVERY_ROWS, total_logical_calls)
+    ):
+        reject()
+
+    outcome_by_request: dict[tuple[str, int], dict[str, Any]] = {}
+    recovered_calls = 0
+    exhausted_calls = 0
+    retries_used = 0
+    for row in outcomes:
+        if not isinstance(row, dict):
+            reject()
+        operation = row.get("operation")
+        ordinal = row.get("logical_request_ordinal")
+        if (
+            not isinstance(operation, str)
+            or operation not in _STUDY4_OPERATIONS
+            or type(ordinal) is not int
+        ):
+            reject()
+        retry_count = row.get("retry_count")
+        entry_count = row.get("client_entry_attempts")
+        final_outcome = row.get("final_outcome")
+        key = (operation, ordinal)
+        if (
+            row.get("study_id") != STUDY4_IDENTITY
+            or row.get("run_id") != run_id
+            or not 1 <= ordinal <= calls[operation]
+            or key in outcome_by_request
+            or type(retry_count) is not int
+            or retry_count not in {0, STUDY4_MAX_RETRIES_PER_LOGICAL_REQUEST}
+            or type(entry_count) is not int
+            or entry_count != 1 + retry_count
+            or not isinstance(final_outcome, str)
+            or final_outcome not in _STUDY4_RECOVERY_OUTCOMES
+        ):
+            reject()
+        if final_outcome in {"recovered", "exhausted"} and retry_count != 1:
+            reject()
+        if final_outcome == "recovered":
+            recovered_calls += 1
+        else:
+            exhausted_calls += 1
+        retries_used += retry_count
+        outcome_by_request[key] = row
+
+    if (
+        counters["retries_used"] != retries_used
+        or counters["recovered_calls"] != recovered_calls
+        or counters["exhausted_calls"] != exhausted_calls
+        or recovered_calls + exhausted_calls != len(outcomes)
+    ):
+        reject()
+
+    attempts_by_request: dict[tuple[str, int], list[dict[str, Any]]] = {}
+    for row in attempts:
+        if not isinstance(row, dict):
+            reject()
+        operation = row.get("operation")
+        ordinal = row.get("logical_request_ordinal")
+        attempt_ordinal = row.get("attempt_ordinal")
+        status = row.get("http_status")
+        wait_seconds = row.get("wait_seconds")
+        retry_after = row.get("retry_after_value")
+        retry_after_raw_prefix = row.get("retry_after_raw_prefix")
+        retry_after_raw_truncated = row.get("retry_after_raw_truncated")
+        if (
+            not isinstance(operation, str)
+            or operation not in _STUDY4_OPERATIONS
+            or type(ordinal) is not int
+        ):
+            reject()
+        key = (operation, ordinal)
+        if (
+            row.get("study_id") != STUDY4_IDENTITY
+            or row.get("run_id") != run_id
+            or row.get("server_build_id") != expected_build_id
+            or row.get("process_id") != serving_process.get("pid")
+            or not 1 <= ordinal <= calls[operation]
+            or type(attempt_ordinal) is not int
+            or attempt_ordinal not in {1, 2}
+            or type(status) is not int
+            or status not in STUDY4_RETRYABLE_HTTP_STATUSES
+            or isinstance(wait_seconds, bool)
+            or not isinstance(wait_seconds, (int, float))
+            or not 0 <= wait_seconds <= STUDY4_RETRY_AFTER_MAX_SECONDS
+            or (
+                retry_after is not None
+                and (
+                    not isinstance(retry_after, str)
+                    or len(retry_after) > 128
+                    or any(
+                        ord(char) != 9 and not 32 <= ord(char) <= 126
+                        for char in retry_after
+                    )
+                )
+            )
+            or type(retry_after_raw_truncated) is not bool
+            or (
+                retry_after_raw_prefix is not None
+                and (
+                    not isinstance(retry_after_raw_prefix, str)
+                    or len(retry_after_raw_prefix) > 128
+                )
+            )
+            or (retry_after is None) != (retry_after_raw_prefix is None)
+        ):
+            reject()
+        attempts_by_request.setdefault(key, []).append(row)
+
+    for operation in _STUDY4_OPERATION_ORDER:
+        expected_entries = calls[operation] + sum(
+            row["retry_count"]
+            for (row_operation, _), row in outcome_by_request.items()
+            if row_operation == operation
+        )
+        if client_attempts[operation] != expected_entries:
+            reject()
+
+    for key, row in outcome_by_request.items():
+        request_attempts = attempts_by_request.pop(key, [])
+        ordinals = [attempt.get("attempt_ordinal") for attempt in request_attempts]
+        final_outcome = row["final_outcome"]
+        if (
+            not request_attempts
+            or ordinals != list(range(1, len(ordinals) + 1))
+            or len(ordinals) > row["client_entry_attempts"]
+            or row["client_entry_attempts"] != 1 + row["retry_count"]
+            or any(
+                attempt.get("outcome") != final_outcome for attempt in request_attempts
+            )
+        ):
+            reject()
+        if final_outcome == "recovered" and ordinals != [1]:
+            reject()
+        retry_count = row["retry_count"]
+        for index, attempt in enumerate(request_attempts):
+            retry_was_issued = index < retry_count
+            retry_after = attempt.get("retry_after_value")
+            wait_seconds = attempt.get("wait_seconds")
+            if not retry_was_issued:
+                if wait_seconds != 0:
+                    reject()
+                continue
+            if retry_after is None:
+                if wait_seconds != STUDY4_RETRY_AFTER_DEFAULT_SECONDS:
+                    reject()
+                continue
+            retry_after_kind, requested_wait = parse_retry_after(retry_after)
+            if retry_after_kind == "seconds":
+                if (
+                    requested_wait is None
+                    or requested_wait > STUDY4_RETRY_AFTER_MAX_SECONDS
+                ):
+                    reject()
+                if wait_seconds != requested_wait:
+                    reject()
+            elif retry_after_kind == "date":
+                if wait_seconds > STUDY4_RETRY_AFTER_MAX_SECONDS:
+                    reject()
+            elif wait_seconds != STUDY4_RETRY_AFTER_DEFAULT_SECONDS:
+                reject()
+        final_attempt = request_attempts[-1]
+        final_retry_after = final_attempt.get("retry_after_value")
+        final_kind, final_delay = (
+            parse_retry_after(final_retry_after)
+            if isinstance(final_retry_after, str)
+            else ("missing", None)
+        )
+        if final_kind == "seconds":
+            if final_delay is not None and final_delay > STUDY4_RETRY_AFTER_MAX_SECONDS:
+                if final_outcome != "retry_after_over_cap":
+                    reject()
+            elif final_outcome == "retry_after_over_cap":
+                reject()
+        if final_kind == "invalid" and final_outcome == "retry_after_over_cap":
+            reject()
+
+    if attempts_by_request:
+        reject()
+    if any(row["final_outcome"] != "recovered" for row in outcomes):
+        reject()
+    return {
+        "entrez_recovery": recovery,
+        "recovered_transient_attempts": attempts,
+        "entrez_recovery_call_outcomes": outcomes,
+    }
+
+
+def _accumulate_study4_recovery(
+    accounting: dict[str, Any], attestation: dict[str, Any]
+) -> None:
+    recovery = attestation["entrez_recovery"]
+    if (
+        recovery["process_retries_used_at_start"]
+        != accounting["process_retries_used_at_end"]
+        or recovery["process_retries_used_at_end"]
+        != recovery["process_retries_used_at_start"] + recovery["retries_used"]
+        or accounting["retries_used"] + recovery["retries_used"]
+        > STUDY4_MAX_RETRIES_PER_STUDY
+    ):
+        raise ValueError("Study 4 Entrez process budget changed between pilot traces")
+    accounting["retries_used"] += recovery["retries_used"]
+    accounting["recovered_calls"] += recovery["recovered_calls"]
+    accounting["exhausted_calls"] += recovery["exhausted_calls"]
+    for operation in _STUDY4_OPERATION_ORDER:
+        accounting["client_entry_attempts"][operation] += recovery[
+            "client_entry_attempts"
+        ][operation]
+    accounting["process_retries_used_at_end"] = recovery["process_retries_used_at_end"]
+    accounting["recovered_transient_attempts"].extend(
+        attestation["recovered_transient_attempts"]
+    )
+    accounting["entrez_recovery_call_outcomes"].extend(
+        attestation["entrez_recovery_call_outcomes"]
+    )
+
+
+def _validate_complete_study4_recovery(accounting: dict[str, Any]) -> None:
+    attempts = accounting["recovered_transient_attempts"]
+    outcomes = accounting["entrez_recovery_call_outcomes"]
+    recovered = sum(row.get("final_outcome") == "recovered" for row in outcomes)
+    exhausted = sum(row.get("final_outcome") != "recovered" for row in outcomes)
+    retries = sum(row.get("retry_count", 0) for row in outcomes)
+    if (
+        accounting["study_id"] != STUDY4_IDENTITY
+        or accounting["policy"] != STUDY4_RECOVERY_POLICY
+        or accounting["process_retries_used_at_start"] != 0
+        or accounting["process_retries_used_at_end"] != accounting["retries_used"]
+        or accounting["retries_used"] > STUDY4_MAX_RETRIES_PER_STUDY
+        or retries != accounting["retries_used"]
+        or accounting["process_retries_used_at_end"] != retries
+        or recovered != accounting["recovered_calls"]
+        or exhausted != accounting["exhausted_calls"]
+        or len(attempts) < len(outcomes)
+        or len(attempts) > 2 * len(outcomes)
+        or any(row.get("final_outcome") != "recovered" for row in outcomes)
+        or not isinstance(accounting.get("client_entry_attempts"), dict)
+        or set(accounting["client_entry_attempts"]) != _STUDY4_OPERATIONS
+        or any(
+            type(value) is not int or value < 0
+            for value in accounting["client_entry_attempts"].values()
+        )
+    ):
+        raise ValueError("Study 4 Entrez recovery accounting is incomplete")
+
+
+def _require_empty_pilot_cache(cache_root: Path) -> None:
+    if cache_root.is_symlink() or not cache_root.is_absolute():
+        raise ValueError("Pilot cache must be absolute and not a symlink")
+    if not cache_root.is_dir() or any(cache_root.iterdir()):
+        raise ValueError("Pilot cache must exist and start empty")
+
+
 async def run_pilot(
     fixture_prereg: dict[str, Any],
     registry: ToolRegistry,
@@ -639,37 +1209,18 @@ async def run_pilot(
         raise ValueError("Pilot MCP client differs from the attested endpoint")
     if result_path.exists() or blind_path.exists():
         raise ValueError("Pilot outputs already exist; never overwrite a prior run")
-    if cache_root.is_symlink() or not cache_root.is_absolute():
-        raise ValueError("Pilot cache must be absolute and not a symlink")
-    if not cache_root.is_dir() or any(cache_root.iterdir()):
-        raise ValueError("Pilot cache must exist and start empty")
+    _require_empty_pilot_cache(cache_root)
     if fixture_prereg != _load_fixture_bank(protocol, study_version):
         raise ValueError(
             "Pilot must use the complete frozen v1 fixture bank"
             if study_version == 1
             else "Pilot must use the complete committed fixture bank"
         )
-    pairs = fixture_prereg["cases_in_fixed_order"]
-    if len(pairs) != PAIR_COUNT:
-        raise ValueError(
-            "Pilot requires every pair from the frozen v1 bank"
-            if study_version == 1
-            else "Pilot requires every pair from the frozen bank"
-        )
+    pairs = _pilot_pairs(fixture_prereg, study_version)
     if not model_name or not model_api_key:
         raise ValueError("A selected model and explicit model API key are required")
-    tool_id, tool = fixture._find_search_tool(registry)
-    if tool_id != "pubmed_fulltext" or not tool:
-        raise ValueError("Configured PubMed validation tool is unavailable")
-    if tool.mcp_tool_name != "pubmed_search_with_fulltext":
-        raise ValueError("Configured PubMed validation tool differs from the pilot")
-
-    source_ids = _source_ids(fixture_prereg)
-    for pair in pairs:
-        for arm in ("positive", "distinct_control"):
-            draft = pair[arm]["draft"]
-            if len(draft) > MAX_QUERY_CHARS or _contains_source_id(draft, source_ids):
-                raise ValueError("Frozen draft violates the PMID/query boundary")
+    tool = _pilot_search_tool(registry)
+    source_ids = _validate_pilot_drafts(fixture_prereg, pairs)
 
     admission_path = _claim_campaign_admission(protocol, study_version)
     recorder = (
@@ -709,6 +1260,25 @@ async def run_pilot(
                 "protocol_version": registration.protocol_version,
             }
         )
+    study4_recovery_accounting: dict[str, Any] | None = None
+    if study_version == 4:
+        study4_recovery_accounting = {
+            "study_id": STUDY4_IDENTITY,
+            "policy": STUDY4_RECOVERY_POLICY,
+            "max_retries_per_logical_request": STUDY4_MAX_RETRIES_PER_LOGICAL_REQUEST,
+            "max_retries_per_study": STUDY4_MAX_RETRIES_PER_STUDY,
+            "retries_used": 0,
+            "recovered_calls": 0,
+            "exhausted_calls": 0,
+            "client_entry_attempts": {
+                operation: 0 for operation in _STUDY4_OPERATION_ORDER
+            },
+            "process_retries_used_at_start": 0,
+            "process_retries_used_at_end": 0,
+            "recovered_transient_attempts": [],
+            "entrez_recovery_call_outcomes": [],
+        }
+        report["entrez_recovery_accounting"] = study4_recovery_accounting
     blind_packet: dict[str, Any] = {"status": "BLIND_LABELS_PENDING", "items": []}
     fixture._write_json(result_path, report, private=True)
     fixture._write_json(blind_path, blind_packet, private=True)
@@ -743,6 +1313,14 @@ async def run_pilot(
             prompt = _prompt(variant, draft, papers)
             if _contains_source_id(prompt, source_ids):
                 raise ValueError("Model prompt contains a frozen target or anchor PMID")
+            if registration.requires_batch_metadata:
+                _require_same_serving_process(
+                    endpoint,
+                    serving_process,
+                    cache_root,
+                    expected_build_id,
+                    expected_metadata_batch=True,
+                )
             query = await _generate_query(
                 prompt,
                 model_name=model_name,
@@ -755,6 +1333,14 @@ async def run_pilot(
                 expected_source_ids=source_ids,
                 event=event,
             )
+            if registration.requires_batch_metadata:
+                _require_same_serving_process(
+                    endpoint,
+                    serving_process,
+                    cache_root,
+                    expected_build_id,
+                    expected_metadata_batch=True,
+                )
             event["query"] = query
             event["status"] = "complete"
             report["provider_call_count"] += event["provider_calls"]
@@ -816,6 +1402,7 @@ async def run_pilot(
             study_version=study_version,
             blind_items=blind_packet["items"],
             event=event,
+            study4_recovery_accounting=study4_recovery_accounting,
         )
         if result is None:
             report["status"] = (
@@ -828,7 +1415,23 @@ async def run_pilot(
         return result
 
     try:
+        if registration.requires_batch_metadata:
+            _require_same_serving_process(
+                endpoint,
+                serving_process,
+                cache_root,
+                expected_build_id,
+                expected_metadata_batch=True,
+            )
         await client.initialize()
+        if registration.requires_batch_metadata:
+            _require_same_serving_process(
+                endpoint,
+                serving_process,
+                cache_root,
+                expected_build_id,
+                expected_metadata_batch=True,
+            )
         with scoped_campaign_mode(True):
             for pair in pairs:
                 pair_id = pair["id"]
@@ -885,6 +1488,8 @@ async def run_pilot(
                     )
                     if candidate_followup is None:
                         return report
+        if study4_recovery_accounting is not None:
+            _validate_complete_study4_recovery(study4_recovery_accounting)
         report["status"] = "PILOT_COMPLETE_LABELS_PENDING"
         report["ended_at_utc"] = _now()
         blind_packet["items"].sort(key=lambda item: item["blind_id"])
@@ -961,6 +1566,9 @@ def _protocol_path(study_version: int) -> Path:
         1: PILOT_PREREG,
         2: PILOT_PREREG_V2,
         3: PILOT_PREREG_V3,
+        4: PILOT_PREREG_V4,
+        5: PILOT_PREREG_V5,
+        6: PILOT_PREREG_V6,
     }[study_version]
 
 
@@ -973,7 +1581,12 @@ def _study_registration(study_version: int) -> _StudyRegistration:
         ) from exc
 
 
-def _load_fixture_bank(protocol: dict[str, Any], study_version: int) -> dict[str, Any]:
+def _load_fixture_bank(
+    protocol: dict[str, Any],
+    study_version: int,
+    *,
+    preflight_bank_path: Path | None = None,
+) -> dict[str, Any]:
     registration = _study_registration(study_version)
     if registration.fixture_bank_version is None:
         return fixture._load_preregistration(1)
@@ -988,17 +1601,36 @@ def _load_fixture_bank(protocol: dict[str, Any], study_version: int) -> dict[str
         )
     assert registration.fixture_bank_path is not None
     assert registration.fixture_bank_status is not None
-    path = ROOT / registration.fixture_bank_path
+    if preflight_bank_path is not None:
+        if not registration.requires_batch_metadata:
+            raise ValueError(
+                "Temporary fixture preflight is available only for batch-aware studies"
+            )
+        path = preflight_bank_path.expanduser().resolve()
+        if path.is_relative_to(ROOT.resolve()):
+            raise ValueError(
+                "Temporary preflight fixture must stay outside the repository"
+            )
+    else:
+        path = ROOT / registration.fixture_bank_path
     bank_bytes = path.read_bytes()
-    if _committed_file_bytes(path, "Fixture bank") != bank_bytes:
+    if (
+        preflight_bank_path is None
+        and _committed_file_bytes(path, "Fixture bank") != bank_bytes
+    ):
         raise ValueError("Fixture bank must be committed unchanged")
     bank_hash = hashlib.sha256(bank_bytes).hexdigest()
     if protocol.get("fixture_bank_sha256") != bank_hash:
         raise ValueError("Prospective protocol names a different fixture bank")
     bank = json.loads(bank_bytes)
+    expected_status = (
+        OFFLINE_PREFLIGHT_BANK_STATUS
+        if preflight_bank_path is not None
+        else registration.fixture_bank_status
+    )
     if (
         bank.get("version") != registration.fixture_bank_version
-        or bank.get("status") != registration.fixture_bank_status
+        or bank.get("status") != expected_status
     ):
         raise ValueError(
             f"Fixture bank version {registration.fixture_bank_version} is not preregistered"
@@ -1012,16 +1644,49 @@ def _model_boundary_hashes() -> dict[str, str]:
     }
 
 
-def _load_pilot_protocol(study_version: int = 1) -> dict[str, Any]:
+def _batch_trace_source_hashes() -> dict[str, str]:
+    return {
+        relative: fixture._sha256(ROOT / relative)
+        for relative in BATCH_TRACE_SOURCE_FILES
+    }
+
+
+def _load_pilot_protocol(
+    study_version: int = 1,
+    *,
+    preflight_protocol_path: Path | None = None,
+    preflight_bank_path: Path | None = None,
+) -> dict[str, Any]:
     registration = _study_registration(study_version)
-    prereg_path = _protocol_path(study_version)
+    if (preflight_protocol_path is None) != (preflight_bank_path is None):
+        raise ValueError("Temporary preflight requires both protocol and fixture paths")
+    if preflight_protocol_path is not None:
+        if not registration.requires_batch_metadata:
+            raise ValueError(
+                "Temporary protocol preflight is available only for batch-aware studies"
+            )
+        prereg_path = preflight_protocol_path.expanduser().resolve()
+        if prereg_path.is_relative_to(ROOT.resolve()):
+            raise ValueError(
+                "Temporary preflight protocol must stay outside the repository"
+            )
+    else:
+        prereg_path = _protocol_path(study_version)
     if not prereg_path.is_file():
         raise ValueError("Pilot is disabled until its protocol is preregistered")
     protocol_bytes = prereg_path.read_bytes()
-    if _committed_protocol_bytes(prereg_path) != protocol_bytes:
+    if (
+        preflight_protocol_path is None
+        and _committed_protocol_bytes(prereg_path) != protocol_bytes
+    ):
         raise ValueError("Pilot protocol must be committed unchanged")
     protocol = json.loads(protocol_bytes)
-    if protocol.get("status") != "PREREGISTERED_BEFORE_ANY_PILOT_CALL":
+    if preflight_protocol_path is not None:
+        if protocol.get("status") != OFFLINE_PREFLIGHT_BANK_STATUS:
+            raise ValueError(
+                "Temporary preflight protocol is not explicitly unregistered"
+            )
+    elif protocol.get("status") != "PREREGISTERED_BEFORE_ANY_PILOT_CALL":
         raise ValueError("Pilot protocol is not preregistered")
     if registration.fixture_bank_version is None:
         if protocol.get("fixture_bank_sha256") != fixture._bank_config(1)["sha256"]:
@@ -1032,6 +1697,10 @@ def _load_pilot_protocol(study_version: int = 1) -> dict[str, Any]:
         or protocol.get("fixture_bank_version") != registration.fixture_bank_version
     ):
         raise ValueError("Pilot protocol does not select the prospective study version")
+    if study_version == 4 and protocol.get("entrez_recovery_policy") != dict(
+        STUDY4_RECOVERY_PROTOCOL
+    ):
+        raise ValueError("Study 4 protocol does not pin the Entrez recovery policy")
     if (
         protocol.get("runner_sha256")
         != hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
@@ -1054,6 +1723,13 @@ def _load_pilot_protocol(study_version: int = 1) -> dict[str, Any]:
             "Pilot model admission/dispatch sources changed or are unpinned"
         )
     if (
+        registration.requires_batch_metadata
+        and protocol.get("batch_trace_source_sha256") != _batch_trace_source_hashes()
+    ):
+        raise ValueError(
+            f"Study {study_version} batch reader or producer sources changed or are unpinned"
+        )
+    if (
         protocol.get("max_outer_mcp_calls") != OUTER_MCP_CALL_LIMIT
         or protocol.get("max_model_calls") != MODEL_CALL_LIMIT
     ):
@@ -1061,8 +1737,23 @@ def _load_pilot_protocol(study_version: int = 1) -> dict[str, Any]:
     if not isinstance(protocol.get("model_name"), str) or not protocol["model_name"]:
         raise ValueError("Pilot protocol does not select a model")
     if registration.fixture_bank_version is not None:
-        _load_fixture_bank(protocol, study_version)
+        _load_fixture_bank(
+            protocol,
+            study_version,
+            preflight_bank_path=preflight_bank_path,
+        )
     return protocol
+
+
+def _study5_batch_environment_matches(environment: Mapping[str, str]) -> bool:
+    return (
+        environment.get(BATCH_METADATA_ENV) == "1"
+        and environment.get(STUDY4_RECOVERY_ENV) in {None, "0"}
+        and STUDY_ID_ENV not in environment
+    )
+
+
+_batch_metadata_environment_matches = _study5_batch_environment_matches
 
 
 def _check_mcp_process(
@@ -1071,6 +1762,8 @@ def _check_mcp_process(
     expected_secret: str,
     expected_build_id: str,
     cache_root: Path,
+    expected_study_id: str | None = None,
+    expected_metadata_batch: bool = False,
 ) -> dict[str, Any]:
     """Attest the actual loopback listener's source directory and environment."""
     fixture._check_server_tree_clean()
@@ -1114,16 +1807,19 @@ def _check_mcp_process(
         or Path(working_dirs[0]).resolve() != (ROOT / "engine").resolve()
     ):
         raise ValueError("MCP process is not running from the pinned engine tree")
-    process = subprocess.run(
+    process_snapshot = subprocess.run(
         ["ps", "eww", "-p", pid],
         capture_output=True,
         text=True,
         check=False,
     )
-    if process.returncode != 0:
+    if process_snapshot.returncode != 0:
         raise ValueError("MCP process environment could not be attested")
     environment = dict(
-        re.findall(r"(?<!\S)([A-Za-z_][A-Za-z0-9_]*)=([^\s]*)", process.stdout)
+        re.findall(
+            r"(?<!\S)([A-Za-z_][A-Za-z0-9_]*)=([^\s]*)",
+            process_snapshot.stdout,
+        )
     )
     python_paths = [
         (
@@ -1134,7 +1830,7 @@ def _check_mcp_process(
     ]
     engine_path = (ROOT / "engine").resolve()
     if (
-        "mcp_server.server:app" not in process.stdout
+        "mcp_server.server:app" not in process_snapshot.stdout
         or not python_paths
         or any(path != engine_path for path in python_paths)
         or not source_path.is_relative_to(engine_path / "mcp_server")
@@ -1154,12 +1850,34 @@ def _check_mcp_process(
         != cache_root.resolve()
     ):
         raise ValueError("MCP process settings differ from the frozen pilot")
-    return {
+    if expected_metadata_batch and not _batch_metadata_environment_matches(environment):
+        raise ValueError(
+            "MCP process batching or recovery settings differ from the study protocol"
+        )
+    process = {
         "pid": int(pid),
         "listener_address": addresses[0],
         "source_path": str(source_path),
         "mcp_tree": source_tree,
     }
+    if expected_metadata_batch:
+        process["metadata_batching"] = {"enabled": True}
+        process["study4_recovery_enabled"] = False
+        process["study_id"] = None
+    if expected_study_id is not None:
+        if (
+            expected_study_id != STUDY4_IDENTITY
+            or environment.get(STUDY4_RECOVERY_ENV) != "1"
+            or environment.get(STUDY_ID_ENV) != expected_study_id
+        ):
+            raise ValueError(
+                "MCP process study recovery binding differs from the protocol"
+            )
+        process["study4_recovery"] = {
+            "enabled": True,
+            "study_id": expected_study_id,
+        }
+    return process
 
 
 def _require_same_serving_process(
@@ -1167,12 +1885,16 @@ def _require_same_serving_process(
     expected: dict[str, Any],
     cache_root: Path,
     expected_build_id: str,
+    expected_study_id: str | None = None,
+    expected_metadata_batch: bool = False,
 ) -> None:
     actual = _check_mcp_process(
         endpoint,
         expected_secret=os.environ[fixture.MCP_SECRET_ENV],
         expected_build_id=expected_build_id,
         cache_root=cache_root,
+        expected_study_id=expected_study_id,
+        expected_metadata_batch=expected_metadata_batch,
     )
     if actual != expected:
         raise ValueError("MCP serving process changed during the pilot")
@@ -1184,6 +1906,28 @@ def _check_runtime(
     *,
     cache_root: Path,
 ) -> tuple[str, Path, str, dict[str, Any]]:
+    study_version = protocol.get("study_version", 1)
+    registration = _study_registration(study_version)
+    expected_study_id: str | None = None
+    if study_version == 4:
+        if protocol.get("entrez_recovery_policy") != dict(STUDY4_RECOVERY_PROTOCOL):
+            raise ValueError(
+                "Study 4 recovery policy differs from the committed protocol"
+            )
+        if (
+            os.environ.get(STUDY4_RECOVERY_ENV) != "1"
+            or os.environ.get(STUDY_ID_ENV) != STUDY4_IDENTITY
+            or os.environ.get("COSCIENTIST_PUBMED_PILOT_TRACE") != "1"
+        ):
+            raise ValueError(
+                "Study 4 recovery activation differs from the committed protocol"
+            )
+        expected_study_id = STUDY4_IDENTITY
+    expected_metadata_batch = registration.requires_batch_metadata
+    if expected_metadata_batch and not _batch_metadata_environment_matches(os.environ):
+        raise ValueError(
+            f"Study {study_version} requires batching and disables Study 4 recovery"
+        )
     if os.environ.get("COSCIENTIST_REQUIRE_FREE_MODELS") != "1":
         raise ValueError("Set COSCIENTIST_REQUIRE_FREE_MODELS=1")
     endpoint = os.environ.get("COSCIENTIST_CAMPAIGN_MCP_URL", "")
@@ -1208,15 +1952,24 @@ def _check_runtime(
     if os.environ.get("COSCIENTIST_PUBMED_PILOT_TRACE") != "1":
         raise ValueError("Maintained PubMed run tracing must be enabled")
     boundary = fixture_prereg.get("validation_boundary")
-    if protocol.get("study_version") == 3 or fixture_prereg.get("version") == 4:
+    bank_version = fixture_prereg.get("version")
+    uses_current_boundary = (
+        registration.fixture_bank_version is not None
+        and registration.fixture_bank_version >= 4
+    ) or (isinstance(bank_version, int) and bank_version >= 4)
+    if uses_current_boundary:
         protocol_boundary = protocol.get("validation_boundary")
         if (
-            protocol.get("study_version") != 3
-            or fixture_prereg.get("version") != 4
+            registration.fixture_bank_version is None
+            or protocol.get("study_version") != study_version
+            or protocol.get("fixture_bank_version") != registration.fixture_bank_version
+            or bank_version != registration.fixture_bank_version
             or not isinstance(protocol_boundary, dict)
             or not isinstance(boundary, dict)
         ):
-            raise ValueError("Study 3 must bind the current v4 validation boundary")
+            raise ValueError(
+                f"Study {study_version} must bind the current v{registration.fixture_bank_version} validation boundary"
+            )
         for path_key, hash_key, bank_path_key in (
             ("validator_path", "validator_sha256", "maintained_validator"),
             ("response_parser_path", "response_parser_sha256", "parser"),
@@ -1229,14 +1982,14 @@ def _check_runtime(
                 or boundary.get(bank_path_key) != relative_path
             ):
                 raise ValueError(
-                    f"Study 3 validation source path differs from fixture bank: {path_key}"
+                    f"Study {study_version} validation source path differs from fixture bank: {path_key}"
                 )
             expected_hash = protocol_boundary.get(hash_key)
             if not isinstance(expected_hash, str) or not re.fullmatch(
                 r"[0-9a-f]{64}", expected_hash
             ):
                 raise ValueError(
-                    f"Study 3 validation source hash is missing or malformed: {path_key}"
+                    f"Study {study_version} validation source hash is missing or malformed: {path_key}"
                 )
             if fixture._sha256(ROOT / relative_path) != expected_hash:
                 raise ValueError(f"Frozen validation source changed: {relative_path}")
@@ -1272,6 +2025,8 @@ def _check_runtime(
         expected_secret=os.environ[fixture.MCP_SECRET_ENV],
         expected_build_id=expected_build,
         cache_root=cache_root,
+        expected_study_id=expected_study_id,
+        expected_metadata_batch=expected_metadata_batch,
     )
     return endpoint, cache_root, expected_build, serving_process
 
@@ -1290,21 +2045,106 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--study-version", type=int, choices=tuple(_STUDY_REGISTRATIONS), default=1
     )
-    return parser.parse_args(argv)
-
-
-async def _main(study_version: int | None = None) -> int:
-    study_version = (
-        _parse_args().study_version if study_version is None else study_version
+    parser.add_argument("--preflight-only", action="store_true")
+    parser.add_argument("--preflight-protocol", type=Path)
+    parser.add_argument("--preflight-bank", type=Path)
+    args = parser.parse_args(argv)
+    has_temporary_input = (
+        args.preflight_protocol is not None or args.preflight_bank is not None
     )
+    if has_temporary_input and not args.preflight_only:
+        parser.error("temporary protocol and fixture inputs require --preflight-only")
+    if (
+        args.preflight_only
+        and not _study_registration(args.study_version).requires_batch_metadata
+    ):
+        parser.error("--preflight-only is available only for batch-aware studies")
+    if args.preflight_only and (
+        args.preflight_protocol is None or args.preflight_bank is None
+    ):
+        parser.error(
+            "batch-aware study preflight requires --preflight-protocol and --preflight-bank"
+        )
+    return args
+
+
+async def _main(
+    study_version: int | None = None,
+    *,
+    preflight_only: bool = False,
+    preflight_protocol: Path | None = None,
+    preflight_bank: Path | None = None,
+) -> int:
+    if study_version is None:
+        args = _parse_args()
+        study_version = args.study_version
+        preflight_only = args.preflight_only
+        preflight_protocol = args.preflight_protocol
+        preflight_bank = args.preflight_bank
+    has_temporary_input = preflight_protocol is not None or preflight_bank is not None
+    if has_temporary_input and not preflight_only:
+        raise ValueError(
+            "Temporary inputs are permitted only for batch-aware preflight"
+        )
+    if preflight_only and (preflight_protocol is None or preflight_bank is None):
+        raise ValueError(
+            "Temporary inputs are permitted only for batch-aware preflight"
+        )
+    if (
+        preflight_only
+        and not _study_registration(study_version).requires_batch_metadata
+    ):
+        raise ValueError(
+            "Temporary protocol preflight is available only for batch-aware studies"
+        )
     _study_registration(study_version)
-    protocol = (
-        _load_pilot_protocol()
-        if study_version == 1
-        else _load_pilot_protocol(study_version)
+    if preflight_only:
+        protocol = _load_pilot_protocol(
+            study_version,
+            preflight_protocol_path=preflight_protocol,
+            preflight_bank_path=preflight_bank,
+        )
+    else:
+        protocol = (
+            _load_pilot_protocol()
+            if study_version == 1
+            else _load_pilot_protocol(study_version)
+        )
+    fixture_prereg = (
+        _load_fixture_bank(protocol, study_version, preflight_bank_path=preflight_bank)
+        if preflight_only
+        else _load_fixture_bank(protocol, study_version)
     )
-    fixture_prereg = _load_fixture_bank(protocol, study_version)
     cache_root = Path(os.environ.get("COSCIENTIST_LIT_REVIEW_DIR", ""))
+    if preflight_only:
+        pairs = _pilot_pairs(fixture_prereg, study_version)
+        registry = ToolRegistry(
+            config_path=str(ROOT / TOOL_CONFIG), skip_user_config=True
+        )
+        _pilot_search_tool(registry)
+        _validate_pilot_drafts(fixture_prereg, pairs)
+        _require_empty_pilot_cache(cache_root)
+        endpoint, checked_cache, expected_build, serving_process = _check_runtime(
+            protocol, fixture_prereg, cache_root=cache_root
+        )
+        if checked_cache.resolve() != cache_root.resolve():
+            raise ValueError("Pilot runtime changed the isolated cache root")
+        print(
+            json.dumps(
+                {
+                    "status": "OFFLINE_PREFLIGHT_ONLY_NOT_REGISTERED",
+                    "study_version": study_version,
+                    "endpoint": endpoint,
+                    "mcp_build_id": expected_build,
+                    "model_name": protocol["model_name"],
+                    "serving_process": serving_process,
+                    "cache_empty": True,
+                    "admission_claimed": False,
+                    "scientific_calls": 0,
+                }
+            )
+        )
+        return 0
     endpoint, cache_root, expected_build, _ = _check_runtime(
         protocol, fixture_prereg, cache_root=cache_root
     )
@@ -1343,5 +2183,17 @@ async def _main(study_version: int | None = None) -> int:
     return 0 if report["status"] == "PILOT_COMPLETE_LABELS_PENDING" else 1
 
 
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv)
+    return asyncio.run(
+        _main(
+            args.study_version,
+            preflight_only=args.preflight_only,
+            preflight_protocol=args.preflight_protocol,
+            preflight_bank=args.preflight_bank,
+        )
+    )
+
+
 if __name__ == "__main__":
-    raise SystemExit(asyncio.run(_main()))
+    raise SystemExit(main())

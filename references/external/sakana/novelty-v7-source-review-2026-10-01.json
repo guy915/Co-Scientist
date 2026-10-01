@@ -1,0 +1,127 @@
+{
+  "status": "ACCEPT_SOURCE_VALIDATION_ONLY",
+  "reviewed_proposal": "references/external/sakana/novelty-v7-source-proposal-2026-10-01.json",
+  "reviewed_proposal_sha256": "0e47f9419de4e32592d9589c2106b6d43c46e29475b3d1d73e652cc3b610347f",
+  "scope": "Source identity, abstract-supported draft wording, distinct controls and finite prior-exposure disjointness only. Not scientific-performance or universal novelty acceptance.",
+  "coordinator_official_refetch": {
+    "status": "EXACT_METADATA_CHECK_PASS",
+    "observed_at_utc": "2026-09-30T23:41:06.293391+00:00",
+    "http_status": 200,
+    "raw_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study6/source-review/coordinator-exact12.xml",
+    "raw_sha256": "d432f5d631011399dfff89baf5ccf0040170ee93189991d474d48b2c67be42ad",
+    "raw_bytes": 423996,
+    "requested_and_returned_order": [
+      "42275480",
+      "41808014",
+      "42664262",
+      "42678059",
+      "42759501",
+      "42667716",
+      "42811467",
+      "42799126",
+      "42733273",
+      "42786917",
+      "42776282",
+      "42476336"
+    ],
+    "prior_exposure_count": 818,
+    "collisions": [],
+    "issues": [],
+    "scope": "Identity/excerpt verification only; semantic review pending; zero model or maintained MCP calls.",
+    "extended_metadata_issues": [],
+    "checked_fields": [
+      "exact_order_PMid",
+      "title",
+      "complete_author_list",
+      "author_count",
+      "journal",
+      "doi",
+      "publication_types",
+      "issue_date",
+      "electronic_date",
+      "verbatim_excerpts",
+      "quote_word_limit",
+      "draft_length",
+      "prior_exposure_disjointness"
+    ]
+  },
+  "fresh_peer": {
+    "requested_model": "gemini-3.8-flash-high",
+    "requested_effort": "high",
+    "conversation_id": "9bfd4ba1-de4f-4187-bf2e-69c474ff026c",
+    "terminal_status": "SUCCESS",
+    "served_model_verified": false,
+    "input": "Exact official abstracts and proposed drafts supplied inline; no filesystem/network tools.",
+    "structured_result": {
+      "findings": [
+        "All 12 items represent original primary research publications ('Journal Article' publication type; no reviews, editorials, or perspective pieces).",
+        "Each of the six pairs pairs a positive and distinct control within a shared biological field (plant abiotic stress, bacterial pathogenesis, neural organoid disease/toxicology modeling, cardiac electrophysiology/calcium handling, muscle regeneration/adaptation, and tumor microenvironment/autophagy) operating via distinctly different molecular mechanisms.",
+        "All 12 concise drafts faithfully reflect the supplied abstracts with strict gene, organism, and mechanistic precision, avoiding unjustified causal claims, global novelty assertions, or speculative extrapolation.",
+        "All supplied excerpts are 100% verbatim substrings of their respective abstracts, with aggregate excerpt lengths strictly within the <=25 words limit (ranging from 12 to 23 words per item).",
+        "No material factual discrepancies, misattributions, or hallucinated claims were identified in any of the 12 drafts."
+      ],
+      "limitations": [
+        "Abstract-only scope: Analyses are constrained to author-reported abstracts without access to full methodological details, statistical power, raw data, dose-response curves, or negative control validation.",
+        "AtGATA5-OX vs. gata5 mutant paradox: In PMID 42275480, both overexpression and CRISPR knockout showed ABA-hypersensitive germination, indicating complex or non-linear feedback regulation in endogenous ABA signaling not fully resolved in the abstract.",
+        "In vitro and non-human model generalizability: Findings in neonatal rat ventricular myocytes (PMID 42799126), extreme-habitat cyprinid fish (PMID 42786917), and cell-culture co-culture/organoid models (PMIDs 42759501, 42667716, 42476336) require validation in mature in vivo human physiological contexts.",
+        "Correlation vs. direct causation in TME secretomes: In somatotroph PitNETs (PMID 42476336), recombinant CTSZ alone did not alter GH3 proliferation/secretion, demonstrating that invasiveness is driven collectively by macrophage secretomes rather than CTSZ acting as a standalone driver.",
+        "Absence of independent experimental replication: Primary research findings reflect individual laboratory reports and do not constitute independent scientific consensus or verified clinical efficacy."
+      ],
+      "per_pair": [
+        "Pair 1 (atgata5-aba): ACCEPT. Both studies investigate Arabidopsis abiotic stress responses. Positive (PMID 42275480) demonstrates AtGATA5 transcriptional upregulation of NCED3 and ABI4 to reduce seed germination under ABA. Distinct control (PMID 41808014) identifies Pantoea-mediated drought tolerance via upregulation of host flavonoid biosynthesis and chemoattraction. Mechanisms are fully distinct (endogenous transcriptional/hormonal control vs. bacterial-plant mutualism/secondary metabolism). Excerpts are verbatim and within word limits (19 and 22 words).",
+        "Pair 2 (brucella-epec): ACCEPT. Both studies address bacterial pathogenesis and host-pathogen interfaces. Positive (PMID 42664262) identifies Brucella T4SS effector BT4E4 mediating oxidative stress tolerance and suppressing Caspase-5 pyroptosis. Distinct control (PMID 42678059) demonstrates aEPEC restoration of epithelial attachment via phase-variable activation of type I fimbriae and FimH mutations. Mechanisms are fully distinct (intracellular effector-mediated immune evasion vs. surface adhesin phase variation). Excerpts are verbatim and within word limits (21 and 12 words).",
+        "Pair 3 (neural-organoid-ahr): ACCEPT. Both studies employ human pluripotent stem cell-derived neural organoid systems. Positive (PMID 42759501) presents human dual neural organoids (hPCOs) modeling CNS-PNS co-development and nociceptor loss in congenital insensitivity to pain. Distinct control (PMID 42667716) demonstrates BaP-induced premature cortical neurogenesis via AHR activation, reversible by antagonist CH-223191. Mechanisms are fully distinct (developmental self-organization and genetic neuropathy vs. toxicant-driven teratogenesis/differentiation skewing). Excerpts are verbatim and within word limits (23 and 21 words).",
+        "Pair 4 (uchl1-cardiac): ACCEPT. Both studies investigate cardiomyocyte function and calcium homeostasis. Positive (PMID 42811467) elucidates UCHL1 deubiquitination of CaMKII-δ at K251 driving RyR2 phosphorylation, calcium mishandling, and atrial fibrillation. Distinct control (PMID 42799126) demonstrates microscale optoelectronic-peptide hydrogel platforms for light-induced cardiomyocyte alignment and localized pacing. Mechanisms are fully distinct (endogenous post-translational ubiquitin signaling vs. exogenous synthetic bioelectronic actuation). Excerpts are verbatim and within word limits (21 and 15 words).",
+        "Pair 5 (myeloid-gr-muscle): ACCEPT. Both studies focus on myogenic cells and muscle adaptation/regeneration. Positive (PMID 42733273) identifies a phase-specific role for myeloid glucocorticoid receptor signaling where early dexamethasone blocks monocyte-macrophage transition and impairs muscle repair. Distinct control (PMID 42786917) demonstrates starvation adaptation in Schizopygopsis muscle satellite cells via inhibin βB-mediated SMAD activation and G1 arrest. Mechanisms are fully distinct (immune-macrophage temporal orchestration of injury repair vs. metabolic nutrient-deprivation quiescence). Excerpts are verbatim and within word limits (17 and 15 words).",
+        "Pair 6 (lamp2-ctsz-tumor): ACCEPT. Both studies explore the tumor microenvironment, macrophage dynamics, and lysosomal/autophagy pathways. Positive (PMID 42776282) demonstrates LAMP2-mediated STING ubiquitination/degradation in bladder cancer and reversal by Mm-2 + gemcitabine. Distinct control (PMID 42476336) reveals macrophage-secreted factors driving somatotroph PitNET invasion via TGF-β pathway modulation and autophagy suppression, identifying CTSZ as a marker. Mechanisms are fully distinct (tumor cell-intrinsic lysosomal degradation of an innate immune sensor vs. TAM secretome-mediated paracrine signaling). Excerpts are verbatim and within word limits (21 and 14 words)."
+      ],
+      "proposal_sha256": "29b0c8cb360d7bdea0ad5491ae3335f467c1c8a0627a71c08c360608de8ebe1a",
+      "toolAction": "Conducting independent source audit",
+      "toolSummary": "Independent source audit verification",
+      "verdict": "ACCEPT"
+    },
+    "raw_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study6/source-review/peer-stdout.json",
+    "raw_sha256": "1bb3672ecab42c51709b8a57b8c38ab29421340914dfb7e971810a268599692f",
+    "initial_acceptance_limit": "Initial ACCEPT overlooked the two draft scope errors found by independent Luna review; superseded on final wording."
+  },
+  "native_review": {
+    "status": "ACCEPT",
+    "model": "gpt-6-luna",
+    "effort": "xhigh",
+    "reviewer": "study5_trace_failure",
+    "context": "Existing independent reviewer reused; not a fresh-context review.",
+    "checked_proposal_sha256": "0e47f9419de4e32592d9589c2106b6d43c46e29475b3d1d73e652cc3b610347f",
+    "scope": "All12 drafts/metadata/excerpts checked against exact12 XML and finite prior818; no edits/provider calls/spawn.",
+    "corrected_findings": [
+      "AtGATA5 positive preserves both overexpression and knockout ABA hypersensitivity.",
+      "Cardiomyocyte control separates conductive-substrate effects from localized photostimulation.",
+      "Shortened AHR/BaP excerpts are exact and within25 conservative words."
+    ],
+    "limits": "Abstract-level only, no independent experimental replication or retrieval-performance evidence."
+  },
+  "maintained_scientific_mcp_requests": 0,
+  "peer_review_route_note": "External peer agents are authoring/review collaboration, not campaign inference; existing quota route was requested. No project-provider model or paid routing used.",
+  "reviewed_at_utc": "2026-09-30T23:52:32.403368+00:00",
+  "peer_followup": {
+    "conversation_id": "9bfd4ba1-de4f-4187-bf2e-69c474ff026c",
+    "terminal_status": "SUCCESS",
+    "requested_model": "gemini-3.8-flash-high",
+    "requested_effort": "high",
+    "verdict": "ACCEPT",
+    "checked_proposal_sha256": "0e47f9419de4e32592d9589c2106b6d43c46e29475b3d1d73e652cc3b610347f",
+    "scope": "Three changed cases only, supplied official abstracts and corrected drafts; othercases from initialaudit.",
+    "result_boundary": "Final narrative explicitly accepts correctedhash; structured_output retains staleoriginalhash and is ignored.",
+    "raw_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study6/source-review/peer-correction-conversation-stdout.json",
+    "raw_sha256": "083d3d30daa88103daf96accaef9f744d7a8ab41282f08da5e7f3a10ede3a83a",
+    "cli_failure": "Initial --resume flag unsupported, exit2 before peer request; --conversation supported and used once."
+  },
+  "project_model_requests_during_source_preparation": 0,
+  "finite_exposure": {
+    "prior_manifest": "references/external/sakana/novelty-v7-prior-exposure-manifest-2026-10-01.json",
+    "prior_manifest_sha256": "bb83e183131b5dd6608e2c6ae68f1bc0a5086bd3ee2ab55578d18c20697ba6ea",
+    "pre_discovery_union": 818,
+    "selected_source_collisions": 0,
+    "post_discovery_union": 958,
+    "limit": "Finite retained campaign IDs only; currentdiscovery IDs appear inpostmanifest intentionally."
+  }
+}

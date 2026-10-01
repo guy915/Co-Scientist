@@ -1,0 +1,78 @@
+{
+  "purpose": "Behavioral repair of valid empty PubMed result verification; no scientific acceptance",
+  "status": "VERIFIED_OFFLINE",
+  "items": [
+    "M12-04b4f7",
+    "M12-04b4f7a"
+  ],
+  "source_hashes": {
+    "novelty_result_conditioned_pilot.py": "177b82683f9de207a75edb28ab871bc7bb5196090771e8f6c12e8ffde9b13f52",
+    "test_novelty_result_conditioned_batch_pilot.py": "f25a3a56ed188168e2c6a11a2c363832d50228513c4a37b2e4122248650003c0",
+    "test_novelty_result_conditioned_empty_search.py": "e5164694dffcad2bf9ec6139fcc832904ba6ba4651204f084dadad203db8f63f"
+  },
+  "actual_defect": {
+    "terminal_record": "novelty-pilot-v5-terminal-2026-09-30.json",
+    "result_sha256": "d19aeccc9bb95efff592a630a00832808b074b41b3bc66502f68a86080c9dd42",
+    "raw_trace_sha256": "2b06945312f51da668c899360466446ef2bc0401e5ccfcf28d8a421ea79e4be2",
+    "failure": "Strict batch reader accepts actual no-error/zero-ID trace; subsequent returned-link guard wrongly requires ELink rows for no returned papers."
+  },
+  "red": {
+    "public_search_boundary": "New offline _search_once regression failed result None == [] before helper correction.",
+    "test_fixture_boundary": "Existing first batch-pilot test failed unchanged absence assertion after legitimate bank6 registration; isolated ROOT fixture fixes its precondition."
+  },
+  "change": "Skip per-paper PMC comparison only for zero returned IDs after strict trace attestation. All nonempty checks unchanged. Isolate only the missing-bank test under tmp_path; retain every assertion and frozen file.",
+  "verification": {
+    "worker": {
+      "agent": "study5_empty_guard_fix",
+      "model": "gpt-6-luna",
+      "effort": "xhigh",
+      "runner_tests": 89,
+      "runner_modules": [
+        "test_novelty_result_conditioned_pilot.py",
+        "test_novelty_result_conditioned_batch_pilot.py",
+        "test_novelty_result_conditioned_batch_preflight.py",
+        "test_novelty_result_conditioned_empty_search.py"
+      ],
+      "runner_interpreter": "engine/.venv/bin/python",
+      "strict_batch_reader_tests": 26,
+      "reader_interpreter": ".venv-mcp/bin/python",
+      "ruff": "PASS",
+      "targeted_strict_mypy_new_test": "PASS",
+      "diff_check": "PASS"
+    },
+    "root": {
+      "public_empty_search_regression": "1 passed",
+      "ruff_check": "PASS, three code/test files",
+      "ruff_format_check": "PASS, three files",
+      "diff_check": "PASS",
+      "exact_source_hashes": "Match worker and independent review",
+      "maintained_code_vs_pinned_release_checks": "git diff --quiet 852ac4 HEAD -- app engine evaluations e2e vendor pyproject.toml uv.lock exit0; no uncommitted maintained-code changes.",
+      "committed_hermetic_bank_path_case": "1 passed against02b176e1",
+      "code_commit": "02b176e1"
+    },
+    "independent": {
+      "agent": "empty_guard_semantic_review",
+      "model": "gpt-6-luna",
+      "effort": "xhigh",
+      "verdict": "ACCEPT",
+      "blocking_findings": [],
+      "scope": "Exact three files; strict trace-before-link call order, genuine empty proof, nonempty/error rejection and hermetic test precondition. Tests not rerun by reviewer."
+    }
+  },
+  "cleanup": {
+    "owned_runtime_checkout_removed": "/private/tmp/cosci-m12-study5-runtime-20260930",
+    "owned_scripts_removed_after_identical_private_archive": true,
+    "private_cache_and_raw_evidence_retained": true,
+    "global_single_launch_guard_and_all_actual_admissions_preserved": true,
+    "dead_code_check": "Ruff F401/F841 PASS; no code removal warranted",
+    "deslop": "Scoped diff uses one guard, caller-precondition comment and existing test helpers; no duplicate maintained workflow or type suppression added.",
+    "ui_scan": "Not applicable; no UI files changed."
+  },
+  "limits": [
+    "No full product suite rerun: maintained source/configuration/dependencies/evaluation trees unchanged from pinned successful checks.",
+    "Inherited whole-reference typing diagnostics are not claimed resolved; strict new-test check only.",
+    "No scientific calls, model qualification, source selection, score, confirmation, historical replay, continuation, new registration or deployment.",
+    "Consumed protocols keep their historical runner pins unchanged; current repaired runner cannot be used to replay them."
+  ],
+  "next": "Resolve original M12-04b4 through a prospectively justified complete comparison; this repair itself authorizes no new bank or live launch."
+}
