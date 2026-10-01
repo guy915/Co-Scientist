@@ -1,8 +1,8 @@
-"""Tests for the error/IO-failure paths in ``co_scientist.cache_storage``.
+"""Tests for the error/IO-failure paths in ``co_scientist.cache.storage``.
 
 ``test_cache.py`` exercises the happy-path round trips through ``LLMCache``
 and ``NodeCache``. These tests call the private read/write helpers in
-``cache_storage`` directly to reach the corruption self-healing and
+``cache.storage`` directly to reach the corruption self-healing and
 atomic-write failure branches that a clean round trip never triggers:
 corrupt JSON/pickle payloads, a missing "response" key, an OSError while
 opening the entry (modeled with a directory in place of the expected file),
@@ -12,7 +12,7 @@ and a write failure when the destination's parent directory is missing.
 import pickle
 from pathlib import Path
 
-from co_scientist.cache_storage import (
+from co_scientist.cache.storage import (
     _read_llm_cache_entry,
     _read_node_cache_entry,
     _write_cache_file_atomically,
@@ -104,7 +104,7 @@ def test_write_cache_file_atomically_success_writes_file(
 
 # --- _read_node_cache_entry: corruption self-healing ------------------------
 #
-# Pickle here mirrors production usage: cache_storage.py documents that
+# Pickle here mirrors production usage: cache/storage.py documents that
 # node-cache entries are written locally by this package's own atomic
 # writer into its own cache directory, so reading them back is trusted,
 # not user-supplied, data. These tests write the fixtures themselves.

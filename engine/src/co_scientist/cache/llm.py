@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from co_scientist.cache_storage import (
+from co_scientist.cache.storage import (
     _cache_dir_stats,
     _clear_cache_files,
     _evict_stale_entry,

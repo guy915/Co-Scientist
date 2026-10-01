@@ -387,7 +387,7 @@ engine did before skills existed. Provenance and upstream revision: the
 
 **Evidence budget and `reserved_slots`.** Multi-source search fills its budget through `literature_review/search_budget.py::select_within_budget`, not by truncating the ranked list. Retrieval score rewards source quality, citation count, and recency — axes a source can lack entirely rather than score poorly on, so it sorts below every indexed paper however well it matches. Such a source can claim guaranteed places via `reserved_slots` in its `SearchSourceConfig`; reserved places are filled best-first within the source, never padded, never over budget. No shipped source currently uses it (`test_the_shipped_sources_reserve_no_slots`).
 
-Caching (`cache.py`) is on by default and controlled by `COSCIENTIST_CACHE_ENABLED` / `COSCIENTIST_CACHE_DIR` env vars.
+Caching (`cache/`) is on by default and controlled by `COSCIENTIST_CACHE_ENABLED` / `COSCIENTIST_CACHE_DIR` env vars.
 
 Engine-specific docs live in `engine/docs/` (`ARCHITECTURE.md`, `CONFIGURATION.md`, `DEVELOPMENT.md`, `DOMAIN_CUSTOMIZATION.md`, `GENERATION_MODES.md`, `LITERATURE_REVIEW_TOOLS_CONFIGURATION.md`, `LOGGING.md`, `MCP_INTEGRATION.md`, `WEB_SEARCH.md`).
 

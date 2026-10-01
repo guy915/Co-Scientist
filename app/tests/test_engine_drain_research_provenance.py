@@ -21,7 +21,6 @@ from typing import Any, cast
 from unittest.mock import AsyncMock
 
 import pytest
-from co_scientist import cache_nodes
 from co_scientist.agents.generation.literature_review import node as lr
 from co_scientist.agents.generation.literature_review.collection import (
     _CollectionResult,
@@ -36,6 +35,7 @@ from co_scientist.agents.generation.literature_review.research_phase import (
     ResearchOutcome,
 )
 from co_scientist.cache import NodeCache
+from co_scientist.cache import nodes as cache_nodes
 from co_scientist.models import Article
 from co_scientist.research import (
     CallStatus,

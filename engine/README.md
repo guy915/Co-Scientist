@@ -385,7 +385,7 @@ src/co_scientist/
 ├── models/             # Hypothesis, HypothesisReview, ExecutionMetrics dataclasses
 ├── llm/                # LiteLLM dispatch: call, request, attempts, structured, tools
 ├── mcp_client.py       # MCP server connection (langchain-mcp-adapters)
-├── cache.py            # Disk-based LLM response cache
+├── cache/              # Disk-based LLM response cache
 ├── constants/          # Elo params, token limits, workflow defaults
 ├── progress.py         # Shared progress-event emission used by agent nodes
 ├── schemas/            # JSON schemas for structured LLM output

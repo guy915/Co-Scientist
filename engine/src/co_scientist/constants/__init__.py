@@ -261,7 +261,8 @@ PROGRESS_RESEARCH_OVERVIEW_COMPLETE: Final = 99
 
 # Cache defaults
 # Overridable via COSCIENTIST_CACHE_DIR / COSCIENTIST_CACHE_ENABLED (see
-# cache.py); caching covers both raw LLM responses and node-level results.
+# the cache package); caching covers both raw LLM responses and node-level
+# results.
 DEFAULT_CACHE_DIR: Final = ".coscientist_cache"
 """Default directory for LLM response caching."""
 

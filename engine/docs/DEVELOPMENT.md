@@ -14,7 +14,7 @@ engine/
 │       ├── schemas/            # JSON schemas for LLM responses
 │       ├── models/             # Hypothesis, Article dataclasses (among others)
 │       ├── llm/                # LLM dispatch package (call, request, attempts, tools)
-│       ├── cache.py            # LLM response caching
+│       ├── cache/              # LLM response caching
 │       ├── mcp_client.py       # MCP server integration
 │       ├── constants/          # Configuration constants
 │       ├── config/             # YAML-based tool/domain configuration

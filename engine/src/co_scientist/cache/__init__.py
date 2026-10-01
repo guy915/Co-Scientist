@@ -4,9 +4,9 @@ This cache dramatically speeds up development and testing by avoiding
 redundant LLM calls for identical requests.
 
 The implementation is split across sibling modules by responsibility:
-shared file-storage primitives (``cache_storage``), the LLM response cache
-tier (``cache_llm``), and the whole-node output cache tier
-(``cache_nodes``). This module hosts the process-wide singletons and their
+shared file-storage primitives (``cache.storage``), the LLM response cache
+tier (``cache.llm``), and the whole-node output cache tier
+(``cache.nodes``). This module hosts the process-wide singletons and their
 accessors, and re-exports every name historically importable from
 ``co_scientist.cache``.
 """
@@ -18,27 +18,27 @@ from collections.abc import Iterator
 from contextvars import ContextVar
 from typing import Any
 
-from co_scientist.cache_llm import (
+from co_scientist.cache.llm import (
     LLMCache,
     LLMCacheRequest,
     NullCache,
 )
-from co_scientist.cache_nodes import NodeCache
-from co_scientist.cache_storage import _cache_dir_stats as _cache_dir_stats
-from co_scientist.cache_storage import (
+from co_scientist.cache.nodes import NodeCache
+from co_scientist.cache.storage import _cache_dir_stats as _cache_dir_stats
+from co_scientist.cache.storage import (
     _clear_cache_files as _clear_cache_files,
 )
-from co_scientist.cache_storage import _hash_key as _hash_key
-from co_scientist.cache_storage import (
+from co_scientist.cache.storage import _hash_key as _hash_key
+from co_scientist.cache.storage import (
     _read_llm_cache_entry as _read_llm_cache_entry,
 )
-from co_scientist.cache_storage import (
+from co_scientist.cache.storage import (
     _read_node_cache_entry as _read_node_cache_entry,
 )
-from co_scientist.cache_storage import (
+from co_scientist.cache.storage import (
     _write_cache_file_atomically as _write_cache_file_atomically,
 )
-from co_scientist.cache_storage import (
+from co_scientist.cache.storage import (
     _write_node_cache_file_atomically as _write_node_cache_file_atomically,
 )
 from co_scientist.config.env_vars import parse_timeout_env

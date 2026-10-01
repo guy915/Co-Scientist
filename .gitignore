@@ -50,6 +50,8 @@ yarn-error.log*
 *.db-*
 reports/
 cache/
+# The engine's cache package is source, not a runtime cache directory.
+!/engine/src/co_scientist/cache/
 .cache/
 .coscientist_cache/
 .coscientist_prompts/

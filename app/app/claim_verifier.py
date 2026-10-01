@@ -246,7 +246,7 @@ def _entailment_prompt(claim: str, passages: Sequence[EvidencePassage]) -> str:
 
     Evidence is rendered before the claim, not after. This does not help
     the engine's own response cache -- it keys on the full prompt string
-    (``cache_llm._generate_cache_key``), so a different claim is a
+    (``cache.llm._generate_cache_key``), so a different claim is a
     different key regardless of where it sits. It matters for
     provider-side prompt-prefix caching (e.g. context/prompt caching a
     gateway model may offer), which only credits a request for the literal
