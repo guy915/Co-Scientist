@@ -7,7 +7,7 @@ import pytest
 from co_scientist.agents.evolution import evolve as evolution
 from co_scientist.llm import ModelCallStats, record_call
 from co_scientist.models import Hypothesis
-from co_scientist.models_metrics import ExecutionMetrics
+from co_scientist.models.metrics import ExecutionMetrics
 
 from app import store, task_worker
 from app.config import settings

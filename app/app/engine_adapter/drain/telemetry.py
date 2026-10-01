@@ -26,7 +26,7 @@ def fold_grounding_telemetry(
     if not usage:
         return
     from co_scientist.models import MetricDeltas
-    from co_scientist.models_metrics import (
+    from co_scientist.models.metrics import (
         ExecutionMetrics,
         create_metrics_update,
         merge_metrics,

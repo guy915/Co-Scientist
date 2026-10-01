@@ -226,7 +226,7 @@ def _cost_summary(metrics: dict[str, Any] | None) -> dict[str, Any]:
     """Roll the run's persisted ``model_usage`` telemetry into a cost total.
 
     ``model_usage`` is keyed ``"{phase}::{model}"`` (see
-    ``co_scientist.models_metrics.ExecutionMetrics``); this sums the
+    ``co_scientist.models.metrics.ExecutionMetrics``); this sums the
     legacy ``cost_usd`` estimates. The evidence block separately identifies
     complete estimates and unknowns; neither is a provider billing receipt.
     """

@@ -27,7 +27,7 @@ def merge_usage_snapshots(
 
     Returns:
         The combined per-(phase, model) usage, additive across snapshots --
-        the same rule ``models_metrics.merge_metrics`` applies to a node's
+        the same rule ``models.metrics.merge_metrics`` applies to a node's
         own ``model_usage`` delta.
     """
     from co_scientist.models import (

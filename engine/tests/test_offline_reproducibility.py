@@ -6,7 +6,7 @@ needs every prompt to be reproducible, and each hypothesis used to draw a
 random ``uuid4`` id that ranking's multi-turn debate writes into the
 follow-up judge prompt -- so one random id changed a prompt, which
 changed that call's content, which changed the judgment it decided, and
-the run diverged from there. ``models_ids`` closes that by minting ids
+the run diverged from there. ``models.ids`` closes that by minting ids
 from a per-run namespace instead; these tests are what keeps the property
 true.
 

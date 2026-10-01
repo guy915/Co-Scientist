@@ -32,7 +32,7 @@ layers before it in this list, at the module that defines the name
 
 The interface resolves its names on first access instead of importing the
 implementation here. A handful of foundation modules the implementation
-itself imports (``cache``, ``models_metrics``, ``workspace``, ``mcp_client``)
+itself imports (``cache``, ``models.metrics``, ``workspace``, ``mcp_client``)
 read ``current_api_key``, ``campaign_free_mode`` or ``ModelCallStats`` from
 this package; an eager import of every entry point from this file would
 re-enter them half-initialised, so each name loads only the module that

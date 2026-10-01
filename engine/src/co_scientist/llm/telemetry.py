@@ -44,7 +44,7 @@ class ModelCallStats:
     """Additive per-(phase, model) telemetry, folded by an accumulator.
 
     Every field is a delta to sum into a running total, mirroring
-    ``models_metrics.MetricDeltas`` -- never a cumulative snapshot on its
+    ``models.metrics.MetricDeltas`` -- never a cumulative snapshot on its
     own.
 
     Attributes:

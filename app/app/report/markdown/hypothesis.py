@@ -33,7 +33,7 @@ from app.text_utils import hypothesis_statement, hypothesis_title
 # constant rather than maintaining a second copy of the string.
 _HYPOTHESIS_DISCLAIMER = _ABOUT_DISCLOSURE
 
-# Mirrors ``co_scientist.models_review.SCIENTIST_REVIEWER`` -- the app-side
+# Mirrors ``co_scientist.models.review.SCIENTIST_REVIEWER`` -- the app-side
 # review rows carry the same literal in ``reviewer_agent``, and there is no
 # shared app constant for it (it is duplicated module-locally wherever the
 # distinction is needed, e.g. ``engine_adapter.drain.reviews``).
@@ -182,7 +182,7 @@ def _is_unreviewed_scientist_admission(
     override refuses to race the provider-request seam that would crash the
     forced review with a permanent task failure. Such an idea is published
     unreviewed, so the report labels it distinctly. A scientist's own review
-    is not a peer review (``co_scientist.models_review.has_peer_review``), so
+    is not a peer review (``co_scientist.models.review.has_peer_review``), so
     it does not clear the flag.
     """
     if hyp.get("created_by_agent") != SCIENTIST_MANUAL_ORIGIN:

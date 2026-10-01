@@ -12,7 +12,7 @@ engine/
 │       ├── generator/          # HypothesisGenerator package (core, graph, streaming)
 │       ├── state.py            # WorkflowState TypedDict
 │       ├── schemas/            # JSON schemas for LLM responses
-│       ├── models.py           # Hypothesis, Article dataclasses (among others)
+│       ├── models/             # Hypothesis, Article dataclasses (among others)
 │       ├── llm/                # LLM dispatch package (call, request, attempts, tools)
 │       ├── cache.py            # LLM response caching
 │       ├── mcp_client.py       # MCP server integration
@@ -198,7 +198,7 @@ Each hypothesis is a `Hypothesis` dataclass in state, serialized to a dict in st
 | `reflection_notes` | string | Reflection node analysis against literature |
 | `generation_method` | string | One of `"debate"`, `"literature_tools"`, `"assumptions"`, `"research_expansion"` |
 
-See `models.py` for the full `Hypothesis` dataclass.
+See `models/__init__.py` for the full `Hypothesis` dataclass.
 
 ## LLM Calling
 

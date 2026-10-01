@@ -122,11 +122,11 @@ State is a `TypedDict` (`state.py:45`) flowing through every node. Each node ret
 | --- | --- | --- |
 | `hypotheses` | `deduplicate_hypotheses` (`state_reducers.py:212`, re-exported from `state.py`) | Nine nodes write here, through explicit ops rather than a text heuristic (the old ">50% overlap ⇒ replacement" guess was removed). `AppendHypotheses(items)` adds items to the pool, dropping id/exact-text collisions — used by Generation and Evolution so an evolved child can never replace its parent. A bare `list[Hypothesis]` (or an explicit `ReplaceHypotheses`, which `safety_screen` uses) **replaces** the pool with exactly that list, deduped by id — used by the curating nodes (review, reflection, comprehensive_reflection, safety_screen, ranking, deep_verification, proximity), which already return the full or intentionally pruned pool. An empty bare list means "no change", never a wipe. Near-duplicate collapsing is the Proximity agent's job, not the reducer's. |
 | `tournament_matchups` | `accumulate_matchups` (`state_reducers.py:59`) | The ranking node returns only the matchups it just judged, so last-write-wins erased every earlier cycle's tournament. Matchups accumulate, deduped on `(pair, pre-match ratings)` so a replayed ranking task cannot double-count while a genuine later rematch is kept. |
-| `metrics` | `merge_metrics` (`models_metrics.py:152`) | Every node emits only deltas via `create_metrics_update()` (`models_metrics.py:214`, re-exported from `models.py`). The reducer builds a fresh `ExecutionMetrics` (never mutates inputs): `hypothesis_count = max` (it is a running total, not a delta), count deltas additively merged, `phase_times` and `model_usage` dict-merged, `total_time` taken from the new value when it measured one (`> 0`) and otherwise carried forward. |
+| `metrics` | `merge_metrics` (`models/metrics.py:152`) | Every node emits only deltas via `create_metrics_update()` (`models/metrics.py:214`, re-exported from `models/__init__.py`). The reducer builds a fresh `ExecutionMetrics` (never mutates inputs): `hypothesis_count = max` (it is a running total, not a delta), count deltas additively merged, `phase_times` and `model_usage` dict-merged, `total_time` taken from the new value when it measured one (`> 0`) and otherwise carried forward. |
 | `messages` | `add_messages` (LangGraph) | Phase messages append rather than overwrite. |
 | all others | (overwrite) | `supervisor_guidance`, `articles_with_reasoning`, `meta_review`, `research_overview`, `removed_duplicates`, `evolution_details`, `current_iteration`, etc. |
 
-Streaming caveat: `astream` yields only per-node deltas, so the streaming wrapper in `generator/streaming.py` manually accumulates a cumulative state dict and merges metrics via `merge_metrics` (`generator/streaming.py:79`, imported from `models_metrics.py`). This is the library's own streaming path — `HypothesisGenerator.generate_hypotheses(..., stream=True)` in `generator/run_execution.py` — used by the CLI examples and `dev/` scripts. The app never drives the graph this way; it runs one node per durable task instead (see §9).
+Streaming caveat: `astream` yields only per-node deltas, so the streaming wrapper in `generator/streaming.py` manually accumulates a cumulative state dict and merges metrics via `merge_metrics` (`generator/streaming.py:79`, imported from `models/metrics.py`). This is the library's own streaming path — `HypothesisGenerator.generate_hypotheses(..., stream=True)` in `generator/run_execution.py` — used by the CLI examples and `dev/` scripts. The app never drives the graph this way; it runs one node per durable task instead (see §9).
 
 ---
 
@@ -341,8 +341,8 @@ Temperatures: `LOW=0.3`, `MEDIUM=0.5`, `HIGH=0.7` (`constants/__init__.py`). Tok
 | --- | --- |
 | Graph topology, routers | `engine/src/co_scientist/workflow_topology.py` (one declaration, read by both run paths) |
 | Graph assembly | `engine/src/co_scientist/generator/graph.py` (built via `generator/configuration.py::_build_graph`) |
-| State definition + its reducers | `engine/src/co_scientist/state.py` (`deduplicate_hypotheses` and `accumulate_matchups` here; `merge_metrics` in the sibling `models_metrics.py`) |
-| Data models (`Hypothesis`, `ExecutionMetrics`, `Article`) | `engine/src/co_scientist/models.py` |
+| State definition + its reducers | `engine/src/co_scientist/state.py` (`deduplicate_hypotheses` and `accumulate_matchups` here; `merge_metrics` in the sibling `models/metrics.py`) |
+| Data models (`Hypothesis`, `ExecutionMetrics`, `Article`) | `engine/src/co_scientist/models/` |
 | LLM dispatch, JSON repair, tool-calling loop | `engine/src/co_scientist/llm/` |
 | Generation coordinator (3-condition strategy) | `engine/src/co_scientist/agents/generation/coordinator_strategy.py` |
 | Tool-based draft → validate | `engine/src/co_scientist/agents/generation/literature_tools/` |
