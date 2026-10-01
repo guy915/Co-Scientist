@@ -69,12 +69,17 @@ export const WordFrame: React.FC<{word: string; chip?: string; mono?: boolean; l
   );
 };
 
-/** B's opening: the rendered glass flask as the hero, the name under it. */
+/**
+ * B's opening: the rendered glass flask stands in for the logo's flask glyph,
+ * left of the name, with "Introducing" typed above the name as its eyebrow.
+ */
 const Mark: React.FC<{f: number; reveal: number}> = ({f, reveal}) => (
-  <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', fontFamily: FONT}}>
-    <Img src={flaskSrc(f)} style={{width: 620, height: 620, margin: '-150px 0 -70px', opacity: reveal, transform: `translateY(${mix(60, 0, reveal)}px) scale(${mix(0.85, 1, reveal)})`, background: 'radial-gradient(circle at 50% 52%, rgba(255,255,255,0.95) 0, rgba(255,255,255,0.7) 22%, rgba(255,255,255,0) 40%)'}} />
-    <TypeLine text="Introducing" start={4} size={52} color={C.inkSoft} rate={1} style={{marginBottom: 2}} />
-    <div style={{fontSize: 140, fontWeight: 500, letterSpacing: '-0.03em', color: C.ink, opacity: reveal, filter: `blur(${mix(14, 0, reveal)}px)`}}>Open Co-Scientist</div>
+  <div style={{display: 'flex', alignItems: 'center', fontFamily: FONT}}>
+    <Img src={flaskSrc(f)} style={{width: 330, height: 330, margin: '-60px -20px -60px -70px', opacity: reveal, transform: `scale(${mix(0.8, 1, reveal)})`}} />
+    <div style={{display: 'flex', flexDirection: 'column', alignItems: 'flex-start'}}>
+      <TypeLine text="Introducing" start={2} size={56} color={C.inkSoft} rate={1} style={{marginLeft: 8, marginBottom: -6}} />
+      <div style={{fontSize: 150, fontWeight: 500, letterSpacing: '-0.03em', color: C.ink, opacity: reveal, filter: `blur(${mix(14, 0, reveal)}px)`}}>Open Co-Scientist</div>
+    </div>
   </div>
 );
 
@@ -92,7 +97,7 @@ export const Title: React.FC = () => {
     <AbsoluteFill>
       <Backdrop look={LOOKS[i % LOOKS.length]} f={f - cuts[i] + i * 20} />
       <AbsoluteFill style={{alignItems: 'center', justifyContent: 'center'}}>
-        <Mark f={f} reveal={ramp(f, 0, 10)} />
+        <Mark f={f} reveal={ramp(f, 0, 9)} />
       </AbsoluteFill>
       <Sfx at={0} name="sparkle" volume={0.2} />
       {cuts.slice(1, 4).map(c => <Sfx key={c} at={c} name="shutter" volume={0.5} />)}

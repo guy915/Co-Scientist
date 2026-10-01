@@ -8,6 +8,10 @@ export const STEM = (getInputProps() as {stem?: 'mix' | 'sfx' | 'music'}).stem ?
 // start early to peak on their frame; the rise swells into it and stops dead.
 const LEAD: Record<string, number> = {swish: 4, whoosh: 7, rise: 16};
 
+// The whole effects layer sits 2 dB under the levels set per sound, so the
+// music leads the mix and the effects punctuate it.
+const TRIM = 0.8;
+
 interface Props {
   /** Scene-local frame the sound hits on (its start, or its peak for swells). */
   at: number;
@@ -23,6 +27,6 @@ interface Props {
 export const Sfx: React.FC<Props> = ({at, name, volume = 0.6}) =>
   STEM === 'music' ? null : (
     <Sequence from={at - (LEAD[name] ?? 0)} durationInFrames={36} layout="none">
-      <Audio src={staticFile(`sfx/${name}.wav`)} volume={volume} />
+      <Audio src={staticFile(`sfx/${name}.wav`)} volume={volume * TRIM} />
     </Sequence>
   );

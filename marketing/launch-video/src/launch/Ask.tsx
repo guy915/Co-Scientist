@@ -39,72 +39,76 @@ const Tile: React.FC<{art: TileArt; size: number; f: number}> = ({art, size, f})
   </div>
 );
 
-// Where each tile settles around the two lines when the column bursts.
-const SCATTER = [
-  [-760, -330, 0.8], [640, -360, 0.7], [-560, 330, 0.65], [780, 300, 0.9],
-  [-900, 20, 0.5], [120, -440, 0.55], [200, 420, 0.6], [900, -40, 0.5],
-];
-
-/**
- * Beats 4-7: "Every [picture] breakthrough", the picture column ticking up on
- * eighth notes; then "starts with a question." and the pictures burst out.
- */
-export const Question: React.FC = () => {
+/** Beats 4-6: "Every [picture] breakthrough", the picture column ticking up on eighth notes. */
+export const EveryLine: React.FC = () => {
   const f = useCurrentFrame();
   const {fps} = useVideoConfig();
   const b = useBeats();
   const steps = [0.5, 1, 1.5].map(k => b(k));
-  const burst = b(2);
   const pos = steps.reduce((p, s) => p + ramp(f, s, 6, emphasized), 0);
-  const size = 210;
-  const gap = 30;
+  const size = 230;
+  const gap = 34;
   const pop = spring({frame: f, fps, config: {damping: 13, stiffness: 160}});
   return (
     <AbsoluteFill style={{alignItems: 'center', justifyContent: 'center'}}>
-      {TILES.map((art, i) => {
-        const [x, y, sc] = SCATTER[i];
-        const t = spring({frame: f - burst - (i % 3), fps, config: {damping: 16, stiffness: 130}});
-        if (f < burst) return null;
-        return (
-          <div key={i} style={{position: 'absolute', left: 960 - 90, top: 540 - 90, transform: `translate(${x * t}px, ${y * t}px) scale(${sc * t}) rotate(${(i % 2 ? 1 : -1) * 8 * (1 - t)}deg)`}}>
-            <Tile art={art} size={180} f={f} />
-          </div>
-        );
-      })}
-      <div style={{display: 'flex', alignItems: 'center', gap: 44}}>
-        <WordReveal text="Every" start={0} size={124} stagger={2} />
+      <div style={{display: 'flex', alignItems: 'center', gap: 48}}>
+        <WordReveal text="Every" start={0} size={132} stagger={2} />
         <div style={{position: 'relative', width: size, height: size, transform: `scale(${pop})`}}>
           {TILES.map((art, i) => {
             const d = i - pos;
             if (Math.abs(d) > 2) return null;
             return (
-              <div key={i} style={{position: 'absolute', left: 0, top: d * (size + gap), transform: `scale(${mix(1, 0.72, Math.min(1, Math.abs(d)))})`, opacity: mix(1, 0.4, Math.min(1, Math.abs(d))) * (1 - Math.max(0, Math.abs(d) - 1)) * (f < burst ? 1 : Math.abs(d) < 0.5 ? 1 : 0)}}>
+              <div key={i} style={{position: 'absolute', left: 0, top: d * (size + gap), transform: `scale(${mix(1, 0.72, Math.min(1, Math.abs(d)))})`, opacity: mix(1, 0.4, Math.min(1, Math.abs(d))) * (1 - Math.max(0, Math.abs(d) - 1))}}>
                 <Tile art={art} size={size} f={f} />
               </div>
             );
           })}
         </div>
-        <WordReveal text="breakthrough" start={3} size={124} stagger={2} />
-      </div>
-      <div style={{marginTop: 34}}>
-        <WordReveal text="starts with a *question.*" start={b(0.75)} size={124} stagger={1.5} />
+        <WordReveal text="breakthrough" start={3} size={132} stagger={2} />
       </div>
       <Sfx at={0} name="pop0" volume={0.5} />
       {steps.map((s, k) => <Sfx key={s} at={s} name={`blip${k + 1}`} volume={0.32} />)}
-      <Sfx at={burst} name="whoosh" volume={0.5} />
+    </AbsoluteFill>
+  );
+};
+
+// Where each tile settles around the line, and how far it drifts while on screen.
+const SCATTER = [
+  [-700, -300, 0.9], [620, -330, 0.75], [-520, 290, 0.7], [760, 250, 0.95],
+  [-860, 40, 0.55], [90, -390, 0.6], [180, 360, 0.65], [880, -60, 0.5],
+];
+
+/** Beats 6-8: "starts with a question.", the pictures bursting out around it. */
+export const QuestionLine: React.FC = () => {
+  const f = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  return (
+    <AbsoluteFill style={{alignItems: 'center', justifyContent: 'center'}}>
+      {TILES.map((art, i) => {
+        const [x, y, sc] = SCATTER[i];
+        const t = spring({frame: f - i, fps, config: {damping: 16, stiffness: 120}});
+        const drift = 1 + f * 0.004;
+        return (
+          <div key={i} style={{position: 'absolute', left: 960 - 100, top: 540 - 100, transform: `translate(${x * t * drift}px, ${y * t * drift}px) scale(${sc * t}) rotate(${(i % 2 ? 1 : -1) * 6 * (1 - t)}deg)`}}>
+            <Tile art={art} size={200} f={f} />
+          </div>
+        );
+      })}
+      <WordReveal text="starts with a *question.*" start={0} size={132} stagger={2} />
+      <Sfx at={0} name="whoosh" volume={0.5} />
     </AbsoluteFill>
   );
 };
 
 const GOAL = 'What mechanisms drive antibiotic resistance in S. aureus biofilms?';
-// 27 characters a second, starting as the box sharpens: the question is the
+// 33 characters a second, starting as the box sharpens: the question is the
 // film's anchor, so it types at a pace that can be read along with and then
-// holds whole for over a second before the click.
-const SPEED = 0.9;
+// holds whole for a second before the click.
+const SPEED = 1.1;
 
 /**
- * Beats 7-15: the composer blurs into focus, the goal is typed, and the click
- * lands on the bass drop-out at 8.3 s.
+ * Beats 8-15: the composer blurs into focus, the goal is typed, and the click
+ * lands on the bass drop-out at 8.3 s (beat 13).
  */
 export const Prompt: React.FC = () => {
   const f = useCurrentFrame();
@@ -112,9 +116,9 @@ export const Prompt: React.FC = () => {
   const focus = ramp(f, 0, b(1), emphasized);
   const typeAt = 6;
   const typed = Math.ceil(GOAL.length / SPEED);
-  const send = b(6);
+  const send = b(5);
   const lift = ramp(f, send + 4, 16, accel);
-  const pill = ramp(f, b(7), 12, emphasized);
+  const pill = ramp(f, b(6), 12, emphasized);
   const move = ramp(f, send - 16, 14, emphasized);
   const press = ramp(f, send, 3) * (1 - ramp(f, send + 3, 8));
   return (
@@ -137,7 +141,7 @@ export const Prompt: React.FC = () => {
       ))}
       <Sfx at={send} name="click" volume={0.8} />
       <Sfx at={send + 2} name="send" volume={0.5} />
-      <Sfx at={b(7)} name="pop3" volume={0.35} />
+      <Sfx at={b(6)} name="pop3" volume={0.35} />
     </AbsoluteFill>
   );
 };

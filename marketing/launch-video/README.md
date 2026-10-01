@@ -67,5 +67,6 @@ npm run studio             # live preview / scrubbing
 - `public/hero/` — the flask (gitignored, 54 MB). Regenerate with `/Applications/Blender.app/Contents/MacOS/Blender -b -P blender/hero_flask.py -- "$PWD/public/hero" 120 1000 32`.
 - `scripts/sfx.py` — the launch film's sound effects; `scripts/score.py` — the previews' synthesized scores.
 
-Numbers on screen come from the demo run: 15 ideas, 21 matches, top Elo 1386. Graphs that
-dramatize the tournament carry a "Sequences shortened" footnote, as Google's own films do.
+Numbers on screen come from the demo run: 15 ideas, 21 matches, top Elo 1386. In the previews,
+graphs that dramatize the tournament carry a "Sequences shortened" footnote, as Google's own
+films do; the launch film runs without footnotes.

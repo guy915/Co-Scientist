@@ -1,9 +1,8 @@
 import React from 'react';
 import {AbsoluteFill, Audio, staticFile} from 'remotion';
 import '../shared/fonts';
-import {Footnote} from '../shared/Footnote';
 import {C} from '../shared/tokens';
-import {Prompt, Question} from './Ask';
+import {EveryLine, Prompt, QuestionLine} from './Ask';
 import {AtBeat} from './Beat';
 import {Close, Wordmark} from './End';
 import {Cards, Chart, Child, Clash, VerbShot} from './Loop';
@@ -25,8 +24,9 @@ export const Launch: React.FC = () => (
   <AbsoluteFill style={{background: C.paper}}>
     {STEM !== 'sfx' && <Audio src={staticFile('audio/soundtrack.wav')} />}
     <AtBeat from={0} to={4}><Title /></AtBeat>
-    <AtBeat from={4} to={7}><Question /></AtBeat>
-    <AtBeat from={7} to={15}><Prompt /></AtBeat>
+    <AtBeat from={4} to={6}><EveryLine /></AtBeat>
+    <AtBeat from={6} to={8}><QuestionLine /></AtBeat>
+    <AtBeat from={8} to={15}><Prompt /></AtBeat>
     <AtBeat from={15} to={21}><Team /></AtBeat>
     <AtBeat from={21} to={25}><Working /></AtBeat>
     <AtBeat from={25} to={27}><VerbShot word="Generate." gloss="Hypotheses drafted from the literature" look={1} /></AtBeat>
@@ -44,12 +44,5 @@ export const Launch: React.FC = () => (
     <AtBeat from={65} to={76}><Montage /></AtBeat>
     <AtBeat from={76} to={81}><Wordmark /></AtBeat>
     <AtBeat from={81}><Close /></AtBeat>
-    {[27, 31, 35].map(at => (
-      <AtBeat key={at} from={at} to={at + 2}><Footnote text="Ideas from a demo run on ai-co-scientist.com." /></AtBeat>
-    ))}
-    <AtBeat from={39} to={41}><Footnote text="Illustrative tournament. Sequences shortened." /></AtBeat>
-    <AtBeat from={41} to={47}><Footnote text="Screens from a demo run on ai-co-scientist.com." band /></AtBeat>
-    <AtBeat from={47} to={51}><Footnote text="Illustrative verdicts on an idea from the demo run." /></AtBeat>
-    <AtBeat from={51} to={57}><Footnote text="Screens from a demo run on ai-co-scientist.com." band /></AtBeat>
   </AbsoluteFill>
 );

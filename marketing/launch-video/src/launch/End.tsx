@@ -45,7 +45,6 @@ export const Wordmark: React.FC = () => {
 export const Close: React.FC = () => (
   <AbsoluteFill>
     <Lockup start={0} pace={0.45} scale={1.12} />
-    <Sfx at={0} name="ding-hi" volume={0.5} />
     <Sfx at={4} name="sparkle" volume={0.22} />
   </AbsoluteFill>
 );
