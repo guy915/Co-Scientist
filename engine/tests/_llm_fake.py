@@ -1,4 +1,18 @@
-"""Fakes for the ``litellm.acompletion`` boundary.
+"""Fakes for the completion backend boundary.
+
+Loaded by file path from the app's tests (``_resume_engine_helpers``), where
+``tests`` is the app's own package: import nothing from the ``tests`` package
+here.
+
+``FakeBackend`` is the one recording adapter for the backend seam
+(``co_scientist.llm.request.backend``): it answers each request with a
+caller-supplied coroutine function, records what it was sent, and gives the
+capability answer ("does this model take a native json_schema response
+format") either from the test or, by default, from the real default backend.
+``install_fake_backend`` installs it for one test and puts the previous
+backend back when the test ends; ``restore_backend_at_teardown`` is that
+restoring on its own, for helpers that install a backend some other way (the
+offline router).
 
 Also exposes ``disable_llm_cache``, a small shared helper that patches
 ``co_scientist.llm.precall.get_cache`` (the module where the shared
@@ -8,9 +22,10 @@ completion path.
 
 Used by the integration and system tests to run the *real* compiled
 LangGraph workflow end-to-end with only the network boundary faked.
-Patches ``litellm.acompletion`` directly -- the single external call every
-``co_scientist.llm`` entry point (``call_llm``, ``call_llm_json``) funnels
-through -- rather than patching individual node modules' imported
+Installs a fake completion backend (``tests/_llm_fake.py``) -- the
+single external call every ``co_scientist.llm`` entry point (``call_llm``,
+``call_llm_json``) funnels through -- rather than patching individual node
+modules' imported
 ``call_llm``/``call_llm_json`` references (the idiom used by the
 node-level unit tests, and available here as ``stub_call_llm_json``). This
 keeps one patch point instead of one per node module, and it exercises the
@@ -57,6 +72,7 @@ not just leaves within a single response.
 import itertools
 import json
 import types
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import pytest
@@ -65,6 +81,7 @@ from co_scientist import cache
 from co_scientist.cache import LLMCache
 from co_scientist.generator import GeneratorOptions, HypothesisGenerator
 from co_scientist.llm import precall
+from co_scientist.llm.request import backend
 from co_scientist.offline_llm import (
     _ARRAY_LENGTH_HINTS,
     _prompt_text,
@@ -91,6 +108,92 @@ def _next_leaf(_field: str = "") -> str:
         ``"stub-<n>"`` for the next value of the shared ``_counter``.
     """
     return f"stub-{next(_counter)}"
+
+
+Respond = Callable[..., Awaitable[Any]]
+
+
+class FakeBackend:
+    """Answers completions from a test's own coroutine function.
+
+    Attributes:
+        requests: The keyword arguments of every request, in order.
+    """
+
+    def __init__(
+        self,
+        respond: Respond,
+        *,
+        requests: list[dict[str, Any]] | None = None,
+        supports_json_schema: Callable[[str], bool] | None = None,
+    ) -> None:
+        """Builds the fake.
+
+        Args:
+            respond: Awaited with each request's keyword arguments; what it
+                returns (or raises) is the provider's answer.
+            requests: A list to record into, when the test already holds one;
+                otherwise a fresh one.
+            supports_json_schema: The capability answer for any model; left
+                out, the real default answer (profile, then litellm's
+                registry) is used.
+        """
+        self._respond = respond
+        self.requests: list[dict[str, Any]] = (
+            [] if requests is None else requests
+        )
+        self._supports = supports_json_schema
+
+    async def complete(self, **completion_args: Any) -> Any:
+        """Records the request, then answers it."""
+        self.requests.append(completion_args)
+        return await self._respond(**completion_args)
+
+    def supports_json_schema(self, model_name: str) -> bool:
+        """Answers from the test when it gave an answer, else the default."""
+        if self._supports is not None:
+            return self._supports(model_name)
+        return backend.litellm_supports_json_schema(model_name)
+
+
+def restore_backend_at_teardown(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Puts back, when the test ends, whichever backend is installed now.
+
+    Recording the current value with ``monkeypatch`` (even when set to
+    itself) registers it for restoration; this is the one place a test
+    reaches the registry's slot.
+
+    Args:
+        monkeypatch: The pytest monkeypatch fixture.
+    """
+    monkeypatch.setattr(backend, "_installed", backend._installed)
+
+
+def install_fake_backend(
+    monkeypatch: pytest.MonkeyPatch,
+    respond: Respond,
+    *,
+    requests: list[dict[str, Any]] | None = None,
+    supports_json_schema: Callable[[str], bool] | None = None,
+) -> FakeBackend:
+    """Installs a ``FakeBackend`` for the rest of the test.
+
+    Args:
+        monkeypatch: The pytest monkeypatch fixture.
+        respond: Awaited with each request's keyword arguments.
+        requests: A list to record into, when the test already holds one.
+        supports_json_schema: The capability answer for any model; left out,
+            the real default answer is used.
+
+    Returns:
+        The installed fake, for the test to inspect.
+    """
+    fake = FakeBackend(
+        respond, requests=requests, supports_json_schema=supports_json_schema
+    )
+    restore_backend_at_teardown(monkeypatch)
+    backend.install_backend(fake)
+    return fake
 
 
 def disable_llm_cache(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -205,7 +308,7 @@ async def _fake_acompletion(**kwargs: Any) -> Any:
 def install_fake_llm(monkeypatch: pytest.MonkeyPatch) -> None:
     """Patches the LLM and cache boundaries for a fast, deterministic run.
 
-    Patches ``litellm.acompletion`` (see module docstring) and forces LLM
+    Installs a fake completion backend (see module docstring) and forces LLM
     caching off. The cache override resets the process-wide singleton in
     ``co_scientist.cache`` in addition to setting the env var: the
     singleton is memoized on first use and other test modules may have
@@ -224,15 +327,10 @@ def install_fake_llm(monkeypatch: pytest.MonkeyPatch) -> None:
     Args:
         monkeypatch: The pytest monkeypatch fixture.
     """
-    import litellm
-
-    from co_scientist.llm.request import completion
-
-    monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
-    monkeypatch.setattr(
-        completion,
-        "_supports_json_schema_response_format",
-        lambda _model_name: True,
+    install_fake_backend(
+        monkeypatch,
+        _fake_acompletion,
+        supports_json_schema=lambda _model_name: True,
     )
     monkeypatch.setenv("COSCIENTIST_CACHE_ENABLED", "false")
     monkeypatch.setattr(cache, "_global_cache", None)

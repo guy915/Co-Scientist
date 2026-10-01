@@ -6,13 +6,14 @@ import json
 import types
 from typing import Any
 
-import litellm
 import pytest
 from co_scientist.cache import scoped_cache_override
 from litellm.exceptions import RateLimitError
 
 from app.claims import EntailmentLabel, EvidencePassage, assess_claim
 from app.claims.verifier import make_llm_assessor
+
+from ._llm_fake_backend import install_completion_backend
 
 CLAIM = "Kinase X inhibition reduces tumor growth in AML cells."
 QUOTE = "Kinase X inhibition increased tumor growth threefold in AML cells."
@@ -36,7 +37,7 @@ def install_replies(
             ]
         )
 
-    monkeypatch.setattr(litellm, "acompletion", completion)
+    install_completion_backend(monkeypatch, completion)
     return requests
 
 

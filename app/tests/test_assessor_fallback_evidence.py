@@ -10,6 +10,8 @@ from co_scientist.llm import scoped_telemetry
 from app.claims import EvidencePassage, assess_claim
 from app.claims.verifier import make_llm_assessor
 
+from ._llm_fake_backend import install_completion_backend
+
 
 @pytest.mark.parametrize("failure", [True, False])
 def test_claim_provider_records_only_deterministic_substitution(
@@ -36,7 +38,7 @@ def test_claim_provider_records_only_deterministic_substitution(
             ],
         )
 
-    monkeypatch.setattr(litellm, "acompletion", unavailable)
+    install_completion_backend(monkeypatch, unavailable)
     assessor, identity = make_llm_assessor("deepseek/deepseek-chat")
     with scoped_cache_override(False), scoped_telemetry("claims") as usage:
         result = assess_claim(
@@ -71,7 +73,7 @@ def test_batch_fallback_counts_claims_only_after_judging(
     async def unavailable(**kwargs: Any) -> Any:
         raise RuntimeError("offline test provider failure")
 
-    monkeypatch.setattr(litellm, "acompletion", unavailable)
+    install_completion_backend(monkeypatch, unavailable)
     assessor, identity = make_llm_batch_assessor("deepseek/deepseek-chat")
     passages = (
         [

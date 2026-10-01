@@ -17,40 +17,35 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-import litellm
 import pytest
 from co_scientist import offline_llm
-from co_scientist.llm.request import completion
+from co_scientist.llm.request import backend
 
 from app import store, task_worker
 from app.store import RunStatus
+
+from ._llm_fake_backend import load_engine_fake
 
 
 @pytest.fixture(autouse=True)
 def _isolate_offline_router(monkeypatch: pytest.MonkeyPatch) -> None:
     """Reset the router's install bookkeeping so each test installs fresh.
 
-    ``install_offline_router`` mutates real module attributes directly (not
-    through ``monkeypatch``), so recording their current values registers
-    them for automatic restoration at teardown, and clearing the idempotency
-    flag guarantees this test's ``install_offline_router`` wraps the recording
-    stub installed below rather than no-opping over a prior install.
+    ``install_offline_router`` installs a backend process-wide (not through
+    ``monkeypatch``), so recording the installed backend registers it for
+    automatic restoration at teardown, and clearing the idempotency flag
+    guarantees this test's ``install_offline_router`` routes over the
+    recording backend installed below rather than no-opping over a prior
+    install.
     """
-    monkeypatch.setattr(litellm, "acompletion", litellm.acompletion)
-    monkeypatch.setattr(
-        completion,
-        "_supports_json_schema_response_format",
-        completion._supports_json_schema_response_format,
-    )
+    monkeypatch.setattr(backend, "_installed", backend._installed)
     monkeypatch.setattr(offline_llm, "_installed", False)
-    monkeypatch.setattr(offline_llm, "_original_acompletion", None)
-    monkeypatch.setattr(offline_llm, "_original_supports_json_schema", None)
 
 
 def _install_recording_router(
     monkeypatch: pytest.MonkeyPatch,
 ) -> list[dict[str, Any]]:
-    """Install the offline router wrapping a call-recording original.
+    """Install the offline router over a call-recording fake backend.
 
     Returns the list every escaped call is appended to; it stays empty when
     nothing bypasses the offline router. A leak is still answered offline so
@@ -59,11 +54,11 @@ def _install_recording_router(
     """
     escaped_calls: list[dict[str, Any]] = []
 
-    async def _recording_original(**kwargs: Any) -> Any:
+    async def _recording_backend(**kwargs: Any) -> Any:
         escaped_calls.append(kwargs)
         return await offline_llm.offline_acompletion(**kwargs)
 
-    monkeypatch.setattr(litellm, "acompletion", _recording_original)
+    load_engine_fake().install_fake_backend(monkeypatch, _recording_backend)
     offline_llm.install_offline_router()
     return escaped_calls
 
@@ -111,8 +106,8 @@ def test_offline_engine_run_completes_without_a_real_call(
 ) -> None:
     """A force-engine, offline-backed run finishes offline with a report.
 
-    Records every call the router passes through to the original
-    ``acompletion`` so "the run completed" becomes proof that zero calls
+    Records every call the router passes through to the backend it wraps
+    so "the run completed" becomes proof that zero calls
     escaped the offline router.
     """
     # The engine event vocabulary is not under test here; keep the app-level
@@ -125,7 +120,7 @@ def test_offline_engine_run_completes_without_a_real_call(
     events = _drive_offline_engine(run, config, isolated_db)
 
     assert not escaped_calls, (
-        "a call reached the original acompletion instead of the offline "
+        "a call reached the wrapped backend instead of the offline "
         f"router: {escaped_calls[0].get('model')!r}"
     )
 

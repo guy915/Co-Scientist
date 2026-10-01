@@ -31,13 +31,13 @@ not a hand-typed fixture.
 from collections.abc import Coroutine
 from typing import Any
 
-import litellm
 import pytest
 
 from co_scientist.agents.generation.generate import generate_node
 from co_scientist.agents.meta_review.meta_review import meta_review_node
+from co_scientist.llm.request.backend import active_backend
 from co_scientist.offline_llm import _prompt_text
-from tests._llm_fake import install_fake_llm
+from tests._llm_fake import install_fake_backend, install_fake_llm
 from tests._state import make_hypothesis, make_review, make_state
 
 # Both debate-based and assumptions-based generation's final structured-
@@ -56,16 +56,15 @@ async def _capture_prompts(
 ) -> tuple[dict[str, Any], list[tuple[str, str]]]:
     """Runs one node coroutine, recording each call's schema name and prompt.
 
-    Wraps the fake ``litellm.acompletion`` already installed by
-    ``install_fake_llm`` rather than replacing it, so the call still gets a
-    deterministic, schema-true fake response; this only observes what was
-    actually sent.
+    Wraps the fake backend already installed by ``install_fake_llm`` rather
+    than replacing it, so the call still gets a deterministic, schema-true
+    fake response; this only observes what was actually sent.
 
     Returns:
         Tuple of (the node's result dict, ordered (schema_name, prompt)
         pairs for every completion the node made).
     """
-    original_acompletion = litellm.acompletion
+    original = active_backend()
     calls: list[tuple[str, str]] = []
 
     async def spy(**kwargs: Any) -> Any:
@@ -74,9 +73,11 @@ async def _capture_prompts(
         if response_format and response_format.get("type") == "json_schema":
             schema_name = response_format["json_schema"].get("name", "")
         calls.append((schema_name, _prompt_text(kwargs)))
-        return await original_acompletion(**kwargs)
+        return await original.complete(**kwargs)
 
-    monkeypatch.setattr(litellm, "acompletion", spy)
+    install_fake_backend(
+        monkeypatch, spy, supports_json_schema=original.supports_json_schema
+    )
     result = await coro
     return result, calls
 

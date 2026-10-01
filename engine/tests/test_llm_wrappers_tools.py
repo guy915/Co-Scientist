@@ -22,6 +22,7 @@ from co_scientist.llm import (
     precall,
 )
 from tests._llm_fake import disable_llm_cache as _disable_cache
+from tests._llm_fake import install_fake_backend
 from tests._llm_wrapper_fakes import (
     SEARCH_TOOL as _SEARCH_TOOL,
 )
@@ -154,10 +155,7 @@ async def test_tool_loop_applies_provider_quirks(
     """
     _disable_cache(monkeypatch)
     captured: dict[str, Any] = {}
-    monkeypatch.setattr(
-        "co_scientist.llm.litellm.acompletion",
-        _capturing_acompletion(captured),
-    )
+    install_fake_backend(monkeypatch, _capturing_acompletion(captured))
 
     await call_llm_with_tools(
         "a prompt",
@@ -182,10 +180,7 @@ async def _captured_tool_loop_args(
     """Run one tool-free loop turn and return the kwargs litellm received."""
     _disable_cache(monkeypatch)
     captured: dict[str, Any] = {}
-    monkeypatch.setattr(
-        "co_scientist.llm.litellm.acompletion",
-        _capturing_acompletion(captured),
-    )
+    install_fake_backend(monkeypatch, _capturing_acompletion(captured))
 
     await call_llm_with_tools(
         "a prompt",

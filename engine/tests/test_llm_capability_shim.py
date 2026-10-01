@@ -30,6 +30,7 @@ from co_scientist.llm.request.completion import (
 )
 from tests._llm_fake import NESTED_SCHEMA as _NESTED_SCHEMA
 from tests._llm_fake import disable_llm_cache as _disable_cache
+from tests._llm_fake import install_fake_backend
 
 # --- helpers ---------------------------------------------------------------
 
@@ -105,9 +106,7 @@ def _capture_acompletion(
         captured.append(kwargs)
         return next(queue)
 
-    monkeypatch.setattr(
-        "co_scientist.llm.litellm.acompletion", fake_acompletion
-    )
+    install_fake_backend(monkeypatch, fake_acompletion)
     return captured
 
 

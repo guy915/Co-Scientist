@@ -9,7 +9,6 @@ deliberate decision not to retry a timeout.
 import asyncio
 from typing import Any
 
-import litellm
 import pytest
 from litellm.exceptions import (
     ContextWindowExceededError,
@@ -28,6 +27,7 @@ from co_scientist.llm import (
 )
 from co_scientist.llm.attempts import backoff
 from co_scientist.llm.request import completion
+from tests._llm_fake import install_fake_backend
 
 
 def test_timeout_defaults_when_unset(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -104,7 +104,7 @@ async def test_hung_call_raises_timeout_error(
     async def never_answers(**_kwargs: Any) -> Any:
         await asyncio.sleep(3600)
 
-    monkeypatch.setattr(litellm, "acompletion", never_answers)
+    install_fake_backend(monkeypatch, never_answers)
 
     with (
         scoped_telemetry("test_phase") as telemetry,
@@ -138,7 +138,7 @@ async def test_hung_tool_loop_call_raises_timeout_error(
     async def never_answers(**_kwargs: Any) -> Any:
         await asyncio.sleep(3600)
 
-    monkeypatch.setattr(litellm, "acompletion", never_answers)
+    install_fake_backend(monkeypatch, never_answers)
 
     async def unused_executor(_tool_call: Any) -> dict[str, Any]:
         raise AssertionError("no tool call should be executed")
@@ -167,7 +167,7 @@ async def test_timeout_is_not_retried(monkeypatch: pytest.MonkeyPatch) -> None:
         calls += 1
         raise LLMTimeoutError("provider stopped responding")
 
-    monkeypatch.setattr(litellm, "acompletion", timing_out)
+    install_fake_backend(monkeypatch, timing_out)
 
     with pytest.raises(LLMTimeoutError):
         await llm.call_llm_json(
@@ -207,7 +207,7 @@ async def test_native_provider_timeout_is_not_retried(
             llm_provider="deepseek",
         )
 
-    monkeypatch.setattr(litellm, "acompletion", accepted_then_lost)
+    install_fake_backend(monkeypatch, accepted_then_lost)
     monkeypatch.setattr(completion, "enforce_free_request", admit)
 
     with pytest.raises(LLMTimeoutError) as excinfo:
@@ -236,7 +236,7 @@ async def test_generic_failure_is_still_retried(
         calls += 1
         raise RuntimeError("transient provider error")
 
-    monkeypatch.setattr(litellm, "acompletion", failing)
+    install_fake_backend(monkeypatch, failing)
 
     with pytest.raises(RuntimeError):
         await llm.call_llm_json(
@@ -292,7 +292,7 @@ async def test_rate_limited_retry_waits_before_trying_again(
             "too quickly."
         )
 
-    monkeypatch.setattr(litellm, "acompletion", throttled)
+    install_fake_backend(monkeypatch, throttled)
 
     with pytest.raises(_ProviderRateLimitError):
         await llm.call_llm_json(
@@ -335,7 +335,7 @@ async def test_schema_failure_still_retries_without_waiting(
         calls += 1
         raise ValueError("provider rejected the request")
 
-    monkeypatch.setattr(litellm, "acompletion", failing)
+    install_fake_backend(monkeypatch, failing)
 
     with pytest.raises(ValueError):
         await llm.call_llm_json(
@@ -362,7 +362,7 @@ async def test_deployment_api_key_does_not_disable_free_admission(
             llm_provider="openrouter",
         )
 
-    monkeypatch.setattr(litellm, "acompletion", accepted_then_lost)
+    install_fake_backend(monkeypatch, accepted_then_lost)
 
     with pytest.raises(LLMTimeoutError) as excinfo:
         await completion._acompletion_within_timeout(
@@ -408,7 +408,7 @@ async def test_an_oversized_prompt_is_not_retried(
             llm_provider="deepseek",
         )
 
-    monkeypatch.setattr(litellm, "acompletion", too_big)
+    install_fake_backend(monkeypatch, too_big)
 
     with pytest.raises(ContextWindowExceededError):
         await llm.call_llm_json(
