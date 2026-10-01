@@ -1,4 +1,7 @@
-"""Synthesizes each preview's soundtrack from its own cue sheet.
+"""Synthesizes the three direction previews' soundtracks from their cue sheets.
+
+The launch film does not use this: it plays a fetched soundtrack under the
+effects from scripts/sfx.py.
 
 No licensed music: every sound is generated here, so the film can ship
 anywhere. Cues are frame numbers at 30 fps on the same 120 bpm grid the
@@ -322,81 +325,10 @@ def score_c(path):
     finish(m, path, secs)
 
 
-def score_final(path):
-    """B's cues to the tournament, C's inside it, B's again after: see src/final/Final.tsx."""
-    AGENTS, DARK_F, NET, BOARD, CHECK, LIGHT, APP, END, TOTAL = (
-        225,
-        352,
-        370,
-        722,
-        872,
-        990,
-        998,
-        1390,
-        1515,
-    )
-    secs = TOTAL / FPS
-    m = Mix(secs)
-    bed(m, t_of(DARK_F) + 1.0, CHORDS, gain=0.08, bright=0.15)
-    bed(m, t_of(LIGHT) + 1.0, DARK, gain=0.11, bright=0.1, start=t_of(NET) - 0.5)
-    bed(m, secs, CHORDS, gain=0.08, bright=0.15, start=t_of(LIGHT))
-    # B: arrival, the goal typed, the agents.
-    m.add(0, boom(), 0.2)
-    m.add(t_of(4), bell(79), 0.25)
-    for f in (56, 100, AGENTS):
-        m.add(t_of(f) - 0.3, whoosh(0.7), 0.12)
-    typing(m, 132, 179)
-    m.add(t_of(202), bell(84), 0.2)
-    arp(m, t_of(AGENTS), t_of(DARK_F), CHORDS, gain=0.07, step=BEAT, octave=24)
-    for k in range(4):
-        m.add(t_of(AGENTS + k * 32), tick(0.5, 3000 + k * 400), 0.25)
-    # Into the dark: C's tournament.
-    m.add(t_of(DARK_F) - 0.6, whoosh(0.9), 0.16)
-    m.add(t_of(NET), boom(), 0.45)
-    for i in range(9):
-        m.add(
-            t_of(NET + i * 2),
-            pluck(69 + [0, 3, 5, 7, 10, 12, 15, 17, 19][i], decay=0.5),
-            0.12,
-            pan=-0.7 + i * 0.17,
-        )
-    for k in range(21):
-        f = NET + 110 + k * 6
-        m.add(
-            t_of(f), tick(0.6, 2500 + (k % 4) * 500), 0.22, pan=rng.uniform(-0.6, 0.6)
-        )
-        if k % 4 == 0:
-            m.add(t_of(f), kick(), 0.28)
-    for i in range(6):
-        m.add(
-            t_of(NET + 242 + 10 + i * 5),
-            pluck(74 + [0, 2, 5, 7, 9, 12][i], decay=0.7),
-            0.12,
-        )
-    m.add(t_of(BOARD) - 0.5, whoosh(0.6), 0.14)
-    for i in range(5):
-        m.add(
-            t_of(BOARD + 26 + i * 5), pluck(62 + [12, 9, 7, 5, 2][i], decay=0.8), 0.14
-        )
-    m.add(t_of(CHECK) - 0.5, whoosh(0.6), 0.14)
-    for i in range(6):
-        m.add(t_of(CHECK + 60 + i * 5), tick(0.5, 5000), 0.2)
-    # Back to the light: the real app, then the end card.
-    m.add(t_of(LIGHT) - 0.6, whoosh(0.9), 0.16)
-    m.add(t_of(APP), bell(81), 0.25)
-    m.add(t_of(APP + 32), bell(86), 0.2)
-    arp(m, t_of(APP), t_of(END), CHORDS, gain=0.07, step=BEAT, octave=24)
-    for f in (APP + 150, APP + 262):
-        m.add(t_of(f) - 0.3, whoosh(0.7), 0.12)
-    resolve(m, t_of(END + 8))
-    finish(m, path, secs)
-
-
 if __name__ == "__main__":
     out = Path(sys.argv[1] if len(sys.argv) > 1 else "out")
     out.mkdir(exist_ok=True)
     score_a(out / "a.wav")
     score_b(out / "b.wav")
     score_c(out / "c.wav")
-    score_final(out / "final.wav")
     print("ok")

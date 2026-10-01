@@ -8,14 +8,16 @@ interface Props {
   start: number;
   dark?: boolean;
   scale?: number;
+  /** Multiplies every delay and duration; below 1 for an end card that must read in under 3 s. */
+  pace?: number;
 }
 
 /** End card: flask + wordmark, then the URL and the open-source line, as every Google film closes. */
-export const Lockup: React.FC<Props> = ({start, dark, scale = 1}) => {
+export const Lockup: React.FC<Props> = ({start, dark, scale = 1, pace = 1}) => {
   const f = useCurrentFrame();
-  const icon = ramp(f, start, 18);
-  const word = ramp(f, start + 6, 22);
-  const meta = ramp(f, start + 24, 18);
+  const icon = ramp(f, start, 18 * pace);
+  const word = ramp(f, start + 6 * pace, 22 * pace);
+  const meta = ramp(f, start + 24 * pace, 18 * pace);
   const ink = dark ? '#F1F3F4' : C.ink;
   const soft = dark ? '#BDC1C6' : C.inkSoft;
   return (

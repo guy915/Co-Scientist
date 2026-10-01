@@ -18,13 +18,15 @@ interface Props {
   /** Where the rating chip sits relative to the ringed card. */
   chip?: 'above' | 'right';
   dark?: boolean;
+  /** Frame the winner is ringed; defaults to as soon as the list has landed. */
+  ringAt?: number;
 }
 
 /** Real proof: the app's own ranked list, with the winner ringed and its rating called out. */
-export const ProofList: React.FC<Props> = ({start, width, x, y = 0, chip = 'above', dark}) => {
+export const ProofList: React.FC<Props> = ({start, width, x, y = 0, chip = 'above', dark, ringAt = start + 26}) => {
   const f = useCurrentFrame();
   const inn = ramp(f, start, 26, emphasized);
-  const ring = ramp(f, start + 26, 16, emphasized);
+  const ring = ramp(f, ringAt, 16, emphasized);
   const h = (width / 1.6) * (CROP.h / CROP.w);
   const left = 960 + x - width / 2;
   const top = 540 + y - h / 2 + mix(80, 0, inn);

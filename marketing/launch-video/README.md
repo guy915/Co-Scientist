@@ -3,9 +3,22 @@
 The launch film, built with [Remotion](https://www.remotion.dev) (React → MP4), and the three
 preview directions it was chosen from.
 
-**Final** (`src/final/Final.tsx`, ~50 s): B's product walk-through is the spine; at "Running the
-tournament" it drops into C's dark tournament (network, leaderboard, claim checking), then returns
-to the real app to show the same result, and closes on the end card.
+**Launch** (`src/launch/`, 54 s): A's shapes and headlines with B's real app, cut to the soundtrack
+of Google's [Gemini Omni trailer](https://www.youtube.com/watch?v=KUyRq7szZsM). Scenes are placed
+in beats of that track (`src/launch/beats.ts`), so every cut, word swap and stutter lands on the
+music, and the biggest visual hits sit on its bass drop-outs. Its grammar is the trailer's: a title
+over hard-cut macro frames, a word with a picture column inside it, one word swapping on the beat,
+a cut-per-beat montage, a wordmark that blurs away before the final hit.
+
+Sound design (`scripts/sfx.py` → `public/sfx/`) is a layer of dry, transient-first effects —
+key clicks, the mouse click, tuned pops, swishes, a collision, a bell — tuned to the track's key
+(B-flat major pentatonic). Each effect sits in the same scene as the motion it belongs to, so a
+retimed scene carries its sounds along. `previews/…-Launch-effects-only.mp4` plays them without
+the music, at their level in the mix.
+
+The soundtrack is Google's recording: `scripts/fetch_soundtrack.sh` pulls it into the gitignored
+`public/audio/`, and it is never committed. Publishing the film with it is a licensing call
+(expect a Content ID claim on YouTube).
 
 | ID | Direction | Look | Length |
 | --- | --- | --- | --- |
@@ -36,24 +49,23 @@ All three open on the same 3D glass flask, share the brand tokens of the app
   loudness), Playwright (real UI captured from production in both themes), Blender Cycles
   (the glass flask), the app's own MD3 shape module and brand tokens (imported, not redrawn),
   the `/critique` loop (three rounds), the Higgsfield catalog (browse only).
-- **Passed over:** Higgsfield generation (asked to stay read-only); stock footage and licensed
-  music (no rights — the score is synthesized, see `scripts/score.py`); Figma (not authorized
+- **Passed over:** Higgsfield generation (asked to stay read-only); stock footage; Figma (not authorized
   in this environment); Mobbin / 21st / MotionSites (web-UI libraries, not motion).
 
 ## Build
 
 ```bash
 npm install
-scripts/render.sh          # Final + the three previews at 1080p with sound -> previews/
+scripts/fetch_soundtrack.sh  # the launch film's music (needs yt-dlp), once
+scripts/render.sh            # Launch + the three previews at 1080p with sound -> previews/
 npm run studio             # live preview / scrubbing
 ```
 
 - `src/shared/` — primitives every film uses (type reveals, lockup, floating UI card, prompt box, Elo chart).
-- `src/{expressive,glide,signal}/` — one folder per preview direction; `src/final/` composes B and C.
+- `src/{expressive,glide,signal}/` — one folder per preview direction; `src/launch/` is the film.
 - `public/ui/` — real screens captured from production by `scripts/capture_ui.mjs` (demo run 285b7684).
 - `public/hero/` — the flask (gitignored, 54 MB). Regenerate with `/Applications/Blender.app/Contents/MacOS/Blender -b -P blender/hero_flask.py -- "$PWD/public/hero" 120 1000 32`.
-- `scripts/score.py` — the soundtrack. Synthesized from each film's cue sheet so hits land on cuts;
-  a placeholder for licensed music or a composer, not final audio.
+- `scripts/sfx.py` — the launch film's sound effects; `scripts/score.py` — the previews' synthesized scores.
 
 Numbers on screen come from the demo run: 15 ideas, 21 matches, top Elo 1386. Graphs that
 dramatize the tournament carry a "Sequences shortened" footnote, as Google's own films do.

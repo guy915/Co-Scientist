@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "studio": "remotion studio src/index.ts",
-    "render": "node scripts/render.mjs"
+    "render": "scripts/render.sh"
   },
   "dependencies": {
     "@fontsource/google-sans": "^5.3.1",

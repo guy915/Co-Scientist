@@ -16,12 +16,15 @@ interface Props {
   style?: React.CSSProperties;
 }
 
+/** The loop frame shown at film frame `f`. */
+export const flaskSrc = (f: number, offset = 0) =>
+  staticFile(`hero/flask_${String(((((f + offset) % LOOP) + LOOP) % LOOP) + 1).padStart(4, '0')}.png`);
+
 export const HeroFlask: React.FC<Props> = ({size, x = 0, y = 0, opacity = 1, offset = 0, style}) => {
   const f = useCurrentFrame();
-  const i = (((f + offset) % LOOP) + LOOP) % LOOP;
   return (
     <Img
-      src={staticFile(`hero/flask_${String(i + 1).padStart(4, '0')}.png`)}
+      src={flaskSrc(f, offset)}
       style={{position: 'absolute', left: 960 - size / 2 + x, top: 540 - size / 2 + y, width: size, height: size, opacity, ...style}}
     />
   );

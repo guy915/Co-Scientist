@@ -11,7 +11,7 @@ import {C, FONT} from '../shared/tokens';
 const STAGES = ['Planning the research', 'Generating hypotheses', 'Reviewing every idea', 'Running the tournament'];
 
 /** Google's "Thinking…" pill, with four dots chasing in brand tones. */
-const StatusPill: React.FC<{label: string; f: number}> = ({label, f}) => (
+export const StatusPill: React.FC<{label: string; f: number}> = ({label, f}) => (
   <div style={{display: 'inline-flex', alignItems: 'center', gap: 22, padding: '22px 36px', borderRadius: 999, background: '#fff', boxShadow: '0 0 0 1px rgba(31,31,31,0.08), 0 16px 40px rgba(31,31,31,0.10)', fontFamily: FONT, fontSize: 38, color: C.ink}}>
     <div style={{display: 'flex', gap: 8}}>
       {[C.teal, '#4C8DF6', '#34A853', '#F9AB00'].map((c, i) => (

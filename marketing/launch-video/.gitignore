@@ -3,3 +3,4 @@ out/
 previews/
 # Reproducible: blender/hero_flask.py renders it (~20 min, see README).
 public/hero/
+public/audio/
