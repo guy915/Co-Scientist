@@ -40,5 +40,5 @@ export type Tone = keyof typeof C.container;
 export const FONT = "'Google Sans', 'Google Sans Text', system-ui, sans-serif";
 export const MONO = "'Google Sans Code', ui-monospace, monospace";
 
-export const SITE = 'ai-co-scientist.com';
-export const REPO = 'github.com/guy915/Co-Scientist';
+export const SITE = 'open-coscientist.com';
+export const REPO = 'github.com/guy915/Open-Co-Scientist';

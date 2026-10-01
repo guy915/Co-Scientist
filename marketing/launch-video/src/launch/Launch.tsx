@@ -22,7 +22,8 @@ export {LAUNCH_FRAMES} from './beats';
  */
 export const Launch: React.FC = () => (
   <AbsoluteFill style={{background: C.paper}}>
-    {STEM !== 'sfx' && <Audio src={staticFile('audio/soundtrack.wav')} />}
+    {/* Half a dB under unity: the music leads, a touch below the effects' ceiling. */}
+    {STEM !== 'sfx' && <Audio src={staticFile('audio/soundtrack.wav')} volume={0.944} />}
     <AtBeat from={0} to={4}><Title /></AtBeat>
     <AtBeat from={4} to={6}><EveryLine /></AtBeat>
     <AtBeat from={6} to={8}><QuestionLine /></AtBeat>

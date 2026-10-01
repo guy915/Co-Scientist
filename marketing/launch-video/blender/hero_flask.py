@@ -163,6 +163,11 @@ scene.camera = cam
 # Motion: a gentle sway and the light rig orbiting once.
 scene.frame_start = 1
 scene.frame_end = FRAMES
+# Spin about the flask's own axis first, then sway in world space. In the
+# default XYZ order the sway is applied inside the spin, so after the quarter
+# turn it points 90 degrees away from where the loop began and the loop jumps.
+# The lathes have 96 segments, so a quarter turn lands on the same geometry.
+flask.rotation_mode = "ZXY"
 for f in range(1, FRAMES + 1):
     t = (f - 1) / max(1, FRAMES)
     flask.rotation_euler = (

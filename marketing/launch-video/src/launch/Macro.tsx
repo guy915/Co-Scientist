@@ -77,7 +77,7 @@ const Mark: React.FC<{f: number; reveal: number}> = ({f, reveal}) => (
   <div style={{display: 'flex', alignItems: 'center', fontFamily: FONT}}>
     <Img src={flaskSrc(f)} style={{width: 330, height: 330, margin: '-60px -20px -60px -70px', opacity: reveal, transform: `scale(${mix(0.8, 1, reveal)})`}} />
     <div style={{display: 'flex', flexDirection: 'column', alignItems: 'flex-start'}}>
-      <TypeLine text="Introducing" start={2} size={56} color={C.inkSoft} rate={1} style={{marginLeft: 8, marginBottom: -6}} />
+      <TypeLine text="Introducing" start={2} size={78} color={C.inkSoft} rate={1} style={{marginLeft: 8, marginBottom: -10}} />
       <div style={{fontSize: 150, fontWeight: 500, letterSpacing: '-0.03em', color: C.ink, opacity: reveal, filter: `blur(${mix(14, 0, reveal)}px)`}}>Open Co-Scientist</div>
     </div>
   </div>
