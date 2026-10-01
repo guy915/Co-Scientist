@@ -12,12 +12,16 @@ import {
 import {runFailureGuidance} from './run_failure_guidance';
 
 // Icon and label shown per tab in the nav bar (keyed by TabName so a missing
-// entry is a compile error, not a silent blank tab).
-const TAB_META: Record<TabName, {icon: IconName; label: string}> = {
-  details: {icon: 'assignment', label: 'Goal Details'},
-  learning: {icon: 'menu_book', label: 'Learning'},
-  overview: {icon: 'summarize', label: 'Research Overview'},
-  ideas: {icon: 'lightbulb', label: 'All Ideas'},
+// entry is a compile error, not a silent blank tab). `short` is the label
+// narrow phones show: four full labels run together below ~420px.
+const TAB_META: Record<
+  TabName,
+  {icon: IconName; label: string; short: string}
+> = {
+  details: {icon: 'assignment', label: 'Goal Details', short: 'Details'},
+  learning: {icon: 'menu_book', label: 'Learning', short: 'Learning'},
+  overview: {icon: 'summarize', label: 'Research Overview', short: 'Overview'},
+  ideas: {icon: 'lightbulb', label: 'All Ideas', short: 'Ideas'},
 };
 
 /**
@@ -73,7 +77,9 @@ const REPORT_TAB_SELECTED_CLASSES =
   'after:left-[1.1rem] after:h-[0.18rem] after:rounded-t-full ' +
   "after:bg-cosci-blue-strong after:content-['']";
 
-const REPORT_TAB_ICON_CLASSES = 'text-[1.35rem] max-[700px]:text-[1.12rem]';
+const REPORT_TAB_ICON_CLASSES =
+  'text-[1.35rem] max-[700px]:text-[1.12rem] ' +
+  '[@media(max-height:500px)]:hidden';
 
 // min-w-0/overflow-hidden/whitespace-nowrap constrain the axis TruncatedLabel
 // measures against (see its own docstring); without them it has nothing to
@@ -238,9 +244,15 @@ export function ReportTabNav({
             name={TAB_META[tabName].icon}
           />
           <TruncatedLabel
-            className={REPORT_TAB_LABEL_CLASSES}
+            className={`${REPORT_TAB_LABEL_CLASSES} max-[420px]:hidden`}
             text={TAB_META[tabName].label}
           />
+          <span
+            aria-hidden="true"
+            className={`${REPORT_TAB_LABEL_CLASSES} min-[421px]:hidden`}
+          >
+            {TAB_META[tabName].short}
+          </span>
         </Link>
       ))}
     </nav>

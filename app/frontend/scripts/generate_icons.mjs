@@ -24,6 +24,8 @@ const DEST = resolve(HERE, '../src/components/icon.tsx');
 // Public icon name -> Material Symbols glyph file stem. Same name unless the
 // current Material Symbols set renamed the glyph.
 const ICONS = {
+  // Org-chart glyph -- the landing page's Supervisor agent card.
+  account_tree: 'account_tree',
   add: 'add',
   arrow_back: 'arrow_back',
   arrow_forward: 'arrow_forward',
@@ -57,11 +59,15 @@ const ICONS = {
   // the single 'chat' bubble, which reads as one message rather than a
   // running transcript.
   forum: 'forum',
-  // Question-mark-in-a-circle — the reference settings menu's "Get help" row.
-  help: 'help',
+  // Double helix -- the landing page's Evolution agent card.
+  genetics: 'genetics',
   // The recents clock-rewind glyph (clock face + counterclockwise arrow), not
   // the plain 'schedule' clock.
   history: 'history',
+  // Overlapping circles -- the landing page's Proximity agent card.
+  join: 'join',
+  // Podium bars -- the landing page's Ranking agent card.
+  leaderboard: 'leaderboard',
   light_mode: 'light_mode',
   // The plain outline light bulb (bulb body + base bars, no rays) the Idea
   // Generation product renders in its agent glyph — not 'emoji_objects', which
@@ -81,6 +87,10 @@ const ICONS = {
   // "Appearance" (an <md-icon>palette</md-icon> ligature in the 2026-06
   // gemini-enterprise capture, since deleted from references/).
   palette: 'palette',
+  // The landing page's human-review safety card.
+  person: 'person',
+  // Shield with a magnifier -- the landing page's goal-screening card.
+  policy: 'policy',
   // "Generating ideas" progress step — a speech bubble with a pencil.
   rate_review: 'rate_review',
   refresh: 'refresh',
@@ -98,6 +108,8 @@ const ICONS = {
   // matching the send glyph's filled treatment.
   stop: 'stop-fill',
   summarize: 'summarize',
+  // Shield with a check -- the landing page's idea-screening card.
+  verified_user: 'verified_user',
   warning: 'warning',
 };
 

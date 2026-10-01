@@ -14,7 +14,7 @@ import {
  * section, controlled by the parent (see the `section`/`onSectionChange`
  * props on SettingsDialog in settings_dialog.tsx).
  */
-export type SettingsSection = 'appearance' | 'model' | 'help';
+export type SettingsSection = 'appearance' | 'model';
 
 // Options rendered in the Appearance section's theme segmented control.
 // Selecting one calls useTheme()'s setMode, which persists the choice (see
@@ -35,52 +35,6 @@ export const SETTINGS_SECTIONS: {
 }[] = [
   {section: 'appearance', icon: 'palette', label: 'Appearance'},
   {section: 'model', icon: 'neurology', label: 'Model'},
-  {section: 'help', icon: 'help', label: 'Help'},
-];
-
-// Static question/answer copy rendered as collapsible <details> in the Help
-// section.
-const FAQ: {question: string; answer: string}[] = [
-  {
-    question: 'What is Co-Scientist?',
-    answer:
-      'A multi-agent workspace that generates, debates, and ranks research ' +
-      'hypotheses for a goal you set. A team of agents proposes ideas, ' +
-      'reviews them, and runs a tournament so the strongest directions rise ' +
-      'to the top.',
-  },
-  {
-    question: 'How do I start a run?',
-    answer:
-      'From the home screen, describe your research goal in the composer and ' +
-      'send it. Co-Scientist confirms the setup, then the agents generate ' +
-      'and ' +
-      'evaluate ideas. Follow progress and results in the run view.',
-  },
-  {
-    question: 'Where does my API key go?',
-    answer:
-      'The key you enter under Model is stored in this browser and sent to ' +
-      'the server when you start a run or chat with the Agent. The server ' +
-      'checks it with the provider, then stores it encrypted for that run ' +
-      'only and never returns it. Clearing your browser storage removes the ' +
-      'local copy.',
-  },
-  {
-    question: 'Which model does it use?',
-    answer:
-      'Without an API key, runs use the free model configured for the ' +
-      'deployment. When you add your own API key under Model, you choose a ' +
-      'supervisor model (planning and the final report) and a worker model ' +
-      '(generating, reviewing, and ranking ideas) from your provider.',
-  },
-  {
-    question: 'Do I need an API key?',
-    answer:
-      'No. Without a key you are on free usage: you can start Express runs ' +
-      'only, up to 3 per day on this device. Add your own key under Model ' +
-      'to use every run type without a daily limit.',
-  },
 ];
 
 // Appearance section: theme mode segmented control (system/light/dark).
@@ -227,35 +181,5 @@ export function SettingsNav({
         );
       })}
     </nav>
-  );
-}
-
-// Help section: static product blurb plus a collapsible FAQ list.
-export function HelpSection() {
-  return (
-    <section className="ucs-settings-card">
-      <h3 className="ucs-settings-card-title">Help</h3>
-      <p className="ucs-settings-card-copy">
-        Co-Scientist is a multi-agent workspace for generating and
-        pressure-testing research hypotheses. Set a research goal and a team of
-        agents proposes ideas, reviews them, and ranks the strongest directions
-        tournament-style.
-      </p>
-      <div className="ucs-faq">
-        {FAQ.map(item => (
-          <details key={item.question} className="ucs-faq-item">
-            <summary className="ucs-faq-question">
-              <span>{item.question}</span>
-              <Icon
-                aria-hidden="true"
-                className="ucs-faq-chevron"
-                name="expand_more"
-              />
-            </summary>
-            <p className="ucs-faq-answer">{item.answer}</p>
-          </details>
-        ))}
-      </div>
-    </section>
   );
 }

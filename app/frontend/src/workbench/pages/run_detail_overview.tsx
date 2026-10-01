@@ -32,8 +32,7 @@ import {SpecificAimsSection} from './run_detail_overview_aims';
 import {RunOutcomesReport} from '../components/tabs/hypothesis_outcomes';
 import {ResearchDirectionsSection} from './run_detail_overview_directions';
 
-const STAT_GRID_CLASSES =
-  'grid grid-cols-4 gap-3 max-[900px]:grid-cols-2 max-[520px]:grid-cols-1';
+const STAT_GRID_CLASSES = 'grid grid-cols-4 gap-3 max-[900px]:grid-cols-2';
 
 const REPORT_LEAD_STAT_CLASSES =
   'cosci-overview-lead-stat mt-1 mb-4 text-cosci-fg';

@@ -37,8 +37,7 @@ import {TABS, normalizeTab, type TabName} from '../run_tabs';
 // saw the overflow. overflow-y stays hidden -- vertical scrolling is owned
 // by the inner .cosci-report-scroll region below.
 const REPORT_PAGE_CLASSES =
-  'cosci-report-page grid h-full min-h-0 ' +
-  'grid-rows-[3.75rem_5rem_minmax(0,1fr)] bg-cosci-bg text-cosci-fg ' +
+  'cosci-report-page grid h-full min-h-0 bg-cosci-bg text-cosci-fg ' +
   'max-[700px]:min-w-0 max-[700px]:overflow-x-auto ' +
   'max-[700px]:overflow-y-hidden';
 
@@ -78,10 +77,22 @@ function useRunActivity(
 // ActiveRunView replaces the tabbed body entirely and an unknown activity has
 // no business painting chrome it may be about to drop. A run that ended
 // without completing gets no tab row either -- it renders its end state.
+// Phones get tighter chrome rows, and a short (landscape phone) viewport
+// tighter still, so the title and tabs don't eat half the screen.
+const REPORT_ROWS_WITH_TABS =
+  'grid-rows-[3.75rem_5rem_minmax(0,1fr)] ' +
+  'max-[700px]:grid-rows-[3.25rem_4.25rem_minmax(0,1fr)] ' +
+  '[@media(max-height:500px)]:grid-rows-[3rem_3rem_minmax(0,1fr)]';
+
+const REPORT_ROWS_WITHOUT_TABS =
+  'grid-rows-[3.75rem_minmax(0,1fr)] ' +
+  'max-[700px]:grid-rows-[3.25rem_minmax(0,1fr)] ' +
+  '[@media(max-height:500px)]:grid-rows-[3rem_minmax(0,1fr)]';
+
 function reportPageClasses(showTabs: boolean): string {
-  return showTabs
-    ? REPORT_PAGE_CLASSES
-    : `${REPORT_PAGE_CLASSES} grid-rows-[3.75rem_minmax(0,1fr)]`;
+  return `${REPORT_PAGE_CLASSES} ${
+    showTabs ? REPORT_ROWS_WITH_TABS : REPORT_ROWS_WITHOUT_TABS
+  }`;
 }
 
 // The run payload carries the persisted LLM backend the run executed on

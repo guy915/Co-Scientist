@@ -200,6 +200,28 @@ it('flags a probe-falsified idea "Undermined", apart from "Unverified"', () => {
   expect(chips[0]).toHaveTextContent('Undermined');
 });
 
+it('shows only the stronger caution when an idea is both', () => {
+  // Both chips on one card wrapped the chip row onto a second line; the
+  // card keeps the more important one, and the row stays a single line.
+  const {container} = renderIdeas(
+    <IdeasTab
+      hypotheses={[
+        makeHypothesis({
+          id: 'both',
+          title: 'Doubly flagged idea',
+          elo_rating: 1165,
+          unverified: true,
+          verification_verdict: 'undermined',
+        }),
+      ]}
+      reviews={[]}
+    />,
+  );
+  const head = container.querySelector('.idea-rank-head')!;
+  expect(head.querySelector('.idea-undermined-chip')).not.toBeNull();
+  expect(head.querySelector('.idea-unverified-chip')).toBeNull();
+});
+
 it('renders reference detail sections without the legacy detail link', () => {
   const reviews: Review[] = [
     {

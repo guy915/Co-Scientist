@@ -50,8 +50,17 @@ export function SharedGoalReportPage() {
   const {shared, error} = useSharedReport(token);
 
   if (error)
-    return <main role="alert">This shared Goal Report is unavailable.</main>;
-  if (!shared) return <main aria-busy="true">Loading shared Goal Report…</main>;
+    return (
+      <main role="alert" className={PAGE_CLASSES}>
+        This shared Goal Report is unavailable.
+      </main>
+    );
+  if (!shared)
+    return (
+      <main aria-busy="true" className={PAGE_CLASSES}>
+        Loading shared Goal Report…
+      </main>
+    );
   const {run} = shared;
   return (
     <main className={PAGE_CLASSES}>

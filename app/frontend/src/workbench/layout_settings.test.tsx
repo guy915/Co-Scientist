@@ -14,7 +14,8 @@ it('opens the settings menu and dismisses on outside click', async () => {
     screen.getByRole('menuitem', {name: 'Appearance'}),
   ).toBeInTheDocument();
   expect(screen.getByRole('menuitem', {name: 'Model'})).toBeInTheDocument();
-  expect(screen.getByRole('menuitem', {name: 'Help'})).toBeInTheDocument();
+  // Help is gone: its FAQ lives on the landing page under the chat home.
+  expect(screen.queryByRole('menuitem', {name: 'Help'})).toBeNull();
   // The menu itself has no location line and no theme control; those move
   // into the dialog.
   expect(screen.queryByText(/Dublin/)).toBeNull();
@@ -57,12 +58,6 @@ it('opens the Settings dialog and switches sections', async () => {
   // Saving says nothing: the field holds the value it just stored, and a
   // toast repeating that only covered the page it was confirming.
   expect(screen.queryByText('Settings saved')).toBeNull();
-
-  fireEvent.click(screen.getByRole('button', {name: 'Help'}));
-  // The Help section renders project info plus the FAQ accordion rows
-  // (native <details>, one per question).
-  expect(screen.getByText('What is Co-Scientist?')).toBeInTheDocument();
-  expect(screen.getByText('Where does my API key go?')).toBeInTheDocument();
 
   fireEvent.click(screen.getByRole('button', {name: 'Close settings'}));
   expect(screen.queryByRole('dialog', {name: 'Settings'})).toBeNull();

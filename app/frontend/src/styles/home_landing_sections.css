@@ -1,0 +1,477 @@
+/* Landing page, part three: tournament, evidence, safety, and tiers. Part
+   four (FAQ, closing, responsive) is home_landing_closing.css. */
+
+/* ---- Tournament: the tree ---- */
+.ucs-landing-tree {
+  gap: 20px;
+  margin-top: 48px;
+}
+
+.ucs-landing-tree svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  font-family: var(--l-body);
+}
+
+.ucs-landing-tree-leaf rect {
+  fill: var(--l-bg);
+  stroke: var(--l-line);
+  transition:
+    fill 0.4s var(--l-ease),
+    stroke 0.4s var(--l-ease);
+}
+
+.ucs-landing-tree-leaf text {
+  fill: var(--l-ink);
+  font-size: 15px;
+}
+
+.ucs-landing-tree-elo {
+  fill: var(--l-muted) !important;
+  font-size: 14px !important;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.ucs-landing-tree-leaf.is-champion rect {
+  fill: var(--l-c-blue);
+  stroke: var(--l-accent);
+}
+
+.ucs-landing-tree-wire {
+  fill: none;
+  stroke: var(--l-line);
+  stroke-width: 2;
+  transition: stroke 0.5s var(--l-ease);
+}
+
+.ucs-landing-tree-wire.is-won {
+  stroke: var(--l-accent);
+  stroke-width: 2.5;
+}
+
+.ucs-landing-tree-node circle {
+  fill: var(--l-bg);
+  stroke: var(--l-line);
+  stroke-width: 2;
+  transition:
+    fill 0.4s var(--l-ease),
+    stroke 0.4s var(--l-ease);
+}
+
+.ucs-landing-tree-node text {
+  fill: var(--l-muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.ucs-landing-tree-node.is-live circle {
+  fill: var(--l-c-yellow);
+  stroke: var(--l-o-yellow);
+}
+
+.ucs-landing-tree-node.is-done circle {
+  fill: var(--l-accent);
+  stroke: var(--l-accent);
+}
+
+.ucs-landing-tree-node.is-done text {
+  fill: var(--l-bg);
+}
+
+.ucs-landing-tree-champ {
+  opacity: 0;
+  transition: opacity 0.5s var(--l-ease);
+}
+
+.ucs-landing-tree-champ.is-shown {
+  opacity: 1;
+}
+
+.ucs-landing-tree-champ rect {
+  fill: var(--l-c-blue);
+}
+
+.ucs-landing-tree-champ text {
+  fill: var(--l-o-blue);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ucs-landing-tree * {
+    transition: none !important;
+  }
+}
+
+/* ---- Tournament: chart and podium ---- */
+.ucs-landing-duo {
+  display: grid;
+  grid-template-columns: 7fr 5fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.ucs-landing-panel {
+  position: relative;
+  display: grid;
+  align-content: center;
+  overflow: hidden;
+  padding: 32px;
+  border-radius: 32px;
+  background: var(--l-surface);
+}
+
+.ucs-landing-elo svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 16px;
+}
+
+.ucs-landing-elo-grid line {
+  stroke: var(--l-line);
+}
+
+.ucs-landing-elo-grid text {
+  fill: var(--l-muted);
+  font: 12px var(--l-body);
+}
+
+.ucs-landing-elo-line {
+  fill: none;
+  opacity: 0.45;
+  stroke: var(--l-muted);
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  stroke-width: 1.5;
+  transition: stroke-dashoffset 2.2s var(--l-ease);
+}
+
+.ucs-landing-elo-line.is-leader {
+  opacity: 1;
+  stroke: var(--l-accent);
+  stroke-width: 3;
+  transition-delay: 0.3s;
+}
+
+.ucs-landing-elo.is-drawn .ucs-landing-elo-line {
+  stroke-dashoffset: 0;
+}
+
+.ucs-landing-elo-end {
+  fill: var(--l-accent);
+  opacity: 0;
+  transition: opacity 0.4s 2.2s;
+}
+
+.ucs-landing-elo.is-drawn .ucs-landing-elo-end {
+  opacity: 1;
+}
+
+.ucs-landing-elo-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  color: var(--l-muted);
+  font-size: 14px;
+}
+
+.ucs-landing-elo-legend b {
+  color: var(--l-ink);
+  font-weight: 500;
+}
+
+.ucs-landing-podium {
+  align-content: space-between;
+  gap: 16px;
+  background: var(--l-c-blue);
+  color: var(--l-o-blue);
+}
+
+.ucs-landing-podium h3,
+.ucs-landing-panel-title {
+  margin: 0;
+  font-family: var(--l-display);
+  font-size: 28px;
+  font-weight: 400;
+}
+
+.ucs-landing-podium p {
+  max-width: 26rem;
+  margin: 8px 0 0;
+  line-height: 1.5;
+  opacity: 0.8;
+}
+
+.ucs-landing-podium img {
+  display: block;
+  width: min(100%, 420px);
+  height: auto;
+  justify-self: center;
+}
+
+/* ---- Evidence ---- */
+.ucs-landing-evidence {
+  display: grid;
+  grid-template-columns: 4fr 7fr;
+  align-items: center;
+  gap: 48px;
+  margin-top: 40px;
+}
+
+.ucs-landing-specimen {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.ucs-landing-specimen > path {
+  fill: var(--tone-c);
+}
+
+.ucs-landing-verdicts {
+  display: grid;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.ucs-landing-verdicts > div {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 22px;
+  border-radius: 24px;
+  background: var(--tone-c);
+  color: var(--tone-o);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.ucs-landing-verdicts b {
+  font-weight: 500;
+}
+
+/* The sources the agents read, sliding past in display type. */
+.ucs-landing-marquee {
+  margin-top: 64px;
+}
+
+.ucs-landing-marquee-window {
+  margin-top: 16px;
+  overflow: hidden;
+  padding-block: 22px;
+  border-block: 1px solid var(--l-line);
+  mask-image: linear-gradient(
+    90deg,
+    transparent,
+    #000 8%,
+    #000 92%,
+    transparent
+  );
+}
+
+.ucs-landing-marquee-track {
+  display: flex;
+  width: max-content;
+  gap: 56px;
+}
+
+.ucs-landing-marquee-track span {
+  color: var(--l-ink);
+  font-family: var(--l-display);
+  font-size: clamp(2.4rem, 5.6vw, 4.8rem);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ucs-landing-marquee-track {
+    animation: ucs-landing-slide 40s linear infinite;
+  }
+
+  .ucs-landing-marquee-window:hover .ucs-landing-marquee-track {
+    animation-play-state: paused;
+  }
+}
+
+@keyframes ucs-landing-slide {
+  to {
+    transform: translateX(calc(-50% - 28px));
+  }
+}
+
+/* ---- Safety ---- */
+.ucs-landing-safety {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 48px;
+}
+
+.ucs-landing-safety > article {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 28px;
+  border: 1px solid var(--l-line);
+  border-radius: 32px;
+}
+
+.ucs-landing-safety .ucs-landing-badge {
+  width: 88px;
+}
+
+.ucs-landing-safety .ucs-landing-badge > svg:last-child {
+  width: 34px;
+  height: 34px;
+}
+
+.ucs-landing-safety h3 {
+  margin: 0;
+  font-family: var(--l-display);
+  font-size: 24px;
+  font-weight: 400;
+}
+
+.ucs-landing-safety p {
+  margin: 0;
+  color: var(--l-muted);
+  line-height: 1.5;
+}
+
+/* ---- Tiers ---- */
+.ucs-landing-seg {
+  position: relative;
+  box-sizing: border-box;
+  display: inline-flex;
+  max-width: 100%;
+  gap: 4px;
+  margin-top: 32px;
+  overflow-x: auto;
+  padding: 4px;
+  border-radius: 9999px;
+  background: var(--l-surface);
+  scrollbar-width: none;
+}
+
+.ucs-landing-seg button {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  height: 40px;
+  border: 0;
+  border-radius: 9999px;
+  background: none;
+  color: var(--l-muted);
+  cursor: pointer;
+  font: 500 15px var(--l-body);
+  padding-inline: 20px;
+}
+
+.ucs-landing-seg button {
+  transition: color 0.25s;
+}
+
+.ucs-landing-seg button[aria-pressed='true'] {
+  color: var(--l-bg);
+}
+
+.ucs-landing-tierbox {
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  align-items: center;
+  gap: 32px;
+  margin-top: 20px;
+  padding: clamp(20px, 3vw, 40px);
+  border-radius: 32px;
+  background: var(--l-surface);
+}
+
+.ucs-landing-field {
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+  gap: 8px;
+}
+
+.ucs-landing-field i {
+  aspect-ratio: 1;
+  border-radius: 9999px;
+  background: var(--l-line);
+  transform: scale(0.35);
+  transition:
+    transform 500ms var(--l-ease),
+    background-color 500ms;
+}
+
+.ucs-landing-field i[class] {
+  transform: scale(1);
+}
+
+.ucs-landing .g0 {
+  --dot: var(--l-muted);
+}
+.ucs-landing .g1 {
+  --dot: #4285f4;
+}
+.ucs-landing .g2 {
+  --dot: #34a853;
+}
+.ucs-landing .g3 {
+  --dot: #fbbc04;
+}
+.ucs-landing .g4 {
+  --dot: #ea4335;
+}
+
+.ucs-landing-field i[class] {
+  background: var(--dot);
+}
+
+.ucs-landing-gens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 18px;
+  color: var(--l-muted);
+  font-size: 13px;
+}
+
+.ucs-landing-gens span::before {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 9999px;
+  background: var(--dot);
+  content: '';
+  vertical-align: -1px;
+}
+
+.ucs-landing-tier-stats {
+  display: grid;
+  gap: 18px;
+}
+
+.ucs-landing-tier-stats > div {
+  display: grid;
+}
+
+.ucs-landing-tier-stats b {
+  font-family: var(--l-display);
+  font-size: 56px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+
+.ucs-landing-tier-stats span {
+  color: var(--l-muted);
+  font-size: 14px;
+}

@@ -1,66 +1,4 @@
-/* Shell popover panels, FAQ, toast, and sidebar chat list. */
-
-/* Get-help FAQ: native <details> accordion, styled as stacked rows with a
-   chevron that rotates when the row is open. */
-.ucs-faq {
-  display: grid;
-  gap: 0.35rem;
-  margin-top: 0.5rem;
-}
-
-.ucs-faq-item {
-  border-top: 1px solid var(--cosci-menu-divider);
-}
-
-.ucs-faq-item:last-child {
-  border-bottom: 1px solid var(--cosci-menu-divider);
-}
-
-.ucs-faq-question {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 500;
-  list-style: none;
-  padding: 0.85rem 0.15rem;
-}
-
-/* Hide the default disclosure triangle (Safari renders it via ::-webkit). */
-.ucs-faq-question::-webkit-details-marker {
-  display: none;
-}
-
-.ucs-faq-question:hover {
-  color: var(--cosci-blue);
-}
-
-.ucs-faq-chevron {
-  flex: 0 0 auto;
-  color: var(--cosci-menu-icon);
-  font-size: 1.25rem;
-  transition: transform 160ms cubic-bezier(0.2, 0, 0, 1);
-}
-
-.ucs-faq-item[open] .ucs-faq-chevron {
-  transform: rotate(180deg);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ucs-faq-chevron {
-    transition: none;
-  }
-}
-
-.ucs-faq-answer {
-  margin: 0;
-  padding: 0 0.15rem 0.9rem;
-  color: var(--cosci-muted);
-  font-size: 0.85rem;
-  line-height: 1.5;
-}
+/* Shell popover panels, toast, and sidebar chat list. */
 
 /* One sidebar treatment for every route — the chat rail must look
    identical on the home surface and inside a run (no home/report
@@ -218,4 +156,3 @@
   background: var(--cosci-shell-hover-bg);
   color: var(--cosci-shell-hover-text);
 }
-

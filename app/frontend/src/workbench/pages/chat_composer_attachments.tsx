@@ -61,6 +61,7 @@ const ATTACHMENT_REMOVE_BUTTON_CLASSES =
   'cursor-pointer place-items-center rounded-full border-0 ' +
   'bg-cosci-surface-raised p-0 text-cosci-fg opacity-0 ' +
   'group-hover:opacity-100 group-focus-within:opacity-100 ' +
+  'pointer-coarse:opacity-100 ' +
   'hover:bg-cosci-hover focus-visible:bg-cosci-hover ' +
   'focus-visible:outline-none';
 

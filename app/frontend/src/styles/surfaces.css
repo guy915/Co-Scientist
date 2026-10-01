@@ -8,4 +8,8 @@
 @import './home_surface.css';
 @import './home_surface_recents.css';
 @import './home_surface_responsive.css';
+@import './home_landing.css';
+@import './home_landing_diagram.css';
+@import './home_landing_sections.css';
+@import './home_landing_closing.css';
 @import './tooltips.css';

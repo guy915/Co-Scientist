@@ -19,7 +19,7 @@ import {
 const REPORT_INLINE_ACTION_CLASSES =
   'cosci-inline-action mt-4 inline-flex cursor-pointer items-center ' +
   'gap-[0.3rem] border-0 bg-transparent font-[inherit] text-[0.82rem] ' +
-  'text-cosci-fg';
+  'text-cosci-fg pointer-coarse:min-h-11';
 
 const REPORT_INLINE_ACTION_ICON_CLASSES = 'text-base';
 

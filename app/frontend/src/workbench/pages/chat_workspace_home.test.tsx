@@ -1,5 +1,5 @@
-import {screen} from '@testing-library/react';
-import {beforeEach, expect, it} from 'vitest';
+import {fireEvent, screen} from '@testing-library/react';
+import {beforeEach, expect, it, vi} from 'vitest';
 import {
   installChatWorkspaceMocks,
   renderWorkspace,
@@ -36,4 +36,22 @@ it('opens on the reference-style Co-Scientist home screen', async () => {
       name: /ferroptosis in pancreatic cancer cells/i,
     }),
   ).toHaveAttribute('href', '/runs/demo-ferroptosis/details');
+});
+
+// The home still opens on the chat; the landing page waits below it, behind
+// one quiet line under the composer that scrolls to it.
+it('points from the composer down to the landing page', async () => {
+  renderWorkspace();
+  const hint = screen.getByRole('button', {
+    name: 'Scroll to see how Co-Scientist works',
+  });
+  expect(
+    await screen.findByRole('navigation', {name: 'Landing sections'}),
+  ).toBeInTheDocument();
+  const scrollIntoView = vi.fn();
+  Element.prototype.scrollIntoView = scrollIntoView;
+  fireEvent.click(hint);
+  expect(scrollIntoView.mock.contexts[0]).toBe(
+    document.getElementById('landing'),
+  );
 });

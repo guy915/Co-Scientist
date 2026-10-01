@@ -1,0 +1,561 @@
+/* Landing page under the chat home (workbench/pages/home_landing.tsx), part
+   one: page frame, tokens, hero, tab rail, and overview. The rest follows
+   in home_landing_diagram.css, home_landing_sections.css, and
+   home_landing_closing.css, imported in that order.
+
+   This is the app's one editorial surface, so it follows Google's product
+   landing pages rather than the workbench's data-surface rules: large Google
+   Sans display type, Material 3 Expressive shapes, 24-48px media radii.
+   Every face is the app's own Google Sans or Google Sans Text.
+   The chat home above it is unchanged. See DESIGN.md > Landing page. */
+
+/* While the landing page is mounted, the home page scrolls: the stage keeps
+   exactly one screen, and the landing page follows it. The conversation
+   view never mounts the landing page, so it keeps its own fixed layout. */
+.ucs-page--home:has(.ucs-landing) {
+  display: block;
+  overflow-x: hidden;
+  overflow-y: auto;
+  /* At either end, a scroll must not chain out to the document: on macOS
+     the root then rubber-bands and drags the whole shell with it, showing
+     the page background under the rounded workspace. */
+  overscroll-behavior-y: contain;
+}
+
+html:has(.ucs-landing),
+html:has(.ucs-landing) body {
+  overscroll-behavior-y: none;
+}
+
+.ucs-page--home:has(.ucs-landing) .reference-workspace,
+.ucs-page--home:has(.ucs-landing) .reference-workspace-main {
+  display: block;
+  height: auto;
+  min-height: 0;
+}
+
+.ucs-page--home:has(.ucs-landing) .reference-home-stage {
+  height: calc(100vh - 4.5rem);
+  height: calc(100dvh - 4.5rem);
+}
+
+/* The quiet line under the composer that points at the landing page. */
+.reference-home-scroll-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-self: center;
+  align-self: center;
+  gap: 0.25rem;
+  margin-top: 0.75rem;
+  border: 0;
+  background: none;
+  color: var(--cosci-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.reference-home-scroll-hint:hover,
+.reference-home-scroll-hint:focus-visible {
+  color: var(--cosci-text);
+}
+
+.reference-home-scroll-hint svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .reference-home-scroll-hint svg {
+    animation: ucs-landing-bob 2.4s cubic-bezier(0.05, 0.7, 0.1, 1) infinite;
+  }
+}
+
+@keyframes ucs-landing-bob {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(3px);
+  }
+}
+
+@media (min-width: 1181px) {
+  .reference-home-main > .reference-home-scroll-hint {
+    grid-row: 8;
+  }
+}
+
+@media (min-width: 701px) and (max-width: 1180px) {
+  .reference-home-main > .reference-home-scroll-hint {
+    grid-row: 7;
+  }
+}
+
+@media (max-width: 700px) {
+  .reference-home-scroll-hint {
+    margin-top: 0.35rem;
+  }
+}
+
+/* ---- Tokens ---- */
+.ucs-landing {
+  --l-bg: var(--cosci-surface-bg);
+  --l-surface: #f3f6fb;
+  --l-ink: var(--cosci-text);
+  --l-muted: #5f6368;
+  --l-line: #e1e5ea;
+  --l-accent: #0b57d0;
+  --l-c-teal: #bfece3;
+  --l-c-blue: #d3e3fd;
+  --l-c-green: #c4eed0;
+  --l-c-yellow: #ffe28a;
+  --l-c-red: #ffdad6;
+  --l-o-teal: #00201f;
+  --l-o-blue: #041e49;
+  --l-o-green: #072711;
+  --l-o-yellow: #261a00;
+  --l-o-red: #410e0b;
+  --l-display: 'Google Sans', sans-serif;
+  --l-body: 'Google Sans Text', 'Google Sans', sans-serif;
+  --l-ease: cubic-bezier(0.05, 0.7, 0.1, 1);
+
+  background: var(--l-bg);
+  color: var(--l-ink);
+  font-family: var(--l-body);
+  overflow: clip;
+}
+
+:root[data-theme='dark'] .ucs-landing {
+  --l-surface: #1e1f20;
+  --l-muted: #a8abaf;
+  --l-line: #333537;
+  --l-accent: #a8c7fa;
+  --l-c-teal: #123c39;
+  --l-c-blue: #1c3257;
+  --l-c-green: #1b3a25;
+  --l-c-yellow: #3f3417;
+  --l-c-red: #4a2624;
+  --l-o-teal: #bfece3;
+  --l-o-blue: #d3e3fd;
+  --l-o-green: #c4eed0;
+  --l-o-yellow: #ffe28a;
+  --l-o-red: #ffdad6;
+}
+
+.ucs-landing .tone-teal {
+  --tone-c: var(--l-c-teal);
+  --tone-o: var(--l-o-teal);
+}
+.ucs-landing .tone-blue {
+  --tone-c: var(--l-c-blue);
+  --tone-o: var(--l-o-blue);
+}
+.ucs-landing .tone-green {
+  --tone-c: var(--l-c-green);
+  --tone-o: var(--l-o-green);
+}
+.ucs-landing .tone-yellow {
+  --tone-c: var(--l-c-yellow);
+  --tone-o: var(--l-o-yellow);
+}
+.ucs-landing .tone-red {
+  --tone-c: var(--l-c-red);
+  --tone-o: var(--l-o-red);
+}
+
+.ucs-landing :focus-visible {
+  outline: 2px solid var(--l-accent);
+  outline-offset: 3px;
+}
+
+.ucs-landing-hero,
+.ucs-landing-body,
+.ucs-landing-foot {
+  width: min(100% - 32px, 1240px);
+  margin-inline: auto;
+}
+
+.ucs-landing-sec {
+  padding-block: clamp(44px, 5.5vw, 76px);
+  scroll-margin-top: 72px;
+}
+
+.ucs-landing-sec--tight {
+  padding-top: 0;
+}
+
+.ucs-landing-label,
+.ucs-landing-cap {
+  margin: 0;
+  color: var(--l-muted);
+  font-family: var(--l-body);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.ucs-landing-cap {
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.ucs-landing-h2 {
+  margin: 0;
+  font-family: var(--l-display);
+  font-size: clamp(2.2rem, 4.6vw, 3.8rem);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 1.05;
+  text-wrap: balance;
+}
+
+.ucs-landing-lede {
+  max-width: 36rem;
+  margin: 16px 0 0;
+  color: var(--l-muted);
+  font-size: 1.15rem;
+  line-height: 1.55;
+}
+
+.ucs-landing-nowrap {
+  white-space: nowrap;
+}
+
+.ucs-landing-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.ucs-landing-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.ucs-landing-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 48px;
+  gap: 8px;
+  border: 0;
+  border-radius: 9999px;
+  cursor: pointer;
+  font: 500 16px var(--l-body);
+  padding-inline: 24px;
+  transition: background-color 0.2s;
+}
+
+.ucs-landing-pill.is-solid {
+  background: var(--l-ink);
+  color: var(--l-bg);
+}
+
+.ucs-landing-pill.is-line {
+  border: 1px solid var(--l-line);
+  background: transparent;
+  color: var(--l-ink);
+}
+
+.ucs-landing-pill.is-line:hover {
+  background: var(--l-surface);
+}
+
+/* ---- Hero ---- */
+.ucs-landing-hero {
+  padding-block: 72px 40px;
+  border-top: 1px solid var(--l-line);
+}
+
+.ucs-landing-word {
+  position: relative;
+  z-index: 1;
+  margin: 0;
+  font-family: var(--l-display);
+  font-size: clamp(3.4rem, 11.6vw, 11.25rem);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  line-height: 0.95;
+  white-space: nowrap;
+}
+
+.ucs-landing-hero-grid {
+  display: grid;
+  grid-template-columns: 6fr 5fr;
+  align-items: start;
+  gap: 32px;
+  margin-top: 32px;
+}
+
+.ucs-landing-hero-copy {
+  display: grid;
+  gap: 28px;
+  padding-top: 8px;
+}
+
+.ucs-landing-hero-copy > p {
+  margin: 0;
+  font-family: var(--l-display);
+  font-size: clamp(1.4rem, 2.2vw, 2rem);
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+.ucs-landing-hero-art {
+  width: min(100%, 440px);
+  justify-self: end;
+  margin-top: -2vw;
+  overflow: visible;
+}
+
+.ucs-landing-hero-art > path {
+  fill: var(--tone-c);
+}
+
+.ucs-landing-spin {
+  transform-origin: 50% 50%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ucs-landing-spin {
+    animation: ucs-landing-spin 60s linear infinite;
+  }
+}
+
+@keyframes ucs-landing-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- Tab rail ---- */
+.ucs-landing-rail {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--l-line);
+  background: var(--l-bg);
+}
+
+.ucs-landing-rail nav {
+  position: relative;
+  display: flex;
+  max-width: 100%;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 4px;
+  border-radius: 9999px;
+  background: var(--l-surface);
+  scrollbar-width: none;
+}
+
+.ucs-landing-rail nav::-webkit-scrollbar {
+  display: none;
+}
+
+.ucs-landing-rail a {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  flex: none;
+  height: 38px;
+  place-items: center;
+  border-radius: 9999px;
+  color: var(--l-muted);
+  font-size: 14px;
+  font-weight: 500;
+  padding-inline: 16px;
+  text-decoration: none;
+  transition: color 0.25s;
+}
+
+.ucs-landing-rail a.is-active {
+  color: var(--l-bg);
+}
+
+/* The one pill that slides between the selected items of the rail and the
+   tier picker (home_landing_slider.tsx); the items themselves stay clear
+   and sit above it. */
+.ucs-landing-slider {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  border-radius: 9999px;
+  background: var(--l-ink);
+  pointer-events: none;
+}
+
+.ucs-landing-slider.is-animated {
+  transition:
+    transform 0.4s var(--l-ease),
+    width 0.4s var(--l-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ucs-landing-slider.is-animated {
+    transition: none;
+  }
+}
+
+/* ---- Overview: one run, end to end ---- */
+.ucs-landing-ov {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 40px;
+}
+
+.ucs-landing-ov-card {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 28px;
+  border-radius: 32px;
+  background: var(--l-surface);
+}
+
+.ucs-landing-ov-card h3 {
+  margin: 0;
+  font-family: var(--l-display);
+  font-size: 26px;
+  font-weight: 400;
+}
+
+.ucs-landing-ov-sub {
+  margin: 0 0 12px;
+  color: var(--l-muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.ucs-landing-ov-goal {
+  display: grid;
+  gap: 10px;
+  padding: 20px;
+  border-radius: 24px;
+  background: var(--l-bg);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.ucs-landing-ov-goal b {
+  font-weight: 500;
+}
+
+.ucs-landing-ov-goal p {
+  margin: 0;
+  color: var(--l-muted);
+}
+
+.ucs-landing-ov-rest {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ucs-landing-ov-rest li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: 9999px;
+  background: var(--l-bg);
+  color: var(--l-muted);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ucs-landing-ov-rest li span:nth-child(2) {
+  overflow: hidden;
+  color: var(--l-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ucs-landing-ov-stages {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ucs-landing-ov-stages li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border-radius: 9999px;
+  color: var(--l-muted);
+  font-size: 14px;
+  transition:
+    background-color 0.4s var(--l-ease),
+    color 0.4s var(--l-ease);
+}
+
+.ucs-landing-ov-stages li.is-lit {
+  background: var(--l-bg);
+  color: var(--l-ink);
+}
+
+.ucs-landing-ov-stages svg {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+.ucs-landing-ov-stages li.is-lit svg {
+  fill: var(--l-accent);
+}
+
+.ucs-landing-ov-idea {
+  display: grid;
+  gap: 10px;
+  padding: 20px;
+  border-radius: 24px;
+  background: var(--l-bg);
+}
+
+.ucs-landing-ov-idea b {
+  font-family: var(--l-display);
+  font-size: 19px;
+  font-weight: 400;
+  line-height: 1.3;
+}
+
+.ucs-landing-ov-idea-meta {
+  display: flex;
+  gap: 12px;
+  color: var(--l-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ucs-landing-ov-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ucs-landing-ov-chips span {
+  padding: 4px 12px;
+  border-radius: 9999px;
+  background: var(--tone-c);
+  color: var(--tone-o);
+  font-size: 13px;
+  font-weight: 500;
+}

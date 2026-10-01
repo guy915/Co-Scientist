@@ -10,6 +10,7 @@ import {useIsMobile} from '../hooks/use_is_mobile';
 import {
   HOME_LOGO_CLASSES,
   HOME_MAIN_CLASSES,
+  HOME_SCROLL_HINT_CLASSES,
   HOME_STAGE_CLASSES,
   HOME_STEP_BODY_CLASSES,
   HOME_STEP_HEADING_CLASSES,
@@ -31,6 +32,8 @@ import {
 } from './chat_home_suggestions';
 import {HomeSuggestionRow} from './chat_home_suggestion_row';
 import {GoogleLabsIcon} from '../components/google_labs_icon';
+import {Icon} from '@/components/icon';
+import {smoothScrollToSection} from '@/lib/smooth_scroll';
 
 export {SUGGESTIONS, type Suggestion} from './chat_home_suggestions';
 
@@ -115,7 +118,37 @@ function HomeMainColumn(
         onSelect={props.onSelect}
       />
       <HomeComposer {...props} />
+      <HomeScrollHint />
     </div>
+  );
+}
+
+// The one line under the composer that says there is more below: the
+// landing page (home_landing.tsx), rendered after this stage. Quiet on
+// purpose, so the home still reads as the chat it opens on.
+function HomeScrollHint() {
+  const onClick = () => {
+    const reduce = window.matchMedia?.(
+      '(prefers-reduced-motion: reduce)',
+    ).matches;
+    // Scroll the home page pane itself: scrollIntoView would also scroll
+    // the shell's clipped ancestors and shift the whole app up.
+    smoothScrollToSection(
+      'landing',
+      0,
+      '.ucs-page--home',
+      reduce ? 'auto' : 'smooth',
+    );
+  };
+  return (
+    <button
+      type="button"
+      className={HOME_SCROLL_HINT_CLASSES}
+      onClick={onClick}
+    >
+      Scroll to see how Co-Scientist works
+      <Icon aria-hidden="true" name="expand_more" />
+    </button>
   );
 }
 

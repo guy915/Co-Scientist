@@ -1,0 +1,191 @@
+/* Landing page, part four: FAQ, closing card, and the responsive
+   and reduced-motion overrides for every part. */
+
+/* ---- FAQ ---- */
+.ucs-landing-faq {
+  display: grid;
+  margin-top: 32px;
+}
+
+.ucs-landing-faq details {
+  border-bottom: 1px solid var(--l-line);
+}
+
+.ucs-landing-faq summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  cursor: pointer;
+  font-size: 19px;
+  list-style: none;
+  padding-block: 22px;
+}
+
+.ucs-landing-faq summary::-webkit-details-marker {
+  display: none;
+}
+
+.ucs-landing-faq summary svg {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  fill: var(--l-muted);
+  transition: transform 0.3s var(--l-ease);
+}
+
+.ucs-landing-faq details[open] summary svg {
+  transform: rotate(180deg);
+}
+
+.ucs-landing-faq details p {
+  max-width: 60rem;
+  margin: 0 0 22px;
+  color: var(--l-muted);
+  line-height: 1.6;
+}
+
+/* ---- Closing card ---- */
+.ucs-landing-cta {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  align-items: center;
+  gap: 32px;
+  padding: clamp(28px, 5vw, 72px);
+  border-radius: 48px;
+  background: var(--l-c-teal);
+  color: var(--l-o-teal);
+}
+
+.ucs-landing-cta p {
+  max-width: 30rem;
+  margin: 16px 0 28px;
+  font-size: 1.15rem;
+  line-height: 1.55;
+  opacity: 0.8;
+}
+
+.ucs-landing-cta img {
+  display: block;
+  width: 100%;
+  max-height: 440px;
+  height: auto;
+  justify-self: center;
+  object-fit: contain;
+}
+
+.ucs-landing-cta .ucs-landing-pill.is-solid {
+  background: var(--l-o-teal);
+  color: var(--l-c-teal);
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 900px) {
+  .ucs-landing-hero-grid,
+  .ucs-landing-duo,
+  .ucs-landing-evidence,
+  .ucs-landing-cta,
+  .ucs-landing-tierbox {
+    grid-template-columns: 1fr;
+  }
+
+  .ucs-landing-hero-grid {
+    margin-top: 16px;
+  }
+
+  .ucs-landing-hero-art {
+    justify-self: center;
+    margin-top: 0;
+  }
+
+  .ucs-landing-ov {
+    grid-template-columns: 1fr;
+  }
+
+  .ucs-landing-agents,
+  .ucs-landing-safety {
+    grid-template-columns: 1fr;
+  }
+
+  .ucs-landing-agent.is-wide {
+    grid-column: auto;
+  }
+
+  .ucs-landing-field {
+    grid-template-columns: repeat(12, 1fr);
+  }
+
+  .ucs-landing-verdicts > div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .ucs-landing-seg button {
+    padding-inline: 14px;
+  }
+
+  .ucs-landing-tier-stats {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .ucs-landing-tier-stats b {
+    font-size: 44px;
+  }
+}
+
+@media (max-width: 700px) {
+  .ucs-landing-rail {
+    justify-content: flex-start;
+  }
+
+  .ucs-landing-rail nav.has-more {
+    mask-image: linear-gradient(90deg, #000 85%, transparent);
+  }
+
+  .ucs-landing-diagram-svg {
+    display: none;
+  }
+
+  .ucs-landing-flow {
+    display: grid;
+  }
+
+  /* The tree keeps a readable size and scrolls sideways instead. */
+  .ucs-landing-tree {
+    padding: 24px 20px;
+  }
+
+  .ucs-landing-tree-scroll {
+    overflow-x: auto;
+    padding-bottom: 8px;
+  }
+
+  .ucs-landing-tree-scroll svg {
+    min-width: 720px;
+  }
+}
+
+@media (max-width: 480px) {
+  .ucs-landing-agent {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .ucs-landing-agent .ucs-landing-badge {
+    width: 72px;
+  }
+
+  .ucs-landing-agent .ucs-landing-badge > svg:last-child {
+    width: 30px;
+    height: 30px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ucs-landing-field i,
+  .ucs-landing-elo-line,
+  .ucs-landing-elo-end,
+  .ucs-landing-agent-cell rect {
+    transition: none;
+  }
+}

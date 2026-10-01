@@ -15,7 +15,6 @@ import {useRestoreFocusOnClose} from '../hooks/use_restore_focus_on_close';
 import {type Mode, useTheme} from '../theme_context';
 import {
   AppearanceSection,
-  HelpSection,
   ModelSection,
   SettingsNav,
   type SettingsSection,
@@ -125,7 +124,6 @@ function SettingsPanel({
           onSave={apiKeyField.onSave}
         />
       )}
-      {section === 'help' && <HelpSection />}
     </div>
   );
 }
