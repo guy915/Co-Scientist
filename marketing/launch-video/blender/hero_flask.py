@@ -3,6 +3,7 @@
 Run: Blender -b -P hero_flask.py -- <out_dir> [frames] [size]
 Lathed from a profile so it matches the product's flask silhouette.
 """
+
 import math
 import sys
 
@@ -17,7 +18,18 @@ bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
 
 # Outer profile (radius, height): lip, neck, shoulder, cone, rounded base.
-OUTER = [(0.0, 0.0), (0.95, 0.0), (1.08, 0.06), (1.13, 0.2), (0.42, 1.55), (0.36, 1.75), (0.36, 2.45), (0.44, 2.5), (0.44, 2.6), (0.30, 2.6)]
+OUTER = [
+    (0.0, 0.0),
+    (0.95, 0.0),
+    (1.08, 0.06),
+    (1.13, 0.2),
+    (0.42, 1.55),
+    (0.36, 1.75),
+    (0.36, 2.45),
+    (0.44, 2.5),
+    (0.44, 2.6),
+    (0.30, 2.6),
+]
 LIQUID_TOP = 0.78
 
 
@@ -54,7 +66,14 @@ sol.offset = -1
 sub = glass.modifiers.new("Sub", "SUBSURF")
 sub.levels = sub.render_levels = 2
 
-liq_profile = [(0.0, 0.07), (0.9, 0.07), (1.02, 0.14), (cone_radius(0.25) - 0.06, 0.25), (cone_radius(LIQUID_TOP) - 0.06, LIQUID_TOP), (0.0, LIQUID_TOP)]
+liq_profile = [
+    (0.0, 0.07),
+    (0.9, 0.07),
+    (1.02, 0.14),
+    (cone_radius(0.25) - 0.06, 0.25),
+    (cone_radius(LIQUID_TOP) - 0.06, LIQUID_TOP),
+    (0.0, LIQUID_TOP),
+]
 liquid = lathe("Liquid", liq_profile)
 ls = liquid.modifiers.new("Sub", "SUBSURF")
 ls.levels = ls.render_levels = 2
@@ -102,6 +121,7 @@ def mat_liquid():
 glass.data.materials.append(mat_glass())
 liquid.data.materials.append(mat_liquid())
 
+
 # Lights: a big soft key plus brand-colored rims that orbit, so reflections travel.
 def area(name, loc, color, power, size):
     d = bpy.data.lights.new(name, "AREA")
@@ -119,7 +139,11 @@ def area(name, loc, color, power, size):
 rig = bpy.data.objects.new("Rig", None)
 scene.collection.objects.link(rig)
 area("Key", (3, -4, 5), (1, 1, 1), 900, 5)
-for name, loc, col in (("RimTeal", (-4, 2, 2.5), (0.3, 0.9, 0.8)), ("RimBlue", (4, 3, 1.5), (0.4, 0.6, 1.0)), ("RimWarm", (0, 4, 4), (1.0, 0.85, 0.5))):
+for name, loc, col in (
+    ("RimTeal", (-4, 2, 2.5), (0.3, 0.9, 0.8)),
+    ("RimBlue", (4, 3, 1.5), (0.4, 0.6, 1.0)),
+    ("RimWarm", (0, 4, 4), (1.0, 0.85, 0.5)),
+):
     area(name, loc, col, 700, 3).parent = rig
 
 world = bpy.data.worlds.new("W")
@@ -141,7 +165,11 @@ scene.frame_start = 1
 scene.frame_end = FRAMES
 for f in range(1, FRAMES + 1):
     t = (f - 1) / max(1, FRAMES)
-    flask.rotation_euler = (math.radians(6 * math.sin(2 * math.pi * t)), math.radians(5 * math.sin(2 * math.pi * t + 1)), 2 * math.pi * t * 0.25)
+    flask.rotation_euler = (
+        math.radians(6 * math.sin(2 * math.pi * t)),
+        math.radians(5 * math.sin(2 * math.pi * t + 1)),
+        2 * math.pi * t * 0.25,
+    )
     flask.location = (0, 0, 0.08 * math.sin(2 * math.pi * t))
     flask.keyframe_insert("rotation_euler", frame=f)
     flask.keyframe_insert("location", frame=f)

@@ -32,7 +32,12 @@ def env(n, a, d, s, r, sustain_n):
     e = np.zeros(n)
     ai, di, ri = int(a * SR), int(d * SR), int(r * SR)
     k = 0
-    for seg in (np.linspace(0, 1, ai, endpoint=False), np.linspace(1, s, di, endpoint=False), np.full(max(0, sustain_n), s), np.linspace(s, 0, ri)):
+    for seg in (
+        np.linspace(0, 1, ai, endpoint=False),
+        np.linspace(1, s, di, endpoint=False),
+        np.full(max(0, sustain_n), s),
+        np.linspace(s, 0, ri),
+    ):
         m = min(len(seg), n - k)
         e[k : k + m] = seg[:m]
         k += m
@@ -50,9 +55,9 @@ class Mix:
         if i >= len(self.buf):
             return
         sig = sig[: len(self.buf) - i]
-        l, r = np.cos((pan + 1) * np.pi / 4), np.sin((pan + 1) * np.pi / 4)
-        self.buf[i : i + len(sig), 0] += sig * gain * l
-        self.buf[i : i + len(sig), 1] += sig * gain * r
+        left, right = np.cos((pan + 1) * np.pi / 4), np.sin((pan + 1) * np.pi / 4)
+        self.buf[i : i + len(sig), 0] += sig * gain * left
+        self.buf[i : i + len(sig), 1] += sig * gain * right
 
 
 def lowpass(x, cutoff):
@@ -77,7 +82,9 @@ def pad_note(midi, dur, bright=0.3):
     n = int((dur + 2.0) * SR)
     t = np.arange(n) / SR
     f0 = hz(midi)
-    sig = sum(np.sin(2 * np.pi * f0 * d * t + rng.uniform(0, 6)) for d in (1, 1.003, 0.997))
+    sig = sum(
+        np.sin(2 * np.pi * f0 * d * t + rng.uniform(0, 6)) for d in (1, 1.003, 0.997)
+    )
     sig += bright * sum(np.sin(2 * np.pi * f0 * 2 * d * t) for d in (1, 1.002)) * 0.5
     return sig * env(n, 0.9, 0.5, 0.7, 2.0, int(dur * SR) - int(1.4 * SR)) / 3
 
@@ -86,7 +93,11 @@ def pluck(midi, gain=1.0, decay=1.2):
     n = int(decay * 2.5 * SR)
     t = np.arange(n) / SR
     f0 = hz(midi)
-    sig = np.sin(2 * np.pi * f0 * t) + 0.35 * np.sin(2 * np.pi * f0 * 2 * t) * np.exp(-t * 6) + 0.12 * np.sin(2 * np.pi * f0 * 3 * t) * np.exp(-t * 9)
+    sig = (
+        np.sin(2 * np.pi * f0 * t)
+        + 0.35 * np.sin(2 * np.pi * f0 * 2 * t) * np.exp(-t * 6)
+        + 0.12 * np.sin(2 * np.pi * f0 * 3 * t) * np.exp(-t * 9)
+    )
     return gain * sig * np.exp(-t / decay * 3) * np.minimum(1, t * 400)
 
 
@@ -95,7 +106,9 @@ def bell(midi, gain=1.0):
     t = np.arange(n) / SR
     f0 = hz(midi)
     partials = [(1, 1, 1.0), (2.76, 0.4, 2.2), (5.4, 0.2, 3.5), (2.0, 0.3, 1.6)]
-    sig = sum(a * np.sin(2 * np.pi * f0 * r * t) * np.exp(-t * k) for r, a, k in partials)
+    sig = sum(
+        a * np.sin(2 * np.pi * f0 * r * t) * np.exp(-t * k) for r, a, k in partials
+    )
     return gain * sig * np.minimum(1, t * 300) * 0.5
 
 
@@ -109,7 +122,11 @@ def kick(gain=1.0):
 def tick(gain=1.0, freq=4000):
     n = int(0.04 * SR)
     t = np.arange(n) / SR
-    return gain * (rng.standard_normal(n) * 0.4 + np.sin(2 * np.pi * freq * t)) * np.exp(-t * 160)
+    return (
+        gain
+        * (rng.standard_normal(n) * 0.4 + np.sin(2 * np.pi * freq * t))
+        * np.exp(-t * 160)
+    )
 
 
 def key_click(gain=1.0):
@@ -121,7 +138,9 @@ def key_click(gain=1.0):
 def whoosh(dur=0.7, gain=1.0, rise=True):
     n = int(dur * SR)
     t = np.linspace(0, 1, n)
-    shape = (t**2 if rise else (1 - t) ** 2) * np.sin(np.pi * np.minimum(t * 1.05, 1)) ** 0.5
+    shape = (t**2 if rise else (1 - t) ** 2) * np.sin(
+        np.pi * np.minimum(t * 1.05, 1)
+    ) ** 0.5
     noise = fast_lowpass(rng.standard_normal(n), 1800)
     return gain * noise * shape
 
@@ -129,7 +148,12 @@ def whoosh(dur=0.7, gain=1.0, rise=True):
 def boom(gain=1.0):
     n = int(2.5 * SR)
     t = np.arange(n) / SR
-    return gain * (np.sin(2 * np.pi * 38 * t) + 0.3 * fast_lowpass(rng.standard_normal(n), 120)) * np.exp(-t * 1.6) * np.minimum(1, t * 200)
+    return (
+        gain
+        * (np.sin(2 * np.pi * 38 * t) + 0.3 * fast_lowpass(rng.standard_normal(n), 120))
+        * np.exp(-t * 1.6)
+        * np.minimum(1, t * 200)
+    )
 
 
 def reverb(buf, seconds=2.4, wet=0.28):
@@ -142,13 +166,20 @@ def reverb(buf, seconds=2.4, wet=0.28):
         ir /= np.sqrt(np.sum(ir**2))
         L = len(buf) + n
         size = 1 << (L - 1).bit_length()
-        y = np.fft.irfft(np.fft.rfft(buf[:, ch], size) * np.fft.rfft(ir, size), size)[: len(buf)]
+        y = np.fft.irfft(np.fft.rfft(buf[:, ch], size) * np.fft.rfft(ir, size), size)[
+            : len(buf)
+        ]
         out[:, ch] = buf[:, ch] * (1 - wet) + y * wet
     return out
 
 
 # Chords as MIDI notes: Cmaj9, Am9, Fmaj7#11, Gsus — bright, unresolved, Google-ish.
-CHORDS = [[48, 55, 59, 62, 64], [45, 52, 55, 59, 60], [41, 48, 52, 55, 59], [43, 50, 55, 57, 62]]
+CHORDS = [
+    [48, 55, 59, 62, 64],
+    [45, 52, 55, 59, 60],
+    [41, 48, 52, 55, 59],
+    [43, 50, 55, 57, 62],
+]
 DARK = [[38, 45, 50, 53], [34, 41, 46, 50], [36, 43, 48, 51], [33, 40, 45, 48]]
 
 
@@ -158,7 +189,12 @@ def bed(m, seconds, chords, bars_per=2, gain=0.09, bright=0.3, start=0.0):
     at = start
     while at < seconds:
         for note in chords[k % len(chords)]:
-            m.add(at, pad_note(note, bar * bars_per, bright), gain, pan=rng.uniform(-0.4, 0.4))
+            m.add(
+                at,
+                pad_note(note, bar * bars_per, bright),
+                gain,
+                pan=rng.uniform(-0.4, 0.4),
+            )
         at += bar * bars_per
         k += 1
 
@@ -216,7 +252,12 @@ def score_a(path):
     typing(m, 136, 167)
     m.add(t_of(186), bell(88), 0.12)
     for i in range(7):
-        m.add(t_of(229 + i * 4), pluck(72 + [0, 2, 4, 7, 9, 12, 14][i], decay=0.6), 0.16, pan=-0.6 + i * 0.2)
+        m.add(
+            t_of(229 + i * 4),
+            pluck(72 + [0, 2, 4, 7, 9, 12, 14][i], decay=0.6),
+            0.16,
+            pan=-0.6 + i * 0.2,
+        )
     for f in range(335, 680, 15):
         m.add(t_of(f), kick(), 0.32)
     for f in (120, 215, 335, 410, 485, 560, 680, 780):
@@ -253,14 +294,23 @@ def score_c(path):
     m.add(t_of(62), whoosh(1.0, rise=False), 0.12)
     m.add(t_of(80), bell(81), 0.22)
     for i in range(8):
-        m.add(t_of(100 + i * 2), pluck(69 + [0, 3, 5, 7, 10, 12, 15, 17][i], decay=0.5), 0.12, pan=-0.7 + i * 0.2)
+        m.add(
+            t_of(100 + i * 2),
+            pluck(69 + [0, 3, 5, 7, 10, 12, 15, 17][i], decay=0.5),
+            0.12,
+            pan=-0.7 + i * 0.2,
+        )
     for k in range(21):
         f = 210 + k * 6
-        m.add(t_of(f), tick(0.6, 2500 + (k % 4) * 500), 0.22, pan=rng.uniform(-0.6, 0.6))
+        m.add(
+            t_of(f), tick(0.6, 2500 + (k % 4) * 500), 0.22, pan=rng.uniform(-0.6, 0.6)
+        )
         if k % 4 == 0:
             m.add(t_of(f), kick(), 0.28)
     for i in range(7):
-        m.add(t_of(352 + i * 5), pluck(74 + [0, 2, 5, 7, 9, 12, 14][i], decay=0.7), 0.12)
+        m.add(
+            t_of(352 + i * 5), pluck(74 + [0, 2, 5, 7, 9, 12, 14][i], decay=0.7), 0.12
+        )
     for f in (452, 602, 702):
         m.add(t_of(f) - 0.5, whoosh(0.6), 0.14)
     for i in range(5):
@@ -274,7 +324,17 @@ def score_c(path):
 
 def score_final(path):
     """B's cues to the tournament, C's inside it, B's again after: see src/final/Final.tsx."""
-    AGENTS, DARK_F, NET, BOARD, CHECK, LIGHT, APP, END, TOTAL = 225, 352, 370, 722, 872, 990, 998, 1390, 1515
+    AGENTS, DARK_F, NET, BOARD, CHECK, LIGHT, APP, END, TOTAL = (
+        225,
+        352,
+        370,
+        722,
+        872,
+        990,
+        998,
+        1390,
+        1515,
+    )
     secs = TOTAL / FPS
     m = Mix(secs)
     bed(m, t_of(DARK_F) + 1.0, CHORDS, gain=0.08, bright=0.15)
@@ -294,17 +354,30 @@ def score_final(path):
     m.add(t_of(DARK_F) - 0.6, whoosh(0.9), 0.16)
     m.add(t_of(NET), boom(), 0.45)
     for i in range(9):
-        m.add(t_of(NET + i * 2), pluck(69 + [0, 3, 5, 7, 10, 12, 15, 17, 19][i], decay=0.5), 0.12, pan=-0.7 + i * 0.17)
+        m.add(
+            t_of(NET + i * 2),
+            pluck(69 + [0, 3, 5, 7, 10, 12, 15, 17, 19][i], decay=0.5),
+            0.12,
+            pan=-0.7 + i * 0.17,
+        )
     for k in range(21):
         f = NET + 110 + k * 6
-        m.add(t_of(f), tick(0.6, 2500 + (k % 4) * 500), 0.22, pan=rng.uniform(-0.6, 0.6))
+        m.add(
+            t_of(f), tick(0.6, 2500 + (k % 4) * 500), 0.22, pan=rng.uniform(-0.6, 0.6)
+        )
         if k % 4 == 0:
             m.add(t_of(f), kick(), 0.28)
     for i in range(6):
-        m.add(t_of(NET + 242 + 10 + i * 5), pluck(74 + [0, 2, 5, 7, 9, 12][i], decay=0.7), 0.12)
+        m.add(
+            t_of(NET + 242 + 10 + i * 5),
+            pluck(74 + [0, 2, 5, 7, 9, 12][i], decay=0.7),
+            0.12,
+        )
     m.add(t_of(BOARD) - 0.5, whoosh(0.6), 0.14)
     for i in range(5):
-        m.add(t_of(BOARD + 26 + i * 5), pluck(62 + [12, 9, 7, 5, 2][i], decay=0.8), 0.14)
+        m.add(
+            t_of(BOARD + 26 + i * 5), pluck(62 + [12, 9, 7, 5, 2][i], decay=0.8), 0.14
+        )
     m.add(t_of(CHECK) - 0.5, whoosh(0.6), 0.14)
     for i in range(6):
         m.add(t_of(CHECK + 60 + i * 5), tick(0.5, 5000), 0.2)
