@@ -21,8 +21,14 @@ SR = 48_000
 OUT = Path(__file__).resolve().parent.parent / "public" / "sfx"
 rng = np.random.default_rng(7)
 
-# B-flat major pentatonic, Bb5 upward: Bb C D F G.
-PENTA = [932.33, 1046.50, 1174.66, 1396.91, 1567.98, 1864.66, 2093.00, 2349.32]
+# B-flat major pentatonic, Bb5 upward: Bb C D F G. The recording is tuned about
+# 18 cents sharp of A=440 (its Bb5 measures 941 Hz), so the scale is raised to
+# match; at A=440 a sustained ding would beat against the track's own notes.
+TUNING = 2 ** (18 / 1200)
+PENTA = [
+    f * TUNING
+    for f in (932.33, 1046.50, 1174.66, 1396.91, 1567.98, 1864.66, 2093.00, 2349.32)
+]
 
 
 def n_of(seconds):
@@ -142,7 +148,10 @@ def rise(d=0.55):
     """Reverse swell: grows and brightens, then stops dead on its last sample."""
     t = t_axis(d)
     x = swish(d, 600, 9000, 0.999)
-    return x * (t / d) ** 1.5 + 0.15 * sine(d, 466.16, 1864.66, d) * (t / d) ** 3
+    return (
+        x * (t / d) ** 1.5
+        + 0.15 * sine(d, 466.16 * TUNING, 1864.66 * TUNING, d) * (t / d) ** 3
+    )
 
 
 def ding(f):
@@ -160,7 +169,7 @@ def ding(f):
 def sparkle():
     d = 0.7
     x = np.zeros(n_of(d))
-    notes = PENTA[3:] + [2793.83, 3135.96]
+    notes = PENTA[3:] + [2793.83 * TUNING, 3135.96 * TUNING]
     for k in range(10):
         s = blip(notes[rng.integers(len(notes))] * 2) * (0.9**k)
         x += at(s, 0.04 * k + rng.uniform(0, 0.015), d)

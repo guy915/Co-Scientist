@@ -28,7 +28,7 @@ export const StatusPill: React.FC<{label: string; f: number}> = ({label, f}) => 
  * screen buries the next caption's text. The text is positioned so it paints
  * above the (absolutely positioned) band.
  */
-const Caption: React.FC<{text: string; start: number; end: number}> = ({text, start, end}) => {
+export const Caption: React.FC<{text: string; start: number; end: number}> = ({text, start, end}) => {
   const f = useCurrentFrame();
   if (f < start - 2 || f > end + 12) return null;
   return (

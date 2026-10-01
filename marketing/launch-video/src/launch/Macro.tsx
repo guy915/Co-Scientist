@@ -1,10 +1,11 @@
 import React from 'react';
-import {AbsoluteFill, useCurrentFrame} from 'remotion';
-import {Flask} from '../shared/Flask';
+import {AbsoluteFill, Img, useCurrentFrame} from 'remotion';
+import {flaskSrc} from '../shared/HeroFlask';
 import {Shape, type ShapeName} from '../shared/Shape';
+import {TypeLine} from '../shared/TypeLine';
 import {mix, ramp} from '../shared/motion';
 import {C, FONT, MONO, REPO, SITE, type Tone} from '../shared/tokens';
-import {useBeats} from './Beat';
+import {Cuts, useBeats} from './Beat';
 import {Sfx} from './Sfx';
 
 interface Look {
@@ -45,18 +46,40 @@ export const Backdrop: React.FC<{look: Look; f: number}> = ({look, f}) => {
   );
 };
 
-const Wordmark: React.FC<{size: number; reveal: number}> = ({size, reveal}) => (
-  <div style={{display: 'flex', alignItems: 'center', gap: size * 0.26, fontFamily: FONT}}>
-    <Flask size={size * 0.94} color={C.teal} style={{opacity: reveal, transform: `scale(${mix(0.7, 1, reveal)})`}} />
-    <div style={{fontSize: size, fontWeight: 500, letterSpacing: '-0.03em', color: C.ink, opacity: reveal, filter: `blur(${mix(14, 0, reveal)}px)`}}>
-      Open Co-Scientist
-    </div>
+/**
+ * The trailer's title card: one big word over a full-bleed frame, a small chip
+ * under it, cut in hard on the beat and settling in a few frames.
+ */
+export const WordFrame: React.FC<{word: string; chip?: string; mono?: boolean; look: number; drift?: number}> = ({word, chip, mono, look, drift = 0}) => {
+  const f = useCurrentFrame();
+  const settle = ramp(f, 0, 8);
+  const tag = ramp(f, 4, 10);
+  return (
+    <AbsoluteFill>
+      <Backdrop look={LOOKS[look % LOOKS.length]} f={f + drift} />
+      <AbsoluteFill style={{alignItems: 'center', justifyContent: 'center', fontFamily: FONT}}>
+        <div style={{fontSize: 176, fontWeight: 500, letterSpacing: '-0.035em', color: C.ink, transform: `scale(${mix(1.06, 1, settle)})`}}>{word}</div>
+        {chip && (
+          <div style={{marginTop: 36, fontFamily: mono ? MONO : FONT, fontSize: mono ? 40 : 46, color: C.ink, background: 'rgba(255,255,255,0.86)', padding: '14px 34px', borderRadius: 999, opacity: tag, transform: `translateY(${mix(16, 0, tag)}px)`}}>
+            {chip}
+          </div>
+        )}
+      </AbsoluteFill>
+    </AbsoluteFill>
+  );
+};
+
+/** The film's mark: the rendered glass flask stands in for the logo's flask glyph. */
+const Mark: React.FC<{f: number; reveal: number}> = ({f, reveal}) => (
+  <div style={{display: 'flex', alignItems: 'center', fontFamily: FONT}}>
+    <Img src={flaskSrc(f)} style={{width: 330, height: 330, margin: '-60px -20px -60px -70px', opacity: reveal, transform: `scale(${mix(0.8, 1, reveal)})`}} />
+    <div style={{fontSize: 150, fontWeight: 500, letterSpacing: '-0.03em', color: C.ink, opacity: reveal, filter: `blur(${mix(14, 0, reveal)}px)`}}>Open Co-Scientist</div>
   </div>
 );
 
 /**
- * Beats 0-4, the quiet intro: the wordmark holds while the shapes behind it
- * cut on each beat, then stutter into the downbeat.
+ * Beats 0-4, the quiet intro: B's opening line over the mark, while the shapes
+ * behind cut on each beat, then stutter into the downbeat.
  */
 export const Title: React.FC = () => {
   const f = useCurrentFrame();
@@ -68,52 +91,38 @@ export const Title: React.FC = () => {
     <AbsoluteFill>
       <Backdrop look={LOOKS[i % LOOKS.length]} f={f - cuts[i] + i * 20} />
       <AbsoluteFill style={{alignItems: 'center', justifyContent: 'center'}}>
-        <Wordmark size={150} reveal={ramp(f, 0, 9)} />
+        <TypeLine text="Introducing" start={2} size={56} color={C.inkSoft} rate={1} style={{marginBottom: 6, marginLeft: 200}} />
+        <Mark f={f} reveal={ramp(f, 0, 9)} />
       </AbsoluteFill>
       <Sfx at={0} name="sparkle" volume={0.2} />
-      {cuts.slice(1, 4).map(c => <Sfx key={c} at={c} name="swish" volume={0.45} />)}
+      {cuts.slice(1, 4).map(c => <Sfx key={c} at={c} name="shutter" volume={0.5} />)}
       {cuts.slice(4).map(c => <Sfx key={c} at={c} name="tick" volume={0.6} />)}
     </AbsoluteFill>
   );
 };
 
-const SWAPS: {word: string; chip?: string; look: number}[] = [
-  {word: 'Open', look: 0},
-  {word: 'Open source.', chip: REPO, look: 1},
-  {word: 'Open science.', chip: 'PubMed · UniProt · Reactome · ChEMBL', look: 2},
-  {word: 'Open to everyone.', chip: SITE, look: 3},
+const SWAPS: {word: string; chip?: string}[] = [
+  {word: 'Open'},
+  {word: 'Open source.', chip: REPO},
+  {word: 'Open science.', chip: 'PubMed · UniProt · Reactome · ChEMBL'},
+  {word: 'Open to everyone.', chip: SITE},
 ];
 
 /**
  * The trailer's word-swap: one composition, one word changing on the beat.
- * Lands on the bass drop-out at 36.34 s and swaps on the stabs after it.
+ * Lands on the bass drop-out at 36.3 s and swaps every second beat after it.
  */
 export const OpenSwap: React.FC = () => {
-  const f = useCurrentFrame();
   const b = useBeats();
-  const at = [0, b(2), b(4), b(6)];
-  const i = at.filter(c => f >= c).length - 1;
-  const s = SWAPS[i];
-  const local = f - at[i];
-  const settle = ramp(local, 0, 8);
-  const chip = ramp(local, 5, 10);
   return (
-    <AbsoluteFill>
-      <Backdrop look={LOOKS[s.look]} f={f + 60} />
-      <AbsoluteFill style={{alignItems: 'center', justifyContent: 'center', fontFamily: FONT}}>
-        <div style={{fontSize: 168, fontWeight: 500, letterSpacing: '-0.035em', color: C.ink, transform: `scale(${mix(1.06, 1, settle)})`}}>{s.word}</div>
-        {s.chip && (
-          <div style={{marginTop: 40, fontFamily: MONO, fontSize: 40, color: C.ink, background: 'rgba(255,255,255,0.86)', padding: '14px 34px', borderRadius: 999, opacity: chip, transform: `translateY(${mix(16, 0, chip)}px)`}}>
-            {s.chip}
-          </div>
-        )}
-      </AbsoluteFill>
-      {at.map((c, k) => (
-        <React.Fragment key={c}>
-          <Sfx at={c} name={k ? 'swish' : 'whoosh'} volume={0.5} />
-          {SWAPS[k].chip && <Sfx at={c + 5} name={`pop${k + 3}`} volume={0.35} />}
+    <Cuts at={[0, b(2), b(4), b(6)]}>
+      {SWAPS.map((s, k) => (
+        <React.Fragment key={s.word}>
+          <WordFrame word={s.word} chip={s.chip} mono look={k} drift={k * 40} />
+          <Sfx at={0} name="shutter" volume={0.55} />
+          {s.chip && <Sfx at={4} name={`pop${k + 3}`} volume={0.35} />}
         </React.Fragment>
       ))}
-    </AbsoluteFill>
+    </Cuts>
   );
 };

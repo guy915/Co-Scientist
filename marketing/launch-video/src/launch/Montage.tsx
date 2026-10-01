@@ -24,11 +24,10 @@ const SHOTS: Shot[] = [
   {ui: 'ui/light-learning.png', crop: {x: 0.22, y: 0.22, w: 0.62, h: 0.42}, width: 1500},
   {art: 'agents'},
   {ui: 'ui/light-overview.png', crop: {x: 0.215, y: 0.23, w: 0.61, h: 0.25}, width: 1500},
-  {ui: 'ui/dark-details.png', crop: {x: 0.215, y: 0.22, w: 0.58, h: 0.4}, width: 1500},
   {art: 'chart'},
-  {ui: 'ui/light-ideas.png', crop: {x: 0.31, y: 0.2, w: 0.5, h: 0.42}, width: 1400},
+  {ui: 'ui/light-ideas.png', crop: {x: 0.33, y: 0.215, w: 0.47, h: 0.4}, width: 1400},
   {ui: 'ui/dark-learning.png', crop: {x: 0.22, y: 0.22, w: 0.62, h: 0.42}, width: 1500},
-  {ui: 'ui/light-details.png', crop: {x: 0.215, y: 0.22, w: 0.58, h: 0.4}, width: 1500},
+  {ui: 'ui/light-details.png', crop: {x: 0.215, y: 0.22, w: 0.62, h: 0.4}, width: 1500},
 ];
 
 const Art: React.FC<{kind: 'agents' | 'chart' | 'idea'; f: number}> = ({kind, f}) => {
@@ -60,13 +59,13 @@ const Art: React.FC<{kind: 'agents' | 'chart' | 'idea'; f: number}> = ({kind, f}
 
 /**
  * Beats 65-76: a cut on every beat through the real app, each shot pushing in,
- * then four stutter frames of shapes into the breakdown.
+ * then the last beat stutters through shapes into the breakdown.
  */
 export const Montage: React.FC = () => {
   const f = useCurrentFrame();
   const b = useBeats();
   const cuts = SHOTS.map((_, i) => b(i));
-  const stutter = [0, 1, 2, 3].map(k => b(10) + 5 + k * 4);
+  const stutter = [0, 1, 2, 3].map(k => b(10 + k * 0.25));
   const all = [...cuts, ...stutter];
   const i = all.filter(c => f >= c).length - 1;
   const local = f - all[i];
@@ -74,9 +73,9 @@ export const Montage: React.FC = () => {
   return (
     <AbsoluteFill style={{background: C.paper}}>
       {i >= SHOTS.length ? (
-        <Backdrop look={LOOKS[(i - SHOTS.length + 3) % LOOKS.length]} f={local * 6} />
+        <Backdrop look={LOOKS[(i - SHOTS.length + 3) % LOOKS.length]} f={local * 6 + i * 30} />
       ) : 'ui' in shot ? (
-        <FloatCard src={shot.ui} width={shot.width} crop={shot.crop} dark={shot.ui.includes('dark')} scale={1 + local * 0.006} ry={(i % 2 ? -1 : 1) * (4 - local * 0.3)} glow={0.9} />
+        <FloatCard src={shot.ui} width={shot.width} crop={shot.crop} dark={shot.ui.includes('dark')} scale={1 + local * 0.006} ry={(i % 2 ? -1 : 1) * (4 - local * 0.3)} glow={0.9} fade={shot.crop.h > 0.3} />
       ) : (
         <Art kind={shot.art} f={local} />
       )}

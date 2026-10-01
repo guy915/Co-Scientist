@@ -19,3 +19,14 @@ export const useBeats = () => {
   const b0 = useContext(Start);
   return (k: number) => B(b0 + k) - B(b0);
 };
+
+/** Hard cuts inside a scene: child `i` is mounted from `at[i]` until `at[i + 1]`, with its own frame count. */
+export const Cuts: React.FC<{at: number[]; children: React.ReactNode[]}> = ({at, children}) => (
+  <>
+    {children.map((child, i) => (
+      <Sequence key={at[i]} from={at[i]} durationInFrames={i + 1 < at.length ? at[i + 1] - at[i] : undefined}>
+        {child}
+      </Sequence>
+    ))}
+  </>
+);

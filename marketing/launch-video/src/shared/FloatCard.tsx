@@ -20,6 +20,8 @@ interface Props {
   dark?: boolean;
   /** Depth-of-field blur in px, for handing focus to a foreground element. */
   blur?: number;
+  /** Fade the crop's bottom edge out, so a crop through running text never slices a line. */
+  fade?: boolean;
 }
 
 /** Real product UI floated in 3D space with a soft halo, in the style of the Gemini 3 / AI Mode films. */
@@ -38,6 +40,7 @@ export const FloatCard: React.FC<Props> = ({
   crop = {x: 0, y: 0, w: 1, h: 1},
   dark,
   blur = 0,
+  fade,
 }) => {
   const h = (width / aspect) * (crop.h / crop.w);
   const imgW = width / crop.w;
@@ -87,6 +90,7 @@ export const FloatCard: React.FC<Props> = ({
             width: imgW,
             left: -crop.x * imgW,
             top: -crop.y * (imgW / aspect),
+            maskImage: fade ? `linear-gradient(transparent ${crop.y * imgW / aspect}px, black 0, black ${crop.y * imgW / aspect + h * 0.72}px, transparent ${crop.y * imgW / aspect + h}px)` : undefined,
           }}
         />
       </div>
