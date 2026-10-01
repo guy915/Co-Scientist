@@ -1,6 +1,6 @@
 """Tournament-match persistence in the final-state drain.
 
-Covers ``engine_adapter.drain_matches``: the columns a judged matchup
+Covers ``engine_adapter.drain.matches``: the columns a judged matchup
 carries into its ``matches`` row. Id resolution and the unresolved-side
 skip live in ``test_engine_drain.py``; this module holds the cycle the
 match was judged in, which the drain used to discard.

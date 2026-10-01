@@ -1,12 +1,12 @@
 """Structured display detail for the drained review rows.
 
-Split out of ``drain_reviews`` when persisting the review block's own
+Split out of ``drain.reviews`` when persisting the review block's own
 fields took that module past the 500-line ceiling -- the same split the
-citation half already took (``drain_citations``). Every name here is
-re-exported from ``drain_reviews``, so importers written against that
+citation half already took (``drain.citations``). Every name here is
+re-exported from ``drain.reviews``, so importers written against that
 module keep resolving unchanged.
 
-The division is by *shape*, not by review type: ``drain_reviews`` decides
+The division is by *shape*, not by review type: ``drain.reviews`` decides
 which rows exist and writes them; this module turns one engine result
 into the bounded JSON a row's ``detail_json`` column carries. The prose
 ``critique`` each row also carries is built there and left untouched --

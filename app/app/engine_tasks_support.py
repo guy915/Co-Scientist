@@ -14,8 +14,8 @@ import sqlite3
 from typing import Any
 
 from app import engine_tasks_runtime, store
-from app.engine_adapter.opts import _build_engine_opts, _build_generator
-from app.engine_adapter.provider import _import_hypothesis_generator
+from app.engine_adapter.opts import build_engine_opts, build_generator
+from app.engine_adapter.provider import import_hypothesis_generator
 from app.engine_tasks_context import (
     ExactSuccessor,
     TaskCommit,
@@ -161,13 +161,13 @@ def _generator_and_opts(
 
     run = _require_run(task, db_path)
     cfg = resolved_run_config(run.config)
-    generator = _build_generator(
-        _import_hypothesis_generator(),
+    generator = build_generator(
+        import_hypothesis_generator(),
         cfg,
         offline=store.run_used_offline(run),
         byok=get_run_credential(task.run_id, db_path=db_path),
     )
-    return generator, _build_engine_opts(cfg, run.id, db_path)
+    return generator, build_engine_opts(cfg, run.id, db_path)
 
 
 def _generator_for_restore(task: ScientificTask, db_path: str | None) -> Any:
@@ -175,8 +175,8 @@ def _generator_for_restore(task: ScientificTask, db_path: str | None) -> Any:
     from app.credentials import get_run_credential
 
     run = _require_run(task, db_path)
-    return _build_generator(
-        _import_hypothesis_generator(),
+    return build_generator(
+        import_hypothesis_generator(),
         resolved_run_config(run.config),
         offline=store.run_used_offline(run),
         byok=get_run_credential(task.run_id, db_path=db_path),

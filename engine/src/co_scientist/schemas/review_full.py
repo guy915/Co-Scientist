@@ -25,7 +25,7 @@ from co_scientist.schemas.builders import obj, str_array
 # R12-15/MO-4: Google's own published prose ("Plausible:", etc.) is a
 # *display* decision, not a stored-value one -- mature_reviews.py's
 # `assumptions_likely_false` filter matches the literal enum string, so
-# only `drain_reviews.py::_ASSUMPTION_SUPPORT_LABELS` translates it
+# only `drain/reviews.py::_ASSUMPTION_SUPPORT_LABELS` translates it
 # (docs/PARITY.md REVIEW-ASSUMPTION-WORDING-001).
 ASSUMPTION_SUPPORT_VALUES: tuple[str, ...] = (
     "supported",

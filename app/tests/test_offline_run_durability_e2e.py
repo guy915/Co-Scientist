@@ -2,7 +2,7 @@
 
 Both tests drive a whole offline-backed express run through the durable
 executor -- the real ``HypothesisGenerator`` on the deterministic offline
-backend, the real graph, the real ``_build_engine_opts``, the real task
+backend, the real graph, the real ``build_engine_opts``, the real task
 queue -- and inject one fault into it.
 
 The first queues a scientist steer mid-run and loses the worker between

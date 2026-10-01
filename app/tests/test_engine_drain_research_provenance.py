@@ -313,11 +313,11 @@ def test_the_run_tier_reaches_the_engine_verbatim(isolated_db: str) -> None:
     name is normalized on the way, since the engine matches on the
     current vocabulary.
     """
-    from app.engine_adapter import _build_engine_opts
+    from app.engine_adapter import build_engine_opts
 
     run = store.create_run("tier goal", "ultra", "engine", {})
 
-    opts = _build_engine_opts({"tier": "advanced"}, run.id, isolated_db)
+    opts = build_engine_opts({"tier": "advanced"}, run.id, isolated_db)
 
     assert opts["research_tier"] == "ultra"
 

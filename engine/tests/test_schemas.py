@@ -179,7 +179,7 @@ def test_generation_and_evolution_schemas_require_title() -> None:
     HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA, and EVOLUTION_SCHEMA, the same
     three call sites _EXPERIMENT_FIELD already backs (R14-20). Bounded by
     maxLength so a schema-enforcing provider cannot return an unbounded
-    string; app/app/engine_adapter/drain_hypothesis_title.py clamps again
+    string; app/app/engine_adapter/drain/hypothesis_title.py clamps again
     defensively for the json_object downgrade, which does not enforce it.
     """
     generation_item = GENERATION_SCHEMA["schema"]["properties"]["hypotheses"][

@@ -7,7 +7,7 @@ an ``Appendix:``/``All reviews:`` block per axis, an eight-part
 ``Reviews summary`` above it, and a deep-verification section below --
 against zero words on our side. Nothing here calls a model: the three
 renderers read the ``detail_json`` the drain already writes
-(``engine_adapter/drain_review_detail.py``).
+(``engine_adapter/drain/review_detail.py``).
 
 Homed apart from ``report.markdown.hypothesis`` because that module is
 the per-entry assembly point and was already near the size ceiling;
@@ -127,7 +127,7 @@ def _assumption_lines(mature: dict[str, Any]) -> list[str]:
     """The published "Detailed Assumptions" list (MO-9).
 
     Each entry pairs the support verdict in Google's own wording -- the
-    label ``drain_review_detail._assumption_detail`` already resolved --
+    label ``drain.review_detail._assumption_detail`` already resolved --
     with the assumption and the free-text reasoning behind it.
     """
     raw = mature.get("assumptions")

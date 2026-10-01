@@ -1,10 +1,5 @@
 """Supervisor plan and allocation-ledger persistence for the drain (E19).
 
-Extracted from ``app.engine_adapter.drain`` to keep that module within the
-size cap, matching the ``drain_hypotheses``/``drain_matches``/
-``drain_reviews``/``drain_safety`` split: ``drain`` re-exports the one name
-here, so the original module namespace keeps resolving.
-
 Before this existed, the Supervisor's research plan, its per-cycle task
 allocations, and its terminal termination rationale lived only inside the
 workflow checkpoint blob, which is pruned down to the newest row -- so a

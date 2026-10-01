@@ -1,13 +1,11 @@
 """Held-for-review persistence for the final-state drain.
 
-Extracted from ``app.engine_adapter.drain`` to keep that module within the
-size cap. The engine's safety screen holds UNCERTAIN hypotheses in
+The engine's safety screen holds UNCERTAIN hypotheses in
 ``held_for_review``, out of the ranked pool; without this step they would
 vanish at the app boundary, never inspected or adjudicated. Each becomes a
 ``hold`` decision at the hypothesis stage carrying the idea's identity and
 the screen's rationale, reviewable through the existing safety-adjudication
-path. ``drain`` re-exports every name here, so the original module
-namespace keeps resolving.
+path.
 """
 
 from __future__ import annotations

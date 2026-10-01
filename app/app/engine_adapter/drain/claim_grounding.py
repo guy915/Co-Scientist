@@ -1,23 +1,21 @@
 """Claim-grounding assessment for the final-state drain: provider work only.
 
-Extracted from ``app.engine_adapter.drain`` to keep that module within the
-size cap, alongside its sibling ``drain_escalation`` (the drain's other
-provider-only phase). Must run strictly between the drain's two write
-transactions -- never inside either, since ``store.transaction`` takes
-SQLite's write lock the instant it opens and this must never hold that
+The drain's provider-only phase for claim grounding, alongside its sibling
+``drain.escalation`` (the other one). Must run strictly between the drain's
+two write transactions -- never inside either, since ``store.transaction``
+takes SQLite's write lock the instant it opens and this must never hold that
 lock across network I/O -- and must run off the caller's event loop, not
 directly on it: a durable finalize task's lease heartbeat renews on that
 same loop, and a synchronous wave here starves it for the wave's whole
 duration (run b82f9162, 2026-09-06; see the root AGENTS.md lease/heartbeat
-Gotcha). ``drain`` re-exports these names, so the original module
-namespace keeps resolving.
+Gotcha).
 """
 
 from __future__ import annotations
 
 import functools
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from app.claim_grounding import (
     AssessorSpec,
@@ -27,10 +25,8 @@ from app.claim_grounding import (
 )
 from app.claims import EvidencePassage
 from app.config import settings
+from app.engine_adapter.drain.inputs import FinalStateInputs
 from app.execution_policy import effective_execution_model
-
-if TYPE_CHECKING:
-    from app.engine_adapter.drain import _FinalStateInputs
 
 
 async def _assess_claims(
@@ -88,7 +84,7 @@ async def _assess_claims(
 
 
 def _gate_records_by_store_id(
-    inputs: _FinalStateInputs,
+    inputs: FinalStateInputs,
     store_id_by_engine_id: Mapping[str, str],
 ) -> dict[str, Mapping[str, Any]]:
     """Map each persisted hypothesis to the gate verdict recorded for it.

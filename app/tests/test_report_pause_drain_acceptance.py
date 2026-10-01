@@ -69,7 +69,7 @@ async def test_cancel_during_final_drain_keeps_cancelled_state(
         )
 
     monkeypatch.setattr(
-        engine_tasks_node, "_persist_final_state", cancel_inside_drain
+        engine_tasks_node, "persist_final_state", cancel_inside_drain
     )
     task = store.claim_task(
         "cancel-during-drain-worker", run_id=run_id, db_path=isolated_db
@@ -203,7 +203,7 @@ async def test_pause_during_final_drain_waits_for_explicit_resume(
         )
 
     monkeypatch.setattr(
-        engine_tasks_node, "_persist_final_state", pause_inside_drain
+        engine_tasks_node, "persist_final_state", pause_inside_drain
     )
 
     assert await task_worker.run_once(
@@ -334,7 +334,7 @@ async def test_cancel_after_drain_commit_orders_stages_before_cancel(
         )
 
     monkeypatch.setattr(
-        engine_tasks_node, "_persist_final_state", fake_persist_final_state
+        engine_tasks_node, "persist_final_state", fake_persist_final_state
     )
     task = store.claim_task(
         "cancel-after-drain-worker", run_id=run_id, db_path=isolated_db

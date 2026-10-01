@@ -1,8 +1,8 @@
-"""Final-state drain: persist a real engine run's results into the store.
+"""Final-state drain orchestrator: persist an engine run's results.
 
 Writes an engine run's accumulated final state — evidence, hypotheses
 (with reviews, deep-verification reviews, and citations), and tournament
-matches — into the SQLite store in one transaction, and returns the
+matches — into the SQLite store in two transactions, and returns the
 provider-specific report inputs the shared finalize path needs.
 """
 
@@ -17,40 +17,24 @@ from app import store
 from app.citations import empty_citation_summary
 from app.claim_grounding import evidence_passages, persist_grounding
 from app.claims import EvidencePassage
-from app.engine_adapter import drain_escalation
-from app.engine_adapter.drain_claim_grounding import (
-    _assess_claims as _assess_claims,
+from app.engine_adapter.drain import escalation
+from app.engine_adapter.drain.claim_grounding import (
+    _assess_claims,
+    _gate_records_by_store_id,
 )
-from app.engine_adapter.drain_claim_grounding import (
-    _gate_records_by_store_id as _gate_records_by_store_id,
+from app.engine_adapter.drain.evidence_resolution import resolve_articles
+from app.engine_adapter.drain.hypotheses import (
+    ResolvedEvidenceBatch,
+    _hypotheses_with_proximity_archive,
+    _HypothesisSink,
+    _persist_evidence_and_hypotheses,
 )
-from app.engine_adapter.drain_evidence_resolution import (
-    resolve_articles as resolve_articles,
+from app.engine_adapter.drain.inputs import FinalStateInputs
+from app.engine_adapter.drain.matches import (
+    _persist_engine_matches,
+    _persist_engine_proximity,
 )
-from app.engine_adapter.drain_hypotheses import (
-    ResolvedEvidenceBatch as ResolvedEvidenceBatch,
-)
-
-# Evidence/hypothesis, review/citation, and match/proximity persistence
-# moved verbatim to sibling modules; the names tests and callers patch or
-# import through this module are re-exported so its namespace keeps
-# resolving for them.
-from app.engine_adapter.drain_hypotheses import (
-    _hypotheses_with_proximity_archive as _hypotheses_with_proximity_archive,
-)
-from app.engine_adapter.drain_hypotheses import (
-    _HypothesisSink as _HypothesisSink,
-)
-from app.engine_adapter.drain_hypotheses import (
-    _persist_evidence_and_hypotheses as _persist_evidence_and_hypotheses,
-)
-from app.engine_adapter.drain_matches import (
-    _persist_engine_matches as _persist_engine_matches,
-)
-from app.engine_adapter.drain_matches import (
-    _persist_engine_proximity as _persist_engine_proximity,
-)
-from app.engine_adapter.drain_report_inputs import (
+from app.engine_adapter.drain.report_inputs import (
     critical_criteria,
     degraded_sections,
     grounding_counts,
@@ -59,21 +43,11 @@ from app.engine_adapter.drain_report_inputs import (
     skills_used,
     stratification_attributes,
 )
-from app.engine_adapter.drain_research import (
-    _persist_retrieval_calls as _persist_retrieval_calls,
-)
-from app.engine_adapter.drain_reviews import (
-    _CitationSink as _CitationSink,
-)
-from app.engine_adapter.drain_safety import (
-    _persist_held_for_review as _persist_held_for_review,
-)
-from app.engine_adapter.drain_supervisor_plan import (
-    _persist_supervisor_plan as _persist_supervisor_plan,
-)
-from app.engine_adapter.drain_telemetry import (
-    fold_grounding_telemetry as fold_grounding_telemetry,
-)
+from app.engine_adapter.drain.research import _persist_retrieval_calls
+from app.engine_adapter.drain.reviews import _CitationSink
+from app.engine_adapter.drain.safety import _persist_held_for_review
+from app.engine_adapter.drain.supervisor_plan import _persist_supervisor_plan
+from app.engine_adapter.drain.telemetry import fold_grounding_telemetry
 from app.hypothesis_screening import screen_hypotheses
 
 logger = logging.getLogger(__name__)
@@ -111,7 +85,7 @@ def _screen_and_collect_grounding_inputs(
 
     The engine ran its tournament internally, so the safety screen enforces
     the guarantee at the app boundary. Deterministic only -- see
-    ``drain_escalation`` for the model-escalation phase a held UNCERTAIN
+    ``drain.escalation`` for the model-escalation phase a held UNCERTAIN
     still gets, later and lock-free.
 
     Returns:
@@ -134,7 +108,7 @@ def _screen_and_collect_grounding_inputs(
 def _persist_grounding_matches_and_proximity(
     run_id: str,
     assessed: Any,
-    inputs: _FinalStateInputs,
+    inputs: FinalStateInputs,
     store_id_by_engine_id: dict[str, str],
     conn: sqlite3.Connection,
 ) -> Any:
@@ -191,24 +165,9 @@ def _build_drain_result(
     )
 
 
-class _FinalStateInputs(NamedTuple):
-    """Precomputed persistence inputs derived from an engine final state.
-
-    ``final_state`` itself rides along for the consumers that read keys not
-    precomputed here (the held-for-review persistence).
-    """
-
-    hyps_parents_first: list[dict[str, Any]]
-    articles: list[dict[str, Any]]
-    matchups: list[dict[str, Any]]
-    proximity_graph: dict[str, Any]
-    persisted_engine_ids: set[str]
-    final_state: dict[str, Any]
-
-
 def _prepare_final_state_inputs(
     final_state: dict[str, Any],
-) -> _FinalStateInputs:
+) -> FinalStateInputs:
     """Derive the drain's persistence inputs from an engine final state.
 
     Hypotheses are ordered parents-first so the ``parent_id`` foreign key
@@ -223,7 +182,7 @@ def _prepare_final_state_inputs(
     )
     persisted_engine_ids = {hid for h in hyps if (hid := h.get("id"))}
     hyps_parents_first = sorted(hyps, key=lambda h: int(h.get("generation", 0)))
-    return _FinalStateInputs(
+    return FinalStateInputs(
         hyps_parents_first=hyps_parents_first,
         articles=_final_state_list(final_state, "articles"),
         matchups=_final_state_list(final_state, "tournament_matchups"),
@@ -235,7 +194,7 @@ def _prepare_final_state_inputs(
 
 async def _persist_evidence_hypotheses_and_screen(
     run_id: str,
-    inputs: _FinalStateInputs,
+    inputs: FinalStateInputs,
     citation_summary: dict[str, int],
     store_id_by_engine_id: dict[str, str],
     db_path: str | None,
@@ -299,7 +258,7 @@ async def _persist_evidence_hypotheses_and_screen(
 def _persist_grounding_matches_proximity_txn(
     run_id: str,
     provider_outputs: tuple[Any, list[Any]],
-    inputs: _FinalStateInputs,
+    inputs: FinalStateInputs,
     store_id_by_engine_id: dict[str, str],
     db_path: str | None,
 ) -> Any:
@@ -309,11 +268,11 @@ def _persist_grounding_matches_proximity_txn(
         grounding_result = _persist_grounding_matches_and_proximity(
             run_id, assessed, inputs, store_id_by_engine_id, conn
         )
-        drain_escalation._persist_escalated_verdicts(run_id, escalated, conn)
+        escalation._persist_escalated_verdicts(run_id, escalated, conn)
         return grounding_result
 
 
-async def _persist_final_state(
+async def persist_final_state(
     *,
     run_id: str,
     final_state: dict[str, Any],
@@ -325,7 +284,7 @@ async def _persist_final_state(
     and citations), and tournament matches; the report is built separately
     by ``finalize_report``, which consumes the returned inputs. Claim
     assessment and safety escalation both run between transactions,
-    holding no connection -- see ``drain_escalation`` -- and both run off
+    holding no connection -- see ``drain.escalation`` -- and both run off
     the caller's event loop (``async_bridge.run_off_loop``) rather than
     directly on it, so a durable finalize task's lease heartbeat keeps
     renewing while either provider wave runs (see ``_assess_claims``).
@@ -350,7 +309,7 @@ async def _persist_final_state(
         _gate_records_by_store_id(inputs, store_id_by_engine_id),
     )
     fold_grounding_telemetry(final_state, grounding_usage)
-    escalated = await drain_escalation._escalate_off_loop(
+    escalated = await escalation._escalate_off_loop(
         run_id, screening_result.escalatable, db_path
     )
     grounding_result = _persist_grounding_matches_proximity_txn(

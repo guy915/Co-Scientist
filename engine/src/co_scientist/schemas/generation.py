@@ -42,12 +42,12 @@ _HYPOTHESIS_FIELD: dict[str, Any] = {
 # R14-12 (docs/CORPUS-EXTRACTION.md): every published hypothesis title is
 # an authored, compact noun phrase ("Rapamycin Suppression of mTOR-Driven
 # Growth Signaling") -- never a truncated first sentence of the body text.
-# Before this field, app/app/engine_adapter/drain_hypotheses.py derived the
+# Before this field, app/app/engine_adapter/drain/hypotheses.py derived the
 # stored display title by clipping the hypothesis statement at its first
 # sentence boundary (first_sentence). That fallback stays exactly where it
 # was, for the one case it now exists to cover: a run predating this
 # field, or a json_object downgrade whose response omits/mistypes/empties
-# it -- see the single derivation point in drain_hypotheses.py. Shared by
+# it -- see the single derivation point in drain/hypotheses.py. Shared by
 # identity with EVOLUTION_SCHEMA (schemas/evolution.py), the same pattern
 # _EXPERIMENT_FIELD below already establishes -- an evolved child needs a
 # fresh title by the same route, since its mechanism may have changed.

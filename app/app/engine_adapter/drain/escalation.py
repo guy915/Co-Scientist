@@ -1,12 +1,11 @@
 """Contextual safety-verdict escalation for the final-state drain.
 
-Extracted from ``app.engine_adapter.drain`` to keep that module within the
-size cap. This is phases 2 and 3 of the drain's safety handling (see
-``drain._persist_final_state`` for the full three-phase split):
+This is phases 2 and 3 of the drain's safety handling (see
+``drain.final_state.persist_final_state`` for the full three-phase split):
 
 1. Deterministic screening and persistence already happened, inside the
    drain's *first* transaction (``hypothesis_screening.screen_hypotheses``,
-   called from ``drain._screen_and_collect_grounding_inputs``).
+   called from ``drain.final_state._screen_and_collect_grounding_inputs``).
 2. ``_escalate_screened_hypotheses`` below runs every hypothesis the screen
    held as UNCERTAIN (``ScreeningResult.escalatable``) through contextual
    escalation -- provider work only, holding no store connection.
@@ -14,9 +13,6 @@ size cap. This is phases 2 and 3 of the drain's safety handling (see
    raised. Pure database work, called from inside the drain's *second*
    transaction (alongside claim grounding, matches, and proximity) only
    once phase 2 has fully returned.
-
-``drain`` re-exports both names, so the original module namespace keeps
-resolving.
 """
 
 from __future__ import annotations
@@ -65,7 +61,7 @@ async def _escalate_off_loop(
 
     A durable finalize task's lease heartbeat renews on that same loop, so
     a synchronous wave here would starve it for the wave's whole duration
-    -- the same reasoning as ``drain_claim_grounding._assess_claims``, and
+    -- the same reasoning as ``drain.claim_grounding._assess_claims``, and
     the same fix (``async_bridge.run_off_loop``).
     """
     from app.async_bridge import run_off_loop

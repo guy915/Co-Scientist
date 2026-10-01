@@ -5,7 +5,7 @@ own connector toggles, so "the first run's configuration is the process's
 configuration" would be a cross-run correctness failure rather than a
 stale-cache annoyance: a run with web search off would still search the web.
 
-Nothing here is expected to fail today -- ``_build_generator`` constructs a
+Nothing here is expected to fail today -- ``build_generator`` constructs a
 fresh generator, and therefore a fresh ``ToolRegistry``, per durable task.
 That is the property, though, and it is one refactor away from being lost
 (the engine's registry and MCP-client singletons both default to "first
@@ -16,15 +16,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.engine_adapter.opts import _build_generator
-from app.engine_adapter.provider import _import_hypothesis_generator
+from app.engine_adapter.opts import build_generator
+from app.engine_adapter.provider import import_hypothesis_generator
 from app.run_modes import resolved_run_config
 
 
 def _generator_for(**overrides: Any) -> Any:
     """Build a generator through the app's real per-run construction path."""
-    return _build_generator(
-        _import_hypothesis_generator(),
+    return build_generator(
+        import_hypothesis_generator(),
         resolved_run_config(dict(overrides)),
     )
 

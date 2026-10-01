@@ -1,18 +1,18 @@
 """Review persistence for the final-state drain.
 
-Extracted verbatim from ``app.engine_adapter.drain``: per-hypothesis review
-rows, covering the scientist-authored review, the engine's own review list,
-the deep-verification review, and the mature Reflection cascade. ``drain``
-re-exports the names its callers and tests use, so the original module
-namespace keeps resolving for them.
+Per-hypothesis review rows, covering the scientist-authored review, the
+engine's own review list, the deep-verification review, and the mature
+Reflection cascade. The names the drain's other modules and tests use
+are re-exported here, so importers written against this module keep
+resolving.
 
-The citation half of the original module now lives in ``drain_citations``
+The citation half of the original module now lives in ``drain.citations``
 (split out when this file outgrew the 500-line ceiling), and the structured
-``detail_json`` builders in ``drain_review_detail`` (split out when
+``detail_json`` builders in ``drain.review_detail`` (split out when
 persisting the report's review block took it past the ceiling a second
 time); the names importers use are re-exported below, so importers written
-against ``drain_reviews`` -- ``drain`` and ``drain_hypotheses`` among them
--- keep resolving unchanged.
+against ``drain.reviews`` -- ``drain.hypotheses`` among them -- keep
+resolving unchanged.
 """
 
 from __future__ import annotations
@@ -21,34 +21,34 @@ import sqlite3
 from typing import Any
 
 from app import store
-from app.engine_adapter.drain_citations import (
+from app.engine_adapter.drain.citations import (
     _CitationSink as _CitationSink,
 )
-from app.engine_adapter.drain_citations import (
+from app.engine_adapter.drain.citations import (
     _persist_engine_citations as _persist_engine_citations,
 )
-from app.engine_adapter.drain_review_detail import (
+from app.engine_adapter.drain.review_detail import (
     _ASSUMPTION_SUPPORT_LABELS as _ASSUMPTION_SUPPORT_LABELS,
 )
-from app.engine_adapter.drain_review_detail import (
+from app.engine_adapter.drain.review_detail import (
     _deep_verification_detail as _deep_verification_detail,
 )
-from app.engine_adapter.drain_review_detail import (
+from app.engine_adapter.drain.review_detail import (
     _detail_json as _detail_json,
 )
-from app.engine_adapter.drain_review_detail import (
+from app.engine_adapter.drain.review_detail import (
     _initial_review_detail as _initial_review_detail,
 )
-from app.engine_adapter.drain_review_detail import (
+from app.engine_adapter.drain.review_detail import (
     _mature_review_detail as _mature_review_detail,
 )
-from app.engine_adapter.drain_review_detail import (
+from app.engine_adapter.drain.review_detail import (
     _review_detail_json as _review_detail_json,
 )
-from app.engine_adapter.drain_review_detail import (
+from app.engine_adapter.drain.review_detail import (
     _simulation_detail as _simulation_detail,
 )
-from app.engine_adapter.drain_review_detail import (
+from app.engine_adapter.drain.review_detail import (
     _verdict_detail as _verdict_detail,
 )
 from app.report import format_deep_verification_critique

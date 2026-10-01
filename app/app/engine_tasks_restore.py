@@ -61,7 +61,7 @@ def _restore_node_task_state(
     """Restore workflow state and re-apply durable per-boundary overlays.
 
     Re-delivers durable scientist steering/private sources at every safe
-    task boundary. ``_build_engine_opts`` only *reads* the message queue;
+    task boundary. ``build_engine_opts`` only *reads* the message queue;
     the ids it read ride the commit target and are retired inside the
     transaction that commits this state's successor checkpoint, so a worker
     lost mid-node leaves the steer claimable rather than acknowledged.

@@ -214,7 +214,7 @@ _SCALAR_VALUE_HINTS: dict[str, dict[str, Any]] = {
 #
 # Both entries below were found dark (docs/decisions/2026-09-02-offline-
 # optional-field-reach.md): FULL_REVIEW_SCHEMA's go_no_go_recommendation/
-# time_to_verdict feed drain_reviews._verdict_detail, which
+# time_to_verdict feed drain.reviews._verdict_detail, which
 # ideas_detail_review_findings.tsx's VerdictLines never renders without
 # them; META_REVIEW_SCHEMA's strategic_recommendations[] time_estimate/
 # phase_label/recommended_idea feed report.markdown.meta_review's

@@ -1,9 +1,7 @@
 """Tournament-match and proximity-edge persistence for the drain.
 
-Extracted verbatim from ``app.engine_adapter.drain``: matchup side
-resolution by engine hypothesis id, match-row persistence, and weighted
-proximity-graph edges. ``drain`` re-exports the names tests and callers use,
-so the original module namespace keeps resolving for them.
+Matchup side resolution by engine hypothesis id, match-row persistence,
+and weighted proximity-graph edges.
 """
 
 from __future__ import annotations

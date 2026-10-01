@@ -10,12 +10,12 @@ the three values mirror that wording directly; the third does not --
 Google's own exemplar never marks an assumption the evidence actively
 contradicts, only ones nothing has tested yet, so ``likely_false`` keeps
 an honest label of its own rather than a mismatched "Unknown". See
-``_ASSUMPTION_SUPPORT_LABELS``'s own comment in ``drain_reviews.py``.
+``_ASSUMPTION_SUPPORT_LABELS``'s own comment in ``drain/reviews.py``.
 """
 
 from __future__ import annotations
 
-from app.engine_adapter.drain_reviews import (
+from app.engine_adapter.drain.reviews import (
     _append_full_critique,
     _assumption_line,
 )

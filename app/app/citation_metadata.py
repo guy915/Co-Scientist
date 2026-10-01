@@ -7,7 +7,7 @@ claim verbatim is maximally supporting and completely unusable; only a check
 that never reads the claim can say so. This module is that check, and it is
 the single implementation of it: the drain resolves every retrieved article
 through :func:`assess_resolvability` (see
-``engine_adapter/drain_evidence_resolution.py``), and the report's
+``engine_adapter/drain/evidence_resolution.py``), and the report's
 bibliography classifies every rendered reference through
 :func:`classify_source_type` / :func:`classify_date`.
 

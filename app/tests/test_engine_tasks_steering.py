@@ -10,7 +10,7 @@ not necessarily the orchestrator -- the one node whose scheduling decision
 actually reads ``state["pending_steering"]`` -- so a message posted while,
 say, proximity was executing was retired before ever reaching a
 scheduling decision. These tests drive the durable node executor with the
-real ``_generator_and_opts``/``_build_engine_opts`` (only the generator
+real ``_generator_and_opts``/``build_engine_opts`` (only the generator
 itself is a stand-in) so the acknowledgement path under test is the
 production one.
 """
@@ -63,7 +63,7 @@ def _seed_steered_node_task(
     )
     monkeypatch.setattr(
         engine_tasks_support,
-        "_build_generator",
+        "build_generator",
         lambda *_, **__: _Generator(state),
     )
     leased = store.claim_task("worker", run_id=run_id, db_path=db_path)

@@ -3,10 +3,10 @@
 Holds the per-row persistence helpers the drain runs inside its first
 transaction: retrieved articles as evidence rows, and each engine
 hypothesis (identity/lineage derivation, the store row, its mutable Elo
-state, and its reviews/citations via the ``drain_reviews`` helpers), plus
-the proximity-pruned archive merge. Split from ``drain`` by concern;
-``drain`` re-exports the names tests and callers use so its namespace keeps
-resolving for them.
+state, and its reviews/citations via the ``drain.reviews`` helpers), plus
+the proximity-pruned archive merge. The orchestrator
+(``drain.final_state``) imports the names it needs from here; nothing
+outside the package does.
 """
 
 from __future__ import annotations
@@ -20,9 +20,9 @@ from co_scientist.models import Hypothesis
 
 from app import store
 from app.elo import INITIAL_ELO
-from app.engine_adapter.drain_evidence_resolution import ResolvedArticle
-from app.engine_adapter.drain_hypothesis_title import _authored_title
-from app.engine_adapter.drain_reviews import (
+from app.engine_adapter.drain.evidence_resolution import ResolvedArticle
+from app.engine_adapter.drain.hypothesis_title import _authored_title
+from app.engine_adapter.drain.reviews import (
     _CitationSink,
     _persist_engine_citations,
     _persist_engine_reviews,
@@ -102,7 +102,7 @@ def _persist_engine_evidence(
         run_id: Run the evidence belongs to.
         articles: The engine's retrieved articles.
         resolved: Each article's identity/availability, same order as
-            ``articles`` (see ``drain_evidence_resolution.resolve_articles``
+            ``articles`` (see ``drain.evidence_resolution.resolve_articles``
             -- must be computed before any transaction opens, since it may
             perform network I/O).
         citations: The drain's citation lookups, filled in place.

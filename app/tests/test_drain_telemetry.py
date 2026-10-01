@@ -1,6 +1,6 @@
 """Unit tests for folding the finalize grounding pass's LLM telemetry.
 
-The real caller (``drain._persist_final_state``) always hands
+The real caller (``drain.persist_final_state``) always hands
 ``fold_grounding_telemetry`` an already-plain ``final_state`` -- its
 own caller runs ``_plain_final_state`` first, which serializes
 ``metrics`` to a dict before drain ever sees it -- so these tests cover
@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.engine_adapter.drain_telemetry import fold_grounding_telemetry
+from app.engine_adapter.drain.telemetry import fold_grounding_telemetry
 
 
 def test_grounding_telemetry_is_folded_into_plain_metrics() -> None:

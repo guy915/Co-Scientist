@@ -210,7 +210,7 @@ def _canonical_engine_payload(
     ``store.append_event`` JSON-serializes the payload with no fallback
     handler, so raw hypothesis/article dicts (which may carry non-serializable
     fields such as embeddings) must never be embedded whole. This mirrors the
-    projection discipline in ``_persist_final_state``.
+    projection discipline in ``persist_final_state``.
 
     Args:
         node_name: The engine graph node name.

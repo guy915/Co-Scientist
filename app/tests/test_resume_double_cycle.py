@@ -132,7 +132,7 @@ async def test_two_resume_cycles_still_complete_with_pool_intact(
         str(row["id"])
         for row in store.list_hypotheses(run_id, db_path=isolated_db)
     }
-    # The drain (engine_adapter.drain._persist_final_state) writes each
+    # The drain (engine_adapter.drain.persist_final_state) writes each
     # hypothesis under its own engine-assigned id, so this is a genuine
     # identity check, not just a non-empty-pool one.
     assert pool_before <= final_ids

@@ -1,7 +1,7 @@
 """Deriving a drained hypothesis's display title (R14-12).
 
-Split out of ``drain_hypotheses`` to keep that module within the file-size
-cap; ``drain_hypotheses._derive_hypothesis_identity`` is the sole caller.
+Split out of ``drain.hypotheses`` to keep that module within the file-size
+cap; ``drain.hypotheses._derive_hypothesis_identity`` is the sole caller.
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ def _authored_title(h: dict[str, Any], text: str) -> str:
     Args:
         h: The raw engine hypothesis payload.
         text: The hypothesis statement, already read from ``h`` by the
-            caller (see ``drain_hypotheses._derive_hypothesis_identity``).
+            caller (see ``drain.hypotheses._derive_hypothesis_identity``).
 
     Returns:
         The title to persist onto the store row.

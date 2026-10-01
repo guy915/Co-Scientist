@@ -192,7 +192,7 @@ def _apply_private_sources(
         }
 
 
-def _build_engine_opts(
+def build_engine_opts(
     cfg: dict[str, Any], run_id: str, db_path: str | None
 ) -> dict[str, Any]:
     """Translate a run's durable config into the engine's `opts` vocabulary.
@@ -351,7 +351,7 @@ def _generator_kwargs(
     }
 
 
-def _build_generator(
+def build_generator(
     generator_cls: Any,
     cfg: dict[str, Any],
     *,

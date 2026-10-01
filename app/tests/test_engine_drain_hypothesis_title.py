@@ -1,6 +1,6 @@
 """Drain persistence of the LLM-authored hypothesis title (R14-12).
 
-``_authored_title`` (drain_hypothesis_title.py) is the single point where a
+``_authored_title`` (drain/hypothesis_title.py) is the single point where a
 missing/malformed/empty title falls back to the pre-existing
 ``first_sentence(text)`` derivation; everything downstream (report
 renderers, the Ideas tab, the share payload) reads the persisted ``title``
@@ -12,7 +12,7 @@ each module within the file-size cap and each concern its own file.
 from __future__ import annotations
 
 from app import store
-from app.engine_adapter.drain_hypothesis_title import _authored_title
+from app.engine_adapter.drain.hypothesis_title import _authored_title
 from tests._drain_helpers import _engine_hypothesis, _persist
 
 _STATEMENT = "Blocking CXCR1 suppresses breast cancer stem cells. It works."

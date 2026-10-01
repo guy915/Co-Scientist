@@ -24,7 +24,7 @@ _TITLES = {"h1": "SGLT2 inhibition in fibroblasts", "h2": "NHE1 screening"}
 
 
 def _transcript(verdict: str, turns: list[tuple[int, str, str]]) -> str:
-    """A stored transcript document, as ``drain_matches`` writes it."""
+    """A stored transcript document, as ``drain.matches`` writes it."""
     return json.dumps(
         {
             "verdict": verdict,

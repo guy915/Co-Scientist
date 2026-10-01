@@ -7,14 +7,14 @@ reference index the engine builds
 (``co_scientist.agents.generation.citations.ReferenceIndex``) and resolves
 onto each hypothesis's own ``citation_map``
 (``citations.resolve_citation_keys``). The drain
-(``engine_adapter/drain_citations.py``) already persists that map into the
+(``engine_adapter/drain/citations.py``) already persists that map into the
 ``citations``/``evidence`` tables -- one row per key, joined to the cited
 source's title/url/authors/year -- but nothing read it back out, so the
 report printed bare ``[C1]`` markers with nothing to resolve them against.
 
 A citation row carries its key as a fixed prefix on its ``claim`` column
 (``"[C1] cited in hypothesis"``), rather than a dedicated column --
-written by ``drain_citations._persist_one_citation`` and pinned by two
+written by ``drain.citations._persist_one_citation`` and pinned by two
 literal assertions in ``test_engine_drain_citations.py``, so a format change
 there breaks loudly rather than silently starving this parse. That claim
 text is filler for the NOT NULL column, never meant for a reader, so it
@@ -55,7 +55,7 @@ def _reference_label(evidence: dict[str, Any]) -> str:
     Mirrors the engine's own short citation label (author/year, or the
     title alone for a source with no authors -- e.g. a knowledge-graph
     statement, whose "title" already carries its full display text; see
-    ``drain_citations._ensure_citation_evidence_id``).
+    ``drain.citations._ensure_citation_evidence_id``).
     """
     title = str(evidence.get("title") or "").strip()
     authors = evidence.get("authors") or []

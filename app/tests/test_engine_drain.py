@@ -2,7 +2,7 @@
 
 The drain runs only on the real-engine branch, which the mock-forced test
 fixtures never reach. To keep it verifiable without an LLM, the drain is a
-module-level helper (`_persist_final_state`) that takes a synthetic final
+module-level helper (`persist_final_state`) that takes a synthetic final
 state and writes hypotheses, evidence, matches, and reviews into the store,
 returning the report inputs. The report itself is built and persisted by the
 shared ``report.finalize.finalize_report`` path.

@@ -9,9 +9,7 @@ data, an idea with no citation reads as an idea nobody bothered to check,
 and a run that reached no source at all reads as a run that never needed
 one.
 
-Split out of ``drain.py`` for the file-length ceiling, and the seam is a
-real one: nothing here touches the store, and the drain's own job is
-writing rows.
+Nothing here touches the store, and the drain's own job is writing rows.
 """
 
 from __future__ import annotations
@@ -72,7 +70,7 @@ def stratification_attributes(
     """Return the Supervisor's synthesized 1-5 stratification attributes.
 
     A read of guidance the Supervisor already synthesizes and
-    ``drain_supervisor_plan.py`` already persists into the
+    ``drain/supervisor_plan.py`` already persists into the
     ``supervisor_plan`` table (``supervisor_guidance.config_synthesis.
     attributes``, up to three ``{name, rubric}`` axes) and
     ``prompts/review.py`` already injects into every reviewer prompt --

@@ -89,7 +89,7 @@ class NewEvidence:
     query behind them. ``retracted`` is reported alongside ``available``
     rather than folded into it -- a retracted source still persists as
     unavailable, unchanged, but a reader is told which one it was (see
-    ``engine_adapter.drain_evidence_resolution.ResolvedArticle``).
+    ``engine_adapter.drain.evidence_resolution.ResolvedArticle``).
     ``source_type`` is what kind of source it is (peer-reviewed, preprint,
     database record, web page, attached document), classified from the
     metadata at drain time; it is reported to a reader and gates nothing.
@@ -370,7 +370,7 @@ class NewReview:
     recovered by reading the summary prose; both stay empty for an agent
     review. ``detail_json`` carries one review type's own structured
     fields beyond summary/critique (e.g. the simulation review's failure
-    points), display-only -- see ``drain_reviews._review_detail_json``.
+    points), display-only -- see ``drain.reviews._review_detail_json``.
     """
 
     run_id: str

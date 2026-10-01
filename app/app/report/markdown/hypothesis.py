@@ -36,7 +36,7 @@ _HYPOTHESIS_DISCLAIMER = _ABOUT_DISCLOSURE
 # Mirrors ``co_scientist.models_review.SCIENTIST_REVIEWER`` -- the app-side
 # review rows carry the same literal in ``reviewer_agent``, and there is no
 # shared app constant for it (it is duplicated module-locally wherever the
-# distinction is needed, e.g. ``engine_adapter.drain_reviews``).
+# distinction is needed, e.g. ``engine_adapter.drain.reviews``).
 _SCIENTIST_REVIEWER = "scientist"
 
 

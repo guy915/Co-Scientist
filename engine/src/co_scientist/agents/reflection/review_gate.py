@@ -164,7 +164,7 @@ _SCORED_AXES: frozenset[str] = frozenset(
 # overwriting it here would strand the idea; ``review_failed`` records a
 # call that produced no review at all; ``duplicate`` is proximity's
 # archive marker (the app's
-# ``drain_hypotheses.DEDUPLICATED_REVIEW_DISPOSITION``, spelled out here
+# ``drain.hypotheses.DEDUPLICATED_REVIEW_DISPOSITION``, spelled out here
 # because the engine may not import the app), and an archived duplicate
 # still holds a gradable review, so re-deriving it would resurrect it.
 _FOREIGN_DISPOSITIONS: frozenset[str] = frozenset(

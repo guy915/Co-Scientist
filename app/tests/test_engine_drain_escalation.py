@@ -1,7 +1,7 @@
 """Engine-drain tests for contextual safety-verdict escalation (J14).
 
 Covers the drain's wiring of ``hypothesis_safety.escalate_held_hypotheses``
-into ``engine_adapter.drain._persist_final_state``: a bulk engine-generated
+into ``engine_adapter.drain.persist_final_state``: a bulk engine-generated
 hypothesis the deterministic screen holds UNCERTAIN now gets the same
 contextual-escalation chance a scientist-authored hypothesis already had
 (``app.human_input``). These mirror the fail-closed cases already pinned in
@@ -346,7 +346,7 @@ async def test_a_cleared_hold_is_audited_as_an_allow_not_a_block(
     monkeypatch.setattr(litellm, "acompletion", _allow)
     run = _real_run("cleared hold audit")
 
-    await engine_adapter._persist_final_state(
+    await engine_adapter.persist_final_state(
         run_id=run.id,
         final_state=_escalation_state(),
         db_path=isolated_db,

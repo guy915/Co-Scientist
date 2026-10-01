@@ -15,7 +15,7 @@ from collections.abc import Callable, Iterator
 from typing import Any
 
 from app import engine_tasks_runtime, store
-from app.engine_adapter.drain import _persist_final_state
+from app.engine_adapter.drain import persist_final_state
 from app.engine_tasks_checkpoint_guard import (
     _check_node_task_checkpoint as _check_node_task_checkpoint,
 )
@@ -307,7 +307,7 @@ async def _drain_and_persist_final_state(
     """Persist replayable final artifacts outside a database lock."""
     final_state = _plain_final_state(state)
     store.clear_publication_artifacts(run.id, db_path=db_path)
-    drained = await _persist_final_state(
+    drained = await persist_final_state(
         run_id=run.id, final_state=final_state, db_path=db_path
     )
     metrics = _metrics_snapshot(final_state)

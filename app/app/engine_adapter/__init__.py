@@ -9,11 +9,11 @@ mock provider (retired).
 The package is split by concern: ``provider`` (provider selection,
 diagnostics, and the lazy engine import), ``events`` (engine-node to
 canonical event/milestone translation), ``opts`` (run-config and steering
-translation into engine opts), ``drain`` (final-state persistence into the
-store), and ``checkpoints`` (the engine-checkpoint tag the durable resume
-path recognizes). This module re-exports the names consumed through the
-package namespace — the public entry points plus the private helpers tests
-exercise directly — so callers keep using ``from app import engine_adapter``
+translation into engine opts), ``drain`` (a subpackage: final-state
+persistence into the store, entered through ``drain.persist_final_state``),
+and ``checkpoints`` (the engine-checkpoint tag the durable resume path
+recognizes). This module re-exports the entry points consumed through the
+package namespace, so callers keep using ``from app import engine_adapter``
 unchanged.
 """
 
@@ -23,9 +23,9 @@ from app.engine_adapter.checkpoints import (
     is_engine_checkpoint as is_engine_checkpoint,
 )
 from app.engine_adapter.drain import (
-    _persist_final_state as _persist_final_state,
+    persist_final_state as persist_final_state,
 )
-from app.engine_adapter.opts import _build_engine_opts as _build_engine_opts
+from app.engine_adapter.opts import build_engine_opts as build_engine_opts
 from app.engine_adapter.provider import offline_mode as offline_mode
 from app.engine_adapter.provider import select_provider as select_provider
 from app.engine_adapter.provider import system_status as system_status

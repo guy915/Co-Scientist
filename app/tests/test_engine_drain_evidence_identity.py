@@ -22,7 +22,9 @@ from app.citation_metadata import (
     offline_resolver,
 )
 from app.config import settings
-from app.engine_adapter import drain_evidence_resolution
+from app.engine_adapter.drain import (
+    evidence_resolution as drain_evidence_resolution,
+)
 from tests._drain_helpers import _persist_and_finalize
 
 

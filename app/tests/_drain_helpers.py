@@ -20,12 +20,12 @@ from tests._client import drain as _drain
 def _persist(**kwargs: Any) -> Any:
     """Run the (now async) drain to completion, synchronously.
 
-    ``_persist_final_state`` awaits its claim-grounding and safety-
+    ``persist_final_state`` awaits its claim-grounding and safety-
     escalation waves (see ``async_bridge.run_off_loop``), so every test
     call site needs an event loop; this is the one-line wrapper the whole
     drain test suite shares instead of repeating ``asyncio.run(...)``.
     """
-    return asyncio.run(engine_adapter._persist_final_state(**kwargs))
+    return asyncio.run(engine_adapter.persist_final_state(**kwargs))
 
 
 def _engine_hypothesis(

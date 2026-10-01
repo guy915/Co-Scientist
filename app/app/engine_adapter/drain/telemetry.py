@@ -1,8 +1,8 @@
 """Fold the finalize grounding pass's LLM telemetry into final metrics.
 
-Split out of ``drain.py`` to keep it within the module-size budget; the
-grounding pass's own ``scoped_telemetry`` call stays in ``drain.py``
-(``_assess_claims``), which is the caller of the one function here.
+The grounding pass's own ``scoped_telemetry`` call stays in
+``drain.claim_grounding`` (``_assess_claims``); the orchestrator
+(``drain.final_state``) is the caller of the one function here.
 """
 
 from __future__ import annotations

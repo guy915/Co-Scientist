@@ -21,7 +21,7 @@ from co_scientist.agents.ranking.ranking_results import (
 )
 
 from app import store
-from app.engine_adapter.drain_matches import _persist_engine_matches
+from app.engine_adapter.drain.matches import _persist_engine_matches
 from app.report import markdown as report_markdown
 
 

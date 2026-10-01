@@ -4,7 +4,7 @@ Finalize's claim-grounding wave used to run synchronously on the durable
 task's own event loop, which starved ``task_worker._heartbeat_lease`` for
 the wave's whole duration -- a healthy finalize task lost its lease and its
 retry budget under a real production ultra run.
-``drain_claim_grounding._assess_claims`` now runs that wave off the loop
+``drain.claim_grounding._assess_claims`` now runs that wave off the loop
 (``async_bridge.run_off_loop``) so the heartbeat keeps renewing while it
 runs; see the root AGENTS.md lease/heartbeat Gotcha.
 """
@@ -18,7 +18,7 @@ import pytest
 from co_scientist.models import Article, Hypothesis
 
 from app import engine_tasks, store, task_worker
-from app.engine_adapter import drain_claim_grounding
+from app.engine_adapter.drain import claim_grounding as drain_claim_grounding
 from tests._engine_tasks_helpers import (
     _Generator,
     _patch_restore_generator,
