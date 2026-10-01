@@ -1,0 +1,47 @@
+# Build contexts must never contain local credentials or researcher data.
+**/.env
+**/.env.*
+!**/.env.example
+**/*.db
+**/*.db-*
+**/*.sqlite*
+**/reports
+**/cache
+**/.cache
+**/paper_cache
+**/.coscientist_cache
+**/.coscientist_prompts
+
+# Development tooling and generated outputs.
+.git
+.codex
+.remember
+.agents
+.claude
+.superpowers
+.vercel
+**/.venv*
+**/node_modules
+**/__pycache__
+**/*.py[cod]
+**/*.egg-info
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.coverage*
+**/htmlcov
+**/coverage
+**/dist
+**/build
+**/playwright-report
+**/test-results
+**/*.log
+.DS_Store
+
+# Research archives are not runtime inputs. Keep vendor/ and package READMEs.
+references
+docs
+PLAN.md
+proposals.html
+e2e
+evaluations

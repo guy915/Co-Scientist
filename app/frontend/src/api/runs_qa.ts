@@ -15,6 +15,7 @@ import {
   byokHeaders,
   clientHeaders,
   fetchField,
+  fetchWithSession,
   jsonRequest,
   readSseFrames,
 } from './runs_http';
@@ -100,14 +101,17 @@ export async function askRunQuestion(
   signal?: AbortSignal,
 ): Promise<number | undefined> {
   const init = jsonRequest({question}, true);
-  const res = await fetch(`${API_BASE_URL}/api/runs/${runId}/messages/ask`, {
-    ...init,
-    signal,
-    headers: {
-      ...(init.headers as Record<string, string>),
-      ...byokHeaders(),
+  const res = await fetchWithSession(
+    `${API_BASE_URL}/api/runs/${runId}/messages/ask`,
+    {
+      ...init,
+      signal,
+      headers: {
+        ...(init.headers as Record<string, string>),
+        ...byokHeaders(),
+      },
     },
-  });
+  );
   let questionId: number | undefined;
   for await (const frame of readSseFrames<AskFrame>(res)) {
     questionId = applyAskFrame(frame, questionId, sinks);

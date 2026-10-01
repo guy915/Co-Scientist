@@ -11,7 +11,7 @@ This project follows
 
 ## Getting set up
 
-From the repo root:
+Install Python 3.12, Node.js 22.13+, and Bun 1.3.14, then run from the repo root:
 
 ```bash
 make setup          # one Python venv (engine + app, editable) and frontend deps
@@ -27,7 +27,8 @@ and production hosting in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 ## Testing
 
 ```bash
-make test-all       # engine + app + MCP server suites plus the parity ledger gate
+make check          # full offline validation, including browser tests
+make test-all       # backend + frontend suites plus the parity ledger gate
 make e2e            # Playwright end-to-end suite
 cd app/frontend && bun run test   # frontend unit tests
 ```
@@ -76,3 +77,15 @@ for this purpose.
 -   No emojis or unicode decoration in code or logs.
 -   The Rich library is used only in `engine/examples/` and `engine/dev/`,
     never in core library code.
+
+## Licensing
+
+By submitting a contribution, you agree to license your first-party changes
+under the project's [Apache 2.0 license](LICENSE). Preserve third-party notices
+and do not reformat or silently modify `vendor/`.
+
+Keep the package-local `LICENSE` and `NOTICE` copies in `app/`, `engine/`,
+and `engine/mcp_server/` synchronized with their root counterparts so standalone
+distributions retain them.
+
+Report vulnerabilities privately through [SECURITY.md](SECURITY.md).

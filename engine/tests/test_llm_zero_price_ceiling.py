@@ -6,6 +6,7 @@ from typing import Any
 
 import httpx
 import pytest
+import tiktoken
 
 from co_scientist.llm import (
     LLMCallOptions,
@@ -134,6 +135,16 @@ async def test_litellm_serializes_zero_ceiling_into_openrouter_request(
 ) -> None:
     """The installed SDK must preserve the cap, not merely accept kwargs."""
     requests: list[httpx.Request] = []
+    # Request serialization does not need a production tokenizer. Build a
+    # tiny byte tokenizer so an empty tiktoken cache never fetches a BPE
+    # file from the network before the mocked HTTP transport is reached.
+    tokenizer = tiktoken.Encoding(
+        name="test-byte-tokenizer",
+        pat_str="(?s).",
+        mergeable_ranks={bytes([value]): value for value in range(256)},
+        special_tokens={},
+    )
+    monkeypatch.setattr(tiktoken, "get_encoding", lambda _name: tokenizer)
 
     async def send(
         _client: httpx.AsyncClient, request: httpx.Request, **_kwargs: Any

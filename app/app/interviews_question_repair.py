@@ -30,7 +30,7 @@ from co_scientist.llm import call_llm_json
 from co_scientist.llm_types import CompletionSpec, LLMCallOptions
 from co_scientist.schemas.builders import obj
 
-from app import credentials
+from app import credentials, offline_guard
 from app.config import settings
 from app.interviews_questions import (
     MAX_OPTIONS,
@@ -104,7 +104,7 @@ async def repair_questions(message: str) -> list[dict[str, Any]]:
         The turn's questions in the persisted shape, or an empty list when
         the turn asked nothing or the call could not be completed.
     """
-    if not message.strip():
+    if not message.strip() or not offline_guard.remote_chat_allowed():
         return []
     model, api_key = credentials.byok_model_and_key(
         settings.effective_chat_model

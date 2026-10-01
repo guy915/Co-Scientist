@@ -17,6 +17,7 @@ services to turn the check on; see AGENTS.md's deployment section and
 `.env.example`.
 """
 
+import hmac
 import os
 
 from starlette.middleware.base import (
@@ -64,6 +65,13 @@ class SharedSecretAuthMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self._secret = secret or None
 
+    def _secret_matches(self, request: Request) -> bool:
+        """Compare presented credentials without a prefix-dependent check."""
+        presented = request.headers.get(MCP_AUTH_HEADER, "")
+        return bool(self._secret) and hmac.compare_digest(
+            presented.encode(), (self._secret or "").encode()
+        )
+
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
@@ -83,16 +91,14 @@ class SharedSecretAuthMiddleware(BaseHTTPMiddleware):
             return JSONResponse({"error": "unauthorized"}, status_code=401)
         # Plain health checks stay open. Asking that same route to attest a
         # policy is privileged and therefore requires the configured secret.
-        if campaign and (
-            not self._secret
-            or request.headers.get(MCP_AUTH_HEADER) != self._secret
-        ):
+        if campaign and not self._secret_matches(request):
             return JSONResponse({"error": "unauthorized"}, status_code=401)
-        requires_check = self._secret and request.url.path not in _EXEMPT_PATHS
-        if (
-            requires_check
-            and request.headers.get(MCP_AUTH_HEADER) != self._secret
-        ):
+        # Authorize the ASGI path the router receives. URL reconstruction
+        # includes the caller's Host header and is not an auth boundary.
+        requires_check = (
+            self._secret and request.scope["path"] not in _EXEMPT_PATHS
+        )
+        if requires_check and not self._secret_matches(request):
             return JSONResponse({"error": "unauthorized"}, status_code=401)
         with scoped_campaign_request(campaign):
             return await call_next(request)

@@ -37,8 +37,8 @@ The backend stores every run and its event log in a local SQLite database (`cosc
 
 ### Prerequisites
 
-- Python 3.10+
-- Node.js / [Bun](https://bun.sh) (frontend)
+- Python 3.12 recommended for the complete app and MCP service
+- Node.js 22.13+ and [Bun](https://bun.sh) 1.3.14 (frontend)
 - Optional LLM provider API key. With no key set, the app runs on the engine's deterministic offline LLM backend.
 
 ### Local development (no Docker)
@@ -125,23 +125,29 @@ All backend settings are read from `.env` (or environment variables). See `.env.
 | `TOOLS_CONFIG` | — | Path or URL to a YAML tools config (optional) |
 | `ENTREZ_EMAIL` | — | Email for NCBI Entrez / PubMed access (optional) |
 | `COSCIENTIST_DEBUG` | `false` | Enable debug-level logging |
+| `AUTH_MODE` | `compatibility` | Local development identity; set `required` before exposing the API |
+| `AUTH_SECRET` | — | Random signing secret; required when authentication is required |
+| `RESEARCHER_ACCESS_CODES` | `{}` | JSON mapping of researcher IDs to unique high-entropy invite codes |
+| `AUTH_EXCHANGE_PER_MINUTE` | `20` | Invite-exchange attempt limit per connecting IP and API process |
 
-The default Nex Pro route has no model-level fallback chain. The engine
-enforces a zero-price request ceiling; explicit environment and BYOK model
-choices remain supported.
+The default Space Bunny route pins the Stealth provider, disables provider
+and model fallback, checks the free listing, and enforces a zero-price request
+ceiling. Explicit environment and BYOK model choices remain supported.
+See [security](../SECURITY.md) and [launch guidance](../docs/LAUNCH.md) before
+hosting the service publicly.
 
 The frontend reads a single variable:
 
 | Variable | Default | Description |
 |---|---|---|
-| `VITE_API_BASE_URL` | — (same origin) | Backend URL. Unset, the API client uses same-origin relative paths; `frontend/.env.example` sets `http://localhost:8008`, and the Vite dev server proxies `/api`, `/status`, and `/health` there. |
+| `VITE_API_BASE_URL` | — (same origin) | Backend URL. Unset, the API client uses same-origin relative paths and the Vite dev server proxies them to `http://localhost:8008`. Set the hosted API origin explicitly for a separate production frontend. |
 
 ## Using the workbench
 
-1. **Chat workspace** (`/`) — the session home. Describe a research goal in chat,
+1. **Chat workspace** (`/chats/:id`) — create a session from home (`/`). Describe a research goal in chat,
    review the inferred run setup, and hit Start. The timeline keeps progress,
    steering messages, leading hypotheses, and report status in chronological order.
-2. **Run detail** (`/runs/:id/:tab`) — four views, updating live via SSE:
+2. **Run detail** — open the run from its chat timeline. Four views update live via SSE:
    - **Goal Details** — the run's goal, configuration, provider, artifact counts, and safety gates.
    - **Learning** — retrieved literature and citations.
    - **Research Overview** — synthesized Markdown report, downloadable.

@@ -14,6 +14,9 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    outDir: process.env.COSCI_FRONTEND_DIST || 'dist',
+  },
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test_setup.ts'],

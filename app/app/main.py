@@ -285,7 +285,7 @@ def _auth_gate_response(
     """
     if (
         auth_required()
-        and request.url.path.startswith("/api/")
+        and request.scope["path"].startswith("/api/")
         and not public_api
         and principal is None
     ):
@@ -309,7 +309,7 @@ def _run_ownership_response(
     creation) -- an identity-less caller owns nothing, the same rule
     ``require_client_scope`` enforces at creation time.
     """
-    parts = request.url.path.strip("/").split("/")
+    parts = request.scope["path"].strip("/").split("/")
     if len(parts) < 3 or parts[:2] != ["api", "runs"]:
         return None
     run_id = parts[2]
@@ -331,7 +331,9 @@ async def enforce_run_ownership(request: Request, call_next: Any) -> Response:
     # CORSMiddleware authorize them before applying ownership to the real call.
     if request.method == "OPTIONS":
         return cast(Response, await call_next(request))
-    path = request.url.path
+    # Authorize the routed ASGI path, independent of URL reconstruction
+    # from caller-controlled Host headers.
+    path = request.scope["path"]
     public_api = path.startswith("/api/auth/") or path.startswith(
         "/api/shared/"
     )

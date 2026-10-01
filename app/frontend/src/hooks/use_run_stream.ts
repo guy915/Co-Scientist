@@ -1,6 +1,6 @@
 import {type Dispatch, type SetStateAction, useEffect, useState} from 'react';
 import {clientHeaders, eventsStreamUrl, readSseFrames} from '@/api/runs';
-import {forgetSessionIfUnauthorized} from '@/api/runs_http';
+import {fetchWithSession} from '@/api/runs_http';
 
 /** A single event streamed from a run's SSE timeline. */
 export interface StreamEvent {
@@ -19,10 +19,7 @@ export interface StreamEvent {
  * retry cannot fix).
  */
 export type StreamConnectionState =
-  | 'connecting'
-  | 'open'
-  | 'reconnecting'
-  | 'disconnected';
+  'connecting' | 'open' | 'reconnecting' | 'disconnected';
 
 /** State returned by {@link useRunStream}. */
 export interface UseRunStreamResult {
@@ -149,7 +146,7 @@ async function connectOnce(
 ): Promise<StreamOutcome> {
   let res: Response;
   try {
-    res = await fetch(eventsStreamUrl(runId), {
+    res = await fetchWithSession(eventsStreamUrl(runId), {
       headers: clientHeaders(),
       signal,
     });
@@ -157,7 +154,6 @@ async function connectOnce(
     return 'retry';
   }
   if (!res.ok || !res.body) {
-    forgetSessionIfUnauthorized(res);
     return isPermanentStreamFailure(res.status) ? 'fatal' : 'retry';
   }
   callbacks.onOpen();

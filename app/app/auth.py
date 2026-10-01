@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from app.auth_rate_limit import check_exchange_rate
 from app.config import settings
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -192,13 +193,16 @@ def _configured_codes() -> dict[str, str]:
 
 
 @router.post("/exchange")
-async def exchange_access_code(body: AccessCodeRequest) -> dict[str, object]:
+async def exchange_access_code(
+    body: AccessCodeRequest, request: Request
+) -> dict[str, object]:
     """Exchange one invite code for a signed researcher session."""
+    check_exchange_rate(request)
     match = next(
         (
             subject
             for subject, code in _configured_codes().items()
-            if hmac.compare_digest(body.access_code, code)
+            if hmac.compare_digest(body.access_code.encode(), code.encode())
         ),
         None,
     )

@@ -13,6 +13,7 @@
 import {
   API_BASE_URL,
   byokHeaders,
+  fetchWithSession,
   jsonRequest,
   readSseFrames,
 } from './runs_http';
@@ -67,7 +68,7 @@ export async function announceRunStart(
   signal?: AbortSignal,
 ): Promise<StartAnnouncement | null> {
   const init = jsonRequest({prompt}, true);
-  const res = await fetch(
+  const res = await fetchWithSession(
     `${API_BASE_URL}/api/runs/${runId}/messages/started`,
     {
       ...init,

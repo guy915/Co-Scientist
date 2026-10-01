@@ -1,6 +1,8 @@
 # references/
 
-Intentionally empty.
+Retained external-source assessments, protocols, and release evidence live
+in [external/](external/README.md). Its current state is summarized in
+[the final campaign report](external/campaign-final-report.md).
 
 This directory held the Google AI Co-Scientist reference tree
 (`core/google-co-scientist/`): the paper and Nature supplement, the extracted

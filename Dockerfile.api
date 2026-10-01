@@ -14,6 +14,11 @@ FROM python:3.12-slim@sha256:646fb0bca3dd3ea1bcc6feb72c17ed16eed6e10cffc732fcc14
 
 WORKDIR /app
 
+# Install the reviewed Python 3.12/Linux runtime closure before editable
+# local packages. Source edits cannot trigger an unbounded dependency solve.
+COPY requirements/api.txt /tmp/requirements-api.txt
+RUN pip install --no-cache-dir --require-hashes -r /tmp/requirements-api.txt
+
 # tesseract-ocr backs document_ingest.py's image OCR
 # ("tesseract-cli-v1") and the PDF-figure OCR fallback
 # ("pypdf-layout+tesseract-fallback-v2") -- without it, image ingestion
@@ -27,13 +32,13 @@ RUN apt-get update && apt-get install -y tesseract-ocr \
 # not its contents: the compat .pth records the path, and the real tree
 # arrives in the source COPY below. README.md is required because the
 # engine's pyproject declares it as the readme.
-COPY engine/pyproject.toml engine/README.md /workspace/co-scientist-engine/
+COPY engine/pyproject.toml engine/README.md engine/LICENSE engine/NOTICE /workspace/co-scientist-engine/
 RUN mkdir -p /workspace/co-scientist-engine/src \
-    && pip install --no-cache-dir -e /workspace/co-scientist-engine
+    && pip install --no-cache-dir --no-deps -e /workspace/co-scientist-engine
 
 # Install app deps
-COPY app/pyproject.toml ./
-RUN pip install --no-cache-dir -e .
+COPY app/pyproject.toml app/LICENSE app/NOTICE ./
+RUN pip install --no-cache-dir --no-deps -e .
 
 # Copy the engine source (src/ only: the api imports the package and talks
 # to the MCP server over HTTP, so tests/dev/docs/mcp_server never ship).
@@ -41,6 +46,7 @@ COPY engine/src/ /workspace/co-scientist-engine/src/
 
 # Copy app source
 COPY app/app/ ./app/
+COPY LICENSE NOTICE /usr/share/doc/co-scientist/
 
 # The vendored Google DeepMind Science Skills bundle, pinned in
 # vendor/science-skills (the NOTICE at the repo root records the upstream
@@ -115,9 +121,10 @@ ENV COSCIENTIST_SKILLS_DIR=/app/vendor/science-skills/skills
 # `credentials` (setup the harness has already done), and
 # `workflow_skill_creator` (authors skills rather than using one) -- and
 # are withheld for the same reason. 32 are offered.
+COPY requirements/skills.txt /tmp/requirements-skills.txt
 RUN python -m venv /app/skills-venv \
-    && /app/skills-venv/bin/pip install --no-cache-dir --quiet \
-        polite-http python-dotenv
+    && /app/skills-venv/bin/pip install --no-cache-dir --require-hashes \
+        -r /tmp/requirements-skills.txt
 ENV COSCIENTIST_SKILLS_PYTHON=/app/skills-venv/bin/python
 
 # Explicit persistent-path defaults so the image is correct even when a

@@ -2,6 +2,17 @@
 
 How the three deployed services are built and configured. The load-bearing invariants are also summarised in the [root AGENTS.md](../AGENTS.md) Production hosting stub — keep the two in sync when either changes.
 
+Use [LAUNCH.md](LAUNCH.md) for release validation, public authentication,
+backup and restore, and repository publication requirements. Deployment
+settings and receipts below include dated historical snapshots; read back
+the intended environment before treating any of them as current.
+
+The production images install the hash-pinned Python runtime closures in
+[`requirements/`](../requirements/README.md) before installing local source
+without dependency resolution. Build contexts exclude local secrets,
+databases, session notes, and generated artifacts. Keep these exclusions
+when adding a new image or build context.
+
 The app is deployed as three services:
 
 | Layer | Platform | URL |

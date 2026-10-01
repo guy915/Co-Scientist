@@ -39,6 +39,7 @@ def _patch_call(
         return result
 
     monkeypatch.setattr(repair, "call_llm_json", _fake_call)
+    monkeypatch.setattr("app.offline_guard.remote_chat_allowed", lambda: True)
     return calls
 
 

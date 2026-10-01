@@ -50,6 +50,14 @@ that is what makes them deterministic and trustworthy as merge gates.
   no model API keys exist in CI.
 - MCP server tests: fake `httpx` clients, no network (see
   `engine/mcp_server/tests/test_openalex.py` docstring).
+- Browser tests: the existing development flows plus a built-asset launch
+  check with `AUTH_MODE=required`. Each invocation gets a fresh temporary
+  store, fixed test-only invite codes, disabled local dotenv loading, offline
+  models and offline evidence/claim checks. The launch check exercises login,
+  authenticated report reloads and cross-researcher access isolation. Both
+  targets typecheck the TypeScript harness before running Chromium.
+- Frontend, browser and root-tooling jobs explicitly install Node 24.19.0 and
+  Bun 1.3.14; frontend scripts do not inherit the runner image's Node version.
 - Evaluations: `evaluations.smoke` is by construction the *offline* (no-LLM,
   no-network) subset; the expensive provider-backed suites stay opt-in and
   are not in CI. Two more live, opt-in exceptions exist purely for by-hand
@@ -65,7 +73,7 @@ that is what makes them deterministic and trustworthy as merge gates.
 The only network CI uses is fetching the repo, actions, and packages
 (PyPI/npm registry via bun, the Chromium download in `e2e`, plus apt and
 the Docker base image inside `docker-build`) — infrastructure, not test
-traffic. `docker-build` builds both root Dockerfiles and never pushes or
+traffic. `docker-build` builds both root Dockerfiles and the frontend dev image; it never pushes or
 runs them (deploys stay manual);
 `root-config` runs `make setup`/`lint`/`typecheck` against the checkout
 itself, so it is exactly as hermetic as the jobs it exercises.
@@ -182,28 +190,15 @@ the MCP server runs on 3.12 (its own floor — the package requires >=3.12).
 
 ## Recommended branch protection (not configured by CI)
 
-For `main` (Settings → Branches → Add rule), recommend:
+Require **Required checks** on `main`. This aggregate job runs with `always()`
+and rejects a failed or cancelled dependency, while accepting path-filtered
+skips only after `changes` succeeds. It provides one stable required status
+across the Python matrix and conditional jobs. Setting branch protection is
+an external GitHub repository setting; the workflow cannot configure it.
 
-- Require status checks to pass before merging, with these required checks:
-  - `Format and lint (ruff)`
-  - `Typecheck (mypy, strict)`
-  - `Engine tests (py3.10)` and `Engine tests (py3.12)`
-  - `App tests`
-  - `Evaluations (parity + offline smoke)`
-  - `Frontend (lint + test + build)`
-  - `MCP server tests`
-  - `Browser e2e (Playwright)`
-  - `Docker build + Compose config smoke`
-  - `Root config smoke (Makefile, vercel.json)`
-  (Jobs skipped by the path filter report `skipped`, which satisfies these.)
-- Require branches to be up to date before merging — the small-scale stand-in
-  for testing against head; at higher merge volume switch to a merge queue.
-- Require a pull request before merging (no direct pushes to `main`).
-- Optionally: require linear history, to keep postsubmit results 1:1 with
-  merges.
-
-Deliberately out of scope for CI: deployments. Railway (API/MCP) and Vercel
-(frontend) deploys stay manual.
+Require pull-request review and branches up to date before merging. Enable
+private security reporting before public launch. See [LAUNCH.md](LAUNCH.md)
+for repository and deployment prerequisites.
 
 ## Maintenance notes
 
@@ -220,5 +215,21 @@ Deliberately out of scope for CI: deployments. Railway (API/MCP) and Vercel
   (ci.yml), and every action, each pinned to a commit SHA with its version
   in a trailing comment (`actions/checkout` v7.0.1, `actions/setup-python`
   v6.3.0, `actions/cache` v6.1.0, `oven-sh/setup-bun` v2.2.0,
-  `dorny/paths-filter` v4.0.3). Remaining hardening: the composite action
-  `.github/actions/setup-backend` still pins `actions/setup-python` by tag.
+  `dorny/paths-filter` v4.0.3). The composite
+  `.github/actions/setup-backend` also pins `actions/setup-python` by SHA.
+
+## Launch validation
+
+`make check` runs the complete local offline validation, including frontend
+unit tests and the isolated browser suite. `make test-all` includes engine,
+app, MCP and frontend tests plus parity. `make docker-build` builds both
+production images separately. Production Python runtime closures are
+hash-pinned under `requirements/`; review and regenerate their locks with
+runtime metadata changes. Development/test extras still use package metadata.
+
+Changes to shared setup actions and the root Ruff configuration trigger their
+consuming Python jobs. Runtime source, dependency locks, vendored skills, and
+Docker exclusion files trigger image builds. `workflow_dispatch` permits a
+full manual pass without manufacturing a commit. Dependency updates are
+proposed through Dependabot; Python runtime updates follow
+[the lock regeneration procedure](../requirements/README.md).

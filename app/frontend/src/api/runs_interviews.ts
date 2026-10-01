@@ -8,6 +8,7 @@ import {
   byokHeaders,
   clientHeaders,
   fetchJson,
+  fetchWithSession,
   jsonRequest,
   readSseFrames,
 } from './runs_http';
@@ -79,7 +80,7 @@ async function streamInterviewTurn(
   signal?: AbortSignal,
 ): Promise<Interview> {
   const init = jsonRequest(body, true);
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await fetchWithSession(`${API_BASE_URL}${path}`, {
     ...init,
     method,
     signal,
