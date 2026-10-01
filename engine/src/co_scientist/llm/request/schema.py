@@ -4,18 +4,20 @@ Split out of ``llm.request.completion`` on size. The cluster belongs
 together because it is one thing: what to send when a model cannot be handed
 a JSON schema server-side.
 
-``_supports_json_schema_response_format`` deliberately stayed behind in
-``llm.request.completion``. It is a monkeypatch seam -- ``offline_llm`` and
-three test helpers rebind it on that module -- and the lookup below reads it
-off the module at call time so those patches reach it. The validation side
-(``llm.attempts.json_attempt._backfill_and_validate``) binds its own name
-instead, so a patch on ``completion`` decides the request format and not
-whether a response is reshaped; a test that needs both patches both.
+Whether a model takes a native schema is asked of the installed completion
+backend (``llm.request.backend``) on every call, so the answer travels with
+whatever answers the call: the offline router says yes to its own models. The
+validation side (``llm.attempts.json_attempt._backfill_and_validate``) binds
+the default backend's answer at import instead, so an installed backend
+decides the request format and not whether a response is reshaped; a test that
+needs both installs a backend for the first and patches the second.
 """
 
 import json
 import logging
 from typing import Any, Final
+
+from co_scientist.llm.request.backend import active_backend
 
 # Named for the module this split out of, for the same reason as
 # llm.attempts.failure: the logger name is an operator-facing filter, and an
@@ -111,13 +113,11 @@ def _apply_schema_response_format(
         model_name: Model name in litellm format.
         json_schema: JSON schema to constrain the response format.
     """
-    # Read through the module object, not a from-import: the predicate is
-    # a monkeypatch seam that offline_llm and three test helpers rebind on
-    # ``llm.request.completion`` to force one branch. A from-import would bind
-    # the original at import time and silently ignore every one of them.
-    from co_scientist.llm.request import completion
-
-    if completion._supports_json_schema_response_format(model_name):
+    # Asked of the installed backend on every call, not bound at import: the
+    # answer travels with whatever answers the call (the offline router says
+    # yes to its own models), and a from-import of it would freeze the
+    # default's answer.
+    if active_backend().supports_json_schema(model_name):
         completion_args["response_format"] = {
             "type": "json_schema",
             # Callers use both bare schemas and provider envelopes.

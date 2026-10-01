@@ -93,9 +93,10 @@ See [LiteLLM provider documentation](https://docs.litellm.ai/docs/providers) for
 Any model name prefixed `offline/` (default: `offline/deterministic`) is
 answered locally instead of calling a real provider. Call
 `co_scientist.offline_llm.install_offline_router()` once at process startup
-to install the router: it wraps `litellm.acompletion` so calls to
-`offline/`-prefixed models are intercepted, while every other model passes
-through untouched — real and offline models can coexist in the same process.
+to install the router: it installs itself as the engine's completion backend
+(`co_scientist.llm.request.backend`) so calls to `offline/`-prefixed models are
+answered locally, while every other model passes through untouched to the
+backend it replaced — real and offline models can coexist in the same process.
 
 ```python
 from co_scientist.offline_llm import install_offline_router

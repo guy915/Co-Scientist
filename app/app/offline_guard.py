@@ -1,9 +1,9 @@
 """One gate over the app's own direct-to-provider chat completions.
 
-The engine's deterministic router intercepts ``litellm.acompletion`` only for
-``offline/``-prefixed models, so it covers engine runs and nothing else. The
-three app-side calls that reach litellm with a *deployment* model -- the goal
-interview, run Q&A, and run titling -- pass straight through it, which is why
+The engine's deterministic router answers only ``offline/``-prefixed models,
+through the engine's completion backend, so it covers engine runs and nothing
+else. The three app-side calls that reach litellm with a *deployment* model --
+the goal interview, run Q&A, and run titling -- never reach it, which is why
 ``COSCIENTIST_FORCE_OFFLINE=1`` on a host that also has a provider key set
 used to send the scientist's research goal to that provider anyway.
 

@@ -3,12 +3,12 @@
 Productionizes the pattern proven out by the test fake in
 ``tests/_llm_fake.py``: every engine LLM call funnels through
 ``co_scientist.llm.request.completion._acompletion_within_timeout``, which
-reads the live ``litellm.acompletion`` module attribute, so
-``setattr(litellm, "acompletion", wrapper)`` intercepts everything.
-``install_offline_router`` installs a conditional wrapper: a call whose
-``model`` starts with ``OFFLINE_MODEL_PREFIX`` is answered locally by
-``offline_acompletion``; every other call passes through to the original
-callable untouched, so real-model traffic is unaffected.
+awaits whatever completion backend is installed
+(``co_scientist.llm.request.backend``). ``install_offline_router`` installs
+``OfflineRouter`` as that backend: a call whose ``model`` starts with
+``OFFLINE_MODEL_PREFIX`` is answered locally by ``offline_acompletion``;
+every other call passes through to the backend it replaced untouched, so
+real-model traffic is unaffected.
 
 Unlike the test fake's process-global counter (fine for a monkeypatch that
 pytest reverts after every test), the runtime router must not depend on
@@ -52,7 +52,11 @@ import types
 from collections.abc import Callable
 from typing import Any
 
-from co_scientist.llm.request import completion
+from co_scientist.llm.request.backend import (
+    CompletionBackend,
+    active_backend,
+    install_backend,
+)
 from co_scientist.offline_content import leaf_text, subject_terms
 from co_scientist.offline_schema_fill import _fill_schema, _FillHints
 
@@ -401,74 +405,52 @@ async def offline_acompletion(**completion_args: Any) -> Any:
 
 
 _installed = False
-_original_acompletion: Callable[..., Any] | None = None
-_original_supports_json_schema: Callable[[str], bool] | None = None
 
 
-def _make_routed_acompletion(
-    original_acompletion: Callable[..., Any],
-) -> Callable[..., Any]:
-    """Builds an acompletion wrapper that answers offline models locally."""
+class OfflineRouter:
+    """Completion backend that answers ``offline/`` models locally.
 
-    async def _routed_acompletion(**kwargs: Any) -> Any:
-        model_name = str(kwargs.get("model") or "")
+    Every other model is handed to ``inner``, the backend that was installed
+    when the router was, so real-model traffic and its capability answers are
+    untouched.
+    """
+
+    def __init__(self, inner: CompletionBackend) -> None:
+        """Wraps ``inner``, the backend every non-offline model goes to."""
+        self._inner = inner
+
+    async def complete(self, **completion_args: Any) -> Any:
+        """Answers an offline model locally; passes any other through."""
+        model_name = str(completion_args.get("model") or "")
         if is_offline_model(model_name):
-            return await offline_acompletion(**kwargs)
-        return await original_acompletion(**kwargs)
+            return await offline_acompletion(**completion_args)
+        return await self._inner.complete(**completion_args)
 
-    return _routed_acompletion
-
-
-def _make_routed_supports_json_schema(
-    original_supports_json_schema: Callable[[str], bool],
-) -> Callable[[str], bool]:
-    """Builds a supports-json-schema wrapper that treats offline as True."""
-
-    def _routed_supports_json_schema(model_name: str) -> bool:
+    def supports_json_schema(self, model_name: str) -> bool:
+        """Says yes for an offline model; asks ``inner`` for any other."""
         if is_offline_model(model_name):
             return True
-        return original_supports_json_schema(model_name)
-
-    return _routed_supports_json_schema
+        return self._inner.supports_json_schema(model_name)
 
 
 def install_offline_router() -> None:
-    """Installs a conditional router over ``litellm.acompletion``.
+    """Installs ``OfflineRouter`` as the completion backend.
 
     Idempotent: a second call is a no-op, so callers (app startup, test
     fixtures) can call it unconditionally without risking a nested chain of
     routers. ``offline/``-prefixed models are answered by
     ``offline_acompletion``; every other model's call passes through
-    untouched to the callable that was live at install time. Also wraps
-    ``llm.request.completion._supports_json_schema_response_format`` so schema'd
-    offline calls take the native json_schema branch in
-    ``co_scientist.llm.request.completion._apply_response_format`` rather than
-    the json_object provider-capability shim.
+    untouched to the backend that was installed at the time. Its capability
+    answer says an offline model takes a native json_schema response format,
+    so schema'd offline calls take that branch in
+    ``co_scientist.llm.request.schema._apply_response_format`` rather than the
+    json_object provider-capability shim.
     """
-    global _installed, _original_acompletion, _original_supports_json_schema
+    global _installed
 
     if _installed:
         return
 
-    import litellm
-
-    original_acompletion = litellm.acompletion
-    original_supports_json_schema = (
-        completion._supports_json_schema_response_format
-    )
-
-    litellm.acompletion = _make_routed_acompletion(original_acompletion)
-    # The original is a functools.cache-wrapped function; setattr (rather
-    # than a direct assignment, which mypy would reject as a callable-type
-    # mismatch) installs the plain-function replacement. noqa: intentional
-    # dynamic patch, the same pattern the test fake uses via monkeypatch.
-    setattr(  # noqa: B010
-        completion,
-        "_supports_json_schema_response_format",
-        _make_routed_supports_json_schema(original_supports_json_schema),
-    )
-
-    _original_acompletion = original_acompletion
-    _original_supports_json_schema = original_supports_json_schema
+    install_backend(OfflineRouter(active_backend()))
     _installed = True
     logger.debug("offline llm router installed")

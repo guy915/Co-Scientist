@@ -20,6 +20,10 @@ from jsonschema.exceptions import ValidationError
 from co_scientist.cache import LLMCache, LLMCacheRequest, NullCache
 from co_scientist.llm.attempts.contract import Accepted, Attempt, Rejected
 from co_scientist.llm.attempts.escalation import _JsonCallSpec
+
+# Bound here at import on purpose, so the shim below reads the default
+# backend's answer, never an installed backend's: the request format asks the
+# installed backend at call time (``llm.request.schema``) and this does not.
 from co_scientist.llm.request.completion import (
     _supports_json_schema_response_format,
 )

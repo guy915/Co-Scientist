@@ -121,7 +121,7 @@ What varies per run is the **LLM backend**, not the provider. `engine_adapter.of
 1. `COSCIENTIST_FORCE_OFFLINE=1` is set (or its deprecated alias `COSCIENTIST_FORCE_MOCK=1`), OR
 2. no supported provider key is configured.
 
-An offline-backed run still executes the real engine graph; `co_scientist.offline_llm.install_offline_router()` intercepts `litellm.acompletion` for `offline/`-prefixed models and returns deterministic, schema-valid content instead of calling a real provider. The resolved backend (`"offline"` | `"real"`) is persisted per run as `llm_backend` and reported at `/status`; the deprecated `mock_mode` mirror of that value has since been removed from the API surface. A re-opened run remembers which backend produced it.
+An offline-backed run still executes the real engine graph; `co_scientist.offline_llm.install_offline_router()` installs the engine's completion backend for `offline/`-prefixed models, which returns deterministic, schema-valid content instead of calling a real provider. The resolved backend (`"offline"` | `"real"`) is persisted per run as `llm_backend` and reported at `/status`; the deprecated `mock_mode` mirror of that value has since been removed from the API surface. A re-opened run remembers which backend produced it.
 
 ## Frontend state
 
@@ -175,6 +175,6 @@ still holds: nothing here lets a view render without hitting the API.
     composer, so the app still opens on the chat.
 -   The engine's offline LLM backend exists so the system has **observable
     behaviour without any external dependency**. The same LangGraph graph
-    runs either way; only `litellm.acompletion` for `offline/` models is
-    intercepted. This unlocks CI, deterministic tests, and a usable demo
+    runs either way; only the completion backend's answer for `offline/`
+    models differs. This unlocks CI, deterministic tests, and a usable demo
     without provider keys.
