@@ -1,7 +1,7 @@
 """Bridges the app's synchronous claim-assessment threads to asyncio work.
 
 The claim gate and the finalize grounding pass both assess many claims
-concurrently on a plain ``ThreadPoolExecutor`` (``claim_grounding_assess.
+concurrently on a plain ``ThreadPoolExecutor`` (``claims.grounding_assess.
 _assess_flat_claims``), because the entailment ``Assessor`` protocol is
 synchronous. ``ThreadPoolExecutor`` does not copy the submitting thread's
 ``contextvars`` into its worker threads (unlike ``asyncio.to_thread``), so
@@ -126,7 +126,7 @@ async def run_off_loop(call: Callable[[], _T]) -> _T:
     """Run a blocking claim-assessment wave off the caller's event loop.
 
     ``call`` is expected to itself fan out across ``ASSESSMENT_CONCURRENCY``
-    worker threads (see ``claim_grounding_assess``), but that inner pool
+    worker threads (see ``claims.grounding_assess``), but that inner pool
     still blocks whichever thread calls it for the wave's whole duration.
     Both callers of this helper (the pre-ranking claim gate and the
     finalize grounding pass) run inside a durable task on the cohort's

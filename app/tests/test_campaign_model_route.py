@@ -11,7 +11,6 @@ from co_scientist.llm import current_api_key
 from fastapi import Request
 
 from app import (
-    claim_grounding,
     credentials,
     engine_tasks,
     execution_policy,
@@ -23,6 +22,7 @@ from app import (
     safety,
     store,
 )
+from app.claims import grounding as claim_grounding
 from app.config import settings
 from app.engine_adapter.checkpoints import restore_workflow_state
 from app.engine_adapter.drain import claim_grounding as drain_claim_grounding

@@ -92,7 +92,7 @@ def test_short_term_retrieval_keeps_rank_limit_and_stable_ties() -> None:
 
 
 def test_new_identifier_evidence_invalidates_reused_assessment() -> None:
-    from app.claim_freshness import ClaimRecord, claim_fingerprint
+    from app.claims.freshness import ClaimRecord, claim_fingerprint
 
     claim = ClaimRecord("Protein H folds cooperatively.", "categorical")
     empty = claim_fingerprint(claim, [], "llm:test")

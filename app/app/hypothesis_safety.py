@@ -157,7 +157,7 @@ def _escalate_one_on_worker_thread(
     (AGENTS.md: "No process-global asyncio primitives"), and it closes
     litellm's logging worker with it (see ``app.litellm_shutdown``).
     Mirrors how
-    ``app.claim_grounding_assess`` drives its own LLM assessor from a
+    ``app.claims.grounding_assess`` drives its own LLM assessor from a
     synchronous ``ThreadPoolExecutor.map`` call, for the same reason: the
     engine drain that calls this is itself synchronous.
     """

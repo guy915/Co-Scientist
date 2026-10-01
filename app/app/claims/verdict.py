@@ -8,7 +8,7 @@ questions are deliberately *not* one rule:
 
 * :func:`is_supporting` -- ``partial`` counts, as it does for the "Unverified"
   badge and the claim gate (the rule itself is
-  :attr:`~app.claims_gate.EntailmentLabel.is_supporting`).
+  :attr:`~app.claims.gate.EntailmentLabel.is_supporting`).
 * :func:`is_categorical_contradiction` -- the report withholds an idea only for
   a contradicted claim it presents as established fact; a contradicted
   *proposal* is a verdict on the idea, not a reason to hide it.
@@ -29,7 +29,7 @@ import enum
 from collections.abc import Mapping
 from typing import Any
 
-from app.claims_gate import EntailmentLabel
+from app.claims.gate import EntailmentLabel
 
 Edge = Mapping[str, Any]
 

@@ -69,7 +69,7 @@ product *is* or *does* in language that parallels Google's own.
 > document-level lexical overlap (`app/app/citations.py`, coverage
 > thresholds — intersection over the claim's own tokens, not Jaccard),
 > surfaced in the UI and report. It is **not** a claim-level entailment check.
-> A separate claim-level grounding + publication gate (`app/app/claims.py`,
+> A separate claim-level grounding + publication gate (`app/app/claims/__init__.py`,
 > `CITE-*` in [PARITY.md](PARITY.md)) now exists and is `verified`: the
 > real-run default assessor is LLM/NLI-based (the offline/CI default stays
 > lexical by design), and on the durable engine path it runs *before*
@@ -187,7 +187,7 @@ The "Towards an AI co-scientist" paper is the primary fidelity reference. The im
 -   Proximity clustering guides deduplication and pairing.
 -   The final report distinguishes verified, partially supported, and
     unsupported claims **by the audit label above** (the document-level
-    citation classifier). Separate claim-level grounding (`app/app/claims.py`)
+    citation classifier). Separate claim-level grounding (`app/app/claims/__init__.py`)
     now exists and is `verified` — the real-run default assessor is
     LLM/NLI-based (offline/CI stays lexical by design), and on the durable
     engine path it runs *before* ranking via the pre-ranking evidence gate;

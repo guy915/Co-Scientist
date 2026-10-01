@@ -2,7 +2,7 @@
 
 Split out of :mod:`app.claims` to keep that module within the size
 budget. Both the single-claim path (``claims.assess_claim``) and the
-batched path (``claims_batch.assess_claims_batch``) need to turn an
+batched path (``claims.batch.assess_claims_batch``) need to turn an
 assessor's raw ``(cited_key, quote)`` citation into an offset-bearing
 ``SupportSpan`` and downgrade a verdict whose citation cannot be located
 -- this module is the one place that logic lives, imported by both
@@ -13,7 +13,7 @@ its evidence id: production run bc77950f lost most of a run's entailment
 verdicts (8 of 13 hypotheses drew zero supported claims, on-topic
 evidence sitting unused in their retrieval pool) because the prompt
 required an exact 36-character id echoed back and a fallback model
-formatted it differently. ``claim_verifier`` and ``claim_verifier_batch``
+formatted it differently. ``claims.verifier`` and ``claims.verifier_batch``
 now ask for the short number instead (see their ``_CITATION_ITEM``); a
 literal id -- with or without its chunk suffix -- is still accepted here
 as a fallback for a model that cites one anyway, not the contract itself.
@@ -29,16 +29,15 @@ import logging
 import re
 from collections.abc import Sequence
 
-from app.claims_assessor import EvidencePassage
-from app.claims_gate import EntailmentLabel, SupportSpan
-from app.evidence_chunking import parent_evidence_id
+from app.claims.assessor import EvidencePassage
+from app.claims.gate import EntailmentLabel, SupportSpan
 
 logger = logging.getLogger(__name__)
 
 _WHITESPACE_RE = re.compile(r"\s+")
 # A citation naming the passage's *number* rather than its evidence id --
 # "3", "[3]", "(3)", "passage 3". The entailment prompt renders every
-# passage as "[<n>] <text>" (claim_verifier._render_passages) and asks for
+# passage as "[<n>] <text>" (claims.verifier._render_passages) and asks for
 # exactly this number back, so it is the primary, expected citation form,
 # not a fallback.
 _POSITIONAL_KEY = re.compile(
@@ -129,6 +128,11 @@ def _passage_lookup(
     internal citations use evidence IDs directly.
     A parent alias identifies all shown chunks of an article in either mode.
     """
+    # Function-local: ``evidence_chunking`` imports ``app.claims.assessor``,
+    # which loads this package (and so this module) first, so a top-level
+    # import is a cycle whenever ``evidence_chunking`` is imported first.
+    from app.evidence_chunking import parent_evidence_id
+
     lookup: dict[str, list[EvidencePassage]] = (
         {}
         if cites_evidence_ids

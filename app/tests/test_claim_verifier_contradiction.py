@@ -5,7 +5,7 @@ budget. Measured on production ultra run b82f9162 (2026-09-06): 105 of 183
 claim-evidence edges came back CONTRADICTS from the free-model LLM assessor,
 including a quote about a different molecule/target and a quote that merely
 confirmed the claim's own mechanism. Both real shapes are reproduced verbatim
-in miniature below, proving ``claim_verifier_opposition.guard_contradictions``
+in miniature below, proving ``claims.verifier_opposition.guard_contradictions``
 downgrades them to INSUFFICIENT while a genuine, on-topic negation still
 blocks.
 """
@@ -17,8 +17,8 @@ from typing import Any
 
 import pytest
 
-from app.claim_verifier import make_llm_assessor
 from app.claims import EntailmentLabel, EvidencePassage, assess_claim
+from app.claims.verifier import make_llm_assessor
 
 
 @pytest.fixture(autouse=True)

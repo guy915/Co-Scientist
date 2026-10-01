@@ -174,7 +174,7 @@ async def get_claim_evidence(run_id: str) -> dict[str, Any]:
     """Return the run's claim-level entailment graph (Milestone 5).
 
     Each edge is one atomic claim of a hypothesis with its assessed label
-    (an ``EntailmentLabel`` value; ``app.claim_verdict`` says what each
+    (an ``EntailmentLabel`` value; ``app.claims.verdict`` says what each
     means) and the exact supporting/contradicting passages that drove the
     verdict.
     """

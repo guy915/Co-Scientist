@@ -26,7 +26,7 @@ requires (SSR §6, §7):
    ``parent_evidence_id`` first, since a chunked passage's span carries the
    chunk's id, not the article's. The LLM assessor judges a whole
    hypothesis's claims in one call rather than one call per claim
-   (``assess_claims_batch``, ``app/claims_batch.py``) -- a production ultra
+   (``assess_claims_batch``, ``app/claims/batch.py``) -- a production ultra
    run measured 218 claims assessed one at a time across 13 hypotheses in a
    single pass, repeated before every ranking wave.
 4. **Citation metadata, separately** — whether a citation's source resolves
@@ -42,7 +42,7 @@ requires (SSR §6, §7):
 The default assessor is deterministic (a contradiction lexicon plus a lexical
 support fallback) so the pipeline and its tests run offline. A real NLI/LLM
 entailment assessor is a documented, swappable, provenance-tagged drop-in
-(``app/claim_verifier.py``); it is exercised end-to-end by the golden run
+(``app/claims/verifier.py``); it is exercised end-to-end by the golden run
 rather than in the offline suite. Google does not publish its entailment model
 or thresholds (SSR §12), so those are documented clone choices.
 """
@@ -65,7 +65,7 @@ from app.citation_metadata import (
 from app.citation_metadata import (
     assess_resolvability as assess_resolvability,
 )
-from app.claims_assessor import (
+from app.claims.assessor import (
     _DEFAULT_RETRIEVAL_TOP_K,
     SENTENCE_SPLIT,
 )
@@ -73,68 +73,68 @@ from app.claims_assessor import (
 # --- Retrieval and the deterministic assessor -------------------------------
 # The evidence passage, assessor draft, concept tokenizer, claim-specific
 # retrieval, and the offline deterministic assessor were split into
-# app/claims_assessor.py to keep this module within the size budget. They are
+# app/claims/assessor.py to keep this module within the size budget. They are
 # imported back and re-exported (redundant aliases) so the names callers and
 # tests use stay importable from app.claims.
-from app.claims_assessor import (
+from app.claims.assessor import (
     Assessor as Assessor,
 )
-from app.claims_assessor import (
+from app.claims.assessor import (
     AssessorDraft as AssessorDraft,
 )
-from app.claims_assessor import (
+from app.claims.assessor import (
     EvidencePassage as EvidencePassage,
 )
-from app.claims_assessor import (
+from app.claims.assessor import (
     as_passages as as_passages,
 )
-from app.claims_assessor import (
+from app.claims.assessor import (
     deterministic_assessor as deterministic_assessor,
 )
-from app.claims_assessor import (
+from app.claims.assessor import (
     retrieve_passages as retrieve_passages,
 )
 
 # One call judging a whole hypothesis's claims (rather than one call per
-# claim) was split into app/claims_batch.py to keep this module within the
+# claim) was split into app/claims/batch.py to keep this module within the
 # size budget. Both names are public API and re-exported here exactly as
 # before -- see that module's docstring for the batching rationale.
-from app.claims_batch import (
+from app.claims.batch import (
     BatchAssessor as BatchAssessor,
 )
-from app.claims_batch import (
+from app.claims.batch import (
     assess_claims_batch as assess_claims_batch,
 )
 
 # The entailment verdict enum, provenance support span, claim-assessment
-# record, and publication gate were split into app/claims_gate.py to keep
+# record, and publication gate were split into app/claims/gate.py to keep
 # this module within the size budget. Same re-export treatment.
-from app.claims_gate import (
+from app.claims.gate import (
     ClaimAssessment as ClaimAssessment,
 )
-from app.claims_gate import (
+from app.claims.gate import (
     EntailmentLabel as EntailmentLabel,
 )
-from app.claims_gate import (
+from app.claims.gate import (
     GateDecision as GateDecision,
 )
-from app.claims_gate import (
+from app.claims.gate import (
     GateResult as GateResult,
 )
-from app.claims_gate import (
+from app.claims.gate import (
     publication_gate as publication_gate,
 )
 
 # Locating a cited quote in its passage and the anti-hallucination downgrade
-# were split into app/claims_span.py to keep this module within the size
-# budget; app/claims_batch.py's batched path depends on it too. locate_span
+# were split into app/claims/span.py to keep this module within the size
+# budget; app/claims/batch.py's batched path depends on it too. locate_span
 # is re-exported (public API); the underscore-prefixed helpers are used by
 # assess_claim below.
-from app.claims_span import (
+from app.claims.span import (
     _downgrade_unproven_label,
     _locate_all,
 )
-from app.claims_span import (
+from app.claims.span import (
     locate_span as locate_span,
 )
 

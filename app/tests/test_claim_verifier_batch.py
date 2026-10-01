@@ -1,4 +1,4 @@
-"""Tests for the batched LLM entailment assessor (app/claim_verifier_batch.py).
+"""Tests for the batched LLM entailment assessor (app/claims/verifier_batch.py).
 
 Split out of ``test_claim_verifier.py`` when that file passed the
 module-size budget. Covers ``make_llm_batch_assessor``: verdicts mapping
@@ -16,16 +16,16 @@ from typing import Any
 
 import pytest
 
-from app.claim_verifier import make_llm_assessor
-from app.claim_verifier_batch import make_llm_batch_assessor
 from app.claims import EntailmentLabel, EvidencePassage, assess_claims_batch
+from app.claims.verifier import make_llm_assessor
+from app.claims.verifier_batch import make_llm_batch_assessor
 
 
 @pytest.fixture(autouse=True)
 def _disable_llm_response_cache() -> Any:
     """Force every call in this file to miss the engine's response cache.
 
-    ``claim_verifier_batch`` routes through ``call_llm_json`` with caching
+    ``claims.verifier_batch`` routes through ``call_llm_json`` with caching
     on, and several tests here reuse the exact same claims/passages with a
     *different* faked reply to prove a different code path. Without this,
     the second such test would silently replay the first test's cached
@@ -480,7 +480,7 @@ def test_batch_out_of_range_passage_number_is_dropped_and_logged(
     batch_assessor, assessor_id = make_llm_batch_assessor(
         "deepseek/deepseek-chat"
     )
-    with caplog.at_level(logging.WARNING, logger="app.claims_span"):
+    with caplog.at_level(logging.WARNING, logger="app.claims.span"):
         results = assess_claims_batch(
             ["Kinase X inhibition reduces tumor growth."],
             [_PASSAGE],

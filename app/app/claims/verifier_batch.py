@@ -1,6 +1,6 @@
 """Batched LLM entailment: judge a whole hypothesis's claims in one call.
 
-Split out of :mod:`app.claim_verifier` to keep that module within the
+Split out of :mod:`app.claims.verifier` to keep that module within the
 size budget. ``make_llm_assessor`` there judges one claim per call; this
 module's ``make_llm_batch_assessor`` is the same underlying judge asked
 to assess a whole group's (hypothesis's) claims at once -- see
@@ -18,10 +18,10 @@ must not echo input back" gotcha) -- an echoing schema would scale the
 reply with the pool and risk the same truncation that broke proximity
 dedup. Each verdict's own citations carry the same fix one level down:
 the judge cites a passage by the bracketed number EVIDENCE showed it,
-not by echoing its evidence id -- see :mod:`app.claim_verifier`'s
+not by echoing its evidence id -- see :mod:`app.claims.verifier`'s
 ``_CITATION_ITEM`` for why (production run bc77950f).
 
-Depends on :mod:`app.claim_verifier` for the citation-pair schema/coercion
+Depends on :mod:`app.claims.verifier` for the citation-pair schema/coercion
 and the evidence-rendering helper it shares with the single-claim path
 (one-directional: this module imports from there, never the reverse, so
 the two cannot form an import cycle).
@@ -46,18 +46,18 @@ from co_scientist.llm import (
 from co_scientist.schemas.builders import obj
 
 from app.async_bridge import run_coroutine_sync
-from app.claim_verifier import (
-    _CITATION_LIST,
-    _coerce_pairs,
-    _render_passages,
-)
-from app.claim_verifier_opposition import guard_contradictions
 from app.claims import (
     AssessorDraft,
     BatchAssessor,
     EntailmentLabel,
     EvidencePassage,
 )
+from app.claims.verifier import (
+    _CITATION_LIST,
+    _coerce_pairs,
+    _render_passages,
+)
+from app.claims.verifier_opposition import guard_contradictions
 
 logger = logging.getLogger(__name__)
 
@@ -157,7 +157,7 @@ def _batch_entailment_prompt(
 
     Evidence still precedes the variable part (now the whole claim list, not
     one claim) for the same provider-side prefix-caching reason
-    ``claim_verifier._entailment_prompt`` documents.
+    ``claims.verifier._entailment_prompt`` documents.
     """
     return (
         f"{_BATCH_SYSTEM_PROMPT}\n\n"
@@ -267,7 +267,7 @@ def _call_llm_batch_entailment(
 ) -> dict[str, Any] | None:
     """Call the batch entailment judge and return its parsed reply, or None.
 
-    Same failure contract as ``claim_verifier._call_llm_entailment``: a
+    Same failure contract as ``claims.verifier._call_llm_entailment``: a
     run's LLM-call budget being exhausted, or a platform-wide rate-limit
     park, propagates rather than falling back (see that function's
     docstring for why); any other provider/parse failure returns None so
@@ -296,7 +296,7 @@ def make_llm_batch_assessor(
     Judges an entire group's (hypothesis's) claims in one call instead of
     one call per claim -- see ``app.claims.assess_claims_batch`` and its
     module-level comment for why. This is an additional, swappable path
-    alongside ``claim_verifier.make_llm_assessor``, not a replacement of
+    alongside ``claims.verifier.make_llm_assessor``, not a replacement of
     it: callers that only have the per-claim ``Assessor`` protocol keep
     working unchanged.
 

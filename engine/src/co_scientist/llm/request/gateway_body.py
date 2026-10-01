@@ -141,7 +141,7 @@ def deepseek_thinking_extra_body(
     ``THINKING_FLOOR_MAX_TOKENS``. Non-DeepSeek models get an empty dict.
 
     Thinking is on for every node. ``enabled=False`` opts a call site out
-    of the reasoning spend -- ``app.claim_verifier``'s entailment judge is
+    of the reasoning spend -- ``app.claims.verifier``'s entailment judge is
     the one caller today, on a classification task a chain of thought
     does not earn its keep on. Whether the wire actually carries a
     disable is this function's decision, not the caller's: a declared

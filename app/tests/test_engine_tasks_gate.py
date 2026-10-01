@@ -11,14 +11,15 @@ from co_scientist.models import (
     Hypothesis,
 )
 
-from app import claim_grounding, engine_tasks
+from app import engine_tasks
 from app.claims import (
     AssessorDraft,
     ClaimAssessment,
     EntailmentLabel,
     deterministic_assessor,
 )
-from app.claims_gate import SupportSpan
+from app.claims import grounding as claim_grounding
+from app.claims.gate import SupportSpan
 from app.config import settings
 from app.engine_tasks.gate import (
     _apply_gate_verdict,
@@ -356,7 +357,7 @@ async def test_pre_ranking_gate_ignores_contradicted_go_no_go() -> None:
     anything even when the evidence disagrees with it outright.
 
     The final, report-facing grounding pass
-    (``claim_grounding_assess._CLAIM_FIELD_ROLES``) is a separate,
+    (``claims.grounding_assess._CLAIM_FIELD_ROLES``) is a separate,
     independent guarantee: it never reads ``experiment`` at all, so this
     threshold text never reaches a persisted ``claim_evidence`` row or the
     "Unverified" badge either. This test covers the one path that does read

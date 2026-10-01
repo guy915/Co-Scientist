@@ -5,7 +5,7 @@ size budget. Covers two things the sibling file does not: which
 hypotheses the gate skips assessing before spending a single provider
 call (unrankable-forever vs. its own reversible ``evidence_blocked``),
 and that its entailment calls -- now routed through the engine's
-``call_llm_json`` seam (``app.claim_verifier``) -- are visible to the
+``call_llm_json`` seam (``app.claims.verifier``) -- are visible to the
 run's LLM-call budget and telemetry the way any other engine call is.
 """
 
@@ -25,8 +25,8 @@ def _install_counting_assessor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> dict[str, int]:
     """Patch build_assessor with a call-counting deterministic assessor."""
-    from app import claim_grounding
     from app.claims import deterministic_assessor
+    from app.claims import grounding as claim_grounding
 
     calls = {"n": 0}
 

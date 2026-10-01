@@ -11,8 +11,8 @@ import pytest
 from co_scientist.cache import scoped_cache_override
 from litellm.exceptions import RateLimitError
 
-from app.claim_verifier import make_llm_assessor
 from app.claims import EntailmentLabel, EvidencePassage, assess_claim
+from app.claims.verifier import make_llm_assessor
 
 CLAIM = "Kinase X inhibition reduces tumor growth in AML cells."
 QUOTE = "Kinase X inhibition increased tumor growth threefold in AML cells."
@@ -117,8 +117,8 @@ def test_empty_verification_envelope_retries_before_confirming_opposition(
 def test_batch_verifies_multiple_oppositions_in_one_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from app.claim_verifier_batch import make_llm_batch_assessor
     from app.claims import assess_claims_batch
+    from app.claims.verifier_batch import make_llm_batch_assessor
 
     second_claim = "Drug A increases progression-free survival."
     second_quote = (
@@ -164,8 +164,8 @@ def test_batch_verifies_multiple_oppositions_in_one_request(
 def test_batch_short_verification_envelope_retries_before_confirming(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from app.claim_verifier_batch import make_llm_batch_assessor
     from app.claims import assess_claims_batch
+    from app.claims.verifier_batch import make_llm_batch_assessor
 
     second_claim = "Drug A increases progression-free survival."
     second_quote = (
@@ -294,8 +294,8 @@ def test_complete_invalid_batch_verification_envelopes_remain_rejected(
     monkeypatch: pytest.MonkeyPatch,
     verdicts: list[dict[str, Any]],
 ) -> None:
-    from app.claim_verifier_batch import make_llm_batch_assessor
     from app.claims import assess_claims_batch
+    from app.claims.verifier_batch import make_llm_batch_assessor
 
     second_claim = "Drug A increases progression-free survival."
     second_quote = (

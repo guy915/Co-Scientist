@@ -233,7 +233,7 @@ class Settings(BaseSettings):
 
     # Claim-grounding entailment assessor for the engine path:
     # "deterministic" (offline lexical + negation, no provider) or "llm" (the
-    # NLI assessor in claim_verifier.py, using claim_verifier_model). Offline
+    # NLI assessor in claims/verifier.py, using claim_verifier_model). Offline
     # tests explicitly select deterministic mode; production runs default to
     # semantic claim assessment.
     claim_assessor: str = "llm"

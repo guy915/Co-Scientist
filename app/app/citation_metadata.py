@@ -11,7 +11,7 @@ through :func:`assess_resolvability` (see
 bibliography classifies every rendered reference through
 :func:`classify_source_type` / :func:`classify_date`.
 
-Split out of :mod:`app.claims_gate`, which owned resolvability beside the
+Split out of :mod:`app.claims.gate`, which owned resolvability beside the
 entailment verdict and the publication gate -- three concerns, and the file
 was near its size budget. :mod:`app.claims` re-exports the public names
 callers use exactly as before.

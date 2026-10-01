@@ -15,7 +15,7 @@ import logging
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from app.claim_verdict import ClaimRole, is_speculative
+from app.claims.verdict import ClaimRole, is_speculative
 from app.config import settings
 from app.execution_policy import effective_execution_model
 
@@ -55,7 +55,7 @@ async def _assess_gate_claims(
     """Assess every pending hypothesis's claims in one bounded wave.
 
     The wave policy itself (flatten, bounded pool, regroup in order) is
-    ``claim_grounding.assess_claim_groups``, shared with the drain's
+    ``claims.grounding.assess_claim_groups``, shared with the drain's
     grounding pass so the two claim-assessment paths cannot drift.
 
     Args:
@@ -69,7 +69,7 @@ async def _assess_gate_claims(
         Per plan, its claim assessments in the plan's own claim order.
     """
     from app.async_bridge import run_off_loop
-    from app.claim_grounding import assess_claim_groups
+    from app.claims.grounding import assess_claim_groups
 
     call = functools.partial(
         assess_claim_groups,
@@ -175,7 +175,7 @@ def _per_claim_fingerprints(
     costs its own retrieval pass over the pool, so deriving one level from
     the other rather than recomputing matters at a few hundred claims.
     """
-    from app.claim_freshness import ClaimRecord, claim_fingerprint
+    from app.claims.freshness import ClaimRecord, claim_fingerprint
 
     return {
         claim: claim_fingerprint(
@@ -233,7 +233,7 @@ def _plan_hypothesis_gate(
         or hypothesis.review_disposition
         or "viable"
     )
-    from app.claim_freshness import combined_fingerprint
+    from app.claims.freshness import combined_fingerprint
 
     ordered_claims, claim_roles = _harvest_hypothesis_claims(hypothesis)
     claim_fingerprints = _per_claim_fingerprints(
@@ -397,7 +397,7 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
     """Quarantine ungrounded ideas before a decisive Elo tournament."""
     from co_scientist.llm import scoped_telemetry
 
-    from app.claim_grounding import (
+    from app.claims.grounding import (
         AssessorSpec,
         build_assessor,
         build_batch_assessor,
@@ -432,7 +432,7 @@ def _fold_gate_telemetry(
     """Fold this gate pass's LLM telemetry into the run's live metrics.
 
     Entailment calls now run through the engine's ``call_llm_json`` seam
-    (``app.claim_verifier``), so ``scoped_telemetry("claim_gate")`` above
+    (``app.claims.verifier``), so ``scoped_telemetry("claim_gate")`` above
     already captured their tokens/cost/call count -- this replaces the old
     call-count-only charge (``_charge_entailment_calls``), which existed
     only because those calls used to bypass the engine's telemetry

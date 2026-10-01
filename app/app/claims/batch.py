@@ -11,10 +11,10 @@ its text back (see the root AGENTS.md "Structured-output schemas must not
 echo input back" gotcha -- doing otherwise scales the reply with the pool
 and risks the same truncation that broke proximity dedup).
 
-Retrieval stays per claim and unchanged (``claims_assessor.retrieve_
+Retrieval stays per claim and unchanged (``claims.assessor.retrieve_
 passages``); only the judgement is batched. :mod:`app.claims` re-exports
 :func:`assess_claims_batch` and :data:`BatchAssessor`, since both are
-public API; this module depends on :mod:`app.claims_span` for span
+public API; this module depends on :mod:`app.claims.span` for span
 location and the anti-hallucination downgrade, never on :mod:`app.claims`
 itself, so the two cannot form an import cycle.
 """
@@ -25,15 +25,15 @@ from collections.abc import Callable, Sequence
 
 from co_scientist.llm import record_deterministic_fallback
 
-from app.claims_assessor import (
+from app.claims.assessor import (
     _DEFAULT_RETRIEVAL_TOP_K,
     AssessorDraft,
     EvidencePassage,
     deterministic_assessor,
     retrieve_passages,
 )
-from app.claims_gate import ClaimAssessment
-from app.claims_span import _downgrade_unproven_label, _locate_all
+from app.claims.gate import ClaimAssessment
+from app.claims.span import _downgrade_unproven_label, _locate_all
 
 # A batch assessor maps (claims, evidence pool) to one draft verdict per
 # claim, in the same order as ``claims`` -- ``None`` at a position means the

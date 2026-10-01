@@ -13,7 +13,7 @@ same rule, and the differences are deliberate:
   but is *not* excused by a speculative role in the unsupported-reasons check.
 
 This table was written against the sites' string comparisons and is kept
-unchanged across the refactor that moved them behind ``app.claim_verdict``;
+unchanged across the refactor that moved them behind ``app.claims.verdict``;
 a change to any cell is a change in published behavior.
 """
 
@@ -23,10 +23,10 @@ from typing import Any
 
 import pytest
 
-from app.claim_grounding import _has_supported_claim
-from app.claims_gate import ClaimAssessment, EntailmentLabel
-from app.claims_gate import _blocks_for_missing_support as blocks_for_missing
-from app.claims_span import _downgrade_unproven_label
+from app.claims.gate import ClaimAssessment, EntailmentLabel
+from app.claims.gate import _blocks_for_missing_support as blocks_for_missing
+from app.claims.grounding import _has_supported_claim
+from app.claims.span import _downgrade_unproven_label
 from app.knowledge_facts import derive_knowledge_facts
 from app.report import content as report_content
 from app.report import gates as report_gates

@@ -193,7 +193,7 @@ the app's *streaming* calls bypass that layer by invoking
 ``litellm.acompletion`` directly, so they need the floor applied at their
 own call sites. A one-shot call that parses JSON belongs on the engine's
 ``call_llm_json`` seam instead (see ``safety_semantic.py`` and
-``claim_verifier.py``), which applies this same floor on its own -- these
+``claims/verifier.py``), which applies this same floor on its own -- these
 functions are for the call sites that must stream and so cannot use it.
 
 A ceiling is not a spend -- raising it costs nothing on calls that answer

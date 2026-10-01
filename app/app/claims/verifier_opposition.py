@@ -29,15 +29,15 @@ from co_scientist.llm import (
 from co_scientist.schemas.builders import obj
 
 from app.async_bridge import run_coroutine_sync
-from app.claims_assessor import (
+from app.claims.assessor import (
     _MIN_CONTRADICTION_COVERAGE,
     AssessorDraft,
     EvidencePassage,
     _quote_negates_claim,
     _tokens,
 )
-from app.claims_gate import EntailmentLabel, SupportSpan
-from app.claims_span import _locate_all
+from app.claims.gate import EntailmentLabel, SupportSpan
+from app.claims.span import _locate_all
 
 logger = logging.getLogger(__name__)
 

@@ -1,18 +1,18 @@
 """The provider half of claim grounding: assessment, never persistence.
 
-Split out of :mod:`app.claim_grounding`, which had grown past the
+Split out of :mod:`app.claims.grounding`, which had grown past the
 module-size budget. Everything here is deliberately database-free. The
 assessor may be an LLM, and one synchronous call per claim used to run
 inside the drain's single write transaction -- so the process held
 SQLite's one write lock across minutes of provider I/O and every other
 writer starved. Keeping the assessment half in its own module makes that
 boundary a physical one: nothing in this file may open a connection, and
-``claim_grounding.persist_grounding`` is what callers run afterwards.
+``claims.grounding.persist_grounding`` is what callers run afterwards.
 
-:mod:`app.claim_grounding` imports these names back and re-exports the ones
+:mod:`app.claims.grounding` imports these names back and re-exports the ones
 callers use, so they remain importable (and monkeypatchable) from
-``app.claim_grounding`` exactly as before. This module deliberately does
-**not** import :mod:`app.claim_grounding` -- that would create an import
+``app.claims.grounding`` exactly as before. This module deliberately does
+**not** import :mod:`app.claims.grounding` -- that would create an import
 cycle, since the grounding wiring depends on the names defined here.
 """
 
@@ -23,7 +23,6 @@ from collections.abc import Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-from app.claim_verdict import ClaimRole
 from app.claims import (
     _ASSESSOR_DETERMINISTIC,
     Assessor,
@@ -35,6 +34,7 @@ from app.claims import (
     deterministic_assessor,
     extract_atomic_claims,
 )
+from app.claims.verdict import ClaimRole
 
 # How many claims are assessed at once. Sized against the provider, which
 # returns twenty-four concurrent completions in the same wall clock as four,
@@ -311,7 +311,7 @@ def _plan_claim_group(
     reuse: Mapping[str, Mapping[str, ClaimAssessment]],
 ) -> _ClaimGroupPlan:
     """Split one hypothesis's claims into reusable verdicts and pending work."""
-    from app.claim_freshness import ClaimRecord, claim_fingerprint
+    from app.claims.freshness import ClaimRecord, claim_fingerprint
 
     available = reuse.get(hypothesis_id) or {}
     reused: dict[str, ClaimAssessment] = {}

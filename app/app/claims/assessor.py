@@ -9,7 +9,7 @@ from ``app.claims`` exactly as before.
 
 The thresholds below are clone choices, not published Google parameters (SSR
 §12), and they govern the *deterministic fallback only* -- the real assessor
-(``app/claim_verifier.py``) decides support and partial support from meaning.
+(``app/claims/verifier.py``) decides support and partial support from meaning.
 """
 
 from __future__ import annotations
@@ -19,8 +19,8 @@ import functools
 import re
 from collections.abc import Callable, Sequence
 
-from app.claims_gate import EntailmentLabel
-from app.claims_retrieval_stopwords import RETRIEVAL_STOPWORDS
+from app.claims.gate import EntailmentLabel
+from app.claims.retrieval_stopwords import RETRIEVAL_STOPWORDS
 
 # --- Evidence passages ------------------------------------------------------
 
@@ -60,7 +60,7 @@ SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
 
 # Phrases that flip a passage's polarity toward contradiction. Deterministic
 # stand-in for an NLI contradiction signal; the real assessor is an LLM/NLI
-# model (see app/claim_verifier.py).
+# model (see app/claims/verifier.py).
 _CONTRADICTION_MARKERS = (
     "no evidence",
     "not associated",
@@ -219,7 +219,7 @@ def _lexical_score(claim: str, passage: str) -> float:
     Coverage (intersection over the *claim's* tokens), not Jaccard, for the
     same reason ``citations._token_overlap`` is: the two texts are
     deliberately asymmetric. A ``EvidencePassage`` is an evidence row's title
-    plus abstract (``claim_grounding.evidence_passages``) -- 1000-2000
+    plus abstract (``claims.grounding.evidence_passages``) -- 1000-2000
     characters, 70-170 concept tokens -- and a claim is one sentence, 8-28 of
     them. Jaccard divides by the union, which the longer side dominates, so
     the score cannot exceed ``len(claim) / len(claim | passage)`` however
@@ -246,7 +246,7 @@ def _lexical_score(claim: str, passage: str) -> float:
     a bag of words cannot tell a claim's subject from its assertion, so an
     abstract on the claim's topic that asserts something else scores as high
     as one that supports it. Discriminating those is the LLM entailment
-    assessor's job (``claim_verifier``); this scorer's job is only to stop
+    assessor's job (``claims.verifier``); this scorer's job is only to stop
     capping the states it is compared against.
     """
     a, b = _tokens(claim), _tokens(passage)
@@ -309,9 +309,9 @@ def _quote_negates_claim(claim: str, quote: str) -> bool:
     from :data:`_CONTRADICTION_MARKERS`.
 
     Markerless LLM contradictions need a separate semantic check in
-    ``claim_verifier_opposition``; this predicate stays conservative.
+    ``claims.verifier_opposition``; this predicate stays conservative.
 
-    Lives here rather than in ``claim_verifier`` (which called it on the
+    Lives here rather than in ``claims.verifier`` (which called it on the
     LLM judge's drafts alone) because the deterministic assessor below
     needs the same predicate -- see :func:`_contradicting_sentence`.
 

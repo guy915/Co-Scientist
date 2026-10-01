@@ -44,7 +44,7 @@ class EntailmentLabel(str, enum.Enum):
     def is_supporting(self) -> bool:
         """Whether this verdict counts as support: ``SUPPORTS`` or ``PARTIAL``.
 
-        The one definition of the rule; :mod:`app.claim_verdict` lifts it onto
+        The one definition of the rule; :mod:`app.claims.verdict` lifts it onto
         persisted claim-evidence edges.
         """
         return (

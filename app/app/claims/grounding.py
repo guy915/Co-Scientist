@@ -18,10 +18,10 @@ store-aware wiring the engine drain runs (SSR §6, §7; RGV §4, §5):
 The default assessor is deterministic so the pipeline runs offline; a real
 NLI/LLM entailment model is a swappable, provenance-tagged assessor.
 
-Step 2's assessment half lives in :mod:`app.claim_grounding_assess`, which
+Step 2's assessment half lives in :mod:`app.claims.grounding_assess`, which
 touches no database at all -- the module boundary is what keeps a provider
 call out of a write transaction. The names callers and tests still reach
-through ``app.claim_grounding`` are re-exported here, so it remains their
+through ``app.claims.grounding`` are re-exported here, so it remains their
 import and monkeypatch surface.
 """
 
@@ -34,16 +34,6 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from app import store
-from app.claim_grounding_assess import (
-    AssessorSpec as AssessorSpec,
-)
-from app.claim_grounding_assess import (
-    assess_claim_groups as assess_claim_groups,
-)
-from app.claim_grounding_assess import (
-    assess_hypothesis_claims as assess_hypothesis_claims,
-)
-from app.claim_verdict import is_speculative
 from app.claims import (
     _ASSESSOR_DETERMINISTIC,
     Assessor,
@@ -55,6 +45,16 @@ from app.claims import (
     deterministic_assessor,
     publication_gate,
 )
+from app.claims.grounding_assess import (
+    AssessorSpec as AssessorSpec,
+)
+from app.claims.grounding_assess import (
+    assess_claim_groups as assess_claim_groups,
+)
+from app.claims.grounding_assess import (
+    assess_hypothesis_claims as assess_hypothesis_claims,
+)
+from app.claims.verdict import is_speculative
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +86,7 @@ def build_assessor(mode: str, model: str) -> tuple[Assessor, str]:
     from app.engine_adapter.provider import offline_mode
 
     if mode == "llm" and not offline_mode():
-        from app.claim_verifier import make_llm_assessor
+        from app.claims.verifier import make_llm_assessor
 
         return make_llm_assessor(model)
     return deterministic_assessor, _ASSESSOR_DETERMINISTIC
@@ -116,7 +116,7 @@ def build_batch_assessor(
     from app.engine_adapter.provider import offline_mode
 
     if mode == "llm" and not offline_mode():
-        from app.claim_verifier_batch import make_llm_batch_assessor
+        from app.claims.verifier_batch import make_llm_batch_assessor
 
         batch_assessor, _ = make_llm_batch_assessor(
             model, call_counter=call_counter
@@ -299,7 +299,7 @@ def _has_supported_claim(
     """Whether any claim has a ``supports`` or ``partial`` verdict.
 
     The same rule the report's "Verified" count and "Unverified" badge use
-    (``claim_verdict.is_supporting``). The gate itself is
+    (``claims.verdict.is_supporting``). The gate itself is
     stricter -- it also fails a hypothesis that has support for some claims
     but not for a categorical one -- so a gate failure alone does not mean
     the idea is published unverified.

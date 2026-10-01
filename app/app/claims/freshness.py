@@ -35,8 +35,8 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from app.claims import retrieve_passages
-from app.claims_assessor import _DEFAULT_RETRIEVAL_TOP_K
-from app.claims_gate import ClaimAssessment, EntailmentLabel, SupportSpan
+from app.claims.assessor import _DEFAULT_RETRIEVAL_TOP_K
+from app.claims.gate import ClaimAssessment, EntailmentLabel, SupportSpan
 
 
 @dataclasses.dataclass(frozen=True)
