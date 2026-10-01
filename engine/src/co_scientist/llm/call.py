@@ -1,9 +1,11 @@
 """The ``call_llm`` and ``call_llm_json`` entry points.
 
 The raw one-attempt completion both are built on is ``llm.attempts.single``,
-the failure policy of their retry loops is ``llm.attempts.retry``, and
-``call_llm_with_tools`` lives in ``llm.tools.loop``. Outside the package, all
-three entry points are imported from ``co_scientist.llm``.
+the loop that retries it -- the rungs, the waits, what is never retried --
+is ``llm.attempts.retry.run_attempts``, and ``call_llm_with_tools`` lives in
+``llm.tools.loop``. Each entry point here only says how to make one attempt
+at a given rung (and, for JSON, how to judge the response); outside the
+package, all three are imported from ``co_scientist.llm``.
 """
 
 import dataclasses
@@ -13,28 +15,25 @@ from typing import Any, cast
 
 from co_scientist.cache import LLMCacheRequest
 from co_scientist.llm.admission.credentials import scoped_api_key
+from co_scientist.llm.attempts.contract import (
+    Attempt,
+    AttemptPlan,
+    Judge,
+    Rejected,
+)
 from co_scientist.llm.attempts.escalation import (
     BudgetEscalation,
     _JsonCallSpec,
     escalated_max_tokens,
     escalated_spec,
 )
-from co_scientist.llm.attempts.json_attempt import (
-    _JsonAttempt,
-    _JsonRetryContext,
-)
-from co_scientist.llm.attempts.retry import (
-    _apply_json_attempt_outcome,
-    _run_json_attempt,
-    escalation_after,
-)
+from co_scientist.llm.attempts.json_attempt import JsonJudge
+from co_scientist.llm.attempts.retry import run_attempts
 from co_scientist.llm.attempts.single import _call_llm_single_attempt
-from co_scientist.llm.attempts.text_retry import run_with_budget_escalation
 from co_scientist.llm.precall import _prepare_llm_call
 from co_scientist.llm.request.gateway_body import scoped_minimal_reasoning
 from co_scientist.llm.structured.errors import _handle_json_retries_exhausted
 from co_scientist.llm.structured.repair import extract_response_json
-from co_scientist.llm.telemetry import record_retry as _record_retry
 from co_scientist.llm.values import CompletionSpec, LLMCallOptions
 
 logger = logging.getLogger(__name__)
@@ -42,8 +41,8 @@ logger = logging.getLogger(__name__)
 
 def _call_for_attempt(
     prompt: str, spec: CompletionSpec, opt: LLMCallOptions, temperature: float
-) -> Callable[[BudgetEscalation], Awaitable[str]]:
-    """Builds the raw-call callable ``call_llm``'s retry loop injects.
+) -> Callable[[Attempt], Awaitable[str]]:
+    """Builds the attempt-maker ``call_llm`` hands the attempt loop.
 
     Mirrors ``_json_call_for_attempt``: caching and the outer failure log
     are off for every rung (the retry loop owns both -- a successful rung is
@@ -62,13 +61,14 @@ def _call_for_attempt(
         temperature: The clamped temperature to send on every attempt.
 
     Returns:
-        A callable taking one attempt's escalation rung.
+        A callable making one attempt at its rung.
     """
     inner_opt = LLMCallOptions(
         use_cache=False, enable_thinking=opt.enable_thinking, log_failures=False
     )
 
-    async def _attempt(escalation: BudgetEscalation) -> str:
+    async def _attempt(attempt: Attempt) -> str:
+        escalation = attempt.rung
         attempt_spec = dataclasses.replace(
             spec,
             temperature=temperature,
@@ -103,8 +103,8 @@ async def call_llm(
     ``llm.attempts.escalation.BudgetEscalation``) instead of failing on the
     first attempt. A direct caller such as the literature-review synthesis
     step used to get exactly one attempt and no way to recover from either
-    shape; see ``llm.attempts.text_retry.run_with_budget_escalation`` for the
-    loop.
+    shape; see ``llm.attempts.retry.run_attempts`` for the loop, which also
+    waits out a throttle or an outage and never retries a timeout.
 
     Args:
         prompt: The rendered prompt to send.
@@ -142,13 +142,12 @@ async def call_llm(
         if cached_response is not None:
             logger.debug("using cached llm response")
             return cast(str, cached_response["text"])
-        content = await run_with_budget_escalation(
+        content = await run_attempts(
             _call_for_attempt(prompt, spec, opt, request.temperature),
-            max_attempts,
-            spec.model_name,
+            AttemptPlan(spec.model_name, max_attempts),
         )
         # Cached under the caller's own unescalated request, exactly as
-        # call_llm_json caches under ctx.spec.max_tokens rather than
+        # call_llm_json caches under its spec's own max_tokens rather than
         # whatever rung finally answered -- otherwise a call that always
         # needs escalation would never populate the key its own next call
         # actually looks up under.
@@ -205,9 +204,9 @@ async def _call_llm_for_json(
 
 
 def _json_call_for_attempt(
-    json_spec: _JsonCallSpec, enable_thinking: bool
-) -> Callable[[str, BudgetEscalation], Awaitable[str]]:
-    """Builds the raw-call callable the retry loop injects into its context.
+    json_spec: _JsonCallSpec, enable_thinking: bool, judge: JsonJudge
+) -> Callable[[Attempt], Awaitable[str]]:
+    """Builds the attempt-maker ``call_llm_json`` hands the attempt loop.
 
     Defined here rather than in ``llm.attempts.retry`` so the inner call
     resolves ``_call_llm_for_json`` through this module's globals: that name
@@ -220,17 +219,18 @@ def _json_call_for_attempt(
         enable_thinking: Whether the caller asked for thinking at all; the
             top escalation rung turns it off regardless, and the recovery
             rung below that forces it back on at minimal effort.
+        judge: The call's judge, which says what prompt an attempt sends:
+            the original plus the validation feedback of the last rejected
+            response.
 
     Returns:
-        A callable taking one attempt's prompt and escalation rung.
+        A callable making one attempt at its rung.
     """
 
-    async def _call_for_json(
-        attempt_prompt: str, escalation: BudgetEscalation
-    ) -> str:
-        """Raw LLM call (via call_llm) for one attempt's prompt.
+    async def _call_for_json(attempt: Attempt) -> str:
+        """Raw LLM call (via call_llm) for one attempt.
 
-        ``escalation`` is the loop's answer to a previous attempt that
+        ``attempt.rung`` is the loop's answer to a previous attempt that
         came back with no answer: it raises this attempt's token budget,
         at ``NO_THINKING`` turns thinking off, and at
         ``MINIMAL_REASONING_REQUIRED`` -- a provider that rejected that
@@ -238,6 +238,8 @@ def _json_call_for_attempt(
         the smallest tier the gateway exposes rather than the literal
         rejected request.
         """
+        escalation = attempt.rung
+        attempt_prompt = judge.prompt_for(attempt)
         call_enable_thinking = (
             enable_thinking and escalation is not BudgetEscalation.NO_THINKING
         )
@@ -257,46 +259,28 @@ def _json_call_for_attempt(
     return _call_for_json
 
 
-async def _run_call_llm_json_loop(
-    prompt: str, ctx: _JsonRetryContext, max_attempts: int
-) -> dict[str, Any]:
-    """Runs the ``call_llm_json`` retry loop over successive attempts.
+def _json_judge(
+    judge: JsonJudge, max_attempts: int
+) -> Judge[str, dict[str, Any]]:
+    """The attempt loop's judge for ``call_llm_json``.
 
     Args:
-        prompt: The prompt for the first attempt; later attempts may carry
-            validation feedback appended to ``ctx.original_prompt``.
-        ctx: The retry-loop context shared by every attempt.
-        max_attempts: How many attempts the loop makes before giving up.
+        judge: Judges one response: parse, repair, validate, cache.
+        max_attempts: How many attempts the loop makes, for the error
+            raised when every one of them was rejected.
 
     Returns:
-        The validated JSON dict from whichever attempt succeeds first, or
-        ``_handle_json_retries_exhausted``'s result once every attempt fails.
+        A judge whose exhaustion resolves to the schema's fallback data
+        when it has one, and to the last validation or parse error when it
+        does not.
     """
-    last_error: Exception | None = None
-    last_response_text: str | None = None
-    escalation = BudgetEscalation.NONE
-    for number in range(1, max_attempts + 1):
-        if number > 1:
-            logger.debug(
-                "retrying llm call (attempt %s/%s)", number, max_attempts
-            )
-            _record_retry(ctx.spec.model_name)
-        outcome = await _run_json_attempt(
-            prompt,
-            ctx,
-            _JsonAttempt(number, number == max_attempts, escalation),
-        )
-        if outcome.value is not None:
-            return outcome.value
-        last_error = outcome.error
-        escalation = escalation_after(outcome, escalation, ctx.spec.model_name)
-        prompt, last_response_text = _apply_json_attempt_outcome(
-            outcome, prompt, last_response_text
+
+    def exhausted(last: Rejected) -> dict[str, Any]:
+        return _handle_json_retries_exhausted(
+            judge.spec.json_schema, last.error, last.response_text, max_attempts
         )
 
-    return _handle_json_retries_exhausted(
-        ctx.spec.json_schema, last_error, last_response_text, max_attempts
-    )
+    return Judge(judge.verdict, exhausted)
 
 
 async def call_llm_json(
@@ -316,7 +300,7 @@ async def call_llm_json(
             ``LLMCallOptions()``.
     """
     opt = options if options is not None else LLMCallOptions()
-    # The explicit spec key (when any) scopes over the whole retry loop,
+    # The explicit spec key (when any) scopes over the whole attempt loop,
     # so every attempt's inner call_llm resolves the same effective key
     # from the context without the credential entering _JsonCallSpec.
     with scoped_api_key(spec.api_key):
@@ -338,10 +322,9 @@ async def call_llm_json(
             spec.json_schema,
         )
 
-        ctx = _JsonRetryContext(
-            prompt,
-            json_spec,
-            cache,
-            _json_call_for_attempt(json_spec, opt.enable_thinking),
+        judge = JsonJudge(prompt, json_spec, cache)
+        return await run_attempts(
+            _json_call_for_attempt(json_spec, opt.enable_thinking, judge),
+            AttemptPlan(json_spec.model_name, max_attempts),
+            _json_judge(judge, max_attempts),
         )
-        return await _run_call_llm_json_loop(prompt, ctx, max_attempts)

@@ -124,7 +124,7 @@ def validate_json_schema(
     except ValidationError as e:
         # Debug, not warning: the only caller is the call_llm_json retry loop,
         # which warns about this same failure with the attempt number attached
-        # (llm.attempts.retry._json_validation_failure_outcome). Warning here
+        # (llm.attempts.json_attempt._validation_failure). Warning here
         # too put two rows in the log for one event, the first strictly less
         # informative than the second.
         logger.debug("JSON schema validation failed: %s", e.message)

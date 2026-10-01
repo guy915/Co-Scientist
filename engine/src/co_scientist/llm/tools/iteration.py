@@ -21,12 +21,12 @@ from co_scientist.exceptions import (
     LLMCallBudgetExceededError,
 )
 from co_scientist.llm.admission.credentials import current_api_key
+from co_scientist.llm.attempts.contract import Attempt, AttemptPlan
 from co_scientist.llm.attempts.escalation import (
     BudgetEscalation,
     escalated_max_tokens,
-    escalation_for_error,
-    log_escalation,
 )
+from co_scientist.llm.attempts.retry import run_attempts
 from co_scientist.llm.request.completion import (
     _acompletion_within_timeout,
     _apply_api_key,
@@ -170,29 +170,43 @@ async def _answered_completion(
     files or starting the same command again, and leaves the earlier
     assistant turn in the transcript with nothing answering its calls.
 
+    Two things this turn does not get are open product decisions, kept
+    exactly as they were rather than corrected (see
+    ``AttemptPlan.escalation_only`` for the first). It retries only where
+    a rung of the ladder answers the failure, so a 429, an outage or an
+    ordinary provider error ends the turn at once, unlike
+    ``call_llm_json``. And ``_build_tool_loop_completion_args`` maps a
+    rung to a request itself, knowing only the raised budget and the
+    thinking-off rung: at ``MINIMAL_REASONING_REQUIRED`` it resends the
+    same reasoning request at a raised budget, not the minimal-effort one
+    the other two entry points send.
+
     Returns:
         The (response, final_content) pair, where final_content is None
         when the model asked for tools instead of answering.
     """
-    escalation = BudgetEscalation.NONE
-    while True:
-        try:
-            response = await _acompletion_within_timeout(
-                _build_tool_loop_completion_args(messages, request, escalation),
-                request.model_name,
-            )
-            return response, _final_content(response, request.model_name)
-        except Exception as exc:
-            escalated = escalation_for_error(exc, escalation)
-            if escalated is None:
-                logger.error(
-                    "Error in LLM tool call loop (iteration %s): %s",
-                    iteration + 1,
-                    exc,
-                )
-                raise
-            log_escalation(exc, escalated, request.model_name)
-            escalation = escalated
+
+    async def make_attempt(attempt: Attempt) -> tuple[Any, str | None]:
+        response = await _acompletion_within_timeout(
+            _build_tool_loop_completion_args(messages, request, attempt.rung),
+            request.model_name,
+        )
+        return response, _final_content(response, request.model_name)
+
+    try:
+        return await run_attempts(
+            make_attempt, AttemptPlan.escalation_only(request.model_name)
+        )
+    except Exception as exc:
+        # Logged here, not in the loop: this is the layer that knows which
+        # turn of the tool loop failed, and the loop only re-raises a
+        # failure no rung answers.
+        logger.error(
+            "Error in LLM tool call loop (iteration %s): %s",
+            iteration + 1,
+            exc,
+        )
+        raise
 
 
 async def _run_tool_call_iteration(

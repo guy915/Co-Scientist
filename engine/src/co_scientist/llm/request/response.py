@@ -166,9 +166,9 @@ def _extract_completion_content(response: Any, model_name: str) -> str:
         # Logging it as well made one answerless completion write three
         # records saying the same sentence -- an export of a run that
         # recovered fine read as 27 errors and 29 warnings. The layer that
-        # knows whether a retry follows does the logging: llm.attempts.retry's
-        # retry loop, shared by call_llm_json and call_llm's own escalation
-        # loop alike (see llm.attempts.text_retry).
+        # knows whether a retry follows does the logging: the one attempt
+        # loop in llm.attempts.retry, shared by call_llm, call_llm_json and
+        # the tool turn.
         raise _empty_content_error(
             response, model_name, _empty_content_diagnosis(response)
         )

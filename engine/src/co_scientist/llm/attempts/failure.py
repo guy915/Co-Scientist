@@ -60,11 +60,11 @@ def _report_call_llm_failure(
 
     The log is conditional (``opt.log_failures``), because the raw call this
     guards is not the layer that knows whether a retry follows. Both
-    ``call_llm_json`` and ``call_llm``'s own escalation loop (see
-    ``llm.attempts.text_retry``) run this raw call once per attempt and say
+    ``call_llm_json`` and ``call_llm`` run this raw call once per attempt
+    under the one attempt loop (``llm.attempts.retry``), which says
     everything this warning would, plus the attempt number and whether the
     ladder gave up -- so both turn this off and log once per attempt in
-    their own retry loop (``llm.attempts.retry._handle_json_call_failure``)
+    that loop (``llm.attempts.retry._log_failure``)
     instead of once here per raw call on top of that. As a result nothing
     in this codebase sets ``log_failures=True`` today, and the warning here
     fires only for a caller of the raw single-attempt primitive

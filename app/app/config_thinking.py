@@ -164,8 +164,8 @@ def thinking_off_kwargs(model_name: str) -> dict[str, Any]:
     The rung a thinking-only turn is retried at: a streamed turn that
     reasoned and then wrote no answer at all is retried once with thinking
     off, mirroring the engine's own non-streaming ladder for
-    ``LLMThinkingOnlyError`` (``llm.attempts.retry.BudgetEscalation``) without
-    reimplementing it -- these app call sites make one request, not a
+    ``LLMThinkingOnlyError`` (``llm.attempts.escalation.BudgetEscalation``)
+    without reimplementing it -- these app call sites make one request, not a
     ladder of them, so one retry at this rung is the whole mechanism they
     need.
 

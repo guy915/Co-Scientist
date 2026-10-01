@@ -1,23 +1,51 @@
-"""How ``call_llm_json`` follows one attempt with the next.
+"""The one attempt loop: run attempts at escalating rungs.
 
-The retry policy lives here: whether a failure is terminal, whether it is
-the provider throttling (and how long to wait before the next attempt),
-and which rung of ``BudgetEscalation`` that attempt is made at. The
-mechanics of running a single attempt live in ``llm.attempts.json_attempt`` and
-the escalation ladder in ``llm.attempts.escalation``.
+Every LLM call that can be answered by sending something different or
+sending it again goes through ``run_attempts``: ``call_llm`` (no judge),
+``call_llm_json`` (a judge that parses, repairs and validates the response)
+and the tool turn of ``call_llm_with_tools`` (``AttemptPlan
+.escalation_only``). A caller supplies two things, in the vocabulary of
+``llm.attempts.contract``:
+
+* how to make one attempt at a given ``Attempt`` -- its rung of
+  ``BudgetEscalation`` and any retry feedback -- and
+* optionally a ``Judge`` of the response: ``Accepted``, or ``Rejected``
+  with feedback for the next attempt.
+
+This module owns everything else about what a failed attempt is answered
+with, so there is one place to read it and one place to change it:
+
+* the rung sequence (``llm.attempts.escalation`` defines the ladder; this
+  module climbs it, and keeps the current rung across a rejected response
+  because more tokens do not fix a wrong answer);
+* the failures that are never retried, because the identical request
+  cannot succeed (a timeout, an exceeded call ceiling, an oversized
+  prompt), and the free-model eligibility refusal, which is re-raised as
+  is;
+* the platform rate-limit park, which hands the task back to the worker
+  instead of spending attempts against a cap that has not reset;
+* the wait before retrying a throttle or an outage, on separate schedules
+  (``llm.attempts.backoff``), and the process-wide throttle counter;
+* retry telemetry and log severity: a failure another attempt will answer
+  is a warning, and only giving up is an error.
+
+Nothing else writes a failed attempt down. ``llm.request.response`` and
+the raw single-attempt call stay silent under this loop (see
+``LLMCallOptions.log_failures``), so the one line per attempt written here
+carries the call's own name and the budget it actually sent.
 """
 
 import asyncio
+import itertools
 import logging
-import time
-from datetime import datetime, timedelta, timezone
+from collections.abc import Awaitable, Callable, Iterable
+from typing import Any, Generic, cast, overload
 
 from litellm.exceptions import ContextWindowExceededError
 
 from co_scientist.exceptions import (
     FreeModelEligibilityError,
     LLMCallBudgetExceededError,
-    LLMRateLimitParkError,
     LLMTimeoutError,
     short_error_text,
 )
@@ -25,22 +53,29 @@ from co_scientist.llm.attempts.backoff import (
     _rate_limit_backoff_seconds,
     provider_outage_backoff_seconds,
 )
+from co_scientist.llm.attempts.contract import (
+    Accepted,
+    Attempt,
+    AttemptPlan,
+    Judge,
+    R,
+    Rejected,
+    T,
+)
 from co_scientist.llm.attempts.escalation import (
     BudgetEscalation,
     escalation_for_error,
     is_transient_provider_error,
     log_escalation,
 )
-from co_scientist.llm.attempts.json_attempt import (
-    _attempt_call_llm_json,
-    _JsonAttempt,
-    _JsonAttemptOutcome,
-    _JsonRetryContext,
+from co_scientist.llm.attempts.park import (
+    is_rate_limited,
+    platform_rate_limit_park,
 )
 from co_scientist.llm.request.thinking import failure_context_text
+from co_scientist.llm.telemetry import record_retry
 
 logger = logging.getLogger(__name__)
-
 
 # Count of throttled attempts observed in this process. Read by callers
 # that size their own fan-out (see agents/ranking/ranking_debate.py) so a
@@ -56,224 +91,48 @@ def rate_limited_attempt_count() -> int:
     return _rate_limited_attempts
 
 
-def _is_rate_limited(error: Exception) -> bool:
-    """Return whether a provider error is a throttling response.
-
-    Matched structurally (litellm raises ``RateLimitError`` for every
-    provider) with a message fallback, so a provider whose SDK surfaces the
-    condition as a generic error still backs off rather than hammering.
-    """
-    if type(error).__name__ == "RateLimitError":
-        return True
-    text = str(error).lower()
-    return "rate limit" in text or "ratelimit" in text
-
-
-# How long a wait must be before it is worth parking the whole task rather
-# than absorbing it inside this call with the ordinary backoff. A
-# per-minute platform cap (60s) and a short Retry-After both stay under
-# this and get an ordinary throttled retry, since the five-attempt budget
-# already covers waits that size; a per-day cap (hours) does not.
-_PLATFORM_PARK_THRESHOLD_SECONDS = 90.0
-
-# Conservative default for a per-minute cap (or an unqualified mention of
-# the free-model pool) named only in the message, with no header to size
-# the wait from -- long enough to clear a burst, and deliberately kept
-# under the park threshold above so it is absorbed by the ordinary backoff
-# rather than parking a task for a wait this short.
-_PER_MINUTE_DEFAULT_SECONDS = 60.0
+# The failures that are never retried: the identical request cannot
+# succeed, so a retry is one doomed call repeated by the attempt count.
+# A timeout: a provider that accepted the request and then stopped
+# answering will not answer it faster next time -- the unbounded stall the
+# timeout ceiling exists to prevent. An exceeded call ceiling: the run is
+# already over its ``max_llm_calls``, so another attempt only adds to the
+# overrun. An oversized prompt: a live run rejected single simulation
+# prompts of 1.18M to 1.65M tokens and re-sent them eleven times
+# unchanged, and nothing in a retry can shorten the caller's transcript --
+# raising hands it back to the one layer that can.
+_NEVER_RETRIED: tuple[tuple[type[Exception], str], ...] = (
+    (
+        LLMCallBudgetExceededError,
+        "LLM-call ceiling exceeded on attempt %s; not retrying",
+    ),
+    (LLMTimeoutError, "LLM call timed out on attempt %s; not retrying"),
+    (
+        ContextWindowExceededError,
+        "Prompt exceeded the model's context window on attempt %s;"
+        " not retrying, since the same prompt cannot fit on a retry",
+    ),
+)
 
 
-def _next_utc_midnight_epoch(now: float) -> float:
-    """Return the epoch-seconds instant of the next UTC midnight after now."""
-    current = datetime.fromtimestamp(now, tz=timezone.utc)
-    tomorrow = (current + timedelta(days=1)).replace(
-        hour=0, minute=0, second=0, microsecond=0
-    )
-    return tomorrow.timestamp()
-
-
-def _parse_float(value: str | None) -> float | None:
-    """Parse a header value as a float, or None if it is missing/unusable."""
-    if value is None:
-        return None
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _platform_reset_from_headers(
-    error: Exception, now: float
-) -> tuple[float, str] | None:
-    """Read a platform rate-limit reset instant off the error's response.
-
-    litellm's ``RateLimitError`` carries the original httpx response (when
-    the upstream call had one) as ``.response``, so headers are read from
-    there -- litellm surfaces no ``.headers`` shortcut of its own.
-    ``Retry-After`` is checked first (it names a wait relative to now),
-    then OpenRouter's ``X-RateLimit-Reset`` (an absolute epoch-millisecond
-    instant).
-    """
-    response = getattr(error, "response", None)
-    headers = getattr(response, "headers", None)
-    if not headers:
-        return None
-    retry_after = _parse_float(headers.get("retry-after"))
-    if retry_after is not None:
-        return now + retry_after, "retry_after_header"
-    reset_ms = _parse_float(headers.get("x-ratelimit-reset"))
-    if reset_ms is not None:
-        return reset_ms / 1000.0, "x_ratelimit_reset_header"
-    return None
-
-
-def _platform_reset_from_message(
-    error: Exception, now: float
-) -> tuple[float, str] | None:
-    """Fall back to matching OpenRouter's free-model cap wording.
-
-    Reached only when the response carried no usable header, so the wait
-    is a conservative default rather than an exact instant: a "per day"
-    mention parks until the next UTC reset, and a "per minute" mention (or
-    a bare mention of the free-models pool) waits long enough to clear a
-    burst without exceeding the park threshold above -- so it is absorbed
-    by the ordinary jittered backoff instead of parking the task. A
-    message naming neither a provider-cap nor a free-models phrase (e.g.
-    "rate-limited upstream") matches nothing here and keeps its ordinary
-    backoff.
-    """
-    # OpenRouter's own free-model cap message hyphenates ("free-models-
-    # per-day"); match both that and a plain-English "per day" so either
-    # phrasing is caught.
-    text = str(error).lower()
-    if "per day" in text or "per-day" in text:
-        return _next_utc_midnight_epoch(now), "message_per_day"
-    if "per minute" in text or "per-minute" in text or "free-models" in text:
-        return now + _PER_MINUTE_DEFAULT_SECONDS, "message_per_minute"
-    return None
-
-
-def _platform_rate_limit_park(
-    error: Exception,
-) -> LLMRateLimitParkError | None:
-    """Return a park error when this 429 is a platform cap worth parking for.
-
-    Only meaningful for an error ``_is_rate_limited`` already matched.
-    Headers are trusted before the message, since they name an exact
-    instant rather than a guess; whichever source resolves, a wait short
-    enough for the ordinary backoff to absorb returns ``None`` so the
-    caller retries as usual instead of parking a task over a few seconds.
-
-    Args:
-        error: The provider failure to classify.
-
-    Returns:
-        An ``LLMRateLimitParkError`` carrying the resume instant and why it
-        was classified as a platform cap, or ``None`` when this is an
-        ordinary throttle the in-call backoff should absorb.
-    """
-    now = time.time()
-    resolved = _platform_reset_from_headers(
-        error, now
-    ) or _platform_reset_from_message(error, now)
-    if resolved is None:
-        return None
-    resume_at, reason = resolved
-    if resume_at - now <= _PLATFORM_PARK_THRESHOLD_SECONDS:
-        return None
-    return LLMRateLimitParkError(resume_at=resume_at, reason=reason)
-
-
-def escalation_after(
-    outcome: _JsonAttemptOutcome,
-    current: BudgetEscalation,
-    model_name: str,
-) -> BudgetEscalation:
-    """The escalation the next attempt should use, given this one's outcome.
-
-    An answerless attempt escalates, and so does a provider's flat refusal
-    to honour disabled reasoning ("reasoning is mandatory... cannot be
-    disabled") -- see ``escalation_for_error`` for that case, which is
-    independent of the ladder below and always resolves to the same rung
-    regardless of where it was raised from. The other two kinds enter the
-    ladder at different points. Budget exhaustion climbs one rung, because
-    a chain of thought cut off at the ceiling may genuinely have been close
-    to finishing. A thinking-only response skips straight to the top:
-    the model *chose* to stop, so it did not want for room, and the
-    intermediate rung would spend a whole attempt proving that -- true
-    only because a completion the provider itself aborted mid-stream
-    (``finish_reason="error"``) never reaches this function as
-    ``LLMThinkingOnlyError`` in the first place (see
-    ``llm.request.response._empty_content_error``).
-
-    A schema failure, a parse failure or an ordinary provider error
-    (mid-stream provider failures included) all keep the current rung:
-    they say nothing about thinking, and changing the request would spend
-    more tokens on a problem tokens do not solve.
-
-    Args:
-        outcome: The outcome of the attempt that just ran.
-        current: The escalation that attempt was made at.
-        model_name: Model name in litellm format, needed to log what a
-            ``NO_THINKING`` rung actually sends this model (see
-            ``log_escalation``).
-
-    Returns:
-        The rung for the next attempt, or ``current`` unchanged.
-    """
-    escalated = escalation_for_error(outcome.error, current)
-    if escalated is None:
-        return current
-    log_escalation(outcome.error, escalated, model_name)
-    return escalated
-
-
-def _apply_json_attempt_outcome(
-    outcome: _JsonAttemptOutcome,
-    prompt: str,
-    last_response_text: str | None,
-) -> tuple[str, str | None]:
-    """Applies a non-terminal call_llm_json attempt outcome to loop state.
-
-    Args:
-        outcome: The outcome of the attempt that just ran (``value`` is
-            ``None``, i.e. the retry loop is continuing).
-        prompt: The prompt used for that attempt.
-        last_response_text: The most recent raw response text seen so far.
-
-    Returns:
-        The prompt and last_response_text to use for the next iteration.
-    """
-    if outcome.response_text is not None:
-        last_response_text = outcome.response_text
-    if outcome.next_prompt is not None:
-        prompt = outcome.next_prompt
-        logger.debug("added validation feedback to retry prompt")
-    return prompt, last_response_text
-
-
-def _raise_if_platform_rate_limit_park(
-    error: Exception, attempt: _JsonAttempt
-) -> None:
+def _raise_if_platform_cap(error: Exception, attempt: Attempt) -> None:
     """Raises ``LLMRateLimitParkError`` when this 429 is a platform cap.
 
-    Checked ahead of the ordinary logging/backoff in
-    ``_handle_json_call_failure``, and regardless of attempt number: a
-    platform-wide cap will not have reset by the next attempt (or the final
-    one), so there is nothing left in this call's own retry budget that
-    answers it. Raising here -- rather than returning an outcome the loop
-    backs off from -- means a caller with somewhere to park a unit of work
-    (the durable task worker) can do so without this call spending further
-    attempts against a cap that has not reset.
+    Checked ahead of the ordinary logging and backoff, and regardless of
+    attempt number: a platform-wide cap will not have reset by the next
+    attempt (or the final one), so there is nothing left in this call's own
+    retry budget that answers it. Raising -- rather than waiting -- means a
+    caller with somewhere to park a unit of work (the durable task worker)
+    can do so without this call spending further attempts against a cap
+    that has not reset.
 
     Args:
         error: The call failure raised by this attempt.
-        attempt: Which attempt of the retry loop this is.
+        attempt: Which attempt this is.
     """
-    if not _is_rate_limited(error):
+    if not is_rate_limited(error):
         return
-    park = _platform_rate_limit_park(error)
+    park = platform_rate_limit_park(error)
     if park is None:
         return
     logger.warning(
@@ -286,46 +145,41 @@ def _raise_if_platform_rate_limit_park(
     raise park
 
 
-async def _handle_json_call_failure(
-    error: Exception, attempt: _JsonAttempt
-) -> _JsonAttemptOutcome:
-    """Converts a non-timeout LLM call failure to an outcome.
-
-    Shared by both retry loops -- ``call_llm_json``'s own and ``call_llm``'s
-    escalation loop (see ``llm.attempts.text_retry``) -- so the two ladders
-    classify and log a failure identically and cannot drift apart.
-
-    Re-raises (via a bare ``raise``, so it must be called from within the
-    caller's own ``except`` block) on the final attempt. A throttled
-    failure, and any other failure the remote side is asking for time on
-    (see ``is_transient_provider_error``), waits out a jittered backoff
-    before returning the outcome, so the retry loop's next attempt goes
-    out already spaced from the condition that caused it.
+def _raise_if_unretryable(error: Exception, attempt: Attempt) -> None:
+    """Raises a failure that no further attempt can answer.
 
     Args:
         error: The call failure raised by this attempt.
-        attempt: Which attempt of the retry loop this is.
-
-    Returns:
-        An outcome carrying the error, for the retry loop to continue from.
+        attempt: Which attempt this is.
     """
+    for kind, line in _NEVER_RETRIED:
+        if isinstance(error, kind):
+            logger.error(line, attempt.number)
+            raise error
     if isinstance(error, FreeModelEligibilityError):
         raise error
-    _raise_if_platform_rate_limit_park(error, attempt)
-    # This is the one layer that knows whether the failure is terminal, so
-    # it is the one that decides the severity: an attempt another attempt
-    # will answer is a warning, and only giving up is an error. Logging
-    # every attempt at error made a run that recovered read as a broken one
-    # -- one recovered answerless completion produced four ERROR records.
-    #
-    # It is also the only layer that writes the record at all:
-    # llm.request.response and call_llm both stay silent under this loop (see
-    # LLMCallOptions.log_failures), so this one line carries what they used to
-    # report -- read off the error, which was annotated with the call's own name
-    # and the budget it actually sent rather than recomputed here. The name is
-    # what makes a count of these attributable: this loop is shared by every
-    # node, and a production export of fifteen answerless completions could only
-    # be narrowed to a budget constant that ten call sites share.
+    _raise_if_platform_cap(error, attempt)
+
+
+def _log_failure(error: Exception, attempt: Attempt) -> None:
+    """Writes down one failed attempt, at the severity its remedy earns.
+
+    This is the one layer that knows whether the failure is terminal, so it
+    is the one that decides: an attempt another attempt will answer is a
+    warning, and only giving up is an error. Logging every attempt at error
+    made a run that recovered read as a broken one -- one recovered
+    answerless completion produced four ERROR records.
+
+    The line reads off the error, which was annotated with the call's own
+    name and the budget it actually sent rather than recomputed here. The
+    name is what makes a count of these attributable: this loop is shared by
+    every node, and a production export of fifteen answerless completions
+    could only be narrowed to a budget constant that ten call sites share.
+
+    Args:
+        error: The call failure raised by this attempt.
+        attempt: Which attempt this is.
+    """
     log = logger.error if attempt.is_final else logger.warning
     log(
         "LLM call failed on attempt %s%s: %s",
@@ -333,15 +187,9 @@ async def _handle_json_call_failure(
         failure_context_text(error),
         short_error_text(error),
     )
-    if attempt.is_final:
-        raise
-    await _wait_before_retry(error, attempt)
-    return _JsonAttemptOutcome(
-        value=None, error=error, response_text=None, next_prompt=None
-    )
 
 
-async def _wait_before_retry(error: Exception, attempt: _JsonAttempt) -> None:
+async def _wait_before_retry(error: Exception, attempt: Attempt) -> None:
     """Space the next attempt out from the condition that caused this one.
 
     Two kinds are answered by waiting rather than by re-asking: throttling,
@@ -363,10 +211,10 @@ async def _wait_before_retry(error: Exception, attempt: _JsonAttempt) -> None:
 
     Args:
         error: The call failure raised by this attempt.
-        attempt: Which attempt of the retry loop this is.
+        attempt: Which attempt this is.
     """
     global _rate_limited_attempts
-    if _is_rate_limited(error):
+    if is_rate_limited(error):
         _rate_limited_attempts += 1
         reason = "Rate limited"
         delay = _rate_limit_backoff_seconds(attempt.number)
@@ -384,66 +232,196 @@ async def _wait_before_retry(error: Exception, attempt: _JsonAttempt) -> None:
     await asyncio.sleep(delay)
 
 
-async def _run_json_attempt(
-    prompt: str, ctx: _JsonRetryContext, attempt: _JsonAttempt
-) -> _JsonAttemptOutcome:
-    """Runs one call_llm_json attempt, converting a call failure to an outcome.
+async def _answer_call_failure(error: Exception, attempt: Attempt) -> None:
+    """Decides whether a failed call is retried, and spaces the retry out.
 
-    A genuine call failure (network, provider error, etc.) is surfaced to the
-    retry loop as an outcome carrying the error, except on the final attempt,
-    where it is re-raised so the caller's exception propagates unchanged.
-    Three failures are deliberately never retried, for the same reason: the
-    identical request cannot succeed, so retrying is one doomed call
-    repeated by the attempt count. ``LLMTimeoutError`` is one -- a provider
-    that accepted the request and then stopped answering will not answer
-    the same request faster next time, which is the unbounded stall the
-    timeout ceiling exists to prevent.
-
-    ``LLMCallBudgetExceededError`` is a third: the run has already spent
-    past its ``max_llm_calls`` ceiling, so another attempt only adds to
-    the overrun rather than answering anything, and every attempt after
-    the first would fail identically (the run is already over budget) --
-    exactly the "same doomed call billed again" the escalation ladder
-    exists to avoid for the other two shapes.
-
-    ``ContextWindowExceededError`` is the other, and it is the one this
-    repo has already been bitten by: a prompt too large for the model's
-    window is still too large on the next attempt. A live run rejected
-    single simulation prompts of 1.18M to 1.65M tokens and re-sent them
-    **eleven times unchanged**. AGENTS.md states the rule this restores --
-    "the retry has to change the request" -- and nothing here can change
-    this one, since the oversized prompt is the caller's whole transcript.
-    Raising hands it back to that caller, which is where a shorter
-    transcript could come from; the simulation loop degrades to mental
-    simulation on it, as it already did after five wasted attempts.
+    Returns only when another attempt follows; raises ``error`` (or the
+    park error that replaces it) otherwise.
 
     Args:
-        prompt: The prompt to send on this attempt.
-        ctx: The retry-loop context.
-        attempt: Which attempt of the retry loop this is.
+        error: The call failure raised by this attempt.
+        attempt: Which attempt this is.
+    """
+    _raise_if_unretryable(error, attempt)
+    _log_failure(error, attempt)
+    if attempt.is_final:
+        raise error
+    await _wait_before_retry(error, attempt)
+
+
+def _next_rung(
+    error: Exception, current: BudgetEscalation, model_name: str
+) -> BudgetEscalation | None:
+    """The rung that answers this failure, logged, or None when none does.
+
+    An answerless attempt escalates, and so does a provider's flat refusal
+    to honour disabled reasoning (see ``escalation_for_error``). A schema
+    failure, a parse failure or an ordinary provider error all say nothing
+    about thinking, and changing the request would spend more tokens on a
+    problem tokens do not solve.
+
+    Args:
+        error: Why the attempt failed or was rejected.
+        current: The rung that attempt was made at.
+        model_name: Model name in litellm format, needed to log what a
+            ``NO_THINKING`` rung actually sends this model.
 
     Returns:
-        The outcome telling the retry loop how to continue.
+        The rung for the next attempt, or None.
     """
-    try:
-        return await _attempt_call_llm_json(prompt, ctx, attempt)
-    except LLMCallBudgetExceededError:
-        logger.error(
-            "LLM-call ceiling exceeded on attempt %s; not retrying",
-            attempt.number,
+    escalated = escalation_for_error(error, current)
+    if escalated is not None:
+        log_escalation(error, escalated, model_name)
+    return escalated
+
+
+def _numbers(plan: AttemptPlan) -> Iterable[int]:
+    """The attempt numbers a plan allows; unbounded for escalation-only."""
+    if plan.max_attempts is None:
+        return itertools.count(1)
+    return range(1, plan.max_attempts + 1)
+
+
+class _AttemptRun(Generic[R, T]):
+    """The state of one ``run_attempts`` call, which no caller sees.
+
+    Holds what carries from one attempt to the next: the current rung, the
+    latest feedback, and the last response and rejection, for a judge
+    whose attempts all fail.
+    """
+
+    def __init__(
+        self,
+        make_attempt: Callable[[Attempt], Awaitable[R]],
+        plan: AttemptPlan,
+        judge: Judge[R, T] | None,
+    ) -> None:
+        self._make_attempt = make_attempt
+        self._plan = plan
+        self._judge = judge
+        self._rung = BudgetEscalation.NONE
+        self._feedback: str | None = None
+        self._response_text: str | None = None
+        self._last: Rejected | None = None
+
+    async def run(self) -> T:
+        """Makes attempts until one is accepted or none is left."""
+        for number in _numbers(self._plan):
+            self._announce(number)
+            attempt = Attempt(
+                number,
+                number == self._plan.max_attempts,
+                self._rung,
+                self._feedback,
+            )
+            verdict = await self._attempt_once(attempt)
+            if isinstance(verdict, Accepted):
+                return verdict.value
+            self._absorb(verdict)
+        return self._exhausted()
+
+    def _announce(self, number: int) -> None:
+        """Counts a retry; an escalation-only plan records none."""
+        if number == 1 or self._plan.is_escalation_only:
+            return
+        logger.debug(
+            "retrying llm call (attempt %s/%s)",
+            number,
+            self._plan.max_attempts,
         )
-        raise
-    except LLMTimeoutError:
-        logger.error(
-            "LLM call timed out on attempt %s; not retrying", attempt.number
-        )
-        raise
-    except ContextWindowExceededError:
-        logger.error(
-            "Prompt exceeded the model's context window on attempt %s;"
-            " not retrying, since the same prompt cannot fit on a retry",
-            attempt.number,
-        )
-        raise
-    except Exception as e:
-        return await _handle_json_call_failure(e, attempt)
+        record_retry(self._plan.model_name)
+
+    async def _attempt_once(self, attempt: Attempt) -> Accepted[T] | Rejected:
+        """Makes and judges one attempt, answering a call failure.
+
+        A failure while making or judging the response is classified here;
+        one that no further attempt can answer is raised.
+        """
+        try:
+            response = await self._make_attempt(attempt)
+            return self._judge_response(response, attempt)
+        except Exception as error:
+            if not self._plan.is_escalation_only:
+                await _answer_call_failure(error, attempt)
+            return Rejected(error)
+
+    def _judge_response(
+        self, response: R, attempt: Attempt
+    ) -> Accepted[T] | Rejected:
+        """Judges a response; with no judge, any response is the answer."""
+        if self._judge is None:
+            return Accepted(cast(T, response))
+        return self._judge.verdict(response, attempt)
+
+    def _absorb(self, rejected: Rejected) -> None:
+        """Carries a rejected attempt's lessons into the next one."""
+        self._climb(rejected.error)
+        if rejected.response_text is not None:
+            self._response_text = rejected.response_text
+        if rejected.feedback is not None:
+            self._feedback = rejected.feedback
+            logger.debug("added validation feedback to retry prompt")
+        self._last = rejected
+
+    def _climb(self, error: Exception) -> None:
+        """Moves to the rung that answers ``error``, if there is one.
+
+        An escalation-only plan has nothing else to do with a failure no
+        rung answers, so it raises it.
+        """
+        rung = _next_rung(error, self._rung, self._plan.model_name)
+        if rung is not None:
+            self._rung = rung
+        elif self._plan.is_escalation_only:
+            raise error
+
+    def _exhausted(self) -> T:
+        """Hands a judge the last rejection once every attempt is spent."""
+        if self._judge is None:
+            raise AssertionError(
+                "unreachable: a final attempt's failure always re-raises"
+            )
+        # ``max_attempts < 1`` makes no attempt and so rejects nothing.
+        last = self._last or Rejected(ValueError("no attempt was made"))
+        return self._judge.exhausted(Rejected(last.error, self._response_text))
+
+
+@overload
+async def run_attempts(
+    make_attempt: Callable[[Attempt], Awaitable[R]], plan: AttemptPlan
+) -> R: ...
+
+
+@overload
+async def run_attempts(
+    make_attempt: Callable[[Attempt], Awaitable[R]],
+    plan: AttemptPlan,
+    judge: Judge[R, T],
+) -> T: ...
+
+
+async def run_attempts(
+    make_attempt: Callable[[Attempt], Awaitable[Any]],
+    plan: AttemptPlan,
+    judge: Judge[Any, Any] | None = None,
+) -> Any:
+    """Runs attempts at escalating rungs until one is accepted.
+
+    Args:
+        make_attempt: Makes one attempt for the ``Attempt`` it is given and
+            returns its response. It must not retry or log a failure: a
+            failure is raised, and this loop decides what follows.
+        plan: How many attempts, and how a failure is answered.
+        judge: How to judge a response, or None to accept the first one
+            that arrives.
+
+    Returns:
+        The response of the first attempt that is accepted, or whatever
+        ``judge.exhausted`` returns once every attempt was rejected.
+
+    Raises:
+        Exception: The failure of the final attempt, or at once the failure
+            of an attempt that cannot be retried (see ``_NEVER_RETRIED``,
+            ``LLMRateLimitParkError`` and ``FreeModelEligibilityError``).
+    """
+    return await _AttemptRun(make_attempt, plan, judge).run()

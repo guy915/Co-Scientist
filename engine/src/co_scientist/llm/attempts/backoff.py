@@ -1,4 +1,4 @@
-"""How long the LLM retry loops wait before re-issuing a pushed-back call.
+"""How long the LLM attempt loop waits before re-issuing a pushed-back call.
 
 Two conditions are answered by waiting rather than by re-asking, and they
 clear on very different scales: a throttle is a burst that passes in

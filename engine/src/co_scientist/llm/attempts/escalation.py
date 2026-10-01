@@ -1,9 +1,11 @@
-"""Budget escalation for the ``call_llm_json`` retry loop.
+"""Budget escalation for the one LLM attempt loop.
 
 What a retry *changes about the request* after an attempt came back with
-no answer: the ladder of rungs, and the call spec each rung sends. Which
-failures escalate, and how far, is the retry loop's own decision and stays
-in ``llm.attempts.retry``.
+no answer: the ladder of rungs, which failure enters it where
+(``escalation_for_error``), and the call spec each rung sends. Climbing it
+-- keeping the rung across a failure it does not answer, ending an
+escalation-only plan when no rung does -- is the attempt loop's own and
+lives in ``llm.attempts.retry``.
 """
 
 import dataclasses
@@ -150,7 +152,7 @@ def is_transient_provider_error(error: BaseException | None) -> bool:
     the mid-stream one and would otherwise match its text.
 
     A rate-limited failure is not classified here at all -- it is claimed
-    by ``llm.attempts.retry._is_rate_limited`` first, which already backs off
+    by ``llm.attempts.park.is_rate_limited`` first, which already backs off
     (and may park the task). That also covers a routes-exhausted body
     whose ``previous_errors`` name a 429.
 
@@ -189,7 +191,7 @@ def _has_transient_message(error: BaseException) -> bool:
 def _is_reasoning_mandatory_error(error: BaseException | None) -> bool:
     """Whether this failure is a provider's flat refusal to disable reasoning.
 
-    Matched by substring, the same way ``llm.attempts.retry._is_rate_limited``
+    Matched by substring, the same way ``llm.attempts.park.is_rate_limited``
     matches a 429 -- litellm raises a generic ``BadRequestError`` for
     every provider's 400, so the message is the only structured signal
     this failure carries. Observed verbatim from OpenRouter for

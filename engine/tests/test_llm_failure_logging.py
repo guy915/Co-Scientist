@@ -248,11 +248,10 @@ async def test_a_direct_call_llm_failure_logs_once_per_attempt(
     """Silencing the raw call layer under the retry loop must not silence it.
 
     ``debate`` and the literature-review synthesis call ``call_llm``
-    directly, and ``call_llm`` now carries its own budget-escalation retry
-    loop (see ``llm.attempts.text_retry``) built on the same failure-logging
-    pieces ``call_llm_json`` uses -- so a repeated failure logs once per
-    attempt, not once per underlying raw call PLUS once per attempt, and the raw
-    call layer itself
+    directly, and ``call_llm`` runs on the same attempt loop
+    (``llm.attempts.retry``) as ``call_llm_json`` -- so a repeated failure
+    logs once per attempt, not once per underlying raw call PLUS once per
+    attempt, and the raw call layer itself
     (``co_scientist.llm``/``co_scientist.llm.attempts.single``) stays silent
     under it exactly as it does under ``call_llm_json``.
     """

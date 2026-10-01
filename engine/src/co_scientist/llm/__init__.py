@@ -23,7 +23,8 @@ layers before it in this list, at the module that defines the name
   arguments, timeout ceiling, response format, thinking, gateway routing).
 * ``precall``: the prompt-save, temperature clamp and cache lookup every
   entry point runs first.
-* ``attempts``: one attempt, and the retry loops built on it.
+* ``attempts``: one attempt, and the one loop that retries it
+  (``attempts.retry.run_attempts``).
 * ``tools``: the tool-calling loop.
 * ``call``: ``call_llm`` and ``call_llm_json``.
 

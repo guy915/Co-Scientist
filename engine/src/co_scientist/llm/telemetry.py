@@ -4,9 +4,9 @@ Every ``litellm.acompletion`` call funnels through
 ``llm.request.completion._acompletion_within_timeout`` (see that module's
 docstring), so that is the single point recording one physical call's tokens,
 latency, and outcome; cache hits/misses are recorded in ``llm.precall`` where
-the cache lookup itself happens, and retries of ``call_llm_json``'s
-schema-repair loop and ``call_llm``'s own budget-escalation loop (see
-``llm.attempts.text_retry``) are both recorded here via ``record_retry``.
+the cache lookup itself happens, and retries made by the one attempt loop
+(``llm.attempts.retry``, for ``call_llm`` and ``call_llm_json``) are
+recorded here via ``record_retry``.
 
 Nothing here writes to a database or a persisted log. AGENTS.md records a
 production incident where a per-call write did exactly that: LiteLLM's own
@@ -362,8 +362,9 @@ def record_completion_failure(
 def record_retry(model_name: str) -> None:
     """Record one retry of an LLM retry loop.
 
-    Called from both ``call_llm_json``'s schema-repair loop and
-    ``call_llm``'s own budget-escalation loop (see ``llm.attempts.text_retry``).
+    Called by the one attempt loop (``llm.attempts.retry``) before every
+    attempt after the first, for ``call_llm`` and ``call_llm_json``. A tool
+    turn's escalation-only plan records none.
     """
     record_call(model_name, ModelCallStats(retries=1))
 

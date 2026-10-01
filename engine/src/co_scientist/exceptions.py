@@ -39,11 +39,11 @@ class ResponseParseError(CoScientistError):
 
 # Raised by call_llm when a provider accepts a request and then never
 # answers. Distinct from a generic call failure because it is deliberately
-# not retried: both retry loops built on the escalation ladder re-raise it
-# immediately (see llm.attempts.retry._run_json_attempt and its plain-text
-# counterpart llm.attempts.text_retry._run_text_attempt), since a provider that
-# has stopped responding will not answer a second identical request any sooner,
-# and retrying multiplies one stalled call by the attempt count.
+# not retried: the one attempt loop (llm.attempts.retry.run_attempts, which
+# call_llm and call_llm_json both run on) re-raises it immediately, since a
+# provider that has stopped responding will not answer a second identical
+# request any sooner, and retrying multiplies one stalled call by the attempt
+# count.
 class LLMTimeoutError(CoScientistError):
     """An LLM call timed out, possibly after the provider accepted it.
 
@@ -67,8 +67,8 @@ class LLMTimeoutError(CoScientistError):
 # answer is deterministic rather than incidental: the same request repeated
 # at the same budget reasons its way into the same wall, so the retry loop
 # answers it by changing the budget instead (see
-# llm.attempts.retry.BudgetEscalation, shared by call_llm_json and call_llm's
-# own escalation loop in llm.attempts.text_retry alike).
+# llm.attempts.escalation.BudgetEscalation, climbed by the one attempt loop in
+# llm.attempts.retry for call_llm, call_llm_json and the tool turn alike).
 #
 # Also a ValueError: an empty completion has raised one from
 # _extract_completion_content since before this subclass existed, and
@@ -86,8 +86,8 @@ class LLMBudgetExhaustedError(CoScientistError, ValueError):
 # bigger allowance is not the remedy: production saw a call reason for 1149
 # tokens against an 18000 budget and return empty, then do the same on attempts
 # 2 and 3, so a plain retry is not the remedy either. The retry loop answers it
-# by turning thinking off (see llm.attempts.retry.BudgetEscalation and
-# llm.attempts.text_retry, which both climb this same ladder).
+# by turning thinking off (see llm.attempts.escalation.BudgetEscalation, which
+# llm.attempts.retry climbs for every entry point).
 #
 # Also a ValueError, for the same reason LLMBudgetExhaustedError is.
 class LLMThinkingOnlyError(CoScientistError, ValueError):
@@ -128,8 +128,8 @@ class LLMCallBudgetExceededError(CoScientistError):
         )
 
 
-# Raised by the retry loops (llm.attempts.retry/llm.attempts.text_retry, which
-# share this classification) when a 429 carries evidence of a platform-wide cap
+# Raised by the attempt loop (llm.attempts.retry, for call_llm and
+# call_llm_json) when a 429 carries evidence of a platform-wide cap
 # -- OpenRouter's free-model per-minute/per-day ceiling, not the ordinary
 # transient upstream-provider throttle the jittered backoff already absorbs --
 # whose reset is too far away for that backoff to wait out. A cap that resets in
@@ -153,7 +153,7 @@ class LLMRateLimitParkError(CoScientistError):
             resume_at: Epoch seconds when the platform cap is expected to
                 reset -- from a response header when one was usable,
                 otherwise a conservative default (see
-                ``llm.attempts.retry._platform_rate_limit_park``).
+                ``llm.attempts.park.platform_rate_limit_park``).
             reason: Short machine-readable tag for what was matched (e.g.
                 ``"x_ratelimit_reset_header"``, ``"message_per_day"``),
                 carried through to the parked task's attempt history.
