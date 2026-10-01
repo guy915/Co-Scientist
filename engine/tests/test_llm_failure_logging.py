@@ -19,6 +19,7 @@ from typing import Any
 import pytest
 
 from co_scientist.llm import CompletionSpec, call_llm_json
+from tests._llm_backend_fake import install_fake_backend
 from tests._llm_fake import disable_llm_cache as _disable_cache
 from tests._llm_wrapper_fakes import (
     make_completion as _completion,
@@ -70,7 +71,7 @@ def _serve(monkeypatch: pytest.MonkeyPatch, responses: list[Any]) -> None:
             raise item
         return item
 
-    monkeypatch.setattr("co_scientist.llm.litellm.acompletion", fake)
+    install_fake_backend(monkeypatch, fake)
 
 
 async def test_a_recovered_call_logs_no_errors(

@@ -12,6 +12,7 @@ from typing import Any
 
 import pytest
 
+from tests._llm_backend_fake import install_fake_backend
 from tests._llm_fake import disable_llm_cache as _disable_cache
 from tests._llm_wrapper_fakes import (
     make_completion as _completion,
@@ -199,8 +200,6 @@ async def test_ranking_matchup_thinks(
     run's highest-volume call, so a silent regression to a non-thinking
     judge would be a large quality change with no other symptom.
     """
-    import litellm
-
     from co_scientist.agents.ranking.ranking import (
         _call_matchup_judge,
         _DebateContext,
@@ -214,7 +213,7 @@ async def test_ranking_matchup_thinks(
         seen.update(kwargs)
         return _completion(_message('{"winner": "A"}'))
 
-    monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
+    install_fake_backend(monkeypatch, fake_acompletion)
     _disable_cache(monkeypatch)
 
     mp = _MatchupPrompt("compare A and B", None, None, None)

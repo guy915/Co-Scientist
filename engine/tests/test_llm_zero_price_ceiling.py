@@ -16,6 +16,7 @@ from co_scientist.llm import (
     call_llm_json,
     call_llm_with_tools,
 )
+from tests._llm_backend_fake import install_fake_backend
 from tests._llm_wrapper_fakes import (
     SEARCH_TOOL,
     make_completion,
@@ -115,7 +116,7 @@ async def test_explicit_paid_byok_keeps_its_priced_route(
             choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))]
         )
 
-    monkeypatch.setattr("litellm.acompletion", completion)
+    install_fake_backend(monkeypatch, completion)
     await call_llm(
         "BYOK probe",
         CompletionSpec(

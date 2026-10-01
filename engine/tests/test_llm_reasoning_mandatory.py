@@ -20,6 +20,7 @@ import pytest
 
 from co_scientist.constants import THINKING_FLOOR_MAX_TOKENS
 from co_scientist.llm import CompletionSpec, LLMCallOptions, call_llm_json
+from tests._llm_backend_fake import install_fake_backend
 from tests._llm_fake import disable_llm_cache as _disable_cache
 from tests._llm_wrapper_fakes import (
     make_completion as _completion,
@@ -84,9 +85,7 @@ async def test_a_mandatory_reasoning_refusal_recovers_on_the_next_attempt(
             raise _reasoning_mandatory_error()
         return _completion(_message('{"a": 1}'))
 
-    monkeypatch.setattr(
-        "co_scientist.llm.litellm.acompletion", fake_acompletion
-    )
+    install_fake_backend(monkeypatch, fake_acompletion)
 
     result = await call_llm_json(
         "a prompt",
@@ -128,9 +127,7 @@ async def test_a_second_mandatory_reasoning_refusal_still_terminates(
         calls.append(kwargs)
         raise _reasoning_mandatory_error()
 
-    monkeypatch.setattr(
-        "co_scientist.llm.litellm.acompletion", fake_acompletion
-    )
+    install_fake_backend(monkeypatch, fake_acompletion)
 
     from litellm.exceptions import BadRequestError
 
@@ -193,9 +190,7 @@ async def test_a_declared_mandatory_reasoning_model_caps_its_reasoning(
         calls.append(kwargs)
         return _completion(_message('{"a": 1}'))
 
-    monkeypatch.setattr(
-        "co_scientist.llm.litellm.acompletion", fake_acompletion
-    )
+    install_fake_backend(monkeypatch, fake_acompletion)
 
     result = await call_llm_json(
         "a prompt",
@@ -243,9 +238,7 @@ async def test_the_ladder_still_terminates_when_the_cap_is_ignored(
             finish_reason="length",
         )
 
-    monkeypatch.setattr(
-        "co_scientist.llm.litellm.acompletion", fake_acompletion
-    )
+    install_fake_backend(monkeypatch, fake_acompletion)
 
     with pytest.raises(LLMBudgetExhaustedError):
         await call_llm_json(
@@ -297,9 +290,7 @@ async def test_a_rejected_reasoning_cap_falls_back_to_the_tier(
             )
         return _completion(_message('{"a": 1}'))
 
-    monkeypatch.setattr(
-        "co_scientist.llm.litellm.acompletion", fake_acompletion
-    )
+    install_fake_backend(monkeypatch, fake_acompletion)
 
     result = await call_llm_json(
         "a prompt",
