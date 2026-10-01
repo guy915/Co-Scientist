@@ -42,6 +42,7 @@ from co_scientist.llm import (
     rate_limited_attempt_count,
     scoped_telemetry,
 )
+from tests._llm_backend_fake import install_fake_backend
 from tests._llm_fake import disable_llm_cache
 from tests._llm_wrapper_fakes import SEARCH_TOOL
 from tests._llm_wrapper_fakes import make_completion as _completion
@@ -216,9 +217,8 @@ class Driver:
         async def sleep(seconds: float) -> None:
             slept.append(seconds)
 
-        patch = self._monkeypatch.setattr
-        patch("co_scientist.llm.litellm.acompletion", provider)
-        patch(asyncio, "sleep", sleep)
+        install_fake_backend(self._monkeypatch, provider)
+        self._monkeypatch.setattr(asyncio, "sleep", sleep)
         throttled_before = rate_limited_attempt_count()
         error: Exception | None = None
         result: Any = None
