@@ -126,9 +126,9 @@ search that surfaced it. The app writes both: `retrieval_calls` rows and the
 `evidence.retrieval_call_id` that resolves to them, so a run can say which
 query found a piece of evidence and which question that query was serving.
 Note the channel is a *list* with an accumulating reducer
-(`state_reducers.accumulate_research_ledgers`, mirrored in
-`task_runtime._CHANNEL_REDUCERS` -- a reducer missing from that table falls
-through to last-write-wins in silence on the durable path). Research has two
+(`state_reducers.accumulate_research_ledgers`; the durable path reads it
+off the same annotation through `task_runtime.channel_reducers`, so an
+annotated channel cannot fall through to last-write-wins there). Research has two
 owners, and under a single-ledger channel whichever ran last was the only one
 on record.
 

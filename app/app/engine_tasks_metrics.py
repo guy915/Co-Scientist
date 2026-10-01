@@ -23,7 +23,7 @@ def _performance_assessment(state: dict[str, Any]) -> dict[str, Any] | None:
     Written once, during planning, into
     ``state["supervisor_guidance"]["performance_assessment"]``;
     ``supervisor_guidance`` carries no reducer (see
-    ``task_runtime._CHANNEL_REDUCERS``) so it is last-write-wins and no
+    ``task_runtime.channel_reducers``) so it is last-write-wins and no
     later node touches it, meaning it stays present in state for the rest
     of the run once planning has committed. Finding F5: this was computed
     and never read by anything -- persisting it here makes it inspectable

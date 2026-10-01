@@ -10,9 +10,7 @@ state semantics.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import Any, cast
-
-from langgraph.graph import add_messages
+from typing import Annotated, Any, get_args, get_origin, get_type_hints
 
 from co_scientist.agents import NODE_REGISTRY
 from co_scientist.generator.graph import (
@@ -24,12 +22,7 @@ from co_scientist.generator.graph import (
 from co_scientist.generator.graph import _route_next_task
 from co_scientist.llm_telemetry import scoped_telemetry
 from co_scientist.models import create_metrics_update, merge_metrics
-from co_scientist.state import (
-    WorkflowState,
-    accumulate_matchups,
-    deduplicate_hypotheses,
-)
-from co_scientist.state_reducers import accumulate_research_ledgers
+from co_scientist.state import WorkflowState
 
 TaskNode = Callable[[WorkflowState], Awaitable[dict[str, Any]]]
 
@@ -40,21 +33,20 @@ TASK_NODES: dict[str, TaskNode] = {
 }
 
 
+Reducer = Callable[[Any, Any], Any]
+
+
 def apply_task_update(
     state: WorkflowState, update: dict[str, Any]
 ) -> WorkflowState:
     """Apply one node result with the reducers declared by WorkflowState.
 
-    This is a hand-written mirror of the ``Annotated[T, reducer]`` channels
-    on ``WorkflowState``, not a reading of them: the durable path never
-    invokes the graph, so LangGraph never applies them here. Every channel
-    absent from the table below silently falls through to last-write-wins.
-
-    **Adding a reducer to WorkflowState means adding it here too.**
-    ``tournament_matchups`` was annotated on the state but missing from this
-    table, so on the durable path -- the only path production runs -- each
-    tournament's matchups overwrote the previous cycle's instead of
-    accumulating, and every run persisted a single cycle of Elo history.
+    The durable path never invokes the graph, so LangGraph never applies
+    the ``Annotated[T, reducer]`` channels here; ``channel_reducers`` reads
+    them off the same declaration instead. It used to be a hand-written
+    table, and ``tournament_matchups`` was annotated but missing from it, so
+    on the durable path -- the only path production runs -- every run
+    persisted a single cycle of Elo history.
     """
     merged: dict[str, Any] = dict(state)
     for key, value in update.items():
@@ -66,27 +58,30 @@ def apply_task_update(
     return merged  # type: ignore[return-value]
 
 
-def _reduce_messages(existing: Any, value: Any) -> Any:
-    """Apply LangGraph's id-based message append with the runtime's casts."""
-    return add_messages(cast(Any, existing or []), cast(Any, value))
+def channel_reducers(state_type: type) -> dict[str, Reducer]:
+    """Map each ``Annotated`` channel of ``state_type`` to its reducer.
+
+    Reads the metadata the way LangGraph compiles it -- the last metadata
+    item is the reducer. A list channel with no prior value reduces onto
+    ``[]``, as LangGraph's channel starts from the type's empty value.
+    """
+    reducers: dict[str, Reducer] = {}
+    hints = get_type_hints(state_type, include_extras=True)
+    for name, hint in hints.items():
+        if get_origin(hint) is not Annotated:
+            continue
+        base, *metadata = get_args(hint)
+        reducers[name] = _from_empty(metadata[-1], base)
+    return reducers
 
 
-# The reducer for each Annotated channel on WorkflowState. Kept as a table
-# rather than a branch chain so the set of mirrored channels is one readable
-# list to diff against the state definition -- see apply_task_update.
-_CHANNEL_REDUCERS: dict[str, Callable[[Any, Any], Any]] = {
-    "hypotheses": lambda existing, value: deduplicate_hypotheses(
-        existing or [], value
-    ),
-    "metrics": merge_metrics,
-    "messages": _reduce_messages,
-    "tournament_matchups": lambda existing, value: accumulate_matchups(
-        existing or [], value
-    ),
-    "research_ledgers": lambda existing, value: accumulate_research_ledgers(
-        existing or [], value
-    ),
-}
+def _from_empty(reducer: Reducer, base: Any) -> Reducer:
+    if get_origin(base) is not list:
+        return reducer
+    return lambda existing, value: reducer(existing or [], value)
+
+
+_CHANNEL_REDUCERS = channel_reducers(WorkflowState)
 
 
 def _route_after_supervisor(state: WorkflowState) -> str:
@@ -317,6 +312,7 @@ __all__ = [
     "FANNING_NODES",
     "TASK_NODES",
     "apply_task_update",
+    "channel_reducers",
     "execute_task_node",
     "next_task_type",
     "plan_portfolio",

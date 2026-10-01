@@ -7,9 +7,9 @@ one cycle of tournament history, and a run whose literature review *and*
 whose reviews both researched kept one of their ledgers.
 
 They live here rather than beside the state definition only because that
-file is at its length ceiling; ``state`` re-exports them, and the durable
-path needs them registered in ``task_runtime._CHANNEL_REDUCERS`` as well
-as annotated on the channel. ``deduplicate_hypotheses`` and its
+file is at its length ceiling; ``state`` re-exports them. The annotation
+on the channel is the only registration: the durable path reads it through
+``task_runtime.channel_reducers``. ``deduplicate_hypotheses`` and its
 ``AppendHypotheses``/``ReplaceHypotheses`` op types moved here for the same
 reason and are re-exported by ``state`` the same way.
 """
