@@ -1,10 +1,10 @@
 import React from 'react';
-import {AbsoluteFill, spring, useCurrentFrame, useVideoConfig} from 'remotion';
+import {AbsoluteFill, spring, useCurrentFrame} from 'remotion';
 import {SEEDS} from '../data/demo_run';
 import {Caption} from '../glide/Run';
 import {FloatCard} from '../shared/FloatCard';
 import {WordReveal} from '../shared/WordReveal';
-import {type Pose, accel, emphasized, mix, posed, ramp} from '../shared/motion';
+import {type Pose, FPS, accel, emphasized, mix, posed, ramp} from '../shared/motion';
 import {C, FONT, MONO} from '../shared/tokens';
 import {Cuts, useBeats} from './Beat';
 import {Sfx} from './Sfx';
@@ -21,7 +21,6 @@ const TOP = {x: -520, y: -199, w: 374, h: 135};
  */
 export const Ranked: React.FC = () => {
   const f = useCurrentFrame();
-  const {fps} = useVideoConfig();
   const b = useBeats();
   const push = b(2.5);
   const land = b(4);
@@ -40,7 +39,7 @@ export const Ranked: React.FC = () => {
     {f: b(6), x: -TOP.x * 2.3, y: -TOP.y * 2.3, scale: 2.3},
   ];
   const cam = posed(f, center);
-  const pop = spring({frame: f - land, fps, config: {damping: 12, stiffness: 170}});
+  const pop = spring({frame: f - land, fps: FPS, config: {damping: 12, stiffness: 170}});
   const ringW = TOP.w * cam.scale + 36;
   return (
     <AbsoluteFill>
@@ -78,9 +77,8 @@ const CLAIMS = [
 /** A's verdict card: the sources line up on eighths, then each verdict pops on a beat. */
 const Verdicts: React.FC = () => {
   const f = useCurrentFrame();
-  const {fps} = useVideoConfig();
   const b = useBeats();
-  const card = spring({frame: f - 2, fps, config: {damping: 15, stiffness: 140}});
+  const card = spring({frame: f - 2, fps: FPS, config: {damping: 15, stiffness: 140}});
   const chips = [b(2), b(2.5), b(3)];
   const sources = SOURCES.map((_, i) => b(0.5 + i * 0.25));
   return (
@@ -91,7 +89,7 @@ const Verdicts: React.FC = () => {
       <div style={{marginTop: 60, width: 1100, borderRadius: 32, background: '#fff', boxShadow: '0 0 0 2px rgba(31,31,31,0.06), 0 30px 70px rgba(31,31,31,0.10)', padding: '44px 54px', transform: `translateY(${mix(70, 0, card)}px)`, opacity: Math.min(1, card * 1.5), fontFamily: FONT}}>
         <div style={{fontSize: 44, fontWeight: 500, color: C.ink}}>Metabolic wake-up before vancomycin exposure</div>
         {CLAIMS.map((c, i) => {
-          const chip = spring({frame: f - chips[i], fps, config: {damping: 11, stiffness: 180}});
+          const chip = spring({frame: f - chips[i], fps: FPS, config: {damping: 11, stiffness: 180}});
           return (
             <div key={i} style={{display: 'flex', alignItems: 'center', gap: 28, marginTop: 30}}>
               <div style={{height: 18, width: c.w, borderRadius: 9, background: '#E3E8EC'}} />

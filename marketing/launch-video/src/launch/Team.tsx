@@ -1,10 +1,10 @@
 import React from 'react';
-import {AbsoluteFill, spring, useCurrentFrame, useVideoConfig} from 'remotion';
+import {AbsoluteFill, spring, useCurrentFrame} from 'remotion';
 import {AGENTS} from '../data/agents';
 import {StatusPill} from '../glide/Run';
 import {Shape, type ShapeName} from '../shared/Shape';
 import {WordReveal} from '../shared/WordReveal';
-import {emphasized, mix, ramp} from '../shared/motion';
+import {FPS, emphasized, mix, ramp} from '../shared/motion';
 import {C, FONT} from '../shared/tokens';
 import {useBeats} from './Beat';
 import {Sfx} from './Sfx';
@@ -20,7 +20,6 @@ const worn = (i: number, n: number): ShapeName => SHAPES[(i + n) % SHAPES.length
  */
 export const Team: React.FC = () => {
   const f = useCurrentFrame();
-  const {fps} = useVideoConfig();
   const b = useBeats();
   const pops = AGENTS.map((_, i) => b(1 + i * 0.5));
   const stutter = [0, 1, 2, 3].map(k => b(5) + k * 5);
@@ -31,7 +30,7 @@ export const Team: React.FC = () => {
       <WordReveal text="Hand it to a *team* of agents." start={0} size={96} stagger={2} />
       <div style={{display: 'flex', gap: 26, marginTop: 110}}>
         {AGENTS.map((a, i) => {
-          const s = spring({frame: f - pops[i], fps, config: {damping: 10, stiffness: 170}});
+          const s = spring({frame: f - pops[i], fps: FPS, config: {damping: 10, stiffness: 170}});
           const label = ramp(f, pops[i] + 4, 10);
           return (
             <div key={a.name} style={{display: 'flex', flexDirection: 'column', alignItems: 'center', width: 228}}>
@@ -56,7 +55,6 @@ const STAGES = ['Planning the research', 'Generating hypotheses', 'Reviewing eve
 /** Beats 21-25: the agents orbit while the run's stage ticks over on every beat. */
 export const Working: React.FC = () => {
   const f = useCurrentFrame();
-  const {fps} = useVideoConfig();
   const b = useBeats();
   const at = STAGES.map((_, k) => b(k));
   const stage = at.filter(s => f >= s).length - 1;
@@ -65,7 +63,7 @@ export const Working: React.FC = () => {
     <AbsoluteFill>
       {AGENTS.map((a, i) => {
         const ang = (i / AGENTS.length) * Math.PI * 2 - Math.PI / 2 + f / 70;
-        const s = spring({frame: f - i, fps, config: {damping: 12, stiffness: 150}});
+        const s = spring({frame: f - i, fps: FPS, config: {damping: 12, stiffness: 150}});
         return (
           <div key={a.name} style={{position: 'absolute', left: 960 + Math.cos(ang) * 600 - 95, top: 540 + Math.sin(ang) * 330 - 95, transform: `scale(${s})`}}>
             <Shape from={a.shape} size={190} fill={C.container[a.tone]} fill2={C.deep[a.tone]} rotate={f * 0.9} />

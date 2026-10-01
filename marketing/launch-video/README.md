@@ -58,6 +58,7 @@ All three open on the same 3D glass flask, share the brand tokens of the app
 npm install
 scripts/fetch_soundtrack.sh  # the launch film's music (needs yt-dlp), once
 scripts/render.sh            # Launch + the three previews at 1080p with sound -> previews/
+uv run --with numpy python scripts/render_master.py  # the upload master: 4K, 60 fps, motion blur (~1 h)
 npm run studio             # live preview / scrubbing
 ```
 
@@ -66,6 +67,9 @@ npm run studio             # live preview / scrubbing
 - `public/ui/` — real screens captured from production by `scripts/capture_ui.mjs` (demo run 285b7684).
 - `public/hero/` — the flask (gitignored, 54 MB). Regenerate with `/Applications/Blender.app/Contents/MacOS/Blender -b -P blender/hero_flask.py -- "$PWD/public/hero" 120 1000 32`.
 - `scripts/sfx.py` — the launch film's sound effects; `scripts/score.py` — the previews' synthesized scores.
+- `scripts/render_master.py` — the YouTube master. The film is authored at 30 fps; `Launch-Master`
+  (`src/launch/Master.tsx`) renders it at any time, so the script renders each 60 fps frame several
+  times across a 180° shutter and averages them, spending samples only where the picture moves.
 
 Numbers on screen come from the demo run: 15 ideas, 21 matches, top Elo 1386. In the previews,
 graphs that dramatize the tournament carry a "Sequences shortened" footnote, as Google's own

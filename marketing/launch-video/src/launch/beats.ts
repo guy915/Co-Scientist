@@ -1,3 +1,5 @@
+import {FPS} from '../shared/motion';
+
 // Beat times (s) of the soundtrack: librosa's beat tracker, then each beat
 // snapped to the attack of its high-frequency transient (above 2 kHz) within
 // 100 ms before it, less 15 ms so an effect's onset meets the start of that
@@ -19,14 +21,14 @@ const TIMES = [
 ];
 
 /**
- * Global frame of beat `i` (30 fps); fractional `i` lands between beats, e.g.
+ * Global frame of beat `i` (at the authored FPS); fractional `i` lands between beats, e.g.
  * 2.5 is an eighth note. Beat 0 is the opening hit at 0.045 s; the film opens
  * on it, so it maps to frame 0.
  */
 export const B = (i: number): number => {
   if (i === 0) return 0;
   const lo = Math.min(Math.floor(i), TIMES.length - 2);
-  return Math.round((TIMES[lo] + (TIMES[lo + 1] - TIMES[lo]) * (i - lo)) * 30);
+  return Math.round((TIMES[lo] + (TIMES[lo + 1] - TIMES[lo]) * (i - lo)) * FPS);
 };
 
 /** The soundtrack is 54.15 s; the film is exactly as long. */

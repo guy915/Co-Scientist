@@ -1,9 +1,9 @@
 import React from 'react';
-import {AbsoluteFill, spring, useCurrentFrame, useVideoConfig} from 'remotion';
+import {AbsoluteFill, spring, useCurrentFrame} from 'remotion';
 import {SEEDS} from '../data/demo_run';
 import {EloChart} from '../shared/EloChart';
 import {IdeaCard} from '../shared/IdeaCard';
-import {emphasized, mix, ramp} from '../shared/motion';
+import {FPS, emphasized, mix, ramp} from '../shared/motion';
 import {C, FONT} from '../shared/tokens';
 import {useBeats} from './Beat';
 import {Backdrop, LOOKS, WordFrame} from './Macro';
@@ -42,14 +42,13 @@ const OnFrame: React.FC<{look: number; children: React.ReactNode}> = ({look, chi
 /** Four of the run's real seed ideas fly out of the frame's big shape, landing on eighth notes. */
 export const Cards: React.FC<{look: number}> = ({look}) => {
   const f = useCurrentFrame();
-  const {fps} = useVideoConfig();
   const b = useBeats();
   const lands = [0, 0.5, 1, 1.5].map(k => b(k));
   const src = LOOKS[look % LOOKS.length];
   return (
     <OnFrame look={look}>
       {SEEDS.slice(0, 4).map((s, i) => {
-        const t = spring({frame: f - lands[i] + 4, fps, config: {damping: 15, stiffness: 160}});
+        const t = spring({frame: f - lands[i] + 4, fps: FPS, config: {damping: 15, stiffness: 160}});
         const x = mix(src.x, 960 + (i % 2 ? 420 : -420), t);
         const y = mix(src.y, 540 + (i < 2 ? -150 : 150), t);
         return (
@@ -95,11 +94,10 @@ export const Clash: React.FC<{look: number}> = ({look}) => {
 /** The leader is refined; its child drops out of it on beat 1. */
 export const Child: React.FC<{look: number}> = ({look}) => {
   const f = useCurrentFrame();
-  const {fps} = useVideoConfig();
   const b = useBeats();
   const childAt = b(1);
   const line = ramp(f, 2, childAt - 2, emphasized);
-  const child = spring({frame: f - childAt, fps, config: {damping: 12, stiffness: 160}});
+  const child = spring({frame: f - childAt, fps: FPS, config: {damping: 12, stiffness: 160}});
   const push = 1 + f * 0.0012;
   return (
     <OnFrame look={look}>

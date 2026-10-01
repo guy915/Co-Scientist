@@ -1,12 +1,12 @@
 import React from 'react';
-import {AbsoluteFill, Img, spring, useCurrentFrame, useVideoConfig} from 'remotion';
+import {AbsoluteFill, Img, spring, useCurrentFrame} from 'remotion';
 import {StatusPill} from '../glide/Run';
 import {Cursor} from '../shared/Cursor';
 import {flaskSrc} from '../shared/HeroFlask';
 import {PromptBox} from '../shared/PromptBox';
 import {Shape, type ShapeName} from '../shared/Shape';
 import {WordReveal} from '../shared/WordReveal';
-import {accel, emphasized, mix, ramp} from '../shared/motion';
+import {FPS, accel, emphasized, mix, ramp} from '../shared/motion';
 import {C, type Tone} from '../shared/tokens';
 import {useBeats} from './Beat';
 import {Sfx} from './Sfx';
@@ -40,13 +40,12 @@ const Tile: React.FC<{art: TileArt; size: number; f: number}> = ({art, size, f})
 /** Beats 4-6: "Every [picture] breakthrough", the picture column ticking up on eighth notes. */
 export const EveryLine: React.FC = () => {
   const f = useCurrentFrame();
-  const {fps} = useVideoConfig();
   const b = useBeats();
   const steps = [0.5, 1, 1.5].map(k => b(k));
   const pos = steps.reduce((p, s) => p + ramp(f, s, 6, emphasized), 0);
   const size = 230;
   const gap = 34;
-  const pop = spring({frame: f, fps, config: {damping: 13, stiffness: 160}});
+  const pop = spring({frame: f, fps: FPS, config: {damping: 13, stiffness: 160}});
   return (
     <AbsoluteFill style={{alignItems: 'center', justifyContent: 'center'}}>
       <div style={{display: 'flex', alignItems: 'center', gap: 48}}>
@@ -79,12 +78,11 @@ const SCATTER = [
 /** Beats 6-8: "starts with a question.", the pictures bursting out around it. */
 export const QuestionLine: React.FC = () => {
   const f = useCurrentFrame();
-  const {fps} = useVideoConfig();
   return (
     <AbsoluteFill style={{alignItems: 'center', justifyContent: 'center'}}>
       {TILES.map((art, i) => {
         const [x, y, sc] = SCATTER[i];
-        const t = spring({frame: f - i, fps, config: {damping: 16, stiffness: 120}});
+        const t = spring({frame: f - i, fps: FPS, config: {damping: 16, stiffness: 120}});
         const drift = 1 + f * 0.004;
         return (
           <div key={i} style={{position: 'absolute', left: 960 - 100, top: 540 - 100, transform: `translate(${x * t * drift}px, ${y * t * drift}px) scale(${sc * t}) rotate(${(i % 2 ? 1 : -1) * 6 * (1 - t)}deg)`}}>

@@ -24,10 +24,10 @@ render() { npx remotion render src/index.ts "$@" --concurrency=8 --log=error; }
 # band visibly at the config's JPEG frames and ~2 Mbps.
 render Launch out/launch.mkv --codec=h264-mkv --audio-codec=pcm-16 --scale="$scale" --image-format=png --crf=10 --x264-preset=slow
 render Launch out/sfx.mkv --codec=h264-mkv --audio-codec=pcm-16 --scale=0.25 --props='{"stem":"sfx"}'
-lufs=$(ffmpeg -hide_banner -nostats -i out/launch.mkv -af ebur128 -f null - 2>&1 | awk '$1 == "I:" {i = $2} END {print i}')
-gain=$(echo "-14.25 - ($lufs)" | bc -l)
+. scripts/loudness.sh
+af=$(loudness_filter out/launch.mkv)
 mux() { # $1 = audio source, $2 = output
-  ffmpeg -v error -y -i out/launch.mkv -i "$1" -map 0:v -map 1:a -af "volume=${gain}dB,alimiter=limit=0.794:attack=1:release=40:level=disabled" \
+  ffmpeg -v error -y -i out/launch.mkv -i "$1" -map 0:v -map 1:a -af "$af" \
     -c:v copy -c:a aac -b:a 256k -ar 48000 -movflags +faststart "$2"
   echo "$2"
 }

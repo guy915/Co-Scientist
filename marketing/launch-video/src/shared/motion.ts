@@ -1,5 +1,6 @@
 import {Easing, interpolate} from 'remotion';
 
+/** The rate every film is authored in: scene frame numbers are 30 fps frames, even in the 60 fps master. */
 export const FPS = 30;
 /** One beat at 120 bpm. Every cut and accent lands on this grid so the score can hit it. */
 export const BEAT = 15;

@@ -1,9 +1,9 @@
 import React from 'react';
-import {AbsoluteFill, spring, useCurrentFrame, useVideoConfig} from 'remotion';
+import {AbsoluteFill, spring, useCurrentFrame} from 'remotion';
 import {HeroFlask} from '../shared/HeroFlask';
 import {Lockup} from '../shared/Lockup';
 import {Shape} from '../shared/Shape';
-import {accel, emphasized, mix, ramp} from '../shared/motion';
+import {FPS, accel, emphasized, mix, ramp} from '../shared/motion';
 import {C, FONT} from '../shared/tokens';
 import {useBeats} from './Beat';
 import {Sfx} from './Sfx';
@@ -15,9 +15,8 @@ import {Sfx} from './Sfx';
  */
 export const Wordmark: React.FC = () => {
   const f = useCurrentFrame();
-  const {fps} = useVideoConfig();
   const b = useBeats();
-  const pop = spring({frame: f, fps, config: {damping: 14, stiffness: 110}});
+  const pop = spring({frame: f, fps: FPS, config: {damping: 14, stiffness: 110}});
   const rise = ramp(f, 0, 24, emphasized);
   const word = ramp(f, b(1), 16);
   // Still blurring away on the cut, so the end card lands on it rather than on blank white.

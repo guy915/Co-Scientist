@@ -18,7 +18,7 @@ interface Props {
 
 /** The loop frame shown at film frame `f`. */
 export const flaskSrc = (f: number, offset = 0) =>
-  staticFile(`hero/flask_${String(((((f + offset) % LOOP) + LOOP) % LOOP) + 1).padStart(4, '0')}.png`);
+  staticFile(`hero/flask_${String(((((Math.floor(f) + offset) % LOOP) + LOOP) % LOOP) + 1).padStart(4, '0')}.png`);
 
 export const HeroFlask: React.FC<Props> = ({size, x = 0, y = 0, opacity = 1, offset = 0, style}) => {
   const f = useCurrentFrame();
