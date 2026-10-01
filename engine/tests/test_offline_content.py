@@ -11,7 +11,7 @@ import random
 
 import pytest
 
-from co_scientist.offline_content import (
+from co_scientist.offline.content import (
     _CRITIQUE_TEMPLATES,
     _EXPERIMENT_TEMPLATES,
     _GENERATED_VOCABULARY,
@@ -184,7 +184,7 @@ def test_standalone_fields_stay_a_short_label(
 ) -> None:
     """The five fields _STANDALONE_TEMPLATES exempts never grow a clause.
 
-    Guards the offline_content fix (docs/decisions/2026-09-02-offline-
+    Guards the offline.content fix (docs/decisions/2026-09-02-offline-
     optional-field-reach.md): before it, these fields matched no
     ``_FIELD_TEMPLATES`` fragment, fell through to ``_SUMMARY_TEMPLATES``,
     and grew a trailing ``_SCOPE_CLAUSES`` sentence -- turning "Verdict:"

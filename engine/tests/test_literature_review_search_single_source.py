@@ -4,7 +4,6 @@ from typing import Any, cast
 
 import pytest
 
-from co_scientist import offline_llm
 from co_scientist.agents.generation.literature_review import search
 from co_scientist.agents.generation.literature_review.relevance import (
     _HYBRID_VERSION,
@@ -13,6 +12,7 @@ from co_scientist.agents.generation.literature_review.search_support import (
     SearchConfig,
 )
 from co_scientist.mcp_client import MCPToolClient
+from co_scientist.offline import llm as offline_llm
 from tests._offline_helpers import isolate_offline_router
 
 

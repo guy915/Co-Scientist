@@ -1,12 +1,12 @@
 """Generic JSON-schema-to-fake-value traversal, shared by two fillers.
 
-Split out of ``offline_llm``, which had grown past the module-size budget:
+Split out of ``offline.llm``, which had grown past the module-size budget:
 this half of it knows nothing about any particular schema or prompt, only
 how to walk an arbitrary JSON Schema fragment and produce a minimal value
-that satisfies it. ``offline_llm.py`` (the production router) and
+that satisfies it. ``offline/llm.py`` (the production router) and
 ``tests/_llm_fake.py`` (the test fake) both import ``_fill_schema`` and
 ``_FillHints`` from here rather than duplicating the traversal -- see
-``offline_llm``'s own module docstring for why that sharing matters
+``offline.llm``'s own module docstring for why that sharing matters
 (determinism, uniqueness) and ``_llm_fake.py``'s for why the fake keeps its
 own leaf-value strategy instead of this module's.
 
@@ -41,15 +41,15 @@ class _FillHints:
     Attributes:
         array_lengths: Property-name -> item-count map; an array property
             whose name is a key here is filled to that length instead of
-            the default one item. See ``offline_llm._ARRAY_LENGTH_HINTS``.
+            the default one item. See ``offline.llm._ARRAY_LENGTH_HINTS``.
         scalar_values: Property-name -> override value for a scalar leaf,
             read ahead of ``_SCALAR_DEFAULTS``. See
-            ``offline_llm._SCALAR_VALUE_HINTS``.
+            ``offline.llm._SCALAR_VALUE_HINTS``.
         optional_fields: Property names to fill even though their object
             node's schema marks them optional. Empty by default -- an
             optional property is normally left absent, the same way a real
             provider genuinely omits one. See
-            ``offline_llm._OPTIONAL_FIELD_HINTS``, which is the only
+            ``offline.llm._OPTIONAL_FIELD_HINTS``, which is the only
             producer of a non-empty set here: it is scoped per schema name,
             not a blanket "fill every optional" switch.
     """

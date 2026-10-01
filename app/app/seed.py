@@ -216,7 +216,7 @@ async def seed_demo_runs(db_path: str | None = None) -> None:
     # tests) without that lifespan running first. Installing it here too is
     # idempotent and guarantees the demo runs' offline/ model calls resolve
     # regardless of caller.
-    from co_scientist.offline_llm import install_offline_router
+    from co_scientist.offline.llm import install_offline_router
 
     install_offline_router()
 

@@ -99,7 +99,7 @@ These features are described in the published material but are not implemented h
     the graph auto-detects MCP availability, and without a reachable server the
     generation/reflection nodes fall back to LLM-only mode with no retrieved
     evidence, on every run (keyless/offline included). The deterministic offline
-    LLM backend (`engine/src/co_scientist/offline_llm.py`) only fakes LLM
+    LLM backend (`engine/src/co_scientist/offline/llm.py`) only fakes LLM
     completions at the `litellm.acompletion` seam; it does not simulate a
     literature-retrieval tool call, so an offline run's evidence gap is the same
     MCP-unavailable fallback a real-provider run hits without a reachable MCP

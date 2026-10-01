@@ -2,7 +2,7 @@
 
 The one module the rest of the engine, the app and the evaluations call the
 model through. Production code outside this package imports from
-``co_scientist.llm`` alone, except ``offline_llm`` (which replaces the
+``co_scientist.llm`` alone, except ``offline.llm`` (which replaces the
 completion boundary) and ``constants.pricing`` (which reads the route table),
 and tests patch internals directly; ``__all__`` is the whole interface: three
 entry points (``call_llm``, ``call_llm_json``, ``call_llm_with_tools``), the

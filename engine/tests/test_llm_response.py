@@ -31,7 +31,7 @@ def test_extract_token_usage_defaults_missing_usage_to_zero() -> None:
     """A response with no ``usage`` attribute at all reads as all-zero.
 
     This is exactly the offline backend's response shape (see
-    ``offline_llm._build_response``), so telemetry never raises on it.
+    ``offline.llm._build_response``), so telemetry never raises on it.
     """
     response = SimpleNamespace(choices=[])
     assert extract_token_usage(response) == TokenUsage(0, 0, 0)

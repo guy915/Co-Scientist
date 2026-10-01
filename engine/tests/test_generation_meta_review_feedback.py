@@ -36,7 +36,7 @@ import pytest
 from co_scientist.agents.generation.generate import generate_node
 from co_scientist.agents.meta_review.meta_review import meta_review_node
 from co_scientist.llm.request.backend import active_backend
-from co_scientist.offline_llm import _prompt_text
+from co_scientist.offline.llm import _prompt_text
 from tests._llm_fake import install_fake_backend, install_fake_llm
 from tests._state import make_hypothesis, make_review, make_state
 

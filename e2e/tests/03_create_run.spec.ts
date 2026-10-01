@@ -149,7 +149,7 @@ async function openRunDetail(page: Page, id: string): Promise<void> {
 // initial screen. The simulation review's fields (failure_points,
 // decisive_step) are unconditionally required in SIMULATION_REVIEW_SCHEMA;
 // the full/recurrent review's go_no_go_recommendation/time_to_verdict are
-// optional in FULL_REVIEW_SCHEMA but named in offline_llm's
+// optional in FULL_REVIEW_SCHEMA but named in offline.llm's
 // _OPTIONAL_FIELD_HINTS, so the offline backend fills them too -- see
 // ideas_detail_review_findings.tsx's SimulationFindings/VerdictLines and
 // drain/reviews.py's detail_json build.

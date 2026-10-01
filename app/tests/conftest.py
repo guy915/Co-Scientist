@@ -65,7 +65,7 @@ def _offline_router() -> None:
     router must intercept ``litellm.acompletion`` for the entire session. It is
     idempotent and a harmless passthrough for any non-offline model.
     """
-    from co_scientist.offline_llm import install_offline_router
+    from co_scientist.offline.llm import install_offline_router
 
     install_offline_router()
 

@@ -11,7 +11,7 @@ import json
 
 import jsonschema
 
-from co_scientist import offline_llm
+from co_scientist.offline import llm as offline_llm
 from co_scientist.schemas.synthesis import RESEARCH_OVERVIEW_SCHEMA
 
 

@@ -25,7 +25,7 @@ when a draw repeats, which matters because
 ``co_scientist.state.deduplicate_hypotheses`` collapses hypotheses with
 equal normalized text).
 
-What a leaf *says* is ``offline_content``'s job: it varies the sentence by
+What a leaf *says* is ``offline.content``'s job: it varies the sentence by
 the property being filled and grounds it in the prompt's research goal, so
 offline runs -- including the production site's demo runs -- read as the
 kind of output the product makes rather than as interchangeable filler.
@@ -33,7 +33,7 @@ The property name is threaded down through ``_fill_schema`` for that
 reason; before, every field from a title to a reviewer's critique received
 the same shape of sentence.
 
-``_fill_schema`` (in the sibling ``offline_schema_fill`` module, split out
+``_fill_schema`` (in the sibling ``offline.schema_fill`` module, split out
 once this one grew past the file-length budget) takes the leaf-value
 generator as a plain callable rather than baking in either strategy, so
 ``tests/_llm_fake.py`` can share this exact traversal logic while keeping
@@ -57,8 +57,8 @@ from co_scientist.llm.request.backend import (
     active_backend,
     install_backend,
 )
-from co_scientist.offline_content import leaf_text, subject_terms
-from co_scientist.offline_schema_fill import _fill_schema, _FillHints
+from co_scientist.offline.content import leaf_text, subject_terms
+from co_scientist.offline.schema_fill import _fill_schema, _FillHints
 
 logger = logging.getLogger(__name__)
 
@@ -208,7 +208,7 @@ _SCALAR_VALUE_HINTS: dict[str, dict[str, Any]] = {
 }
 
 # Per-schema-name optional properties the filler fills anyway, despite the
-# schema marking them optional (see offline_schema_fill._FillHints.
+# schema marking them optional (see offline.schema_fill._FillHints.
 # optional_fields). Deliberately scoped, not a global "fill every optional"
 # switch: a real provider genuinely omits optional fields, so defaulting to
 # filling them everywhere would change offline output broadly and stop

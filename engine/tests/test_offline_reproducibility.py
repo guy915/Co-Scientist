@@ -22,7 +22,8 @@ from typing import Any
 
 import pytest
 
-from co_scientist import models, offline_llm
+from co_scientist import models
+from co_scientist.offline import llm as offline_llm
 from tests._offline_helpers import (
     isolate_offline_router,
     make_offline_generator,

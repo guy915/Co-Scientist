@@ -354,7 +354,7 @@ async def test_tool_calling_forced_off_for_offline_model(
     "finish" on its first canned reply and fail parsing; the capability
     default must not admit that.
     """
-    from co_scientist.offline_llm import DEFAULT_OFFLINE_MODEL
+    from co_scientist.offline.llm import DEFAULT_OFFLINE_MODEL
 
     stub_mcp_availability(monkeypatch, available=True)
     gen = HypothesisGenerator(model_name=DEFAULT_OFFLINE_MODEL)

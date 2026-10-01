@@ -280,7 +280,7 @@ def _resolve_generator_models(
     # Imported here rather than at module top so the app package does not
     # hard-depend on the engine at import time; the engine is on sys.path
     # by the time a run is built.
-    from co_scientist.offline_llm import DEFAULT_OFFLINE_MODEL
+    from co_scientist.offline.llm import DEFAULT_OFFLINE_MODEL
 
     return DEFAULT_OFFLINE_MODEL, DEFAULT_OFFLINE_MODEL, False
 

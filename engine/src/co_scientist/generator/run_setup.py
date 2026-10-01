@@ -21,7 +21,7 @@ from co_scientist.agents.generation.coordinator_strategy import (
     TOOLS_REQUIRING_STRATEGIES,
 )
 from co_scientist.config.registry import parse_bool_env
-from co_scientist.offline_llm import is_offline_model
+from co_scientist.offline.llm import is_offline_model
 from co_scientist.research_adapter.budget import tier_researches
 
 logger = logging.getLogger(__name__)

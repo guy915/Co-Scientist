@@ -159,7 +159,7 @@ def drive_arm_run(run_id: str, db_path: str) -> tuple[int, float]:
     drivers use.
     """
     from app import store, task_worker
-    from co_scientist.offline_llm import install_offline_router
+    from co_scientist.offline.llm import install_offline_router
 
     from evaluations._comparison_identity import validate_stored_arm
 

@@ -6,7 +6,7 @@ import sites are unaffected by the split.
 
 A hypothesis gets a fresh ``uuid4`` by default, and that alone makes an
 otherwise-fixed run unreproducible. The offline LLM backend
-(``offline_llm``) renders byte-identical content for byte-identical
+(``offline.llm``) renders byte-identical content for byte-identical
 prompts, but ranking's multi-turn debate writes the winning hypothesis's
 id into the follow-up judge prompt
 (``agents/ranking/ranking_debate_turns.py::_append_debate_context``): one

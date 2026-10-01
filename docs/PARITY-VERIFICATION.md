@@ -19,7 +19,7 @@ Report date: 2026-07-10. Branch: `goolge-ai-co-scientist-parity`.
 > report date; it is not a live alternative to the engine today. Every run
 > now executes on the real LangGraph engine, and what this report calls the
 > "mock" path is superseded by the engine pinned to the deterministic offline
-> LLM backend (`engine/src/co_scientist/offline_llm.py`, fakes only
+> LLM backend (`engine/src/co_scientist/offline/llm.py`, fakes only
 > `offline/`-prefixed models at the `litellm.acompletion` seam). The
 > dated command results below are left as recorded, not re-run; current
 > equivalent test files are noted inline where the architecture changed
