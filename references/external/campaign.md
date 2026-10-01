@@ -2,11 +2,11 @@
 
 ## Current execution state
 
-Current state — 1 October 2026: verified product PR #89 (`11b72791`) is in `main` (`bcdd6f79`); its [release receipt](m12-fulltext-optout-release-2026-10-01.json) records the real metadata-only retrieval check. Production batching and recovery remain disabled. The separate Study 9 reference runner and records are not yet merged.
+Current state — 1 October 2026: verified product PR #89 (`11b72791`) is in verified `main` (`9039c48c`); its [release receipt](m12-fulltext-optout-release-2026-10-01.json) records the real metadata-only retrieval check. Production batching and recovery remain disabled. Study 9 reference-runner changes and records are merged through [PR #91](https://github.com/guy915/Co-Scientist/pull/91), with healthy existing-service deployments at `9039c48c`.
 
 Study 9 completed one committed, one-shot six-pair comparison with 24 scientific OpenRouter responses, 36 MCP calls and 72 blinded labels. `PILOT_COMPLETE_LABELS_PENDING` is the runner’s acquisition-result status; the terminal record is `COMPLETE_ONE_SHOT_EXECUTION_SCORED`. On the exposed bank9 inputs, positive target coverage was 3/6 in both arms (one gain, one loss); control-anchor coverage fell from 4/6 static to 3/6 candidate, with two individual losses. The scientific disposition is `COMPLETE_SCIENTIFIC_FAIL_REJECT_EXACT_CONFIGURATION`; no three-pair confirmation is triggered. Scope is limited to this exact adaptation, not every iterative-search method, model or paper. The [assessment](sakana/novelty-pilot-v9-scientific-assessment-2026-10-01.json) and [terminal evidence](sakana/novelty-pilot-v9-terminal-2026-10-01.json) retain the result and limits.
 
-Studies 1–8 remain consumed, immutable, incomplete and unscored; no replay or automatic replacement bank is authorized. Original `M12-04b4` and conditional `b5` are resolved for this completed exact-configuration rejection; `b7` candidate reconciliation is complete; `b8` final integration and acceptance remain open in [PLAN.md](../../PLAN.md). The product and workflow evidence does not establish general model quality, expert validation or wet-lab results.
+Studies 1–8 remain consumed, immutable, incomplete and unscored; no replay or automatic replacement bank is authorized. Original `M12-04b4` and conditional `b5` are resolved for this completed exact-configuration rejection; `b7` candidate reconciliation is complete; `b8` final integration and acceptance are verified in the [closing record](m12-final-acceptance-2026-10-01.json), with zero open items in [PLAN.md](../../PLAN.md). The product and workflow evidence does not establish general model quality, expert validation or wet-lab results.
 
 ### Historical preparation record through studies5–6 (before Study 6 execution)
 
