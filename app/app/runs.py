@@ -33,8 +33,10 @@ helpers in ``runs_events``.
 This module owns the SSE stream and assembles the full route set by
 including the sibling endpoint routers -- ``runs_crud`` (create/list/read),
 ``runs_lifecycle`` (start/cancel/pause/resume and the startup auto-resume
-launcher), ``runs_collections`` (read-only collection getters, safety
-adjudication, reports), ``runs_contrib`` (scientist-contributed
+launcher; the safety-adjudication handler it drives lives in
+``runs_lifecycle_adjudication``), ``runs_collections`` (read-only collection
+getters and reports, plus the registration of that handler at its historical
+slot), ``runs_contrib`` (scientist-contributed
 hypotheses/reviews/attachments), and ``runs_chat`` (steering messages and
 grounded Q&A), with shared existence guards in ``runs_support``. The
 moved names that callers and tests use are re-exported here so
