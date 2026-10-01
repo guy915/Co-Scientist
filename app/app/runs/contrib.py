@@ -33,7 +33,7 @@ from app.execution_policy import (
     scoped_execution_policy,
 )
 from app.hypothesis_screening import screen_hypotheses
-from app.outcome_refinement_action import (
+from app.outcome_refinement.action import (
     OutcomeRefinementContextTooLargeError,
     OutcomeRefinementIneligibleError,
     OutcomeRefinementNotFoundError,

@@ -304,7 +304,7 @@ def test_provider_failure_retries_same_action_after_restart(
         retryable=False,
         db_path=isolated_db,
     )
-    from app.outcome_refinement_action import (
+    from app.outcome_refinement.action import (
         materialize_pending_outcome_refinements,
     )
 
