@@ -379,11 +379,11 @@ def _no_thinking_detail_text(model_name: str) -> str:
     """What the ``NO_THINKING`` rung actually sends this model.
 
     The rung always requests ``enable_thinking=False``, but a model that
-    cannot honour a disable (``GatewayModel.reasoning_can_disable`` is
+    cannot honour a disable (``ModelProfile.reasoning_can_disable`` is
     False) is redirected to reasoning bounded at
     ``MINIMAL_REASONING_MAX_TOKENS`` instead -- never the literal disable
     already known to 400 -- see
-    ``llm.request.gateway_body._declared_gateway_body``. That redirect happens
+    ``llm.request.gateway_body._gateway_body``. That redirect happens
     on every model in the deployed free chain, so the log has to name what
     reaches the wire, not what the rung is named for.
 
