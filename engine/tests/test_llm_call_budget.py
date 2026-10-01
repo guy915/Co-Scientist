@@ -33,8 +33,8 @@ from co_scientist.llm.admission.call_budget import (
     record_provider_request,
 )
 from co_scientist.state import WorkflowState
-from tests._llm_backend_fake import install_fake_backend
 from tests._llm_fake import disable_llm_cache as _disable_cache
+from tests._llm_fake import install_fake_backend
 from tests._llm_wrapper_fakes import make_completion as _completion
 from tests._llm_wrapper_fakes import make_message as _message
 

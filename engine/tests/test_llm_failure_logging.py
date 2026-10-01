@@ -19,8 +19,8 @@ from typing import Any
 import pytest
 
 from co_scientist.llm import CompletionSpec, call_llm_json
-from tests._llm_backend_fake import install_fake_backend
 from tests._llm_fake import disable_llm_cache as _disable_cache
+from tests._llm_fake import install_fake_backend
 from tests._llm_wrapper_fakes import (
     make_completion as _completion,
 )

@@ -17,7 +17,7 @@ Three adapters exist:
   call that is already built.
 * ``co_scientist.offline_llm.OfflineRouter``, which answers ``offline/``
   models locally and hands every other model to the backend it replaced.
-* the recording fake in ``tests/_llm_backend_fake.py``.
+* the recording fake in ``tests/_llm_fake.py``.
 
 The registry is one module global, not a ``ContextVar``. The offline router is
 installed once, at process start, for every caller, and the worker cohorts run

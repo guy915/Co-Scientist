@@ -16,7 +16,7 @@ from co_scientist.llm import (
     call_llm_json,
     call_llm_with_tools,
 )
-from tests._llm_backend_fake import install_fake_backend
+from tests._llm_fake import install_fake_backend
 from tests._llm_wrapper_fakes import (
     SEARCH_TOOL,
     make_completion,

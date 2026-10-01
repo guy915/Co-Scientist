@@ -2,7 +2,7 @@
 
 The wrapper tests (``test_llm_wrappers*.py``) all install a fake completion
 backend -- the single seam every ``co_scientist.llm`` entry point funnels
-through (``tests/_llm_backend_fake.py``) -- that answers with a litellm-shaped
+through (``tests/_llm_fake.py``) -- that answers with a litellm-shaped
 response object (a ``SimpleNamespace`` tree mirroring
 ``response.choices[0].message.{role,content,tool_calls}``). These builders
 construct those response trees and install the queued fake; no network is
@@ -14,7 +14,7 @@ from typing import Any
 
 import pytest
 
-from tests._llm_backend_fake import install_fake_backend
+from tests._llm_fake import install_fake_backend
 
 
 def make_message(

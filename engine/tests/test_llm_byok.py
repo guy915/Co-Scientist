@@ -24,7 +24,7 @@ from co_scientist.llm import (
     current_api_key,
     scoped_api_key,
 )
-from tests._llm_backend_fake import install_fake_backend
+from tests._llm_fake import install_fake_backend
 
 # These tests assert on the completion kwargs, so every call must reach
 # the patched acompletion rather than a cache entry.

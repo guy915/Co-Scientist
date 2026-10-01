@@ -27,7 +27,7 @@ from co_scientist.llm import (
 )
 from co_scientist.llm.attempts import backoff
 from co_scientist.llm.request import completion
-from tests._llm_backend_fake import install_fake_backend
+from tests._llm_fake import install_fake_backend
 
 
 def test_timeout_defaults_when_unset(monkeypatch: pytest.MonkeyPatch) -> None:

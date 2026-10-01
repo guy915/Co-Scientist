@@ -42,8 +42,7 @@ from co_scientist.llm import (
     rate_limited_attempt_count,
     scoped_telemetry,
 )
-from tests._llm_backend_fake import install_fake_backend
-from tests._llm_fake import disable_llm_cache
+from tests._llm_fake import disable_llm_cache, install_fake_backend
 from tests._llm_wrapper_fakes import SEARCH_TOOL
 from tests._llm_wrapper_fakes import make_completion as _completion
 from tests._llm_wrapper_fakes import make_message as _message

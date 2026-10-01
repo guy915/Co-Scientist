@@ -12,7 +12,7 @@ import pytest
 
 from co_scientist.llm.request import backend, completion
 from co_scientist.llm.request.schema import _apply_response_format
-from tests._llm_backend_fake import FakeBackend, install_fake_backend
+from tests._llm_fake import FakeBackend, install_fake_backend
 
 _MODEL = "openrouter/some/model"
 _SCHEMA: dict[str, Any] = {

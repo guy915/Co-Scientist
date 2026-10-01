@@ -10,7 +10,7 @@ from co_scientist.generator import (
     GeneratorOptions,
     HypothesisGenerator,
 )
-from tests._llm_backend_fake import restore_backend_at_teardown
+from tests._llm_fake import restore_backend_at_teardown
 
 
 def isolate_offline_router(monkeypatch: pytest.MonkeyPatch) -> None:

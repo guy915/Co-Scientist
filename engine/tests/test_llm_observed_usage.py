@@ -9,7 +9,7 @@ from co_scientist.llm import (
     scoped_telemetry,
 )
 from co_scientist.models_metrics import ExecutionMetrics, merge_metrics
-from tests._llm_backend_fake import install_fake_backend
+from tests._llm_fake import install_fake_backend
 from tests._llm_wrapper_fakes import (
     make_completion,
     make_message,
