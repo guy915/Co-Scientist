@@ -1,0 +1,1348 @@
+{
+  "status": "COMPLETE_SCIENTIFIC_FAIL_REJECT_EXACT_CONFIGURATION",
+  "item": "M12-04b4",
+  "scored_at_utc": "2026-10-01T07:02:01.126824+00:00",
+  "script_sha256": "7f4b4b41bb2226c566e91dd3814c8659af064fb8350eacfd133123cdb64c0695",
+  "protocol_sha256": "8e5407cd1ef1b342ac63161230e39eff9f1f9a8b2fce975a0111d4a02f33c5e0",
+  "bank9_sha256": "219efb8855ba361348f106c3e1af6b5dee173e1077efafe837dcc34cd9ad3f6c",
+  "result_sha256": "889a45b3a1d904cc33483fd0a455ee435dfdb9cd97aa65462a36186762bbf832",
+  "blind_labels_sha256": "5b70595d37db1c597a8b29f12ca3bb8b0e09c6eac548ea331893d28e1d634f4a",
+  "blind_labels_completed_at_utc": "2026-10-01T06:48:10.081378+00:00",
+  "source_data_reused_exposed": true,
+  "criteria": {
+    "primary": "Across the six positive drafts, compare exact target-PMID coverage in shared-first-search union candidate-follow-up results against the matched shared-first-search union static-follow-up results. Candidate must cover at least one additional positive target in aggregate and lose none of the positive target coverage in static. A target already present in shared-first search cannot earn incremental credit by reappearing in either follow-up.",
+    "non_regression": [
+      "Candidate loses none of the six distinct-control own-anchor coverage in matched shared-first-search union static-follow-up results, evaluated against shared-first-search union candidate-follow-up results.",
+      "Candidate does not increase cross-pair positive-target coverage among distinct controls; deduplicate each shared-first-search union follow-up PMID set identically for both arms.",
+      "Candidate does not increase the blinded unrelated-paper fraction among returned follow-up papers; incomplete blind labels make the outcome inconclusive.",
+      "Every returned paper has complete query, selected relaxation rung, selected/fetched/final PMID, source/tool, and actual server-process provenance."
+    ],
+    "shared_first_search_scoring": "The identical shared-first-search set enters both arm coverage unions. Follow-up hits already present in that shared set cannot contribute an incremental gain or loss. Keep returned follow-up-paper blinded unrelated fractions as separately declared; no packet item may be missing a blind label.",
+    "failure_interpretation": "A primary or non-regression failure rejects this exact frozen adaptation only. It does not establish that every iterative search method fails.",
+    "pass_interpretation": "A pass retains the mechanism as promising only; no product adoption or release until the separately preregistered independent three-pair confirmatory comparison passes.",
+    "prospective_clarification": "Independent review before any study3 scientific call found that counting a follow-up re-retrieval of a seed target could fabricate incremental prior-art discovery. Union/dedup prevents this, retaining original at-least-one improvement/no-loss/control/provenance thresholds. v1/v2 remain interrupted and are not retrospectively rescored."
+  },
+  "rows": [
+    {
+      "pair_id": "monkeypox-vs-tuberculosis-in-silico-vaccine",
+      "draft_kind": "positive",
+      "source_pmid": "37129119",
+      "shared_ids": [
+        "42502572",
+        "42685764",
+        "42774404"
+      ],
+      "static_followup_ids": [],
+      "candidate_followup_ids": [
+        "37129119"
+      ],
+      "static_union_ids": [
+        "42502572",
+        "42685764",
+        "42774404"
+      ],
+      "candidate_union_ids": [
+        "37129119",
+        "42502572",
+        "42685764",
+        "42774404"
+      ],
+      "static_source_hit": false,
+      "candidate_source_hit": true,
+      "static_cross_positive_ids": [],
+      "candidate_cross_positive_ids": []
+    },
+    {
+      "pair_id": "monkeypox-vs-tuberculosis-in-silico-vaccine",
+      "draft_kind": "distinct_control",
+      "source_pmid": "37880982",
+      "shared_ids": [
+        "42579895",
+        "42648033",
+        "42660295"
+      ],
+      "static_followup_ids": [
+        "37880982",
+        "41277920"
+      ],
+      "candidate_followup_ids": [
+        "42375671",
+        "42421124",
+        "42658892"
+      ],
+      "static_union_ids": [
+        "37880982",
+        "41277920",
+        "42579895",
+        "42648033",
+        "42660295"
+      ],
+      "candidate_union_ids": [
+        "42375671",
+        "42421124",
+        "42579895",
+        "42648033",
+        "42658892",
+        "42660295"
+      ],
+      "static_source_hit": true,
+      "candidate_source_hit": false,
+      "static_cross_positive_ids": [],
+      "candidate_cross_positive_ids": []
+    },
+    {
+      "pair_id": "upec-vs-mrsa-bacterial-vaccine-models",
+      "draft_kind": "positive",
+      "source_pmid": "37811774",
+      "shared_ids": [
+        "41939898",
+        "42330028",
+        "42743349"
+      ],
+      "static_followup_ids": [
+        "37811774"
+      ],
+      "candidate_followup_ids": [
+        "42743349",
+        "42795607",
+        "42797492"
+      ],
+      "static_union_ids": [
+        "37811774",
+        "41939898",
+        "42330028",
+        "42743349"
+      ],
+      "candidate_union_ids": [
+        "41939898",
+        "42330028",
+        "42743349",
+        "42795607",
+        "42797492"
+      ],
+      "static_source_hit": true,
+      "candidate_source_hit": false,
+      "static_cross_positive_ids": [],
+      "candidate_cross_positive_ids": []
+    },
+    {
+      "pair_id": "upec-vs-mrsa-bacterial-vaccine-models",
+      "draft_kind": "distinct_control",
+      "source_pmid": "37798927",
+      "shared_ids": [
+        "42758400",
+        "42791768",
+        "42797645"
+      ],
+      "static_followup_ids": [
+        "40715169",
+        "41190079",
+        "42137845"
+      ],
+      "candidate_followup_ids": [
+        "40715169",
+        "41190079",
+        "42137845"
+      ],
+      "static_union_ids": [
+        "40715169",
+        "41190079",
+        "42137845",
+        "42758400",
+        "42791768",
+        "42797645"
+      ],
+      "candidate_union_ids": [
+        "40715169",
+        "41190079",
+        "42137845",
+        "42758400",
+        "42791768",
+        "42797645"
+      ],
+      "static_source_hit": false,
+      "candidate_source_hit": false,
+      "static_cross_positive_ids": [],
+      "candidate_cross_positive_ids": []
+    },
+    {
+      "pair_id": "paratecoma-propagation-vs-schinus-canker-biocontrol",
+      "draft_kind": "positive",
+      "source_pmid": "37712397",
+      "shared_ids": [
+        "42756938",
+        "42775084",
+        "42787492"
+      ],
+      "static_followup_ids": [
+        "37712397"
+      ],
+      "candidate_followup_ids": [
+        "37712397"
+      ],
+      "static_union_ids": [
+        "37712397",
+        "42756938",
+        "42775084",
+        "42787492"
+      ],
+      "candidate_union_ids": [
+        "37712397",
+        "42756938",
+        "42775084",
+        "42787492"
+      ],
+      "static_source_hit": true,
+      "candidate_source_hit": true,
+      "static_cross_positive_ids": [],
+      "candidate_cross_positive_ids": []
+    },
+    {
+      "pair_id": "paratecoma-propagation-vs-schinus-canker-biocontrol",
+      "draft_kind": "distinct_control",
+      "source_pmid": "37606013",
+      "shared_ids": [
+        "41828822",
+        "42075729",
+        "42761140"
+      ],
+      "static_followup_ids": [
+        "37606013"
+      ],
+      "candidate_followup_ids": [
+        "37606013"
+      ],
+      "static_union_ids": [
+        "37606013",
+        "41828822",
+        "42075729",
+        "42761140"
+      ],
+      "candidate_union_ids": [
+        "37606013",
+        "41828822",
+        "42075729",
+        "42761140"
+      ],
+      "static_source_hit": true,
+      "candidate_source_hit": true,
+      "static_cross_positive_ids": [],
+      "candidate_cross_positive_ids": []
+    },
+    {
+      "pair_id": "bacillus-albus-blb-vs-bacillus-subtilis-clubroot",
+      "draft_kind": "positive",
+      "source_pmid": "37462829",
+      "shared_ids": [
+        "41680172",
+        "41753738",
+        "42627012"
+      ],
+      "static_followup_ids": [
+        "37462829"
+      ],
+      "candidate_followup_ids": [
+        "37462829"
+      ],
+      "static_union_ids": [
+        "37462829",
+        "41680172",
+        "41753738",
+        "42627012"
+      ],
+      "candidate_union_ids": [
+        "37462829",
+        "41680172",
+        "41753738",
+        "42627012"
+      ],
+      "static_source_hit": true,
+      "candidate_source_hit": true,
+      "static_cross_positive_ids": [],
+      "candidate_cross_positive_ids": []
+    },
+    {
+      "pair_id": "bacillus-albus-blb-vs-bacillus-subtilis-clubroot",
+      "draft_kind": "distinct_control",
+      "source_pmid": "36946428",
+      "shared_ids": [
+        "42405276",
+        "42729539",
+        "42735530"
+      ],
+      "static_followup_ids": [
+        "36946428"
+      ],
+      "candidate_followup_ids": [
+        "25320450",
+        "25860123",
+        "36946428"
+      ],
+      "static_union_ids": [
+        "36946428",
+        "42405276",
+        "42729539",
+        "42735530"
+      ],
+      "candidate_union_ids": [
+        "25320450",
+        "25860123",
+        "36946428",
+        "42405276",
+        "42729539",
+        "42735530"
+      ],
+      "static_source_hit": true,
+      "candidate_source_hit": true,
+      "static_cross_positive_ids": [],
+      "candidate_cross_positive_ids": []
+    },
+    {
+      "pair_id": "gold-nanoparticle-scaffold-vs-wearable-sweat-sensor",
+      "draft_kind": "positive",
+      "source_pmid": "37871142",
+      "shared_ids": [
+        "42438481",
+        "42654076",
+        "42797555"
+      ],
+      "static_followup_ids": [],
+      "candidate_followup_ids": [],
+      "static_union_ids": [
+        "42438481",
+        "42654076",
+        "42797555"
+      ],
+      "candidate_union_ids": [
+        "42438481",
+        "42654076",
+        "42797555"
+      ],
+      "static_source_hit": false,
+      "candidate_source_hit": false,
+      "static_cross_positive_ids": [],
+      "candidate_cross_positive_ids": []
+    },
+    {
+      "pair_id": "gold-nanoparticle-scaffold-vs-wearable-sweat-sensor",
+      "draft_kind": "distinct_control",
+      "source_pmid": "37903285",
+      "shared_ids": [
+        "42557168",
+        "42680123",
+        "42785340"
+      ],
+      "static_followup_ids": [],
+      "candidate_followup_ids": [
+        "37903285",
+        "39818057"
+      ],
+      "static_union_ids": [
+        "42557168",
+        "42680123",
+        "42785340"
+      ],
+      "candidate_union_ids": [
+        "37903285",
+        "39818057",
+        "42557168",
+        "42680123",
+        "42785340"
+      ],
+      "static_source_hit": false,
+      "candidate_source_hit": true,
+      "static_cross_positive_ids": [],
+      "candidate_cross_positive_ids": []
+    },
+    {
+      "pair_id": "alginate-sericin-scaffold-vs-rotational-atherectomy",
+      "draft_kind": "positive",
+      "source_pmid": "38112317",
+      "shared_ids": [
+        "41689364",
+        "42530536",
+        "42698731"
+      ],
+      "static_followup_ids": [
+        "41689364",
+        "42404727",
+        "42564882"
+      ],
+      "candidate_followup_ids": [
+        "42404727",
+        "42564882",
+        "42598560"
+      ],
+      "static_union_ids": [
+        "41689364",
+        "42404727",
+        "42530536",
+        "42564882",
+        "42698731"
+      ],
+      "candidate_union_ids": [
+        "41689364",
+        "42404727",
+        "42530536",
+        "42564882",
+        "42598560",
+        "42698731"
+      ],
+      "static_source_hit": false,
+      "candidate_source_hit": false,
+      "static_cross_positive_ids": [],
+      "candidate_cross_positive_ids": []
+    },
+    {
+      "pair_id": "alginate-sericin-scaffold-vs-rotational-atherectomy",
+      "draft_kind": "distinct_control",
+      "source_pmid": "36960883",
+      "shared_ids": [
+        "42557168",
+        "42680123",
+        "42785340"
+      ],
+      "static_followup_ids": [
+        "36960883",
+        "42788313"
+      ],
+      "candidate_followup_ids": [],
+      "static_union_ids": [
+        "36960883",
+        "42557168",
+        "42680123",
+        "42785340",
+        "42788313"
+      ],
+      "candidate_union_ids": [
+        "42557168",
+        "42680123",
+        "42785340"
+      ],
+      "static_source_hit": true,
+      "candidate_source_hit": false,
+      "static_cross_positive_ids": [],
+      "candidate_cross_positive_ids": []
+    }
+  ],
+  "positive_static_coverage": 3,
+  "positive_candidate_coverage": 3,
+  "positive_gain_pairs": [
+    "monkeypox-vs-tuberculosis-in-silico-vaccine"
+  ],
+  "positive_loss_pairs": [
+    "upec-vs-mrsa-bacterial-vaccine-models"
+  ],
+  "control_static_anchor_coverage": 4,
+  "control_candidate_anchor_coverage": 3,
+  "control_anchor_loss_pairs": [
+    "monkeypox-vs-tuberculosis-in-silico-vaccine",
+    "alginate-sericin-scaffold-vs-rotational-atherectomy"
+  ],
+  "cross_positive_control_hits": {
+    "static": 0,
+    "candidate": 0
+  },
+  "strict_other_pair_positive_control_hits": {
+    "static": 0,
+    "candidate": 0
+  },
+  "cross_positive_readings_agree": true,
+  "cross_positive_definition": "Deduplicate each control shared-first/followup union. Report all-six-positive coverage and strictly other-pair coverage excluding own matched positive. Both readings are exactly zero in each arm, so ambiguity cannot change the frozen no-increase gate or the independent primary/control-loss failures. No threshold/criterion changes.",
+  "followup_blind_unrelated_fractions": {
+    "static": {
+      "unrelated": 1,
+      "paper_records": 15,
+      "exact_fraction": "1/15"
+    },
+    "candidate": {
+      "unrelated": 0,
+      "paper_records": 21,
+      "exact_fraction": "0"
+    }
+  },
+  "shared_first_items_excluded_from_unrelated_fractions": true,
+  "gates": {
+    "primary_gain_at_least_one_no_positive_loss": false,
+    "no_control_own_anchor_loss": false,
+    "no_cross_positive_increase_in_controls": true,
+    "no_blind_unrelated_fraction_increase": true,
+    "complete_blind_labels": true,
+    "complete_strict_raw_provenance": true
+  },
+  "provenance": [
+    {
+      "event_id": 2,
+      "query": "An in silico monkeypox vaccine combined envelope-protein epitopes and modeled TLR4 binding; immune simulations predicted antibody responses, with experimental validation still needed.",
+      "selected_rung": {
+        "rung_index": 3,
+        "rung_type": "or",
+        "count": 9,
+        "ids": [
+          "42685764",
+          "42815509",
+          "42679842",
+          "42575115",
+          "42575113",
+          "42502572",
+          "42526489",
+          "42615959",
+          "42774404"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "42502572",
+        "42774404",
+        "42685764"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_01/runs/m11_nov_01a3b3_b2aa27ca8aee_01/.search-trace.json",
+      "raw_trace_sha256": "e0693e9245961e8b47eeca226163d3858f9ae1a6d79e6e274996a21322791120",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 4,
+      "query": "(\"monkeypox vaccine\" OR monkeypox vaccination) AND (\"envelope protein epitopes\" OR \"TLR4 binding\") AND (\"immune simulation\" OR \"antibody response\")",
+      "selected_rung": null,
+      "paper_pmids": [],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_02/runs/m11_nov_01a3b3_b2aa27ca8aee_02/.search-trace.json",
+      "raw_trace_sha256": "de9ece0e578112b0a91009572a07471cbb2f37c57ce1f28f1819b091a792c744",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 5,
+      "query": "monkeypox vaccine AND envelope protein AND TLR4 AND immune simulation",
+      "selected_rung": {
+        "rung_index": 1,
+        "rung_type": "exact",
+        "count": 1,
+        "ids": [
+          "37129119"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "37129119"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_03/runs/m11_nov_01a3b3_b2aa27ca8aee_03/.search-trace.json",
+      "raw_trace_sha256": "e893a0eecedc58aaab02bf732ace070103010608dba63ca7af17c55c66719694",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 7,
+      "query": "Immunoinformatics predicted a subunit vaccine targeting six Mycobacterium tuberculosis proteins docking Tlr2 and MHC-II; in vitro and animal validation remain required.",
+      "selected_rung": {
+        "rung_index": 2,
+        "rung_type": "anchored",
+        "count": 9,
+        "ids": [
+          "42579895",
+          "42660295",
+          "42648033",
+          "42600189",
+          "42218862",
+          "42119371",
+          "42102528",
+          "42814220",
+          "42786366"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "42579895",
+        "42660295",
+        "42648033"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_04/runs/m11_nov_01a3b3_b2aa27ca8aee_04/.search-trace.json",
+      "raw_trace_sha256": "5e586231184d85f718fa944ceac70c558e238afc7b1c3f1229b67da496ef994f",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 9,
+      "query": "\"Mycobacterium tuberculosis\" AND vaccine AND Tlr2 AND \"MHC-II\" AND immunoinformatics",
+      "selected_rung": {
+        "rung_index": 1,
+        "rung_type": "exact",
+        "count": 2,
+        "ids": [
+          "41277920",
+          "37880982"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "41277920",
+        "37880982"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_05/runs/m11_nov_01a3b3_b2aa27ca8aee_05/.search-trace.json",
+      "raw_trace_sha256": "592421f91f7fa8e3d3eae225c6f8c6ce381c75b77c058df78c7ec75126d57f4a",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 10,
+      "query": "(\"Mycobacterium tuberculosis\" OR \"M. tuberculosis\") AND (immunoinformatics OR \"multiepitope vaccine\") AND (TLR2 OR \"MHC-II\")",
+      "selected_rung": {
+        "rung_index": 1,
+        "rung_type": "exact",
+        "count": 9,
+        "ids": [
+          "42658892",
+          "42421124",
+          "42375671",
+          "42333232",
+          "41962465",
+          "42289006",
+          "42115669",
+          "42378612",
+          "42137845"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "42658892",
+        "42421124",
+        "42375671"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_06/runs/m11_nov_01a3b3_b2aa27ca8aee_06/.search-trace.json",
+      "raw_trace_sha256": "e58d0c03760e4b41e9d2d88ed86d82703b59e1511280256d6a059261837d66fd",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 12,
+      "query": "Pan-genomic reverse vaccinology combined nine predicted T-cell epitopes into a UPEC vaccine; simulations predicted TLR2/TLR4 binding and stable complexes requiring experimental validation.",
+      "selected_rung": {
+        "rung_index": 2,
+        "rung_type": "anchored",
+        "count": 9,
+        "ids": [
+          "42743349",
+          "42330028",
+          "41939898",
+          "40601639",
+          "39464855",
+          "36200250",
+          "36644533",
+          "33719856",
+          "33135163"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "42743349",
+        "42330028",
+        "41939898"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_07/runs/m11_nov_01a3b3_b2aa27ca8aee_07/.search-trace.json",
+      "raw_trace_sha256": "afc9238471fd197bfdc4ca67de72d002d63d0e10f88b3788f202486c878396b3",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 14,
+      "query": "UPEC AND reverse vaccinology AND T-cell epitopes AND TLR2 AND TLR4",
+      "selected_rung": {
+        "rung_index": 1,
+        "rung_type": "exact",
+        "count": 1,
+        "ids": [
+          "37811774"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "37811774"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_08/runs/m11_nov_01a3b3_b2aa27ca8aee_08/.search-trace.json",
+      "raw_trace_sha256": "8d8806bbe67750d753051d3c184dbb6b69ff7a19c55bbeb57ed230beb31bc2b3",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 15,
+      "query": "(\"reverse vaccinology\" OR \"pan-genomic\") AND (\"multi-epitope vaccine\" OR \"T-cell epitopes\") AND (TLR2 OR TLR4) AND (docking OR \"molecular dynamics\")",
+      "selected_rung": {
+        "rung_index": 1,
+        "rung_type": "exact",
+        "count": 9,
+        "ids": [
+          "42743349",
+          "42284765",
+          "42797492",
+          "42795607",
+          "42794409",
+          "42710342",
+          "42749442",
+          "42663966",
+          "42676359"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "42743349",
+        "42797492",
+        "42795607"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_09/runs/m11_nov_01a3b3_b2aa27ca8aee_09/.search-trace.json",
+      "raw_trace_sha256": "c0123cf1d0644e096e3002fa0c5aae00a35b2c9595a5ce663703056357a4ad6a",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 17,
+      "query": "Reverse vaccinology designed an MRSA vaccine targeting PBP2a, gamma-hemolysin and IsdB; simulated TLR2 docking suggested immune stimulation, pending experimental validation.",
+      "selected_rung": {
+        "rung_index": 2,
+        "rung_type": "anchored",
+        "count": 9,
+        "ids": [
+          "42190864",
+          "42673711",
+          "42814220",
+          "42786366",
+          "42797645",
+          "42758400",
+          "42791768",
+          "42743349",
+          "42284765"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "42797645",
+        "42758400",
+        "42791768"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_10/runs/m11_nov_01a3b3_b2aa27ca8aee_10/.search-trace.json",
+      "raw_trace_sha256": "8e3305a66411a204907eaa7e29882f8fbe9ff4df6dacb278bd4e189f790be674",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 19,
+      "query": "MRSA AND vaccine AND (\"reverse vaccinology\" OR PBP2a OR IsdB)",
+      "selected_rung": {
+        "rung_index": 1,
+        "rung_type": "exact",
+        "count": 9,
+        "ids": [
+          "42782163",
+          "42137845",
+          "41548530",
+          "41758237",
+          "41190079",
+          "40715169",
+          "39344919",
+          "38232694",
+          "38112465"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "42137845",
+        "41190079",
+        "40715169"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_11/runs/m11_nov_01a3b3_b2aa27ca8aee_11/.search-trace.json",
+      "raw_trace_sha256": "2a6aee1b68abf197fc88f323f730c5756e3406278d880e53a8b80a0e216ec2f8",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 20,
+      "query": "MRSA AND vaccine AND (\"reverse vaccinology\" OR PBP2a OR IsdB)",
+      "selected_rung": {
+        "rung_index": 1,
+        "rung_type": "exact",
+        "count": 9,
+        "ids": [
+          "42782163",
+          "42137845",
+          "41548530",
+          "41758237",
+          "41190079",
+          "40715169",
+          "39344919",
+          "38232694",
+          "38112465"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "42137845",
+        "41190079",
+        "40715169"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_12/runs/m11_nov_01a3b3_b2aa27ca8aee_12/.search-trace.json",
+      "raw_trace_sha256": "3136271cbf8042205b59caae235e957fa3b3b81e87c37e0879bbc0cc705e289e",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 22,
+      "query": "In vitro culture of endangered Paratecoma peroba established shoot morphogenesis, embryo callus induction, and HPLC/NMR-verified extraction of the flavonol tiliroside.",
+      "selected_rung": {
+        "rung_index": 3,
+        "rung_type": "or",
+        "count": 9,
+        "ids": [
+          "42785340",
+          "42575113",
+          "42816245",
+          "42787492",
+          "42775084",
+          "42756938",
+          "42756095",
+          "42741542",
+          "42729482"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "42787492",
+        "42775084",
+        "42756938"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_13/runs/m11_nov_01a3b3_b2aa27ca8aee_13/.search-trace.json",
+      "raw_trace_sha256": "a9b339cbbdb3bb0390eaa5c4b8d1286e94b26b77b4e6fbb2af3fa9204ec8a4ee",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 24,
+      "query": "\"Paratecoma peroba\" AND (shoot morphogenesis OR embryo callus) AND tiliroside",
+      "selected_rung": {
+        "rung_index": 1,
+        "rung_type": "exact",
+        "count": 1,
+        "ids": [
+          "37712397"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "37712397"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_14/runs/m11_nov_01a3b3_b2aa27ca8aee_14/.search-trace.json",
+      "raw_trace_sha256": "dbe5872c21a0635fbdde504a0fe9532a4fb32cd9edc3ad4fe1e6f913c2a67a09",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 25,
+      "query": "Paratecoma peroba AND (in vitro culture OR shoot morphogenesis OR embryo callus OR tiliroside)",
+      "selected_rung": {
+        "rung_index": 1,
+        "rung_type": "exact",
+        "count": 1,
+        "ids": [
+          "37712397"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "37712397"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_15/runs/m11_nov_01a3b3_b2aa27ca8aee_15/.search-trace.json",
+      "raw_trace_sha256": "40d50f55e6e3f5652d7113f788d40c3235f4612a1f7748b22f604b14a27b0792",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 27,
+      "query": "Schinus molle leaf oils and spathulenol inhibited Xanthomonas citri in vitro via broth microdilution; further in vivo studies are needed before use for citrus canker biocontrol.",
+      "selected_rung": {
+        "rung_index": 2,
+        "rung_type": "anchored",
+        "count": 9,
+        "ids": [
+          "41731897",
+          "42761140",
+          "42025853",
+          "41633493",
+          "41996423",
+          "42075729",
+          "41828822",
+          "40907727",
+          "41304906"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "42761140",
+        "42075729",
+        "41828822"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_16/runs/m11_nov_01a3b3_b2aa27ca8aee_16/.search-trace.json",
+      "raw_trace_sha256": "145dfb664f65e59e58464154df45e4ea78e23d6edd7919360076c3a7586eb177",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 29,
+      "query": "Schinus molle AND spathulenol AND Xanthomonas citri AND citrus canker AND biocontrol",
+      "selected_rung": {
+        "rung_index": 1,
+        "rung_type": "exact",
+        "count": 1,
+        "ids": [
+          "37606013"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "37606013"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_17/runs/m11_nov_01a3b3_b2aa27ca8aee_17/.search-trace.json",
+      "raw_trace_sha256": "599acebe572c2b07da785c8e2bd4924c9d4276bd8b7d71e3744dd1d30bab5357",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 30,
+      "query": "Schinus molle AND (leaf oils OR spathulenol) AND Xanthomonas citri AND antimicrobial",
+      "selected_rung": {
+        "rung_index": 1,
+        "rung_type": "exact",
+        "count": 1,
+        "ids": [
+          "37606013"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "37606013"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_18/runs/m11_nov_01a3b3_b2aa27ca8aee_18/.search-trace.json",
+      "raw_trace_sha256": "827edee56d06c827173908aa6069e86ff72059fbc4fbd2ac13f47e82a8d25f70",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 32,
+      "query": "Siderophore-producing Bacillus albus and its crude extracts suppressed Xanthomonas oryzae and promoted rice growth in experiments, though field trial validation is still needed.",
+      "selected_rung": {
+        "rung_index": 2,
+        "rung_type": "anchored",
+        "count": 9,
+        "ids": [
+          "42758307",
+          "42627012",
+          "41989716",
+          "41753738",
+          "41680172",
+          "41753668",
+          "41039203",
+          "40842846",
+          "37462829"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "42627012",
+        "41753738",
+        "41680172"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_19/runs/m11_nov_01a3b3_b2aa27ca8aee_19/.search-trace.json",
+      "raw_trace_sha256": "290ed92c02a24e8b34752e19c39dddc2b7bb74a51bdf56936bd181ae67a2ac22",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 34,
+      "query": "\"Bacillus albus\" AND \"Xanthomonas oryzae\" AND siderophore AND rice",
+      "selected_rung": {
+        "rung_index": 1,
+        "rung_type": "exact",
+        "count": 1,
+        "ids": [
+          "37462829"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "37462829"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_20/runs/m11_nov_01a3b3_b2aa27ca8aee_20/.search-trace.json",
+      "raw_trace_sha256": "d24ac804bbe1a185d6952ef96ce93a8f1795e5ef2356157f5ee8a1d4027c9099",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 35,
+      "query": "\"Bacillus albus\" AND siderophore AND \"Xanthomonas oryzae\" AND rice",
+      "selected_rung": {
+        "rung_index": 1,
+        "rung_type": "exact",
+        "count": 1,
+        "ids": [
+          "37462829"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "37462829"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_21/runs/m11_nov_01a3b3_b2aa27ca8aee_21/.search-trace.json",
+      "raw_trace_sha256": "d9c7e4dd72026f76ca3a440a4e5b5ca42df1cacbccc072465b7f41a0a87f5ed2",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 37,
+      "query": "Bacillus subtilis fengycin lipopeptides controlled Plasmodiophora brassicae clubroot in greenhouse cabbage via direct spore lysis and defense stimulation, identified through gene deletion.",
+      "selected_rung": {
+        "rung_index": 2,
+        "rung_type": "anchored",
+        "count": 9,
+        "ids": [
+          "42729539",
+          "42735530",
+          "42668196",
+          "42405276",
+          "42520354",
+          "42570346",
+          "42636542",
+          "42425695",
+          "42425662"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "42729539",
+        "42405276",
+        "42735530"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_22/runs/m11_nov_01a3b3_b2aa27ca8aee_22/.search-trace.json",
+      "raw_trace_sha256": "a36ac55f5afb06ead8b7e9ce656de44d66df5b4e0dcc4c63bba8808528b04437",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 39,
+      "query": "fengycin AND Plasmodiophora brassicae AND clubroot AND Bacillus subtilis AND gene deletion",
+      "selected_rung": {
+        "rung_index": 1,
+        "rung_type": "exact",
+        "count": 1,
+        "ids": [
+          "36946428"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "36946428"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_23/runs/m11_nov_01a3b3_b2aa27ca8aee_23/.search-trace.json",
+      "raw_trace_sha256": "9316a897e7aa9ad371aeb424e39213582837254dc6cc3ee31fe8526a03479dd1",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 40,
+      "query": "(\"Bacillus subtilis\"[Title/Abstract]) AND (fengycin[Title/Abstract]) AND (Plasmodiophora brassicae[Title/Abstract] OR clubroot[Title/Abstract]) AND (biocontrol[Title/Abstract])",
+      "selected_rung": {
+        "rung_index": 1,
+        "rung_type": "exact",
+        "count": 5,
+        "ids": [
+          "36946428",
+          "25860123",
+          "25320450",
+          "23462003",
+          "22614917"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "25320450",
+        "36946428",
+        "25860123"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_24/runs/m11_nov_01a3b3_b2aa27ca8aee_24/.search-trace.json",
+      "raw_trace_sha256": "ebeee44187807c47c68b0247d863b8b72716e2bcba0674c1fa017f832cf2599a",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 42,
+      "query": "Tested PEGylated gold nanoparticles were nontoxic to AC16 cardiomyocytes; adding them to printed hydrogels improved micro-CT imaging and acellular mechanical properties.",
+      "selected_rung": {
+        "rung_index": 2,
+        "rung_type": "anchored",
+        "count": 9,
+        "ids": [
+          "42700907",
+          "42690298",
+          "42797555",
+          "42438481",
+          "42654076",
+          "42367047",
+          "41864151",
+          "42514941",
+          "42483924"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "42797555",
+        "42438481",
+        "42654076"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_25/runs/m11_nov_01a3b3_b2aa27ca8aee_25/.search-trace.json",
+      "raw_trace_sha256": "3d99f64c0c4630c265d7670d5a5e6e68373d9280ac998b76087cd967dd98bb24",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 44,
+      "query": "\"PEGylated gold nanoparticles\" AND \"AC16 cardiomyocytes\" AND \"printed hydrogels\" AND \"micro-CT imaging\" AND \"mechanical properties\"",
+      "selected_rung": null,
+      "paper_pmids": [],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_26/runs/m11_nov_01a3b3_b2aa27ca8aee_26/.search-trace.json",
+      "raw_trace_sha256": "81f01c3188d7d8a2dfc7f654ba39a60872c742a723055f091f6920b706b8010c",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 45,
+      "query": "(\"PEGylated gold nanoparticles\" AND hydrogel* AND cardiomyocytes AND (\"micro-CT\" OR \"mechanical properties\"))",
+      "selected_rung": null,
+      "paper_pmids": [],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_27/runs/m11_nov_01a3b3_b2aa27ca8aee_27/.search-trace.json",
+      "raw_trace_sha256": "bf3f78338998e9f2fea004f0cb638c3868e74245a0d5a3e218db78996628336a",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 47,
+      "query": "A wearable PDMS microfluidic chip with erasable silver-on-liquid-metal SERS hotspots detected glucose sensitively, using boronic-acid modification of its sensing substrate.",
+      "selected_rung": {
+        "rung_index": 3,
+        "rung_type": "or",
+        "count": 9,
+        "ids": [
+          "42680123",
+          "42557168",
+          "42785340",
+          "42770930",
+          "42815509",
+          "42542126",
+          "42815512",
+          "42575113",
+          "42816245"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "42680123",
+        "42557168",
+        "42785340"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_28/runs/m11_nov_01a3b3_b2aa27ca8aee_28/.search-trace.json",
+      "raw_trace_sha256": "4321508d81ee89050330e83aaafac526fcd3406e504705a48b798e68cf5544ca",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 49,
+      "query": "wearable AND \"PDMS microfluidic\" AND \"silver-on-liquid-metal\" AND SERS AND glucose",
+      "selected_rung": null,
+      "paper_pmids": [],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_29/runs/m11_nov_01a3b3_b2aa27ca8aee_29/.search-trace.json",
+      "raw_trace_sha256": "b6fdd7e80695edb2efc9017af3920b7a29e58d1e2392247e8cde50a262999802",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 50,
+      "query": "(\"surface-enhanced Raman spectroscopy\" OR SERS) AND microfluidic AND glucose AND (liquid metal OR PDMS)",
+      "selected_rung": {
+        "rung_index": 1,
+        "rung_type": "exact",
+        "count": 2,
+        "ids": [
+          "39818057",
+          "37903285"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "39818057",
+        "37903285"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_30/runs/m11_nov_01a3b3_b2aa27ca8aee_30/.search-trace.json",
+      "raw_trace_sha256": "4e236fee3a4bce22dcace4f3597b2bd9503a189211bb88546f94d3b1a7e3a23a",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 52,
+      "query": "Sodium alginate, aloe vera, and sericin scaffolds showed antibacterial activity, blood-clotting effects in vitro with human blood, and angiogenesis in chick embryos.",
+      "selected_rung": {
+        "rung_index": 2,
+        "rung_type": "anchored",
+        "count": 9,
+        "ids": [
+          "42600511",
+          "42668182",
+          "42470732",
+          "42530536",
+          "41934393",
+          "41689364",
+          "42520429",
+          "42407305",
+          "42698731"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "42530536",
+        "41689364",
+        "42698731"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_31/runs/m11_nov_01a3b3_b2aa27ca8aee_31/.search-trace.json",
+      "raw_trace_sha256": "c56489e7871428698c96e19ee77ef9f9290a7dbc5a325b23a0723127e31a4dfa",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 54,
+      "query": "(\"sodium alginate\" OR \"aloe vera\" OR sericin) AND (antibacterial OR hemostatic OR angiogenesis)",
+      "selected_rung": {
+        "rung_index": 1,
+        "rung_type": "exact",
+        "count": 9,
+        "ids": [
+          "42668182",
+          "41689364",
+          "42564882",
+          "42404727",
+          "42705739",
+          "42637200",
+          "42365728",
+          "42314537",
+          "42275802"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "41689364",
+        "42564882",
+        "42404727"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_32/runs/m11_nov_01a3b3_b2aa27ca8aee_32/.search-trace.json",
+      "raw_trace_sha256": "c216f552d951c2eb9860656c0200cd8f7e52bff531fbe4902471602953e0d21e",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 55,
+      "query": "(\"sodium alginate\" AND (scaffold OR hydrogel)) AND (antibacterial OR hemostasis OR angiogenesis)",
+      "selected_rung": {
+        "rung_index": 1,
+        "rung_type": "exact",
+        "count": 9,
+        "ids": [
+          "42564882",
+          "42404727",
+          "42365728",
+          "42314537",
+          "42275802",
+          "42692583",
+          "42624435",
+          "42679977",
+          "42598560"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "42564882",
+        "42404727",
+        "42598560"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_33/runs/m11_nov_01a3b3_b2aa27ca8aee_33/.search-trace.json",
+      "raw_trace_sha256": "265ee73e58c5de52538fc8fda207e27a4aefda4aaa2650ddece489d930fe71dc",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 57,
+      "query": "In an observational human cohort with calcified arterial lesions, Jetstream atherectomy and drug-coated balloon angioplasty achieved 99% procedural success with 7.4% bail-out stenting.",
+      "selected_rung": {
+        "rung_index": 3,
+        "rung_type": "or",
+        "count": 9,
+        "ids": [
+          "42680123",
+          "42557168",
+          "42785340",
+          "42770930",
+          "42815509",
+          "42815512",
+          "42575113",
+          "42777751",
+          "42575118"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "42680123",
+        "42557168",
+        "42785340"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_34/runs/m11_nov_01a3b3_b2aa27ca8aee_34/.search-trace.json",
+      "raw_trace_sha256": "bf364f735b17c1cd05cc55e204f39a0169d4d23d29808e34d1a8f24b96f0c1ab",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 59,
+      "query": "(\"Jetstream atherectomy\" AND \"drug-coated balloon\" AND angioplasty AND \"bail-out stenting\")",
+      "selected_rung": {
+        "rung_index": 1,
+        "rung_type": "exact",
+        "count": 2,
+        "ids": [
+          "42788313",
+          "36960883"
+        ],
+        "sort": "pub_date"
+      },
+      "paper_pmids": [
+        "42788313",
+        "36960883"
+      ],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_35/runs/m11_nov_01a3b3_b2aa27ca8aee_35/.search-trace.json",
+      "raw_trace_sha256": "e39ae1894bf011530061eb6eab92e91086f263e7d02b0ecd2241ff759853b1be",
+      "strict_validation": "PASS"
+    },
+    {
+      "event_id": 60,
+      "query": "(\"Jetstream atherectomy\" OR \"Jetstream\") AND \"drug-coated balloon angioplasty\" AND \"calcified arterial lesions\" AND \"bail-out stenting\"",
+      "selected_rung": null,
+      "paper_pmids": [],
+      "raw_trace_path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/cache/pubmed/m11_nov_01a3b3_b2aa27ca8aee_36/runs/m11_nov_01a3b3_b2aa27ca8aee_36/.search-trace.json",
+      "raw_trace_sha256": "5229972346ea8e9917982ff62ece9dd39835410877067dc1487276e1d3930d92",
+      "strict_validation": "PASS"
+    }
+  ],
+  "scientific_model_requests_after_run": 0,
+  "coordinator_verification_corrections": "Offline audit initially imported validator from wrong source namespace, then mistook enriched recorded raw+derived attestation for derived-only output. Rehydrate exact committed namespace and compare full frozen-required-raw plus unchanged strict-validator output, exactly matching producer merge; raw input and frozen guards unchanged.",
+  "limitations": "Exploratory exposed six-pair dataset and LLM abstract relevance judgments only. No expert/wet-lab validation or general novelty/provider-quality conclusion; consumed studies1\u20138 remain unscored.",
+  "fidelity_classification": "External technique assessed through independent local design; no Google-private-implementation claim.",
+  "private_scoring_receipt": {
+    "path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/scientific-scoring-receipt.json",
+    "sha256": "741d081c64f1b0cd35b3f24c360058bebd4b6ba36be2ba32c34dc9e900221a6a"
+  },
+  "independent_final_review": {
+    "peer": "Antigravity Gemini3.8FlashHigh",
+    "model": "gemini-3.8-flash-high",
+    "conversation_id": "b47ba86f-d5c7-4d23-89de-794539714857",
+    "path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/scoring-final-review.json",
+    "sha256": "297081ebd4a15c8c9f0741f8712512b8c178d092e8f3ab3ff127c05842261d14",
+    "verdict": "ACCEPT",
+    "scope": "Supplied exact calculator, frozen criteria, all12retained ID-set rows and all72label/arm/stage joins; independent recomputation, no peer tools/file/process observations.",
+    "earlier_review": "Rejected coordinator-derived-only versus enriched-attestation equality; corrected to frozen19rawfields merged with derivedfields, actualall36strictpass. Peer earlier17-key count corrected to22; no source/data/guard edits."
+  },
+  "cost": {
+    "reported_scientific_query_cost_usd": 0,
+    "account_usage_unchanged": true,
+    "not_invoice_audit": true
+  },
+  "candidate_disposition": {
+    "candidate_ids": [
+      "M11-NOV-01a3b3c",
+      "M11-NOV-01b"
+    ],
+    "decision": "Rejected exact preregistered study9 result-conditioned follow-up adaptation.",
+    "why": [
+      "One positive target gained and another lost;3/6coverage botharms fails at-least-one additional target without any loss.",
+      "Two control anchors lost;controlcoverage4/6static versus3/6candidate fails no-control-loss."
+    ],
+    "not_adopted": true,
+    "confirmatory_run_required": false,
+    "confirmation_reason": "Confirmation is triggered only by a scientific pass; this completed pilot fails.",
+    "scope_limit": "Does not reject every iterative search method, alternate untested configuration, provider or paper; studies1\u20138 remain incomplete/unscored, never replayed or relabeled as failures."
+  },
+  "blind_labels_evidence": {
+    "path": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/blind-review/all-validated-blind-labels.json",
+    "sha256": "5b70595d37db1c597a8b29f12ca3bb8b0e09c6eac548ea331893d28e1d634f4a",
+    "count": 72,
+    "reviewer_manifest": "/Users/guy/Code/co-scientist/.remember/archives/external-campaign/novelty-study9/live-execution/run-20261001T063805Z/blind-review/manifest.json",
+    "reviewer_manifest_sha256": "7e109e55b35f96fb861bedfe92ccb5c02d4dbed8a7be74a8cc1d4745a9c537ff",
+    "exclusion": "Shared-first36paperrecords excluded from arm-specific unrelated fractions; static15,candidate21followup records.",
+    "limits": "LLM abstract-relevance judgments supplement exact-ID metrics; no expert/wet-lab verification."
+  }
+}
