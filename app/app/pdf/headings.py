@@ -1,7 +1,7 @@
 """Cascade orchestration: bookmarks, then numbering, then font style.
 
-Combines the three signals in :mod:`app.pdf_heading_bookmarks`,
-:mod:`app.pdf_numbering`, and :mod:`app.pdf_heading_style` into one set of
+Combines the three signals in :mod:`app.pdf.heading_bookmarks`,
+:mod:`app.pdf.numbering`, and :mod:`app.pdf.heading_style` into one set of
 heading levels for a whole PDF, and rewrites each page's extracted text
 with ATX (``#``/``##``/``###``) markers at the inferred positions.
 
@@ -26,15 +26,15 @@ from __future__ import annotations
 from collections import Counter
 from typing import Any
 
-from app.pdf_heading_bookmarks import raw_bookmark_matches
-from app.pdf_heading_levels import compress_to_levels
-from app.pdf_heading_style import (
+from app.pdf.heading_bookmarks import raw_bookmark_matches
+from app.pdf.heading_levels import compress_to_levels
+from app.pdf.heading_style import (
     MAX_HEADING_CHARS,
     LineStyle,
     collect_line_styles,
     rank_heading_styles,
 )
-from app.pdf_numbering import infer_numbering_levels
+from app.pdf.numbering import infer_numbering_levels
 
 # ATX only goes to h3 here: a fourth inferred level is rare enough in a
 # scientist's attached paper that flattening it into h3 costs less than

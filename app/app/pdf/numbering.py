@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from app.pdf_heading_levels import compress_to_levels
+from app.pdf.heading_levels import compress_to_levels
 
 # Precedence of numbering schemes, highest (outermost) first. ``dotted``
 # shares the ``arabic`` rank and is broken by its own segment depth, so

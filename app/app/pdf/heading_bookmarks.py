@@ -5,7 +5,7 @@ exact PDF bookmarks are frequently truncated or drop their own leading
 numbering marker -- and a confidently matched line takes the bookmark's
 declared depth. The line comparison here works on plain strings; walking
 a real ``PdfReader.outline`` into ``(title, depth, page_index)`` tuples is
-:func:`app.pdf_headings.flatten_outline`, kept apart so this module's
+:func:`app.pdf.headings.flatten_outline`, kept apart so this module's
 matching logic is testable without a PDF parser at all.
 """
 
@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 from difflib import SequenceMatcher
 
-from app.pdf_heading_levels import compress_to_levels
+from app.pdf.heading_levels import compress_to_levels
 
 # A confident match must clear this similarity ratio (0..1). Below it, a
 # coincidentally similar line is worse than leaving the bookmark unmatched.

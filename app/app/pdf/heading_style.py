@@ -21,7 +21,7 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
-from app.pdf_heading_levels import compress_to_levels
+from app.pdf.heading_levels import compress_to_levels
 
 # Sizes within this relative tolerance of each other collapse into one
 # cluster, so measurement jitter cannot manufacture a spurious heading
@@ -126,7 +126,7 @@ def collect_line_styles(page: Any) -> dict[str, LineStyle]:
     (the layout-mode pass used for the page's actual output text ignores
     ``visitor_text`` entirely). Keyed by the line's stripped text rather
     than position, since the two passes reconstruct lines independently
-    and are matched back together by content in :mod:`app.pdf_headings`.
+    and are matched back together by content in :mod:`app.pdf.headings`.
     """
     collector = _LineCollector()
     page.extract_text(visitor_text=collector)
