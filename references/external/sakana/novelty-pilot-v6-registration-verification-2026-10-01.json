@@ -1,0 +1,77 @@
+{
+  "status": "PREPARATION_REGISTERED_COMMITTED_LOADERS_PASS_NO_ADMISSION",
+  "item": "M12-04b4g2",
+  "recorded_at_utc": "2026-10-01T00:08:52.773715+00:00",
+  "registration_commit": "685a0ef2879fb7cb54b5a7a48cbd33eeb562d2cf",
+  "registration_commit_time": "2026-10-01T02:07:06+02:00",
+  "files": {
+    "protocol": {
+      "path": "references/external/sakana/novelty-result-conditioned-pilot-prereg-v6.json",
+      "sha256": "71684ec1fa4d571b621b4354d461fb1df16d2ea1af4c3c65e2523baa63159d62"
+    },
+    "bank": {
+      "path": "references/external/sakana/novelty-fixture-bank-prereg-v7.json",
+      "sha256": "9bce919fee438c50943f23d08e8524ab3acaaa3b8c9328c9e0c50c3c42ab5ff4"
+    },
+    "readiness": {
+      "path": "references/external/sakana/novelty-pilot-v6-process-readiness-2026-10-01.json",
+      "sha256": "7d31d7ac9b73263c683ae3bf84c1faafe9a0095c9d2294c0057d8ba32353a274"
+    },
+    "source_review": {
+      "path": "references/external/sakana/novelty-v7-source-review-2026-10-01.json",
+      "sha256": "196626290ede52e0bcd1eabac85ab5282cd51a2f5ad064e2ad682fd128784a4f"
+    },
+    "proposal": {
+      "path": "references/external/sakana/novelty-v7-source-proposal-2026-10-01.json",
+      "sha256": "0e47f9419de4e32592d9589c2106b6d43c46e29475b3d1d73e652cc3b610347f"
+    }
+  },
+  "committed_loader_check": {
+    "command": "env -i PATH=/usr/bin:/bin PYTHON_DOTENV_DISABLED=1 PYTHONPATH=engine/src:references/external/sakana .venv/bin/python; import runner; _load_pilot_protocol(6), _load_fixture_bank(protocol,6), _pilot_pairs(bank,6), _validate_pilot_drafts(bank,pairs)",
+    "exit_code": 0,
+    "result_status": "COMMITTED_STUDY6_LOADERS_PASS_NO_ADMISSION_OR_CALLS",
+    "fixed_pairs": 6,
+    "source_ids": 12,
+    "provider_model_calls": 0,
+    "scientific_mcp_calls": 0,
+    "admission": false,
+    "runtime_client_constructed": false
+  },
+  "independent_canonical_review": {
+    "reviewer": "study6_dispatch",
+    "model": "gpt-6-luna",
+    "effort": "xhigh",
+    "context": "Existing preparation worker reused for read-only final comparison; no fresh-context claim.",
+    "verdict": "ACCEPT",
+    "checked_hashes": {
+      "bank": "9bce919fee438c50943f23d08e8524ab3acaaa3b8c9328c9e0c50c3c42ab5ff4",
+      "protocol": "71684ec1fa4d571b621b4354d461fb1df16d2ea1af4c3c65e2523baa63159d62",
+      "readiness": "7d31d7ac9b73263c683ae3bf84c1faafe9a0095c9d2294c0057d8ba32353a274"
+    },
+    "findings": "Only registration/status/preparation metadata differ from actual private preflight inputs; all case content, source pins, prompts, model/request config, limits and scientific criteria preserved."
+  },
+  "actual_preflight": {
+    "exit_code": 0,
+    "private_protocol_sha256": "9b1610bca55f6f26616c2a172d31c34e4ab4c1b53aa53f5db720613d88c5f71d",
+    "private_bank_sha256": "2cd98ef9461e0427adfb6169644e1d632807b0d13c410facb9ef22dc38e00d30",
+    "launcher_sha256": "83bf39dff00e8716def1069ff4d94d0f224ddc485ea228636b2f1a6d19330d77",
+    "server_pid": 17922,
+    "server_port": 50939,
+    "server_stopped_and_listener_closed": true,
+    "model_client_initialized": false,
+    "scientific_transport_initialized": false,
+    "provider_credentials_read_or_forwarded": false,
+    "admission": false,
+    "scientific_calls": 0
+  },
+  "scientific_limits_unchanged": {
+    "model_calls": 24,
+    "outer_mcp_calls": 36,
+    "max_attempts": 1,
+    "recovery": false,
+    "partial_scoring": false,
+    "historical_replay": false
+  },
+  "next_item": "M12-04b4g3: fresh exact-zero route/account/process gates, then only this committed study6 admission once.",
+  "scope_limit": "Identity, abstract scope, offline process and committed admission readiness only. No scientific-quality outcome, sixth admission, live model request, production mutation or final campaign acceptance."
+}
