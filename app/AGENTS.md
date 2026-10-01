@@ -17,7 +17,7 @@ make format / lint / typecheck   # ruff format / ruff check / mypy
 
 Use `make start` whenever a run may be in flight: `--reload` restarts the process on any edit under `app/`, dropping the embedded worker cohort mid-task and leaving the run to startup reconciliation. Tasks are mirrored under `[tool.pixi.tasks]` — `pixi run dev` etc. work identically.
 
-**Source modules** (`app/app/`) — the ones worth knowing; the package holds ~150 flat modules plus the `store/`, `engine_adapter/`, `cli/` and `report/` subpackages (261 files in all):
+**Source modules** (`app/app/`) — the ones worth knowing; the package holds 45 flat modules plus the `store/`, `engine_adapter/`, `engine_tasks/`, `cli/`, `report/`, `runs/`, `claims/`, `citations/`, `interviews/`, `qa/`, `safety/`, `hypothesis/`, `seed/`, `demo_seed_data/`, `pdf/`, `outcome_refinement/`, `task_worker/` and `run_modes/` subpackages (271 files in all; a subpackage's `__init__.py` keeps the former flat module's interface, siblings drop its prefix):
 
 | Module | Purpose |
 |---|---|
@@ -46,6 +46,9 @@ Use `make start` whenever a run may be in flight: `--reload` restarts the proces
 | `account_export.py`, `notifications.py` | `GET /api/account/export` (N11, a client's own runs/documents/interviews); SMTP completion notices as the `notification.email` task |
 | `diagnostics.py` | `/health` checks and the cached MCP/PubMed/web-search probes behind `/status` |
 | `elo.py`, `citations/`, `safety/`, `run_modes/`, `seed/` | Elo utilities; citation classification; intake/final screening; run tier/focus normalization; demo seeder |
+| `pdf/` | PDF heading recovery for uploaded documents: bookmark, numbering and font-style signals combined in `pdf/headings.py` (imported lazily by `document_ingest.py`) |
+| `outcome_refinement/` | Owner-authorized one-outcome refinement: admission (`action.py`), context, lineage and telemetry |
+| `demo_seed_data/` | Curated fixtures the demo seeder (`seed/`) writes: scenarios, extra evidence, proposals and record types |
 | `logging_setup.py`, `logs_api.py` | Persistent log capture (root logger → `app_logs`) and the `/api/logs` filter/payload logic |
 
 **Durable task execution — this is the real run path.** `POST /api/runs/{id}/start` does **not** run a workflow in-process. It enqueues `engine.bootstrap` (`task_worker.enqueue_run_workflow` → `engine_tasks.enqueue_bootstrap`) into the `scientific_tasks` table, and a worker cohort drains it; `POST /resume` re-enters the same queue keyed on the last checkpoint. In `engine_tasks/__init__.py` each graph node (`engine.node.<name>`), fan-out item (`engine.fanout.review.item`, `.verification.item`, `.generation.strategy`, `.reflection.item`, plus their `.aggregate` partners) and tournament match (`engine.ranking.match`) is its own leased, idempotent task checkpointing through `store/checkpoints.py`. `store/tasks.py` is the queue: leases with heartbeat renewal, `idempotency_key` dedup, retry budget, pause/resume/cancel by row. Losing a lease mid-task (`_LeaseLostError`) or being superseded by a newer checkpoint (`SupersededTaskError`) are normal outcomes that keep the retry budget. `COSCIENTIST_EMBEDDED_WORKER=1` (default) runs the cohort inside the API process; a separate worker service runs `python -m app.task_worker` with `COSCIENTIST_EMBEDDED_WORKER=0` on the API. The legacy `run.workflow` task type and its in-process handler were removed (a defensive filter in `store/tasks.py` still skips legacy persisted rows of that type); demo seeding (`seed/__init__.py`) also runs through the durable queue, so the durable path is the only way any run executes.

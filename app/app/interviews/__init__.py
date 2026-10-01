@@ -5,7 +5,7 @@ provider call and its deterministic fallback live in ``interviews.model``,
 the request-shaping half (schema, prompts, field normalization) in
 ``interviews.prompts``, the SSE transport for one turn's advancement in
 ``interviews.stream``, the request bodies in ``interviews.models``, and
-the rewind/retry revision endpoints in ``interviews_revision`` (mounted
+the rewind/retry revision endpoints in ``interviews.revision`` (mounted
 via ``router.include_router`` so they keep their original paths); the
 names callers and tests use are re-exported here, so ``app.interviews``
 remains their import and monkeypatch surface.

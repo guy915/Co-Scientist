@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS interview_turns (
     reasoning TEXT,
     -- 1 when the deterministic recovery path authored this Agent turn
     -- because no model could be reached (see
-    -- interviews_model._fallback_interview_response); 0 for model-driven
+    -- interviews.model._fallback_interview_response); 0 for model-driven
     -- turns and every user turn. Per turn, so a mid-session credential
     -- change marks only the turns it affects.
     fallback INTEGER NOT NULL DEFAULT 0,
