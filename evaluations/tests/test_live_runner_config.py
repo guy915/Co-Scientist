@@ -5,6 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from evaluations.tests._engine_fake_backend import SCRIPT_PRELUDE
+
 _ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -80,7 +82,9 @@ for model in ("", "deepseek/deepseek-chat"):
 def test_live_runner_price_admission_reaches_public_llm_boundary(
     tmp_path: Path,
 ) -> None:
-    script = """
+    script = (
+        SCRIPT_PRELUDE
+        + """
 import asyncio
 from unittest.mock import AsyncMock, patch
 import httpx
@@ -109,7 +113,7 @@ async def check():
         metadata = httpx.Response(200, json=catalog,
             request=httpx.Request("GET", "https://openrouter.ai/api/v1/models"))
         with patch.object(httpx, "get", return_value=metadata), \
-             patch.object(litellm, "acompletion", provider):
+             fake_backend(provider):
             if price != "0":
                 try:
                     await call_llm(
@@ -129,6 +133,7 @@ async def check():
                     "prompt": 0, "completion": 0, "request": 0}
 asyncio.run(check())
 """
+    )
     result = subprocess.run(
         [sys.executable, "-c", script],
         cwd=tmp_path,
