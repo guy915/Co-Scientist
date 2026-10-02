@@ -29,6 +29,7 @@ but do not update them to match later changes.
 
 | Entry | Contents |
 |---|---|
+| [Provider policies (2026-10-02)](decisions/2026-10-02-provider-policies.md) | Owner-approved tool retry/parking and independent app budgets on shared transport |
 | [Architecture review (2026-10-01)](decisions/2026-10-01-architecture-review.md) | Completed package/boundary campaign, verification evidence and deferred architecture decisions |
 | [PUBLICATION-REVIEW.md](PUBLICATION-REVIEW.md) | 1 October 2026 cleanup validation, secret-detector triage, and outstanding publication gates |
 | [PARITY-VERIFICATION.md](PARITY-VERIFICATION.md) | Point-in-time record (2026-07-10) of how parity claims were verified: commands, results, and honest limitations. The live ledger is [PARITY.md](PARITY.md) |

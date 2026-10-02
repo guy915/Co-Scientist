@@ -41,6 +41,9 @@ from collections import OrderedDict
 from collections.abc import Iterator
 
 from co_scientist.exceptions import LLMCallBudgetExceededError
+from co_scientist.llm.admission.completion_budget import (
+    current_completion_budget,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +148,10 @@ def record_provider_request() -> None:
         LLMCallBudgetExceededError: If this request pushes the run's
             counted total past its configured ceiling.
     """
+    operation = current_completion_budget()
+    if operation is not None:
+        operation.reserve()
+        return
     run_id = _current_run.get()
     if run_id is None:
         return

@@ -9,7 +9,6 @@ a model that does both keeps the answer it already started.
 from __future__ import annotations
 
 import json
-import sys
 from types import SimpleNamespace
 from typing import Any
 
@@ -17,6 +16,7 @@ import pytest
 
 from app import qa
 from app.qa import ideas as qa_ideas
+from tests._llm_fake_backend import install_completion_backend
 
 
 def _idea(title: str, **fields: Any) -> dict[str, Any]:
@@ -203,7 +203,7 @@ def test_a_model_that_answers_directly_makes_one_call(
     # The tool is offered on every question, so a question that does not
     # need it must not cost a second round.
     fake = _scripted_litellm([[_chunk("The run "), _chunk("is going well.")]])
-    monkeypatch.setitem(sys.modules, "litellm", fake)
+    install_completion_backend(monkeypatch, (fake).acompletion)
 
     deltas = _drain(
         qa.stream_llm_deltas("model", "sys", "how is it?", [_idea("H")])
@@ -219,7 +219,7 @@ def test_a_model_that_asks_for_ideas_is_given_them_and_answers(
     fake = _scripted_litellm(
         [[_search_call_chunk()], [_chunk("Idea one says X.")]]
     )
-    monkeypatch.setitem(sys.modules, "litellm", fake)
+    install_completion_backend(monkeypatch, (fake).acompletion)
 
     deltas = _drain(
         qa.stream_llm_deltas(
@@ -243,7 +243,7 @@ def test_the_second_round_keeps_the_budget_and_deadline(
     # A tool round that forgot the token floor fails exactly the way the
     # first round would have, only later and with the search already paid for.
     fake = _scripted_litellm([[_search_call_chunk()], [_chunk("answer")]])
-    monkeypatch.setitem(sys.modules, "litellm", fake)
+    install_completion_backend(monkeypatch, (fake).acompletion)
 
     _drain(qa.stream_llm_deltas("model", "sys", "q", [_idea("H")]))
 
@@ -259,7 +259,7 @@ def test_a_tool_call_after_the_answer_started_is_ignored(
     fake = _scripted_litellm(
         [[_chunk("Half an answer."), _search_call_chunk()], [_chunk("never")]]
     )
-    monkeypatch.setitem(sys.modules, "litellm", fake)
+    install_completion_backend(monkeypatch, (fake).acompletion)
 
     deltas = _drain(qa.stream_llm_deltas("model", "sys", "q", [_idea("H")]))
 
@@ -271,7 +271,7 @@ def test_a_run_with_no_ideas_is_offered_no_tool(
     monkeypatch: pytest.MonkeyPatch, reachable_provider: None
 ) -> None:
     fake = _scripted_litellm([[_chunk("Nothing yet.")]])
-    monkeypatch.setitem(sys.modules, "litellm", fake)
+    install_completion_backend(monkeypatch, (fake).acompletion)
 
     _drain(qa.stream_llm_deltas("model", "sys", "q", []))
 
@@ -286,7 +286,7 @@ def test_a_nameless_tool_fragment_does_not_trigger_a_round(
     fake = _scripted_litellm(
         [[_chunk(tool_calls=[_fragment(0, arguments="{}")])], [_chunk("no")]]
     )
-    monkeypatch.setitem(sys.modules, "litellm", fake)
+    install_completion_backend(monkeypatch, (fake).acompletion)
 
     assert _drain(qa.stream_llm_deltas("model", "sys", "q", [_idea("H")])) == []
     assert len(fake.sent) == 1

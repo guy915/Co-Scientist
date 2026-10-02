@@ -4,14 +4,12 @@
 ``test_qa_grounding.py``; this file covers the remaining pure helpers
 (``build_system_prompt``, ``_format_manifest_for_prompt``,
 ``settings.effective_chat_model``, ``_citation_meta``) plus the streaming path,
-which is exercised end to end against a fake ``litellm`` module swapped into
-``sys.modules`` so no network call is ever made.
+exercised through an installed fake completion backend.
 """
 
 from __future__ import annotations
 
 import logging
-import sys
 from collections.abc import AsyncIterator
 from types import SimpleNamespace
 from typing import Any
@@ -22,6 +20,7 @@ from app import qa, store
 from app.config import settings
 from tests._client import drain as _drain
 from tests._client import fake_litellm as _fake_litellm
+from tests._llm_fake_backend import install_completion_backend
 
 # ---------------------------------------------------------------------------
 # _eligible_citations / build_evidence_manifest edge case
@@ -178,8 +177,8 @@ def test_citation_meta_carries_both_when_both_are_present() -> None:
 def test_stream_llm_deltas_yields_only_nonempty_chunks(
     monkeypatch: pytest.MonkeyPatch, reachable_provider: None
 ) -> None:
-    monkeypatch.setitem(
-        sys.modules, "litellm", _fake_litellm(["Hello", "", " world"])
+    install_completion_backend(
+        monkeypatch, (_fake_litellm(["Hello", "", " world"])).acompletion
     )
 
     assert _drain(qa.stream_llm_deltas("model", "sys prompt", "q?", [])) == [
@@ -225,7 +224,9 @@ def test_stream_answer_happy_path_persists_and_yields_frames(
     monkeypatch: pytest.MonkeyPatch,
     reachable_provider: None,
 ) -> None:
-    monkeypatch.setitem(sys.modules, "litellm", _fake_litellm(["Ans", "wer"]))
+    install_completion_backend(
+        monkeypatch, (_fake_litellm(["Ans", "wer"])).acompletion
+    )
     store.create_run(
         "goal",
         "default",
@@ -260,7 +261,7 @@ def test_stream_answer_happy_path_persists_and_yields_frames(
 def test_stream_answer_without_manifest_skips_sources_and_meta(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setitem(sys.modules, "litellm", _fake_litellm(["Ok"]))
+    install_completion_backend(monkeypatch, (_fake_litellm(["Ok"])).acompletion)
     store.create_run(
         "goal",
         "default",
@@ -317,10 +318,11 @@ def test_stream_answer_relays_and_persists_reasoning(
     persisted with the answer, exactly as ``run_start_announcement``
     already does.
     """
-    monkeypatch.setitem(
-        sys.modules,
-        "litellm",
-        _thinking_litellm("Checking the evidence first.", "Answer."),
+    install_completion_backend(
+        monkeypatch,
+        (
+            _thinking_litellm("Checking the evidence first.", "Answer.")
+        ).acompletion,
     )
     store.create_run(
         "goal",
@@ -350,10 +352,9 @@ def test_stream_answer_relays_and_persists_reasoning(
 def test_stream_answer_error_path_persists_and_emits_fallback(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setitem(
-        sys.modules,
-        "litellm",
-        _fake_litellm([], raise_exc=RuntimeError("no key")),
+    install_completion_backend(
+        monkeypatch,
+        (_fake_litellm([], raise_exc=RuntimeError("no key"))).acompletion,
     )
     store.create_run(
         "goal",

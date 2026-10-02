@@ -52,6 +52,9 @@ if TYPE_CHECKING:
         release_run_call_budget,
         scoped_llm_call_budget,
     )
+    from co_scientist.llm.admission.completion_budget import (
+        scoped_completion_budget,
+    )
     from co_scientist.llm.admission.credentials import (
         current_api_key,
         scoped_api_key,
@@ -71,9 +74,11 @@ if TYPE_CHECKING:
         deepseek_thinking_extra_body,
     )
     from co_scientist.llm.request.thinking import (
+        effective_max_tokens,
         model_reasons,
         reasoning_effort_args,
     )
+    from co_scientist.llm.request.transport import complete_request
     from co_scientist.llm.structured.lists import coerce_json_list
     from co_scientist.llm.structured.validate import parse_tool_loop_json
     from co_scientist.llm.telemetry import (
@@ -103,9 +108,11 @@ __all__ = [
     "call_llm_with_tools",
     "campaign_free_mode",
     "coerce_json_list",
+    "complete_request",
     "current_api_key",
     "current_run_call_count",
     "deepseek_thinking_extra_body",
+    "effective_max_tokens",
     "enforce_free_request",
     "indexed_prompt_name",
     "model_profile",
@@ -119,6 +126,7 @@ __all__ = [
     "release_run_call_budget",
     "scoped_api_key",
     "scoped_campaign_mode",
+    "scoped_completion_budget",
     "scoped_llm_call_budget",
     "scoped_telemetry",
     "scoped_telemetry_phase",
@@ -128,6 +136,9 @@ __all__ = [
 # adding to the interface is one edit in one place; the TYPE_CHECKING block
 # above gives type checkers the same names.
 _EXPORTS: dict[str, str] = {
+    "effective_max_tokens": "co_scientist.llm.request.thinking",
+    "complete_request": "co_scientist.llm.request.transport",
+    "scoped_completion_budget": "co_scientist.llm.admission.completion_budget",
     "DEFAULT_TOOL_LOOP_TOKEN_BUDGET": "co_scientist.llm.tools.policy",
     "CompletionSpec": "co_scientist.llm.values",
     "LLMCallOptions": "co_scientist.llm.values",

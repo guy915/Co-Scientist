@@ -3,8 +3,8 @@
 Every LLM call that can be answered by sending something different or
 sending it again goes through ``run_attempts``: ``call_llm`` (no judge),
 ``call_llm_json`` (a judge that parses, repairs and validates the response)
-and the tool turn of ``call_llm_with_tools`` (``AttemptPlan
-.escalation_only``). A caller supplies two things, in the vocabulary of
+and the tool turn of ``call_llm_with_tools``. A caller supplies two things,
+in the vocabulary of
 ``llm.attempts.contract``:
 
 * how to make one attempt at a given ``Attempt`` -- its rung of

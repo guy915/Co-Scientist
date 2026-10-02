@@ -170,16 +170,11 @@ async def _answered_completion(
     files or starting the same command again, and leaves the earlier
     assistant turn in the transcript with nothing answering its calls.
 
-    Two things this turn does not get are open product decisions, kept
-    exactly as they were rather than corrected (see
-    ``AttemptPlan.escalation_only`` for the first). It retries only where
-    a rung of the ladder answers the failure, so a 429, an outage or an
-    ordinary provider error ends the turn at once, unlike
-    ``call_llm_json``. And ``_build_tool_loop_completion_args`` maps a
-    rung to a request itself, knowing only the raised budget and the
-    thinking-off rung: at ``MINIMAL_REASONING_REQUIRED`` it resends the
-    same reasoning request at a raised budget, not the minimal-effort one
-    the other two entry points send.
+    Each turn gets three physical attempts under the standard backoff and
+    platform-quota parking policy. The retry boundary stops before tool
+    execution, so tools from a completed turn are never replayed here.
+    The mandatory-reasoning rung still raises the budget without changing
+    the tool request's reasoning effort.
 
     Returns:
         The (response, final_content) pair, where final_content is None
@@ -193,20 +188,9 @@ async def _answered_completion(
         )
         return response, _final_content(response, request.model_name)
 
-    try:
-        return await run_attempts(
-            make_attempt, AttemptPlan.escalation_only(request.model_name)
-        )
-    except Exception as exc:
-        # Logged here, not in the loop: this is the layer that knows which
-        # turn of the tool loop failed, and the loop only re-raises a
-        # failure no rung answers.
-        logger.error(
-            "Error in LLM tool call loop (iteration %s): %s",
-            iteration + 1,
-            exc,
-        )
-        raise
+    return await run_attempts(
+        make_attempt, AttemptPlan(request.model_name, max_attempts=3)
+    )
 
 
 async def _run_tool_call_iteration(

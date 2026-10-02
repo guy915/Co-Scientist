@@ -26,7 +26,7 @@ from co_scientist.llm import (
     scoped_telemetry,
 )
 from co_scientist.llm.attempts import backoff
-from co_scientist.llm.request import completion
+from co_scientist.llm.request import completion, transport
 from tests._llm_fake import install_fake_backend
 
 
@@ -208,7 +208,7 @@ async def test_native_provider_timeout_is_not_retried(
         )
 
     install_fake_backend(monkeypatch, accepted_then_lost)
-    monkeypatch.setattr(completion, "enforce_free_request", admit)
+    monkeypatch.setattr(transport, "enforce_free_request", admit)
 
     with pytest.raises(LLMTimeoutError) as excinfo:
         await llm.call_llm_json(

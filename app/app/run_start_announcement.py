@@ -35,6 +35,7 @@ from app.execution_policy import (
     campaign_model_for_config,
     scoped_execution_policy,
 )
+from app.llm_scope import budgeted_stream
 from app.llm_stream import stream_chunks
 from app.sse import sse_frame
 from app.store.models import RunRow
@@ -265,6 +266,7 @@ async def _announcement_attempts(
             yield frame
 
 
+@budgeted_stream("announcement")
 async def stream_announcement(
     run: RunRow,
     prompt_message_id: int,

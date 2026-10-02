@@ -24,6 +24,7 @@ from app.config import (
     deepseek_thinking_kwargs,
     thinking_safe_max_tokens,
 )
+from app.llm_scope import budgeted_stream
 from app.llm_stream import stream_chunks
 from app.qa import ideas as qa_ideas
 
@@ -143,6 +144,7 @@ def _tool_result_messages(
     ]
 
 
+@budgeted_stream("qa")
 async def stream_llm_deltas(
     model: str,
     system_prompt: str,
