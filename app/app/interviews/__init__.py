@@ -76,6 +76,7 @@ from app.interviews.questions import (
 from app.interviews.stream import (
     _interview_stream as _interview_stream,
 )
+from app.llm_scope import budgeted
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/interviews", tags=["interviews"])
@@ -117,6 +118,7 @@ def _reasoning_capture(
     return sink, fragments
 
 
+@budgeted("interview")
 async def _advance(
     interview_id: str,
     on_reasoning: ReasoningSink | None = None,

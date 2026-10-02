@@ -62,6 +62,8 @@ def budgeted(
     ) -> Callable[P, Coroutine[Any, Any, T]]:
         @wraps(function)
         async def invoke(*args: P.args, **kwargs: P.kwargs) -> T:
+            if in_app_call_scope():
+                return await function(*args, **kwargs)
             with app_call_scope(surface):
                 return await function(*args, **kwargs)
 

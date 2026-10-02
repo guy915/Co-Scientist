@@ -30,7 +30,8 @@ and Q&A tool-round policies remain at their app call sites.
 An interview, Q&A exchange, title, goal restatement, announcement or credential
 probe receives a separate operation budget: `APP_LLM_MAX_CALLS`, default 4,
 minimum 1. This is a physical-call cap, not a dollar estimate or a daily client
-quota. Retries and tool rounds share it. Concurrent child calls reserve from
+quota. Retries, question repair and tool rounds share it; nested helpers reuse
+the enclosing operation budget. Concurrent child calls reserve from
 the same thread-locked counter and refused calls never reach the backend.
 The ephemeral scope overrides research counting and telemetry while active,
 then restores them. It does not alter persisted research metrics or tier caps.
