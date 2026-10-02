@@ -1,15 +1,4 @@
-"""Tests for the INDRA CoGex shared client helpers and cross-tool contract.
-
-Every INDRA CoGex tool is built on the helpers in
-``mcp_server.tools.indra_cogex.client``: ``parse_id``/``maybe_parse_agent``
-normalize identifiers, ``indra_post`` makes the one HTTP call every tool
-issues, and ``run_indra_tool`` is what turns any failure -- a bad
-identifier, a validation error, a network fault -- into the
-``{"error", "query"}`` shape every tool promises its caller. This module
-pins those helpers directly, then exercises the promise through all eight
-real tool entrypoints under a simulated transport failure, since the
-promise is only as good as its weakest caller.
-"""
+"""Tests for the INDRA CoGex client and all eight tools' error contracts."""
 
 import logging
 from collections.abc import Awaitable, Callable
@@ -28,7 +17,6 @@ from mcp_server.tools.indra_cogex.client import (
     indra_post,
     maybe_parse_agent,
     parse_id,
-    run_indra_tool,
     tool_error,
 )
 from mcp_server.tools.indra_cogex.drug_clinical import (
@@ -129,53 +117,16 @@ async def test_indra_post_returns_parsed_json(
 async def test_indra_post_does_not_catch_transport_failures(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # indra_post itself is a raising function; catching is run_indra_tool's
-    # job, one layer up. If indra_post started swallowing errors too, every
-    # caller would double-handle them.
+    # The tool owns its error envelope; the HTTP client propagates failures.
     stub_failure(monkeypatch, httpx.ConnectError("boom"))
 
     with pytest.raises(httpx.ConnectError):
         await indra_post("/api/x", {"a": 1})
 
 
-# --- run_indra_tool ---------------------------------------------------
-
-
-async def test_run_indra_tool_returns_the_body_result_on_success() -> None:
-    async def body() -> dict[str, Any]:
-        return {"ok": True}
-
-    result = await run_indra_tool(
-        logging.getLogger("test"), "my_tool", {"q": 1}, body()
-    )
-    assert result == {"ok": True}
-
-
-async def test_run_indra_tool_converts_a_raised_exception_to_an_error(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    async def body() -> dict[str, Any]:
-        raise ValueError("boom")
-
-    with caplog.at_level(logging.ERROR):
-        result = await run_indra_tool(
-            logging.getLogger("mcp_server.tools.indra_cogex.test"),
-            "my_tool",
-            {"q": 1},
-            body(),
-        )
-
-    assert result == {"error": "boom", "query": {"q": 1}}
-    assert "my_tool failed: boom" in caplog.text
-
-
 # --- cross-tool degrade contract ---------------------------------------
 
-# One minimal, valid call per real tool entrypoint, exercised end to end
-# (not just against the shared helper in isolation) so a tool that stopped
-# routing through run_indra_tool -- the exact way the four enum branches
-# once drifted -- would be caught here even if its own family's test file
-# only exercised its happier paths.
+# Exercise the error envelope through each public tool entrypoint.
 _ALL_TOOLS: dict[
     str, tuple[Callable[..., Awaitable[dict[str, Any]]], dict[str, Any]]
 ] = {
@@ -218,11 +169,14 @@ async def test_every_tool_degrades_on_transport_failure(
     tool_fn: Callable[..., Awaitable[dict[str, Any]]],
     kwargs: dict[str, Any],
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     stub_failure(monkeypatch, httpx.ConnectError("connection refused"))
 
-    result = await tool_fn(**kwargs)
+    with caplog.at_level(logging.ERROR):
+        result = await tool_fn(**kwargs)
 
     assert set(result) == {"error", "query"}
     assert "connection refused" in result["error"]
     assert isinstance(result["query"], dict)
+    assert f"{tool_fn.__name__} failed: connection refused" in caplog.text

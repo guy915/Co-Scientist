@@ -58,35 +58,6 @@ def _parse_spec_body(body: str) -> dict[str, Any] | None:
     return {str(key): value for key, value in parsed.items()}
 
 
-def split_prose_and_spec(text: str) -> tuple[str, dict[str, Any] | None]:
-    """Split a complete turn into its prose and its parsed spec block.
-
-    A turn carrying no block at all is legitimate output, not an error: the
-    caller keeps the prose and carries the interview's previous fields
-    forward. The same is true of a block whose JSON is malformed or was
-    truncated mid-write, which is why neither raises.
-
-    Prose containing the literal opening marker splits at its first
-    occurrence. That is accepted rather than defended against: the marker is
-    not text an interview about a research goal produces by accident.
-
-    Args:
-        text: The model's whole answer content for one turn.
-
-    Returns:
-        A ``(prose, fields)`` pair. ``fields`` is None when no parseable
-        block was present.
-    """
-    start = text.find(OPEN_MARKER)
-    if start == -1:
-        return text.strip(), None
-    prose = text[:start].strip()
-    rest = text[start + len(OPEN_MARKER) :]
-    end = rest.find(CLOSE_MARKER)
-    body = rest if end == -1 else rest[:end]
-    return prose, _parse_spec_body(body)
-
-
 def _held_back_length(buffer: str) -> int:
     """Return how many trailing characters might begin the opening marker.
 

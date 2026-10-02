@@ -34,9 +34,6 @@ def test_frontend_wire_types_are_generated_from_backend_contracts() -> None:
         assert _tokens((API_DIR / name).read_text()) == _tokens(expected), (
             f"Regenerate {name}: cd app && python -m app.api_contracts.generate"
         )
-    for name in ("run_types", "report_types", "interview_types"):
-        source = (API_DIR / f"{name}.ts").read_text()
-        assert "export interface" not in source and "export type " in source
 
 
 def test_closed_event_vocabulary_matches_the_store() -> None:

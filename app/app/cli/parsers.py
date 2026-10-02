@@ -6,7 +6,7 @@ import argparse
 import os
 from collections.abc import Callable
 
-from app.cli import logs_cmd, runs_cmd, runs_collections_cmd, runs_stream_cmd
+from app.cli import logs_cmd, runs_cmd, runs_stream_cmd
 from app.cli.http import DEFAULT_API_URL, ApiClient
 
 Handler = Callable[[argparse.Namespace, ApiClient], int]
@@ -345,22 +345,19 @@ def _add_runs(
         metavar="SECONDS",
         help="give up with exit code 124 after this long (default: no limit)",
     )
-    for name, (
-        help_text,
-        _,
-    ) in runs_collections_cmd.COLLECTION_COMMANDS.items():
+    for name, (_, help_text) in runs_cmd.COLLECTION_COMMANDS.items():
         _add_run_id_command(
             runs_sub,
             common,
             name,
-            runs_collections_cmd.handle_collection,
+            runs_cmd.handle_collection,
             help_text,
         )
     _add_run_id_command(
         runs_sub,
         common,
         "metrics",
-        runs_collections_cmd.handle_metrics,
+        runs_cmd.handle_metrics,
         "show execution metrics",
     )
     report_parser = _add_run_id_command(

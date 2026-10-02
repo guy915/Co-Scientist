@@ -16,7 +16,7 @@ import pytest
 from co_scientist.models import Hypothesis, HypothesisReview
 
 from app.engine_tasks import fanout_aggregates as aggregates
-from app.engine_tasks import fanout_reflection as reflection
+from app.engine_tasks import fanout_aggregates as reflection
 
 
 def _make_item(result: dict[str, Any]) -> Any:

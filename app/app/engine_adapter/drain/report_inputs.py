@@ -70,7 +70,7 @@ def stratification_attributes(
     """Return the Supervisor's synthesized 1-5 stratification attributes.
 
     A read of guidance the Supervisor already synthesizes and
-    ``drain/supervisor_plan.py`` already persists into the
+    ``drain/final_state.py`` already persists into the
     ``supervisor_plan`` table (``supervisor_guidance.config_synthesis.
     attributes``, up to three ``{name, rubric}`` axes) and
     ``prompts/review.py`` already injects into every reviewer prompt --

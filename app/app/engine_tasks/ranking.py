@@ -14,6 +14,7 @@ from typing import Any
 
 from app import store
 from app.engine_tasks.context import ExactSuccessor, TaskCommit
+from app.engine_tasks.emit import NodeCompletion, _emit_node_completion
 from app.engine_tasks.ranking_wave import (
     RANKING_WAVE_SIZE as RANKING_WAVE_SIZE,
 )
@@ -27,8 +28,6 @@ from app.engine_tasks.support import (
     RANKING_FINALIZE_TASK,
     RANKING_MATCH_TASK,
     RANKING_PROGRESS_EVERY,
-    NodeCompletion,
-    _emit_node_completion,
     _save_state_and_enqueue,
     _save_state_and_enqueue_exact,
     leased_state,

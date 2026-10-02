@@ -146,7 +146,7 @@ def check_indra_contract() -> CheckResult:
     """A real INDRA CoGex query returns the shape `client.py` expects.
 
     `get_genes_for_disease` returns a list of CoGex node dicts, each with a
-    `data.db_ns`/`data.db_id` pair -- the fields `run_indra_tool`'s callers
+    `data.db_ns`/`data.db_id` pair -- the fields the INDRA tools
     read off every result.
     """
     try:

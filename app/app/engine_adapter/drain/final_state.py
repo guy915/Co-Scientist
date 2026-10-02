@@ -9,7 +9,6 @@ provider-specific report inputs the shared finalize path needs.
 from __future__ import annotations
 
 import functools
-import logging
 import sqlite3
 from typing import Any, NamedTuple
 
@@ -17,10 +16,10 @@ from app import store
 from app.citations import empty_citation_summary
 from app.claims import EvidencePassage
 from app.claims.grounding import evidence_passages, persist_grounding
-from app.engine_adapter.drain import escalation
 from app.engine_adapter.drain.claim_grounding import (
     _assess_claims,
     _gate_records_by_store_id,
+    fold_grounding_telemetry,
 )
 from app.engine_adapter.drain.evidence_resolution import resolve_articles
 from app.engine_adapter.drain.hypotheses import (
@@ -46,11 +45,11 @@ from app.engine_adapter.drain.report_inputs import (
 from app.engine_adapter.drain.research import _persist_retrieval_calls
 from app.engine_adapter.drain.reviews import _CitationSink
 from app.engine_adapter.drain.safety import _persist_held_for_review
-from app.engine_adapter.drain.supervisor_plan import _persist_supervisor_plan
-from app.engine_adapter.drain.telemetry import fold_grounding_telemetry
-from app.hypothesis.screening import screen_hypotheses
-
-logger = logging.getLogger(__name__)
+from app.hypothesis.safety import escalate_held_hypotheses
+from app.hypothesis.screening import (
+    persist_escalated_verdicts,
+    screen_hypotheses,
+)
 
 
 class DrainResult(NamedTuple):
@@ -66,18 +65,6 @@ class DrainResult(NamedTuple):
     grounding_counts: dict[str, int]
 
 
-def _final_state_list(
-    final_state: dict[str, Any], key: str
-) -> list[dict[str, Any]]:
-    """Return a list-valued key from the engine's final state, or empty."""
-    return final_state.get(key) or []
-
-
-def _final_state_dict(final_state: dict[str, Any], key: str) -> dict[str, Any]:
-    """Return a dict-valued key from the engine's final state, or empty."""
-    return final_state.get(key) or {}
-
-
 def _screen_and_collect_grounding_inputs(
     run_id: str, conn: sqlite3.Connection
 ) -> tuple[Any, list[EvidencePassage], list[dict[str, Any]]]:
@@ -85,7 +72,7 @@ def _screen_and_collect_grounding_inputs(
 
     The engine ran its tournament internally, so the safety screen enforces
     the guarantee at the app boundary. Deterministic only -- see
-    ``drain.escalation`` for the model-escalation phase a held UNCERTAIN
+    ``persist_final_state`` for the model-escalation phase a held UNCERTAIN
     still gets, later and lock-free.
 
     Returns:
@@ -105,38 +92,6 @@ def _screen_and_collect_grounding_inputs(
     return screening_result, passages, grounding_candidates
 
 
-def _persist_grounding_matches_and_proximity(
-    run_id: str,
-    assessed: Any,
-    inputs: FinalStateInputs,
-    store_id_by_engine_id: dict[str, str],
-    conn: sqlite3.Connection,
-) -> Any:
-    """Persist claim grounding, tournament matches, and the proximity graph.
-
-    Pure database work: the claim assessment that produced `assessed` has
-    already run, outside any transaction.
-
-    Args:
-        run_id: Run the drained state belongs to.
-        assessed: The claim assessment produced between the transactions.
-        inputs: The drain's precomputed matchups and proximity graph.
-        store_id_by_engine_id: Persisted row id per engine hypothesis id.
-        conn: Open connection of the caller's transaction.
-
-    Returns:
-        The claim-grounding persistence result.
-    """
-    grounding_result = persist_grounding(run_id, assessed, conn=conn)
-    _persist_engine_matches(
-        run_id, inputs.matchups, store_id_by_engine_id, conn
-    )
-    _persist_engine_proximity(
-        run_id, inputs.proximity_graph, store_id_by_engine_id, conn
-    )
-    return grounding_result
-
-
 def _build_drain_result(
     final_state: dict[str, Any],
     citation_summary: dict[str, int],
@@ -148,10 +103,8 @@ def _build_drain_result(
     return DrainResult(
         report_inputs={
             "citation_summary": citation_summary,
-            "meta_review": _final_state_dict(final_state, "meta_review"),
-            "research_overview": _final_state_dict(
-                final_state, "research_overview"
-            ),
+            "meta_review": final_state.get("meta_review") or {},
+            "research_overview": final_state.get("research_overview") or {},
             "degraded_sections": degraded_sections(final_state),
             "retrieval_degradation": retrieval_degradation(final_state),
             "skills_used": skills_used(final_state),
@@ -177,16 +130,16 @@ def _prepare_final_state_inputs(
     the element type to str (dropping the None from an id-less row).
     """
     hyps = _hypotheses_with_proximity_archive(
-        _final_state_list(final_state, "hypotheses"),
-        _final_state_list(final_state, "removed_duplicates"),
+        final_state.get("hypotheses") or [],
+        final_state.get("removed_duplicates") or [],
     )
     persisted_engine_ids = {hid for h in hyps if (hid := h.get("id"))}
     hyps_parents_first = sorted(hyps, key=lambda h: int(h.get("generation", 0)))
     return FinalStateInputs(
         hyps_parents_first=hyps_parents_first,
-        articles=_final_state_list(final_state, "articles"),
-        matchups=_final_state_list(final_state, "tournament_matchups"),
-        proximity_graph=_final_state_dict(final_state, "proximity_graph"),
+        articles=final_state.get("articles") or [],
+        matchups=final_state.get("tournament_matchups") or [],
+        proximity_graph=final_state.get("proximity_graph") or {},
         persisted_engine_ids=persisted_engine_ids,
         final_state=final_state,
     )
@@ -265,10 +218,14 @@ def _persist_grounding_matches_proximity_txn(
     """Run the drain's 2nd transaction: grounding, matches, and escalation."""
     assessed, escalated = provider_outputs
     with store.transaction(db_path) as conn:
-        grounding_result = _persist_grounding_matches_and_proximity(
-            run_id, assessed, inputs, store_id_by_engine_id, conn
+        grounding_result = persist_grounding(run_id, assessed, conn=conn)
+        _persist_engine_matches(
+            run_id, inputs.matchups, store_id_by_engine_id, conn
         )
-        escalation._persist_escalated_verdicts(run_id, escalated, conn)
+        _persist_engine_proximity(
+            run_id, inputs.proximity_graph, store_id_by_engine_id, conn
+        )
+        persist_escalated_verdicts(run_id, escalated, conn=conn)
         return grounding_result
 
 
@@ -284,7 +241,7 @@ async def persist_final_state(
     and citations), and tournament matches; the report is built separately
     by ``finalize_report``, which consumes the returned inputs. Claim
     assessment and safety escalation both run between transactions,
-    holding no connection -- see ``drain.escalation`` -- and both run off
+    holding no connection, and both run off
     the caller's event loop (``async_bridge.run_off_loop``) rather than
     directly on it, so a durable finalize task's lease heartbeat keeps
     renewing while either provider wave runs (see ``_assess_claims``).
@@ -309,8 +266,17 @@ async def persist_final_state(
         _gate_records_by_store_id(inputs, store_id_by_engine_id),
     )
     fold_grounding_telemetry(final_state, grounding_usage)
-    escalated = await escalation._escalate_off_loop(
-        run_id, screening_result.escalatable, db_path
+    # Safety escalation is synchronous provider work. Run it between the
+    # transactions and off this loop so the finalize lease keeps renewing.
+    from app.async_bridge import run_off_loop
+
+    escalated = await run_off_loop(
+        functools.partial(
+            escalate_held_hypotheses,
+            run_id,
+            screening_result.escalatable,
+            db_path=db_path,
+        )
     )
     grounding_result = _persist_grounding_matches_proximity_txn(
         run_id, (assessed, escalated), inputs, store_id_by_engine_id, db_path
@@ -321,4 +287,25 @@ async def persist_final_state(
         screening_result,
         grounding_result,
         grounding_candidates,
+    )
+
+
+def _persist_supervisor_plan(
+    run_id: str, final_state: dict[str, Any], conn: sqlite3.Connection
+) -> None:
+    """Persist the Supervisor's plan and per-cycle allocation ledger."""
+    store.save_supervisor_plan(
+        store.NewSupervisorPlan(
+            run_id=run_id,
+            guidance=final_state.get("supervisor_guidance") or {},
+            termination_reason=final_state.get("termination_reason"),
+            decision_provenance=final_state.get(
+                "supervisor_decision_provenance"
+            ),
+            orchestrator_state=final_state.get("orchestrator_state") or {},
+        ),
+        conn=conn,
+    )
+    store.replace_supervisor_allocations(
+        run_id, final_state.get("task_history") or [], conn=conn
     )

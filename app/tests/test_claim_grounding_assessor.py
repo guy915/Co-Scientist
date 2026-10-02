@@ -16,10 +16,10 @@ from app import store
 from app.claims import AssessorDraft, EntailmentLabel, as_passages
 from app.claims.grounding import (
     AssessorSpec,
-    GroundingTarget,
+    assess_hypothesis_claims,
     build_assessor,
     evidence_passages,
-    ground_hypotheses,
+    persist_grounding,
 )
 from tests._store_helpers import _add
 
@@ -135,12 +135,14 @@ def test_ground_with_llm_assessor_persists_provenance(
 
     assessor, assessor_id = build_assessor("llm", "deepseek/deepseek-chat")
     with scoped_cache_override(False):
-        ground_hypotheses(
+        persist_grounding(
             run.id,
-            store.list_hypotheses(run.id),
-            evidence_passages(run.id, db_path=isolated_db),
-            assessment=AssessorSpec(assessor, assessor_id),
-            target=GroundingTarget(db_path=isolated_db),
+            assess_hypothesis_claims(
+                store.list_hypotheses(run.id),
+                evidence_passages(run.id, db_path=isolated_db),
+                AssessorSpec(assessor, assessor_id),
+            ),
+            db_path=isolated_db,
         )
 
     edges = store.list_claim_evidence(run.id, db_path=isolated_db)

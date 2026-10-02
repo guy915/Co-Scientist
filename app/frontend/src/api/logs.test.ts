@@ -6,10 +6,10 @@ import {
   postAppLogs,
 } from './logs';
 
-const runsApiMock = vi.hoisted(() => {
+const httpMock = vi.hoisted(() => {
   const clientHeaders = vi.fn(() => ({'X-Client-ID': 'client-7'}));
   // Mirrors runs_http's jsonRequest (the real one is mocked away with
-  // './runs'), building its headers through the mocked clientHeaders so the
+  // './runs_http'), building its headers through the mocked clientHeaders so the
   // inits the module under test sends still carry the caller's identity.
   const jsonRequest = vi.fn(
     (body: unknown, includeClientId = false): RequestInit => ({
@@ -24,12 +24,12 @@ const runsApiMock = vi.hoisted(() => {
   return {fetchJson: vi.fn(), clientHeaders, jsonRequest};
 });
 
-vi.mock('./runs', () => runsApiMock);
+vi.mock('./runs_http', () => httpMock);
 
 const listener = vi.fn();
 
 beforeEach(() => {
-  runsApiMock.fetchJson.mockReset();
+  httpMock.fetchJson.mockReset();
   listener.mockReset();
   window.addEventListener(APP_LOGS_CHANGED_EVENT, listener);
 });
@@ -39,7 +39,7 @@ afterEach(() => {
 });
 
 it('announces a successful post so open panels refresh', async () => {
-  runsApiMock.fetchJson.mockResolvedValue({added: 1, last_id: 5});
+  httpMock.fetchJson.mockResolvedValue({added: 1, last_id: 5});
 
   await postAppLogs([{message: 'clicked something'}]);
 
@@ -47,7 +47,7 @@ it('announces a successful post so open panels refresh', async () => {
 });
 
 it('announces a successful clear', async () => {
-  runsApiMock.fetchJson.mockResolvedValue({deleted: 3});
+  httpMock.fetchJson.mockResolvedValue({deleted: 3});
 
   await deleteAppLogs();
 
@@ -60,27 +60,27 @@ it('announces a successful clear', async () => {
 // in any real deployment, and records the UI submits are stored
 // ownerless and can never be read back.
 it('identifies the caller when reading', async () => {
-  runsApiMock.fetchJson.mockResolvedValue({logs: [], last_id: 0, total: 0});
+  httpMock.fetchJson.mockResolvedValue({logs: [], last_id: 0, total: 0});
 
   await getAppLogs();
 
-  const [, init] = runsApiMock.fetchJson.mock.calls[0];
+  const [, init] = httpMock.fetchJson.mock.calls[0];
   expect(init.headers).toMatchObject({'X-Client-ID': 'client-7'});
 });
 
 it('identifies the caller when posting and clearing', async () => {
-  runsApiMock.fetchJson.mockResolvedValue({added: 1, last_id: 5});
+  httpMock.fetchJson.mockResolvedValue({added: 1, last_id: 5});
   await postAppLogs([{message: 'clicked something'}]);
-  runsApiMock.fetchJson.mockResolvedValue({deleted: 1});
+  httpMock.fetchJson.mockResolvedValue({deleted: 1});
   await deleteAppLogs();
 
-  for (const [, init] of runsApiMock.fetchJson.mock.calls) {
+  for (const [, init] of httpMock.fetchJson.mock.calls) {
     expect(init.headers).toMatchObject({'X-Client-ID': 'client-7'});
   }
 });
 
 it('does not announce failed requests', async () => {
-  runsApiMock.fetchJson.mockRejectedValue(new Error('offline'));
+  httpMock.fetchJson.mockRejectedValue(new Error('offline'));
 
   await expect(postAppLogs([{message: 'x'}])).rejects.toThrow('offline');
 

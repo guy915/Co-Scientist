@@ -1,4 +1,4 @@
-import type {RunStatus} from './run_types';
+import type {RunStatus} from './wire_common';
 
 type StatusInput = string | null | undefined;
 type ActiveStatus = Extract<RunStatus, 'queued' | 'running' | 'synthesizing'>;

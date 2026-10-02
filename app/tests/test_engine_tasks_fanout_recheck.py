@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 from co_scientist.models import Hypothesis, HypothesisReview
 
-from app.engine_tasks import fanout_reflection as reflection
+from app.engine_tasks import fanout_aggregates as reflection
 from app.engine_tasks.fanout import _mature_reflection_specs
 
 

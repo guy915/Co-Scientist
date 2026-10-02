@@ -4,8 +4,7 @@ The task-type vocabulary and the checkpoint save/enqueue/restore
 helpers used by every ``app.engine_tasks`` module. Split from
 ``app.engine_tasks``, which re-exports the names callers use, so the
 fan-out/ranking/gate modules can share them without an import cycle
-back into the dispatcher. The node-completion emitters moved on to
-``app.engine_tasks.emit``; the ones still in use are re-exported below.
+back into the dispatcher.
 """
 
 from __future__ import annotations
@@ -15,37 +14,15 @@ from typing import Any
 
 from app import store
 from app.engine_adapter.opts import build_engine_opts, build_generator
-from app.engine_adapter.provider import import_hypothesis_generator
 from app.engine_tasks import runtime as engine_tasks_runtime
 from app.engine_tasks.context import (
     ExactSuccessor,
     TaskCommit,
     _ack_consumed_steering,
 )
-from app.engine_tasks.emit import (
-    NodeCompletion as NodeCompletion,
-)
-from app.engine_tasks.emit import (
-    _emit_node_completion as _emit_node_completion,
-)
-from app.engine_tasks.emit import (
-    _plain_final_state as _plain_final_state,
-)
-from app.engine_tasks.metrics import (
-    _metrics_snapshot as _metrics_snapshot,
-)
-from app.engine_tasks.pause import (
-    _save_paused_if_requested as _save_paused_if_requested,
-)
-from app.engine_tasks.pause import (
-    _save_paused_state as _save_paused_state,
-)
-from app.engine_tasks.portfolio import (
-    _enqueue_node_portfolio as _enqueue_node_portfolio,
-)
-from app.engine_tasks.queue_actions import (
-    _durable_queue_snapshot as _durable_queue_snapshot,
-)
+from app.engine_tasks.metrics import _metrics_snapshot
+from app.engine_tasks.pause import _save_paused_if_requested
+from app.engine_tasks.portfolio import _enqueue_node_portfolio
 from app.run_modes import resolved_run_config
 from app.store import ScientificTask
 
@@ -158,12 +135,14 @@ def assert_task_commit_allowed(
 def _generator_and_opts(
     task: ScientificTask, db_path: str | None
 ) -> tuple[Any, dict[str, Any]]:
+    from co_scientist import HypothesisGenerator
+
     from app.credentials import get_run_credential
 
     run = _require_run(task, db_path)
     cfg = resolved_run_config(run.config)
     generator = build_generator(
-        import_hypothesis_generator(),
+        HypothesisGenerator,
         cfg,
         offline=store.run_used_offline(run),
         byok=get_run_credential(task.run_id, db_path=db_path),
@@ -173,11 +152,13 @@ def _generator_and_opts(
 
 def _generator_for_restore(task: ScientificTask, db_path: str | None) -> Any:
     """Build a registry-compatible generator without consuming steering."""
+    from co_scientist import HypothesisGenerator
+
     from app.credentials import get_run_credential
 
     run = _require_run(task, db_path)
     return build_generator(
-        import_hypothesis_generator(),
+        HypothesisGenerator,
         resolved_run_config(run.config),
         offline=store.run_used_offline(run),
         byok=get_run_credential(task.run_id, db_path=db_path),

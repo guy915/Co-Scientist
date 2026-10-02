@@ -1,11 +1,4 @@
-"""List-surface rollups and derived-data resets for runs.
-
-Split out of ``app.store.runs`` to keep that module within the size cap.
-Holds the enriched ``list_runs`` read path (top-hypothesis and latest-stage
-rollups) and the derived-data delete/reset helpers used by resume and the
-idempotent finalizer. Every public name is re-exported from
-``app.store.runs``, so callers and monkeypatching tests are unaffected.
-"""
+"""Enriched run-list queries and replayable artifact resets."""
 
 from __future__ import annotations
 

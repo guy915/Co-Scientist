@@ -14,8 +14,8 @@ from app.claims import (
     EvidencePassage,
     as_passages,
 )
-from app.claims.grounding import ground_hypotheses
-from app.claims.grounding_assess import AssessorSpec
+from app.claims.grounding import persist_grounding
+from app.claims.grounding_assess import AssessorSpec, assess_hypothesis_claims
 from app.store import db
 from tests._client import make_client
 from tests._drain_helpers import _build_report
@@ -41,11 +41,13 @@ async def test_grounding_retains_method_across_api_reopen(
             verification_method="model_primary",
         )
 
-    ground_hypotheses(
+    persist_grounding(
         run_id,
-        store.list_hypotheses(run_id),
-        as_passages([claim]),
-        assessment=AssessorSpec(assessor=assess, assessor_id="llm:test"),
+        assess_hypothesis_claims(
+            store.list_hypotheses(run_id),
+            as_passages([claim]),
+            AssessorSpec(assessor=assess, assessor_id="llm:test"),
+        ),
     )
     reopened = make_client().get(f"/api/runs/{run_id}/claim-evidence")
     assert reopened.status_code == 200

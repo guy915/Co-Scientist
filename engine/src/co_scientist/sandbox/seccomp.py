@@ -98,11 +98,6 @@ class _SockFprog(ctypes.Structure):
     _fields_ = (("len", ctypes.c_ushort), ("filter", ctypes.c_void_p))
 
 
-def is_supported() -> bool:
-    """Reports whether this machine has a known audit arch."""
-    return platform.machine() in _ARCHITECTURES
-
-
 def deny_network() -> None:
     """Refuses internet sockets for this process and its children.
 

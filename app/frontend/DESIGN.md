@@ -160,7 +160,7 @@ typography:
 
 rounded:
   # Tailwind v4's default radius scale, unchanged except for `--radius`
-  # (theme_tokens.css), which backs the bare `rounded` utility EmptyState uses.
+  # (theme_tokens.css), which backs the bare `rounded` utility the Ideas empty placeholder uses.
   # `rounded-sm` is unused.
   sm: 4px
   base: 8px
@@ -266,7 +266,7 @@ components:
     rounded: 0.45rem
     padding: "0.34rem 0.52rem"
 
-  # Empty-state placeholder box (workbench/components/empty_state.tsx)
+  # Empty-state placeholder box (workbench/components/tabs/ideas_tab.tsx)
   empty-state:
     backgroundColor: transparent
     textColor: "{colors.on-surface-variant}"
@@ -318,7 +318,7 @@ The MD3-palette semantics below apply to the data/semantic surfaces:
 - **Primary:** Co-Scientist teal used sparingly for semantic emphasis: the live-run pulse dot, the latest activity-row icon disc, and the rare MD3 filled button (error-boundary reload). Never used decoratively.
 - **Surface / surface-container-low:** Tonal card backgrounds for data containers. Never pure white; always tinted by the seed.
 - **On-surface-variant (#3F4949):** Secondary/helper text on MD3 surfaces — metadata, helper text, empty states.
-- **Outline-variant (#BEC9C9):** The default 1px border for MD3-surface boxes (e.g. `EmptyState`). Borders never use a raw color — always this token.
+- **Outline-variant (#BEC9C9):** The default 1px border for MD3-surface boxes (e.g. the Ideas empty placeholder). Borders never use a raw color — always this token.
 - **Error / error-container:** Reserved strictly for failed/blocked run states and form validation. Not used for warnings or info.
 - **Success, Warning, Info, Link:** Hardcoded semantic extras with no MD3 counterpart — light values in `theme_tokens.css`, each with an explicit dark override in `index.css`'s `:root[data-theme="dark"]`. Success maps to completed-run activity tones; **warning is the safety-screening activity tone** on run detail. Info and link are currently defined but unreferenced — reserved, not dead; remove only with a deliberate decision.
 
@@ -380,7 +380,7 @@ The shape language is **restrained and consistent**, but it splits along the sam
 
 **MD3 data surfaces** — three radii cover all cases:
 
-- **`rounded-md` (6px):** Error/alert boxes, data blocks, skeletons. The default for any "block" that contains data. (The bare `rounded` utility — Tailwind's 8px `--radius` — is the other block radius in use, on `EmptyState` and similar.)
+- **`rounded-md` (6px):** Error/alert boxes, data blocks, skeletons. The default for any "block" that contains data. (The bare `rounded` utility — Tailwind's 8px `--radius` — is the other block radius in use, on the Ideas empty placeholder and similar.)
 - **`rounded-xl` (12px):** Containers with more visual weight or interactive importance.
 - **`rounded-full` (9999px):** All buttons (MD3 buttons are pill-shaped), chips, the live-dot indicator. Used for anything that is interactive or badge-like.
 
@@ -512,7 +512,7 @@ The setup flow's Focus/Tier pickers are card-shaped radio groups (`--cosci-optio
 
 ### Empty states
 
-Empty placeholders use the shared `EmptyState` component (`workbench/components/empty_state.tsx`): a centered `rounded` bordered box, `outline-variant` border, `on-surface-variant` text. Don't inline one-off empty-state markup in views.
+The Ideas tab's empty placeholder is a centered `rounded` bordered box, with `outline-variant` border and `on-surface-variant` text.
 
 ## Do's and Don'ts
 

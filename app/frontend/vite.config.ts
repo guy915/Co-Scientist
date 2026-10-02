@@ -33,7 +33,6 @@ export default defineConfig({
       '/api': { target: 'http://localhost:8008', changeOrigin: true },
       '/status': { target: 'http://localhost:8008', changeOrigin: true },
       '/health': { target: 'http://localhost:8008', changeOrigin: true },
-      '/generate': { target: 'http://localhost:8008', changeOrigin: true },
     },
   },
 })

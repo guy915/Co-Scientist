@@ -21,7 +21,6 @@ from app.config import settings
 from app.engine_tasks import fanout_aggregates as engine_tasks_fanout_aggregates
 from app.engine_tasks import fanout_generation as engine_tasks_fanout_generation
 from app.engine_tasks import fanout_items as engine_tasks_fanout_items
-from app.engine_tasks import fanout_reflection as engine_tasks_fanout_reflection
 from app.engine_tasks import node as engine_tasks_node
 from app.engine_tasks import support as engine_tasks_support
 from tests._client import make_client
@@ -412,7 +411,7 @@ async def _run_mature_reflection_items_and_aggregate(
         )
     aggregate = store.claim_task("aggregate", run_id=run_id, db_path=db_path)
     assert aggregate is not None
-    execute = engine_tasks_fanout_reflection.execute_mature_reflection_aggregate
+    execute = engine_tasks_fanout_aggregates.execute_mature_reflection_aggregate
     aggregated = await execute(aggregate, db_path=db_path)
     assert aggregated["successful_reviews"] == 4
     assert store.complete_task(

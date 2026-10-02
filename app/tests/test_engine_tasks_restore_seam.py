@@ -20,10 +20,6 @@ import pytest
 from app import engine_tasks, store
 from app.engine_tasks import fanout_aggregates as engine_tasks_fanout_aggregates
 from app.engine_tasks import fanout_items as engine_tasks_fanout_items
-from app.engine_tasks import fanout_reflection as engine_tasks_fanout_reflection
-from app.engine_tasks import (
-    fanout_verification as engine_tasks_fanout_verification,
-)
 from app.engine_tasks import (
     outcome_refinement as engine_tasks_outcome_refinement,
 )
@@ -99,12 +95,12 @@ _RESTORING_HANDLERS = [
     ),
     _Case(
         engine_tasks_support.MATURE_REFLECTION_AGGREGATE_TASK,
-        engine_tasks_fanout_reflection.execute_mature_reflection_aggregate,
+        engine_tasks_fanout_aggregates.execute_mature_reflection_aggregate,
         {"item_task_ids": []},
     ),
     _Case(
         engine_tasks_support.VERIFICATION_AGGREGATE_TASK,
-        engine_tasks_fanout_verification.execute_verification_aggregate,
+        engine_tasks_fanout_aggregates.execute_verification_aggregate,
         {"item_task_ids": []},
     ),
     _Case(

@@ -1,4 +1,4 @@
-"""Polling, event-stream reconnection and streamed Q&A CLI commands."""
+"""Poll run status and stream events or Q&A for ``cosci``."""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ import argparse
 import json
 import sys
 import time
-import urllib.parse
 from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any
@@ -18,33 +17,7 @@ from app.cli.http import (
     expect_object,
 )
 from app.cli.render import emit_json, format_event_line, sse_data
-
-
-def _run_path(run_id: str, suffix: str = "") -> str:
-    """Build an ``/api/runs/{id}...`` path with the run id percent-quoted."""
-    return f"/api/runs/{urllib.parse.quote(run_id, safe='')}{suffix}"
-
-
-def _text_arg(value: str, what: str) -> str:
-    """Return a text argument, reading it from stdin when given as ``-``.
-
-    Long goals, steering messages, and questions are awkward to pass through
-    shell quoting; ``-`` lets callers pipe or heredoc them instead.
-
-    Args:
-        value: The raw argument value, possibly the ``-`` sentinel.
-        what: Human-readable description used in the empty-stdin error.
-
-    Raises:
-        CliError: When ``-`` was given but stdin held only whitespace.
-    """
-    if value != "-":
-        return value
-    text = sys.stdin.read().strip()
-    if not text:
-        raise CliError(f"{what} given as '-' but stdin is empty")
-    return text
-
+from app.cli.runs_cmd import _run_path, _text_arg
 
 # ---------------------------------------------------------------------------
 # Waiting

@@ -17,7 +17,7 @@ const ACTIVE_RUN_REFRESH_MS = 10_000;
 
 /**
  * Single source of truth for the run-history list, shared by the shell sidebar
- * (see useChatHistory) and the home recents (see useRunHistory) so the list is
+ * and the home recents so the list is
  * fetched once and both surfaces stay in sync instead of holding two copies.
  *
  * Reloads on mount, on every navigation (so a run finishing elsewhere is

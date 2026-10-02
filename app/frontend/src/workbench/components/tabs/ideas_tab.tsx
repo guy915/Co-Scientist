@@ -16,7 +16,6 @@ import {
 import {Icon} from '@/components/icon';
 import {useIsMobile} from '../../hooks/use_is_mobile';
 import {TruncatedLabel} from '../truncated_label';
-import {EmptyState} from '../empty_state';
 import {
   DETAIL_PANE_ID,
   HypothesisDetail,
@@ -232,7 +231,11 @@ export function IdeasTab({
   const {sorted, selected} = useIdeaSelection(hypotheses, isMobile);
 
   if (!sorted.length) {
-    return <EmptyState>{emptyIdeasNote(hypotheses.length)}</EmptyState>;
+    return (
+      <div className="rounded border border-th-border p-6 text-sm text-center text-th-muted-fg">
+        {emptyIdeasNote(hypotheses.length)}
+      </div>
+    );
   }
 
   // Both views share the exact same prop shape, so the layout choice is just

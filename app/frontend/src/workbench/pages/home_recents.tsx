@@ -11,341 +11,168 @@ import {useNowTick} from '@/workbench/hooks/use_now_tick';
 import {GoogleLabsIcon} from '../components/google_labs_icon';
 import {TruncatedLabel} from '../components/truncated_label';
 import {preferredSessionSide} from '../layout_session_memory';
-import {
-  formatHomeRunDate,
-  formatHomeRunTimeChip,
-  homeRunScore,
-} from './home_recents_data';
+import {formatHomeRunDate, formatHomeRunTimeChip} from './home_recents_data';
 import {RunStepFlow} from './home_recents_run_steps';
-const HOME_RECENTS_LIST_CLASSES = 'reference-recents-list';
 
-const RECENTS_PANEL_CLASSES = `reference-recents ${'reference-recents-panel'}`;
-
-const RECENTS_HEADING_ICON_CLASSES = 'reference-recents-heading-icon';
-
-const RECENTS_HEADING_CLASSES = 'reference-recents-heading-title';
-
-const EMPTY_RECENTS_PANEL_CLASSES =
-  RECENTS_PANEL_CLASSES + ' reference-recents--empty';
-
-const EMPTY_RECENTS_LIST_CLASSES =
-  HOME_RECENTS_LIST_CLASSES + ' reference-recents-list--empty';
-
-const EMPTY_RECENTS_ITEM_CLASSES = 'reference-recents-empty-item';
-
-const EMPTY_RECENTS_CLASSES = 'reference-recents-empty-state';
-
-const EMPTY_RECENTS_ICON_CLASSES = 'reference-recents-empty-icon';
-
-const EMPTY_RECENTS_COPY_CLASSES = 'reference-recents-empty-copy';
-
-const RECENT_CARD_CLASSES = 'reference-recent-card';
-
-const ACTIVE_RECENT_CARD_CLASSES = `${RECENT_CARD_CLASSES} is-active-run`;
-
-const RECENT_META_CLASSES = 'reference-recent-meta';
-
-const RECENT_META_CHIP_CLASSES = 'reference-recent-meta-chip';
-
-const RECENT_TITLE_CLASSES = 'reference-recent-title';
-
-const RECENT_DESCRIPTION_CLASSES = 'reference-recent-description';
-
-const RECENT_CHIPS_CLASSES = 'reference-recent-chips';
-
-const RECENT_CHIP_CLASSES = 'reference-recent-chip';
-
-const RECENT_CHIP_ICON_CLASSES = 'reference-recent-chip-icon';
-
-const WINNER_LIST_CLASSES = 'reference-winner-list';
-
-const WINNER_LIST_ITEM_CLASSES = 'reference-winner-list-item';
-
-const WINNER_LIST_TEXT_CLASSES = 'reference-winner-list-text';
-
-// Panel/list class pair: the empty state swaps in a distinct pair (reference
-// styling) rather than conditionally omitting classes.
-function recentsPanelClassNames(hasVisibleRuns: boolean): {
-  panel: string;
-  list: string;
-} {
-  return hasVisibleRuns
-    ? {panel: RECENTS_PANEL_CLASSES, list: HOME_RECENTS_LIST_CLASSES}
-    : {panel: EMPTY_RECENTS_PANEL_CLASSES, list: EMPTY_RECENTS_LIST_CLASSES};
-}
-
-/**
- * Renders the desktop-only "Recents" aside on the session-home stage: a
- * capped list of recent runs (each a RecentRunCard), an empty state when
- * there are none, and a show more/less toggle once there are more than the
- * initial cap.
- *
- * @param runs All recent runs available to list.
- * @param scoresByRunId Top Elo score per run id, passed through to each card.
- * @param showAll Whether the list is expanded past the 4-item cap.
- * @param onToggleShowAll Toggles the expanded state.
- */
 interface HomeRecentsPanelProps {
   runs: Run[];
-  scoresByRunId: Record<string, number | null>;
   showAll: boolean;
   onToggleShowAll: () => void;
-  /**
-   * The rail's chat list, used only to find the conversation behind a run
-   * when the switch's remembered side is the chat one. Passed in rather
-   * than read from context so this panel stays renderable on its own;
-   * without it a card simply opens the run, which is its own default.
-   */
   chats?: readonly ChatSummary[];
 }
 
 export function HomeRecentsPanel({
   runs,
-  scoresByRunId,
   showAll,
   onToggleShowAll,
   chats = [],
 }: HomeRecentsPanelProps) {
-  // Cap the list to 4 items until the user expands it.
   const visibleRuns = showAll ? runs : runs.slice(0, 4);
-  const hasVisibleRuns = visibleRuns.length > 0;
-  const hasExtraRuns = runs.length > 4;
-  const {panel: panelClassName, list: listClassName} =
-    recentsPanelClassNames(hasVisibleRuns);
-
+  const empty = visibleRuns.length === 0;
   return (
-    <aside className={panelClassName} aria-label="Recent runs">
-      <RecentsHeading />
-      <ol className={listClassName}>
-        {hasVisibleRuns ? (
-          visibleRuns.map(run => (
-            <RecentRunCard
-              key={run.id}
-              run={run}
-              topScore={homeRunScore(run, scoresByRunId)}
-              chats={chats}
-            />
-          ))
+    <aside
+      className={`reference-recents reference-recents-panel${empty ? ' reference-recents--empty' : ''}`}
+      aria-label="Recent runs"
+    >
+      <div className="reference-recents-heading">
+        <Icon
+          aria-hidden="true"
+          className="reference-recents-heading-icon"
+          name="history"
+        />
+        <h2 className="reference-recents-heading-title">Recents</h2>
+      </div>
+      <ol
+        className={`reference-recents-list${empty ? ' reference-recents-list--empty' : ''}`}
+      >
+        {empty ? (
+          <li className="reference-recents-empty-item">
+            <div className="reference-recents-empty-state">
+              <GoogleLabsIcon
+                aria-hidden="true"
+                className="reference-recents-empty-icon"
+              />
+              <strong className="reference-recents-empty-copy">
+                You have not started any sessions yet.
+              </strong>
+            </div>
+          </li>
         ) : (
-          <EmptyRecentsState />
+          visibleRuns.map(run => (
+            <RecentRunCard key={run.id} run={run} chats={chats} />
+          ))
         )}
-        {hasExtraRuns && (
-          <LoadMoreRunsItem
-            showAll={showAll}
-            onToggleShowAll={onToggleShowAll}
-          />
+        {runs.length > 4 && (
+          <li className="reference-load-more-item">
+            <button
+              type="button"
+              className="reference-load-more"
+              onClick={onToggleShowAll}
+            >
+              {showAll ? 'Show less' : 'Show more'}
+              <Icon
+                aria-hidden="true"
+                name={showAll ? 'expand_less' : 'expand_more'}
+              />
+            </button>
+          </li>
         )}
       </ol>
     </aside>
   );
 }
 
-// The panel's "Recents" heading row: history glyph plus title.
-function RecentsHeading() {
-  return (
-    <div className="reference-recents-heading">
-      <Icon
-        aria-hidden="true"
-        className={RECENTS_HEADING_ICON_CLASSES}
-        name="history"
-      />
-      <h2 className={RECENTS_HEADING_CLASSES}>Recents</h2>
-    </div>
-  );
-}
-
-// Static "no runs yet" list item shown in place of the recents list when
-// there are no runs to show.
-function EmptyRecentsState() {
-  return (
-    <li className={EMPTY_RECENTS_ITEM_CLASSES}>
-      <div className={EMPTY_RECENTS_CLASSES}>
-        <GoogleLabsIcon
-          aria-hidden="true"
-          className={EMPTY_RECENTS_ICON_CLASSES}
-        />
-        <strong className={EMPTY_RECENTS_COPY_CLASSES}>
-          You have not started any sessions yet.
-        </strong>
-      </div>
-    </li>
-  );
-}
-
-// Trailing list item toggling between the capped and full recents list.
-function LoadMoreRunsItem({
-  showAll,
-  onToggleShowAll,
-}: {
-  showAll: boolean;
-  onToggleShowAll: () => void;
-}) {
-  return (
-    <li className="reference-load-more-item">
-      <button
-        type="button"
-        className="reference-load-more"
-        onClick={onToggleShowAll}
-      >
-        {showAll ? 'Show less' : 'Show more'}
-        <Icon
-          aria-hidden="true"
-          name={showAll ? 'expand_less' : 'expand_more'}
-        />
-      </button>
-    </li>
-  );
-}
-
-/**
- * Renders one recents-list entry: a link card to the run's detail page,
- * showing either the live RunStepFlow progress (while active) or the
- * completed run's top-scoring idea titles and Elo score.
- *
- * @param run The run to summarize.
- * @param topScore The run's top Elo score, or null if unknown/not completed.
- */
-// The date/time chip row at the top of a recents card. The clock ticks every
-// second because an active run's chip reports elapsed time, which would
-// otherwise only move when the shared history reloads.
 function RecentCardMeta({run}: {run: Run}) {
   const nowSeconds = useNowTick(1000);
   return (
-    <span className={RECENT_META_CLASSES}>
-      <span className={RECENT_META_CHIP_CLASSES}>
+    <span className="reference-recent-meta">
+      <span className="reference-recent-meta-chip">
         {formatHomeRunDate(run.updated_at)}
       </span>
-      <span className={RECENT_META_CHIP_CLASSES}>
+      <span className="reference-recent-meta-chip">
         {formatHomeRunTimeChip(run, nowSeconds)}
       </span>
     </span>
   );
 }
 
-// The card's title text: the model-generated title, else a clause of the
-// research goal, else a placeholder for a goal with none.
-function recentCardTitle(run: Run): string {
-  return (
-    run.title || firstSentenceClause(run.research_goal) || 'Untitled session'
-  );
-}
-
-// The card's destination: wherever this reader last had the Chat/Results
-// switch (see layout_session_memory), defaulting to the run's own details
-// tab. The chat side needs the conversation's id, which the card does not
-// carry -- it is looked up in the rail's own chat list rather than stored
-// beside the side, so a renamed or deleted chat cannot leave a stale id
-// behind in storage.
-function recentCardHref(run: Run, chats: readonly ChatSummary[]): string {
-  if (preferredSessionSide(run.id) !== 'chat') return `/runs/${run.id}/details`;
-  const chat = chats.find(entry => entry.run_id === run.id);
-  return chat ? `/chats/${chat.id}` : `/runs/${run.id}/details`;
-}
-
 function RecentRunCard({
   run,
-  topScore,
   chats,
 }: {
   run: Run;
-  topScore: number | null;
   chats: readonly ChatSummary[];
 }) {
-  // The run's real top hypotheses by Elo, served on the run-list payload
-  // (`top_hypotheses`). Empty for a run that produced none (e.g. failed).
-  // Only a completed run shows them below its subtitle: a cancelled or
-  // failed run never finished its tournament, so "Winning ideas" and a top
-  // score would claim a result it does not have -- and on the cancelled
-  // card, which is exactly the one that produced nothing, they were the
-  // only thing under the goal.
-  const topIdeas = run.top_hypotheses ?? [];
-  const isActiveRun = isActiveStatus(run.status);
-
+  // Resolve the remembered Chat/Results side from the current chat list.
+  const chat =
+    preferredSessionSide(run.id) === 'chat'
+      ? chats.find(entry => entry.run_id === run.id)
+      : undefined;
+  const active = isActiveStatus(run.status);
   return (
     <li>
       <Link
-        to={recentCardHref(run, chats)}
-        className={
-          isActiveRun ? ACTIVE_RECENT_CARD_CLASSES : RECENT_CARD_CLASSES
-        }
+        to={chat ? `/chats/${chat.id}` : `/runs/${run.id}/details`}
+        className={`reference-recent-card${active ? ' is-active-run' : ''}`}
         title={run.research_goal}
       >
         <RecentCardMeta run={run} />
         <TruncatedLabel
-          className={RECENT_TITLE_CLASSES}
-          text={recentCardTitle(run)}
+          className="reference-recent-title"
+          text={
+            run.title ||
+            firstSentenceClause(run.research_goal) ||
+            'Untitled session'
+          }
           lines={2}
         />
-
         <TruncatedLabel
-          className={RECENT_DESCRIPTION_CLASSES}
+          className="reference-recent-description"
           text={run.research_goal}
           lines={3}
         />
-        {isActiveRun ? (
+        {active ? (
           <RunStepFlow run={run} />
         ) : (
-          isCompletedStatus(run.status) && (
-            <RecentRunResults topIdeas={topIdeas} topScore={topScore} />
-          )
+          isCompletedStatus(run.status) && <RecentRunResults run={run} />
         )}
       </Link>
     </li>
   );
 }
 
-/**
- * Renders a completed run's summary within its recents card: the "Winning
- * ideas" chip pair (with an optional top-score chip) and the ranked list of
- * the run's real top hypothesis titles. The list is omitted when the run
- * produced no hypotheses.
- *
- * @param topIdeas The run's top hypothesis titles, in rank order.
- * @param topScore The run's top Elo score, or null if unknown.
- */
-// The "Winning ideas" chip pair, with the optional top-score chip.
-function WinningIdeasChips({topScore}: {topScore: number | null}) {
-  return (
-    <span className={RECENT_CHIPS_CLASSES}>
-      <span className={RECENT_CHIP_CLASSES}>
-        <Icon
-          aria-hidden="true"
-          className={RECENT_CHIP_ICON_CLASSES}
-          name="emoji_events"
-        />
-        Winning ideas
-      </span>
-      {topScore !== null && (
-        <span className={RECENT_CHIP_CLASSES}>
-          <Icon
-            aria-hidden="true"
-            className={RECENT_CHIP_ICON_CLASSES}
-            name="stars"
-          />
-          Top score: {topScore}
-        </span>
-      )}
-    </span>
-  );
-}
-
-function RecentRunResults({
-  topIdeas,
-  topScore,
-}: {
-  topIdeas: string[];
-  topScore: number | null;
-}) {
+function RecentRunResults({run}: {run: Run}) {
+  const topIdeas = run.top_hypotheses ?? [];
+  const topScore = run.top_elo ?? null;
   return (
     <>
-      <WinningIdeasChips topScore={topScore} />
+      <span className="reference-recent-chips">
+        <span className="reference-recent-chip">
+          <Icon
+            aria-hidden="true"
+            className="reference-recent-chip-icon"
+            name="emoji_events"
+          />
+          Winning ideas
+        </span>
+        {topScore !== null && (
+          <span className="reference-recent-chip">
+            <Icon
+              aria-hidden="true"
+              className="reference-recent-chip-icon"
+              name="stars"
+            />
+            Top score: {topScore}
+          </span>
+        )}
+      </span>
       {topIdeas.length > 0 && (
-        <ol className={WINNER_LIST_CLASSES}>
+        <ol className="reference-winner-list">
           {topIdeas.map((idea, index) => (
-            <li key={idea} className={WINNER_LIST_ITEM_CLASSES}>
+            <li key={idea} className="reference-winner-list-item">
               <span>{index + 1}.</span>
               <TruncatedLabel
-                className={WINNER_LIST_TEXT_CLASSES}
+                className="reference-winner-list-text"
                 text={idea}
                 lines={2}
               />

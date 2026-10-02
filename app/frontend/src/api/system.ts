@@ -1,6 +1,6 @@
 // System diagnostics API client. Mirrors the /status endpoint in app/main.py.
 
-import {fetchJson} from './runs';
+import {fetchJson} from './runs_http';
 
 /** Detailed outcome of one backend availability probe. */
 export interface ProbeStatus {

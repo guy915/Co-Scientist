@@ -207,16 +207,10 @@ def _cancel_downstream_before_terminal_failure(
         cancel_downstream_portfolio_chain(task, db_path)
 
 
-def _fail_unsupported_task(
+def _fail_permanent_task(
     task: ScientificTask, worker_id: str, exc: Exception, db_path: str | None
 ) -> None:
-    """Permanently fail a task type no worker branch can execute.
-
-    The only failure retrying cannot fix. Everything else reaching the
-    worker boundary -- notably a provider returning empty content, which the
-    engine raises as a bare ValueError -- falls through to the retryable
-    branch instead.
-    """
+    """Fail unsupported work or an exhausted call budget without retrying."""
     _cancel_downstream_before_terminal_failure(
         task, retryable=False, db_path=db_path
     )
@@ -227,38 +221,13 @@ def _fail_unsupported_task(
         retryable=False,
         db_path=db_path,
     )
-    logger.error("Task %s rejected: %s", task.id, exc)
+    if isinstance(exc, LLMCallBudgetExceededError):
+        from co_scientist.llm import release_run_call_budget
 
-
-def _fail_llm_budget_exceeded_task(
-    task: ScientificTask, worker_id: str, exc: Exception, db_path: str | None
-) -> None:
-    """Permanently fail a task whose run overran its LLM-call ceiling.
-
-    The run has already spent past ``max_llm_calls``; nothing a retry
-    could do reduces that spend, so this is the same shape as
-    ``_fail_unsupported_task`` -- retry budget skipped outright, not
-    exhausted one attempt at a time -- rather than the default retryable
-    branch. ``fail_task``'s error text becomes the run's terminal reason
-    (see ``store.runs_reconcile._settle_run_for_failed_task``), and
-    ``LLMCallBudgetExceededError.__str__`` names the count and the
-    ceiling, so the run's recorded failure reads as a ceiling hit rather
-    than a generic task failure.
-    """
-    from co_scientist.llm import release_run_call_budget
-
-    _cancel_downstream_before_terminal_failure(
-        task, retryable=False, db_path=db_path
-    )
-    store.fail_task(
-        task.id,
-        worker_id,
-        _failure_error(exc),
-        retryable=False,
-        db_path=db_path,
-    )
-    release_run_call_budget(task.run_id)
-    logger.error("Task %s aborted: %s", task.id, exc)
+        release_run_call_budget(task.run_id)
+        logger.error("Task %s aborted: %s", task.id, exc)
+    else:
+        logger.error("Task %s rejected: %s", task.id, exc)
 
 
 def _fail_retryable_task(
@@ -308,8 +277,8 @@ _FAILURE_HANDLERS: tuple[tuple[type[Exception], _FailureHandler], ...] = (
     (engine_tasks.SupersededTaskError, _complete_superseded_task),
     (engine_tasks.SafetyHoldError, _park_held_task),
     (LLMRateLimitParkError, _park_rate_limited_task),
-    (UnsupportedTaskError, _fail_unsupported_task),
-    (LLMCallBudgetExceededError, _fail_llm_budget_exceeded_task),
+    (UnsupportedTaskError, _fail_permanent_task),
+    (LLMCallBudgetExceededError, _fail_permanent_task),
 )
 
 

@@ -117,42 +117,13 @@ def get_latest_report(
         }
 
 
-def _read_markdown_from_disk(latest: dict[str, Any]) -> str | None:
-    """Read a report row's on-disk markdown file, or None if unavailable.
-
-    Fallback path for rows written before the markdown_text column existed.
-    """
-    md_path = latest.get("markdown_path")
-    if not md_path:
-        return None
-    path = Path(md_path)
-    return path.read_text(encoding="utf-8") if path.exists() else None
-
-
-def _with_legacy_ranking_half(latest: dict[str, Any], markdown: str) -> str:
-    """Append a legacy split-window row's second document, when present.
-
-    A report saved while the R14-11 split was live has its "Top
-    hypotheses" write-up and tournament comparison sitting only in
-    ``markdown_text_ranking`` (``markdown_text`` there is the overview-only
-    half). Every other row -- pre-split, post-reversal, or the legacy
-    single-document shape -- has this column NULL and passes through
-    unchanged.
-    """
-    ranking_text = latest.get("markdown_text_ranking")
-    if isinstance(ranking_text, str) and ranking_text:
-        return f"{markdown}\n\n{ranking_text}"
-    return markdown
-
-
 def read_report_markdown(run_id: str, db_path: str | None = None) -> str | None:
     """Return the markdown text for the latest report of a run.
 
     Prefers the markdown_text column stored in the database (durable across
     container restarts). Falls back to reading the on-disk file for rows that
     predate the markdown_text column. A row saved during the R14-11 split
-    window gets its ranking-document half appended -- see
-    ``_with_legacy_ranking_half``.
+    window gets its ranking-document half appended.
 
     Args:
         run_id: Identifier of the run.
@@ -164,9 +135,12 @@ def read_report_markdown(run_id: str, db_path: str | None = None) -> str | None:
     latest = get_latest_report(run_id, db_path=db_path)
     if not latest:
         return None
-    # Prefer the DB-stored text (resilient to filesystem loss). The
-    # isinstance check stays inline so mypy narrows the row value to str.
     markdown_text = latest.get("markdown_text")
     if isinstance(markdown_text, str) and markdown_text:
-        return _with_legacy_ranking_half(latest, markdown_text)
-    return _read_markdown_from_disk(latest)
+        ranking_text = latest.get("markdown_text_ranking")
+        if isinstance(ranking_text, str) and ranking_text:
+            return f"{markdown_text}\n\n{ranking_text}"
+        return markdown_text
+    # Legacy rows saved before Markdown was stored in the database.
+    path = Path(latest["markdown_path"] or "")
+    return path.read_text(encoding="utf-8") if path.is_file() else None

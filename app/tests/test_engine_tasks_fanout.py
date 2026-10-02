@@ -2,9 +2,7 @@
 
 Independent child leases committing through a single aggregate. The
 deep-verification family's own mechanics live in the sibling
-``test_engine_tasks_fanout_verification``, mirroring the source split
-between ``engine_tasks.fanout_reflection`` and
-``engine_tasks.fanout_verification``.
+``test_engine_tasks_fanout_verification``.
 """
 
 import asyncio

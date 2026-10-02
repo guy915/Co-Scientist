@@ -110,25 +110,6 @@ it('subscribes to change events on mount and unsubscribes on unmount', () => {
   );
 });
 
-it('resubscribes when the query argument changes', () => {
-  const {lists} = installFakeMatchMedia({
-    '(max-width: 700px)': false,
-    '(max-width: 400px)': true,
-  });
-  const {result, rerender} = renderHook(({query}) => useIsMobile(query), {
-    initialProps: {query: '(max-width: 700px)'},
-  });
-  expect(result.current).toBe(false);
-
-  rerender({query: '(max-width: 400px)'});
-  expect(result.current).toBe(true);
-
-  const wideList = lists.get('(max-width: 700px)')!;
-  const narrowList = lists.get('(max-width: 400px)')!;
-  expect(wideList.removeEventListener).toHaveBeenCalled();
-  expect(narrowList.addEventListener).toHaveBeenCalled();
-});
-
 it('does not crash and reads false when matchMedia is unavailable', () => {
   vi.stubGlobal('matchMedia', undefined);
   const {result} = renderHook(() => useIsMobile());

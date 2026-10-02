@@ -31,7 +31,6 @@ import dataclasses
 import logging
 import sqlite3
 from collections.abc import Mapping, Sequence
-from typing import Any
 
 from app import store
 from app.claims import (
@@ -212,43 +211,6 @@ class GroundingTarget:
     allow_speculative: bool = False
     conn: sqlite3.Connection | None = None
     db_path: str | None = None
-
-
-def ground_hypotheses(
-    run_id: str,
-    hyps: Sequence[Mapping[str, Any]],
-    passages: Sequence[EvidencePassage],
-    *,
-    assessment: AssessorSpec | None = None,
-    target: GroundingTarget | None = None,
-) -> GroundingResult:
-    """Ground each hypothesis's claims, persist the graph, and gate publishing.
-
-    Extracts atomic claims, assesses each against evidence passages (via the
-    swappable assessor), persists the claim-evidence edges, and runs the
-    publication gate. A hypothesis whose gate does not clear is returned in
-    ``blocked_ids``; see that field for what does and does not follow from it.
-
-    Args:
-        run_id: Identifier of the run being grounded.
-        hyps: The run's hypotheses (store rows/payloads with claim text).
-        passages: The run's retrieved evidence passages (with provenance).
-        assessment: The assessor to run; deterministic when omitted.
-        target: Where to persist and how to gate; defaults to the shared
-            database with speculation disallowed.
-
-    Returns:
-        The :class:`GroundingResult` with blocked ids and per-id reasons.
-    """
-    assessment = assessment or AssessorSpec()
-    target = target or GroundingTarget()
-    return persist_grounding(
-        run_id,
-        assess_hypothesis_claims(hyps, passages, assessment),
-        allow_speculative=target.allow_speculative,
-        conn=target.conn,
-        db_path=target.db_path,
-    )
 
 
 def persist_grounding(

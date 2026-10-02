@@ -21,7 +21,6 @@ export interface HomeStageProps {
   connectors: ConnectorToggleProps;
   onSubmit: (e: FormEvent<HTMLFormElement>, files: File[]) => void;
   runs: Run[];
-  scoresByRunId: Record<string, number | null>;
   showAllRecents: boolean;
   onToggleShowAll: () => void;
 }
@@ -103,7 +102,6 @@ export function HomeStage(props: HomeStageProps) {
       {!isMobile && (
         <HomeRecentsPanel
           runs={props.runs}
-          scoresByRunId={props.scoresByRunId}
           showAll={props.showAllRecents}
           onToggleShowAll={props.onToggleShowAll}
           chats={chats}

@@ -7,9 +7,8 @@ import type {
   MatchRow,
   Review,
   SafetyDecision,
-  SharedGoalReport,
-} from './run_types';
-import type {Report} from './report_types';
+} from './wire_science';
+import type {Report, SharedGoalReport} from './wire_reports';
 import {
   API_BASE_URL,
   clientHeaders,

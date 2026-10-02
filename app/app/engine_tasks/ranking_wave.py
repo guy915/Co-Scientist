@@ -25,7 +25,7 @@ from co_scientist.constants import (
 from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import scoped_telemetry
 
-from app.engine_tasks.telemetry import merge_usage_snapshots
+from app.engine_tasks.metrics import merge_usage_snapshots
 from app.store import ScientificTask
 
 logger = logging.getLogger(__name__)

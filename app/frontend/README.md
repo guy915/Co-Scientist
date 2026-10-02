@@ -56,7 +56,7 @@ and prerendering default to `dist/`.
 | `src/workbench/workbench_app.tsx` | Route table for the chat workspace and run views |
 | `src/workbench/pages/` | Chat workspace (session home), run detail, researcher access, shared report |
 | `src/workbench/components/tabs/` | Ideas tab (other run views render inline in `run_detail.tsx`) |
-| `src/workbench/hooks/` | Chat-session state, chat/run history, toast, and system status |
+| `src/workbench/hooks/` | Chat-session state, shared chat/run history, toast, and system status |
 | `src/api/runs.ts` | Product REST operations and streaming message helpers |
 | `src/hooks/` | Shared app-level hooks (e.g. `use_run_stream.ts`) |
 | `src/components/` | Shared primitives (error boundary, icon) |

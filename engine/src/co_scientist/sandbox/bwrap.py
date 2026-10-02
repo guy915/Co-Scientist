@@ -13,8 +13,6 @@ unfiltered; a filtered middle ground needs a proxy and is not offered
 here rather than being approximated.
 """
 
-from pathlib import Path
-
 from co_scientist.sandbox.policy import (
     METADATA_NAMES,
     SandboxPolicy,
@@ -125,11 +123,3 @@ def is_available() -> bool:
     from shutil import which
 
     return which(BWRAP_EXECUTABLE) is not None
-
-
-def executable_path() -> Path | None:
-    """Returns the resolved bwrap path, or None when it is absent."""
-    from shutil import which
-
-    found = which(BWRAP_EXECUTABLE)
-    return Path(found) if found else None
