@@ -23,6 +23,7 @@ from app.interviews.prompts import (
     _ready,
 )
 from app.interviews.questions import normalized_questions
+from app.llm_scope import budgeted
 
 # Preserve the interview log namespace across the lifecycle extraction.
 logger = logging.getLogger("app.interviews")
@@ -48,6 +49,7 @@ def _reasoning_capture(
     return sink, fragments
 
 
+@budgeted("interview")
 async def advance_turn(
     interview_id: str,
     on_reasoning: ReasoningSink | None = None,

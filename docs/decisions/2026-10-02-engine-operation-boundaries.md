@@ -55,7 +55,12 @@ after three requests, propagating the current failure. The current four-rung
 ladder permits at most four attempts, including initial and legitimate recovery
 requests. Standard completion retry budgets, request shaping, tool execution,
 raw throttle/outage propagation and absent tool retry telemetry remain intact.
-Broader tool backoff/parking and app provider-accounting decisions are separate.
+These were the policies when this continuation was verified. Before merging,
+the separate [provider-policy change](2026-10-02-provider-policies.md) landed:
+tool turns now share a three-attempt allowance for escalation, throttling and
+transient recovery, including backoff, quota parking and retry telemetry. App
+operations use their own physical-call budgets. Integration preserves those
+policies and keeps the visited-rung guard for escalation-only callers.
 
 ## Test and review quality
 
@@ -86,5 +91,20 @@ and remaining graph alias findings were corrected and independently rechecked.
 - Final whole-working-tree review passes with no new actionable regressions;
   dependency guards, source-size gates and whitespace checks pass.
 
-No provider-backed experiment, production configuration change, deployment,
-commit or push was performed. Vendored sources and dependency locks are intact.
+The verification above used no provider-backed experiment, production
+configuration change or deployment. Commit and merge were subsequently
+authorized. Vendored sources and dependency locks are intact.
+
+## Integration with current provider policies
+
+The final branch includes the provider-policy change from current `main`.
+The extracted `turns.advance_turn` retains one app budget across the model
+response and question repair; the upstream repair-budget regression failed
+before that scope was restored and passes afterward. Tool turns retain their
+three-attempt policy. Direct escalation-only regressions still fail when the
+visited-rung guard is removed in an isolated process.
+
+Integration checks pass: 66 interview/stream-budget tests, 105 provider recovery
+and transport tests, 32 operation/layering contracts, all 214 evaluation tests,
+repository lint and strict types for all three Python projects. Full presubmit
+checks remain the final merge gate.

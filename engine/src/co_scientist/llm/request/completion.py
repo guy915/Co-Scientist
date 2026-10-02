@@ -15,32 +15,20 @@ answers the call (``llm.request.backend``).
 
 import asyncio
 import logging
-import time
 import warnings
 from dataclasses import dataclass
 from typing import Any
 
-from litellm.exceptions import Timeout as LiteLLMTimeout
-
 from co_scientist import prompts
 from co_scientist.config.env_vars import parse_timeout_env
-from co_scientist.exceptions import LLMTimeoutError
-from co_scientist.llm.admission.call_budget import record_provider_request
 from co_scientist.llm.admission.credentials import current_api_key
-from co_scientist.llm.admission.free_policy import enforce_free_request
 from co_scientist.llm.profile import model_profile
 from co_scientist.llm.request.backend import (
-    active_backend,
     litellm_supports_json_schema,
 )
 from co_scientist.llm.request.schema import _apply_response_format
 from co_scientist.llm.request.thinking import _apply_thinking_args
-from co_scientist.llm.telemetry import (
-    record_completion_failure as _record_completion_failure,
-)
-from co_scientist.llm.telemetry import (
-    record_completion_response as _record_completion_response,
-)
+from co_scientist.llm.request.transport import complete_request
 
 logger = logging.getLogger(__name__)
 
@@ -125,71 +113,13 @@ async def _acompletion_within_timeout(
     Raises:
         LLMTimeoutError: If the call exceeds the configured ceiling.
     """
-    # `api_key` may be a deployment credential added by a caller. Only the
-    # scoped credential seam records run-level BYOK provenance.
-    byok = bool(current_api_key())
-    zero_cost_admitted = (
-        await enforce_free_request(completion_args, byok=byok) and not byok
+    return await complete_request(
+        completion_args,
+        model_name,
+        byok=bool(current_api_key()),
+        timeout_seconds=llm_timeout_seconds(),
+        timeout_grace_seconds=_TIMEOUT_GRACE_SECONDS,
     )
-    record_provider_request()
-    start = time.monotonic()
-    try:
-        response = await _run_completion(completion_args, model_name)
-    except (LLMTimeoutError, LiteLLMTimeout) as exc:
-        message = str(exc)
-        if isinstance(exc, LiteLLMTimeout):
-            message = (
-                f"LLM call to {model_name} timed out without a response; "
-                "provider outcome may be unknown"
-            )
-        timeout_error = LLMTimeoutError(
-            message, zero_cost_admitted=zero_cost_admitted
-        )
-        _record_completion_failure(
-            model_name, timeout_error, time.monotonic() - start
-        )
-        raise timeout_error from exc
-    except Exception as exc:
-        _record_completion_failure(model_name, exc, time.monotonic() - start)
-        raise
-    _record_completion_response(model_name, response, time.monotonic() - start)
-    return response
-
-
-async def _run_completion(
-    completion_args: dict[str, Any], model_name: str
-) -> Any:
-    """Awaits the completion call, translating a hung provider's timeout.
-
-    Split out of ``_acompletion_within_timeout`` so that function can wrap
-    exactly one try/except around this call for telemetry, regardless of
-    which branch below is taken.
-
-    Args:
-        completion_args: Keyword arguments for ``litellm.acompletion``.
-        model_name: Model name, for the error message.
-
-    Returns:
-        The completion response.
-
-    Raises:
-        LLMTimeoutError: If the call exceeds the configured ceiling.
-    """
-    timeout = llm_timeout_seconds()
-    backend = active_backend()
-    if timeout is None:
-        return await backend.complete(**completion_args)
-    try:
-        return await asyncio.wait_for(
-            backend.complete(**completion_args),
-            timeout=timeout + _TIMEOUT_GRACE_SECONDS,
-        )
-    except asyncio.TimeoutError as exc:
-        raise LLMTimeoutError(
-            f"LLM call to {model_name} exceeded {timeout}s without a "
-            f"response; set {LLM_TIMEOUT_ENV} to change or "
-            "disable this ceiling"
-        ) from exc
 
 
 async def _save_prompt_if_named(

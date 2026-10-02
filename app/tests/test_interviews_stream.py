@@ -19,6 +19,7 @@ from app.config import settings
 from app.execution_policy import CAMPAIGN, CAMPAIGN_MODEL_NAME, STANDARD
 from app.interviews import stream as interviews_stream
 from app.interviews import turns as interview_turns
+from tests._llm_fake_backend import install_completion_backend
 
 
 class _HangingStream:
@@ -111,8 +112,6 @@ async def test_cancel_mid_model_call_leaves_transcript_unchanged(
     cancellation into a broader failure, the deterministic fallback would
     author and persist a scripted turn instead of stopping cleanly.
     """
-    import litellm
-
     interview_id = _seed_interview(isolated_db)
     before = store.get_interview(interview_id, db_path=isolated_db)
 
@@ -121,7 +120,7 @@ async def test_cancel_mid_model_call_leaves_transcript_unchanged(
     async def _fake_acompletion(**_kwargs: Any) -> Any:
         return _HangingStream(started)
 
-    monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
+    install_completion_backend(monkeypatch, _fake_acompletion)
     monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-chat")
 
     gen = interviews_stream._advance_stream(interview_id)

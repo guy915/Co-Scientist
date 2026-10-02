@@ -13,7 +13,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from co_scientist.constants import (
+    THINKING_FLOOR_MAX_TOKENS as THINKING_FLOOR_MAX_TOKENS,
+)
 from co_scientist.llm import deepseek_thinking_extra_body as _thinking_body
+from co_scientist.llm import effective_max_tokens as _effective_max_tokens
 from co_scientist.llm import model_reasons as _model_reasons
 from co_scientist.llm import reasoning_effort_args as _effort_args
 
@@ -180,7 +184,6 @@ def thinking_off_kwargs(model_name: str) -> dict[str, Any]:
     return {"extra_body": extra_body} if extra_body else {}
 
 
-THINKING_FLOOR_MAX_TOKENS = 18_000
 """Smallest total budget an app-side thinking call may be sent with.
 
 The provider counts reasoning against ``max_tokens`` alongside the answer,
@@ -188,10 +191,10 @@ so a budget sized for the answer alone lets a long chain of thought consume
 the whole allowance: the call returns ``finish_reason="length"`` with empty
 content, is billed in full, and is retried. The engine hit exactly this on
 every node whose budget predated thinking being switched on
-(``co_scientist.constants.THINKING_FLOOR_MAX_TOKENS``, which this mirrors);
-the app's *streaming* calls bypass that layer by invoking
-``litellm.acompletion`` directly, so they need the floor applied at their
-own call sites. A one-shot call that parses JSON belongs on the engine's
+(``co_scientist.constants.THINKING_FLOOR_MAX_TOKENS``, which this imports);
+the app's streaming/plain-text calls use the shared physical transport
+and delegate the token floor to the engine's ``effective_max_tokens``.
+A one-shot call that parses JSON belongs on the engine's
 ``call_llm_json`` seam instead (see ``safety/semantic.py`` and
 ``claims/verifier.py``), which applies this same floor on its own -- these
 functions are for the call sites that must stream and so cannot use it.
@@ -214,12 +217,11 @@ def thinking_safe_max_tokens(model_name: str, answer_tokens: int) -> int:
         ``THINKING_FLOOR_MAX_TOKENS``. Only ever raises, so a call site that
         already asked for more keeps its own number.
     """
-    if not _is_deepseek(model_name):
-        return answer_tokens
-    return max(answer_tokens, THINKING_FLOOR_MAX_TOKENS)
+    result: int = _effective_max_tokens(model_name, answer_tokens, True)
+    return result
 
 
-THINKING_FLOOR_TIMEOUT_SECONDS = 240.0
+THINKING_FLOOR_TIMEOUT_SECONDS: float = float(THINKING_FLOOR_MAX_TOKENS) / 75.0
 """Smallest wall clock an app-side thinking call may be given.
 
 The token budget and the clock are one setting in two places: funding a

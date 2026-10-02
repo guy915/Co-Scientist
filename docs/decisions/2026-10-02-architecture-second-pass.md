@@ -36,6 +36,11 @@ remain open. This structural pass does not change retry/spend policy. Remaining
 private durable Ranking/Reflection imports are candidates for a subsequent
 explicit operations boundary.
 
+Those remaining boundaries are completed in the
+[public engine operations continuation](2026-10-02-engine-operation-boundaries.md).
+The separate [provider-policy change](2026-10-02-provider-policies.md) resolves
+tool-turn retries and app accounting and is included in the final integration.
+
 The MCP no-link sidecar still proves the exact metadata bytes. A failed lookup
 invalidates the proof even if it writes identical JSON. Run symlinks remain
 relative and survive moving the corpus. Identity digest encoding, errors and

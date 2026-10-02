@@ -13,6 +13,7 @@ from app import auth, credentials, engine_tasks, llm_request, store, task_worker
 from app.config import BYOK_PROVIDER_DEFAULT_MODELS, settings
 from app.runs import crud as runs_crud
 from tests._client import make_client
+from tests._llm_fake_backend import install_completion_backend
 
 _PAID_MODEL = "openrouter/campaign/paid"
 _PAID_KEY = "paid-test-key"
@@ -111,7 +112,6 @@ async def test_recovered_campaign_blocks_paid_transport_while_byok_runs(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Persisted policy, not current identity config, controls recovery."""
-    import litellm
     from co_scientist.llm.admission import free_catalog
 
     monkeypatch.setattr(settings, "auth_secret", "campaign-test-secret")
@@ -122,7 +122,7 @@ async def test_recovered_campaign_blocks_paid_transport_while_byok_runs(
         free_catalog.CatalogReader(_paid_catalog)
     )
     sent: list[dict[str, Any]] = []
-    monkeypatch.setattr(litellm, "acompletion", _transport_spy(sent))
+    install_completion_backend(monkeypatch, _transport_spy(sent))
     monkeypatch.setattr(runs_crud, "_populate_run_title", _no_background_model)
     monkeypatch.setattr(
         runs_crud, "_populate_goal_restatement", _no_background_model
@@ -200,7 +200,6 @@ async def test_recovered_campaign_blocks_paid_transport_while_byok_runs(
 async def test_recovered_new_campaign_sends_zero_price_stealth_request(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import litellm
     from co_scientist.llm import CompletionSpec, LLMCallOptions, call_llm
     from co_scientist.llm.admission import free_catalog
 
@@ -226,7 +225,7 @@ async def test_recovered_new_campaign_sends_zero_price_stealth_request(
         )
     )
     sent: list[dict[str, Any]] = []
-    monkeypatch.setattr(litellm, "acompletion", _transport_spy(sent))
+    install_completion_backend(monkeypatch, _transport_spy(sent))
 
     token = auth.create_session_token("campaign-user")
     response = make_client().post(

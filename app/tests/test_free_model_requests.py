@@ -18,6 +18,7 @@ from app.config import settings
 from app.execution_policy import scoped_execution_policy
 from app.interviews import model as interviews_model
 from app.qa import stream as qa_stream
+from tests._llm_fake_backend import install_completion_backend
 
 MODEL = "openrouter/campaign/chat:free"
 KINDS = ["interview", "qa", "announcement", "title", "restatement", "probe"]
@@ -64,7 +65,6 @@ async def _invoke(kind: str, model: str) -> Any:
 def captured(
     monkeypatch: pytest.MonkeyPatch, reachable_provider: None
 ) -> list[dict[str, Any]]:
-    import litellm
     from co_scientist.llm.admission import free_catalog
 
     free_catalog.install_catalog_reader(
@@ -102,7 +102,7 @@ def captured(
             choices=[SimpleNamespace(message=SimpleNamespace(content="answer"))]
         )
 
-    monkeypatch.setattr(litellm, "acompletion", complete)
+    install_completion_backend(monkeypatch, complete)
     return calls
 
 
@@ -205,7 +205,6 @@ async def test_concurrent_campaign_and_standard_byok_stay_isolated(
 async def test_free_qa_tool_continuation_keeps_admission(
     monkeypatch: pytest.MonkeyPatch, captured: list[dict[str, Any]]
 ) -> None:
-    import litellm
 
     from tests.test_qa_ideas import (
         _chunk,
@@ -216,7 +215,7 @@ async def test_free_qa_tool_continuation_keeps_admission(
 
     monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
     fake = _scripted_litellm([[_search_call_chunk()], [_chunk("answer")]])
-    monkeypatch.setattr(litellm, "acompletion", fake.acompletion)
+    install_completion_backend(monkeypatch, fake.acompletion)
     result = [
         item
         async for item in qa_stream.stream_llm_deltas(
@@ -238,7 +237,6 @@ async def test_free_qa_tool_continuation_keeps_admission(
 async def test_interview_reasoning_retry_rechecks_admission(
     monkeypatch: pytest.MonkeyPatch, captured: list[dict[str, Any]]
 ) -> None:
-    import litellm
     from co_scientist.exceptions import FreeModelEligibilityError
     from co_scientist.llm.admission import free_catalog
 
@@ -264,7 +262,7 @@ async def test_interview_reasoning_retry_rechecks_admission(
 
         return chunks()
 
-    monkeypatch.setattr(litellm, "acompletion", complete)
+    install_completion_backend(monkeypatch, complete)
     with pytest.raises(FreeModelEligibilityError):
         await _invoke("interview", MODEL)
     assert len(captured) == 1

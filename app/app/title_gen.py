@@ -22,6 +22,7 @@ from app.config import (
     thinking_safe_max_tokens,
     thinking_safe_timeout,
 )
+from app.llm_scope import budgeted
 
 logger = logging.getLogger(__name__)
 
@@ -160,6 +161,7 @@ async def _request_title_completion(
     )
 
 
+@budgeted("title")
 async def generate_run_title(goal: str) -> str | None:
     """Return a short session title for ``goal``, or None on any failure.
 

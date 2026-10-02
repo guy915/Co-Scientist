@@ -29,6 +29,7 @@ but do not update them to match later changes.
 
 | Entry | Contents |
 |---|---|
+| [Provider policies (2026-10-02)](decisions/2026-10-02-provider-policies.md) | Owner-approved tool retry/parking and independent app budgets on shared transport |
 | [Architecture review (2026-10-01)](decisions/2026-10-01-architecture-review.md) | Completed package/boundary campaign, verification evidence and deferred architecture decisions |
 | [Second architecture pass (2026-10-02)](decisions/2026-10-02-architecture-second-pass.md) | Shared operations, dependency ownership, frontend request races and validation |
 | [Engine operation boundaries plan (2026-10-02)](superpowers/plans/2026-10-02-engine-operation-boundaries.md) | Forward Ranking, Reflection and Evolution boundary tasks, escalation boundedness fix and acceptance checks |

@@ -7,14 +7,13 @@ streams a model answer through the unchanged litellm path.
 
 from __future__ import annotations
 
-import sys
-
 import pytest
 
 from app import store
 from tests._client import fake_litellm as _fake_litellm
 from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
+from tests._llm_fake_backend import install_completion_backend
 from tests._process_mode_helpers import FakeProcessMode
 
 
@@ -65,8 +64,8 @@ def test_ask_uses_real_llm_when_provider_key_present(
     # The Q&A endpoint routes on the LLM backend now, not the retired mock
     # provider: a real (non-offline) backend takes the streaming litellm path.
     fake_process_mode.online()
-    monkeypatch.setitem(
-        sys.modules, "litellm", _fake_litellm(["Model ", "text"])
+    install_completion_backend(
+        monkeypatch, (_fake_litellm(["Model ", "text"])).acompletion
     )
 
     c = _client()

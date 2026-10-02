@@ -8,7 +8,6 @@ whenever no model is reachable -- offline, or a provider that fails.
 
 from __future__ import annotations
 
-import sys
 import types
 from collections.abc import AsyncIterator
 from types import SimpleNamespace
@@ -20,6 +19,7 @@ from app import store
 from app.config import settings
 from tests._client import fake_litellm as _fake_litellm
 from tests._client import make_client as _client
+from tests._llm_fake_backend import install_completion_backend
 from tests._process_mode_helpers import FakeProcessMode
 
 
@@ -94,10 +94,9 @@ def test_live_model_writes_the_announcement(
     """A reachable provider's own two sentences are what get persisted."""
     rid = _started_run_id()
     fake_process_mode.online()
-    monkeypatch.setitem(
-        sys.modules,
-        "litellm",
-        _fake_litellm(["Your session is ", "under way."]),
+    install_completion_backend(
+        monkeypatch,
+        (_fake_litellm(["Your session is ", "under way."])).acompletion,
     )
 
     body = _announce(rid).text
@@ -115,10 +114,11 @@ def test_provider_failure_falls_back_without_an_error_frame(
     """The run did start, so a failed announcement never reads as one."""
     rid = _started_run_id()
     fake_process_mode.online()
-    monkeypatch.setitem(
-        sys.modules,
-        "litellm",
-        _fake_litellm([], raise_exc=RuntimeError("provider down")),
+    install_completion_backend(
+        monkeypatch,
+        (
+            _fake_litellm([], raise_exc=RuntimeError("provider down"))
+        ).acompletion,
     )
 
     body = _announce(rid).text
@@ -161,10 +161,13 @@ def test_reasoning_is_relayed_and_kept_with_the_reply(
     """The announcement is a turn, so it shows and keeps its thinking."""
     rid = _started_run_id()
     fake_process_mode.online()
-    monkeypatch.setitem(
-        sys.modules,
-        "litellm",
-        _thinking_litellm("The run exists, so this confirms it.", "Under way."),
+    install_completion_backend(
+        monkeypatch,
+        (
+            _thinking_litellm(
+                "The run exists, so this confirms it.", "Under way."
+            )
+        ).acompletion,
     )
 
     body = _announce(rid).text
@@ -217,14 +220,15 @@ def test_thinking_only_announcement_retries_before_the_fallback(
     fake_process_mode.online()
     monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-v4-pro")
     calls: list[dict[str, Any]] = []
-    monkeypatch.setitem(
-        sys.modules,
-        "litellm",
-        _thinking_only_then_answered_litellm(
-            "brainstorming candidates at length...",
-            "Research is under way.",
-            calls,
-        ),
+    install_completion_backend(
+        monkeypatch,
+        (
+            _thinking_only_then_answered_litellm(
+                "brainstorming candidates at length...",
+                "Research is under way.",
+                calls,
+            )
+        ).acompletion,
     )
 
     body = _announce(rid).text

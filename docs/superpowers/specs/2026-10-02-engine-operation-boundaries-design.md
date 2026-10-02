@@ -98,6 +98,11 @@ continues to own action intent, safety checks, replay accounting and commits.
 
 ## Separate provider decisions
 
+This section records the policy at design time. Before merge, the separate
+[provider-policy change](../../decisions/2026-10-02-provider-policies.md)
+introduced bounded tool retries and independent app operation budgets. Final
+integration preserves that policy alongside the extraction described here.
+
 Tool turns deliberately propagate throttle/outage/cap errors immediately,
 without completion backoff, parking or retry telemetry. Mandatory-reasoning
 request construction also differs. App interview, Q&A, announcements, titles,

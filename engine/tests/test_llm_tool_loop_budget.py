@@ -220,7 +220,7 @@ class TestWhatIsNotEscalated:
         _disable_cache(monkeypatch)
         calls = _record(
             monkeypatch,
-            [_completion(_message(None), finish_reason="stop")],
+            [_completion(_message(None), finish_reason="stop")] * 3,
         )
 
         with pytest.raises(ValueError):
@@ -232,7 +232,8 @@ class TestWhatIsNotEscalated:
                 ),
             )
 
-        assert len(calls) == 1
+        assert len(calls) == 3
+        assert len({call["max_tokens"] for call in calls}) == 1
 
     async def test_the_ladder_ends_rather_than_climbing_forever(
         self, monkeypatch: pytest.MonkeyPatch

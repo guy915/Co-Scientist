@@ -43,6 +43,7 @@ from typing import TYPE_CHECKING, Any
 
 from app import byok_models
 from app.config import byok_default_model, settings
+from app.llm_scope import budgeted
 
 if TYPE_CHECKING:
     from cryptography.fernet import Fernet
@@ -370,6 +371,7 @@ def _sanitized_detail(credential: ByokCredential, exc: Exception) -> str:
     return str(exc).replace(credential.api_key, "[REDACTED]")
 
 
+@budgeted("credential_probe")
 async def validate_byok_credential(credential: ByokCredential) -> None:
     """Prove a credential with a cheap one-token completion.
 
