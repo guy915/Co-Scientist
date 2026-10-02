@@ -363,8 +363,7 @@ def record_retry(model_name: str) -> None:
     """Record one retry of an LLM retry loop.
 
     Called by the one attempt loop (``llm.attempts.retry``) before every
-    attempt after the first, for ``call_llm`` and ``call_llm_json``. A tool
-    turn's escalation-only plan records none.
+    attempt after the first, for all three public entry points, including tool turns.
     """
     record_call(model_name, ModelCallStats(retries=1))
 
