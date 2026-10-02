@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {render, screen} from '@testing-library/react';
-import {MarkdownMessage} from './markdown_message';
+import {MarkdownMessageRenderer as MarkdownMessage} from './markdown_message_renderer';
 
 // The whole-message renderer emits a whitespace-only text node ("\n")
 // between top-level block elements; splitting parses each block in

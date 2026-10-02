@@ -38,7 +38,7 @@ application shape. They remain visible in raw audit output:
 
 | Package | Remaining findings | Reachability assessment |
 | --- | --- | --- |
-| LiteLLM 1.80.17 | 23 distinct advisory IDs covering proxy management, authentication, guardrails, MCP proxy and provider-routing endpoints | This application imports the completion SDK. It does not import, mount, or launch `litellm.proxy`, its enterprise hooks, or its HTTP management service. Those reported HTTP surfaces are absent. Preserve the existing SDK compatibility range until a deliberate SDK upgrade is validated, including free-route wire behavior and spend bounds. |
+| LiteLLM 1.80.17 | 23 distinct advisory IDs covering proxy management, authentication, guardrails, MCP proxy and provider-routing endpoints | This application imports the completion SDK, which indirectly imports proxy CLI code. The application does not mount or launch the vulnerable proxy HTTP service or configure enterprise guardrails. Those reported HTTP surfaces are absent. Preserve the existing SDK compatibility range until a deliberate SDK upgrade is validated, including free-route wire behavior and spend bounds. |
 | FastMCP 2.14.7 | PYSEC-2026-2475, PYSEC-2026-2476 | The first affects Windows CLI installation with shell metacharacters in server names; production is Linux and does not run those install commands. The second affects OAuthProxy consent flows; this server uses its own shared-secret middleware and does not configure FastMCP OAuth providers. |
 | DiskCache 5.6.3 | PYSEC-2026-2447 | Pickle deserialization requires attacker write access to an active DiskCache directory. This package is transitive through FastMCP's optional disk-backed key/value store; the application's MCP server does not instantiate that store or its OAuth providers. The literature cache stores papers rather than DiskCache pickles. |
 
@@ -56,3 +56,26 @@ The audit does not inspect operating-system packages in a built container.
 Container builds and a review of the actual deployed image remain separate
 release checks. See [LAUNCH.md](LAUNCH.md) and
 [PUBLICATION-REVIEW.md](PUBLICATION-REVIEW.md).
+
+## 2 October 2026 refresh
+
+All five locked closures were audited again on `af656a91`. Every scanner
+completed; the audit target returned nonzero because Python advisories remain,
+not because scanning failed. Package versions and distinct counts match the
+previous record: 23 LiteLLM IDs, two FastMCP IDs and one DiskCache ID. The
+skills, frontend and browser-harness closures reported no advisory matches.
+The [dated snapshot](decisions/2026-10-02-dependency-audit.json) records the
+current IDs, detector-listed fixes and the hashes of the audited locks; the
+previous prose record does not establish an exact historical ID-set match.
+
+The shared app/engine completion transport still uses the SDK backend and adds
+no proxy HTTP routes. Railway's rendered production MCP variable-name inventory
+contains no `FASTMCP_SERVER_AUTH` override. Values are withheld by the connector;
+this check establishes the absence of that configured override, not an audit of
+all live runtime state or container OS packages.
+
+No newly reachable reported surface was identified. Dependency upgrades remain
+separate compatibility work: the detector-listed FastMCP fixes require 3.2.0,
+LiteLLM fixes exceed the current SDK bound and do not establish a fully clean
+target, and DiskCache lists no fixed release. The findings remain visible;
+dependency versions, bounds and locks are unchanged by this refresh.

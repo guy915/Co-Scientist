@@ -47,18 +47,18 @@ test('omits the fallback notice on model-driven turns', () => {
   expect(screen.queryByText(FALLBACK_NOTICE_TEXT)).not.toBeInTheDocument();
 });
 
-test('renders assistant markdown, and leaves user text literal', () => {
+test('renders assistant markdown, and leaves user text literal', async () => {
   // The two roles carry different things: an assistant bubble shows model
   // prose, which is markdown now, while a user bubble shows what the
   // scientist typed and must never reinterpret it as markup.
   renderBubble({role: 'assistant', content: 'Use **primary** cells'});
-  expect(screen.getByText('primary').tagName).toBe('STRONG');
+  expect((await screen.findByText('primary')).tagName).toBe('STRONG');
 
   renderBubble({role: 'user', content: 'Use **primary** cells'});
   expect(screen.getByText('Use **primary** cells')).toBeInTheDocument();
 });
 
-test('does not render assistant markdown under pre-wrap whitespace', () => {
+test('does not render assistant markdown under pre-wrap whitespace', async () => {
   // React-markdown puts a literal newline text node between adjacent blocks,
   // so pre-wrap paints a whole extra line at every paragraph boundary and the
   // reply reads as double-spaced. The user bubble keeps pre-wrap (the test
@@ -68,6 +68,7 @@ test('does not render assistant markdown under pre-wrap whitespace', () => {
     role: 'assistant',
     content: 'First para.\n\nSecond para.',
   });
+  await screen.findByText('First para.');
   const wrapper = container.querySelector('.reference-model-bubble-text');
   expect(wrapper).not.toBeNull();
   expect(wrapper?.className).not.toContain('whitespace-pre-wrap');

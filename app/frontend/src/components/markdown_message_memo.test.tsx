@@ -2,7 +2,7 @@ import type {Mock} from 'vitest';
 import {describe, expect, it, vi} from 'vitest';
 import {render} from '@testing-library/react';
 import type {Options} from 'react-markdown';
-import {MarkdownMessage} from './markdown_message';
+import {MarkdownMessageRenderer as MarkdownMessage} from './markdown_message_renderer';
 
 // react-markdown does its own remark parse per invocation, so "does this
 // block re-render" is only observable by counting invocations of the
