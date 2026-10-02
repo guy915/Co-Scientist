@@ -36,15 +36,7 @@ logger = logging.getLogger(__name__)
 # arbitrary goal through the deterministic engine.
 _DEMO_TIER = "express"
 
-_DEMO_GOALS: list[str] = [
-    "What mechanisms drive antibiotic resistance in Staphylococcus aureus "
-    "biofilms, and which metabolic pathways could be targeted to restore "
-    "susceptibility?",
-    "How does synaptic pruning in the prefrontal cortex contribute to "
-    "cognitive flexibility during adolescent development?",
-    "What are the key molecular regulators of ferroptosis in pancreatic cancer "
-    "cells, and how might their modulation enhance chemotherapy sensitivity?",
-]
+_DEMO_GOALS = list(DEMO_SCENARIOS)
 
 
 def _build_demo_run_config(goal: str) -> dict[str, Any]:
@@ -162,16 +154,6 @@ async def _seed_demo_run(
     logger.info("Seeded offline engine demo run %s (%.60s…)", run.id[:8], goal)
 
 
-def _runs_by_goal(runs: list[RunRow]) -> dict[str, RunRow]:
-    """Index demo run rows by their research goal for lookup."""
-    return {r.research_goal: r for r in runs}
-
-
-def _has_readable_report(run: RunRow, db_path: str | None) -> bool:
-    """True if `run` already has a persisted, readable report markdown."""
-    return store.read_report_markdown(run.id, db_path=db_path) is not None
-
-
 async def _seed_or_reseed_demo_run(
     goal: str,
     run: RunRow | None,
@@ -187,7 +169,7 @@ async def _seed_or_reseed_demo_run(
         current = (
             _scenario_report_is_current(run, db_path)
             if scenario is not None
-            else _has_readable_report(run, db_path)
+            else store.read_report_markdown(run.id, db_path=db_path) is not None
         )
         if current:
             logger.info(
@@ -221,7 +203,7 @@ async def seed_demo_runs(db_path: str | None = None) -> None:
     install_offline_router()
 
     existing = store.list_runs(client_id=DEMO_CLIENT_ID, db_path=db_path)
-    existing_by_goal = _runs_by_goal(existing)
+    existing_by_goal = {run.research_goal: run for run in existing}
 
     for goal in _DEMO_GOALS:
         await _seed_or_reseed_demo_run(

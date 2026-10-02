@@ -1,16 +1,4 @@
-"""Private per-run document corpus and retrieval (Milestone 7).
-
-Scientists can attach documents / a private publication repository that the
-system indexes and searches (SSR §3, §6). This module is the retrieval layer
-behind a provider interface: a run-scoped corpus of documents with keyword
-retrieval, so an accepted attachment feeds run-scoped retrieval rather than
-being a dead connector.
-
-The interface (``CorpusRetriever``) is deliberately small so a vector/hybrid
-backend can be dropped in later without changing callers; the default
-``KeywordCorpusRetriever`` is deterministic and offline (BM25-style token
-scoring) so it runs in CI with no embedding service.
-"""
+"""Private per-run attachment retrieval using deterministic keyword scoring."""
 
 from __future__ import annotations
 
@@ -18,7 +6,7 @@ import dataclasses
 import math
 import re
 from collections import Counter
-from typing import Any, Protocol
+from typing import Any
 
 _TOKEN = re.compile(r"[a-z0-9]+")
 
@@ -48,18 +36,6 @@ class RetrievedDocument:
 
     document: CorpusDocument
     score: float
-
-
-class CorpusRetriever(Protocol):
-    """Provider interface for run-scoped document retrieval.
-
-    A keyword implementation ships by default; a vector/hybrid retriever can
-    implement the same interface without changing callers.
-    """
-
-    def retrieve(self, query: str, k: int = 5) -> list[RetrievedDocument]:
-        """Return the top-k documents most relevant to the query."""
-        ...
 
 
 class KeywordCorpusRetriever:

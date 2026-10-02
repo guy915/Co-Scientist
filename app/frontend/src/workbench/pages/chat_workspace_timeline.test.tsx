@@ -2,7 +2,7 @@ import type {ReactElement} from 'react';
 import {fireEvent, screen} from '@testing-library/react';
 import {expect, it, vi} from 'vitest';
 import {buildTimelineItems} from './chat_workspace_timeline';
-import type {StartedSession} from './chat_timeline_cards';
+import {type StartedSession} from './chat_timeline_started_card';
 import type {SpecStage} from '../hooks/chat_session_types';
 import {
   baseArgs,

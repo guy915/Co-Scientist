@@ -46,7 +46,7 @@ _HYPOTHESIS_FIELD: dict[str, Any] = {
 # MAX_TITLE_CHARS bounds the schema description and is enforced again
 # defensively at that same derivation point, since json_object mode does
 # not enforce maxLength server-side (and, under that downgrade, is also
-# enforced by llm.structured.validate._truncate_oversized_strings when the model
+# enforced by llm.structured.validate.reshape_json_output when the model
 # overruns it anyway). Raised from 100 to 120 after production run b82f9162:
 # real mechanistic titles naming multiple gene/receptor targets ("Lacosamide-
 # mediated Nav1.6/Nav1.7 slow inactivation...") ran 105-111 chars while
@@ -343,15 +343,10 @@ GENERATION_DRAFT_SCHEMA: dict[str, Any] = {
     ),
 }
 # Hypothesis validation synthesis schema (Phase 2)
-# Shapes the output of the "hypothesis_validation_synthesis" and
-# "hypothesis_validation_synthesis_with_tools" prompts. The with-tools
-# variant is the one actually invoked, by
-# agents/generation/literature_tools/validate.py (get_validation_synthesis_
-# prompt_with_tools in prompts.py); the tool-less variant and its prompt
-# getter (get_hypothesis_validation_synthesis_prompt) have no production
-# caller and are only exercised directly by tests. novelty_validation.decision
-# records whether the draft passed through unchanged ("approved"), was
-# adjusted ("refined"), or was redirected to different territory ("pivoted").
+# Shapes Phase 2's hypothesis_validation_synthesis_with_tools response,
+# consumed by agents/generation/literature_tools/validate.py.
+# novelty_validation.decision records whether the draft passed unchanged
+# ("approved"), was adjusted ("refined"), or was redirected ("pivoted").
 HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_validation_synthesis",
     "strict": False,

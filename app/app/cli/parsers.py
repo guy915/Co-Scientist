@@ -1,26 +1,26 @@
-"""Build the ``cosci`` command tree without importing server code."""
+"""Build the cosci command tree without importing server code."""
 
 from __future__ import annotations
 
 import argparse
 import os
+from collections.abc import Callable
 
-from app.cli import logs_cmd as logs_cmd
-from app.cli import runs_cmd
-from app.cli import status_cmd as status_cmd
-from app.cli.http import DEFAULT_API_URL
-from app.cli.types import Handler as Handler
+from app.cli import logs_cmd, runs_cmd, runs_collections_cmd, runs_stream_cmd
+from app.cli.http import DEFAULT_API_URL, ApiClient
 
+Handler = Callable[[argparse.Namespace, ApiClient], int]
+
+# Mirror of the enums the API validates (RUN_FOCUS_PATTERN / RUN_TIER_PATTERN
+# in app.run_modes). Duplicated here so building the parser stays import-light;
+# the API still 422s on any value that drifts from these.
 RUN_FOCUS_VALUES = (
     "prefer_evidence",
     "balance",
     "prefer_novelty",
     "breakthrough",
 )
-
-
 RUN_TIER_VALUES = ("express", "standard", "extended", "ultra")
-
 
 DEFAULT_TIMEOUT = 30.0
 
@@ -116,34 +116,6 @@ def _common_parser() -> argparse.ArgumentParser:
     return common
 
 
-def _add_status(
-    sub: argparse._SubParsersAction[argparse.ArgumentParser],
-    common: argparse.ArgumentParser,
-) -> None:
-    """Register the top-level ``status`` command."""
-    _add_leaf_command(
-        sub,
-        common,
-        "status",
-        status_cmd.handle_status,
-        "show API health and provider/literature availability",
-    )
-
-
-def _add_config(
-    sub: argparse._SubParsersAction[argparse.ArgumentParser],
-    common: argparse.ArgumentParser,
-) -> None:
-    """Register the top-level ``config`` command."""
-    _add_leaf_command(
-        sub,
-        common,
-        "config",
-        status_cmd.handle_config,
-        "show the server's run-configuration defaults",
-    )
-
-
 def _add_logs(
     sub: argparse._SubParsersAction[argparse.ArgumentParser],
     common: argparse.ArgumentParser,
@@ -225,61 +197,49 @@ def _add_create(
         action="store_true",
         help="immediately start the created run",
     )
-    parser.add_argument(
-        "--requirement",
-        dest="requirements",
-        action="append",
-        metavar="TEXT",
-        help="planning requirement (repeatable)",
-    )
-    parser.add_argument(
-        "--attribute",
-        dest="attributes",
-        action="append",
-        metavar="TEXT",
-        help="desired hypothesis attribute (repeatable)",
-    )
-    parser.add_argument(
-        "--criterion",
-        dest="criteria",
-        action="append",
-        metavar="TEXT",
-        help="evaluation criterion (repeatable)",
-    )
+    for option, dest, help_text in (
+        ("requirement", "requirements", "planning requirement (repeatable)"),
+        (
+            "attribute",
+            "attributes",
+            "desired hypothesis attribute (repeatable)",
+        ),
+        ("criterion", "criteria", "evaluation criterion (repeatable)"),
+    ):
+        parser.add_argument(
+            f"--{option}",
+            dest=dest,
+            action="append",
+            metavar="TEXT",
+            help=help_text,
+        )
     parser.add_argument(
         "--focus", choices=RUN_FOCUS_VALUES, help="ranking focus"
     )
     parser.add_argument(
         "--tier", choices=RUN_TIER_VALUES, help="run tier / depth"
     )
-    parser.add_argument(
-        "--initial-hypotheses",
-        dest="initial_hypotheses_count",
-        type=int,
-        metavar="N",
-        help="initial hypotheses count override",
-    )
-    parser.add_argument(
-        "--max-iterations",
-        dest="max_iterations",
-        type=int,
-        metavar="N",
-        help="max tournament iterations override",
-    )
-    parser.add_argument(
-        "--evolution-max",
-        dest="evolution_max_count",
-        type=int,
-        metavar="N",
-        help="max evolved hypotheses override",
-    )
-    parser.add_argument(
-        "--k-factor",
-        dest="k_factor",
-        type=int,
-        metavar="N",
-        help="Elo K-factor override",
-    )
+    for option, dest, help_text in (
+        (
+            "initial-hypotheses",
+            "initial_hypotheses_count",
+            "initial hypotheses count override",
+        ),
+        (
+            "max-iterations",
+            "max_iterations",
+            "max tournament iterations override",
+        ),
+        (
+            "evolution-max",
+            "evolution_max_count",
+            "max evolved hypotheses override",
+        ),
+        ("k-factor", "k_factor", "Elo K-factor override"),
+    ):
+        parser.add_argument(
+            f"--{option}", dest=dest, type=int, metavar="N", help=help_text
+        )
     parser.add_argument(
         "--literature",
         dest="enable_literature_review",
@@ -331,27 +291,27 @@ def _add_runs(
         runs_sub, common, "show", runs_cmd.handle_show, "show run details"
     )
     _add_create(runs_sub, common)
-    for name, handler, help_text in (
-        ("start", runs_cmd.handle_start, "start a run"),
-        ("pause", runs_cmd.handle_pause, "pause an active run"),
-        (
-            "resume",
-            runs_cmd.handle_resume,
-            "resume a paused/interrupted run",
-        ),
-        ("cancel", runs_cmd.handle_cancel, "cancel a run"),
-        (
-            "delete",
-            runs_cmd.handle_delete,
-            "permanently delete a terminal run",
-        ),
+    for name, help_text in (
+        ("start", "start a run"),
+        ("pause", "pause an active run"),
+        ("resume", "resume a paused/interrupted run"),
+        ("cancel", "cancel a run"),
     ):
-        _add_run_id_command(runs_sub, common, name, handler, help_text)
+        _add_run_id_command(
+            runs_sub, common, name, runs_cmd.handle_lifecycle, help_text
+        )
+    _add_run_id_command(
+        runs_sub,
+        common,
+        "delete",
+        runs_cmd.handle_delete,
+        "permanently delete a terminal run",
+    )
     watch_parser = _add_run_id_command(
         runs_sub,
         common,
         "watch",
-        runs_cmd.handle_watch,
+        runs_stream_cmd.handle_watch,
         "tail a run's event stream until terminal",
     )
     watch_parser.add_argument(
@@ -365,7 +325,7 @@ def _add_runs(
         runs_sub,
         common,
         "wait",
-        runs_cmd.handle_wait,
+        runs_stream_cmd.handle_wait,
         "poll until the run settles; exit code encodes the final status "
         "(0 completed, 3 failed, 4 blocked, 5 cancelled, 6 paused, "
         "124 max-wait exceeded)",
@@ -385,19 +345,22 @@ def _add_runs(
         metavar="SECONDS",
         help="give up with exit code 124 after this long (default: no limit)",
     )
-    for spec in runs_cmd.COLLECTION_COMMANDS:
+    for name, (
+        help_text,
+        _,
+    ) in runs_collections_cmd.COLLECTION_COMMANDS.items():
         _add_run_id_command(
             runs_sub,
             common,
-            spec.name,
-            runs_cmd.COLLECTION_HANDLERS[spec.name],
-            spec.help,
+            name,
+            runs_collections_cmd.handle_collection,
+            help_text,
         )
     _add_run_id_command(
         runs_sub,
         common,
         "metrics",
-        runs_cmd.handle_metrics,
+        runs_collections_cmd.handle_metrics,
         "show execution metrics",
     )
     report_parser = _add_run_id_command(
@@ -424,7 +387,7 @@ def _add_runs(
         runs_sub,
         common,
         "ask",
-        runs_cmd.handle_ask,
+        runs_stream_cmd.handle_ask,
         "ask a question about a run",
     )
     ask_parser.add_argument(

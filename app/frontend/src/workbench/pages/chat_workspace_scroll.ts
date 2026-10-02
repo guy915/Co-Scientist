@@ -1,8 +1,6 @@
 import {type RefObject, useEffect, useRef} from 'react';
-import {
-  type StartedSession,
-  TIMELINE_ANCHOR_ATTRIBUTE,
-} from './chat_timeline_cards';
+import {type StartedSession} from './chat_timeline_started_card';
+import {TIMELINE_ANCHOR_ATTRIBUTE} from './chat_timeline_bubble';
 import {DRAFT_SPEC_ITEM_ID, type TimelineItem} from './chat_workspace_timeline';
 
 // Cheap fingerprint of the timeline's identity/order, used to detect when it

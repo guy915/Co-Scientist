@@ -60,7 +60,7 @@ def _check_literature_availability(
     )
 
 
-# The strategy labels _classify_generation_strategy may return, and the
+# Generation strategy labels, including the
 # only values an ablation caller may force via state["generation_strategy"]
 # (validated upstream in run_setup._resolve_generation_strategy). Named here
 # so the resolver and the classifier share one source of truth.
@@ -79,143 +79,13 @@ TOOLS_REQUIRING_STRATEGIES: frozenset[str] = frozenset(
 def _forced_generation_strategy(state: WorkflowState) -> str | None:
     """Return an ablation-forced strategy label, or None to derive it.
 
-    Kept out of ``_classify_generation_strategy`` (already at the
-    complexity ceiling) so both stay simple: the coordinator prefers this
-    when set and falls back to derivation otherwise. Only a value validated
-    upstream reaches here, but the membership check is re-imposed so an
-    unexpected string derives rather than crashing the dispatch table.
+    Upstream validates the label; an unexpected value derives the ordinary
+    strategy instead of forcing an unsupported allocation.
     """
     forced = state.get("generation_strategy")
     if isinstance(forced, str) and forced in GENERATION_STRATEGY_LABELS:
         return forced
     return None
-
-
-def _classify_generation_strategy(
-    state: WorkflowState, has_literature: bool, enable_tool_calling: bool
-) -> str:
-    """Classify which of the 3-condition generation strategies applies.
-
-    Mirrors the precondition order that _determine_generation_counts,
-    _log_generation_strategy, and _emit_start_progress all key off of, so
-    each of those stays a plain per-label dispatch.
-
-    Returns:
-        One of "dev_isolation", "lit_and_tools" (condition a), "lit_only"
-        (condition c), or "no_lit" (condition b).
-    """
-    # Dev/test escape hatch: route everything through the tool-based path in
-    # isolation so its behavior can be exercised without debate generation
-    # mixed in. Takes priority over the normal 3-condition strategy below.
-    if state.get("dev_test_lit_tools_isolation", False):
-        return "dev_isolation"
-
-    # Condition (a): literature review succeeded and tool calling is enabled
-    # for generation - split the workload between the two literature-aware
-    # strategies so results benefit from both a tool-driven read/validate
-    # loop and a debate that has the same literature context.
-    if has_literature and enable_tool_calling:
-        return "lit_and_tools"
-
-    # Condition (c): literature review succeeded but tool calling is off for
-    # generation (e.g. model/config does not support it) - fall back to
-    # debate-with-literature for the full count.
-    if has_literature:
-        return "lit_only"
-
-    # Condition (b): no usable literature review at all - degrade to debate
-    # generation from the model's latent knowledge only.
-    return "no_lit"
-
-
-def _split_tools_and_debate_counts(total_count: int) -> tuple[int, int]:
-    """Split total_count 50/50 between tools and debate-with-literature.
-
-    Args:
-        total_count: total hypotheses to allocate across the two methods.
-
-    Returns:
-        Tuple of (tools_count, debate_with_lit_count). If the 50/50 split
-        would leave debate_with_lit_count at zero (total_count=1), the full
-        count is routed to tools instead.
-    """
-    tools_count = max(1, total_count // 2)
-    debate_with_lit_count = total_count - tools_count
-    if debate_with_lit_count == 0:
-        tools_count = total_count
-    return tools_count, debate_with_lit_count
-
-
-def _assumptions_slice(total_count: int) -> int:
-    """Reserve a quarter of the batch for the iterative-assumptions technique.
-
-    A small batch (< 4) stays single-technique so one or two hypotheses are
-    not fragmented across strategies.
-
-    Args:
-        total_count: Total hypotheses to allocate for this generation call.
-
-    Returns:
-        The number of hypotheses to route to the assumptions technique.
-    """
-    return max(1, total_count // 4) if total_count >= 4 else 0
-
-
-def _dev_isolation_counts(total_count: int) -> GenerationCounts:
-    """Route every hypothesis to the tool-based path, for dev isolation."""
-    return GenerationCounts(
-        tools_count=total_count,
-        debate_with_lit_count=0,
-        debate_only_count=0,
-        is_dev_isolation=True,
-    )
-
-
-def _lit_and_tools_counts(total_count: int) -> GenerationCounts:
-    """Allocate condition (a): tools + debate-with-lit + an assumptions slice.
-
-    Reserves a slice for iterative-assumptions (a first-class SSR §4
-    technique, not degraded-mode only), then splits the remainder between
-    the tool-driven and debate-with-literature paths.
-    """
-    assumptions_count = _assumptions_slice(total_count)
-    tools_count, debate_with_lit_count = _split_tools_and_debate_counts(
-        total_count - assumptions_count
-    )
-    return GenerationCounts(
-        tools_count=tools_count,
-        debate_with_lit_count=debate_with_lit_count,
-        debate_only_count=0,
-        assumptions_count=assumptions_count,
-    )
-
-
-def _lit_only_counts(total_count: int) -> GenerationCounts:
-    """Allocate condition (c): the remainder to debate-with-literature."""
-    assumptions_count = _assumptions_slice(total_count)
-    return GenerationCounts(
-        tools_count=0,
-        debate_with_lit_count=total_count - assumptions_count,
-        debate_only_count=0,
-        assumptions_count=assumptions_count,
-    )
-
-
-def _no_lit_counts(total_count: int) -> GenerationCounts:
-    """Allocate condition (b): the remainder to debate-only, degraded mode.
-
-    Flagged so callers can attach an explicit "no literature" warning to
-    every hypothesis. Reserves the same iterative-assumptions slice so the
-    LLM-only path uses more than one generation technique (SSR §4).
-    """
-    assumptions_count = _assumptions_slice(total_count)
-    return GenerationCounts(
-        tools_count=0,
-        debate_with_lit_count=0,
-        debate_only_count=total_count - assumptions_count,
-        assumptions_count=assumptions_count,
-        is_degraded_mode=True,
-    )
 
 
 def _determine_generation_counts(
@@ -224,19 +94,35 @@ def _determine_generation_counts(
     has_literature: bool,
     enable_tool_calling: bool,
 ) -> GenerationCounts:
-    """Determine how many hypotheses to generate with each method."""
-    strategy = _forced_generation_strategy(
-        state
-    ) or _classify_generation_strategy(
-        state, has_literature, enable_tool_calling
+    """Allocate the batch once, honoring validated ablation overrides."""
+    strategy = _forced_generation_strategy(state)
+    if strategy is None:
+        if state.get("dev_test_lit_tools_isolation", False):
+            strategy = "dev_isolation"
+        elif has_literature:
+            strategy = "lit_and_tools" if enable_tool_calling else "lit_only"
+        else:
+            strategy = "no_lit"
+    if strategy == "dev_isolation":
+        return GenerationCounts(
+            tools_count=total_count,
+            debate_with_lit_count=0,
+            debate_only_count=0,
+            is_dev_isolation=True,
+        )
+    # Small batches stay intact; larger batches reserve a quarter for the
+    # assumptions technique before splitting the remaining literature work.
+    assumptions = total_count // 4 if total_count >= 4 else 0
+    remaining = total_count - assumptions
+    tools = max(1, remaining // 2) if strategy == "lit_and_tools" else 0
+    debate = remaining - tools
+    return GenerationCounts(
+        tools_count=tools,
+        debate_with_lit_count=debate if strategy != "no_lit" else 0,
+        debate_only_count=debate if strategy == "no_lit" else 0,
+        assumptions_count=assumptions,
+        is_degraded_mode=strategy == "no_lit",
     )
-    strategy_counts = {
-        "dev_isolation": _dev_isolation_counts,
-        "lit_and_tools": _lit_and_tools_counts,
-        "lit_only": _lit_only_counts,
-        "no_lit": _no_lit_counts,
-    }
-    return strategy_counts[strategy](total_count)
 
 
 def _generation_log_case(counts: GenerationCounts) -> str:

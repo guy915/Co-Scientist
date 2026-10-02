@@ -17,10 +17,6 @@ from co_scientist.agents.generation.assumptions import (
     generate_with_assumptions,
 )
 from co_scientist.agents.generation.citations import ReferenceIndex
-from co_scientist.agents.generation.coordinator_results import (
-    GenerationResults,
-    _unpack_generation_results,
-)
 from co_scientist.agents.generation.coordinator_strategy import (
     GenerationCounts,
 )
@@ -32,6 +28,8 @@ from co_scientist.agents.generation.literature_tools import (
     generate_with_tools,
 )
 from co_scientist.agents.generation.operations import (
+    GenerationResults,
+    _unpack_generation_results,
     finalize_generation,
     prepare_generation,
 )
@@ -40,132 +38,42 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
-def _build_tools_task(
-    state: WorkflowState,
-    counts: GenerationCounts,
-    reference_index: ReferenceIndex,
-) -> tuple[str, Coroutine[Any, Any, Any]] | None:
-    """Build the tool-based generation task, or None if none is allocated."""
-    if counts.tools_count <= 0:
-        return None
-    logger.info(
-        "Running tool-based generation for %s hypotheses", counts.tools_count
-    )
-    return (
-        "tools",
-        generate_with_tools(state, counts.tools_count, reference_index),
-    )
-
-
-def _build_debate_lit_task(
-    state: WorkflowState,
-    counts: GenerationCounts,
-    articles_with_reasoning: str | None,
-    reference_index: ReferenceIndex,
-) -> tuple[str, Coroutine[Any, Any, Any]] | None:
-    """Build the debate-with-literature task, or None if none is allocated."""
-    if counts.debate_with_lit_count <= 0:
-        return None
-    logger.info(
-        "Running debate-with-literature for %s hypotheses",
-        counts.debate_with_lit_count,
-    )
-    return (
-        "debate_lit",
-        generate_with_debate(
-            state=state,
-            count=counts.debate_with_lit_count,
-            articles_with_reasoning=articles_with_reasoning,
-            reference_index=reference_index,
-        ),
-    )
-
-
-def _build_debate_only_task(
-    state: WorkflowState,
-    counts: GenerationCounts,
-) -> tuple[str, Coroutine[Any, Any, Any]] | None:
-    """Build the debate-only (degraded-mode) task, or None if unallocated."""
-    if counts.debate_only_count <= 0:
-        return None
-    logger.info(
-        "Running debate-only for %s hypotheses", counts.debate_only_count
-    )
-    return (
-        "debate_only",
-        generate_with_debate(
-            state=state,
-            count=counts.debate_only_count,
-            # Passed explicitly rather than omitted, so degraded-mode
-            # debates never accidentally pick up literature context from a
-            # caller-supplied default.
-            articles_with_reasoning=None,  # explicitly no literature
-            reference_index=ReferenceIndex(text="", sources={}),
-        ),
-    )
-
-
-def _build_assumptions_task(
-    state: WorkflowState,
-    counts: GenerationCounts,
-    articles_with_reasoning: str | None,
-    reference_index: ReferenceIndex,
-) -> tuple[str, Coroutine[Any, Any, Any]] | None:
-    """Build the assumptions-technique task, or None if none is allocated."""
-    if counts.assumptions_count <= 0:
-        return None
-    logger.info(
-        "Running assumptions generation for %s hypotheses",
-        counts.assumptions_count,
-    )
-    return (
-        "assumptions",
-        generate_with_assumptions(
-            state,
-            counts.assumptions_count,
-            # Guarded inside the technique: a real (non-empty) reference
-            # index grounds the claims; the degraded path supplies an empty
-            # index and ignores the prose.
-            articles_with_reasoning=articles_with_reasoning,
-            reference_index=reference_index,
-        ),
-    )
-
-
 def _build_generation_tasks(
     state: WorkflowState,
     counts: GenerationCounts,
-    articles_with_reasoning: str | None,
+    literature: str | None,
     reference_index: ReferenceIndex,
 ) -> list[tuple[str, Coroutine[Any, Any, Any]]]:
-    """Build the (task_type, coroutine) pairs for each enabled strategy.
-
-    Args:
-        state: current workflow state
-        counts: per-strategy hypothesis counts from
-            _determine_generation_counts.
-        articles_with_reasoning: optional literature review context.
-        reference_index: citation key → source mapping shared across
-            strategies.
-
-    Returns:
-        Task list in the order they should be passed to asyncio.gather.
-    """
-    # Collect tasks to run in parallel. Each entry pairs a tag with its
-    # coroutine so results can be routed back to the right bucket after
-    # asyncio.gather() returns them in call order (order is not otherwise
-    # recoverable once the coroutines are unpacked into gather()).
-    task_builders = (
-        _build_tools_task(state, counts, reference_index),
-        _build_debate_lit_task(
-            state, counts, articles_with_reasoning, reference_index
-        ),
-        _build_debate_only_task(state, counts),
-        _build_assumptions_task(
-            state, counts, articles_with_reasoning, reference_index
-        ),
-    )
-    return [task for task in task_builders if task is not None]
+    """Build only allocated strategies, in hypothesis and transcript order."""
+    tasks = []
+    task: Coroutine[Any, Any, Any]
+    for kind, count in counts.strategy_counts.items():
+        if count <= 0:
+            continue
+        if kind == "tools":
+            task = generate_with_tools(state, count, reference_index)
+        elif kind == "assumptions":
+            task = generate_with_assumptions(
+                state,
+                count,
+                articles_with_reasoning=literature,
+                reference_index=reference_index,
+            )
+        else:
+            # Degraded debates must never pick up caller-supplied literature.
+            has_lit = kind == "debate_lit"
+            task = generate_with_debate(
+                state=state,
+                count=count,
+                articles_with_reasoning=literature if has_lit else None,
+                reference_index=(
+                    reference_index
+                    if has_lit
+                    else ReferenceIndex(text="", sources={})
+                ),
+            )
+        tasks.append((kind, task))
+    return tasks
 
 
 async def _execute_generation_tasks(

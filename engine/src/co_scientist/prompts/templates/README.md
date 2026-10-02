@@ -198,7 +198,6 @@ behavior (or local design where the paper is silent):
 `proximity.md`, `deep_verification.md`, `full_review.md`,
 `simulation_review.md`, `research_overview.md`, `generation_assumptions.md`,
 `generation_assumption_tree.md`, `generation_assumption_sub.md`,
-`hypothesis_validation_synthesis.md`,
 `hypothesis_validation_synthesis_with_tools.md`,
 `hypothesis_novelty_analysis.md`, `hypothesis_query_generation.md`,
 `literature_review_synthesis.md`, `literature_review_paper_analysis.md`,

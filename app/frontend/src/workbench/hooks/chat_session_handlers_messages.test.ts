@@ -2,7 +2,7 @@ import {beforeEach, expect, test, vi} from 'vitest';
 import {editInterviewTurn, retryInterviewTurn} from '@/api/runs';
 import {buildChatHandlers} from './chat_session_handlers';
 import {makeDeps, makeInterview} from './chat_session_handlers_test_support';
-import type {ChatEntry} from '../pages/chat_timeline_cards';
+import {type ChatEntry} from '../pages/chat_timeline_bubble';
 import {makeMessage} from '@/test_fixtures';
 
 vi.mock('@/api/runs', async importOriginal => {

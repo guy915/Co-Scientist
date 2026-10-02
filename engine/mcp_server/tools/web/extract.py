@@ -61,47 +61,6 @@ def _block_to_markdown(element: Any) -> str:
     return text
 
 
-def _strip_chrome_tags(soup: Any) -> None:
-    """Removes page furniture tags from a parsed document, in place.
-
-    Args:
-        soup: The parsed document.
-    """
-    # One traversal for every chrome tag; find_all accepts a name list.
-    for tag in soup.find_all(list(_CHROME_TAGS)):
-        tag.decompose()
-
-
-def _select_root(soup: Any) -> Any:
-    """Picks the element most likely to hold the article body.
-
-    Args:
-        soup: The parsed document, with chrome tags already stripped.
-
-    Returns:
-        The first of ``<article>``, ``<main>``, or ``<body>`` that is
-        present, falling back to the whole document.
-    """
-    return soup.find("article") or soup.find("main") or soup.body or soup
-
-
-def _extract_block_lines(root: Any) -> list[str]:
-    """Renders every allowlisted block element under root as markdown.
-
-    Args:
-        root: The element selected by ``_select_root``.
-
-    Returns:
-        One markdown line per non-empty block element, in document order.
-    """
-    lines = []
-    for element in root.find_all(_BLOCK_TAGS):
-        line = _block_to_markdown(element)
-        if line:
-            lines.append(line)
-    return lines
-
-
 def extract_text_from_html(html: str, max_chars: int = 50_000) -> str:
     """Converts an HTML page to compact markdown.
 
@@ -121,9 +80,14 @@ def extract_text_from_html(html: str, max_chars: int = 50_000) -> str:
         logger.warning("HTML parse failed: %s", exc)
         return "[error: could not parse HTML]"
 
-    _strip_chrome_tags(soup)
-    root = _select_root(soup)
-    text = "\n\n".join(_extract_block_lines(root))
+    for tag in soup.find_all(list(_CHROME_TAGS)):
+        tag.decompose()
+    root = soup.find("article") or soup.find("main") or soup.body or soup
+    text = "\n\n".join(
+        line
+        for element in root.find_all(_BLOCK_TAGS)
+        if (line := _block_to_markdown(element))
+    )
     if not text.strip():
         # Pages built entirely from divs yield no allowlisted blocks;
         # a flat text dump still beats returning nothing.

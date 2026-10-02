@@ -37,6 +37,34 @@ if TYPE_CHECKING:
 CONSUMED_STEERING_IDS_OPT = "consumed_steering_ids"
 
 
+def _apply_capability_opts(
+    initial_opts: dict[str, Any], cfg: dict[str, Any]
+) -> None:
+    """Translate tier funding, connector policy and ablations into opts.
+
+    Tool-based generation and simulation run per hypothesis; overview review
+    adds calls to terminal synthesis. Only extended/ultra fund these costs.
+    The flags remain requests: the engine still checks tools, offline mode
+    and sandbox availability before using them. Meta-review only controls
+    its periodic cadence, and the engine validates a forced strategy.
+    """
+    tier = normalize_run_tier(cfg.get("tier"))
+    deep = tier in {"extended", "ultra"}
+    strategy = cfg.get("generation_strategy")
+    initial_opts.update(
+        enable_literature_review_node=(
+            bool(cfg.get("enable_literature_review", True))
+            and os.getenv("FORCE_LITERATURE_REVIEW") != "0"
+        ),
+        enable_tool_calling_generation=deep,
+        enable_simulation_execution=deep,
+        enable_overview_review=deep,
+        research_tier=tier,
+        enable_meta_review=cfg.get("enable_meta_review", True) is not False,
+        generation_strategy=strategy if isinstance(strategy, str) else "",
+    )
+
+
 def _clean_list_field(setup: dict[str, Any], key: str) -> list[str]:
     """Return a setup dict's list field, stringified and cleaned."""
     return clean_string_list([str(value) for value in setup.get(key) or []])
@@ -317,34 +345,3 @@ def _steering_preferences(
     if steering:
         parts.append("User steering guidance:\n" + "\n".join(steering))
     return "\n\n".join(parts) or None
-
-
-def _apply_capability_opts(
-    initial_opts: dict[str, Any], cfg: dict[str, Any]
-) -> None:
-    """Fund tool loops and overview review only on the deep research tiers.
-
-    These flags are ceilings: the engine still checks tool, sandbox, and
-    provider availability. Literature grounding retains its independent
-    kill switch, and the last two options support evaluation ablations.
-    """
-    tier = normalize_run_tier(cfg.get("tier"))
-    deep = tier in {"extended", "ultra"}
-    strategy = cfg.get("generation_strategy")
-    initial_opts.update(
-        {
-            "enable_literature_review_node": bool(
-                cfg.get("enable_literature_review", True)
-            )
-            and os.getenv("FORCE_LITERATURE_REVIEW") != "0",
-            "enable_tool_calling_generation": deep,
-            "enable_simulation_execution": deep,
-            "enable_overview_review": deep,
-            "research_tier": tier,
-            "enable_meta_review": cfg.get("enable_meta_review", True)
-            is not False,
-            "generation_strategy": strategy
-            if isinstance(strategy, str)
-            else "",
-        }
-    )

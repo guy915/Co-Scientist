@@ -27,7 +27,6 @@ from co_scientist.prompts import (
     ValidationSynthesisRequest,
     format_lab_constraints_section,
     get_draft_prompt_with_tools,
-    get_hypothesis_validation_synthesis_prompt,
     get_research_overview_direction_prompt,
     get_research_overview_prompt,
     get_validation_synthesis_prompt_with_tools,
@@ -86,17 +85,13 @@ def test_draft_prompt_hedges_novelty() -> None:
 
 
 def test_validation_synthesis_prompts_hedge_novelty() -> None:
-    """Both validation-synthesis variants carry the hedged-novelty contract."""
+    """Validation synthesis carries the hedged-novelty contract."""
     analyses: list[dict[str, Any]] = []
-    plain = get_hypothesis_validation_synthesis_prompt(
-        research_goal="a goal", hypotheses_with_analyses=analyses
-    )
     with_tools, _ = get_validation_synthesis_prompt_with_tools(
         ValidationSynthesisRequest(
             research_goal="a goal", hypotheses_with_analyses=analyses
         )
     )
-    assert _NOVELTY_CONTRACT in plain.lower()
     assert _NOVELTY_CONTRACT in with_tools.lower()
 
 
@@ -230,19 +225,15 @@ def test_assumptions_prompt_presents_category_contract() -> None:
 
 
 def test_validation_synthesis_prompts_present_category() -> None:
-    """Both synthesis prompts present the category field and its contract."""
+    """Validation synthesis presents the category field and its contract."""
     analyses: list[dict[str, Any]] = []
-    plain = get_hypothesis_validation_synthesis_prompt(
-        research_goal="a goal", hypotheses_with_analyses=analyses
-    )
     with_tools, _ = get_validation_synthesis_prompt_with_tools(
         ValidationSynthesisRequest(
             research_goal="a goal", hypotheses_with_analyses=analyses
         )
     )
-    for prompt in (plain, with_tools):
-        assert "category" in prompt
-        assert "mechanism family" in prompt
+    assert "category" in with_tools
+    assert "mechanism family" in with_tools
 
 
 # --- MO-6: required, prompt-present scene-setting -----------------------------
@@ -270,19 +261,15 @@ def test_assumptions_prompt_presents_scene_setting_contract() -> None:
 
 
 def test_validation_synthesis_prompts_present_scene_setting() -> None:
-    """Both synthesis prompts present the scene-setting fields."""
+    """Validation synthesis presents the scene-setting fields."""
     analyses: list[dict[str, Any]] = []
-    plain = get_hypothesis_validation_synthesis_prompt(
-        research_goal="a goal", hypotheses_with_analyses=analyses
-    )
     with_tools, _ = get_validation_synthesis_prompt_with_tools(
         ValidationSynthesisRequest(
             research_goal="a goal", hypotheses_with_analyses=analyses
         )
     )
-    for prompt in (plain, with_tools):
-        assert "introduction" in prompt
-        assert "recent_findings" in prompt
+    assert "introduction" in with_tools
+    assert "recent_findings" in with_tools
 
 
 # --- MO-10: required, prompt-present safety and toxicity ----------------------
@@ -308,18 +295,14 @@ def test_assumptions_prompt_presents_safety_and_toxicity_contract() -> None:
 
 
 def test_validation_synthesis_prompts_present_safety_and_toxicity() -> None:
-    """Both synthesis prompts present the safety_and_toxicity field."""
+    """Validation synthesis presents the safety_and_toxicity field."""
     analyses: list[dict[str, Any]] = []
-    plain = get_hypothesis_validation_synthesis_prompt(
-        research_goal="a goal", hypotheses_with_analyses=analyses
-    )
     with_tools, _ = get_validation_synthesis_prompt_with_tools(
         ValidationSynthesisRequest(
             research_goal="a goal", hypotheses_with_analyses=analyses
         )
     )
-    for prompt in (plain, with_tools):
-        assert "safety_and_toxicity" in prompt
+    assert "safety_and_toxicity" in with_tools
 
 
 # --- K5: lab constraints section ----------------------------------------------

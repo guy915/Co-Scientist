@@ -13,7 +13,7 @@ large prompt's worth of work over a few characters -- on a free gateway
 model with a 100-requests/day cap, one such retry is 1% of the day's
 budget.
 
-``_truncate_oversized_strings`` trims the answer to fit the schema; like
+``reshape_json_output`` trims the answer to fit the schema; like
 its siblings it runs on a parsed response only (the "Trim the schema,
 never the input" gotcha, root ``AGENTS.md``), and it never touches
 ``minLength``, ``pattern``, or enum membership -- those describe the
@@ -23,9 +23,7 @@ truncation fixes a wrong answer.
 
 from typing import Any
 
-from co_scientist.llm.structured.truncate_strings import (
-    _truncate_oversized_strings,
-)
+from co_scientist.llm.structured.validate import reshape_json_output
 
 _SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -60,7 +58,7 @@ def test_truncate_cuts_a_string_past_max_length() -> None:
     """A string over maxLength is cut down to fit."""
     obj: dict[str, Any] = {"title": "this is way too long a title"}
 
-    _truncate_oversized_strings(obj, _SCHEMA)
+    reshape_json_output(obj, _SCHEMA)
 
     assert len(obj["title"]) <= 20
 
@@ -80,7 +78,7 @@ def test_truncate_prefers_a_word_boundary_near_the_limit() -> None:
     # mid-word at "opqr".
     obj: dict[str, Any] = {"title": "abcdefghij klmnopqr stuvwxyz"}
 
-    _truncate_oversized_strings(obj, _SCHEMA)
+    reshape_json_output(obj, _SCHEMA)
 
     assert obj["title"] == "abcdefghij klmnopqr"
     assert len(obj["title"]) <= 20
@@ -92,7 +90,7 @@ def test_truncate_hard_cuts_when_no_boundary_is_near() -> None:
     value = "onelongwordwithnospaceatall"
     obj: dict[str, Any] = {"title": value}
 
-    _truncate_oversized_strings(obj, _SCHEMA)
+    reshape_json_output(obj, _SCHEMA)
 
     assert obj["title"] == value[:20]
     assert len(obj["title"]) == 20
@@ -102,7 +100,7 @@ def test_truncate_leaves_minlength_and_pattern_violations_untouched() -> None:
     """minLength/pattern are real answer errors -- never patched here."""
     obj: dict[str, Any] = {"code": "ab"}  # under minLength=3, over is fine
 
-    _truncate_oversized_strings(obj, _SCHEMA)
+    reshape_json_output(obj, _SCHEMA)
 
     assert obj["code"] == "ab"
 
@@ -111,7 +109,7 @@ def test_truncate_leaves_strings_within_bound_untouched() -> None:
     """A string at or under its cap is left exactly as it arrived."""
     obj: dict[str, Any] = {"title": "short"}
 
-    _truncate_oversized_strings(obj, _SCHEMA)
+    reshape_json_output(obj, _SCHEMA)
 
     assert obj["title"] == "short"
 
@@ -121,7 +119,7 @@ def test_truncate_ignores_strings_without_max_length() -> None:
     long_value = "x" * 500
     obj: dict[str, Any] = {"unbounded": long_value}
 
-    _truncate_oversized_strings(obj, _SCHEMA)
+    reshape_json_output(obj, _SCHEMA)
 
     assert obj["unbounded"] == long_value
 
@@ -130,7 +128,7 @@ def test_truncate_recurses_into_nested_objects() -> None:
     """An over-long string inside a nested object is truncated too."""
     obj: dict[str, Any] = {"group": {"name": "way too long a name"}}
 
-    _truncate_oversized_strings(obj, _SCHEMA)
+    reshape_json_output(obj, _SCHEMA)
 
     assert len(obj["group"]["name"]) <= 10
 
@@ -141,7 +139,7 @@ def test_truncate_recurses_into_an_array_of_objects() -> None:
         "sections": [{"note": "way too long"}, {"note": "ok"}]
     }
 
-    _truncate_oversized_strings(obj, _SCHEMA)
+    reshape_json_output(obj, _SCHEMA)
 
     assert len(obj["sections"][0]["note"]) <= 8
     assert obj["sections"][1]["note"] == "ok"
@@ -151,7 +149,7 @@ def test_truncate_recurses_into_an_array_of_strings() -> None:
     """Each over-long string in a plain string array is truncated."""
     obj: dict[str, Any] = {"tags": ["short", "waytoolongtag"]}
 
-    _truncate_oversized_strings(obj, _SCHEMA)
+    reshape_json_output(obj, _SCHEMA)
 
     assert obj["tags"][0] == "short"
     assert len(obj["tags"][1]) <= 6
@@ -159,14 +157,14 @@ def test_truncate_recurses_into_an_array_of_strings() -> None:
 
 def test_truncate_noop_for_non_dict_inputs() -> None:
     """Non-dict payloads and non-dict schemas are silently ignored."""
-    _truncate_oversized_strings(["not", "a", "dict"], _SCHEMA)
-    _truncate_oversized_strings({"a": 1}, "not a schema")  # no exception
+    reshape_json_output(["not", "a", "dict"], _SCHEMA)
+    reshape_json_output({"a": 1}, "not a schema")  # no exception
 
 
 def test_truncate_ignores_non_string_values_under_a_string_schema() -> None:
     """A malformed non-string value at a string-typed key is left alone."""
     obj: dict[str, Any] = {"title": 12345}
 
-    _truncate_oversized_strings(obj, _SCHEMA)
+    reshape_json_output(obj, _SCHEMA)
 
     assert obj["title"] == 12345

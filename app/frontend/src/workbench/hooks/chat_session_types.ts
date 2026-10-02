@@ -1,10 +1,8 @@
 import {type Dispatch, type RefObject, type SetStateAction} from 'react';
 import {type InferredRunSpec} from '../run_spec';
 import {type Interview, type StagedDocument} from '@/api/runs';
-import {
-  type ChatEntry,
-  type StartedSession,
-} from '../pages/chat_timeline_cards';
+import {type ChatEntry} from '../pages/chat_timeline_bubble';
+import {type StartedSession} from '../pages/chat_timeline_started_card';
 import {type ToastSetter} from './use_toast';
 
 /**

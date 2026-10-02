@@ -2,6 +2,7 @@
 
 import dataclasses
 import json
+from collections.abc import Mapping
 from html import escape
 from typing import Any
 
@@ -161,56 +162,31 @@ def _build_meta_review_insights(meta_review: dict[str, Any]) -> str:
     )
 
 
-def _format_refinement_priorities(
-    evolution_phase: dict[str, Any],
-) -> str | None:
-    """Format the refinement-priorities guidance line, if present."""
-    priorities = evolution_phase.get("refinement_priorities")
-    if not priorities:
-        return None
-    return f"**Refinement Priorities:** {_csv_value(priorities)}\n"
-
-
-def _format_iteration_strategy(evolution_phase: dict[str, Any]) -> str | None:
-    """Format the iteration-strategy guidance line, if present."""
-    strategy = evolution_phase.get("iteration_strategy")
-    if not strategy:
-        return None
-    return f"**Iteration Strategy:** {strategy}\n"
-
-
-def _format_evolution_guidance_lines(
-    evolution_phase: dict[str, Any],
-) -> list[str]:
-    """Format the non-empty evolution-phase guidance lines."""
-    lines = []
-    for formatter in (
-        _format_refinement_priorities,
-        _format_iteration_strategy,
-    ):
-        section = formatter(evolution_phase)
-        if section:
-            lines.append(section)
-    return lines
-
-
 def _build_supervisor_guidance_text(
     supervisor_guidance: dict[str, Any] | None,
 ) -> str:
-    """Formats the evolution-phase slice of supervisor guidance."""
+    """Render only the evolution phase of the supervisor's plan."""
     if not supervisor_guidance or not isinstance(supervisor_guidance, dict):
         return ""
-    workflow_plan = supervisor_guidance.get("workflow_plan", {})
-    evolution_phase = workflow_plan.get("evolution_phase", {})
-    if not evolution_phase:
+    phase = supervisor_guidance.get("workflow_plan", {}).get(
+        "evolution_phase", {}
+    )
+    if not phase:
         return ""
-
-    guidance_sections = ["## Supervisor Guidance for Evolution\n"]
-    guidance_sections.extend(_format_evolution_guidance_lines(evolution_phase))
-    guidance_sections.append(
+    sections = ["## Supervisor Guidance for Evolution\n"]
+    if phase.get("refinement_priorities"):
+        sections.append(
+            "**Refinement Priorities:** "
+            f"{_csv_value(phase['refinement_priorities'])}\n"
+        )
+    if phase.get("iteration_strategy"):
+        sections.append(
+            f"**Iteration Strategy:** {phase['iteration_strategy']}\n"
+        )
+    sections.append(
         "\nUse this guidance to align your refinement with the research plan.\n"
     )
-    return "".join(guidance_sections)
+    return "".join(sections)
 
 
 _DIVERSITY_INSTRUCTION_TEMPLATE = """
@@ -322,7 +298,7 @@ def _build_evolution_variables(
     variables["partner_context"] = _format_partner_context(
         operation.partners, operation.operator
     )
-    state: dict[str, Any] = dict(context.state or {})
+    state: Mapping[str, Any] = context.state or {}
     variables["falsified_assumptions_section"] = (
         build_falsified_assumptions_section(state.get("hypotheses"))
     )

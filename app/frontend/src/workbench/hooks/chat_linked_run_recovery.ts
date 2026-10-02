@@ -12,7 +12,7 @@ import {
   attributeDisplayString,
   criterionDisplayString,
 } from '../run_spec_display';
-import type {StartedSession} from '../pages/chat_timeline_cards';
+import {type StartedSession} from '../pages/chat_timeline_started_card';
 import type {LinkedDraftRecovery} from './chat_session_types';
 
 export type LinkedRun =

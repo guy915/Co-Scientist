@@ -19,7 +19,6 @@ from co_scientist.agents.reflection.reflection import reflection_node
 from co_scientist.agents.safety.safety_screen import safety_screen_node
 from co_scientist.prompts import (
     get_literature_review_query_generation_prompt,
-    get_literature_review_query_generation_pubmed_prompt,
     get_literature_review_synthesis_prompt,
 )
 from tests._llm_fake import stub_call_llm_json
@@ -132,8 +131,8 @@ def test_query_generation_prompt_empty_state() -> None:
 
 def test_pubmed_query_generation_prompt_includes_meta_review() -> None:
     """The PubMed query variant carries the critique too."""
-    prompt = get_literature_review_query_generation_pubmed_prompt(
-        "Reverse liver fibrosis", meta_review=_META_REVIEW
+    prompt = get_literature_review_query_generation_prompt(
+        "Reverse liver fibrosis", source_type="pubmed", meta_review=_META_REVIEW
     )
     _assert_critique_present(prompt)
 

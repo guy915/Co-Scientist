@@ -10,7 +10,6 @@ Goal Report in to do so.
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -26,20 +25,16 @@ def make_emitter(
     run_id: str,
     *,
     db_path: str | None = None,
-    sleep_seconds: float = 0.0,
 ) -> EmitFn:
     """Build the per-run event emitter the durable engine tasks stream through.
 
     Records an event via ``store.append_event`` and returns the streamed stub
     ``{"seq", "type", "payload"}`` -- the single home for that SSE contract
-    shape. ``sleep_seconds`` is available for callers that want to pace a
-    synthetic timeline; every current caller leaves it at 0 (the generator's
-    ``yield`` already cedes control).
+    shape.
 
     Args:
         run_id: Identifier of the run whose events are recorded.
         db_path: Optional override for the SQLite database path.
-        sleep_seconds: Optional per-event pacing delay; unused today.
 
     Returns:
         An async emitter callable matching ``EmitFn``.
@@ -49,8 +44,6 @@ def make_emitter(
         # append_event assigns and returns the monotonic per-run sequence
         # number used by the SSE stream's replay-then-live protocol.
         seq = store.append_event(run_id, type_, payload, db_path=db_path)
-        if sleep_seconds:
-            await asyncio.sleep(sleep_seconds)
         return {"seq": seq, "type": type_, "payload": payload}
 
     return emit
@@ -62,16 +55,3 @@ def hypothesis_stub(h: dict[str, Any]) -> dict[str, str]:
         "id": hypothesis_id(h),
         "title": hypothesis_title(h),
     }
-
-
-def article_stub(a: dict[str, Any]) -> dict[str, str]:
-    """Project an article to a minimal JSON-safe stub for event payloads."""
-    return {
-        "title": str(a.get("title") or "Untitled"),
-        "url": str(a.get("url") or ""),
-    }
-
-
-def match_stub(m: dict[str, Any]) -> dict[str, str]:
-    """Project a tournament matchup to a minimal JSON-safe stub."""
-    return {"winner": str(m.get("winner") or "")}

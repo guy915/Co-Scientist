@@ -5,6 +5,7 @@ from urllib.error import URLError
 
 import pytest
 from Bio import Entrez
+from mcp_server.entrez import read_entrez
 from mcp_server.tools.lit_review.search_pubmed import check_pubmed_available
 
 
@@ -33,3 +34,27 @@ def test_anonymous_pubmed_availability_queries_service(
     monkeypatch.setattr(Entrez, "esearch", esearch)
     assert check_pubmed_available() == ("true" if reachable else "false")
     assert len(called) == 1
+
+
+@pytest.mark.parametrize("result", [{"IdList": ["123"]}, [{"LinkSetDb": []}]])
+def test_entrez_reader_closes_the_response(
+    monkeypatch: pytest.MonkeyPatch, result: object
+) -> None:
+    handle = BytesIO()
+    monkeypatch.setattr(Entrez, "read", lambda _handle: result)
+    assert read_entrez(handle) is result
+    assert handle.closed
+
+
+def test_entrez_reader_closes_a_malformed_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handle = BytesIO()
+
+    def malformed(_handle: object) -> None:
+        raise ValueError("malformed XML")
+
+    monkeypatch.setattr(Entrez, "read", malformed)
+    with pytest.raises(ValueError, match="malformed XML"):
+        read_entrez(handle)
+    assert handle.closed

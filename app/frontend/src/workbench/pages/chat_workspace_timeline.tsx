@@ -9,11 +9,13 @@ import {
 import {
   type ChatEntry,
   ChatBubble,
-  RunSpecCard,
+  AssistantMessage,
+} from './chat_timeline_bubble';
+import {RunSpecCard} from './chat_timeline_run_spec_card';
+import {
   type StartedSession,
   StartedSessionCard,
-} from './chat_timeline_cards';
-import {AssistantMessage} from './chat_timeline_bubble';
+} from './chat_timeline_started_card';
 
 /**
  * One renderable entry in the chat timeline.

@@ -28,14 +28,9 @@ from co_scientist.llm.request.completion import (
     _supports_json_schema_response_format,
 )
 from co_scientist.llm.structured.repair import attempt_json_repair
-from co_scientist.llm.structured.truncate_strings import (
-    _truncate_oversized_strings,
-)
 from co_scientist.llm.structured.validate import (
-    _backfill_required_fields,
-    _prune_unknown_properties,
-    _truncate_oversized_arrays,
     _validation_feedback,
+    reshape_json_output,
     validate_json_schema,
 )
 
@@ -120,10 +115,7 @@ def _backfill_and_validate(
     # path.
     if not _supports_json_schema_response_format(model_name):
         schema = json_schema.get("schema", json_schema)
-        _prune_unknown_properties(result, schema)
-        _backfill_required_fields(result, schema)
-        _truncate_oversized_arrays(result, schema)
-        _truncate_oversized_strings(result, schema)
+        reshape_json_output(result, schema)
     validate_json_schema(result, json_schema)
 
 

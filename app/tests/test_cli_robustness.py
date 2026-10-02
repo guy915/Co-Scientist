@@ -203,7 +203,7 @@ def test_show_non_object_body_is_a_clean_error() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=["not", "an", "object"])
 
-    args = argparse.Namespace(run_id="r1", json=False)
+    args = argparse.Namespace(run_id="r1", json=False, runs_command="cancel")
     with pytest.raises(CliError) as excinfo:
         runs_cmd.handle_show(args, api_client(handler))
     assert "unexpected non-object response" in excinfo.value.message
@@ -213,9 +213,9 @@ def test_lifecycle_non_object_body_is_a_clean_error() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json="oops")
 
-    args = argparse.Namespace(run_id="r1", json=False)
+    args = argparse.Namespace(run_id="r1", json=False, runs_command="cancel")
     with pytest.raises(CliError) as excinfo:
-        runs_cmd.handle_cancel(args, api_client(handler))
+        runs_cmd.handle_lifecycle(args, api_client(handler))
     assert "unexpected non-object response" in excinfo.value.message
 
 
@@ -259,7 +259,7 @@ def test_watch_reconnects_after_mid_stream_drop(
             return httpx.Response(200, content=first_stream())
         return httpx.Response(200, content=_TERMINAL_BODY)
 
-    rc = runs_cmd.handle_watch(
+    rc = runs_stream_cmd.handle_watch(
         _watch_args(), _watch_client(handler, monkeypatch)
     )
     assert rc == 0
@@ -286,7 +286,7 @@ def test_watch_reconnects_after_clean_close_without_terminal(
             )
         return httpx.Response(200, content=_TERMINAL_BODY)
 
-    rc = runs_cmd.handle_watch(
+    rc = runs_stream_cmd.handle_watch(
         _watch_args(), _watch_client(handler, monkeypatch)
     )
     assert rc == 0
@@ -304,7 +304,7 @@ def test_watch_does_not_reconnect_on_http_error(
         return httpx.Response(404, json={"detail": "run not found"})
 
     with pytest.raises(CliError) as excinfo:
-        runs_cmd.handle_watch(
+        runs_stream_cmd.handle_watch(
             _watch_args(), _watch_client(handler, monkeypatch)
         )
     assert "HTTP 404" in excinfo.value.message
@@ -322,7 +322,7 @@ def test_watch_gives_up_after_repeated_failures(
         raise httpx.ConnectError("refused")
 
     with pytest.raises(ApiUnreachableError):
-        runs_cmd.handle_watch(
+        runs_stream_cmd.handle_watch(
             _watch_args(), _watch_client(handler, monkeypatch)
         )
     assert attempts == 1 + runs_stream_cmd.WATCH_RECONNECT_ATTEMPTS

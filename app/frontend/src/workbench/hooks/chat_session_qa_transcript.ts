@@ -1,5 +1,5 @@
 import {type RunMessage} from '@/api/runs';
-import {type ChatEntry} from '../pages/chat_timeline_cards';
+import {type ChatEntry} from '../pages/chat_timeline_bubble';
 
 // Converts a run's persisted message rows (GET /messages) into the pieces a
 // reopened chat rebuilds itself from: the bubbles for its Q&A exchanges and

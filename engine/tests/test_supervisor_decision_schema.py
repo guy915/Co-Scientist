@@ -233,7 +233,7 @@ async def test_queue_action_required_fields_are_not_backfilled(
 ) -> None:
     """The backfill's reach stops at the array, bounding the gap above.
 
-    ``_backfill_required_fields`` returns at a non-dict, so it never
+    ``reshape_json_output`` returns at a non-dict, so it never
     descends into ``queue_actions`` items. A queue action missing
     ``task_id`` is therefore rejected even on the provider whose top-level
     required fields get filled in for it.

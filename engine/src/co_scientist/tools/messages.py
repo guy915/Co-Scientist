@@ -47,9 +47,4 @@ def tool_error_message(
     Returns:
         A tool-role message dict carrying an ``error`` key.
     """
-    return {
-        "role": "tool",
-        "name": tool_name,
-        "tool_call_id": tool_call_id,
-        "content": json.dumps({"error": error}),
-    }
+    return tool_result_message(tool_name, tool_call_id, {"error": error})

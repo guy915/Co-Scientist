@@ -1,4 +1,4 @@
-/* Home workspace layout and responsive states. */
+/* Home workspace, composer, recents, and responsive layout. */
 .reference-workspace {
   display: grid;
   height: 100%;
@@ -354,4 +354,822 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
+/* Home recents panel: recent-run cards, live-run steps, load more. */
+/* Composer chrome shadow lives on a token because the reference only casts
+   it in light mode (dark zeroes it). */
+.reference-composer {
+  box-shadow: var(--cosci-composer-shadow);
+}
 
+.reference-recents-panel {
+  display: grid;
+  min-height: 0;
+  align-content: start;
+  gap: 1.3rem;
+  overflow: hidden;
+  padding-top: 0.25rem;
+}
+
+.reference-recents-list {
+  display: grid;
+  min-height: 0;
+  max-height: calc(100vh - 12rem);
+  max-height: calc(100dvh - 12rem);
+  gap: 2.6rem;
+  margin: 0;
+  overflow-y: auto;
+  padding: 0 0.6rem 0 0;
+  list-style: none;
+  /* Soften the scroll-viewport bottom edge so the last visible card fades out
+     instead of hard-cutting (mirrors the composer's fade over the timeline).
+     A mask is scroll-aware and background-agnostic, so it works in both
+     themes without matching a surface token. */
+  mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - 2.25rem),
+    transparent
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - 2.25rem),
+    transparent
+  );
+}
+
+.reference-recents-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.reference-recents-heading-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.reference-recents-heading-title {
+  margin: 0;
+  color: var(--cosci-recents-heading);
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.reference-recents--empty {
+  grid-template-rows: auto 1fr;
+  align-self: stretch;
+  padding-bottom: 2rem;
+}
+
+.reference-recents-list.reference-recents-list--empty {
+  height: 100%;
+  max-height: none;
+  overflow: hidden;
+  padding: 0;
+  /* No scroll viewport here, so drop the bottom fade — otherwise it dims the
+     lower edge of the empty-state card. */
+  mask-image: none;
+  -webkit-mask-image: none;
+}
+
+.reference-recents-empty-item {
+  height: 100%;
+  min-height: 0;
+}
+
+.reference-recents-empty-state {
+  box-sizing: border-box;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-height: 25rem;
+  place-items: center;
+  align-content: center;
+  gap: 1rem;
+  border: 1.5px dashed var(--cosci-border);
+  border-radius: 1.35rem;
+  background: transparent;
+  color: var(--cosci-muted);
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.reference-recents-empty-icon {
+  display: block;
+  width: 2.1rem;
+  height: 1.95rem;
+  color: var(--cosci-logo-color);
+}
+
+.reference-recents-empty-copy {
+  max-width: 17rem;
+  color: inherit;
+  font-size: 1rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.reference-recent-card {
+  display: grid;
+  width: 100%;
+  min-height: 15.75rem;
+  align-content: start;
+  gap: 0.7rem;
+  border: 1px solid var(--cosci-recent-card-border);
+  border-radius: 0.75rem;
+  background: var(--cosci-recent-card-bg);
+  color: var(--cosci-recent-card-text);
+  cursor: pointer;
+  padding: 1rem;
+  text-align: left;
+  text-decoration: none;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 15%),
+    0 2px 10px rgb(0 0 0 / 10%);
+  transition: background-color 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Reference hover: fill shifts to surface-container-low; the elevation shadow
+   stays constant (and identical in both themes — the dark .card rule only
+   swaps the fill, never the shadow). */
+.reference-recent-card:hover,
+.reference-recent-card:focus-visible {
+  background: var(--cosci-recent-card-hover-bg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reference-recent-card {
+    transition: none;
+  }
+}
+
+.reference-recent-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+/* nowrap so a chip only ever wraps as a whole (the flex row above handles
+   that): breaking "Time elapsed: 3 minutes" across two lines inside its own
+   pill would be worse than moving the pill down. */
+.reference-recent-meta-chip {
+  border-radius: 0.3125rem;
+  background: var(--cosci-recent-meta-bg);
+  color: var(--cosci-recent-meta-text);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  padding: 0.25rem 0.5rem;
+  white-space: nowrap;
+}
+
+.reference-recent-title {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.reference-recent-description {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--cosci-recent-card-copy);
+  font-size: 0.9rem;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.reference-recent-chips {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.reference-recent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 0.3125rem;
+  background: var(--cosci-recent-chip-bg);
+  color: var(--cosci-recent-chip-text);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  padding: 0.25rem 0.5rem;
+}
+
+.reference-recent-chip-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.reference-winner-list {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0.15rem 0 0;
+  padding: 0;
+  color: var(--cosci-recent-card-text);
+  font-size: 0.75rem;
+  letter-spacing: 0.1px;
+  line-height: 1.33;
+  list-style: none;
+}
+
+/* Rank number in a fixed first column, the idea text in a shrinkable second
+   column so it can clamp (min-width: 0 lets it narrow below content size). */
+.reference-winner-list-item {
+  display: grid;
+  grid-template-columns: 1.4rem minmax(0, 1fr);
+  gap: 0.2rem;
+}
+
+/* Idea title: word-truncated to two lines via TruncatedLabel (the JS fitter
+   drops whole trailing words and appends an ellipsis; this clamp bounds the
+   measured height it fits against). */
+.reference-winner-list-text {
+  display: -webkit-box;
+  overflow: hidden;
+  min-width: 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* Live-run "session loading" flow (reference: Step X of N + the four
+   run steps). Present at every width — the run card renders it in
+   the recents rail while a run is active. */
+.reference-run-steps {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 0.1rem;
+}
+
+.reference-run-step-list {
+  display: grid;
+}
+
+.reference-run-step {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--cosci-recent-card-text);
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.reference-run-step-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+  color: var(--cosci-recent-card-copy);
+}
+
+.reference-run-step-label {
+  min-width: 0;
+}
+
+/* Retained on purpose: the flow currently marks progress by which phases it
+   lists at all, so nothing renders this today. Kept ready for a per-phase
+   check mark rather than being rebuilt from scratch if one is wanted again. */
+.reference-run-step-done {
+  width: 1.05rem;
+  height: 1.05rem;
+  flex-shrink: 0;
+  color: var(--cosci-run-step-done);
+}
+
+.reference-run-step-spinner {
+  width: 1.05rem;
+  height: 1.05rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  border: 2px solid color-mix(in srgb, var(--color-th-primary) 28%, transparent);
+  border-top-color: var(--color-th-primary);
+  animation: reference-run-step-spin 0.8s linear infinite;
+}
+
+/* The In Progress row's spinner stands in for a step glyph, so it occupies the
+   same 1.25rem column as the step icons and the delimiter's centre line. */
+.reference-run-step-glyph {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+@keyframes reference-run-step-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reference-run-step-spinner {
+    animation: none;
+  }
+}
+
+/* 1px connector between steps, inset to sit under the 1.25rem icon's center. */
+.reference-run-step-delimiter {
+  height: 0.75rem;
+  margin: 0.2rem 0 0.2rem 0.625rem;
+  border-inline-start: 1px solid var(--cosci-border);
+}
+
+.reference-load-more-item {
+  display: flex;
+  justify-content: center;
+  padding-block: 0.25rem 0.5rem;
+}
+
+.reference-load-more {
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 0;
+  background: transparent;
+  color: var(--cosci-idea-ref-blue);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+}
+
+.reference-load-more:hover,
+.reference-load-more:focus-visible {
+  text-decoration: underline;
+}
+
+:root[data-theme='dark'] .reference-load-more {
+  color: var(--cosci-blue);
+}
+/* Home responsive breakpoints: desktop, tablet, phone, short viewports. */
+@media (min-width: 1181px) {
+  .reference-home-stage {
+    --home-recents-width: clamp(19rem, 18vw, 20.5rem);
+
+    align-items: start;
+    grid-template-columns: minmax(0, 1fr) minmax(
+        19rem,
+        var(--home-recents-width)
+      );
+    justify-content: stretch;
+    gap: clamp(2.25rem, 3.1vw, 3.35rem);
+    padding-block: 0;
+    padding-left: clamp(2rem, 3vw, 4rem);
+    padding-right: clamp(0.7rem, 1.2vw, 1.3rem);
+  }
+
+  .reference-home-main {
+    height: 100%;
+    min-width: 0;
+    /* Rein in the content column so the stepper, suggestions, and composer
+       stop stretching edge-to-edge on wide screens — but keep it dynamic: it
+       tracks the viewport (62vw) between a floor and a ceiling, then centers
+       in its (1fr) track, leaving a deliberate margin at ultrawide sizes. */
+    max-width: clamp(46rem, 55vw, 53.5rem);
+    justify-self: center;
+    max-height: calc(100vh - 4.5rem);
+    max-height: calc(100dvh - 4.5rem);
+    /* Rows: [1] top cushion, [2] title, [3] title→stepper gap, [4] stepper,
+       [5] mid gap, [6] suggestions, [7] composer. Rows 1, 3 and 5 are the only
+       shrinkable tracks; CSS grid spends flexible tracks fully before it ever
+       compresses a content track. So as a long prompt grows the composer, the
+       mid gap collapses first (the suggestion cards rise toward the stepper),
+       then the cushion and the title→stepper gap give way together, so the
+       stepper and everything below ride up while the title itself moves far
+       less — the shift is shared, not uniform — and the suggestion and composer
+       rows stay at their content height throughout. The composer's bottom stays
+       pinned to the container bottom and it grows UPWARD, absorbed entirely by
+       the collapsing spacers: never extending down, never capped. Floors: the
+       mid gap keeps 2rem so a card's hover-preview bubble still clears the
+       stepper, and the cushion + gap keep small floors so they never fully
+       vanish — all small enough that the full-height composer still fits. At
+       rest the cushion and gap fill to their caps (the old padding-top and
+       stepper-margin values) and the 1fr mid gap opens the large gap above the
+       composer, so the resting layout is unchanged. */
+    grid-template-rows:
+      minmax(1.5rem, clamp(4.85rem, 8.8vh, 6.4rem)) auto
+      minmax(1.25rem, clamp(3.85rem, 7.6vh, 5.8rem)) auto
+      minmax(2rem, 1fr) auto max-content max-content;
+    padding-top: 0;
+    padding-bottom: clamp(1.35rem, 3.2vh, 2.25rem);
+  }
+
+  /* The greeting renders the title and stepper as bare grid children, so
+     without explicit row placement auto-flow would begin at row 1 (the
+     cushion) and shift every child up a track. Pin each to its row; the empty
+     rows 1, 3 and 5 are the shrinkable spacers. Row 3 is the title→stepper
+     gap: making it a shrinkable track (instead of a fixed stepper margin) lets
+     it narrow under pressure, so the stepper and everything below ride up while
+     the title itself moves far less — the shift is shared, not uniform. */
+  .reference-home-main > .reference-home-title {
+    grid-row: 2;
+  }
+
+  .reference-home-main > .reference-step-timeline {
+    grid-row: 4;
+  }
+
+  .reference-home-main > .reference-suggestion-row {
+    grid-row: 6;
+  }
+
+  .reference-home-main > .reference-home-composer {
+    grid-row: 7;
+  }
+
+  /* Appended below the composer rather than folded into an existing
+     track: every child here is pinned, so an unplaced one flows into
+     row 1 and lands above the title. A trailing max-content row takes
+     its height off the 1fr spacer above and moves nothing else. */
+  .reference-home-main > .reference-home-discovery-entry {
+    grid-row: 8;
+  }
+
+  .reference-home-title {
+    width: min(100%, 43.5rem);
+    font-size: clamp(2.35rem, 3vw, 2.8125rem);
+    line-height: 1.156;
+  }
+
+  .reference-step-timeline {
+    column-gap: 0;
+    /* The title→stepper gap now lives in the grid's row 3 (a shrinkable
+       track) so it can narrow under pressure; the fixed margin is gone. */
+    margin-top: 0;
+  }
+
+  .reference-step-item {
+    width: min(100%, 15.8rem);
+  }
+
+  .reference-suggestion-row {
+    align-self: end;
+    margin-top: 0;
+  }
+
+  .reference-home-composer {
+    margin-top: clamp(1.25rem, 2.4vh, 1.9rem);
+  }
+
+  .reference-recents-panel {
+    width: 100%;
+    /* Full-height column (like the main column) with the list on a flexible
+       row, and the SAME bottom padding as .reference-home-main, so the recents
+       list bottom lines up with the composer bottom instead of being pinned to
+       a viewport-relative max-height. */
+    height: 100%;
+    max-height: calc(100vh - 4.5rem);
+    max-height: calc(100dvh - 4.5rem);
+    grid-template-rows: auto minmax(0, 1fr);
+    justify-self: end;
+    overflow: visible;
+    padding-top: clamp(0.35rem, 1vh, 0.75rem);
+    padding-bottom: clamp(1.35rem, 3.2vh, 2.25rem);
+  }
+
+  .reference-recents.reference-recents-panel {
+    gap: 1.55rem;
+  }
+
+  .reference-recents-list {
+    /* Fill the panel's flexible row (min-height:0 from base enables
+       scrolling) so the list ends at the panel's bottom padding —
+       level with the composer — rather than at a viewport-relative
+       cap. */
+    max-height: none;
+    /* Symmetric horizontal padding: the old asymmetric 1.2rem right inset was
+       sized for a wider column and, together with the vertical scrollbar,
+       pushed the cards a few px past the viewport (a grid/scrollbar rounding
+       mismatch) once the column was narrowed — surfacing as a horizontal
+       scrollbar. Equal insets leave slack for the scrollbar on both sides. */
+    padding: 0.55rem 0.55rem 2.15rem 0.55rem;
+    scroll-padding: 0.55rem 0.55rem 2.15rem 0.55rem;
+  }
+
+  .reference-recents .reference-recents-list {
+    gap: 2.65rem;
+  }
+
+  .reference-recents-heading-icon {
+    width: 1.375rem;
+    height: 1.375rem;
+  }
+
+  .reference-recents-heading-title {
+    font-size: 1rem;
+    font-weight: 500;
+    line-height: 1.5;
+  }
+
+  .reference-recent-card {
+    min-height: 0;
+    border-color: transparent;
+    border-radius: 0.75rem;
+    padding: 1rem;
+  }
+
+  .reference-recent-card:hover,
+  .reference-recent-card:focus-visible {
+    border-color: transparent;
+    background: var(--cosci-recent-card-hover-bg);
+  }
+
+  .reference-recent-meta-chip {
+    background: var(--cosci-recent-meta-bg);
+    color: var(--cosci-recent-meta-text);
+    font-size: 0.6875rem;
+    line-height: 1.45;
+    padding: 0.25rem 0.5rem;
+  }
+
+  .reference-recent-title {
+    font-size: 1rem;
+  }
+
+  .reference-recent-description {
+    font-size: 0.94rem;
+    line-height: 1.34;
+    -webkit-line-clamp: 3;
+  }
+
+  .reference-recent-chip {
+    flex: none;
+    min-height: 1.62rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.6875rem;
+    line-height: 1.45;
+    white-space: nowrap;
+  }
+
+  .reference-winner-list {
+    gap: 0.5rem;
+    color: var(--cosci-recent-card-text);
+    font-size: 0.75rem;
+    letter-spacing: 0.1px;
+    line-height: 1.33;
+  }
+}
+
+@media (min-width: 701px) {
+  .reference-step-item--center {
+    justify-self: center;
+  }
+
+  .reference-step-item--end {
+    justify-self: end;
+  }
+}
+
+@media (min-width: 701px) and (max-width: 1180px) {
+  .reference-home-stage {
+    height: auto;
+    min-height: 100%;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    gap: clamp(1.5rem, 3.5vw, 2.5rem);
+    overflow: visible;
+    /* No vertical padding: the main column is a full page-height first screen
+       (height: 100dvh - 4.5rem) so the composer pins to the bottom of the
+       fold; the recents panel scrolls in below. */
+    padding: 0 clamp(1.5rem, 4vw, 2.25rem);
+  }
+
+  .reference-home-main,
+  .reference-recents-panel {
+    width: min(100%, 43rem);
+  }
+
+  /* Same fixed-screen shift-up grid as the desktop block, so a growing composer
+     collapses the top cushion + mid gap (title/stepper/cards ride up) instead
+     of extending off the bottom of this single-column layout. The main content
+     is one viewport tall (100dvh - the 4.5rem header; the stage drops its
+     vertical padding for this); the recents panel scrolls in below it. */
+  .reference-home-main {
+    height: calc(100vh - 4.5rem);
+    height: calc(100dvh - 4.5rem);
+    grid-template-rows:
+      minmax(0, clamp(2.4rem, 7vh, 3.5rem)) auto auto
+      minmax(2rem, 1fr) auto max-content max-content;
+    padding-top: 0;
+    padding-bottom: clamp(1rem, 2.5vh, 1.75rem);
+  }
+
+  .reference-home-main > .reference-home-title {
+    grid-row: 2;
+  }
+
+  .reference-home-main > .reference-step-timeline {
+    grid-row: 3;
+  }
+
+  .reference-home-main > .reference-suggestion-row {
+    grid-row: 5;
+  }
+
+  .reference-home-main > .reference-home-composer {
+    grid-row: 6;
+  }
+
+  .reference-home-main > .reference-home-discovery-entry {
+    grid-row: 7;
+  }
+
+  .reference-step-timeline {
+    gap: 0;
+    margin-top: clamp(2.75rem, 6vh, 4rem);
+  }
+
+  .reference-step-item {
+    width: min(100%, 14rem);
+    grid-template-columns: 1fr;
+    gap: 0.85rem;
+  }
+
+  .reference-suggestion-row {
+    /* The mid-gap grid track owns the stepper-to-suggestions space now. */
+    margin-top: 0;
+  }
+
+  /* home-main is a fixed one-screen height, so the recents panel must render at
+     its natural height in the flow below it (and let the page scroll to it),
+     not collapse into a fixed grid scroller the way the desktop column does. */
+  .reference-recents-panel {
+    height: auto;
+    max-height: none;
+    min-height: auto;
+    overflow: visible;
+    grid-template-rows: auto auto;
+    margin-top: 1rem;
+  }
+
+  .reference-recents-list {
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+@media (max-width: 700px) {
+  /* The phone home is a single fixed screen: a flex column that fills the page
+     so the composer anchors to the bottom and the suggestions sit just above
+     it, with the title at the top and the flexible space between. Nothing
+     scrolls and there is no dead gap under the composer. */
+  .ucs-page--home {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .reference-workspace,
+  .reference-workspace-main,
+  .reference-home-stage,
+  .reference-home-main {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    flex-direction: column;
+  }
+
+  .reference-home-stage {
+    gap: 0;
+    overflow: hidden;
+    padding: 0.75rem clamp(0.9rem, 4vw, 1.25rem) clamp(0.8rem, 2.2vh, 1.15rem);
+  }
+
+  .reference-home-main {
+    width: 100%;
+    padding-top: 0.5rem;
+  }
+
+  /* Flask mark centered above the title (Gemini-style greeting). Its auto top
+     margin pairs with the suggestion row's auto margin to split the free space,
+     centering the logo+title group in the area above the prompts. */
+  .reference-home-logo {
+    display: block;
+    width: 2.5rem;
+    height: auto;
+    align-self: center;
+    margin: auto auto 1rem;
+    color: var(--cosci-logo-color);
+  }
+
+  .reference-home-logo path {
+    fill: currentColor;
+    stroke: currentColor;
+  }
+
+  .reference-home-title {
+    width: 100%;
+    /* The logo now carries the group's top auto-margin. */
+    margin: 0;
+    font-size: clamp(1.85rem, 7.6vw, 2.35rem);
+    line-height: 1.16;
+  }
+
+  /* Push the suggestions — and the composer that follows — to the
+     bottom of the column; the flexible space lands between the title
+     and this row. */
+  .reference-suggestion-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.15rem;
+    margin-top: auto;
+  }
+
+  /* Suggestions render as a compact glyph list (one row per prompt), each with
+     a leading icon instead of a bullet. Tapping still fills the composer with
+     the full prompt text. */
+  .reference-suggestion-button {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    border: 0;
+    /* Fully rounded, matching the sidebar chat pills — the 12px xl
+       radius read as square-ish on a short, wide row. */
+    border-radius: 9999px;
+    background: transparent;
+    padding: 0.6rem 0.85rem;
+  }
+
+  .reference-suggestion-button:hover,
+  .reference-suggestion-button:focus-visible,
+  .reference-suggestion-button.is-previewed {
+    border-color: transparent;
+    background: var(--cosci-hover);
+  }
+
+  .reference-suggestion-icon {
+    width: 1.4rem;
+    height: 1.4rem;
+    flex: 0 0 auto;
+    font-size: 1.4rem;
+    color: var(--cosci-shell-icon);
+  }
+
+  /* Single-line, word-level truncation is done by TruncatedLabel
+     (lines=1); the container only clips — deliberately NO
+     text-overflow: ellipsis, which would cut mid-word (letter-level)
+     and violate the app-wide truncation rule. */
+  .reference-suggestion-text {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    line-height: 1.4;
+    white-space: nowrap;
+  }
+
+  /* No hover preview on touch — the row already reads as a single line. */
+  .reference-suggestion-preview {
+    display: none;
+  }
+
+  .reference-home-main .reference-home-composer {
+    min-height: 0;
+    margin-top: 0.9rem;
+    padding-top: 0.9rem;
+    padding-bottom: 0.65rem;
+  }
+}
+
+@media (min-width: 1181px) and (max-height: 760px) {
+  /* Short desktop viewports keep the grid-track spacing model from the base
+     desktop block (the top cushion and mid-gap rows own all vertical slack and
+     collapse under pressure); this block only shrinks the content itself
+     (type, card, and composer sizes) so it fits sooner. It must NOT reintroduce
+     a fixed padding-top or a suggestion margin-top — those fought the cushion
+     and mid-gap tracks and pushed the composer off the bottom of the viewport. */
+  .reference-home-title {
+    font-size: clamp(2.1rem, 2.8vw, 2.65rem);
+  }
+
+  .reference-step-timeline {
+    margin-top: clamp(2.35rem, 5.8vh, 3.2rem);
+  }
+
+  .reference-step-body {
+    font-size: 0.9rem;
+    line-height: 1.28;
+  }
+
+  .reference-suggestion-button {
+    min-height: 3.9rem;
+    max-height: 3.9rem;
+  }
+
+  .reference-home-composer {
+    min-height: 6.35rem;
+  }
+
+  .reference-home-composer-textarea {
+    min-height: 2.65rem;
+  }
+}

@@ -1,19 +1,9 @@
-"""The json_object shims reshape a genuinely nested schema, not just its top.
+"""Reshape nested critique taxonomies against the real meta-review schema.
 
-``META_REVIEW_SCHEMA``'s ``recurring_themes`` is the first schema in this
-engine deep enough for the four provider-capability shims
-(``_prune_unknown_properties``, ``_backfill_required_fields``,
-``_truncate_oversized_arrays``, ``_truncate_oversized_strings``) to be
-exercised below their first level: an object inside an array inside an
-object, whose own properties include another array of objects, whose items
-hold an array of strings.
-
-Every case here drives the REAL schema rather than a synthetic one, and
-each ends at ``_backfill_and_validate`` -- the assembled pipeline the
-production downgrade path actually runs -- because four passing unit calls
-do not prove the response validates. The offline backend cannot stand in
-for this: it fills every array with exactly one item, so a taxonomy it
-produces never overruns a cap and never omits a nested required field.
+The same response reshaper removes invented keys, fills required fields,
+and caps arrays and strings through nested objects and array items. Tests
+also drive the full provider downgrade and validation path: offline output
+alone cannot exercise omissions and oversized nested collections.
 """
 
 from typing import Any
@@ -21,14 +11,7 @@ from typing import Any
 import pytest
 
 from co_scientist.llm.attempts import json_attempt
-from co_scientist.llm.structured.truncate_strings import (
-    _truncate_oversized_strings,
-)
-from co_scientist.llm.structured.validate import (
-    _backfill_required_fields,
-    _prune_unknown_properties,
-    _truncate_oversized_arrays,
-)
+from co_scientist.llm.structured.validate import reshape_json_output
 from co_scientist.schemas.meta_review_schema import META_REVIEW_SCHEMA
 
 _SCHEMA: dict[str, Any] = META_REVIEW_SCHEMA["schema"]
@@ -76,7 +59,7 @@ def test_prune_drops_an_invented_key_two_levels_down() -> None:
         ]
     }
 
-    _prune_unknown_properties(result, _SCHEMA)
+    reshape_json_output(result, _SCHEMA)
 
     sub = result["recurring_themes"][0]["sub_themes"][0]
     assert set(sub) == {"theme", "description", "points"}
@@ -88,7 +71,7 @@ def test_backfill_fills_a_required_field_two_levels_down() -> None:
     del sub["description"]
     result: dict[str, Any] = {"recurring_themes": [_theme(sub_themes=[sub])]}
 
-    _backfill_required_fields(result, _SCHEMA)
+    reshape_json_output(result, _SCHEMA)
 
     assert result["recurring_themes"][0]["sub_themes"][0]["description"] == ""
 
@@ -104,7 +87,7 @@ def test_backfill_fills_a_missing_sub_theme_array() -> None:
     del theme["sub_themes"]
     result: dict[str, Any] = {"recurring_themes": [theme]}
 
-    _backfill_required_fields(result, _SCHEMA)
+    reshape_json_output(result, _SCHEMA)
 
     assert result["recurring_themes"][0]["sub_themes"] == []
 
@@ -119,7 +102,7 @@ def test_truncate_cuts_an_oversized_array_inside_a_nested_object() -> None:
         "recurring_themes": [_theme(sub_themes=[_sub_theme(points=over)])]
     }
 
-    _truncate_oversized_arrays(result, _SCHEMA)
+    reshape_json_output(result, _SCHEMA)
 
     points = result["recurring_themes"][0]["sub_themes"][0]["points"]
     assert points == over[:cap]
@@ -134,7 +117,7 @@ def test_truncate_cuts_an_oversized_sub_theme_array() -> None:
         ]
     }
 
-    _truncate_oversized_arrays(result, _SCHEMA)
+    reshape_json_output(result, _SCHEMA)
 
     assert len(result["recurring_themes"][0]["sub_themes"]) == cap
 
@@ -175,7 +158,7 @@ def test_truncate_strings_recurses_into_a_sub_theme() -> None:
         ]
     }
 
-    _truncate_oversized_strings(result, schema)
+    reshape_json_output(result, schema)
 
     subs = result["recurring_themes"][0]["sub_themes"]
     assert len(subs[0]["theme"]) == 10

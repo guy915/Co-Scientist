@@ -6,7 +6,7 @@ For those models the engine downgrades each schema'd call to
 back-fills missing required fields with empty defaults before schema
 validation. These tests pin down the downgrade decision
 (``_supports_json_schema_response_format``), the back-fill behavior
-(``_backfill_required_fields``), and the end-to-end wiring through
+(``reshape_json_output``), and the end-to-end wiring through
 ``call_llm`` / ``call_llm_json``.
 
 Following ``test_llm_wrappers.py``, every network seam is mocked:

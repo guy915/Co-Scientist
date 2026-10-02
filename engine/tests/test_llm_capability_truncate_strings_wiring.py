@@ -3,7 +3,7 @@
 Mirrors ``test_llm_capability_truncate_wiring.py`` (the array-truncation
 sibling): reuses its network-fake helpers rather than a second
 implementation. The pure-function behavior of
-``_truncate_oversized_strings`` itself lives in
+``reshape_json_output`` itself lives in
 ``test_llm_capability_truncate_strings.py``; these tests only pin that
 ``call_llm_json`` actually applies it, and only on the downgrade path.
 """

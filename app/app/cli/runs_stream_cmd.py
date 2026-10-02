@@ -1,13 +1,4 @@
-"""The streaming and polling ``cosci runs`` subcommands.
-
-Split from ``app.cli.runs_cmd`` to keep that module small: this module holds
-the handlers that hold a connection open or poll until a run settles —
-``wait`` (status polling), ``watch`` (SSE event tail with reconnects), and
-``ask`` (streamed Q&A) — plus the path/stdin helpers they share with the
-plain request/response handlers. ``app.cli.runs_cmd`` re-exports the three
-handlers and ``WATCH_RECONNECT_ATTEMPTS``, so ``runs_cmd.handle_watch`` and
-friends keep resolving.
-"""
+"""Polling, event-stream reconnection and streamed Q&A CLI commands."""
 
 from __future__ import annotations
 

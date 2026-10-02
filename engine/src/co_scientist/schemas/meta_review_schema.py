@@ -72,7 +72,7 @@ _MAX_COMPARISON_AXES: Final = 5
 # The caps are the artifact's own maxima, not round numbers: it carries
 # five themes, eight points under theme V ("General Advice Based on Common
 # Critiques"), and five sub-points under theme I's "Specificity". A cap
-# below any of those would have _truncate_oversized_arrays silently clip a
+# below any of those would have reshape_json_output silently clip a
 # taxonomy shaped exactly like the exemplar (test_meta_review_themes.py::
 # test_schema_caps_do_not_clip_the_published_taxonomy pins this).
 _MAX_RECURRING_THEMES: Final = 6

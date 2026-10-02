@@ -6,7 +6,7 @@ each arm identical except for one capability toggle, and emits the
 reads.
 
 **Reachable arms** -- config-level toggles the durable path honors. Most
-resolve at the capability boundary (``opts_capabilities.py``); the
+resolve at the capability boundary (``opts.py``); the
 web-search disable instead rides ``opts.py::_resolve_disabled_tools`` into
 the engine's ``disable_tools`` list (see ``AGENTS.md``'s "Per-run tool
 disabling is reconciled once, at registry load"):

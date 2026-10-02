@@ -1,19 +1,13 @@
-"""JSON handling utilities for LLM responses.
+"""Parse and validate model JSON, with bounded fallback for enhancement nodes.
 
-Provides schema validation, fallback responses for non-critical nodes, and
-the json_object-only provider-capability shims (backfilling missing
-required fields, pruning invented properties, truncating over-long
-arrays), plus validation feedback for retry prompts. The extraction/repair
-helpers live in ``llm.structured.repair`` and the list coercion in
-``llm.structured.lists``; a fourth shim (string truncation) lives in
-``llm.structured.truncate_strings`` instead, since
-``llm.attempts.json_attempt`` is its only caller. These helpers are pure
-(no network access), shared by ``co_scientist.llm`` and the tool-based phases.
+For json_object-only providers, reshape response fields before validation:
+remove unknown closed-object keys, fill required fields, and cap oversized
+arrays/strings. Content constraints (enums, patterns, minima) still validate
+normally. This applies only to parsed output, never to prompt inputs.
 """
 
 import copy
 import logging
-from collections.abc import Callable
 from typing import Any
 
 import jsonschema
@@ -113,7 +107,7 @@ def validate_json_schema(
     # Schema dicts may be either a bare JSON Schema or the LiteLLM
     # json_schema response-format wrapper ({"name": ..., "schema": {...}}
     # from call_llm); this normalizes to the bare schema either way. The
-    # same unwrap pattern is repeated in _backfill_required_fields below and
+    # same unwrap pattern is used by the response reshaper and
     # in co_scientist.llm.request.completion._inject_schema_into_prompt.
     # Extract actual schema from nested structure if present
     actual_schema = json_schema.get("schema", json_schema)
@@ -198,240 +192,96 @@ def get_fallback_response(
     return None
 
 
-# Type-neutral placeholder factories for schema types with no special
-# handling. Callables (not bare values) so "object"/"array" each return a
-# fresh dict/list per call instead of one shared mutable instance -- "string"
-# and "integer"/"number" are handled separately below since "string" needs
-# the schema's enum (if any) and int 0 is immutable so aliasing is moot.
-_FIELD_TYPE_DEFAULT_FACTORIES: dict[str, Callable[[], Any]] = {
-    "object": dict,
-    "array": list,
-    "integer": lambda: 0,
-    "number": lambda: 0,
-}
-
-
-def _default_for_field_schema(field_schema: dict[str, Any]) -> Any:
-    """Returns a type-neutral placeholder value for a schema field.
-
-    Args:
-        field_schema: JSON schema node describing the missing field.
-
-    Returns:
-        The first enum value (or empty string) for a "string" type, ``{}``
-        for "object", ``[]`` for "array", ``0`` for "integer"/"number", and
-        an empty string for any other (or missing) declared type.
-    """
-    field_type = field_schema.get("type")
-    if field_type == "string":
-        return field_schema["enum"][0] if "enum" in field_schema else ""
-    if not isinstance(field_type, str):
-        return ""
-    factory = _FIELD_TYPE_DEFAULT_FACTORIES.get(field_type)
+def _default_for_field_schema(schema: dict[str, Any]) -> Any:
+    """Return a fresh neutral value for an omitted required field."""
+    kind = schema.get("type")
+    if kind == "string":
+        return schema["enum"][0] if "enum" in schema else ""
+    factories = {"object": dict, "array": list, "integer": int, "number": int}
+    factory = factories.get(kind) if isinstance(kind, str) else None
     return factory() if factory is not None else ""
 
 
-def _is_backfillable(obj: Any, schema: Any) -> bool:
-    """Checks whether both obj and schema are dicts worth backfilling.
+def reshape_json_output(obj: Any, schema: Any, _path: str = "") -> None:
+    """Reshape a parsed response to a provider's unenforced object schema.
 
-    Args:
-        obj: Parsed JSON value to check.
-        schema: JSON schema node to check.
-
-    Returns:
-        True if both are dicts (any other shape is left untouched).
+    Mutates declared fields in place, keeping unknown fields under open
+    schemas and leaving incorrect value types for normal validation.
+    Arrays and strings are capped only by maxItems/maxLength. String cuts
+    prefer a word boundary within the last 20% of the allowed length.
     """
-    return isinstance(obj, dict) and isinstance(schema, dict)
+    if not isinstance(obj, dict) or not isinstance(schema, dict):
+        return
+    props = schema.get("properties", {})
+    _reshape_object_fields(obj, schema, props)
+    for key, value in obj.items():
+        if key in props:
+            field_path = f"{_path}.{key}" if _path else key
+            obj[key] = _reshape_value(value, props[key], field_path)
 
 
-def _fill_missing_required_fields(
+def _reshape_object_fields(
     obj: dict[str, Any], schema: dict[str, Any], props: dict[str, Any]
 ) -> None:
-    """Fills required-but-absent fields on obj with type-neutral defaults.
-
-    Args:
-        obj: Dict to backfill in place.
-        schema: JSON schema node describing ``obj``.
-        props: ``schema["properties"]``, pre-extracted by the caller.
-    """
+    """Remove undeclared closed-object keys and fill required properties."""
+    if schema.get("additionalProperties") is False:
+        for key in obj.keys() - props.keys():
+            del obj[key]
     for field in schema.get("required", []):
         if field not in obj and field in props:
             obj[field] = _default_for_field_schema(props[field])
 
 
-def _recurse_into_properties(
-    obj: dict[str, Any], props: dict[str, Any]
-) -> None:
-    """Recurses backfilling into every property schema present in obj.
-
-    Args:
-        obj: Dict whose values may themselves need backfilling.
-        props: ``schema["properties"]`` describing ``obj``'s fields.
-    """
-    for key, value in obj.items():
-        if key in props:
-            _backfill_child(value, props[key])
-
-
-def _backfill_child(value: Any, property_schema: Any) -> None:
-    """Backfills one property's value, descending into arrays element-wise.
-
-    Mirrors ``_prune_child``: ``_backfill_required_fields`` itself only
-    accepts a dict, so without this an array-of-objects property (e.g. a
-    schema's ``research_directions``) was handed straight to it and
-    silently skipped -- a required field missing from one *item* inside
-    the array never got backfilled, and the response failed schema
-    validation instead of degrading.
-
-    Args:
-        value: The property's value, of any shape.
-        property_schema: The schema node describing that property.
-    """
-    if isinstance(value, list) and isinstance(property_schema, dict):
-        item_schema = property_schema.get("items")
-        for item in value:
-            _backfill_required_fields(item, item_schema)
-        return
-    _backfill_required_fields(value, property_schema)
-
-
-def _backfill_required_fields(obj: Any, schema: Any) -> None:
-    """Recursively fills missing required fields with empty defaults.
-
-    Provider-capability shim for json_object-only models (see
-    ``co_scientist.llm.request.completion._supports_json_schema_response_format``):
-    without server-side schema enforcement those models routinely omit nested
-    required fields (e.g.
-    ``performance_assessment.agent_performance.reflection_agent``), which
-    would otherwise abort the run in schema validation. Missing required
-    fields are filled in place with neutral empty values (empty string or
-    first enum value, ``{}``, ``[]``, ``0``); fields that are present are
-    never modified. Recurses into array-of-object properties element-wise
-    (``_backfill_child``), so a field missing from one item of a list
-    schema (e.g. one entry of ``research_directions``) is backfilled the
-    same as a field missing from a plain nested object.
-
-    Args:
-        obj: Parsed JSON value to back-fill (non-dicts are ignored).
-        schema: JSON schema node describing ``obj``.
-    """
-    if not _is_backfillable(obj, schema):
-        return
-    props = schema.get("properties", {})
-    # Step 1: fill any required field missing from obj with a type-neutral
-    # default so the schema's "required" check passes on validation.
-    _fill_missing_required_fields(obj, schema, props)
-    # Step 2: recurse into every property present in obj -- both fields that
-    # were already there and ones just backfilled above -- so nested
-    # required fields at any depth get the same treatment.
-    _recurse_into_properties(obj, props)
-
-
-def _prune_unknown_properties(obj: Any, schema: Any) -> None:
-    """Recursively drops properties a closed schema node does not declare.
-
-    Provider-capability shim for json_object-only models (see
-    ``llm.request.completion._supports_json_schema_response_format``), and the
-    mirror image of ``_backfill_required_fields``: without server-side
-    enforcement a model both omits required fields and invents extra ones,
-    and every object node in this engine's schemas is closed
-    (``schemas/builders.obj``), so a single invented key fails the whole
-    response. Feeding that error back is no cure -- a production
-    research_overview call answered with the same three invented sections on
-    all five attempts before falling back to nothing.
-
-    Only names are touched: an unknown key under a closed node is removed in
-    place, everything the schema declares is left exactly as it arrived, and
-    a node that allows extras keeps them.
-
-    Args:
-        obj: Parsed JSON value to prune (non-dicts are ignored).
-        schema: JSON schema node describing ``obj``.
-    """
-    if not _is_backfillable(obj, schema):
-        return
-    props = schema.get("properties", {})
-    if schema.get("additionalProperties") is False:
-        _drop_undeclared_keys(obj, props)
-    for key, value in obj.items():
-        if key in props:
-            _prune_child(value, props[key])
-
-
-def _drop_undeclared_keys(obj: dict[str, Any], props: dict[str, Any]) -> None:
-    """Removes, in place, every key of obj that props does not declare."""
-    for key in [key for key in obj if key not in props]:
-        del obj[key]
-
-
-def _prune_child(value: Any, property_schema: Any) -> None:
-    """Prunes one property's value, descending into arrays element-wise.
-
-    Args:
-        value: The property's value, of any shape.
-        property_schema: The schema node describing that property.
-    """
-    if isinstance(value, list) and isinstance(property_schema, dict):
-        item_schema = property_schema.get("items")
-        for item in value:
-            _prune_unknown_properties(item, item_schema)
-        return
-    _prune_unknown_properties(value, property_schema)
-
-
-def _truncate_oversized_arrays(obj: Any, schema: Any) -> None:
-    """Recursively truncates arrays that exceed their schema's ``maxItems``.
-
-    Provider-capability shim for json_object-only models (see
-    ``_supports_json_schema_response_format``), alongside
-    ``_prune_unknown_properties`` and ``_backfill_required_fields``: without
-    server-side enforcement ``maxItems`` is advisory only, so an otherwise
-    valid answer one item over the limit fails the whole response.
-    Production returned six good experiment-plan steps against a
-    ``maxItems: 5`` schema and paid for a doomed retry, even though the
-    consuming node already truncates to the same cap defensively
-    (``MAX_EXPERIMENT_STEPS``) -- the sixth step was never surviving anyway.
-
-    Reshapes the OUTPUT only. It runs on a parsed response and must never
-    be pointed at a prompt -- trimming an LLM's input this way is exactly
-    what the "Trim the schema, never the input" gotcha (root ``AGENTS.md``)
-    forbids.
-
-    Args:
-        obj: Parsed JSON value to truncate in place (non-dicts are ignored).
-        schema: JSON schema node describing ``obj``.
-    """
-    if not _is_backfillable(obj, schema):
-        return
-    props = schema.get("properties", {})
-    for key, value in obj.items():
-        if key in props:
-            _truncate_child(value, props[key])
-
-
-def _truncate_child(value: Any, property_schema: Any) -> None:
-    """Truncates one property's array value, then recurses into its items.
-
-    Mirrors ``_prune_child``/``_backfill_child``: cuts an over-long array to
-    its ``maxItems`` in place, then walks each remaining item with the
-    array's own item schema -- covering an array nested inside an object
-    nested inside another array in one recursive call.
-
-    Args:
-        value: The property's value, of any shape.
-        property_schema: The schema node describing that property.
-    """
-    if not isinstance(property_schema, dict):
-        return
+def _reshape_value(value: Any, schema: Any, field_path: str) -> Any:
+    """Reshape a declared property's value and its nested fields."""
+    if not isinstance(schema, dict):
+        return value
+    if isinstance(value, str):
+        return _truncate_string_value(
+            value, schema.get("maxLength"), field_path
+        )
     if isinstance(value, list):
-        max_items = property_schema.get("maxItems")
-        if isinstance(max_items, int) and len(value) > max_items:
-            del value[max_items:]
-        item_schema = property_schema.get("items")
-        for item in value:
-            _truncate_oversized_arrays(item, item_schema)
-        return
-    _truncate_oversized_arrays(value, property_schema)
+        _reshape_array(value, schema, field_path)
+        return value
+    reshape_json_output(value, schema, field_path)
+    return value
+
+
+def _reshape_array(
+    value: list[Any], schema: dict[str, Any], field_path: str
+) -> None:
+    """Cap an array and reshape its retained items against their schema."""
+    limit = schema.get("maxItems")
+    if isinstance(limit, int) and len(value) > limit:
+        del value[limit:]
+    item_schema = schema.get("items")
+    for index, item in enumerate(value):
+        value[index] = _reshape_value(
+            item, item_schema, f"{field_path}[{index}]"
+        )
+
+
+def _truncate_string_value(value: str, max_length: Any, field_path: str) -> str:
+    """Cap a string, preferring a word boundary near the limit.
+
+    Leave strings within their cap untouched and record each truncation
+    with the field path. Missing or non-integer caps leave values intact.
+    """
+    if not isinstance(max_length, int) or len(value) <= max_length:
+        return value
+    candidate = value[:max_length]
+    boundary_window = max_length - max(1, round(max_length * 0.2))
+    boundary = candidate.rfind(" ", max(0, boundary_window))
+    truncated = candidate[:boundary].rstrip() if boundary != -1 else candidate
+    logger.warning(
+        "Truncated over-long string at '%s': %d chars -> %d chars"
+        " (schema maxLength=%d)",
+        field_path,
+        len(value),
+        len(truncated),
+        max_length,
+    )
+    return truncated
 
 
 def _validation_feedback(error: ValidationError) -> str:

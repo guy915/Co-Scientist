@@ -1,16 +1,4 @@
-"""The ``cosci runs`` subcommands: lifecycle, reads, and reports.
-
-Every handler is a thin wrapper over one ``/api/runs`` endpoint. Handlers take
-the parsed ``argparse.Namespace`` and an :class:`ApiClient`, return a process
-exit code, and pull request values off the namespace into typed locals so the
-module stays strict-mypy clean. The streaming/polling handlers (``wait``,
-``watch``, ``ask``) live in ``app.cli.runs_stream_cmd`` and are re-exported
-here so ``runs_cmd.handle_watch`` and friends keep resolving. The per-run
-sub-collection reads (``hypotheses``, ``evidence``, ...) plus ``metrics``
-live in ``app.cli.runs_collections_cmd``; ``runs_cmd.COLLECTION_COMMANDS``
-and the handlers the CLI test suite calls are re-exported the same way,
-for ``app.cli.parsers`` and that suite.
-"""
+"""Run lifecycle, reports, sharing and scientist steering commands."""
 
 from __future__ import annotations
 
@@ -30,32 +18,12 @@ from app.cli.render import (
     format_run_line,
     oneline,
 )
-from app.cli.runs_collections_cmd import (
-    COLLECTION_COMMANDS as COLLECTION_COMMANDS,
-)
-from app.cli.runs_collections_cmd import (
-    COLLECTION_HANDLERS as COLLECTION_HANDLERS,
-)
-from app.cli.runs_collections_cmd import (
-    handle_metrics as handle_metrics,
-)
 from app.cli.runs_stream_cmd import (
     _run_path,
     _text_arg,
 )
-from app.cli.runs_stream_cmd import (
-    handle_ask as handle_ask,
-)
-from app.cli.runs_stream_cmd import (
-    handle_wait as handle_wait,
-)
-from app.cli.runs_stream_cmd import (
-    handle_watch as handle_watch,
-)
 
-# ---------------------------------------------------------------------------
 # Listing and detail
-# ---------------------------------------------------------------------------
 
 
 def _emit_runs_list(body: Any, as_json: bool) -> int:
@@ -113,9 +81,7 @@ def handle_show(args: argparse.Namespace, client: ApiClient) -> int:
     return 0
 
 
-# ---------------------------------------------------------------------------
 # Lifecycle
-# ---------------------------------------------------------------------------
 
 
 def _create_body(args: argparse.Namespace) -> dict[str, Any]:
@@ -163,26 +129,6 @@ def handle_create(args: argparse.Namespace, client: ApiClient) -> int:
     return _emit_action(body, as_json)
 
 
-def handle_start(args: argparse.Namespace, client: ApiClient) -> int:
-    """Start a run's workflow as a background task (POST /start)."""
-    return _lifecycle_action(args, client, "start")
-
-
-def handle_pause(args: argparse.Namespace, client: ApiClient) -> int:
-    """Cooperatively pause an active run at its checkpoint (POST /pause)."""
-    return _lifecycle_action(args, client, "pause")
-
-
-def handle_resume(args: argparse.Namespace, client: ApiClient) -> int:
-    """Resume a paused or interrupted run from its checkpoint (POST /resume)."""
-    return _lifecycle_action(args, client, "resume")
-
-
-def handle_cancel(args: argparse.Namespace, client: ApiClient) -> int:
-    """Request cancellation of an actively running workflow (POST /cancel)."""
-    return _lifecycle_action(args, client, "cancel")
-
-
 def handle_delete(args: argparse.Namespace, client: ApiClient) -> int:
     """Permanently delete a terminal run and everything scoped to it.
 
@@ -202,16 +148,12 @@ def handle_delete(args: argparse.Namespace, client: ApiClient) -> int:
     return 0
 
 
-def _lifecycle_action(
-    args: argparse.Namespace, client: ApiClient, action: str
-) -> int:
-    """POST a bodyless lifecycle action and print the ``id  status`` result."""
-    run_id: str = args.run_id
-    as_json: bool = args.json
+def handle_lifecycle(args: argparse.Namespace, client: ApiClient) -> int:
+    """POST the selected lifecycle action and print its run status."""
     body = client.request_json(
-        "POST", _run_path(run_id, f"/{action}"), json_body={}
+        "POST", _run_path(args.run_id, f"/{args.runs_command}"), json_body={}
     )
-    return _emit_action(body, as_json)
+    return _emit_action(body, args.json)
 
 
 def _emit_action(body: Any, as_json: bool) -> int:
@@ -223,14 +165,7 @@ def _emit_action(body: Any, as_json: bool) -> int:
     return 0
 
 
-# ---------------------------------------------------------------------------
-# Data reads live in app.cli.runs_collections_cmd, re-exported above.
-# ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
 # Reports
-# ---------------------------------------------------------------------------
 
 
 def handle_report(args: argparse.Namespace, client: ApiClient) -> int:
@@ -279,9 +214,7 @@ def _print_report_summary(body: Any) -> None:
                 )
 
 
-# ---------------------------------------------------------------------------
 # Shares
-# ---------------------------------------------------------------------------
 
 
 def handle_share_create(args: argparse.Namespace, client: ApiClient) -> int:
@@ -340,9 +273,7 @@ def handle_share_revoke(args: argparse.Namespace, client: ApiClient) -> int:
     return 0
 
 
-# ---------------------------------------------------------------------------
 # Steering
-# ---------------------------------------------------------------------------
 
 
 def handle_steer(args: argparse.Namespace, client: ApiClient) -> int:
