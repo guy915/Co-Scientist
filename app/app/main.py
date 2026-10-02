@@ -37,10 +37,6 @@ from app.auth import (
 )
 from app.byok_models import router as byok_models_router
 from app.config import settings
-
-# Re-exports keep the names tests use importable from app.main, where the
-# diagnostics HTTP surface lived before moving to app.diagnostics_api.
-from app.diagnostics_api import _is_operator
 from app.diagnostics_api import (
     router as diagnostics_api_router,
 )
@@ -69,6 +65,7 @@ from app.main_lifespan import (
 from app.main_lifespan import (
     _startup_engine_setup as _startup_engine_setup,
 )
+from app.operator_access import is_operator
 from app.runs import (
     router as runs_router,
 )
@@ -352,7 +349,7 @@ def _not_found_for_non_operator(request: Request) -> Response | None:
     since the latter confirms this is a FastAPI service worth probing
     further.
     """
-    if _is_operator(request):
+    if is_operator(request):
         return None
     return JSONResponse({"detail": "not found"}, status_code=404)
 

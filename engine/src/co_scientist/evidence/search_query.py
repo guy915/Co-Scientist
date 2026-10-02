@@ -21,15 +21,15 @@ from co_scientist.constants import LITERATURE_REVIEW_RECENCY_YEARS
 from co_scientist.evidence.errors import (
     describe_exception,
 )
-from co_scientist.evidence.helpers import (
-    SearchConfig,
-    normalize_search_response,
-)
 from co_scientist.evidence.query_broadening import (
     broadened_queries,
 )
 from co_scientist.evidence.search_retry import (
     _call_search_tool,
+)
+from co_scientist.evidence.search_support import (
+    SearchConfig,
+    normalize_search_response,
 )
 from co_scientist.mcp_client import MCPToolClient
 

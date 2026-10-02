@@ -137,22 +137,26 @@ def test_a_control_flow_error_escapes_the_ranking_wave(
     matchups it was budgeted -- the same trade the reviews lost eleven
     items to.
     """
+    from co_scientist.agents.ranking import RankingJudgement
+
     from app.engine_tasks.ranking_wave import _surviving_judgements
 
-    verdict = ("a", {"decision_summary": "A is stronger"})
+    verdict = RankingJudgement("a", {"decision_summary": "A is stronger"}, 2)
 
     with pytest.raises(type(error)):
-        _surviving_judgements(["pair-0", "pair-1"], [verdict, error], [2, 2])
+        _surviving_judgements(["pair-0", "pair-1"], [verdict, error])
 
 
 def test_an_ordinary_judge_failure_still_leaves_its_wave_siblings() -> None:
     """Per-matchup isolation is unchanged for an ordinary failure."""
+    from co_scientist.agents.ranking import RankingJudgement
+
     from app.engine_tasks.ranking_wave import _surviving_judgements
 
-    verdict = ("a", {"decision_summary": "A is stronger"})
+    verdict = RankingJudgement("a", {"decision_summary": "A is stronger"}, 2)
 
     survived = _surviving_judgements(
-        ["pair-0", "pair-1"], [verdict, RuntimeError("judge refused")], [2, 2]
+        ["pair-0", "pair-1"], [verdict, RuntimeError("judge refused")]
     )
 
     assert survived.pairs == ["pair-0"]

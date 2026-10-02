@@ -129,7 +129,7 @@ def test_mid_run_steering_survives_a_crash_and_applies_once(
 
 def _fail_one_judged_matchup(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
     """Make one tournament matchup's judge raise, the rest go through."""
-    import co_scientist.agents.ranking.ranking as ranking_module
+    import co_scientist.agents.ranking.operations as ranking_module
 
     real = ranking_module.judge_matchup
     box = {"calls": 0, "failed": 0}

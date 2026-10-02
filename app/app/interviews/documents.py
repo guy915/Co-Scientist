@@ -14,7 +14,7 @@ from typing import Any
 
 from fastapi import Request
 
-from app import documents, store
+from app import staged_documents, store
 from app.auth import client_id
 
 
@@ -31,7 +31,9 @@ def _with_documents(interview: dict[str, Any]) -> dict[str, Any]:
         The same row, carrying a ``documents`` list.
     """
     attached = store.list_interview_documents(str(interview["id"]))
-    interview["documents"] = [documents.document_summary(d) for d in attached]
+    interview["documents"] = [
+        staged_documents.document_summary(d) for d in attached
+    ]
     return interview
 
 
@@ -47,10 +49,10 @@ def _attach_documents(
 
     Raises:
         HTTPException: 404 when an id is unknown or belongs to another
-            client (see ``documents.resolve_owned_documents``).
+            client (see ``staged_documents.resolve_owned_documents``).
     """
     if not document_ids:
         return
     owner = client_id(request)
-    documents.resolve_owned_documents(document_ids, owner)
+    staged_documents.resolve_owned_documents(document_ids, owner)
     store.attach_documents_to_interview(interview_id, document_ids, owner)

@@ -22,7 +22,12 @@ import type {RunStatus} from './run_types';
 
 /** The phases a recognised `RunStatus` can be in. */
 type KnownPhase =
-  'draft' | 'active' | 'paused' | 'completed' | 'failure' | 'cancelled';
+  | 'draft'
+  | 'active'
+  | 'paused'
+  | 'completed'
+  | 'failure'
+  | 'cancelled';
 
 /**
  * A run's place in its lifecycle. `failure` covers both `failed` and

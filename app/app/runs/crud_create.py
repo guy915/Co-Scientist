@@ -10,7 +10,7 @@ from typing import Any, Protocol
 
 from fastapi import BackgroundTasks, HTTPException, Request
 
-from app import credentials, documents, free_usage, run_corpus, store
+from app import credentials, free_usage, run_corpus, staged_documents, store
 from app.execution_policy import (
     CAMPAIGN,
     CAMPAIGN_MODEL_CONFIG_KEY,
@@ -132,7 +132,7 @@ def _run_setup_documents(
     req: CreateRunRequest, interview: dict[str, Any] | None, owner: str
 ) -> list[dict[str, Any]]:
     """Resolve named and interview attachments in staged order."""
-    named = documents.resolve_owned_documents(req.document_ids, owner)
+    named = staged_documents.resolve_owned_documents(req.document_ids, owner)
     return store.merge_run_setup_documents(
         named, str(interview["id"]) if interview is not None else None
     )

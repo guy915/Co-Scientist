@@ -80,16 +80,14 @@ def _ranking_chain_skipped(state: dict[str, Any], eligible: list[Any]) -> bool:
     Returns:
         True when there is nothing to judge, or no round budget left.
     """
-    from co_scientist.agents.ranking.ranking_lifecycle import (
-        _tournament_round_count,
-    )
+    from co_scientist.agents.ranking import remaining_ranking_rounds
 
     if len(eligible) < 2:
         return True
     # The app's mypy config skips following ``co_scientist`` imports, so the
     # engine's declared ``-> int`` arrives here as ``Any``. Restate it on the
     # binding rather than returning an unchecked comparison.
-    rounds_left: int = _tournament_round_count(state, state["hypotheses"])
+    rounds_left: int = remaining_ranking_rounds(state, state["hypotheses"])
     # tournament_pairs is a whole-run budget and the scheduler asks for
     # ranking once per cycle, so this is the common case late in a run.
     # Scheduling anyway would not merely waste a task: the tournament
@@ -142,12 +140,12 @@ async def _schedule_ranking_chain(
     db_path: str | None,
 ) -> dict[str, Any] | None:
     """Prepare a tournament and schedule its first sequential match task."""
-    from co_scientist.agents.ranking.ranking import _prepare_ranking_round
+    from co_scientist.agents.ranking import prepare_ranking_round
 
     eligible = _ranking_eligible(state)
     if _ranking_chain_skipped(state, eligible):
         return None
-    rounds, *_ = await _prepare_ranking_round(state, eligible)
+    rounds, *_ = await prepare_ranking_round(state, eligible)
     state["pending_ranking_matchups"] = []
     committed_seq, successor_id = _enqueue_first_ranking_match(
         task, state, checkpoint_seq, rounds, db_path
@@ -401,7 +399,7 @@ async def execute_ranking_finalize(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
     """Finalize a sequential durable tournament and return to orchestration."""
-    from co_scientist.agents.ranking.ranking import _finalize_ranking_result
+    from co_scientist.agents.ranking import finalize_ranking
     from co_scientist.task_runtime import apply_task_update
 
     replay, state, current_seq = leased_state(
@@ -409,7 +407,7 @@ async def execute_ranking_finalize(
     )
     if replay is not None:
         return replay
-    update = await _finalize_ranking_result(
+    update = await finalize_ranking(
         state,
         state["hypotheses"],
         list(state.get("pending_ranking_matchups") or []),

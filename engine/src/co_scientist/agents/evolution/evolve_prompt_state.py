@@ -2,7 +2,7 @@
 
 Split out of ``evolve_prompt`` to keep that module within the size cap.
 These four helpers share one shape: read a single field off the run's
-``WorkflowState`` (through ``_EvolutionContext.state``) into the matching
+``WorkflowState`` (through ``EvolutionContext.state``) into the matching
 "evolution" prompt-template variable, rendering an empty section when the
 context carries no state (as some tests construct). Lab constraints (K5)
 and falsified assumptions (K9) predate this split; research goal (MP-2)
@@ -19,10 +19,10 @@ from co_scientist.agents.generation.assumption_feedback import (
 from co_scientist.prompts import format_lab_constraints_section
 
 if TYPE_CHECKING:
-    from co_scientist.agents.evolution.evolve_prompt import _EvolutionContext
+    from co_scientist.agents.evolution.context import EvolutionContext
 
 
-def _lab_constraints_section(context: "_EvolutionContext") -> str:
+def _lab_constraints_section(context: "EvolutionContext") -> str:
     """Renders the scientist's lab constraints for this refinement (K5).
 
     Feasibility improvements must respect what the scientist's lab can
@@ -35,11 +35,11 @@ def _lab_constraints_section(context: "_EvolutionContext") -> str:
     return format_lab_constraints_section(context.state.get("lab_constraints"))
 
 
-def _research_goal_text(context: "_EvolutionContext") -> str:
+def _research_goal_text(context: "EvolutionContext") -> str:
     """Renders the run's research goal for this refinement (MP-2).
 
     Every published Evolution prompt opens with the goal (evolution-06,
-    evolution-07); _EvolutionContext has no dedicated field for it, so
+    evolution-07); EvolutionContext has no dedicated field for it, so
     this reads it from context.state, mirroring
     _lab_constraints_section/_falsified_assumptions_section below. Blank
     only in a context built without state, as some tests do.
@@ -49,13 +49,13 @@ def _research_goal_text(context: "_EvolutionContext") -> str:
     return context.state.get("research_goal") or ""
 
 
-def _preferences_text(context: "_EvolutionContext") -> str | None:
+def _preferences_text(context: "EvolutionContext") -> str | None:
     """Reads the scientist's stated preferences for this refinement (MP-3).
 
     Published evolution-06/evolution-07 both surface {preferences} as the
     hypothesis's evaluation criteria; format_preferences (the same helper
     the Generation agent's prompts already use for this field) supplies
-    the default when the scientist set none. _EvolutionContext has no
+    the default when the scientist set none. EvolutionContext has no
     dedicated field for it, so this reads context.state like
     _research_goal_text above.
     """
@@ -64,7 +64,7 @@ def _preferences_text(context: "_EvolutionContext") -> str | None:
     return context.state.get("preferences")
 
 
-def _falsified_assumptions_section(context: "_EvolutionContext") -> str:
+def _falsified_assumptions_section(context: "EvolutionContext") -> str:
     """Renders the run's verified-wrong assumptions for this refinement.
 
     Feeds audit K9's evolution half: the assumptions deep verification

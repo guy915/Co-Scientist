@@ -6,35 +6,11 @@ import os
 from pathlib import Path
 from typing import Any
 
-_ROOT = Path(__file__).resolve().parents[1]
-_POLICY_FILES = (
-    "constants/__init__.py",
-    "constants/tokens.py",
-    "llm/values.py",
-    "llm/profile/families.py",
-    "llm/profile/routes.py",
-    "llm/request/backend.py",
-    "llm/request/completion.py",
-    "llm/admission/free_policy.py",
-    "llm/admission/free_catalog.py",
-    "llm/request/gateway_routing.py",
-    "llm/request/gateway_body.py",
-    "llm/request/thinking.py",
-    "llm/request/schema.py",
-    "llm/attempts/escalation.py",
+from evaluations._identity import (
+    identity_digest,
+    request_policy,
+    validate_identity,
 )
-
-
-def identity_digest(value: Any) -> str:
-    """Hash canonical JSON without depending on dict insertion order."""
-    return hashlib.sha256(
-        json.dumps(
-            value,
-            sort_keys=True,
-            separators=(",", ":"),
-            allow_nan=False,
-        ).encode()
-    ).hexdigest()
 
 
 def _configured_models() -> dict[str, str | None]:
@@ -46,14 +22,6 @@ def _configured_models() -> dict[str, str | None]:
         "chat": settings.chat_model_name or settings.model_name,
         "safety": settings.semantic_safety_model,
         "claim_verifier": settings.claim_verifier_model or settings.model_name,
-    }
-
-
-def _request_policy() -> dict[str, str]:
-    engine = _ROOT / "engine" / "src" / "co_scientist"
-    return {
-        name: hashlib.sha256((engine / name).read_bytes()).hexdigest()
-        for name in _POLICY_FILES
     }
 
 
@@ -85,7 +53,7 @@ def _model_policy() -> dict[str, Any]:
     from co_scientist.llm import deepseek_thinking_extra_body
 
     models = _configured_models()
-    policy = _request_policy()
+    policy = request_policy()
     return {
         "configured_models": models,
         "routing": {
@@ -145,18 +113,6 @@ def arm_identity(
     # Snapshot mutable config/routing maps before placing this in run.config.
     frozen: dict[str, Any] = json.loads(json.dumps(manifest))
     return {**frozen, "digest": identity_digest(frozen)}
-
-
-def validate_identity(value: Any) -> dict[str, Any]:
-    """Reject missing, unsupported or altered comparison evidence."""
-    if not isinstance(value, dict) or value.get("version") != 1:
-        raise ValueError("comparison identity is missing or unsupported")
-    contents = {key: item for key, item in value.items() if key != "digest"}
-    if value.get("digest") != identity_digest(contents):
-        raise ValueError(
-            "comparison identity digest does not match its contents"
-        )
-    return value
 
 
 def validate_stored_arm(

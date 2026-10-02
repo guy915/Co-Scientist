@@ -126,9 +126,7 @@ def _apply_verification_items(
         The applied/failed tally, the calls each item reported, and the
         raw per-item verifications.
     """
-    from co_scientist.agents.reflection.deep_verification import (
-        _VALID_VERDICTS,
-    )
+    from co_scientist.agents.reflection import has_valid_verification
 
     successful = failed = llm_calls = 0
     verification_results: list[dict[str, Any]] = []
@@ -139,12 +137,11 @@ def _apply_verification_items(
         verification = _completed_verification(item)
         if verification is not None:
             verification_results.append(verification)
-        if verification is None or (
-            verification.get("verdict") not in _VALID_VERDICTS
-        ):
+        if not has_valid_verification(verification):
             failed += 1
             _mark_failed_item_unverified(by_id, item)
             continue
+        assert verification is not None
         hypothesis = by_id[str((item.result or {})["hypothesis_id"])]
         _record_verification(hypothesis, verification, model_name)
         llm_calls += int(verification.get("verification_llm_calls", 1))

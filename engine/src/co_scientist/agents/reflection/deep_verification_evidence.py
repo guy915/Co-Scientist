@@ -176,7 +176,7 @@ async def _retrieve_probe_evidence(
     if not state.get("mcp_available"):
         return _corpus_probe_evidence(state, queries)
 
-    from co_scientist.evidence.helpers import (
+    from co_scientist.evidence.article_support import (
         build_articles_from_metadata,
     )
 

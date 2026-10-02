@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from co_scientist.agents.reflection import deep_verification as dv
+from co_scientist.agents.reflection import verification as leaf
 from tests._state import make_hypothesis, make_state
 
 
@@ -54,7 +55,7 @@ async def test_failed_verification_records_explicit_unverified(
     async def _boom(*_args: object, **_kwargs: object) -> dict[str, object]:
         raise RuntimeError("verifier unavailable")
 
-    monkeypatch.setattr(dv, "call_llm_json", _boom)
+    monkeypatch.setattr(leaf, "call_llm_json", _boom)
 
     h = make_hypothesis(text="leader", elo_rating=2000)
     state = make_state(hypotheses=[h])
@@ -74,7 +75,7 @@ async def test_degraded_verification_records_explicit_unverified(
     The degradation fallback for the node answers ``{}``; applying it as a
     verdict-less verification would leave the idea implicitly passed.
     """
-    monkeypatch.setattr(dv, "call_llm_json", AsyncMock(return_value={}))
+    monkeypatch.setattr(leaf, "call_llm_json", AsyncMock(return_value={}))
 
     h = make_hypothesis(text="leader", elo_rating=2000)
     state = make_state(hypotheses=[h])
@@ -102,14 +103,14 @@ async def test_the_failure_state_is_the_idea_s_final_verdict(
     async def _boom(*_args: object, **_kwargs: object) -> dict[str, object]:
         raise RuntimeError("verifier unavailable")
 
-    monkeypatch.setattr(dv, "call_llm_json", _boom)
+    monkeypatch.setattr(leaf, "call_llm_json", _boom)
     h = make_hypothesis(text="leader", elo_rating=2000)
     state = make_state(hypotheses=[h])
     await dv.deep_verification_node(state)
     assert h.deep_verification_verdict == dv.VERDICT_UNVERIFIED
 
     later = AsyncMock(return_value=_verification_response())
-    monkeypatch.setattr(dv, "call_llm_json", later)
+    monkeypatch.setattr(leaf, "call_llm_json", later)
     await dv.deep_verification_node(state)
 
     assert later.await_count == 0
@@ -124,7 +125,7 @@ async def test_stale_verification_is_cleared_by_a_failed_reverification(
     async def _boom(*_args: object, **_kwargs: object) -> dict[str, object]:
         raise RuntimeError("verifier unavailable")
 
-    monkeypatch.setattr(dv, "call_llm_json", _boom)
+    monkeypatch.setattr(leaf, "call_llm_json", _boom)
 
     h = make_hypothesis(text="leader", elo_rating=2000)
     h.deep_verification_probes = [{"question": "old"}]
@@ -146,7 +147,7 @@ async def test_decomposition_and_decontextualization_are_stored(
 ) -> None:
     """The E4 behaviors are captured on the hypothesis, bounded."""
     monkeypatch.setattr(
-        dv, "call_llm_json", AsyncMock(return_value=_verification_response())
+        leaf, "call_llm_json", AsyncMock(return_value=_verification_response())
     )
 
     h = make_hypothesis(text="leader", elo_rating=2000)
@@ -171,7 +172,7 @@ async def test_decomposition_lists_are_bounded_on_store(
     )
 
     monkeypatch.setattr(
-        dv,
+        leaf,
         "call_llm_json",
         AsyncMock(
             return_value=_verification_response(

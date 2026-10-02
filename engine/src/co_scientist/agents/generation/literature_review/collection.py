@@ -24,9 +24,11 @@ from typing import Any
 from co_scientist.agents.generation.literature_review.outcomes import (
     _emit_empty_search_diagnostics,
 )
-from co_scientist.evidence.helpers import (
-    SearchConfig,
+from co_scientist.evidence.article_support import (
     count_papers_with_fulltext,
+)
+from co_scientist.evidence.search_support import (
+    SearchConfig,
 )
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.state import WorkflowState

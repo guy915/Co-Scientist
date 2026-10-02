@@ -218,6 +218,31 @@ async def test_a_thinking_only_attempt_skips_to_thinking_off_and_recovers(
 
 
 @STANDARD
+async def test_standard_plans_can_revisit_rungs_within_their_attempt_budget(
+    drive: Driver, entry: Entry
+) -> None:
+    entry = replace(entry, model=GATEWAY_MODEL)
+    run = await drive(
+        entry,
+        [thinking_only(), reasoning_mandatory()] * 2 + [ok(entry)],
+        max_attempts=5,
+    )
+
+    assert run.error is None
+    assert run.result == ("fine" if entry.kind == "text" else {"a": 1})
+    assert len(run.calls) == 5
+    assert run.retries == 4
+    assert run.slept == []
+    assert run.reasoning == [
+        {"enabled": True, "effort": "high"},
+        {"enabled": False},
+        {"enabled": True, "effort": "low"},
+        {"enabled": False},
+        {"enabled": True, "effort": "low"},
+    ]
+
+
+@STANDARD
 async def test_a_mandatory_reasoning_refusal_is_answered_by_minimal_effort(
     drive: Driver, entry: Entry
 ) -> None:

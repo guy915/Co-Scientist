@@ -46,10 +46,6 @@ COPY engine/src/ /workspace/co-scientist-engine/src/
 
 # Copy app source
 COPY app/app/ ./app/
-# Every engine module must reach the image: a broad .dockerignore pattern
-# (`**/cache`) once matched a source package, so prove the import here.
-RUN python -c "import importlib, pkgutil, co_scientist; \
-[importlib.import_module(m.name) for m in pkgutil.walk_packages(co_scientist.__path__, 'co_scientist.')]"
 COPY LICENSE NOTICE /usr/share/doc/co-scientist/
 
 # The vendored Google DeepMind Science Skills bundle, pinned in
@@ -161,8 +157,20 @@ RUN mkdir -p /app/data /app/cache
 # privileges; that is filed, not built.
 RUN groupadd --system coscientist \
     && useradd --system --gid coscientist --home-dir /app coscientist \
-    && chown -R coscientist:coscientist /app
+    && chown -R coscientist:coscientist /app /workspace/co-scientist-engine
 USER coscientist
+
+# Prove imports as the runtime user: COPY can preserve owner-only source
+# permissions, including the engine tree outside /app. Explicit imports
+# prevent an unreadable namespace package's empty walk from passing; the
+# full walk also catches .dockerignore exclusions such as **/cache. The
+# app initializes its store on import, so discard that smoke database.
+RUN COSCIENTIST_FORCE_OFFLINE=1 PYTHON_DOTENV_DISABLED=1 \
+    COSCIENTIST_DB_PATH=/tmp/coscientist-image-smoke.db \
+    python -c "import app.main, co_scientist.constants, co_scientist.agents.generation; \
+import importlib, pkgutil, co_scientist; \
+[importlib.import_module(m.name) for m in pkgutil.walk_packages(co_scientist.__path__, 'co_scientist.')]" \
+    && rm -f /tmp/coscientist-image-smoke.db*
 
 EXPOSE ${PORT:-8008}
 

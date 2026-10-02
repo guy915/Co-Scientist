@@ -51,6 +51,26 @@ class _ReflectionCall:
     indra_data: dict[str, Any]
 
 
+async def observe_hypothesis(
+    state: WorkflowState,
+    hypothesis: Hypothesis,
+    *,
+    hypothesis_index: int = 1,
+    total_count: int = 1,
+) -> dict[str, Any] | None:
+    """Observe one idea with engine-owned literature and prompt context."""
+    context = _ReflectionContext(
+        articles_with_reasoning=state.get("articles_with_reasoning") or "",
+        model_name=state["model_name"],
+        run_id=state.get("run_id"),
+        tool_registry=state.get("tool_registry"),
+        meta_review=state.get("meta_review"),
+    )
+    return await analyze_single_hypothesis(
+        hypothesis, hypothesis_index, total_count, context
+    )
+
+
 async def analyze_single_hypothesis(
     hypothesis: Hypothesis,
     hypothesis_index: int,
@@ -388,19 +408,12 @@ def _build_analysis_tasks(
     Returns:
         List of analyze_single_hypothesis coroutines, one per hypothesis.
     """
-    context = _ReflectionContext(
-        articles_with_reasoning=articles_with_reasoning,
-        model_name=state["model_name"],
-        run_id=state.get("run_id"),
-        tool_registry=state.get("tool_registry"),
-        meta_review=state.get("meta_review"),
-    )
     return [
-        analyze_single_hypothesis(
-            hypothesis=hyp,
+        observe_hypothesis(
+            state,
+            hyp,
             hypothesis_index=i + 1,
             total_count=len(hypotheses),
-            context=context,
         )
         for i, hyp in enumerate(hypotheses)
     ]

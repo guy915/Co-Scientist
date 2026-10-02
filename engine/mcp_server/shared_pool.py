@@ -13,10 +13,12 @@ from mcp_server.entrez_rate_limit import (
     record_pilot_fetch_error,
     record_pilot_metadata_origin,
 )
-from mcp_server.fulltext_download import _FulltextMixin, _symlink_into_run
-from mcp_server.pubmed_client import (
-    PUBMED_METADATA_BATCH_ENV,
-    _write_metadata_cache_file,
+from mcp_server.fulltext_download import _FulltextMixin
+from mcp_server.pubmed_client import PUBMED_METADATA_BATCH_ENV
+from mcp_server.pubmed_storage import (
+    link_metadata_to_run,
+    link_shared_file_to_run,
+    write_metadata_cache_file,
 )
 
 if TYPE_CHECKING:
@@ -150,20 +152,6 @@ def _shared_pool_paper_year(paper_tuple: tuple[str, dict[str, Any]]) -> int:
         return 0
 
 
-def _link_metadata_to_run(run_dir: Path | None, paper_id: str) -> None:
-    """Symlinks a shared-pool metadata file into the run directory.
-
-    Args:
-        run_dir: Per-run directory to symlink into, or None to skip.
-        paper_id: Paper id whose metadata file should be linked.
-    """
-    # No-op without a run_id: metadata still lands in the shared pool, it
-    # just is not exposed under a per-run directory.
-    if not run_dir:
-        return
-    _symlink_into_run(run_dir, f"{paper_id}.metadata.json")
-
-
 def _build_run_manifest(
     run_id: str,
     run_dir: Path,
@@ -231,9 +219,9 @@ class _SharedPoolMixin(_FulltextMixin):
                     paper_details = await asyncio.to_thread(
                         self._fetch_paper_details, paper_id
                     )
-                _write_metadata_cache_file(metadata_file, paper_details)
+                write_metadata_cache_file(metadata_file, paper_details)
                 logger.debug("Saved metadata for %s to shared pool", paper_id)
-                _link_metadata_to_run(run_dir, paper_id)
+                link_metadata_to_run(run_dir, paper_id)
                 record_pilot_metadata_origin(paper_id, "entrez_fetch")
                 return (paper_id, paper_details)
             except Exception as e:
@@ -270,7 +258,7 @@ class _SharedPoolMixin(_FulltextMixin):
             )
             with open(metadata_file, encoding="utf-8") as f:
                 metadata = json.load(f)
-            _link_metadata_to_run(run_dir, paper_id)
+            link_metadata_to_run(run_dir, paper_id)
             return (paper_id, metadata)
 
         return await self._fetch_and_cache_metadata(
@@ -373,9 +361,9 @@ class _SharedPoolMixin(_FulltextMixin):
             len(papers_to_supplement),
         )
         for paper_id, metadata in papers_to_supplement:
-            _symlink_into_run(run_dir, f"{paper_id}.metadata.json")
+            link_metadata_to_run(run_dir, paper_id)
             pmc_id = metadata["pmc_full_text_id"]
-            _symlink_into_run(run_dir, f"{pmc_id}.fulltext.html")
+            link_shared_file_to_run(run_dir, f"{pmc_id}.fulltext.html")
             papers_to_use.append(paper_id)
             all_details[paper_id] = metadata
 

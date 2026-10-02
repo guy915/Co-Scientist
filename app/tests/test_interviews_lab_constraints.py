@@ -15,8 +15,9 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from app import interviews, store
+from app import store
 from app.engine_adapter.opts import build_engine_opts
+from app.interviews import model as interviews_model
 from app.interviews.prompts import _normalized_fields
 from app.main import app
 
@@ -64,7 +65,7 @@ def test_model_turn_persists_elicited_lab_constraints(
             ["Zebrafish facility only", "No BSL-3 work"],
         )
 
-    monkeypatch.setattr(interviews, "_call_interview_model", _model)
+    monkeypatch.setattr(interviews_model, "_call_interview_model", _model)
     with TestClient(app) as client:
         created = client.post(
             "/api/interviews",
@@ -99,7 +100,7 @@ def test_model_turn_omitting_lab_constraints_normalizes_empty(
             ),
         )
 
-    monkeypatch.setattr(interviews, "_call_interview_model", _model)
+    monkeypatch.setattr(interviews_model, "_call_interview_model", _model)
     with TestClient(app) as client:
         created = client.post(
             "/api/interviews",
@@ -159,7 +160,7 @@ def test_scripted_fallback_completes_without_the_field(
     ) -> dict[str, Any]:
         raise HTTPException(status_code=503, detail="unavailable")
 
-    monkeypatch.setattr(interviews, "_call_interview_model", _unavailable)
+    monkeypatch.setattr(interviews_model, "_call_interview_model", _unavailable)
     with TestClient(app) as client:
         created = client.post(
             "/api/interviews",

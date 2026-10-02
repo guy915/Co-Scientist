@@ -5,6 +5,7 @@ import json
 import logging
 from typing import Any
 
+from co_scientist.agents.evolution.context import EvolutionContext
 from co_scientist.agents.evolution.evolution_operators import EvolutionOperator
 from co_scientist.agents.evolution.evolve_context import (
     _format_partner_context as _format_partner_context,
@@ -38,7 +39,6 @@ from co_scientist.agents.evolution.evolve_prompt_state import (
 from co_scientist.agents.evolution.evolve_prompt_state import (
     _research_goal_text as _research_goal_text,
 )
-from co_scientist.agents.generation.citations import ReferenceIndex
 from co_scientist.constants import truncate
 from co_scientist.models import Hypothesis
 from co_scientist.prompts import (
@@ -51,42 +51,11 @@ from co_scientist.prompts._common import _csv_value
 from co_scientist.prompts.generation_formatting import (
     _build_citation_reference_section,
 )
-from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
-
-@dataclasses.dataclass(frozen=True)
-class _EvolutionContext:
-    """Run/round-invariant inputs threaded through one evolution round.
-
-    Bundles the model, prior-round signals (meta-review, removed
-    duplicates), and the guidance/tool context every evolved hypothesis
-    shares. ``creation_iteration``, ``model_name``, and ``run_id`` are
-    unused by prompt assembly but ride along so the LLM call and child
-    construction can read them from the same context. ``state`` and
-    ``ranked_hypotheses`` are likewise round-invariant (one node run reads
-    the state once, and dropping one parent cannot reorder the ranking),
-    and ride here so per-hypothesis helpers keep five or fewer arguments.
-    ``reference_index`` is read by both halves: the prompt shows the run's
-    ``[C*]`` list so a refinement can cite it, and ``evolve_results``
-    resolves the child's own grounding paragraph against the same table.
-    """
-
-    model_name: str
-    meta_review: dict[str, Any]
-    removed_duplicates: list[str]
-    creation_iteration: int | None = None
-    supervisor_guidance: dict[str, Any] | None = None
-    articles_with_reasoning: str | None = None
-    run_id: str | None = None
-    tool_registry: Any | None = None
-    run_setup_guidance: str | None = None
-    run_focus_guidance: str | None = None
-    proximity_graph: dict[str, Any] | None = None
-    ranked_hypotheses: tuple[Hypothesis, ...] = ()
-    state: WorkflowState | None = None
-    reference_index: ReferenceIndex | None = None
+# Compatibility names retained for existing engine callers and tests.
+_EvolutionContext = EvolutionContext
 
 
 @dataclasses.dataclass(frozen=True)
@@ -366,7 +335,7 @@ def _format_diversity_instruction(
 
 def _build_evolution_variables(
     hypothesis: Hypothesis,
-    context: _EvolutionContext,
+    context: EvolutionContext,
     operation: _EvolutionOperation,
     grounding_evidence: str,
 ) -> dict[str, Any]:
@@ -439,7 +408,7 @@ def _base_evolution_variables(
 def _build_evolution_prompt(
     hypothesis: Hypothesis,
     other_hypotheses_texts: list[str],
-    context: _EvolutionContext,
+    context: EvolutionContext,
     operation: _EvolutionOperation,
     grounding_evidence: str = "",
 ) -> tuple[str, dict[str, Any] | None]:

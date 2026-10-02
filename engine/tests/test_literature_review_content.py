@@ -20,7 +20,7 @@ from co_scientist.agents.generation.literature_review import (
     content as lr_content,
 )
 from co_scientist.config.schema import ToolConfig, WorkflowConfig
-from co_scientist.evidence.helpers import (
+from co_scientist.evidence.retrieval_support import (
     ContentToolConfig,
 )
 from co_scientist.mcp_client import MCPToolClient

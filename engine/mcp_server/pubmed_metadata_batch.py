@@ -18,11 +18,14 @@ from mcp_server.entrez_rate_limit import (
 from mcp_server.pubmed_client import (
     PUBMED_METADATA_BATCH_SIZE,
     _EntrezClient,
-    _has_proven_metadata_no_link,
     _parse_pubmed_article,
-    _write_metadata_cache_file,
 )
 from mcp_server.pubmed_pilot_trace import record_pubmed_batch_outcome
+from mcp_server.pubmed_storage import (
+    has_proven_metadata_no_link,
+    link_metadata_to_run,
+    write_metadata_cache_file,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -295,8 +298,6 @@ def _fetch_metadata_batch(
 def _read_batch_cache(
     context: _BatchContext, paper_ids: list[str]
 ) -> _BatchCache:
-    from mcp_server.shared_pool import _link_metadata_to_run
-
     cached: dict[str, dict[str, Any]] = {}
     proven_no_link: set[str] = set()
     cache_hits: list[str] = []
@@ -309,28 +310,26 @@ def _read_batch_cache(
         with open(metadata_file, encoding="utf-8") as stream:
             metadata = json.load(stream)
         is_no_link = not metadata.get("pmc_full_text_id")
-        if is_no_link and _has_proven_metadata_no_link(metadata_file):
+        if is_no_link and has_proven_metadata_no_link(metadata_file):
             proven_no_link.add(paper_id)
         cached[paper_id] = metadata
         cache_hits.append(paper_id)
         with pilot_trace_context(None, paper_id):
             record_pilot_metadata_origin(paper_id, "shared_pool_cache")
-        _link_metadata_to_run(context.run_dir, paper_id)
+        link_metadata_to_run(context.run_dir, paper_id)
     return _BatchCache(cached, proven_no_link, cache_hits, fetch_ids)
 
 
 def _write_batch_metadata(
     context: _BatchContext, paper_id: str, metadata: dict[str, Any]
 ) -> None:
-    from mcp_server.shared_pool import _link_metadata_to_run
-
     metadata_file = context.shared_dir / f"{paper_id}.metadata.json"
-    _write_metadata_cache_file(
+    write_metadata_cache_file(
         metadata_file,
         metadata,
         successful_no_link=not metadata.get("pmc_full_text_id"),
     )
-    _link_metadata_to_run(context.run_dir, paper_id)
+    link_metadata_to_run(context.run_dir, paper_id)
     logger.debug("Saved metadata for %s to shared pool", paper_id)
 
 

@@ -12,6 +12,7 @@ import pytest
 from co_scientist.agents.reflection import deep_verification as dv
 from co_scientist.agents.reflection import deep_verification_evidence as dve
 from co_scientist.agents.reflection import review_evidence as ev
+from co_scientist.agents.reflection import verification as leaf
 from tests._state import make_article, make_hypothesis, make_state
 
 
@@ -107,7 +108,7 @@ async def test_verification_grounds_probes_in_corpus_when_mcp_down(
     }
     final = dict(first, verdict="holds")
     call = AsyncMock(side_effect=[first, final])
-    monkeypatch.setattr(dv, "call_llm_json", call)
+    monkeypatch.setattr(leaf, "call_llm_json", call)
 
     state = make_state(
         hypotheses=[make_hypothesis(text="leader", elo_rating=2000)],

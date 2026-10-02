@@ -33,6 +33,16 @@ class GenerationCounts:
     is_dev_isolation: bool = False  # dev/test: force tools-only allocation
     is_degraded_mode: bool = False  # no literature review was available
 
+    @property
+    def strategy_counts(self) -> dict[str, int]:
+        """Hypothesis counts in canonical strategy order, including zeroes."""
+        return {
+            "tools": self.tools_count,
+            "debate_lit": self.debate_with_lit_count,
+            "debate_only": self.debate_only_count,
+            "assumptions": self.assumptions_count,
+        }
+
 
 def _check_literature_availability(
     articles_with_reasoning: str | None, mcp_available: bool

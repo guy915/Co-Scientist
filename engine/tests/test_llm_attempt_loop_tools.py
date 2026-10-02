@@ -30,6 +30,7 @@ from co_scientist.exceptions import (
     FreeModelEligibilityError,
     LLMBudgetExhaustedError,
     LLMCallBudgetExceededError,
+    LLMThinkingOnlyError,
     LLMTimeoutError,
 )
 from tests._llm_attempt_fakes import (
@@ -153,6 +154,104 @@ async def test_a_second_mandatory_reasoning_refusal_ends_a_tool_turn(
     assert isinstance(run.error, BadRequestError)
     assert len(run.calls) == 2
     assert run.logged == [("escalated", "WARNING"), ("tool-terminal", "ERROR")]
+
+
+@pytest.mark.parametrize("mandatory_first", [False, True])
+async def test_alternating_reasoning_failures_stop_before_revisiting_a_rung(
+    drive: Driver, mandatory_first: bool
+) -> None:
+    entry = replace(TOOLS, model=GATEWAY_MODEL)
+    mandatory = reasoning_mandatory()
+    pair = (
+        [mandatory, thinking_only()]
+        if mandatory_first
+        else [thinking_only(), mandatory]
+    )
+    # A finite reproducer: the old loop reaches "fine" on attempt 21.
+    run = await drive(entry, pair * 10 + [ok(entry)])
+
+    if mandatory_first:
+        assert run.error is mandatory, (
+            f"expected current refusal; attempts={len(run.calls)}, "
+            f"result={run.result!r}"
+        )
+    else:
+        assert isinstance(run.error, LLMThinkingOnlyError), (
+            f"expected current thinking failure; attempts={len(run.calls)}, "
+            f"result={run.result!r}"
+        )
+    assert run.result is None, "the success sentinel must remain unreachable"
+    assert len(run.calls) == 3 <= 4
+    enabled = {"enabled": True, "effort": "high"}
+    disabled = {"enabled": False}
+    assert run.reasoning == (
+        [enabled, enabled, disabled]
+        if mandatory_first
+        else [enabled, disabled, enabled]
+    )
+    assert run.max_tokens == [18000, 24000, 24000]
+    assert all(c["messages"] == run.calls[0]["messages"] for c in run.calls)
+    assert run.slept == []
+    assert run.throttled == run.retries == 0
+    assert run.retry_debug == []
+    assert not any(kind == "park" for kind, _ in run.logged)
+    assert run.logged[-1] == ("tool-terminal", "ERROR")
+
+
+async def test_a_tool_turn_can_recover_on_the_fourth_distinct_rung(
+    drive: Driver,
+) -> None:
+    entry = replace(TOOLS, model=GATEWAY_MODEL)
+    run = await drive(
+        entry, [exhausted(), exhausted(), reasoning_mandatory(), ok(entry)]
+    )
+
+    assert run.error is None
+    assert run.result[0] == "fine"
+    assert len(run.calls) == 4
+    assert run.max_tokens == [18000, 24000, 24000, 24000]
+    assert run.reasoning == [
+        {"enabled": True, "effort": "high"},
+        {"enabled": True, "effort": "high"},
+        {"enabled": False},
+        {"enabled": True, "effort": "high"},
+    ]
+    assert run.slept == []
+    assert run.throttled == run.retries == 0
+
+
+async def test_each_tool_turn_can_visit_the_entire_ladder_independently(
+    drive: Driver,
+) -> None:
+    asked_for_a_tool = make_completion(
+        make_message(None, tool_calls=[make_tool_call("c1", "search", "{}")])
+    )
+    executed: list[str] = []
+
+    async def executor(tc: Any) -> dict[str, Any]:
+        executed.append(tc.id)
+        return await echo_executor(tc)
+
+    entry = replace(TOOLS, model=GATEWAY_MODEL, executor=executor)
+    recovery = [exhausted(), exhausted(), reasoning_mandatory()]
+    run = await drive(
+        entry, [*recovery, asked_for_a_tool, *recovery, ok(entry)]
+    )
+
+    assert run.error is None
+    assert run.result[0] == "fine"
+    assert len(run.calls) == 8
+    assert run.max_tokens == [18000, 24000, 24000, 24000] * 2
+    assert run.reasoning[:4] == run.reasoning[4:]
+    assert executed == ["c1"]
+    for call in run.calls[4:]:
+        assert [m["role"] for m in call["messages"]] == [
+            "user",
+            "assistant",
+            "tool",
+        ]
+    assert run.slept == []
+    assert run.throttled == run.retries == 0
 
 
 async def test_a_tool_turn_retry_never_spans_tool_execution(

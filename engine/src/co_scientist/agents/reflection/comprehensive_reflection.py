@@ -20,8 +20,7 @@ from co_scientist.agents.reflection.observation_feedback import (
     store_indra_enrichment,
 )
 from co_scientist.agents.reflection.reflection import (
-    _ReflectionContext,
-    analyze_single_hypothesis,
+    observe_hypothesis,
 )
 from co_scientist.agents.reflection.review_evidence import (
     _evidence_key as _evidence_key,
@@ -80,7 +79,7 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
-class _ReviewRun(NamedTuple):
+class ReviewRun(NamedTuple):
     """One executed review, and what researching for it cost.
 
     Attributes:
@@ -97,11 +96,11 @@ class _ReviewRun(NamedTuple):
     ledger: dict[str, Any] | None
 
 
-async def _run_review(
+async def review_hypothesis(
     state: WorkflowState,
     hypothesis: Hypothesis,
     review_type: ReviewType,
-) -> _ReviewRun:
+) -> ReviewRun:
     """Execute one independently meaningful Reflection review call.
 
     A failed call degrades to "no review" rather than raising, so one bad
@@ -149,11 +148,11 @@ async def _run_review(
         logger.error(
             "%s review failed for %s: %s", review_type.value, hypothesis.id, exc
         )
-        return _ReviewRun(review_type, None, evidence.ledger)
+        return ReviewRun(review_type, None, evidence.ledger)
     _record_review_provenance(
         result, evidence, targeted_articles, review_type, observations
     )
-    return _ReviewRun(review_type, result, evidence.ledger)
+    return ReviewRun(review_type, result, evidence.ledger)
 
 
 def _record_review_provenance(
@@ -246,7 +245,7 @@ def _build_review_prompt(
 def _apply_review_results(
     hypothesis: Hypothesis,
     iteration: int,
-    results: list[_ReviewRun],
+    results: list[ReviewRun],
 ) -> int:
     """Store each successful review result, reconciling dispositions.
 
@@ -284,7 +283,7 @@ async def _review_hypothesis(
         return 0, []
     results = await asyncio.gather(
         *[
-            _run_review(state, hypothesis, review_type)
+            review_hypothesis(state, hypothesis, review_type)
             for review_type in reviews
         ]
     )
@@ -305,6 +304,12 @@ def _distinct(ledgers: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return unique
 
 
+_ReviewRun = ReviewRun
+
+
+_run_review = review_hypothesis
+
+
 async def _recheck_hypothesis(
     state: WorkflowState, hypothesis: Hypothesis
 ) -> int:
@@ -319,7 +324,7 @@ async def _recheck_hypothesis(
         1 when the review produced a verdict, 0 when the call failed.
     """
     mark_recheck_issued(hypothesis)
-    run = await _run_review(state, hypothesis, RECHECK_REVIEW_TYPE)
+    run = await review_hypothesis(state, hypothesis, RECHECK_REVIEW_TYPE)
     if run.result is None:
         return 0
     store_mature_review_result(
@@ -358,20 +363,13 @@ async def _run_missing_observation_reviews(
     pending = [h for h in hypotheses if not h.reflection_notes]
     if not pending:
         return 0
-    context = _ReflectionContext(
-        articles_with_reasoning=literature,
-        model_name=state["model_name"],
-        run_id=state.get("run_id"),
-        tool_registry=state.get("tool_registry"),
-        meta_review=state.get("meta_review"),
-    )
     results = await asyncio.gather(
         *[
-            analyze_single_hypothesis(
-                hypothesis=hypothesis,
+            observe_hypothesis(
+                state,
+                hypothesis,
                 hypothesis_index=index + 1,
                 total_count=len(pending),
-                context=context,
             )
             for index, hypothesis in enumerate(pending)
         ]

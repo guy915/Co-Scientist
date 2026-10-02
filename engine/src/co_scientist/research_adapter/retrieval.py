@@ -32,9 +32,8 @@ from co_scientist.constants import corpus_slug
 from co_scientist.evidence.errors import (
     describe_exception,
 )
-from co_scientist.evidence.helpers import (
+from co_scientist.evidence.retrieval_support import (
     build_content_config,
-    normalize_search_response,
     parse_content_result,
 )
 from co_scientist.evidence.search_query import (
@@ -42,6 +41,9 @@ from co_scientist.evidence.search_query import (
 )
 from co_scientist.evidence.search_retry import (
     _call_search_tool,
+)
+from co_scientist.evidence.search_support import (
+    normalize_search_response,
 )
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.mcp_client.campaign import campaign_serves_tool

@@ -9,7 +9,6 @@ monkeypatch surface.
 
 from __future__ import annotations
 
-import asyncio
 import dataclasses
 from typing import Any
 
@@ -66,30 +65,15 @@ async def execute_verification_item(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
     """Deep-verify one hypothesis without mutating the workflow checkpoint."""
-    from co_scientist.agents.reflection.deep_verification import (
-        _verification_evidence_context,
-        _VerificationContext,
-        _verify_one,
-    )
+    from co_scientist.agents.reflection import verify_hypothesis
     from co_scientist.llm import scoped_telemetry
 
     state, expected_seq = _restore_item_checkpoint(
         task, db_path, superseded="verification item"
     )
     hypothesis_id, hypothesis = _hypothesis_for_item(task, state)
-    context = _VerificationContext(
-        research_goal=state["research_goal"],
-        model_name=state["model_name"],
-        tool_registry=state.get("tool_registry"),
-        state=state,
-    )
     with scoped_telemetry("deep_verification") as telemetry:
-        result = await _verify_one(
-            hypothesis,
-            context,
-            asyncio.Semaphore(1),
-            _verification_evidence_context(state),
-        )
+        result = await verify_hypothesis(state, hypothesis)
     if result is None:
         raise RuntimeError(f"deep verification failed for {hypothesis_id}")
     return {
@@ -104,37 +88,18 @@ async def _run_observation_reflection(
     state: dict[str, Any], hypothesis: Any
 ) -> Any:
     """Run the observation-mode reflection against retrieved literature."""
-    from co_scientist.agents.reflection.reflection import (
-        _ReflectionContext,
-        analyze_single_hypothesis,
-    )
+    from co_scientist.agents.reflection import observe_hypothesis
 
-    literature = state.get("articles_with_reasoning")
-    if not literature:
+    if not state.get("articles_with_reasoning"):
         raise RuntimeError("observation review has no literature context")
-    context = _ReflectionContext(
-        articles_with_reasoning=literature,
-        model_name=state["model_name"],
-        run_id=state.get("run_id"),
-        tool_registry=state.get("tool_registry"),
-        meta_review=state.get("meta_review"),
-    )
-    return await analyze_single_hypothesis(
-        hypothesis=hypothesis,
-        hypothesis_index=1,
-        total_count=1,
-        context=context,
-    )
+    return await observe_hypothesis(state, hypothesis)
 
 
 async def execute_mature_reflection_item(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
     """Execute one disclosed mature Reflection mode for one hypothesis."""
-    from co_scientist.agents.reflection.comprehensive_reflection import (
-        _run_review,
-    )
-    from co_scientist.agents.reflection.review_types import ReviewType
+    from co_scientist.agents.reflection import ReviewType, review_hypothesis
     from co_scientist.llm import scoped_telemetry
 
     state, expected_seq = _restore_item_checkpoint(
@@ -147,7 +112,7 @@ async def execute_mature_reflection_item(
         if mode is ReviewType.OBSERVATION:
             result = await _run_observation_reflection(state, hypothesis)
         else:
-            _, result, ledger = await _run_review(state, hypothesis, mode)
+            _, result, ledger = await review_hypothesis(state, hypothesis, mode)
     if result is None:
         raise RuntimeError(f"{mode.value} review failed for {hypothesis_id}")
     return {

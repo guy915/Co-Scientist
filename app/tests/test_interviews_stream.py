@@ -18,6 +18,7 @@ from app import store
 from app.config import settings
 from app.execution_policy import CAMPAIGN, CAMPAIGN_MODEL_NAME, STANDARD
 from app.interviews import stream as interviews_stream
+from app.interviews import turns as interview_turns
 
 
 class _HangingStream:
@@ -84,7 +85,7 @@ async def test_campaign_interview_stream_selects_campaign_route(
         )
         return {"id": interview_id}
 
-    monkeypatch.setattr(interviews_stream, "_advance", advance)
+    monkeypatch.setattr(interview_turns, "advance_turn", advance)
     for interview_id in (str(campaign["id"]), str(standard["id"])):
         async for _ in interviews_stream._advance_stream(interview_id):
             pass
@@ -172,7 +173,7 @@ async def test_closing_after_a_fragment_cancels_the_advance_task(
             raise
         raise AssertionError("unreachable")  # pragma: no cover
 
-    monkeypatch.setattr(interviews_stream, "_advance", _fake_advance)
+    monkeypatch.setattr(interview_turns, "advance_turn", _fake_advance)
 
     gen = interviews_stream._advance_stream(interview_id)
     assert "reasoning" in await gen.__anext__()

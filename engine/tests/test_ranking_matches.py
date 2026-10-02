@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from co_scientist.agents.ranking import ranking, ranking_debate
+from co_scientist.agents.ranking import operations, ranking, ranking_debate
 from co_scientist.agents.ranking.ranking import ranking_node
 from co_scientist.constants import MAX_CONCURRENT_LLM_CALLS
 from co_scientist.models import Hypothesis
@@ -130,7 +130,7 @@ async def test_every_rankable_idea_reaches_the_minimum_match_count(
             "debate_turns": 1,
         }
 
-    monkeypatch.setattr(ranking, "judge_matchup", fake_judge)
+    monkeypatch.setattr(operations, "judge_matchup", fake_judge)
     # Budget already spent by earlier cycles: only the coverage floor can
     # grant rounds now, which isolates the floor's sizing of the pass.
     state = make_state(

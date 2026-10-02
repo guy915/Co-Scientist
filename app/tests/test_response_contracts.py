@@ -21,7 +21,8 @@ def _tokens(source: str) -> list[str]:
     """Compare syntax while tolerating prettier's quotes and whitespace."""
     source = re.sub(r"//[^\n]*", "", source)
     source = re.sub(r",\s*}", "}", source)
-    source = re.sub(r"=\s*\|", "=", source)
+    # Prettier adds a leading union bar to both aliases and property types.
+    source = re.sub(r"([=:])\s*\|", r"\1", source)
     tokens = re.findall(r""""[^"\n]*"|'[^'\n]*'|[\w$]+|[^\s]""", source)
     return [
         json.dumps(t[1:-1]) if t.startswith(("'", '"')) else t for t in tokens

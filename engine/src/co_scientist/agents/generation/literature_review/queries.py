@@ -18,7 +18,7 @@ from co_scientist.constants import (
 from co_scientist.evidence.errors import (
     describe_exception,
 )
-from co_scientist.evidence.helpers import (
+from co_scientist.evidence.search_support import (
     SearchConfig,
     determine_query_source_type,
     parse_mcp_query_result,

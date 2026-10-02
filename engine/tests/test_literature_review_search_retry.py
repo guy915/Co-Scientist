@@ -18,7 +18,7 @@ from typing import Any, cast
 import pytest
 from langchain_core.tools import ToolException
 
-from co_scientist.evidence import search
+from co_scientist.evidence import search_retry
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.mcp_client.campaign import CampaignToolUnavailableError
 from co_scientist.tools.response_parser import parse_mcp_result
@@ -60,7 +60,7 @@ async def test_a_source_survives_more_than_one_transient_failure() -> None:
     """
     client = _FlakyClient(failures=2)
 
-    result = await search._call_search_tool(
+    result = await search_retry._call_search_tool(
         cast(MCPToolClient, client), "search_pubmed", {}
     )
 
@@ -75,14 +75,14 @@ async def test_exhausted_retries_still_raise_to_the_caller() -> None:
     The caller distinguishes "search broke" from "no results"; swallowing
     the exhausted case here would erase that difference.
     """
-    client = _FlakyClient(failures=search._SEARCH_ATTEMPTS)
+    client = _FlakyClient(failures=search_retry._SEARCH_ATTEMPTS)
 
     with pytest.raises(RuntimeError, match="throttling"):
-        await search._call_search_tool(
+        await search_retry._call_search_tool(
             cast(MCPToolClient, client), "search_pubmed", {}
         )
 
-    assert client.calls == search._SEARCH_ATTEMPTS
+    assert client.calls == search_retry._SEARCH_ATTEMPTS
 
 
 @pytest.mark.asyncio
@@ -94,19 +94,19 @@ async def test_backoff_grows_and_is_jittered(
     A fixed schedule releases every throttled caller of a concurrent wave at
     the same moment, reproducing the burst that caused the throttling.
     """
-    client = _FlakyClient(failures=search._SEARCH_ATTEMPTS - 1)
-    await search._call_search_tool(
+    client = _FlakyClient(failures=search_retry._SEARCH_ATTEMPTS - 1)
+    await search_retry._call_search_tool(
         cast(MCPToolClient, client), "search_pubmed", {}
     )
     first = list(_no_real_sleep)
     _no_real_sleep.clear()
 
-    client2 = _FlakyClient(failures=search._SEARCH_ATTEMPTS - 1)
-    await search._call_search_tool(
+    client2 = _FlakyClient(failures=search_retry._SEARCH_ATTEMPTS - 1)
+    await search_retry._call_search_tool(
         cast(MCPToolClient, client2), "search_pubmed", {}
     )
 
-    assert len(first) == search._SEARCH_ATTEMPTS - 1
+    assert len(first) == search_retry._SEARCH_ATTEMPTS - 1
     assert first == sorted(first)
     assert sum(first) > 4 * 0.25  # comfortably past the old single 0.25s
     assert first != _no_real_sleep
@@ -143,7 +143,7 @@ async def test_a_tool_reported_error_is_not_retried() -> None:
     )
 
     with pytest.raises(ToolException, match="HTTP 400"):
-        await search._call_search_tool(
+        await search_retry._call_search_tool(
             cast(MCPToolClient, client), "search_openalex", {}
         )
     assert client.calls == 1
@@ -154,7 +154,7 @@ async def test_a_timeout_still_retries_despite_the_new_permanent_path() -> None:
     """The permanent-error short-circuit must not swallow real transients."""
     client = _FlakyClient(failures=2)
 
-    result = await search._call_search_tool(
+    result = await search_retry._call_search_tool(
         cast(MCPToolClient, client), "search_openalex", {}
     )
 
@@ -199,7 +199,7 @@ async def test_sdk_tool_failure_preserves_provenance_without_retry() -> None:
 
     client = Client()
     with pytest.raises(ToolException, match="Retry-After=60"):
-        await search._call_search_tool(
+        await search_retry._call_search_tool(
             cast(MCPToolClient, client), "search_europepmc", {}
         )
     assert client.calls == 1
@@ -225,7 +225,7 @@ async def test_a_campaign_policy_refusal_is_not_retried() -> None:
     client = _RefusingClient()
 
     with pytest.raises(CampaignToolUnavailableError):
-        await search._call_search_tool(
+        await search_retry._call_search_tool(
             cast(MCPToolClient, client), "search_web", {}
         )
 

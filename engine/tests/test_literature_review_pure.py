@@ -1,7 +1,7 @@
 """Tests for the in-file pure helpers of the literature_review package.
 
-Covers the network-free functions defined in the ``literature_review``
-package's ``node`` and ``enrichment`` modules: ``describe_exception``,
+Covers the network-free functions defined in the shared evidence and
+``literature_review`` modules: ``describe_exception``,
 ``search_config_for``, ``_format_kg_section_with_keys``, and
 ``_parse_enrichment_result``. The node orchestration itself is covered in
 ``test_literature_review_node``.
@@ -15,6 +15,7 @@ from co_scientist.agents.generation.literature_review import (
 from co_scientist.agents.generation.literature_review import node as lr
 from co_scientist.config import ToolRegistry
 from co_scientist.constants import LITERATURE_REVIEW_PAPERS_COUNT_DEV
+from co_scientist.evidence import errors
 from tests._state import make_state
 
 
@@ -33,7 +34,7 @@ class _FakeExceptionGroupError(Exception):
 def test_describe_exc_plain_exception() -> None:
     """A plain exception is rendered as ``Type: message``."""
     assert (
-        lr.describe_exception(ValueError("bad input"))
+        errors.describe_exception(ValueError("bad input"))
         == "ValueError: bad input"
     )
 
@@ -43,7 +44,7 @@ def test_describe_exc_unwraps_exception_group() -> None:
     leaf = ConnectionError("All connection attempts failed")
     group = _FakeExceptionGroupError("unhandled errors in a TaskGroup", [leaf])
     assert (
-        lr.describe_exception(group)
+        errors.describe_exception(group)
         == "ConnectionError: All connection attempts failed"
     )
 

@@ -8,6 +8,23 @@ model defaults are declared in `app/app/config.py`.
 See [deployment](DEPLOYMENT.md) for hosting and [launch readiness](LAUNCH.md)
 for release validation.
 
+## Provider escalation bounds
+
+Tool turns retry only when an escalation rung changes the request. Each turn
+may visit each rung once, including its initial request: at most four physical
+attempts with the current ladder. Standard completion plans retain their own
+attempt budgets, backoff and parking behavior. Tool turns still propagate raw
+throttle/outage/cap failures immediately without retry telemetry or waits.
+
+An offline regression on 2 October 2026 alternated reasoning-only responses
+and mandatory-reasoning refusals. The old loop revisited disabled and mandatory
+reasoning states indefinitely; a finite success sentinel was reached only after
+21 requests. The call-local visited-rung guard now raises the current failure
+before a repeated state (three requests for that sequence). The outer tool-turn
+limit cannot provide this bound: it counts turns after each provider response,
+not the recovery attempts inside a turn. Keep the guard below tool execution so
+recovery never reruns tools from an earlier completed turn.
+
 ## Gotchas
 
 Each of these was a production outage or a silent data-correctness failure. The comments in the code record the incident; do not re-litigate them from first principles.

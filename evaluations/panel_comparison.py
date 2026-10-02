@@ -9,8 +9,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from evaluations._comparison_identity import validate_identity
-from evaluations._panel_identity import _PANEL_FILES
+from evaluations._identity import validate_identity
+from evaluations._panel_identity import PANEL_FILES
 
 
 def _validated_panel(report: dict[str, Any]) -> dict[str, Any]:
@@ -30,7 +30,7 @@ def _validated_panel(report: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("comparison panel identity is incomplete")
     if (
         identity.get("kind") != "panel"
-        or identity.get("panel") not in _PANEL_FILES
+        or identity.get("panel") not in PANEL_FILES
     ):
         raise ValueError("comparison requires a recognized panel identity")
     if identity.get("cache_policy") != "disabled":

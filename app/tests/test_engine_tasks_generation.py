@@ -8,11 +8,13 @@ import asyncio
 from typing import Any
 
 import pytest
+from co_scientist.agents.reflection import ReviewRun, ReviewType
 from co_scientist.models import (
     Article,
     GenerationMethod,
     Hypothesis,
 )
+from co_scientist.state import WorkflowState
 
 from app import engine_tasks, store
 from app.config import settings
@@ -307,10 +309,10 @@ async def test_generation_fanout_created_during_pause_waits_for_resume(
 
 
 async def _fake_mature_review(
-    _state: Any, _hypothesis: Any, mode: Any
-) -> tuple[Any, dict[str, Any], dict[str, Any] | None]:
-    result: dict[str, Any] = {"verdict": f"{mode.value}-complete"}
-    if mode.value == "full":
+    state: WorkflowState, hypothesis: Hypothesis, review_type: ReviewType
+) -> ReviewRun:
+    result: dict[str, Any] = {"verdict": f"{review_type.value}-complete"}
+    if review_type is ReviewType.FULL:
         result["retrieved_articles"] = [
             Article(
                 title="Full-review source",
@@ -320,10 +322,16 @@ async def _fake_mature_review(
         ]
     # A review that researched nothing, which is every review on a tier
     # that does not fund it.
-    return mode, result, None
+    return ReviewRun(review_type, result, None)
 
 
-async def _fake_observation(**_: Any) -> dict[str, Any]:
+async def _fake_observation(
+    state: WorkflowState,
+    hypothesis: Hypothesis,
+    *,
+    hypothesis_index: int = 1,
+    total_count: int = 1,
+) -> dict[str, Any]:
     return {"classification": "missing_piece", "reasoning": "explains x"}
 
 
@@ -357,12 +365,13 @@ async def _advance_mature_reflection_node(
     )
     _patch_generator(monkeypatch, _Generator(state), restore=True)
 
-    import co_scientist.agents.reflection.comprehensive_reflection as comp_refl
-    import co_scientist.agents.reflection.reflection as observation_module
+    import co_scientist.agents.reflection as reflection_operations
 
-    monkeypatch.setattr(comp_refl, "_run_review", _fake_mature_review)
     monkeypatch.setattr(
-        observation_module, "analyze_single_hypothesis", _fake_observation
+        reflection_operations, "review_hypothesis", _fake_mature_review
+    )
+    monkeypatch.setattr(
+        reflection_operations, "observe_hypothesis", _fake_observation
     )
     leased = store.claim_task("planner", run_id=run_id, db_path=db_path)
     assert leased is not None and leased.id == node.id

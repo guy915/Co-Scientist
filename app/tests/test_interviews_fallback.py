@@ -18,7 +18,7 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from app import interviews
+from app.interviews import model as interviews_model
 from app.main import app
 
 from ._interviews_helpers import (
@@ -64,7 +64,7 @@ def _patch_model_failing_after(
         except StopIteration:
             raise HTTPException(status_code=503, detail="unavailable") from None
 
-    monkeypatch.setattr(interviews, "_call_interview_model", _model)
+    monkeypatch.setattr(interviews_model, "_call_interview_model", _model)
 
 
 def test_keyless_fallback_turns_are_marked(
@@ -79,7 +79,7 @@ def test_keyless_fallback_turns_are_marked(
     ) -> dict[str, Any]:
         raise HTTPException(status_code=503, detail="unavailable")
 
-    monkeypatch.setattr(interviews, "_call_interview_model", _unavailable)
+    monkeypatch.setattr(interviews_model, "_call_interview_model", _unavailable)
     headers = {"X-Client-ID": "keyless-scientist"}
     with TestClient(app) as client:
         created = client.post(
@@ -123,7 +123,7 @@ def test_credentialed_turns_are_not_marked(
     ) -> dict[str, Any]:
         return next(replies)
 
-    monkeypatch.setattr(interviews, "_call_interview_model", _model)
+    monkeypatch.setattr(interviews_model, "_call_interview_model", _model)
     headers = {"X-Client-ID": "keyed-scientist"}
     with TestClient(app) as client:
         created = client.post(

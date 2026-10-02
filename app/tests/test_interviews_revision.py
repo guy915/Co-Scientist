@@ -12,7 +12,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app import interviews
+from app.interviews import model as interviews_model
 from app.main import app
 
 from ._interviews_helpers import (
@@ -125,7 +125,7 @@ def _capture_model_input(
         seen.append(interview)
         return reply
 
-    monkeypatch.setattr(interviews, "_call_interview_model", _model)
+    monkeypatch.setattr(interviews_model, "_call_interview_model", _model)
 
 
 def test_retrying_an_answer_discards_it_before_asking_again(

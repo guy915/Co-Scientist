@@ -108,16 +108,18 @@ class AttemptPlan:
     def escalation_only(cls, model_name: str) -> "AttemptPlan":
         """The tool turn's policy: retry only where a rung answers.
 
-        There is no attempt budget; the ladder alone ends the loop, because
-        every rung below the top is entered by exactly one kind of
-        failure. A failure no rung answers -- a 429, an outage, a platform
-        cap, any ordinary provider error -- propagates on the first
-        attempt, with no wait, no rate-limit park (the raw 429 comes back,
-        not ``LLMRateLimitParkError``) and no retry telemetry.
+        There is no numeric attempt budget; each rung can be entered at
+        most once per call, including the initial rung. This permits at
+        most four attempts and raises the current failure before revisiting
+        a rung, even when failures alternate. A failure no rung answers --
+        a 429, an outage, a platform cap, any ordinary provider error --
+        propagates on the first attempt, with no wait, no rate-limit park
+        (the raw 429 comes back, not ``LLMRateLimitParkError``) and no retry
+        telemetry.
 
-        That is how the tool turn behaved before this module existed, kept
-        exactly rather than corrected. **Open product decision**: whether a
-        tool turn should gain the standard policy's backoff, park and
+        Handling failures with no recovery rung preserves the tool turn's
+        original policy. **Open product decision**: whether a tool turn
+        should gain the standard policy's backoff, park and
         in-place retry. It is a different decision from the second gap the
         tool turn carries (``llm.tools.iteration`` builds its own request
         at each rung, so a mandatory-reasoning refusal is answered by

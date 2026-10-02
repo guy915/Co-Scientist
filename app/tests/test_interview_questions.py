@@ -13,7 +13,8 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app import interviews, store
+from app import store
+from app.interviews import question_repair
 from app.interviews.questions import normalized_questions
 from app.main import app
 
@@ -179,7 +180,7 @@ def _patch_repair(
         seen.append(message)
         return questions
 
-    monkeypatch.setattr(interviews, "repair_questions", _fake_repair)
+    monkeypatch.setattr(question_repair, "repair_questions", _fake_repair)
     return seen
 
 

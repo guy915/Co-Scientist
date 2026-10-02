@@ -19,6 +19,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from co_scientist.agents.reflection import deep_verification as dv
+from co_scientist.agents.reflection import verification as leaf
 from co_scientist.models import Hypothesis
 from tests._state import make_article, make_hypothesis, make_state
 
@@ -69,7 +70,7 @@ async def test_verifies_every_unverified_hypothesis(
             "overall_assessment": "ok",
         }
     )
-    monkeypatch.setattr(dv, "call_llm_json", fake)
+    monkeypatch.setattr(leaf, "call_llm_json", fake)
 
     hyps = [
         make_hypothesis(text=f"h{i}", elo_rating=1000 + i * 100)
@@ -101,7 +102,7 @@ async def test_a_verified_hypothesis_is_never_verified_twice(
     wrote it and re-verify the whole pool every cycle.
     """
     fake = _probe_response_mock()
-    monkeypatch.setattr(dv, "call_llm_json", fake)
+    monkeypatch.setattr(leaf, "call_llm_json", fake)
 
     h = make_hypothesis(text="verified once")
     state = make_state(hypotheses=[h])
@@ -125,7 +126,7 @@ async def test_a_resumed_run_does_not_re_verify(
     a fresh whole-pool wave on every restart.
     """
     fake = _probe_response_mock()
-    monkeypatch.setattr(dv, "call_llm_json", fake)
+    monkeypatch.setattr(leaf, "call_llm_json", fake)
 
     h = make_hypothesis(text="verified before the restart")
     await dv.deep_verification_node(make_state(hypotheses=[h]))
@@ -147,7 +148,7 @@ async def test_evolution_children_are_verified(
     cycle's new ideas without re-funding the ones already verified.
     """
     fake = _probe_response_mock()
-    monkeypatch.setattr(dv, "call_llm_json", fake)
+    monkeypatch.setattr(leaf, "call_llm_json", fake)
 
     parent = make_hypothesis(text="parent")
     state = make_state(hypotheses=[parent])
@@ -173,7 +174,7 @@ async def test_blocked_ideas_are_not_verified(
     verification to have protected.
     """
     fake = _probe_response_mock()
-    monkeypatch.setattr(dv, "call_llm_json", fake)
+    monkeypatch.setattr(leaf, "call_llm_json", fake)
 
     blocked = make_hypothesis(text="blocked", review_disposition="inaccurate")
     state = make_state(hypotheses=[blocked])
@@ -199,7 +200,7 @@ async def test_skips_already_verified(monkeypatch: pytest.MonkeyPatch) -> None:
             "overall_assessment": "ok",
         }
     )
-    monkeypatch.setattr(dv, "call_llm_json", fake)
+    monkeypatch.setattr(leaf, "call_llm_json", fake)
 
     h = make_hypothesis(text="already", elo_rating=2000)
     h.deep_verification_probes = [
@@ -223,7 +224,7 @@ async def test_reverifies_when_hypothesis_text_changes(
 ) -> None:
     """Rewriting a hypothesis invalidates the verification of the old one."""
     fake = _probe_response_mock()
-    monkeypatch.setattr(dv, "call_llm_json", fake)
+    monkeypatch.setattr(leaf, "call_llm_json", fake)
 
     h = make_hypothesis(text="original", elo_rating=2000)
     state = make_state(hypotheses=[h])
@@ -243,7 +244,7 @@ async def test_reverifies_when_the_verifier_model_changes(
 ) -> None:
     """A verdict from another model is not carried over as current."""
     fake = _probe_response_mock()
-    monkeypatch.setattr(dv, "call_llm_json", fake)
+    monkeypatch.setattr(leaf, "call_llm_json", fake)
 
     h = make_hypothesis(text="stable", elo_rating=2000)
     h.deep_verification_fingerprint = dv.verification_fingerprint(
@@ -265,7 +266,7 @@ async def test_unrelated_evidence_does_not_invalidate_verification(
     re-verify the whole leaderboard whenever any article arrived anywhere.
     """
     fake = _probe_response_mock()
-    monkeypatch.setattr(dv, "call_llm_json", fake)
+    monkeypatch.setattr(leaf, "call_llm_json", fake)
 
     h = make_hypothesis(text="stable", elo_rating=2000)
     h.citation_map = {"C1": {"source_id": "cited-1", "title": "Cited"}}
@@ -288,7 +289,7 @@ async def test_reverifies_when_cited_evidence_changes(
 ) -> None:
     """Evidence the hypothesis now cites is a new input to its verdict."""
     fake = _probe_response_mock()
-    monkeypatch.setattr(dv, "call_llm_json", fake)
+    monkeypatch.setattr(leaf, "call_llm_json", fake)
 
     h = make_hypothesis(text="stable", elo_rating=2000)
     h.citation_map = {"C1": {"source_id": "cited-1"}}
@@ -308,7 +309,7 @@ async def test_a_hypothesis_with_no_stored_verification_is_verified(
 ) -> None:
     """An idea that has never been verified carries no fingerprint."""
     fake = _probe_response_mock()
-    monkeypatch.setattr(dv, "call_llm_json", fake)
+    monkeypatch.setattr(leaf, "call_llm_json", fake)
 
     verified = make_hypothesis(text="incumbent", elo_rating=2000)
     promoted = make_hypothesis(text="newcomer", elo_rating=1900)
@@ -332,7 +333,7 @@ async def test_verification_is_run_once_across_repeated_cycles(
     already verified must not be re-verified by any later cycle.
     """
     fake = _probe_response_mock()
-    monkeypatch.setattr(dv, "call_llm_json", fake)
+    monkeypatch.setattr(leaf, "call_llm_json", fake)
 
     h = make_hypothesis(text="stable leader", elo_rating=2000)
     state = make_state(hypotheses=[h])
@@ -362,7 +363,7 @@ async def test_a_failed_verification_spends_the_one_attempt(
         calls += 1
         raise RuntimeError("verifier unavailable")
 
-    monkeypatch.setattr(dv, "call_llm_json", _boom)
+    monkeypatch.setattr(leaf, "call_llm_json", _boom)
 
     h = make_hypothesis(text="leader", elo_rating=2000)
     state = make_state(hypotheses=[h])

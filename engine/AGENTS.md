@@ -37,6 +37,29 @@ Individual nodes can be exercised in isolation via the scripts in `dev/` (`run_s
 | Proximity (dedup) | `agents/proximity/proximity.py` |
 | Safety screen (cross-cutting) | `agents/safety/safety_screen.py` |
 
+**Generation planning and finalization have a public operation boundary.**
+`co_scientist.agents.generation` exports `GenerationPlan`, `GenerationCounts`,
+`GenerationResults`, `prepare_generation` and `finalize_generation`; their
+implementation lives in `generation/operations.py`. The coordinator owns graph
+strategy execution and expansion research; the app owns durable scheduling,
+lease guards and checkpoint commits. Finalization may call enrichment tools, so
+run it outside store transactions. Preserve the characterized graph/durable
+assumptions-context and expansion differences when changing strategy dispatch.
+
+Ranking, Reflection and Evolution also expose supported operations from their
+agent packages. Ranking owns immutable prompt/median snapshots, per-match
+judging/Elo and round lifecycle; graph and durable callers retain their existing
+pair-selection order and prompt inputs. Reflection owns single-item context and
+evidence assembly; durable callers own issuance markers, aggregation and retry
+conversion. Evolution owns `EvolutionContext`, its round builder and the
+selected-parent outcome projection below prompt and graph modules. Keep app
+production consumers on public exports; `test_engine_operation_boundaries.py`
+rejects private engine imports and engine-to-app dependencies.
+
+Evidence helpers are imported from their defining modules in `evidence/`.
+The internal `evidence.helpers` facade is removed; test/patch the module that
+actually consumes a collaborator rather than relying on unused re-exports.
+
 **The topology is declared once.** `workflow_topology.WORKFLOW_ROUTES` names
 every node's successor -- a fixed node, a `LiteratureGated` pair, or a resolver
 over the committed state -- and both execution paths read it:

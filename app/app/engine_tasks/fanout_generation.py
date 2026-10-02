@@ -198,19 +198,13 @@ async def _plan_generation_fanout(state: dict[str, Any]) -> _GenerationPlan:
         The per-strategy task specs, their shared inputs, and the
         aggregate spec carrying the planned counts.
     """
-    from co_scientist.agents.generation.coordinator import _prepare_generation
+    from co_scientist.agents.generation import prepare_generation
 
-    counts, reference_index, literature = await _prepare_generation(state)
-    strategy_counts = {
-        "tools": counts.tools_count,
-        "debate_lit": counts.debate_with_lit_count,
-        "debate_only": counts.debate_only_count,
-        "assumptions": counts.assumptions_count,
-    }
+    plan = await prepare_generation(state)
     return _GenerationPlan(
-        task_specs=_generation_task_specs(strategy_counts),
-        inputs=_StrategyInputs(literature, reference_index),
-        aggregate_spec=_generation_aggregate_spec(counts),
+        task_specs=_generation_task_specs(plan.counts.strategy_counts),
+        inputs=_StrategyInputs(plan.literature, plan.reference_index),
+        aggregate_spec=_generation_aggregate_spec(plan.counts),
     )
 
 
@@ -374,6 +368,10 @@ async def _run_generation_strategy(
     if strategy in {"debate_lit", "debate_only"}:
         return await _run_debate_strategy(state, strategy, count, inputs)
     if strategy == "assumptions":
+        # Preserve the durable path's existing assumptions contract: it
+        # omits the plan's literature and reference index. The graph
+        # coordinator supplies both. Sharing dispatch would change its
+        # grounding; planning/finalization can be shared independently.
         hypotheses, llm_calls = await generate_with_assumptions(state, count)
         return hypotheses, [], llm_calls
     raise ValueError(f"unsupported generation strategy: {strategy}")

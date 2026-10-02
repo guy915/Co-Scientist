@@ -1,6 +1,6 @@
 """Tests for ``literature_review_node`` orchestration.
 
-The leaf helpers in ``evidence.helpers`` are covered by
+The leaf helpers in the defining evidence modules are covered by
 ``test_literature_review_helpers_*`` and the in-file pure functions by
 ``test_literature_review_pure``; here we exercise the node's orchestration
 along its fallback, happy, edge-case and research paths. The stubbed

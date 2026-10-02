@@ -216,11 +216,11 @@ def _enqueue_verification_fanout(
     db_path: str | None,
 ) -> dict[str, Any]:
     """Materialize one leasable deep-verification task per idea."""
-    from co_scientist.agents.reflection.deep_verification import (
-        _select_hypotheses_to_verify,
+    from co_scientist.agents.reflection import (
+        select_hypotheses_to_verify,
     )
 
-    selected = _select_hypotheses_to_verify(
+    selected = select_hypotheses_to_verify(
         state["hypotheses"], state["model_name"]
     )
     items, aggregate = _create_fanout_tasks(

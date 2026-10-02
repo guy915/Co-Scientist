@@ -29,6 +29,10 @@ from fastapi import (
 
 from app import document_ingest, store
 from app.auth import client_id, require_client_scope
+from app.staged_documents import document_summary as document_summary
+from app.staged_documents import (
+    resolve_owned_documents as resolve_owned_documents,
+)
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 
@@ -119,44 +123,3 @@ async def delete_document(document_id: str, request: Request) -> Response:
     if not deleted:
         raise HTTPException(status_code=404, detail="document not found")
     return Response(status_code=204)
-
-
-def resolve_owned_documents(
-    document_ids: list[str], owner: str
-) -> list[dict[str, Any]]:
-    """Resolve staged documents the caller owns, or refuse the whole set.
-
-    All-or-nothing on purpose: a request that names a document is asking for
-    work grounded in it, so silently proceeding with the subset that
-    resolved would produce an answer the scientist has no way to know was
-    ungrounded. Refusing before anything is written is also what keeps run
-    creation from leaving a half-attached run behind.
-
-    Args:
-        document_ids: The ids the request named.
-        owner: The calling client identity.
-
-    Returns:
-        The resolved rows, in the order they were named.
-
-    Raises:
-        HTTPException: 404 when any id is unknown or owned by someone else.
-    """
-    if not document_ids:
-        return []
-    documents = store.get_staged_documents(document_ids, owner)
-    if len(documents) != len(document_ids):
-        raise HTTPException(
-            status_code=404, detail="attached document not found"
-        )
-    return documents
-
-
-def document_summary(document: dict[str, Any]) -> dict[str, Any]:
-    """Summarize one staged document for a client payload, without its text."""
-    return {
-        "id": document["id"],
-        "title": document["title"],
-        "mime_type": document["mime_type"],
-        "byte_size": document["byte_size"],
-    }

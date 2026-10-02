@@ -1,15 +1,11 @@
 """Deep-verification node - probing-question analysis before ranking."""
 
 import asyncio
-import dataclasses
 import logging
 from typing import Any
 
 from co_scientist.agents.reflection.deep_verification_evidence import (
     _MAX_PROBE_SOURCES as _MAX_PROBE_SOURCES,
-)
-from co_scientist.agents.reflection.deep_verification_evidence import (
-    _augment_evidence_context_with_meta_review,
 )
 from co_scientist.agents.reflection.deep_verification_evidence import (
     _probe_queries as _probe_queries,
@@ -23,22 +19,33 @@ from co_scientist.agents.reflection.deep_verification_evidence import (
 from co_scientist.agents.reflection.deep_verification_evidence import (
     merge_retrieved_articles as merge_retrieved_articles,
 )
-from co_scientist.agents.reflection.deep_verification_evidence import (
-    with_researched as _with_researched,
+from co_scientist.agents.reflection.operations import has_valid_verification
+from co_scientist.agents.reflection.verification import (
+    _call_verification as _call_verification,
 )
-from co_scientist.agents.reflection.evidence_context import (
-    PUBLIC_SNIPPET_CHARS,
-    EvidenceCaps,
-    build_evidence_context,
+from co_scientist.agents.reflection.verification import (
+    _verification_evidence_context as _verification_evidence_context,
+)
+from co_scientist.agents.reflection.verification import (
+    _VerificationContext as _VerificationContext,
+)
+from co_scientist.agents.reflection.verification import (
+    _verify_one as _verify_one,
+)
+from co_scientist.agents.reflection.verification import (
+    _verify_with_probes as _verify_with_probes,
+)
+from co_scientist.agents.reflection.verification import (
+    _verify_within_semaphore as _verify_within_semaphore,
 )
 from co_scientist.agents.reflection.verification_freshness import (
     DEEP_VERIFICATION_PROMPT_VERSION as DEEP_VERIFICATION_PROMPT_VERSION,
 )
 from co_scientist.agents.reflection.verification_freshness import (
-    _select_hypotheses_to_verify as _select_hypotheses_to_verify,
+    mark_verification_issued as mark_verification_issued,
 )
 from co_scientist.agents.reflection.verification_freshness import (
-    mark_verification_issued as mark_verification_issued,
+    select_hypotheses_to_verify,
 )
 from co_scientist.agents.reflection.verification_freshness import (
     verification_fingerprint as verification_fingerprint,
@@ -47,16 +54,9 @@ from co_scientist.agents.reflection.verification_freshness import (
     verification_issued as verification_issued,
 )
 from co_scientist.constants import (
-    EXTENDED_MAX_TOKENS,
-    LOW_TEMPERATURE,
     MAX_CONCURRENT_LLM_CALLS,
     PROGRESS_DEEP_VERIFICATION_COMPLETE,
     PROGRESS_DEEP_VERIFICATION_START,
-)
-from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
-from co_scientist.llm import (
-    CompletionSpec,
-    call_llm_json,
 )
 from co_scientist.models import (
     Article,
@@ -66,7 +66,6 @@ from co_scientist.models import (
     phase_message,
 )
 from co_scientist.progress import emit_progress
-from co_scientist.prompts import get_deep_verification_prompt
 from co_scientist.schemas.review import (
     DEEP_VERIFICATION_MAX_DECONTEXTUALIZATIONS,
     DEEP_VERIFICATION_MAX_SUB_ASSUMPTIONS,
@@ -83,158 +82,7 @@ logger = logging.getLogger(__name__)
 # ranking any more; "undermined" (audit E9) now demotes instead, sorting
 # the idea below every sound one -- see models.UNDERMINED_VERDICT.
 VERDICT_UNVERIFIED = "unverified"
-_VALID_VERDICTS = frozenset({"holds", "weakened", "undermined"})
-
-# Ceiling on the opening evidence block, before the probe block is appended
-# to it. Eight full-length sources' worth (PUBLIC_SNIPPET_CHARS), so it trims
-# a long corpus rather than competing with the per-source truncation.
-_MAX_VERIFICATION_CONTEXT_CHARS = 8 * PUBLIC_SNIPPET_CHARS
-
-
-@dataclasses.dataclass(frozen=True)
-class _VerificationContext:
-    """Batch-invariant inputs shared by every hypothesis verification.
-
-    ``state`` is carried alongside the extracted scalars because probe
-    retrieval reads the full workflow state (search config, MCP client).
-    """
-
-    research_goal: str
-    model_name: str
-    tool_registry: Any | None
-    state: WorkflowState
-
-
-async def _call_verification(
-    hypothesis: Hypothesis,
-    context: _VerificationContext,
-    evidence_context: str,
-) -> dict[str, Any]:
-    """Call the verifier once against the supplied evidence snapshot."""
-    prompt, schema = get_deep_verification_prompt(
-        research_goal=context.research_goal,
-        hypothesis_text=hypothesis.text,
-        tool_registry=context.tool_registry,
-        evidence_context=evidence_context,
-    )
-    return await call_llm_json(
-        prompt=prompt,
-        spec=CompletionSpec(
-            model_name=context.model_name,
-            max_tokens=EXTENDED_MAX_TOKENS,
-            temperature=LOW_TEMPERATURE,
-            json_schema=schema,
-        ),
-    )
-
-
-async def _verify_one(
-    hypothesis: Hypothesis,
-    context: _VerificationContext,
-    semaphore: asyncio.Semaphore,
-    evidence_context: str,
-) -> dict[str, Any] | None:
-    """Run probing-question deep verification for one hypothesis.
-
-    Args:
-        hypothesis: The hypothesis to deep-verify.
-        context: Batch-invariant context (research goal, model, tool
-            registry, full workflow state for probe retrieval).
-        semaphore: Concurrency limiter shared across verifications.
-        evidence_context: Bounded analyzed-source excerpts.
-
-    Returns:
-        The parsed deep-verification result, or None if the call failed.
-    """
-    evidence_context = _augment_evidence_context_with_meta_review(
-        evidence_context, context.state
-    )
-    return await _verify_within_semaphore(
-        semaphore, hypothesis, context, evidence_context
-    )
-
-
-async def _verify_within_semaphore(
-    semaphore: asyncio.Semaphore,
-    hypothesis: Hypothesis,
-    context: _VerificationContext,
-    evidence_context: str,
-) -> dict[str, Any] | None:
-    """Runs verification bounded by the shared semaphore, isolating failure.
-
-    Bounds concurrent verifications across the whole top-k batch. Broad
-    except by design: one hypothesis's failure should not abort the batch;
-    None means the batch records an explicit ``unverified`` verdict for it
-    (audit E9) rather than passing it silently. The two control-flow
-    errors are not one hypothesis's failure and are re-raised -- see
-    ``TASK_CONTROL_FLOW_ERRORS``.
-
-    Raises:
-        LLMRateLimitParkError: A platform cap the worker must park on.
-        LLMCallBudgetExceededError: The run's spend ceiling is exhausted.
-    """
-    async with semaphore:
-        try:
-            return await _verify_with_probes(
-                hypothesis, context, evidence_context
-            )
-        except TASK_CONTROL_FLOW_ERRORS:
-            raise
-        except Exception as e:
-            logger.error("Deep verification failed: %s", e)
-            return None
-
-
-async def _verify_with_probes(
-    hypothesis: Hypothesis,
-    context: _VerificationContext,
-    evidence_context: str,
-) -> dict[str, Any]:
-    """Runs the initial verification call, then a targeted probe retry.
-
-    The probe round searches once from what the first call asked about
-    and stops. Where the reviews already researched this hypothesis,
-    ``with_researched`` adds what they found, so verification answers
-    its own questions against evidence that went back a level.
-    """
-    initial = await _call_verification(hypothesis, context, evidence_context)
-    queries = _probe_queries(initial)
-    probed, retrieval_errors = await _retrieve_probe_evidence(
-        context.state, queries
-    )
-    articles = _with_researched(context.state, hypothesis, probed)
-    if not articles:
-        initial["retrieval_queries"] = queries
-        initial["retrieval_errors"] = retrieval_errors
-        initial["retrieved_articles"] = []
-        initial["verification_llm_calls"] = 1
-        return initial
-    targeted_context = _retrieved_evidence_context(articles)
-    result = await _call_verification(
-        hypothesis,
-        context,
-        f"{evidence_context}\n\nTargeted probe evidence:\n{targeted_context}",
-    )
-    result["retrieval_queries"] = queries
-    result["retrieval_errors"] = retrieval_errors
-    result["retrieved_articles"] = [article.to_dict() for article in articles]
-    result["verification_llm_calls"] = 2
-    return result
-
-
-def _verification_evidence_context(state: WorkflowState) -> str:
-    """Format bounded public and private evidence for verification prompts.
-
-    Bounded by total length rather than by source count: unlike a review,
-    verification probes whatever the run has gathered, so breadth is the
-    point and the only real limit is the prompt it has to fit in.
-    """
-    context = build_evidence_context(
-        state.get("articles"),
-        private_sources=state.get("context_enrichment_sources"),
-        caps=EvidenceCaps(total_chars=_MAX_VERIFICATION_CONTEXT_CHARS),
-    )
-    return context or "No retrieved evidence available."
+_select_hypotheses_to_verify = select_hypotheses_to_verify
 
 
 def mark_hypothesis_unverified(hypothesis: Hypothesis) -> None:
@@ -305,10 +153,11 @@ def _apply_verification_results(
     verified_count = 0
     unverified_count = 0
     for hypothesis, result in zip(to_verify, results, strict=True):
-        if result is None or result.get("verdict") not in _VALID_VERDICTS:
+        if not has_valid_verification(result):
             mark_hypothesis_unverified(hypothesis)
             unverified_count += 1
             continue
+        assert result is not None
         hypothesis.deep_verification_probes = result.get("probes", [])
         hypothesis.deep_verification_verdict = result.get("verdict")
         hypothesis.enrichments["deep_verification"] = _bounded_verification(
@@ -348,7 +197,7 @@ async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
     if not hypotheses:
         return {}
 
-    to_verify = _select_hypotheses_to_verify(hypotheses, state["model_name"])
+    to_verify = select_hypotheses_to_verify(hypotheses, state["model_name"])
 
     # Every idea has already had its verification: the steady state from
     # the second cycle on, and the first thing a resumed run finds. Skip

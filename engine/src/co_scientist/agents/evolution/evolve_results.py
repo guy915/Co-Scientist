@@ -4,9 +4,9 @@ import dataclasses
 import logging
 from typing import Any
 
+from co_scientist.agents.evolution.context import EvolutionContext
 from co_scientist.agents.evolution.evolve_context import find_nearest_peer
 from co_scientist.agents.evolution.evolve_prompt import (
-    _EvolutionContext,
     _EvolutionOperation,
 )
 from co_scientist.agents.generation.citations import resolve_citation_keys
@@ -257,7 +257,7 @@ def _apply_refined_hypothesis(
     parents: list[Hypothesis],
     fields: _RefinedFields,
     max_similarity: float,
-    context: _EvolutionContext,
+    context: EvolutionContext,
 ) -> tuple[Hypothesis, dict[str, Any]]:
     """Builds an immutable child for an accepted refinement and its detail.
 
@@ -287,7 +287,7 @@ def _apply_refined_hypothesis(
 
 
 def _citation_sources(
-    context: _EvolutionContext,
+    context: EvolutionContext,
 ) -> dict[str, dict[str, Any]]:
     """The round's ``[C*]`` sources, or an empty table when it has none."""
     if context.reference_index is None:
@@ -360,7 +360,7 @@ def _apply_evolution_result(
     hypothesis: Hypothesis,
     response: dict[str, Any],
     peers: list[Hypothesis],
-    context: _EvolutionContext,
+    context: EvolutionContext,
     operation: _EvolutionOperation,
 ) -> tuple[Hypothesis | None, dict[str, Any] | None]:
     """Turns an LLM evolution response into a child hypothesis, if acceptable.

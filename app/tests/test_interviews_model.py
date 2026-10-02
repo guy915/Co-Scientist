@@ -1,4 +1,4 @@
-"""Tests for the interview model call (``interviews._call_interview_model``).
+"""Tests for the interview model call in ``interviews.model``.
 
 These cases drive the model-call boundary directly rather than through the
 streaming endpoints: the turn's wire format and what a turn missing its
@@ -12,8 +12,8 @@ from typing import Any
 
 import pytest
 
-from app import interviews
 from app.config import settings
+from app.interviews import model as interviews_model
 from app.interviews import prompts as interviews_prompts
 from app.interviews.wire import CLOSE_MARKER, OPEN_MARKER
 
@@ -68,7 +68,7 @@ async def test_interview_asks_for_prose_and_a_spec_block(
         "turns": [{"role": "user", "content": "restore susceptibility"}],
         "fields": {},
     }
-    result = await interviews._call_interview_model(interview)
+    result = await interviews_model._call_interview_model(interview)
 
     assert "response_format" not in captured
     prompt_text = " ".join(m["content"] for m in captured["messages"])
@@ -104,7 +104,7 @@ async def test_interview_keeps_fields_when_a_turn_omits_its_block(
         "turns": [{"role": "user", "content": "restore susceptibility"}],
         "fields": previous,
     }
-    result = await interviews._call_interview_model(interview)
+    result = await interviews_model._call_interview_model(interview)
 
     assert (
         result["assistant_message"] == "Which mechanism should we prioritize?"
@@ -152,7 +152,7 @@ async def test_thinking_only_turn_retries_once_with_thinking_off(
         "turns": [{"role": "user", "content": "restore susceptibility"}],
         "fields": {},
     }
-    result = await interviews._call_interview_model(
+    result = await interviews_model._call_interview_model(
         interview, on_reasoning=_on_reasoning
     )
 

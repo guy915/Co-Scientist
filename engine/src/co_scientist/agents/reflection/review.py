@@ -13,7 +13,7 @@ from collections.abc import Coroutine
 from typing import Any
 
 from co_scientist.agents.reflection.review_gate import (
-    _apply_initial_review_gate as _apply_initial_review_gate,
+    apply_initial_review_gate,
 )
 from co_scientist.agents.reflection.review_gate import (
     refresh_review_dispositions as refresh_review_dispositions,
@@ -78,6 +78,8 @@ from co_scientist.models import (
 from co_scientist.progress import emit_progress
 from co_scientist.prompts import PromptRunContext, get_review_prompt
 from co_scientist.state import WorkflowState
+
+_apply_initial_review_gate = apply_initial_review_gate
 
 logger = logging.getLogger(__name__)
 
@@ -444,7 +446,7 @@ def _finalize_reviews(
     reviewed_hypotheses = [hypothesis for hypothesis, _ in reviewed_pairs]
     attached_reviews = [review for _, review in reviewed_pairs]
     _attach_reviews_to_hypotheses(reviewed_hypotheses, attached_reviews)
-    _apply_initial_review_gate(reviewed_hypotheses, attached_reviews, criteria)
+    apply_initial_review_gate(reviewed_hypotheses, attached_reviews, criteria)
     logger.info(
         "Completed %s reviews using %s strategy",
         len(attached_reviews),

@@ -123,7 +123,7 @@ async def test_evolved_hypothesis_receives_missing_observation_review(
             "reasoning": "explains x",
         }
     )
-    monkeypatch.setattr(cr, "analyze_single_hypothesis", observation)
+    monkeypatch.setattr(cr, "observe_hypothesis", observation)
     monkeypatch.setattr(cr, "call_llm_json", AsyncMock(return_value={}))
 
     await cr.comprehensive_reflection_node(
@@ -156,7 +156,7 @@ async def test_missing_observation_review_appends_confirmed_strengths(
             "positive_observations": ["accounts for the late onset"],
         }
     )
-    monkeypatch.setattr(cr, "analyze_single_hypothesis", observation)
+    monkeypatch.setattr(cr, "observe_hypothesis", observation)
     monkeypatch.setattr(cr, "call_llm_json", AsyncMock(return_value={}))
 
     await cr.comprehensive_reflection_node(

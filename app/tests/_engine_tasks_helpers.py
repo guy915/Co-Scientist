@@ -250,6 +250,8 @@ class _RankingSeed:
     idempotency_key: str
     consumed_rounds: int = 0
     played: bool = False
+    criteria: list[str] | None = None
+    preferences: str | None = None
 
 
 def _seed_ranking_node(
@@ -267,6 +269,8 @@ def _seed_ranking_node(
             ),
             "tournament_pairs": seed.tournament_pairs,
             "metrics": ExecutionMetrics(tournaments_count=seed.consumed_rounds),
+            "criteria": seed.criteria,
+            "preferences": seed.preferences,
         }
     )
     checkpoint_seq = _seed_checkpoint(run_id, state)
@@ -284,7 +288,7 @@ def _seed_ranking_node(
 
 def _install_plain_fake_judge(monkeypatch: pytest.MonkeyPatch) -> None:
     """Patch ``judge_matchup`` with a deterministic 'A wins' verdict."""
-    import co_scientist.agents.ranking.ranking as ranking_module
+    import co_scientist.agents.ranking.operations as ranking_module
 
     async def fake_judge(*_: Any, **kwargs: Any) -> tuple[str, dict[str, Any]]:
         return "a", {
@@ -306,7 +310,7 @@ def _install_concurrency_tracking_judge(
     Returns a shared box whose ``peak`` key holds the greatest number of
     matchups judged simultaneously.
     """
-    import co_scientist.agents.ranking.ranking as ranking_module
+    import co_scientist.agents.ranking.operations as ranking_module
 
     box = {"in_flight": 0, "peak": 0}
 

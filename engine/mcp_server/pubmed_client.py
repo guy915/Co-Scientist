@@ -1,7 +1,5 @@
 """Entrez-backed PubMed client: search and per-paper metadata fetching."""
 
-import hashlib
-import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -19,37 +17,6 @@ logger = logging.getLogger(__name__)
 PUBMED_SEARCH_SORT = "pub_date"
 PUBMED_METADATA_BATCH_ENV = "COSCIENTIST_PUBMED_METADATA_BATCH"
 PUBMED_METADATA_BATCH_SIZE = 9
-
-
-def _metadata_no_link_sidecar(metadata_file: Path) -> Path:
-    return metadata_file.with_name(f".{metadata_file.stem}.no-link.sha256")
-
-
-def _has_proven_metadata_no_link(metadata_file: Path) -> bool:
-    try:
-        expected = _metadata_no_link_sidecar(metadata_file).read_text(
-            encoding="ascii"
-        )
-        actual = hashlib.sha256(metadata_file.read_bytes()).hexdigest()
-    except (OSError, UnicodeError):
-        return False
-    return expected == actual
-
-
-def _write_metadata_cache_file(
-    metadata_file: Path,
-    metadata: dict[str, Any],
-    *,
-    successful_no_link: bool = False,
-) -> None:
-    sidecar = _metadata_no_link_sidecar(metadata_file)
-    # Failed legacy lookups can rewrite identical JSON. Expire the old proof.
-    sidecar.unlink(missing_ok=True)
-    with open(metadata_file, "w", encoding="utf-8") as stream:
-        json.dump(metadata, stream)
-    if successful_no_link:
-        digest = hashlib.sha256(metadata_file.read_bytes()).hexdigest()
-        sidecar.write_text(digest, encoding="ascii")
 
 
 # Configure Entrez credentials at import so the source is ready to query.

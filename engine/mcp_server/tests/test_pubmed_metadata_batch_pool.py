@@ -11,7 +11,8 @@ from Bio import Entrez
 from mcp_server import entrez_rate_limit
 from mcp_server import pubmed_metadata_batch as batch
 from mcp_server.literature_review import PubmedSource
-from mcp_server.pubmed_client import _EntrezClient, _metadata_no_link_sidecar
+from mcp_server.pubmed_client import _EntrezClient
+from mcp_server.pubmed_storage import metadata_no_link_sidecar
 from mcp_server.tools.lit_review import pubmed_search_with_fulltext as tool
 from test_pubmed_metadata_batch import (  # type: ignore[import-not-found]
     _article,
@@ -160,7 +161,7 @@ def test_legacy_fetch_write_invalidates_no_link_proof_even_when_bytes_match(
     metadata_file = shared_dir / "101.metadata.json"
     serialized = json.dumps(metadata)
     metadata_file.write_text(serialized, encoding="utf-8")
-    sidecar = _metadata_no_link_sidecar(metadata_file)
+    sidecar = metadata_no_link_sidecar(metadata_file)
     sidecar.write_text(
         hashlib.sha256(serialized.encode("utf-8")).hexdigest(),
         encoding="ascii",

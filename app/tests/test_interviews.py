@@ -15,8 +15,8 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from app import interviews
 from app.config import settings
+from app.interviews import model as interviews_model
 from app.interviews import prompts as interviews_prompts
 from app.main import app
 
@@ -53,7 +53,7 @@ def _patch_model_raising(
     ) -> dict[str, Any]:
         raise exc
 
-    monkeypatch.setattr(interviews, "_call_interview_model", _unavailable)
+    monkeypatch.setattr(interviews_model, "_call_interview_model", _unavailable)
 
 
 def _patch_streaming_litellm(
@@ -184,7 +184,7 @@ def test_interview_is_owner_scoped_and_requires_completion(
     ) -> dict[str, Any]:
         return _response("Which mechanism should be prioritized?")
 
-    monkeypatch.setattr(interviews, "_call_interview_model", _model)
+    monkeypatch.setattr(interviews_model, "_call_interview_model", _model)
     with TestClient(app) as client:
         created = client.post(
             "/api/interviews",
@@ -220,7 +220,7 @@ def test_scientist_can_edit_and_finalize_fields(
     ) -> dict[str, Any]:
         return _response("Clarify the focus area.")
 
-    monkeypatch.setattr(interviews, "_call_interview_model", _model)
+    monkeypatch.setattr(interviews_model, "_call_interview_model", _model)
     headers = {"X-Client-ID": "editor"}
     with TestClient(app) as client:
         created = client.post(

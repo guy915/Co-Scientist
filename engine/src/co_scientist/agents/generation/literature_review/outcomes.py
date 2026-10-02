@@ -10,8 +10,6 @@ from typing import Any
 
 from co_scientist.evidence.article_support import (
     _has_fulltext,
-)
-from co_scientist.evidence.helpers import (
     build_articles_from_metadata,
     make_failure_result,
 )

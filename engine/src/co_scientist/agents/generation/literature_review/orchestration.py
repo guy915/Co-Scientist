@@ -56,10 +56,12 @@ from co_scientist.cache import NodeCache
 from co_scientist.constants import (
     LITERATURE_REVIEW_FAILED,
 )
-from co_scientist.evidence.helpers import (
-    SearchConfig,
+from co_scientist.evidence.article_support import (
     build_articles_from_metadata,
     get_papers_with_content,
+)
+from co_scientist.evidence.search_support import (
+    SearchConfig,
 )
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.models import Article

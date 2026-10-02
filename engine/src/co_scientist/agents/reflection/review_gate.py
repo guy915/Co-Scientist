@@ -320,7 +320,7 @@ def refresh_review_dispositions(
     return revised
 
 
-def _apply_initial_review_gate(
+def apply_initial_review_gate(
     hypotheses: list[Hypothesis],
     reviews: list[HypothesisReview],
     criteria: list[str] | None = None,
@@ -368,3 +368,7 @@ def _apply_initial_review_gate(
     for hypothesis, review in zip(hypotheses, reviews, strict=True):
         base = _disposition_for(review, axes)
         hypothesis.review_disposition = _deepest_disposition(hypothesis, base)
+
+
+# Compatibility for library callers of the former private helper.
+_apply_initial_review_gate = apply_initial_review_gate
