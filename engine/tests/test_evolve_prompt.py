@@ -14,10 +14,7 @@ from co_scientist.agents.evolution.evolve_prompt import (
     _build_supervisor_guidance_text,
     _EvolutionOperation,
     _format_diversity_instruction,
-    _format_evolution_guidance_lines,
-    _format_iteration_strategy,
     _format_partner_context,
-    _format_refinement_priorities,
 )
 from co_scientist.models import HypothesisReview
 from co_scientist.offline.content import subject_terms
@@ -161,63 +158,37 @@ def test_partner_context_empty_pool_for_combination() -> None:
     assert "No partners are available" in result
 
 
-# --- _format_refinement_priorities / _format_iteration_strategy ------------
-
-
-def test_format_refinement_priorities_absent_returns_none() -> None:
-    """No refinement_priorities key yields None."""
-    assert _format_refinement_priorities({}) is None
-
-
-def test_format_refinement_priorities_list_is_comma_joined() -> None:
-    """A list of priorities is comma-joined into the guidance line."""
-    result = _format_refinement_priorities(
-        {"refinement_priorities": ["clarity", "safety"]}
+@pytest.mark.parametrize(
+    ("phase", "expected"),
+    [
+        (
+            {"refinement_priorities": ["clarity", "safety"]},
+            "**Refinement Priorities:** clarity, safety\n",
+        ),
+        (
+            {"refinement_priorities": "narrow the mechanism"},
+            "**Refinement Priorities:** narrow the mechanism\n",
+        ),
+        (
+            {"iteration_strategy": "converge on the top mechanism"},
+            "**Iteration Strategy:** converge on the top mechanism\n",
+        ),
+    ],
+)
+def test_supervisor_guidance_formats_each_phase_field(
+    phase: dict[str, Any],
+    expected: str,
+) -> None:
+    """Evolution guidance preserves list/string priorities and strategy text."""
+    result = _build_supervisor_guidance_text(
+        {"workflow_plan": {"evolution_phase": phase}}
     )
-    assert result == "**Refinement Priorities:** clarity, safety\n"
-
-
-def test_format_refinement_priorities_string_passthrough() -> None:
-    """A plain-string priorities value is used as-is."""
-    result = _format_refinement_priorities(
-        {"refinement_priorities": "narrow the mechanism"}
+    assert result == (
+        "## Supervisor Guidance for Evolution\n"
+        + expected
+        + "\nUse this guidance to align your refinement with the research plan."
+        + "\n"
     )
-    assert result == "**Refinement Priorities:** narrow the mechanism\n"
-
-
-def test_format_iteration_strategy_absent_returns_none() -> None:
-    """No iteration_strategy key yields None."""
-    assert _format_iteration_strategy({}) is None
-
-
-def test_format_iteration_strategy_present() -> None:
-    """A present iteration_strategy renders its guidance line."""
-    result = _format_iteration_strategy(
-        {"iteration_strategy": "converge on the top mechanism"}
-    )
-    assert result == ("**Iteration Strategy:** converge on the top mechanism\n")
-
-
-# --- _format_evolution_guidance_lines ---------------------------------------
-
-
-def test_format_evolution_guidance_lines_collects_both_sections() -> None:
-    """Both formatters' output is collected when both fields are present."""
-    lines = _format_evolution_guidance_lines(
-        {
-            "refinement_priorities": ["clarity"],
-            "iteration_strategy": "converge",
-        }
-    )
-    assert lines == [
-        "**Refinement Priorities:** clarity\n",
-        "**Iteration Strategy:** converge\n",
-    ]
-
-
-def test_format_evolution_guidance_lines_empty_when_neither_present() -> None:
-    """Neither field present yields an empty list."""
-    assert _format_evolution_guidance_lines({}) == []
 
 
 # --- _build_supervisor_guidance_text ----------------------------------------

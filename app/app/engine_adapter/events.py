@@ -13,7 +13,7 @@ from typing import Any
 from co_scientist.agents.proximity.proximity_graph import is_judged_edge
 
 from app import store
-from app.run_events import article_stub, hypothesis_stub, match_stub
+from app.run_events import hypothesis_stub
 
 
 def _canonical_event_type(node_name: str) -> str:
@@ -52,50 +52,6 @@ _ENGINE_PIPELINE_AGENTS: list[str] = [
     "deep_verification",
     "research_overview",
 ]
-
-
-def _generate_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
-    """Build the ``generate`` node's payload keys."""
-    hyps: list[dict[str, Any]] = state.get("hypotheses") or []
-    return {
-        "count": len(hyps),
-        "hypotheses": [hypothesis_stub(h) for h in hyps],
-    }
-
-
-def _literature_review_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
-    """Build the ``literature_review`` node's payload keys."""
-    articles: list[dict[str, Any]] = state.get("articles") or []
-    return {
-        "count": len(articles),
-        "evidence": [article_stub(a) for a in articles],
-    }
-
-
-def _ranking_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
-    """Build the ``ranking`` node's payload keys."""
-    matchups: list[dict[str, Any]] = state.get("tournament_matchups") or []
-    return {"matches": [match_stub(m) for m in matchups]}
-
-
-def _evolve_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
-    """Build the ``evolve`` node's payload keys."""
-    hyps: list[dict[str, Any]] = state.get("hypotheses") or []
-    return {
-        "children": [
-            hypothesis_stub(h) for h in hyps if h.get("evolution_history")
-        ]
-    }
-
-
-def _reflection_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
-    """Build the ``reflection`` node's payload keys.
-
-    ``reviewed`` counts the hypotheses that have picked up a review during
-    this pass, read from each hypothesis's ``reviews`` list.
-    """
-    hyps: list[dict[str, Any]] = state.get("hypotheses") or []
-    return {"reviewed": sum(1 for h in hyps if h.get("reviews"))}
 
 
 def _proximity_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
@@ -172,24 +128,50 @@ def _deep_verification_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
     return {"verified": len(probes), "probes": probes}
 
 
-def _research_overview_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
-    """Build the ``research_overview`` node's payload keys."""
-    return {"research_overview": state.get("research_overview") or {}}
-
-
 # Per-node-type payload builders, keyed by the canonical event type. Nodes
 # with no entry (e.g. ``review``) get no extra payload keys beyond the common
 # ``node``/``iteration`` pair built in ``_canonical_engine_payload``.
 _PAYLOAD_BUILDERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
-    "generate": _generate_payload_extra,
-    "literature_review": _literature_review_payload_extra,
-    "ranking": _ranking_payload_extra,
-    "evolve": _evolve_payload_extra,
-    "reflection": _reflection_payload_extra,
+    "generate": lambda state: {
+        "count": len(state.get("hypotheses") or []),
+        "hypotheses": [
+            hypothesis_stub(h) for h in state.get("hypotheses") or []
+        ],
+    },
+    "literature_review": lambda state: {
+        "count": len(state.get("articles") or []),
+        "evidence": [
+            {
+                "title": str(a.get("title") or "Untitled"),
+                "url": str(a.get("url") or ""),
+            }
+            for a in state.get("articles") or []
+        ],
+    },
+    "ranking": lambda state: {
+        "matches": [
+            {"winner": str(m.get("winner") or "")}
+            for m in state.get("tournament_matchups") or []
+        ]
+    },
+    "evolve": lambda state: {
+        "children": [
+            hypothesis_stub(h)
+            for h in state.get("hypotheses") or []
+            if h.get("evolution_history")
+        ]
+    },
+    "reflection": lambda state: {
+        "reviewed": sum(
+            1 for h in state.get("hypotheses") or [] if h.get("reviews")
+        )
+    },
     "proximity": _proximity_payload_extra,
     "meta_review": _meta_review_payload_extra,
     "deep_verification": _deep_verification_payload_extra,
-    "research_overview": _research_overview_payload_extra,
+    "research_overview": lambda state: {
+        "research_overview": state.get("research_overview") or {}
+    },
     "supervisor.plan": lambda _: {"agents": list(_ENGINE_PIPELINE_AGENTS)},
 }
 
@@ -253,47 +235,28 @@ def _milestone_generate(payload: dict[str, Any]) -> str:
     return f"{count} hypotheses generated ({label})"
 
 
-def _milestone_ranking(payload: dict[str, Any]) -> str:
-    """Build the milestone text for a completed ranking round."""
-    count = len(payload.get("matches") or [])
-    itr = payload.get("iteration", 0)
-    return f"Tournament complete (iteration {itr}, {count} matches)"
-
-
-def _milestone_evolve(payload: dict[str, Any]) -> str:
-    """Build the milestone text for a completed evolve round."""
-    count = len(payload.get("children") or [])
-    itr = payload.get("iteration", 0)
-    return f"{count} hypotheses evolved (iteration {itr})"
-
-
-def _milestone_reflection(payload: dict[str, Any]) -> str:
-    """Build the milestone text for a completed reflection pass."""
-    return f"{payload.get('reviewed', 0)} hypotheses reviewed"
-
-
-def _milestone_proximity(payload: dict[str, Any]) -> str:
-    """Build the milestone text for a completed proximity/clustering pass."""
-    return f"{len(payload.get('clusters') or {})} clusters identified"
-
-
-def _milestone_deep_verification(payload: dict[str, Any]) -> str:
-    """Build the milestone text for a completed deep-verification pass."""
-    return f"{payload.get('verified', 0)} hypotheses verified"
-
-
 # Per-node-type milestone builders, keyed by the canonical event type. Nodes
 # with no entry (e.g. ``review``) generate no milestone, mirroring
 # ``_PAYLOAD_BUILDERS``'s dispatch shape above.
 _MILESTONE_BUILDERS: dict[str, Callable[[dict[str, Any]], str]] = {
     "supervisor.plan": lambda _: "Research plan ready — supervisor complete",
     "generate": _milestone_generate,
-    "ranking": _milestone_ranking,
+    "ranking": lambda p: (
+        f"Tournament complete (iteration {p.get('iteration', 0)}, "
+        f"{len(p.get('matches') or [])} matches)"
+    ),
     "meta_review": lambda _: "Meta-review complete",
-    "evolve": _milestone_evolve,
-    "reflection": _milestone_reflection,
-    "proximity": _milestone_proximity,
-    "deep_verification": _milestone_deep_verification,
+    "evolve": lambda p: (
+        f"{len(p.get('children') or [])} hypotheses evolved "
+        f"(iteration {p.get('iteration', 0)})"
+    ),
+    "reflection": lambda p: f"{p.get('reviewed', 0)} hypotheses reviewed",
+    "proximity": lambda p: (
+        f"{len(p.get('clusters') or {})} clusters identified"
+    ),
+    "deep_verification": lambda p: (
+        f"{p.get('verified', 0)} hypotheses verified"
+    ),
     "research_overview": lambda _: "Research overview ready",
 }
 

@@ -1,6 +1,6 @@
 import {type Interview, type InterviewTurn} from '@/api/runs';
 import {interviewToRunSpec} from '../run_spec';
-import {type ChatEntry} from '../pages/chat_timeline_cards';
+import {type ChatEntry} from '../pages/chat_timeline_bubble';
 import {type HandlerDeps} from './chat_session_types';
 
 /**

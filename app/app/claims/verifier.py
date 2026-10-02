@@ -160,8 +160,7 @@ _CITATION_LIST = {
 # The assessor's raw verdict shape (``AssessorDraft``), enforced server-side
 # where the model supports json_schema and reshaped into conformance by the
 # engine's json_object downgrade path otherwise (see
-# llm.structured.validate._backfill_ required_fields /
-# _prune_unknown_properties).
+# llm.structured.validate.reshape_json_output).
 _ENTAILMENT_DRAFT_SCHEMA = obj(
     {
         "label": {

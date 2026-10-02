@@ -11,7 +11,6 @@ from co_scientist.prompts.generation_formatting import (
 from co_scientist.prompts.generation_tools import build_tool_instructions
 from co_scientist.prompts.loading import (
     _build_prompt,
-    _get_domain_variables,
     load_prompt,
 )
 
@@ -112,9 +111,6 @@ def _format_hypotheses_with_novelty_analyses(
 ) -> str:
     """Render draft hypotheses and their per-paper novelty analyses.
 
-    Shared by both validation-synthesis prompt builders so the draft/analysis
-    layout has a single definition.
-
     Args:
         hypotheses_with_analyses: Draft hypotheses, each with a ``draft`` dict
             and a ``novelty_analyses`` list of ``{paper_metadata, analysis}``.
@@ -127,45 +123,6 @@ def _format_hypotheses_with_novelty_analyses(
         for i, hyp_data in enumerate(hypotheses_with_analyses, 1)
     ]
     return "\n\n".join(hypotheses_text)
-
-
-# Tool-less validation-synthesis variant. No production caller: the
-# pipeline uses get_validation_synthesis_prompt_with_tools below; this one
-# is retained for tests and tool-free experimentation.
-def get_hypothesis_validation_synthesis_prompt(
-    research_goal: str,
-    hypotheses_with_analyses: list[dict[str, Any]],
-    articles: list[Any] | None = None,
-    tool_registry: Any | None = None,
-    reference_list: str = "",
-) -> str:
-    """Get the prompt for validation synthesis based on novelty analyses.
-
-    Args:
-        research_goal: The research goal
-        hypotheses_with_analyses: List of draft hypotheses with novelty analyses
-        articles: Optional list of Article objects for citation metadata
-        tool_registry: Optional ToolRegistry for dynamic tool instructions
-        reference_list: Optional citation reference list of `[C*]` keys
-
-    Returns:
-        Formatted prompt string
-    """
-    variables = {
-        "research_goal": research_goal,
-        "hypotheses_with_analyses": _format_hypotheses_with_novelty_analyses(
-            hypotheses_with_analyses
-        ),
-        "articles_metadata": format_articles_metadata(articles or []),
-        "citation_reference_section": _build_citation_reference_section(
-            reference_list
-        ),
-    }
-
-    # Inject domain-specific prompt customizations
-    variables.update(_get_domain_variables(tool_registry))
-
-    return load_prompt("hypothesis_validation_synthesis", variables)
 
 
 def _build_already_validated_context(

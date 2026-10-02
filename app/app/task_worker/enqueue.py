@@ -457,10 +457,9 @@ def _revive_resumable_precheckpoint_bootstrap(
     )
 
 
-def enqueue_run_workflow(  # noqa: PLR0913 -- `conn` joins lifecycle's transaction.
+def enqueue_run_workflow(
     run_id: str,
     *,
-    force_provider: str | None = None,
     resume: bool = False,
     revive_failed_precheckpoint_bootstrap: bool = False,
     db_path: str | None = None,

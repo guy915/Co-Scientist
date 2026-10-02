@@ -30,79 +30,6 @@ class LiteratureQueryInputs:
     user_hypotheses: list[str] | None = None
 
 
-def _format_query_generation_variables(
-    research_goal: str,
-    inputs: LiteratureQueryInputs,
-    meta_review: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Build the shared template variables for query-generation prompts.
-
-    Identical across the PubMed-specific and source-aware query-generation
-    getters below, so it is defined once here.
-
-    Args:
-        research_goal: The research goal the queries must explore.
-        inputs: The user-supplied run inputs steering query generation.
-        meta_review: Meta-review synthesis from the previous iteration
-            (audit E7); the queries should also retrieve what the
-            critique flags as missing or weak. Renders "" on iteration 1,
-            so the placeholder never falls back to a MISSING sentinel.
-
-    Returns:
-        Dict of template variables for a query-generation prompt.
-    """
-    return {
-        "research_goal": research_goal,
-        "preferences": inputs.preferences or "None provided",
-        "attributes": _format_csv_list(inputs.attributes),
-        "user_literature": _format_bullet_list(inputs.user_literature),
-        "user_hypotheses": _format_bullet_list(inputs.user_hypotheses),
-        "meta_review_context": _format_meta_review_context(meta_review),
-    }
-
-
-# PubMed-specific variant kept for backwards compatibility; production code
-# goes through the source-aware getter below, which dispatches to the same
-# template when source_type is "pubmed".
-def get_literature_review_query_generation_pubmed_prompt(
-    research_goal: str,
-    inputs: LiteratureQueryInputs | None = None,
-    meta_review: dict[str, Any] | None = None,
-) -> str:
-    """Get the PubMed query generation prompt.
-
-    Args:
-        research_goal: The research goal the queries must explore.
-        inputs: The user-supplied run inputs steering query generation.
-        meta_review: Meta-review synthesis from the previous iteration
-            (audit E7); renders nothing on iteration 1.
-
-    Returns:
-        Formatted prompt string.
-    """
-    return load_prompt(
-        "literature_review_query_generation_pubmed",
-        _format_query_generation_variables(
-            research_goal, inputs or LiteratureQueryInputs(), meta_review
-        ),
-    )
-
-
-def _select_query_generation_template(source_type: str) -> str:
-    """Select the query-generation template name for a literature source type.
-
-    - knowledge_graph (INDRA): Extract gene/protein names
-    - academic (PubMed, arXiv, Scholar): Natural language queries
-    - pubmed: PubMed-specific (backwards compat)
-    """
-    if source_type == "knowledge_graph":
-        return "literature_review_query_generation_indra"
-    if source_type == "pubmed":
-        return "literature_review_query_generation_pubmed"
-    # Generic fallback for other academic sources
-    return "literature_review_query_generation_generic"
-
-
 # Query-generation entry point used by
 # agents/generation/literature_review/queries.py, paired
 # there with LITERATURE_QUERY_SCHEMA. Returns a bare string (no schema in
@@ -115,8 +42,8 @@ def get_literature_review_query_generation_prompt(
 ) -> str:
     """Get source-aware query generation prompt.
 
-    Selects the appropriate prompt template based on source type; see
-    _select_query_generation_template for the mapping.
+    Knowledge-graph sources extract entity names, PubMed uses its query
+    syntax, and other academic sources use natural-language queries.
 
     Args:
         research_goal: The research goal
@@ -130,12 +57,21 @@ def get_literature_review_query_generation_prompt(
     Returns:
         Formatted prompt string
     """
-    template_name = _select_query_generation_template(source_type)
+    inputs = inputs or LiteratureQueryInputs()
+    template_name = {
+        "knowledge_graph": "literature_review_query_generation_indra",
+        "pubmed": "literature_review_query_generation_pubmed",
+    }.get(source_type, "literature_review_query_generation_generic")
     return load_prompt(
         template_name,
-        _format_query_generation_variables(
-            research_goal, inputs or LiteratureQueryInputs(), meta_review
-        ),
+        {
+            "research_goal": research_goal,
+            "preferences": inputs.preferences or "None provided",
+            "attributes": _format_csv_list(inputs.attributes),
+            "user_literature": _format_bullet_list(inputs.user_literature),
+            "user_hypotheses": _format_bullet_list(inputs.user_hypotheses),
+            "meta_review_context": _format_meta_review_context(meta_review),
+        },
     )
 
 

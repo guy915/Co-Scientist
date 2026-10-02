@@ -7,10 +7,8 @@ import {
   DRAFT_SPEC_ITEM_ID,
   type TimelineItem,
 } from './chat_workspace_timeline';
-import {
-  type StartedSession,
-  TIMELINE_ANCHOR_ATTRIBUTE,
-} from './chat_timeline_cards';
+import {type StartedSession} from './chat_timeline_started_card';
+import {TIMELINE_ANCHOR_ATTRIBUTE} from './chat_timeline_bubble';
 
 // jsdom gives every element a zero height, which would read as "already at
 // the bottom" whatever scrollTop says. These are the metrics of a scroller

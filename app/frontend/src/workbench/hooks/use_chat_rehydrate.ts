@@ -12,7 +12,7 @@ import {
 } from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
 import {type InferredRunSpec} from '../run_spec';
-import {type StartedSession} from '../pages/chat_timeline_cards';
+import {type StartedSession} from '../pages/chat_timeline_started_card';
 import {useChatHistoryContext} from './chat_history_context';
 import {useRunHistoryContext} from './run_history_context';
 import {applyInterview} from './chat_session_transcript';

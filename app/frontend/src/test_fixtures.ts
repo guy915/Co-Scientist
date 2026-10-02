@@ -1,7 +1,7 @@
 /** Shared factories for building typed API objects in tests. */
 import type {Hypothesis, MatchRow, Run} from '@/api/runs';
 import type {InferredRunSpec} from '@/workbench/run_spec';
-import type {ChatEntry} from '@/workbench/pages/chat_timeline_cards';
+import {type ChatEntry} from '@/workbench/pages/chat_timeline_bubble';
 
 /**
  * A fully-populated Hypothesis; override only the fields a test cares

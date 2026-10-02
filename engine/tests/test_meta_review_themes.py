@@ -13,7 +13,7 @@ nesting back on.
 The caps come from the published artifact's own maxima -- five themes,
 eight points under theme V ("General Advice Based on Common Critiques"),
 five sub-points under theme I's "Specificity" -- so a taxonomy shaped like
-the exemplar is never clipped by ``_truncate_oversized_arrays``.
+the exemplar is never clipped by ``reshape_json_output``.
 """
 
 from typing import Any

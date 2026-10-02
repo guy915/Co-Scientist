@@ -25,7 +25,7 @@ import {
 } from './chat_session_handlers_revise';
 import {submitRunQuestion} from './chat_session_handlers_qa';
 import {promoteDraftToRun} from './chat_session_start_run';
-import {type ChatEntry} from '../pages/chat_timeline_cards';
+import {type ChatEntry} from '../pages/chat_timeline_bubble';
 import {type ChatSessionDeps, type HandlerDeps} from './chat_session_types';
 import {type ComposerLog, type RunSpecLifecycle} from './chat_session_state';
 

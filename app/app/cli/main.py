@@ -24,13 +24,12 @@ from app.cli import status_cmd as status_cmd
 from app.cli.http import ApiClient, ApiClientOptions, CliError
 from app.cli.identity import default_client_id
 from app.cli.parsers import (
-    _add_config,
+    Handler,
+    _add_leaf_command,
     _add_logs,
     _add_runs,
-    _add_status,
     _common_parser,
 )
-from app.cli.types import Handler
 from app.version import API_VERSION
 
 
@@ -47,8 +46,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="command", metavar="COMMAND")
     common = _common_parser()
-    _add_status(sub, common)
-    _add_config(sub, common)
+    for name, handler, help_text in (
+        (
+            "status",
+            status_cmd.handle_status,
+            "show API health and provider/literature availability",
+        ),
+        (
+            "config",
+            status_cmd.handle_config,
+            "show the server's run-configuration defaults",
+        ),
+    ):
+        _add_leaf_command(sub, common, name, handler, help_text)
     _add_logs(sub, common)
     _add_runs(sub, common)
     return parser

@@ -47,16 +47,6 @@ def _substitute_env_vars_in_string(value: str) -> str:
     return re.sub(pattern, replacer, value)
 
 
-def _substitute_env_vars_in_dict(value: dict[str, Any]) -> dict[str, Any]:
-    """Recurse substitute_env_vars into every value of a dict."""
-    return {k: substitute_env_vars(v) for k, v in value.items()}
-
-
-def _substitute_env_vars_in_list(value: list[Any]) -> list[Any]:
-    """Recurse substitute_env_vars into every item of a list."""
-    return [substitute_env_vars(item) for item in value]
-
-
 def substitute_env_vars(value: Any) -> Any:
     """Substitute environment variables in a value.
 
@@ -75,9 +65,9 @@ def substitute_env_vars(value: Any) -> Any:
     if isinstance(value, str):
         return _substitute_env_vars_in_string(value)
     if isinstance(value, dict):
-        return _substitute_env_vars_in_dict(value)
+        return {key: substitute_env_vars(item) for key, item in value.items()}
     if isinstance(value, list):
-        return _substitute_env_vars_in_list(value)
+        return [substitute_env_vars(item) for item in value]
     return value
 
 

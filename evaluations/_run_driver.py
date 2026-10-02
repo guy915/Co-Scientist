@@ -172,9 +172,7 @@ def drive_arm_run(run_id: str, db_path: str) -> tuple[int, float]:
     # comment) -- install unconditionally rather than gate it on this
     # arm's backend.
     install_offline_router()
-    task_worker.enqueue_run_workflow(
-        run_id, force_provider="engine", db_path=db_path
-    )
+    task_worker.enqueue_run_workflow(run_id, db_path=db_path)
     start = time.monotonic()
     asyncio.run(
         task_worker.run_run_worker_pool(

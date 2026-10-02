@@ -134,7 +134,7 @@ function sessionSideHref(session: SessionSwitchData, side: string): string {
  * reload. `aria-current="page"` (not `aria-pressed`) marks the side the
  * reader is already on, matching the navigation it is. Each side also carries
  * an explicit aria-label, because the phone breakpoint hides the visible
- * labels to fit the control into the header (see shell_surface_responsive.css)
+ * labels to fit the control into the header (see shell_surface.css)
  * and an icon-only link would otherwise have no accessible name there.
  *
  * Also records the route's current side as the last-viewed one for this

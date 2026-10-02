@@ -320,40 +320,32 @@ def test_seed_demo_run_creates_new_run_when_none_given(
     assert store.read_report_markdown(created[0].id, db_path=isolated_db)
 
 
-def test_has_readable_report_reflects_report_presence(
-    isolated_db: str,
+@pytest.mark.parametrize("has_report", [False, True])
+def test_custom_goal_is_reseeded_only_when_report_missing(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch, has_report: bool
 ) -> None:
     run = store.create_run(
-        "goal",
-        "default",
-        "mock",
+        "custom goal",
+        "express",
+        "engine",
         {},
         store.RunCreateOptions(db_path=isolated_db),
     )
-    assert seed._has_readable_report(run, isolated_db) is False
+    if has_report:
+        store.save_report(run.id, {"k": "v"}, "# md", db_path=isolated_db)
+    reseeded: list[str] = []
 
-    store.save_report(run.id, {"k": "v"}, "# md", db_path=isolated_db)
-    assert seed._has_readable_report(run, isolated_db) is True
+    async def record_seed(
+        goal: str, existing: RunRow | None, db_path: str | None
+    ) -> None:
+        assert goal == run.research_goal
+        assert existing == run
+        assert db_path == isolated_db
+        reseeded.append(run.id)
 
-
-def _demo_run_row(id_: str, goal: str) -> RunRow:
-    return RunRow(
-        id=id_,
-        research_goal=goal,
-        profile="default",
-        status="completed",
-        provider="mock",
-        config={},
-        client_id=DEMO_CLIENT_ID,
-        created_at=0.0,
-        updated_at=0.0,
-        completed_at=0.0,
-        error=None,
+    monkeypatch.setattr(seed, "_seed_demo_run", record_seed)
+    asyncio.run(
+        seed._seed_or_reseed_demo_run(run.research_goal, run, isolated_db)
     )
 
-
-def test_runs_by_goal_indexes_by_research_goal() -> None:
-    a = _demo_run_row("a", "goal-a")
-    b = _demo_run_row("b", "goal-b")
-    indexed = seed._runs_by_goal([a, b])
-    assert indexed == {"goal-a": a, "goal-b": b}
+    assert reseeded == ([] if has_report else [run.id])

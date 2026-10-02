@@ -3,7 +3,7 @@ import {act, renderHook} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
 import * as runsApi from '@/api/runs';
 import {useChatSession} from './use_chat_session';
-import type {ChatEntry} from '../pages/chat_timeline_cards';
+import {type ChatEntry} from '../pages/chat_timeline_bubble';
 
 vi.mock('@/api/runs', async importActual => {
   const actual = await importActual<typeof import('@/api/runs')>();

@@ -64,7 +64,7 @@ WORK_TASKS = frozenset({TaskType.GENERATE, TaskType.EVOLVE})
 #
 # The one constraint this does *not* enforce is the top-level ``required``
 # list. For json_object-only providers -- production -- the
-# ``_backfill_required_fields`` shim fills missing required fields with
+# ``reshape_json_output`` shim fills missing required fields with
 # type-neutral defaults before validating, so a reply omitting
 # ``next_task`` is silently completed with the enum's first value and
 # recorded as a model decision the model never made. The nested

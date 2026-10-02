@@ -11,7 +11,7 @@ from typing import Any
 import httpx
 import pytest
 
-from app.cli import runs_cmd, status_cmd
+from app.cli import runs_cmd, runs_stream_cmd, status_cmd
 from app.cli import runs_collections_cmd as cli_runs_collections_cmd
 from app.cli.http import ApiClient, ApiClientOptions, CliError
 from tests._cli_helpers import api_client
@@ -47,8 +47,9 @@ def test_matches_lists_rows(capsys: pytest.CaptureFixture[str]) -> None:
         )
 
     assert (
-        cli_runs_collections_cmd.handle_matches(
-            _read_args(), api_client(handler)
+        cli_runs_collections_cmd.handle_collection(
+            argparse.Namespace(run_id="r1", json=False, runs_command="matches"),
+            api_client(handler),
         )
         == 0
     )
@@ -76,8 +77,11 @@ def test_proximity_lists_edges(capsys: pytest.CaptureFixture[str]) -> None:
         )
 
     assert (
-        cli_runs_collections_cmd.handle_proximity(
-            _read_args(), api_client(handler)
+        cli_runs_collections_cmd.handle_collection(
+            argparse.Namespace(
+                run_id="r1", json=False, runs_command="proximity"
+            ),
+            api_client(handler),
         )
         == 0
     )
@@ -106,8 +110,11 @@ def test_claim_evidence_lists_edges(
         )
 
     assert (
-        cli_runs_collections_cmd.handle_claim_evidence(
-            _read_args(), api_client(handler)
+        cli_runs_collections_cmd.handle_collection(
+            argparse.Namespace(
+                run_id="r1", json=False, runs_command="claim-evidence"
+            ),
+            api_client(handler),
         )
         == 0
     )
@@ -131,7 +138,12 @@ def test_metrics_renders_key_values(
             },
         )
 
-    assert runs_cmd.handle_metrics(_read_args(), api_client(handler)) == 0
+    assert (
+        cli_runs_collections_cmd.handle_metrics(
+            _read_args(), api_client(handler)
+        )
+        == 0
+    )
     out = capsys.readouterr().out
     assert "llm_calls" in out
     assert "12" in out
@@ -144,7 +156,12 @@ def test_metrics_absent_prints_notice(
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"metrics": None})
 
-    assert runs_cmd.handle_metrics(_read_args(), api_client(handler)) == 0
+    assert (
+        cli_runs_collections_cmd.handle_metrics(
+            _read_args(), api_client(handler)
+        )
+        == 0
+    )
     assert "no metrics recorded" in capsys.readouterr().out
 
 
@@ -222,7 +239,7 @@ def test_wait_polls_until_completed(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     handler = _status_sequence("running", "running", "completed")
-    rc = runs_cmd.handle_wait(_wait_args(), api_client(handler))
+    rc = runs_stream_cmd.handle_wait(_wait_args(), api_client(handler))
     assert rc == 0
     out = capsys.readouterr().out
     # One line per status change, not per poll.
@@ -238,14 +255,16 @@ def test_wait_exit_codes_reflect_terminal_status() -> None:
         ("paused", 6),
     ):
         handler = _status_sequence(status)
-        rc = runs_cmd.handle_wait(_wait_args(), api_client(handler))
+        rc = runs_stream_cmd.handle_wait(_wait_args(), api_client(handler))
         assert rc == expected, status
 
 
 def test_wait_times_out_with_exit_124() -> None:
     handler = _status_sequence("running")
     with pytest.raises(CliError) as excinfo:
-        runs_cmd.handle_wait(_wait_args(max_wait=0.05), api_client(handler))
+        runs_stream_cmd.handle_wait(
+            _wait_args(max_wait=0.05), api_client(handler)
+        )
     assert excinfo.value.exit_code == 124
 
 
@@ -253,7 +272,9 @@ def test_wait_json_emits_final_run_only(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     handler = _status_sequence("running", "completed")
-    rc = runs_cmd.handle_wait(_wait_args(as_json=True), api_client(handler))
+    rc = runs_stream_cmd.handle_wait(
+        _wait_args(as_json=True), api_client(handler)
+    )
     assert rc == 0
     out = capsys.readouterr().out
     assert out.count('"status"') == 1
@@ -345,7 +366,7 @@ def test_ask_question_from_stdin(
 
     monkeypatch.setattr("sys.stdin", io.StringIO("why?\n"))
     args = argparse.Namespace(run_id="r1", question="-", json=False)
-    assert runs_cmd.handle_ask(args, api_client(handler)) == 0
+    assert runs_stream_cmd.handle_ask(args, api_client(handler)) == 0
     assert questions == ["why?"]
 
 
@@ -403,21 +424,21 @@ def test_version_flag_prints_and_exits_zero(
 def test_parser_wires_new_commands() -> None:
     parser = cli_main.build_parser()
     wait_args = parser.parse_args(["runs", "wait", "r1"])
-    assert wait_args.handler is runs_cmd.handle_wait
+    assert wait_args.handler is runs_stream_cmd.handle_wait
     assert wait_args.interval == 2.0
     assert wait_args.max_wait is None
     create_args = parser.parse_args(["runs", "create", "goal", "--start"])
     assert create_args.start is True
     for command, handler in (
-        (["runs", "matches", "r1"], cli_runs_collections_cmd.handle_matches),
+        (["runs", "matches", "r1"], cli_runs_collections_cmd.handle_collection),
         (
             ["runs", "proximity", "r1"],
-            cli_runs_collections_cmd.handle_proximity,
+            cli_runs_collections_cmd.handle_collection,
         ),
-        (["runs", "metrics", "r1"], runs_cmd.handle_metrics),
+        (["runs", "metrics", "r1"], cli_runs_collections_cmd.handle_metrics),
         (
             ["runs", "claim-evidence", "r1"],
-            cli_runs_collections_cmd.handle_claim_evidence,
+            cli_runs_collections_cmd.handle_collection,
         ),
         (["runs", "demo"], runs_cmd.handle_demo),
         (["config"], status_cmd.handle_config),

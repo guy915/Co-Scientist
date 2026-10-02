@@ -9,7 +9,7 @@ from typing import Any
 
 from Bio import Entrez
 
-from mcp_server.entrez import read_entrez as _entrez_read
+from mcp_server.entrez import read_entrez
 from mcp_server.entrez_rate_limit import entrez_call
 from mcp_server.models import Article
 from mcp_server.tools.text import clean_markup
@@ -49,7 +49,7 @@ def _fetch_pubmed_article(paper_id: str) -> Article:
             unexpected response structure; the caller treats any failure
             as a per-paper skip.
     """
-    paper_results = _entrez_read(
+    paper_results = read_entrez(
         entrez_call(Entrez.efetch, db="pubmed", id=paper_id)
     )
 

@@ -35,7 +35,7 @@ def entrez(monkeypatch: pytest.MonkeyPatch) -> Any:
             lambda *_a, **_k: None,
         )
         monkeypatch.setattr(
-            "mcp_server.tools.lit_review.pubmed_parsing._entrez_read",
+            "mcp_server.tools.lit_review.pubmed_parsing.read_entrez",
             lambda _handle: _canned(article),
         )
 

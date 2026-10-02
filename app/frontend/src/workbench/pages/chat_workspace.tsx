@@ -28,7 +28,7 @@ import {HomeStage} from './chat_home_stage';
 // The landing page under the home stage, split into its own chunk so the
 // chat home's first paint does not wait on it.
 const HomeLanding = lazy(() => import('./home_landing'));
-import {type StartedSession} from './chat_timeline_cards';
+import {type StartedSession} from './chat_timeline_started_card';
 import {type TimelineItem} from './chat_workspace_timeline';
 import {
   ConversationView,

@@ -1,10 +1,8 @@
 import {useCallback, useRef, useState} from 'react';
 import {type Interview, type StagedDocument} from '@/api/runs';
 import {type InferredRunSpec} from '../run_spec';
-import {
-  type ChatEntry,
-  type StartedSession,
-} from '../pages/chat_timeline_cards';
+import {type ChatEntry} from '../pages/chat_timeline_bubble';
+import {type StartedSession} from '../pages/chat_timeline_started_card';
 import {type DraftIntro, type SpecStage} from './chat_session_types';
 
 /**

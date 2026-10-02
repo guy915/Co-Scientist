@@ -18,7 +18,7 @@ is what turns that into a first-attempt success.
 
 from typing import Any
 
-from co_scientist.llm.structured.validate import _prune_unknown_properties
+from co_scientist.llm.structured.validate import reshape_json_output
 
 _CLOSED_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -51,7 +51,7 @@ def test_prune_drops_invented_top_level_properties() -> None:
         "research_contacts": ["someone"],
     }
 
-    _prune_unknown_properties(obj, _CLOSED_SCHEMA)
+    reshape_json_output(obj, _CLOSED_SCHEMA)
 
     assert obj == {"summary": "ok"}
 
@@ -62,7 +62,7 @@ def test_prune_recurses_into_nested_objects() -> None:
         "assessment": {"verdict": "holds", "confidence": 0.9}
     }
 
-    _prune_unknown_properties(obj, _CLOSED_SCHEMA)
+    reshape_json_output(obj, _CLOSED_SCHEMA)
 
     assert obj == {"assessment": {"verdict": "holds"}}
 
@@ -71,7 +71,7 @@ def test_prune_recurses_into_arrays_of_objects() -> None:
     """Array items are pruned against the array's item schema."""
     obj: dict[str, Any] = {"items": [{"title": "a", "rank": 1}, {"title": "b"}]}
 
-    _prune_unknown_properties(obj, _CLOSED_SCHEMA)
+    reshape_json_output(obj, _CLOSED_SCHEMA)
 
     assert obj == {"items": [{"title": "a"}, {"title": "b"}]}
 
@@ -84,7 +84,7 @@ def test_prune_keeps_extras_where_the_schema_allows_them() -> None:
     }
     obj: dict[str, Any] = {"summary": "ok", "extra": 1}
 
-    _prune_unknown_properties(obj, schema)
+    reshape_json_output(obj, schema)
 
     assert obj == {"summary": "ok", "extra": 1}
 
@@ -93,12 +93,12 @@ def test_prune_keeps_declared_fields_even_when_invalid() -> None:
     """Only unknown names are pruned; a wrong value is validation's job."""
     obj: dict[str, Any] = {"summary": 42}
 
-    _prune_unknown_properties(obj, _CLOSED_SCHEMA)
+    reshape_json_output(obj, _CLOSED_SCHEMA)
 
     assert obj == {"summary": 42}
 
 
 def test_prune_noop_for_non_dict_inputs() -> None:
     """Non-dict payloads and non-dict schemas are silently ignored."""
-    _prune_unknown_properties(["not", "a", "dict"], _CLOSED_SCHEMA)
-    _prune_unknown_properties({"a": 1}, "not a schema")  # no exception == pass
+    reshape_json_output(["not", "a", "dict"], _CLOSED_SCHEMA)
+    reshape_json_output({"a": 1}, "not a schema")  # no exception == pass

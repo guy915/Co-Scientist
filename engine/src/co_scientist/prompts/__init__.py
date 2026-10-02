@@ -38,7 +38,6 @@ from co_scientist.prompts.generation_tools import build_tool_instructions
 from co_scientist.prompts.generation_validation import (
     ValidationSynthesisRequest,
     get_hypothesis_novelty_analysis_prompt,
-    get_hypothesis_validation_synthesis_prompt,
     get_validation_synthesis_prompt_with_tools,
 )
 from co_scientist.prompts.knowledge_base import (
@@ -51,7 +50,6 @@ from co_scientist.prompts.literature import (
     get_hypothesis_query_generation_prompt,
     get_literature_review_paper_analysis_prompt,
     get_literature_review_query_generation_prompt,
-    get_literature_review_query_generation_pubmed_prompt,
     get_literature_review_relevance_batch_prompt,
     get_literature_review_synthesis_prompt,
 )
@@ -113,12 +111,10 @@ __all__ = [
     "get_draft_prompt_with_tools",
     "get_hypothesis_novelty_analysis_prompt",
     "get_hypothesis_query_generation_prompt",
-    "get_hypothesis_validation_synthesis_prompt",
     "get_knowledge_base_outline_prompt",
     "get_knowledge_base_theme_prompt",
     "get_literature_review_paper_analysis_prompt",
     "get_literature_review_query_generation_prompt",
-    "get_literature_review_query_generation_pubmed_prompt",
     "get_literature_review_relevance_batch_prompt",
     "get_literature_review_synthesis_prompt",
     "get_meta_review_prompt",

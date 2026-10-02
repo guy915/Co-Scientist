@@ -189,9 +189,7 @@ def _drive_run(run_id: str, db_path: str) -> int:
     """
     from app import store, task_worker
 
-    task_worker.enqueue_run_workflow(
-        run_id, force_provider="engine", db_path=db_path
-    )
+    task_worker.enqueue_run_workflow(run_id, db_path=db_path)
     asyncio.run(
         task_worker.run_run_worker_pool(
             run_id,

@@ -4,7 +4,7 @@ import {
   type Interview,
   type InterviewSinks,
 } from '@/api/runs';
-import {type ChatEntry} from '../pages/chat_timeline_cards';
+import {type ChatEntry} from '../pages/chat_timeline_bubble';
 import {announceChatsChanged} from './chat_history_context';
 import {emitDiagnosticEvent} from './chat_session_helpers';
 import {

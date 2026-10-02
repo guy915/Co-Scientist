@@ -37,138 +37,40 @@ def _extract_abstract_text(soup: BeautifulSoup) -> str:
     return abstract_text
 
 
-def _direct_section_paragraphs(section: Tag) -> list[str]:
-    """Collects paragraph text found directly within a section.
-
-    Args:
-        section: A top-level ``<sec>`` tag to scan.
-
-    Returns:
-        List of non-empty paragraph text strings found as direct children
-        of the section, excluding any nested subsections.
-    """
-    body_paragraphs = []
-    for p in section.find_all("p", recursive=False):
-        text = p.get_text(strip=True)
-        if text:
-            body_paragraphs.append(text)
-    return body_paragraphs
-
-
-_NON_CONTAINER_CHILD_NAMES = ("sec", "title", "label")
-
-
-def _as_paragraph_container(child: object) -> Tag | None:
-    """Narrows a section child to a Tag if it may hold nested paragraphs.
-
-    Excludes ``sec`` children (subsections, handled separately) and
-    ``title``/``label`` (already consumed as the heading).
-
-    Args:
-        child: One child node of a top-level ``<sec>`` tag.
-
-    Returns:
-        ``child`` itself if it is a tag that may contain nested
-        paragraphs, else None.
-    """
-    if isinstance(child, Tag) and child.name not in _NON_CONTAINER_CHILD_NAMES:
-        return child
-    return None
-
-
-def _nested_container_paragraphs(section: Tag) -> list[str]:
-    """Collects paragraph text from non-section child containers.
-
-    Catches ``<p>`` tags wrapped one level deeper in a non-``<sec>``
-    container (e.g. a boxed text or supplementary block) that a direct,
-    non-recursive scan would miss.
-
-    Args:
-        section: A top-level ``<sec>`` tag whose children are scanned.
-
-    Returns:
-        List of non-empty paragraph text strings found in those children.
-    """
-    body_paragraphs = []
-    for child in section.children:
-        container = _as_paragraph_container(child)
-        if container is None:
-            continue
-        for p in container.find_all("p"):
-            text = p.get_text(strip=True)
-            if text:
-                body_paragraphs.append(text)
-    return body_paragraphs
-
-
-def _extract_section_text(section: Tag) -> list[str]:
-    """Collects the direct-paragraph text of one top-level ``<sec>``.
-
-    Args:
-        section: A top-level ``<sec>`` tag (its immediate parent is not
-            itself a ``<sec>``).
-
-    Returns:
-        List of paragraph text strings found directly within the section,
-        excluding any nested subsections.
-    """
-    body_paragraphs = _direct_section_paragraphs(section)
-    body_paragraphs.extend(_nested_container_paragraphs(section))
-    return body_paragraphs
-
-
-def _build_section_block(section: Tag) -> str | None:
-    """Builds a markdown "## heading" block for one top-level section.
-
-    Args:
-        section: Candidate ``<sec>`` tag; skipped (returns None) if it is
-            a nested subsection (its immediate parent is itself a
-            ``<sec>``) or has no body paragraphs.
-
-    Returns:
-        Markdown block for the section, or None if it should be skipped.
-    """
-    # Only process top-level sections: a <sec> whose immediate parent is
-    # itself a <sec> is a subsection and is skipped here, so only
-    # sections attached directly to <body> (or another non-<sec>
-    # container) become their own "## heading" block.
-    parent = section.parent
-    if parent is None or parent.name == "sec":
-        return None
-
-    body_paragraphs = _extract_section_text(section)
-    if not body_paragraphs:
-        return None
-
-    heading = section.find(["title", "label"])
-    heading_text = heading.get_text(strip=True) if heading else "section"
-    content = "\n\n".join(body_paragraphs)
-    return f"## {heading_text}\n\n{content}"
-
-
 def _extract_body_sections(soup: BeautifulSoup) -> list[str]:
-    """Extracts each top-level body section as a markdown "## heading" block.
+    """Renders top-level sections, including paragraphs in boxed containers.
+
+    Direct paragraphs precede container paragraphs; nested sections are
+    excluded, matching the PMC corpus format consumed by the engine.
 
     Args:
-        soup: Parsed PMC document (JATS XML) with back-matter tags already
-            removed.
+        soup: Parsed JATS document with clutter removed.
 
     Returns:
-        List of markdown blocks, one per top-level section that has
-        content, in document order.
+        Markdown section blocks in document order.
     """
     body = soup.find("body")
     if not body:
         return []
-
     sections = []
-    # find_all with recursive=True returns every <sec> at any depth,
-    # including nested subsections; _build_section_block filters this
-    # down to top-level sections only.
-    for section in body.find_all("sec", recursive=True):
-        block = _build_section_block(section)
-        if block:
-            sections.append(block)
+    for section in body.find_all("sec"):
+        if section.parent is None or section.parent.name == "sec":
+            continue
+        paragraphs = list(section.find_all("p", recursive=False))
+        paragraphs.extend(
+            p
+            for child in section.children
+            if isinstance(child, Tag)
+            and child.name not in ("sec", "title", "label")
+            for p in child.find_all("p")
+        )
+        content = "\n\n".join(
+            text for p in paragraphs if (text := p.get_text(strip=True))
+        )
+        if content:
+            heading = section.find(["title", "label"])
+            title = heading.get_text(strip=True) if heading else "section"
+            sections.append(f"## {title}\n\n{content}")
     return sections
 
 
@@ -216,59 +118,10 @@ def _fallback_extract_text(html_content: str, max_chars: int) -> str:
     try:
         soup = BeautifulSoup(html_content, "lxml-xml")
         text = soup.get_text(separator="\n", strip=True)
-        if len(text) > max_chars:
-            text = text[:max_chars] + "\n\n[... truncated for length ...]"
-        return text
+        return truncate_markdown(text, max_chars)
     except Exception as fallback_error:
         logger.error("Fallback text extraction also failed: %s", fallback_error)
         return "[error: could not extract text from HTML]"
-
-
-def _strip_pmc_clutter(soup: BeautifulSoup) -> None:
-    """Removes non-content PMC tags from a parsed document in place.
-
-    Args:
-        soup: Parsed PMC document (JATS XML) to prune. "back" holds trailing
-            matter (references/notes container), "ref-list" is the
-            bibliography, "ack" is acknowledgments, "fn-group" is footnotes,
-            and "fig"/"table-wrap" are figure/table containers whose captions
-            are not useful as plain text and whose images cannot be rendered
-            here.
-    """
-    for tag in soup.find_all(
-        ["back", "ref-list", "ack", "fn-group", "fig", "table-wrap"]
-    ):
-        tag.decompose()
-
-
-def _pmc_html_to_markdown(html_content: str, max_chars: int) -> str:
-    """Converts well-formed PMC JATS XML to truncated markdown.
-
-    Args:
-        html_content: Raw PMC HTML/XML content, assumed well-formed JATS.
-        max_chars: Maximum characters to return (truncate if exceeded).
-
-    Returns:
-        Markdown text with the abstract and top-level body sections,
-        truncated to ``max_chars``.
-    """
-    # PMC fulltext is JATS XML (a specific article-tag vocabulary), so
-    # parse with the lxml-xml parser rather than an HTML parser.
-    soup = BeautifulSoup(html_content, "lxml-xml")
-    _strip_pmc_clutter(soup)
-
-    abstract_text = _extract_abstract_text(soup)
-    sections = _extract_body_sections(soup)
-
-    # Combine abstract and body
-    parts = []
-    if abstract_text:
-        parts.append(f"# abstract\n\n{abstract_text}")
-
-    parts.extend(sections)
-
-    markdown = "\n\n".join(parts)
-    return truncate_markdown(markdown, max_chars)
 
 
 def extract_text_from_pmc_html(
@@ -296,7 +149,17 @@ def extract_text_from_pmc_html(
         Markdown-formatted text ready for LLM consumption.
     """
     try:
-        return _pmc_html_to_markdown(html_content, max_chars)
+        soup = BeautifulSoup(html_content, "lxml-xml")
+        for tag in soup.find_all(
+            ["back", "ref-list", "ack", "fn-group", "fig", "table-wrap"]
+        ):
+            tag.decompose()
+        parts = []
+        abstract = _extract_abstract_text(soup)
+        if abstract:
+            parts.append(f"# abstract\n\n{abstract}")
+        parts.extend(_extract_body_sections(soup))
+        return truncate_markdown("\n\n".join(parts), max_chars)
     except Exception as e:
         # Structured extraction above assumes well-formed JATS XML; if the
         # document deviates (malformed XML, unexpected schema) fall back to

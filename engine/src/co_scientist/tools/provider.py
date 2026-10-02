@@ -97,9 +97,7 @@ class MCPToolProvider:
         if tool_name not in self._tool_names:
             error_msg = f"unknown tool: {tool_name}"
             logger.error(error_msg)
-            return self._create_error_response(
-                tool_name, tool_call_id, error_msg
-            )
+            return tool_error_message(tool_name, tool_call_id, error_msg)
 
         try:
             # Defensive: _tool_names is only populated when a client exists,
@@ -114,9 +112,7 @@ class MCPToolProvider:
             # tool-calling loop.
             error_msg = f"tool execution failed: {e!s}"
             logger.error("%s error: %s", tool_name, error_msg)
-            return self._create_error_response(
-                tool_name, tool_call_id, error_msg
-            )
+            return tool_error_message(tool_name, tool_call_id, error_msg)
 
     # Used by the draft and validate literature-tools agents (each passes its
     # own phase label, e.g. "Draft") to log and cap per-tool call volume
@@ -136,20 +132,3 @@ class MCPToolProvider:
             updated in place as the executor runs.
         """
         return track_calls(self, label)
-
-    # Shape matches the OpenAI/LiteLLM "tool" role message so downstream
-    # code can treat error responses the same as successful tool results.
-    def _create_error_response(
-        self, tool_name: str, tool_call_id: str, error_msg: str
-    ) -> dict[str, Any]:
-        """Create error response message for failed tool call.
-
-        Args:
-            tool_name: name of tool that failed
-            tool_call_id: tool call ID
-            error_msg: error message
-
-        Returns:
-            tool response message dict with error
-        """
-        return tool_error_message(tool_name, tool_call_id, error_msg)

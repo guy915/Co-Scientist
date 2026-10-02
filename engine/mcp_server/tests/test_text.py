@@ -9,6 +9,7 @@ Whatever the encoding, an agent reading a record must see plain text.
 from typing import Any
 
 import pytest
+from mcp_server.text_extraction import extract_text_from_pmc_html
 from mcp_server.tools.text import clean_markup
 
 
@@ -66,3 +67,26 @@ def test_clean_markup_leaves_comparisons_intact() -> None:
     raw = "significant at p&lt;0.05 while A&gt;B held"
 
     assert clean_markup(raw) == "significant at p<0.05 while A>B held"
+
+
+@pytest.mark.parametrize("max_chars", [0, 25, 200_000])
+def test_pmc_sections_preserve_the_corpus_format(max_chars: int) -> None:
+    """PMC keeps abstracts, sections, and boxed paragraphs without clutter."""
+    article = """<article>
+        <abstract><p>Abstract one.</p><p>Abstract two.</p></abstract>
+        <body><sec><title>Methods</title>
+            <p>First.</p><boxed-text><p>Boxed.</p></boxed-text><p>Second.</p>
+            <sec><title>Nested</title><p>Subsection.</p></sec>
+            <fig><p>Figure caption.</p></fig>
+            <table-wrap><p>Table caption.</p></table-wrap>
+        </sec><sec><label>Conclusion</label><p>Done.</p></sec></body>
+        <back><p>References.</p></back>
+    </article>"""
+    expected = (
+        "# abstract\n\nAbstract one.\n\nAbstract two.\n\n"
+        "## Methods\n\nFirst.\n\nSecond.\n\nBoxed.\n\n"
+        "## Conclusion\n\nDone."
+    )
+    if len(expected) > max_chars:
+        expected = expected[:max_chars] + "\n\n[... truncated for length ...]"
+    assert extract_text_from_pmc_html(article, max_chars) == expected

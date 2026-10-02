@@ -14,9 +14,6 @@ returns an append update with lineage and degraded grounding applied. Callers
 own strategy execution, failure policy, metrics, and state commits.
 """
 
-from co_scientist.agents.generation.coordinator_results import (
-    GenerationResults,
-)
 from co_scientist.agents.generation.coordinator_strategy import (
     GenerationCounts,
 )
@@ -26,6 +23,7 @@ from co_scientist.agents.generation.literature_review import (
 )
 from co_scientist.agents.generation.operations import (
     GenerationPlan,
+    GenerationResults,
     finalize_generation,
     prepare_generation,
 )

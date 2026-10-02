@@ -1,7 +1,7 @@
 import {announceRunStart, isDraftStatus, isFailureStatus} from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
 import {RUNS_CHANGED_EVENT} from '../dom_events';
-import {type StartedSession} from '../pages/chat_timeline_cards';
+import {type StartedSession} from '../pages/chat_timeline_started_card';
 import {announceChatsChanged} from './chat_history_context';
 import {appendChatMessage, emitDiagnosticEvent} from './chat_session_helpers';
 import {beginTurnAbort, isAbortError} from './chat_session_handlers_shared';

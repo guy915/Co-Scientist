@@ -32,10 +32,8 @@ from co_scientist.prompts import (
     get_deep_verification_prompt,
     get_draft_prompt_with_tools,
     get_hypothesis_novelty_analysis_prompt,
-    get_hypothesis_validation_synthesis_prompt,
     get_literature_review_paper_analysis_prompt,
     get_literature_review_query_generation_prompt,
-    get_literature_review_query_generation_pubmed_prompt,
     get_literature_review_synthesis_prompt,
     get_reflection_prompt,
     get_research_overview_prompt,
@@ -149,8 +147,9 @@ def test_format_articles_metadata_empty_when_none_used() -> None:
 
 def test_pubmed_query_prompt_interpolates_goal_and_lists() -> None:
     """The PubMed query prompt embeds the goal and provided literature."""
-    prompt = get_literature_review_query_generation_pubmed_prompt(
+    prompt = get_literature_review_query_generation_prompt(
         research_goal="find biomarkers for sepsis",
+        source_type="pubmed",
         inputs=LiteratureQueryInputs(
             user_literature=["Smith 2020 sepsis review"]
         ),
@@ -272,34 +271,6 @@ def test_novelty_analysis_prompt_interpolates_metadata() -> None:
     # which is a template-escaping quirk independent of the builder's inputs.)
     for var in ("hypothesis_text", "title", "authors", "year", "fulltext"):
         assert f"{{{{MISSING:{var}}}}}" not in prompt
-
-
-def test_validation_synthesis_prompt_renders_drafts_no_schema() -> None:
-    """The (no-tools) validation synthesis builder returns a filled str."""
-    prompt = get_hypothesis_validation_synthesis_prompt(
-        research_goal="reduce tumor metastasis",
-        hypotheses_with_analyses=[
-            {
-                "draft": {
-                    "text": "block CXCR4 signaling",
-                    "gap_reasoning": "under-studied in metastasis",
-                    "literature_sources": "[C1]",
-                },
-                "novelty_analyses": [
-                    {
-                        "paper_metadata": {
-                            "title": "CXCR4 in cancer",
-                            "year": 2020,
-                        },
-                        "analysis": {"novelty_assessment": "complementary"},
-                    }
-                ],
-            }
-        ],
-    )
-    assert isinstance(prompt, str)
-    assert "reduce tumor metastasis" in prompt
-    assert "block CXCR4 signaling" in prompt
 
 
 def test_validation_synthesis_with_tools_returns_schema() -> None:
