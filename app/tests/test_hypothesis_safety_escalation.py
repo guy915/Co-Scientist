@@ -42,19 +42,18 @@ def _qualified_model_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
     from co_scientist.llm.admission import free_catalog
 
     monkeypatch.setattr(settings, "semantic_safety_model", _MODEL)
-    monkeypatch.setattr(free_catalog, "_snapshot", None)
-    monkeypatch.setattr(
-        free_catalog,
-        "_fetch_catalog",
-        lambda: {
-            "test/safety:free": {
-                "pricing": {"prompt": "0", "completion": "0"},
-                "architecture": {
-                    "input_modalities": ["text"],
-                    "output_modalities": ["text"],
-                },
+    free_catalog.install_catalog_reader(
+        free_catalog.CatalogReader(
+            lambda: {
+                "test/safety:free": {
+                    "pricing": {"prompt": "0", "completion": "0"},
+                    "architecture": {
+                        "input_modalities": ["text"],
+                        "output_modalities": ["text"],
+                    },
+                }
             }
-        },
+        )
     )
 
 

@@ -174,6 +174,7 @@ async def test_worker_consumes_independent_specialist_task_chain(
     _patch_generator(monkeypatch, generator, restore=True, screen=True)
 
     successors = {"supervisor": "research_overview", "research_overview": None}
+    finalized: list[str] = []
 
     async def execute(
         name: str, state: dict[str, Any]
@@ -181,12 +182,18 @@ async def test_worker_consumes_independent_specialist_task_chain(
         return state, successors[name]
 
     async def finalize(task: Any, **_: Any) -> dict[str, Any]:
+        finalized.append(task.run_id)
         store.update_run_status(task.run_id, store.RunStatus.COMPLETED)
         return {"run_id": task.run_id, "status": "completed"}
 
     _patch_task_node(monkeypatch, execute)
-    monkeypatch.setattr(engine_tasks, "execute_finalize", finalize)
+    monkeypatch.setitem(
+        engine_tasks._ENGINE_TASK_DISPATCH,
+        engine_tasks_support.FINALIZE_TASK,
+        finalize,
+    )
     await task_worker.run_run_until_idle(run.id, "worker", db_path=isolated_db)
+    assert finalized == [run.id]
 
     tasks = store.list_tasks(run.id, db_path=isolated_db)
     # Bootstrap's real commit plans its own portfolio (finding F4) from the

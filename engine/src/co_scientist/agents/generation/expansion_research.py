@@ -35,15 +35,15 @@ from __future__ import annotations
 import logging
 from typing import Any, NamedTuple
 
-from co_scientist.agents.generation.literature_review.helpers import (
-    build_articles_from_metadata,
-)
-from co_scientist.agents.generation.literature_review.research_phase import (
-    records_from_findings,
-)
 from co_scientist.agents.generation.research_expansion import (
     explored_hypothesis_summaries,
     is_research_expansion,
+)
+from co_scientist.evidence.helpers import (
+    build_articles_from_metadata,
+)
+from co_scientist.evidence.research_records import (
+    records_from_findings,
 )
 from co_scientist.progress import emit_progress
 from co_scientist.research import (
@@ -189,8 +189,8 @@ async def _prepare(
     Returns:
         The retrieval port and its budget, or None.
     """
-    from co_scientist.agents.generation.literature_review.run_config import (
-        _get_search_config,
+    from co_scientist.evidence.run_config import (
+        search_config_for,
     )
 
     tier = str(state.get("research_tier") or "")
@@ -198,7 +198,7 @@ async def _prepare(
         return None
     if not state.get("mcp_available"):
         return None
-    config = _get_search_config(state)
+    config = search_config_for(state)
     if config.workflow is None or config.tool_registry is None:
         return None
     retrieval = ResearchRetrieval(await _remote_for(state, config))

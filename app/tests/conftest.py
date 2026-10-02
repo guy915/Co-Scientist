@@ -71,7 +71,7 @@ def _offline_router() -> None:
 
 
 @pytest.fixture(autouse=True)
-def _free_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
+def _free_catalog(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     """Synthetic metadata keeps mocked free-model requests hermetic."""
     from co_scientist.constants.pricing import MODEL_PRICING
     from co_scientist.llm.admission import free_catalog
@@ -91,8 +91,10 @@ def _free_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
         if model.startswith("openrouter/")
     }
     monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
-    monkeypatch.setattr(free_catalog, "_snapshot", None)
-    monkeypatch.setattr(free_catalog, "_fetch_catalog", lambda: catalog)
+    with free_catalog.using_catalog_reader(
+        free_catalog.CatalogReader(lambda: catalog)
+    ):
+        yield
 
 
 def _apply_offline_env(

@@ -16,12 +16,12 @@ from typing import Any, cast
 
 import pytest
 
-from co_scientist.agents.generation.literature_review.helpers import (
-    SearchConfig,
-)
 from co_scientist.agents.generation.literature_review.research_phase import (
     _seed_questions,
     run_research_phase,
+)
+from co_scientist.evidence.helpers import (
+    SearchConfig,
 )
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.research import result_from_dict

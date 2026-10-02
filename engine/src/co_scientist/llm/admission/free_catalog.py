@@ -2,6 +2,8 @@
 
 import threading
 import time
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -13,20 +15,41 @@ from co_scientist.llm.profile import promotional_free_route
 
 CATALOG_URL = "https://openrouter.ai/api/v1/models"
 CATALOG_TTL_SECONDS = 60
-_lock = threading.Lock()
-_snapshot: tuple[float, dict[str, Any]] | None = None
 
 
-def current_catalog() -> dict[str, Any]:
-    """Read metadata off the event loop; never reuse an expired snapshot."""
-    global _snapshot
-    with _lock:
-        if _snapshot is not None and time.monotonic() < _snapshot[0]:
-            return _snapshot[1]
-        _snapshot = None
-        catalog = _fetch_catalog()
-        _snapshot = (time.monotonic() + CATALOG_TTL_SECONDS, catalog)
-        return catalog
+class CatalogReader:
+    """A metadata source with one cache shared across worker event loops.
+
+    Inject the synchronous loader when constructing a reader. Each reader
+    owns its snapshot and threading lock; replacing one cannot carry prices
+    from its predecessor into the new source. Loaders run off the event loop.
+    """
+
+    def __init__(
+        self, loader: Callable[[], dict[str, Any]] | None = None
+    ) -> None:
+        """Use OpenRouter's public metadata unless a loader is supplied."""
+        self._loader = loader if loader is not None else _fetch_catalog
+        self._lock = threading.Lock()
+        self._snapshot: tuple[float, dict[str, Any]] | None = None
+
+    def read(self) -> dict[str, Any]:
+        """Fetch fresh metadata, withholding an expired snapshot on failure."""
+        with self._lock:
+            if (
+                self._snapshot is not None
+                and time.monotonic() < self._snapshot[0]
+            ):
+                return self._snapshot[1]
+            self._snapshot = None
+            catalog = self._loader()
+            self._snapshot = (time.monotonic() + CATALOG_TTL_SECONDS, catalog)
+            return catalog
+
+    def invalidate(self) -> None:
+        """Require the next read to refresh metadata from this source."""
+        with self._lock:
+            self._snapshot = None
 
 
 def _fetch_catalog() -> dict[str, Any]:
@@ -42,6 +65,38 @@ def _fetch_catalog() -> dict[str, Any]:
         raise FreeModelEligibilityError(
             "zero-cost catalog unavailable or invalid"
         ) from exc
+
+
+# Installed once for all worker threads, like the completion backend. A
+# ContextVar would make a source installed on the API loop invisible to them.
+_reader = CatalogReader()
+
+
+def current_catalog() -> dict[str, Any]:
+    """Read the installed source off the event loop; never use stale prices."""
+    return _reader.read()
+
+
+def install_catalog_reader(reader: CatalogReader) -> CatalogReader:
+    """Install a process-wide reader and return its predecessor."""
+    global _reader
+    previous, _reader = _reader, reader
+    return previous
+
+
+@contextmanager
+def using_catalog_reader(reader: CatalogReader) -> Iterator[None]:
+    """Use a source for a scope, restoring the prior reader on any exit."""
+    previous = install_catalog_reader(reader)
+    try:
+        yield
+    finally:
+        install_catalog_reader(previous)
+
+
+def invalidate_catalog() -> None:
+    """Require the installed reader to fetch fresh metadata next time."""
+    _reader.invalidate()
 
 
 def _is_zero(value: Any) -> bool:

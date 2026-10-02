@@ -83,7 +83,7 @@ LITERATURE_PAPER_ANALYSIS_SCHEMA: dict[str, Any] = {
 
 # Literature review semantic relevance schema (batched)
 # Imported directly by
-# agents/generation/literature_review/relevance.py, the model-judged half
+# evidence/relevance.py, the model-judged half
 # of the hybrid retrieval scorer (fidelity-audit G5): one call judges a
 # whole batch of candidates at once (see the module docstring in
 # relevance.py for the per-candidate-call incident this replaced), so

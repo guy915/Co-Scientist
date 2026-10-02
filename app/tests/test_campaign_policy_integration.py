@@ -118,11 +118,8 @@ async def test_recovered_campaign_blocks_paid_transport_while_byok_runs(
     monkeypatch.setattr(settings, "campaign_researcher_ids", {"campaign-user"})
     monkeypatch.setattr(settings, "byok_encryption_key", "encrypt-test-secret")
     monkeypatch.setitem(BYOK_PROVIDER_DEFAULT_MODELS, "openrouter", _PAID_MODEL)
-    monkeypatch.setattr(free_catalog, "_snapshot", None)
-    monkeypatch.setattr(
-        free_catalog,
-        "_fetch_catalog",
-        _paid_catalog,
+    free_catalog.install_catalog_reader(
+        free_catalog.CatalogReader(_paid_catalog)
     )
     sent: list[dict[str, Any]] = []
     monkeypatch.setattr(litellm, "acompletion", _transport_spy(sent))
@@ -215,19 +212,18 @@ async def test_recovered_new_campaign_sends_zero_price_stealth_request(
     monkeypatch.setattr(
         runs_crud, "_populate_goal_restatement", _no_background_model
     )
-    monkeypatch.setattr(free_catalog, "_snapshot", None)
-    monkeypatch.setattr(
-        free_catalog,
-        "_fetch_catalog",
-        lambda: {
-            "stealth/space-bunny-alpha": {
-                "pricing": {"prompt": "0", "completion": "0"},
-                "architecture": {
-                    "input_modalities": ["text"],
-                    "output_modalities": ["text"],
-                },
+    free_catalog.install_catalog_reader(
+        free_catalog.CatalogReader(
+            lambda: {
+                "stealth/space-bunny-alpha": {
+                    "pricing": {"prompt": "0", "completion": "0"},
+                    "architecture": {
+                        "input_modalities": ["text"],
+                        "output_modalities": ["text"],
+                    },
+                }
             }
-        },
+        )
     )
     sent: list[dict[str, Any]] = []
     monkeypatch.setattr(litellm, "acompletion", _transport_spy(sent))

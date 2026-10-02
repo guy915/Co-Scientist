@@ -32,19 +32,18 @@ async def test_durable_auxiliary_admission_with_stored_credential(
 
     monkeypatch.setattr(settings, "byok_encryption_key", "campaign-test-secret")
     monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
-    monkeypatch.setattr(free_catalog, "_snapshot", None)
-    monkeypatch.setattr(
-        free_catalog,
-        "_fetch_catalog",
-        lambda: {
-            "campaign/free:free": {
-                "pricing": {"prompt": "0", "completion": "0"},
-                "architecture": {
-                    "input_modalities": ["text"],
-                    "output_modalities": ["text"],
-                },
+    free_catalog.install_catalog_reader(
+        free_catalog.CatalogReader(
+            lambda: {
+                "campaign/free:free": {
+                    "pricing": {"prompt": "0", "completion": "0"},
+                    "architecture": {
+                        "input_modalities": ["text"],
+                        "output_modalities": ["text"],
+                    },
+                }
             }
-        },
+        )
     )
     run = store.create_run(
         "public research",

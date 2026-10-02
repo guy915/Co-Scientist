@@ -14,34 +14,34 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Optional, cast
 
-from co_scientist.agents.generation.literature_review.search_fusion import (
+from co_scientist.evidence.search_fusion import (
     _DEFAULT_SOURCE_RRF_WEIGHT as _DEFAULT_SOURCE_RRF_WEIGHT,
 )
-from co_scientist.agents.generation.literature_review.search_fusion import (
+from co_scientist.evidence.search_fusion import (
     _RRF_K as _RRF_K,
 )
-from co_scientist.agents.generation.literature_review.search_fusion import (
+from co_scientist.evidence.search_fusion import (
     _SOURCE_RRF_WEIGHTS as _SOURCE_RRF_WEIGHTS,
 )
-from co_scientist.agents.generation.literature_review.search_fusion import (
+from co_scientist.evidence.search_fusion import (
     _duplicate_owner_id as _duplicate_owner_id,
 )
-from co_scientist.agents.generation.literature_review.search_fusion import (
+from co_scientist.evidence.search_fusion import (
     _normalize_rrf_pool as _normalize_rrf_pool,
 )
-from co_scientist.agents.generation.literature_review.search_fusion import (
+from co_scientist.evidence.search_fusion import (
     _normalize_title as _normalize_title,
 )
-from co_scientist.agents.generation.literature_review.search_fusion import (
+from co_scientist.evidence.search_fusion import (
     _rank_search_results as _rank_search_results,
 )
-from co_scientist.agents.generation.literature_review.search_fusion import (
+from co_scientist.evidence.search_fusion import (
     _rrf_position_score as _rrf_position_score,
 )
-from co_scientist.agents.generation.literature_review.search_fusion import (
+from co_scientist.evidence.search_fusion import (
     _source_rrf_weight as _source_rrf_weight,
 )
-from co_scientist.agents.generation.literature_review.search_fusion import (
+from co_scientist.evidence.search_fusion import (
     merge_search_results as merge_search_results,
 )
 
@@ -63,7 +63,7 @@ logger = logging.getLogger(__name__)
 class SearchConfig:
     """Configuration for literature review search."""
 
-    # Resolved once per node run by literature_review._get_search_config and
+    # Resolved once per node run by literature_review.search_config_for and
     # threaded through every phase, so call sites never re-derive config
     # from the raw ToolRegistry/WorkflowConfig repeatedly.
     tool_registry: Optional["ToolRegistry"]

@@ -16,7 +16,7 @@ from typing import Any
 
 import pytest
 
-from co_scientist.agents.generation.literature_review import relevance
+from co_scientist.evidence import relevance
 from co_scientist.offline import llm as offline_llm
 from tests._offline_helpers import isolate_offline_router
 

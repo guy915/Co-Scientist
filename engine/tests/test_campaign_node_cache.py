@@ -50,7 +50,7 @@ async def test_campaign_literature_node_does_not_replay_previous_review(
     cache.set(
         "literature_review",
         {"articles_with_reasoning": "previous paid review"},
-        **lr._literature_cache_params(state, lr._get_search_config(state)),
+        **lr._literature_cache_params(state, lr.search_config_for(state)),
     )
     previous = await lr.literature_review_node(state)
     assert previous["articles_with_reasoning"] == "previous paid review"

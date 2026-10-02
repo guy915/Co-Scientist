@@ -87,7 +87,7 @@ def parse_bool_env(value: str) -> bool:
     # that became plain strings when their YAML value was a substituted
     # ${VAR} (see ToolRegistry._parse_enabled_values in registry.py), and
     # imported by the cache package, prompts/loading.py, and
-    # agents/generation/literature_review/run_config.py for
+    # evidence/run_config.py for
     # COSCIENTIST_* env flags. Anything not in this allowlist, including an
     # empty string, parses as False.
     return value.lower() in ("true", "1", "yes", "on")

@@ -26,23 +26,23 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from co_scientist.agents.generation.literature_review.helpers import (
+from co_scientist.config.registry import ToolRegistry
+from co_scientist.config.workflow_schema import WorkflowConfig
+from co_scientist.constants import corpus_slug
+from co_scientist.evidence.errors import (
+    describe_exception,
+)
+from co_scientist.evidence.helpers import (
     build_content_config,
     normalize_search_response,
     parse_content_result,
 )
-from co_scientist.agents.generation.literature_review.outcomes import (
-    _describe_exc,
-)
-from co_scientist.agents.generation.literature_review.search_query import (
+from co_scientist.evidence.search_query import (
     _build_query_tool_params,
 )
-from co_scientist.agents.generation.literature_review.search_retry import (
+from co_scientist.evidence.search_retry import (
     _call_search_tool,
 )
-from co_scientist.config.registry import ToolRegistry
-from co_scientist.config.workflow_schema import WorkflowConfig
-from co_scientist.constants import corpus_slug
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.mcp_client.campaign import campaign_serves_tool
 from co_scientist.research import RetrievalError, SourceHit
@@ -157,7 +157,7 @@ class McpRetrieval:
                 self._client, tool_config.mcp_tool_name, params
             )
         except Exception as exc:
-            raise RetrievalError(source, _describe_exc(exc)) from exc
+            raise RetrievalError(source, describe_exception(exc)) from exc
         return self._to_hits(
             normalize_search_response(raw, tool_config), source, limit
         )
@@ -225,7 +225,7 @@ class McpRetrieval:
                 "Could not read %s via %s: %s",
                 locator,
                 config.mcp_tool_name,
-                _describe_exc(exc),
+                describe_exception(exc),
             )
             return None
         return parse_content_result(result)

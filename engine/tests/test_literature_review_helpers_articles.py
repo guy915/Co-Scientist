@@ -2,7 +2,7 @@
 
 Covers ``extract_source_name``, ``normalize_search_response``,
 ``build_article_from_metadata``, ``_build_article_url``, and
-``parse_year_from_metadata`` in ``literature_review.helpers``. The result and
+``parse_year_from_metadata`` in ``evidence.helpers``. The result and
 content parsing helpers are covered in
 ``test_literature_review_helpers_parsing``.
 
@@ -14,8 +14,8 @@ mocking.
 
 from typing import Any
 
-from co_scientist.agents.generation.literature_review import helpers
 from co_scientist.config.schema import ResponseFormat, ToolConfig
+from co_scientist.evidence import helpers
 from co_scientist.models import Article
 from tests._retrieval_config import make_tool_config
 

@@ -1,0 +1,163 @@
+// Generated from app.api_contracts; edit the backend models.
+
+export interface ClaimEvidenceRow {
+  id: number;
+  hypothesis_id: string;
+  claim: string;
+  label: string;
+  claim_role?: string;
+  supporting: (SupportSpan | string)[];
+  contradicting: (SupportSpan | string)[];
+  assessor: string;
+  verification_method?: string;
+}
+
+export interface Evidence {
+  id: string;
+  title: string;
+  source: string;
+  url: string;
+  authors: string[];
+  year: number | null;
+  abstract?: string;
+  available: boolean;
+  retracted: boolean;
+}
+
+export interface Hypothesis {
+  id: string;
+  run_id: string;
+  parent_id: string | null;
+  generation: number;
+  category: string | null;
+  title: string;
+  statement: string;
+  mechanism: string | null;
+  expected_effect: string | null;
+  experimental_context: string | null;
+  created_by_agent: string;
+  author?: string | null;
+  created_at: number;
+  elo_rating: number;
+  win_count: number;
+  loss_count: number;
+  novelty_score: number | null;
+  plausibility_score: number | null;
+  testability_score: number | null;
+  safety_status: string | null;
+  status: string | null;
+  cluster_id: string | null;
+  unverified?: boolean;
+  verification_verdict?: string | null;
+}
+
+export interface HypothesisOutcome {
+  id: string;
+  run_id: string;
+  hypothesis_id: string;
+  author: string;
+  recorded_at: number;
+  method_protocol: string;
+  conditions: string;
+  measured_observation: string;
+  units?: string | null;
+  controls: string;
+  interpretation: string;
+  referenced_evidence_ids: string[];
+  hypothesis_snapshot?: HypothesisSnapshot;
+  referenced_evidence?: ReferencedEvidence[];
+}
+
+export interface HypothesisOutcomeInput {
+  method_protocol: string;
+  conditions: string;
+  measured_observation: string;
+  units?: string;
+  controls: string;
+  interpretation: string;
+  referenced_evidence_ids: string[];
+}
+
+export interface HypothesisSnapshot {
+  title: string;
+  statement: string;
+}
+
+export interface MatchRow {
+  id: number;
+  iteration: number;
+  winner_id: string;
+  loser_id: string;
+  winner_elo_before: number;
+  winner_elo_after: number;
+  loser_elo_before: number;
+  loser_elo_after: number;
+  rationale: string;
+  tier: string | null;
+  debate_turns: number;
+  debate_transcript?: string | null;
+  created_at: number;
+}
+
+export interface ProximityEdge {
+  id: number;
+  run_id: string;
+  source_hypothesis_id: string;
+  target_hypothesis_id: string;
+  similarity: number;
+  degree: string | null;
+  cluster_id: string | null;
+  method: string | null;
+  version: string | null;
+  model: string | null;
+  updated_at: number | null;
+}
+
+export interface ReferencedEvidence {
+  id: string;
+  title: string;
+  source: string;
+  url: string | null;
+  doi?: string | null;
+  pmid?: string | null;
+  sha256?: string | null;
+}
+
+export interface Review {
+  id: number;
+  hypothesis_id: string;
+  reviewer_agent: string;
+  summary: string;
+  critique: string;
+  detail_json?: string | null;
+  novelty: number | null;
+  plausibility: number | null;
+  testability: number | null;
+  overall: number | null;
+}
+
+export interface SafetyDecision {
+  id: number;
+  stage: string;
+  decision: 'allow' | 'redact' | 'hold' | 'block';
+  reason: string;
+  matches: string[];
+  category?: string | null;
+  policy_version?: string | null;
+  risk_domains: string[];
+  requires_review: boolean;
+  assessor?: string | null;
+  resolution?: 'approved' | 'rejected' | null;
+  resolved_by?: string | null;
+  resolved_at?: number | null;
+}
+
+export interface SupportSpan {
+  evidence_id: string;
+  quote: string;
+  start?: number;
+  end?: number;
+  source?: string;
+  source_title?: string;
+  url: string;
+}

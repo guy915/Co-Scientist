@@ -54,6 +54,8 @@ from fastapi import (
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from app import store
+from app.api_contracts.responses import RunsResponse
+from app.api_contracts.runs import Run, RunWithSummary
 from app.runs import chat as runs_chat
 from app.runs import collections as runs_collections
 from app.runs import contrib as runs_contrib
@@ -75,11 +77,11 @@ router = APIRouter(prefix="/api/runs", tags=["runs"])
 # this router (a prefix-less sub-router cannot carry the empty "" paths),
 # in the original order: /demo before /{run_id} so the literal path keeps
 # winning route matching.
-router.post("")(runs_crud.create_run)
-router.get("")(runs_crud.list_runs)
-router.get("/demo")(runs_crud.list_demo_runs)
-router.get("/{run_id}")(runs_crud.get_run)
-router.patch("/{run_id}")(runs_crud.rename_run)
+router.post("", response_model=Run)(runs_crud.create_run)
+router.get("", response_model=RunsResponse)(runs_crud.list_runs)
+router.get("/demo", response_model=RunsResponse)(runs_crud.list_demo_runs)
+router.get("/{run_id}", response_model=RunWithSummary)(runs_crud.get_run)
+router.patch("/{run_id}", response_model=RunWithSummary)(runs_crud.rename_run)
 
 # Lifecycle endpoints (start/cancel/pause/resume) live in runs.lifecycle.
 router.include_router(runs_lifecycle.router)

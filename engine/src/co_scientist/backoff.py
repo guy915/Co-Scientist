@@ -3,7 +3,7 @@
 Two retry loops sleep before re-issuing a call a remote source pushed back
 on: the LLM attempt loop (``llm.attempts.retry``) and the
 literature search tool call
-(``agents/generation/literature_review/search_retry``). They wait on very
+(``evidence/search_retry``). They wait on very
 different scales -- a throttled LLM provider clears in seconds, a
 reconnecting MCP session in fractions of one -- so each keeps its own base
 and cap, but the schedule they draw from is one algorithm and lives here.

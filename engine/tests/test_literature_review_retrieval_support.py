@@ -1,7 +1,7 @@
 """Tests for the PDF-discovery config helpers.
 
 Covers the PDF-discovery half of the tool-resolution and paper-eligibility
-functions in ``literature_review.retrieval_support``: resolving a source's
+functions in ``evidence.retrieval_support``: resolving a source's
 (or the workflow default's) PDF-discovery tool config, building the
 per-source config maps, looking a paper's config up by its originating
 source, and filtering collected papers down to the ones eligible for
@@ -18,12 +18,12 @@ LLM, MCP, or network mocking is needed since this module does no I/O.
 import json
 from typing import Any, cast
 
-from co_scientist.agents.generation.literature_review import (
-    retrieval_support as rs,
-)
 from co_scientist.config.schema import (
     SearchSourceConfig,
     WorkflowConfig,
+)
+from co_scientist.evidence import (
+    retrieval_support as rs,
 )
 from tests._mcp import make_tool_lookup_registry as _registry
 from tests._retrieval_config import make_tool_config as _tool

@@ -150,7 +150,7 @@ def test_logs_endpoint_hides_noise_by_default(isolated_db: str) -> None:
     # engine WARNING still surfaces.
     _seed_from(
         isolated_db,
-        "co_scientist.agents.generation.literature_review.search",
+        "co_scientist.evidence.search",
         "Source pubmed: collected 3 papers",
     )
     _seed_from(

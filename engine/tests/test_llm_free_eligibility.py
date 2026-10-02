@@ -317,7 +317,7 @@ async def test_unknown_promotion_needs_explicit_ancillary_prices(
             "0",
         )
     )
-    monkeypatch.setattr(free_catalog, "_snapshot", None)
+    free_catalog.invalidate_catalog()
     await enforce_free_request(args)
     assert args["extra_body"]["provider"]["max_price"]["request"] == 0
 

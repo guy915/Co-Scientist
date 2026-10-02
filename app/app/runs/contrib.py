@@ -25,6 +25,7 @@ from app import (
     store,
     task_worker,
 )
+from app.api_contracts.science import HypothesisOutcome
 from app.auth import client_id, require_bearer_principal
 from app.config import settings
 from app.execution_policy import (
@@ -174,7 +175,11 @@ def _require_run_hypothesis(run_id: str, hypothesis_id: str) -> None:
         )
 
 
-@router.post("/{run_id}/hypotheses/{hypothesis_id}/outcomes", status_code=201)
+@router.post(
+    "/{run_id}/hypotheses/{hypothesis_id}/outcomes",
+    status_code=201,
+    response_model=HypothesisOutcome,
+)
 async def record_hypothesis_outcome(
     run_id: str,
     hypothesis_id: str,

@@ -271,7 +271,7 @@ DEFAULT_CACHE_ENABLED: Final = True
 caching).
 """
 
-# Selected in agents/generation/literature_review/run_config.py from the
+# Selected in evidence/run_config.py from the
 # run's dev_mode state (resolved at the generator boundary from opts or
 # COSCIENTIST_DEV_MODE); dev mode ignores any per-run override and always
 # uses the smaller _DEV budget for faster iteration.

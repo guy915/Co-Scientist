@@ -7,6 +7,9 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request, Response
 
 from app import store
+from app.api_contracts.reports import SharedGoalReport
+from app.api_contracts.responses import SharesResponse
+from app.api_contracts.runs import ReportShare
 from app.auth import client_id
 from app.evidence_chunking import parent_evidence_id
 from app.report import exclude_unsafe_hypotheses, released_claim_evidence
@@ -40,7 +43,7 @@ def _owned_run(run_id: str, request: Request) -> store.RunRow:
     return run
 
 
-@router.post("/api/runs/{run_id}/shares")
+@router.post("/api/runs/{run_id}/shares", response_model=ReportShare)
 async def create_share(run_id: str, request: Request) -> dict[str, Any]:
     """Enable public access by creating a unique revocable capability."""
     _owned_run(run_id, request)
@@ -49,7 +52,7 @@ async def create_share(run_id: str, request: Request) -> dict[str, Any]:
     return store.create_report_share(run_id, client_id(request))
 
 
-@router.get("/api/runs/{run_id}/shares")
+@router.get("/api/runs/{run_id}/shares", response_model=SharesResponse)
 async def list_shares(run_id: str, request: Request) -> dict[str, Any]:
     """List active share grants for an owned run."""
     _owned_run(run_id, request)
@@ -135,7 +138,7 @@ def _released_content(
     return hypotheses, released_evidence
 
 
-@router.get("/api/shared/{token}")
+@router.get("/api/shared/{token}", response_model=SharedGoalReport)
 async def get_shared_report(token: str) -> dict[str, Any]:
     """Return a read-only Goal Report for one active capability token."""
     share = store.resolve_report_share(token)

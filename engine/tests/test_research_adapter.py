@@ -103,8 +103,7 @@ async def test_a_broken_source_is_a_retrieval_error_naming_it(
 ) -> None:
     """An unreachable source has to reach the ledger as that source."""
     monkeypatch.setattr(
-        "co_scientist.agents.generation.literature_review."
-        "search_retry._search_retry_delay",
+        "co_scientist.evidence.search_retry._search_retry_delay",
         lambda attempt: 0.0,
     )
     client = FakeResearchClient(

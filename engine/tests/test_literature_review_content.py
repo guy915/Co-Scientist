@@ -19,10 +19,10 @@ from typing import Any, cast
 from co_scientist.agents.generation.literature_review import (
     content as lr_content,
 )
-from co_scientist.agents.generation.literature_review.helpers import (
+from co_scientist.config.schema import ToolConfig, WorkflowConfig
+from co_scientist.evidence.helpers import (
     ContentToolConfig,
 )
-from co_scientist.config.schema import ToolConfig, WorkflowConfig
 from co_scientist.mcp_client import MCPToolClient
 from tests._mcp import (
     FakeToolResultsClient,

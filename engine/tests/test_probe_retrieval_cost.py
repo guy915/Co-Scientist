@@ -15,11 +15,11 @@ from typing import Any
 
 import pytest
 
-from co_scientist.agents.generation.literature_review import search
-from co_scientist.agents.generation.literature_review.search_support import (
+from co_scientist.agents.reflection import deep_verification_evidence as dve
+from co_scientist.evidence import search
+from co_scientist.evidence.search_support import (
     SearchConfig,
 )
-from co_scientist.agents.reflection import deep_verification_evidence as dve
 from tests._state import make_state
 
 
@@ -116,13 +116,11 @@ async def test_probe_retrieval_opts_out_of_the_relevance_pass(
         return {}, {}
 
     monkeypatch.setattr(
-        "co_scientist.agents.generation.literature_review.orchestration"
-        "._phase2_collect_papers",
+        "co_scientist.evidence.collection.collect_papers",
         _collect,
     )
     monkeypatch.setattr(
-        "co_scientist.agents.generation.literature_review.run_config"
-        "._get_search_config",
+        "co_scientist.evidence.run_config.search_config_for",
         lambda state: _config(semantic_relevance_enabled=True),
     )
 

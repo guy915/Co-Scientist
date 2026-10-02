@@ -3,7 +3,7 @@
 Covers ``count_papers_with_fulltext``, ``parse_content_result``,
 ``get_paper_content_for_analysis``, ``parse_mcp_query_result``,
 ``merge_search_results``, and ``parse_pdf_discovery_result`` in
-``literature_review.helpers``. The article-building helpers are covered in
+``evidence.helpers``. The article-building helpers are covered in
 ``test_literature_review_helpers_articles``.
 
 The functions under test do no I/O: they parse content payloads, count fulltext
@@ -15,7 +15,7 @@ MCP, or network mocking.
 import json
 from typing import Any
 
-from co_scientist.agents.generation.literature_review import helpers
+from co_scientist.evidence import helpers
 
 # =============================================================================
 # count_papers_with_fulltext

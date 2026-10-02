@@ -23,7 +23,7 @@ so it never needs the axes to be on comparable scales.
 import logging
 from typing import Any
 
-from co_scientist.agents.generation.literature_review.article_support import (
+from co_scientist.evidence.article_support import (
     _metadata_is_retracted,
 )
 

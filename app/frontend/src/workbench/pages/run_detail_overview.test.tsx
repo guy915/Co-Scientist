@@ -46,3 +46,21 @@ it('shows the pre-synthesis placeholders when there is no data', () => {
   expect(screen.queryByText('Specific aims')).not.toBeInTheDocument();
   expect(screen.queryByText('Winning ideas')).not.toBeInTheDocument();
 });
+
+it('renders an old saved report without a leaderboard', () => {
+  render(
+    <ResearchOverviewView
+      run={makeRun()}
+      report={{
+        id: 'old-report',
+        run_id: 'run-1',
+        markdown_path: '',
+        created_at: 1,
+        payload: {},
+      }}
+      hypotheses={[makeHypothesis({id: 'h1', title: 'Saved idea'})]}
+      matches={[]}
+    />,
+  );
+  expect(screen.getByText('Saved idea')).toBeVisible();
+});

@@ -117,7 +117,7 @@ export function sectionDegraded(
 
 // An empty insights payload, so a degraded run with no insights object still
 // renders the section (heading + notice) without optional chaining below.
-const EMPTY_INSIGHTS: AgentInsights = {
+const EMPTY_INSIGHTS: Required<AgentInsights> = {
   key_findings: [],
   uncertainties: [],
   contradictions: [],
@@ -211,10 +211,15 @@ export function AgentInsightsSection({
   if (!insights && !degraded) return null;
   return (
     <AgentInsightsBody
-      content={insights ?? EMPTY_INSIGHTS}
+      content={completeInsights(insights ?? EMPTY_INSIGHTS)}
       degraded={degraded}
     />
   );
+}
+
+// Saved reports can carry an empty insights object; normalize once.
+function completeInsights(content: AgentInsights): Required<AgentInsights> {
+  return {...EMPTY_INSIGHTS, ...content};
 }
 
 // The section body over a guaranteed-present insights payload.
@@ -222,7 +227,7 @@ function AgentInsightsBody({
   content,
   degraded,
 }: {
-  content: AgentInsights;
+  content: Required<AgentInsights>;
   degraded: boolean;
 }) {
   return (

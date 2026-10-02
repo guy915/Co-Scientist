@@ -161,11 +161,11 @@ def test_europepmc_results_normalize_into_individual_papers() -> None:
     failing the whole literature review node with its retry budget spent
     on the identical failure.
     """
-    from co_scientist.agents.generation.literature_review.search_support import (  # noqa: E501
+    from co_scientist.config import ToolRegistry
+    from co_scientist.evidence.search_support import (
         merge_search_results,
         normalize_search_response,
     )
-    from co_scientist.config import ToolRegistry
 
     tool_config = ToolRegistry().get_tool("europepmc_search")
     assert tool_config is not None

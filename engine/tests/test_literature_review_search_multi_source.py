@@ -17,17 +17,17 @@ from typing import Any, cast
 
 import pytest
 
-from co_scientist.agents.generation.literature_review import search
-from co_scientist.agents.generation.literature_review.helpers import (
-    SearchConfig,
-)
-from co_scientist.agents.generation.literature_review.relevance import (
-    _HYBRID_VERSION,
-)
 from co_scientist.config import (
     SearchSourceConfig,
     ToolRegistry,
     WorkflowConfig,
+)
+from co_scientist.evidence import search
+from co_scientist.evidence.helpers import (
+    SearchConfig,
+)
+from co_scientist.evidence.relevance import (
+    _HYBRID_VERSION,
 )
 from co_scientist.llm import scoped_campaign_mode
 from co_scientist.offline import llm as offline_llm
@@ -156,7 +156,7 @@ async def test_search_source_for_query_retries_malformed_transport_result(
         """Skip the production retry delay in this deterministic test."""
 
     monkeypatch.setattr(
-        "co_scientist.agents.generation.literature_review.search.asyncio.sleep",
+        "co_scientist.evidence.search.asyncio.sleep",
         no_delay,
     )
     tool_config = make_tool_config()
@@ -189,7 +189,7 @@ async def test_search_source_for_query_error_appends_message_and_empties(
     # This test is about the outcome of exhausting the retry budget, not
     # about how long exhausting it takes.
     monkeypatch.setattr(
-        "co_scientist.agents.generation.literature_review.search.asyncio.sleep",
+        "co_scientist.evidence.search.asyncio.sleep",
         no_delay,
     )
     tool_config = make_tool_config()

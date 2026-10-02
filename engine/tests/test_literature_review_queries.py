@@ -17,10 +17,10 @@ from typing import Any, cast
 import pytest
 
 from co_scientist.agents.generation.literature_review import queries
-from co_scientist.agents.generation.literature_review.helpers import (
+from co_scientist.config import WorkflowConfig
+from co_scientist.evidence.helpers import (
     SearchConfig,
 )
-from co_scientist.config import WorkflowConfig
 from co_scientist.mcp_client import MCPToolClient
 from tests._mcp import FakeCallToolClient, make_tool_lookup_registry
 from tests._retrieval_config import make_tool_config

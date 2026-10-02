@@ -246,7 +246,7 @@ def test_cached_literature_review_keeps_provenance_through_the_report(
             ],
             "articles_with_reasoning": "LEGACY CACHE",
         },
-        **lr._literature_cache_params(state, lr._get_search_config(state)),
+        **lr._literature_cache_params(state, lr.search_config_for(state)),
     )
     asyncio.run(literature_review_node(state))
     cached = asyncio.run(literature_review_node(state))

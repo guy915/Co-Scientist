@@ -17,11 +17,11 @@ External seams stubbed: only the MCP client's ``call_tool`` and a minimal
 import asyncio
 from typing import Any, cast
 
-from co_scientist.agents.generation.literature_review import search
 from co_scientist.config import (
     SearchSourceConfig,
     ToolRegistry,
 )
+from co_scientist.evidence import search
 from tests._mcp import make_tool_lookup_registry
 from tests._retrieval_config import make_tool_config
 from tests._search_fixtures import (
