@@ -4,9 +4,9 @@ Split out of ``app.interviews`` (which re-exports the names callers use, so the
 ``interviews._interview_stream`` import and monkeypatch paths survive):
 this module owns turning one Agent turn into an SSE stream -- the live
 reasoning relay, the closing interview/error frame, and the BYOK scoping
-the turn's model call runs under. The durable turn lifecycle and the HTTP
-surface stay in ``app.interviews``; the provider call itself in
-``app.interviews.model``.
+the turn's model call runs under. The durable turn lifecycle lives in
+``app.interviews.turns`` and the HTTP surface in ``app.interviews``; the
+provider call itself in ``app.interviews.model``.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from app.execution_policy import (
     CAMPAIGN_MODEL_NAME,
     scoped_execution_policy,
 )
-from app.interviews.model import ProseSink, ReasoningSink
+from app.interviews import turns
 from app.sse import sse_frame
 
 logger = logging.getLogger(__name__)
@@ -37,26 +37,6 @@ logger = logging.getLogger(__name__)
 # wholly before prose on a thinking model, and the scientist should see it
 # that way rather than by whichever coroutine happened to be scheduled.
 _Fragment = tuple[str, str]
-
-
-async def _advance(
-    interview_id: str,
-    on_reasoning: ReasoningSink | None = None,
-    on_prose: ProseSink | None = None,
-) -> dict[str, Any]:
-    """Run one Agent turn; late import keeps the split cycle-free.
-
-    Args:
-        interview_id: The interview to advance.
-        on_reasoning: Optional sink for live chain-of-thought fragments.
-        on_prose: Optional sink for the answer's prose as it is written.
-
-    Returns:
-        The updated interview row.
-    """
-    from app.interviews import _advance as _advance_impl
-
-    return await _advance_impl(interview_id, on_reasoning, on_prose)
 
 
 def _resolved_execution_policy(
@@ -82,7 +62,9 @@ async def _start_stream_advance(
     async def _on_prose(fragment: str) -> None:
         await queue.put(("chunk", fragment))
 
-    task = asyncio.create_task(_advance(interview_id, _on_reasoning, _on_prose))
+    task = asyncio.create_task(
+        turns.advance_turn(interview_id, _on_reasoning, _on_prose)
+    )
     # Sentinel closes the drain loop whether the turn succeeded or raised;
     # it queues behind any fragment already emitted, so nothing is dropped.
     task.add_done_callback(lambda _: queue.put_nowait(None))
@@ -117,7 +99,7 @@ async def _advance_stream(
     listener -- the ``finally`` below cancels the child task and awaits it
     so the turn's model call does not run to completion unwatched. Nothing
     is rolled back: the scientist's own turn was already persisted by the
-    route before this generator opened, and ``_advance`` only persists the
+    route before this generator opened, and ``advance_turn`` only persists the
     Agent's reply *after* the model call returns, so a cancel that lands
     during the call simply leaves that reply unwritten.
 

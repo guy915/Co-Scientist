@@ -8,12 +8,11 @@ Orchestrates a multi-phase literature review process:
 5. Analyze each paper for gaps/limitations
 6. Synthesize findings into articles_with_reasoning
 
-The phase-sequence helpers live in the sibling ``run_config``, ``outcomes``,
-and ``orchestration`` modules and are re-exported here (tests exercise
-several of the private helpers through this namespace). This module keeps the
-top-level orchestrator plus the cache/availability gates whose external seams
-(``get_node_cache``, ``check_mcp_available``,
-``get_mcp_client``) tests monkeypatch on this namespace.
+The phase-sequence helpers live in the sibling ``outcomes`` and
+``orchestration`` modules; shared search configuration belongs to
+``evidence.run_config``. This module owns the top-level orchestrator and its
+cache/availability gates. Tests patch collaborators in the module that calls
+them.
 """
 
 import dataclasses
@@ -22,9 +21,6 @@ from typing import Any
 
 from co_scientist.agents.generation.literature_review.orchestration import (
     _analyze_and_synthesize as _analyze_and_synthesize,
-)
-from co_scientist.agents.generation.literature_review.orchestration import (
-    _append_kg_evidence_section as _append_kg_evidence_section,
 )
 from co_scientist.agents.generation.literature_review.orchestration import (
     _cache_result as _cache_result,
@@ -36,13 +32,7 @@ from co_scientist.agents.generation.literature_review.orchestration import (
     _CollectionResult as _CollectionResult,
 )
 from co_scientist.agents.generation.literature_review.orchestration import (
-    _count_used_papers as _count_used_papers,
-)
-from co_scientist.agents.generation.literature_review.orchestration import (
     _emit_and_log_completion as _emit_and_log_completion,
-)
-from co_scientist.agents.generation.literature_review.orchestration import (
-    _fetch_content_and_enrichment as _fetch_content_and_enrichment,
 )
 from co_scientist.agents.generation.literature_review.orchestration import (
     _finalize_synthesis_and_articles as _finalize_synthesis_and_articles,
@@ -57,15 +47,6 @@ from co_scientist.agents.generation.literature_review.orchestration import (
     _ReviewSynthesis as _ReviewSynthesis,
 )
 from co_scientist.agents.generation.literature_review.outcomes import (
-    _emit_empty_search_diagnostics as _emit_empty_search_diagnostics,
-)
-from co_scientist.agents.generation.literature_review.outcomes import (
-    _handle_no_fulltext_available as _handle_no_fulltext_available,
-)
-from co_scientist.agents.generation.literature_review.outcomes import (
-    _handle_no_papers_found as _handle_no_papers_found,
-)
-from co_scientist.agents.generation.literature_review.outcomes import (
     _log_sample_papers as _log_sample_papers,
 )
 from co_scientist.agents.generation.literature_review.queries import (
@@ -78,31 +59,15 @@ from co_scientist.agents.generation.literature_review.research_phase import (
 )
 from co_scientist.cache import get_node_cache
 from co_scientist.constants import LITERATURE_REVIEW_FAILED
-from co_scientist.evidence.errors import (
-    describe_exception as describe_exception,
-)
-from co_scientist.evidence.helpers import (
-    SearchConfig,
+from co_scientist.evidence.article_support import (
     make_failure_result,
     make_success_result,
 )
 from co_scientist.evidence.run_config import (
-    _log_multi_source_config as _log_multi_source_config,
-)
-from co_scientist.evidence.run_config import (
-    _resolve_literature_workflow as _resolve_literature_workflow,
-)
-from co_scientist.evidence.run_config import (
-    _resolve_papers_to_read_count as _resolve_papers_to_read_count,
-)
-from co_scientist.evidence.run_config import (
-    _resolve_primary_search_source as _resolve_primary_search_source,
-)
-from co_scientist.evidence.run_config import (
-    _resolve_single_source_tool as _resolve_single_source_tool,
-)
-from co_scientist.evidence.run_config import (
     search_config_for as search_config_for,
+)
+from co_scientist.evidence.search_support import (
+    SearchConfig,
 )
 from co_scientist.mcp_client import (
     MCPToolClient,

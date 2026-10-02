@@ -17,6 +17,7 @@ from co_scientist.exceptions import (
     FreeModelEligibilityError,
     LLMBudgetExhaustedError,
     LLMCallBudgetExceededError,
+    LLMThinkingOnlyError,
     LLMTimeoutError,
 )
 from tests._llm_attempt_fakes import (
@@ -57,7 +58,7 @@ from tests._llm_wrapper_fakes import (
         "free-eligibility",
     ],
 )
-async def test_a_tool_turn_failure_no_rung_answers_propagates_at_once(
+async def test_a_tool_turn_unretryable_failure_propagates_at_once(
     drive: Driver,
     failure: Callable[[], Exception],
     error_type: type[Exception],
@@ -143,6 +144,107 @@ async def test_mandatory_reasoning_refusals_exhaust_a_tool_turn(
         ("failed", "WARNING"),
         ("failed", "ERROR"),
     ]
+
+
+@pytest.mark.parametrize("mandatory_first", [False, True])
+async def test_alternating_reasoning_failures_exhaust_the_tool_attempt_budget(
+    drive: Driver, mandatory_first: bool
+) -> None:
+    entry = replace(TOOLS, model=GATEWAY_MODEL)
+    mandatory = reasoning_mandatory()
+    pair = (
+        [mandatory, thinking_only()]
+        if mandatory_first
+        else [thinking_only(), mandatory]
+    )
+    # A finite reproducer: the old loop reaches "fine" on attempt 21.
+    run = await drive(entry, pair * 10 + [ok(entry)])
+
+    if mandatory_first:
+        assert run.error is mandatory, (
+            f"expected current refusal; attempts={len(run.calls)}, "
+            f"result={run.result!r}"
+        )
+    else:
+        assert isinstance(run.error, LLMThinkingOnlyError), (
+            f"expected current thinking failure; attempts={len(run.calls)}, "
+            f"result={run.result!r}"
+        )
+    assert run.result is None, "the success sentinel must remain unreachable"
+    assert len(run.calls) == 3
+    enabled = {"enabled": True, "effort": "high"}
+    disabled = {"enabled": False}
+    assert run.reasoning == (
+        [enabled, enabled, disabled]
+        if mandatory_first
+        else [enabled, disabled, enabled]
+    )
+    assert run.max_tokens == [18000, 24000, 24000]
+    assert all(c["messages"] == run.calls[0]["messages"] for c in run.calls)
+    assert run.slept == []
+    assert run.throttled == 0
+    assert run.retries == 2
+    assert len(run.retry_debug) == 2
+    assert not any(kind == "park" for kind, _ in run.logged)
+    assert run.logged[-1] == ("failed", "ERROR")
+
+
+async def test_a_tool_turn_budget_stops_before_a_fourth_recovery_attempt(
+    drive: Driver,
+) -> None:
+    entry = replace(TOOLS, model=GATEWAY_MODEL)
+    refusal = reasoning_mandatory()
+    run = await drive(entry, [exhausted(), exhausted(), refusal, ok(entry)])
+
+    assert run.error is refusal
+    assert run.result is None, (
+        "a fourth-attempt success must remain unreachable"
+    )
+    assert len(run.calls) == 3
+    assert run.max_tokens == [18000, 24000, 24000]
+    assert run.reasoning == [
+        {"enabled": True, "effort": "high"},
+        {"enabled": True, "effort": "high"},
+        {"enabled": False},
+    ]
+    assert run.slept == []
+    assert run.throttled == 0
+    assert run.retries == 2
+
+
+async def test_each_tool_turn_receives_its_own_three_attempt_budget(
+    drive: Driver,
+) -> None:
+    asked_for_a_tool = make_completion(
+        make_message(None, tool_calls=[make_tool_call("c1", "search", "{}")])
+    )
+    executed: list[str] = []
+
+    async def executor(tc: Any) -> dict[str, Any]:
+        executed.append(tc.id)
+        return await echo_executor(tc)
+
+    entry = replace(TOOLS, model=GATEWAY_MODEL, executor=executor)
+    recovery = [exhausted(), exhausted()]
+    run = await drive(
+        entry, [*recovery, asked_for_a_tool, *recovery, ok(entry)]
+    )
+
+    assert run.error is None
+    assert run.result[0] == "fine"
+    assert len(run.calls) == 6
+    assert run.max_tokens == [18000, 24000, 24000] * 2
+    assert run.reasoning[:3] == run.reasoning[3:]
+    assert executed == ["c1"]
+    for call in run.calls[3:]:
+        assert [m["role"] for m in call["messages"]] == [
+            "user",
+            "assistant",
+            "tool",
+        ]
+    assert run.slept == []
+    assert run.throttled == 0
+    assert run.retries == 4
 
 
 @pytest.mark.parametrize("failure", [exhausted, rate_limited, overloaded])

@@ -12,12 +12,13 @@ from fastapi import HTTPException, Request
 from app import (
     engine_tasks,
     human_input,
-    interviews,
     qa,
     run_start_announcement,
     store,
 )
 from app.interviews import stream as interviews_stream
+from app.interviews import support as interview_support
+from app.interviews import turns as interview_turns
 from app.runs import chat as runs_chat
 from app.runs import contrib as runs_contrib
 from app.runs import crud as runs_crud
@@ -80,7 +81,7 @@ def test_persisted_campaign_rejects_late_byok_before_streaming() -> None:
     campaign = _run("campaign")
 
     with pytest.raises(HTTPException, match="campaign"):
-        interviews._request_byok(_paid_request(), "campaign")
+        interview_support.request_byok(_paid_request(), "campaign")
     with pytest.raises(HTTPException, match="campaign"):
         runs_chat._resolve_qa_byok(campaign, _paid_request())
 
@@ -106,7 +107,7 @@ async def test_interview_stream_loads_its_persisted_policy(
         assert saved is not None
         return saved
 
-    monkeypatch.setattr(interviews_stream, "_advance", advance)
+    monkeypatch.setattr(interview_turns, "advance_turn", advance)
     list_items = [
         frame
         async for frame in interviews_stream._advance_stream(interview["id"])
@@ -240,7 +241,7 @@ async def test_interview_stream_keeps_trusted_policy_after_deletion(
         seen.append(campaign_free_mode())
         return interview
 
-    monkeypatch.setattr(interviews_stream, "_advance", advance)
+    monkeypatch.setattr(interview_turns, "advance_turn", advance)
     interview_stream = interviews_stream._advance_stream(
         str(interview["id"]), execution_policy="campaign"
     )

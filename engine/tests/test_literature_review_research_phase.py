@@ -20,7 +20,7 @@ from co_scientist.agents.generation.literature_review.research_phase import (
     _seed_questions,
     run_research_phase,
 )
-from co_scientist.evidence.helpers import (
+from co_scientist.evidence.search_support import (
     SearchConfig,
 )
 from co_scientist.mcp_client import MCPToolClient

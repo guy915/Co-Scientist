@@ -19,6 +19,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from app import store
+from app.interviews import support
 from app.interviews.models import InterviewTurnRequest
 from app.interviews.stream import (
     _interview_stream,
@@ -104,10 +105,8 @@ def _rewind_and_restream(
     Returns:
         The SSE response streaming the re-derived turn.
     """
-    from app.interviews import _owned_interview, _request_byok
-
-    interview = _owned_interview(interview_id, request)
-    byok = _request_byok(request, str(interview["execution_policy"]))
+    interview = support.owned_interview(interview_id, request)
+    byok = support.request_byok(request, str(interview["execution_policy"]))
     _require_revisable_turn(interview, turn_id, role)
     store.rewind_interview(interview_id, turn_id)
     if replacement is not None:

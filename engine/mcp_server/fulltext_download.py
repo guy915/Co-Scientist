@@ -14,6 +14,7 @@ from mcp_server.entrez_rate_limit import (
     record_pilot_fetch_error,
 )
 from mcp_server.pubmed_client import _EntrezClient
+from mcp_server.pubmed_storage import link_shared_file_to_run
 
 if TYPE_CHECKING:
     # asyncio is imported lazily inside the async methods below (see their
@@ -22,21 +23,6 @@ if TYPE_CHECKING:
     import asyncio
 
 logger = logging.getLogger(__name__)
-
-
-def _symlink_into_run(run_dir: Path, filename: str) -> None:
-    """Links a shared-pool file into a per-run directory (idempotent).
-
-    Args:
-        run_dir: Per-run directory that should hold the symlink.
-        filename: Basename of the file under ``<slug>/shared/`` to link to.
-    """
-    symlink = run_dir / filename
-    if not symlink.exists():
-        # Relative symlink: run_dir is <slug>/runs/<run_id>/, so two levels
-        # up reaches <slug>/, from which "shared/<filename>" resolves. Kept
-        # relative so the whole <slug> tree stays portable if moved/copied.
-        symlink.symlink_to(f"../../shared/{filename}")
 
 
 class _FulltextMixin(_EntrezClient):
@@ -122,7 +108,7 @@ class _FulltextMixin(_EntrezClient):
         if run_id:
             run_dir = base_dir / "runs" / run_id
             run_dir.mkdir(parents=True, exist_ok=True)
-            _symlink_into_run(run_dir, f"{pmc_id}.fulltext.html")
+            link_shared_file_to_run(run_dir, f"{pmc_id}.fulltext.html")
         return contents
 
     def get_pubmed_fulltext(

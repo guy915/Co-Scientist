@@ -14,28 +14,15 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
-from co_scientist.evidence.helpers import (
-    SearchConfig,
-    extract_source_name,
-    merge_search_results,
-    select_within_budget,
-)
 from co_scientist.evidence.relevance import (
     apply_semantic_relevance,
 )
+from co_scientist.evidence.search_budget import (
+    select_within_budget,
+)
 
-# The one-query search body and the transient-failure retry around a single
-# tool call moved to sibling modules; every name is re-exported so this
-# module's namespace (which callers and tests patch against) keeps resolving.
-from co_scientist.evidence.search_query import (
-    _attempt_query as _attempt_query,
-)
-from co_scientist.evidence.search_query import (
-    _build_query_tool_params as _build_query_tool_params,
-)
-from co_scientist.evidence.search_query import (
-    _QueryTarget as _QueryTarget,
-)
+# Query execution lives in search_query; this module owns fan-out and
+# reduction across queries and sources.
 from co_scientist.evidence.search_query import (
     _search_single_query as _search_single_query,
 )
@@ -43,22 +30,12 @@ from co_scientist.evidence.search_query import (
     _search_source_for_query as _search_source_for_query,
 )
 from co_scientist.evidence.search_query import (
-    _search_target_for_query as _search_target_for_query,
-)
-from co_scientist.evidence.search_query import (
     _SearchRunContext as _SearchRunContext,
 )
-from co_scientist.evidence.search_query import (
-    _tag_source_name as _tag_source_name,
-)
-from co_scientist.evidence.search_retry import (
-    _SEARCH_ATTEMPTS as _SEARCH_ATTEMPTS,
-)
-from co_scientist.evidence.search_retry import (
-    _call_search_tool as _call_search_tool,
-)
-from co_scientist.evidence.search_retry import (
-    _search_retry_delay as _search_retry_delay,
+from co_scientist.evidence.search_support import (
+    SearchConfig,
+    extract_source_name,
+    merge_search_results,
 )
 from co_scientist.mcp_client.campaign import campaign_serves_tool
 

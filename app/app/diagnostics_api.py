@@ -6,7 +6,6 @@ Probe logic lives in ``app.diagnostics``; this module only shapes the
 HTTP responses.
 """
 
-import hmac
 from typing import Any
 
 from fastapi import APIRouter, Request, Response
@@ -20,6 +19,7 @@ from app import (
 )
 from app.config import settings
 from app.notifications import email_notifications_configured
+from app.operator_access import is_operator
 from app.run_modes import (
     DEFAULT_RUN_TIER,
     RUN_TIER_DEFAULTS,
@@ -27,38 +27,6 @@ from app.run_modes import (
 from app.version import API_VERSION
 
 router = APIRouter()
-
-# Hosts whose requests are treated as operator access without a token: a
-# local CLI/agent session is already inside the trust boundary. Mirrors
-# ``app.logs_api``'s own loopback set independently rather than importing a
-# private name across a module boundary for one constant.
-_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
-
-
-def _is_operator(request: Request) -> bool:
-    """Return whether this caller may see deployment-internal diagnostics.
-
-    ``/status``, ``/health``, and the API docs disclose infrastructure
-    details -- the internal MCP hostname, provider-key presence, BYOK and
-    engine-importability state, the tools config path and enabled-tool
-    list -- that help an operator diagnose a deployment and help an
-    anonymous internet caller do reconnaissance, and nothing in the
-    product's own UI reads them (verified: only ``provider``,
-    ``llm_backend``, ``model_name``, and the availability/connector fields
-    are consumed anywhere in the frontend). Operators are loopback callers
-    (the local CLI/agents) or holders of the configured admin token (ops
-    against a remote deployment) -- the same operator concept
-    ``app.logs_api._is_operator`` uses for the log endpoints, kept as an
-    independent definition here rather than an import so this module does
-    not reach into another module's private surface for one boolean.
-    """
-    token = settings.logs_admin_token
-    if token:
-        supplied = request.headers.get("X-Logs-Token", "")
-        if supplied and hmac.compare_digest(supplied, token):
-            return True
-    host = request.client.host if request.client else ""
-    return host in _LOOPBACK_HOSTS
 
 
 class HealthCheckResult(BaseModel):
@@ -159,7 +127,7 @@ class SystemStatusResponse(BaseModel):
     # availability/connector fields above are -- and each discloses a real
     # piece of the deployment's internals (an internal hostname, whether a
     # provider credential is configured, the tools config path). See
-    # `_is_operator`.
+    # `is_operator`.
     probes: dict[str, ProbeStatus] | None = Field(
         None,
         description=(
@@ -241,7 +209,7 @@ async def root(request: Request) -> dict[str, str | None]:
     return {
         "message": "Co-Scientist API",
         "version": API_VERSION,
-        "docs": "/docs" if _is_operator(request) else None,
+        "docs": "/docs" if is_operator(request) else None,
     }
 
 
@@ -274,7 +242,7 @@ async def health(request: Request, response: Response) -> HealthResponse:
     gating check detail and the model name behind operator access below
     does not touch what makes this endpoint useful as a healthcheck.
     """
-    operator = _is_operator(request)
+    operator = is_operator(request)
     store_check = diagnostics.check_store()
     engine_check = diagnostics.check_engine()
     queue_check, disk_check = diagnostics.queue_and_disk_health_cached()
@@ -322,9 +290,9 @@ async def metrics_endpoint(request: Request) -> Response:
     Operator-gated like ``/docs``: this has no product-UI consumer and
     exposes cross-tenant aggregate counts, so a non-operator caller gets
     a 404 rather than a 401/403, which would confirm the route exists.
-    See ``_is_operator``.
+    See ``is_operator``.
     """
-    if not _is_operator(request):
+    if not is_operator(request):
         return JSONResponse({"detail": "not found"}, status_code=404)
     text = ops_metrics.metrics_text_cached()
     return Response(content=text, media_type=ops_metrics.CONTENT_TYPE_LATEST)
@@ -438,7 +406,7 @@ async def get_system_status(request: Request) -> dict[str, Any]:
     cached for a short TTL (see app/diagnostics.py); the ``probes`` field
     distinguishes a server that answered "down" from a probe that errored.
     Fields with no use in the product's own UI are visible only to an
-    operator caller (see ``_is_operator``); every other caller sees them
+    operator caller (see ``is_operator``); every other caller sees them
     as null.
     """
     mcp, pubmed, web_search = await diagnostics.probe_literature_stack_cached()
@@ -452,4 +420,4 @@ async def get_system_status(request: Request) -> dict[str, Any]:
     payload = _build_status_payload(
         mcp, pubmed, web_search, literature_available, adapter_status
     )
-    return _redact_status_payload(payload, _is_operator(request))
+    return _redact_status_payload(payload, is_operator(request))

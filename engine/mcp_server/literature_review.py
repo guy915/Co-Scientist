@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any
 
 from mcp_server.entrez import initialize_entrez as initialize_entrez
 from mcp_server.entrez_rate_limit import pilot_trace_context
-from mcp_server.fulltext_download import _symlink_into_run as _symlink_into_run
 from mcp_server.pubmed_client import _extract_doi as _extract_doi
 from mcp_server.pubmed_client import _parse_authors as _parse_authors
 from mcp_server.pubmed_pilot_trace import new_pilot_trace as _new_pilot_trace

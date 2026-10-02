@@ -8,6 +8,36 @@ model defaults are declared in `app/app/config.py`.
 See [deployment](DEPLOYMENT.md) for hosting and [launch readiness](LAUNCH.md)
 for release validation.
 
+## Provider escalation bounds
+
+Tool turns use the standard bounded policy with at most three physical
+attempts per turn. Throttles and temporary outages use jittered backoff;
+platform quotas park the durable task, and retries are metered in telemetry.
+Timeouts, call-budget exhaustion, oversized prompts and failed free admission
+remain terminal. Retries stop before tool execution and never replay tools
+from completed turns. The mandatory-reasoning rung retains the tool request's
+raised-budget shape rather than switching to minimal effort. See
+[the provider policy decision](decisions/2026-10-02-provider-policies.md).
+
+The separate `AttemptPlan.escalation_only` contract has no numeric attempt
+budget, but visits each distinct rung at most once per call, including its
+initial rung. It therefore permits at most four physical attempts and raises
+the current failure before revisiting a rung, even when reasoning failures
+alternate. Failures no rung answers propagate without backoff, parking or
+retry telemetry. Production entry points, including tool turns, use bounded
+plans; their configured attempt budgets allow revisiting rungs.
+
+An offline regression on 2 October 2026 alternated reasoning-only responses
+and mandatory-reasoning refusals. The old loop revisited disabled and mandatory
+reasoning states indefinitely; a finite success sentinel was reached only after
+21 requests. The call-local visited-rung guard now raises the current failure
+before a repeated state (three attempts for that sequence) under escalation-only
+plans. Current tool turns terminate the same sequence within their three-attempt
+allowance. The outer tool-turn limit cannot replace either physical-attempt
+bound: it counts turns after each provider response, not the recovery attempts
+inside a turn. The attempt boundary remains below tool execution so recovery
+never reruns tools from an earlier completed turn.
+
 ## Gotchas
 
 Each of these was a production outage or a silent data-correctness failure. The comments in the code record the incident; do not re-litigate them from first principles.

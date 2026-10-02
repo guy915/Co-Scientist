@@ -17,7 +17,7 @@ from typing import Any, cast
 
 from co_scientist.config import SearchSourceConfig, WorkflowConfig
 from co_scientist.evidence import search
-from co_scientist.evidence.helpers import (
+from co_scientist.evidence.search_support import (
     SearchConfig,
 )
 from co_scientist.mcp_client import MCPToolClient

@@ -1,9 +1,16 @@
 """Ranking node - Elo-based pairwise comparison of hypotheses."""
 
-import hashlib
 import logging
+from dataclasses import replace
 from typing import Any, NamedTuple
 
+from co_scientist.agents.ranking.operations import (
+    RankingPromptContext,
+    apply_ranking_matchup,
+    judge_ranking_matchup,
+    prepare_ranking_judging_context,
+    prepare_ranking_prompt_context,
+)
 from co_scientist.agents.ranking.ranking_debate import (
     _call_matchup_judge as _call_matchup_judge,
 )
@@ -46,9 +53,13 @@ from co_scientist.agents.ranking.ranking_lifecycle import (
 from co_scientist.agents.ranking.ranking_lifecycle import (
     _TournamentGuidance as _TournamentGuidance,
 )
-from co_scientist.agents.ranking.ranking_matchmaking import (
-    MatchCandidate,
-    build_weighted_pairings,
+from co_scientist.agents.ranking.ranking_lifecycle import (
+    finalize_ranking,
+    prepare_ranking_round,
+    remaining_ranking_rounds,
+)
+from co_scientist.agents.ranking.ranking_pairings import (
+    build_tournament_pairings,
 )
 from co_scientist.agents.ranking.ranking_prompt import (
     _build_matchup_prompt as _build_matchup_prompt,
@@ -98,75 +109,13 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
-def _build_match_candidates(
-    hypotheses: list[Hypothesis],
-) -> list[MatchCandidate]:
-    """Reduces hypotheses to the fields matchmaking needs."""
-    return [
-        MatchCandidate(
-            id=h.id,
-            elo=h.elo_rating,
-            matches=h.total_matches,
-            cluster_id=h.similarity_cluster_id,
-        )
-        for h in hypotheses
-    ]
-
-
-def _build_tournament_pairings(
-    hypotheses: list[Hypothesis],
-    tournament_rounds: int,
-    research_goal: str,
-    current_iteration: int,
-    judged: set[frozenset[str]] | None = None,
-) -> list[tuple[Hypothesis, Hypothesis]]:
-    """Builds deterministic weighted pairwise matchups for one tournament.
-
-    Uses proximity-, recency-, and rank-aware matchmaking (Milestone 3; paper
-    invariant SSR §4): pairings favor scientifically similar hypotheses (same
-    proximity cluster), newer hypotheses needing calibration, and top-ranked
-    hypotheses needing discrimination, while guaranteeing minimum match
-    coverage and avoiding self/immediate-duplicate matches.
-
-    The seed is derived from research_goal and current_iteration so identical
-    inputs replay identical pairings (cache consistency across iterations).
-    Uses hashlib instead of hash() so the seed is stable across processes.
-
-    Args:
-        hypotheses: All hypotheses eligible for pairing.
-        tournament_rounds: Number of pairings to generate.
-        research_goal: Research goal, used to seed the deterministic RNG.
-        current_iteration: Current workflow iteration, used to seed the RNG.
-        judged: Pairs this tournament has already judged. Never offered
-            again, so a tournament runs out of comparisons rather than
-            replaying one.
-
-    Returns:
-        List of (hypothesis_a, hypothesis_b) pairings, one per round; empty
-        once every distinct pair has been judged.
-    """
-    seed_string = f"{research_goal}_{current_iteration}"
-    seed = int(hashlib.md5(seed_string.encode()).hexdigest()[:8], 16)
-
-    by_id = {h.id: h for h in hypotheses}
-    candidates = _build_match_candidates(hypotheses)
-    id_pairs = build_weighted_pairings(
-        candidates, tournament_rounds, seed, exclude=judged
-    )
-    return [(by_id[a], by_id[b]) for a, b in id_pairs]
-
-
 class _TournamentContext(NamedTuple):
     """One tournament's round-invariant inputs, threaded into every round."""
 
     hypotheses: list[Hypothesis]
     research_goal: str
     current_iteration: int
-    supervisor_guidance: dict[str, Any] | None
-    tool_registry: Any | None
-    meta_review: dict[str, Any] | None
-    run_setup_guidance: str | None
-    run_focus_guidance: str | None
+    prompt: RankingPromptContext
 
 
 def _build_tournament_context(
@@ -174,16 +123,15 @@ def _build_tournament_context(
     hypotheses: list[Hypothesis],
     guidance: _TournamentGuidance,
 ) -> _TournamentContext:
-    """Bundles this tournament's round-invariant inputs into one context."""
+    """Capture prompt inputs once; preserve the prepared guidance snapshot."""
+    prompt = prepare_ranking_prompt_context(
+        state, preferences=state.get("preferences")
+    )
     return _TournamentContext(
         hypotheses,
         state["research_goal"],
         state.get("current_iteration", 0),
-        guidance.supervisor_guidance,
-        guidance.tool_registry,
-        guidance.meta_review,
-        guidance.run_setup_guidance,
-        guidance.run_focus_guidance,
+        replace(prompt, guidance=guidance),
     )
 
 
@@ -209,7 +157,7 @@ def _select_next_pairing(
     comparison, so scheduling spare candidates here would just be weighted
     choices thrown away.
     """
-    candidates = _build_tournament_pairings(
+    candidates = build_tournament_pairings(
         ctx.hypotheses,
         1,
         ctx.research_goal,
@@ -219,31 +167,6 @@ def _select_next_pairing(
     return candidates[0] if candidates else None
 
 
-def _matchup_debate_context(
-    state: WorkflowState,
-    pair: tuple[Hypothesis, Hypothesis],
-    index: int,
-    ctx: _TournamentContext,
-) -> _DebateContext:
-    """Assembles the judge context for one pairing of a tournament round."""
-    hyp_a, hyp_b = pair
-    return _DebateContext(
-        hyp_a,
-        hyp_b,
-        state["research_goal"],
-        state["model_name"],
-        supervisor_guidance=ctx.supervisor_guidance,
-        meta_review=ctx.meta_review,
-        tool_registry=ctx.tool_registry,
-        run_setup_guidance=ctx.run_setup_guidance,
-        run_focus_guidance=ctx.run_focus_guidance,
-        run_id=state.get("run_id"),
-        matchup_index=index,
-        criteria=state.get("criteria"),
-        preferences=state.get("preferences"),
-    )
-
-
 async def _judge_and_commit_matchup(
     state: WorkflowState,
     hyp_a: Hypothesis,
@@ -251,33 +174,17 @@ async def _judge_and_commit_matchup(
     index: int,
     ctx: _TournamentContext,
 ) -> tuple[dict[str, Any], int]:
-    """Judges one pairing and commits its Elo update.
-
-    Returns:
-        Tuple of (matchup detail dict, debate depth used).
-    """
-    depth = _matchup_debate_turns(hyp_a, hyp_b, _median_elo(ctx.hypotheses))
-    debate_ctx = _matchup_debate_context(state, (hyp_a, hyp_b), index, ctx)
-    winner, response = await judge_matchup(debate_ctx, debate_turns=depth)
-    outcome = _apply_matchup_elo(
-        hyp_a,
-        hyp_b,
-        winner,
+    """Refresh the Elo context, judge, and commit one graph matchup."""
+    pair = (hyp_a, hyp_b)
+    context = prepare_ranking_judging_context(ctx.prompt, ctx.hypotheses)
+    judgement = await judge_ranking_matchup(pair, context, index)
+    result = apply_ranking_matchup(
+        pair,
+        judgement,
         k_factor=int(state.get("elo_k_factor") or ELO_K_FACTOR),
-        # Feeds only the margin-scaling reconstruction knob (off by default).
-        confidence=response.get("confidence_level"),
+        current_iteration=int(state.get("current_iteration", 0)),
     )
-    detail = _build_matchup_detail(
-        (hyp_a, hyp_b),
-        winner,
-        response,
-        outcome,
-        int(state.get("current_iteration", 0)),
-    )
-    # The turns actually judged, not the depth budgeted: a debate whose
-    # majority is decided early stops short of its budget, and this number
-    # is metered against the run's LLM allowance.
-    return detail, int(response.get("debate_turns", depth))
+    return result.detail, result.llm_calls
 
 
 async def _run_one_round(
@@ -396,13 +303,13 @@ async def _run_tournament(
     eligible: list[Hypothesis],
 ) -> dict[str, Any]:
     """Prepares, runs, and finalizes one ranking tournament round."""
-    tournament_rounds, guidance = await _prepare_ranking_round(state, eligible)
+    tournament_rounds, guidance = await prepare_ranking_round(state, eligible)
 
     matchup_details, total_llm_calls = await _run_tournament_matchups(
         state, eligible, tournament_rounds, guidance
     )
 
-    return await _finalize_ranking_result(
+    return await finalize_ranking(
         state, hypotheses, matchup_details, tournament_rounds, total_llm_calls
     )
 
@@ -448,8 +355,11 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
     # tournament_pairs is a whole-run budget. The scheduler asks for ranking
     # once per cycle, so without this the run would keep buying another full
     # tournament every cycle for the life of the run.
-    if _tournament_round_count(state, hypotheses) < 1:
+    if remaining_ranking_rounds(state, hypotheses) < 1:
         logger.info("Tournament budget spent for this run; skipping")
         return {"hypotheses": hypotheses}
 
     return await _run_tournament(state, hypotheses, eligible)
+
+
+_build_tournament_pairings = build_tournament_pairings

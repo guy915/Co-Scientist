@@ -188,3 +188,73 @@ keeps its small probe budget and disables the semantic relevance model pass.
 Agent-specific query planning, synthesis and failure presentation remain in
 `agents/`. The evidence package never imports an agent, enforced by
 `engine/tests/test_evidence_layering.py`.
+
+Evidence consumers import helpers from their defining modules:
+`search_support`, `search_budget`, `retrieval_support` and `article_support`.
+The former internal `evidence.helpers` facade is removed. The node and search
+orchestrators expose only the collaborators they actually use.
+
+## Generation operations and execution ownership
+
+`co_scientist.agents.generation` exposes `GenerationPlan`, `GenerationCounts`,
+`GenerationResults`, `prepare_generation` and `finalize_generation`.
+`operations.py` owns input validation, allocation, citation context, result
+assembly, enrichment and lineage. The graph coordinator owns parallel strategy
+execution; `app.engine_tasks` owns durable scheduling, leases, retry keys,
+partial-failure isolation and checkpoint commits. Finalization may perform
+network work and runs before the store transaction.
+
+The interface preserves existing execution differences: graph generation
+performs expansion research and grounds assumptions with literature; durable
+generation retains its current assumptions inputs and per-strategy tasks.
+Changing those differences requires an explicit grounding and spending policy.
+
+## Ranking, Reflection and outcome operations
+
+The Ranking package exposes preparation, remaining-round budgets, deterministic
+pairing, immutable prompt/judging contexts, one-match judging and Elo application,
+and finalization. The graph commits each result before selecting its next pair.
+The durable adapter selects a wave from checkpoint pool order, judges it against
+one median snapshot and commits surviving outcomes in wave order. Both meter
+reported debate turns with budgeted depth as fallback. Graph prompts retain
+preferences; durable prompts retain their existing criteria-only adaptation.
+
+Reflection exports initial-review gates, verification selection and one-item
+verification/observation/mature-review operations. The engine assembles evidence
+and private contexts; the app persists markers, reviews and separate research
+ledgers. Ordinary item failures preserve siblings; platform-cap and call-budget
+exceptions reach the worker. Graph verification bounds stored details and marks
+issuance before calls; durable aggregation retains raw results, marks issuance
+on aggregation and meters successful valid items.
+
+Evolution owns the public `EvolutionContext`, round-context assembly and the
+selected-parent outcome projection. The projection preserves run guidance and
+citation sources while limiting prompt state to the selected parent, goal,
+preferences and lab constraints. The app retains action authorization, sibling
+duplicate validation, safety, replay accounting and the one-child commit.
+
+`app/tests/test_engine_operation_boundaries.py` enforces that app production
+modules import public engine symbols and the engine does not import the app.
+The [operation-boundary plan](superpowers/plans/2026-10-02-engine-operation-boundaries.md)
+records the interfaces and characterized execution adaptations.
+
+## HTTP, storage and frontend ownership
+
+Interview routers and SSE transport call `interviews.turns.advance_turn`.
+`interviews.support` owns interview access and request-credential guards;
+`staged_documents` resolves owned attachments for both interviews and runs.
+Logs, diagnostics and API documentation share `operator_access.is_operator`,
+which checks the admin token or the direct loopback client address.
+
+The reference MCP server's `pubmed_storage` owns metadata JSON, digest proofs
+for empty PMC lookups and portable run links. It imports only the standard
+library; retrieval and shared-pool orchestration depend on it. Evaluation
+identity hashing, validation and request-policy snapshots similarly live in
+the execution-independent `evaluations._identity` module.
+
+Run-detail frontend composition separates event invalidation policy, parallel
+snapshot reads and collection state. Requests own each resource they fetch:
+an older partial response cannot replace a newer terminal snapshot, while
+disjoint collection reads can both apply. Navigation and unmount invalidate
+pending requests and debounce work. Run and chat histories share the same
+list-reload lifecycle while retaining their own API reads and events.

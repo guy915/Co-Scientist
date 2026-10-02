@@ -13,7 +13,7 @@ from co_scientist.constants import (
     LITERATURE_REVIEW_PAPERS_COUNT,
     LITERATURE_REVIEW_PAPERS_COUNT_DEV,
 )
-from co_scientist.evidence.helpers import (
+from co_scientist.evidence.search_support import (
     SearchConfig,
     extract_source_name,
 )

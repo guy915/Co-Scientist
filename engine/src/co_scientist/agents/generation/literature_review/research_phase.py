@@ -21,10 +21,10 @@ the review this node always produced.
 import logging
 from typing import Any, NamedTuple
 
-from co_scientist.evidence.helpers import (
+from co_scientist.evidence.research_records import records_from_findings
+from co_scientist.evidence.search_support import (
     SearchConfig,
 )
-from co_scientist.evidence.research_records import records_from_findings
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.progress import emit_progress
 from co_scientist.research import (

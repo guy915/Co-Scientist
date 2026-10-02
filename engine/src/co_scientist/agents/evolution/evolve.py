@@ -6,6 +6,10 @@ import random
 from collections.abc import Coroutine
 from typing import Any
 
+from co_scientist.agents.evolution.context import (
+    EvolutionContext,
+    build_evolution_context,
+)
 from co_scientist.agents.evolution.evolution_operators import (
     EvolutionOperator,
     select_operators,
@@ -31,9 +35,6 @@ from co_scientist.agents.evolution.evolve_grounding import (
 )
 from co_scientist.agents.evolution.evolve_prompt import (
     _build_evolution_prompt as _build_evolution_prompt,
-)
-from co_scientist.agents.evolution.evolve_prompt import (
-    _EvolutionContext as _EvolutionContext,
 )
 from co_scientist.agents.evolution.evolve_prompt import (
     _EvolutionOperation as _EvolutionOperation,
@@ -65,7 +66,6 @@ from co_scientist.agents.evolution.evolve_round import (
 from co_scientist.agents.evolution.evolve_round import (
     _select_evolution_pool as _select_evolution_pool,
 )
-from co_scientist.agents.generation.citations import build_reference_index
 from co_scientist.constants import (
     EVOLVE_MAX_TOKENS_CAP,
     EVOLVE_TOKENS_PER_CONTEXT_HYPOTHESIS,
@@ -80,10 +80,14 @@ from co_scientist.llm import (
     call_llm_json,
     indexed_prompt_name,
 )
-from co_scientist.models import Hypothesis, rank_by_elo
+from co_scientist.models import Hypothesis
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
+
+# Compatibility names retained for existing engine callers and tests.
+_EvolutionContext = EvolutionContext
+_build_evolution_context = build_evolution_context
 
 # Shared default operation (frozen/immutable): the enhancement operator with
 # no specialist feedback, used when a caller does not specify one.
@@ -128,7 +132,7 @@ async def _call_evolution_llm(
     full_prompt: str,
     schema: dict[str, Any] | None,
     other_hypotheses_texts: list[str],
-    context: _EvolutionContext,
+    context: EvolutionContext,
     hypothesis_index: int | None,
 ) -> dict[str, Any]:
     """Calls the LLM to evolve a hypothesis from a prepared prompt.
@@ -170,7 +174,7 @@ async def _call_evolution_llm(
 async def evolve_single_hypothesis(
     hypothesis: Hypothesis,
     other_hypotheses: list[Hypothesis],
-    context: _EvolutionContext,
+    context: EvolutionContext,
     hypothesis_index: int | None = None,
     operation: _EvolutionOperation = _DEFAULT_EVOLUTION_OPERATION,
 ) -> tuple[Hypothesis | None, dict[str, Any] | None]:
@@ -213,7 +217,7 @@ async def evolve_single_hypothesis(
 
 async def evolve_single_hypothesis_from_outcome(
     hypothesis: Hypothesis,
-    context: _EvolutionContext,
+    context: EvolutionContext,
     outcome_context: str,
     validation_hypotheses: list[Hypothesis],
 ) -> tuple[Hypothesis | None, dict[str, Any] | None]:
@@ -245,7 +249,7 @@ async def evolve_single_hypothesis_from_outcome(
 async def _evolve_llm_response(
     hypothesis: Hypothesis,
     other_hypotheses: list[Hypothesis],
-    context: _EvolutionContext,
+    context: EvolutionContext,
     hypothesis_index: int | None,
     operation: _EvolutionOperation,
 ) -> dict[str, Any]:
@@ -275,7 +279,7 @@ async def _evolve_llm_response(
 
 
 def _context_sample_seed(
-    context: _EvolutionContext, hypothesis: Hypothesis
+    context: EvolutionContext, hypothesis: Hypothesis
 ) -> str:
     """Run-scoped seed for one parent's diversity-context sample.
 
@@ -289,7 +293,7 @@ def _context_sample_seed(
 
 
 def _sampled_context(
-    state: WorkflowState, context: _EvolutionContext, hyp: Hypothesis
+    state: WorkflowState, context: EvolutionContext, hyp: Hypothesis
 ) -> list[Hypothesis]:
     """Samples the near-duplicate rejection context for one parent.
 
@@ -319,7 +323,7 @@ def _sampled_context(
 async def _evolve_or_none(
     hypothesis: Hypothesis,
     other_hypotheses: list[Hypothesis],
-    context: _EvolutionContext,
+    context: EvolutionContext,
     hypothesis_index: int,
     operation: _EvolutionOperation,
 ) -> tuple[Hypothesis | None, dict[str, Any] | None]:
@@ -354,7 +358,7 @@ def _build_single_evolution_task(
     state: WorkflowState,
     i: int,
     hyp: Hypothesis,
-    context: _EvolutionContext,
+    context: EvolutionContext,
     operator: EvolutionOperator,
 ) -> Coroutine[Any, Any, tuple[Hypothesis | None, dict[str, Any] | None]]:
     """Builds the per-parent evolution coroutine for one pool member."""
@@ -374,35 +378,6 @@ def _build_single_evolution_task(
         context,
         i,
         operation,
-    )
-
-
-def _build_evolution_context(
-    state: WorkflowState,
-    removed_duplicates: list[str],
-    supervisor_guidance: dict[str, Any] | None,
-) -> _EvolutionContext:
-    """Bundles this evolution round's run-invariant inputs from state."""
-    return _EvolutionContext(
-        model_name=state["model_name"],
-        meta_review=state.get("meta_review", {}),
-        removed_duplicates=removed_duplicates,
-        creation_iteration=state.get("current_iteration", 0),
-        supervisor_guidance=supervisor_guidance,
-        articles_with_reasoning=state.get("articles_with_reasoning"),
-        run_id=state.get("run_id"),
-        tool_registry=state.get("tool_registry"),
-        run_setup_guidance=state.get("run_setup_guidance"),
-        run_focus_guidance=state.get("run_focus_guidance"),
-        proximity_graph=state.get("proximity_graph"),
-        ranked_hypotheses=tuple(rank_by_elo(state["hypotheses"])),
-        state=state,
-        # Built once for the round, not once per parent: it is derived
-        # from state, so every refinement in the round cites the same
-        # [C*] keys and every child resolves against the same table.
-        reference_index=build_reference_index(
-            state.get("articles"), state.get("context_enrichment_sources")
-        ),
     )
 
 
@@ -431,7 +406,7 @@ def _build_evolution_tasks(
         List of evolve_single_hypothesis coroutines, one per hypothesis in
         top_k, ready to be awaited via asyncio.gather.
     """
-    context = _build_evolution_context(
+    context = build_evolution_context(
         state, removed_duplicates, supervisor_guidance
     )
     # The pool is ranked once for the whole round in the context (see

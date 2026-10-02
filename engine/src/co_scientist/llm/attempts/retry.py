@@ -300,6 +300,7 @@ class _AttemptRun(Generic[R, T]):
         self._plan = plan
         self._judge = judge
         self._rung = BudgetEscalation.NONE
+        self._visited_rungs = {self._rung}
         self._feedback: str | None = None
         self._response_text: str | None = None
         self._last: Rejected | None = None
@@ -366,12 +367,15 @@ class _AttemptRun(Generic[R, T]):
     def _climb(self, error: Exception) -> None:
         """Moves to the rung that answers ``error``, if there is one.
 
-        An escalation-only plan has nothing else to do with a failure no
-        rung answers, so it raises it.
+        An escalation-only plan raises the current failure when no rung
+        answers it or the target was already entered during this call.
         """
         rung = _next_rung(error, self._rung, self._plan.model_name)
         if rung is not None:
+            if self._plan.is_escalation_only and rung in self._visited_rungs:
+                raise error
             self._rung = rung
+            self._visited_rungs.add(rung)
         elif self._plan.is_escalation_only:
             raise error
 

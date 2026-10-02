@@ -19,7 +19,6 @@ and ``logs_api.REPORTS_PER_MINUTE`` keep resolving.
 from __future__ import annotations
 
 import dataclasses
-import hmac
 import logging
 import sqlite3
 from typing import Annotated, Any
@@ -38,6 +37,7 @@ from app.logs_rate_limit import (
     _check_report_rate as _check_report_rate,
 )
 from app.notifications import deliver_email, email_notifications_configured
+from app.operator_access import is_operator
 
 logger = logging.getLogger(__name__)
 
@@ -53,31 +53,10 @@ MAX_CLIENT_MESSAGE_CHARS = 2000
 # here so the endpoint cannot be turned into a mail relay for bulk text.
 MAX_REPORT_CHARS = 100_000
 
-# Hosts whose requests are treated as operator access without a token:
-# a local CLI/agent session is already inside the trust boundary.
-_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
-
-
-def _is_operator(request: Request) -> bool:
-    """Return whether this caller may read or clear the app-wide log.
-
-    The log carries other tenants' research goals and server internals,
-    so remote callers are scoped to their own records. Operators are
-    loopback callers (the local CLI) or holders of the configured admin
-    token (ops against a remote deployment).
-    """
-    token = settings.logs_admin_token
-    if token:
-        supplied = request.headers.get("X-Logs-Token", "")
-        if supplied and hmac.compare_digest(supplied, token):
-            return True
-    host = request.client.host if request.client else ""
-    return host in _LOOPBACK_HOSTS
-
 
 def _scope_for(request: Request) -> str | None:
     """Return the client scope to apply, or None for app-wide access."""
-    if _is_operator(request):
+    if is_operator(request):
         return None
     # An unidentified remote caller gets a scope that matches nothing
     # rather than the app-wide view.

@@ -4,8 +4,10 @@ Owns the round-invariant scaffolding around the judged matchups: sorting
 the pool, resolving the tier-configured round count, gathering the
 cross-node context threaded into every matchup, emitting the
 start/complete progress events, and building the node's state delta.
-Pairing selection, Elo commits, and the graph node stay in ``ranking.py``,
-which re-exports these names for compatibility.
+Public preparation/budget/finalization live here; shared judging and Elo
+application live in ``operations.py`` and pairing projection in
+``ranking_pairings.py``.
+The graph node re-exports historical private names for engine compatibility.
 """
 
 import logging
@@ -33,7 +35,7 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
-class _TournamentGuidance(NamedTuple):
+class TournamentGuidance(NamedTuple):
     """Cross-node context threaded unchanged into every judged matchup.
 
     A NamedTuple so it still unpacks positionally as the historical
@@ -48,7 +50,7 @@ class _TournamentGuidance(NamedTuple):
     run_focus_guidance: str | None = None
 
 
-def _gather_tournament_context(state: WorkflowState) -> _TournamentGuidance:
+def _gather_tournament_context(state: WorkflowState) -> TournamentGuidance:
     """Gathers the cross-node context threaded into every judged matchup.
 
     These are set earlier in the workflow (supervisor planning, a prior
@@ -63,7 +65,7 @@ def _gather_tournament_context(state: WorkflowState) -> _TournamentGuidance:
         The bundled tournament guidance (supervisor guidance, tool registry,
         meta-review, run setup/focus guidance).
     """
-    return _TournamentGuidance(
+    return TournamentGuidance(
         supervisor_guidance=state.get("supervisor_guidance"),
         tool_registry=state.get("tool_registry"),
         meta_review=state.get("meta_review"),
@@ -222,7 +224,7 @@ def _tournament_budget(
     return max(configured, scaled)
 
 
-def _tournament_round_count(
+def remaining_ranking_rounds(
     state: WorkflowState, hypotheses: list[Hypothesis]
 ) -> int:
     """Resolves the run's *remaining* tournament round allowance.
@@ -261,10 +263,10 @@ def _tournament_round_count(
     return remaining
 
 
-async def _prepare_ranking_round(
+async def prepare_ranking_round(
     state: WorkflowState,
     hypotheses: list[Hypothesis],
-) -> tuple[int, _TournamentGuidance]:
+) -> tuple[int, TournamentGuidance]:
     """Sorts the pool and gathers the cross-node tournament context.
 
     Also emits the start-of-tournament progress event. The returned
@@ -294,7 +296,7 @@ async def _prepare_ranking_round(
         PROGRESS_TOURNAMENT_START,
     )
 
-    tournament_rounds = _tournament_round_count(state, hypotheses)
+    tournament_rounds = remaining_ranking_rounds(state, hypotheses)
     return tournament_rounds, _gather_tournament_context(state)
 
 
@@ -322,7 +324,7 @@ def _sort_hypotheses_by_elo(
     )
 
 
-async def _finalize_ranking_result(
+async def finalize_ranking(
     state: WorkflowState,
     hypotheses: list[Hypothesis],
     matchup_details: list[dict[str, Any]],
@@ -362,3 +364,10 @@ async def _finalize_ranking_result(
     return _build_ranking_delta(
         hypotheses, matchup_details, tournament_rounds, total_llm_calls
     )
+
+
+# Historical engine imports; app callers use the package operations.
+_TournamentGuidance = TournamentGuidance
+_tournament_round_count = remaining_ranking_rounds
+_prepare_ranking_round = prepare_ranking_round
+_finalize_ranking_result = finalize_ranking

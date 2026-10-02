@@ -1,14 +1,7 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from 'react';
-import {useLocation} from 'react-router-dom';
+import {createContext, useContext, type ReactNode} from 'react';
 import {listInterviews, type ChatSummary} from '@/api/runs';
 import {CHATS_CHANGED_EVENT} from '../dom_events';
+import {useHistoryList} from './use_history_list';
 
 interface ChatHistoryContextValue {
   chats: ChatSummary[];
@@ -16,6 +9,16 @@ interface ChatHistoryContextValue {
 }
 
 const ChatHistoryContext = createContext<ChatHistoryContextValue | null>(null);
+
+async function loadChatHistory(): Promise<ChatSummary[] | undefined> {
+  try {
+    return await listInterviews();
+  } catch {
+    // A transient list failure must not blank the rail: keep what is
+    // shown and let the next navigation or signal re-sync it.
+    return undefined;
+  }
+}
 
 /**
  * Single source of truth for the sidebar's chat list.
@@ -32,27 +35,10 @@ const ChatHistoryContext = createContext<ChatHistoryContextValue | null>(null);
  * changes it.
  */
 export function ChatHistoryProvider({children}: {children: ReactNode}) {
-  const {pathname} = useLocation();
-  const [chats, setChats] = useState<ChatSummary[]>([]);
-
-  // Stable identity (no deps) so it can be both an effect dependency and an
-  // event-listener reference, and be handed to consumers as their reload.
-  const reload = useCallback(async () => {
-    try {
-      setChats(await listInterviews());
-    } catch {
-      // A transient list failure must not blank the rail: keep what is
-      // shown and let the next navigation or signal re-sync it.
-    }
-  }, []);
-
-  useEffect(() => {
-    void reload();
-    window.addEventListener(CHATS_CHANGED_EVENT, reload);
-    return () => {
-      window.removeEventListener(CHATS_CHANGED_EVENT, reload);
-    };
-  }, [reload, pathname]);
+  const {items: chats, reload} = useHistoryList(
+    loadChatHistory,
+    CHATS_CHANGED_EVENT,
+  );
 
   return (
     <ChatHistoryContext.Provider value={{chats, reload}}>

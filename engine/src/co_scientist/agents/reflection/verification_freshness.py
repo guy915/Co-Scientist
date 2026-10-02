@@ -136,7 +136,7 @@ def _needs_verification(hypothesis: Hypothesis, model_name: str) -> bool:
     )
 
 
-def _select_hypotheses_to_verify(
+def select_hypotheses_to_verify(
     hypotheses: list[Hypothesis],
     model_name: str,
 ) -> list[Hypothesis]:
@@ -159,3 +159,7 @@ def _select_hypotheses_to_verify(
         for hypothesis in hypotheses
         if _needs_verification(hypothesis, model_name)
     ]
+
+
+# Compatibility for existing library callers.
+_select_hypotheses_to_verify = select_hypotheses_to_verify

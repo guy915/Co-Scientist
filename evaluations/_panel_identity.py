@@ -7,10 +7,10 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from evaluations._comparison_identity import _request_policy, identity_digest
+from evaluations._identity import identity_digest, request_policy
 from evaluations._usage_evidence import capture_usage
 
-_PANEL_FILES = {
+PANEL_FILES = {
     "citation_entailment": "citation_eval.py",
     "citation_usefulness": "citation_usefulness_eval.py",
     "elo_concordance": "elo_concordance_eval.py",
@@ -25,7 +25,7 @@ def _identity(
 ) -> dict[str, Any]:
     from co_scientist.llm import deepseek_thinking_extra_body
 
-    source = Path(__file__).parent / _PANEL_FILES[panel]
+    source = Path(__file__).parent / PANEL_FILES[panel]
     fields = {
         "version": 1,
         "kind": "panel",
@@ -35,7 +35,7 @@ def _identity(
         "execution_mode": "live_requested" if live else "offline",
         "cache_policy": "disabled",
         "evaluator_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
-        "request_policy_files": _request_policy(),
+        "request_policy_files": request_policy(),
         "routing": {
             "reasoning_enabled": deepseek_thinking_extra_body(model),
             "reasoning_disabled": deepseek_thinking_extra_body(

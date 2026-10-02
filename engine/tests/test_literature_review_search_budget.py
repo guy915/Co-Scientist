@@ -11,7 +11,7 @@ network, LLM, or disk I/O.
 from typing import Any
 
 from co_scientist.config import SearchSourceConfig
-from co_scientist.evidence.helpers import (
+from co_scientist.evidence.search_budget import (
     select_within_budget,
 )
 

@@ -25,9 +25,9 @@ from unittest.mock import AsyncMock
 import pytest
 
 from co_scientist.agents.reflection import comprehensive_reflection as cr
-from co_scientist.agents.reflection import deep_verification as dv
 from co_scientist.agents.reflection import reflection as refl
 from co_scientist.agents.reflection import review as rv
+from co_scientist.agents.reflection import verification as dv
 from co_scientist.agents.reflection.review_evidence import _ReviewEvidence
 from co_scientist.agents.reflection.review_types import ReviewType
 from co_scientist.exceptions import (

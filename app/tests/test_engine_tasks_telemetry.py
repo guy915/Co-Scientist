@@ -199,7 +199,7 @@ async def test_ranking_matches_fold_telemetry_into_finalized_metrics(
         ),
         isolated_db,
     )
-    import co_scientist.agents.ranking.ranking as ranking_module
+    import co_scientist.agents.ranking.operations as ranking_module
 
     monkeypatch.setattr(
         ranking_module, "judge_matchup", _fake_judge_with_telemetry

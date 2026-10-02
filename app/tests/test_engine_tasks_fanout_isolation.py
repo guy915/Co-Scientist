@@ -29,7 +29,7 @@ def _install_judge_failing_once(
     Returns a counter box whose ``calls`` key records every invocation, so
     a test can tell an isolated failure from a cancelled sibling.
     """
-    import co_scientist.agents.ranking.ranking as ranking_module
+    import co_scientist.agents.ranking.operations as ranking_module
 
     box = {"calls": 0}
 

@@ -7,8 +7,9 @@ task instead), and a failure the same request cannot survive is never
 retried. This file drives each through scripted failure sequences against
 a fake provider and a fake sleep and pins attempt count, waits, the rung
 each attempt was sent at, the final exception and the level of every retry
-line -- see ``_llm_attempt_fakes`` for the harness. The tool turn's
-different policy is pinned in ``test_llm_attempt_loop_tools.py``.
+line -- see ``_llm_attempt_fakes`` for the harness. Tool turns' bounded
+recovery and distinct request shaping are pinned in
+``test_llm_attempt_loop_tools.py``.
 
 ``call_llm_json`` adds one thing the loop cannot decide alone: a response
 that arrives but breaks the schema is retried at once, on the same rung,
@@ -218,6 +219,31 @@ async def test_a_thinking_only_attempt_skips_to_thinking_off_and_recovers(
 
 
 @STANDARD
+async def test_standard_plans_can_revisit_rungs_within_their_attempt_budget(
+    drive: Driver, entry: Entry
+) -> None:
+    entry = replace(entry, model=GATEWAY_MODEL)
+    run = await drive(
+        entry,
+        [thinking_only(), reasoning_mandatory()] * 2 + [ok(entry)],
+        max_attempts=5,
+    )
+
+    assert run.error is None
+    assert run.result == ("fine" if entry.kind == "text" else {"a": 1})
+    assert len(run.calls) == 5
+    assert run.retries == 4
+    assert run.slept == []
+    assert run.reasoning == [
+        {"enabled": True, "effort": "high"},
+        {"enabled": False},
+        {"enabled": True, "effort": "low"},
+        {"enabled": False},
+        {"enabled": True, "effort": "low"},
+    ]
+
+
+@STANDARD
 async def test_a_mandatory_reasoning_refusal_is_answered_by_minimal_effort(
     drive: Driver, entry: Entry
 ) -> None:
@@ -340,3 +366,97 @@ async def test_a_final_attempt_call_failure_is_not_a_parse_error(
 
     assert isinstance(run.error, RuntimeError)
     assert len(run.calls) == 2
+
+
+@pytest.mark.parametrize("mandatory_first", [False, True])
+async def test_escalation_only_plan_stops_before_revisiting_a_rung(
+    monkeypatch: pytest.MonkeyPatch,
+    mandatory_first: bool,
+) -> None:
+    import asyncio
+    from typing import Any
+
+    from co_scientist.exceptions import LLMThinkingOnlyError
+    from co_scientist.llm import rate_limited_attempt_count, scoped_telemetry
+    from co_scientist.llm.attempts.contract import Attempt, AttemptPlan
+    from co_scientist.llm.attempts.escalation import BudgetEscalation
+    from co_scientist.llm.attempts.retry import run_attempts
+
+    mandatory = reasoning_mandatory()
+    thinking = LLMThinkingOnlyError("reasoning stopped without an answer")
+    failures = (
+        [mandatory, thinking] if mandatory_first else [thinking, mandatory]
+    )
+    script: list[Any] = failures * 10 + ["success sentinel"]
+    attempts: list[Attempt] = []
+    waited: list[float] = []
+
+    async def make_attempt(attempt: Attempt) -> str:
+        attempts.append(attempt)
+        result = script.pop(0)
+        if isinstance(result, Exception):
+            raise result
+        return str(result)
+
+    async def sleep(delay: float) -> None:
+        waited.append(delay)
+
+    monkeypatch.setattr(asyncio, "sleep", sleep)
+    throttled_before = rate_limited_attempt_count()
+    with (
+        scoped_telemetry("escalation-only") as telemetry,
+        pytest.raises(type(failures[0])) as raised,
+    ):
+        await run_attempts(
+            make_attempt, AttemptPlan.escalation_only(GATEWAY_MODEL)
+        )
+    assert raised.value is failures[0]
+    assert len(attempts) == 3 <= 4
+    expected = [
+        BudgetEscalation.MINIMAL_REASONING_REQUIRED,
+        BudgetEscalation.NO_THINKING,
+    ]
+    assert [attempt.rung for attempt in attempts] == [
+        BudgetEscalation.NONE,
+        *(expected if mandatory_first else expected[::-1]),
+    ]
+    assert not waited
+    assert rate_limited_attempt_count() == throttled_before
+    assert sum(usage["retries"] for usage in telemetry.snapshot().values()) == 0
+    assert "success sentinel" in script
+
+
+async def test_escalation_only_ladder_is_finite_and_call_local() -> None:
+    from co_scientist.llm.attempts.contract import Attempt, AttemptPlan
+    from co_scientist.llm.attempts.escalation import BudgetEscalation
+    from co_scientist.llm.attempts.retry import run_attempts
+
+    attempts: list[Attempt] = []
+    for _ in range(2):
+        failures = [
+            LLMBudgetExhaustedError("ceiling"),
+            LLMBudgetExhaustedError("raised ceiling"),
+            reasoning_mandatory(),
+        ]
+
+        async def make_attempt(
+            attempt: Attempt, failures: list[Exception] = failures
+        ) -> str:
+            attempts.append(attempt)
+            if failures:
+                raise failures.pop(0)
+            return "fine"
+
+        assert (
+            await run_attempts(
+                make_attempt, AttemptPlan.escalation_only(GATEWAY_MODEL)
+            )
+            == "fine"
+        )
+    assert [attempt.rung for attempt in attempts] == [
+        BudgetEscalation.NONE,
+        BudgetEscalation.RAISED_BUDGET,
+        BudgetEscalation.NO_THINKING,
+        BudgetEscalation.MINIMAL_REASONING_REQUIRED,
+    ] * 2
+    assert [attempt.number for attempt in attempts] == [1, 2, 3, 4] * 2

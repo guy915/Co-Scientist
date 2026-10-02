@@ -6,8 +6,9 @@ import asyncio
 from typing import Any
 
 import pytest
-from co_scientist.agents.evolution import evolve as evolution
+from co_scientist.agents import evolution, ranking, reflection
 from co_scientist.models import Hypothesis, HypothesisOrigin, HypothesisReview
+from co_scientist.state import WorkflowState
 
 from app import store, task_worker
 from app.config import settings
@@ -32,6 +33,9 @@ class _OfflineGateStubs:
         self.parent_id = parent_id
         self.sibling_id = sibling_id
         self.matchups: list[tuple[str, str]] = []
+        self.mature_review_calls: list[tuple[str, str]] = []
+        self.verification_calls: list[str] = []
+        self.judging_calls = 0
 
     async def evolve(
         self,
@@ -75,43 +79,46 @@ class _OfflineGateStubs:
         )
 
     async def mature_review(
-        self, _state: Any, _hypothesis: Any, mode: Any
-    ) -> tuple[None, dict[str, str], None]:
-        verdict = "sound" if str(mode.value) == "full" else "holds"
-        return None, {"verdict": verdict}, None
+        self,
+        _state: WorkflowState,
+        hypothesis: Hypothesis,
+        mode: reflection.ReviewType,
+    ) -> reflection.ReviewRun:
+        self.mature_review_calls.append((hypothesis.id, mode.value))
+        verdict = "sound" if mode is reflection.ReviewType.FULL else "holds"
+        return reflection.ReviewRun(mode, {"verdict": verdict}, None)
 
-    async def verify(self, *_: Any) -> dict[str, Any]:
+    async def verify(
+        self, _state: WorkflowState, hypothesis: Hypothesis
+    ) -> dict[str, Any]:
+        self.verification_calls.append(hypothesis.id)
         return {"verdict": "holds", "probes": []}
 
     async def judge(
         self,
         pair: tuple[Hypothesis, Hypothesis],
-        _offset: int,
-        _context: Any,
-        _debate_turns: int,
-    ) -> tuple[str, dict[str, Any]]:
+        _context: ranking.RankingJudgingContext,
+        _matchup_index: int,
+    ) -> ranking.RankingJudgement:
+        self.judging_calls += 1
         self.matchups.append((pair[0].id, pair[1].id))
-        return "a", {
-            "decision_summary": "Deterministic offline judgment.",
-            "judgment_explanation": {},
-            "confidence_level": "medium",
-            "debate_turns": 1,
-        }
+        return ranking.RankingJudgement(
+            winner="a",
+            response={
+                "decision_summary": "Deterministic offline judgment.",
+                "judgment_explanation": {},
+                "confidence_level": "medium",
+                "debate_turns": 1,
+            },
+            budgeted_turns=1,
+        )
 
 
 def _install_deterministic_gate_stubs(
     monkeypatch: pytest.MonkeyPatch, parent_id: str, sibling_id: str
 ) -> _OfflineGateStubs:
     """Patch provider boundaries while leaving durable gates in the path."""
-    from co_scientist.agents.reflection import (
-        comprehensive_reflection as reflection_module,
-    )
-    from co_scientist.agents.reflection import (
-        deep_verification as verification_module,
-    )
     from co_scientist.agents.reflection import review as review_module
-
-    from app.engine_tasks import ranking_wave as engine_tasks_ranking_wave
 
     stubs = _OfflineGateStubs(parent_id, sibling_id)
     monkeypatch.setattr(
@@ -120,11 +127,9 @@ def _install_deterministic_gate_stubs(
         stubs.evolve,
     )
     monkeypatch.setattr(review_module, "review_single_hypothesis", stubs.review)
-    monkeypatch.setattr(reflection_module, "_run_review", stubs.mature_review)
-    monkeypatch.setattr(verification_module, "_verify_one", stubs.verify)
-    monkeypatch.setattr(
-        engine_tasks_ranking_wave, "_judge_one_matchup", stubs.judge
-    )
+    monkeypatch.setattr(reflection, "review_hypothesis", stubs.mature_review)
+    monkeypatch.setattr(reflection, "verify_hypothesis", stubs.verify)
+    monkeypatch.setattr(ranking, "judge_ranking_matchup", stubs.judge)
     return stubs
 
 
@@ -167,6 +172,10 @@ def test_targeted_child_traverses_standard_review_safety_claim_and_elo_gates(
     )
     completed_types = _run_until_ranking_finalized(run_id, isolated_db)
 
+    assert ("gate-tested-child", "full") in stubs.mature_review_calls
+    assert ("gate-tested-child", "simulation") in stubs.mature_review_calls
+    assert "gate-tested-child" in stubs.verification_calls
+    assert stubs.judging_calls > 0
     assert "engine.node.review" in completed_types
     assert "engine.fanout.review.item" in completed_types
     assert "engine.fanout.review.aggregate" in completed_types

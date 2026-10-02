@@ -13,7 +13,7 @@ from typing import Any
 
 import pytest
 
-from co_scientist.agents.ranking import ranking, ranking_debate
+from co_scientist.agents.ranking import operations, ranking, ranking_debate
 from co_scientist.agents.ranking.ranking import ranking_node
 from co_scientist.constants import (
     INITIAL_ELO_RATING,
@@ -335,8 +335,8 @@ async def test_each_round_selects_from_committed_current_elo(
             "debate_turns": 1,
         }
 
-    monkeypatch.setattr(ranking, "_build_tournament_pairings", fake_pairings)
-    monkeypatch.setattr(ranking, "judge_matchup", fake_judge)
+    monkeypatch.setattr(ranking, "build_tournament_pairings", fake_pairings)
+    monkeypatch.setattr(operations, "judge_matchup", fake_judge)
     state = make_state(hypotheses=hypotheses, tournament_pairs=2)
 
     await ranking._run_tournament_matchups(

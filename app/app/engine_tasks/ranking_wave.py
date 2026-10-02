@@ -14,6 +14,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
+from co_scientist.agents.ranking import RankingJudgement, RankingJudgingContext
+
 # Re-exported so ``app.engine_tasks.RANKING_WAVE_SIZE`` keeps resolving. The
 # engine owns the number: it also sizes the judge semaphore, and the two
 # must agree or the wave serializes inside the task.
@@ -85,31 +87,17 @@ class _WaveResult:
 
 @dataclass(frozen=True)
 class _JudgedWave:
-    """The subset of a wave that produced a verdict, in wave order.
-
-    Attributes:
-        pairs: Matchups whose judge returned; never the ones that raised.
-        judgements: Each surviving matchup's (winner, response) verdict.
-        depths: Each surviving matchup's budgeted debate depth.
-    """
+    """Surviving verdicts in wave order, carrying budgeted debate depths."""
 
     pairs: list[Any]
-    judgements: list[tuple[str, dict[str, Any]]]
-    depths: list[int]
+    judgements: list[RankingJudgement]
 
 
 @dataclass(frozen=True)
 class _WaveJudgeContext:
-    """Per-wave context shared by every matchup a wave judges.
+    """One shared scientific context and a wave's matchup numbering base."""
 
-    Attributes:
-        state: Restored workflow state the wave is judged against.
-        context: The engine's gathered tournament context tuple.
-        index: Round index the wave starts at (matchup numbering base).
-    """
-
-    state: dict[str, Any]
-    context: tuple[Any, Any, Any, Any, Any]
+    context: RankingJudgingContext
     index: int
 
 
@@ -200,10 +188,10 @@ def _prepare_ranking_wave(
     Returns:
         The wave to judge, with the round position it occupies.
     """
-    from co_scientist.agents.ranking.ranking import _build_tournament_pairings
+    from co_scientist.agents.ranking import build_tournament_pairings
 
     wave_size = _wave_size()
-    candidates = _build_tournament_pairings(
+    candidates = build_tournament_pairings(
         eligible,
         min(wave_size + 1, rounds),
         state["research_goal"],
@@ -224,53 +212,19 @@ async def _judge_one_matchup(
     pair: tuple[Any, Any],
     offset: int,
     judge_context: _WaveJudgeContext,
-    debate_turns: int,
-) -> tuple[str, dict[str, Any]]:
-    """Judge one matchup of a wave against the wave's shared context.
+) -> RankingJudgement:
+    """Judge one pair against the shared wave snapshot."""
+    from co_scientist.agents.ranking import judge_ranking_matchup
 
-    Args:
-        pair: The two hypotheses to judge.
-        offset: Position of this matchup inside its wave.
-        judge_context: State, tournament context, and the wave's base index.
-        debate_turns: Debate depth this matchup was assigned.
-
-    Returns:
-        The judged winner and its raw debate response.
-    """
-    from co_scientist.agents.ranking.ranking import (
-        _DebateContext,
-        judge_matchup,
+    result: RankingJudgement = await judge_ranking_matchup(
+        pair, judge_context.context, judge_context.index + offset
     )
-
-    state = judge_context.state
-    guidance, registry, meta_review, setup, focus = judge_context.context
-    debate_ctx = _DebateContext(
-        pair[0],
-        pair[1],
-        state["research_goal"],
-        state["model_name"],
-        supervisor_guidance=guidance,
-        meta_review=meta_review,
-        tool_registry=registry,
-        run_setup_guidance=setup,
-        run_focus_guidance=focus,
-        run_id=state.get("run_id"),
-        matchup_index=judge_context.index + offset,
-        # The scientist's evaluation criteria govern the judge's verdict
-        # (finding A2); read here because the durable wave path, not the
-        # engine node, is where this run's judging happens.
-        criteria=state.get("criteria"),
-    )
-    judgement: tuple[str, dict[str, Any]] = await judge_matchup(
-        debate_ctx, debate_turns=debate_turns
-    )
-    return judgement
+    return result
 
 
 def _surviving_judgements(
     wave: list[Any],
     judged: list[Any],
-    depths: list[int],
 ) -> _JudgedWave:
     """Drop the matchups whose judge raised, keeping their siblings.
 
@@ -296,8 +250,7 @@ def _surviving_judgements(
         if isinstance(result, TASK_CONTROL_FLOW_ERRORS):
             raise result
     pairs: list[Any] = []
-    judgements: list[tuple[str, dict[str, Any]]] = []
-    kept_depths: list[int] = []
+    judgements: list[RankingJudgement] = []
     for offset, result in enumerate(judged):
         if isinstance(result, BaseException):
             logger.warning(
@@ -308,8 +261,7 @@ def _surviving_judgements(
             continue
         pairs.append(wave[offset])
         judgements.append(result)
-        kept_depths.append(depths[offset])
-    return _JudgedWave(pairs, judgements, kept_depths)
+    return _JudgedWave(pairs, judgements)
 
 
 async def _judge_wave_matchups(
@@ -333,78 +285,51 @@ async def _judge_wave_matchups(
         The matchups that produced a verdict, with their judgements and
         debate depths, in wave order.
     """
-    from co_scientist.agents.ranking.ranking import (
-        _gather_tournament_context,
-        _matchup_debate_turns,
-        _median_elo,
+    from co_scientist.agents.ranking import (
+        prepare_ranking_judging_context,
+        prepare_ranking_prompt_context,
     )
 
-    wave = plan.wave
-    judge_context = _WaveJudgeContext(
-        state, _gather_tournament_context(state), plan.index
-    )
-    median = _median_elo(eligible)
-    depths = [_matchup_debate_turns(pair[0], pair[1], median) for pair in wave]
+    # Durable judging intentionally omits preferences and snapshots the
+    # guidance and O(pool size) median once for the entire checkpointed wave.
+    prompt = prepare_ranking_prompt_context(state)
+    context = prepare_ranking_judging_context(prompt, eligible)
+    judge_context = _WaveJudgeContext(context, plan.index)
     judged = await asyncio.gather(
         *(
-            _judge_one_matchup(pair, offset, judge_context, depths[offset])
-            for offset, pair in enumerate(wave)
+            _judge_one_matchup(pair, offset, judge_context)
+            for offset, pair in enumerate(plan.wave)
         ),
         return_exceptions=True,
     )
-    return _surviving_judgements(wave, list(judged), depths)
+    return _surviving_judgements(plan.wave, list(judged))
 
 
 def _apply_wave_elo(
     wave: list[Any],
-    judged: list[tuple[str, dict[str, Any]]],
-    depths: list[int],
+    judged: list[RankingJudgement],
     state: dict[str, Any],
 ) -> tuple[list[dict[str, Any]], int, list[str]]:
-    """Apply a judged wave's Elo updates in wave order.
+    """Apply verdicts in wave order, charging actual debate calls.
 
-    Elo is applied in wave order so the committed result is independent of
-    the order the concurrent judgements happened to return in.
-
-    ``depths`` is what each matchup was *budgeted*; a debate that reached a
-    decided majority early spends fewer turns than that, and reports the
-    turns it actually judged on the response. Metering the budget instead
-    would charge the run's LLM allowance for calls it never made, and
-    ``max_llm_calls`` is a termination bound -- over-counting it shortens
-    runs for no reason.
+    Judging may finish in any order, but a shared hypothesis must start
+    each Elo commit at the rating its previous matchup left it at.
     """
-    from co_scientist.agents.ranking.ranking import (
-        _apply_matchup_elo,
-        _build_matchup_detail,
-    )
+    from co_scientist.agents.ranking import apply_ranking_matchup
     from co_scientist.constants import ELO_K_FACTOR
 
     k_factor = int(state.get("elo_k_factor") or ELO_K_FACTOR)
-    # Read once per wave: every matchup in it is judged in the same cycle,
-    # and the detail is the only place the cycle is still known (the drain
-    # persists every cycle's accumulated matchups together at the end).
     iteration = int(state.get("current_iteration", 0))
     details: list[dict[str, Any]] = []
     total_calls = 0
     last_pair: list[str] = []
-    for offset, (pair, (winner, response)) in enumerate(
-        zip(wave, judged, strict=True)
-    ):
-        hypothesis_a, hypothesis_b = pair
-        outcome = _apply_matchup_elo(
-            hypothesis_a,
-            hypothesis_b,
-            winner,
-            k_factor=k_factor,
-            # Feeds only the margin-scaling reconstruction knob (off by
-            # default), so it is inert unless that knob is enabled.
-            confidence=response.get("confidence_level"),
+    for pair, judgement in zip(wave, judged, strict=True):
+        result = apply_ranking_matchup(
+            pair, judgement, k_factor=k_factor, current_iteration=iteration
         )
-        details.append(
-            _build_matchup_detail(pair, winner, response, outcome, iteration)
-        )
-        total_calls += int(response.get("debate_turns", depths[offset]))
-        last_pair = [hypothesis_a.id, hypothesis_b.id]
+        details.append(result.detail)
+        total_calls += result.llm_calls
+        last_pair = [pair[0].id, pair[1].id]
     return details, total_calls, last_pair
 
 
@@ -436,7 +361,7 @@ async def _advance_ranking_wave(
     with scoped_telemetry("ranking") as telemetry:
         survived = await _judge_wave_matchups(plan, state, eligible)
     new_details, calls_delta, last_pair = _apply_wave_elo(
-        survived.pairs, survived.judgements, survived.depths, state
+        survived.pairs, survived.judgements, state
     )
     # The round index advances by the whole wave, not by what survived: a
     # dropped matchup consumed its slot in the budget, and rewinding the

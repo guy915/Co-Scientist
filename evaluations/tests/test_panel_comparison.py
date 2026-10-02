@@ -62,7 +62,7 @@ def test_changed_panel_controls_are_rejected(
 def _reseal_invalid_pair(
     report: dict[str, Any], candidate: dict[str, Any], change: str
 ) -> None:
-    from evaluations._comparison_identity import identity_digest
+    from evaluations._identity import identity_digest
 
     for artifact in (report, candidate):
         identity = artifact["evaluation_identity"]

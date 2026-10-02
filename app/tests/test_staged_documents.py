@@ -20,8 +20,9 @@ from typing import Any, cast
 import pytest
 from fastapi.testclient import TestClient
 
-from app import interviews, offline_guard, store
+from app import offline_guard, store
 from app.config import settings
+from app.interviews import model as interviews_model
 from tests._client import make_client
 from tests._interviews_helpers import (
     _fake_stream,
@@ -118,7 +119,7 @@ def test_attached_document_reaches_the_interview_prompt(
 
     import asyncio
 
-    asyncio.run(interviews._call_interview_model(interview))
+    asyncio.run(interviews_model._call_interview_model(interview))
 
     prompt = " ".join(m["content"] for m in captured["messages"])
     assert _DOC_TEXT in prompt

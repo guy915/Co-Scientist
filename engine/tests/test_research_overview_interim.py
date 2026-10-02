@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from co_scientist.agents.generation import coordinator
+from co_scientist.agents.generation import operations
 from co_scientist.agents.meta_review import research_overview as ro
 from co_scientist.constants import (
     RESEARCH_OVERVIEW_INTERIM_MAX_TOKENS,
@@ -196,7 +196,7 @@ def test_generation_reads_the_interim_overview_as_context() -> None:
     findings so far, which is what that context is.
     """
     state = make_state(interim_overview="Direction 1: block the brake.")
-    augmented = coordinator._with_interim_overview(state, "Paper A says X.")
+    augmented = operations._with_interim_overview(state, "Paper A says X.")
 
     assert augmented is not None
     assert "Direction 1: block the brake." in augmented
@@ -207,7 +207,7 @@ async def test_prepare_generation_splices_the_block_into_its_context() -> None:
     """The splice itself, at the seam every strategy is handed.
 
     ``_with_interim_overview`` being correct in isolation is not the fix:
-    the call in ``_prepare_generation`` is what puts it in front of the
+    the call in ``prepare_generation`` is what puts it in front of the
     generation prompts.
     """
     state = make_state(
@@ -218,7 +218,7 @@ async def test_prepare_generation_splices_the_block_into_its_context() -> None:
         interim_overview="Direction 1: block the brake.",
     )
 
-    _, _, context = await coordinator._prepare_generation(state)
+    context = (await operations.prepare_generation(state)).literature
 
     assert context is not None
     assert "Direction 1: block the brake." in context
@@ -228,6 +228,6 @@ async def test_prepare_generation_splices_the_block_into_its_context() -> None:
 def test_generation_context_is_untouched_before_the_first_firing() -> None:
     """No firing yet means byte-identical prompts to before this fix."""
     state = make_state()
-    unchanged = coordinator._with_interim_overview(state, "Paper A says X.")
+    unchanged = operations._with_interim_overview(state, "Paper A says X.")
     assert unchanged == "Paper A says X."
-    assert coordinator._with_interim_overview(state, None) is None
+    assert operations._with_interim_overview(state, None) is None

@@ -28,7 +28,7 @@ from __future__ import annotations
 import logging
 from typing import Any, NamedTuple
 
-from co_scientist.evidence.helpers import (
+from co_scientist.evidence.article_support import (
     build_articles_from_metadata,
 )
 from co_scientist.evidence.research_records import (

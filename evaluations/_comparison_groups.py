@@ -4,7 +4,7 @@ import hashlib
 from collections.abc import Sequence
 from typing import Any
 
-from evaluations._comparison_identity import identity_digest, validate_identity
+from evaluations._identity import identity_digest, validate_identity
 
 
 def _arm_controls(record: dict[str, Any], kind: str) -> dict[str, Any]:

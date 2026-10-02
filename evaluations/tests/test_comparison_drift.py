@@ -53,7 +53,7 @@ def test_worker_drift_cannot_produce_an_arm_result(
     from app import store, task_worker
     from app.config import settings
 
-    from evaluations._comparison_identity import identity_digest
+    from evaluations._identity import identity_digest
 
     db = str(tmp_path / "post-drift.db")
     _run_driver.configure_environment(db, str(tmp_path / "cache"), live=False)

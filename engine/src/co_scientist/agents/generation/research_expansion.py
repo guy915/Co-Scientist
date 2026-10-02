@@ -23,7 +23,7 @@ behavior for the generation paths this package owns:
 
 Detection keys off ``current_iteration``: generation in iteration 0 is
 initial generation; every later generate cycle is research expansion
-(the same signal ``coordinator._stamp_generation_lineage`` uses when it
+(the same signal ``operations._stamp_generation_lineage`` uses when it
 stamps the method).
 """
 

@@ -22,12 +22,12 @@ from co_scientist.config import (
     ToolRegistry,
     WorkflowConfig,
 )
-from co_scientist.evidence import search
-from co_scientist.evidence.helpers import (
-    SearchConfig,
-)
+from co_scientist.evidence import search, search_query, search_retry
 from co_scientist.evidence.relevance import (
     _HYBRID_VERSION,
+)
+from co_scientist.evidence.search_support import (
+    SearchConfig,
 )
 from co_scientist.llm import scoped_campaign_mode
 from co_scientist.offline import llm as offline_llm
@@ -82,7 +82,7 @@ def test_build_query_tool_params_with_tool_config_maps_parameters() -> None:
     tool_config = make_tool_config(
         parameter_mapping={"query": "q", "recency_years": None}
     )
-    params = search._build_query_tool_params(
+    params = search_query._build_query_tool_params(
         "cancer", "slug1", "run1", 5, tool_config
     )
     assert params == {
@@ -98,7 +98,7 @@ def test_bundled_openalex_contract_drops_unsupported_slug() -> None:
     tool_config = ToolRegistry().get_tool("openalex_search")
     assert tool_config is not None
 
-    params = search._build_query_tool_params(
+    params = search_query._build_query_tool_params(
         "astrocyte lactate", "corpus-slug", "run1", 5, tool_config
     )
 
@@ -118,7 +118,7 @@ def test_bundled_openalex_contract_drops_unsupported_slug() -> None:
 def test_tag_source_name_tags_dict_entries_only() -> None:
     """Only dict-valued entries get the ``_source_name`` key added in place."""
     normalized: dict[str, Any] = {"p1": {"title": "A"}, "p2": "not a dict"}
-    result: dict[str, Any] = search._tag_source_name(normalized, "pubmed")
+    result: dict[str, Any] = search_query._tag_source_name(normalized, "pubmed")
     assert result["p1"]["_source_name"] == "pubmed"
     assert result["p2"] == "not a dict"
 
@@ -208,7 +208,7 @@ async def test_search_source_for_query_error_appends_message_and_empties(
     assert errors == ["pubmed: ConnectionError: boom"]
     # Read from the constant: the retry budget is tuned against upstream
     # behavior, and a hardcoded copy here turns tuning it into a test break.
-    assert len(client.calls) == search._SEARCH_ATTEMPTS
+    assert len(client.calls) == search_retry._SEARCH_ATTEMPTS
 
 
 # =============================================================================

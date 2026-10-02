@@ -126,7 +126,7 @@ def _apply_review_items(
     decides an idea's standing for the rest of the run (FIX-4). It reads
     reviews already paid for and costs no LLM calls.
     """
-    from co_scientist.agents.reflection.review import _apply_initial_review_gate
+    from co_scientist.agents.reflection import apply_initial_review_gate
     from co_scientist.agents.reflection.review_gate import (
         refresh_review_dispositions,
     )
@@ -147,7 +147,7 @@ def _apply_review_items(
         review = HypothesisReview(**item.result["review"])
         hypothesis.reviews.append(review)
         hypothesis.score = review.overall_score
-        _apply_initial_review_gate([hypothesis], [review], criteria)
+        apply_initial_review_gate([hypothesis], [review], criteria)
         usage_snapshots.append(item.result.get("model_usage") or {})
         successful += 1
     refresh_review_dispositions(by_id.values(), criteria)
@@ -326,17 +326,15 @@ async def _generation_aggregate_update(
     calls that item spent before failing -- the same convention the
     engine side uses for a count that is real but not exhaustive.
     """
-    from co_scientist.agents.generation.coordinator import _finalize_generation
-    from co_scientist.agents.generation.coordinator_results import (
-        GenerationResults,
-    )
-    from co_scientist.agents.generation.coordinator_strategy import (
+    from co_scientist.agents.generation import (
         GenerationCounts,
+        GenerationResults,
+        finalize_generation,
     )
     from co_scientist.models import MetricDeltas, create_metrics_update
 
     buckets = items.buckets
-    update: dict[str, Any] = await _finalize_generation(
+    update: dict[str, Any] = await finalize_generation(
         state,
         GenerationCounts(**task.inputs["counts"]),
         GenerationResults(

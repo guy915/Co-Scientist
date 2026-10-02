@@ -1,14 +1,7 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from 'react';
-import {useLocation} from 'react-router-dom';
+import {createContext, useContext, useEffect, type ReactNode} from 'react';
 import {isActiveStatus, loadRunHistory, type Run} from '@/api/runs';
 import {RUNS_CHANGED_EVENT} from '../dom_events';
+import {useHistoryList} from './use_history_list';
 
 interface RunHistoryContextValue {
   history: Run[];
@@ -35,23 +28,10 @@ const ACTIVE_RUN_REFRESH_MS = 10_000;
  * live progress.
  */
 export function RunHistoryProvider({children}: {children: ReactNode}) {
-  const {pathname} = useLocation();
-  const [history, setHistory] = useState<Run[]>([]);
-
-  // Stable identity (no deps) so it can be both an effect dependency and an
-  // event-listener reference below, and safely handed to consumers as their
-  // reload callback.
-  const reload = useCallback(async () => {
-    setHistory(await loadRunHistory());
-  }, []);
-
-  useEffect(() => {
-    void reload();
-    window.addEventListener(RUNS_CHANGED_EVENT, reload);
-    return () => {
-      window.removeEventListener(RUNS_CHANGED_EVENT, reload);
-    };
-  }, [reload, pathname]);
+  const {items: history, reload} = useHistoryList(
+    loadRunHistory,
+    RUNS_CHANGED_EVENT,
+  );
 
   // Depend on the flag rather than `history` itself so the timer is not torn
   // down and rebuilt by the state update each refresh performs.

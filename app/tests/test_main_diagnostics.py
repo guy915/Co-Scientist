@@ -66,7 +66,7 @@ def _seed_interrupted_engine_run(isolated_db: str) -> str:
 
 
 def test_root_endpoint_hides_docs_pointer_from_non_operators() -> None:
-    """A non-operator caller gets no /docs pointer -- see `_is_operator`."""
+    """A non-operator caller gets no /docs pointer -- see `is_operator`."""
     res = _client().get("/")
     assert res.status_code == 200
     assert res.json() == {
@@ -199,7 +199,7 @@ def test_status_reports_effective_tools_config(
 ) -> None:
     """/status discloses the configured tools_config to an operator caller.
 
-    See `_is_operator`; every other caller sees this and the other
+    See `is_operator`; every other caller sees this and the other
     operator-only fields redacted to null, covered by
     `test_status_redacts_operator_fields_from_non_operators` below.
     """

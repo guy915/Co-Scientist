@@ -108,9 +108,21 @@ class AttemptPlan:
     def escalation_only(cls, model_name: str) -> "AttemptPlan":
         """Retry only failures the budget-escalation ladder answers.
 
-        This policy has no physical-attempt budget. Failures no rung answers
-        propagate without backoff or quota parking. Production entry points,
-        including tool turns, use bounded plans instead.
+        There is no numeric attempt budget, but each rung can be entered
+        at most once per call, including the initial rung. This permits at
+        most four physical attempts and raises the current failure before
+        revisiting a rung, even when reasoning failures alternate.
+        Failures no rung answers propagate without backoff, quota parking
+        or retry telemetry. Production entry points, including tool turns,
+        use bounded plans instead; tool turns have three attempts and share
+        standard backoff, quota parking and retry telemetry.
+
+        Args:
+            model_name: The model the attempts are made against.
+
+        Returns:
+            A plan limited by distinct escalation rungs.
+
         """
         return cls(model_name, None)
 

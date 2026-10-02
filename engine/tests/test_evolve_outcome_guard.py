@@ -4,8 +4,11 @@ from typing import Any
 
 import pytest
 
-from co_scientist.agents.evolution import evolve
-from co_scientist.agents.evolution.evolve_prompt import _EvolutionContext
+from co_scientist.agents.evolution import (
+    EvolutionContext,
+    evolve,
+    evolve_single_hypothesis_from_outcome,
+)
 from tests._state import make_hypothesis
 
 
@@ -30,16 +33,17 @@ async def test_outcome_refinement_compares_child_text_to_peer(
     }
 
     async def fake_response(*args: Any, **kwargs: Any) -> dict[str, str]:
+        assert args[1] == []  # Siblings reach validation, never prompt peers.
         return {"hypothesis": child_text}
 
     monkeypatch.setattr(evolve, "_evolve_llm_response", fake_response)
-    context = _EvolutionContext(
+    context = EvolutionContext(
         model_name="fake/model",
         meta_review={},
         removed_duplicates=[],
         proximity_graph=graph,
     )
-    child, detail = await evolve.evolve_single_hypothesis_from_outcome(
+    child, detail = await evolve_single_hypothesis_from_outcome(
         parent, context, "Observed result", [peer]
     )
 

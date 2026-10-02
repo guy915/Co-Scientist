@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from co_scientist.agents.reflection import deep_verification as dv
+from co_scientist.agents.reflection import verification as leaf
 from co_scientist.models import Article
 from tests._state import make_article, make_hypothesis, make_state
 
@@ -56,7 +57,7 @@ async def test_deep_verification_prompt_includes_meta_review(
         prompts.append(str(kwargs.get("prompt", "")))
         return {"probes": [], "verdict": "confirmed", "overall_assessment": ""}
 
-    monkeypatch.setattr(dv, "call_llm_json", capture)
+    monkeypatch.setattr(leaf, "call_llm_json", capture)
 
     state = make_state(
         hypotheses=[make_hypothesis(text="h", elo_rating=1400)],
@@ -154,8 +155,8 @@ async def test_probe_questions_trigger_retrieval_and_second_adjudication(
     nothing.
     """
     call, retrieve = _probe_retrieval_mocks()
-    monkeypatch.setattr(dv, "call_llm_json", call)
-    monkeypatch.setattr(dv, "_retrieve_probe_evidence", retrieve)
+    monkeypatch.setattr(leaf, "call_llm_json", call)
+    monkeypatch.setattr(leaf, "_retrieve_probe_evidence", retrieve)
     hypothesis = make_hypothesis(text="X controls Y", elo_rating=1800)
     state = make_state(
         hypotheses=[hypothesis],

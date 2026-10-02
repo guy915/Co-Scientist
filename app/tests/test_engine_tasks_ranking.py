@@ -1,5 +1,7 @@
 """Tournament progress-cadence and wave-concurrency tests for ranking."""
 
+from typing import Any
+
 import pytest
 
 from app import store
@@ -255,6 +257,7 @@ def test_wave_elo_is_applied_sequentially_within_the_round() -> None:
     the second must start from the rating the first left A at, not from the
     pre-wave snapshot both were drawn from.
     """
+    from co_scientist.agents.ranking import RankingJudgement
     from co_scientist.models import Hypothesis
 
     from app.engine_tasks.ranking_wave import _apply_wave_elo
@@ -265,13 +268,11 @@ def test_wave_elo_is_applied_sequentially_within_the_round() -> None:
     wave = [(hyp_a, hyp_b), (hyp_a, hyp_c)]
     verdict = {"decision_summary": "A wins.", "confidence_level": "High"}
     judged = [
-        ("a", dict(verdict, debate_turns=1)),
-        ("a", dict(verdict, debate_turns=1)),
+        RankingJudgement("a", dict(verdict, debate_turns=1), 1),
+        RankingJudgement("a", dict(verdict, debate_turns=1), 1),
     ]
 
-    details, _, _ = _apply_wave_elo(
-        wave, judged, [1, 1], {"current_iteration": 2}
-    )
+    details, _, _ = _apply_wave_elo(wave, judged, {"current_iteration": 2})
 
     first, second = details
     # The durable path stamps the cycle it judged the wave in: the drain
@@ -285,3 +286,129 @@ def test_wave_elo_is_applied_sequentially_within_the_round() -> None:
     assert second["winner_elo_before"] == first["winner_elo_after"]
     assert second["winner_elo_after"] == 1223
     assert hyp_a.total_matches == 2
+
+
+@pytest.mark.asyncio
+async def test_wave_snapshots_context_once_and_commits_in_wave_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import asyncio
+
+    from co_scientist.agents.ranking import operations
+    from co_scientist.models import Hypothesis
+
+    from app.engine_tasks.ranking_wave import (
+        _advance_ranking_wave,
+        _WavePlan,
+        _WaveResult,
+    )
+
+    a, b, c = [Hypothesis(text=name) for name in ("A", "B", "C")]
+    completed: list[int] = []
+    captured: list[Any] = []
+    medians: list[Any] = []
+    guidance: list[Any] = []
+    second_finished = asyncio.Event()
+    real_median = operations._median_elo
+    real_guidance = operations._gather_tournament_context
+
+    def median(pool: list[Hypothesis]) -> float:
+        medians.append([h.id for h in pool])
+        return float(real_median(pool))
+
+    def gather(state: Any) -> Any:
+        guidance.append(1)
+        return real_guidance(state)
+
+    async def judge(ctx: Any, debate_turns: int) -> tuple[str, dict[str, Any]]:
+        captured.append(ctx)
+        if ctx.matchup_index == 7:
+            await second_finished.wait()
+        else:
+            second_finished.set()
+        completed.append(ctx.matchup_index)
+        return "a", {"debate_turns": ctx.matchup_index - 5}
+
+    monkeypatch.setattr(operations, "judge_matchup", judge)
+    monkeypatch.setattr(operations, "_median_elo", median)
+    monkeypatch.setattr(operations, "_gather_tournament_context", gather)
+    state = {
+        "research_goal": "goal",
+        "model_name": "model",
+        "current_iteration": 4,
+        "criteria": ["scientist criterion"],
+        "preferences": "omitted preference",
+    }
+    plan = _WavePlan([(a, b), (a, c)], 7, 9)
+    result = await _advance_ranking_wave(
+        plan, state, [b, a, c], _WaveResult([], 0, 7, [])
+    )
+    assert completed == [8, 7]
+    assert medians == [[b.id, a.id, c.id]]
+    assert guidance == [1]
+    assert all(ctx.criteria == ["scientist criterion"] for ctx in captured)
+    assert all(ctx.preferences is None for ctx in captured)
+    assert result.total_calls == 5
+    assert result.next_index == 9
+    assert (
+        result.details[1]["winner_elo_before"]
+        == result.details[0]["winner_elo_after"]
+    )
+    assert [detail["winner_elo_after"] for detail in result.details] == [
+        1212,
+        1223,
+    ]
+    assert [detail["iteration"] for detail in result.details] == [4, 4]
+
+
+@pytest.mark.asyncio
+async def test_preparation_admits_eligible_pool_and_preserves_checkpoint_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from typing import cast
+
+    import co_scientist.agents.ranking as ranking_package
+    from co_scientist.models import Hypothesis
+
+    from tests._engine_tasks_helpers import _viable_hypotheses
+
+    low, high = _viable_hypotheses(2)
+    low.score, high.score = 1, 9
+    low.elo_rating = high.elo_rating = 0
+    blocked = _viable_hypotheses(1)[0]
+    blocked.review_disposition = "inaccurate"
+    blocked.elo_rating = 0
+    unreviewed = Hypothesis(text="scientist newcomer", elo_rating=0)
+    pool = [low, unreviewed, blocked, high]
+    state: dict[str, Any] = {"hypotheses": pool, "research_goal": "goal"}
+    budget_pools: list[Any] = []
+    prepared_pools: list[Any] = []
+    prepare = ranking_package.prepare_ranking_round
+
+    def budget(state: Any, hypotheses: Any) -> int:
+        budget_pools.append(hypotheses)
+        return 3
+
+    async def prepare_pool(state: Any, hypotheses: Any) -> Any:
+        prepared_pools.append(list(hypotheses))
+        return await prepare(state, hypotheses)
+
+    monkeypatch.setattr(ranking_package, "remaining_ranking_rounds", budget)
+    monkeypatch.setattr(ranking_package, "prepare_ranking_round", prepare_pool)
+    monkeypatch.setattr(
+        engine_tasks_ranking,
+        "_enqueue_first_ranking_match",
+        lambda *args: (7, "next"),
+    )
+    result = await engine_tasks_ranking._schedule_ranking_chain(
+        cast(store.ScientificTask, object()), state, 6, db_path=None
+    )
+    assert result is not None
+    assert budget_pools == [pool]
+    assert prepared_pools == [[low, high]]
+    assert [h.id for h in state["hypotheses"]] == [h.id for h in pool]
+    assert engine_tasks_ranking._ranking_eligible(state) == [low, high]
+    assert low.elo_rating == high.elo_rating == 1200
+    assert unreviewed.elo_rating == blocked.elo_rating == 0
+    assert result["successor_task_id"] == "next"
+    assert state["pending_ranking_matchups"] == []

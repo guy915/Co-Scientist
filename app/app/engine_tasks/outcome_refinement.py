@@ -6,7 +6,7 @@ import json
 from dataclasses import dataclass, replace
 from typing import Any, cast
 
-from co_scientist.agents.evolution import evolve as evolution
+from co_scientist.agents import evolution
 from co_scientist.checkpoint import serialize_workflow_state
 from co_scientist.models import Hypothesis
 

@@ -17,7 +17,7 @@ from typing import Any, cast
 import pytest
 from fastapi.testclient import TestClient
 
-from app import interviews
+from app.interviews import model as interviews_model
 from app.interviews.wire import CLOSE_MARKER, OPEN_MARKER
 
 
@@ -105,7 +105,7 @@ def _patch_model_sequence(
     ) -> dict[str, Any]:
         return next(replies)
 
-    monkeypatch.setattr(interviews, "_call_interview_model", _model)
+    monkeypatch.setattr(interviews_model, "_call_interview_model", _model)
 
 
 def _antibiotic_responses() -> list[dict[str, Any]]:

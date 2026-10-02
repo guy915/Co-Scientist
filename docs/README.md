@@ -31,6 +31,9 @@ but do not update them to match later changes.
 |---|---|
 | [Provider policies (2026-10-02)](decisions/2026-10-02-provider-policies.md) | Owner-approved tool retry/parking and independent app budgets on shared transport |
 | [Architecture review (2026-10-01)](decisions/2026-10-01-architecture-review.md) | Completed package/boundary campaign, verification evidence and deferred architecture decisions |
+| [Second architecture pass (2026-10-02)](decisions/2026-10-02-architecture-second-pass.md) | Shared operations, dependency ownership, frontend request races and validation |
+| [Engine operation boundaries plan (2026-10-02)](superpowers/plans/2026-10-02-engine-operation-boundaries.md) | Forward Ranking, Reflection and Evolution boundary tasks, escalation boundedness fix and acceptance checks |
+| [Public engine operations (2026-10-02)](decisions/2026-10-02-engine-operation-boundaries.md) | Completed boundary continuation, preserved execution adaptations and finite provider recovery |
 | [PUBLICATION-REVIEW.md](PUBLICATION-REVIEW.md) | 1 October 2026 cleanup validation, secret-detector triage, and outstanding publication gates |
 | [PARITY-VERIFICATION.md](PARITY-VERIFICATION.md) | Point-in-time record (2026-07-10) of how parity claims were verified: commands, results, and honest limitations. The live ledger is [PARITY.md](PARITY.md) |
 | [PROMPT-PRESERVATION.md](PROMPT-PRESERVATION.md) | Record (2026-09-01, rows updated 2026-09-06) auditing each of the eight published prompts (`docs/CORPUS-EXTRACTION.md` Appendix A) instruction-by-instruction against its corresponding template, beyond the `MP-*` checklist's spot findings. All eight now render verbatim and in published order; the live per-template provenance is `engine/src/co_scientist/prompts/templates/README.md` and the standing check is `engine/tests/test_published_prompt_fidelity.py` |

@@ -88,7 +88,7 @@ def _stub_reviews(
 ) -> _ReviewStub:
     """Replace the one seam every mature review call goes through."""
     stub = _ReviewStub(verdict)
-    monkeypatch.setattr(comprehensive_reflection, "_run_review", stub)
+    monkeypatch.setattr(comprehensive_reflection, "review_hypothesis", stub)
     return stub
 
 

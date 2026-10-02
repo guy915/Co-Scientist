@@ -335,9 +335,9 @@ async def test_verification_children_commit_through_single_aggregator(
     run = store.create_run("Task-level science", "standard", "engine", {})
     await _advance_verification_node(run.id, monkeypatch, isolated_db)
 
-    import co_scientist.agents.reflection.deep_verification as verification
+    import co_scientist.agents.reflection as reflection
 
-    monkeypatch.setattr(verification, "_verify_one", _fake_verify)
+    monkeypatch.setattr(reflection, "verify_hypothesis", _fake_verify)
     await _run_verification_children_and_aggregate(run.id, isolated_db)
 
     _assert_verification_committed(run.id, isolated_db)
@@ -366,9 +366,9 @@ async def test_verification_aggregate_pauses_and_resumes_to_ranking(
             run_id, db_path=isolated_db
         )
         assert checkpoint_before is not None
-        import co_scientist.agents.reflection.deep_verification as verification
+        import co_scientist.agents.reflection as reflection
 
-        monkeypatch.setattr(verification, "_verify_one", _fake_verify)
+        monkeypatch.setattr(reflection, "verify_hypothesis", _fake_verify)
 
         def pause() -> None:
             response = client.post(f"/api/runs/{run_id}/pause")

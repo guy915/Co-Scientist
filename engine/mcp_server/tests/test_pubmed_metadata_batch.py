@@ -11,7 +11,8 @@ import pytest
 from Bio import Entrez
 from mcp_server import entrez_rate_limit
 from mcp_server import pubmed_metadata_batch as batch
-from mcp_server.pubmed_client import _EntrezClient, _metadata_no_link_sidecar
+from mcp_server.pubmed_client import _EntrezClient
+from mcp_server.pubmed_storage import metadata_no_link_sidecar
 from mcp_server.tools.lit_review import pubmed_search_with_fulltext as tool
 
 _PUBLIC_METADATA_FIELDS = {
@@ -191,9 +192,9 @@ def test_batched_public_retrieval_maps_records_and_revalidates_cached_no_link(  
         assert set(json.loads(metadata_path.read_text(encoding="utf-8"))) == (
             _PUBLIC_METADATA_FIELDS
         )
-    assert _metadata_no_link_sidecar(shared_dir / "101.metadata.json").exists()
-    assert _metadata_no_link_sidecar(shared_dir / "102.metadata.json").exists()
-    assert not _metadata_no_link_sidecar(
+    assert metadata_no_link_sidecar(shared_dir / "101.metadata.json").exists()
+    assert metadata_no_link_sidecar(shared_dir / "102.metadata.json").exists()
+    assert not metadata_no_link_sidecar(
         shared_dir / "103.metadata.json"
     ).exists()
     batch_trace = trace["metadata_batching"]

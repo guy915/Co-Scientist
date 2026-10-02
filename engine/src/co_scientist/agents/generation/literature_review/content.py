@@ -10,15 +10,17 @@ import asyncio
 import logging
 from typing import Any
 
-from co_scientist.evidence.helpers import (
+from co_scientist.evidence.retrieval_support import (
     ContentToolConfig,
-    SearchConfig,
     build_content_config,
     build_pdf_discovery_config,
     get_papers_needing_content,
     get_papers_needing_pdf_discovery,
     parse_content_result,
     parse_pdf_discovery_result,
+)
+from co_scientist.evidence.search_support import (
+    SearchConfig,
 )
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.state import WorkflowState

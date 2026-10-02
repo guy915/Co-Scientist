@@ -7,6 +7,7 @@ import pytest
 from app import engine_tasks, store
 from app.config import settings
 from app.engine_tasks import ranking as engine_tasks_ranking
+from app.engine_tasks import ranking_wave as engine_tasks_ranking_wave
 from app.engine_tasks import support as engine_tasks_support
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
@@ -42,6 +43,7 @@ async def test_paused_ranking_match_resumes_its_exact_successor(
     """A leased match commits under pause; resume leases its exact successor."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client, run_id = _owned_running_run(isolated_db)
+    monkeypatch.setattr(engine_tasks_ranking_wave, "_wave_size", lambda: 3)
     _seed_ranking_node(
         run_id,
         monkeypatch,
@@ -49,19 +51,23 @@ async def test_paused_ranking_match_resumes_its_exact_successor(
             hypothesis_count=4,
             tournament_pairs=12,
             idempotency_key="pause-ranking-node",
+            criteria=["retained scientist criterion"],
+            preferences="durable preference stays omitted",
         ),
         isolated_db,
     )
     scheduled = await _run_ranking_node(run_id, isolated_db)
 
-    import co_scientist.agents.ranking.ranking as ranking_module
+    import co_scientist.agents.ranking.operations as ranking_module
 
     paused = False
+    judge_inputs: list[Any] = []
 
     async def pause_during_judging(
-        *_: Any, **kwargs: Any
+        ctx: Any, **kwargs: Any
     ) -> tuple[str, dict[str, Any]]:
         nonlocal paused
+        judge_inputs.append(ctx)
         if not paused:
             unauthorized = client.post(
                 f"/api/runs/{run_id}/pause",
@@ -105,10 +111,9 @@ async def test_paused_ranking_match_resumes_its_exact_successor(
 
     state = restore_workflow_state(checkpoint["state"])
     details = state["pending_ranking_matchups"]
-    assert len(details) == result["matches_committed"] == 6
+    assert len(details) == result["matches_committed"] == 3
     assert (
-        sum(hypothesis.total_matches for hypothesis in state["hypotheses"])
-        == 12
+        sum(hypothesis.total_matches for hypothesis in state["hypotheses"]) == 6
     )
     assert any(
         hypothesis.elo_rating != 1200 for hypothesis in state["hypotheses"]
@@ -155,6 +160,16 @@ async def test_paused_ranking_match_resumes_its_exact_successor(
     assert claim is not None
     assert claim.id == successor.id
     assert claim.task_type == engine_tasks_support.RANKING_MATCH_TASK
+    resumed_result = await engine_tasks_ranking.execute_ranking_match(
+        claim, db_path=isolated_db
+    )
+    assert resumed_result["matches_committed"] == 6
+    assert [ctx.matchup_index for ctx in judge_inputs] == list(range(6))
+    assert all(
+        ctx.criteria == ["retained scientist criterion"]
+        and ctx.preferences is None
+        for ctx in judge_inputs
+    )
 
 
 @pytest.mark.asyncio
@@ -193,9 +208,9 @@ async def test_paused_ranking_finalize_keeps_elo_metrics_and_exact_resume(
             match.id, "ranking-match", result, db_path=isolated_db
         )
 
-    import co_scientist.agents.ranking.ranking as ranking_module
+    import co_scientist.agents.ranking as ranking_package
 
-    finalize_ranking = ranking_module._finalize_ranking_result
+    finalize_ranking = ranking_package.finalize_ranking
 
     async def pause_after_finalize(*args: Any, **kwargs: Any) -> dict[str, Any]:
         update = await finalize_ranking(*args, **kwargs)
@@ -205,7 +220,7 @@ async def test_paused_ranking_finalize_keeps_elo_metrics_and_exact_resume(
         return cast(dict[str, Any], update)
 
     monkeypatch.setattr(
-        ranking_module, "_finalize_ranking_result", pause_after_finalize
+        ranking_package, "finalize_ranking", pause_after_finalize
     )
     result = await engine_tasks_ranking.execute_ranking_finalize(
         finalizer, db_path=isolated_db
