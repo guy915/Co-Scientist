@@ -150,3 +150,13 @@ for a concise personal-project workflow:
 - PR bodies should briefly explain what changed, why it changed, and how it was
   tested. Add implementation context or tradeoffs only when they help future
   review or maintenance.
+
+## Durable execution preferences
+
+- Preserve uncommitted work. Never use `git commit --amend`, `git reset`, `git stash`, `git checkout <file>`, or `git restore <file>` to alter it. Make follow-up changes in new commits, and verify the files you changed are present on disk before reporting completion. Before the final gates, inspect `git reflog -5` and `git stash list`.
+- Do not automate merges or other hard-to-reverse Git operations end to end. Review both sides and the intended diff before committing; inspect snapshot/reference paths for rename-detection artifacts.
+- `main` is protected. Do not try to bypass that protection or promise a direct push; use the repository's review and merge path.
+- Keep the app and engine pytest suites serialized. Stop leftover local `uvicorn` verification servers before a full suite, and do not re-run an unchanged full suite merely to reconfirm it.
+- Run named gates directly and record their real exit status. Do not hide one behind a pipeline; redirect output to a log if needed, then capture the command's status. For the repository size ceilings, run `evaluations/tests/test_function_length.py` and `evaluations/tests/test_file_length.py` explicitly.
+- Before accepting a result as unverifiable, inspect the relevant primary source tree rather than relying on a derived or mirrored document. Record the source scope and direct evidence for the finding.
+- Before declaring a production probe or polling check failed, fetch the artifact once and derive its assertion from the observed output. For shared UI work, verify both light and dark themes.
