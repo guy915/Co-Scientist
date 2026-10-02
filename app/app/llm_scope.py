@@ -20,6 +20,9 @@ P = ParamSpec("P")
 T = TypeVar("T")
 logger = logging.getLogger(__name__)
 _active: ContextVar[bool] = ContextVar("app_call_scope_active", default=False)
+# asyncio holds weak task references. Keep producers alive until their stream
+# finalizers can cancel/join them, even when a consumer is collected in a cycle.
+_stream_producers: set[asyncio.Task[None]] = set()
 
 
 def in_app_call_scope() -> bool:
@@ -105,6 +108,8 @@ async def _scoped_stream(
 ) -> AsyncGenerator[T, None]:
     queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue(maxsize=1)
     producer = asyncio.create_task(_produce(iterator, queue, surface))
+    _stream_producers.add(producer)
+    producer.add_done_callback(_stream_producers.discard)
     try:
         while True:
             kind, value = await queue.get()
