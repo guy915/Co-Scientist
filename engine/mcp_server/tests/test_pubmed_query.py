@@ -12,6 +12,9 @@ rung suffices.
 
 from __future__ import annotations
 
+from typing import Any
+
+import pytest
 from mcp_server.pubmed_query import (
     MIN_RESULTS_BEFORE_RELAX,
     anchored_relaxed_query,
@@ -243,6 +246,69 @@ def test_the_anchored_rung_is_taken_before_the_fully_ored_one() -> None:
     assert ids == ["1", "2", "3"]
     assert len(calls) == 2
     assert not calls[-1].startswith("(kinase[tiab] OR kinase[mesh]) OR")
+
+
+def test_first_rung_target_survives_when_anchored_rung_fills_buffer() -> None:
+    """A later qualifying rung must not discard an exact-rung PMID.
+
+    The inputs and IDs reproduce the retained B. fragilis diagnostic, not a
+    holdout for the frozen scientific comparison. The stub keeps this test
+    offline while preserving the actual observed rung boundary.
+    """
+    query = (
+        "Symbiotic Bacteroides fragilis polysaccharide A signals through TLR2 "
+        "on Foxp3+ regulatory T cells to promote mucosal tolerance and "
+        "colonization."
+    )
+    precise_ids = ["21512004"]
+    anchored_ids = [
+        "42415234",
+        "42679821",
+        "42400638",
+        "42346964",
+        "42115921",
+        "40233891",
+        "40764272",
+        "41196415",
+        "41195911",
+    ]
+    calls: list[str] = []
+    trace: dict[str, Any] = {"sort": "pub_date"}
+
+    def _esearch(term: str, retmax: int, recency: int) -> list[str]:
+        assert retmax == 9
+        assert recency == 0
+        calls.append(term)
+        if term == query:
+            return precise_ids
+        if " AND (" in term:
+            return anchored_ids
+        pytest.fail("The qualifying anchored rung should stop the ladder")
+
+    ids = search_with_relaxation(query, 9, 0, _esearch, trace)
+
+    assert ids == [*precise_ids, *anchored_ids[:8]]
+    assert calls == [query, anchored_relaxed_query(query)]
+    assert trace["selected"]["rung_index"] == 2
+    assert trace["selected"]["rung_type"] == "anchored"
+    assert trace["selected"]["ids"] == ids
+
+
+def test_merged_rung_ids_keep_first_occurrence_order_and_retmax_cap() -> None:
+    query = "kinase inhibition tumor growth"
+    anchored_ids = ["shared", "anchored"]
+    broad_ids = ["anchored", "broad-1", "broad-2"]
+
+    def _esearch(term: str, _retmax: int, _recency: int) -> list[str]:
+        if term == query:
+            return ["exact", "shared"]
+        if " AND (" in term:
+            return anchored_ids
+        return broad_ids
+
+    ids = search_with_relaxation(query, 4, 0, _esearch)
+
+    assert ids == ["exact", "shared", "anchored", "broad-1"]
 
 
 def test_runner_keeps_a_thin_result_when_no_rung_clears_the_bar() -> None:

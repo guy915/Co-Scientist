@@ -293,10 +293,13 @@ def search_with_relaxation(
 ) -> list[str]:
     """Run ``esearch`` down the relaxation ladder until results suffice.
 
-    Issues each ladder rung in turn and returns the first whose id count meets
-    the (retmax-clamped) minimum. If no rung clears the bar, the first
-    non-empty rung's ids are returned -- some evidence beats none -- and only a
-    query that matches nothing at any breadth yields an empty list. A query
+    Issues each ladder rung in turn and stops at the first whose id count meets
+    the (retmax-clamped) minimum. The ids of every rung tried are merged in
+    rung order, deduplicated and capped at ``retmax``, so a precise rung's few
+    on-target hits survive a broader rung that clears the bar. If no rung
+    clears it the merged ids are still returned -- some evidence beats none --
+    and only a query that matches nothing at any breadth yields an empty
+    list. A query
     that returns enough on the first rung costs exactly one ``esearch`` call;
     the extra calls are paid only by the starved queries that need them.
 
@@ -308,11 +311,11 @@ def search_with_relaxation(
         trace: Optional bounded record of each application-level search rung.
 
     Returns:
-        The chosen attempt's ids (possibly empty).
+        The merged ids of the rungs tried (possibly empty).
     """
     threshold = min(MIN_RESULTS_BEFORE_RELAX, retmax)
-    best: list[str] = []
-    fallback: tuple[int, str, str, list[str]] | None = None
+    merged: list[str] = []
+    fallback: tuple[int, str, str] | None = None
     for rung_index, (term, recency) in enumerate(
         relaxation_ladder(query, recency_years), start=1
     ):
@@ -325,15 +328,18 @@ def search_with_relaxation(
             raise
         attempt.update({"count": len(ids), "first_ids": ids[:_MAX_TRACE_IDS]})
         _record_attempt(trace, attempt)
+        merged.extend(i for i in dict.fromkeys(ids) if i not in merged)
+        del merged[retmax:]
         if len(ids) >= threshold:
             _record_selected_rung(
                 trace,
-                (rung_index, rung_type, term, ids),
+                (rung_index, rung_type, term, merged),
                 threshold_met=True,
             )
-            return ids
-        if ids and not best:
-            best = ids
-            fallback = (rung_index, rung_type, term, ids)
-    _record_selected_rung(trace, fallback, threshold_met=False)
-    return best
+            return merged
+        if ids and fallback is None:
+            fallback = (rung_index, rung_type, term)
+    _record_selected_rung(
+        trace, (*fallback, merged) if fallback else None, threshold_met=False
+    )
+    return merged
