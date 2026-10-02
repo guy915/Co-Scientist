@@ -11,28 +11,6 @@ import {
   runOptionLabel,
 } from '../run_spec';
 import {tooltipClassNames} from '../tooltip';
-import {
-  OPTION_CARD_BASE_CLASSES,
-  OPTION_DESCRIPTION_CLASSES,
-  OPTION_GRID_CLASSES,
-  OPTION_GROUP_CLASSES,
-  OPTION_GROUP_LEGEND_CLASSES,
-  OPTION_INPUT_CLASSES,
-  OPTION_LABEL_CLASSES,
-  OPTION_MARKER_CLASSES,
-  OPTION_MARKER_SELECTED_CLASSES,
-  PLAN_EDIT_BUTTON_CLASSES,
-  PLAN_EDIT_ICON_CLASSES,
-  PLAN_HEADING_CLASSES,
-  PLAN_SUBHEADING_CLASSES,
-  PLAN_TITLE_CLASSES,
-  SETUP_ACTIONS_CLASSES,
-  SETUP_DOCUMENT_CLASSES,
-  SETUP_DOCUMENT_TITLE_CLASSES,
-  SETUP_PARAGRAPH_CLASSES,
-  SETUP_PRIMARY_BUTTON_CLASSES,
-  SETUP_SECONDARY_BUTTON_CLASSES,
-} from './chat_setup_classes';
 import {AssistantMessage, MessageAttachment} from './chat_timeline_bubble';
 import {responseActions} from './chat_timeline_message_actions';
 import {planLeadIn} from './chat_timeline_plan_prose';
@@ -43,6 +21,17 @@ import {
   useSpecFieldsEditor,
 } from './chat_timeline_run_spec_editor';
 import {CompletionNotification} from './chat_timeline_run_spec_notification';
+import {
+  OPTION_GROUP_CLASSES,
+  OPTION_GROUP_LEGEND_CLASSES,
+  OPTION_INPUT_CLASSES,
+  OPTION_LABEL_CLASSES,
+  OPTION_MARKER_CLASSES,
+  OPTION_MARKER_SELECTED_CLASSES,
+  SETUP_ACTIONS_CLASSES,
+  SETUP_PRIMARY_BUTTON_CLASSES,
+  SETUP_SECONDARY_BUTTON_CLASSES,
+} from './chat_classes';
 
 // Props for RunSpecCard, named at module level per the destructured prop
 // signature otherwise pushing the component past the line cap.
@@ -174,7 +163,7 @@ export function RunSpecCard(props: RunSpecCardProps) {
       anchorId={props.anchorId}
       attachment={
         <MessageAttachment>
-          <p className={`reference-review-copy ${SETUP_PARAGRAPH_CLASSES}`}>
+          <p className={`reference-review-copy ${'m-0 text-base leading-6'}`}>
             {planInstructions(props.recoveryAction)}
           </p>
           <RecoveryLookupStatus
@@ -182,7 +171,7 @@ export function RunSpecCard(props: RunSpecCardProps) {
             onRetry={props.onRetryStatusLookup}
           />
           <PlanHeading onEdit={runPlanEditAction(props, editor)} />
-          <p className={PLAN_SUBHEADING_CLASSES}>
+          <p className="reference-plan-subheading -mt-[0.35rem] m-0 text-cosci-muted">
             Here's my plan to tackle the topic:
           </p>
           <RunSpecDocument
@@ -212,13 +201,16 @@ export function RunSpecCard(props: RunSpecCardProps) {
 // Cancel of its own.
 function PlanHeading({onEdit}: {onEdit?: () => void}) {
   return (
-    <div className={PLAN_HEADING_CLASSES}>
-      <h2 className={PLAN_TITLE_CLASSES}>Research plan</h2>
+    <div className="reference-plan-heading flex items-center gap-[0.45rem]">
+      <h2 className="m-0 text-[2rem] leading-[1.2] font-normal tracking-normal text-cosci-fg max-[720px]:text-[clamp(1.5rem,6.8vw,2rem)]">
+        Research plan
+      </h2>
       {onEdit && (
         <button
           type="button"
           className={tooltipClassNames({
-            className: PLAN_EDIT_BUTTON_CLASSES,
+            className:
+              'reference-plan-edit size-[2.1rem] grid cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 text-cosci-muted hover:bg-cosci-hover hover:text-cosci-fg focus-visible:bg-cosci-hover focus-visible:text-cosci-fg',
             placement: 'top',
           })}
           aria-label="Edit plan"
@@ -227,7 +219,7 @@ function PlanHeading({onEdit}: {onEdit?: () => void}) {
         >
           <Icon
             aria-hidden="true"
-            className={PLAN_EDIT_ICON_CLASSES}
+            className="text-[1.55rem] text-current"
             name="edit"
           />
         </button>
@@ -302,8 +294,8 @@ function RunSpecDocument(props: RunSpecDocumentProps) {
     onStart,
   } = props;
   return (
-    <div className={SETUP_DOCUMENT_CLASSES}>
-      <h3 className={SETUP_DOCUMENT_TITLE_CLASSES}>
+    <div className="reference-setup-document grid gap-[1.15rem] rounded-2xl bg-cosci-setup-doc-bg p-[1.5rem_1.45rem]">
+      <h3 className="m-0 text-[1.45rem] leading-[1.25] font-semibold">
         {spec.title || conciseTitle(spec.goal)}
       </h3>
       <SpecFieldsSection spec={spec} editor={editor} />
@@ -437,7 +429,7 @@ function OptionCard(props: OptionCardProps) {
   return (
     <label
       className={joinClasses(
-        OPTION_CARD_BASE_CLASSES,
+        'reference-option-card relative grid min-h-[4.75rem] grid-cols-[1.6rem_minmax(0,1fr)] content-start gap-x-[0.8rem] rounded-[0.65rem] border border-transparent bg-cosci-option-bg px-[0.95rem] py-[0.85rem] text-cosci-fg hover:bg-cosci-option-hover-bg has-[:focus-visible]:border-cosci-option-hover-border has-[:focus-visible]:bg-cosci-option-hover-bg',
         disabled ? 'cursor-default' : 'cursor-pointer',
       )}
     >
@@ -458,7 +450,9 @@ function OptionCard(props: OptionCardProps) {
         aria-hidden="true"
       />
       <strong className={OPTION_LABEL_CLASSES}>{option.label}</strong>
-      <small className={OPTION_DESCRIPTION_CLASSES}>{option.description}</small>
+      <small className="col-start-2 text-[0.92rem] leading-[1.3] text-cosci-muted">
+        {option.description}
+      </small>
     </label>
   );
 }
@@ -483,7 +477,7 @@ function RunOptionGroup({
   return (
     <fieldset className={OPTION_GROUP_CLASSES} aria-label={label}>
       <legend className={OPTION_GROUP_LEGEND_CLASSES}>{label}</legend>
-      <div className={OPTION_GRID_CLASSES}>
+      <div className="grid grid-cols-2 gap-[0.85rem] max-[720px]:grid-cols-1">
         {options.map(option => (
           <OptionCard
             key={option.id}

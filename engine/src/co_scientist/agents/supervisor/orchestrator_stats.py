@@ -1,13 +1,4 @@
-"""Observable statistics the orchestrator hands the scheduling policy.
-
-Derives the scalars a scheduling decision reads -- pool and review counts,
-rankable match coverage, yields attributed to the last work task, Elo
-stability, and the run's compute budget -- from workflow state plus the
-orchestrator's carried bookkeeping. The decision node, its bookkeeping, and
-the settlement allowance stay in ``orchestrator.py`` and
-``orchestrator_bookkeeping.py``; ``orchestrator.py`` re-exports these names
-for compatibility.
-"""
+"""Derive observable scheduler statistics from the committed workflow state."""
 
 from __future__ import annotations
 

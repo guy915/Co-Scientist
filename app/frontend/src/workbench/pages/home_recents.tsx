@@ -12,20 +12,14 @@ import {GoogleLabsIcon} from '../components/google_labs_icon';
 import {TruncatedLabel} from '../components/truncated_label';
 import {preferredSessionSide} from '../layout_session_memory';
 import {
-  HOME_LOAD_MORE_BUTTON_CLASSES,
-  HOME_LOAD_MORE_ITEM_CLASSES,
-  HOME_RECENTS_HEADING_ROW_CLASSES,
-  HOME_RECENTS_LIST_CLASSES,
-  HOME_RECENTS_PANEL_CLASSES,
-} from './chat_home_classes';
-import {
   formatHomeRunDate,
   formatHomeRunTimeChip,
   homeRunScore,
 } from './home_recents_data';
 import {RunStepFlow} from './home_recents_run_steps';
+const HOME_RECENTS_LIST_CLASSES = 'reference-recents-list';
 
-const RECENTS_PANEL_CLASSES = `reference-recents ${HOME_RECENTS_PANEL_CLASSES}`;
+const RECENTS_PANEL_CLASSES = `reference-recents ${'reference-recents-panel'}`;
 
 const RECENTS_HEADING_ICON_CLASSES = 'reference-recents-heading-icon';
 
@@ -149,7 +143,7 @@ export function HomeRecentsPanel({
 // The panel's "Recents" heading row: history glyph plus title.
 function RecentsHeading() {
   return (
-    <div className={HOME_RECENTS_HEADING_ROW_CLASSES}>
+    <div className="reference-recents-heading">
       <Icon
         aria-hidden="true"
         className={RECENTS_HEADING_ICON_CLASSES}
@@ -187,10 +181,10 @@ function LoadMoreRunsItem({
   onToggleShowAll: () => void;
 }) {
   return (
-    <li className={HOME_LOAD_MORE_ITEM_CLASSES}>
+    <li className="reference-load-more-item">
       <button
         type="button"
-        className={HOME_LOAD_MORE_BUTTON_CLASSES}
+        className="reference-load-more"
         onClick={onToggleShowAll}
       >
         {showAll ? 'Show less' : 'Show more'}

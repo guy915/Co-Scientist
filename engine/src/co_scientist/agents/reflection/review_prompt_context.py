@@ -1,13 +1,4 @@
-"""What a Reflection review's prompt is told.
-
-Split from ``comprehensive_reflection`` -- which executes the reviews --
-because assembling their context is a separate concern with its own
-bounds: how much retrieved evidence one review may carry, what a
-recurrent review is shown of the tournament, and how an executed
-simulation's observations are handed to the reviewer that must weigh
-them. Every name is re-exported from ``comprehensive_reflection`` so
-callers and monkeypatching tests are unaffected.
-"""
+"""Format evidence and domain context for comprehensive reflection."""
 
 from __future__ import annotations
 

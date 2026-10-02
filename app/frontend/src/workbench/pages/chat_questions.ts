@@ -64,20 +64,6 @@ export function setOther(
   return {...selections, other: {...selections.other, [index]: text}};
 }
 
-/**
- * Whether the scientist has written their own words for one question.
- *
- * The field is always on screen -- there is no open/closed step to track --
- * so "chosen" is exactly "the field holds non-blank text", the same trim
- * rule `answerText` composes an answer with.
- */
-export function hasOtherAnswer(
-  selections: QuestionSelections,
-  index: number,
-): boolean {
-  return (selections.other[index] ?? '').trim().length > 0;
-}
-
 // Everything the scientist gave for one question: what they clicked, then
 // anything they wrote themselves.
 function answerParts(selections: QuestionSelections, index: number): string[] {

@@ -4,7 +4,7 @@ Runs after a run's drain: builds the report (``report.build``), screens it
 with the final safety gate, then persists it and emits the report/completed
 events, or blocks the run and records why. The package interface -- among
 it ``finalize_report`` -- is declared in ``app.report``; completion-email
-scheduling lives in ``report.notify``. Run-event emission (``make_emitter``
+scheduling lives in ``notifications``. Run-event emission (``make_emitter``
 and the event stubs) lives in ``run_events``, outside the report package.
 """
 
@@ -15,14 +15,13 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from app import store
+from app.notifications import _enqueue_completion_notification
 from app.report.build import (
     ReportRequest,
     _BuiltReport,
-    _ReportBuildArgs,
     build_report_content,
 )
 from app.report.gates import _empty_leaderboard_reason
-from app.report.notify import _enqueue_completion_notification
 from app.run_events import EmitFn
 from app.safety import (
     SafetyDecision,
@@ -48,9 +47,6 @@ async def finalize_report(
 ) -> AsyncIterator[dict[str, Any]]:
     """Build, screen, persist, and emit a run's final report.
 
-    The run's single finalize path, invoked after its drain; order enforced
-    by ``_finalize_report_pipeline``.
-
     Args:
         run_id: Identifier of the run being finalized.
         req: The drained report inputs; see :class:`ReportRequest`.
@@ -68,20 +64,6 @@ async def finalize_report(
     )
     if resumed and _report_already_published(run_id, db_path=req.db_path):
         return
-    async for event in _finalize_report_pipeline(run_id, req, emit, task):
-        yield event
-
-
-async def _finalize_report_pipeline(
-    run_id: str,
-    req: _ReportBuildArgs,
-    emit: EmitFn,
-    task: ScientificTask | None,
-) -> AsyncIterator[dict[str, Any]]:
-    """Build, safety-gate, and publish a run's final report.
-
-    Order matches the shared contract documented on ``finalize_report``.
-    """
     built, blocked, gate_events = await _build_and_gate_report(
         run_id, req, emit, task
     )
@@ -97,18 +79,15 @@ async def _finalize_report_pipeline(
 
 async def _gate_readiness_and_publish(
     run_id: str,
-    req: _ReportBuildArgs,
+    req: ReportRequest,
     emit: EmitFn,
     built: _BuiltReport,
     task: ScientificTask | None,
 ) -> AsyncIterator[dict[str, Any]]:
-    """Block an empty leaderboard, or publish the report otherwise.
-
-    Split out of ``_finalize_report_pipeline`` to keep each step's branching
-    independently readable; order matches the shared contract documented on
-    ``finalize_report``.
-    """
-    if _readiness_blocked(built.payload):
+    """Block an empty leaderboard, or publish the report otherwise."""
+    # Unsupported ideas publish as Unverified; an empty leaderboard means
+    # every idea was withheld by the release gate, for real and offline runs.
+    if not built.payload.get("leaderboard"):
         async for event in _block_for_empty_leaderboard(
             run_id, built, emit, db_path=req.db_path, task=task
         ):
@@ -127,7 +106,7 @@ async def _gate_readiness_and_publish(
 
 async def _build_and_gate_report(
     run_id: str,
-    req: _ReportBuildArgs,
+    req: ReportRequest,
     emit: EmitFn,
     task: ScientificTask | None,
 ) -> tuple[_BuiltReport, bool, list[dict[str, Any]]]:
@@ -309,32 +288,6 @@ async def _publish_report(  # noqa: PLR0913
     logger.info(
         "Report finalized for run %s (report_id=%s).", run_id, saved["id"]
     )
-
-
-def _readiness_blocked(payload: dict[str, Any]) -> bool:
-    """Return whether the run's empty leaderboard should hard-block release.
-
-    Under the rank-and-publish policy the leaderboard is empty only when
-    every idea was withheld -- by review rejection, deduplication, a
-    contradicting claim, or a safety hold (see
-    ``_empty_leaderboard_reason`` for which one actually applied) --
-    leaving nothing publishable. Unsupported (but non-contradicted) ideas
-    are published with an "Unverified" badge, so they never reach here.
-
-    Applies identically whether the run is backed by a real model or the
-    offline deterministic router: the offline backend still drives the same
-    graph end to end, so an empty leaderboard there is the same "nothing
-    survived review" outcome as a real run's, and it would be dishonest to
-    publish a completed-looking report over it. (An offline run this
-    happens to is rare in practice -- the offline router's canned content
-    reliably survives review -- but rare is not never, and when it does
-    happen the run should say so rather than paper over it.) The three
-    curated default demos never reach this function at all: they write
-    their report row directly (`seed/__init__.py`'s `_seed_curated_scenario`),
-    bypassing `finalize_report` entirely, so this gate cannot affect them
-    either way.
-    """
-    return not payload.get("leaderboard")
 
 
 async def _block_for_empty_leaderboard(

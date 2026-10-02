@@ -2,14 +2,6 @@ import {useState, type ReactNode} from 'react';
 import {type QaSource} from '@/api/runs';
 import {MarkdownMessage} from '@/components/markdown_message';
 import {
-  CHAT_BUBBLE_ROW_CLASSES,
-  CHAT_BUBBLE_USER_ROW_CLASSES,
-  MESSAGE_ATTACHMENT_CLASSES,
-  MODEL_BUBBLE_CLASSES,
-  MODEL_BUBBLE_TEXT_CLASSES,
-  USER_BUBBLE_CLASSES,
-} from './chat_setup_classes';
-import {
   BubbleText,
   useCollapsibleBubbleText,
 } from './chat_timeline_bubble_text';
@@ -21,6 +13,8 @@ import {
 } from './chat_timeline_message_actions';
 import {BubbleEditor} from './chat_timeline_bubble_editor';
 import {ThoughtsDisclosure} from './chat_timeline_thoughts';
+const CHAT_BUBBLE_USER_ROW_CLASSES =
+  'reference-bubble-row user group/user relative flex flex-col items-end justify-end gap-[0.35rem]';
 
 /**
  * One rendered chat-timeline message (either the user's or the
@@ -88,7 +82,11 @@ export function FallbackTurnNotice() {
  * attachment later needs nothing new here.
  */
 export function MessageAttachment({children}: {children: ReactNode}) {
-  return <div className={MESSAGE_ATTACHMENT_CLASSES}>{children}</div>;
+  return (
+    <div className="reference-message-attachment mt-[0.7rem] grid gap-[1.15rem]">
+      {children}
+    </div>
+  );
 }
 
 // Props for AssistantMessage, named at module level per the destructured
@@ -182,7 +180,7 @@ export function AssistantMessage({
   const Row: 'section' | 'div' = ariaLabel ? 'section' : 'div';
   return (
     <Row
-      className={CHAT_BUBBLE_ROW_CLASSES}
+      className="reference-bubble-row relative flex flex-col items-start justify-start gap-[0.7rem]"
       aria-label={ariaLabel}
       {...{[TIMELINE_ANCHOR_ATTRIBUTE]: anchorId}}
     >
@@ -193,10 +191,13 @@ export function AssistantMessage({
           live={live}
           answering={Boolean(live && content)}
         />
-        <div className={MODEL_BUBBLE_CLASSES} aria-hidden={streaming}>
+        <div
+          className="reference-model-bubble max-w-[50.75rem] text-base leading-[1.45] text-cosci-fg"
+          aria-hidden={streaming}
+        >
           <MarkdownMessage
             content={content}
-            className={MODEL_BUBBLE_TEXT_CLASSES}
+            className="reference-model-bubble-text min-w-0 break-words"
           />
           {attachment}
         </div>
@@ -244,7 +245,7 @@ function UserBubble({
         <div className="min-w-0">
           <ThoughtsDisclosure reasoning={message.reasoning} />
           <BubbleText
-            bubbleClassName={USER_BUBBLE_CLASSES}
+            bubbleClassName="reference-user-bubble flex max-w-[31rem] items-start gap-4 rounded-tl-[26px] rounded-tr-[4px] rounded-br-[26px] rounded-bl-[26px] bg-cosci-user-bubble-bg py-3 pr-[0.9rem] pl-4 text-base leading-[1.45] text-cosci-fg"
             content={message.content}
             {...bubbleText}
           />

@@ -266,7 +266,7 @@ def build_report_facts(payload: dict[str, Any]) -> ReportFacts:
     """Extract the conversational half of a finished report payload.
 
     Args:
-        payload: The persisted report payload (see ``build_report_payload``).
+        payload: The persisted report payload.
 
     Returns:
         The report's synthesis as prompt-ready text.

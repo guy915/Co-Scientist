@@ -3,7 +3,7 @@ import {useSystemStatus} from '../hooks/system_status_context';
 import {
   OPTION_GROUP_CLASSES,
   OPTION_GROUP_LEGEND_CLASSES,
-} from './chat_setup_classes';
+} from './chat_classes';
 
 const EMAIL_ROW_CLASSES = 'mt-3 grid gap-1 text-sm';
 

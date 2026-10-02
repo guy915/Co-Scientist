@@ -12,42 +12,6 @@ from typing import Any
 from app.store.db import _now, _use_conn, connect
 
 
-@dataclass(frozen=True)
-class _NewInterviewFields:
-    """Fields needed to insert an interview and its opening turn."""
-
-    interview_id: str
-    client_id: str
-    execution_policy: str
-    challenge: str
-    fields: dict[str, Any]
-    now: float
-
-
-def _insert_interview_rows(
-    conn: sqlite3.Connection, f: _NewInterviewFields
-) -> None:
-    """Insert the interview row and its opening transcript turn."""
-    conn.execute(
-        "INSERT INTO interviews (id, client_id, execution_policy, status, "
-        "fields_json, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
-        (
-            f.interview_id,
-            f.client_id,
-            f.execution_policy,
-            "active",
-            json.dumps(f.fields),
-            f.now,
-            f.now,
-        ),
-    )
-    conn.execute(
-        "INSERT INTO interview_turns (interview_id, role, content, "
-        "created_at) VALUES (?,?,?,?)",
-        (f.interview_id, "user", f.challenge.strip(), f.now),
-    )
-
-
 def create_interview(
     client_id: str,
     challenge: str,
@@ -79,16 +43,24 @@ def create_interview(
         "title": None,
     }
     with connect(db_path) as conn:
-        _insert_interview_rows(
-            conn,
-            _NewInterviewFields(
-                interview_id=interview_id,
-                client_id=client_id,
-                execution_policy=execution_policy,
-                challenge=challenge,
-                fields=fields,
-                now=now,
+        conn.execute(
+            "INSERT INTO interviews (id, client_id, execution_policy, "
+            "status, fields_json, created_at, updated_at) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (
+                interview_id,
+                client_id,
+                execution_policy,
+                "active",
+                json.dumps(fields),
+                now,
+                now,
             ),
+        )
+        conn.execute(
+            "INSERT INTO interview_turns (interview_id, role, content, "
+            "created_at) VALUES (?,?,?,?)",
+            (interview_id, "user", challenge.strip(), now),
         )
         # Read back on the same connection: the write is already committed
         # (the store connects in autocommit), so opening a second one only

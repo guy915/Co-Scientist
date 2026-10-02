@@ -1,79 +1,169 @@
-"""The durable finalize executor and the node/finalize commit helpers.
-
-The checkpoint-guard, state-restore, pause, fan-out dispatch, and
-final-drain helpers that ``execute_node_task`` in ``app.engine_tasks``
-composes, plus ``execute_finalize`` itself, which is here because every
-helper it composes already is. Split from ``app.engine_tasks``, which
-re-exports the names callers use so it remains their import and
-monkeypatch surface.
-"""
+"""Execute one specialist node, restoring and committing its durable state."""
 
 from __future__ import annotations
 
-import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 from typing import Any
 
 from app import store
-from app.engine_adapter.drain import persist_final_state
 from app.engine_tasks import runtime as engine_tasks_runtime
-from app.engine_tasks.checkpoint_guard import (
-    _check_node_task_checkpoint as _check_node_task_checkpoint,
-)
-from app.engine_tasks.context import TaskCommit
+from app.engine_tasks.context import TaskCommit, _task_commit
+from app.engine_tasks.emit import NodeCompletion, _emit_node_completion
 from app.engine_tasks.fanout import (
     _enqueue_generation_fanout,
     _enqueue_mature_reflection_fanout,
     _enqueue_review_fanout,
     _enqueue_verification_fanout,
 )
-from app.engine_tasks.finalize_outcomes import (
-    _finalize_replay_or_none as _finalize_replay_or_none,
-)
-from app.engine_tasks.finalize_outcomes import (
-    _settle_finalize_outcome as _settle_finalize_outcome,
-)
 from app.engine_tasks.gate import _apply_pre_ranking_evidence_gate
-from app.engine_tasks.inputs import (
-    reopen_for_pending_scientist_input as reopen_for_pending_scientist_input,
-)
+from app.engine_tasks.inputs import _merge_scientist_inputs
 from app.engine_tasks.pause import (
-    _pause_node_task_if_requested as _pause_node_task_if_requested,
-)
-from app.engine_tasks.pause import (
-    _save_paused_checkpoint,
-    _save_paused_state_if_requested,
-)
-from app.engine_tasks.ranking import _schedule_ranking_chain
-from app.engine_tasks.restore import (
-    _restore_node_task_state as _restore_node_task_state,
-)
-from app.engine_tasks.support import (
-    FINALIZE_TASK,
-    NodeCompletion,
-    _emit_node_completion,
-    _latest_task_checkpoint,
-    _metrics_snapshot,
-    _plain_final_state,
-    _require_run,
+    _pause_node_task_if_requested,
     _save_paused_state,
+)
+from app.engine_tasks.queue_actions import _durable_queue_snapshot
+from app.engine_tasks.ranking import _schedule_ranking_chain
+from app.engine_tasks.support import (
+    NODE_TASK_PREFIX,
+    SupersededTaskError,
+    _latest_task_checkpoint,
     _save_state_and_enqueue,
     _successor_task_type,
-    assert_task_commit_allowed,
-    restore_checkpoint_state,
 )
-from app.report import ReportRequest, finalize_report
-from app.run_events import make_emitter
-from app.run_modes import normalize_run_tier
-from app.safety import SafetyDecision, apply_safety_gate
 from app.store import RunStatus, ScientificTask
 
-# Node types with a synchronous fan-out enqueue helper (see below).
+ADMISSION_NODE = "orchestrator"
 _SYNC_FANOUT_HANDLERS: dict[str, Callable[..., dict[str, Any]]] = {
     "review": _enqueue_review_fanout,
     "comprehensive_reflection": _enqueue_mature_reflection_fanout,
     "deep_verification": _enqueue_verification_fanout,
 }
+
+
+def _check_node_task_checkpoint(
+    task: ScientificTask, checkpoint: dict[str, Any], current_seq: int
+) -> dict[str, Any] | None:
+    """Return replay when committed; reject work behind another checkpoint.
+
+    Portfolio rows validate against their named predecessor because a
+    lookahead row cannot know its checkpoint sequence at enqueue time.
+    """
+    if checkpoint["stage"] == f"engine_task:{task.id}":
+        return {"checkpoint_seq": current_seq, "replayed": True}
+    if task.dependencies:
+        _check_portfolio_predecessor(task, checkpoint)
+        return None
+    expected_seq = int(task.inputs.get("checkpoint_seq", -1))
+    if current_seq > expected_seq:
+        raise SupersededTaskError("specialist task checkpoint was superseded")
+    if current_seq != expected_seq:
+        raise RuntimeError("specialist task checkpoint does not match input")
+    return None
+
+
+def _check_portfolio_predecessor(
+    task: ScientificTask, checkpoint: dict[str, Any]
+) -> None:
+    """Confirm the predecessor committed this task as its successor."""
+    predecessor_id = task.dependencies[0]
+    resume_successor = checkpoint.get("state", {}).get("resume_successor")
+    stage = checkpoint["stage"]
+    predecessor_stages = {
+        f"engine_task:{predecessor_id}",
+        f"engine_task_paused:{predecessor_id}",
+    }
+    if stage in predecessor_stages and resume_successor == task.task_type:
+        return
+    raise SupersededTaskError("portfolio task checkpoint was superseded")
+
+
+def _restore_node_task_state(
+    task: ScientificTask,
+    checkpoint: dict[str, Any],
+    generator: Any,
+    opts: dict[str, Any],
+    db_path: str | None,
+) -> dict[str, Any]:
+    """Restore workflow state and re-apply durable per-boundary overlays.
+
+    Re-delivers durable scientist steering/private sources at every safe
+    task boundary. ``build_engine_opts`` only *reads* the message queue;
+    the ids it read ride the commit target and are retired inside the
+    transaction that commits this state's successor checkpoint, so a worker
+    lost mid-node leaves the steer claimable rather than acknowledged.
+
+    ``pending_steering`` is set on ``state`` only at the orchestrator: it
+    is the sole node whose scheduling stats read that flag
+    (``orchestrator_stats._build_scheduler_stats``), so setting it on
+    every other node's restored state would do nothing but pretend a
+    later commit consumed something it never acted on -- the actual
+    consumption gate lives beside this one, in ``_task_commit``.
+
+    ``durable_retries_remain`` is the other overlay, and it is what lets a
+    node whose synthesis is optional tell a recoverable failure from a
+    final one (``co_scientist.agents.node_degradation``): a provider error
+    with a retry behind it propagates so the worker re-runs the node,
+    while the same error on the last attempt degrades the node rather than
+    failing the task -- which, at the terminal node, settles the run and
+    loses the report. The formula mirrors
+    ``app.task_worker.outcomes._is_terminal_failure``, which mirrors
+    ``app.store.tasks_attempts._persist_failed_attempt``'s own
+    retry-left test; it assumes the failure is retryable, which holds
+    because the two failures the worker refuses to retry
+    (``TASK_CONTROL_FLOW_ERRORS``) never reach the degrade decision.
+    """
+    from app.engine_adapter.checkpoints import restore_workflow_state
+
+    state: dict[str, Any] = restore_workflow_state(
+        checkpoint["state"], tool_registry=generator.tool_registry
+    )
+    at_admission_node = (
+        task.task_type.removeprefix(NODE_TASK_PREFIX) == ADMISSION_NODE
+    )
+    if opts.get("pending_steering") and at_admission_node:
+        state["pending_steering"] = True
+    if opts.get("preferences"):
+        state["preferences"] = opts["preferences"]
+    if opts.get("context_enrichment_sources"):
+        state["context_enrichment_sources"] = opts["context_enrichment_sources"]
+    state["durable_retries_remain"] = task.attempt < task.max_attempts
+    _merge_scientist_inputs(
+        state,
+        task.run_id,
+        db_path,
+        admit_hypotheses=at_admission_node,
+    )
+    return state
+
+
+def _prepare_node_task(
+    task: ScientificTask,
+    checkpoint: dict[str, Any],
+    current_seq: int,
+    db_path: str | None,
+) -> tuple[dict[str, Any], TaskCommit, str]:
+    """Restore this node's state and build its commit target.
+
+    Only the orchestrator's own commit may acknowledge steering: it is
+    the run's one scheduling decision point (see ``_task_commit``).
+    """
+    generator, opts = engine_tasks_runtime.active().generator_and_opts(
+        task, db_path
+    )
+    state = _restore_node_task_state(task, checkpoint, generator, opts, db_path)
+    node_name = task.task_type.removeprefix(NODE_TASK_PREFIX)
+    if node_name == "orchestrator":
+        state["durable_task_queue"] = _durable_queue_snapshot(
+            task.run_id, db_path
+        )
+    commit = _task_commit(
+        task,
+        current_seq,
+        db_path,
+        opts,
+        consume_steering=(node_name == ADMISSION_NODE),
+    )
+    return state, commit, node_name
 
 
 async def _dispatch_node_fanout(
@@ -170,221 +260,32 @@ def _require_active_run(
     return run
 
 
-def _pause_finalize_if_requested(
-    commit: TaskCommit, state: dict[str, Any]
-) -> dict[str, Any] | None:
-    """Checkpoint a pause that arrived before finalize starts its drain."""
-    run = store.get_run(commit.task.run_id, db_path=commit.db_path)
-    if run is None or run.status != RunStatus.PAUSED.value:
-        return None
-    checkpoint_seq = _save_paused_state_if_requested(
-        commit, state, FINALIZE_TASK
-    )
-    if checkpoint_seq is None:
-        return None
-    return {"checkpoint_seq": checkpoint_seq, "status": "paused"}
-
-
-def _commit_finalize_drain(
-    commit: TaskCommit,
-    state: dict[str, Any],
-    drained: Any,
-    metrics: dict[str, Any],
-) -> dict[str, Any] | None:
-    """Preserve pause or enter synthesis after final drain atomically."""
-    from co_scientist.checkpoint import serialize_workflow_state
-
-    task, db_path = commit.task, commit.db_path
-    envelope = serialize_workflow_state(state, last_event_seq=0)
-    with store.transaction(db_path) as conn:
-        assert_task_commit_allowed(task, conn)
-        status = conn.execute(
-            "SELECT status FROM runs WHERE id=?", (task.run_id,)
-        ).fetchone()["status"]
-        if status == RunStatus.PAUSED.value:
-            store.clear_publication_artifacts(task.run_id, conn=conn)
-            envelope["last_event_seq"] = store.latest_event_seq(
-                task.run_id, conn=conn
-            )
-            checkpoint_seq = _save_paused_checkpoint(
-                commit,
-                state,
-                FINALIZE_TASK,
-                envelope,
-                conn,
-            )
-            store.save_run_metrics(task.run_id, metrics, conn=conn)
-            return {"checkpoint_seq": checkpoint_seq, "status": "paused"}
-        store.save_run_metrics(task.run_id, metrics, conn=conn)
-        store.update_run_status(task.run_id, RunStatus.SYNTHESIZING, conn=conn)
-        for event_type, payload in _finalize_stage_events(drained):
-            store.append_event(task.run_id, event_type, payload, conn=conn)
-    return None
-
-
-async def _emit_finalize_stage_events(emit: Any, drained: Any) -> None:
-    """Emit drain stage events for compatibility callers."""
-    for event_type, payload in _finalize_stage_events(drained):
-        await emit(event_type, payload)
-
-
-def _finalize_stage_events(
-    drained: Any,
-) -> Iterator[tuple[str, dict[str, Any]]]:
-    """Yield the ordered, persisted progress events for a completed drain."""
-    yield "safety.hypothesis", drained.safety_counts
-    yield "citation.grounding", drained.grounding_counts
-    yield "citation_audit", dict(drained.report_inputs["citation_summary"])
-
-
-def _monitor_halt_decision(state: dict[str, Any]) -> SafetyDecision:
-    """Rebuild the monitor's verdict as an app-side safety decision.
-
-    The engine records the halt in the workflow state's audit trail; this
-    carries that record -- its rationale and the policy text it matched --
-    onto the run's own safety decisions, so a blocked run explains itself
-    through the same surface as an intake or final-gate block. A halt
-    whose record did not survive the checkpoint still blocks, on the
-    generic reason: the flag is the decision, the record only its detail.
-    """
-    from co_scientist.agents.safety.safety_monitor import MONITOR_STAGE
-
-    records = [
-        item
-        for item in (state.get("safety_decisions") or [])
-        if isinstance(item, dict) and item.get("stage") == MONITOR_STAGE
-    ]
-    record: dict[str, Any] = records[-1] if records else {}
-    return SafetyDecision(
-        stage=MONITOR_STAGE,
-        decision="block",
-        reason=str(
-            record.get("reason")
-            or "The research direction reached prohibited content mid-run."
-        ),
-        matches=[str(match) for match in (record.get("matches") or [])],
-        category=str(record.get("outcome") or "prohibited"),
-        assessor="engine:safety_monitor",
-    )
-
-
-async def _halt_finalize_if_blocked(
-    run: store.RunRow,
-    state: dict[str, Any],
-    task: ScientificTask,
-    db_path: str | None,
-) -> dict[str, Any] | None:
-    """Block a run the engine's safety monitor halted, instead of publishing.
-
-    The monitor halts mid-run (finding J6), and the durable runtime routes
-    straight here rather than scheduling more science. Nothing is drained
-    and no report is built: the run stopped because its direction was
-    unpublishable, so producing the document anyway only to withhold it at
-    the final gate would spend the synthesis and leave the reason implicit.
-
-    Returns:
-        The finalize result for a halted run, or ``None`` to publish as
-        usual.
-    """
-    if not state.get("safety_blocked"):
-        return None
-    decision = _monitor_halt_decision(state)
-    emit = make_emitter(run.id, db_path=db_path)
-    async for _ in apply_safety_gate(
-        run.id, decision, emit, db_path=db_path, task=task
-    ):
-        pass
-    return {"run_id": run.id, "status": RunStatus.BLOCKED.value}
-
-
-async def _drain_and_persist_final_state(
-    run: store.RunRow,
-    state: dict[str, Any],
-    db_path: str | None,
-) -> tuple[Any, float, dict[str, Any]]:
-    """Persist replayable final artifacts outside a database lock."""
-    final_state = _plain_final_state(state)
-    store.clear_publication_artifacts(run.id, db_path=db_path)
-    drained = await persist_final_state(
-        run_id=run.id, final_state=final_state, db_path=db_path
-    )
-    metrics = _metrics_snapshot(final_state)
-    execution_time = max(0.0, time.time() - float(state.get("start_time", 0)))
-    return drained, execution_time, metrics
-
-
-def _restore_finalize_checkpoint(
-    task: ScientificTask, db_path: str | None
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Restore the workflow state the run's last committed checkpoint holds."""
-    checkpoint, _ = _latest_task_checkpoint(task, db_path)
-    return checkpoint, restore_checkpoint_state(task, checkpoint, db_path)
-
-
-async def _publish_finalize_report(  # noqa: PLR0913
-    run: store.RunRow,
-    task: ScientificTask,
-    drained: Any,
-    execution_time: float,
-    emit: Any,
-    db_path: str | None,
-) -> None:
-    """Publish through the report gate after the drain commit."""
-    setup = run.config.get("setup") if isinstance(run.config, dict) else None
-    async for _ in finalize_report(
-        run.id,
-        ReportRequest(
-            research_goal=run.research_goal,
-            goal_restatement=run.goal_restatement,
-            run_mode=normalize_run_tier(run.profile),
-            provider="engine",
-            execution_time=execution_time,
-            setup=setup if isinstance(setup, dict) else None,
-            prepared_at=time.time(),
-            db_path=db_path,
-            **drained.report_inputs,
-        ),
-        emit,
-        task=task,
-    ):
-        pass
-
-
-async def execute_finalize(
+async def execute_node_task(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
-    """Drain the final checkpoint and publish through the shared report gate."""
-    run = _require_run(task, db_path)
-    replayed = _finalize_replay_or_none(run, db_path=db_path)
-    if replayed is not None:
-        return replayed
-    checkpoint, state = _restore_finalize_checkpoint(task, db_path)
-    commit = TaskCommit(task, int(checkpoint["seq"]), db_path)
-    paused = _pause_finalize_if_requested(commit, state)
-    if paused is not None:
-        return paused
-    halted = await _halt_finalize_if_blocked(run, state, task, db_path)
-    if halted is not None:
-        return halted
-    drain = engine_tasks_runtime.active().drain_final_state
-    drained, execution_time, metrics = await drain(run, state, db_path)
-    paused = _commit_finalize_drain(commit, state, drained, metrics)
-    if paused is not None:
-        return paused
-    emit = make_emitter(run.id, db_path=db_path)
-    await _publish_finalize_report(
-        run, task, drained, execution_time, emit, db_path
+    """Execute and commit exactly one engine specialist node."""
+    from co_scientist.task_runtime import execute_task_node
+
+    checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
+    run = _require_active_run(task, db_path, stage="before specialist run")
+    replay = _check_node_task_checkpoint(task, checkpoint, current_seq)
+    if replay is not None:
+        return replay
+
+    state, commit, node_name = _prepare_node_task(
+        task, checkpoint, current_seq, db_path
     )
-    # Contributions posted during report publication have no continuation
-    # task. Reopen here; the helper no-ops unless completed with pending input.
-    reopen_for_pending_scientist_input(run.id, db_path=db_path)
-    return _settle_and_release(run.id, db_path)
+    paused = _pause_node_task_if_requested(commit, run, node_name, state)
+    if paused is not None:
+        return paused
+    fanout = await _dispatch_node_fanout(
+        task, state, node_name, current_seq, db_path=db_path
+    )
+    if fanout is not None:
+        return fanout
 
-
-def _settle_and_release(run_id: str, db_path: str | None) -> dict[str, Any]:
-    """Settle and free call-budget tracking, including nonterminal exits."""
-    from co_scientist.llm import release_run_call_budget
-
-    outcome = _settle_finalize_outcome(run_id, db_path)
-    release_run_call_budget(run_id)
-    return outcome
+    committed, successor = await execute_task_node(node_name, state)
+    run = _require_active_run(task, db_path, stage="during specialist run")
+    return await _commit_node_result(
+        commit, run, node_name, committed, successor
+    )

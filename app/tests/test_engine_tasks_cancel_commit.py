@@ -14,6 +14,7 @@ from co_scientist.models import Hypothesis
 from app import engine_tasks, store, task_worker
 from app.config import settings
 from app.engine_tasks import fanout_generation as engine_tasks_fanout_generation
+from app.engine_tasks import node as engine_tasks_node
 from app.engine_tasks import support as engine_tasks_support
 from app.engine_tasks.context import ExactSuccessor, TaskCommit
 from app.engine_tasks.fanout_aggregates import _AggregateSpec
@@ -78,7 +79,7 @@ async def test_cancel_completed_after_node_status_check_blocks_commit(
     )
 
     monkeypatch.setattr(
-        engine_tasks,
+        engine_tasks_node,
         "_prepare_node_task",
         lambda *_: (
             state,
@@ -96,7 +97,7 @@ async def test_cancel_completed_after_node_status_check_blocks_commit(
 
     monkeypatch.setattr(task_runtime, "execute_task_node", execute_node)
 
-    commit_node_result = engine_tasks._commit_node_result
+    commit_node_result = engine_tasks_node._commit_node_result
 
     async def cancel_then_commit(
         commit: TaskCommit,
@@ -112,7 +113,9 @@ async def test_cancel_completed_after_node_status_check_blocks_commit(
             commit, run, node_name, committed, successor
         )
 
-    monkeypatch.setattr(engine_tasks, "_commit_node_result", cancel_then_commit)
+    monkeypatch.setattr(
+        engine_tasks_node, "_commit_node_result", cancel_then_commit
+    )
 
     with pytest.raises(task_worker._LeaseLostError):
         await engine_tasks.execute_node_task(task, db_path=isolated_db)
@@ -140,7 +143,7 @@ async def test_pause_after_node_status_refresh_keeps_successor_unclaimable(
         run_id, "engine.node.supervisor", "pause-successor-race", isolated_db
     )
     monkeypatch.setattr(
-        engine_tasks,
+        engine_tasks_node,
         "_prepare_node_task",
         lambda *_: (
             state,
@@ -160,7 +163,7 @@ async def test_pause_after_node_status_refresh_keeps_successor_unclaimable(
 
     monkeypatch.setattr(task_runtime, "execute_task_node", execute_node)
 
-    commit_node_result = engine_tasks._commit_node_result
+    commit_node_result = engine_tasks_node._commit_node_result
 
     async def pause_then_commit(
         commit: TaskCommit,
@@ -176,7 +179,9 @@ async def test_pause_after_node_status_refresh_keeps_successor_unclaimable(
             commit, run, node_name, committed, successor
         )
 
-    monkeypatch.setattr(engine_tasks, "_commit_node_result", pause_then_commit)
+    monkeypatch.setattr(
+        engine_tasks_node, "_commit_node_result", pause_then_commit
+    )
 
     result = await engine_tasks.execute_node_task(task, db_path=isolated_db)
 
@@ -309,7 +314,7 @@ async def test_cancel_before_review_fanout_transaction_blocks_enqueue(
         "hypotheses": [Hypothesis(text="A reviewable mechanism")],
     }
     monkeypatch.setattr(
-        engine_tasks,
+        engine_tasks_node,
         "_prepare_node_task",
         lambda *_: (
             state,
@@ -318,7 +323,7 @@ async def test_cancel_before_review_fanout_transaction_blocks_enqueue(
         ),
     )
 
-    enqueue_fanout = engine_tasks._dispatch_node_fanout
+    enqueue_fanout = engine_tasks_node._dispatch_node_fanout
 
     async def cancel_then_enqueue(
         *args: Any, **kwargs: Any
@@ -328,7 +333,7 @@ async def test_cancel_before_review_fanout_transaction_blocks_enqueue(
         return await enqueue_fanout(*args, **kwargs)
 
     monkeypatch.setattr(
-        engine_tasks, "_dispatch_node_fanout", cancel_then_enqueue
+        engine_tasks_node, "_dispatch_node_fanout", cancel_then_enqueue
     )
 
     with suppress(task_worker._LeaseLostError):

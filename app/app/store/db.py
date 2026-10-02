@@ -3,9 +3,7 @@
 Owns the connection/transaction context managers, the WAL and pragma
 setup, and the one-time schema bootstrap; the CREATE TABLE script itself
 lives in ``app.store.schema`` and the idempotent in-place migration steps
-live in ``app.store.db_migrations`` (split out to keep this module within
-the size cap; the step callers and monkeypatching tests still reach as an
-``app.store.db`` name is re-exported below). The other ``app.store`` submodules
+live in ``app.store.db_migrations``. The other ``app.store`` submodules
 build on the primitives defined here instead of calling
 ``sqlite3.connect`` directly.
 """
@@ -13,6 +11,7 @@ build on the primitives defined here instead of calling
 from __future__ import annotations
 
 import contextlib
+import json
 import logging
 import os
 import sqlite3
@@ -20,6 +19,7 @@ import threading
 import time
 from collections.abc import Generator
 from pathlib import Path
+from typing import Any
 
 from app.store.db_migrations import _run_migrations as _run_migrations
 from app.store.schema import SCHEMA as _SCHEMA
@@ -201,3 +201,24 @@ def checkpoint_wal(db_path: str | None = None) -> None:
             conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
     except sqlite3.Error as exc:
         logger.warning("WAL checkpoint failed: %s", exc)
+
+
+def _list_by_run(
+    table: str,
+    run_id: str,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+    *,
+    json_fields: tuple[str, ...] = (),
+) -> list[dict[str, Any]]:
+    """Read a trusted table's run rows and decode its list-valued JSON."""
+    with _use_conn(conn, db_path) as active:
+        rows = active.execute(
+            f"SELECT * FROM {table} WHERE run_id=? ORDER BY created_at ASC",
+            (run_id,),
+        ).fetchall()
+    result = [dict(row) for row in rows]
+    for row in result:
+        for field in json_fields:
+            row[field] = json.loads(row.pop(f"{field}_json", None) or "[]")
+    return result

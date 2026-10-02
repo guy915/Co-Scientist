@@ -1,16 +1,17 @@
 """Run CRUD and lifecycle helpers for the runs table.
 
-Covers reading runs, status transitions (including terminal-state
-timestamps), and the per-run summary counts. Creation lives in
-``app.store.runs_create``; the enriched list rollups and derived-data resets
-live in ``app.store.runs_views``, and startup reconciliation lives in
-``app.store.runs_reconcile``. The APIs callers use are re-exported here.
+Covers creation, reads, atomic capacity admission, status transitions and
+summary counts. Enriched list rollups and derived-data resets live in
+``runs_views``; crash recovery and lease fencing have their own modules.
 """
 
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
+import uuid
+from dataclasses import dataclass
 from typing import Any
 
 from app.store.db import _now, _use_conn, connect
@@ -20,23 +21,17 @@ from app.store.models import (
     RunStatus,
     _row_to_run,
 )
-from app.store.runs_admission import (
-    reserve_run_capacity as reserve_run_capacity,
-)
-from app.store.runs_admission import (
-    reserve_run_capacity_in_transaction as reserve_run_capacity_in_transaction,
-)
 from app.store.runs_bootstrap import (
     bootstrap_task_lease_matches as bootstrap_task_lease_matches,
 )
 from app.store.runs_bootstrap import (
     mark_bootstrap_running as mark_bootstrap_running,
 )
-from app.store.runs_create import RunCreateOptions as RunCreateOptions
-from app.store.runs_create import create_run as create_run
-from app.store.runs_create import log_run_created as log_run_created
 from app.store.runs_delete import count_run_rows as count_run_rows
 from app.store.runs_delete import delete_run as delete_run
+from app.store.runs_reconcile import (
+    _ACTIVE_RUN_STATUSES,
+)
 from app.store.runs_reconcile import (
     reconcile_interrupted_runs as reconcile_interrupted_runs,
 )
@@ -50,6 +45,8 @@ from app.store.runs_views import (
     list_expired_terminal_runs as list_expired_terminal_runs,
 )
 from app.store.runs_views import list_runs as list_runs
+
+logger = logging.getLogger(__name__)
 
 
 def run_used_offline(run: RunRow) -> bool:
@@ -312,3 +309,178 @@ def summary_counts(
             ).fetchone()[0]
             for field, table in tables.items()
         }
+
+
+def set_run_title(run_id: str, title: str, db_path: str | None = None) -> None:
+    """Set a run's short session title (idempotent; no-op if the run is gone).
+
+    Args:
+        run_id: Identifier of the run to update.
+        title: The generated short title to store.
+        db_path: Optional override for the SQLite database path.
+    """
+    with connect(db_path) as conn:
+        conn.execute("UPDATE runs SET title = ? WHERE id = ?", (title, run_id))
+
+
+def set_run_goal_restatement(
+    run_id: str, restatement: str, db_path: str | None = None
+) -> None:
+    """Set a run's narrative goal restatement (idempotent; no-op if gone).
+
+    GOAL-RESTATEMENT-001: a background generator fills this shortly after
+    create, and the report reads it from the run row at finalize.
+
+    Args:
+        run_id: Identifier of the run to update.
+        restatement: The synthesized narrative restatement to store.
+        db_path: Optional override for the SQLite database path.
+    """
+    with connect(db_path) as conn:
+        conn.execute(
+            "UPDATE runs SET goal_restatement = ? WHERE id = ?",
+            (restatement, run_id),
+        )
+
+
+@dataclass(frozen=True)
+class RunCreateOptions:
+    """Optional run creation inputs and database override."""
+
+    client_id: str = ""
+    title: str | None = None
+    llm_backend: str | None = None
+    execution_policy: str = "standard"
+    db_path: str | None = None
+    conn: sqlite3.Connection | None = None
+    log_created: bool | None = None
+
+
+def log_run_created(run: RunRow) -> None:
+    """Mirror a committed run creation in the application log."""
+    logger.info(
+        "created run %s run_mode=%s provider=%s llm_backend=%s client_id=%s",
+        run.id,
+        run.profile,
+        run.provider,
+        run.llm_backend,
+        run.client_id,
+    )
+
+
+def create_run(
+    research_goal: str,
+    profile: str,
+    provider: str,
+    config: dict[str, Any],
+    options: RunCreateOptions | None = None,
+) -> RunRow:
+    """Insert a new DRAFT row and return it.
+
+    Caller-owned transactions defer the creation log until their commit,
+    unless ``log_created`` explicitly overrides that behavior.
+    """
+    opts = options or RunCreateOptions()
+    now = _now()
+    backend = opts.llm_backend
+    if backend is None:
+        backend = "offline" if provider == "mock" else "real"
+    run = RunRow(
+        id=str(uuid.uuid4()),
+        research_goal=research_goal,
+        title=opts.title,
+        profile=profile,
+        status=RunStatus.DRAFT.value,
+        provider=provider,
+        config=config,
+        client_id=opts.client_id,
+        created_at=now,
+        updated_at=now,
+        completed_at=None,
+        error=None,
+        llm_backend=backend,
+        execution_policy=opts.execution_policy,
+    )
+    with _use_conn(opts.conn, opts.db_path) as active:
+        active.execute(
+            "INSERT INTO runs (id, research_goal, title, profile, status, "
+            "provider, config_json, client_id, created_at, updated_at, "
+            "llm_backend, execution_policy) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                run.id,
+                run.research_goal,
+                run.title,
+                run.profile,
+                run.status,
+                run.provider,
+                json.dumps(run.config),
+                run.client_id,
+                now,
+                now,
+                run.llm_backend,
+                run.execution_policy,
+            ),
+        )
+    should_log = (
+        opts.conn is None if opts.log_created is None else opts.log_created
+    )
+    if should_log:
+        log_run_created(run)
+    return run
+
+
+def _count_other_active_runs(
+    conn: sqlite3.Connection, run_id: str, client_id: str
+) -> int:
+    """Count the client's other in-flight runs, whatever tier they are.
+
+    Deliberately blind to ``profile``: the quota is one ceiling per
+    identity. Partitioning the count by tier as well made the effective
+    allowance ``max_concurrent_runs`` per tier -- four times what is
+    advertised, and reachable simply by naming a different tier each time.
+    """
+    return int(
+        conn.execute(
+            "SELECT COUNT(*) FROM runs WHERE client_id=? "
+            "AND status IN (?,?,?) AND id!=?",
+            (client_id, *_ACTIVE_RUN_STATUSES, run_id),
+        ).fetchone()[0]
+    )
+
+
+def _queue_run_if_startable(
+    conn: sqlite3.Connection, run_id: str, now: float, expected_status: str
+) -> int:
+    """Move a run to QUEUED only from the status this start request read."""
+    if expected_status not in {
+        RunStatus.DRAFT.value,
+        RunStatus.FAILED.value,
+        RunStatus.BLOCKED.value,
+        RunStatus.CANCELLED.value,
+    }:
+        return 0
+    return conn.execute(
+        "UPDATE runs SET status=?, updated_at=?, completed_at=NULL, "
+        "error=NULL WHERE id=? AND status=?",
+        (
+            RunStatus.QUEUED.value,
+            now,
+            run_id,
+            expected_status,
+        ),
+    ).rowcount
+
+
+def reserve_run_capacity_in_transaction(
+    conn: sqlite3.Connection,
+    run_id: str,
+    client_id: str,
+    limit: int,
+    expected_status: str,
+) -> bool:
+    """Reserve a client's run slot using the caller's active transaction."""
+    count = _count_other_active_runs(conn, run_id, client_id)
+    if count >= limit:
+        return False
+    changed = _queue_run_if_startable(conn, run_id, _now(), expected_status)
+    return bool(changed)

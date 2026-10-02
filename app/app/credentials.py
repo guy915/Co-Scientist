@@ -336,19 +336,6 @@ def get_run_credential(
     )
 
 
-def delete_run_credential(run_id: str, db_path: str | None = None) -> None:
-    """Delete a run's stored credential (idempotent).
-
-    Args:
-        run_id: The run whose credential to remove.
-        db_path: Optional override for the SQLite database path.
-    """
-    from app.store.db import connect
-
-    with connect(db_path) as conn:
-        conn.execute("DELETE FROM run_credentials WHERE run_id=?", (run_id,))
-
-
 # ---------------------------------------------------------------------------
 # Validation
 # ---------------------------------------------------------------------------

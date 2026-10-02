@@ -133,9 +133,8 @@ mcp_server/
 ├── server.py                    # FastMCP server + tool registration
 ├── config.py                    # Configuration
 ├── pubmed_client.py             # PubMed/Entrez client
-├── fulltext_download.py         # PMC fulltext retrieval
 ├── text_extraction.py           # PMC HTML to markdown
-├── literature_review.py         # Shared literature-review helpers
+├── literature_review.py         # PubMed corpus, PMC downloads + shared cache
 └── tools/
     ├── biomedical_databases.py  # search_chembl, search_uniprot
     ├── lit_review/

@@ -1,79 +1,14 @@
-// Run lifecycle API client. Mirrors the FastAPI router in app/runs.py.
-//
-// The client is split across sibling modules, all re-exported here so
-// callers keep importing everything from '@/api/runs':
-// - runs_http.ts: shared fetch/auth primitives
-// - runs_interviews.ts: the research-goal interview
-// - runs_qa.ts: grounded Q&A over a started run
-// - runs_collections.ts: per-run collections, reports, and shares
-// - run_lifecycle.ts: what a run's status means (isActiveStatus, ...)
-
 import {mergeByIdNewestFirst} from '@/lib/merge';
 import type {Run, RunFocus, RunTier, RunWithSummary} from './run_types';
-export type {
-  AgentInsights,
-  IdeaBucketEntry,
-  KnowledgeBaseTopic,
-  RecommendedDirection,
-  Report,
-  ReportPayload,
-  ResearchOverview,
-} from './report_types';
 import {
-  API_BASE_URL,
   byokHeaders,
   clientHeaders,
   fetchField,
   fetchJson,
   jsonRequest,
 } from './runs_http';
-// Re-export the run-domain types so callers can `import type {...} from
-// '@/api/runs'` alongside the API functions below, without a second import
-// from './run_types'.
-export type {
-  ChatSummary,
-  ClaimEvidenceRow,
-  Evidence,
-  Hypothesis,
-  HypothesisOutcome,
-  HypothesisOutcomeInput,
-  Interview,
-  InterviewDocument,
-  InterviewFields,
-  InterviewQuestion,
-  InterviewQuestionOption,
-  InterviewTurn,
-  JsonPrimitive,
-  JsonValue,
-  LegacyRunProfile,
-  MatchRow,
-  ProximityEdge,
-  QaSource,
-  ReportShare,
-  Review,
-  Run,
-  RunAttribute,
-  RunConfig,
-  RunCriterion,
-  RunFocus,
-  RunMessage,
-  RunMode,
-  RunSetupConfig,
-  RunStatus,
-  RunSummary,
-  RunTier,
-  RunWithSummary,
-  SafetyDecision,
-  SharedGoalReport,
-  SharedRun,
-  SupportSpan,
-} from './run_types';
-export type {
-  OutcomeRefinementAction,
-  SupervisorAllocation,
-  SupervisorPlanRecord,
-  SupervisorPlanResponse,
-} from './runs_collections';
+export type * from './run_types';
+export type * from './report_types';
 export {
   byokHeaders,
   clientHeaders,
@@ -83,66 +18,10 @@ export {
   jsonRequest,
   readSseFrames,
 } from './runs_http';
-export type {StagedDocument} from './documents';
-export {stageDocument} from './documents';
-export {
-  addInterviewTurn,
-  createInterview,
-  editInterviewFields,
-  editInterviewTurn,
-  getInterview,
-  listInterviews,
-  retryInterviewTurn,
-} from './runs_interviews';
-export type {InterviewSinks} from './runs_interviews';
-export {askRunQuestion, getRunMessages} from './runs_qa';
-export type {QaSinks} from './runs_qa';
-export {announceRunStart} from './runs_start';
-export type {StartAnnouncement, StartAnnouncementSinks} from './runs_start';
-export {
-  addScientistHypothesis,
-  addHypothesisOutcome,
-  addScientistReview,
-  adjudicateSafety,
-  createReportShare,
-  fetchReportMarkdown,
-  getClaimEvidence,
-  getEvidence,
-  getHypotheses,
-  getHypothesisOutcomes,
-  getHypothesisOutcomeRefinement,
-  requestHypothesisOutcomeRefinement,
-  getMatches,
-  getProximity,
-  getReport,
-  getReviews,
-  getSafety,
-  getSupervisorPlan,
-  getSharedGoalReport,
-  listReportShares,
-  revokeReportShare,
-  uploadRunDocument,
-} from './runs_collections';
-
-export {
-  isActiveStatus,
-  isCancelledStatus,
-  isCompletedStatus,
-  isDraftStatus,
-  isFailureStatus,
-  isStartedStatus,
-  isStoppableStatus,
-  isTerminalNonCompletedStatus,
-  isTerminalStatus,
-  retiresStartIntent,
-  runActivity,
-  runLifecycle,
-} from './run_lifecycle';
-export type {
-  RunActivity,
-  RunPhase,
-  TerminalNonCompletedStatus,
-} from './run_lifecycle';
+export * from './runs_interviews';
+export * from './runs_qa';
+export * from './runs_collections';
+export * from './run_lifecycle';
 
 /**
  * The run's effective goal: the durable setup goal when set, else the
@@ -159,7 +38,7 @@ export function runGoal(run: Run | null | undefined): string {
  * @param input Research goal and optional engine parameters.
  * @returns The newly created run.
  */
-export async function createRun(
+export function createRun(
   input: {
     research_goal: string;
     interview_id?: string;
@@ -189,7 +68,7 @@ export async function createRun(
   return fetchJson('/api/runs', {
     ...init,
     headers: {
-      ...(init.headers as Record<string, string>),
+      ...init.headers,
       ...byokHeaders(),
       ...(options?.idempotencyKey
         ? {'Idempotency-Key': options.idempotencyKey}
@@ -204,7 +83,7 @@ export async function createRun(
  * @param limit Maximum runs to return.
  * @returns All runs visible to the caller.
  */
-export async function listRuns(limit?: number): Promise<Run[]> {
+export function listRuns(limit?: number): Promise<Run[]> {
   const query = limit === undefined ? '' : `?limit=${limit}`;
   return fetchField(`/api/runs${query}`, 'runs', {headers: clientHeaders()});
 }
@@ -214,7 +93,7 @@ export async function listRuns(limit?: number): Promise<Run[]> {
  *
  * @returns The seeded demo runs.
  */
-export async function listDemoRuns(): Promise<Run[]> {
+export function listDemoRuns(): Promise<Run[]> {
   return fetchField('/api/runs/demo', 'runs');
 }
 
@@ -249,7 +128,7 @@ export async function loadRunHistory(includeDemos = true): Promise<Run[]> {
  * @param id Run identifier.
  * @returns The run and its aggregate counts.
  */
-export async function getRun(id: string): Promise<RunWithSummary> {
+export function getRun(id: string): Promise<RunWithSummary> {
   return fetchJson(`/api/runs/${id}`, {headers: clientHeaders()});
 }
 
@@ -260,7 +139,7 @@ export async function getRun(id: string): Promise<RunWithSummary> {
  * @param body Optional provider override.
  * @returns The run id and its new status.
  */
-export async function startRun(
+export function startRun(
   id: string,
   body: {force_provider?: 'mock' | 'engine'} = {},
 ): Promise<{id: string; status: string}> {
@@ -277,73 +156,28 @@ export async function startRun(
  * @param id Run identifier.
  * @returns The run id and its new status.
  */
-export async function cancelRun(
-  id: string,
-): Promise<{id: string; status: string}> {
+export function cancelRun(id: string): Promise<{id: string; status: string}> {
   return fetchJson(`/api/runs/${id}/cancel`, jsonRequest({}, true));
 }
 
-/**
- * Permanently deletes a terminal run and every row scoped to it. Cannot be
- * undone; the run must not be active (cancel it first).
- *
- * @param id Run identifier.
- * @returns The deleted run's id and the per-table row counts removed.
- */
-export async function deleteRun(
-  id: string,
-): Promise<{id: string; deleted: boolean; counts: Record<string, number>}> {
-  return fetchJson(`/api/runs/${id}`, {
-    method: 'DELETE',
+/** A document staged against the caller before a run exists. */
+export interface StagedDocument {
+  id: string;
+  title: string;
+  sha256: string;
+  byte_size: number;
+  mime_type: string;
+  extraction_tool: string;
+}
+
+/** Extract a composer attachment; its id travels with the interview/run. */
+export function stageDocument(file: File): Promise<StagedDocument> {
+  const body = new FormData();
+  body.set('file', file);
+  body.set('consent', 'true');
+  return fetchJson('/api/documents', {
+    method: 'POST',
     headers: clientHeaders(),
+    body,
   });
-}
-
-/** Queue scientist guidance for the next safe task boundary. */
-export function sendRunSteering(
-  id: string,
-  content: string,
-): Promise<{id: string; status: string}> {
-  return fetchJson(`/api/runs/${id}/messages`, jsonRequest({content}, true));
-}
-
-/**
- * Builds the events-stream URL for a run. The stream always replays from the
- * start; the backend treats a missing cursor as `after=0`.
- *
- * Carries no credential: unlike a browser-native `EventSource` (which cannot
- * attach a header), the stream is opened over `fetch` with `clientHeaders()`
- * (see `useRunStream`), so identity travels as a header rather than a query
- * parameter that would otherwise leak into browser history, proxy logs, and
- * referrers.
- *
- * @param id Run identifier.
- * @returns The absolute events endpoint URL.
- */
-export function eventsStreamUrl(id: string): string {
-  return `${API_BASE_URL}/api/runs/${id}/events`;
-}
-
-/** One persisted row of a run's append-only event log. */
-export interface RunEvent {
-  seq: number;
-  type: string;
-  payload: Record<string, unknown>;
-  created_at: number;
-}
-
-/**
- * Fetches a run's persisted event log as a one-shot JSON snapshot
- * (`stream=false`), rather than the SSE stream the run views tail.
- *
- * @param id Run identifier.
- * @param after Only return events with a sequence number greater than this.
- * @returns The persisted events, ordered by sequence number.
- */
-export function getRunEvents(id: string, after = 0): Promise<RunEvent[]> {
-  return fetchField(
-    `/api/runs/${id}/events?stream=false&after=${after}`,
-    'events',
-    {headers: clientHeaders()},
-  );
 }

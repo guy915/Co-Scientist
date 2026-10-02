@@ -11,7 +11,7 @@ fallback mode (no MCP server needed): ``literature_review`` and
 ``tests/test_generator.py``'s ``_SIMPLE_NODES``).
 
 Each test builds the initial state via
-``HypothesisGenerator._prepare_generation`` and invokes the compiled graph
+``HypothesisGenerator.prepare_task_state`` and invokes the compiled graph
 directly (``gen._graph.ainvoke``), rather than going through the public
 ``generate_hypotheses`` wrapper -- that system-level entry point is covered
 separately in ``tests/test_system_generation.py``. Working at the raw
@@ -136,11 +136,11 @@ async def _run_graph(
     Returns:
         The final WorkflowState after the graph run completes.
     """
-    initial_state = await gen._prepare_generation(
+    initial_state = await gen.prepare_task_state(
         research_goal,
         opts={"enable_literature_review_node": False, **opts},
     )
-    assert gen._graph is not None  # built by _prepare_generation
+    assert gen._graph is not None  # built by prepare_task_state
     final_state = await gen._graph.ainvoke(
         initial_state, config={"recursion_limit": 100}
     )

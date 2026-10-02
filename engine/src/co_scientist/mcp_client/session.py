@@ -1,9 +1,7 @@
 """MCP tool-client session: ``MCPToolClient`` and its timeout ceiling.
 
-Split from ``mcp_client`` to keep that module within size conventions:
-this module holds the client class itself plus the per-tool-call timeout
-helpers it invokes, while ``mcp_client`` keeps the availability probes and
-the process-wide client singleton and re-exports everything defined here.
+This module owns the client class and per-tool-call deadlines; the package
+keeps availability probes and the process-wide client singleton.
 This module must not import ``mcp_client`` (the probes there instantiate
 ``MCPToolClient``, so an import back would be a cycle).
 """

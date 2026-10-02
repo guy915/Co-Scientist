@@ -1,19 +1,4 @@
-"""Orchestrator node - the adaptive scheduling loop point.
-
-This is the decision node the compiled graph re-enters after each work phase.
-It computes observable statistics from the workflow
-state, consults the deterministic scheduling policy, records the decision (with
-its reason) into the task-history ledger as data, emits a progress event, and
-sets ``next_task`` for the graph's conditional edge to route on.
-
-The decision must happen in a node, not a LangGraph edge function: edge
-functions can only read state and return a name, so they cannot record the
-reason or emit the event the milestone requires.
-
-The observable statistics live in ``orchestrator_stats`` and the carried
-bookkeeping (including the settlement allowance) in
-``orchestrator_bookkeeping``; both are re-exported here for compatibility.
-"""
+"""Choose the next research task, record its reason, and emit progress."""
 
 from __future__ import annotations
 
@@ -22,17 +7,8 @@ import logging
 import time as time
 from typing import Any
 
-from co_scientist.agents.ranking.ranking_lifecycle import (
-    _tournament_round_count as _tournament_round_count,
-)
 from co_scientist.agents.supervisor.orchestrator_bookkeeping import (
     _init_bookkeeping as _init_bookkeeping,
-)
-from co_scientist.agents.supervisor.orchestrator_bookkeeping import (
-    _initial_settlement_allowance as _initial_settlement_allowance,
-)
-from co_scientist.agents.supervisor.orchestrator_bookkeeping import (
-    _is_settlement_rank as _is_settlement_rank,
 )
 from co_scientist.agents.supervisor.orchestrator_bookkeeping import (
     _next_bookkeeping as _next_bookkeeping,
@@ -40,38 +16,11 @@ from co_scientist.agents.supervisor.orchestrator_bookkeeping import (
 from co_scientist.agents.supervisor.orchestrator_bookkeeping import (
     _owed_review_hypotheses_delta as _owed_review_hypotheses_delta,
 )
-from co_scientist.agents.supervisor.orchestrator_bookkeeping import (
-    _owed_review_override_marks as _owed_review_override_marks,
-)
-from co_scientist.agents.supervisor.orchestrator_bookkeeping import (
-    _settled_allowance as _settled_allowance,
-)
-from co_scientist.agents.supervisor.orchestrator_stats import (
-    _build_scheduler_stats as _build_scheduler_stats,
-)
 from co_scientist.agents.supervisor.orchestrator_stats import (
     _compute_stats as _compute_stats,
 )
 from co_scientist.agents.supervisor.orchestrator_stats import (
     _default_budget as _default_budget,
-)
-from co_scientist.agents.supervisor.orchestrator_stats import (
-    _rank_stable_cycles as _rank_stable_cycles,
-)
-from co_scientist.agents.supervisor.orchestrator_stats import (
-    _rankable_coverage as _rankable_coverage,
-)
-from co_scientist.agents.supervisor.orchestrator_stats import (
-    _scheduler_scalars as _scheduler_scalars,
-)
-from co_scientist.agents.supervisor.orchestrator_stats import (
-    _StatsScalars as _StatsScalars,
-)
-from co_scientist.agents.supervisor.orchestrator_stats import (
-    _task_type_or_none as _task_type_or_none,
-)
-from co_scientist.agents.supervisor.orchestrator_stats import (
-    _yields as _yields,
 )
 from co_scientist.agents.supervisor.supervisor_decision import (
     WORK_TASKS,

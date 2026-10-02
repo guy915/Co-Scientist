@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from co_scientist.agents.reflection import deep_verification as dv
+from co_scientist.agents.reflection import deep_verification_evidence
 from co_scientist.agents.reflection import verification as leaf
 from co_scientist.models import Article
 from tests._state import make_article, make_hypothesis, make_state
@@ -196,7 +197,7 @@ def test_retrieved_articles_are_deduplicated_by_source_identity() -> None:
 
 def test_probe_queries_prefer_keywords_and_rank_fundamental_first() -> None:
     """Searches use each probe's keywords, fundamental assumptions first."""
-    queries = dv._probe_queries(
+    queries = deep_verification_evidence._probe_queries(
         {
             "probes": [
                 {
@@ -226,7 +227,7 @@ def test_probe_queries_fall_back_to_the_question() -> None:
     omitted an optional-in-practice field, and losing the probe entirely would
     be a bigger regression than an over-long query.
     """
-    queries = dv._probe_queries(
+    queries = deep_verification_evidence._probe_queries(
         {
             "probes": [
                 {

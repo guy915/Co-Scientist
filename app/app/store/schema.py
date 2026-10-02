@@ -6,26 +6,7 @@ stays in ``db.py``. Inline comments document each table's role and the
 compatibility notes behind non-obvious column choices.
 """
 
-from app.store.schema_interviews import (
-    INTERVIEWS_SCHEMA as INTERVIEWS_SCHEMA,
-)
-from app.store.schema_knowledge_facts import (
-    KNOWLEDGE_FACTS_SCHEMA as KNOWLEDGE_FACTS_SCHEMA,
-)
-from app.store.schema_outcome_refinements import (
-    OUTCOME_REFINEMENTS_SCHEMA as OUTCOME_REFINEMENTS_SCHEMA,
-)
-from app.store.schema_retrieval_calls import (
-    RETRIEVAL_CALLS_SCHEMA as RETRIEVAL_CALLS_SCHEMA,
-)
-from app.store.schema_supervisor_plan import (
-    SUPERVISOR_PLAN_SCHEMA as SUPERVISOR_PLAN_SCHEMA,
-)
-from app.store.schema_tasks import (
-    SCIENTIFIC_TASKS_SCHEMA as SCIENTIFIC_TASKS_SCHEMA,
-)
-
-_SCHEMA_HEAD = """
+SCHEMA = """
 -- Primary lifecycle record for a single hypothesis-generation run.
 CREATE TABLE IF NOT EXISTS runs (
     id TEXT PRIMARY KEY,
@@ -85,9 +66,74 @@ CREATE TABLE IF NOT EXISTS run_creation_receipts (
     PRIMARY KEY (client_id, idempotency_key),
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
-"""
 
-_SCHEMA_MID = """
+-- Durable pre-run Agent interview. The structured fields are derived from the
+-- append-only turn transcript and remain editable until finalized.
+CREATE TABLE IF NOT EXISTS interviews (
+    id TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL,
+    execution_policy TEXT NOT NULL DEFAULT 'standard',
+    status TEXT NOT NULL,             -- active | completed | cancelled
+    fields_json TEXT NOT NULL,
+    current_question TEXT,
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL,
+    completed_at REAL
+);
+CREATE INDEX IF NOT EXISTS idx_interviews_client
+    ON interviews(client_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS interview_turns (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    interview_id TEXT NOT NULL,
+    role TEXT NOT NULL,               -- user | agent
+    content TEXT NOT NULL,
+    -- the Agent's chain of thought for this turn; NULL for user turns and
+    -- for models that emit none
+    reasoning TEXT,
+    -- 1 when the deterministic recovery path authored this Agent turn
+    -- because no model could be reached (see
+    -- interviews.model._fallback_interview_response); 0 for model-driven
+    -- turns and every user turn. Per turn, so a mid-session credential
+    -- change marks only the turns it affects.
+    fallback INTEGER NOT NULL DEFAULT 0,
+    -- JSON array of the structured multiple-choice questions this Agent turn
+    -- offered the scientist (see interviews/questions.py). NULL for user
+    -- turns and for any turn that asked nothing choosable. Per turn, never
+    -- cumulative: a question belongs to the turn that asked it, so a reopened
+    -- chat re-offers only the one still awaiting an answer.
+    questions_json TEXT,
+    created_at REAL NOT NULL,
+    FOREIGN KEY (interview_id) REFERENCES interviews(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_interview_turns
+    ON interview_turns(interview_id, id ASC);
+
+-- Scientist documents uploaded BEFORE any run exists, so an attachment can
+-- ground the interview that scopes the goal and can be carried into the run
+-- as part of creating it. Owned by client_id and never read across owners.
+-- `interview_id` is set when the document is attached to a chat, `run_id`
+-- when creating a run copies it into that run's private corpus; a row keeps
+-- both so a document is traceable from chat to run. Deliberately not
+-- foreign-keyed: a document exists before either row does.
+CREATE TABLE IF NOT EXISTS staged_documents (
+    id TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL,
+    interview_id TEXT,
+    run_id TEXT,
+    title TEXT NOT NULL,
+    text TEXT NOT NULL,               -- extracted text, never the raw bytes
+    mime_type TEXT NOT NULL,
+    sha256 TEXT NOT NULL,
+    byte_size INTEGER NOT NULL,
+    extraction_tool TEXT NOT NULL,
+    created_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_staged_documents_client
+    ON staged_documents(client_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_staged_documents_interview
+    ON staged_documents(interview_id, created_at ASC);
+
 -- Revocable capability links for read-only public Goal Reports. Tokens are
 -- random and stored only as hashes so a database read cannot disclose links.
 CREATE TABLE IF NOT EXISTS report_shares (
@@ -420,11 +466,227 @@ CREATE INDEX IF NOT EXISTS idx_claim_ev_hyp ON claim_evidence(hypothesis_id);
 -- this graph per run, and the hypothesis_id index above cannot serve that.
 CREATE INDEX IF NOT EXISTS idx_claim_ev_run
     ON claim_evidence(run_id, created_at);
-"""
 
-# The knowledge_facts DDL lives in its own module (see there for why) and is
-# spliced in here so the executed script is unchanged.
-_SCHEMA_TAIL = """
+-- Durable outbox for the separate action that authorizes one stored outcome
+-- to refine its linked parent. The action and its claimable task are
+-- materialized in the same transaction and share this stable task key.
+CREATE TABLE IF NOT EXISTS outcome_refinement_actions (
+    action_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    outcome_id TEXT NOT NULL,
+    hypothesis_id TEXT NOT NULL,
+    owner_id TEXT NOT NULL,
+    request_idempotency_key TEXT NOT NULL,
+    task_idempotency_key TEXT NOT NULL,
+    checkpoint_seq INTEGER NOT NULL,
+    context_snapshot TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'queued',
+    child_hypothesis_id TEXT,
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL,
+    FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE,
+    UNIQUE (run_id, request_idempotency_key),
+    UNIQUE (run_id, outcome_id),
+    UNIQUE (run_id, task_idempotency_key)
+);
+CREATE INDEX IF NOT EXISTS idx_outcome_refinement_pending
+    ON outcome_refinement_actions(run_id, status, created_at);
+CREATE INDEX IF NOT EXISTS idx_outcome_refinement_pending_global
+    ON outcome_refinement_actions(status, created_at, action_id);
+
+-- Durable, structured facts and contradictions (audit G14). claim_evidence
+-- above is the only structured claim table, but its `claim` column is free
+-- text and its `label` a bare supports/contradicts/insufficient tag --
+-- nothing normalized or queryable as a "fact" or a "contradiction" on its
+-- own. One row here is derived per settled (supports/contradicts)
+-- claim_evidence edge when a run's report is finalized (`insufficient`
+-- edges assert nothing either way and are not carried over); `entities_json`
+-- names the biomedical entities the statement mentions, so the knowledge
+-- base is queryable by entity, not only by hypothesis. Scoped per-run like
+-- every other run-scoped table: FINDINGS.md records per-run context memory
+-- as the faithful model and cross-run "Ideation Memory" as invented by the
+-- reference corpus, so this table never mixes rows across runs.
+CREATE TABLE IF NOT EXISTS knowledge_facts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    hypothesis_id TEXT NOT NULL,
+    -- Deliberately NOT a foreign key to evidence(id). A claim-evidence span's
+    -- evidence_id is assessor provenance, not guaranteed to be a resolvable
+    -- evidence row (e.g. a synthetic passage id from a non-store-backed
+    -- assessor input) -- enforcing the FK would abort persisting an
+    -- otherwise-valid fact whenever that id does not resolve.
+    evidence_id TEXT,
+    -- fact | contradiction
+    kind TEXT NOT NULL,
+    statement TEXT NOT NULL,
+    entities_json TEXT NOT NULL DEFAULT '[]',
+    -- the claim_evidence label this row was derived from (supports |
+    -- contradicts), kept for traceability back to its source edge
+    state TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE,
+    FOREIGN KEY (hypothesis_id) REFERENCES hypotheses(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_kf_run ON knowledge_facts(run_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_kf_hyp ON knowledge_facts(hypothesis_id);
+
+-- The Supervisor's research plan and terminal state for a run (audit E19).
+-- One row per run, upserted at finalize like `run_metrics` -- a resumed run
+-- that finalizes again simply replaces it. `plan_json` carries the six
+-- guidance blocks the Supervisor's planning call produced wholesale
+-- (research_goal_analysis, workflow_plan, config_synthesis,
+-- performance_assessment, adjustment_recommendations, output_preparation);
+-- `orchestrator_state_json` is the scheduler bookkeeping snapshot as of the
+-- last orchestrator decision (previous top Elo, rank-stability counter, pool
+-- sizes, last work task). `decision_provenance` and `termination_reason` are
+-- the engine's own explanation of its last allocation source and why the
+-- run stopped.
+CREATE TABLE IF NOT EXISTS supervisor_plan (
+    run_id TEXT PRIMARY KEY,
+    plan_json TEXT NOT NULL,
+    orchestrator_state_json TEXT NOT NULL DEFAULT '{}',
+    decision_provenance TEXT,
+    termination_reason TEXT,
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL,
+    FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
+);
+
+-- One row per scheduled task in the Supervisor's adaptive orchestration
+-- ledger (a serialized `scheduling.TaskRecord`, audit E19). Bounded growth:
+-- one row per orchestrator decision, and the loop terminates on
+-- `max_iterations` (1-4 across the run tiers) or a hard budget ceiling --
+-- an order of magnitude below a per-task or per-LLM-call table, which
+-- AGENTS.md rules out. Rows are replaced wholesale at finalize (see
+-- `replace_supervisor_allocations`), matching the `knowledge_facts`/
+-- `matches` pattern, so a re-finalized resumed run does not accumulate
+-- duplicates. `seq` is the ledger's own append order -- every row from one
+-- drain shares a `created_at`, so ordering by timestamp alone cannot
+-- recover the sequence.
+CREATE TABLE IF NOT EXISTS supervisor_allocations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    iteration INTEGER NOT NULL,
+    task_type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    -- Observable-facts reason built from live scheduler stats (pool size,
+    -- reviewed count, committed matches, iteration) -- never a bare model
+    -- claim; see `orchestrator._observable_decision_reason`.
+    reason TEXT NOT NULL,
+    -- The model's own stated rationale, kept for operator audit only -- not
+    -- presented as a factual activity summary (see `orchestrator.py`).
+    planner_reason TEXT,
+    priority INTEGER,
+    termination_reason TEXT,
+    created_at REAL NOT NULL,
+    FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_sup_alloc_run
+    ON supervisor_allocations(run_id, seq);
+
+-- Durable global scientific task queue. A unique idempotency key prevents a
+-- Supervisor retry or worker redelivery from duplicating scientific effects.
+CREATE TABLE IF NOT EXISTS scientific_tasks (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    task_type TEXT NOT NULL,
+    -- queued | leased | paused | completed | failed | cancelled
+    status TEXT NOT NULL,
+    priority INTEGER NOT NULL DEFAULT 0,
+    inputs_json TEXT NOT NULL,
+    dependencies_json TEXT NOT NULL,
+    provenance_json TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    budget_json TEXT NOT NULL,
+    attempt INTEGER NOT NULL DEFAULT 0,
+    max_attempts INTEGER NOT NULL DEFAULT 3,
+    lease_owner TEXT,
+    lease_expires_at REAL,
+    result_json TEXT,
+    error TEXT,
+    -- Bounded history of *failed* attempts only (a success is already
+    -- captured by result_json): JSON array, newest last, capped at
+    -- store.tasks._MAX_STORED_ATTEMPTS entries. Lets a stalled task be
+    -- diagnosed instead of only showing the most recent error, which
+    -- used to overwrite every earlier attempt's.
+    attempts_json TEXT NOT NULL DEFAULT '[]',
+    -- When the *current* lease's attempt was claimed -- set once per
+    -- lease, alongside `attempt`, in _try_lease_task. Deliberately not
+    -- `updated_at`: a long attempt's heartbeat renews its lease through
+    -- renew_task_lease, which bumps updated_at on every renewal, so
+    -- reading that column as an attempt's start would report only its
+    -- most recent renewal for exactly the slow failures this history
+    -- exists to diagnose.
+    attempt_started_at REAL,
+    -- Not-before instant (epoch seconds) for an otherwise-queued row.
+    -- NULL means claimable as soon as queued, which is every pre-existing
+    -- row and every ordinary enqueue; a platform rate-limit park (see
+    -- store.tasks_lifecycle.park_task_for_rate_limit) is the only writer
+    -- that sets it, to the provider's reported cap-reset instant.
+    available_at REAL,
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL,
+    started_at REAL,
+    completed_at REAL,
+    FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE,
+    UNIQUE (run_id, idempotency_key)
+);
+CREATE INDEX IF NOT EXISTS idx_tasks_ready
+    ON scientific_tasks(status, priority DESC, created_at ASC);
+CREATE INDEX IF NOT EXISTS idx_tasks_run
+    ON scientific_tasks(run_id, created_at ASC);
+
+-- One search: one query, against one source, serving one question. Written
+-- by the deep-research capability (co_scientist.research) through
+-- app.research_provenance, after the network work returns -- never across
+-- it, since a transaction spanning outbound I/O freezes every other writer
+-- for its duration (see the store gotchas in AGENTS.md).
+CREATE TABLE IF NOT EXISTS retrieval_calls (
+    -- Content id from co_scientist.research.artifacts: a hash over
+    -- (source, question, query), so re-issuing the same search re-derives
+    -- the same id and a resumed run recognizes work it already paid for.
+    -- Deliberately NOT unique on its own: the id carries no run, so two
+    -- runs asking the same question of the same source share it, and a
+    -- bare primary key would let one run's delete cascade take the other
+    -- run's provenance with it. The key is (run_id, id).
+    id TEXT NOT NULL,
+    run_id TEXT NOT NULL,
+    -- The question this search was serving, and its content id. Kept apart
+    -- from `query` on purpose: a query is a lossy, source-shaped rendering
+    -- of a question, and when it is broadened or retried the question it
+    -- was serving has to survive.
+    question TEXT NOT NULL,
+    question_id TEXT NOT NULL,
+    query TEXT NOT NULL,
+    source TEXT NOT NULL,            -- 'pubmed' | 'openalex' | 'corpus' | ...
+    -- Level of the descent this call was made at, from 1. Without it the
+    -- ordering of a replay cannot be reconstructed: a follow-up search and
+    -- the first-level search that provoked it are otherwise indis-
+    -- tinguishable rows.
+    depth INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL,            -- ok | empty | failed
+    -- The ranked result set exactly as the source returned it, including
+    -- its own ordering and scores. A replay has to reproduce the ranking,
+    -- not just the winners.
+    hits_json TEXT NOT NULL DEFAULT '[]',
+    -- Locators the evidence budget funded, and the ones it refused. These
+    -- partition hits_json: "we saw it and did not read it" and "we never
+    -- saw it" are different facts about a run, and only the second is a
+    -- coverage problem.
+    admitted_json TEXT NOT NULL DEFAULT '[]',
+    dropped_json TEXT NOT NULL DEFAULT '[]',
+    error TEXT,                      -- failure text, when status is failed
+    duration_seconds REAL,
+    created_at REAL NOT NULL,
+    PRIMARY KEY (run_id, id),
+    FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_retrieval_calls_run
+    ON retrieval_calls(run_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_retrieval_calls_question
+    ON retrieval_calls(run_id, question_id);
+
 -- Persisted application log records captured from the Python root logger
 -- (see app/logging_setup.py). App-wide: run_id is NULL for records emitted
 -- outside any run context. Deliberately no FK to runs -- log history
@@ -469,28 +731,3 @@ CREATE TABLE IF NOT EXISTS proximity_edges (
 );
 CREATE INDEX IF NOT EXISTS idx_proximity_run ON proximity_edges(run_id);
 """
-
-# The interview/staged-document DDL lives in its own module (see there for
-# why) and is spliced back between the head and the mid, which is exactly
-# where it stood before the split -- so the executed script, and any schema
-# dump taken from it, is byte-identical to what it was.
-#
-# Concatenated (not interpolated) so knowledge_facts' CREATE TABLE runs
-# right after claim_evidence's -- adjacent in the executed script to the
-# table it derives from, matching the story an on-disk schema dump tells.
-# supervisor_plan/supervisor_allocations are spliced in right after, for the
-# same reason: both are derived at the same finalize drain. retrieval_calls
-# has no such adjacency to keep -- it is referenced by evidence.
-# retrieval_call_id, which is a plain column rather than a foreign key -- so
-# it goes last, before the tail.
-SCHEMA = (
-    _SCHEMA_HEAD
-    + INTERVIEWS_SCHEMA
-    + _SCHEMA_MID
-    + OUTCOME_REFINEMENTS_SCHEMA
-    + KNOWLEDGE_FACTS_SCHEMA
-    + SUPERVISOR_PLAN_SCHEMA
-    + SCIENTIFIC_TASKS_SCHEMA
-    + RETRIEVAL_CALLS_SCHEMA
-    + _SCHEMA_TAIL
-)

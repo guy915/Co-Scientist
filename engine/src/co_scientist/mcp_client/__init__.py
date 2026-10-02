@@ -1,17 +1,8 @@
-"""MCP (Model Context Protocol) client for interacting with MCP servers.
+"""MCP clients and availability probes for configured literature sources.
 
-This module provides utilities for connecting to MCP servers and accessing
-their tools for use with LiteLLM agents.
-
-Supports both single-server (legacy) and multi-server configurations.
-
-This module keeps the availability probes (``check_mcp_available`` and
-friends — callers such as ``generator/availability.py`` and tests resolve
-them here) and the process-wide client singleton. The ``MCPToolClient``
-class and its per-tool-call timeout helpers live in ``mcp_client.session``;
-the connection helpers and availability-probe helpers live in
-``mcp_client.helpers`` and ``mcp_client.availability``. All are re-exported
-here so callers keep importing from ``co_scientist.mcp_client``.
+Supports single-server and multi-server configurations. Availability probes
+and the process-wide client singleton live here; transport and per-tool
+timeout handling live in ``session``.
 """
 
 import asyncio
@@ -29,32 +20,14 @@ from co_scientist.mcp_client.availability import (
     _probe_literature_source_availability,
     _resolve_availability_check_tool,
 )
-from co_scientist.mcp_client.availability import (
-    _interpret_availability_result as _interpret_availability_result,
-)
-from co_scientist.mcp_client.availability import (
-    _short_circuit_availability as _short_circuit_availability,
-)
 from co_scientist.mcp_client.helpers import (
     DEFAULT_MCP_SERVER_URL as DEFAULT_MCP_SERVER_URL,
-)
-from co_scientist.mcp_client.helpers import (
-    _ensure_tools_initialized as _ensure_tools_initialized,
-)
-from co_scientist.mcp_client.helpers import (
-    _filter_tools_by_whitelist as _filter_tools_by_whitelist,
-)
-from co_scientist.mcp_client.helpers import (
-    _is_wrapped_text_result as _is_wrapped_text_result,
 )
 from co_scientist.mcp_client.helpers import (
     _resolve_server_configs as _resolve_server_configs,
 )
 from co_scientist.mcp_client.helpers import (
     _resolve_server_url,
-)
-from co_scientist.mcp_client.helpers import (
-    _unwrap_tool_result as _unwrap_tool_result,
 )
 from co_scientist.mcp_client.session import (
     DEFAULT_MCP_TOOL_TIMEOUT_SECONDS as DEFAULT_MCP_TOOL_TIMEOUT_SECONDS,
@@ -64,9 +37,6 @@ from co_scientist.mcp_client.session import (
 )
 from co_scientist.mcp_client.session import (
     MCPToolClient as MCPToolClient,
-)
-from co_scientist.mcp_client.session import (
-    _ainvoke_within_timeout as _ainvoke_within_timeout,
 )
 from co_scientist.mcp_client.session import (
     mcp_tool_timeout_seconds as mcp_tool_timeout_seconds,
@@ -135,7 +105,7 @@ async def _probe_literature_source(
     except Exception as e:
         # Deliberately broad: any MCP hiccup (connection refused, timeout,
         # malformed tool schema) degrades to "unavailable" here rather than
-        # raising, so callers (e.g. HypothesisGenerator._prepare_generation)
+        # raising, so callers (e.g. HypothesisGenerator.prepare_task_state)
         # can fall back to LLM-only mode instead of aborting the run.
         logger.warning(
             "error checking literature source availability: %s: %s",

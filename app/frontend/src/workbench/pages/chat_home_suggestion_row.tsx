@@ -1,18 +1,5 @@
 import {Icon} from '@/components/icon';
 import {joinClasses} from '../classes';
-import {
-  HOME_SUGGESTION_BUTTON_CLASSES,
-  HOME_SUGGESTION_BUTTON_PREVIEWED_CLASSES,
-  HOME_SUGGESTION_ICON_CLASSES,
-  HOME_SUGGESTION_PREVIEW_CENTER_CLASSES,
-  HOME_SUGGESTION_PREVIEW_CLASSES,
-  HOME_SUGGESTION_PREVIEW_END_CLASSES,
-  HOME_SUGGESTION_PREVIEW_START_CLASSES,
-  HOME_SUGGESTION_PREVIEW_VISIBLE_CLASSES,
-  HOME_SUGGESTION_ROW_CLASSES,
-  HOME_SUGGESTION_SLOT_CLASSES,
-  HOME_SUGGESTION_TEXT_CLASSES,
-} from './chat_home_classes';
 import {type Suggestion} from './chat_home_suggestions';
 import {TruncatedLabel} from '../components/truncated_label';
 
@@ -33,7 +20,7 @@ export function HomeSuggestionRow({
   onSelect: (text: string) => void;
 }) {
   return (
-    <div className={HOME_SUGGESTION_ROW_CLASSES}>
+    <div className="reference-suggestion-row">
       {suggestions.map((suggestion, index) => (
         <SuggestionCard
           key={suggestion.preview}
@@ -53,9 +40,9 @@ export function HomeSuggestionRow({
 // (first/middle/last), so it stays roughly centered over the row rather than
 // overflowing past the viewport edge for the first/last card.
 function suggestionPreviewPositionClass(index: number) {
-  if (index === 0) return HOME_SUGGESTION_PREVIEW_START_CLASSES;
-  if (index === 1) return HOME_SUGGESTION_PREVIEW_CENTER_CLASSES;
-  return HOME_SUGGESTION_PREVIEW_END_CLASSES;
+  if (index === 0) return 'reference-suggestion-preview--start';
+  if (index === 1) return 'reference-suggestion-preview--center';
+  return 'reference-suggestion-preview--end';
 }
 
 // Renders one suggestion card in the home-stage suggestion row: the
@@ -83,7 +70,7 @@ function SuggestionCard({
   const previewPositionClass = suggestionPreviewPositionClass(index);
 
   return (
-    <div className={HOME_SUGGESTION_SLOT_CLASSES}>
+    <div className="reference-suggestion-slot">
       <SuggestionPreviewBubble
         text={suggestion.preview}
         isPreviewed={isPreviewed}
@@ -113,9 +100,9 @@ function SuggestionPreviewBubble({
   return (
     <p
       className={joinClasses(
-        HOME_SUGGESTION_PREVIEW_CLASSES,
+        'reference-suggestion-preview',
         positionClass,
-        isPreviewed && HOME_SUGGESTION_PREVIEW_VISIBLE_CLASSES,
+        isPreviewed && 'visible',
       )}
       aria-hidden={!isPreviewed}
     >
@@ -145,8 +132,8 @@ function SuggestionTriggerButton(props: SuggestionTriggerButtonProps) {
     <button
       type="button"
       className={joinClasses(
-        HOME_SUGGESTION_BUTTON_CLASSES,
-        isPreviewed && HOME_SUGGESTION_BUTTON_PREVIEWED_CLASSES,
+        'reference-suggestion-button',
+        isPreviewed && 'is-previewed',
       )}
       onPointerEnter={() => onPreview(suggestion.preview)}
       onPointerLeave={() => onPreview(null)}
@@ -159,12 +146,12 @@ function SuggestionTriggerButton(props: SuggestionTriggerButtonProps) {
       {isMobile && (
         <Icon
           aria-hidden="true"
-          className={HOME_SUGGESTION_ICON_CLASSES}
+          className="reference-suggestion-icon"
           name={suggestion.icon}
         />
       )}
       <TruncatedLabel
-        className={HOME_SUGGESTION_TEXT_CLASSES}
+        className="reference-suggestion-text"
         text={suggestion.preview}
         lines={isMobile ? 1 : 2}
       />

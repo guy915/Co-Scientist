@@ -340,24 +340,3 @@ def _per_hypothesis_claim_records(
         for hyp in hyps
         if (hyp_id := str(hyp.get("id") or ""))
     ]
-
-
-def _zip_hypothesis_assessments(
-    per_hypothesis: list[tuple[str, list[tuple[str, str]]]],
-    grouped: list[list[ClaimAssessment]],
-) -> list[tuple[str, list[tuple[ClaimAssessment, str]]]]:
-    """Pair each hypothesis's grouped assessments back with their claim role."""
-    return [
-        (
-            hyp_id,
-            [
-                (assessment, role)
-                for assessment, (_claim, role) in zip(
-                    assessments, records, strict=True
-                )
-            ],
-        )
-        for (hyp_id, records), assessments in zip(
-            per_hypothesis, grouped, strict=True
-        )
-    ]

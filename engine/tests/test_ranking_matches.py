@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 
+import co_scientist.agents.ranking.ranking_debate as origin_ranking_debate
 from co_scientist.agents.ranking import operations, ranking, ranking_debate
 from co_scientist.agents.ranking.ranking import ranking_node
 from co_scientist.constants import MAX_CONCURRENT_LLM_CALLS
@@ -82,7 +83,7 @@ def test_matchup_judging_survives_more_than_one_event_loop(
         mp = ranking_debate._MatchupPrompt("prompt", None, None, None)
         await asyncio.gather(
             *(
-                ranking._call_matchup_judge(
+                origin_ranking_debate._call_matchup_judge(
                     mp,
                     ranking_debate._DebateContext(
                         hyp_a, hyp_b, "goal", "model", matchup_index=index

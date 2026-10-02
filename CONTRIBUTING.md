@@ -62,10 +62,12 @@ for this purpose.
     LLM responses, event payloads, and YAML config fragments
     (`dict[str, Any]`) — and should not appear on interfaces whose types
     are known.
--   Size ceilings are gated, not conventional: 500 lines per source file and
-    40 lines of code per function (docstrings excluded), both checked by
-    `make parity`; ruff enforces a cyclomatic complexity of 5 and at most
-    five arguments per function.
+-   Keep related behavior together. Extract a helper or module when it
+    removes duplication or names a useful concept, rather than to satisfy
+    a line count. Prefer direct calls over pass-through wrappers and import
+    private helpers from their defining modules. Ruff checks branching
+    complexity and argument counts; behavior, types, and layering checks
+    remain the primary safeguards.
 -   Docstrings are Google style: a one-line summary on the first line, ending
     with a period, followed by `Args:`, `Returns:`, and `Raises:` sections as
     applicable.

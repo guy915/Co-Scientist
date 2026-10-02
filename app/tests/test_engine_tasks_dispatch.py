@@ -87,7 +87,7 @@ def test_orchestrator_priority_reaches_durable_successor(
     run = store.create_run("Priority science", "standard", "engine", {})
     task, deferred = _seed_orchestrator_task(run.id, isolated_db)
 
-    engine_tasks._save_state_and_enqueue(
+    engine_tasks_support._save_state_and_enqueue(
         engine_tasks_context.TaskCommit(task, 1, isolated_db),
         _priority_state(run.id, deferred.id),
         "generate",
@@ -117,7 +117,7 @@ def test_node_commit_persists_live_metrics(isolated_db: str) -> None:
 
     assert store.get_run_metrics(run.id, db_path=isolated_db) is None
 
-    engine_tasks._save_state_and_enqueue(
+    engine_tasks_support._save_state_and_enqueue(
         engine_tasks_context.TaskCommit(task, 1, isolated_db),
         state,
         "generate",
@@ -152,7 +152,7 @@ def test_node_commit_persists_supervisor_performance_assessment(
         "supervisor_guidance": {"performance_assessment": assessment},
     }
 
-    engine_tasks._save_state_and_enqueue(
+    engine_tasks_support._save_state_and_enqueue(
         engine_tasks_context.TaskCommit(task, 1, isolated_db),
         state,
         "generate",

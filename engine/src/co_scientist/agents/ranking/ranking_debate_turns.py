@@ -1,11 +1,4 @@
-"""Debate-turn primitives for the scientific-debate ranking judge.
-
-Holds the pure per-turn machinery — winner parsing with its
-position-balanced fallback, prompt assembly for each turn (including the
-A/B swap and prior-transcript append), and the final vote tally. The judge
-LLM call, the per-loop semaphore, and the debate-turn orchestration stay
-in ``ranking_debate.py``, which re-exports these names for compatibility.
-"""
+"""Parse winners and accumulate debate turns toward a consensus."""
 
 import dataclasses
 import hashlib

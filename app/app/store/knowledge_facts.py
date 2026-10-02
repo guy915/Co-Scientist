@@ -1,7 +1,7 @@
 """Durable structured facts and contradictions (audit G14).
 
 Store I/O for the ``knowledge_facts`` table (schema in
-``schema_knowledge_facts.py``): one durable, per-run row per settled
+``schema.py``): one durable, per-run row per settled
 claim-evidence edge. See ``app.knowledge_facts`` for how a row is derived.
 Split out of ``app.store.records`` so the derivation feature stays
 independently nameable; re-exported from ``app.store`` like every other
@@ -14,8 +14,7 @@ import json
 import sqlite3
 from typing import Any
 
-from app.store.db import _now, _use_conn
-from app.store.records_support import _list_by_run
+from app.store.db import _list_by_run, _now, _use_conn
 
 
 def replace_knowledge_facts(
@@ -84,9 +83,9 @@ def list_knowledge_facts(
     Returns:
         Rows oldest first, each with ``entities`` decoded to a list.
     """
-    rows = _list_by_run("knowledge_facts", run_id, db_path, conn)
-    for row in rows:
-        row["entities"] = json.loads(row.pop("entities_json") or "[]")
+    rows = _list_by_run(
+        "knowledge_facts", run_id, db_path, conn, json_fields=("entities",)
+    )
     if kind is not None:
         rows = [r for r in rows if r["kind"] == kind]
     if entity is not None:

@@ -5,24 +5,9 @@ import logging
 from typing import Any
 
 from co_scientist.agents.reflection.deep_verification_evidence import (
-    _MAX_PROBE_SOURCES as _MAX_PROBE_SOURCES,
-)
-from co_scientist.agents.reflection.deep_verification_evidence import (
-    _probe_queries as _probe_queries,
-)
-from co_scientist.agents.reflection.deep_verification_evidence import (
-    _retrieve_probe_evidence as _retrieve_probe_evidence,
-)
-from co_scientist.agents.reflection.deep_verification_evidence import (
-    _retrieved_evidence_context as _retrieved_evidence_context,
-)
-from co_scientist.agents.reflection.deep_verification_evidence import (
     merge_retrieved_articles as merge_retrieved_articles,
 )
 from co_scientist.agents.reflection.operations import has_valid_verification
-from co_scientist.agents.reflection.verification import (
-    _call_verification as _call_verification,
-)
 from co_scientist.agents.reflection.verification import (
     _verification_evidence_context as _verification_evidence_context,
 )
@@ -31,12 +16,6 @@ from co_scientist.agents.reflection.verification import (
 )
 from co_scientist.agents.reflection.verification import (
     _verify_one as _verify_one,
-)
-from co_scientist.agents.reflection.verification import (
-    _verify_with_probes as _verify_with_probes,
-)
-from co_scientist.agents.reflection.verification import (
-    _verify_within_semaphore as _verify_within_semaphore,
 )
 from co_scientist.agents.reflection.verification_freshness import (
     DEEP_VERIFICATION_PROMPT_VERSION as DEEP_VERIFICATION_PROMPT_VERSION,

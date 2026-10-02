@@ -1,24 +1,5 @@
-// Grounded Q&A client for a started run: POST /messages/ask (streamed
-// answer) and GET /messages (rehydration). Extracted from `./runs`, which
-// re-exports both so callers keep importing from '@/api/runs'.
-//
-// Mirrors runs_interviews.ts's streamInterviewTurn: the transport streams so
-// the chat timeline can show the answer as it is written, but the frame
-// handling stays out of the caller's way. A `reasoning` frame precedes the
-// answer's `chunk` frames exactly as an interview turn's does -- see
-// qa/__init__.py::stream_answer -- so QaSinks carries the same two live channels as
-// InterviewSinks.
-
 import type {QaSource, RunMessage} from './run_types';
-import {
-  API_BASE_URL,
-  byokHeaders,
-  clientHeaders,
-  fetchField,
-  fetchWithSession,
-  jsonRequest,
-  readSseFrames,
-} from './runs_http';
+import {clientHeaders, fetchField, streamJson} from './runs_http';
 
 export type {QaSource, RunMessage} from './run_types';
 
@@ -40,93 +21,78 @@ type AskFrame =
   | {type: 'done'; question_id: number}
   | {type: 'error'; message: string};
 
-// One frame type's own relay, each a no-op for every other type -- kept as
-// three small functions rather than one with a branch per type, since
-// `sources` carries a differently-shaped payload than the other two.
-function relaySources(frame: AskFrame, sinks: QaSinks): void {
-  if (frame.type === 'sources') sinks.onSources?.(frame.sources);
-}
-
-function relayReasoning(frame: AskFrame, sinks: QaSinks): void {
-  if (frame.type === 'reasoning') sinks.onReasoning?.(frame.content);
-}
-
-function relayChunk(frame: AskFrame, sinks: QaSinks): void {
-  if (frame.type === 'chunk') sinks.onChunk?.(frame.content);
-}
-
-/** Relays a sources/reasoning/chunk frame to its sink; a no-op for any other
- * type. */
-function relayAskFrame(frame: AskFrame, sinks: QaSinks): void {
-  relaySources(frame, sinks);
-  relayReasoning(frame, sinks);
-  relayChunk(frame, sinks);
-}
-
-/**
- * Applies one streamed ask frame: relays a sources/chunk fragment to its
- * sink, or throws on an error frame (the run's Q&A stream persists a
- * fallback answer before emitting this, so the caller only needs to surface
- * it -- see qa/__init__.py::_handle_qa_stream_error). Returns the persisted
- * question's message id once `done` arrives, else `questionId` unchanged.
- */
-function applyAskFrame(
-  frame: AskFrame,
-  questionId: number | undefined,
-  sinks: QaSinks,
-): number | undefined {
-  if (frame.type === 'done') return frame.question_id;
-  if (frame.type === 'error') throw new Error(frame.message);
-  relayAskFrame(frame, sinks);
-  return questionId;
-}
-
-/**
- * Streams one grounded Q&A answer for a started run.
- *
- * @param runId The run being asked about.
- * @param question The scientist's question.
- * @param sinks Where the streamed sources/reasoning/chunks are relayed.
- * @param signal Aborts the turn -- the fetch itself if not yet sent, or the
- *   read loop if the stream is already open; see the composer's Stop
- *   control. The partial answer is never persisted server-side on abort
- *   (qa/__init__.py persists only after the full stream completes), so a caller
- *   simply drops what it has -- there is nothing to resync.
- * @returns The persisted question's message id, once the stream completes.
- */
+/** Stream an answer; aborted partial answers are never persisted. */
 export async function askRunQuestion(
   runId: string,
   question: string,
   sinks: QaSinks = {},
   signal?: AbortSignal,
 ): Promise<number | undefined> {
-  const init = jsonRequest({question}, true);
-  const res = await fetchWithSession(
-    `${API_BASE_URL}/api/runs/${runId}/messages/ask`,
-    {
-      ...init,
-      signal,
-      headers: {
-        ...(init.headers as Record<string, string>),
-        ...byokHeaders(),
-      },
-    },
-  );
   let questionId: number | undefined;
-  for await (const frame of readSseFrames<AskFrame>(res)) {
-    questionId = applyAskFrame(frame, questionId, sinks);
+  for await (const frame of streamJson<AskFrame>(
+    `/api/runs/${runId}/messages/ask`,
+    {question},
+    signal,
+  )) {
+    switch (frame.type) {
+      case 'sources':
+        sinks.onSources?.(frame.sources);
+        break;
+      case 'reasoning':
+        sinks.onReasoning?.(frame.content);
+        break;
+      case 'chunk':
+        sinks.onChunk?.(frame.content);
+        break;
+      case 'done':
+        questionId = frame.question_id;
+        break;
+      case 'error':
+        throw new Error(frame.message);
+    }
   }
   return questionId;
 }
 
-/**
- * Fetches every message persisted for a run, in chronological order --
- * both scientist steering (`kind: "steering"`) and grounded Q&A
- * (`kind: "qa"`) rows. Callers filter by `kind`; see
- * chat_session_qa_transcript.ts for the Q&A rehydration path.
- */
+/** Reload chronological steering and Q&A messages; callers filter by kind. */
 export function getRunMessages(runId: string): Promise<RunMessage[]> {
   return fetchField(`/api/runs/${runId}/messages`, 'messages', {
     headers: clientHeaders(),
   });
+}
+
+export type StartAnnouncementSinks = Pick<QaSinks, 'onReasoning' | 'onChunk'>;
+
+export interface StartAnnouncement {
+  /** True when the server used its deterministic announcement. */
+  fallback: boolean;
+}
+
+type StartFrame =
+  | {type: 'reasoning'; content: string}
+  | {type: 'chunk'; content: string}
+  | {type: 'done'; prompt_id: number; fallback: boolean};
+
+/** Announce an already-started run; failure here cannot change its status. */
+export async function announceRunStart(
+  runId: string,
+  prompt: string,
+  sinks: StartAnnouncementSinks = {},
+  signal?: AbortSignal,
+): Promise<StartAnnouncement | null> {
+  let outcome: StartAnnouncement | null = null;
+  for await (const frame of streamJson<StartFrame>(
+    `/api/runs/${runId}/messages/started`,
+    {prompt},
+    signal,
+  )) {
+    if (frame.type === 'done') {
+      outcome = {fallback: frame.fallback};
+    } else {
+      const sink =
+        frame.type === 'reasoning' ? sinks.onReasoning : sinks.onChunk;
+      sink?.(frame.content);
+    }
+  }
+  return outcome;
 }

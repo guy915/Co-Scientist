@@ -18,7 +18,8 @@ from typing import Any
 
 import pytest
 
-from app import engine_tasks, store, task_worker
+from app import store, task_worker
+from app.engine_tasks import inputs as engine_tasks_inputs
 from app.engine_tasks import node as engine_tasks_node
 from app.engine_tasks import support as engine_tasks_support
 from app.store import RunStatus
@@ -95,7 +96,11 @@ def _steer_mid_run_then_crash(
             pause_if_requested=pause_if_requested,
         )
 
-    for module in (engine_tasks_support, engine_tasks, engine_tasks_node):
+    for module in (
+        engine_tasks_support,
+        engine_tasks_inputs,
+        engine_tasks_node,
+    ):
         monkeypatch.setattr(module, "_save_state_and_enqueue", crashing)
     return box
 

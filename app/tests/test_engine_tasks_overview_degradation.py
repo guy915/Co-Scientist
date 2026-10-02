@@ -25,7 +25,7 @@ from co_scientist.models import Article, Hypothesis
 from litellm.exceptions import APIError
 
 from app import store, task_worker
-from app.engine_tasks import restore as engine_tasks_restore
+from app.engine_tasks import node as engine_tasks_restore
 from app.engine_tasks import support as engine_tasks_support
 from tests._engine_tasks_helpers import (
     _Generator,

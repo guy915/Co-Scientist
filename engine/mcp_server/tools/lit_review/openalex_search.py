@@ -1,27 +1,8 @@
-"""OpenAlex literature search tool.
+"""Cross-disciplinary literature search via OpenAlex.
 
-OpenAlex (https://openalex.org) is a free, all-field index of scholarly works
-that needs no API key. It complements the PubMed (biomedical) and INDRA
-(mechanistic) grounding sources with broad, cross-disciplinary literature so
-the co-scientist can ground hypotheses outside biomedicine too.
-
-The tool returns a ``{work_id: metadata}`` dict shaped for the engine's
-literature-review field mapping (title / authors / year / abstract / url).
-
-**A source that could not be asked raises; only a source that answered
-with nothing returns nothing.** This used to collapse both into an empty
-dict, on the reasoning that one failed source should not fail the whole
-literature-review step. It does not -- the review retries each source and
-records hard failures per source (``literature_review/search_retry.py``),
-and the research loop contains a failure at the call and carries on with
-its siblings. What the empty dict actually bought was invisibility: one
-credentialed run issued 26 OpenAlex searches, every one of them refused
-with HTTP 429, and every one was recorded as "this source has nothing to
-say about your question". Two thirds of that run's questions ended their
-descent on `no_results` with no indication that a third of the intended
-literature was never reached. The rate limit is not hypothetical: OpenAlex
-now meters the free tier and answers "Insufficient budget ... resets at
-midnight UTC" once a day's allowance is spent.
+Return normalized works for successful searches. Raise when OpenAlex cannot
+be reached, refuses quota, or returns invalid JSON so upstream retries and
+source-degradation reporting distinguish a failed source from no matches.
 """
 
 import logging
@@ -109,194 +90,64 @@ def _unavailable_reason(exc: Exception) -> str:
     return "; ".join(parts)
 
 
-def _inverted_index_positions(
-    inverted_index: dict[str, Any],
-) -> list[tuple[int, str]]:
-    """Flattens an OpenAlex inverted index into (position, word) pairs.
-
-    Args:
-        inverted_index: Mapping of word to the list of positions it
-            appears at.
-
-    Returns:
-        Unsorted list of (position, word) pairs, skipping any
-        malformed/non-integer position entries.
-    """
-    positions: list[tuple[int, str]] = []
-    for word, idxs in inverted_index.items():
-        if not isinstance(idxs, list):
-            continue
-        for idx in idxs:
-            if isinstance(idx, int):
-                positions.append((idx, str(word)))
-    return positions
-
-
 def _reconstruct_abstract(inverted_index: Any) -> str:
-    """Rebuild abstract text from OpenAlex's inverted-index representation.
-
-    OpenAlex returns abstracts as ``{word: [positions...]}``; reorder the words
-    by position to recover readable text. Returns ``""`` when absent.
-    """
-    if not isinstance(inverted_index, dict) or not inverted_index:
+    """Restore abstract word order from OpenAlex's position lists."""
+    if not isinstance(inverted_index, dict):
         return ""
-    positions = _inverted_index_positions(inverted_index)
-    # Sort by original word position to restore reading order.
+    positions = [
+        (position, str(word))
+        for word, offsets in inverted_index.items()
+        if isinstance(offsets, list)
+        for position in offsets
+        if isinstance(position, int)
+    ]
     positions.sort(key=lambda item: item[0])
     return " ".join(word for _, word in positions)
 
 
-def _work_short_id(work: dict[str, Any]) -> str:
-    """Extracts the short OpenAlex work id (e.g. "W123") from a work record.
-
-    OpenAlex ids are full URLs like "https://openalex.org/W123"; keep only
-    the short form to use as the output dict key.
-
-    Args:
-        work: A single work record from the OpenAlex /works response.
-
-    Returns:
-        The short work id, or "" if the record has no id.
-    """
-    raw_id = str(work.get("id") or "")
-    return raw_id.rsplit("/", 1)[-1]
-
-
-def _author_display_name(authorship: Any) -> str:
-    """Extracts one authorship entry's display name, defaulting to "".
-
-    Args:
-        authorship: A single entry from a work's ``authorships`` list.
-
-    Returns:
-        The author's display name, or "" if the entry is not a dict or
-        has no display name.
-    """
-    if not isinstance(authorship, dict):
-        return ""
-    name = (authorship.get("author") or {}).get("display_name", "")
-    return name if isinstance(name, str) else ""
-
-
-def _work_authors(work: dict[str, Any]) -> list[str]:
-    """Extracts non-empty author display names from a work record.
-
-    Args:
-        work: A single work record from the OpenAlex /works response.
-
-    Returns:
-        List of author display names, dropping any empty entries.
-    """
-    names = (_author_display_name(a) for a in work.get("authorships") or [])
-    return [name for name in names if name]
-
-
-def _first_truthy(*values: str | None) -> str:
-    """Returns the first truthy value among ``values``, or "" if none.
-
-    Args:
-        values: Candidate values in priority order.
-
-    Returns:
-        The first truthy value, or "" if all are falsy/None.
-    """
-    for value in values:
-        if value:
-            return value
-    return ""
-
-
-def _work_url(work: dict[str, Any]) -> str:
-    """Picks the best available URL for a work record.
-
-    Prefers a human-readable landing page, then falls back to the DOI,
-    then to the raw OpenAlex id URL so a url is always present.
-
-    Args:
-        work: A single work record from the OpenAlex /works response.
-
-    Returns:
-        Best-available URL string for the work.
-    """
-    location = work.get("primary_location") or {}
-    landing_page = (
-        location.get("landing_page_url") if isinstance(location, dict) else None
-    )
-    raw_id = str(work.get("id") or "")
-    return _first_truthy(landing_page, work.get("doi"), raw_id)
-
-
-def _build_work_metadata(work: dict[str, Any]) -> dict[str, Any]:
-    """Builds the normalized metadata dict for one OpenAlex work.
-
-    Args:
-        work: A single work record from the OpenAlex /works response.
-
-    Returns:
-        Metadata dict carrying title, authors, year, abstract, url, and
-        source, shaped for the engine's literature-review field mapping.
-    """
-    return {
-        "title": work.get("title") or work.get("display_name") or "",
-        "authors": _work_authors(work),
-        "year": work.get("publication_year"),
-        "abstract": _reconstruct_abstract(work.get("abstract_inverted_index")),
-        "url": _work_url(work),
-        "source": "openalex",
-        "cited_by_count": work.get("cited_by_count", 0),
-        "publication_date": work.get("publication_date"),
-        "updated_date": work.get("updated_date"),
-        "work_type": work.get("type"),
-        "is_retracted": bool(work.get("is_retracted", False)),
-    }
-
-
-def _works_results(data: dict[str, Any]) -> list[Any]:
-    """Extracts the raw ``results`` list from an OpenAlex /works response.
-
-    Args:
-        data: Parsed JSON from the OpenAlex works endpoint.
-
-    Returns:
-        The response's ``results`` list, or [] if absent/malformed.
-    """
+def normalize_works(  # noqa: C901
+    data: dict[str, Any], max_papers: int
+) -> dict[str, Any]:
+    """Normalize OpenAlex results to metadata keyed by short work ID."""
     results = data.get("results") if isinstance(data, dict) else None
-    return results if isinstance(results, list) else []
-
-
-def _add_normalized_work(out: dict[str, Any], work: Any) -> None:
-    """Normalizes one work record into ``out``, keyed by its short id.
-
-    Args:
-        out: Output dict, mutated in place with the normalized entry.
-        work: A single, not-yet-validated entry from a /works response's
-            ``results`` list.
-    """
-    if not isinstance(work, dict):
-        return
-    work_id = _work_short_id(work)
-    if not work_id:
-        return
-    out[work_id] = _build_work_metadata(work)
-
-
-def normalize_works(data: dict[str, Any], max_papers: int) -> dict[str, Any]:
-    """Normalize an OpenAlex /works response into ``{work_id: metadata}``.
-
-    Pure function (no I/O) so it can be unit-tested directly.
-
-    Args:
-        data: Parsed JSON from the OpenAlex works endpoint.
-        max_papers: Maximum number of works to keep.
-
-    Returns:
-        A dict keyed by short OpenAlex work id, each value carrying title,
-        authors, year, abstract, url, and source.
-    """
-    out: dict[str, Any] = {}
-    for work in _works_results(data)[: max(max_papers, 0)]:
-        _add_normalized_work(out, work)
-    return out
+    if not isinstance(results, list):
+        return {}
+    normalized: dict[str, Any] = {}
+    for work in results[: max(max_papers, 0)]:
+        if not isinstance(work, dict):
+            continue
+        raw_id = str(work.get("id") or "")
+        work_id = raw_id.rsplit("/", 1)[-1]
+        if not work_id:
+            continue
+        authors = []
+        for authorship in work.get("authorships") or []:
+            if isinstance(authorship, dict):
+                name = (authorship.get("author") or {}).get("display_name", "")
+                if isinstance(name, str) and name:
+                    authors.append(name)
+        location = work.get("primary_location") or {}
+        landing_page = (
+            location.get("landing_page_url")
+            if isinstance(location, dict)
+            else None
+        )
+        normalized[work_id] = {
+            "title": work.get("title") or work.get("display_name") or "",
+            "authors": authors,
+            "year": work.get("publication_year"),
+            "abstract": _reconstruct_abstract(
+                work.get("abstract_inverted_index")
+            ),
+            "url": landing_page or work.get("doi") or raw_id,
+            "source": "openalex",
+            "cited_by_count": work.get("cited_by_count", 0),
+            "publication_date": work.get("publication_date"),
+            "updated_date": work.get("updated_date"),
+            "work_type": work.get("type"),
+            "is_retracted": bool(work.get("is_retracted", False)),
+        }
+    return normalized
 
 
 def _build_search_params(

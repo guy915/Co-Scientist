@@ -18,11 +18,13 @@ import pytest
 from co_scientist.agents.ranking import ranking_debate
 from co_scientist.agents.ranking.ranking_debate import (
     _RANKING_DEBATE_MAX_TURNS,
-    _append_debate_context,
     _DebateContext,
     _matchup_debate_turns,
     _median_elo,
     judge_matchup,
+)
+from co_scientist.agents.ranking.ranking_debate_turns import (
+    _append_debate_context,
 )
 from co_scientist.constants import SINGLE_TURN_DEBATE_TURNS
 from tests._state import make_hypothesis

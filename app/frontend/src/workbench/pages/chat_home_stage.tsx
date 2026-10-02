@@ -1,35 +1,12 @@
-import {
-  type Dispatch,
-  type FormEvent,
-  type SetStateAction,
-  useState,
-} from 'react';
+import {type FormEvent, useState} from 'react';
 import {type Run} from '@/api/runs';
 import {joinClasses} from '../classes';
 import {useIsMobile} from '../hooks/use_is_mobile';
-import {
-  HOME_LOGO_CLASSES,
-  HOME_MAIN_CLASSES,
-  HOME_SCROLL_HINT_CLASSES,
-  HOME_STAGE_CLASSES,
-  HOME_STEP_BODY_CLASSES,
-  HOME_STEP_HEADING_CLASSES,
-  HOME_STEP_ITEM_CENTER_CLASSES,
-  HOME_STEP_ITEM_CLASSES,
-  HOME_STEP_ITEM_END_CLASSES,
-  HOME_STEP_NUMBER_CLASSES,
-  HOME_STEP_TIMELINE_CLASSES,
-  HOME_TITLE_CLASSES,
-} from './chat_home_classes';
 import {Composer} from './chat_composer';
 import {type ConnectorToggleProps} from './chat_composer_connectors';
 import {useChatHistoryContext} from '../hooks/chat_history_context';
 import {HomeRecentsPanel} from './home_recents';
-import {
-  SESSION_STEPS,
-  SUGGESTIONS,
-  type Suggestion,
-} from './chat_home_suggestions';
+import {SESSION_STEPS, SUGGESTIONS} from './chat_home_suggestions';
 import {HomeSuggestionRow} from './chat_home_suggestion_row';
 import {GoogleLabsIcon} from '../components/google_labs_icon';
 import {Icon} from '@/components/icon';
@@ -37,16 +14,7 @@ import {smoothScrollToSection} from '@/lib/smooth_scroll';
 
 export {SUGGESTIONS, type Suggestion} from './chat_home_suggestions';
 
-/**
- * Props for HomeStage, named at module level per the destructured prop
- * signature otherwise pushing the component past the line cap.
- *
- * `input`/`setInput` are the controlled composer value, owned by the parent
- * session state. `connectors` carries each connector toggle's state and
- * change callback. `onSubmit` is the composer's form submit handler.
- * `runs`/`scoresByRunId` feed the recents panel, and `showAllRecents`/
- * `onToggleShowAll` control its expanded state.
- */
+/** Inputs for the home composer and its recent runs. */
 export interface HomeStageProps {
   input: string;
   setInput: (value: string) => void;
@@ -56,71 +24,6 @@ export interface HomeStageProps {
   scoresByRunId: Record<string, number | null>;
   showAllRecents: boolean;
   onToggleShowAll: () => void;
-}
-
-/** The composer fields HomeStage passes straight through to Composer. */
-type HomeComposerProps = Pick<
-  HomeStageProps,
-  'input' | 'setInput' | 'connectors' | 'onSubmit'
->;
-
-// Filling the composer from a suggestion drops in the full prompt (not the
-// preview) and dismisses that suggestion's preview bubble, since the row is
-// about to lose focus/hover anyway.
-function selectHomeSuggestion(
-  prompt: string,
-  setInput: (value: string) => void,
-  setHoveredSuggestion: Dispatch<SetStateAction<string | null>>,
-): void {
-  setInput(prompt);
-  setHoveredSuggestion(null);
-}
-
-// The composer, wired to its busy/large defaults for the home stage.
-function HomeComposer({
-  input,
-  setInput,
-  connectors,
-  onSubmit,
-}: HomeComposerProps) {
-  return (
-    <Composer
-      input={input}
-      setInput={setInput}
-      busy={false}
-      large
-      connectors={connectors}
-      onSubmit={onSubmit}
-    />
-  );
-}
-
-// The home stage's left column: the greeting, the suggestion prompt row, and
-// the composer. Split out of HomeStage so it only needs the suggestion-row
-// state as extra props on top of HomeStageProps' composer fields.
-function HomeMainColumn(
-  props: HomeComposerProps & {
-    isMobile: boolean;
-    suggestions: readonly Suggestion[];
-    hoveredSuggestion: string | null;
-    onPreview: (text: string | null) => void;
-    onSelect: (prompt: string) => void;
-  },
-) {
-  return (
-    <div className={HOME_MAIN_CLASSES}>
-      <HomeGreeting isMobile={props.isMobile} />
-      <HomeSuggestionRow
-        isMobile={props.isMobile}
-        suggestions={props.suggestions}
-        hoveredSuggestion={props.hoveredSuggestion}
-        onPreview={props.onPreview}
-        onSelect={props.onSelect}
-      />
-      <HomeComposer {...props} />
-      <HomeScrollHint />
-    </div>
-  );
 }
 
 // The one line under the composer that says there is more below: the
@@ -143,7 +46,7 @@ function HomeScrollHint() {
   return (
     <button
       type="button"
-      className={HOME_SCROLL_HINT_CLASSES}
+      className="reference-home-scroll-hint"
       onClick={onClick}
     >
       Scroll to see how Co-Scientist works
@@ -171,26 +74,41 @@ export function HomeStage(props: HomeStageProps) {
   // two-line card. Tracks viewport width so the line budget follows the
   // active layout.
   const isMobile = useIsMobile();
+  const {chats} = useChatHistoryContext();
 
   return (
-    <section className={HOME_STAGE_CLASSES}>
-      <HomeMainColumn
-        {...props}
-        isMobile={isMobile}
-        suggestions={SUGGESTIONS}
-        hoveredSuggestion={hoveredSuggestion}
-        onPreview={setHoveredSuggestion}
-        onSelect={prompt =>
-          selectHomeSuggestion(prompt, props.setInput, setHoveredSuggestion)
-        }
-      />
-      <HomeRecentsRegion
-        isMobile={isMobile}
-        runs={props.runs}
-        scoresByRunId={props.scoresByRunId}
-        showAllRecents={props.showAllRecents}
-        onToggleShowAll={props.onToggleShowAll}
-      />
+    <section className="reference-home-stage">
+      <div className="reference-home-main">
+        <HomeGreeting isMobile={isMobile} />
+        <HomeSuggestionRow
+          isMobile={isMobile}
+          suggestions={SUGGESTIONS}
+          hoveredSuggestion={hoveredSuggestion}
+          onPreview={setHoveredSuggestion}
+          onSelect={prompt => {
+            props.setInput(prompt);
+            setHoveredSuggestion(null);
+          }}
+        />
+        <Composer
+          input={props.input}
+          setInput={props.setInput}
+          busy={false}
+          large
+          connectors={props.connectors}
+          onSubmit={props.onSubmit}
+        />
+        <HomeScrollHint />
+      </div>
+      {!isMobile && (
+        <HomeRecentsPanel
+          runs={props.runs}
+          scoresByRunId={props.scoresByRunId}
+          showAll={props.showAllRecents}
+          onToggleShowAll={props.onToggleShowAll}
+          chats={chats}
+        />
+      )}
     </section>
   );
 }
@@ -203,62 +121,31 @@ function HomeGreeting({isMobile}: {isMobile: boolean}) {
   return (
     <>
       {isMobile && (
-        <GoogleLabsIcon aria-hidden="true" className={HOME_LOGO_CLASSES} />
+        <GoogleLabsIcon aria-hidden="true" className="reference-home-logo" />
       )}
-      <h1 className={HOME_TITLE_CLASSES}>
+      <h1 className="reference-home-title">
         What breakthrough should we make today?
       </h1>
       {!isMobile && (
-        <ol className={HOME_STEP_TIMELINE_CLASSES}>
+        <ol className="reference-step-timeline">
           {SESSION_STEPS.map((step, index) => (
             <li
               key={step.n}
               className={joinClasses(
-                HOME_STEP_ITEM_CLASSES,
-                index === 1 && HOME_STEP_ITEM_CENTER_CLASSES,
-                index === 2 && HOME_STEP_ITEM_END_CLASSES,
+                'reference-step-item',
+                index === 1 && 'reference-step-item--center',
+                index === 2 && 'reference-step-item--end',
               )}
             >
-              <span className={HOME_STEP_NUMBER_CLASSES}>{step.n}</span>
+              <span className="reference-step-number">{step.n}</span>
               <div>
-                <h2 className={HOME_STEP_HEADING_CLASSES}>{step.title}</h2>
-                <p className={HOME_STEP_BODY_CLASSES}>{step.body}</p>
+                <h2 className="reference-step-heading">{step.title}</h2>
+                <p className="reference-step-body">{step.body}</p>
               </div>
             </li>
           ))}
         </ol>
       )}
     </>
-  );
-}
-
-// Renders the desktop-only recents panel; on phones recent runs live in the
-// nav drawer's Chats list instead, so this renders nothing on mobile.
-function HomeRecentsRegion({
-  isMobile,
-  runs,
-  scoresByRunId,
-  showAllRecents,
-  onToggleShowAll,
-}: {
-  isMobile: boolean;
-  runs: Run[];
-  scoresByRunId: Record<string, number | null>;
-  showAllRecents: boolean;
-  onToggleShowAll: () => void;
-}) {
-  // Read here rather than inside the panel so the panel stays renderable
-  // outside the shell; a card needs the list only to reach the
-  // conversation behind its run.
-  const {chats} = useChatHistoryContext();
-  if (isMobile) return null;
-  return (
-    <HomeRecentsPanel
-      runs={runs}
-      scoresByRunId={scoresByRunId}
-      showAll={showAllRecents}
-      onToggleShowAll={onToggleShowAll}
-      chats={chats}
-    />
   );
 }

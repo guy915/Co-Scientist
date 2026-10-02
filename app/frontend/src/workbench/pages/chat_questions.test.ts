@@ -3,7 +3,6 @@ import {type InterviewQuestion, type InterviewTurn} from '@/api/runs';
 import {
   answerText,
   emptySelections,
-  hasOtherAnswer,
   pendingQuestions,
   setOther,
   toggleOption,
@@ -103,10 +102,11 @@ test('nothing chosen is nothing to send', () => {
 });
 
 test("the scientist's own wording is sent alongside what they clicked", () => {
-  const selections = {
-    ...toggleOption(emptySelections(), 0, 'Gene therapy', true),
-    other: {0: '  anything needing a BSL-3 suite  '},
-  };
+  const selections = setOther(
+    toggleOption(emptySelections(), 0, 'Gene therapy', true),
+    0,
+    '  anything needing a BSL-3 suite  ',
+  );
   expect(answerText([EXCLUSIONS], selections)).toBe(
     'Gene therapy, anything needing a BSL-3 suite',
   );
@@ -144,28 +144,6 @@ test('a completed interview offers nothing, however its last turn ended', () => 
 
 test('no interview at all offers nothing', () => {
   expect(pendingQuestions(null)).toBeNull();
-});
-
-test('blank or whitespace-only free text is not yet an answer', () => {
-  expect(hasOtherAnswer(emptySelections(), 0)).toBe(false);
-  const selections = setOther(emptySelections(), 0, '   ');
-  expect(hasOtherAnswer(selections, 0)).toBe(false);
-  expect(answerText([MODEL_SYSTEM], selections)).toBe('');
-});
-
-test('typing non-blank free text is what answers the question', () => {
-  const selections = setOther(emptySelections(), 0, 'A scaffold');
-  expect(hasOtherAnswer(selections, 0)).toBe(true);
-  expect(answerText([MODEL_SYSTEM], selections)).toBe(
-    'Model system: A scaffold',
-  );
-});
-
-test('clearing the free-text field un-answers the question', () => {
-  let selections = setOther(emptySelections(), 0, 'A scaffold');
-  selections = setOther(selections, 0, '');
-  expect(hasOtherAnswer(selections, 0)).toBe(false);
-  expect(answerText([MODEL_SYSTEM], selections)).toBe('');
 });
 
 test('a turn from before the chooser existed offers nothing, and crashes nothing', () => {

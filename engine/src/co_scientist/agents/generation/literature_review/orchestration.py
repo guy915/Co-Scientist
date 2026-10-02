@@ -1,18 +1,4 @@
-"""Phase orchestration helpers for the literature review node.
-
-Each helper wraps one self-contained step of ``literature_review_node``'s
-phase sequence - paper collection and enrichment (Phases 2-2.6), collection
-edge-case handling, analysis and synthesis (Phases 3-4), article/KG-evidence
-finalization (Phase 5), and result caching - factored out purely to keep the
-orchestrator's phase sequence readable.
-
-The paper-collection group (``_CollectionResult``, ``_merge_private_sources``,
-``_log_collection_summary``, ``_collect_papers_with_diagnostics``,
-``_enrich_collected_papers``) lives in the sibling ``collection`` module and
-is re-exported here for compatibility; see that module's docstring for why
-two of its functions reach back into this one with a deferred import rather
-than a top-level one.
-"""
+"""Run literature-review collection, enrichment, analysis, and synthesis."""
 
 import asyncio
 import logging
@@ -33,9 +19,6 @@ from co_scientist.agents.generation.literature_review.collection import (
 )
 from co_scientist.agents.generation.literature_review.collection import (
     _log_collection_summary as _log_collection_summary,
-)
-from co_scientist.agents.generation.literature_review.collection import (
-    _merge_private_sources as _merge_private_sources,
 )
 from co_scientist.agents.generation.literature_review.content import (
     _phase2_4_discover_pdf_links,

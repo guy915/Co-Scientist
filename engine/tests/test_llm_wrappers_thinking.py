@@ -200,11 +200,11 @@ async def test_ranking_matchup_thinks(
     run's highest-volume call, so a silent regression to a non-thinking
     judge would be a large quality change with no other symptom.
     """
-    from co_scientist.agents.ranking.ranking import (
+    from co_scientist.agents.ranking.ranking_debate import (
         _call_matchup_judge,
         _DebateContext,
+        _MatchupPrompt,
     )
-    from co_scientist.agents.ranking.ranking_debate import _MatchupPrompt
     from tests._state import make_hypothesis
 
     seen: dict[str, Any] = {}

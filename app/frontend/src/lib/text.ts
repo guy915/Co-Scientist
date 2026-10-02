@@ -36,27 +36,6 @@ export function firstSentenceClause(text: string): string {
 }
 
 /**
- * Reduces a display title to a filesystem-friendly slug for download
- * filenames: lowercase ASCII words joined by single dashes, punctuation
- * dropped, capped to a readable length. Returns '' when nothing slug-worthy
- * remains, so the caller can fall back (e.g. to a run id).
- *
- * @param text The display text to slugify (typically a run title).
- * @param maxChars Maximum slug length, cut back to a dash boundary.
- * @returns The slug, or '' when the input has no slug-worthy characters.
- */
-export function filenameSlug(text: string, maxChars = 80): string {
-  const slug = (text ?? '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  if (slug.length <= maxChars) return slug;
-  const cut = slug.slice(0, maxChars);
-  const lastDash = cut.lastIndexOf('-');
-  return (lastDash > 0 ? cut.slice(0, lastDash) : cut).replace(/-+$/, '');
-}
-
-/**
  * Capitalizes a listed term's first letter, where doing so is safe.
  *
  * The four setup fields are written by the model, which capitalizes its

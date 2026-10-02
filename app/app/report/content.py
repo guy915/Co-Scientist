@@ -472,3 +472,28 @@ def released_claim_evidence(
         for edge in claim_edges
         if str(edge.get("hypothesis_id") or "") in released_ids
     ]
+
+
+def format_deep_verification_critique(
+    probes: list[dict[str, Any]], verdict: str | None
+) -> tuple[str, str]:
+    """Render deep-verification probes into persisted summary and critique."""
+    summary = f"Deep verification verdict: {verdict or 'unspecified'}"
+    lines = [summary, ""]
+    for idx, probe in enumerate(probes, start=1):
+        flag = (
+            "fundamental"
+            if probe.get("assumption_is_fundamental")
+            else "non-fundamental"
+        )
+        lines.append(f"Probe {idx} ({flag} assumption):")
+        for label, key in (
+            ("Question", "question"),
+            ("Answer", "answer"),
+            ("Reasoning", "reasoning"),
+        ):
+            value = str(probe.get(key, "")).strip()
+            if value:
+                lines.append(f"  {label}: {value}")
+        lines.append("")
+    return summary, "\n".join(lines).strip()

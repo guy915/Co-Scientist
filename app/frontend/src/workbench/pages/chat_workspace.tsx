@@ -22,12 +22,6 @@ import {useChatSession} from '../hooks/use_chat_session';
 import {useChatRehydration} from '../hooks/use_chat_rehydrate';
 import {type LinkedDraftRecovery} from '../hooks/chat_session_types';
 import {type SpecStage} from '../hooks/chat_session_types';
-import {
-  HOME_TOAST_ACTION_CLASSES,
-  HOME_TOAST_CLASSES,
-  HOME_WORKSPACE_CLASSES,
-  HOME_WORKSPACE_MAIN_CLASSES,
-} from './chat_home_classes';
 import {type ConnectorToggleProps} from './chat_composer_connectors';
 import {HomeStage} from './chat_home_stage';
 
@@ -207,8 +201,8 @@ export function ChatWorkspace() {
   );
 
   return (
-    <div className={HOME_WORKSPACE_CLASSES}>
-      <main className={HOME_WORKSPACE_MAIN_CLASSES}>
+    <div className="reference-workspace">
+      <main className="reference-workspace-main">
         <WorkspaceMain
           hasConversation={session.hasConversation}
           session={session}
@@ -363,12 +357,15 @@ function syncHeaderTitle(
 function ToastPortal({toast}: {toast: ToastState | null}) {
   if (!toast) return null;
   return createPortal(
-    <div className={HOME_TOAST_CLASSES} role="status">
+    <div
+      className="reference-toast fixed bottom-4 left-4 z-[80] flex items-center gap-4 rounded-xl bg-cosci-toast-bg px-4 py-[0.7rem] text-[0.92rem] font-medium text-cosci-toast-fg"
+      role="status"
+    >
       <span>{toast.message}</span>
       {toast.action && (
         <button
           type="button"
-          className={HOME_TOAST_ACTION_CLASSES}
+          className="cursor-pointer border-0 bg-transparent p-0 font-[inherit] text-[0.92rem] font-medium text-cosci-toast-action focus-visible:outline-none focus-visible:underline"
           onClick={toast.action.onClick}
         >
           {toast.action.label}

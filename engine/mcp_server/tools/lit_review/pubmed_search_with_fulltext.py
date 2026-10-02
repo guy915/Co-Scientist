@@ -1,13 +1,8 @@
-"""Enhanced PubMed search that downloads fulltexts from PMC.
-
-Wraps PubmedSource.pubmed_search() from literature_review.py to provide
-search + fulltext download + text extraction as a single MCP tool.
-"""
+"""PubMed corpus search with cached PMC fulltext extraction."""
 
 import asyncio
 import logging
 import os
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -18,33 +13,13 @@ logger = logging.getLogger(__name__)
 
 
 def _read_and_extract_fulltext(html_file: Path) -> str:
-    """Reads cached fulltext HTML and extracts clean text (blocking).
-
-    Args:
-        html_file: Path to the cached PMC fulltext HTML file.
-
-    Returns:
-        Extracted plain/markdown text from the HTML.
-    """
-    with open(html_file, encoding="utf-8") as f:
-        html_content = f.read()
-    return extract_text_from_pmc_html(html_content)
+    return extract_text_from_pmc_html(html_file.read_text(encoding="utf-8"))
 
 
 async def _extract_fulltext(
     pmc_id: str, metadata: dict[str, Any], run_dir: Path
 ) -> bool:
-    """Attaches extracted fulltext to one paper's metadata.
-
-    Args:
-        pmc_id: PMC full-text identifier for the paper.
-        metadata: Paper metadata dict to attach fulltext to; mutated in
-            place on success.
-        run_dir: Directory containing the cached fulltext HTML files.
-
-    Returns:
-        True if fulltext was found and attached, False otherwise.
-    """
+    """Attach fulltext when available, leaving metadata usable on failure."""
     try:
         html_file = run_dir / f"{pmc_id}.fulltext.html"
         if not html_file.exists():
@@ -52,155 +27,24 @@ async def _extract_fulltext(
                 "Fulltext file not found for %s at %s", pmc_id, html_file
             )
             return False
-        # bs4/lxml parsing of full articles is CPU-heavy; run it off the
-        # event loop so concurrent MCP requests are not stalled.
-        text = await asyncio.to_thread(_read_and_extract_fulltext, html_file)
-        metadata["fulltext"] = text
-        logger.debug("extracted %s chars from %s", len(text), pmc_id)
+        # Full-article parsing is CPU-heavy; keep it off the event loop.
+        metadata["fulltext"] = await asyncio.to_thread(
+            _read_and_extract_fulltext, html_file
+        )
         return True
-    except Exception as e:
-        logger.error("Failed to extract text from %s: %s", pmc_id, e)
+    except Exception as exc:
+        logger.error("Failed to extract text from %s: %s", pmc_id, exc)
         return False
 
 
-async def _extract_fulltexts(
-    results: dict[str, dict[str, Any]], run_dir: Path
-) -> int:
-    """Extracts fulltext for every paper that has a PMC fulltext id.
-
-    Args:
-        results: Mapping of paper_id to metadata dicts; entries are
-            mutated in place with a "fulltext" key where extraction
-            succeeds.
-        run_dir: Directory containing the cached fulltext HTML files.
-
-    Returns:
-        Count of papers successfully enriched with fulltext.
-    """
-    # Only papers that actually have a PMC fulltext id get an extraction
-    # coroutine; papers without open-access fulltext are left as-is.
-    extractions = [
-        _extract_fulltext(pmc_id, metadata, run_dir)
-        for metadata in results.values()
-        if (pmc_id := metadata.get("pmc_full_text_id"))
-    ]
-    # Extractions run concurrently; each returns True/False so summing
-    # gives the count of papers successfully enriched with fulltext.
-    return sum(await asyncio.gather(*extractions))
-
-
 def _pubmed_cache_dir() -> Path:
-    """Returns the literature-review cache root, creating it if needed.
-
-    Returns:
-        The directory configured by COSCIENTIST_LIT_REVIEW_DIR (default
-        ``./cache/literature_review``), guaranteed to exist.
-    """
-    # Entrez credentials are configured at import time by literature_review.
-    lit_review_dir = Path(
+    cache_dir = Path(
         os.getenv("COSCIENTIST_LIT_REVIEW_DIR", "./cache/literature_review")
     )
-    lit_review_dir.mkdir(parents=True, exist_ok=True)
-    return lit_review_dir
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir
 
 
-def _fulltext_run_dir(
-    lit_review_dir: Path, slug: str, run_id: str | None
-) -> Path:
-    """Returns the directory holding cached fulltext HTML for a run.
-
-    Args:
-        lit_review_dir: Literature-review cache root.
-        slug: Snake_case identifier for organizing results.
-        run_id: Unique run identifier, or None for the shared pool.
-
-    Returns:
-        The per-run symlinked directory when ``run_id`` is given, otherwise
-        the shared slug directory.
-    """
-    # Fulltext HTML lives under the per-run symlinked directory when a
-    # run_id is given, otherwise fall back to the shared slug directory.
-    base_dir = lit_review_dir / "pubmed" / slug
-    return base_dir / "runs" / run_id if run_id else base_dir
-
-
-@dataclass(frozen=True)
-class _PubmedSearchParams:
-    """The search request a caller supplied to the tool.
-
-    Attributes:
-        query: PubMed boolean query (AND/OR/NOT operators).
-        slug: Snake_case identifier for organizing results.
-        max_papers: Maximum papers to retrieve.
-        recency_years: Filter to papers from last N years (0 = no filter).
-        run_id: Unique run identifier, enabling per-run tracking.
-        include_fulltext: Whether to download and extract PMC fulltext.
-    """
-
-    query: str
-    slug: str
-    max_papers: int
-    recency_years: int
-    run_id: str | None
-    include_fulltext: bool = True
-
-
-async def _run_pubmed_search(
-    lit_review_dir: Path,
-    params: _PubmedSearchParams,
-) -> dict[str, dict[str, Any]]:
-    """Runs the PubMed search against the on-disk cache.
-
-    Args:
-        lit_review_dir: Literature-review cache root.
-        params: The caller's search request.
-
-    Returns:
-        Dict mapping paper_id to metadata for the matched papers.
-    """
-    # PubmedSource owns the on-disk cache under lit_review_dir/pubmed; see
-    # its shared-pool layout described in the module docstring above.
-    pubmed_source = PubmedSource(lit_review_dir / "pubmed")
-    logger.info(
-        "Searching pubmed with query: %s, slug: %s, run_id: %s, "
-        "max_papers: %s, recency_years: %s",
-        params.query,
-        params.slug,
-        params.run_id,
-        params.max_papers,
-        params.recency_years,
-    )
-    results = await pubmed_source.pubmed_search(
-        params.query,
-        params.slug,
-        params.max_papers,
-        params.recency_years,
-        params.run_id,
-        include_fulltext=params.include_fulltext,
-    )
-    logger.info("Pubmed search complete - found %s papers", len(results))
-    return results
-
-
-async def _attach_fulltexts(
-    results: dict[str, dict[str, Any]], run_dir: Path
-) -> None:
-    """Extracts and attaches fulltext to matched papers, logging the count.
-
-    Args:
-        results: Mapping of paper_id to metadata; mutated in place with a
-            "fulltext" key where extraction succeeds.
-        run_dir: Directory containing the cached fulltext HTML files.
-    """
-    papers_with_fulltext = await _extract_fulltexts(results, run_dir)
-    logger.info(
-        "Extracted fulltext for %s/%s papers",
-        papers_with_fulltext,
-        len(results),
-    )
-
-
-# Keep the five positional arguments; the opt-out is keyword-only.
 async def pubmed_search_with_fulltext(  # noqa: PLR0913
     query: str,
     slug: str,
@@ -210,45 +54,43 @@ async def pubmed_search_with_fulltext(  # noqa: PLR0913
     *,
     include_fulltext: bool = True,
 ) -> dict[str, Any]:
-    """Searches PubMed and downloads fulltexts (HTML from PMC).
-
-    Performs search with fulltext download. HTML-only implementation.
-
-    Uses shared pool architecture - papers stored in slug/shared/ and
-    symlinked to slug/runs/{run_id}/ for per-run isolation.
+    """Search PubMed and attach readable text from cached PMC articles.
 
     Args:
         query: PubMed boolean query (AND/OR/NOT operators).
-        slug: Snake_case identifier for organizing results (research goal hash).
+        slug: Identifier for organizing results (research goal hash).
         max_papers: Maximum papers to retrieve.
         recency_years: Filter to papers from last N years (0 = no filter).
-        run_id: Unique run identifier for this execution (enables per-run
-            tracking).
-        include_fulltext: Set false to retain PMC-linked selection and
-            metadata provenance while skipping PMC fulltext download/extraction.
+        run_id: Unique run identifier for per-run tracking.
+        include_fulltext: Skip downloads and extraction when false, retaining
+            PMC-linked selection and metadata provenance.
 
     Returns:
-        Dict mapping paper_id to metadata (title, abstract, authors, doi,
-        pmc_full_text_id, etc.).
+        Metadata keyed by PubMed ID, with fulltext where available.
     """
     lit_review_dir = _pubmed_cache_dir()
-    results = await _run_pubmed_search(
-        lit_review_dir,
-        _PubmedSearchParams(
-            query=query,
-            slug=slug,
-            max_papers=max_papers,
-            recency_years=recency_years,
-            run_id=run_id,
-            include_fulltext=include_fulltext,
-        ),
+    source = PubmedSource(lit_review_dir / "pubmed")
+    results = await source.pubmed_search(
+        query,
+        slug,
+        max_papers,
+        recency_years,
+        run_id,
+        include_fulltext=include_fulltext,
     )
-
-    # Extract fulltext from HTML and add to metadata.
-    run_dir = _fulltext_run_dir(lit_review_dir, slug, run_id)
     if include_fulltext:
-        await _attach_fulltexts(results, run_dir)
-
-    # `results` metadata dicts were mutated in place by extract_fulltext,
-    # so the fulltext (where available) is already attached here.
+        base_dir = lit_review_dir / "pubmed" / slug
+        run_dir = base_dir / "runs" / run_id if run_id else base_dir
+        extracted = sum(
+            await asyncio.gather(
+                *(
+                    _extract_fulltext(pmc_id, metadata, run_dir)
+                    for metadata in results.values()
+                    if (pmc_id := metadata.get("pmc_full_text_id"))
+                )
+            )
+        )
+        logger.info(
+            "Extracted fulltext for %s/%s papers", extracted, len(results)
+        )
     return results

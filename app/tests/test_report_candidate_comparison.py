@@ -12,7 +12,7 @@ ideas`` section -- a thematic summary paragraph plus one block per idea --
 rather than two duplicate headings, and renders each idea's columns as
 bold-label bullets rather than a markdown table, matching every other
 meta-review section's convention (``_render_connection``, and
-``report.markdown.meta_themes._render_sub_theme``)
+``report.markdown.meta_review._render_sub_theme``)
 instead of the published table markup.
 
 The table's own columns follow the run's own subject matter (``axes``,

@@ -12,33 +12,6 @@ import logging
 from typing import TYPE_CHECKING, Any, NamedTuple, Optional, cast
 
 from co_scientist.agents.reflection.reflection_entities import (
-    _ALIAS_MAP as _ALIAS_MAP,
-)
-from co_scientist.agents.reflection.reflection_entities import (
-    _HYPHENATED_RE as _HYPHENATED_RE,
-)
-from co_scientist.agents.reflection.reflection_entities import (
-    _STANDALONE_RE as _STANDALONE_RE,
-)
-from co_scientist.agents.reflection.reflection_entities import (
-    _STOP as _STOP,
-)
-from co_scientist.agents.reflection.reflection_entities import (
-    _add_hyphenated_entities as _add_hyphenated_entities,
-)
-from co_scientist.agents.reflection.reflection_entities import (
-    _add_standalone_entities as _add_standalone_entities,
-)
-from co_scientist.agents.reflection.reflection_entities import (
-    _is_mutation_notation as _is_mutation_notation,
-)
-from co_scientist.agents.reflection.reflection_entities import (
-    _normalize_entity as _normalize_entity,
-)
-from co_scientist.agents.reflection.reflection_entities import (
-    _should_skip_entity as _should_skip_entity,
-)
-from co_scientist.agents.reflection.reflection_entities import (
     extract_entity_names as extract_entity_names,
 )
 from co_scientist.tools.response_parser import parse_mcp_result

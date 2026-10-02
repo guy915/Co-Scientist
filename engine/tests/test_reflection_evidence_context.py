@@ -9,8 +9,11 @@ back to an article's fulltext when its abstract was empty, and the
 per-source truncation had grown three different values.
 """
 
-from co_scientist.agents.reflection import comprehensive_reflection as cr
 from co_scientist.agents.reflection import deep_verification as dv
+from co_scientist.agents.reflection import (
+    deep_verification_evidence,
+    review_prompt_context,
+)
 from tests._state import make_article, make_state
 
 
@@ -57,7 +60,7 @@ def test_review_context_excludes_retracted_evidence() -> None:
         ]
     )
 
-    assert cr._build_domain_context(state, None) == ""
+    assert review_prompt_context._build_domain_context(state, None) == ""
 
 
 def test_probe_context_excludes_retracted_evidence() -> None:
@@ -73,7 +76,10 @@ def test_probe_context_excludes_retracted_evidence() -> None:
         is_retracted=True,
     )
 
-    assert dv._retrieved_evidence_context([retracted]) == ""
+    assert (
+        deep_verification_evidence._retrieved_evidence_context([retracted])
+        == ""
+    )
 
 
 def test_verification_context_falls_back_to_article_fulltext() -> None:
@@ -112,7 +118,7 @@ def test_review_context_falls_back_to_article_fulltext() -> None:
         ]
     )
 
-    context = cr._build_domain_context(state, None)
+    context = review_prompt_context._build_domain_context(state, None)
 
     assert "Measured a three-fold increase in flux." in context
 
@@ -126,7 +132,7 @@ def test_one_source_truncates_the_same_way_on_every_path() -> None:
         ]
     )
 
-    review = cr._build_domain_context(state, None)
+    review = review_prompt_context._build_domain_context(state, None)
     verification = dv._verification_evidence_context(state)
 
     assert abstract[:2000] in review
@@ -138,7 +144,7 @@ def test_private_sources_get_a_wider_slice_than_public_ones() -> None:
     display = "private finding " * 300
     state = make_state(context_enrichment_sources=[{"display": display}])
 
-    review = cr._build_domain_context(state, None)
+    review = review_prompt_context._build_domain_context(state, None)
     verification = dv._verification_evidence_context(state)
 
     assert display[:2500] in review
@@ -161,7 +167,7 @@ def test_public_article_citation_markers_are_stripped() -> None:
         ]
     )
 
-    review = cr._build_domain_context(state, None)
+    review = review_prompt_context._build_domain_context(state, None)
     verification = dv._verification_evidence_context(state)
 
     for context in (review, verification):

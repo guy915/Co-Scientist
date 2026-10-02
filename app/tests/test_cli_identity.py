@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 
 from app.cli import identity
-from app.cli.parsers_common import _common_parser
+from app.cli.parsers import _common_parser
 
 # app.cli's __init__ re-exports the `main` function under the same name as
 # this module, so fetch the module itself for monkeypatching (mirrors

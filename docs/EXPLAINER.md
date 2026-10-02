@@ -110,7 +110,7 @@ Key facts:
 - `current_iteration` is incremented by the orchestrator when it schedules a work task (generate/evolve); maintenance tasks (proximity/rank/reflect) and termination do not advance it (`agents/supervisor/orchestrator.py`).
 - `max_iterations` defaults to `1` (`constants/__init__.py::DEFAULT_MAX_ITERATIONS`) and acts as the budget's satisfied-completion cap; runs can also terminate early on convergence (top Elo stable across cycles) or an exhausted budget (`scheduling/policy.py`).
 - A checkpoint-restored run re-enters at the orchestrator loop point via the START router (`generator/graph.py::_resume_router`); a fresh run starts at the supervisor.
-- The graph is built once per `HypothesisGenerator` instance (`generator/configuration.py::_build_graph`, edges in `generator/graph.py`) and invoked with `recursion_limit=100` (`_GRAPH_RECURSION_LIMIT` in `generator/run_execution.py`).
+- The graph is built once per `HypothesisGenerator` instance (`generator/core.py::_build_graph`, edges in `generator/graph.py`) and invoked with `recursion_limit=100` (`_GRAPH_RECURSION_LIMIT` in `generator/core.py`).
 
 ---
 
@@ -126,7 +126,7 @@ State is a `TypedDict` (`state/__init__.py:45`) flowing through every node. Each
 | `messages` | `add_messages` (LangGraph) | Phase messages append rather than overwrite. |
 | all others | (overwrite) | `supervisor_guidance`, `articles_with_reasoning`, `meta_review`, `research_overview`, `removed_duplicates`, `evolution_details`, `current_iteration`, etc. |
 
-Streaming caveat: `astream` yields only per-node deltas, so the streaming wrapper in `generator/streaming.py` manually accumulates a cumulative state dict and merges metrics via `merge_metrics` (`generator/streaming.py:79`, imported from `models/metrics.py`). This is the library's own streaming path — `HypothesisGenerator.generate_hypotheses(..., stream=True)` in `generator/run_execution.py` — used by the CLI examples and `dev/` scripts. The app never drives the graph this way; it runs one node per durable task instead (see §9).
+Streaming caveat: `astream` yields only per-node deltas, so the streaming wrapper in `generator/streaming.py` manually accumulates a cumulative state dict and merges metrics via `merge_metrics` (`generator/streaming.py:79`, imported from `models/metrics.py`). This is the library's own streaming path — `HypothesisGenerator.generate_hypotheses(..., stream=True)` in `generator/core.py` — used by the CLI examples and `dev/` scripts. The app never drives the graph this way; it runs one node per durable task instead (see §9).
 
 ---
 
@@ -191,8 +191,8 @@ flowchart LR
   DEG -.-> Debate
 ```
 
-- **Debate** (`debate.py::generate_with_debate`, line 414) runs `count` parallel multi-turn debates, each yielding one hypothesis. Diversity angles (`_DEBATE_DIVERSITY_ANGLES`, defined in the sibling `debate_support.py:25` and re-exported into `debate.py`) seed each parallel debate. Generation calls use `use_cache=False` (`debate.py:98,238`) to preserve diversity.
-- **Tool-based** (`agents/generation/literature_tools/`) is two-phase: **draft** (`draft.py::draft_hypotheses`, line 384) — an agent reads pre-curated papers via MCP tools and drafts hypotheses using `call_llm_with_tools` with a dynamic iteration budget (`constants/__init__.py::get_draft_max_iterations`, `min(5+count*2,30)`); **validate** (`validate_stages.py::_run_validate_novelty_stage`, line 180, re-exported from `validate.py`) — per-hypothesis novelty analysis searches papers, then a synthesis agent in batches of `VALIDATION_SYNTHESIS_BATCH_SIZE=3` decides approve/refine/pivot. Failed batches retry individually with accumulated context (`validate_stages.py::_run_synthesis_stage_batches`, line 103).
+- **Debate** (`debate.py::generate_with_debate`, line 414) runs `count` parallel multi-turn debates, each yielding one hypothesis. Diversity angles (`_DEBATE_DIVERSITY_ANGLES`, defined in the sibling `debate_support.py`) seed each parallel debate. Generation calls use `use_cache=False` (`debate.py:98,238`) to preserve diversity.
+- **Tool-based** (`agents/generation/literature_tools/`) is two-phase: **draft** (`draft.py::draft_hypotheses`, line 384) — an agent reads pre-curated papers via MCP tools and drafts hypotheses using `call_llm_with_tools` with a dynamic iteration budget (`constants/__init__.py::get_draft_max_iterations`, `min(5+count*2,30)`); **validate** (`validate.py::_run_validate_novelty_stage`) — per-hypothesis novelty analysis searches papers, then a synthesis agent in batches of `VALIDATION_SYNTHESIS_BATCH_SIZE=3` decides approve/refine/pivot. Failed batches retry individually with accumulated context (`validate.py::_run_synthesis_stage_batches`).
 - **Citations** are domain-agnostic: `ReferenceIndex` (`citations.py:24`) is built from papers (`used_in_analysis=True`) **then** knowledge-graph enrichment sources, assigning sequential `[C1]`, `[C2]`, … keys in one namespace (`citations.py::build_reference_index`). The LLM emits `[Cn]` in `literature_grounding`; `resolve_citation_keys` (`citations.py:213`) maps them back to source metadata.
 - **Degraded mode** (`coordinator_results.py::_apply_degraded_mode_fallback`) stamps `literature_grounding` with an explicit "No literature review available" warning to prevent hallucinated citations; the MCP/lit-review availability check that decides degraded mode is `coordinator_strategy.py::_check_literature_availability`.
 - **Parallelism** is bounded by `MAX_CONCURRENT_LLM_CALLS=5` (`constants/__init__.py:174`). Review, reflection, and evolve all parallelize under it. Ranking is the exception: its fan-out is the tournament's whole shape, so it carries its own `RANKING_WAVE_SIZE=12` bound (`constants/tournament.py`), narrowing to `RANKING_WAVE_MIN_SIZE=3` under provider throttling.
@@ -222,7 +222,7 @@ flowchart TD
   class MTC,MTP mcp;
 ```
 
-- **Detection** is lazy and cached per instance: `McpAvailabilityMixin._check_cached_availability` calls `check_mcp_available()` / `check_literature_source_available()` (`generator/availability.py:54`) and stores the result in state as `mcp_available`/`pubmed_available` (`generator/initial_state.py`).
+- **Detection** is lazy and cached per instance: `HypothesisGenerator._check_cached_availability` calls `check_mcp_available()` / `check_literature_source_available()` (`generator/core.py`) and stores the result in state as `mcp_available`/`pubmed_available` (`generator/initial_state.py`).
 - **Conditional graph**: if MCP is unavailable, the graph is built *without* `literature_review`/`reflection` (`generator/graph.py`, `enable_literature_review_node`).
 - **Tool-calling generation** requires MCP + lit review. When `enable_tool_calling_generation=True`, the generate node's `generate_with_tools` path gives the LLM direct MCP tool access via `MCPToolProvider` for the draft + validate phases.
 - **Fallbacks**: query generation falls back MCP → LLM → research-goal (`literature_review/queries.py::_phase1_generate_queries`). If no papers/fulltext, the node returns a `LITERATURE_REVIEW_FAILED` marker; `generate` detects it (`coordinator_strategy.py::_check_literature_availability`) and switches to degraded debate-only mode. Individual tool-call failures are caught and logged without aborting.
@@ -340,7 +340,7 @@ Temperatures: `LOW=0.3`, `MEDIUM=0.5`, `HIGH=0.7` (`constants/__init__.py`). Tok
 | To understand | Read |
 | --- | --- |
 | Graph topology, routers | `engine/src/co_scientist/workflow_topology.py` (one declaration, read by both run paths) |
-| Graph assembly | `engine/src/co_scientist/generator/graph.py` (built via `generator/configuration.py::_build_graph`) |
+| Graph assembly | `engine/src/co_scientist/generator/graph.py` (built via `generator/core.py::_build_graph`) |
 | State definition + its reducers | `engine/src/co_scientist/state/__init__.py` (`deduplicate_hypotheses` and `accumulate_matchups` here; `merge_metrics` in the sibling `models/metrics.py`) |
 | Data models (`Hypothesis`, `ExecutionMetrics`, `Article`) | `engine/src/co_scientist/models/` |
 | LLM dispatch, JSON repair, tool-calling loop | `engine/src/co_scientist/llm/` |

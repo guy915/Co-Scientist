@@ -1,8 +1,4 @@
-"""Transient-failure retry around a single literature search tool call.
-
-Split from ``search.py``, which re-exports every name here so the module
-namespace callers and tests patch against keeps resolving.
-"""
+"""Transient-failure retry around a single literature search tool call."""
 
 import asyncio
 import logging

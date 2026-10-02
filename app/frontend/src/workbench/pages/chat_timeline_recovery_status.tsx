@@ -1,4 +1,4 @@
-import {SETUP_SECONDARY_BUTTON_CLASSES} from './chat_setup_classes';
+import {SETUP_SECONDARY_BUTTON_CLASSES} from './chat_classes';
 
 type LookupStatus = 'checking' | 'error' | 'cancelled' | undefined;
 

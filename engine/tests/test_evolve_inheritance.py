@@ -20,14 +20,13 @@ from typing import Any
 
 import pytest
 
-from co_scientist.agents.evolution import evolve
+from co_scientist.agents.evolution import EvolutionContext, evolve
 from co_scientist.agents.evolution.evolution_operators import (
     EvolutionOperator,
 )
 from co_scientist.agents.evolution.evolve import evolve_node
 from co_scientist.agents.evolution.evolve_prompt import (
     _build_evolution_prompt,
-    _EvolutionContext,
     _EvolutionOperation,
 )
 from co_scientist.agents.generation.citations import ReferenceIndex
@@ -75,9 +74,9 @@ def _evolved_parent() -> Any:
     )
 
 
-def _prompt_context(**overrides: Any) -> _EvolutionContext:
+def _prompt_context(**overrides: Any) -> EvolutionContext:
     """A minimal evolution context for the prompt-render assertions."""
-    return _EvolutionContext(
+    return EvolutionContext(
         model_name="test-model",
         meta_review={},
         removed_duplicates=[],

@@ -344,7 +344,7 @@ async def test_assumptions_slice_runs_the_tree_in_the_real_graph(
         evolution_max_count=2,
         options=GeneratorOptions(tournament_pairs=2, enable_cache=False),
     )
-    initial_state = await gen._prepare_generation(
+    initial_state = await gen.prepare_task_state(
         "Explain how protein X folds",
         opts={"enable_literature_review_node": False},
     )

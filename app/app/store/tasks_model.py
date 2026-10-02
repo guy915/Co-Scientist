@@ -57,10 +57,10 @@ class ScientificTask:
     # A row written before attempts_json existed reads back as (), the
     # only state such a row could represent.
     attempts: tuple[dict[str, Any], ...] = ()
-    # When the current lease's attempt was claimed; see schema_tasks.py.
+    # When the current lease's attempt was claimed; see schema.py.
     attempt_started_at: float | None = None
     # Not-before instant (epoch seconds) for an otherwise-queued row; see
-    # schema_tasks.py. NULL for every ordinarily-enqueued row.
+    # schema.py. NULL for every ordinarily-enqueued row.
     available_at: float | None = None
 
 

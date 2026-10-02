@@ -9,7 +9,7 @@ here so ``runs_cmd.handle_watch`` and friends keep resolving. The per-run
 sub-collection reads (``hypotheses``, ``evidence``, ...) plus ``metrics``
 live in ``app.cli.runs_collections_cmd``; ``runs_cmd.COLLECTION_COMMANDS``
 and the handlers the CLI test suite calls are re-exported the same way,
-for ``app.cli.parsers_runs`` and that suite.
+for ``app.cli.parsers`` and that suite.
 """
 
 from __future__ import annotations

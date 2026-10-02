@@ -332,103 +332,39 @@ def _apply_numeric_override(
     base[key] = max(base[key], value) if key in base else value
 
 
-def _apply_verbatim_override(
-    base: dict[str, Any], key: str, raw_value: Any
-) -> None:
-    """Carry an override through verbatim, in place."""
-    base[key] = raw_value
-
-
-def _apply_bool_override(
-    base: dict[str, Any], key: str, raw_value: Any
-) -> None:
-    """Coerce a connector/feature toggle to bool and merge it, in place."""
-    base[key] = bool(raw_value)
-
-
-def _apply_tier_override(
-    unused_base: dict[str, Any], unused_key: str, unused_raw_value: Any
-) -> None:
-    """No-op: tier is resolved once, before overrides are applied.
-
-    The final tier assignment in `resolved_run_config` always wins, so this
-    skips the numeric path (`int("standard")` would raise anyway).
-    """
-
-
-def _apply_focus_override(
-    base: dict[str, Any], unused_key: str, raw_value: Any
-) -> None:
-    """Normalize and merge the focus override into `base`, in place."""
-    base["focus"] = normalize_run_focus(
-        raw_value if isinstance(raw_value, str) else None
-    )
-
-
-# Valid explicit values for the "llm_backend" override; any other raw value
-# (including None) resolves to None, letting offline_mode() decide at run
-# time -- see _apply_llm_backend_override.
-_LLM_BACKEND_VALUES = ("offline", "real")
-
-
-def _apply_llm_backend_override(
-    base: dict[str, Any], unused_key: str, raw_value: Any
-) -> None:
-    """Normalize and merge the LLM backend override into `base`, in place.
-
-    A caller (e.g. the demo seeder) may pin a run to "offline" or "real",
-    bypassing the process-level ``offline_mode()`` predicate for that run.
-    An unrecognized or absent value resolves to None, the "let the caller
-    decide at run time" default.
-    """
-    base["llm_backend"] = (
-        raw_value if raw_value in _LLM_BACKEND_VALUES else None
-    )
-
-
-# Per-key override handlers; any key without a dedicated handler is a
-# numeric knob and falls back to `_apply_numeric_override`. Every handler
-# shares `_apply_numeric_override`'s (base, key, raw_value) signature so the
-# dispatcher below can call whichever one it finds uniformly.
-_OVERRIDE_HANDLERS: dict[str, Callable[[dict[str, Any], str, Any], None]] = {
-    "setup": _apply_verbatim_override,
-    "tier": _apply_tier_override,
-    "focus": _apply_focus_override,
-    # Provider flag of a bring-your-own-key run (the provider name only,
-    # never the key). Must survive every config round-trip verbatim:
-    # resolve_offline_backend reads it to keep the run real-backed, and
-    # the numeric fallback would silently drop a string value.
-    "byok_provider": _apply_verbatim_override,
-    "enable_literature_review": _apply_bool_override,
-    "llm_backend": _apply_llm_backend_override,
-    "enable_web_search": _apply_bool_override,
-    # Ablation seams (evaluations.ablation_driver). enable_meta_review gates
-    # the engine's periodic meta-review cadence; generation_strategy is a
-    # string label carried verbatim (the numeric fallback would int() it and
-    # drop it silently), validated engine-side.
-    "enable_meta_review": _apply_bool_override,
-    "generation_strategy": _apply_verbatim_override,
-    # A discovery run's whole specification: what to optimize, how to
-    # measure it, and the program to start from. Verbatim because it is a
-    # dict -- the numeric fallback cannot coerce one and would drop it
-    # silently, which turns "start a discovery run" into an ordinary
-    # hypothesis run with no error anywhere.
-    "discovery": _apply_verbatim_override,
+# Structured setup/discovery and BYOK flags must survive round-trips:
+# numeric coercion would silently discard them and change the run's mode.
+_VERBATIM_OVERRIDES = {
+    "setup",
+    "byok_provider",
+    "generation_strategy",
+    "discovery",
+}
+_OVERRIDE_COERCIONS: dict[str, Callable[[Any], Any]] = {
+    "focus": lambda value: normalize_run_focus(
+        value if isinstance(value, str) else None
+    ),
+    "llm_backend": lambda value: (
+        value if value in ("offline", "real") else None
+    ),
+    "enable_literature_review": bool,
+    "enable_web_search": bool,
+    "enable_meta_review": bool,
 }
 
 
 def _apply_run_config_override(
     base: dict[str, Any], key: str, raw_value: Any
 ) -> None:
-    """Merge one (key, raw_value) override pair into `base`, in place.
-
-    Args:
-        base: The run config being assembled; mutated with the resolved key.
-        key: The override key, e.g. 'focus' or a numeric knob name.
-        raw_value: The raw override value, as received from the caller.
-    """
-    handler = _OVERRIDE_HANDLERS.get(key, _apply_numeric_override)
-    handler(base, key, raw_value)
+    """Apply structured, toggle, or numeric overrides after selecting a tier."""
+    if key == "tier":
+        return
+    if key in _VERBATIM_OVERRIDES:
+        base[key] = raw_value
+    elif coerce := _OVERRIDE_COERCIONS.get(key):
+        base[key] = coerce(raw_value)
+    else:
+        _apply_numeric_override(base, key, raw_value)
 
 
 def _resolve_tier_override(overrides: dict[str, Any] | None) -> str:

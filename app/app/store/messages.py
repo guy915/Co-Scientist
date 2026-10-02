@@ -32,26 +32,6 @@ class NewMessage:
     meta: dict[str, Any] | None = None
 
 
-def _insert_message_row(
-    conn: sqlite3.Connection, message: NewMessage, now: float
-) -> int:
-    """Insert a message row on an open connection and return its id."""
-    meta = message.meta
-    cur = conn.execute(
-        "INSERT INTO messages (run_id, sender, content, kind, "
-        "created_at, applied, meta_json) VALUES (?,?,?,?,?,0,?)",
-        (
-            message.run_id,
-            message.sender,
-            message.content,
-            message.kind,
-            now,
-            json.dumps(meta) if meta is not None else None,
-        ),
-    )
-    return cur.lastrowid or 0
-
-
 def append_message(
     message: NewMessage, db_path: str | None = None
 ) -> MessageRow:
@@ -66,7 +46,19 @@ def append_message(
     """
     now = _now()
     with connect(db_path) as conn:
-        msg_id = _insert_message_row(conn, message, now)
+        cursor = conn.execute(
+            "INSERT INTO messages (run_id, sender, content, kind, "
+            "created_at, applied, meta_json) VALUES (?,?,?,?,?,0,?)",
+            (
+                message.run_id,
+                message.sender,
+                message.content,
+                message.kind,
+                now,
+                json.dumps(message.meta) if message.meta is not None else None,
+            ),
+        )
+        msg_id = cursor.lastrowid or 0
     return MessageRow(
         id=msg_id,
         run_id=message.run_id,

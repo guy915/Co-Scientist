@@ -1,18 +1,4 @@
-"""Durable node-level execution for the real scientific engine.
-
-This module owns the run-level executors (bootstrap, node dispatch,
-finalize) and the ``execute_engine_task`` dispatcher. The rest of the
-durable vocabulary lives in sibling modules -- ``engine_tasks.support``
-(task types, checkpoint plumbing, emitters), ``engine_tasks.inputs``
-(bootstrap/continuation enqueueing, scientist-input merge),
-``engine_tasks.gate`` (pre-ranking evidence gate), ``engine_tasks.fanout``
-(review/verification/generation/reflection fan-out),
-``engine_tasks.ranking`` (tournament chain), and ``engine_tasks.node``
-(node/finalize commit helpers). The collaborators a task builds or calls
-outside the store (generators, the safety screen, the final-state drain)
-resolve through ``app.engine_tasks.runtime``, which this dispatcher binds once
-per task, not through a patch on any module that looks one up.
-"""
+"""Dispatch leased engine tasks with run-scoped credentials and call budgets."""
 
 from __future__ import annotations
 
@@ -20,12 +6,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from app import store
-from app.engine_adapter.provider import sync_engine_llm_backend
 from app.engine_tasks import runtime as engine_tasks_runtime
-from app.engine_tasks.context import TaskCommit
-from app.engine_tasks.context import (
-    _task_commit as _task_commit,
-)
 from app.engine_tasks.fanout import (
     execute_generation_aggregate,
     execute_generation_strategy,
@@ -36,36 +17,13 @@ from app.engine_tasks.fanout import (
     execute_verification_aggregate,
     execute_verification_item,
 )
-from app.engine_tasks.inputs import (
-    _bootstrap_start_status as _bootstrap_start_status,
-)
-from app.engine_tasks.inputs import (
-    _screen_bootstrap_intake as _screen_bootstrap_intake_impl,
-)
-from app.engine_tasks.inputs import (
-    enqueue_bootstrap as enqueue_bootstrap,
-)
+from app.engine_tasks.finalize import execute_finalize as execute_finalize
+from app.engine_tasks.inputs import enqueue_bootstrap as enqueue_bootstrap
 from app.engine_tasks.inputs import (
     enqueue_scientist_continuation as enqueue_scientist_continuation,
 )
-from app.engine_tasks.node import (
-    _check_node_task_checkpoint as _check_node_task_checkpoint,
-)
-from app.engine_tasks.node import (
-    _commit_node_result as _commit_node_result,
-)
-from app.engine_tasks.node import (
-    _dispatch_node_fanout as _dispatch_node_fanout,
-)
-from app.engine_tasks.node import (
-    _pause_node_task_if_requested as _pause_node_task_if_requested,
-)
-from app.engine_tasks.node import (
-    _require_active_run as _require_active_run,
-)
-from app.engine_tasks.node import (
-    execute_finalize as execute_finalize,
-)
+from app.engine_tasks.inputs import execute_bootstrap as execute_bootstrap
+from app.engine_tasks.node import execute_node_task as execute_node_task
 from app.engine_tasks.outcome_refinement import (
     execute_outcome_refinement as execute_outcome_refinement,
 )
@@ -73,15 +31,8 @@ from app.engine_tasks.ranking import (
     execute_ranking_finalize,
     execute_ranking_match,
 )
-from app.engine_tasks.restore import (
-    _prepare_node_task as _prepare_node_task,
-)
-from app.engine_tasks.support import (
-    BOOTSTRAP_TASK as BOOTSTRAP_TASK,
-)
-from app.engine_tasks.support import (
-    ENGINE_TASK_PREFIX as ENGINE_TASK_PREFIX,
-)
+from app.engine_tasks.support import BOOTSTRAP_TASK as BOOTSTRAP_TASK
+from app.engine_tasks.support import ENGINE_TASK_PREFIX as ENGINE_TASK_PREFIX
 from app.engine_tasks.support import (
     FINALIZE_TASK,
     GENERATION_AGGREGATE_TASK,
@@ -97,156 +48,20 @@ from app.engine_tasks.support import (
 from app.engine_tasks.support import (
     MATURE_REFLECTION_ITEM_TASK as MATURE_REFLECTION_ITEM_TASK,
 )
-from app.engine_tasks.support import (
-    NODE_TASK_PREFIX as NODE_TASK_PREFIX,
-)
+from app.engine_tasks.support import NODE_TASK_PREFIX as NODE_TASK_PREFIX
 from app.engine_tasks.support import (
     OUTCOME_REFINEMENT_TASK as OUTCOME_REFINEMENT_TASK,
 )
-from app.engine_tasks.support import (
-    SafetyHoldError as SafetyHoldError,
-)
-from app.engine_tasks.support import (
-    SupersededTaskError as SupersededTaskError,
-)
-from app.engine_tasks.support import (
-    _latest_task_checkpoint as _latest_task_checkpoint,
-)
-from app.engine_tasks.support import (
-    _require_run as _require_run,
-)
-from app.engine_tasks.support import (
-    _save_state_and_enqueue as _save_state_and_enqueue,
-)
+from app.engine_tasks.support import SafetyHoldError as SafetyHoldError
+from app.engine_tasks.support import SupersededTaskError as SupersededTaskError
 from app.execution_policy import (
     CAMPAIGN,
     campaign_model_for_config,
     scoped_execution_policy,
 )
-from app.run_events import make_emitter
 from app.run_modes import resolved_run_config
-from app.safety import apply_safety_gate, screen_intake
-from app.store import RunStatus, ScientificTask
+from app.store import ScientificTask
 
-
-async def _screen_bootstrap_intake(
-    run: store.RunRow,
-    emit: Any,
-    db_path: str | None,
-    task: ScientificTask | None = None,
-) -> dict[str, Any] | None:
-    return await _screen_bootstrap_intake_impl(
-        run,
-        emit,
-        db_path,
-        task=task,
-        screening=(
-            engine_tasks_runtime.active().screen,
-            screen_intake,
-            apply_safety_gate,
-        ),
-    )
-
-
-async def _prepare_bootstrap_state(
-    task: ScientificTask, run: store.RunRow, db_path: str | None
-) -> tuple[dict[str, Any], TaskCommit]:
-    """Build initial state and commit target, aborting if cancelled.
-
-    Pause-versus-successor is decided by the caller's commit transaction.
-    Bootstrap never consumes steering (``consume_steering=False``): any
-    steering queued before the run even started is folded into the initial
-    preferences text same as always, but stays pending until the run's first
-    orchestrator cycle -- the one place ``pending_steering`` is actually read
-    for scheduling -- rather than being acknowledged here where nothing acts
-    on it.
-    """
-    generator, opts = engine_tasks_runtime.active().generator_and_opts(
-        task, db_path
-    )
-    state = await generator.prepare_task_state(
-        run.research_goal,
-        opts=opts,
-        run_id=run.id,
-    )
-    commit = _task_commit(task, 0, db_path, opts, consume_steering=False)
-    refreshed = store.get_run(run.id, db_path=db_path)
-    if refreshed is None or refreshed.status == RunStatus.CANCELLED.value:
-        raise RuntimeError("run cancelled during bootstrap")
-    # A PAUSED snapshot is advisory only. /resume can change it to QUEUED
-    # before the commit transaction, which must choose pause vs successor.
-    return state, commit
-
-
-async def execute_bootstrap(
-    task: ScientificTask, *, db_path: str | None = None
-) -> dict[str, Any]:
-    """Safety-gate a run, prepare state, and enqueue its first task."""
-    run = _require_run(task, db_path)
-    emit = make_emitter(run.id, db_path=db_path)
-    withheld = await _screen_bootstrap_intake(run, emit, db_path, task=task)
-    if withheld is not None:
-        return withheld
-    run = _require_run(task, db_path)  # the gate may have redacted the goal
-    bootstrap_status = _bootstrap_start_status(task, run, db_path)
-    if bootstrap_status in {status.value for status in store.TERMINAL_STATUSES}:
-        return {"run_id": run.id, "status": bootstrap_status, "terminal": True}
-    # Sync the run row before the generator is built (_generator_and_opts
-    # reads it back via run_used_offline), so a config-pinned llm_backend
-    # takes effect on this boundary.
-    sync_engine_llm_backend(run.id, resolved_run_config(run.config), db_path)
-    state, commit = await _prepare_bootstrap_state(task, run, db_path)
-    checkpoint_seq, successor_id = _save_state_and_enqueue(
-        commit, state, "supervisor", pause_if_requested=True
-    )
-    if successor_id is None:
-        return {"checkpoint_seq": checkpoint_seq, "status": "paused"}
-    await emit(
-        "scientific_task",
-        {
-            "task": "bootstrap",
-            "status": "completed",
-            "checkpoint_seq": checkpoint_seq,
-        },
-    )
-    return {
-        "checkpoint_seq": checkpoint_seq,
-        "successor_task_id": successor_id,
-    }
-
-
-async def execute_node_task(
-    task: ScientificTask, *, db_path: str | None = None
-) -> dict[str, Any]:
-    """Execute and commit exactly one engine specialist node."""
-    from co_scientist.task_runtime import execute_task_node
-
-    checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
-    run = _require_active_run(task, db_path, stage="before specialist run")
-    replay = _check_node_task_checkpoint(task, checkpoint, current_seq)
-    if replay is not None:
-        return replay
-
-    state, commit, node_name = _prepare_node_task(
-        task, checkpoint, current_seq, db_path
-    )
-    paused = _pause_node_task_if_requested(commit, run, node_name, state)
-    if paused is not None:
-        return paused
-    fanout = await _dispatch_node_fanout(
-        task, state, node_name, current_seq, db_path=db_path
-    )
-    if fanout is not None:
-        return fanout
-
-    committed, successor = await execute_task_node(node_name, state)
-    run = _require_active_run(task, db_path, stage="during specialist run")
-    return await _commit_node_result(
-        commit, run, node_name, committed, successor
-    )
-
-
-# Non-node task types, by exact match (node/unrecognized: see below).
 _ENGINE_TASK_DISPATCH: dict[str, Callable[..., Awaitable[dict[str, Any]]]] = {
     BOOTSTRAP_TASK: execute_bootstrap,
     OUTCOME_REFINEMENT_TASK: execute_outcome_refinement,
@@ -274,24 +89,6 @@ async def _dispatch_engine_task(
     if task.task_type.startswith(NODE_TASK_PREFIX):
         return await execute_node_task(task, db_path=db_path)
     raise ValueError(f"unsupported engine task: {task.task_type}")
-
-
-def _llm_call_ceiling_for_run(run_id: str, db_path: str | None) -> int | None:
-    """The run's configured ``max_llm_calls``, or None if unresolvable.
-
-    Read fresh per task rather than cached here: ``scoped_llm_call_budget``
-    itself only honors the *first* value it sees for a run id, so a later
-    task's read is cheap insurance (an indexed primary-key lookup, the
-    same cost as the credential lookup beside it) rather than a source of
-    drift. A run row that has vanished or carries no resolvable tier
-    scopes to no ceiling -- counted, never enforced -- rather than
-    failing the task over a missing backstop.
-    """
-    run = store.get_run(run_id, db_path=db_path)
-    if run is None:
-        return None
-    ceiling = resolved_run_config(run.config).get("max_llm_calls")
-    return int(ceiling) if isinstance(ceiling, int) else None
 
 
 async def execute_engine_task(
@@ -325,7 +122,8 @@ async def execute_engine_task(
             credential = None
     else:
         campaign_model = None
-    ceiling = _llm_call_ceiling_for_run(task.run_id, db_path)
+    ceiling = resolved_run_config(run.config).get("max_llm_calls")
+    ceiling = int(ceiling) if isinstance(ceiling, int) else None
     with (
         engine_tasks_runtime.bound(engine_tasks_runtime.active()),
         scoped_byok(credential),

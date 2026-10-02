@@ -131,7 +131,7 @@ class ProductionEngineTaskRuntime:
         db_path: str | None,
     ) -> tuple[Any, float, dict[str, Any]]:
         """Persist replayable final artifacts outside a database lock."""
-        from app.engine_tasks.node import _drain_and_persist_final_state
+        from app.engine_tasks.finalize import _drain_and_persist_final_state
 
         return await _drain_and_persist_final_state(run, state, db_path)
 

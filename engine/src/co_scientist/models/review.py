@@ -1,15 +1,7 @@
 """The hypothesis-review record and its serialization helpers.
 
-Split out of :mod:`co_scientist.models`, which had grown past the
-module-size budget. ``HypothesisReview`` and the serialization helpers that
-project a ``Hypothesis`` into its claim/assessment payload fragments have no
-tie to the tournament/lineage mechanics that dominate that file, so they
-separate cleanly; ``Hypothesis`` itself is only referenced here as a type
-hint (``TYPE_CHECKING``-guarded), so there is no import cycle back to
-:mod:`co_scientist.models`.
-
-:mod:`co_scientist.models` re-exports every name here, so every existing
-import site is unaffected.
+``HypothesisReview`` and claim/assessment serialization helpers depend on
+``Hypothesis`` only through guarded type hints, avoiding an import cycle.
 """
 
 import dataclasses

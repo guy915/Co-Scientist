@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from app import engine_tasks, store
 from app.config import settings
+from app.engine_tasks import node as engine_tasks_node
 from app.engine_tasks.context import TaskCommit
 from tests._client import make_client
 from tests._engine_tasks_helpers import _seed_checkpoint, _task_state
@@ -65,7 +66,7 @@ async def _complete_supervisor_after_pause(
     """Finish deterministic node work across the completed pause boundary."""
     state, checkpoint_seq, leased = writer
     monkeypatch.setattr(
-        engine_tasks,
+        engine_tasks_node,
         "_prepare_node_task",
         lambda *_: (
             state,
@@ -82,7 +83,7 @@ async def _complete_supervisor_after_pause(
     from co_scientist import task_runtime
 
     monkeypatch.setattr(task_runtime, "execute_task_node", execute_node)
-    commit_node_result = engine_tasks._commit_node_result
+    commit_node_result = engine_tasks_node._commit_node_result
 
     async def pause_then_commit(
         commit: TaskCommit,
@@ -98,7 +99,9 @@ async def _complete_supervisor_after_pause(
             commit, run, node_name, committed, successor
         )
 
-    monkeypatch.setattr(engine_tasks, "_commit_node_result", pause_then_commit)
+    monkeypatch.setattr(
+        engine_tasks_node, "_commit_node_result", pause_then_commit
+    )
     result = await engine_tasks.execute_node_task(leased, db_path=db_path)
     assert result["status"] == "paused"
     assert store.complete_task(

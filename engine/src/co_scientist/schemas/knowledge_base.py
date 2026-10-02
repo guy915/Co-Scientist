@@ -7,9 +7,8 @@ carries (see ``constants.tokens.KNOWLEDGE_BASE_OUTLINE_MAX_TOKENS`` for the
 measurement). The word bands below are shared by both -- the outline reads
 them to size its section count, the theme writer to write against them.
 
-Split from ``synthesis.py`` on that module's size cap; the bounds it
-shares with the research-overview schema stay there and are imported
-here, so the two halves of one node's output cannot be sized apart.
+Bounds shared with the research-overview schema come from ``synthesis``
+so the two halves of one node's output cannot be sized apart.
 """
 
 from typing import Any, Final

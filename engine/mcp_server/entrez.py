@@ -2,10 +2,27 @@
 
 import logging
 import os
+from typing import Any
 
 from Bio import Entrez
 
 logger = logging.getLogger(__name__)
+
+
+def read_entrez(handle: Any) -> Any:
+    """Parse an Entrez response and close it, including when parsing fails.
+
+    Request pacing belongs in entrez_call, before the HTTP request is sent.
+    Both metadata tools use this reader for dict- and list-shaped responses.
+    """
+    try:
+        return Entrez.read(handle)
+    except Exception:
+        logger.debug("Entrez response parsing failed", exc_info=True)
+        raise
+    finally:
+        handle.close()
+
 
 # Module-level guard: Biopython's Entrez client stores credentials as
 # process-global attributes (Entrez.email, Entrez.api_key) rather than on an

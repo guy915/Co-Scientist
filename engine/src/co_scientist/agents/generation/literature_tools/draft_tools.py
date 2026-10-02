@@ -1,9 +1,4 @@
-"""Tool-provider setup for the tool-based generation phases.
-
-Shared by the Phase 1 draft agent (draft.py) and the validation synthesis
-stage (validate_synthesis.py, via draft.py's re-export). Resolves the tool
-registry and MCP whitelist, then initializes an MCP tool provider.
-"""
+"""Resolve the tool registry and MCP whitelist for drafting and synthesis."""
 
 import logging
 from typing import TYPE_CHECKING, Any, Optional

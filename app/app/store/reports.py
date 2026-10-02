@@ -26,7 +26,6 @@ import json
 import logging
 import sqlite3
 import uuid
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -35,50 +34,14 @@ from app.store.db import _now, _reports_dir, _use_conn, connect
 logger = logging.getLogger(__name__)
 
 
-def _write_report_markdown(md_path: Path, markdown: str) -> None:
-    """Best-effort write of the rendered markdown to disk."""
-    try:
-        md_path.write_text(markdown, encoding="utf-8")
-    except OSError:
-        logger.warning("Could not write report markdown to disk at %s", md_path)
-
-
 def write_report_markdown(markdown_path: str, markdown: str) -> None:
     """Write a report's Markdown artifact after its database row commits."""
-    _write_report_markdown(Path(markdown_path), markdown)
-
-
-@dataclass(frozen=True)
-class _NewReportFields:
-    """Fields needed to insert one report row."""
-
-    report_id: str
-    run_id: str
-    payload: dict[str, Any]
-    md_path: Path
-    markdown: str
-
-
-def _insert_report_row(conn: sqlite3.Connection, f: _NewReportFields) -> None:
-    """Insert the report row on an open connection.
-
-    ``markdown_text_ranking`` is left out of the column list entirely, so
-    it takes its schema default (NULL) -- see this module's docstring for
-    why the column stays but is never written.
-    """
-    conn.execute(
-        "INSERT INTO reports "
-        "(id, run_id, payload_json, markdown_path, markdown_text, "
-        "created_at) VALUES (?,?,?,?,?,?)",
-        (
-            f.report_id,
-            f.run_id,
-            json.dumps(f.payload),
-            str(f.md_path),
-            f.markdown,
-            _now(),
-        ),
-    )
+    try:
+        Path(markdown_path).write_text(markdown, encoding="utf-8")
+    except OSError:
+        logger.warning(
+            "Could not write report markdown to disk at %s", markdown_path
+        )
 
 
 def save_report(  # noqa: PLR0913
@@ -109,16 +72,20 @@ def save_report(  # noqa: PLR0913
     report_id = str(uuid.uuid4())
     md_path = _reports_dir() / f"{run_id}.md"
     if write_markdown:
-        _write_report_markdown(md_path, markdown)
-    with _use_conn(conn, db_path) as conn:
-        _insert_report_row(
-            conn,
-            _NewReportFields(
-                report_id=report_id,
-                run_id=run_id,
-                payload=payload,
-                md_path=md_path,
-                markdown=markdown,
+        write_report_markdown(str(md_path), markdown)
+    with _use_conn(conn, db_path) as active:
+        # The retired split-document column retains its NULL default.
+        active.execute(
+            "INSERT INTO reports "
+            "(id, run_id, payload_json, markdown_path, markdown_text, "
+            "created_at) VALUES (?,?,?,?,?,?)",
+            (
+                report_id,
+                run_id,
+                json.dumps(payload),
+                str(md_path),
+                markdown,
+                _now(),
             ),
         )
     return {"id": report_id, "markdown_path": str(md_path)}

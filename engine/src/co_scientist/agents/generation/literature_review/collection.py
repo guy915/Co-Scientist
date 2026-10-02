@@ -1,21 +1,4 @@
-"""Phase 2 paper-collection group for the literature review orchestrator.
-
-Bundles the collection result shape, private-corpus merging, collection
-logging, and the two diagnostics-wrapped entry points
-(``_collect_papers_with_diagnostics`` for Phase 2 search,
-``_enrich_collected_papers`` for Phases 2.4-2.6 retrieval/enrichment)
-that ``orchestration.py``'s ``_collect_and_enrich_papers`` composes into
-one call. Split out of ``orchestration.py`` to keep that module under
-the file-length ceiling; ``orchestration.py`` re-exports every name
-defined here for compatibility.
-
-Search collection calls the shared ``co_scientist.evidence.collection``
-boundary. Content/enrichment still imports its orchestration helper locally:
-that helper composes agent-specific work and imports this module itself.
-The deferred imports also resolve each collaborator at call time, so a test
-patches the module that owns it.
-
-"""
+"""Collect papers, merge private evidence, and report retrieval diagnostics."""
 
 import dataclasses
 import logging

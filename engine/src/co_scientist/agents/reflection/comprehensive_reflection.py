@@ -23,26 +23,11 @@ from co_scientist.agents.reflection.reflection import (
     observe_hypothesis,
 )
 from co_scientist.agents.reflection.review_evidence import (
-    _evidence_key as _evidence_key,
-)
-from co_scientist.agents.reflection.review_evidence import (
-    _hypothesis_search_queries as _hypothesis_search_queries,
-)
-from co_scientist.agents.reflection.review_evidence import (
     _review_evidence_for,
     _ReviewEvidence,
 )
 from co_scientist.agents.reflection.review_prompt_context import (
-    _NO_EXECUTION_NOTE as _NO_EXECUTION_NOTE,
-)
-from co_scientist.agents.reflection.review_prompt_context import (
-    _build_domain_context as _build_domain_context,
-)
-from co_scientist.agents.reflection.review_prompt_context import (
     _prompt_variables as _prompt_variables,
-)
-from co_scientist.agents.reflection.review_prompt_context import (
-    _recurrent_review_suffix as _recurrent_review_suffix,
 )
 from co_scientist.agents.reflection.review_recheck import (
     RECHECK_REVIEW_TYPE,

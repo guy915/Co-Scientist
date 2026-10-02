@@ -1,6 +1,6 @@
 """Run-scoped provider-request counting and the ceiling it enforces.
 
-``co_scientist.scheduling.policy_checks._llm_call_budget_check`` only runs
+``co_scientist.scheduling.policy_budget._llm_call_budget_check`` only runs
 between the supervisor's scheduling decisions, so a task that fires
 hundreds of provider requests inside one node was never interrupted by
 it -- the observed production failure was 100-170 calls per minute inside

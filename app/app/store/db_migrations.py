@@ -1,18 +1,7 @@
-"""Idempotent in-place schema migrations for the SQLite store.
+"""Ordered, idempotent upgrades for databases created by older builds.
 
-Split out of ``app.store.db`` to keep that module within the size cap.
-Holds every ``_migrate_*`` step plus the ``_add_column_if_missing``
-primitive they share, run in order by
-``_run_migrations`` against an already-``CREATE TABLE IF NOT EXISTS``'d
-connection. Connection management, transactions, and the one-time schema
-bootstrap that calls into here stay in ``app.store.db``. The names callers
-use are re-exported from ``app.store.db``, so callers and monkeypatching tests
-(e.g. ``store_db._run_migrations``) are unaffected.
-
-Migrations are ordered and append-only: each one is safe to run against an
-already-migrated database (idempotent), and the order recorded in
-``_run_migrations`` is the history of this schema -- never reorder or
-renumber an existing step.
+Keep the migration statements in their historical order and append new
+steps at the end. Existing rows and defaults must survive repeated startup.
 """
 
 import logging
@@ -45,8 +34,9 @@ def _add_column_if_missing(
     return True
 
 
-def _migrate_client_isolation(conn: sqlite3.Connection) -> None:
-    """Add client-id ownership columns and purge pre-isolation rows."""
+def _run_migrations(conn: sqlite3.Connection) -> None:
+    """Apply the historical schema upgrades in order."""
+    # Add client-id ownership columns and purge pre-isolation rows.
     # Records ingested before client isolation stay un-owned, so they are
     # visible only to operators -- failing closed for existing rows.
     _add_column_if_missing(conn, "app_logs", "client_id", "TEXT")
@@ -66,9 +56,7 @@ def _migrate_client_isolation(conn: sqlite3.Connection) -> None:
         conn.execute("DELETE FROM runs WHERE client_id = ''")
         logger.info("migration: purged pre-client-isolation runs")
 
-
-def _migrate_run_and_report_columns(conn: sqlite3.Connection) -> None:
-    """Add run title/backend columns and the durable report-text column."""
+    # Add run title/backend columns and the durable report-text column.
     # Short model-generated session title, distinct from research_goal.
     _add_column_if_missing(conn, "runs", "title", "TEXT")
     # Freshly synthesized narrative restatement of the goal in different
@@ -91,9 +79,7 @@ def _migrate_run_and_report_columns(conn: sqlite3.Connection) -> None:
     # the production SQLite volume.
     _add_column_if_missing(conn, "reports", "markdown_text_ranking", "TEXT")
 
-
-def _migrate_interview_columns(conn: sqlite3.Connection) -> None:
-    """Add the durable goal interview's own metadata columns."""
+    # Add the durable goal interview's own metadata columns.
     _add_column_if_missing(
         conn,
         "interviews",
@@ -118,9 +104,7 @@ def _migrate_interview_columns(conn: sqlite3.Connection) -> None:
     # nothing choosable", which is what those turns did.
     _add_column_if_missing(conn, "interview_turns", "questions_json", "TEXT")
 
-
-def _migrate_execution_policy(conn: sqlite3.Connection) -> None:
-    """Default legacy runs to the ordinary execution policy."""
+    # Default legacy runs to the ordinary execution policy.
     _add_column_if_missing(
         conn,
         "runs",
@@ -128,15 +112,8 @@ def _migrate_execution_policy(conn: sqlite3.Connection) -> None:
         "TEXT NOT NULL DEFAULT 'standard'",
     )
 
-
-def _migrate_byok_model_choice_and_free_usage(
-    conn: sqlite3.Connection,
-) -> None:
-    """Add the BYOK supervisor model and the free-run ledger.
-
-    The ledger has no foreign key to ``runs`` on purpose: deleting a run
-    must not hand its free-usage slot back (see ``app.free_usage``).
-    """
+    # Add the BYOK supervisor model and the free-run ledger.
+    # No run FK: deleting a run must not refund its free-usage slot.
     _add_column_if_missing(conn, "run_credentials", "supervisor_model", "TEXT")
     conn.execute(
         "CREATE TABLE IF NOT EXISTS free_run_usage ("
@@ -148,11 +125,7 @@ def _migrate_byok_model_choice_and_free_usage(
         "ON free_run_usage(client_id, created_at)"
     )
 
-
-def _migrate_message_and_hypothesis_columns(
-    conn: sqlite3.Connection,
-) -> None:
-    """Add message, hypothesis, review, and verification-state columns."""
+    # Add message, hypothesis, review, and verification-state columns.
     # Structured metadata (e.g. Q&A cited sources) alongside message text.
     _add_column_if_missing(conn, "messages", "meta_json", "TEXT")
     # Short classification label surfaced as a breadcrumb in the viewer.
@@ -178,9 +151,7 @@ def _migrate_message_and_hypothesis_columns(
         conn, "hypothesis_state", "verification_verdict", "TEXT"
     )
 
-
-def _migrate_match_and_safety_columns(conn: sqlite3.Connection) -> None:
-    """Add claim-role, match-tier, and safety-decision columns."""
+    # Add claim-role, match-tier, and safety-decision columns.
     # Source-role metadata keeps insufficient novel proposals distinct from
     # unsupported categorical background without changing entailment labels.
     _add_column_if_missing(
@@ -213,11 +184,7 @@ def _migrate_match_and_safety_columns(conn: sqlite3.Connection) -> None:
     _add_column_if_missing(conn, "safety_decisions", "resolved_by", "TEXT")
     _add_column_if_missing(conn, "safety_decisions", "resolved_at", "REAL")
 
-
-def _migrate_proximity_and_evidence_columns(
-    conn: sqlite3.Connection,
-) -> None:
-    """Add proximity-edge timestamps and evidence-attachment metadata."""
+    # Add proximity-edge timestamps and evidence-attachment metadata.
     _add_column_if_missing(
         conn, "proximity_edges", "created_at", "REAL NOT NULL DEFAULT 0"
     )
@@ -227,75 +194,24 @@ def _migrate_proximity_and_evidence_columns(
     _add_column_if_missing(conn, "evidence", "document_version", "TEXT")
     _add_column_if_missing(conn, "evidence", "extraction_tool", "TEXT")
 
+    # Add the multi-parent lineage column to hypotheses.
+    _add_column_if_missing(conn, "hypotheses", "parent_ids", "TEXT")
 
-def _migrate_evidence_identity_columns(conn: sqlite3.Connection) -> None:
-    """Add evidence identity/passage/retrieval-time columns (G12).
-
-    ``doi``/``pmid`` are the canonical identifiers a live availability check
-    dereferences; ``passage_text`` is the exact stored text a claim-evidence
-    span's offsets index (title + abstract, materialized at insert time
-    rather than reconstructed per read); ``retrieved_at`` is when the engine
-    retrieved the article, distinct from ``created_at`` (the drain's insert
-    time, which can trail retrieval by the rest of a run's duration).
-    """
+    # Add evidence identity/passage/retrieval-time columns (G12).
     _add_column_if_missing(conn, "evidence", "doi", "TEXT")
     _add_column_if_missing(conn, "evidence", "pmid", "TEXT")
     _add_column_if_missing(conn, "evidence", "passage_text", "TEXT")
     _add_column_if_missing(conn, "evidence", "retrieved_at", "REAL")
 
-
-def _migrate_evidence_retrieval_scoring_columns(
-    conn: sqlite3.Connection,
-) -> None:
-    """Add persisted hybrid-retrieval scoring columns to evidence (G5).
-
-    ``retrieval_score`` combines the deterministic lexical heuristic with a
-    model-judged relevance pass (see ``search_support.py``'s hybrid scorer);
-    ``retrieval_rationale`` is the semantic pass's stated reason;
-    ``retriever_version`` names and versions the algorithm that produced
-    them, so a persisted score can always be traced to the method that made
-    it.
-    """
+    # Add persisted hybrid-retrieval scoring columns to evidence (G5).
     _add_column_if_missing(conn, "evidence", "retrieval_score", "REAL")
     _add_column_if_missing(conn, "evidence", "retrieval_rationale", "TEXT")
     _add_column_if_missing(conn, "evidence", "retriever_version", "TEXT")
 
-
-def _migrate_evidence_retrieval_call_id(conn: sqlite3.Connection) -> None:
-    """Add the retrieval-provenance link to evidence.
-
-    ``retrieval_call_id`` names the search that found a piece of evidence
-    (``retrieval_calls.id``), which is the one fact this store never kept:
-    a row recorded how well a source scored, never what was asked of it.
-    Nullable, and NULL is a real state rather than a gap to backfill --
-    an uploaded document and a directly fetched corpus paper have no
-    search behind them, and neither does any run written before the
-    deep-research capability existed.
-    """
+    # Add the retrieval-provenance link to evidence.
     _add_column_if_missing(conn, "evidence", "retrieval_call_id", "TEXT")
 
-
-def _migrate_hypothesis_parent_ids(conn: sqlite3.Connection) -> None:
-    """Add the multi-parent lineage column to hypotheses.
-
-    Evolution's combination operator merges several parents into one child.
-    ``parent_id`` keeps the primary parent so existing lineage consumers are
-    unaffected; this column records the full parent list as a JSON array.
-    Rows written before the column existed read back as NULL (single-parent
-    lineage), which is the only state they could represent.
-    """
-    _add_column_if_missing(conn, "hypotheses", "parent_ids", "TEXT")
-
-
-def _migrate_task_attempts_history(conn: sqlite3.Connection) -> None:
-    """Add the per-failed-attempt history column to scientific_tasks.
-
-    A volume created before this column existed has none, so
-    ``store.tasks._decode`` must never see it missing -- the default
-    backfills every pre-existing row to an empty history rather than
-    NULL, which is what "no failures recorded yet" actually means for a
-    row written before this migration ever ran.
-    """
+    # Add the per-failed-attempt history column to scientific_tasks.
     _add_column_if_missing(
         conn, "scientific_tasks", "attempts_json", "TEXT NOT NULL DEFAULT '[]'"
     )
@@ -305,147 +221,39 @@ def _migrate_task_attempts_history(conn: sqlite3.Connection) -> None:
         conn, "scientific_tasks", "attempt_started_at", "REAL"
     )
 
-
-def _migrate_drop_feedback_table(conn: sqlite3.Connection) -> None:
-    """Drop the retired pilot-feedback table.
-
-    Idempotent (``IF EXISTS``): a database built from the current schema
-    never created this table at all, and one built from an older schema
-    drops it exactly once.
-    """
+    # Drop the retired pilot-feedback table.
     conn.execute("DROP TABLE IF EXISTS feedback")
 
-
-def _migrate_hypothesis_scene_setting_columns(conn: sqlite3.Connection) -> None:
-    """Add the published proposal's scene-setting columns (MO-6).
-
-    Every published proposal opens with an Introduction and a Recent
-    findings and related research section before the mechanism; a
-    hypothesis row written before this carried neither.
-    """
+    # Add the published proposal's scene-setting columns (MO-6).
     _add_column_if_missing(conn, "hypotheses", "introduction", "TEXT")
     _add_column_if_missing(conn, "hypotheses", "recent_findings", "TEXT")
 
-
-def _migrate_hypothesis_safety_toxicity_column(
-    conn: sqlite3.Connection,
-) -> None:
-    """Add the proposer's own safety-and-toxicity column (MO-10).
-
-    The published proposal carries a pharmacological safety and toxicity
-    section, distinct from the reviewer's ``safety_ethical_concerns``
-    (dual-use/ethics). A hypothesis row written before this carried
-    neither, and this column is never read by the safety gate.
-    """
+    # Add the proposer's own safety-and-toxicity column (MO-10).
     _add_column_if_missing(conn, "hypotheses", "safety_and_toxicity", "TEXT")
 
-
-def _migrate_review_detail_column(conn: sqlite3.Connection) -> None:
-    """Add the reviews table's structured-detail column (R14-22/R14-15).
-
-    A mature review's own structured fields -- the simulation review's
-    ``failure_points``/``decisive_step``, the full/recurrent review's
-    display-only Go/No-Go framing -- used to be flattened into the
-    ``critique`` text column and nowhere else, so a reader wanting the
-    numbered list back had to re-parse prose. This column carries the
-    same content as a small bounded JSON object instead, read-only and
-    display-only: nothing in this codebase parses it to gate, rank, or
-    filter a hypothesis (see ``drain.reviews._review_detail_json``). NULL
-    for every review row with nothing structured beyond summary/critique.
-    """
+    # Add the reviews table's structured-detail column (R14-22/R14-15).
     _add_column_if_missing(conn, "reviews", "detail_json", "TEXT")
 
-
-def _migrate_evidence_retraction_column(conn: sqlite3.Connection) -> None:
-    """Add the evidence table's retraction flag, separate from ``available``.
-
-    A retracted source and a merely-unresolvable one both persisted as
-    ``available=0`` -- every gate that reads ``available`` (citation
-    classification, claim grounding) keeps treating them alike, unchanged
-    -- but a retracted citation is a different fact for a reader than an
-    unreachable one, and nowhere recorded which it was. Both retraction
-    sources (the article's own metadata and the live resolver's
-    ``retraction_set`` check) land here (see
-    ``engine_adapter.drain.evidence_resolution._resolved_article``). NULL
-    for every row persisted before this column existed -- the same as an
-    un-flagged row, since an old run has no way to know, so it renders
-    exactly as it did before this column existed.
-    """
+    # Add the evidence table's retraction flag, separate from ``available``.
     _add_column_if_missing(conn, "evidence", "retracted", "INTEGER")
 
-
-def _migrate_evidence_source_type_column(conn: sqlite3.Connection) -> None:
-    """Add the evidence table's source-type classification.
-
-    A preprint and a peer-reviewed paper resolve identically and were
-    persisted identically, so a reader could not tell one from the other.
-    Classified at drain time rather than at render time because the
-    strongest signal -- the engine ``Article``'s publisher-declared
-    ``publication_type`` -- is not itself persisted (see
-    ``engine_adapter.drain.evidence_resolution``). NULL for every row
-    persisted before this column existed, and for evidence that arrived by
-    another path; readers classify such a row from what it does carry
-    rather than showing a gap.
-    """
+    # Add the evidence table's source-type classification.
     _add_column_if_missing(conn, "evidence", "source_type", "TEXT")
 
-
-def _migrate_task_available_at(conn: sqlite3.Connection) -> None:
-    """Add the not-before scheduling column to scientific_tasks.
-
-    NULL leaves every pre-existing row claimable as soon as it is queued,
-    exactly as it always was; only a platform rate-limit park (see
-    ``store.tasks_lifecycle.park_task_for_rate_limit``) ever sets it.
-    """
+    # Add the not-before scheduling column to scientific_tasks.
     _add_column_if_missing(conn, "scientific_tasks", "available_at", "REAL")
 
-
-def _migrate_match_debate_transcript(conn: sqlite3.Connection) -> None:
-    """Add the matches table's turn-by-turn debate transcript column.
-
-    The tournament judge runs a multi-turn scientific debate and returns
-    every turn, but only the closing rationale was ever persisted, so the
-    exchange the verdict rests on was generated, paid for, and dropped at
-    this boundary. This column carries it as a small bounded JSON document
-    -- ``{"verdict", "turns": [{"turn", "favored", "text"}]}``, built by
-    ``engine_adapter.drain.matches`` -- read-only and display-only:
-    nothing parses it to rank, gate, or score anything. NULL for every
-    match judged before it existed, which renders exactly as those matches
-    render today (no debate section at all).
-    """
+    # Add the matches table's turn-by-turn debate transcript column.
     _add_column_if_missing(conn, "matches", "debate_transcript", "TEXT")
 
-
-def _migrate_message_applied_columns(conn: sqlite3.Connection) -> None:
-    """Add the steering-acknowledgement timestamp and decision columns.
-
-    Both are set together, once, by ``store.mark_steering_applied`` --
-    when a steering message was acknowledged and the orchestrator decision
-    it fed (HITL-STEERING-001's "shows when it was applied and how it
-    changed the plan"). NULL on every row applied before this migration.
-    """
+    # Add the steering-acknowledgement timestamp and decision columns.
     _add_column_if_missing(conn, "messages", "applied_at", "REAL")
     _add_column_if_missing(conn, "messages", "applied_decision", "TEXT")
 
-
-def _migrate_hypothesis_creation_iteration(conn: sqlite3.Connection) -> None:
-    """Add the authoring-cycle ordinal to hypotheses (EVAL-SCALING-001).
-
-    The engine already stamps ``creation_iteration`` on every hypothesis (0
-    for the initial generation, N for a research-expansion or evolution cycle
-    N), but the store never persisted it, so the temporal-scaling eval could
-    only order a run's hypotheses by ``generation`` (lineage depth) -- which
-    mis-orders a hypothesis re-generated in a later cycle ahead of an earlier
-    cycle's evolved descendant. The drain's ``created_at`` cannot substitute:
-    it is stamped at finalize for every row at once, so it carries no
-    authoring-timeline signal. Nullable: legacy rows and any hypothesis whose
-    engine payload omits the field stay NULL and fall back to ``generation``.
-    """
+    # Add the authoring-cycle ordinal to hypotheses (EVAL-SCALING-001).
     _add_column_if_missing(conn, "hypotheses", "creation_iteration", "INTEGER")
 
-
-def _migrate_claim_verification_method(conn: sqlite3.Connection) -> None:
-    """Keep pre-existing assessments explicit about missing provenance."""
+    # Keep pre-existing assessments explicit about missing provenance.
     _add_column_if_missing(
         conn,
         "claim_evidence",
@@ -453,41 +261,10 @@ def _migrate_claim_verification_method(conn: sqlite3.Connection) -> None:
         "TEXT NOT NULL DEFAULT 'legacy_unknown'",
     )
 
-
-def _migrate_outcome_refinement_child(conn: sqlite3.Connection) -> None:
-    """Keep the action's child lineage on databases created during 01b."""
+    # Keep the action's child lineage on databases created during 01b.
     _add_column_if_missing(
         conn,
         "outcome_refinement_actions",
         "child_hypothesis_id",
         "TEXT",
     )
-
-
-def _run_migrations(conn: sqlite3.Connection) -> None:
-    """Apply idempotent in-place schema migrations to an open connection."""
-    _migrate_client_isolation(conn)
-    _migrate_run_and_report_columns(conn)
-    _migrate_interview_columns(conn)
-    _migrate_execution_policy(conn)
-    _migrate_byok_model_choice_and_free_usage(conn)
-    _migrate_message_and_hypothesis_columns(conn)
-    _migrate_match_and_safety_columns(conn)
-    _migrate_proximity_and_evidence_columns(conn)
-    _migrate_hypothesis_parent_ids(conn)
-    _migrate_evidence_identity_columns(conn)
-    _migrate_evidence_retrieval_scoring_columns(conn)
-    _migrate_evidence_retrieval_call_id(conn)
-    _migrate_task_attempts_history(conn)
-    _migrate_drop_feedback_table(conn)
-    _migrate_hypothesis_scene_setting_columns(conn)
-    _migrate_hypothesis_safety_toxicity_column(conn)
-    _migrate_review_detail_column(conn)
-    _migrate_evidence_retraction_column(conn)
-    _migrate_evidence_source_type_column(conn)
-    _migrate_task_available_at(conn)
-    _migrate_match_debate_transcript(conn)
-    _migrate_message_applied_columns(conn)
-    _migrate_hypothesis_creation_iteration(conn)
-    _migrate_claim_verification_method(conn)
-    _migrate_outcome_refinement_child(conn)

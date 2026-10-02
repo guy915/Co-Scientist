@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from app import engine_tasks, store, task_worker
+from app.engine_tasks import inputs as engine_tasks_inputs
 from tests._client import make_client
 from tests._engine_tasks_helpers import _install_runtime
 
@@ -68,21 +69,25 @@ async def test_cancel_after_bootstrap_read_cannot_be_overwritten(
         return None
 
     monkeypatch.setattr(
-        engine_tasks, "_screen_bootstrap_intake", no_intake_work
+        engine_tasks_inputs, "_screen_bootstrap_intake", no_intake_work
     )
     monkeypatch.setattr(
-        engine_tasks, "_prepare_bootstrap_state", prepare_without_providers
+        engine_tasks_inputs,
+        "_prepare_bootstrap_state",
+        prepare_without_providers,
     )
     monkeypatch.setattr(
-        engine_tasks, "_save_state_and_enqueue", lambda *_: (1, "successor")
+        engine_tasks_inputs,
+        "_save_state_and_enqueue",
+        lambda *_: (1, "successor"),
     )
     monkeypatch.setattr(
-        engine_tasks,
+        engine_tasks_inputs,
         "make_emitter",
         lambda *_args, **_kwargs: emit_without_persisting,
     )
     monkeypatch.setattr(
-        engine_tasks, "sync_engine_llm_backend", lambda *_: None
+        engine_tasks_inputs, "sync_engine_llm_backend", lambda *_: None
     )
 
     result = await engine_tasks.execute_bootstrap(task, db_path=isolated_db)
@@ -273,11 +278,15 @@ async def test_replaced_bootstrap_lease_cannot_prepare_paused_run(
         return {}, object()
 
     monkeypatch.setattr(
-        engine_tasks, "_screen_bootstrap_intake", no_intake_work
+        engine_tasks_inputs, "_screen_bootstrap_intake", no_intake_work
     )
-    monkeypatch.setattr(engine_tasks, "_prepare_bootstrap_state", fake_prepare)
     monkeypatch.setattr(
-        engine_tasks, "sync_engine_llm_backend", lambda *_: synced.append(True)
+        engine_tasks_inputs, "_prepare_bootstrap_state", fake_prepare
+    )
+    monkeypatch.setattr(
+        engine_tasks_inputs,
+        "sync_engine_llm_backend",
+        lambda *_: synced.append(True),
     )
 
     with pytest.raises(task_worker._LeaseLostError):

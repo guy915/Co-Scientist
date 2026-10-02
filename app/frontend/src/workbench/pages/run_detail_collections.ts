@@ -1,18 +1,142 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
-import type {
-  ClaimEvidenceRow,
-  Evidence,
-  Hypothesis,
-  MatchRow,
-  Report,
-  Review,
-  RunWithSummary,
-  SafetyDecision,
+import {
+  getClaimEvidence,
+  getEvidence,
+  getHypotheses,
+  getMatches,
+  getReport,
+  getReviews,
+  getRun,
+  getSafety,
+  type ClaimEvidenceRow,
+  type Evidence,
+  type Hypothesis,
+  type MatchRow,
+  type Report,
+  type Review,
+  type RunWithSummary,
+  type SafetyDecision,
 } from '@/api/runs';
+import type {StreamEvent} from '@/hooks/use_run_stream';
 import {useDebouncedCallback} from '@/workbench/hooks/use_debounced_callback';
 import {useRunOutcomeCollection} from './run_detail_outcomes_data';
-import {shouldRefreshOutcomes, type RunDataKey} from './run_detail_resources';
-import {fetchRunOutcome, type RunSnapshot} from './run_detail_snapshot';
+
+export type RunDataKey =
+  | 'hypotheses'
+  | 'evidence'
+  | 'matches'
+  | 'reviews'
+  | 'claimEvidence'
+  | 'outcomes'
+  | 'safety'
+  | 'report';
+
+// Which fetched collections each canonical event type can change mid-run.
+// Event types not listed (supervisor.plan, research_overview, safety.*, ...)
+// only affect the run row itself, which every refresh re-reads; the terminal
+// full refresh is the safety net for anything persisted only at finalize.
+const EVENT_DATA_KEYS: Record<string, readonly RunDataKey[]> = {
+  literature_review: ['evidence'],
+  generate: ['hypotheses'],
+  reflection: ['reviews'],
+  review: ['reviews'],
+  meta_review: ['reviews'],
+  deep_verification: ['reviews'],
+  'citation.grounding': ['claimEvidence'],
+  'safety.intake': ['safety'],
+  'safety.final': ['safety'],
+  'scientist.hypothesis': ['hypotheses', 'safety'],
+  'scientist.review': ['reviews'],
+  'scientist.outcome': ['outcomes'],
+  proximity: ['hypotheses'],
+  ranking: ['hypotheses', 'matches'],
+  evolve: ['hypotheses', 'claimEvidence'],
+  report: ['report'],
+};
+
+// Collects the RunDataKey set a batch of newly-arrived events touches
+// (multiple event types can map to the same key; see EVENT_DATA_KEYS).
+export function dataKeysFromEvents(
+  events: readonly StreamEvent[],
+): Set<RunDataKey> {
+  const keys = new Set<RunDataKey>();
+  for (const event of events) {
+    for (const key of EVENT_DATA_KEYS[event.type] ?? []) keys.add(key);
+  }
+  return keys;
+}
+
+export function hasSupervisorPlanEvent(
+  events: readonly StreamEvent[],
+): boolean {
+  return events.some(
+    event =>
+      event.type === 'scientific_task' && event.payload.task === 'orchestrator',
+  );
+}
+
+function shouldRefreshOutcomes(keys?: ReadonlySet<RunDataKey>): boolean {
+  return keys === undefined || keys.has('outcomes');
+}
+
+// Fetches the run row plus whichever collections `keys` selects (every
+// collection when `keys` is omitted), in parallel.
+async function fetchRunData(id: string, keys?: ReadonlySet<RunDataKey>) {
+  const fetchIfWanted = <T>(
+    key: RunDataKey,
+    fetcher: (id: string) => Promise<T>,
+  ): Promise<T> | undefined =>
+    !keys || keys.has(key) ? fetcher(id) : undefined;
+  // Older compatible backends may not expose the safety-audit endpoint yet;
+  // the rest of a Goal Report must remain readable during rolling upgrades.
+  const getSafetyCompatible = (runId: string) =>
+    getSafety(runId).catch((): SafetyDecision[] => []);
+  const [
+    run,
+    hypotheses,
+    evidence,
+    matches,
+    reviews,
+    claimEvidence,
+    safety,
+    report,
+  ] = await Promise.all([
+    getRun(id),
+    fetchIfWanted('hypotheses', getHypotheses),
+    fetchIfWanted('evidence', getEvidence),
+    fetchIfWanted('matches', getMatches),
+    fetchIfWanted('reviews', getReviews),
+    fetchIfWanted('claimEvidence', getClaimEvidence),
+    fetchIfWanted('safety', getSafetyCompatible),
+    fetchIfWanted('report', getReport),
+  ]);
+  return {
+    run,
+    hypotheses,
+    evidence,
+    matches,
+    reviews,
+    claimEvidence,
+    safety,
+    report,
+  };
+}
+
+// Fetches a run's data, reporting a failure as a message rather than
+// throwing, so the caller can decide whether the response is still wanted
+// before it touches any state.
+async function fetchRunOutcome(id: string, keys?: ReadonlySet<RunDataKey>) {
+  try {
+    return {data: await fetchRunData(id, keys), error: null};
+  } catch (err) {
+    return {
+      data: null,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+type RunSnapshot = Awaited<ReturnType<typeof fetchRunData>>;
 
 type SnapshotResource = keyof RunSnapshot;
 
@@ -44,17 +168,6 @@ function isShownRun(
   shownId: string | undefined,
 ): id is string {
   return id !== undefined && shownId === id;
-}
-
-// Calls `setState` only when `value` was actually fetched (a selective
-// refresh leaves the collections it did not request `undefined`).
-function applyIfCurrent<T>(
-  key: SnapshotResource,
-  value: T | undefined,
-  setState: (value: T) => void,
-  owns: (key: SnapshotResource) => boolean,
-) {
-  if (value !== undefined && owns(key)) setState(value);
 }
 
 // Debounced, key-accumulating scheduler around `refresh`: the SSE stream
@@ -96,66 +209,46 @@ function useDebouncedKeyedRefresh(
   return {scheduleRefresh, cancelPending, resetPending};
 }
 
-// The fetched run row and its collections, plus the applier refresh() uses
-// to update only resources still owned by that request.
-function useRunCollections() {
-  const [run, setRun] = useState<RunWithSummary | null>(null);
-  const [hypotheses, setHypotheses] = useState<Hypothesis[]>([]);
-  const [evidence, setEvidence] = useState<Evidence[]>([]);
-  const [matches, setMatches] = useState<MatchRow[]>([]);
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [claimEvidence, setClaimEvidence] = useState<ClaimEvidenceRow[]>([]);
-  const [safety, setSafety] = useState<SafetyDecision[]>([]);
-  const [report, setReport] = useState<Report | null>(null);
+interface CollectionsState {
+  run: RunWithSummary | null;
+  hypotheses: Hypothesis[];
+  evidence: Evidence[];
+  matches: MatchRow[];
+  reviews: Review[];
+  claimEvidence: ClaimEvidenceRow[];
+  safety: SafetyDecision[];
+  report: Report | null;
+}
 
+const EMPTY_COLLECTIONS: CollectionsState = {
+  run: null,
+  hypotheses: [],
+  evidence: [],
+  matches: [],
+  reviews: [],
+  claimEvidence: [],
+  safety: [],
+  report: null,
+};
+
+function useRunCollections() {
+  const [collections, setCollections] = useState(EMPTY_COLLECTIONS);
   const applyFetched = useCallback(
     (data: RunSnapshot | null, owns: (key: SnapshotResource) => boolean) => {
       if (!data) return;
-      applyIfCurrent('run', data.run, setRun, owns);
-      applyIfCurrent('hypotheses', data.hypotheses, setHypotheses, owns);
-      applyIfCurrent('evidence', data.evidence, setEvidence, owns);
-      applyIfCurrent('matches', data.matches, setMatches, owns);
-      applyIfCurrent('reviews', data.reviews, setReviews, owns);
-      applyIfCurrent(
-        'claimEvidence',
-        data.claimEvidence,
-        setClaimEvidence,
-        owns,
+      // Disjoint requests may both land; each key belongs to its latest read.
+      const updates = Object.fromEntries(
+        Object.entries(data).filter(
+          ([key, value]) =>
+            value !== undefined && owns(key as SnapshotResource),
+        ),
       );
-      applyIfCurrent('safety', data.safety, setSafety, owns);
-      applyIfCurrent('report', data.report, setReport, owns);
+      setCollections(current => ({...current, ...updates}));
     },
     [],
   );
-
-  // Clears every collection back to its empty value. The run-detail route
-  // element is mounted once for /runs/:id/:tab, so an id change is a new run
-  // in the same component instance: without this, the previous run's
-  // hypotheses, report and status keep rendering as if they were this run's
-  // until the new fetch lands.
-  const reset = useCallback(() => {
-    setRun(null);
-    setHypotheses([]);
-    setEvidence([]);
-    setMatches([]);
-    setReviews([]);
-    setClaimEvidence([]);
-    setSafety([]);
-    setReport(null);
-  }, []);
-
-  return {
-    run,
-    hypotheses,
-    evidence,
-    matches,
-    reviews,
-    claimEvidence,
-    safety,
-    report,
-    applyFetched,
-    reset,
-  };
+  const reset = useCallback(() => setCollections(EMPTY_COLLECTIONS), []);
+  return {...collections, applyFetched, reset};
 }
 
 /** Owns selective refreshes, collection state and the run-detail load lifecycle. */

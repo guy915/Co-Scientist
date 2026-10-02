@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from co_scientist.agents.evolution import evolve
+from co_scientist.agents.evolution import EvolutionContext, evolve
 from co_scientist.agents.evolution.evolution_operators import (
     EvolutionOperator,
     operator_instruction,
@@ -14,7 +14,6 @@ from co_scientist.agents.evolution.evolution_operators import (
 from co_scientist.agents.evolution.evolve import evolve_single_hypothesis
 from co_scientist.agents.evolution.evolve_prompt import (
     _build_evolution_prompt,
-    _EvolutionContext,
     _EvolutionOperation,
 )
 from tests._state import make_hypothesis, make_state
@@ -68,7 +67,7 @@ def _operator_prompt(operator: EvolutionOperator) -> str:
     prompt, _ = _build_evolution_prompt(
         hypothesis=make_hypothesis("Parent mechanism."),
         other_hypotheses_texts=["Complementary peer mechanism."],
-        context=_EvolutionContext(
+        context=EvolutionContext(
             model_name="fake/model", meta_review={}, removed_duplicates=[]
         ),
         operation=_EvolutionOperation(
@@ -178,7 +177,7 @@ def test_prompt_requires_assigned_operator() -> None:
     prompt, _ = _build_evolution_prompt(
         hypothesis=make_hypothesis("Parent mechanism."),
         other_hypotheses_texts=["Complementary peer mechanism."],
-        context=_EvolutionContext(
+        context=EvolutionContext(
             model_name="fake/model", meta_review={}, removed_duplicates=[]
         ),
         operation=_EvolutionOperation(operator=EvolutionOperator.COMBINATION),
@@ -199,7 +198,7 @@ def test_prompt_carries_the_anti_aggregation_guard_for_combination() -> None:
     prompt, _ = _build_evolution_prompt(
         hypothesis=make_hypothesis("Parent mechanism."),
         other_hypotheses_texts=["Complementary peer mechanism."],
-        context=_EvolutionContext(
+        context=EvolutionContext(
             model_name="fake/model", meta_review={}, removed_duplicates=[]
         ),
         operation=_EvolutionOperation(operator=EvolutionOperator.COMBINATION),
@@ -297,7 +296,7 @@ async def test_out_of_box_task_draws_partners_from_the_ranked_pool(
     parent = make_hypothesis("Parent mechanism.", elo_rating=1500)
     peer = make_hypothesis("Strongest peer approach.", elo_rating=1400)
     state = make_state(hypotheses=[parent, peer])
-    context = _EvolutionContext(
+    context = EvolutionContext(
         model_name="fake/model",
         meta_review={},
         removed_duplicates=[],
@@ -335,7 +334,7 @@ async def test_every_operator_executes_as_a_distinct_evolution_task(
     child, detail = await evolve_single_hypothesis(
         parent,
         other_hypotheses=[],
-        context=_EvolutionContext(
+        context=EvolutionContext(
             model_name="fake/model",
             meta_review={},
             removed_duplicates=[],

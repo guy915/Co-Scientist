@@ -1,14 +1,8 @@
 """The budget-adjacent checks: hard ceilings and the owed-review override.
 
-Split from ``policy_checks`` on that module's size cap, and split
-together because they are one subject: the ordered hard-ceiling
-predicates (``_budget_termination``) and the check immediately above them
-in ``policy._ordered_checks`` that can override one of those ceilings for
-a single bounded pass (``_check_owed_review``). ``policy_checks``
-re-exports every name here, so the policy's own imports and every
-existing caller (including the docstring cross-references elsewhere in
-this codebase that name ``policy_checks._llm_call_budget_check`` and
-``policy_checks._max_ideas_check``) are unchanged.
+The ordered hard-ceiling predicates are preceded by the owed-review check,
+which can permit one bounded settlement pass. The policy imports both
+operations directly from this module.
 """
 
 from __future__ import annotations

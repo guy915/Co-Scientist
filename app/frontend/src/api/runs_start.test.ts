@@ -3,7 +3,7 @@
 // SSE test harness in runs_qa.test.ts.
 
 import {beforeEach, afterEach, expect, it, vi} from 'vitest';
-import {announceRunStart} from './runs_start';
+import {announceRunStart} from './runs';
 
 /** A controllable SSE body: tests push frames and the reader consumes them. */
 class FakeSseBody {

@@ -356,7 +356,7 @@ The **MD3 data surfaces** follow an **8px base grid**. All spacing values on tho
 - **Home stage:** a single centered column (greeting ≤ `34.375rem` wide) laid out as a grid whose **empty spacer rows are the shrinkable tracks** — under vertical pressure the gaps compress instead of the composer or stepper colliding. Vertical rhythm uses `clamp()` values so the stage breathes with the viewport. Preserve this spacer-track scheme when editing the home grid; fixed margins reintroduce overlap.
 - **Chat column:** user bubbles cap near `31rem`; model turns run the full column width.
 
-**Reference-matched surfaces do not use the 8px grid.** The Gemini shell, home, and chat/setup surfaces (`chat_setup_classes.ts`, `chat_home_classes.ts` in `src/workbench/pages/`, and the `reference-*` / `ucs-*` CSS) reproduce the Gemini product's own measurements, which are **literal rem/px values copied from the reference** — `[0.92rem]`, `[1.18rem]`, `[1.45rem]`, `[2.6rem]` button heights, `1.625rem` header padding, and so on. These are deliberate, not drift: snapping them to the 8px grid would break the pixel-match with Gemini. This is the same reference-vs-system split as border-radius (see Shapes) and the recents-card shadow (see Elevation & Depth). Rule of thumb: **an MD3 data surface uses grid multiples; a `reference-*` / setup / home surface uses the reference's literal value.** When adding to a reference surface, copy the reference's measurement rather than rounding it to the grid; when building a new MD3 data surface, stay on the grid.
+**Reference-matched surfaces do not use the 8px grid.** The Gemini shell, home, and chat/setup surfaces (the chat/home components and shared `chat_classes.ts` recipes in `src/workbench/pages/`, and the `reference-*` / `ucs-*` CSS) reproduce the Gemini product's own measurements, which are **literal rem/px values copied from the reference** — `[0.92rem]`, `[1.18rem]`, `[1.45rem]`, `[2.6rem]` button heights, `1.625rem` header padding, and so on. These are deliberate, not drift: snapping them to the 8px grid would break the pixel-match with Gemini. This is the same reference-vs-system split as border-radius (see Shapes) and the recents-card shadow (see Elevation & Depth). Rule of thumb: **an MD3 data surface uses grid multiples; a `reference-*` / setup / home surface uses the reference's literal value.** When adding to a reference surface, copy the reference's measurement rather than rounding it to the grid; when building a new MD3 data surface, stay on the grid.
 
 There is **no global margin reset**. The markdown-rendered Goal Report depends on default element margins for paragraph rhythm; a `* { margin: 0 }` preflight collapses it (16px → 0 between paragraphs). Zero out margins per-component where needed.
 
@@ -450,7 +450,7 @@ The research-goal composer (`.reference-composer`) is a growing textarea inside 
 
 ### Chat & setup surface
 
-The session chat column (`chat_setup_classes.ts` / `chat_home_classes.ts`, under `src/workbench/pages/`) is a Gemini-style conversation:
+The session chat column (the chat timeline components and `chat_classes.ts`, under `src/workbench/pages/`) is a Gemini-style conversation:
 
 - **User bubbles** — asymmetric 26px/4px corners (see Shapes), `--cosci-user-bubble-bg` (soft blue-gray light / neutral dark), max-width ~31rem, right-aligned. **Model turns are bubble-less** — plain text on the workspace background at full column width.
 - **Message actions** (Copy/Edit prompt) — icon buttons revealed on hover/focus of the turn, neutral-gray hover, no outline ring.

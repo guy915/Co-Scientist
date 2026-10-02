@@ -20,9 +20,6 @@ from co_scientist.agents.generation.citations import (
     hypothesis_from_llm_output,
 )
 from co_scientist.agents.generation.debate_support import (
-    _DEBATE_DIVERSITY_ANGLES as _DEBATE_DIVERSITY_ANGLES,
-)
-from co_scientist.agents.generation.debate_support import (
     DebateBatchPosition as DebateBatchPosition,
 )
 from co_scientist.agents.generation.debate_support import (

@@ -124,40 +124,6 @@ _HYPOTHESIS_STATE_INSERT = (
 )
 
 
-def _insert_hypothesis_rows(
-    conn: sqlite3.Connection, hyp_id: str, f: NewHypothesis, now: float
-) -> None:
-    """Insert the hypothesis row and its initial mutable-state row.
-
-    Both statements tolerate a row that already exists; see
-    ``_HYPOTHESIS_UPSERT`` for which columns a re-persist may fill.
-    """
-    conn.execute(
-        _HYPOTHESIS_UPSERT,
-        (
-            hyp_id,
-            f.run_id,
-            f.parent_id,
-            _parent_ids_json(f.parent_ids),
-            f.generation,
-            f.creation_iteration,
-            f.category,
-            f.title,
-            f.statement,
-            f.mechanism,
-            f.expected_effect,
-            f.experimental_context,
-            f.introduction,
-            f.recent_findings,
-            f.safety_and_toxicity,
-            f.created_by_agent,
-            f.author,
-            now,
-        ),
-    )
-    conn.execute(_HYPOTHESIS_STATE_INSERT, (hyp_id, INITIAL_ELO, now))
-
-
 def add_hypothesis(
     hypothesis: NewHypothesis,
     *,
@@ -177,7 +143,31 @@ def add_hypothesis(
     """
     hyp_id = hypothesis.hypothesis_id or str(uuid.uuid4())
     with _use_conn(conn, db_path) as conn:
-        _insert_hypothesis_rows(conn, hyp_id, hypothesis, _now())
+        now = _now()
+        conn.execute(
+            _HYPOTHESIS_UPSERT,
+            (
+                hyp_id,
+                hypothesis.run_id,
+                hypothesis.parent_id,
+                _parent_ids_json(hypothesis.parent_ids),
+                hypothesis.generation,
+                hypothesis.creation_iteration,
+                hypothesis.category,
+                hypothesis.title,
+                hypothesis.statement,
+                hypothesis.mechanism,
+                hypothesis.expected_effect,
+                hypothesis.experimental_context,
+                hypothesis.introduction,
+                hypothesis.recent_findings,
+                hypothesis.safety_and_toxicity,
+                hypothesis.created_by_agent,
+                hypothesis.author,
+                now,
+            ),
+        )
+        conn.execute(_HYPOTHESIS_STATE_INSERT, (hyp_id, INITIAL_ELO, now))
     return hyp_id
 
 
@@ -235,28 +225,6 @@ def _hypothesis_state_updates(
     ]
 
 
-def _persist_hypothesis_state_update(
-    conn: sqlite3.Connection,
-    hypothesis_id: str,
-    updates: list[tuple[str, Any]],
-) -> None:
-    """Apply a dynamic SET-clause update to hypothesis_state.
-
-    Builds the SET clause from trusted literal fragments only; user data
-    flows exclusively through the bound `params`.
-    """
-    sets = [fragment for fragment, _ in updates] + ["updated_at=?"]
-    params: list[Any] = [value for _, value in updates] + [
-        _now(),
-        hypothesis_id,
-    ]
-    set_clause = ", ".join(sets)
-    conn.execute(
-        f"UPDATE hypothesis_state SET {set_clause} WHERE hypothesis_id=?",
-        params,
-    )
-
-
 def update_hypothesis_state(
     hypothesis_id: str,
     changes: HypothesisStateChanges,
@@ -276,7 +244,16 @@ def update_hypothesis_state(
     """
     updates = _hypothesis_state_updates(changes)
     with _use_conn(conn, db_path) as conn:
-        _persist_hypothesis_state_update(conn, hypothesis_id, updates)
+        sets = [fragment for fragment, _ in updates] + ["updated_at=?"]
+        params: list[Any] = [value for _, value in updates] + [
+            _now(),
+            hypothesis_id,
+        ]
+        set_clause = ", ".join(sets)
+        conn.execute(
+            f"UPDATE hypothesis_state SET {set_clause} WHERE hypothesis_id=?",
+            params,
+        )
 
 
 # Text columns the safety review may redact in place. The hypotheses table is

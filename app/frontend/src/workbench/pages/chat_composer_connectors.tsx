@@ -10,20 +10,7 @@ import {Icon, type IconName} from '@/components/icon';
 import {joinClasses} from '../classes';
 import {useSystemStatus} from '../hooks/system_status_context';
 import {tooltipClassNames} from '../tooltip';
-import {
-  COMPOSER_FILE_INPUT_CLASSES,
-  COMPOSER_SOURCE_BUTTON_CLASSES,
-  COMPOSER_SOURCE_CONTROLS_CLASSES,
-  COMPOSER_SOURCE_ICON_CLASSES,
-  CONNECTOR_ICON_CLASSES,
-  CONNECTOR_TOGGLE_BASE_CLASSES,
-  CONNECTOR_TOGGLE_OFF_CLASSES,
-  CONNECTOR_TOGGLE_ON_CLASSES,
-  CONNECTORS_MENU_CLASSES,
-  CONNECTORS_MENU_HEADER_CLASSES,
-  CONNECTORS_MENU_NOTE_CLASSES,
-  CONNECTORS_MENU_ROW_CLASSES,
-} from './chat_home_classes';
+import {COMPOSER_SOURCE_ICON_CLASSES} from './chat_classes';
 
 // Shown until /status responds (and if it reports none), so the menu is never
 // empty. Only PubMed belongs here: it is the always-present literature base,
@@ -38,7 +25,7 @@ const WEB_SEARCH_CONNECTOR_ID = 'web_search';
 
 /**
  * The PubMed/web-search connector toggle values plus their change callbacks,
- * bundled so SourceControls/ConnectorsMenu/ComposerFooter can each take a
+ * bundled so SourceControls/ConnectorsMenu can each take a
  * single argument instead of four.
  */
 export interface ConnectorToggleProps {
@@ -86,10 +73,6 @@ interface SourceControlsProps {
   fileInputRef: RefObject<HTMLInputElement | null>;
   onFilesChanged: (e: ChangeEvent<HTMLInputElement>) => void;
   connectors: ConnectorToggleProps;
-  // Locks both trigger buttons while the parent composer is disabled (a
-  // started session), so nothing can be attached or toggled into a chat that
-  // no longer posts turns.
-  disabled?: boolean;
 }
 
 /**
@@ -105,13 +88,15 @@ export function SourceControls(props: SourceControlsProps) {
     fileInputRef,
     onFilesChanged,
     connectors,
-    disabled = false,
   } = props;
   return (
-    <div className={COMPOSER_SOURCE_CONTROLS_CLASSES} ref={sourceControlsRef}>
+    <div
+      className="reference-composer-source-controls pointer-events-auto relative flex min-w-[4.6rem] items-center gap-[0.45rem]"
+      ref={sourceControlsRef}
+    >
       <input
         ref={fileInputRef}
-        className={COMPOSER_FILE_INPUT_CLASSES}
+        className="reference-file-input absolute size-px overflow-hidden whitespace-nowrap [clip-path:inset(50%)] [clip:rect(0_0_0_0)]"
         type="file"
         multiple
         aria-label="Upload files"
@@ -121,14 +106,12 @@ export function SourceControls(props: SourceControlsProps) {
       <SourceToolbarButton
         label="Files"
         icon="add"
-        disabled={disabled}
         onClick={() => fileInputRef.current?.click()}
       />
       <SourceToolbarButton
         label="Connectors"
         icon="database"
         expanded={connectorsOpen}
-        disabled={disabled}
         onClick={onToggleConnectors}
       />
       {connectorsOpen ? <ConnectorsMenu connectors={connectors} /> : null}
@@ -144,26 +127,24 @@ function SourceToolbarButton({
   label,
   icon,
   expanded,
-  disabled,
   onClick,
 }: {
   label: string;
   icon: IconName;
   expanded?: boolean;
-  disabled?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       className={tooltipClassNames({
-        className: COMPOSER_SOURCE_BUTTON_CLASSES,
+        className:
+          'pointer-events-auto inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 transition-colors enabled:hover:bg-cosci-icon-button-hover-bg enabled:focus-visible:bg-cosci-icon-button-hover-bg focus-visible:outline-none reference-composer-source-button size-8 text-cosci-source-button enabled:hover:text-cosci-source-button-hover enabled:focus-visible:text-cosci-source-button-hover aria-expanded:bg-cosci-icon-button-hover-bg aria-expanded:text-cosci-source-button-hover',
         placement: 'top',
       })}
       aria-label={label}
       aria-expanded={expanded}
       data-tooltip={label}
-      disabled={disabled}
       onClick={onClick}
     >
       <Icon
@@ -254,19 +235,21 @@ function ConnectorMenuRow({
       type="button"
       role="menuitemcheckbox"
       aria-checked={checked}
-      className={CONNECTORS_MENU_ROW_CLASSES}
+      className="reference-connectors-menu-row md-state grid min-h-[2.6rem] w-full cursor-pointer grid-cols-[1.35rem_1fr_auto] items-center gap-3 border-0 bg-transparent px-[0.9rem] py-[0.45rem] text-left font-[inherit] text-[0.9rem] text-inherit focus-visible:outline-none"
       onClick={toggle}
     >
       <Icon
-        className={CONNECTOR_ICON_CLASSES}
+        className="reference-connector-icon text-[1.15rem] text-cosci-menu-icon"
         aria-hidden="true"
         name={iconName}
       />
       <span>{connector.display}</span>
       <span
         className={joinClasses(
-          CONNECTOR_TOGGLE_BASE_CLASSES,
-          checked ? CONNECTOR_TOGGLE_ON_CLASSES : CONNECTOR_TOGGLE_OFF_CLASSES,
+          'reference-toggle relative h-[0.95rem] w-[1.6rem] rounded-full after:absolute after:top-[0.15rem] after:size-[0.65rem] after:rounded-full after:[content:""]',
+          checked
+            ? 'bg-cosci-toggle-on-track after:right-[0.18rem] after:bg-cosci-toggle-on-knob'
+            : 'bg-cosci-toggle-off-track after:left-[0.18rem] after:bg-cosci-toggle-off-knob',
         )}
         aria-hidden="true"
       />
@@ -278,7 +261,10 @@ function ConnectorMenuRow({
 // must not read as one.
 function ConnectorsNote({text}: {text: string}) {
   return (
-    <p className={CONNECTORS_MENU_NOTE_CLASSES} role="note">
+    <p
+      className="reference-connectors-menu-row m-0 grid min-h-[2.6rem] w-full items-center px-[0.9rem] py-[0.45rem] text-[0.9rem] text-cosci-muted"
+      role="note"
+    >
       {text}
     </p>
   );
@@ -327,11 +313,11 @@ function ConnectorsMenu({
   const connectors = visibleConnectors(status);
   return (
     <div
-      className={CONNECTORS_MENU_CLASSES}
+      className="reference-connectors-menu pointer-events-auto absolute bottom-[2.45rem] left-[2.35rem] z-10 w-56 overflow-hidden rounded-[0.9rem] border border-cosci-menu-border bg-cosci-menu-bg py-[0.45rem] text-cosci-menu-text"
       role="menu"
       aria-label="Connectors"
     >
-      <div className={CONNECTORS_MENU_HEADER_CLASSES}>
+      <div className="reference-connectors-menu-row reference-connectors-menu-row--top grid min-h-[2.6rem] w-full grid-cols-[1fr] items-center border-0 border-b border-cosci-menu-divider bg-transparent px-[0.9rem] py-[0.45rem] font-medium text-inherit">
         <span>Connectors</span>
       </div>
       <ConnectorsMenuState

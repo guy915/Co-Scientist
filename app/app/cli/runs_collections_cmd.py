@@ -2,12 +2,12 @@
 
 Split out of ``app.cli.runs_cmd``, which re-exports the names callers use so
 ``runs_cmd.COLLECTION_COMMANDS`` and the handlers the CLI test suite calls
-keep resolving for ``app.cli.parsers_runs`` and that suite.
+keep resolving for ``app.cli.parsers`` and that suite.
 
 The per-run sub-collection reads (``hypotheses``, ``evidence``, ...) differ
 only in path, payload key, and columns, so they are one table --
 :data:`COLLECTION_COMMANDS` -- that drives both the handlers here and the
-subcommand registration in ``app.cli.parsers_runs``. ``handle_metrics`` is
+subcommand registration in ``app.cli.parsers``. ``handle_metrics`` is
 grouped alongside them because it shares the same read-and-render shape,
 even though it is not part of the table (its payload is a single object,
 not a list).
@@ -33,7 +33,7 @@ class CollectionCommand:
     The subcommand name doubles as the API path suffix, and its payload key
     is that name with dashes swapped for underscores, so each read command is
     fully described by this row. :data:`COLLECTION_COMMANDS` drives both the
-    handlers below and the parser registration in ``app.cli.parsers_runs``.
+    handlers below and the parser registration in ``app.cli.parsers``.
 
     Attributes:
         name: Subcommand name and ``/api/runs/{id}/<name>`` path suffix.

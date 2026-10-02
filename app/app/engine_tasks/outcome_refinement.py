@@ -9,6 +9,7 @@ from typing import Any, cast
 from co_scientist.agents import evolution
 from co_scientist.checkpoint import serialize_workflow_state
 from co_scientist.models import Hypothesis
+from co_scientist.state import WorkflowState
 
 from app import store
 from app.engine_adapter.checkpoints import is_engine_checkpoint
@@ -23,7 +24,6 @@ from app.engine_tasks.support import (
     restore_checkpoint_state,
 )
 from app.outcome_refinement import telemetry as refinement_telemetry
-from app.outcome_refinement.context import targeted_context
 from app.outcome_refinement.lineage import (
     _checkpointed_child,
     _child_row,
@@ -366,7 +366,9 @@ async def _evolve_targeted_parent(
         store.update_outcome_refinement_action(
             request.action["action_id"], status="executing", conn=conn
         )
-    context = targeted_context(request.state, request.parent)
+    context = evolution.prepare_outcome_refinement_context(
+        cast(WorkflowState, request.state), request.parent
+    )
     try:
         with refinement_telemetry.capture_refinement_usage(request.state):
             return (

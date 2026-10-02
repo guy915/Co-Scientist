@@ -3,37 +3,21 @@ import {type InterviewQuestion} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {joinClasses} from '../classes';
 import {
-  OPTION_INPUT_CLASSES,
-  OPTION_LABEL_CLASSES,
-  OPTION_MARKER_CLASSES,
-  OPTION_MARKER_SELECTED_CLASSES,
-  QUESTION_GROUP_CLASSES,
-  QUESTION_OPTION_DESCRIPTION_CLASSES,
-  QUESTION_OPTION_GRID_CLASSES,
-  QUESTION_OPTION_ROW_CLASSES,
-  QUESTION_OPTION_TEXT_CLASSES,
-  QUESTION_OTHER_INPUT_CLASSES,
-  QUESTION_PROMPT_CLASSES,
-  QUESTIONS_HEAD_ACTIONS_CLASSES,
-  QUESTIONS_HEAD_CLASSES,
-  QUESTIONS_HEAD_LABEL_CLASSES,
-  QUESTIONS_ICON_BUTTON_CLASSES,
-  QUESTIONS_ICON_CLASSES,
-  QUESTIONS_PANEL_CLASSES,
-  QUESTION_CHECKBOX_MARKER_CLASSES,
-  QUESTION_CHECKBOX_MARKER_SELECTED_CLASSES,
-  QUESTION_CHECKBOX_TICK_CLASSES,
-  QUESTIONS_SEND_ROW_CLASSES,
-  SETUP_SECONDARY_BUTTON_CLASSES,
-} from './chat_setup_classes';
-import {
   answerText,
   emptySelections,
   type QuestionSelections,
   setOther,
   toggleOption,
 } from './chat_questions';
-import {QUESTION_OPTIONS_TOP_SPACING_CLASSES} from './chat_questions_classes';
+import {
+  OPTION_INPUT_CLASSES,
+  OPTION_LABEL_CLASSES,
+  OPTION_MARKER_CLASSES,
+  OPTION_MARKER_SELECTED_CLASSES,
+  SETUP_SECONDARY_BUTTON_CLASSES,
+} from './chat_classes';
+const QUESTION_OPTION_ROW_CLASSES =
+  'relative grid min-h-[3.2rem] grid-cols-[1.6rem_minmax(0,1fr)] items-center gap-x-[0.8rem] rounded-[0.65rem] border border-transparent bg-cosci-option-bg px-[0.95rem] py-[0.7rem] text-cosci-fg hover:bg-cosci-option-hover-bg has-[:focus-visible]:border-cosci-option-hover-border has-[:focus-visible]:bg-cosci-option-hover-bg';
 
 /**
  * The answer that is not on offer.
@@ -92,7 +76,10 @@ export function QuestionChooser({questions, onAnswer}: QuestionChooserProps) {
   };
 
   return (
-    <section className={QUESTIONS_PANEL_CLASSES} aria-label="Answer options">
+    <section
+      className="reference-questions-panel mb-[0.9rem] grid gap-[0.85rem] border-b border-cosci-composer-border pb-[0.9rem]"
+      aria-label="Answer options"
+    >
       <ChooserHead
         label={headLabel(questions)}
         minimized={minimized}
@@ -136,9 +123,11 @@ function ChooserHead({
   onDismiss: () => void;
 }) {
   return (
-    <div className={QUESTIONS_HEAD_CLASSES}>
-      <span className={QUESTIONS_HEAD_LABEL_CLASSES}>{label}</span>
-      <div className={QUESTIONS_HEAD_ACTIONS_CLASSES}>
+    <div className="flex min-w-0 items-center justify-between gap-[0.6rem]">
+      <span className="min-w-0 truncate text-[0.82rem] font-medium tracking-[0.04em] uppercase text-cosci-muted">
+        {label}
+      </span>
+      <div className="flex shrink-0 items-center gap-[0.15rem]">
         <IconButton
           label={minimized ? 'Show the questions' : 'Minimize the questions'}
           icon={minimized ? 'expand_less' : 'expand_more'}
@@ -171,10 +160,10 @@ function IconButton({
       type="button"
       aria-label={label}
       title={label}
-      className={QUESTIONS_ICON_BUTTON_CLASSES}
+      className="grid cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 text-cosci-muted hover:bg-cosci-hover hover:text-cosci-fg focus-visible:bg-cosci-hover focus-visible:text-cosci-fg size-8"
       onClick={onClick}
     >
-      <Icon aria-hidden="true" className={QUESTIONS_ICON_CLASSES} name={icon} />
+      <Icon aria-hidden="true" className="size-[1.1rem]" name={icon} />
     </button>
   );
 }
@@ -209,7 +198,7 @@ function ChooserBody(props: ChooserBodyProps) {
           onChoose={onChoose}
         />
       ))}
-      <div className={QUESTIONS_SEND_ROW_CLASSES}>
+      <div className="flex justify-end">
         <button
           type="button"
           className={SETUP_SECONDARY_BUTTON_CLASSES}
@@ -238,13 +227,12 @@ interface QuestionGroupProps {
 function QuestionGroup(props: QuestionGroupProps) {
   const {question, index, selections, setSelections, onChoose} = props;
   return (
-    <fieldset className={QUESTION_GROUP_CLASSES}>
-      <legend className={QUESTION_PROMPT_CLASSES}>{question.question}</legend>
+    <fieldset className="m-0 grid min-w-0 gap-[0.6rem] border-0 p-0">
+      <legend className="text-base leading-[1.35] font-medium text-cosci-fg">
+        {question.question}
+      </legend>
       <div
-        className={joinClasses(
-          QUESTION_OPTION_GRID_CLASSES,
-          QUESTION_OPTIONS_TOP_SPACING_CLASSES,
-        )}
+        className={joinClasses('grid grid-cols-1 gap-[0.6rem]', 'mt-[0.15rem]')}
       >
         {question.options.map(option => (
           <AnswerRow
@@ -287,7 +275,7 @@ function OtherAnswerRow({
         selected={text.trim().length > 0}
       />
       <input
-        className={QUESTION_OTHER_INPUT_CLASSES}
+        className="w-full rounded-[0.65rem] border border-cosci-composer-border bg-transparent px-[0.85rem] py-[0.6rem] text-base text-cosci-fg outline-none placeholder:text-cosci-composer-label focus:border-cosci-option-hover-border"
         aria-label={OTHER_LABEL}
         placeholder={OTHER_PLACEHOLDER}
         value={text}
@@ -329,12 +317,12 @@ function AnswerMarker({
     <span
       aria-hidden="true"
       className={joinClasses(
-        QUESTION_CHECKBOX_MARKER_CLASSES,
-        selected && QUESTION_CHECKBOX_MARKER_SELECTED_CLASSES,
+        'mt-[0.08rem] grid size-[1.28rem] place-items-center rounded-[0.35rem] border-2 border-cosci-option-marker',
+        selected && 'border-cosci-option-marker-on bg-cosci-option-marker-on',
       )}
     >
       {selected && (
-        <Icon name="check" className={QUESTION_CHECKBOX_TICK_CLASSES} />
+        <Icon name="check" className="size-[0.95rem] text-cosci-composer-bg" />
       )}
     </span>
   );
@@ -369,10 +357,10 @@ function AnswerRow(props: AnswerRowProps) {
         onClick={onSelect}
       />
       <AnswerMarker multiSelect={multiSelect} selected={selected} />
-      <span className={QUESTION_OPTION_TEXT_CLASSES}>
+      <span className="flex min-w-0 flex-wrap items-baseline gap-x-[0.5rem]">
         <strong className={OPTION_LABEL_CLASSES}>{label}</strong>
         {description && (
-          <small className={QUESTION_OPTION_DESCRIPTION_CLASSES}>
+          <small className="min-w-0 text-[0.92rem] leading-[1.3] text-cosci-muted">
             {description}
           </small>
         )}

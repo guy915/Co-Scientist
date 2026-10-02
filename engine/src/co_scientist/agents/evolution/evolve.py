@@ -46,25 +46,13 @@ from co_scientist.agents.evolution.evolve_results import (
     _apply_evolution_result as _apply_evolution_result,
 )
 from co_scientist.agents.evolution.evolve_results import (
-    _build_evolve_state_delta as _build_evolve_state_delta,
-)
-from co_scientist.agents.evolution.evolve_results import (
     _collect_evolution_results as _collect_evolution_results,
-)
-from co_scientist.agents.evolution.evolve_results import (
-    _extract_evolution_fields as _extract_evolution_fields,
-)
-from co_scientist.agents.evolution.evolve_round import (
-    _emit_evolution_start as _emit_evolution_start,
 )
 from co_scientist.agents.evolution.evolve_round import (
     _finalize_evolve_result as _finalize_evolve_result,
 )
 from co_scientist.agents.evolution.evolve_round import (
     _prepare_evolution_round as _prepare_evolution_round,
-)
-from co_scientist.agents.evolution.evolve_round import (
-    _select_evolution_pool as _select_evolution_pool,
 )
 from co_scientist.constants import (
     EVOLVE_MAX_TOKENS_CAP,
@@ -85,8 +73,6 @@ from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
-# Compatibility names retained for existing engine callers and tests.
-_EvolutionContext = EvolutionContext
 _build_evolution_context = build_evolution_context
 
 # Shared default operation (frozen/immutable): the enhancement operator with
