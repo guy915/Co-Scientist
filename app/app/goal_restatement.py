@@ -28,6 +28,7 @@ from app.config import (
     thinking_safe_max_tokens,
     thinking_safe_timeout,
 )
+from app.llm_scope import budgeted
 
 # Generic litellm-response readers, shared rather than duplicated: neither is
 # title-specific (each reads one completion), and the reasoning-only detection
@@ -138,6 +139,7 @@ async def _request_restatement_completion(
     )
 
 
+@budgeted("goal_restatement")
 async def generate_goal_restatement(goal: str) -> str | None:
     """Return a narrative restatement of ``goal``, or None on any failure.
 

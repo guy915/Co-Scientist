@@ -27,6 +27,7 @@ from app.config import (
 )
 from app.interviews.prompts import _interview_request, _ready
 from app.interviews.wire import TurnSplitter
+from app.llm_scope import budgeted
 from app.llm_stream import stream_chunks
 
 # Receives each chain-of-thought fragment as the model emits it.
@@ -260,6 +261,7 @@ def _turn_response(
     return {**fields, "assistant_message": prose}
 
 
+@budgeted("interview")
 async def _call_interview_model(
     interview: dict[str, Any],
     on_reasoning: ReasoningSink | None = None,

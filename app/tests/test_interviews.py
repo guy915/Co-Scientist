@@ -19,6 +19,7 @@ from app import interviews
 from app.config import settings
 from app.interviews import prompts as interviews_prompts
 from app.main import app
+from tests._llm_fake_backend import install_completion_backend
 
 from ._interviews_helpers import (
     InterviewFields,
@@ -63,12 +64,11 @@ def _patch_streaming_litellm(
     reasoning: str,
 ) -> None:
     """Swap ``litellm.acompletion`` for a fake DeepSeek-shaped stream."""
-    import litellm
 
     async def _fake_acompletion(**_kwargs: Any) -> Any:
         return _fake_stream(_wire_turn(response), reasoning=reasoning)
 
-    monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
+    install_completion_backend(monkeypatch, _fake_acompletion)
     monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-v4-pro")
 
 

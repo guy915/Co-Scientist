@@ -6,11 +6,9 @@ test that fakes what the *engine* asks a provider (``call_llm``,
 instead of assigning over ``litellm.acompletion``; the recording
 ``FakeBackend`` itself is the engine's (``engine/tests/_llm_fake.py``).
 
-What does not belong here: the app's own direct provider path
-(``app.llm_request.acompletion`` -- interviews, Q&A, titling, goal
-restatement, run announcements, credential probes). It awaits
-``litellm.acompletion`` itself and never asks the backend, so a test that
-drives it keeps patching litellm.
+The same backend answers the app's streaming/plain-text provider calls.
+Tests install it for interviews, Q&A, titles, announcements and probes as well
+as scientific calls; admission and independent accounting still run.
 """
 
 from __future__ import annotations

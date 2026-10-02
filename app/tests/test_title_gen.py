@@ -10,6 +10,7 @@ import pytest
 from app import store
 from app.config import settings
 from app.title_gen import clean_title, generate_run_title
+from tests._llm_fake_backend import install_completion_backend
 
 
 @pytest.mark.parametrize(
@@ -75,8 +76,6 @@ async def test_title_call_thinks_and_its_budget_assumes_that(
     swallows every failure. Asserting both together means a future edit
     cannot flip one without the other.
     """
-    import litellm
-
     from app.config_thinking import THINKING_FLOOR_MAX_TOKENS
 
     seen: dict[str, Any] = {}
@@ -88,7 +87,7 @@ async def test_title_call_thinks_and_its_budget_assumes_that(
             choices=[types.SimpleNamespace(message=message)]
         )
 
-    monkeypatch.setattr(litellm, "acompletion", _capturing_acompletion)
+    install_completion_backend(monkeypatch, _capturing_acompletion)
     monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-v4-pro")
 
     title = await generate_run_title("Find ferroptosis regulators in glioma")
@@ -111,8 +110,6 @@ async def test_title_call_timeout_is_lifted_for_a_thinking_model(
     """
     import asyncio
 
-    import litellm
-
     from app.config import THINKING_FLOOR_TIMEOUT_SECONDS
 
     seen_timeout: dict[str, float] = {}
@@ -128,7 +125,7 @@ async def test_title_call_timeout_is_lifted_for_a_thinking_model(
             choices=[types.SimpleNamespace(message=message)]
         )
 
-    monkeypatch.setattr(litellm, "acompletion", _acompletion)
+    install_completion_backend(monkeypatch, _acompletion)
     monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-v4-pro")
     monkeypatch.setattr(asyncio, "wait_for", _capturing_wait_for)
 
@@ -148,8 +145,6 @@ async def test_title_call_reasoned_with_no_answer_retries_without_thinking(
     Titling used to read this as "no usable title" and fall back to the
     goal-clause title silently; it now gets one retry with thinking off.
     """
-    import litellm
-
     calls: list[dict[str, Any]] = []
 
     def _thinking_only_response() -> Any:
@@ -172,7 +167,7 @@ async def test_title_call_reasoned_with_no_answer_retries_without_thinking(
             return _thinking_only_response()
         return _answered_response()
 
-    monkeypatch.setattr(litellm, "acompletion", _acompletion)
+    install_completion_backend(monkeypatch, _acompletion)
     monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-v4-pro")
 
     title = await generate_run_title("Find ferroptosis regulators in glioma")

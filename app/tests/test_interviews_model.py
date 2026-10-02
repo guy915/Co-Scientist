@@ -16,6 +16,7 @@ from app import interviews
 from app.config import settings
 from app.interviews import prompts as interviews_prompts
 from app.interviews.wire import CLOSE_MARKER, OPEN_MARKER
+from tests._llm_fake_backend import install_completion_backend
 
 from ._interviews_helpers import _fake_stream, _response, _wire_turn
 
@@ -53,15 +54,13 @@ async def test_interview_asks_for_prose_and_a_spec_block(
     block now, which no provider-side format can describe, so the shape is
     stated in the prompt and taken apart by ``interviews.wire``.
     """
-    import litellm
-
     captured: dict[str, Any] = {}
 
     async def _fake_acompletion(**kwargs: Any) -> Any:
         captured.update(kwargs)
         return _fake_stream(_wire_turn(_response("Which mechanism?")))
 
-    monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
+    install_completion_backend(monkeypatch, _fake_acompletion)
     monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-chat")
 
     interview = {
@@ -88,12 +87,11 @@ async def test_interview_keeps_fields_when_a_turn_omits_its_block(
     learned nothing new about them, and the scientist should still be shown
     what the Agent said.
     """
-    import litellm
 
     async def _fake_acompletion(**_kwargs: Any) -> Any:
         return _fake_stream("Which mechanism should we prioritize?")
 
-    monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
+    install_completion_backend(monkeypatch, _fake_acompletion)
     monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-chat")
 
     previous = {
@@ -126,8 +124,6 @@ async def test_thinking_only_turn_retries_once_with_thinking_off(
     path now retries once with thinking off before that ever surfaces, and
     that the second stream's answer is what the turn resolves to.
     """
-    import litellm
-
     from app.config_thinking import CONVERSATIONAL_REASONING_EFFORT
 
     calls: list[dict[str, Any]] = []
@@ -140,7 +136,7 @@ async def test_thinking_only_turn_retries_once_with_thinking_off(
         calls.append(kwargs)
         return streams[len(calls) - 1]
 
-    monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
+    install_completion_backend(monkeypatch, _fake_acompletion)
     monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-chat")
 
     reasoning_fragments: list[str] = []

@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     # keeps a zero-price ceiling. Explicit environment/BYOK model choices
     # remain supported.
     #
+    # Each interview/chat/title/probe operation has its own physical-call cap.
+    # Retries and Q&A tool rounds share it; research-run budgets stay separate.
+    app_llm_max_calls: int = Field(default=4, ge=1)
+
     # Production overrides all four settings below via explicit Railway
     # env vars (see ``docs/DEPLOYMENT.md``); changing prod is an env
     # change, not a deploy of this file.

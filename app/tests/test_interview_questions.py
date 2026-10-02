@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 from app import interviews, store
 from app.interviews.questions import normalized_questions
 from app.main import app
+from tests._llm_fake_backend import install_completion_backend
 
 from ._interviews_helpers import (
     InterviewFields,
@@ -132,12 +133,11 @@ def _turn_offering(questions: Any) -> str:
 
 def _patch_stream(monkeypatch: pytest.MonkeyPatch, turn: str) -> None:
     """Answer the next model call with ``turn`` over the real wire."""
-    import litellm
 
     async def _fake_acompletion(**_kwargs: Any) -> Any:
         return _fake_stream(turn)
 
-    monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
+    install_completion_backend(monkeypatch, _fake_acompletion)
 
 
 def _created_turn(monkeypatch: pytest.MonkeyPatch, turn: str) -> dict[str, Any]:

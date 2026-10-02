@@ -20,6 +20,7 @@ from fastapi.testclient import TestClient
 from app import credentials, engine_tasks, store
 from app.config import settings
 from app.main import app
+from tests._llm_fake_backend import install_completion_backend
 
 _SECRET = "byok-flow-secret"
 _KEY = "sk-flow-abcdef123456"
@@ -345,10 +346,8 @@ def test_qa_answers_with_the_runs_stored_key(
         captured.update(kwargs)
         return _byok_qa_stream(**kwargs)
 
-    import litellm
-
     _fake_validation(monkeypatch)
-    monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
+    install_completion_backend(monkeypatch, fake_acompletion)
     with TestClient(app) as client:
         run = _create_byok_run(client)
         captured.clear()

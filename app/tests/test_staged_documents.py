@@ -28,6 +28,7 @@ from tests._interviews_helpers import (
     _interview_payload,
     _response,
 )
+from tests._llm_fake_backend import install_completion_backend
 
 _DOC_TEXT = "Tetraploid zebrafish hearts regenerate via klf2a signalling."
 _HEADERS = {"X-Client-ID": "doc-scientist"}
@@ -88,8 +89,6 @@ def test_attached_document_reaches_the_interview_prompt(
     Asserted against the request actually sent to the provider, not against
     the wording of the reply.
     """
-    import litellm
-
     client = make_client()
     document_id = _stage_id(client)
     created = client.post(
@@ -109,7 +108,7 @@ def test_attached_document_reaches_the_interview_prompt(
         captured.update(kwargs)
         return _fake_stream(json.dumps(_response("Which mechanism?")))
 
-    monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
+    install_completion_backend(monkeypatch, _fake_acompletion)
     monkeypatch.setattr(settings, "chat_model_name", "openai/gpt-4o")
     # The suite forces offline, which refuses the request before the prompt
     # is shaped; this case is about the prompt, and the provider is fake.

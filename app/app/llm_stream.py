@@ -45,6 +45,21 @@ async def stream_chunks(
     Raises:
         asyncio.TimeoutError: If either deadline passes.
     """
+    try:
+        async for chunk in _timed_chunks(
+            response, stall_seconds, total_seconds
+        ):
+            yield chunk
+    finally:
+        close = getattr(response, "aclose", None)
+        if close is not None:
+            await close()
+
+
+async def _timed_chunks(
+    response: Any, stall_seconds: float, total_seconds: float
+) -> AsyncIterator[Any]:
+    """Apply both clocks while the outer iterator guarantees cleanup."""
     deadline = asyncio.get_running_loop().time() + total_seconds
     iterator = response.__aiter__()
     while True:

@@ -27,6 +27,8 @@ from tests._llm_attempt_fakes import (
     echo_executor,
     exhausted,
     ok,
+    overloaded,
+    rate_limited,
     reasoning_mandatory,
     thinking_only,
     timed_out,
@@ -143,8 +145,10 @@ async def test_mandatory_reasoning_refusals_exhaust_a_tool_turn(
     ]
 
 
+@pytest.mark.parametrize("failure", [exhausted, rate_limited, overloaded])
 async def test_a_tool_turn_retry_never_spans_tool_execution(
     drive: Driver,
+    failure: Callable[[], Any],
 ) -> None:
     asked_for_a_tool = make_completion(
         make_message(None, tool_calls=[make_tool_call("c1", "search", "{}")])
@@ -157,7 +161,7 @@ async def test_a_tool_turn_retry_never_spans_tool_execution(
 
     entry = replace(TOOLS, executor=executor)
 
-    run = await drive(entry, [asked_for_a_tool, exhausted(), ok(entry)])
+    run = await drive(entry, [asked_for_a_tool, failure(), ok(entry)])
 
     assert run.error is None
     assert len(run.calls) == 3
@@ -168,4 +172,7 @@ async def test_a_tool_turn_retry_never_spans_tool_execution(
     assert run.calls[1]["messages"] == run.calls[2]["messages"]
     # The rung resets for the next turn: it starts at the caller's budget.
     assert run.max_tokens[1] == run.max_tokens[0]
-    assert run.max_tokens[2] > run.max_tokens[1]
+    if failure is exhausted:
+        assert run.max_tokens[2] > run.max_tokens[1]
+    else:
+        assert run.max_tokens[2] == run.max_tokens[1]

@@ -339,7 +339,7 @@ def record_completion_response(
 
 
 def record_completion_failure(
-    model_name: str, error: Exception, latency_seconds: float
+    model_name: str, error: BaseException, latency_seconds: float
 ) -> None:
     """Record a failed completion attempt's latency and error kind.
 
@@ -363,7 +363,8 @@ def record_retry(model_name: str) -> None:
     """Record one retry of an LLM retry loop.
 
     Called by the one attempt loop (``llm.attempts.retry``) before every
-    attempt after the first, for all three public entry points, including tool turns.
+    attempt after the first, for all three public entry points, including
+    tool turns.
     """
     record_call(model_name, ModelCallStats(retries=1))
 

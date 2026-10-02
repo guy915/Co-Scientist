@@ -9,6 +9,7 @@ import pytest
 
 from app.config import settings
 from app.goal_restatement import clean_restatement, generate_goal_restatement
+from tests._llm_fake_backend import install_completion_backend
 
 
 @pytest.mark.parametrize(
@@ -34,12 +35,11 @@ async def test_generation_failure_returns_none(
     monkeypatch: pytest.MonkeyPatch, reachable_provider: None
 ) -> None:
     """Any provider failure yields None so the report simply omits it."""
-    import litellm
 
     async def _boom(**_kwargs: Any) -> Any:
         raise RuntimeError("provider down")
 
-    monkeypatch.setattr(litellm, "acompletion", _boom)
+    install_completion_backend(monkeypatch, _boom)
     monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-v4-pro")
 
     assert await generate_goal_restatement("Map the feedback loop.") is None
@@ -54,8 +54,6 @@ async def test_reasoned_with_no_answer_retries_without_thinking(
     budget and writes nothing is not a provider failure, so it earns one
     retry with thinking disabled rather than silently omitting the paragraph.
     """
-    import litellm
-
     calls: list[dict[str, Any]] = []
 
     def _thinking_only() -> Any:
@@ -78,7 +76,7 @@ async def test_reasoned_with_no_answer_retries_without_thinking(
         calls.append(kwargs)
         return _thinking_only() if len(calls) == 1 else _answered()
 
-    monkeypatch.setattr(litellm, "acompletion", _acompletion)
+    install_completion_backend(monkeypatch, _acompletion)
     monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-v4-pro")
 
     restatement = await generate_goal_restatement("Map the feedback loop.")
