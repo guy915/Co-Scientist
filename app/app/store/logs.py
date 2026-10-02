@@ -54,27 +54,6 @@ class NewLogRecord:
     created_at: float | None = None
 
 
-def _insert_log_row(
-    conn: sqlite3.Connection, record: NewLogRecord, created_at: float
-) -> int:
-    """Insert one log row on an open connection and return its row id."""
-    cur = conn.execute(
-        "INSERT INTO app_logs (created_at, level, levelno, logger, "
-        "message, run_id, exc_text, client_id) VALUES (?,?,?,?,?,?,?,?)",
-        (
-            created_at,
-            record.level,
-            record.levelno,
-            record.logger_name,
-            record.message,
-            record.run_id,
-            record.exc_text,
-            record.client_id,
-        ),
-    )
-    return int(cur.lastrowid or 0)
-
-
 def append_log(
     record: NewLogRecord,
     *,
@@ -92,10 +71,22 @@ def append_log(
         The row id assigned to the persisted record.
     """
     created_at = record.created_at
-    with _use_conn(conn, db_path) as c:
-        return _insert_log_row(
-            c, record, created_at if created_at is not None else time.time()
+    with _use_conn(conn, db_path) as active:
+        cursor = active.execute(
+            "INSERT INTO app_logs (created_at, level, levelno, logger, "
+            "message, run_id, exc_text, client_id) VALUES (?,?,?,?,?,?,?,?)",
+            (
+                created_at if created_at is not None else time.time(),
+                record.level,
+                record.levelno,
+                record.logger_name,
+                record.message,
+                record.run_id,
+                record.exc_text,
+                record.client_id,
+            ),
         )
+    return int(cursor.lastrowid or 0)
 
 
 @dataclass(frozen=True)

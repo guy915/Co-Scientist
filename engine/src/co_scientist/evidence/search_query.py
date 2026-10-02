@@ -9,8 +9,7 @@ ladder on both of them.
 
 The queries themselves are generated in Phase 1 (``queries.py``); fanning
 these calls out across sources and queries, and reducing what they return to
-the run's evidence budget, is ``search.py``, which re-exports every name here
-so the module namespace callers and tests patch against keeps resolving.
+the run's evidence budget, is ``search.py``.
 """
 
 import logging

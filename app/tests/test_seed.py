@@ -156,7 +156,7 @@ def test_seed_demo_runs_render_main_research_directions(
     """R14-27: all three demos show the report's own narrative directions.
 
     Pins that the curated ``main_research_directions``
-    (``seed/meta_review_directions.py``) fills the report's "## Main
+    (``seed/meta_review.py``) fills the report's "## Main
     Research Directions" section, sitting immediately before Top
     hypotheses (R14-27's own published "before Candidate Ideas"
     placement), with two genuinely populated paragraphs -- not a bare

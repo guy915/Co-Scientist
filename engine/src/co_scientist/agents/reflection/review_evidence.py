@@ -23,7 +23,7 @@ import logging
 import weakref
 from typing import Any
 
-from co_scientist.agents.reflection.deep_verification import (
+from co_scientist.agents.reflection.deep_verification_evidence import (
     _retrieve_probe_evidence,
 )
 from co_scientist.agents.reflection.research_evidence import (

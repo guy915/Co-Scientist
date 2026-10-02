@@ -26,32 +26,20 @@ import {
   SETUP_ACTIONS_CLASSES,
   SETUP_PRIMARY_BUTTON_CLASSES,
   SETUP_SECONDARY_BUTTON_CLASSES,
-  SPEC_DETAIL_CLASSES,
-  SPEC_EDIT_ADD_BUTTON_CLASSES,
-  SPEC_EDIT_ADD_ICON_CLASSES,
-  SPEC_EDIT_ERROR_CLASSES,
-  SPEC_EDIT_FIELD_CLASSES,
-  SPEC_EDIT_FIELDSET_CLASSES,
-  SPEC_EDIT_FORM_CLASSES,
-  SPEC_EDIT_INPUT_CLASSES,
-  SPEC_EDIT_LABEL_CLASSES,
-  SPEC_EDIT_LEGEND_CLASSES,
-  SPEC_EDIT_LIST_ROW_CLASSES,
-  SPEC_EDIT_REMOVE_BUTTON_CLASSES,
-  SPEC_EDIT_REMOVE_ICON_CLASSES,
-  SPEC_EDIT_TEXTAREA_CLASSES,
-  SPEC_GRID_CLASSES,
-  SPEC_LIST_CLASSES,
-  SPEC_ROW_CLASSES,
-  SPEC_TERM_CLASSES,
-} from './chat_setup_classes';
+} from './chat_classes';
+const SPEC_EDIT_INPUT_CLASSES =
+  'w-full rounded-[0.65rem] border border-cosci-composer-border bg-cosci-composer-bg px-[0.85rem] py-[0.6rem] text-base text-cosci-composer-text outline-none focus-visible:border-cosci-fg';
+const SPEC_EDIT_FIELD_CLASSES = 'grid gap-[0.5rem]';
+const SPEC_EDIT_LABEL_CLASSES = 'text-[1.18rem] font-bold text-cosci-fg';
 
 // One term/detail row in the read-only spec definition list (dt/dd pair).
 function SpecRow({label, children}: {label: string; children: ReactNode}) {
   return (
-    <div className={SPEC_ROW_CLASSES}>
-      <dt className={SPEC_TERM_CLASSES}>{label}:</dt>
-      <dd className={SPEC_DETAIL_CLASSES}>{children}</dd>
+    <div className="reference-spec-row block text-base">
+      <dt className="mb-[0.85rem] text-[1.18rem] font-bold text-cosci-fg">
+        {label}:
+      </dt>
+      <dd className="m-0 leading-[1.45] text-cosci-fg">{children}</dd>
     </div>
   );
 }
@@ -61,7 +49,7 @@ function SpecRow({label, children}: {label: string; children: ReactNode}) {
 function SpecList({label, values}: {label: string; values: string[]}) {
   return (
     <SpecRow label={label}>
-      <ul className={SPEC_LIST_CLASSES}>
+      <ul className="reference-spec-list m-0 grid list-disc gap-[0.8rem] pl-[1.35rem]">
         {values.map(value => (
           <li key={value}>{value}</li>
         ))}
@@ -73,7 +61,7 @@ function SpecList({label, values}: {label: string; values: string[]}) {
 // The interview fields plus any extra criteria stored on the run setup.
 function SpecSummary({spec}: {spec: InferredRunSpec}) {
   return (
-    <dl className={SPEC_GRID_CLASSES}>
+    <dl className="reference-setup-grid m-0 grid gap-[1.55rem]">
       <SpecRow label="Research Challenge">{spec.goal}</SpecRow>
       <SpecList label="Focus Area" values={spec.attributes} />
       <SpecList label="Preferences" values={spec.requirements} />
@@ -106,7 +94,7 @@ function EditableListRow({
     ? `Remove "${value}" from ${label}`
     : `Remove empty ${label} entry`;
   return (
-    <div className={SPEC_EDIT_LIST_ROW_CLASSES}>
+    <div className="flex items-center gap-[0.5rem]">
       <input
         type="text"
         className={SPEC_EDIT_INPUT_CLASSES}
@@ -116,15 +104,11 @@ function EditableListRow({
       />
       <button
         type="button"
-        className={SPEC_EDIT_REMOVE_BUTTON_CLASSES}
+        className="size-[2.1rem] shrink-0 grid cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 text-cosci-muted hover:bg-cosci-hover hover:text-cosci-fg focus-visible:bg-cosci-hover focus-visible:text-cosci-fg"
         aria-label={removeLabel}
         onClick={onRemove}
       >
-        <Icon
-          aria-hidden="true"
-          name="close"
-          className={SPEC_EDIT_REMOVE_ICON_CLASSES}
-        />
+        <Icon aria-hidden="true" name="close" className="text-[1.15rem]" />
       </button>
     </div>
   );
@@ -148,8 +132,10 @@ function EditableList({
     onChange(values.filter((_, i) => i !== index));
   }
   return (
-    <fieldset className={SPEC_EDIT_FIELDSET_CLASSES}>
-      <legend className={SPEC_EDIT_LEGEND_CLASSES}>{label}</legend>
+    <fieldset className="m-0 grid gap-[0.6rem] border-0 p-0">
+      <legend className="text-[1.18rem] font-bold text-cosci-fg">
+        {label}
+      </legend>
       {values.map((value, index) => (
         <EditableListRow
           // Index-keyed: rows are edited and removed by position, and this
@@ -164,14 +150,10 @@ function EditableList({
       ))}
       <button
         type="button"
-        className={SPEC_EDIT_ADD_BUTTON_CLASSES}
+        className="reference-spec-edit-add flex w-fit cursor-pointer items-center gap-[0.3rem] rounded-full border-0 bg-transparent px-[0.2rem] py-[0.3rem] text-[0.9rem] font-medium text-cosci-muted hover:text-cosci-fg focus-visible:text-cosci-fg"
         onClick={() => onChange([...values, ''])}
       >
-        <Icon
-          aria-hidden="true"
-          name="add"
-          className={SPEC_EDIT_ADD_ICON_CLASSES}
-        />
+        <Icon aria-hidden="true" name="add" className="text-[1.05rem]" />
         Add {label.toLowerCase()}
       </button>
     </fieldset>
@@ -207,7 +189,7 @@ function SpecFieldsFormFields({
         </label>
         <textarea
           id={goalId}
-          className={SPEC_EDIT_TEXTAREA_CLASSES}
+          className="w-full rounded-[0.65rem] border border-cosci-composer-border bg-cosci-composer-bg px-[0.85rem] py-[0.6rem] text-base text-cosci-composer-text outline-none focus-visible:border-cosci-fg min-h-[6rem] resize-y leading-[1.45]"
           value={values.goal}
           onChange={e => onChange({goal: e.target.value})}
         />
@@ -251,7 +233,7 @@ function SpecFieldsFormActions(
     <>
       {error && (
         <p
-          className={SPEC_EDIT_ERROR_CLASSES}
+          className="m-0 text-[0.9rem]"
           style={{color: 'var(--md-sys-color-error)'}}
         >
           {error}
@@ -281,7 +263,7 @@ function SpecFieldsFormActions(
 
 function SpecFieldsForm(props: SpecFieldsFormProps) {
   return (
-    <div className={SPEC_EDIT_FORM_CLASSES}>
+    <div className="reference-spec-edit-form grid gap-[1.15rem]">
       <SpecFieldsFormFields values={props.values} onChange={props.onChange} />
       <SpecFieldsFormActions {...props} />
     </div>

@@ -8,9 +8,8 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 
 from app import document_ingest, run_corpus, store
 from app.auth import client_id
-from app.runs.contrib_support import _steer_and_continue
 from app.runs.models import HumanAttachmentRequest
-from app.runs.support import _require_run
+from app.runs.support import _require_run, _steer_and_continue
 from app.store import ScientificTask
 
 router = APIRouter()

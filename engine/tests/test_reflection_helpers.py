@@ -9,11 +9,11 @@ formatters. ``fetch_indra_evidence`` is only exercised on its
 
 from typing import Any, cast
 
+from co_scientist.agents.reflection.reflection_entities import _normalize_entity
 from co_scientist.agents.reflection.reflection_helpers import (
     _build_enrichment_items,
     _ev_count_str,
     _format_single_statement,
-    _normalize_entity,
     _parse_tool_result,
     extract_entity_names,
     fetch_indra_evidence,

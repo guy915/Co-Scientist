@@ -21,10 +21,8 @@ from typing import Any, NamedTuple
 import pytest
 
 from co_scientist.agents.evolution import evolve
-from co_scientist.agents.evolution.evolve import (
-    _select_evolution_pool,
-    evolve_node,
-)
+from co_scientist.agents.evolution.evolve import evolve_node
+from co_scientist.agents.evolution.evolve_round import _select_evolution_pool
 from co_scientist.constants import INITIAL_ELO_RATING
 from co_scientist.models import Hypothesis, HypothesisOrigin
 from tests._llm_fake import stub_call_llm_json

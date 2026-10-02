@@ -116,7 +116,10 @@ describe('stream setup', () => {
     renderHook(() => useRunStream('run-1'));
     await settle();
 
-    expect(fetchMock().mock.calls[0][0]).toContain('/api/runs/run-1/events');
+    const [url, init] = fetchMock().mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/api/runs/run-1/events');
+    expect(new Headers(init.headers).get('X-Client-ID')).toBeTruthy();
+    expect(init.signal).toBeInstanceOf(AbortSignal);
   });
 });
 
@@ -243,14 +246,35 @@ describe('connection state', () => {
     expect(result.current.connection).toBe('open');
   });
 
-  it('reports disconnected on a permanent rejection, with no retry', async () => {
-    queueFetch(errorResponse(404));
+  it.each([401, 403, 404])('does not retry permanent HTTP %s', async status => {
+    queueFetch(errorResponse(status));
     const {result} = renderHook(() => useRunStream('run-1'));
     await settle();
 
     expect(result.current.connection).toBe('disconnected');
     await settle(RECONNECT_DELAY_MS);
     expect(fetchMock().mock.calls).toHaveLength(1);
+  });
+
+  it('retries a transient failure before the stream opens', async () => {
+    queueFetch(errorResponse(500), streamingResponse(new FakeSseBody()));
+    const {result} = renderHook(() => useRunStream('run-1'));
+    await settle();
+    expect(result.current.connection).toBe('connecting');
+
+    await settle(RECONNECT_DELAY_MS);
+    expect(result.current.connection).toBe('open');
+    expect(fetchMock()).toHaveBeenCalledTimes(2);
+  });
+
+  it('cancels a pending retry when unmounted', async () => {
+    queueFetch(errorResponse(500));
+    const {unmount} = renderHook(() => useRunStream('run-1'));
+    await settle();
+    unmount();
+
+    await settle(RECONNECT_DELAY_MS);
+    expect(fetchMock()).toHaveBeenCalledTimes(1);
   });
 
   it('reports reconnecting after an open stream drops, then reopens', async () => {

@@ -57,11 +57,11 @@ and prerendering default to `dist/`.
 | `src/workbench/pages/` | Chat workspace (session home), run detail, researcher access, shared report |
 | `src/workbench/components/tabs/` | Ideas tab (other run views render inline in `run_detail.tsx`) |
 | `src/workbench/hooks/` | Chat-session state, chat/run history, toast, and system status |
-| `src/api/runs.ts` | Typed REST, SSE URL, and streaming message helpers |
+| `src/api/runs.ts` | Product REST operations and streaming message helpers |
 | `src/hooks/` | Shared app-level hooks (e.g. `use_run_stream.ts`) |
 | `src/components/` | Shared primitives (error boundary, icon) |
 | `src/index.css`, `src/styles/` | Token bridge + Tailwind layers (`index.css`); surface sheets aggregated by `styles/surfaces.css` |
-| `src/public/` | Residual helpers: 404 page, no-index/SEO, link button |
+| `src/public/` | 404 page and no-index metadata |
 
 ## Routing
 
@@ -85,7 +85,6 @@ detail data uses REST, and live progress uses fetch-based SSE from
 The chat workspace uses:
 
 - `GET /api/runs/{id}/messages`
-- `POST /api/runs/{id}/messages`
 - `POST /api/runs/{id}/messages/ask`
 
 ## Testing

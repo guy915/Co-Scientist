@@ -1,12 +1,6 @@
 import {Icon, type IconName} from '@/components/icon';
 import {copyText} from '@/lib/clipboard';
 import {tooltipClassNames} from '../tooltip';
-import {
-  MESSAGE_ACTION_BUTTON_CLASSES,
-  MESSAGE_ACTION_ICON_CLASSES,
-  MESSAGE_ACTIONS_CLASSES,
-  MESSAGE_ACTIONS_END_CLASSES,
-} from './chat_setup_classes';
 
 /**
  * One icon-button entry in a {@link MessageActionRow} (e.g.
@@ -56,7 +50,9 @@ export function MessageActionRow({
   return (
     <div
       className={
-        align === 'end' ? MESSAGE_ACTIONS_END_CLASSES : MESSAGE_ACTIONS_CLASSES
+        align === 'end'
+          ? 'reference-message-actions end pointer-events-none absolute top-1/2 z-[2] flex -translate-y-1/2 scale-[0.98] items-center gap-[0.2rem] border-0 bg-transparent p-[0.1rem] opacity-0 [right:calc(100%+0.4rem)] group-hover/user:pointer-events-auto group-hover/user:scale-100 group-hover/user:opacity-100 group-focus-within/user:pointer-events-auto group-focus-within/user:scale-100 group-focus-within/user:opacity-100 pointer-coarse:pointer-events-auto pointer-coarse:static pointer-coarse:mt-[0.2rem] pointer-coarse:translate-y-0 pointer-coarse:justify-end pointer-coarse:scale-100 pointer-coarse:opacity-100'
+          : 'reference-message-actions flex items-center gap-[0.2rem] px-[0.2rem]'
       }
     >
       {actions.map(action => (
@@ -64,7 +60,8 @@ export function MessageActionRow({
           key={action.label}
           type="button"
           className={tooltipClassNames({
-            className: MESSAGE_ACTION_BUTTON_CLASSES,
+            className:
+              'size-8 grid cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 text-cosci-muted hover:bg-cosci-hover hover:text-cosci-fg focus-visible:bg-cosci-hover focus-visible:text-cosci-fg',
             placement: 'top',
           })}
           aria-label={action.label}
@@ -73,7 +70,7 @@ export function MessageActionRow({
         >
           <Icon
             aria-hidden="true"
-            className={MESSAGE_ACTION_ICON_CLASSES}
+            className="text-[1.12rem]"
             name={action.icon}
           />
         </button>

@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import smtplib
+import sqlite3
 from email.message import EmailMessage
 from typing import Any
 
+from app import store
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 def email_notifications_configured() -> bool:
@@ -73,3 +78,48 @@ async def deliver_completion_notification(
         f"Your Goal Report is complete.\n\nOpen it: {report_url}\n",
     )
     return {"recipient": recipient, "status": "sent"}
+
+
+def _enqueue_completion_notification(
+    run_id: str,
+    research_goal: str,
+    report_id: str,
+    *,
+    db_path: str | None,
+    conn: sqlite3.Connection | None = None,
+) -> None:
+    """Queue one completion email when the run opted in and SMTP is ready."""
+    run = store.get_run(run_id, db_path=db_path, conn=conn)
+    notification = (
+        run.config.get("completion_notification") if run else {}
+    ) or {}
+    if not (notification.get("enabled") and notification.get("email")):
+        return
+    if not email_notifications_configured():
+        # Do not spend retries on a transport that disappeared mid-run.
+        logger.warning(
+            "Run %s opted into a completion email but SMTP is not "
+            "configured (set SMTP_HOST and SMTP_FROM_EMAIL); no mail sent",
+            run_id,
+        )
+        return
+    store.enqueue_task(
+        store.NewTask(
+            run_id=run_id,
+            task_type="notification.email",
+            inputs={
+                "run_id": run_id,
+                "email": notification["email"],
+                "title": run.title or research_goal if run else research_goal,
+                "tab": "ideas",
+            },
+            idempotency_key=f"completion-email:{report_id}",
+            priority=-100,
+            dependencies=(),
+            provenance={"trigger": "Goal Report completed"},
+            budget={"delivery_attempts": 3},
+            max_attempts=3,
+        ),
+        db_path=db_path,
+        conn=conn,
+    )

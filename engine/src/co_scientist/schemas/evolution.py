@@ -3,7 +3,7 @@
 Shapes the output of the three evolution prompt templates (``evolution``,
 ``evolution_feasibility``, ``evolution_out_of_box``), consumed by the
 refinement step in ``agents/evolution/evolve.py``. Split out of
-``synthesis.py`` at that module's size cap; ``synthesis`` re-exports the
+``synthesis.py``; ``synthesis`` exports the
 name, so existing importers are unchanged.
 """
 

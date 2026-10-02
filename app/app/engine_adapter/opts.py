@@ -7,18 +7,11 @@ pre-run steering queue, and constructs the per-run `HypothesisGenerator`.
 
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING, Any
 
 from app import run_corpus, store
 from app.config import settings
-
-# The capability-opts block (the tier-shaped depth toggles plus the two
-# ablation seams) lives in ``opts_capabilities`` to keep this module under
-# the file-length cap. Re-exported so the callers and tests that import
-# them from ``app.engine_adapter.opts`` are unchanged.
-from app.engine_adapter.opts_capabilities import (
-    _apply_capability_opts as _apply_capability_opts,
-)
 from app.execution_policy import effective_execution_model
 from app.run_modes import (
     attribute_names,
@@ -26,6 +19,7 @@ from app.run_modes import (
     criteria_display_strings,
     focus_guidance,
     normalize_run_focus,
+    normalize_run_tier,
     setup_guidance,
 )
 
@@ -77,62 +71,6 @@ def _setup_opts_from_cfg(setup: dict[str, Any] | None) -> dict[str, Any]:
         # criterion here rather than the generic stringify above.
         "criteria": criteria_display_strings(setup.get("criteria")),
     }
-
-
-def _append_if(parts: list[str], value: str | None) -> None:
-    """Append `value` to `parts` if it is present (truthy)."""
-    if value:
-        parts.append(value)
-
-
-def _steering_preference_part(
-    steering_messages: list[store.MessageRow],
-) -> str | None:
-    """Return the steering preference text, acknowledging nothing.
-
-    Returns None when there is no steering at all. Acknowledgement is
-    deliberately not done here: see ``CONSUMED_STEERING_IDS_OPT``.
-
-    Takes every steering message ever queued, applied or not: only the
-    orchestrator acknowledges steering (``ADMISSION_NODE``), and every
-    restore before that overwrites ``state["preferences"]`` from this opt
-    (``_restore_node_task_state``) -- a pending-only fold would go quiet
-    the instant the orchestrator acknowledges the message, dropping the
-    guidance before the GENERATE it schedules ever sees it. The full
-    history keeps this monotone and idempotent across restores instead.
-    """
-    if not steering_messages:
-        return None
-    guidance = "\n".join(f"- {m.content}" for m in steering_messages)
-    return f"User steering guidance:\n{guidance}"
-
-
-def _fold_steering_preferences(
-    setup_text: str,
-    steering_messages: list[store.MessageRow],
-) -> str | None:
-    """Fold setup guidance and all queued user steering into "preferences".
-
-    Returns None when there is nothing to fold.
-    """
-    preference_parts: list[str] = []
-    _append_if(preference_parts, setup_text)
-    _append_if(preference_parts, _steering_preference_part(steering_messages))
-    return "\n\n".join(preference_parts) if preference_parts else None
-
-
-def _all_steering_messages(
-    run_id: str, db_path: str | None
-) -> list[store.MessageRow]:
-    """Return every steering message ever queued, applied or not.
-
-    Unlike ``store.get_pending_steering``; see ``_steering_preference_part``.
-    """
-    return [
-        message
-        for message in store.list_messages(run_id, db_path=db_path)
-        if message.kind == "steering"
-    ]
 
 
 def _lab_constraints_for_run(
@@ -205,9 +143,9 @@ def build_engine_opts(
         initial_opts[CONSUMED_STEERING_IDS_OPT] = [
             message.id for message in pending_steering
         ]
-    preferences = _fold_steering_preferences(
+    preferences = _steering_preferences(
         str(initial_opts.get("run_setup_guidance") or ""),
-        _all_steering_messages(run_id, db_path),
+        store.list_messages(run_id, db_path=db_path),
     )
     if preferences:
         initial_opts["preferences"] = preferences
@@ -220,28 +158,6 @@ def build_engine_opts(
     goal = str((cfg.get("setup") or {}).get("goal") or "")
     _apply_private_sources(initial_opts, run_id, goal, db_path)
     return initial_opts
-
-
-def _resolve_disabled_tools(cfg: dict[str, Any]) -> list[str]:
-    """Map the run's connector toggles onto engine tool ids to disable.
-
-    Only ``web_search`` is disabled when the web-search connector is off.
-    ``read_url`` is deliberately left enabled: it is the generic
-    content-fetch tool, used as the ``content_tool`` for PDF and full-text
-    retrieval in the arXiv, Google Scholar, and web configs, so disabling it
-    here would break literature retrieval for unrelated sources.
-
-    Args:
-        cfg: Resolved run config; ``resolved_run_config`` guarantees the
-            toggle keys are present.
-
-    Returns:
-        Engine tool ids to disable for this run, empty when nothing is off.
-    """
-    disabled: list[str] = []
-    if not cfg.get("enable_web_search", True):
-        disabled.append("web_search")
-    return disabled
 
 
 def _resolve_generator_models(
@@ -276,23 +192,6 @@ def _resolve_generator_models(
     return DEFAULT_OFFLINE_MODEL, DEFAULT_OFFLINE_MODEL, False
 
 
-def _generator_budget(cfg: dict[str, Any]) -> dict[str, Any]:
-    """Build the engine's ``GeneratorOptions.budget`` termination ceilings.
-
-    Hard termination ceilings on top of max_iterations. Present even for
-    runs created before the knobs existed: resolved_run_config seeds every
-    load from the tier table. ``max_ideas``/``max_matches_per_idea`` are the
-    Supervisor listing's own two loop predicates; forwarding them here is
-    what arms the published WHILE guard, which was dead on every run while
-    this dict carried only the call ceiling.
-    """
-    return {
-        "max_llm_calls": int(cfg["max_llm_calls"]),
-        "max_ideas": int(cfg["max_ideas"]),
-        "max_matches_per_idea": float(cfg["max_matches_per_idea"]),
-    }
-
-
 def _generator_kwargs(
     cfg: dict[str, Any],
     model_name: str,
@@ -320,7 +219,11 @@ def _generator_kwargs(
         "options": GeneratorOptions(
             supervisor_model_name=supervisor_model_name,
             enable_cache=enable_cache,
-            budget=_generator_budget(cfg),
+            budget={
+                "max_llm_calls": int(cfg["max_llm_calls"]),
+                "max_ideas": int(cfg["max_ideas"]),
+                "max_matches_per_idea": float(cfg["max_matches_per_idea"]),
+            },
             tournament_pairs=int(cfg["tournament_pairs"]),
             elo_k_factor=int(cfg["k_factor"]),
             # ``evidence_count`` is the single literature-budget knob in the
@@ -336,7 +239,9 @@ def _generator_kwargs(
             # PubMed-only. Startup already validated this path is readable
             # (see app.main lifespan).
             tools_config=settings.tools_config,
-            disable_tools=_resolve_disabled_tools(cfg),
+            disable_tools=[]
+            if cfg.get("enable_web_search", True)
+            else ["web_search"],
             api_key=api_key,
         ),
     }
@@ -396,4 +301,50 @@ def build_generator(
             enable_cache,
             api_key=byok.api_key if byok else None,
         )
+    )
+
+
+def _steering_preferences(
+    setup_text: str, messages: list[store.MessageRow]
+) -> str | None:
+    """Keep all steering guidance after acknowledgement and across restores."""
+    steering = [
+        f"- {message.content}"
+        for message in messages
+        if message.kind == "steering"
+    ]
+    parts = [setup_text] if setup_text else []
+    if steering:
+        parts.append("User steering guidance:\n" + "\n".join(steering))
+    return "\n\n".join(parts) or None
+
+
+def _apply_capability_opts(
+    initial_opts: dict[str, Any], cfg: dict[str, Any]
+) -> None:
+    """Fund tool loops and overview review only on the deep research tiers.
+
+    These flags are ceilings: the engine still checks tool, sandbox, and
+    provider availability. Literature grounding retains its independent
+    kill switch, and the last two options support evaluation ablations.
+    """
+    tier = normalize_run_tier(cfg.get("tier"))
+    deep = tier in {"extended", "ultra"}
+    strategy = cfg.get("generation_strategy")
+    initial_opts.update(
+        {
+            "enable_literature_review_node": bool(
+                cfg.get("enable_literature_review", True)
+            )
+            and os.getenv("FORCE_LITERATURE_REVIEW") != "0",
+            "enable_tool_calling_generation": deep,
+            "enable_simulation_execution": deep,
+            "enable_overview_review": deep,
+            "research_tier": tier,
+            "enable_meta_review": cfg.get("enable_meta_review", True)
+            is not False,
+            "generation_strategy": strategy
+            if isinstance(strategy, str)
+            else "",
+        }
     )

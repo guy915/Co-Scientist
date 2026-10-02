@@ -11,11 +11,12 @@ create an import cycle. ``app.runs`` re-exports ``_run_or_404``, so
 from __future__ import annotations
 
 import sqlite3
+from typing import Any
 
 from fastapi import HTTPException
 
 from app import store
-from app.store import RunRow
+from app.store import RunRow, ScientificTask
 
 
 def _run_or_404(run_id: str, conn: sqlite3.Connection | None = None) -> RunRow:
@@ -34,3 +35,24 @@ def _require_run(run_id: str) -> None:
     """
     if not store.run_exists(run_id):
         raise HTTPException(status_code=404, detail="run not found")
+
+
+def _steer_and_continue(
+    run_id: str,
+    sender: str,
+    content: str,
+    meta: dict[str, Any],
+) -> ScientificTask | None:
+    """Queue a contribution as steering and reopen work from the checkpoint."""
+    from app import engine_tasks
+
+    message = store.append_message(
+        store.NewMessage(
+            run_id=run_id,
+            sender=sender,
+            content=content,
+            kind="steering",
+            meta=meta,
+        )
+    )
+    return engine_tasks.enqueue_scientist_continuation(run_id, message.id)

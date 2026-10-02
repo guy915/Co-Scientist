@@ -203,7 +203,7 @@ def test_generation_reads_the_interim_overview_as_context() -> None:
     assert "Paper A says X." in augmented
 
 
-async def test_prepare_generation_splices_the_block_into_its_context() -> None:
+async def testprepare_task_state_splices_the_block_into_its_context() -> None:
     """The splice itself, at the seam every strategy is handed.
 
     ``_with_interim_overview`` being correct in isolation is not the fix:

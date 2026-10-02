@@ -13,29 +13,21 @@ import {
   isTerminalStatus,
   retiresStartIntent,
   runActivity,
-  runLifecycle,
-  type RunPhase,
   type RunStatus,
   type TerminalNonCompletedStatus,
 } from './runs';
 
-// Characterizes what every RunStatus meant to the consumers that used to
-// decide it for themselves (runs.ts, chat_session_start_recovery.ts,
-// run_detail_shell.tsx, run_detail.tsx, layout_cancel_run.tsx and the raw
-// `status === '...'` comparisons). Typed as Record<RunStatus, ...> so a new
-// status cannot be added without deciding its row here.
-const PHASE_OF: Record<RunStatus, RunPhase> = {
-  draft: 'draft',
-  queued: 'active',
-  running: 'active',
-  synthesizing: 'active',
-  paused: 'paused',
-  completed: 'completed',
-  failed: 'failure',
-  blocked: 'failure',
-  cancelled: 'cancelled',
-};
-const ALL_STATUSES = Object.keys(PHASE_OF) as RunStatus[];
+const ALL_STATUSES: RunStatus[] = [
+  'draft',
+  'queued',
+  'running',
+  'synthesizing',
+  'paused',
+  'completed',
+  'failed',
+  'blocked',
+  'cancelled',
+];
 
 type Question = (status: string | null | undefined) => boolean;
 
@@ -83,16 +75,6 @@ const QUESTIONS: Record<string, {ask: Question; yes: RunStatus[]}> = {
 
 // Values a status can hold before the run loads or from a newer backend.
 const UNRECOGNIZED = [undefined, null, '', 'garbage', 'toString'] as const;
-
-describe('runLifecycle', () => {
-  it.each(ALL_STATUSES)('places %s in exactly one phase', status => {
-    expect(runLifecycle(status)).toBe(PHASE_OF[status]);
-  });
-
-  it.each(UNRECOGNIZED)('has no phase for %s', status => {
-    expect(runLifecycle(status)).toBe('unknown');
-  });
-});
 
 describe('lifecycle questions', () => {
   it.each(Object.keys(QUESTIONS))('%s answers per status', name => {

@@ -4,18 +4,18 @@ import json
 
 import pytest
 
+from co_scientist.agents.evolution import EvolutionContext
 from co_scientist.agents.evolution.evolution_operators import EvolutionOperator
 from co_scientist.agents.evolution.evolve_prompt import (
     _build_evolution_prompt,
-    _EvolutionContext,
     _EvolutionOperation,
     _OutcomeRefinement,
 )
 from tests._state import make_hypothesis, make_state
 
 
-def _context() -> _EvolutionContext:
-    return _EvolutionContext(
+def _context() -> EvolutionContext:
+    return EvolutionContext(
         model_name="test-model",
         meta_review={},
         removed_duplicates=[],

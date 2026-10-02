@@ -1,16 +1,9 @@
 import {Link} from 'react-router-dom';
 import {TruncatedLabel} from '../components/truncated_label';
-import {
-  STARTED_NEXT_BUTTON_CLASSES,
-  STARTED_NEXT_CLASSES,
-  STARTED_NEXT_COPY_CLASSES,
-  STARTED_OPEN_CLASSES,
-  STARTED_SESSION_CARD_CLASSES,
-  STARTED_SESSION_META_CLASSES,
-  STARTED_SESSION_TITLE_CLASSES,
-} from './chat_setup_classes';
 import {AssistantMessage, MessageAttachment} from './chat_timeline_bubble';
 import {responseActions} from './chat_timeline_message_actions';
+const STARTED_NEXT_BUTTON_CLASSES =
+  'min-h-[2.6rem] cursor-pointer rounded-full border border-cosci-btn-outline-border bg-transparent px-[1.2rem] font-semibold text-cosci-btn-outline-fg hover:bg-cosci-btn-outline-hover-bg focus-visible:bg-cosci-btn-outline-hover-bg';
 
 /** A run that has been started, as shown by the timeline's terminal card. */
 export interface StartedSession {
@@ -129,17 +122,24 @@ function SessionLinkCard({
   href: string;
 }) {
   return (
-    <Link to={href} className={`${STARTED_SESSION_CARD_CLASSES} no-underline`}>
+    <Link
+      to={href}
+      className={`${'reference-started-session-card grid min-h-[5.3rem] cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-[1.2rem] rounded-2xl border-0 p-[1rem_1rem_1rem_1.35rem] text-left text-white'} no-underline`}
+    >
       <span className="block min-w-0">
-        <strong className={STARTED_SESSION_TITLE_CLASSES}>
+        <strong className="block min-w-0 text-[1.18rem] leading-[1.25]">
           <TruncatedLabel
             className="block min-w-0 overflow-hidden whitespace-nowrap"
             text={session.title}
           />
         </strong>
-        <small className={STARTED_SESSION_META_CLASSES}>Research session</small>
+        <small className="mt-[0.3rem] block text-[0.9rem] text-white/80">
+          Research session
+        </small>
       </span>
-      <span className={STARTED_OPEN_CLASSES}>Open</span>
+      <span className="reference-started-open min-w-[5.4rem] rounded-full border border-white/75 px-[1.25rem] py-[0.65rem] text-center font-semibold text-white/90 hover:bg-white/12 focus-visible:bg-white/12">
+        Open
+      </span>
     </Link>
   );
 }
@@ -155,8 +155,8 @@ function SessionNextActions({
   onNewTopic: () => void;
 }) {
   return (
-    <div className={STARTED_NEXT_CLASSES}>
-      <p className={STARTED_NEXT_COPY_CLASSES}>
+    <div className="reference-started-next flex flex-wrap items-center gap-[0.55rem]">
+      <p className="basis-full m-0 mb-[0.1rem] text-[0.95rem] font-semibold text-cosci-muted">
         What would you like to do next?
       </p>
       <Link

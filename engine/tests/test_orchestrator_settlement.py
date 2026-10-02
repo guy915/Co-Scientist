@@ -15,10 +15,12 @@ the loop.
 from co_scientist.agents.ranking.ranking_lifecycle import _coverage_floor
 from co_scientist.agents.supervisor.orchestrator import (
     _init_bookkeeping,
-    _initial_settlement_allowance,
     _next_bookkeeping,
-    _rankable_coverage,
 )
+from co_scientist.agents.supervisor.orchestrator_bookkeeping import (
+    _initial_settlement_allowance,
+)
+from co_scientist.agents.supervisor.orchestrator_stats import _rankable_coverage
 from co_scientist.models import Hypothesis
 from co_scientist.scheduling import (
     Budget,

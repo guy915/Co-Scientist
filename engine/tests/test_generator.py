@@ -3,7 +3,7 @@
 These cover the parts that are deterministic without a full LLM run:
 constructor configuration and env side effects, LangGraph compilation
 (node sets for the literature-review and simplified flows), and the
-``_prepare_generation`` helper that builds the initial ``WorkflowState``.
+``prepare_task_state`` helper that builds the initial ``WorkflowState``.
 The two MCP-availability probes are stubbed so the helper runs offline.
 """
 
@@ -273,7 +273,7 @@ def test_research_overview_is_the_only_terminal_node() -> None:
     assert end_sources == {"research_overview"}
 
 
-# --- _prepare_generation: state building -------------------------------------
+# --- prepare_task_state: state building -------------------------------------
 
 
 def test_graph_includes_deep_verification_node() -> None:

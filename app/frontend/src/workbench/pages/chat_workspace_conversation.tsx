@@ -2,17 +2,14 @@ import {Fragment, type RefObject, useEffect, useRef} from 'react';
 import {type NavigateFunction} from 'react-router-dom';
 import {type useChatSession} from '../hooks/use_chat_session';
 import {type LinkedDraftRecovery} from '../hooks/chat_session_types';
-import {
-  CHAT_COLUMN_CLASSES,
-  CHAT_COMPOSER_CLASSES,
-  CHAT_TIMELINE_CLASSES,
-} from './chat_setup_classes';
 import {Composer} from './chat_composer';
 import {pendingQuestions} from './chat_questions';
 import {QuestionChooser} from './chat_questions_panel';
 import {type ConnectorToggleProps} from './chat_composer_connectors';
 import {buildTimelineItems, type TimelineItem} from './chat_workspace_timeline';
 import {useChatTimelineScroll} from './chat_workspace_scroll';
+const CHAT_COLUMN_CLASSES =
+  'reference-chat-column mx-auto grid w-[min(100%,50.75rem)] gap-[1.15rem]';
 
 // Effect body for the composer-resize sync below: while there's an active
 // conversation, mirrors the composer's measured height into the timeline's
@@ -154,7 +151,10 @@ function TimelineSection({
   error: string | null;
 }) {
   return (
-    <section ref={scrollRef} className={CHAT_TIMELINE_CLASSES}>
+    <section
+      ref={scrollRef}
+      className="reference-chat-timeline flex-1 overflow-y-auto px-4 pt-5"
+    >
       <div className={CHAT_COLUMN_CLASSES}>
         {timelineItems.map(item => (
           <Fragment key={item.id}>{item.node}</Fragment>
@@ -224,7 +224,7 @@ function ComposerSection(props: ComposerSectionProps) {
     handleStop,
   } = props.session;
   return (
-    <div ref={props.composerRef} className={CHAT_COMPOSER_CLASSES}>
+    <div ref={props.composerRef} className="reference-chat-composer px-4 pb-8">
       <div className={CHAT_COLUMN_CLASSES}>
         <Composer
           input={input}

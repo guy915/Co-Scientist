@@ -1,14 +1,4 @@
-"""Tournament setup and teardown for the Elo ranking node.
-
-Owns the round-invariant scaffolding around the judged matchups: sorting
-the pool, resolving the tier-configured round count, gathering the
-cross-node context threaded into every matchup, emitting the
-start/complete progress events, and building the node's state delta.
-Public preparation/budget/finalization live here; shared judging and Elo
-application live in ``operations.py`` and pairing projection in
-``ranking_pairings.py``.
-The graph node re-exports historical private names for engine compatibility.
-"""
+"""Ranking round context, eligibility, ordering, and result assembly."""
 
 import logging
 from typing import Any, NamedTuple

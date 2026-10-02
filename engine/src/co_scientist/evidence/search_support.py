@@ -1,46 +1,10 @@
-"""Search-phase support helpers for the literature review node.
-
-Small, composable functions supporting query generation (Phase 1) and paper
-search/collection (Phase 2): the resolved ``SearchConfig`` bundle, search
-response normalization, and query source-type selection. Multi-source
-result merging and Reciprocal Rank Fusion ranking live in the sibling
-``search_fusion`` module (split out to keep this module within the size
-cap) and are re-exported below; the evidence-budget selection that reduces
-the merged, ranked results lives in the sibling ``search_budget`` module.
-"""
+"""Search configuration, response normalization, and query source selection."""
 
 import json
 import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Optional, cast
 
-from co_scientist.evidence.search_fusion import (
-    _DEFAULT_SOURCE_RRF_WEIGHT as _DEFAULT_SOURCE_RRF_WEIGHT,
-)
-from co_scientist.evidence.search_fusion import (
-    _RRF_K as _RRF_K,
-)
-from co_scientist.evidence.search_fusion import (
-    _SOURCE_RRF_WEIGHTS as _SOURCE_RRF_WEIGHTS,
-)
-from co_scientist.evidence.search_fusion import (
-    _duplicate_owner_id as _duplicate_owner_id,
-)
-from co_scientist.evidence.search_fusion import (
-    _normalize_rrf_pool as _normalize_rrf_pool,
-)
-from co_scientist.evidence.search_fusion import (
-    _normalize_title as _normalize_title,
-)
-from co_scientist.evidence.search_fusion import (
-    _rank_search_results as _rank_search_results,
-)
-from co_scientist.evidence.search_fusion import (
-    _rrf_position_score as _rrf_position_score,
-)
-from co_scientist.evidence.search_fusion import (
-    _source_rrf_weight as _source_rrf_weight,
-)
 from co_scientist.evidence.search_fusion import (
     merge_search_results as merge_search_results,
 )

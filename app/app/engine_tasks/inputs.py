@@ -14,13 +14,20 @@ from typing import Any
 
 from app import store
 from app.elo import INITIAL_ELO
+from app.engine_adapter.provider import sync_engine_llm_backend
+from app.engine_tasks import runtime as engine_tasks_runtime
+from app.engine_tasks.context import TaskCommit, _task_commit
 from app.engine_tasks.support import (
     BOOTSTRAP_TASK,
     NODE_TASK_PREFIX,
     SafetyHoldError,
+    _require_run,
+    _save_state_and_enqueue,
 )
 from app.human_input import VERDICT_REVIEW_SCORES
-from app.safety import ScreenSubject
+from app.run_events import make_emitter
+from app.run_modes import resolved_run_config
+from app.safety import ScreenSubject, apply_safety_gate, screen_intake
 from app.store import RunRow, RunStatus, ScientificTask
 
 
@@ -73,12 +80,10 @@ async def _screen_bootstrap_intake(
     run: RunRow,
     emit: Any,
     db_path: str | None,
-    task: ScientificTask | None,
-    *,
-    screening: tuple[Any, Any, Any],
+    task: ScientificTask | None = None,
 ) -> dict[str, Any] | None:
     """Run the intake gate with the bootstrap lease as its status fence."""
-    screen_with_escalation, screen_intake, apply_safety_gate = screening
+    screen_with_escalation = engine_tasks_runtime.active().screen
     decision = await screen_with_escalation(
         run.id,
         ScreenSubject(
@@ -341,7 +346,7 @@ def _merge_scientist_inputs(
     dispositions from it costs no LLM call.
 
     A *hypothesis* is a new competitor, so it is admitted at one boundary
-    (``admit_hypotheses``; see ``engine_tasks.restore``) rather than
+    (``admit_hypotheses``; see ``engine_tasks.node``) rather than
     wherever the run happens to be. The pool may not grow inside a ranking
     wave, where the newcomer's Elo would mean nothing, nor between a
     fan-out's items and its aggregate, where the aggregate restores the
@@ -368,3 +373,70 @@ def _refresh_dispositions(hypotheses: list[Any], state: dict[str, Any]) -> None:
     )
 
     refresh_review_dispositions(hypotheses, state.get("criteria"))
+
+
+async def _prepare_bootstrap_state(
+    task: ScientificTask, run: store.RunRow, db_path: str | None
+) -> tuple[dict[str, Any], TaskCommit]:
+    """Build initial state and commit target, aborting if cancelled.
+
+    Pause-versus-successor is decided by the caller's commit transaction.
+    Bootstrap never consumes steering (``consume_steering=False``): any
+    steering queued before the run even started is folded into the initial
+    preferences text same as always, but stays pending until the run's first
+    orchestrator cycle -- the one place ``pending_steering`` is actually read
+    for scheduling -- rather than being acknowledged here where nothing acts
+    on it.
+    """
+    generator, opts = engine_tasks_runtime.active().generator_and_opts(
+        task, db_path
+    )
+    state = await generator.prepare_task_state(
+        run.research_goal,
+        opts=opts,
+        run_id=run.id,
+    )
+    commit = _task_commit(task, 0, db_path, opts, consume_steering=False)
+    refreshed = store.get_run(run.id, db_path=db_path)
+    if refreshed is None or refreshed.status == RunStatus.CANCELLED.value:
+        raise RuntimeError("run cancelled during bootstrap")
+    # A PAUSED snapshot is advisory only. /resume can change it to QUEUED
+    # before the commit transaction, which must choose pause vs successor.
+    return state, commit
+
+
+async def execute_bootstrap(
+    task: ScientificTask, *, db_path: str | None = None
+) -> dict[str, Any]:
+    """Safety-gate a run, prepare state, and enqueue its first task."""
+    run = _require_run(task, db_path)
+    emit = make_emitter(run.id, db_path=db_path)
+    withheld = await _screen_bootstrap_intake(run, emit, db_path, task=task)
+    if withheld is not None:
+        return withheld
+    run = _require_run(task, db_path)  # the gate may have redacted the goal
+    bootstrap_status = _bootstrap_start_status(task, run, db_path)
+    if bootstrap_status in {status.value for status in store.TERMINAL_STATUSES}:
+        return {"run_id": run.id, "status": bootstrap_status, "terminal": True}
+    # Sync the run row before the generator is built (_generator_and_opts
+    # reads it back via run_used_offline), so a config-pinned llm_backend
+    # takes effect on this boundary.
+    sync_engine_llm_backend(run.id, resolved_run_config(run.config), db_path)
+    state, commit = await _prepare_bootstrap_state(task, run, db_path)
+    checkpoint_seq, successor_id = _save_state_and_enqueue(
+        commit, state, "supervisor", pause_if_requested=True
+    )
+    if successor_id is None:
+        return {"checkpoint_seq": checkpoint_seq, "status": "paused"}
+    await emit(
+        "scientific_task",
+        {
+            "task": "bootstrap",
+            "status": "completed",
+            "checkpoint_seq": checkpoint_seq,
+        },
+    )
+    return {
+        "checkpoint_seq": checkpoint_seq,
+        "successor_task_id": successor_id,
+    }

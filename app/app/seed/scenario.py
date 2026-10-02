@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import dataclasses
 import itertools
+import re
 import time
 from typing import Any
 
@@ -35,10 +36,46 @@ from app.seed.config_synthesis import (
     curated_critical_criteria,
     curated_stratification_attributes,
 )
-from app.seed.evidence import insert_scenario_evidence
 from app.seed.overview import _curated_meta_review, _curated_research_overview
 from app.seed.review_detail import mature_review_rows
 from app.store import RunRow
+
+# Every curated source is a real PubMed record (see demo_seed_data.evidence
+# / demo_seed_data.scenarios); the pmid rides along in the url the fixture
+# already carries rather than as a separately authored field, so the
+# run-wide bibliography section (R12-12) can show the real identifier
+# instead of inventing one.
+_PUBMED_URL_PMID = re.compile(r"pubmed\.ncbi\.nlm\.nih\.gov/(\d+)")
+
+
+def _pmid_from_url(url: str) -> str | None:
+    """Extract a PubMed id from a curated evidence url, when present."""
+    match = _PUBMED_URL_PMID.search(url)
+    return match.group(1) if match else None
+
+
+def insert_scenario_evidence(
+    run_id: str,
+    evidence: tuple[DemoEvidence, ...],
+    db_path: str | None,
+) -> list[str]:
+    """Persist a scenario's sources and return their new row ids."""
+    return [
+        store.add_evidence(
+            store.NewEvidence(
+                run_id=run_id,
+                title=item.title,
+                source="pubmed",
+                url=item.url,
+                authors=item.authors,
+                year=item.year,
+                abstract=item.abstract,
+                pmid=_pmid_from_url(item.url),
+            ),
+            db_path=db_path,
+        )
+        for item in evidence
+    ]
 
 
 @dataclasses.dataclass(frozen=True)

@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from app import engine_tasks, store, task_worker
-from app.engine_tasks import node as engine_tasks_node
+from app.engine_tasks import finalize as engine_tasks_node
 from app.engine_tasks import support as engine_tasks_support
 from tests._engine_tasks_helpers import _install_runtime
 from tests.test_report_cancel_publication import (

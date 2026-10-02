@@ -22,7 +22,7 @@ sys.modules["Bio"] = None
 import mcp_server.pubmed_storage
 assert "mcp_server.entrez" not in sys.modules
 assert "mcp_server.pubmed_client" not in sys.modules
-assert "mcp_server.shared_pool" not in sys.modules
+assert "mcp_server.literature_review" not in sys.modules
 """,
         ],
         capture_output=True,

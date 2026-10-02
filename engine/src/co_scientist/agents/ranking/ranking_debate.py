@@ -1,11 +1,4 @@
-"""Single-matchup judging: the scientific-debate LLM judge for ranking.
-
-Owns everything about deciding one pairwise matchup — the per-loop judge
-semaphore, the judge LLM call, winner parsing with its position-balanced
-fallback, multi-turn debate transcripts, and the debate-depth policy.
-Tournament orchestration (pairing selection, Elo commits, the graph node)
-stays in ``ranking.py``, which re-exports these names for compatibility.
-"""
+"""Pairwise judging, bounded debate, and per-loop concurrency limits."""
 
 import asyncio
 import logging
@@ -15,9 +8,6 @@ from typing import Any
 
 from co_scientist.agents.ranking.ranking_debate_turns import (
     _RANKING_DEBATE_MAX_TURNS as _RANKING_DEBATE_MAX_TURNS,
-)
-from co_scientist.agents.ranking.ranking_debate_turns import (
-    _append_debate_context as _append_debate_context,
 )
 from co_scientist.agents.ranking.ranking_debate_turns import (
     _balanced_invalid_fallback as _balanced_invalid_fallback,
@@ -39,9 +29,6 @@ from co_scientist.agents.ranking.ranking_debate_turns import (
 )
 from co_scientist.agents.ranking.ranking_debate_turns import (
     _MatchupPrompt as _MatchupPrompt,
-)
-from co_scientist.agents.ranking.ranking_debate_turns import (
-    _parse_matchup_winner as _parse_matchup_winner,
 )
 from co_scientist.agents.ranking.ranking_debate_turns import (
     _ranking_debate_consensus as _ranking_debate_consensus,

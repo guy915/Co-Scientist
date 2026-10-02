@@ -37,7 +37,7 @@ from co_scientist.scheduling import (
     TaskType,
 )
 from co_scientist.scheduling.policy import decide_next_task, validate_decision
-from co_scientist.scheduling.policy_checks import (
+from co_scientist.scheduling.policy_cadence import (
     _check_research_overview_cadence,
 )
 from co_scientist.task_runtime import next_task_type

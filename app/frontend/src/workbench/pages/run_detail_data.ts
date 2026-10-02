@@ -3,12 +3,12 @@ import {runGoal, type RunWithSummary} from '@/api/runs';
 import {type StreamConnectionState, useRunStream} from '@/hooks/use_run_stream';
 import {HEADER_TITLE_EVENT} from '../dom_events';
 import {runFailureGuidance} from './run_failure_guidance';
-import {useRunDetailCollections} from './run_detail_collections';
 import {
+  useRunDetailCollections,
   dataKeysFromEvents,
   hasSupervisorPlanEvent,
   type RunDataKey,
-} from './run_detail_resources';
+} from './run_detail_collections';
 import {useRunSupervisorPlan} from './run_detail_supervisor_plan_data';
 
 /**
@@ -138,7 +138,7 @@ function useRunDerivedState(run: RunWithSummary | null, terminal: boolean) {
  * reconnecting connection instead of reading as healthy.
  */
 export function useRunDetailData(id: string | undefined) {
-  const data = useRunDetailCollections(id);
+  const {scheduleRefresh, ...data} = useRunDetailCollections(id);
   const supervisorPlan = useRunSupervisorPlan(id);
   const onTerminal = useCallback(() => {
     data.refreshNow();
@@ -146,7 +146,7 @@ export function useRunDetailData(id: string | undefined) {
   }, [data.refreshNow, supervisorPlan.refresh]);
   const {events, terminal, connection} = useRunEventStream(
     id,
-    data.scheduleRefresh,
+    scheduleRefresh,
     supervisorPlan.refresh,
     onTerminal,
   );
@@ -161,24 +161,11 @@ export function useRunDetailData(id: string | undefined) {
   );
 
   return {
+    ...data,
     run,
-    hypotheses: data.hypotheses,
-    evidence: data.evidence,
-    matches: data.matches,
-    reviews: data.reviews,
-    claimEvidence: data.claimEvidence,
-    safety: data.safety,
     supervisorPlan: supervisorPlan.state,
-    report: data.report,
-    outcomes: data.outcomes,
-    outcomesLoading: data.outcomesLoading,
-    outcomesError: data.outcomesError,
-    error: data.error,
-    loaded: data.loaded,
     toast,
     title,
-    refreshNow: data.refreshNow,
-    refreshOutcomes: data.refreshOutcomes,
     refreshSupervisorPlan: supervisorPlan.refresh,
     events,
   };

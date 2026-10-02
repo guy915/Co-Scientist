@@ -67,7 +67,7 @@ async def _stream_states(
     gen: HypothesisGenerator, goal: str
 ) -> list[dict[str, Any]]:
     """Run the graph in values mode, returning every full post-node state."""
-    initial = await gen._prepare_generation(
+    initial = await gen.prepare_task_state(
         goal, opts={"enable_literature_review_node": False}
     )
     assert gen._graph is not None
@@ -111,7 +111,7 @@ async def test_resume_preserves_checkpointed_pool_and_completes(
 
     # Simulate a process restart: a fresh generator rebuilds the graph.
     restarted = _make()
-    await restarted._prepare_generation(
+    await restarted.prepare_task_state(
         "Explain how protein X folds",
         opts={"enable_literature_review_node": False},
     )

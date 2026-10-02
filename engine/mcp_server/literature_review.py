@@ -1,191 +1,240 @@
-"""PubMed document source with fulltext download from PMC."""
+"""PubMed search, shared metadata cache, and PMC fulltext retrieval."""
 
-import dataclasses
+import asyncio
+import json
 import logging
+import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any, cast
 
-from mcp_server.entrez import initialize_entrez as initialize_entrez
-from mcp_server.entrez_rate_limit import pilot_trace_context
-from mcp_server.pubmed_client import _extract_doi as _extract_doi
-from mcp_server.pubmed_client import _parse_authors as _parse_authors
-from mcp_server.pubmed_pilot_trace import new_pilot_trace as _new_pilot_trace
-from mcp_server.pubmed_pilot_trace import (
-    record_fetched_papers as _record_fetched_papers,
-)
-from mcp_server.pubmed_pilot_trace import (
-    record_pool_snapshot as _record_pool_snapshot,
-)
-from mcp_server.pubmed_pilot_trace import (
-    reserve_trace_run as _reserve_trace_run,
-)
-from mcp_server.pubmed_pilot_trace import (
-    write_trace_atomically as _write_trace_atomically,
-)
-from mcp_server.shared_pool import (
-    _load_shared_pool_candidate as _load_shared_pool_candidate,
-)
-from mcp_server.shared_pool import _PoolDirs, _SharedPoolMixin
-from mcp_server.shared_pool import (
-    _scan_shared_pool_candidates as _scan_shared_pool_candidates,
-)
-from mcp_server.shared_pool import (
-    _shared_pool_paper_year as _shared_pool_paper_year,
-)
+from Bio import Entrez
 
-if TYPE_CHECKING:
-    # asyncio is imported lazily inside the async methods below (see their
-    # bodies); this type-checking-only import binds the name for the quoted
-    # ``asyncio.Semaphore`` annotations without pulling asyncio in at runtime.
-    import asyncio
+from mcp_server.entrez_rate_limit import (
+    entrez_call,
+    pilot_trace_context,
+    record_pilot_fetch_error,
+    record_pilot_metadata_origin,
+)
+from mcp_server.pubmed_client import PUBMED_METADATA_BATCH_ENV, _EntrezClient
+from mcp_server.pubmed_pilot_trace import (
+    new_pilot_trace,
+    record_fetched_papers,
+    record_pool_snapshot,
+    reserve_trace_run,
+    write_trace_atomically,
+)
+from mcp_server.pubmed_storage import (
+    link_metadata_to_run,
+    link_shared_file_to_run,
+    write_metadata_cache_file,
+)
 
 logger = logging.getLogger(__name__)
 
 
-@dataclasses.dataclass(frozen=True)
-class _PubmedRun:
-    """Static filesystem and concurrency context for one search run.
-
-    Attributes:
-        query: PubMed boolean query for this run.
-        slug: Identifier for organizing results (research goal hash).
-        max_papers: Target number of papers WITH fulltext to collect.
-        run_id: Unique run identifier, or None to skip per-run tracking.
-        run_dir: Per-run directory to symlink into, or None.
-        shared_dir: Shared-pool directory holding accumulated papers.
-        semaphore: Concurrency limiter bounding entrez API calls.
-        trace: Bounded pilot provenance, when explicitly enabled.
-    """
-
-    query: str
-    slug: str
-    max_papers: int
-    run_id: str | None
-    run_dir: Path | None
-    shared_dir: Path
-    semaphore: "asyncio.Semaphore"
-    trace: dict[str, Any] | None
+def _shared_pool_paper_year(paper: tuple[str, dict[str, Any]]) -> int:
+    try:
+        return int(paper[1].get("date_revised", "").split("/")[0])
+    except (ValueError, IndexError, AttributeError):
+        return 0
 
 
-class PubmedSource(_SharedPoolMixin):
-    """PubMed document source with fulltext download from PMC."""
+class PubmedSource(_EntrezClient):
+    """Store papers in slug/shared and link them into slug/runs/run_id."""
 
-    async def _search_and_collect_metadata(
+    async def _fetch_one_paper_metadata(
         self,
-        query: str,
-        max_papers: int,
-        recency_years: int,
-        run: "_PubmedRun",
+        paper_id: str,
+        shared_dir: Path,
+        run_dir: Path | None,
+        semaphore: asyncio.Semaphore,
+    ) -> tuple[str, dict[str, Any] | None]:
+        metadata_file = shared_dir / f"{paper_id}.metadata.json"
+        if metadata_file.exists():
+            record_pilot_metadata_origin(paper_id, "shared_pool_cache")
+            with metadata_file.open(encoding="utf-8") as stream:
+                metadata = json.load(stream)
+            link_metadata_to_run(run_dir, paper_id)
+            return paper_id, metadata
+
+        async with semaphore:
+            try:
+                # Entrez's blocking HTTP calls and rate limiter must run off
+                # the event loop. to_thread preserves the run's trace context.
+                with pilot_trace_context(None, paper_id):
+                    metadata = await asyncio.to_thread(
+                        self._fetch_paper_details, paper_id
+                    )
+                write_metadata_cache_file(metadata_file, metadata)
+                link_metadata_to_run(run_dir, paper_id)
+                record_pilot_metadata_origin(paper_id, "entrez_fetch")
+                return paper_id, metadata
+            except Exception as exc:
+                record_pilot_fetch_error("metadata_fetch", exc, paper_id)
+                logger.warning("Failed to read paper %s: %s", paper_id, exc)
+                logger.debug("Metadata fetch failed", exc_info=True)
+                return paper_id, None
+
+    async def _gather_paper_metadata(
+        self,
+        paper_ids: list[str],
+        shared_dir: Path,
+        run_dir: Path | None,
+        semaphore: asyncio.Semaphore,
     ) -> dict[str, Any]:
-        """Searches PubMed and fetches metadata for a buffer of candidates.
+        if os.getenv(PUBMED_METADATA_BATCH_ENV) == "1":
+            from mcp_server.pubmed_metadata_batch import gather_metadata
 
-        Requests 3x the target paper count to cover ~33% fulltext
-        availability; the buffer is filtered to max_papers by the caller.
-
-        Args:
-            query: PubMed boolean query.
-            max_papers: Target number of papers WITH fulltext to collect.
-            recency_years: Filter to papers from last N years (0 = no filter).
-            run: Filesystem and concurrency context for this search run.
-
-        Returns:
-            Dict mapping paper_id to metadata for every paper fetched
-            successfully, most-recent-first.
-        """
-        search_buffer = max_papers * 3
-        logger.info(
-            "Requesting %s papers from PubMed to find %s with fulltext",
-            search_buffer,
-            max_papers,
-        )
-        with pilot_trace_context(run.trace):
-            paper_ids = self.pubmed_search_ids(
-                query,
-                retmax=search_buffer,
-                recency_years=recency_years,
-                trace=run.trace,
+            return await gather_metadata(
+                self, paper_ids, shared_dir, run_dir, semaphore
             )
-            all_details = await self._gather_paper_metadata(
-                paper_ids, run.shared_dir, run.run_dir, run.semaphore
+        results = await asyncio.gather(
+            *(
+                self._fetch_one_paper_metadata(
+                    paper_id, shared_dir, run_dir, semaphore
+                )
+                for paper_id in paper_ids
             )
-        if run.trace is not None:
-            _record_fetched_papers(run.trace, all_details)
-        return all_details
-
-    def _select_fulltext_papers(
-        self, all_details: dict[str, Any], max_papers: int
-    ) -> tuple[list[str], int]:
-        """Filters fetched papers down to the target count with fulltext.
-
-        Args:
-            all_details: Metadata dict keyed by paper_id, most-recent-first
-                (preserved from the search results).
-            max_papers: Target number of papers WITH fulltext to select.
-
-        Returns:
-            A (papers_to_use, fulltext_shortfall) tuple: the selected paper
-            IDs (most recent first, up to max_papers), and how many more
-            papers are needed to reach max_papers (<=0 if already met).
-        """
-        # Filter to papers with PMC IDs and take first max_papers (most
-        # recent, thanks to sort). asyncio.gather preserves input order
-        # regardless of completion order, and dicts preserve insertion
-        # order, so all_details still iterates in the same
-        # most-recent-first order as paper_ids.
-        papers_with_pmc = [
-            paper_id
-            for paper_id in all_details
-            if all_details[paper_id].get("pmc_full_text_id") is not None
-        ]
-        papers_to_use = papers_with_pmc[:max_papers]
-        fulltext_shortfall = max_papers - len(papers_to_use)
-        self._log_fulltext_selection(
-            papers_with_pmc,
-            papers_to_use,
-            all_details,
-            max_papers,
-            fulltext_shortfall,
         )
-        return papers_to_use, fulltext_shortfall
+        # gather preserves search order, independent of completion order.
+        return {
+            paper_id: metadata
+            for paper_id, metadata in results
+            if metadata is not None
+        }
 
-    def _log_fulltext_selection(
+    def _download_pmc_fulltext(self, pmc_id: str) -> str:
+        """Page through PMC efetch responses when NCBI truncates a document."""
+        chunks = []
+        cursor = 0
+        while True:
+            response = entrez_call(
+                Entrez.efetch,
+                db="pmc",
+                id=pmc_id,
+                retstart=cursor,
+                rettype="xml",
+            )
+            body = cast(bytes, response.read()).decode("utf-8")
+            chunks.append(body)
+            if "[truncated]" in response or "Result too long" in body:
+                cursor += len(body)
+            else:
+                break
+        return "".join(chunks)
+
+    def get_pubmed_fulltext(
+        self, pmc_id: str, slug: str, run_id: str | None = None
+    ) -> str | None:
+        """Cache and link fulltext; record download failures in provenance."""
+        try:
+            shared_dir, run_dir = self._prepare_run_directories(slug, run_id)
+            fulltext_file = shared_dir / f"{pmc_id}.fulltext.html"
+            if fulltext_file.exists():
+                contents = fulltext_file.read_text(encoding="utf-8")
+            else:
+                contents = self._download_pmc_fulltext(pmc_id)
+                fulltext_file.write_text(contents, encoding="utf-8")
+            if run_dir is not None:
+                link_shared_file_to_run(run_dir, fulltext_file.name)
+            return contents
+        except Exception as exc:
+            record_pilot_fetch_error("fulltext", exc)
+            logger.error(
+                "Failed to download PMC fulltext for %s: %s: %s",
+                pmc_id,
+                type(exc).__name__,
+                exc,
+            )
+            logger.debug("PMC download failed", exc_info=True)
+            return None
+
+    async def _download_fulltexts_for_papers(
         self,
-        papers_with_pmc: list[str],
+        paper_ids: list[str],
+        all_details: dict[str, Any],
+        slug: str,
+        run_id: str | None,
+        semaphore: asyncio.Semaphore,
+    ) -> None:
+        async def download(paper_id: str) -> None:
+            async with semaphore:
+                with pilot_trace_context(None, paper_id):
+                    await asyncio.to_thread(
+                        self.get_pubmed_fulltext,
+                        all_details[paper_id]["pmc_full_text_id"],
+                        slug,
+                        run_id,
+                    )
+
+        await asyncio.gather(*(download(paper_id) for paper_id in paper_ids))
+
+    def _supplement_from_shared_pool(  # noqa: C901, PLR0913
+        self,
+        shared_dir: Path,
+        run_dir: Path,
         papers_to_use: list[str],
         all_details: dict[str, Any],
-        max_papers: int,
-        fulltext_shortfall: int,
+        shortfall: int,
+        trace: dict[str, Any] | None,
     ) -> None:
-        """Logs fulltext availability and any shortfall against target.
+        """Fill a per-run shortfall from already downloaded, recent papers."""
+        selected = set(papers_to_use)
+        candidates = []
+        for metadata_file in shared_dir.glob("*.metadata.json"):
+            paper_id = metadata_file.stem.removesuffix(".metadata")
+            if paper_id in selected:
+                continue
+            try:
+                with metadata_file.open(encoding="utf-8") as stream:
+                    metadata = json.load(stream)
+                pmc_id = metadata.get("pmc_full_text_id")
+                if pmc_id and (shared_dir / f"{pmc_id}.fulltext.html").exists():
+                    candidates.append((paper_id, metadata))
+            except Exception as exc:
+                logger.debug(
+                    "Failed to read shared pool paper %s: %s", paper_id, exc
+                )
+        candidates.sort(key=_shared_pool_paper_year, reverse=True)
+        supplements = candidates[:shortfall]
+        for paper_id, metadata in supplements:
+            link_metadata_to_run(run_dir, paper_id)
+            link_shared_file_to_run(
+                run_dir, f"{metadata['pmc_full_text_id']}.fulltext.html"
+            )
+            papers_to_use.append(paper_id)
+            all_details[paper_id] = metadata
+        logger.info("Supplemented %s papers from shared pool", len(supplements))
+        if trace is not None:
+            attempted_ids = {
+                paper_id
+                for attempt in trace.get("attempts", [])
+                for paper_id in attempt.get("first_ids", [])
+            }
+            records = trace.setdefault("shared_pool_supplements", [])
+            for paper_id, _metadata in supplements:
+                if len(records) >= 9:
+                    break
+                records.append(
+                    {
+                        "pmid": paper_id,
+                        "source": "shared_pool",
+                        "origin": "prior_pool",
+                        "preexisting": True,
+                        "matched_esearch_first_ids": paper_id in attempted_ids,
+                    }
+                )
 
-        Args:
-            papers_with_pmc: Paper IDs that have a PMC fulltext.
-            papers_to_use: Paper IDs selected, capped at max_papers.
-            all_details: Metadata keyed by paper_id.
-            max_papers: Target number of papers WITH fulltext.
-            fulltext_shortfall: Papers still needed to reach max_papers.
-        """
-        logger.info(
-            "fulltext availability: %s/%s papers have PMC fulltexts",
-            len(papers_with_pmc),
-            len(all_details),
-        )
-        logger.info(
-            "selecting %s/%s papers with fulltext (target: %s)",
-            len(papers_to_use),
-            len(papers_with_pmc),
-            max_papers,
-        )
-        if fulltext_shortfall > 0:
-            logger.warning(
-                "Short of target by %s papers - will attempt shared pool "
-                "supplement",
-                fulltext_shortfall,
-            )
-        if len(papers_to_use) == 0:
-            logger.error(
-                "No papers have PMC fulltexts - (no documents to analyze)"
-            )
+    def _prepare_run_directories(
+        self, slug: str, run_id: str | None
+    ) -> tuple[Path, Path | None]:
+        base_dir = self.qualified_path / slug
+        shared_dir = base_dir / "shared"
+        shared_dir.mkdir(parents=True, exist_ok=True)
+        run_dir = base_dir / "runs" / run_id if run_id else None
+        if run_dir is not None:
+            run_dir.mkdir(parents=True, exist_ok=True)
+        return shared_dir, run_dir
 
     def _assemble_final_results(
         self,
@@ -193,100 +242,17 @@ class PubmedSource(_SharedPoolMixin):
         all_details: dict[str, Any],
         max_papers: int,
     ) -> dict[str, Any]:
-        """Builds the final paper_id-to-metadata mapping to return.
-
-        Args:
-            papers_to_use: Paper IDs with downloaded PMC full text.
-            all_details: Metadata dict keyed by paper_id.
-            max_papers: Target number of papers in the evidence corpus.
-
-        Returns:
-            Dict mapping paper_id to metadata, preferring full text and
-            filling any shortfall with ranked abstract-only records.
-        """
+        """Prefer PMC-linked papers, then fill the corpus with abstracts."""
         selected_ids = list(dict.fromkeys(papers_to_use))
         selected_ids.extend(
             paper_id for paper_id in all_details if paper_id not in selected_ids
         )
-        selected_ids = selected_ids[:max_papers]
-        final_details = {
-            paper_id: all_details[paper_id] for paper_id in selected_ids
+        return {
+            paper_id: all_details[paper_id]
+            for paper_id in selected_ids[:max_papers]
         }
-        fulltext_count = sum(
-            bool(metadata.get("fulltext"))
-            for metadata in final_details.values()
-        )
-        logger.info(
-            "Returning %s papers (%s with fulltext; target was %s)",
-            len(final_details),
-            fulltext_count,
-            max_papers,
-        )
-        return final_details
 
-    async def _download_and_record(
-        self,
-        run: _PubmedRun,
-        papers_to_use: list[str],
-        all_details: dict[str, Any],
-        fulltext_shortfall: int,
-        include_fulltext: bool = True,
-    ) -> None:
-        """Downloads fulltexts, tops up shortfalls, and records the run.
-
-        Args:
-            run: Filesystem and concurrency context for this search run.
-            papers_to_use: Selected paper IDs; mutated with supplements.
-            all_details: Metadata keyed by paper_id; mutated with supplements.
-            fulltext_shortfall: Additional papers needed to reach max_papers.
-            include_fulltext: Whether to fetch PMC fulltext for selected papers.
-        """
-        if include_fulltext:
-            await self._download_fulltexts_for_papers(
-                papers_to_use, all_details, run.slug, run.run_id, run.semaphore
-            )
-        self._maybe_supplement_from_pool(
-            run, papers_to_use, all_details, fulltext_shortfall
-        )
-        if run.run_id and run.run_dir:
-            self._save_run_manifest(
-                run.run_id, run.run_dir, papers_to_use, all_details, run.query
-            )
-
-    def _maybe_supplement_from_pool(
-        self,
-        run: _PubmedRun,
-        papers_to_use: list[str],
-        all_details: dict[str, Any],
-        fulltext_shortfall: int,
-    ) -> None:
-        """Tops up the result set from the shared pool when short of target.
-
-        Supplementing only makes sense when building a per-run view, so it
-        is skipped without a run_dir: the symlinks it creates need a per-run
-        destination, and without a run_id there is no result set to top up.
-
-        Args:
-            run: Filesystem and concurrency context for this search run.
-            papers_to_use: Selected paper IDs; mutated in place.
-            all_details: Metadata keyed by paper_id; mutated in place.
-            fulltext_shortfall: Additional papers needed to reach max_papers.
-        """
-        if fulltext_shortfall > 0 and run.run_dir:
-            self._supplement_from_shared_pool(
-                _PoolDirs(
-                    shared_dir=run.shared_dir,
-                    run_dir=run.run_dir,
-                    trace=run.trace,
-                ),
-                papers_to_use,
-                all_details,
-                fulltext_shortfall,
-                run.max_papers,
-            )
-
-    # Keep the five positional arguments; the opt-out is keyword-only.
-    async def pubmed_search(  # noqa: PLR0913
+    async def pubmed_search(  # noqa: C901, PLR0913
         self,
         query: str,
         slug: str,
@@ -296,144 +262,95 @@ class PubmedSource(_SharedPoolMixin):
         *,
         include_fulltext: bool = True,
     ) -> dict[str, Any]:
-        """Searches PubMed and downloads fulltext HTML from PMC.
+        """Collect a PMC-first corpus and preserve its cache and run provenance.
 
-        HTML-only implementation - no PDF fallback.
-
-        Uses shared pool architecture:
-        - Papers stored in slug/shared/ (accumulated across runs)
-        - Per-run view in slug/runs/{run_id}/ (symlinks to shared)
-
-        Target selection strategy:
-        - Requests 3x the target number of papers to account for missing
-          fulltexts
-        - Selects PMC-linked metadata in most-recent-first order, then fills
-          any remaining result slots from the search order
-        - Downloads fulltext for selected papers unless include_fulltext
-          is false
-        - If PubMed is exhausted, supplements from shared pool
-        - Returns selected PMC-linked papers first, then abstract-only papers
-          to fill the requested corpus size
-
-        Args:
-            query: PubMed boolean query.
-            slug: Identifier for organizing results (research goal hash).
-            max_papers: Maximum number of papers to return.
-            recency_years: Filter to papers from last N years (0 = no filter).
-            run_id: Unique run identifier for this execution (enables per-run
-                tracking).
-            include_fulltext: Whether to download PMC fulltext. PMC-linked
-                metadata selection and provenance are retained when false.
-
-        Returns:
-            Dict mapping paper_id to metadata, with fulltext where available.
+        Search 3x the requested corpus size to cover missing fulltexts. Keep
+        PMC-linked papers in search order, supplement from the existing pool
+        for tracked runs, then fill remaining slots with abstract-only records.
+        include_fulltext=False skips only downloads, preserving selection.
         """
-        run = self._build_run(query, slug, max_papers, run_id)
-        return await self._pubmed_search_impl(
-            run, recency_years, include_fulltext=include_fulltext
-        )
-
-    async def _pubmed_search_impl(
-        self,
-        run: _PubmedRun,
-        recency_years: int,
-        *,
-        include_fulltext: bool = True,
-    ) -> dict[str, Any]:
-        """Runs the full PubMed search, download, and assembly pipeline.
-
-        Args:
-            run: Filesystem, query, and provenance context for this search.
-            recency_years: Filter to papers from last N years (0 = no filter).
-            include_fulltext: Whether to download PMC fulltext for selected
-                papers.
-
-        Returns:
-            Dict mapping paper_id to metadata, with fulltext where available.
-        """
-        with pilot_trace_context(run.trace):
-            try:
-                all_details = await self._search_and_collect_metadata(
-                    run.query, run.max_papers, recency_years, run
-                )
-                papers_to_use, fulltext_shortfall = (
-                    self._select_fulltext_papers(all_details, run.max_papers)
-                )
-                await self._download_and_record(
-                    run,
-                    papers_to_use,
-                    all_details,
-                    fulltext_shortfall,
-                    include_fulltext,
-                )
-                if run.trace is not None:
-                    _record_fetched_papers(run.trace, all_details)
-                final_results = self._assemble_final_results(
-                    papers_to_use, all_details, run.max_papers
-                )
-            except Exception as exc:
-                self._write_pilot_error_trace(run, exc)
-                raise
-        if run.trace is not None:
-            run.trace["outcome"] = "nonempty" if final_results else "empty"
-        self._write_pilot_trace(run, final_results)
-        return final_results
-
-    def _write_pilot_error_trace(self, run: _PubmedRun, exc: Exception) -> None:
-        if run.trace is None:
-            return
-        if run.trace.get("error") is None:
-            run.trace["error"] = {
-                "stage": "retrieval_pipeline",
-                "type": type(exc).__name__,
-            }
-        run.trace["outcome"] = "error"
-        try:
-            self._write_pilot_trace(run, {})
-        except Exception:
-            logger.exception("Failed to write PubMed pilot error trace")
-
-    def _write_pilot_trace(
-        self, run: _PubmedRun, final_results: dict[str, Any]
-    ) -> None:
-        if run.trace is None or run.run_dir is None:
-            return
-        run.trace["final_ids"] = list(final_results)[:3]
-        _write_trace_atomically(run.run_dir / ".search-trace.json", run.trace)
-
-    def _build_run(
-        self, query: str, slug: str, max_papers: int, run_id: str | None
-    ) -> _PubmedRun:
-        """Prepares run directories and assembles the run context.
-
-        The entrez semaphore allows 3 concurrent calls (conservative; can
-        rise to 10 with an API key).
-
-        Args:
-            query: PubMed boolean query.
-            slug: Identifier for organizing results (research goal hash).
-            max_papers: Target number of papers WITH fulltext to collect.
-            run_id: Unique run identifier, or None to skip per-run tracking.
-
-        Returns:
-            A _PubmedRun bundling the filesystem context and semaphore.
-        """
-        # Imported locally so importing this module does not require an
-        # event loop / asyncio setup unless this async path is actually run.
-        import asyncio
-
-        trace = _new_pilot_trace(run_id)
+        trace = new_pilot_trace(run_id)
         shared_dir, run_dir = self._prepare_run_directories(slug, run_id)
         if trace is not None and run_dir is not None and run_id is not None:
-            _reserve_trace_run(run_dir, run_id, trace["server_build_id"])
-        _record_pool_snapshot(trace, shared_dir)
-        return _PubmedRun(
-            query,
-            slug,
-            max_papers,
-            run_id,
-            run_dir,
-            shared_dir,
-            asyncio.Semaphore(3),
-            trace,
-        )
+            reserve_trace_run(run_dir, run_id, trace["server_build_id"])
+        record_pool_snapshot(trace, shared_dir)
+        semaphore = asyncio.Semaphore(3)
+        with pilot_trace_context(trace):
+            try:
+                paper_ids = self.pubmed_search_ids(
+                    query,
+                    retmax=max_papers * 3,
+                    recency_years=recency_years,
+                    trace=trace,
+                )
+                all_details = await self._gather_paper_metadata(
+                    paper_ids, shared_dir, run_dir, semaphore
+                )
+                if trace is not None:
+                    record_fetched_papers(trace, all_details)
+                papers_to_use = [
+                    paper_id
+                    for paper_id, metadata in all_details.items()
+                    if metadata.get("pmc_full_text_id") is not None
+                ][:max_papers]
+                if include_fulltext:
+                    await self._download_fulltexts_for_papers(
+                        papers_to_use, all_details, slug, run_id, semaphore
+                    )
+                shortfall = max_papers - len(papers_to_use)
+                if shortfall > 0 and run_dir is not None:
+                    self._supplement_from_shared_pool(
+                        shared_dir,
+                        run_dir,
+                        papers_to_use,
+                        all_details,
+                        shortfall,
+                        trace,
+                    )
+                if run_id and run_dir:
+                    manifest = {
+                        "run_id": run_id,
+                        "paper_ids": papers_to_use,
+                        "pmc_ids": [
+                            all_details[paper_id]["pmc_full_text_id"]
+                            for paper_id in papers_to_use
+                            if all_details[paper_id].get("pmc_full_text_id")
+                        ],
+                        "query": query,
+                        "timestamp": run_dir.stat().st_mtime,
+                    }
+                    (run_dir / ".manifest.json").write_text(
+                        json.dumps(manifest, indent=2), encoding="utf-8"
+                    )
+                if trace is not None:
+                    record_fetched_papers(trace, all_details)
+                results = self._assemble_final_results(
+                    papers_to_use, all_details, max_papers
+                )
+            except Exception as exc:
+                if trace is not None:
+                    if trace.get("error") is None:
+                        trace["error"] = {
+                            "stage": "retrieval_pipeline",
+                            "type": type(exc).__name__,
+                        }
+                    trace["outcome"] = "error"
+                    try:
+                        self._write_pilot_trace(run_dir, trace, {})
+                    except Exception:
+                        logger.exception("Failed to write PubMed error trace")
+                raise
+        if trace is not None:
+            trace["outcome"] = "nonempty" if results else "empty"
+        self._write_pilot_trace(run_dir, trace, results)
+        return results
+
+    def _write_pilot_trace(
+        self,
+        run_dir: Path | None,
+        trace: dict[str, Any] | None,
+        results: dict[str, Any],
+    ) -> None:
+        if trace is not None and run_dir is not None:
+            trace["final_ids"] = list(results)[:3]
+            write_trace_atomically(run_dir / ".search-trace.json", trace)

@@ -37,27 +37,11 @@ module.exports = defineConfig([
     ],
   },
   ...require('gts'),
-  // Layer typescript-eslint strict + stylistic (non-type-checked) on top of
-  // the gts baseline for application sources. These three ceilings mirror the
-  // ones ruff enforces on the Python side, so a file or function that would
-  // be rejected in app/ is rejected here too:
-  //   complexity  - branch-heavy dispatchers belong in a lookup table, not an
-  //                 if/else chain (ruff C901).
-  //   max-params  - past five arguments, group the cohesive ones into a type
-  //                 rather than growing the call site (ruff PLR0913).
-  //   max-lines   - split by concern into sibling modules that re-export the
-  //                 moved names, so import paths survive the split. Python's
-  //                 side of this ceiling is checked by
-  //                 evaluations/tests/test_file_length.py, which walks this
-  //                 directory too; both must agree on the limit.
+  // Keep strict TypeScript checks without size ceilings that force unrelated
+  // helper functions and re-export modules into otherwise cohesive code.
   {
     files: ['src/**/*.ts', 'src/**/*.tsx'],
     extends: [...strictRules, ...stylisticRules],
-    rules: {
-      complexity: ['error', 5],
-      'max-params': ['error', 5],
-      'max-lines': ['error', {max: 500, skipBlankLines: false}],
-    },
   },
   // Test files and test infrastructure: non-null assertions on queried DOM
   // nodes (e.g. `input.closest('form')!`) are idiomatic test shorthand — a

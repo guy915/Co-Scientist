@@ -15,13 +15,13 @@ from __future__ import annotations
 import json
 import re
 
+from co_scientist.agents.evolution import EvolutionContext
 from co_scientist.agents.evolution.evolution_operators import (
     EvolutionOperator,
     operator_template,
 )
 from co_scientist.agents.evolution.evolve_prompt import (
     _build_evolution_prompt,
-    _EvolutionContext,
     _EvolutionOperation,
 )
 from co_scientist.agents.ranking.ranking_debate_turns import (
@@ -253,7 +253,7 @@ def _render_ranking_05() -> Rendered:
     )
 
 
-def _evolution_context() -> _EvolutionContext:
+def _evolution_context() -> EvolutionContext:
     from tests._state import make_state
 
     state = make_state(
@@ -261,7 +261,7 @@ def _evolution_context() -> _EvolutionContext:
         preferences=PREFERENCES,
         lab_constraints=["No BSL-3 access", "Rodent models only"],
     )
-    return _EvolutionContext(
+    return EvolutionContext(
         model_name="offline/test-model",
         meta_review=META_REVIEW,
         removed_duplicates=["An earlier duplicate of the parent idea."],

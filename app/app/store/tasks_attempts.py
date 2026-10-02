@@ -72,7 +72,7 @@ def renew_task_lease(
 
 
 # The largest max_attempts any caller in this codebase configures is 3
-# (the NewTask default; report/notify.py's own retry task uses it too).
+# (the NewTask default; notifications.py's own retry task uses it too).
 # Capped well above that for headroom against a future caller raising its
 # own budget, while still bounding this column's size on a hot table.
 _MAX_STORED_ATTEMPTS = 10

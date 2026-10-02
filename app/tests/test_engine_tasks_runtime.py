@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 from app import engine_tasks, safety, store
-from app.engine_tasks import node as engine_tasks_node
+from app.engine_tasks import finalize as engine_tasks_node
 from app.engine_tasks import runtime as engine_tasks_runtime
 from app.engine_tasks import support as engine_tasks_support
 from app.engine_tasks.runtime import ProductionEngineTaskRuntime

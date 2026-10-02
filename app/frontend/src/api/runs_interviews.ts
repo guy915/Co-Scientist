@@ -1,17 +1,5 @@
-// Interview API client: the durable model-driven research-goal interview
-// (`/api/interviews`). Extracted from `./runs`, which re-exports the public
-// functions so callers keep importing them from '@/api/runs'.
-
 import type {ChatSummary, Interview} from './run_types';
-import {
-  API_BASE_URL,
-  byokHeaders,
-  clientHeaders,
-  fetchJson,
-  fetchWithSession,
-  jsonRequest,
-  readSseFrames,
-} from './runs_http';
+import {clientHeaders, fetchJson, jsonRequest, streamJson} from './runs_http';
 
 /** A frame of a streamed interview turn. */
 type InterviewFrame =
@@ -20,14 +8,6 @@ type InterviewFrame =
   | {type: 'interview'; interview: Interview}
   | {type: 'error'; detail: string};
 
-/**
- * Where a streamed turn's two live channels go.
- *
- * A turn streams the Agent's chain of thought and then its answer, so both
- * arrive while it is still being composed. Bundled rather than passed as two
- * positional callbacks, so a caller wanting only one names the one it wants
- * and the four turn functions below keep their existing argument order.
- */
 export interface InterviewSinks {
   /** Receives each chain-of-thought fragment as it arrives. */
   onReasoning?: (fragment: string) => void;
@@ -35,43 +15,7 @@ export interface InterviewSinks {
   onProse?: (fragment: string) => void;
 }
 
-/**
- * Applies one streamed interview frame to the in-progress interview: relays
- * a reasoning or prose fragment, adopts a completed interview snapshot, or
- * throws on an error frame. Returns the interview unchanged for a fragment.
- *
- * The two terminal frames are handled first so what remains is a live
- * fragment differing only in which channel it belongs to.
- */
-function applyInterviewFrame(
-  frame: InterviewFrame,
-  interview: Interview | undefined,
-  sinks: InterviewSinks,
-): Interview | undefined {
-  if (frame.type === 'interview') return frame.interview;
-  if (frame.type === 'error') throw new Error(frame.detail);
-  const sink = frame.type === 'reasoning' ? sinks.onReasoning : sinks.onProse;
-  sink?.(frame.content);
-  return interview;
-}
-
-/**
- * Runs one streamed interview turn, relaying the model's live reasoning.
- *
- * The turn streams so the chain of thought can be shown while the Agent is
- * still composing, but the transport stays an implementation detail: callers
- * await the resolved interview exactly as they did over plain JSON.
- *
- * @param path The interview endpoint to post to.
- * @param body The JSON request body.
- * @param sinks Where the turn's live reasoning and prose are relayed.
- * @param method HTTP method; the revision endpoints replace a turn rather
- *   than appending one, so one of them is a PUT.
- * @param signal Aborts the turn: the fetch itself if not yet sent, or the
- *   read loop below if the stream is already open. Both surface as a
- *   `DOMException` named `AbortError`, which callers distinguish from a
- *   real failure (see the composer's Stop control).
- */
+/** Relay live fragments and return the final durable interview snapshot. */
 async function streamInterviewTurn(
   path: string,
   body: unknown,
@@ -79,19 +23,25 @@ async function streamInterviewTurn(
   method = 'POST',
   signal?: AbortSignal,
 ): Promise<Interview> {
-  const init = jsonRequest(body, true);
-  const res = await fetchWithSession(`${API_BASE_URL}${path}`, {
-    ...init,
-    method,
-    signal,
-    headers: {
-      ...(init.headers as Record<string, string>),
-      ...byokHeaders(),
-    },
-  });
   let interview: Interview | undefined;
-  for await (const frame of readSseFrames<InterviewFrame>(res)) {
-    interview = applyInterviewFrame(frame, interview, sinks);
+  for await (const frame of streamJson<InterviewFrame>(
+    path,
+    body,
+    signal,
+    method,
+  )) {
+    switch (frame.type) {
+      case 'interview':
+        interview = frame.interview;
+        break;
+      case 'error':
+        throw new Error(frame.detail);
+      case 'reasoning':
+        sinks.onReasoning?.(frame.content);
+        break;
+      case 'chunk':
+        sinks.onProse?.(frame.content);
+    }
   }
   if (!interview) {
     throw new Error('The Agent could not continue the interview.');
@@ -100,7 +50,7 @@ async function streamInterviewTurn(
 }
 
 /** Starts a durable model-driven research-goal interview. */
-export async function createInterview(
+export function createInterview(
   researchChallenge: string,
   sinks?: InterviewSinks,
   documentIds: string[] = [],
@@ -118,14 +68,8 @@ export async function createInterview(
   );
 }
 
-/**
- * Sends one scientist answer and returns the Agent's updated derivation.
- *
- * `documentIds` names documents staged through `/api/documents` with this
- * turn; the Agent reads them while deriving it, so an attachment shapes the
- * conversation it was made in rather than arriving after the plan is set.
- */
-export async function addInterviewTurn(
+/** Staged documents shape this turn while the Agent derives its answer. */
+export function addInterviewTurn(
   interviewId: string,
   content: string,
   sinks?: InterviewSinks,
@@ -141,14 +85,8 @@ export async function addInterviewTurn(
   );
 }
 
-/**
- * Rewrites one scientist turn in place and re-answers from there.
- *
- * The edited prompt replaces the original where it stands; every turn the
- * Agent derived from the old wording is discarded with it, so the returned
- * interview is the whole conversation as it now reads.
- */
-export async function editInterviewTurn(
+/** Replace a scientist turn and discard/rederive everything after it. */
+export function editInterviewTurn(
   interviewId: string,
   turnId: number,
   content: string,
@@ -165,7 +103,7 @@ export async function editInterviewTurn(
 }
 
 /** Discards one Agent turn and answers the same prompt again. */
-export async function retryInterviewTurn(
+export function retryInterviewTurn(
   interviewId: string,
   turnId: number,
   sinks?: InterviewSinks,
@@ -180,31 +118,20 @@ export async function retryInterviewTurn(
   );
 }
 
-/**
- * Lists the caller's chats, newest first, for the sidebar.
- *
- * Transcripts are deliberately absent: the list only needs a label and the
- * run each chat started, and a chat is reopened by id when it is clicked.
- */
-export async function listInterviews(): Promise<ChatSummary[]> {
+/** Sidebar summaries omit transcripts; reopen a conversation by id. */
+export function listInterviews(): Promise<ChatSummary[]> {
   return fetchJson('/api/interviews', {headers: clientHeaders()});
 }
 
 /** Reloads a durable interview for resume. */
-export async function getInterview(interviewId: string): Promise<Interview> {
+export function getInterview(interviewId: string): Promise<Interview> {
   return fetchJson(`/api/interviews/${interviewId}`, {
     headers: clientHeaders(),
   });
 }
 
-/**
- * Persists scientist edits to the four verified fields.
- *
- * The endpoint is PUT-only, so `jsonRequest`'s default POST method is
- * overridden here the same way `streamInterviewTurn` overrides it for the
- * turn-revision endpoints above.
- */
-export async function editInterviewFields(
+/** Persist scientist edits to the four verified fields. */
+export function editInterviewFields(
   interviewId: string,
   fields: Interview['fields'],
 ): Promise<Interview> {

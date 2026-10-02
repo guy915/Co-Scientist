@@ -6,7 +6,7 @@ from typing import Any
 
 from Bio import Entrez
 
-from mcp_server.entrez import initialize_entrez
+from mcp_server.entrez import initialize_entrez, read_entrez
 from mcp_server.entrez_rate_limit import entrez_call, record_pilot_fetch_error
 from mcp_server.pubmed_query import search_with_relaxation
 from mcp_server.tools.text import clean_markup
@@ -193,25 +193,7 @@ class _EntrezClient:
         self.qualified_path = qualified_path
 
     def entrez_read(self, handle: Any) -> Any:
-        """Reads an open Entrez handle.
-
-        Entrez.read parses XML into either a dict-like or list-like structure
-        depending on the query, so the return type is intentionally opaque.
-
-        Rate limiting does not belong here: by the time a handle exists its
-        request has already been sent, so the delay this used to sleep paced
-        nothing. Requests are paced before they go out, in
-        :func:`mcp_server.entrez_rate_limit.entrez_call`.
-
-        Args:
-            handle: Open Entrez response handle.
-
-        Returns:
-            Parsed result from Entrez.read() (dict-like or list-like).
-        """
-        results = Entrez.read(handle)
-        handle.close()
-        return results
+        return read_entrez(handle)
 
     def _fetch_pmc_fulltext_id(self, paper_id: str, doi: str) -> str | None:
         """Looks up the PMC fulltext ID linked to a PubMed article.

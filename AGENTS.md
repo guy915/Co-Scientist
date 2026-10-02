@@ -157,6 +157,6 @@ for a concise personal-project workflow:
 - Do not automate merges or other hard-to-reverse Git operations end to end. Review both sides and the intended diff before committing; inspect snapshot/reference paths for rename-detection artifacts.
 - `main` is protected. Do not try to bypass that protection or promise a direct push; use the repository's review and merge path.
 - Keep the app and engine pytest suites serialized. Stop leftover local `uvicorn` verification servers before a full suite, and do not re-run an unchanged full suite merely to reconfirm it.
-- Run named gates directly and record their real exit status. Do not hide one behind a pipeline; redirect output to a log if needed, then capture the command's status. For the repository size ceilings, run `evaluations/tests/test_function_length.py` and `evaluations/tests/test_file_length.py` explicitly.
+- Run named gates directly and record their real exit status. Do not hide one behind a pipeline; redirect output to a log if needed, then capture the command's status. For repository architecture and published-source invariants, run `evaluations/tests/` explicitly.
 - Before accepting a result as unverifiable, inspect the relevant primary source tree rather than relying on a derived or mirrored document. Record the source scope and direct evidence for the finding.
 - Before declaring a production probe or polling check failed, fetch the artifact once and derive its assertion from the observed output. For shared UI work, verify both light and dark themes.

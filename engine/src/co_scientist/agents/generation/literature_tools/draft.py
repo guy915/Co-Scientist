@@ -1,39 +1,18 @@
-"""Phase 1: Draft hypotheses by reading papers and identifying gaps.
-
-This is the first phase of tool-based generation. The agent reads pre-curated
-papers using tools and drafts initial hypothesis ideas based on identified gaps.
-
-The helpers live in sibling modules (draft_tools.py for tool-provider setup,
-draft_prompt.py for prompt assembly); the call_llm_with_tools LLM seam is
-called from this module so tests can monkeypatch it on this namespace. All
-helper names are re-exported here for compatibility.
-"""
+"""Draft hypotheses with literature tools and run guidance."""
 
 import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Optional
 
 from co_scientist.agents.generation.literature_tools.draft_prompt import (
-    _DraftStateContext as _DraftStateContext,
-)
-from co_scientist.agents.generation.literature_tools.draft_prompt import (
     _gather_draft_state_context as _gather_draft_state_context,
 )
 from co_scientist.agents.generation.literature_tools.draft_prompt import (
     _invoke_draft_prompt_builder as _invoke_draft_prompt_builder,
 )
-from co_scientist.agents.generation.literature_tools.draft_prompt import (
-    _log_lit_review_context as _log_lit_review_context,
-)
 from co_scientist.agents.generation.literature_tools.draft_skills import (
     DraftSkills,
     attach_skills,
-)
-from co_scientist.agents.generation.literature_tools.draft_tools import (
-    _resolve_mcp_whitelist as _resolve_mcp_whitelist,
-)
-from co_scientist.agents.generation.literature_tools.draft_tools import (
-    _resolve_tool_registry_fallback as _resolve_tool_registry_fallback,
 )
 from co_scientist.agents.generation.literature_tools.draft_tools import (
     _setup_tool_provider as _setup_tool_provider,

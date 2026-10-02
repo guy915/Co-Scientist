@@ -1,12 +1,4 @@
-"""JSON schemas for the hypothesis-generation stage.
-
-These schemas are used with response_format of type json_schema to
-constrain LLM outputs during hypothesis drafting and debate-based
-generation/validation synthesis. The assumptions technique's own
-schemas and the standalone novelty-analysis schema moved to
-generation_assumptions.py at the file-size cap and are re-exported
-below so every existing import of this module keeps working.
-"""
+"""Schemas for hypothesis drafting, debate, and validation synthesis."""
 
 from typing import Any, Final
 

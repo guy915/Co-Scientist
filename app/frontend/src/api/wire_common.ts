@@ -14,10 +14,20 @@ export interface CategoricalAttribute {
 export type JsonPrimitive = string | number | boolean | null;
 
 export type JsonValue =
-  string | number | boolean | JsonValue[] | {[key: string]: JsonValue} | null;
+  | string
+  | number
+  | boolean
+  | JsonValue[]
+  | {[key: string]: JsonValue}
+  | null;
 
 export type LegacyRunProfile =
-  'standard' | 'advanced' | 'express' | 'extended' | 'ultra' | 'default';
+  | 'standard'
+  | 'advanced'
+  | 'express'
+  | 'extended'
+  | 'ultra'
+  | 'default';
 
 export interface NamedCriterion {
   name: string;
@@ -56,10 +66,17 @@ export type RunEventActivity =
   | 'other';
 
 export type RunFocus =
-  'prefer_evidence' | 'balance' | 'prefer_novelty' | 'breakthrough';
+  | 'prefer_evidence'
+  | 'balance'
+  | 'prefer_novelty'
+  | 'breakthrough';
 
 export type RunMode =
-  'standard' | 'advanced' | 'express' | 'extended' | 'ultra';
+  | 'standard'
+  | 'advanced'
+  | 'express'
+  | 'extended'
+  | 'ultra';
 
 export interface RunSetupConfig {
   goal: string;

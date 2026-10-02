@@ -1,13 +1,4 @@
-"""Orchestrator bookkeeping carried between scheduling decisions.
-
-Holds the state the loop point carries forward itself rather than reading
-from the workflow: the proximity/pool anchors, the rank-stability counter,
-the last work task, and the settlement allowance that bounds how long owed
-tournament coverage may override a budget ceiling. The decision node stays
-in ``orchestrator.py`` and the observable statistics in
-``orchestrator_stats.py``; ``orchestrator.py`` re-exports these names for
-compatibility.
-"""
+"""Carry task history and settlement allowances between scheduling decisions."""
 
 from __future__ import annotations
 

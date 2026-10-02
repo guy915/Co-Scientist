@@ -10,13 +10,6 @@ import {
 } from 'react';
 import {Icon} from '@/components/icon';
 import {tooltipClassNames} from '../tooltip';
-import {
-  USER_BUBBLE_TEXT_CLAMP_CLASSES,
-  USER_BUBBLE_TEXT_CLASSES,
-  USER_BUBBLE_TEXT_COLLAPSIBLE_CLASSES,
-  USER_BUBBLE_TEXT_OPEN_CLASSES,
-  USER_COLLAPSE_BUTTON_CLASSES,
-} from './chat_setup_classes';
 
 const COLLAPSED_LINE_COUNT = 4;
 
@@ -85,12 +78,13 @@ function collapsibleTextClassName(
   clamped: boolean,
   expanded: boolean,
 ): string {
-  if (!collapsible) return USER_BUBBLE_TEXT_CLASSES;
+  if (!collapsible)
+    return 'reference-user-bubble-text min-w-0 break-words whitespace-pre-wrap';
   const stateClasses =
     clamped && !expanded
-      ? USER_BUBBLE_TEXT_CLAMP_CLASSES
-      : USER_BUBBLE_TEXT_OPEN_CLASSES;
-  return `${USER_BUBBLE_TEXT_COLLAPSIBLE_CLASSES} ${stateClasses}`;
+      ? 'block whitespace-normal'
+      : 'block whitespace-pre-wrap';
+  return `${'reference-user-bubble-text min-w-0 break-words overflow-hidden transition-[max-height] duration-300 ease-out motion-reduce:transition-none'} ${stateClasses}`;
 }
 
 // Pure: the collapsible text span's inline max-height style, which drives
@@ -378,7 +372,8 @@ function CollapseToggleButton({
     <button
       type="button"
       className={tooltipClassNames({
-        className: USER_COLLAPSE_BUTTON_CLASSES,
+        className:
+          'reference-user-collapse size-8 shrink-0 grid cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 text-[1.25rem] text-cosci-muted hover:bg-cosci-user-bubble-hover hover:text-cosci-fg focus-visible:bg-cosci-user-bubble-hover focus-visible:text-cosci-fg',
         placement: 'right',
       })}
       aria-label={expanded ? 'Collapse' : 'Expand'}

@@ -1,12 +1,12 @@
 """Tests for HypothesisGenerator's run paths: streaming and non-streaming.
 
 ``tests/test_generator.py`` covers construction, graph compilation, and
-``_prepare_generation`` in isolation. This file drives the two full run
+``prepare_task_state`` in isolation. This file drives the two full run
 paths -- ``generate_hypotheses(stream=False)`` and
 ``generate_hypotheses(stream=True)`` -- against a fake compiled graph
 installed on ``gen._graph`` before the call, so ``_ensure_graph_built``
 reuses it instead of compiling (and running) the real node graph. Every
-call passes ``enable_literature_review_node=False`` so ``_prepare_generation``
+call passes ``enable_literature_review_node=False`` so ``prepare_task_state``
 skips the MCP availability probes entirely (see
 ``test_explicit_disable_skips_mcp_probe`` in ``test_generator.py`` for the
 same technique).

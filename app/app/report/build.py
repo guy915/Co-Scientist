@@ -27,7 +27,6 @@ from app.report.gates import (
     exclude_unsafe_hypotheses,
 )
 from app.report.markdown import ReportMarkdownInputs, render_report_markdown
-from app.report.payload import ReportPayloadInputs, build_report_payload
 
 
 class ReportRequest(NamedTuple):
@@ -106,11 +105,6 @@ class ReportRequest(NamedTuple):
     db_path: str | None = None
 
 
-# The pre-bundle name, kept so existing imports and monkeypatch seams keep
-# resolving.
-_ReportBuildArgs = ReportRequest
-
-
 class _ReportData(NamedTuple):
     """Gathered hypotheses, evidence, reviews, and counts for a run."""
 
@@ -128,7 +122,6 @@ class _ReportData(NamedTuple):
     # ``match_count`` is their length rather than a second COUNT(*): the
     # payload's number and the section's rows must be the same fact.
     matches: list[dict[str, Any]]
-    match_count: int
     reviews: list[dict[str, Any]]
     # Searches the deep-research loop recorded for this run, keyed by
     # run_id alone -- extended/ultra tiers only, empty on every other
@@ -165,9 +158,7 @@ class _BuiltReport(NamedTuple):
     exclusion_tally: dict[str, int]
 
 
-async def build_report_content(
-    run_id: str, req: _ReportBuildArgs
-) -> _BuiltReport:
+async def build_report_content(run_id: str, req: ReportRequest) -> _BuiltReport:
     """Gather store data and build the report payload and markdown.
 
     Leaderboard, top hypotheses, and every row count are read from the store
@@ -219,7 +210,7 @@ def _hypothesis_title_by_id(hyps: list[dict[str, Any]]) -> dict[str, str]:
 
 def _report_markdown_inputs(
     data: _ReportData,
-    req: _ReportBuildArgs,
+    req: ReportRequest,
     knowledge_base: list[dict[str, Any]],
 ) -> ReportMarkdownInputs:
     """Assemble the inputs the markdown document renders from."""
@@ -251,7 +242,7 @@ def _report_markdown_inputs(
 
 
 def _resolve_knowledge_base(
-    data: _ReportData, req: _ReportBuildArgs
+    data: _ReportData, req: ReportRequest
 ) -> list[dict[str, Any]]:
     """Resolve the run's Knowledge Base topics, once, for payload and markdown.
 
@@ -265,37 +256,6 @@ def _resolve_knowledge_base(
         req.research_overview, data.evidence
     )
     return synthesized or _knowledge_base_topics(data.hyps, data.claim_edges)
-
-
-class _ReportReferenceTables(NamedTuple):
-    """This run's supporting tables the report renders but does not gate on.
-
-    Citations resolve the [C*] keys a hypothesis's mechanism text cites.
-    Matches are materialized rather than counted: the report renders each
-    match's own debate transcript for the "Tournament debates" section, and
-    counting them separately would charge a second query for a number this
-    list already carries. Reviews are the reader's copy of every review row
-    -- initial, deep verification, and the mature cascade's distinctly
-    labeled full/simulation/recurrent results (audit E1). Retrieval calls
-    are what the deep-research loop recorded, extended/ultra tiers only.
-    """
-
-    citations: list[dict[str, Any]]
-    matches: list[dict[str, Any]]
-    reviews: list[dict[str, Any]]
-    retrieval_calls: list[dict[str, Any]]
-
-
-def _load_report_reference_tables(
-    run_id: str, db_path: str | None
-) -> _ReportReferenceTables:
-    """Load this run's supporting tables -- see ``_ReportReferenceTables``."""
-    return _ReportReferenceTables(
-        citations=store.list_citations(run_id, db_path=db_path),
-        matches=store.list_matches(run_id, db_path=db_path),
-        reviews=store.list_reviews(run_id, db_path=db_path),
-        retrieval_calls=store.list_retrieval_calls(run_id, db_path=db_path),
-    )
 
 
 def _gather_report_data(run_id: str, db_path: str | None) -> _ReportData:
@@ -319,71 +279,51 @@ def _gather_report_data(run_id: str, db_path: str | None) -> _ReportData:
     # ``summary_counts`` exists to avoid materializing tables the caller
     # has; asking it here would re-count evidence beside tables the report
     # never reads it through.
-    tables = _load_report_reference_tables(run_id, db_path)
     return _ReportData(
         hyps=hyps,
         all_hyps=all_hyps,
         claim_edges=claim_edges,
         released_claim_edges=released_claim_edges,
         evidence=evidence,
-        citations=tables.citations,
-        matches=tables.matches,
-        match_count=len(tables.matches),
-        reviews=tables.reviews,
-        retrieval_calls=tables.retrieval_calls,
+        citations=store.list_citations(run_id, db_path=db_path),
+        matches=store.list_matches(run_id, db_path=db_path),
+        reviews=store.list_reviews(run_id, db_path=db_path),
+        retrieval_calls=store.list_retrieval_calls(run_id, db_path=db_path),
         exclusion_tally=_exclusion_tally(all_hyps, hyps, contradicted),
     )
 
 
 def _assemble_report_payload(
     data: _ReportData,
-    req: _ReportBuildArgs,
+    req: ReportRequest,
     knowledge_base: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Build the report payload dict from already-gathered store data."""
     hyps, all_hyps, claim_edges = data.hyps, data.all_hyps, data.claim_edges
-    payload = build_report_payload(
-        ReportPayloadInputs(
-            research_goal=req.research_goal,
-            run_mode=req.run_mode,
-            provider=req.provider,
-            leaderboard=live_leaderboard(hyps),
-            hypothesis_count=len(hyps),
-            idea_count=len(all_hyps),
-            verified_count=_verified_hypothesis_count(hyps, claim_edges),
-            evidence_count=len(data.evidence),
-            match_count=data.match_count,
-            citation_summary=req.citation_summary,
-            meta_review=req.meta_review,
-            research_overview=req.research_overview,
-            knowledge_base=knowledge_base,
-            agent_insights=_agent_insights(hyps, claim_edges, req.meta_review),
-            idea_buckets=_idea_buckets(hyps, all_hyps, claim_edges),
-            claim_evidence=data.released_claim_edges,
-            execution_time=req.execution_time,
-        )
-    )
-    _attach_run_conditions(payload, data, req)
+    payload: dict[str, Any] = {
+        "research_goal": req.research_goal,
+        "run_mode": req.run_mode,
+        "provider": req.provider,
+        "leaderboard": live_leaderboard(hyps),
+        "hypothesis_count": len(hyps),
+        # Explored and published ideas differ when the release gate withholds
+        # an unsafe or contradicted candidate.
+        "idea_count": len(all_hyps),
+        "verified_count": _verified_hypothesis_count(hyps, claim_edges),
+        "evidence_count": len(data.evidence),
+        "match_count": len(data.matches),
+        "citation_summary": req.citation_summary or {},
+        "meta_review": req.meta_review or {},
+        "research_overview": req.research_overview or {},
+        "knowledge_base": knowledge_base,
+        "agent_insights": _agent_insights(hyps, claim_edges, req.meta_review),
+        "idea_buckets": _idea_buckets(hyps, all_hyps, claim_edges),
+        "claim_evidence": data.released_claim_edges,
+        "degraded_sections": list(req.degraded_sections or []),
+        "retrieval_degradation": req.retrieval_degradation,
+        "skills_used": dict(req.skills_used or {}),
+        "reviews": list(data.reviews),
+    }
+    if req.execution_time is not None:
+        payload["execution_time"] = req.execution_time
     return payload
-
-
-def _attach_run_conditions(
-    payload: dict[str, Any], data: _ReportData, req: _ReportBuildArgs
-) -> None:
-    """Attach what the reader needs to read the payload correctly.
-
-    Not results: the conditions the run met. A section left blank by a
-    fallback reads as missing data unless the report says generation
-    failed, and retrieval the run never attempted is invisible in every
-    other field -- an unreachable literature server routes the graph
-    around every source and the run completes looking ordinary. The
-    reviews ride along here because they are the same kind of fact: what
-    was actually done to each idea, rather than the idea itself.
-    """
-    payload["degraded_sections"] = list(req.degraded_sections or [])
-    payload["retrieval_degradation"] = req.retrieval_degradation
-    payload["skills_used"] = dict(req.skills_used or {})
-    # Every review row the drain persisted, so the report carries the
-    # initial, deep-verification, and mature-cascade reviews to the reader
-    # (audit E1); the ideas view reads the same rows from /reviews.
-    payload["reviews"] = list(data.reviews)

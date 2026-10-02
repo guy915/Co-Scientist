@@ -12,18 +12,6 @@ from co_scientist.agents.ranking.operations import (
     prepare_ranking_prompt_context,
 )
 from co_scientist.agents.ranking.ranking_debate import (
-    _call_matchup_judge as _call_matchup_judge,
-)
-from co_scientist.agents.ranking.ranking_debate import (
-    _DebateContext as _DebateContext,
-)
-from co_scientist.agents.ranking.ranking_debate import (
-    _matchup_debate_turns as _matchup_debate_turns,
-)
-from co_scientist.agents.ranking.ranking_debate import (
-    _median_elo as _median_elo,
-)
-from co_scientist.agents.ranking.ranking_debate import (
     judge_matchup as judge_matchup,
 )
 from co_scientist.agents.ranking.ranking_elo import (
@@ -31,24 +19,6 @@ from co_scientist.agents.ranking.ranking_elo import (
 )
 from co_scientist.agents.ranking.ranking_elo import (
     match_tier as match_tier,
-)
-from co_scientist.agents.ranking.ranking_lifecycle import (
-    _finalize_ranking_result as _finalize_ranking_result,
-)
-from co_scientist.agents.ranking.ranking_lifecycle import (
-    _gather_tournament_context as _gather_tournament_context,
-)
-from co_scientist.agents.ranking.ranking_lifecycle import (
-    _prepare_ranking_round as _prepare_ranking_round,
-)
-from co_scientist.agents.ranking.ranking_lifecycle import (
-    _sort_hypotheses_by_elo as _sort_hypotheses_by_elo,
-)
-from co_scientist.agents.ranking.ranking_lifecycle import (
-    _sort_hypotheses_for_tournament as _sort_hypotheses_for_tournament,
-)
-from co_scientist.agents.ranking.ranking_lifecycle import (
-    _tournament_round_count as _tournament_round_count,
 )
 from co_scientist.agents.ranking.ranking_lifecycle import (
     _TournamentGuidance as _TournamentGuidance,
@@ -60,45 +30,6 @@ from co_scientist.agents.ranking.ranking_lifecycle import (
 )
 from co_scientist.agents.ranking.ranking_pairings import (
     build_tournament_pairings,
-)
-from co_scientist.agents.ranking.ranking_prompt import (
-    _build_matchup_prompt as _build_matchup_prompt,
-)
-from co_scientist.agents.ranking.ranking_prompt import (
-    _deep_verification_summary as _deep_verification_summary,
-)
-from co_scientist.agents.ranking.ranking_prompt import (
-    _gather_matchup_summaries as _gather_matchup_summaries,
-)
-from co_scientist.agents.ranking.ranking_prompt import (
-    _log_reflection_coverage as _log_reflection_coverage,
-)
-from co_scientist.agents.ranking.ranking_prompt import (
-    _log_reflection_debug as _log_reflection_debug,
-)
-from co_scientist.agents.ranking.ranking_prompt import (
-    _review_summary as _review_summary,
-)
-from co_scientist.agents.ranking.ranking_prompt import (
-    _warn_if_reflection_notes_dropped as _warn_if_reflection_notes_dropped,
-)
-from co_scientist.agents.ranking.ranking_results import (
-    _apply_matchup_elo as _apply_matchup_elo,
-)
-from co_scientist.agents.ranking.ranking_results import (
-    _build_matchup_detail as _build_matchup_detail,
-)
-from co_scientist.agents.ranking.ranking_results import (
-    _build_ranking_delta as _build_ranking_delta,
-)
-from co_scientist.agents.ranking.ranking_results import (
-    _extract_reasoning as _extract_reasoning,
-)
-from co_scientist.agents.ranking.ranking_results import (
-    _format_judgment_explanation as _format_judgment_explanation,
-)
-from co_scientist.agents.ranking.ranking_results import (
-    _MatchupOutcome as _MatchupOutcome,
 )
 from co_scientist.constants import (
     ELO_K_FACTOR,
@@ -274,7 +205,6 @@ def _filter_eligible_hypotheses(
         len(eligible),
         len(hypotheses),
     )
-    _log_reflection_coverage(hypotheses)
     return eligible
 
 

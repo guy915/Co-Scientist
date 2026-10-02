@@ -9,12 +9,10 @@ import {
   getHypotheses,
   getEvidence,
   getMatches,
-  getProximity,
   getReviews,
   getReport,
-  getRunEvents,
+  getSupervisorPlan,
   runGoal,
-  eventsStreamUrl,
   createInterview,
 } from './runs';
 import type {Run} from './run_types';
@@ -244,22 +242,6 @@ describe('getHypotheses', () => {
   });
 });
 
-describe('getProximity', () => {
-  it('GETs the owned proximity graph with the ownership header', async () => {
-    const proximity = [{source_hypothesis_id: 'h1'}];
-    fetchMock().mockResolvedValue(jsonResponse({proximity}));
-
-    const result = await getProximity('r1');
-
-    const [url, opts] = firstCall();
-    expect(url).toBe('/api/runs/r1/proximity');
-    expect(
-      (opts?.headers as Record<string, string>)['X-Client-ID'],
-    ).toBeTruthy();
-    expect(result).toEqual(proximity);
-  });
-});
-
 describe('collection fetchers unwrap their keyed payload', () => {
   // getEvidence/getMatches/getReviews share one shape: GET the run-scoped
   // endpoint and unwrap the same-named array from the response body.
@@ -422,36 +404,6 @@ describe('error message formatting', () => {
   });
 });
 
-describe('url builders', () => {
-  it('eventsStreamUrl builds the run events endpoint with no credential', () => {
-    // The stream is opened over `fetch` with `clientHeaders()` (see
-    // `useRunStream`), not `EventSource`, so identity never has to travel
-    // in the query string the way it did before.
-    const url = eventsStreamUrl('run-42');
-    expect(url).toBe('/api/runs/run-42/events');
-  });
-
-  it('getRunEvents fetches the persisted JSON snapshot', async () => {
-    const events = [
-      {seq: 1, type: 'lifecycle', payload: {event: 'created'}, created_at: 1},
-    ];
-    fetchMock().mockResolvedValue(jsonResponse({events}));
-
-    const result = await getRunEvents('run-42');
-
-    expect(firstCall()[0]).toBe('/api/runs/run-42/events?stream=false&after=0');
-    expect(result).toEqual(events);
-  });
-
-  it('getRunEvents forwards the after cursor', async () => {
-    fetchMock().mockResolvedValue(jsonResponse({events: []}));
-
-    await getRunEvents('run-42', 7);
-
-    expect(firstCall()[0]).toBe('/api/runs/run-42/events?stream=false&after=7');
-  });
-});
-
 describe('expired researcher session', () => {
   afterEach(() => clearAccessToken());
 
@@ -486,5 +438,24 @@ describe('expired researcher session', () => {
     await expect(createInterview('a goal')).rejects.toThrow('401');
 
     expect(getAccessToken()).toBeNull();
+  });
+});
+
+describe('getSupervisorPlan', () => {
+  it('fetches the owned allocation ledger using the standard client header', async () => {
+    const response = {plan: null, allocations: []};
+    fetchMock().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => response,
+    } as Response);
+
+    expect(await getSupervisorPlan('r1')).toEqual(response);
+    const [url, opts] = firstCall();
+    expect(url).toBe('/api/runs/r1/supervisor-plan');
+    expect(opts?.method).toBeUndefined();
+    expect(
+      (opts?.headers as Record<string, string>)['X-Client-ID'],
+    ).toBeTruthy();
   });
 });

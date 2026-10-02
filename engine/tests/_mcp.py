@@ -150,7 +150,7 @@ def stub_mcp_availability(
 ) -> None:
     """Patch both MCP-availability probes to a fixed boolean.
 
-    ``_prepare_generation`` imports these names from ``co_scientist.mcp_client``
+    ``prepare_task_state`` imports these names from ``co_scientist.mcp_client``
     at call time, so patching the source module suffices.
 
     Args:

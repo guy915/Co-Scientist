@@ -166,14 +166,17 @@ def test_legacy_fetch_write_invalidates_no_link_proof_even_when_bytes_match(
         hashlib.sha256(serialized.encode("utf-8")).hexdigest(),
         encoding="ascii",
     )
+    # A missing cache entry must invalidate any orphaned no-link proof when
+    # legacy retrieval writes the same metadata bytes again.
+    metadata_file.unlink()
     source = PubmedSource(tmp_path)
     monkeypatch.setattr(
         source, "_fetch_paper_details", lambda _paper_id: metadata
     )
 
     result = asyncio.run(
-        source._fetch_and_cache_metadata(
-            "101", metadata_file, None, asyncio.Semaphore(1)
+        source._fetch_one_paper_metadata(
+            "101", shared_dir, None, asyncio.Semaphore(1)
         )
     )
 

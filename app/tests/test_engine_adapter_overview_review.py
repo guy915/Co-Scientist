@@ -10,28 +10,29 @@ from typing import Any
 
 import pytest
 
-from app.engine_adapter.opts_capabilities import _resolve_overview_review_toggle
+from app.engine_adapter.opts import _apply_capability_opts
 
 
-def _cfg(tier: str | None) -> dict[str, Any]:
-    """A resolved run config carrying only the tier under test."""
-    return {"tier": tier}
+def _enabled(tier: str | None) -> bool:
+    """Read the capability the opts builder actually sends to the engine."""
+    opts: dict[str, Any] = {}
+    _apply_capability_opts(opts, {"tier": tier} if tier is not None else {})
+    return bool(opts["enable_overview_review"])
 
 
 @pytest.mark.parametrize("tier", ["extended", "ultra"])
 def test_deep_tiers_fund_an_overview_review(tier: str) -> None:
-    assert _resolve_overview_review_toggle(_cfg(tier)) is True
+    assert _enabled(tier) is True
 
 
 @pytest.mark.parametrize("tier", ["express", "standard"])
 def test_fast_tiers_publish_unreviewed(tier: str) -> None:
-    assert _resolve_overview_review_toggle(_cfg(tier)) is False
+    assert _enabled(tier) is False
 
 
 def test_an_unset_tier_falls_back_to_the_default_tier() -> None:
-    assert _resolve_overview_review_toggle(_cfg(None)) is False
-    assert _resolve_overview_review_toggle({}) is False
+    assert _enabled(None) is False
 
 
 def test_a_legacy_tier_name_resolves_before_the_gate() -> None:
-    assert _resolve_overview_review_toggle(_cfg("advanced")) is True
+    assert _enabled("advanced") is True

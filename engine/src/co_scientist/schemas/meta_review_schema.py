@@ -353,7 +353,7 @@ META_REVIEW_SCHEMA: dict[str, Any] = {
             # paragraphs, cross-cutting the run's candidate ideas the way
             # the two comparison fields above already do -- see
             # report/markdown/meta_review.py for the render and its
-            # placement (report/markdown/documents.py), immediately before
+            # placement (report/markdown/__init__.py), immediately before
             # Top hypotheses, matching the published "before Candidate
             # Ideas" order. Required, like meta_review_summary, rather than
             # optional: every run has directions worth naming, so there is

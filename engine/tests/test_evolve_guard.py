@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from co_scientist.agents.evolution import evolve
+from co_scientist.agents.evolution import EvolutionContext, evolve
 from co_scientist.agents.evolution.evolution_operators import (
     EvolutionOperator,
 )
@@ -15,7 +15,6 @@ from co_scientist.agents.evolution.evolve import (
     evolve_single_hypothesis,
 )
 from co_scientist.agents.evolution.evolve_prompt import (
-    _EvolutionContext,
     _EvolutionOperation,
 )
 from co_scientist.agents.evolution.evolve_results import (
@@ -42,7 +41,7 @@ def _observation(
         if partners
         else EvolutionOperator.ENHANCEMENT
     )
-    context = _EvolutionContext(
+    context = EvolutionContext(
         model_name="fake/model",
         meta_review={},
         removed_duplicates=[],
@@ -168,7 +167,7 @@ def test_combination_records_every_parent() -> None:
         parent,
         response,
         [],
-        _EvolutionContext(
+        EvolutionContext(
             model_name="fake/model", meta_review={}, removed_duplicates=[]
         ),
         _EvolutionOperation(
@@ -197,7 +196,7 @@ def test_combination_invalid_indices_degrade_to_single_parent() -> None:
             "combined_partners": [99],
         },
         [],
-        _EvolutionContext(
+        EvolutionContext(
             model_name="fake/model", meta_review={}, removed_duplicates=[]
         ),
         _EvolutionOperation(
@@ -237,7 +236,7 @@ async def test_partner_selection_flows_from_ranked_pool(
     child, detail = await evolve_single_hypothesis(
         parent,
         other_hypotheses=[partner],
-        context=_EvolutionContext(
+        context=EvolutionContext(
             model_name="fake/model", meta_review={}, removed_duplicates=[]
         ),
         operation=_EvolutionOperation(
@@ -276,7 +275,7 @@ async def test_enhancement_grounding_falls_back_to_run_articles(
     child, _ = await evolve_single_hypothesis(
         parent,
         other_hypotheses=[],
-        context=_EvolutionContext(
+        context=EvolutionContext(
             model_name="fake/model",
             meta_review={},
             removed_duplicates=[],
@@ -306,7 +305,7 @@ async def test_enhancement_grounding_placeholder_without_any_evidence(
     await evolve_single_hypothesis(
         parent,
         other_hypotheses=[],
-        context=_EvolutionContext(
+        context=EvolutionContext(
             model_name="fake/model",
             meta_review={},
             removed_duplicates=[],
@@ -351,7 +350,7 @@ async def test_enhancement_grounding_retrieves_when_mcp_is_up(
     child, _ = await evolve_single_hypothesis(
         parent,
         other_hypotheses=[],
-        context=_EvolutionContext(
+        context=EvolutionContext(
             model_name="fake/model",
             meta_review={},
             removed_duplicates=[],
@@ -388,7 +387,7 @@ async def test_non_enhancement_operators_perform_no_retrieval(
     child, _ = await evolve_single_hypothesis(
         parent,
         other_hypotheses=[],
-        context=_EvolutionContext(
+        context=EvolutionContext(
             model_name="fake/model",
             meta_review={},
             removed_duplicates=[],
@@ -455,7 +454,7 @@ async def test_evolution_prompt_splices_falsified_assumptions(
     child, _ = await evolve_single_hypothesis(
         parent,
         other_hypotheses=[weakened],
-        context=_EvolutionContext(
+        context=EvolutionContext(
             model_name="fake/model",
             meta_review={},
             removed_duplicates=[],
@@ -486,7 +485,7 @@ async def test_evolution_prompt_omits_falsified_block_when_none(
     await evolve_single_hypothesis(
         parent,
         other_hypotheses=[],
-        context=_EvolutionContext(
+        context=EvolutionContext(
             model_name="fake/model",
             meta_review={},
             removed_duplicates=[],

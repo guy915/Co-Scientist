@@ -19,12 +19,6 @@ from co_scientist.prompts._common import (
     PromptRunContext,
     format_lab_constraints_section,
 )
-from co_scientist.prompts._common import (
-    _format_bullet_list as _format_bullet_list,
-)
-from co_scientist.prompts._common import (
-    _format_run_guidance as _format_run_guidance,
-)
 from co_scientist.prompts.generation_debate import (
     DebatePromptRequest,
     get_debate_generation_prompt,
@@ -60,9 +54,6 @@ from co_scientist.prompts.literature import (
     get_literature_review_query_generation_pubmed_prompt,
     get_literature_review_relevance_batch_prompt,
     get_literature_review_synthesis_prompt,
-)
-from co_scientist.prompts.loading import (
-    _get_domain_variables as _get_domain_variables,
 )
 from co_scientist.prompts.loading import (
     get_prompt_save_path,

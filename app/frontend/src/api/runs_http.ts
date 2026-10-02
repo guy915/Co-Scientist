@@ -1,7 +1,3 @@
-// Shared HTTP and auth primitives for the API clients under `src/api/`.
-// Extracted from `./runs`, which re-exports the public helpers so callers
-// keep importing them from '@/api/runs'.
-
 import {clearAccessToken, getAccessToken, getClientId} from '@/lib/client_id';
 import {
   getStoredApiKey,
@@ -21,10 +17,7 @@ export function exchangeAccessCode(
   );
 }
 
-/**
- * Header identifying the calling browser client to the backend. Exported for
- * sibling API clients so the auth-header policy stays defined once.
- */
+/** Researcher sessions take precedence over anonymous browser identities. */
 export function clientHeaders(): Record<string, string> {
   const token = getAccessToken();
   return token
@@ -32,14 +25,7 @@ export function clientHeaders(): Record<string, string> {
     : {'X-Client-ID': getClientId()};
 }
 
-/**
- * Bring-your-own-key headers for run creation and the interview/Q&A paths.
- * Sent as request headers, never query parameters (URLs leak into history,
- * logs, and referrers). The chosen worker/supervisor models ride along
- * when set. Empty when no key is stored, so spreading is a
- * no-op for runs that use the deployment credential. The backend validates
- * the pair live and stores the key encrypted for the run's lifetime.
- */
+/** BYOK credentials and model choices travel only in request headers. */
 export function byokHeaders(): Record<string, string> {
   const apiKey = getStoredApiKey();
   if (!apiKey) return {};
@@ -54,14 +40,7 @@ export function byokHeaders(): Record<string, string> {
   };
 }
 
-/**
- * A fetch failure carrying the response's HTTP status, for the rare caller
- * that must act on the status rather than just display the message (e.g.
- * distinguishing a 409 "someone else already resolved this" from any other
- * failure). Extends `Error` with the same message every other caller's
- * `instanceof Error` / `.message` handling already expects, so this is a
- * transparent upgrade of what `parseJson`/`assertOk` threw before.
- */
+/** Keeps status available to callers that distinguish conflicts/failures. */
 export class HttpError extends Error {
   constructor(
     message: string,
@@ -72,47 +51,19 @@ export class HttpError extends Error {
   }
 }
 
-/**
- * The server's own sentence for a usage-limit refusal (403 or 429 with a
- * JSON `detail` string, e.g. free usage's express-only rule or daily cap in
- * app/free_usage.py), which is written for the reader and says what to do.
- * Undefined for any other response.
- */
-function usageLimitDetail(status: number, text: string): string | undefined {
-  if (status !== 403 && status !== 429) return undefined;
-  try {
-    const detail: unknown = (JSON.parse(text) as {detail?: unknown}).detail;
-    return typeof detail === 'string' ? detail : undefined;
-  } catch {
-    return undefined;
+async function responseErrorMessage(res: Response): Promise<string> {
+  const text = await res.text().catch(() => res.statusText);
+  if (res.status === 500 && !text.trim()) return 'API unavailable';
+  // Usage-limit refusals carry reader-facing instructions in `detail`.
+  if (res.status === 403 || res.status === 429) {
+    try {
+      const detail: unknown = (JSON.parse(text) as {detail?: unknown}).detail;
+      if (typeof detail === 'string' && detail) return detail;
+    } catch {
+      // A non-JSON response keeps the ordinary status/body message.
+    }
   }
-}
-
-/**
- * A message that replaces the generic `<status> <body>` shape: 'API
- * unavailable' for an empty-bodied 500, or a usage-limit refusal's own text.
- */
-function fixedErrorMessage(status: number, text: string): string | undefined {
-  if (status === 500 && !text.trim()) return 'API unavailable';
-  return usageLimitDetail(status, text);
-}
-
-/**
- * Builds the error message for a non-ok response: a clearer message for an
- * empty-bodied 500 (the API process itself is typically unreachable, e.g.
- * cold start or a proxy with no upstream, rather than a handled application
- * error), else the caller's prefix, else the raw status and body.
- */
-function responseErrorMessage(
-  status: number,
-  statusText: string,
-  text: string,
-  errorPrefix?: string,
-): string {
-  const fixed = fixedErrorMessage(status, text);
-  if (fixed) return fixed;
-  if (errorPrefix) return `${errorPrefix} ${status}`;
-  return `${status} ${text || statusText}`;
+  return `${res.status} ${text || res.statusText}`;
 }
 
 /**
@@ -138,84 +89,36 @@ export async function fetchWithSession(
   return res;
 }
 
-/**
- * Parses a fetch `Response` as JSON, or throws a descriptive `Error` when the
- * response was not ok.
- */
-export async function parseJson<T>(
-  res: Response,
-  errorPrefix?: string,
-): Promise<T> {
+export async function parseJson<T>(res: Response): Promise<T> {
   if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText);
-    throw new HttpError(
-      responseErrorMessage(res.status, res.statusText, text, errorPrefix),
-      res.status,
-    );
+    throw new HttpError(await responseErrorMessage(res), res.status);
   }
   return (await res.json()) as T;
 }
 
-/**
- * Throws the same descriptive `Error` as `parseJson` when a response was not
- * ok, without touching the body. For requests whose success case carries no
- * JSON to parse (e.g. a 204 from a DELETE), where `parseJson` would throw on
- * the absent body after the request in fact succeeded.
- */
-export async function assertOk(
-  res: Response,
-  errorPrefix?: string,
-): Promise<void> {
-  if (res.ok) return;
-  const text = await res.text().catch(() => res.statusText);
-  throw new HttpError(
-    responseErrorMessage(res.status, res.statusText, text, errorPrefix),
-    res.status,
-  );
-}
-
-/**
- * Fetches `path` relative to the API base URL and parses the JSON body.
- * Exported for sibling API clients (e.g. `@/api/system`) so the base-URL
- * and error-shaping policy stays defined once.
- */
 export async function fetchJson<T>(
   path: string,
   init?: RequestInit,
-  errorPrefix?: string,
 ): Promise<T> {
   const res = await fetchWithSession(`${API_BASE_URL}${path}`, init);
-  return parseJson<T>(res, errorPrefix);
+  return parseJson<T>(res);
 }
 
-/**
- * Fetches a `{[field]: T}` envelope and unwraps the named field.
- *
- * @param path Request path.
- * @param field Response key to unwrap.
- * @param init Optional fetch options (e.g. client headers).
- * @param errorPrefix Optional prefix for error messages.
- * @returns The unwrapped value.
- */
+/** Unwrap a named field of a JSON response envelope. */
 export async function fetchField<K extends string, T>(
   path: string,
   field: K,
   init?: RequestInit,
-  errorPrefix?: string,
 ): Promise<T> {
-  const data = await fetchJson<Record<K, T>>(path, init, errorPrefix);
+  const data = await fetchJson<Record<K, T>>(path, init);
   return data[field];
 }
 
-/**
- * Builds a JSON POST `RequestInit`. `includeClientId` is opt-in because only
- * endpoints that scope data by owning client (e.g. creating/listing runs)
- * need the `X-Client-ID` header.
- */
+/** Public endpoints omit identity; scoped endpoints opt in. */
 export function jsonRequest(
   body: unknown,
   includeClientId = false,
-): RequestInit {
+): RequestInit & {headers: Record<string, string>} {
   return {
     method: 'POST',
     headers: {
@@ -226,66 +129,41 @@ export function jsonRequest(
   };
 }
 
-/**
- * Resolves to the response's readable body once it is confirmed live, or
- * throws a descriptive error for a non-OK or bodyless response.
- */
-async function getSseBody(
-  res: Response,
-  errorPrefix?: string,
-): Promise<ReadableStream<Uint8Array>> {
-  if (res.ok && res.body) return res.body;
-  const text = await res.text().catch(() => res.statusText);
-  throw new Error(
-    responseErrorMessage(res.status, res.statusText, text, errorPrefix),
-  );
-}
-
-/** Extracts the `data: ...` payload from one raw SSE frame, if present. */
-function parseSseFrameData(frame: string): string | undefined {
-  return frame
-    .split('\n')
-    .find(line => line.startsWith('data: '))
-    ?.slice(6);
-}
-
-/**
- * Splits newly buffered text into complete `\n\n`-terminated frames plus
- * whatever trailing partial frame remains buffered until its terminator
- * arrives.
- */
-function splitSseFrames(pending: string): {
-  frames: string[];
-  rest: string;
-} {
-  const frames = pending.split('\n\n');
-  const rest = frames.pop() || '';
-  return {frames, rest};
-}
-
-/**
- * Yields each `data:` payload of an SSE response body as it arrives.
- *
- * @param res A streaming response; a non-OK status throws before any frame.
- * @param errorPrefix Prefix for the thrown non-OK error message.
- */
-export async function* readSseFrames<T>(
-  res: Response,
-  errorPrefix?: string,
-): AsyncGenerator<T> {
-  const body = await getSseBody(res, errorPrefix);
-  const reader = body.getReader();
+/** Parse complete SSE frames while retaining a trailing partial frame. */
+export async function* readSseFrames<T>(res: Response): AsyncGenerator<T> {
+  if (!res.ok || !res.body) throw new Error(await responseErrorMessage(res));
+  const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let pending = '';
   for (;;) {
     const {done, value} = await reader.read();
     pending += decoder.decode(value, {stream: !done});
-    const {frames, rest} = splitSseFrames(pending);
-    pending = rest;
+    const frames = pending.split('\n\n');
+    pending = frames.pop() || '';
     for (const frame of frames) {
-      const data = parseSseFrameData(frame);
+      const data = frame
+        .split('\n')
+        .find(line => line.startsWith('data: '))
+        ?.slice(6);
       if (data) yield JSON.parse(data) as T;
     }
     if (done) break;
   }
+}
+
+/** Stream a model-backed JSON request with caller identity and BYOK headers. */
+export async function* streamJson<T>(
+  path: string,
+  body: unknown,
+  signal?: AbortSignal,
+  method = 'POST',
+): AsyncGenerator<T> {
+  const init = jsonRequest(body, true);
+  const res = await fetchWithSession(`${API_BASE_URL}${path}`, {
+    ...init,
+    method,
+    signal,
+    headers: {...init.headers, ...byokHeaders()},
+  });
+  yield* readSseFrames<T>(res);
 }

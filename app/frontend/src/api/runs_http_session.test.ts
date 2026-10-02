@@ -2,7 +2,6 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {
   createInterview,
   exchangeAccessCode,
-  fetchReportMarkdown,
   getRun,
   listDemoRuns,
 } from './runs';
@@ -47,7 +46,6 @@ describe('session changes while requests are in flight', () => {
   it.each([
     ['JSON', () => getRun('r1')],
     ['streaming', () => createInterview('a goal')],
-    ['download', () => fetchReportMarkdown('r1')],
   ])(
     'keeps a replacement session when an old %s request returns 401',
     async (_kind, call) => {

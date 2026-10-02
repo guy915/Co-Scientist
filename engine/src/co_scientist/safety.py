@@ -125,9 +125,6 @@ from co_scientist.safety_patterns import (
 from co_scientist.safety_patterns import (
     _SENSITIVE_HINT as _SENSITIVE_HINT,
 )
-from co_scientist.safety_patterns import (
-    _patterns as _patterns,
-)
 
 POLICY_VERSION = "coscientist-safety-v5"
 

@@ -17,6 +17,7 @@ from app import engine_tasks, store, task_worker
 from app.config import settings
 from app.engine_tasks import fanout_aggregates as engine_tasks_fanout_aggregates
 from app.engine_tasks import fanout_items as engine_tasks_fanout_items
+from app.engine_tasks import node as engine_tasks_node
 from app.engine_tasks import support as engine_tasks_support
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
@@ -142,7 +143,7 @@ async def test_review_fanout_created_during_pause_waits_for_resume(
 ) -> None:
     """A leased review planner's item wave is unavailable until resume."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-    original_dispatch = engine_tasks._dispatch_node_fanout
+    original_dispatch = engine_tasks_node._dispatch_node_fanout
 
     with make_client() as client:
         created = client.post(
@@ -175,7 +176,7 @@ async def test_review_fanout_created_during_pause_waits_for_resume(
             )
 
         monkeypatch.setattr(
-            engine_tasks, "_dispatch_node_fanout", pause_during_dispatch
+            engine_tasks_node, "_dispatch_node_fanout", pause_during_dispatch
         )
         await _advance_to_review_parent(
             run_id, monkeypatch, _Generator(state), isolated_db

@@ -1,24 +1,4 @@
-"""Multi-source result merging and Reciprocal Rank Fusion.
-
-Split out of ``search_support`` to keep that module within the size cap.
-Holds the RRF fusion mechanics -- per-source weighting, the rank-position
-score, pool normalization, retraction-aware ordering -- and the
-title-deduplicating merge that ties them together. Every name is
-re-exported from ``search_support``, so callers (and
-``search_support.merge_search_results``'s own docstring references) are
-unaffected.
-
-Merging ranks candidates by Reciprocal Rank Fusion over each source's own
-result order (see ``_rrf_position_score``), not by a score computed from
-each candidate's metadata -- a fixed-weight sum over source quality,
-citation count, and recency put every axis on an unrelated scale (source
-quality span 2.0 against two axes spanning 1.0 each) and had no query
-relevance term at all. Metadata that only some sources carry (a citation
-count only OpenAlex reports; web results carry neither citations nor a
-year) is exactly what an additive scorer structurally rewards or
-penalizes without comparison being meaningful; RRF fuses by rank instead,
-so it never needs the axes to be on comparable scales.
-"""
+"""Merge cross-source search results with weighted Reciprocal Rank Fusion."""
 
 import logging
 from typing import Any

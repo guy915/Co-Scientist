@@ -34,10 +34,10 @@ async def test_disabling_literature_review_rebuilds_the_graph(
     stub_mcp_availability(monkeypatch, available=True)
     generator = HypothesisGenerator()
 
-    await generator._prepare_generation("goal one")
+    await generator.prepare_task_state("goal one")
     assert "literature_review" in _nodes(generator)
 
-    await generator._prepare_generation(
+    await generator.prepare_task_state(
         "goal two", opts={"enable_literature_review_node": False}
     )
     assert "literature_review" not in _nodes(generator)
@@ -51,12 +51,12 @@ async def test_enabling_literature_review_rebuilds_the_graph(
     stub_mcp_availability(monkeypatch, available=True)
     generator = HypothesisGenerator()
 
-    await generator._prepare_generation(
+    await generator.prepare_task_state(
         "goal one", opts={"enable_literature_review_node": False}
     )
     assert "literature_review" not in _nodes(generator)
 
-    await generator._prepare_generation("goal two")
+    await generator.prepare_task_state("goal two")
     assert "literature_review" in _nodes(generator)
 
 
@@ -67,9 +67,9 @@ async def test_unchanged_configuration_keeps_the_compiled_graph(
     stub_mcp_availability(monkeypatch, available=True)
     generator = HypothesisGenerator()
 
-    await generator._prepare_generation("goal one")
+    await generator.prepare_task_state("goal one")
     first = generator._graph
-    await generator._prepare_generation("goal two")
+    await generator.prepare_task_state("goal two")
     assert generator._graph is first
 
 
@@ -93,12 +93,12 @@ async def test_availability_is_probed_once_per_configuration(
     monkeypatch.setattr(mcp_client, "check_literature_source_available", _probe)
 
     generator = HypothesisGenerator()
-    await generator._prepare_generation("goal one")
-    await generator._prepare_generation("goal two")
+    await generator.prepare_task_state("goal one")
+    await generator.prepare_task_state("goal two")
     assert len(probes) == 2, "one concurrent probe pair, cached afterward"
 
     generator.reload_tool_registry(tools_config=None, disable_tools=["pubmed"])
-    await generator._prepare_generation("goal three")
+    await generator.prepare_task_state("goal three")
     assert len(probes) == 4, "a registry change must re-probe"
 
 
@@ -108,11 +108,11 @@ async def test_reloading_the_registry_invalidates_the_graph(
     """A reloaded registry reaches the state every node reads it from."""
     stub_mcp_availability(monkeypatch, available=True)
     generator = HypothesisGenerator()
-    state = await generator._prepare_generation("goal one")
+    state = await generator.prepare_task_state("goal one")
     first_registry = state["tool_registry"]
 
     generator.reload_tool_registry(tools_config=None, disable_tools=["pubmed"])
-    state = await generator._prepare_generation("goal two")
+    state = await generator.prepare_task_state("goal two")
 
     reloaded = generator._tool_registry
     assert reloaded is not None

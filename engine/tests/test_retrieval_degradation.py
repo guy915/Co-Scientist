@@ -13,8 +13,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from co_scientist.generator import _build_initial_state
-from co_scientist.generator.initial_state import RunCapabilities, RunIdentity
+from co_scientist.generator.initial_state import (
+    RunCapabilities,
+    RunIdentity,
+    _build_initial_state,
+)
 from co_scientist.retrieval_degradation import (
     CAPABILITIES_LOST_WITHOUT_MCP,
     FLOOR_NONE,

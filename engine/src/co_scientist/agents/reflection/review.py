@@ -28,15 +28,6 @@ from co_scientist.agents.reflection.review_helpers import (
     _BatchReviewCall as _BatchReviewCall,
 )
 from co_scientist.agents.reflection.review_helpers import (
-    _convert_matched_entry as _convert_matched_entry,
-)
-from co_scientist.agents.reflection.review_helpers import (
-    _log_batch_review_response_shape as _log_batch_review_response_shape,
-)
-from co_scientist.agents.reflection.review_helpers import (
-    _match_batch_entries_to_hypotheses as _match_batch_entries_to_hypotheses,
-)
-from co_scientist.agents.reflection.review_helpers import (
     _parse_batch_review_response as _parse_batch_review_response,
 )
 from co_scientist.agents.reflection.review_helpers import (
@@ -44,9 +35,6 @@ from co_scientist.agents.reflection.review_helpers import (
 )
 from co_scientist.agents.reflection.review_helpers import (
     _review_from_response as _review_from_response,
-)
-from co_scientist.agents.reflection.review_helpers import (
-    _sanitize_review_scores as _sanitize_review_scores,
 )
 from co_scientist.agents.reflection.review_helpers import (
     _select_review_strategy as _select_review_strategy,

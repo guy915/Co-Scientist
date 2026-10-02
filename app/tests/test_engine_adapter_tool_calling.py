@@ -13,26 +13,26 @@ from typing import Any
 
 import pytest
 
-from app.engine_adapter.opts_capabilities import (
-    _resolve_tool_calling_generation_toggle,
-)
+from app.engine_adapter.opts import _apply_capability_opts
 
 
-def _cfg(tier: str | None) -> dict[str, Any]:
-    """A resolved run config carrying only the tier under test."""
-    return {"tier": tier}
+def _enabled(tier: str | None) -> bool:
+    """Read the capability the opts builder actually sends to the engine."""
+    opts: dict[str, Any] = {}
+    _apply_capability_opts(opts, {"tier": tier} if tier is not None else {})
+    return bool(opts["enable_tool_calling_generation"])
 
 
 @pytest.mark.parametrize("tier", ["extended", "ultra"])
 def test_deep_tiers_fund_the_agentic_draft_path(tier: str) -> None:
     """A scientist choosing depth over turnaround gets the tool loop."""
-    assert _resolve_tool_calling_generation_toggle(_cfg(tier)) is True
+    assert _enabled(tier) is True
 
 
 @pytest.mark.parametrize("tier", ["express", "standard"])
 def test_fast_tiers_do_not(tier: str) -> None:
     """Express and standard promise a fast answer and keep that promise."""
-    assert _resolve_tool_calling_generation_toggle(_cfg(tier)) is False
+    assert _enabled(tier) is False
 
 
 def test_an_unset_tier_falls_back_to_the_default_tier() -> None:
@@ -42,10 +42,9 @@ def test_an_unset_tier_falls_back_to_the_default_tier() -> None:
     persisted rows and direct API callers -- which land on ``standard``
     and therefore must not silently inherit the expensive path.
     """
-    assert _resolve_tool_calling_generation_toggle(_cfg(None)) is False
-    assert _resolve_tool_calling_generation_toggle({}) is False
+    assert _enabled(None) is False
 
 
 def test_a_legacy_tier_name_resolves_before_the_gate() -> None:
     """'advanced' migrates forward to ultra, so it funds the path."""
-    assert _resolve_tool_calling_generation_toggle(_cfg("advanced")) is True
+    assert _enabled("advanced") is True

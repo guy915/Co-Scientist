@@ -8,6 +8,7 @@ import pytest
 
 from app import engine_tasks, store
 from app.config import settings
+from app.engine_tasks import inputs as engine_tasks_inputs
 from app.engine_tasks import support as engine_tasks_support
 from tests._client import make_client
 from tests._engine_tasks_helpers import _patch_generator, _task_state
@@ -94,10 +95,12 @@ async def test_bootstrap_rechecks_pause_after_resume_before_commit(
     async def no_intake(*_: Any, **__: Any) -> None:
         return None
 
-    monkeypatch.setattr(engine_tasks, "_screen_bootstrap_intake", no_intake)
+    monkeypatch.setattr(
+        engine_tasks_inputs, "_screen_bootstrap_intake", no_intake
+    )
     _patch_generator(monkeypatch, generator)
     monkeypatch.setattr(
-        engine_tasks, "sync_engine_llm_backend", lambda *_: None
+        engine_tasks_inputs, "sync_engine_llm_backend", lambda *_: None
     )
     monkeypatch.setattr(
         engine_tasks_support,
@@ -141,10 +144,12 @@ async def test_bootstrap_pause_without_resume_commits_paused_checkpoint(
     async def no_intake(*_: Any, **__: Any) -> None:
         return None
 
-    monkeypatch.setattr(engine_tasks, "_screen_bootstrap_intake", no_intake)
+    monkeypatch.setattr(
+        engine_tasks_inputs, "_screen_bootstrap_intake", no_intake
+    )
     _patch_generator(monkeypatch, generator)
     monkeypatch.setattr(
-        engine_tasks, "sync_engine_llm_backend", lambda *_: None
+        engine_tasks_inputs, "sync_engine_llm_backend", lambda *_: None
     )
     monkeypatch.setattr(
         engine_tasks_support,

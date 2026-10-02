@@ -35,16 +35,20 @@ from co_scientist.scheduling.models import (
     TerminationReason,
     stacked_task_values,
 )
-from co_scientist.scheduling.policy_checks import (
+from co_scientist.scheduling.policy_budget import (
     _budget_termination,
+    _check_owed_review,
+)
+from co_scientist.scheduling.policy_cadence import (
+    _check_meta_review_cadence,
+    _check_research_overview_cadence,
+)
+from co_scientist.scheduling.policy_checks import (
     _check_convergence,
     _check_iteration_budget,
-    _check_meta_review_cadence,
     _check_owed_coverage,
-    _check_owed_review,
     _check_pool_size,
     _check_proximity_refresh,
-    _check_research_overview_cadence,
     _check_retry,
     _check_review_backlog,
     _check_steering,

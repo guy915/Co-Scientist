@@ -25,7 +25,7 @@ from app.config import settings
 from app.engine_adapter.drain import hypotheses as drain_hypotheses
 from app.engine_tasks import fanout as engine_tasks_fanout
 from app.engine_tasks import inputs as engine_tasks_inputs
-from app.engine_tasks import restore as engine_tasks_restore
+from app.engine_tasks import node as engine_tasks_restore
 from app.engine_tasks.support import NODE_TASK_PREFIX
 from tests._client import make_client as _client
 from tests._engine_tasks_helpers import (

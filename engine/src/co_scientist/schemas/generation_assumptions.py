@@ -1,14 +1,4 @@
-"""JSON schemas for the assumptions generation technique.
-
-Split out of schemas/generation.py at the file-size cap (evaluations/tests/
-test_file_length.py). Distinct concern from the debate-based generation
-schemas that module keeps: these back the assumptions technique's own two
-bounded schema calls (SSR §4, audit E12) ahead of the shared
-GENERATION_SCHEMA call, plus the standalone novelty-analysis schema used by
-the tool-based validation path. Re-exported from generation.py so every
-existing `from co_scientist.schemas.generation import ...` import (registry.py,
-schemas/__init__.py) keeps working unchanged.
-"""
+"""Schemas for assumption trees, sub-assumptions, and novelty analysis."""
 
 from typing import Any
 

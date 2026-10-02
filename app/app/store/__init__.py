@@ -147,7 +147,6 @@ from app.store.records import (
     add_proximity_edge,
     add_review,
     add_safety_decision,
-    count_matches,
     count_unresolved_review_decisions,
     list_citations,
     list_claim_evidence,
@@ -184,14 +183,15 @@ from app.store.runs import (
     mark_bootstrap_running,
     reconcile_interrupted_runs,
     redact_run_goal,
-    reserve_run_capacity,
     reserve_run_capacity_in_transaction,
     run_exists,
     run_offline_backed,
     run_used_offline,
     set_run_config,
+    set_run_goal_restatement,
     set_run_llm_backend,
     set_run_timing,
+    set_run_title,
     summary_counts,
     update_run_status,
     update_run_status_if_current,
@@ -199,14 +199,6 @@ from app.store.runs import (
 from app.store.runs import (
     bootstrap_task_lease_matches as bootstrap_task_lease_matches,
 )
-from app.store.runs_labels import (
-    set_run_goal_restatement,
-    set_run_title,
-)
-
-# Straight from its own module rather than through ``runs``: the
-# re-exports there exist to preserve namespaces that predate a split,
-# and ``runs`` sits on the 500-line ceiling.
 from app.store.shares import (
     create_report_share,
     list_report_shares,
@@ -313,7 +305,6 @@ __all__ = [
     "connect",
     "count_logs",
     "count_logs_for_run",
-    "count_matches",
     "count_run_rows",
     "count_unresolved_review_decisions",
     "create_interview",
@@ -392,7 +383,6 @@ __all__ = [
     "replace_knowledge_facts",
     "replace_supervisor_allocations",
     "reprioritize_task",
-    "reserve_run_capacity",
     "reserve_run_capacity_in_transaction",
     "resolve_report_share",
     "resolve_safety_decision",

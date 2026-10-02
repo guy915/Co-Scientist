@@ -38,9 +38,6 @@ from co_scientist.models.review import HypothesisReview as HypothesisReview
 from co_scientist.models.review import _assessment_fields as _assessment_fields
 from co_scientist.models.review import _claim_fields as _claim_fields
 from co_scientist.models.review import _rebuild_reviews as _rebuild_reviews
-from co_scientist.models.review import (
-    _reviews_to_dicts as _reviews_to_dicts,
-)
 from co_scientist.models.review import has_peer_review as has_peer_review
 
 

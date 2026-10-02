@@ -60,6 +60,16 @@ Evidence helpers are imported from their defining modules in `evidence/`.
 The internal `evidence.helpers` facade is removed; test/patch the module that
 actually consumes a collaborator rather than relying on unused re-exports.
 
+**Generator configuration and execution live in one concrete class.**
+`generator/core.py` owns graph caching, MCP availability, streaming and resume;
+there are no single-consumer mixins. `prepare_task_state` is the shared setup
+operation for graph and durable execution. Evolution prompt rendering lives in
+`evolution/evolve_prompt.py`, and novelty-validation stage orchestration lives
+beside its LLM calls in `generation/literature_tools/validate.py`. Private helpers
+are imported and tested from their defining modules; compatibility re-exports
+are not a supported boundary. Ranking constructs each `RankingSide` directly
+from its hypothesis's review, reflection and verification evidence.
+
 **The topology is declared once.** `workflow_topology.WORKFLOW_ROUTES` names
 every node's successor -- a fixed node, a `LiteratureGated` pair, or a resolver
 over the committed state -- and both execution paths read it:

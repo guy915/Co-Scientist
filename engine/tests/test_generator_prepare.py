@@ -1,4 +1,4 @@
-"""Tests for ``HypothesisGenerator._prepare_generation`` and MCP probing.
+"""Tests for ``HypothesisGenerator.prepare_task_state`` and MCP probing.
 
 Split from ``test_generator.py``: the async initial-state assembly and the
 MCP-availability behavior, with the two MCP probes stubbed to run offline.
@@ -16,7 +16,7 @@ from co_scientist.generator import (
 from tests._mcp import stub_mcp_availability
 
 
-async def test_prepare_generation_populates_core_config(
+async def testprepare_task_state_populates_core_config(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Initial state carries the configured model names and counts."""
@@ -30,7 +30,7 @@ async def test_prepare_generation_populates_core_config(
             supervisor_model_name="sup",
         ),
     )
-    state = await gen._prepare_generation("Cure X")
+    state = await gen.prepare_task_state("Cure X")
     assert state["research_goal"] == "Cure X"
     assert state["model_name"] == "m"
     assert state["supervisor_model_name"] == "sup"
@@ -46,27 +46,27 @@ async def test_prepare_generation_populates_core_config(
     assert workflow is not None and workflow.is_multi_source()
 
 
-async def test_prepare_generation_generates_run_id(
+async def testprepare_task_state_generates_run_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A run_id is auto-generated and threaded into the state when absent."""
     stub_mcp_availability(monkeypatch, available=False)
     gen = HypothesisGenerator()
-    state = await gen._prepare_generation("goal")
+    state = await gen.prepare_task_state("goal")
     assert state["run_id"]
 
 
-async def test_prepare_generation_honors_explicit_run_id(
+async def testprepare_task_state_honors_explicit_run_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A caller-supplied run_id is used verbatim."""
     stub_mcp_availability(monkeypatch, available=False)
     gen = HypothesisGenerator()
-    state = await gen._prepare_generation("goal", run_id="fixed-id")
+    state = await gen.prepare_task_state("goal", run_id="fixed-id")
     assert state["run_id"] == "fixed-id"
 
 
-async def test_prepare_generation_passes_through_opts(
+async def testprepare_task_state_passes_through_opts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Optional preferences/constraints and user inputs land in the state."""
@@ -83,7 +83,7 @@ async def test_prepare_generation_passes_through_opts(
             "literature": ["lit1"],
         },
     }
-    state = await gen._prepare_generation("goal", opts=opts)
+    state = await gen.prepare_task_state("goal", opts=opts)
     assert state["preferences"] == "pref-X"
     assert state["attributes"] == ["attr-Y"]
     assert state["constraints"] == ["cons-Z"]
@@ -92,13 +92,13 @@ async def test_prepare_generation_passes_through_opts(
     assert state["literature"] == ["lit1"]
 
 
-async def test_prepare_generation_opt_defaults(
+async def testprepare_task_state_opt_defaults(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Omitted optional fields default to None / empty / False."""
     stub_mcp_availability(monkeypatch, available=False)
     gen = HypothesisGenerator()
-    state = await gen._prepare_generation("goal")
+    state = await gen.prepare_task_state("goal")
     assert state["preferences"] is None
     assert state["attributes"] is None
     assert state["constraints"] is None
@@ -109,19 +109,19 @@ async def test_prepare_generation_opt_defaults(
     assert state["dev_test_lit_tools_isolation"] is False
 
 
-async def test_prepare_generation_dev_isolation_flag(
+async def testprepare_task_state_dev_isolation_flag(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The dev lit-tools isolation flag is passed through to the state."""
     stub_mcp_availability(monkeypatch, available=False)
     gen = HypothesisGenerator()
-    state = await gen._prepare_generation(
+    state = await gen.prepare_task_state(
         "goal", opts={"dev_test_lit_tools_isolation": True}
     )
     assert state["dev_test_lit_tools_isolation"] is True
 
 
-async def test_prepare_generation_reads_dev_mode_env_into_state(
+async def testprepare_task_state_reads_dev_mode_env_into_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """COSCIENTIST_DEV_MODE is read here, at the boundary, and put in state.
@@ -132,37 +132,37 @@ async def test_prepare_generation_reads_dev_mode_env_into_state(
     stub_mcp_availability(monkeypatch, available=False)
     monkeypatch.setenv("COSCIENTIST_DEV_MODE", "true")
     gen = HypothesisGenerator()
-    state = await gen._prepare_generation("goal")
+    state = await gen.prepare_task_state("goal")
     assert state["dev_mode"] is True
 
 
-async def test_prepare_generation_dev_mode_opt_overrides_env(
+async def testprepare_task_state_dev_mode_opt_overrides_env(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A per-run dev_mode opt beats the session-wide env var, either way."""
     stub_mcp_availability(monkeypatch, available=False)
     monkeypatch.setenv("COSCIENTIST_DEV_MODE", "true")
     gen = HypothesisGenerator()
-    state = await gen._prepare_generation("goal", opts={"dev_mode": False})
+    state = await gen.prepare_task_state("goal", opts={"dev_mode": False})
     assert state["dev_mode"] is False
 
     monkeypatch.delenv("COSCIENTIST_DEV_MODE", raising=False)
-    state = await gen._prepare_generation("goal", opts={"dev_mode": True})
+    state = await gen.prepare_task_state("goal", opts={"dev_mode": True})
     assert state["dev_mode"] is True
 
 
-async def test_prepare_generation_dev_mode_defaults_off(
+async def testprepare_task_state_dev_mode_defaults_off(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """With neither an opt nor the env var, a run is not in dev mode."""
     stub_mcp_availability(monkeypatch, available=False)
     monkeypatch.delenv("COSCIENTIST_DEV_MODE", raising=False)
     gen = HypothesisGenerator()
-    state = await gen._prepare_generation("goal")
+    state = await gen.prepare_task_state("goal")
     assert state["dev_mode"] is False
 
 
-# --- _prepare_generation: MCP detection & graph selection --------------------
+# --- prepare_task_state: MCP detection & graph selection --------------------
 
 
 async def test_mcp_available_enables_lit_review_graph(
@@ -171,7 +171,7 @@ async def test_mcp_available_enables_lit_review_graph(
     """When MCP is available the auto-detected graph includes lit review."""
     stub_mcp_availability(monkeypatch, available=True)
     gen = HypothesisGenerator()
-    state = await gen._prepare_generation("goal")
+    state = await gen.prepare_task_state("goal")
     assert state["mcp_available"] is True
     assert state["pubmed_available"] is True
     assert gen._graph is not None
@@ -184,7 +184,7 @@ async def test_mcp_unavailable_uses_simplified_graph(
     """Without MCP, lit review is dropped and flags reflect unavailability."""
     stub_mcp_availability(monkeypatch, available=False)
     gen = HypothesisGenerator()
-    state = await gen._prepare_generation("goal")
+    state = await gen.prepare_task_state("goal")
     assert state["mcp_available"] is False
     assert gen._graph is not None
     assert "literature_review" not in gen._graph.nodes
@@ -206,9 +206,9 @@ async def test_mcp_availability_cached_per_instance(
     )
 
     gen = HypothesisGenerator()
-    await gen._prepare_generation("goal")
+    await gen.prepare_task_state("goal")
     after_first = calls["n"]
-    await gen._prepare_generation("goal again")
+    await gen.prepare_task_state("goal again")
     # No additional probe calls on the second preparation.
     assert calls["n"] == after_first
     assert gen._mcp_available is True
@@ -228,7 +228,7 @@ async def test_explicit_disable_skips_mcp_probe(
     )
 
     gen = HypothesisGenerator()
-    state = await gen._prepare_generation(
+    state = await gen.prepare_task_state(
         "goal", opts={"enable_literature_review_node": False}
     )
     assert state["mcp_available"] is False
@@ -242,7 +242,7 @@ async def test_tool_calling_honored_when_mcp_available(
     """Tool-calling generation stays on when MCP + lit review are available."""
     stub_mcp_availability(monkeypatch, available=True)
     gen = HypothesisGenerator()
-    state = await gen._prepare_generation(
+    state = await gen.prepare_task_state(
         "goal", opts={"enable_tool_calling_generation": True}
     )
     assert state["enable_tool_calling_generation"] is True
@@ -254,7 +254,7 @@ async def test_tool_calling_disabled_when_mcp_unavailable(
     """Tool-calling generation is silently disabled when MCP is unavailable."""
     stub_mcp_availability(monkeypatch, available=False)
     gen = HypothesisGenerator()
-    state = await gen._prepare_generation(
+    state = await gen.prepare_task_state(
         "goal", opts={"enable_tool_calling_generation": True}
     )
     assert state["enable_tool_calling_generation"] is False
@@ -265,7 +265,7 @@ async def test_tool_calling_with_lit_disabled_does_not_raise(
 ) -> None:
     """Tool calling + explicit lit-review-off degrades gracefully (no raise).
 
-    Note: ``_prepare_generation`` documents a ValueError for this combination,
+    Note: ``prepare_task_state`` documents a ValueError for this combination,
     but explicitly disabling the literature review forces ``mcp_available`` to
     False *before* the tool-calling validation runs, so the MCP-unavailable
     branch always fires first and the ValueError branch is never reached. This
@@ -274,7 +274,7 @@ async def test_tool_calling_with_lit_disabled_does_not_raise(
     """
     stub_mcp_availability(monkeypatch, available=True)
     gen = HypothesisGenerator()
-    state = await gen._prepare_generation(
+    state = await gen.prepare_task_state(
         "goal",
         opts={
             "enable_literature_review_node": False,
@@ -302,7 +302,7 @@ async def test_tool_calling_off_by_default_when_tools_available(
     """
     stub_mcp_availability(monkeypatch, available=True)
     gen = HypothesisGenerator()
-    state = await gen._prepare_generation("goal")
+    state = await gen.prepare_task_state("goal")
     assert state["enable_tool_calling_generation"] is False
 
 
@@ -329,7 +329,7 @@ async def test_tool_calling_explicit_opt_out_honored(
     """An explicit False opts out even when tools are available."""
     stub_mcp_availability(monkeypatch, available=True)
     gen = HypothesisGenerator()
-    state = await gen._prepare_generation(
+    state = await gen.prepare_task_state(
         "goal", opts={"enable_tool_calling_generation": False}
     )
     assert state["enable_tool_calling_generation"] is False
@@ -341,7 +341,7 @@ async def test_tool_calling_stays_off_by_default_without_mcp(
     """Without MCP there are no literature tools, so the default is off."""
     stub_mcp_availability(monkeypatch, available=False)
     gen = HypothesisGenerator()
-    state = await gen._prepare_generation("goal")
+    state = await gen.prepare_task_state("goal")
     assert state["enable_tool_calling_generation"] is False
 
 
@@ -358,12 +358,12 @@ async def test_tool_calling_forced_off_for_offline_model(
 
     stub_mcp_availability(monkeypatch, available=True)
     gen = HypothesisGenerator(model_name=DEFAULT_OFFLINE_MODEL)
-    state = await gen._prepare_generation("goal")
+    state = await gen.prepare_task_state("goal")
     assert state["enable_tool_calling_generation"] is False
 
     # An explicit request cannot override the offline backend either.
     gen2 = HypothesisGenerator(model_name=DEFAULT_OFFLINE_MODEL)
-    state2 = await gen2._prepare_generation(
+    state2 = await gen2.prepare_task_state(
         "goal", opts={"enable_tool_calling_generation": True}
     )
     assert state2["enable_tool_calling_generation"] is False

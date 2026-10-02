@@ -1,18 +1,10 @@
-"""Coverage-focused tests for ``co_scientist.agents.evolution.evolve_prompt``.
-
-``test_evolve.py`` exercises ``evolve_node`` end to end but always passes an
-empty ``meta_review`` and no ``supervisor_guidance`` (the ``make_state``
-defaults), so the meta-review debug logging and the evolution-phase
-supervisor-guidance formatting never run. This file calls the private
-prompt-assembly helpers directly (matching the existing convention of testing
-``reflection_helpers``'s private functions directly) to cover those branches,
-plus the review-feedback formatter's "has reviews" path.
-"""
+"""Evolution prompt contracts for guidance, feedback, and diversity."""
 
 from typing import Any
 
 import pytest
 
+from co_scientist.agents.evolution import EvolutionContext
 from co_scientist.agents.evolution.evolution_operators import (
     EvolutionOperator,
 )
@@ -20,43 +12,16 @@ from co_scientist.agents.evolution.evolve_prompt import (
     _build_evolution_prompt,
     _build_review_feedback,
     _build_supervisor_guidance_text,
-    _EvolutionContext,
     _EvolutionOperation,
     _format_diversity_instruction,
     _format_evolution_guidance_lines,
     _format_iteration_strategy,
     _format_partner_context,
     _format_refinement_priorities,
-    _log_meta_review_debug,
 )
 from co_scientist.models import HypothesisReview
 from co_scientist.offline.content import subject_terms
 from tests._state import make_hypothesis, make_state
-
-# --- _log_meta_review_debug (covers the _log_debug_items body) -------------
-
-
-def test_log_meta_review_debug_with_all_fields_present() -> None:
-    """A meta_review with every field populated logs without raising.
-
-    Exercises the non-empty-items body of _log_debug_items on both of its
-    settings -- truncated (strengths/weaknesses) and verbatim
-    (recommendations/themes); nothing to assert beyond "it runs to
-    completion".
-    """
-    meta_review: dict[str, Any] = {
-        "common_strengths": ["mechanistically grounded", "testable"],
-        "common_weaknesses": ["under-specified controls"],
-        "strategic_recommendations": ["broaden the biomarker panel"],
-        "emerging_themes": ["convergence on kinase targets"],
-    }
-    _log_meta_review_debug(meta_review)  # Must not raise.
-
-
-def test_log_meta_review_debug_with_empty_fields_is_a_noop() -> None:
-    """An empty meta_review logs only the header lines, no item lists."""
-    _log_meta_review_debug({})  # Must not raise.
-
 
 # --- _build_review_feedback --------------------------------------------------
 
@@ -292,9 +257,9 @@ def test_build_supervisor_guidance_text_renders_evolution_phase() -> None:
 # --- _build_evolution_prompt: K3 novelty contract / K5 lab constraints ------
 
 
-def _evolution_context(**state_overrides: Any) -> _EvolutionContext:
+def _evolution_context(**state_overrides: Any) -> EvolutionContext:
     """A minimal evolution context carrying a full workflow state."""
-    return _EvolutionContext(
+    return EvolutionContext(
         model_name="test-model",
         meta_review={},
         removed_duplicates=[],

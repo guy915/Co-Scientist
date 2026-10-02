@@ -1,11 +1,4 @@
-"""Evolution round lifecycle: pool selection, progress, and finalization.
-
-Owns the round-level scaffolding around the per-hypothesis evolution
-calls: choosing the top-k pool to evolve, emitting the start/complete
-progress events, and assembling the node's state delta. ``evolve.py``
-re-exports these names so the original
-``co_scientist.agents.evolution.evolve`` import path is unaffected.
-"""
+"""Evolution round lifecycle: pool selection, progress, and finalization."""
 
 import logging
 from typing import Any, Final

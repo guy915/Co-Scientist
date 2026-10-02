@@ -1,6 +1,6 @@
 """Store I/O for retrieval provenance.
 
-The ``retrieval_calls`` table (schema in ``schema_retrieval_calls.py``):
+The ``retrieval_calls`` table (schema in ``schema.py``):
 one row per query, against one source, serving one question. See
 ``app.research_provenance`` for how a research run's in-memory ledger
 becomes these rows.
@@ -22,8 +22,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.store.db import _now, _use_conn
-from app.store.records_support import _list_by_run
+from app.store.db import _list_by_run, _now, _use_conn
 
 
 @dataclass(frozen=True)
@@ -143,10 +142,10 @@ def list_retrieval_calls(
         One dict per search, with ``hits``, ``admitted`` and ``dropped``
         decoded from their stored JSON.
     """
-    out = []
-    for row in _list_by_run("retrieval_calls", run_id, db_path, conn):
-        row["hits"] = json.loads(row.pop("hits_json") or "[]")
-        row["admitted"] = json.loads(row.pop("admitted_json") or "[]")
-        row["dropped"] = json.loads(row.pop("dropped_json") or "[]")
-        out.append(row)
-    return out
+    return _list_by_run(
+        "retrieval_calls",
+        run_id,
+        db_path,
+        conn,
+        json_fields=("hits", "admitted", "dropped"),
+    )

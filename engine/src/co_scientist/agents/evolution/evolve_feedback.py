@@ -1,11 +1,4 @@
-"""Per-hypothesis specialist-feedback ledger for context-aware evolution.
-
-Builds the bounded, hypothesis-specific evidence ledger (debate slices,
-tournament outcomes, proximity neighbors, and deep-verification notes)
-threaded into each evolution prompt. ``evolve.py`` re-exports these names
-so the original ``co_scientist.agents.evolution.evolve`` import path is
-unaffected.
-"""
+"""Format specialist review findings for evolution prompts."""
 
 import json
 from typing import Any
@@ -97,7 +90,7 @@ def _specialist_feedback_for(
     # most hypotheses evolve before it has run at all, and a present-but-
     # empty block reads as "checked, nothing found" rather than "not run
     # yet". Hypothesis.deep_verification_summary() is None in exactly that
-    # case (see ranking_prompt._gather_matchup_summaries for the same gate).
+    # case (see ranking_prompt._ranking_side for the same gate).
     deep_verification = hypothesis.deep_verification_summary()
     if deep_verification is not None:
         ledger["deep_verification"] = deep_verification

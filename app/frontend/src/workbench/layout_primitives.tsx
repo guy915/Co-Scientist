@@ -1,5 +1,4 @@
 import {type ReactNode} from 'react';
-import {Link} from 'react-router-dom';
 import {Icon, type IconName} from '@/components/icon';
 import {tooltipClassNames} from './tooltip';
 
@@ -110,49 +109,6 @@ interface HeaderControlTriggerProps {
   ariaLabel?: string;
   className?: string;
   children?: ReactNode;
-}
-
-/**
- * A header control that navigates instead of opening a popover, wearing the
- * same pill as {@link HeaderControlTrigger} so the header keeps one look.
- *
- * Deliberately carries no `aria-expanded`: it is a destination, not a
- * disclosure, and announcing it as collapsed would promise a panel that
- * never arrives.
- *
- * @param props.icon The pill's leading icon.
- * @param props.label The pill's visible label, which also names the link.
- * @param props.to The in-app route the pill navigates to.
- */
-export function HeaderControlLink({
-  icon,
-  label,
-  to,
-}: {
-  icon: IconName;
-  label: string;
-  to: string;
-}) {
-  return (
-    <Link
-      className={tooltipClassNames({
-        // no-underline: the pill this replaces was a button, and the
-        // anchor's default underline reads as a stray rule through the
-        // label rather than as an affordance the pill needs.
-        className: `${DEFAULT_HEADER_CONTROL_CLASSES} no-underline`,
-        placement: 'left',
-      })}
-      to={to}
-      data-tooltip={label}
-    >
-      <Icon
-        aria-hidden="true"
-        className={HEADER_CONTROL_ICON_CLASSES}
-        name={icon}
-      />
-      <span>{label}</span>
-    </Link>
-  );
 }
 
 export function HeaderControlTrigger({

@@ -135,11 +135,10 @@ like a Redux store of fetched entities. On mount it:
    request headers, and the stream is authenticated (`Authorization` for a
    researcher session, `X-Client-ID` otherwise), so it is a `fetch` whose body is
    read by the frame reader in `src/api/runs_http.ts::readSseFrames`.
-4. Two run-scoped endpoints are built on the backend and have **no frontend
-   caller**: `POST /api/runs/{id}/messages/ask` (streaming Q&A — client function
-   `askRunQuestion` exists, nothing calls it; audit row D4) and
-   `POST /api/runs/{id}/messages` (scientist steering — `sendRunSteering`, likewise
-   uncalled). The chat workspace does not poll messages.
+4. Run-scoped Q&A (`POST /api/runs/{id}/messages/ask`) and steering
+   (`POST /api/runs/{id}/messages`) remain available to API clients. The
+   frontend's unused wrappers are removed; the chat workspace does not poll
+   run-scoped messages.
 
 This means a hard refresh, a backend restart, or a new browser session all
 produce the same *content* — every run/hypothesis/report view is always
@@ -193,6 +192,20 @@ Evidence consumers import helpers from their defining modules:
 `search_support`, `search_budget`, `retrieval_support` and `article_support`.
 The former internal `evidence.helpers` facade is removed. The node and search
 orchestrators expose only the collaborators they actually use.
+
+## Code organization
+
+Modules group related behavior. The generator owns its setup, availability,
+and execution directly; PubMed retrieval uses one source class instead of
+a mixin chain. Report construction and frontend components shape their data
+where it is consumed, without pass-through payload objects or single-use
+style facades. Private helpers are imported from their defining modules.
+
+The durable task dispatcher lives in `engine_tasks/__init__.py`; bootstrap
+lives in `inputs.py`, specialist execution and state overlays in `node.py`,
+and final draining/publication in `finalize.py`. All paths retain the shared
+lease and checkpoint commit guards. Line-count ceilings are retired in favor
+of cohesive modules, with behavior, type, and layer boundaries checked in CI.
 
 ## Generation operations and execution ownership
 

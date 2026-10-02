@@ -1,7 +1,7 @@
 """Durable Supervisor plan and per-cycle allocation ledger (audit E19).
 
 Store I/O for the ``supervisor_plan``/``supervisor_allocations`` tables
-(schema in ``schema_supervisor_plan.py``): the Supervisor's research plan,
+(schema in ``schema.py``): the Supervisor's research plan,
 its terminal decision provenance and termination rationale (one row per
 run), and the append-only ledger of every task the adaptive orchestrator
 scheduled, with the observed statistics behind each decision (one row per
