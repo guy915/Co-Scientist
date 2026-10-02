@@ -21,7 +21,7 @@ import pytest
 from co_scientist.workflow_topology import LiteratureGated
 
 from app import engine_tasks, store
-from app.engine_tasks import fanout_reflection as engine_tasks_fanout_reflection
+from app.engine_tasks import fanout_aggregates as engine_tasks_fanout_aggregates
 from app.engine_tasks import ranking as engine_tasks_ranking
 from app.engine_tasks.context import TaskCommit
 from tests._engine_tasks_helpers import _seed_checkpoint, _task_state
@@ -61,7 +61,7 @@ async def _schedule_successor(
             commit, state, {}
         )
         return str(result["successor_task_id"])
-    advance = engine_tasks_fanout_reflection._checkpoint_and_advance
+    advance = engine_tasks_fanout_aggregates._checkpoint_and_advance
     _, successor_id = await advance(commit, state, node)
     return str(successor_id)
 

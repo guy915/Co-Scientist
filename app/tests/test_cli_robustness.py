@@ -203,7 +203,7 @@ def test_show_non_object_body_is_a_clean_error() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=["not", "an", "object"])
 
-    args = argparse.Namespace(run_id="r1", json=False, runs_command="cancel")
+    args = argparse.Namespace(run_id="r1", json=False)
     with pytest.raises(CliError) as excinfo:
         runs_cmd.handle_show(args, api_client(handler))
     assert "unexpected non-object response" in excinfo.value.message

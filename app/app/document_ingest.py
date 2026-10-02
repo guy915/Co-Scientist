@@ -236,7 +236,7 @@ def _apply_heading_markup(
     back to the plain per-page text already extracted above.
     """
     try:
-        from app.pdf.headings import apply_heading_markup
+        from app.pdf import apply_heading_markup
 
         return apply_heading_markup(reader, pages, page_texts)
     except Exception:

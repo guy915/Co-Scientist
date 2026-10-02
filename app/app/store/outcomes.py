@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import uuid
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any
 
 from app.store.db import _now, _use_conn, transaction
@@ -111,50 +111,6 @@ def _insert_outcome(
     )
 
 
-def _append_outcome_event(
-    conn: sqlite3.Connection,
-    record: dict[str, Any],
-) -> None:
-    """Write only metadata to the replay log; the observation stays private."""
-    _append_event(
-        conn,
-        record["run_id"],
-        "scientist.outcome",
-        {
-            "outcome_id": record["id"],
-            "hypothesis_id": record["hypothesis_id"],
-            "author": record["author"],
-            "recorded_at": record["recorded_at"],
-        },
-        record["recorded_at"],
-    )
-
-
-def _outcome_response(
-    outcome: NewHypothesisOutcome,
-    outcome_id: str,
-    recorded_at: float,
-    evidence_ids: list[str],
-    snapshots: dict[str, Any],
-) -> dict[str, Any]:
-    """Shape the appended outcome for the POST response."""
-    return {
-        "id": outcome_id,
-        "run_id": outcome.run_id,
-        "hypothesis_id": outcome.hypothesis_id,
-        "method_protocol": outcome.method_protocol,
-        "conditions": outcome.conditions,
-        "measured_observation": outcome.measured_observation,
-        "units": outcome.units,
-        "controls": outcome.controls,
-        "interpretation": outcome.interpretation,
-        "referenced_evidence_ids": evidence_ids,
-        **snapshots,
-        "author": outcome.author,
-        "recorded_at": recorded_at,
-    }
-
-
 def add_hypothesis_outcome(
     outcome: NewHypothesisOutcome,
     *,
@@ -163,19 +119,30 @@ def add_hypothesis_outcome(
     """Append an outcome and its metadata-only replay event atomically."""
     outcome_id = str(uuid.uuid4())
     recorded_at = _now()
-    evidence_ids = list(outcome.referenced_evidence_ids)
     with transaction(db_path) as conn:
-        snapshots = {
+        record = {
+            **asdict(outcome),
+            "id": outcome_id,
+            "recorded_at": recorded_at,
             "hypothesis_snapshot": _hypothesis_snapshot(conn, outcome),
             "referenced_evidence": _evidence_snapshots(
-                conn, outcome.run_id, evidence_ids
+                conn, outcome.run_id, outcome.referenced_evidence_ids
             ),
         }
-        record = _outcome_response(
-            outcome, outcome_id, recorded_at, evidence_ids, snapshots
-        )
         _insert_outcome(conn, record)
-        _append_outcome_event(conn, record)
+        # Persist only metadata in the replay log; observations stay private.
+        _append_event(
+            conn,
+            outcome.run_id,
+            "scientist.outcome",
+            {
+                "outcome_id": outcome_id,
+                "hypothesis_id": outcome.hypothesis_id,
+                "author": outcome.author,
+                "recorded_at": recorded_at,
+            },
+            recorded_at,
+        )
     return record
 
 

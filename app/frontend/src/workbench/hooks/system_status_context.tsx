@@ -1,21 +1,46 @@
-import {createContext, useContext, type ReactNode} from 'react';
 import {
-  usePolledSystemStatus,
-  type SystemStatusState,
-} from './use_system_status';
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from 'react';
+import {getSystemStatus, type SystemStatus} from '@/api/system';
+
+interface SystemStatusState {
+  status: SystemStatus | null;
+  unreachable: boolean;
+}
 
 const SystemStatusContext = createContext<SystemStatusState | null>(null);
 
-/**
- * Single source of truth for the `/status` payload.
- *
- * Mounted for the shell's whole lifetime so the answer is already in hand
- * wherever it is read. The connectors menu is why this is a context and not a
- * hook per consumer: the menu mounts only while it is open, so its own poll
- * started from `null` on every open and painted the PubMed-only fallback
- * until a fresh round trip landed -- which reads as the connector list
- * failing to load.
- */
+function usePolledSystemStatus(enabled = true): SystemStatusState {
+  const [state, setState] = useState<SystemStatusState>({
+    status: null,
+    unreachable: false,
+  });
+  useEffect(() => {
+    if (!enabled) return;
+    let disposed = false;
+    async function refresh() {
+      try {
+        const status = await getSystemStatus();
+        if (!disposed) setState({status, unreachable: false});
+      } catch {
+        if (!disposed) setState(current => ({...current, unreachable: true}));
+      }
+    }
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 60_000);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+    };
+  }, [enabled]);
+  return state;
+}
+
+// Keep one poll alive across shell controls, including the connectors menu.
 export function SystemStatusProvider({children}: {children: ReactNode}) {
   const state = usePolledSystemStatus();
   return (
@@ -25,13 +50,9 @@ export function SystemStatusProvider({children}: {children: ReactNode}) {
   );
 }
 
-/**
- * Reads the shared system status. Falls back to polling locally when no
- * provider is mounted, so a component rendered outside the shell (a test
- * harness, a standalone page) still works.
- */
 export function useSystemStatus(): SystemStatusState {
   const shared = useContext(SystemStatusContext);
-  const local = usePolledSystemStatus({enabled: shared === null});
+  // Isolated consumers still poll; shell consumers share the provider's read.
+  const local = usePolledSystemStatus(shared === null);
   return shared ?? local;
 }

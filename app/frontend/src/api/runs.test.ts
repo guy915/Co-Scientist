@@ -15,7 +15,7 @@ import {
   runGoal,
   createInterview,
 } from './runs';
-import type {Run} from './run_types';
+import type {Run} from './wire_runs';
 import {
   setAccessToken,
   getAccessToken,
@@ -143,23 +143,6 @@ describe('listRuns', () => {
 });
 
 describe('loadRunHistory', () => {
-  it('does not request demo runs when demos are excluded', async () => {
-    fetchMock().mockResolvedValueOnce(
-      jsonResponse({
-        runs: [
-          {id: 'owned', provider: 'engine', updated_at: 2},
-          {id: 'legacy-mock', provider: 'mock', updated_at: 3},
-        ],
-      }),
-    );
-
-    const result = await loadRunHistory(false);
-
-    expect(fetchMock()).toHaveBeenCalledTimes(1);
-    expect(firstCall()[0]).toBe('/api/runs');
-    expect(result).toEqual([{id: 'owned', provider: 'engine', updated_at: 2}]);
-  });
-
   it('merges demonstration runs when demos are included', async () => {
     fetchMock()
       .mockResolvedValueOnce(
@@ -169,7 +152,7 @@ describe('loadRunHistory', () => {
         jsonResponse({runs: [{id: 'demo', updated_at: 1}]}),
       );
 
-    const result = await loadRunHistory(true);
+    const result = await loadRunHistory();
 
     expect(result.map(run => run.id)).toEqual(['owned', 'demo']);
   });
@@ -197,10 +180,10 @@ describe('getRun', () => {
 });
 
 describe('startRun', () => {
-  it('POSTs to /api/runs/:id/start with provider and owner data', async () => {
+  it('POSTs to /api/runs/:id/start with owner data', async () => {
     fetchMock().mockResolvedValue(jsonResponse({id: 'r1', status: 'queued'}));
 
-    const result = await startRun('r1', {force_provider: 'engine'});
+    const result = await startRun('r1');
 
     const [url, opts] = firstCall();
     expect(url).toBe('/api/runs/r1/start');
@@ -208,19 +191,8 @@ describe('startRun', () => {
     const headers = opts?.headers as Record<string, string>;
     expect(headers['Content-Type']).toBe('application/json');
     expect(headers['X-Client-ID']).toBeTruthy();
-    expect(JSON.parse(opts?.body as string)).toEqual({
-      force_provider: 'engine',
-    });
-    expect(result).toEqual({id: 'r1', status: 'queued'});
-  });
-
-  it('defaults the body to an empty object with no override', async () => {
-    fetchMock().mockResolvedValue(jsonResponse({id: 'r1', status: 'queued'}));
-
-    await startRun('r1');
-
-    const [, opts] = firstCall();
     expect(JSON.parse(opts?.body as string)).toEqual({});
+    expect(result).toEqual({id: 'r1', status: 'queued'});
   });
 });
 

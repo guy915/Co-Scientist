@@ -75,55 +75,22 @@ def _valid_link_item(item: Any) -> bool:
     )
 
 
-def _index_link_group(
-    group: Any,
-    requested: set[str],
-    groups_by_id: dict[str, list[dict[str, Any]]],
-    group_errors: dict[str, Exception],
-) -> None:
-    if not isinstance(group, dict):
-        return
-    source_ids = group.get("IdList")
-    if not isinstance(source_ids, list):
-        return
-    if len(source_ids) == 1:
-        _store_single_source_group(
-            group, source_ids[0], requested, groups_by_id
-        )
-    elif source_ids:
-        _mark_ambiguous_source_group(source_ids, requested, group_errors)
-
-
-def _store_single_source_group(
-    group: dict[str, Any],
-    source_id: Any,
-    requested: set[str],
-    groups_by_id: dict[str, list[dict[str, Any]]],
-) -> None:
-    paper_id = str(source_id)
-    if paper_id in requested:
-        groups_by_id.setdefault(paper_id, []).append(group)
-
-
-def _mark_ambiguous_source_group(
-    source_ids: list[Any],
-    requested: set[str],
-    group_errors: dict[str, Exception],
-) -> None:
-    error = ValueError("ELink group does not identify one PMID")
-    for source_id in source_ids:
-        paper_id = str(source_id)
-        if paper_id in requested:
-            group_errors[paper_id] = error
-
-
 def _index_link_groups(
     related: list[Any], requested: set[str]
 ) -> tuple[dict[str, list[dict[str, Any]]], dict[str, Exception]]:
     groups_by_id: dict[str, list[dict[str, Any]]] = {}
     group_errors: dict[str, Exception] = {}
     for group in related:
-        _index_link_group(group, requested, groups_by_id, group_errors)
+        if not isinstance(group, dict) or not isinstance(
+            source_ids := group.get("IdList"), list
+        ):
+            continue
+        error = ValueError("ELink group does not identify one PMID")
+        for paper_id in requested.intersection(map(str, source_ids)):
+            if len(source_ids) == 1:
+                groups_by_id.setdefault(paper_id, []).append(group)
+            else:
+                group_errors[paper_id] = error
     return groups_by_id, group_errors
 
 
@@ -233,7 +200,12 @@ def _fetch_paper_details(
     if not paper_ids:
         return {}, [], {}
     try:
-        records = _read_pubmed_batch(client, paper_ids)
+        results = client.entrez_read(
+            entrez_call(Entrez.efetch, db="pubmed", id=paper_ids, retmode="xml")
+        )
+        records = results["PubmedArticle"]
+        if not isinstance(records, list):
+            raise ValueError("PubMed EFetch response is not an article list")
     except Exception as exc:
         return {}, [], dict.fromkeys(paper_ids, exc)
 
@@ -255,23 +227,6 @@ def _parse_pubmed_batch(
         elif details is not None:
             metadata[paper_id] = details
     return metadata, returned_ids, errors
-
-
-def _read_pubmed_batch(
-    client: _EntrezClient, paper_ids: list[str]
-) -> list[Any]:
-    results = client.entrez_read(
-        entrez_call(
-            Entrez.efetch,
-            db="pubmed",
-            id=paper_ids,
-            retmode="xml",
-        )
-    )
-    records = results["PubmedArticle"]
-    if not isinstance(records, list):
-        raise ValueError("PubMed EFetch response is not an article list")
-    return records
 
 
 def _fetch_metadata_batch(
@@ -439,7 +394,15 @@ async def _fetch_metadata_batch_async(
     batch_index: int,
 ) -> dict[str, dict[str, Any]]:
     cache = _read_batch_cache(context, paper_ids)
-    elink_ids = _elink_candidates(paper_ids, cache)
+    elink_ids = [
+        paper_id
+        for paper_id in paper_ids
+        if paper_id in cache.fetch_ids
+        or (
+            not cache.cached.get(paper_id, {}).get("pmc_full_text_id")
+            and paper_id not in cache.proven_no_link
+        )
+    ]
     with pilot_trace_context(None, paper_ids[0] if paper_ids else None):
         async with context.semaphore:
             fetched = await asyncio.to_thread(
@@ -466,15 +429,3 @@ async def _fetch_metadata_batch_async(
         fetched.link_outcomes,
     )
     return results
-
-
-def _elink_candidates(paper_ids: list[str], cache: _BatchCache) -> list[str]:
-    return [
-        paper_id
-        for paper_id in paper_ids
-        if paper_id in cache.fetch_ids
-        or (
-            not cache.cached.get(paper_id, {}).get("pmc_full_text_id")
-            and paper_id not in cache.proven_no_link
-        )
-    ]

@@ -20,7 +20,7 @@ import {
   type SafetyDecision,
 } from '@/api/runs';
 import type {StreamEvent} from '@/hooks/use_run_stream';
-import {useDebouncedCallback} from '@/workbench/hooks/use_debounced_callback';
+import {useResetTimer} from '@/workbench/hooks/use_reset_timer';
 
 export type RunDataKey =
   | 'hypotheses'
@@ -171,43 +171,32 @@ function isShownRun(
   return id !== undefined && shownId === id;
 }
 
-// Debounced, key-accumulating scheduler around `refresh`: the SSE stream
-// replays the full history on mount and live runs emit rapid bursts, so
-// per-event refetches collapse into one trailing call. Data keys accumulate
-// in a ref across the debounce window (the underlying debounce keeps only
-// the latest call's args), so a burst mixing event types still refetches
-// every collection it touched. `cancelPending` drops a pending call without
-// touching the accumulated keys (used when a full refresh makes them moot);
-// `resetPending` also clears them (used on id change, so a stray key from
-// the previous run doesn't leak into the next one's first batch).
+// Merge every collection touched during one trailing debounce window.
 function useDebouncedKeyedRefresh(
   refresh: (keys?: ReadonlySet<RunDataKey>) => Promise<void>,
 ) {
-  const pendingRefreshKeys = useRef(new Set<RunDataKey>());
-  const debouncedRefresh = useDebouncedCallback(() => {
-    const keys = pendingRefreshKeys.current;
-    pendingRefreshKeys.current = new Set();
-    void refresh(keys);
-  }, 600);
-
+  const pending = useRef(new Set<RunDataKey>());
+  const refreshRef = useRef(refresh);
+  useEffect(() => {
+    refreshRef.current = refresh;
+  }, [refresh]);
+  const {schedule, cancel} = useResetTimer();
   const scheduleRefresh = useCallback(
     (keys: Iterable<RunDataKey>) => {
-      for (const key of keys) pendingRefreshKeys.current.add(key);
-      debouncedRefresh();
+      for (const key of keys) pending.current.add(key);
+      schedule(() => {
+        const keys = pending.current;
+        pending.current = new Set();
+        void refreshRef.current(keys);
+      }, 600);
     },
-    [debouncedRefresh],
+    [schedule],
   );
-
-  const cancelPending = useCallback(() => {
-    debouncedRefresh.cancel();
-  }, [debouncedRefresh]);
-
   const resetPending = useCallback(() => {
-    debouncedRefresh.cancel();
-    pendingRefreshKeys.current = new Set();
-  }, [debouncedRefresh]);
-
-  return {scheduleRefresh, cancelPending, resetPending};
+    cancel();
+    pending.current = new Set();
+  }, [cancel]);
+  return {scheduleRefresh, cancelPending: cancel, resetPending};
 }
 
 interface CollectionsState {

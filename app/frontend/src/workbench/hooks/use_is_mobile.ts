@@ -44,25 +44,23 @@ export function closeDrawerIfMobile(setNavOpen: (open: boolean) => void): void {
  * before an effect corrected it. The effect only subscribes to later
  * breakpoint changes. Guarded for environments without `matchMedia` (jsdom).
  *
- * @param query The media query to match. Defaults to
- *   {@link MOBILE_MEDIA_QUERY}.
  * @returns Whether the query currently matches.
  */
-export function useIsMobile(query = MOBILE_MEDIA_QUERY): boolean {
+export function useIsMobile(): boolean {
   const [isMobile, setIsMobile] = useState(
     () =>
       typeof window.matchMedia === 'function' &&
-      window.matchMedia(query).matches,
+      window.matchMedia(MOBILE_MEDIA_QUERY).matches,
   );
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return;
-    const mql = window.matchMedia(query);
+    const mql = window.matchMedia(MOBILE_MEDIA_QUERY);
     const update = () => setIsMobile(mql.matches);
     // Re-read on subscribe: the viewport may have changed between the state
-    // initializer (first render) and this effect, or `query` itself changed.
+    // initializer (first render) and this effect, the subscription starts.
     update();
     mql.addEventListener('change', update);
     return () => mql.removeEventListener('change', update);
-  }, [query]);
+  }, []);
   return isMobile;
 }

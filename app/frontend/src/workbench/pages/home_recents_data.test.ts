@@ -4,7 +4,6 @@ import {makeRun} from '@/test_fixtures';
 import {
   formatHomeRunDate,
   formatHomeRunTimeChip,
-  homeRunScore,
   homeRunStepIndex,
 } from './home_recents_data';
 
@@ -69,21 +68,6 @@ it('shows the raw capitalized status for an in-between run', () => {
       `Status: ${status.charAt(0).toUpperCase()}${status.slice(1)}`,
     );
   }
-});
-
-describe('homeRunScore', () => {
-  it('returns null for a run that has not completed', () => {
-    expect(homeRunScore(makeRun({status: 'running'}), {r1: 1500})).toBeNull();
-  });
-
-  it('returns null when no score entry is recorded yet for the run', () => {
-    expect(homeRunScore(makeRun({id: 'unscored'}), {})).toBeNull();
-  });
-
-  it('returns the recorded score, distinguishing an explicit null', () => {
-    expect(homeRunScore(makeRun({id: 'r1'}), {r1: 1620})).toBe(1620);
-    expect(homeRunScore(makeRun({id: 'r1'}), {r1: null})).toBeNull();
-  });
 });
 
 // The exact task types the engine provider mints, as observed in the durable

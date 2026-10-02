@@ -3,9 +3,6 @@
 Who is fanned out (every idea still owed its one verification, and only
 those), that the family commits through a single aggregate, and that a
 pool with nothing left to verify still hands the run into the tournament.
-Split from ``test_engine_tasks_fanout``, mirroring the source split
-between ``engine_tasks.fanout_reflection`` and
-``engine_tasks.fanout_verification``.
 """
 
 import asyncio
@@ -17,10 +14,8 @@ from co_scientist.models import Article, Hypothesis
 from app import engine_tasks, store
 from app.config import settings
 from app.engine_tasks import fanout as engine_tasks_fanout
+from app.engine_tasks import fanout_aggregates as engine_tasks_fanout_aggregates
 from app.engine_tasks import fanout_items as engine_tasks_fanout_items
-from app.engine_tasks import (
-    fanout_verification as engine_tasks_fanout_verification,
-)
 from app.engine_tasks import support as engine_tasks_support
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
@@ -157,7 +152,7 @@ async def test_a_pool_with_nothing_left_to_verify_advances_into_ranking(
     )
     assert aggregate is not None
     result = (
-        await engine_tasks_fanout_verification.execute_verification_aggregate(
+        await engine_tasks_fanout_aggregates.execute_verification_aggregate(
             aggregate, db_path=isolated_db
         )
     )
@@ -251,7 +246,7 @@ async def _run_verification_children_and_aggregate(
     if before_aggregate is not None:
         before_aggregate()
     result = (
-        await engine_tasks_fanout_verification.execute_verification_aggregate(
+        await engine_tasks_fanout_aggregates.execute_verification_aggregate(
             aggregate, db_path=db_path
         )
     )
@@ -460,7 +455,7 @@ async def test_failed_verification_items_record_explicit_unverified(
     )
     assert aggregate is not None
     result = (
-        await engine_tasks_fanout_verification.execute_verification_aggregate(
+        await engine_tasks_fanout_aggregates.execute_verification_aggregate(
             aggregate, db_path=isolated_db
         )
     )

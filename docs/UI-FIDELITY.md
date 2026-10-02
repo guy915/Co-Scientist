@@ -289,7 +289,7 @@ severity DECISION.*
   "were explored" / "matches were played" / "highest Elo" / "Winning ideas".
 - **Verifier note:** genuinely plainer than the reference; **not** on the
   deliberate-divergence list. The data to build it is already in the payload
-  (`run_types.ts:177` leaderboard `{id,title,elo}`, plus hypothesis and match
+  (`api/wire_reports.ts::LeaderboardEntry` leaderboard `{id,title,elo}`, plus hypothesis and match
   counts; only "duration" would need deriving from run timestamps), so the
   enrichment is feasible. May be intentionally simplified for the newer-era
   report. → **Question Q7.** *(Honesty caveat: the captured `ideas-results.html`

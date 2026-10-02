@@ -19,7 +19,6 @@ function renderPanel(createdAtSeconds: number) {
     <MemoryRouter>
       <HomeRecentsPanel
         runs={[run]}
-        scoresByRunId={{}}
         showAll={false}
         onToggleShowAll={() => {}}
       />

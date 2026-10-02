@@ -3,7 +3,7 @@
 The Supervisor already synthesizes ``config_synthesis.attributes`` -- up to
 three named 1-5 rating scales, mirroring the published MASH plan's
 ``Attributes`` section (``docs/CORPUS-EXTRACTION.md`` R12-17) -- and
-``drain/supervisor_plan.py`` already persists them into the
+``drain/final_state.py`` already persists them into the
 ``supervisor_plan`` table. But the drain never handed them to the report
 path, so the markdown renderer had nothing to read. This pins that the
 drain now reads the same ``supervisor_guidance.config_synthesis.attributes``

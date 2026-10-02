@@ -2,15 +2,14 @@
 
 Owns the per-run offline/real LLM-backend split (`resolve_offline_backend`,
 `sync_engine_llm_backend`), reports provider diagnostics for the /status route
-(`system_status`), and performs the lazy engine import used by the engine path
-(`select_provider` always resolves to the engine; the mock workflow is
-retired). The process-level `offline_mode` predicate lives in
+(`system_status`), and checks the required engine is importable
+(`select_provider` always resolves to the engine). The process-level
+`offline_mode` predicate lives in
 ``app.process_mode`` and is re-exported here, its public home.
 """
 
 from __future__ import annotations
 
-import logging
 import os
 import sys
 from typing import Any
@@ -21,14 +20,12 @@ from app.process_mode import offline_mode as offline_mode
 
 # Editable-install .pth files aren't always processed in Python 3.12 venvs.
 # Inject the sibling engine src into sys.path at import time so that
-# `from co_scientist import HypothesisGenerator` in main.py succeeds.
+# durable tasks can import co_scientist directly.
 _engine_src = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "..", "..", "..", "engine", "src")
 )
 if os.path.isdir(_engine_src) and _engine_src not in sys.path:
     sys.path.insert(0, _engine_src)
-
-logger = logging.getLogger(__name__)
 
 
 # Checks importability via find_spec rather than a real import, so this can
@@ -129,18 +126,3 @@ def system_status() -> dict[str, Any]:
         # use the configured domain tools (e.g. INDRA) or the engine defaults.
         **tools_config_report(settings.tools_config),
     }
-
-
-def import_hypothesis_generator() -> Any | None:
-    """Import the engine's `HypothesisGenerator`, or None if unavailable."""
-    try:
-        # The engine is a hard runtime dependency; this import only fails
-        # if the co_scientist package is missing or broken.
-        from co_scientist import (
-            HypothesisGenerator,
-        )
-
-        return HypothesisGenerator
-    except Exception as e:  # pragma: no cover (defensive)
-        logger.error("engine import failed: %s", e)
-        return None

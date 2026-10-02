@@ -1,5 +1,6 @@
 import {mergeByIdNewestFirst} from '@/lib/merge';
-import type {Run, RunFocus, RunTier, RunWithSummary} from './run_types';
+import type {Run, RunWithSummary} from './wire_runs';
+import type {RunFocus, RunTier} from './wire_common';
 import {
   byokHeaders,
   clientHeaders,
@@ -7,8 +8,11 @@ import {
   fetchJson,
   jsonRequest,
 } from './runs_http';
-export type * from './run_types';
-export type * from './report_types';
+export type * from './wire_common';
+export type * from './wire_runs';
+export type * from './wire_science';
+export type * from './wire_interviews';
+export type * from './wire_reports';
 export {
   byokHeaders,
   clientHeaders,
@@ -105,18 +109,13 @@ export function listDemoRuns(): Promise<Run[]> {
  *
  * @returns The merged, sorted run history.
  */
-export async function loadRunHistory(includeDemos = true): Promise<Run[]> {
+export async function loadRunHistory(): Promise<Run[]> {
   const [ownedRuns, demoRuns] = await Promise.all([
     listRuns().catch(() => [] as Run[]),
-    includeDemos ? listDemoRuns().catch(() => [] as Run[]) : [],
+    listDemoRuns().catch(() => [] as Run[]),
   ]);
-  // When demos are excluded, deterministic fixtures are never presented as
-  // prior scientific work, including legacy mock rows owned by this client.
-  const visibleOwnedRuns = includeDemos
-    ? ownedRuns
-    : ownedRuns.filter(run => run.provider === 'engine');
   return mergeByIdNewestFirst(
-    [...visibleOwnedRuns, ...demoRuns],
+    [...ownedRuns, ...demoRuns],
     run => run.id,
     run => run.updated_at,
   );
@@ -132,18 +131,9 @@ export function getRun(id: string): Promise<RunWithSummary> {
   return fetchJson(`/api/runs/${id}`, {headers: clientHeaders()});
 }
 
-/**
- * Starts generation for a run, optionally forcing a provider.
- *
- * @param id Run identifier.
- * @param body Optional provider override.
- * @returns The run id and its new status.
- */
-export function startRun(
-  id: string,
-  body: {force_provider?: 'mock' | 'engine'} = {},
-): Promise<{id: string; status: string}> {
-  return fetchJson(`/api/runs/${id}/start`, jsonRequest(body, true));
+/** Start the durable engine workflow for a run. */
+export function startRun(id: string): Promise<{id: string; status: string}> {
+  return fetchJson(`/api/runs/${id}/start`, jsonRequest({}, true));
 }
 
 /**

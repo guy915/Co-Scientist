@@ -1,4 +1,4 @@
-import type {ChatSummary, Interview} from './run_types';
+import type {ChatSummary, Interview} from './wire_interviews';
 import {clientHeaders, fetchJson, jsonRequest, streamJson} from './runs_http';
 
 /** A frame of a streamed interview turn. */

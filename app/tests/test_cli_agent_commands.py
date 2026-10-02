@@ -12,15 +12,16 @@ import httpx
 import pytest
 
 from app.cli import runs_cmd, runs_stream_cmd, status_cmd
-from app.cli import runs_collections_cmd as cli_runs_collections_cmd
 from app.cli.http import ApiClient, ApiClientOptions, CliError
 from tests._cli_helpers import api_client
 
 cli_main = importlib.import_module("app.cli.main")
 
 
-def _read_args(run_id: str = "r1", as_json: bool = False) -> argparse.Namespace:
-    return argparse.Namespace(run_id=run_id, json=as_json)
+def _read_args(
+    run_id: str = "r1", as_json: bool = False, command: str = ""
+) -> argparse.Namespace:
+    return argparse.Namespace(run_id=run_id, json=as_json, runs_command=command)
 
 
 # ---------------------------------------------------------------------------
@@ -47,9 +48,8 @@ def test_matches_lists_rows(capsys: pytest.CaptureFixture[str]) -> None:
         )
 
     assert (
-        cli_runs_collections_cmd.handle_collection(
-            argparse.Namespace(run_id="r1", json=False, runs_command="matches"),
-            api_client(handler),
+        runs_cmd.handle_collection(
+            _read_args(command="matches"), api_client(handler)
         )
         == 0
     )
@@ -77,11 +77,8 @@ def test_proximity_lists_edges(capsys: pytest.CaptureFixture[str]) -> None:
         )
 
     assert (
-        cli_runs_collections_cmd.handle_collection(
-            argparse.Namespace(
-                run_id="r1", json=False, runs_command="proximity"
-            ),
-            api_client(handler),
+        runs_cmd.handle_collection(
+            _read_args(command="proximity"), api_client(handler)
         )
         == 0
     )
@@ -110,11 +107,8 @@ def test_claim_evidence_lists_edges(
         )
 
     assert (
-        cli_runs_collections_cmd.handle_collection(
-            argparse.Namespace(
-                run_id="r1", json=False, runs_command="claim-evidence"
-            ),
-            api_client(handler),
+        runs_cmd.handle_collection(
+            _read_args(command="claim-evidence"), api_client(handler)
         )
         == 0
     )
@@ -138,12 +132,7 @@ def test_metrics_renders_key_values(
             },
         )
 
-    assert (
-        cli_runs_collections_cmd.handle_metrics(
-            _read_args(), api_client(handler)
-        )
-        == 0
-    )
+    assert runs_cmd.handle_metrics(_read_args(), api_client(handler)) == 0
     out = capsys.readouterr().out
     assert "llm_calls" in out
     assert "12" in out
@@ -156,12 +145,7 @@ def test_metrics_absent_prints_notice(
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"metrics": None})
 
-    assert (
-        cli_runs_collections_cmd.handle_metrics(
-            _read_args(), api_client(handler)
-        )
-        == 0
-    )
+    assert runs_cmd.handle_metrics(_read_args(), api_client(handler)) == 0
     assert "no metrics recorded" in capsys.readouterr().out
 
 
@@ -430,15 +414,15 @@ def test_parser_wires_new_commands() -> None:
     create_args = parser.parse_args(["runs", "create", "goal", "--start"])
     assert create_args.start is True
     for command, handler in (
-        (["runs", "matches", "r1"], cli_runs_collections_cmd.handle_collection),
+        (["runs", "matches", "r1"], runs_cmd.handle_collection),
         (
             ["runs", "proximity", "r1"],
-            cli_runs_collections_cmd.handle_collection,
+            runs_cmd.handle_collection,
         ),
-        (["runs", "metrics", "r1"], cli_runs_collections_cmd.handle_metrics),
+        (["runs", "metrics", "r1"], runs_cmd.handle_metrics),
         (
             ["runs", "claim-evidence", "r1"],
-            cli_runs_collections_cmd.handle_collection,
+            runs_cmd.handle_collection,
         ),
         (["runs", "demo"], runs_cmd.handle_demo),
         (["config"], status_cmd.handle_config),

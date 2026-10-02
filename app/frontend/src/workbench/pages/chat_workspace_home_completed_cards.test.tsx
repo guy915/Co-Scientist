@@ -104,3 +104,15 @@ it('keeps the winning-ideas chips on a completed run', async () => {
 
   expect(await screen.findByText('Winning ideas')).toBeInTheDocument();
 });
+
+it.each([undefined, null])(
+  'omits an unknown completed-run top score (%s)',
+  async top_elo => {
+    apiMock.listDemoRuns.mockResolvedValue([]);
+    apiMock.listRuns.mockResolvedValue([minimalRun({top_elo})]);
+    renderWorkspace();
+
+    expect(await screen.findByText('Winning ideas')).toBeInTheDocument();
+    expect(screen.queryByText(/^Top score:/)).toBeNull();
+  },
+);

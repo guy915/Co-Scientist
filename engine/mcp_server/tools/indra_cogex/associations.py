@@ -7,7 +7,6 @@ from mcp_server.tools.indra_cogex.client import (
     cap_results,
     indra_post,
     parse_id,
-    run_indra_tool,
     tool_error,
 )
 
@@ -39,123 +38,33 @@ async def query_gene_disease_network(
     Returns:
         Dict with associated entities, counts, and query metadata.
     """
-    return await run_indra_tool(
-        logger,
-        "query_gene_disease_network",
-        {"identifier": identifier, "entity_type": entity_type},
-        _run_gene_disease_network(
-            identifier, entity_type, include_variants, max_results
-        ),
-    )
-
-
-async def _run_gene_disease_network(
-    identifier: str,
-    entity_type: str,
-    include_variants: bool,
-    max_results: int,
-) -> dict[str, Any]:
-    """Routes a gene-disease query to the disease or gene path.
-
-    Args:
-        identifier: Entity in "NAMESPACE:id" format.
-        entity_type: "disease" to find genes, "gene" to find diseases.
-        include_variants: Also return associated genetic variants.
-        max_results: Max results per category.
-
-    Returns:
-        Dict with associated entities and query metadata, or an error
-        payload for an invalid entity_type.
-    """
-    # Convert "NAMESPACE:id" into the [namespace, id] pair CoGex expects.
-    curie = parse_id(identifier)
     query_meta = {"identifier": identifier, "entity_type": entity_type}
-    result: dict[str, Any] = {"query": query_meta}
-
-    if entity_type == "disease":
-        result.update(
-            await _fetch_genes_for_disease(curie, include_variants, max_results)
+    try:
+        curie = parse_id(identifier)
+        if entity_type not in ("disease", "gene"):
+            return tool_error(
+                f"invalid entity_type '{entity_type}', use 'disease' or 'gene'",
+                query_meta,
+            )
+        result: dict[str, Any] = {"query": query_meta}
+        result_key = "genes" if entity_type == "disease" else "diseases"
+        raw = await indra_post(
+            f"/api/get_{result_key}_for_{entity_type}", {entity_type: curie}
         )
-    elif entity_type == "gene":
-        result.update(
-            await _fetch_diseases_for_gene(curie, include_variants, max_results)
+        result[result_key], result[f"total_{result_key}"] = cap_results(
+            raw, max_results
         )
-    else:
-        entity_err = f"invalid entity_type '{entity_type}'"
-        return tool_error(f"{entity_err}, use 'disease' or 'gene'", query_meta)
-
-    return result
-
-
-async def _fetch_genes_for_disease(
-    curie: list[str],
-    include_variants: bool,
-    max_results: int,
-) -> dict[str, Any]:
-    """Fetches genes (and optionally variants) associated with a disease.
-
-    Args:
-        curie: Disease identifier as a [namespace, id] CoGex pair.
-        include_variants: Also fetch genetic variants linked to the disease
-            (e.g. GWAS-identified SNPs).
-        max_results: Max results per category.
-
-    Returns:
-        Dict with "genes"/"total_genes" and, when include_variants is True,
-        "variants"/"total_variants".
-    """
-    # Disease -> genes known to be associated with it.
-    raw = await indra_post(
-        "/api/get_genes_for_disease",
-        {"disease": curie},
-    )
-    out: dict[str, Any] = {}
-    out["genes"], out["total_genes"] = cap_results(raw, max_results)
-    if include_variants:
-        vraw = await indra_post(
-            "/api/get_variants_for_disease",
-            {"disease": curie},
-        )
-        out["variants"], out["total_variants"] = cap_results(
-            vraw,
-            max_results,
-        )
-    return out
-
-
-async def _fetch_diseases_for_gene(
-    curie: list[str],
-    include_variants: bool,
-    max_results: int,
-) -> dict[str, Any]:
-    """Fetches diseases (and optionally variants) associated with a gene.
-
-    Args:
-        curie: Gene identifier as a [namespace, id] CoGex pair.
-        include_variants: Also fetch genetic variants linked to the gene.
-        max_results: Max results per category.
-
-    Returns:
-        Dict with "diseases"/"total_diseases" and, when include_variants is
-        True, "variants"/"total_variants".
-    """
-    # Gene -> diseases it has been associated with.
-    raw = await indra_post(
-        "/api/get_diseases_for_gene",
-        {"gene": curie},
-    )
-    out: dict[str, Any] = {}
-    out["diseases"], out["total_diseases"] = cap_results(raw, max_results)
-    if include_variants:
-        vraw = await indra_post(
-            "/api/get_variants_for_gene",
-            {"gene": curie},
-        )
-        out["variants"], out["total_variants"] = cap_results(
-            vraw,
-            max_results,
-        )
-    return out
+        if include_variants:
+            raw = await indra_post(
+                f"/api/get_variants_for_{entity_type}", {entity_type: curie}
+            )
+            result["variants"], result["total_variants"] = cap_results(
+                raw, max_results
+            )
+        return result
+    except Exception as exc:
+        logger.error("query_gene_disease_network failed: %s", exc)
+        return tool_error(str(exc), query_meta)
 
 
 async def query_gene_codependents(
@@ -177,37 +86,17 @@ async def query_gene_codependents(
     Returns:
         Dict with codependent genes and counts.
     """
-    return await run_indra_tool(
-        logger,
-        "query_gene_codependents",
-        {"gene_id": gene_id},
-        _run_gene_codependents(gene_id, max_results),
-    )
-
-
-async def _run_gene_codependents(
-    gene_id: str,
-    max_results: int,
-) -> dict[str, Any]:
-    """Fetches DepMap codependent genes for a gene from INDRA.
-
-    Args:
-        gene_id: Gene in "HGNC:id" format.
-        max_results: Max codependent genes to return.
-
-    Returns:
-        Dict with codependent genes, counts, and query metadata.
-    """
-    curie = parse_id(gene_id)
-    # Codependency scores come from DepMap CRISPR knockout screens:
-    # genes whose essentiality profiles correlate across cell lines.
-    raw = await indra_post(
-        "/api/get_codependents_for_gene",
-        {"gene": curie},
-    )
-    genes, total = cap_results(raw, max_results)
-    return {
-        "codependent_genes": genes,
-        "total_codependents": total,
-        "query": {"gene_id": gene_id},
-    }
+    query_meta = {"gene_id": gene_id}
+    try:
+        raw = await indra_post(
+            "/api/get_codependents_for_gene", {"gene": parse_id(gene_id)}
+        )
+        genes, total = cap_results(raw, max_results)
+        return {
+            "codependent_genes": genes,
+            "total_codependents": total,
+            "query": query_meta,
+        }
+    except Exception as exc:
+        logger.error("query_gene_codependents failed: %s", exc)
+        return tool_error(str(exc), query_meta)

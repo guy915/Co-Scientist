@@ -16,15 +16,16 @@ from __future__ import annotations
 
 from typing import Any
 
+from co_scientist import HypothesisGenerator
+
 from app.engine_adapter.opts import build_generator
-from app.engine_adapter.provider import import_hypothesis_generator
 from app.run_modes import resolved_run_config
 
 
 def _generator_for(**overrides: Any) -> Any:
     """Build a generator through the app's real per-run construction path."""
     return build_generator(
-        import_hypothesis_generator(),
+        HypothesisGenerator,
         resolved_run_config(dict(overrides)),
     )
 

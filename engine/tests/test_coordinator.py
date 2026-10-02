@@ -12,127 +12,20 @@ precondition, and progress-event lifecycle tests live in the sibling
 """
 
 import logging
-from typing import Any
 
 import pytest
 
-from co_scientist.agents.generation import coordinator
 from co_scientist.agents.generation.coordinator import (
     generate_hypotheses,
 )
 from co_scientist.constants import LITERATURE_REVIEW_FAILED
-from co_scientist.models import Hypothesis
+from tests._generation_fakes import (
+    _AssumptionsRecorder,
+    _DebateRecorder,
+    _install,
+    _ToolsRecorder,
+)
 from tests._state import make_hypothesis, make_state
-
-
-class _ToolsRecorder:
-    """Records calls to the stubbed ``generate_with_tools`` leaf strategy.
-
-    The coordinator unpacks this strategy's return as a 2-tuple, so the stub
-    returns ``(list[Hypothesis], llm_calls)``.
-    """
-
-    def __init__(
-        self, hypotheses: list[Hypothesis], llm_calls: int = 0
-    ) -> None:
-        self._hypotheses = hypotheses
-        self.llm_calls = llm_calls
-        self.called = False
-        self.count: int | None = None
-
-    async def __call__(
-        self, _state: Any, count: int, _reference_index: Any
-    ) -> tuple[list[Hypothesis], int]:
-        self.called = True
-        self.count = count
-        return list(self._hypotheses), self.llm_calls
-
-
-class _DebateRecorder:
-    """Records calls to the stubbed ``generate_with_debate`` leaf strategy.
-
-    The coordinator unpacks this strategy's return as a 3-tuple, so the stub
-    returns ``(list[Hypothesis], list[transcript], llm_calls)``.
-    ``generate_with_debate`` is invoked with keyword arguments by the
-    coordinator.
-    """
-
-    def __init__(
-        self,
-        hypotheses: list[Hypothesis],
-        transcripts: list[dict[str, Any]],
-        llm_calls: int = 0,
-    ) -> None:
-        self._hypotheses = hypotheses
-        self._transcripts = transcripts
-        self.llm_calls = llm_calls
-        self.called = False
-        self.count: int | None = None
-        self.articles_with_reasoning: str | None = None
-
-    async def __call__(
-        self,
-        *,
-        state: Any,
-        count: int,
-        articles_with_reasoning: str | None = None,
-        reference_index: Any = None,
-    ) -> tuple[list[Hypothesis], list[dict[str, Any]], int]:
-        self.called = True
-        self.count = count
-        self.articles_with_reasoning = articles_with_reasoning
-        return list(self._hypotheses), list(self._transcripts), self.llm_calls
-
-
-class _AssumptionsRecorder:
-    """Records calls to the stubbed ``generate_with_assumptions`` leaf.
-
-    The coordinator unpacks this strategy's return as a 2-tuple, so the stub
-    returns ``(list[Hypothesis], llm_calls)``. It is invoked with keyword
-    arguments for the literature context so a lit-available run can be
-    asserted to pass real references through (E07: assumptions is a
-    first-class technique in literature-available strategies, not
-    degraded-mode only).
-    """
-
-    def __init__(
-        self, hypotheses: list[Hypothesis], llm_calls: int = 0
-    ) -> None:
-        self._hypotheses = hypotheses
-        self.llm_calls = llm_calls
-        self.called = False
-        self.count: int | None = None
-        self.articles_with_reasoning: str | None = None
-        self.reference_index: Any = None
-
-    async def __call__(
-        self,
-        _state: Any,
-        count: int,
-        articles_with_reasoning: str | None = None,
-        reference_index: Any = None,
-    ) -> tuple[list[Hypothesis], int]:
-        self.called = True
-        self.count = count
-        self.articles_with_reasoning = articles_with_reasoning
-        self.reference_index = reference_index
-        return list(self._hypotheses), self.llm_calls
-
-
-def _install(
-    monkeypatch: pytest.MonkeyPatch,
-    tools: _ToolsRecorder,
-    debate: _DebateRecorder,
-    assumptions: _AssumptionsRecorder | None = None,
-) -> None:
-    """Patch the leaf strategies on the coordinator's namespace."""
-    monkeypatch.setattr(coordinator, "generate_with_tools", tools)
-    monkeypatch.setattr(coordinator, "generate_with_debate", debate)
-    monkeypatch.setattr(
-        coordinator,
-        "generate_with_assumptions",
-        assumptions or _AssumptionsRecorder([]),
-    )
 
 
 async def test_condition_a_splits_tools_debate_and_assumptions(

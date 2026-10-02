@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.engine_adapter.drain.telemetry import fold_grounding_telemetry
+from app.engine_adapter.drain.claim_grounding import fold_grounding_telemetry
 
 
 def test_grounding_telemetry_is_folded_into_plain_metrics() -> None:

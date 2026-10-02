@@ -114,46 +114,12 @@ def _enqueue_resume_task(
         f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
     )
     predecessor_id = _resume_predecessor_id(checkpoint, db)
-    if recorded_successor and predecessor_id is not None:
-        return _enqueue_resume_successor(
-            run_id, task_type, predecessor_id, checkpoint_seq, db
-        )
-    return _enqueue_resume_fallback(run_id, task_type, checkpoint_seq, db)
-
-
-def _enqueue_resume_successor(
-    run_id: str,
-    task_type: str,
-    predecessor_id: str,
-    checkpoint_seq: int,
-    db: _ResumeDB,
-) -> ScientificTask:
-    """Resume a checkpoint whose stage names a real predecessor task."""
-    idempotency_key = f"{task_type}:after:{predecessor_id}"
-    _revive_dead_resume_target(run_id, task_type, idempotency_key, db)
-    return store.enqueue_task(
-        store.NewTask(
-            run_id=run_id,
-            task_type=task_type,
-            inputs={"checkpoint_seq": checkpoint_seq},
-            idempotency_key=idempotency_key,
-            priority=100,
-            dependencies=(predecessor_id,),
-            provenance={"scheduled_by": "resume"},
-        ),
-        db_path=db.path,
-        conn=db.conn,
+    anchored = bool(recorded_successor and predecessor_id is not None)
+    idempotency_key = (
+        f"{task_type}:after:{predecessor_id}"
+        if anchored
+        else f"{task_type}:{checkpoint_seq}"
     )
-
-
-def _enqueue_resume_fallback(
-    run_id: str,
-    task_type: str,
-    checkpoint_seq: int,
-    db: _ResumeDB,
-) -> ScientificTask:
-    """Resume a checkpoint on the original checkpoint-sequence scheme."""
-    idempotency_key = f"{task_type}:{checkpoint_seq}"
     _revive_dead_resume_target(run_id, task_type, idempotency_key, db)
     return store.enqueue_task(
         store.NewTask(
@@ -162,6 +128,9 @@ def _enqueue_resume_fallback(
             inputs={"checkpoint_seq": checkpoint_seq},
             idempotency_key=idempotency_key,
             priority=100,
+            dependencies=(predecessor_id,)
+            if anchored and predecessor_id
+            else (),
             provenance={"scheduled_by": "resume"},
         ),
         db_path=db.path,

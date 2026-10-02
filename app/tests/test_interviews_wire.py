@@ -15,7 +15,6 @@ from app.interviews.wire import (
     CLOSE_MARKER,
     OPEN_MARKER,
     TurnSplitter,
-    split_prose_and_spec,
 )
 
 _FIELDS = '{"research_challenge": "Reverse fibrosis", "completed": false}'
@@ -43,7 +42,7 @@ def _stream(deltas: list[str]) -> _Streamed:
 
 
 def test_split_separates_prose_from_parsed_fields() -> None:
-    prose, fields = split_prose_and_spec(f"Which model system?\n\n{_block()}")
+    _, prose, fields = _stream([f"Which model system?\n\n{_block()}"])
 
     assert prose == "Which model system?"
     assert fields == {
@@ -58,7 +57,7 @@ def test_split_without_a_block_keeps_the_prose_and_reports_no_fields() -> None:
     The caller keeps the prose and carries the interview's previous fields
     forward, so this must not raise and must not lose the message.
     """
-    prose, fields = split_prose_and_spec("Which model system?")
+    _, prose, fields = _stream(["Which model system?"])
 
     assert prose == "Which model system?"
     assert fields is None
@@ -75,7 +74,7 @@ def test_split_without_a_block_keeps_the_prose_and_reports_no_fields() -> None:
 def test_split_reports_no_fields_for_an_unusable_block(
     body: str, reason: str
 ) -> None:
-    prose, fields = split_prose_and_spec(f"Question?\n{OPEN_MARKER}\n{body}")
+    _, prose, fields = _stream([f"Question?\n{OPEN_MARKER}\n{body}"])
 
     assert prose == "Question?", reason
     assert fields is None, reason
@@ -138,11 +137,11 @@ def test_a_turn_that_is_only_a_block_relays_no_prose() -> None:
     assert streamed.fields is not None
 
 
-def test_splitter_and_whole_text_split_agree() -> None:
-    """Streaming a turn and splitting it whole must resolve identically."""
+def test_single_delta_and_fragmented_turn_agree() -> None:
+    """Chunk boundaries must leave the parsed turn unchanged."""
     text = f"**Bold** and a list:\n- one\n- two\n\n{_block()}"
     streamed = _stream(list(text))
-    expected_prose, expected_fields = split_prose_and_spec(text)
+    _, expected_prose, expected_fields = _stream([text])
 
     assert streamed.relayed.strip() == expected_prose
     assert streamed.whole == expected_prose

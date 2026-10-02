@@ -10,11 +10,11 @@ from app.engine_tasks import runtime as engine_tasks_runtime
 from app.engine_tasks.context import TaskCommit, _task_commit
 from app.engine_tasks.emit import NodeCompletion, _emit_node_completion
 from app.engine_tasks.fanout import (
-    _enqueue_generation_fanout,
     _enqueue_mature_reflection_fanout,
     _enqueue_review_fanout,
     _enqueue_verification_fanout,
 )
+from app.engine_tasks.fanout_generation import _enqueue_generation_fanout
 from app.engine_tasks.gate import _apply_pre_ranking_evidence_gate
 from app.engine_tasks.inputs import _merge_scientist_inputs
 from app.engine_tasks.pause import (

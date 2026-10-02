@@ -6,7 +6,6 @@ Entity identifiers use a 2-element tuple format: [namespace, id].
 
 import logging
 import os
-from collections.abc import Awaitable
 from typing import Any
 
 import httpx
@@ -106,34 +105,6 @@ def tool_error(message: str, query_meta: dict[str, Any]) -> dict[str, Any]:
         Dict with "error" and "query" keys.
     """
     return {"error": message, "query": query_meta}
-
-
-async def run_indra_tool(
-    log: logging.Logger,
-    name: str,
-    query_meta: dict[str, Any],
-    body: Awaitable[dict[str, Any]],
-) -> dict[str, Any]:
-    """Awaits a CoGex tool body, converting any failure into an error payload.
-
-    Any failure (bad identifier, network error, API error) becomes a
-    structured error payload rather than being raised, since these back MCP
-    tool endpoints that must always return a dict.
-
-    Args:
-        log: The calling module's logger, so the record keeps its origin.
-        name: Public tool name, used in the log line.
-        query_meta: Query metadata echoed back on both success and failure.
-        body: Coroutine computing the tool's successful response.
-
-    Returns:
-        The body's result, or an error payload if it raised.
-    """
-    try:
-        return await body
-    except Exception as e:
-        log.error("%s failed: %s", name, e)
-        return tool_error(str(e), query_meta)
 
 
 def cap_results(items: list[Any] | Any, limit: int) -> tuple[list[Any], int]:

@@ -1,10 +1,4 @@
-"""Tests for the shared markup cleaner used by the literature sources.
-
-Publishers send formatting inside titles and abstracts -- Europe PMC and
-PubMed both italicize species and gene names -- and Europe PMC sends some
-of it escaped, so the same title can arrive as `<i>` or as `&lt;i&gt;`.
-Whatever the encoding, an agent reading a record must see plain text.
-"""
+"""Tests for plain-text metadata and PMC fulltext rendering."""
 
 from typing import Any
 
@@ -67,6 +61,41 @@ def test_clean_markup_leaves_comparisons_intact() -> None:
     raw = "significant at p&lt;0.05 while A&gt;B held"
 
     assert clean_markup(raw) == "significant at p<0.05 while A>B held"
+
+
+def test_pmc_rendering_keeps_abstract_and_section_paragraphs() -> None:
+    xml = """<article>
+      <abstract><p>First <i>abstract</i>.</p><p>Second.</p></abstract>
+      <body>
+        <sec><title>Methods</title>
+          <boxed-text><p>Boxed.</p></boxed-text><p>Direct.</p>
+          <fig><p>Figure caption.</p></fig>
+          <sec><title>Subsection</title><p>Nested.</p></sec>
+        </sec>
+        <sec><p>Unlabelled.</p></sec>
+        <sec><title>Empty</title><sec><p>Nested only.</p></sec></sec>
+      </body>
+      <back><ref-list><p>References.</p></ref-list></back>
+    </article>"""
+    assert extract_text_from_pmc_html(xml) == (
+        "# abstract\n\nFirstabstract.\n\nSecond.\n\n"
+        "## Methods\n\nDirect.\n\nBoxed.\n\n## section\n\nUnlabelled."
+    )
+
+
+@pytest.mark.parametrize(
+    "xml,expected",
+    [
+        ("<article/>", ""),
+        (
+            "<abstract>Plain abstract.</abstract>",
+            "# abstract\n\nPlain abstract.",
+        ),
+        ("<abstract><p/></abstract>", ""),
+    ],
+)
+def test_pmc_rendering_handles_sparse_articles(xml: str, expected: str) -> None:
+    assert extract_text_from_pmc_html(xml) == expected
 
 
 @pytest.mark.parametrize("max_chars", [0, 25, 200_000])

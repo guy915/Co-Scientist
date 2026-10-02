@@ -13,11 +13,11 @@ from co_scientist.state import WorkflowState
 
 from app import store
 from app.engine_adapter.checkpoints import is_engine_checkpoint
+from app.engine_tasks.metrics import _metrics_snapshot
 from app.engine_tasks.portfolio import _enqueue_after
 from app.engine_tasks.support import (
     NODE_TASK_PREFIX,
     SupersededTaskError,
-    _metrics_snapshot,
     _save_exact_checkpoint,
     _save_node_checkpoint,
     assert_task_commit_allowed,

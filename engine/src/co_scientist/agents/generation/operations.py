@@ -26,8 +26,7 @@ from co_scientist.agents.generation.coordinator_strategy import (
     GenerationCounts,
     _check_literature_availability,
     _determine_generation_counts,
-    _emit_start_progress,
-    _log_generation_strategy,
+    _report_generation_start,
 )
 from co_scientist.agents.meta_review.interim_overview import (
     format_interim_overview,
@@ -239,42 +238,6 @@ def _log_reference_index_summary(reference_index: ReferenceIndex) -> None:
     )
 
 
-def _extract_generation_inputs(
-    state: WorkflowState,
-) -> tuple[str | None, bool, bool, int]:
-    """Extract generation preconditions from state, validating as it goes.
-
-    Args:
-        state: current workflow state
-
-    Returns:
-        Tuple of (articles_with_reasoning, mcp_available, enable_tool_calling,
-        total_count).
-
-    Raises:
-        GenerationError: if supervisor_guidance is missing from state.
-    """
-    # supervisor_guidance drives prompt assembly in every downstream
-    # generation path, so its absence is treated as a hard precondition
-    # failure rather than something to silently work around.
-    if not state.get("supervisor_guidance"):
-        raise GenerationError(
-            "No supervisor_guidance in state for node=generation"
-        )
-    articles_with_reasoning = state.get("articles_with_reasoning")
-    mcp_available = bool(state.get("mcp_available", False))
-    enable_tool_calling = bool(
-        state.get("enable_tool_calling_generation", False)
-    )
-    total_count = state["initial_hypotheses_count"]
-    return (
-        articles_with_reasoning,
-        mcp_available,
-        enable_tool_calling,
-        total_count,
-    )
-
-
 async def prepare_generation(
     state: WorkflowState,
 ) -> GenerationPlan:
@@ -289,18 +252,20 @@ async def prepare_generation(
     Raises:
         GenerationError: if supervisor_guidance is missing from state.
     """
-    (
-        articles_with_reasoning,
-        mcp_available,
-        enable_tool_calling,
-        total_count,
-    ) = _extract_generation_inputs(state)
-
+    if not state.get("supervisor_guidance"):
+        raise GenerationError(
+            "No supervisor_guidance in state for node=generation"
+        )
+    articles_with_reasoning = state.get("articles_with_reasoning")
+    total_count = state["initial_hypotheses_count"]
     has_literature = _check_literature_availability(
-        articles_with_reasoning, mcp_available
+        articles_with_reasoning, bool(state.get("mcp_available", False))
     )
     counts = _determine_generation_counts(
-        state, total_count, has_literature, enable_tool_calling
+        state,
+        total_count,
+        has_literature,
+        bool(state.get("enable_tool_calling_generation", False)),
     )
 
     # Shared [C*] citation-key namespace for every strategy below.
@@ -310,8 +275,7 @@ async def prepare_generation(
     )
     _log_reference_index_summary(reference_index)
 
-    _log_generation_strategy(counts, total_count)
-    await _emit_start_progress(state, counts, total_count)
+    await _report_generation_start(state, counts, total_count)
 
     return GenerationPlan(
         counts=counts,
@@ -323,29 +287,10 @@ async def prepare_generation(
 def _with_interim_overview(
     state: WorkflowState, articles_with_reasoning: str | None
 ) -> str | None:
-    """Prepend this run's own interim overview to the generation context.
+    """Prepend interim guidance without treating it as retrieved literature.
 
-    The feedback edge of FIX-6: a periodic ``research_overview`` firing
-    leaves the directions and open questions it synthesized on the state,
-    and this is where the next cycle reads them. Spliced onto the context
-    the strategies are already handed rather than into a new prompt slot
-    -- it describes what this run has established so far, which is what
-    that context is.
-
-    Deliberately applied after the literature-availability check in planning:
-    the run's own synthesis is not literature, and a degraded-mode run
-    must not read as having retrieved something. For the same reason the
-    debate-only strategy, which passes ``articles_with_reasoning=None``
-    explicitly, never sees it.
-
-    Args:
-        state: The workflow state the generate node was entered with.
-        articles_with_reasoning: The literature-review context, or None
-            when this run has none.
-
-    Returns:
-        The context with the interim block above it, or the context
-        unchanged when this run has had no periodic firing yet.
+    Availability is checked before this step. Debate-only calls explicitly
+    omit this context, so a run's own synthesis cannot imply grounding.
     """
     block = format_interim_overview(state)
     if not block:
@@ -390,8 +335,8 @@ async def finalize_generation(
 
     Args:
         state: current workflow state
-        counts: per-strategy counts from _determine_generation_counts
-        results: gathered generation results from _execute_generation_tasks
+        counts: Per-strategy counts from preparation.
+        results: Gathered strategy results.
 
     Returns:
         dict with hypotheses, debate_transcripts, hypothesis_count,

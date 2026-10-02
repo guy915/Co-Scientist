@@ -1,7 +1,7 @@
-import type {QaSource, RunMessage} from './run_types';
+import type {QaSource, RunMessage} from './wire_runs';
 import {clientHeaders, fetchField, streamJson} from './runs_http';
 
-export type {QaSource, RunMessage} from './run_types';
+export type {QaSource, RunMessage} from './wire_runs';
 
 /** Where a streamed Q&A answer's three live channels go. */
 export interface QaSinks {

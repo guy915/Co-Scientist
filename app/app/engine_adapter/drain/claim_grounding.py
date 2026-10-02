@@ -1,7 +1,6 @@
 """Claim-grounding assessment for the final-state drain: provider work only.
 
-The drain's provider-only phase for claim grounding, alongside its sibling
-``drain.escalation`` (the other one). Must run strictly between the drain's
+Must run strictly between the drain's
 two write transactions -- never inside either, since ``store.transaction``
 takes SQLite's write lock the instant it opens and this must never hold that
 lock across network I/O -- and must run off the caller's event loop, not
@@ -114,3 +113,25 @@ def _reusable_by_hypothesis(
         for store_id, record in gate_records.items()
     }
     return {key: value for key, value in indexed.items() if value}
+
+
+def fold_grounding_telemetry(
+    final_state: dict[str, Any], usage: dict[str, dict[str, Any]]
+) -> None:
+    """Fold the finalize grounding pass's LLM telemetry into final metrics."""
+    if not usage:
+        return
+    from co_scientist.models import MetricDeltas
+    from co_scientist.models.metrics import (
+        ExecutionMetrics,
+        create_metrics_update,
+        merge_metrics,
+    )
+
+    calls = sum(entry.get("calls", 0) for entry in usage.values())
+    existing = ExecutionMetrics.from_dict(final_state.get("metrics") or {})
+    delta = create_metrics_update(
+        deltas=MetricDeltas(llm_calls=calls), model_usage=usage
+    )
+    merged = merge_metrics(existing, delta)
+    final_state["metrics"] = merged.to_dict()

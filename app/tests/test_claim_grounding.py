@@ -1,6 +1,6 @@
 """Claim-level grounding pipeline wiring (Milestone 5 / M9).
 
-Covers ``app.claims.grounding.ground_hypotheses``: it must persist the
+Covers claim assessment and persistence: they must retain the
 claim-evidence graph, block a hypothesis whose claim is contradicted by the
 evidence, leave a supported/insufficient hypothesis eligible, and drive the
 report's publication-gate exclusion end-to-end.
@@ -14,9 +14,9 @@ from app import store
 from app.claims import as_passages
 from app.claims.grounding import (
     GroundingResult,
-    GroundingTarget,
+    assess_hypothesis_claims,
     evidence_passages,
-    ground_hypotheses,
+    persist_grounding,
 )
 from tests._drain_helpers import _build_report
 from tests._store_helpers import _add
@@ -79,11 +79,13 @@ def test_ground_persists_graph_and_blocks_contradicted(
     )
     ok_id = _add(run.id, "Benign", _SUPPORTED, isolated_db)
 
-    result = ground_hypotheses(
+    result = persist_grounding(
         run.id,
-        store.list_hypotheses(run.id),
-        as_passages([_CONTRADICTING_EVIDENCE]),
-        target=GroundingTarget(db_path=isolated_db),
+        assess_hypothesis_claims(
+            store.list_hypotheses(run.id),
+            as_passages([_CONTRADICTING_EVIDENCE]),
+        ),
+        db_path=isolated_db,
     )
 
     assert isinstance(result, GroundingResult)
@@ -116,11 +118,15 @@ def test_unsupported_categorical_rationale_is_quarantined(
         db_path=isolated_db,
     )
 
-    result = ground_hypotheses(
+    result = persist_grounding(
         run.id,
-        store.list_hypotheses(run.id, db_path=isolated_db),
-        as_passages(["An unrelated passage about photosynthesis in plants."]),
-        target=GroundingTarget(db_path=isolated_db),
+        assess_hypothesis_claims(
+            store.list_hypotheses(run.id, db_path=isolated_db),
+            as_passages(
+                ["An unrelated passage about photosynthesis in plants."]
+            ),
+        ),
+        db_path=isolated_db,
     )
 
     assert result.blocked_ids == frozenset({hypothesis_id})
@@ -173,11 +179,13 @@ def _seed_contradiction_report_run(
 
     # Ground against the run's real evidence rows so the support spans carry a
     # real evidence id / url (the provenance path a live run exercises).
-    ground_hypotheses(
+    persist_grounding(
         run.id,
-        store.list_hypotheses(run.id),
-        evidence_passages(run.id, db_path=db_path),
-        target=GroundingTarget(db_path=db_path),
+        assess_hypothesis_claims(
+            store.list_hypotheses(run.id),
+            evidence_passages(run.id, db_path=db_path),
+        ),
+        db_path=db_path,
     )
     return run, bad_id, ok_id
 
@@ -242,11 +250,13 @@ def _seed_speculative_run(db_path: str) -> tuple[Any, str]:
         ),
         db_path=db_path,
     )
-    ground_hypotheses(
+    persist_grounding(
         run.id,
-        store.list_hypotheses(run.id, db_path=db_path),
-        evidence_passages(run.id, db_path=db_path),
-        target=GroundingTarget(db_path=db_path),
+        assess_hypothesis_claims(
+            store.list_hypotheses(run.id, db_path=db_path),
+            evidence_passages(run.id, db_path=db_path),
+        ),
+        db_path=db_path,
     )
     return run, hypothesis_id
 

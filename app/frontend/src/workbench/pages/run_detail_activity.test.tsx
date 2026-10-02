@@ -33,18 +33,10 @@ function setConnection(connection: typeof streamMock.state.connection) {
   streamMock.state = {...streamMock.state, connection};
 }
 
-vi.mock('@/workbench/hooks/use_debounced_callback', () => {
-  const latest: {fn: (...args: never[]) => void} = {fn: () => {}};
-  const wrapper = Object.assign((...args: never[]) => latest.fn(...args), {
-    cancel: () => {},
-    flush: () => {},
-  });
-  return {
-    useDebouncedCallback: (fn: (...args: never[]) => void) => {
-      latest.fn = fn;
-      return wrapper;
-    },
-  };
+// Render tests observe event refreshes immediately; data-hook tests cover timing.
+vi.mock('@/workbench/hooks/use_reset_timer', () => {
+  const timer = {schedule: (run: () => void) => run(), cancel: () => {}};
+  return {useResetTimer: () => timer};
 });
 
 vi.mock('@/api/runs', async importActual => {

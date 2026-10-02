@@ -14,6 +14,7 @@ single writer.
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 
@@ -80,3 +81,37 @@ def _metrics_snapshot(state: dict[str, Any]) -> dict[str, Any]:
     if assessment is not None:
         snapshot["performance_assessment"] = assessment
     return snapshot
+
+
+def merge_usage_snapshots(
+    snapshots: Sequence[Mapping[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Fold per-item ``llm.telemetry`` snapshots into one usage dict.
+
+    Args:
+        snapshots: One ``TelemetryAccumulator.snapshot()`` per fan-out item
+            or ranking wave, in any order; empty snapshots are skipped.
+
+    Returns:
+        The combined per-(phase, model) usage, additive across snapshots --
+        the same rule ``models.metrics.merge_metrics`` applies to a node's
+        own ``model_usage`` delta.
+    """
+    from co_scientist.models import (
+        ExecutionMetrics,
+        create_metrics_update,
+        merge_metrics,
+    )
+
+    merged = ExecutionMetrics()
+    for snapshot in snapshots:
+        if not snapshot:
+            continue
+        merged = merge_metrics(
+            merged, create_metrics_update(model_usage=dict(snapshot))
+        )
+    # The app's mypy config skips following ``co_scientist`` imports, so
+    # ``merged.model_usage`` arrives here as ``Any``; restate the engine's
+    # declared field type on the return rather than passing it on unchecked.
+    usage: dict[str, dict[str, Any]] = merged.model_usage
+    return usage

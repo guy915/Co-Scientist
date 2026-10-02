@@ -15,10 +15,8 @@ from co_scientist.models.metrics import (
 )
 
 from app import store
-from app.engine_tasks.support import (
-    _metrics_snapshot,
-    assert_task_commit_allowed,
-)
+from app.engine_tasks.metrics import _metrics_snapshot
+from app.engine_tasks.support import assert_task_commit_allowed
 from app.store import ScientificTask
 
 

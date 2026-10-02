@@ -21,22 +21,10 @@ vi.mock('@/hooks/use_run_stream', () => ({
   useRunStream: () => ({events: streamMock.state.events, terminal: false}),
 }));
 
-// Collapse the 600ms debounce to a synchronous passthrough with a stable
-// identity, so a triggered refetch is observable in the same act() without
-// timers. The wrapper is a module singleton (stable across renders); it always
-// invokes the latest render's callback.
-vi.mock('@/workbench/hooks/use_debounced_callback', () => {
-  const latest: {fn: (...args: never[]) => void} = {fn: () => {}};
-  const wrapper = Object.assign((...args: never[]) => latest.fn(...args), {
-    cancel: () => {},
-    flush: () => {},
-  });
-  return {
-    useDebouncedCallback: (fn: (...args: never[]) => void) => {
-      latest.fn = fn;
-      return wrapper;
-    },
-  };
+// Render tests observe event refreshes immediately; data-hook tests cover timing.
+vi.mock('@/workbench/hooks/use_reset_timer', () => {
+  const timer = {schedule: (run: () => void) => run(), cancel: () => {}};
+  return {useResetTimer: () => timer};
 });
 
 function setStream(events: {seq: number; type: string; payload: object}[]) {

@@ -192,3 +192,20 @@ it('retires manual refresh callbacks when the page unmounts', async () => {
   await act(async () => refresh());
   expect(runsApi.getRun).toHaveBeenCalledTimes(1);
 });
+
+it('restarts the trailing refresh window and merges separately arriving events', async () => {
+  const {rerender} = await load();
+  stream.events = [{seq: 1, type: 'generate', payload: {}}];
+  rerender({id: 'run-1'});
+  await act(async () => vi.advanceTimersByTimeAsync(300));
+  stream.events = [...stream.events, {seq: 2, type: 'reflection', payload: {}}];
+  rerender({id: 'run-1'});
+
+  await act(async () => vi.advanceTimersByTimeAsync(599));
+  expect(runsApi.getRun).toHaveBeenCalledTimes(1);
+  await act(async () => vi.advanceTimersByTimeAsync(1));
+  expect(runsApi.getRun).toHaveBeenCalledTimes(2);
+  expect(runsApi.getHypotheses).toHaveBeenCalledTimes(2);
+  expect(runsApi.getReviews).toHaveBeenCalledTimes(2);
+  expect(runsApi.getEvidence).toHaveBeenCalledTimes(1);
+});

@@ -1,8 +1,11 @@
-"""Run lifecycle, reports, sharing and scientist steering commands."""
+"""Run lifecycle, collection reads, reports and sharing for ``cosci``."""
 
 from __future__ import annotations
 
 import argparse
+import json
+import sys
+import urllib.parse
 from typing import Any
 
 from app.cli.http import (
@@ -18,10 +21,33 @@ from app.cli.render import (
     format_run_line,
     oneline,
 )
-from app.cli.runs_stream_cmd import (
-    _run_path,
-    _text_arg,
-)
+
+
+def _run_path(run_id: str, suffix: str = "") -> str:
+    """Build an ``/api/runs/{id}...`` path with the run id percent-quoted."""
+    return f"/api/runs/{urllib.parse.quote(run_id, safe='')}{suffix}"
+
+
+def _text_arg(value: str, what: str) -> str:
+    """Return a text argument, reading it from stdin when given as ``-``.
+
+    Long goals, steering messages, and questions are awkward to pass through
+    shell quoting; ``-`` lets callers pipe or heredoc them instead.
+
+    Args:
+        value: The raw argument value, possibly the ``-`` sentinel.
+        what: Human-readable description used in the empty-stdin error.
+
+    Raises:
+        CliError: When ``-`` was given but stdin held only whitespace.
+    """
+    if value != "-":
+        return value
+    text = sys.stdin.read().strip()
+    if not text:
+        raise CliError(f"{what} given as '-' but stdin is empty")
+    return text
+
 
 # Listing and detail
 
@@ -162,6 +188,101 @@ def _emit_action(body: Any, as_json: bool) -> int:
         emit_json(body)
     else:
         print(format_action_line(expect_object(body, "the lifecycle action")))
+    return 0
+
+
+COLLECTION_COMMANDS: dict[str, tuple[tuple[tuple[str, ...], ...], str]] = {
+    "hypotheses": (
+        (("id",), ("elo_rating", "elo"), ("title", "statement")),
+        "list hypotheses",
+    ),
+    "evidence": ((("id",), ("source",), ("title",)), "list evidence"),
+    "reviews": (
+        (("id",), ("reviewer_agent",), ("summary", "critique")),
+        "list reviews",
+    ),
+    "citations": ((("id",), ("state",), ("claim",)), "list citations"),
+    "safety": (
+        (("id",), ("stage",), ("decision",), ("reason",)),
+        "list safety rows",
+    ),
+    "matches": (
+        (
+            ("id",),
+            ("iteration",),
+            ("winner_id",),
+            ("loser_id",),
+            ("rationale",),
+        ),
+        "list tournament matches",
+    ),
+    "proximity": (
+        (
+            ("source_hypothesis_id",),
+            ("target_hypothesis_id",),
+            ("similarity",),
+            ("cluster_id",),
+        ),
+        "list idea-proximity edges",
+    ),
+    "claim-evidence": (
+        (("id",), ("hypothesis_id",), ("label",), ("claim",)),
+        "list claim-level entailment edges",
+    ),
+    "tasks": (
+        (("id",), ("task_type",), ("status",), ("attempt",), ("error",)),
+        "list durable tasks with retry-attempt history",
+    ),
+}
+
+
+def handle_collection(args: argparse.Namespace, client: ApiClient) -> int:
+    """Fetch a run sub-collection and print it as JSON or one line per item."""
+    run_id: str = args.run_id
+    as_json: bool = args.json
+    name: str = args.runs_command
+    columns, _ = COLLECTION_COMMANDS[name]
+    body = client.request_json("GET", _run_path(run_id, f"/{name}"))
+    if as_json:
+        emit_json(body)
+        return 0
+    items = (
+        body.get(name.replace("-", "_"), []) if isinstance(body, dict) else []
+    )
+    for item in items:
+        if isinstance(item, dict):
+            print(format_record_line(item, columns))
+        else:
+            print(oneline(item))
+    return 0
+
+
+def handle_metrics(args: argparse.Namespace, client: ApiClient) -> int:
+    """Show the run's persisted execution metrics (GET /metrics).
+
+    Metrics update live as the run commits each node (finding L14), so
+    this reflects real-time progress on a still-running run, not only the
+    final total; before the run's first node commits (e.g. still
+    bootstrapping) the API returns null and the text mode prints a
+    one-line notice instead.
+    """
+    run_id: str = args.run_id
+    as_json: bool = args.json
+    body = client.request_json("GET", _run_path(run_id, "/metrics"))
+    if as_json:
+        emit_json(body)
+        return 0
+    metrics = body.get("metrics") if isinstance(body, dict) else None
+    if not isinstance(metrics, dict):
+        print("no metrics recorded yet")
+        return 0
+    pairs: list[tuple[str, Any]] = []
+    for key in sorted(metrics):
+        value = metrics[key]
+        if isinstance(value, (dict, list)):
+            value = json.dumps(value, ensure_ascii=False)
+        pairs.append((key, value))
+    print(format_kv(pairs))
     return 0
 
 
