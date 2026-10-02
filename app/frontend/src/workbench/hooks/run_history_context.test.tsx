@@ -1,4 +1,4 @@
-import {render, screen, waitFor} from '@testing-library/react';
+import {act, render, screen, waitFor} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import {makeRun} from '@/test_fixtures';
@@ -68,15 +68,23 @@ it('stops refreshing once no run is executing', async () => {
 it('stops refreshing once the run reaches a terminal status', async () => {
   loadMock.mockResolvedValue([makeRun({status: 'running'})]);
   renderProvider();
-  await waitFor(() => expect(loadMock).toHaveBeenCalledTimes(1));
+  // Wait for committed history and its poll effect, not just the request.
+  await waitFor(() =>
+    expect(screen.getByTestId('count')).toHaveTextContent('1'),
+  );
+  expect(loadMock).toHaveBeenCalledTimes(1);
 
   loadMock.mockResolvedValue([makeRun({status: 'completed'})]);
   // Let the poll observe the terminal status and the timer tear down. A
   // refresh already in flight when the status turns terminal may still land,
   // so this asserts that polling settles rather than a call count.
-  await vi.advanceTimersByTimeAsync(30_000);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(30_000);
+  });
   const callsOnceSettled = loadMock.mock.calls.length;
 
-  await vi.advanceTimersByTimeAsync(60_000);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(60_000);
+  });
   expect(loadMock).toHaveBeenCalledTimes(callsOnceSettled);
 });

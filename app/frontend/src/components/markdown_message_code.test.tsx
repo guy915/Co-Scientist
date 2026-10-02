@@ -1,6 +1,6 @@
 import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {afterEach, describe, expect, it, vi} from 'vitest';
-import {MarkdownMessage} from './markdown_message';
+import {MarkdownMessageRenderer as MarkdownMessage} from './markdown_message_renderer';
 
 afterEach(() => {
   Reflect.deleteProperty(navigator, 'clipboard');

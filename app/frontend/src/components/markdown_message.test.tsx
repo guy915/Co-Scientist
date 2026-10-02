@@ -1,6 +1,6 @@
 import {render, screen} from '@testing-library/react';
 import {describe, expect, it} from 'vitest';
-import {MarkdownMessage} from './markdown_message';
+import {MarkdownMessageRenderer as MarkdownMessage} from './markdown_message_renderer';
 
 describe('MarkdownMessage', () => {
   it('renders markdown structure rather than its source characters', () => {

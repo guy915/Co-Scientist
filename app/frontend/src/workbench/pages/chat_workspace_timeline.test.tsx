@@ -433,7 +433,7 @@ it('falls back to the standby copy for a card with no reply', () => {
 // must render like any other assistant reply's markdown -- this used to be
 // a plain <p>, so **bold** and similar syntax showed up as literal
 // characters instead of formatting.
-it('renders the plan card lead-in as markdown, like an ordinary reply', () => {
+it('renders the plan card lead-in as markdown, like an ordinary reply', async () => {
   const draft: SpecStage = {
     spec: makeSpec(),
     createdAt: 5,
@@ -441,7 +441,7 @@ it('renders the plan card lead-in as markdown, like an ordinary reply', () => {
   };
   renderItems(buildTimelineItems(baseArgs({draft})));
 
-  expect(screen.getByText('primary').tagName).toBe('STRONG');
+  expect((await screen.findByText('primary')).tagName).toBe('STRONG');
 });
 
 // The plan and started-session cards should be ordinary assistant messages

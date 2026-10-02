@@ -29,6 +29,8 @@ but do not update them to match later changes.
 
 | Entry | Contents |
 |---|---|
+| [Frontend loading performance (2026-10-02)](decisions/2026-10-02-frontend-loading-performance.md) | Deferred route/Markdown boundaries, measured initial bundle reduction and local performance evidence |
+| [Dependency audit snapshot (2026-10-02)](decisions/2026-10-02-dependency-audit.json) | Advisory IDs, detector-listed fixes and hashes for all five audited locks; reachability review in DEPENDENCY-SECURITY.md |
 | [Provider policies (2026-10-02)](decisions/2026-10-02-provider-policies.md) | Owner-approved tool retry/parking and independent app budgets on shared transport |
 | [Architecture review (2026-10-01)](decisions/2026-10-01-architecture-review.md) | Completed package/boundary campaign, verification evidence and deferred architecture decisions |
 | [Second architecture pass (2026-10-02)](decisions/2026-10-02-architecture-second-pass.md) | Shared operations, dependency ownership, frontend request races and validation |

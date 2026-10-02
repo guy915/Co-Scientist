@@ -1,4 +1,4 @@
-import {type ReactElement} from 'react';
+import {lazy, type ReactElement, Suspense} from 'react';
 import {Navigate, Route, Routes} from 'react-router-dom';
 import {ErrorBoundary} from '@/components/error_boundary';
 import {NoIndex} from '@/public/no_index';
@@ -8,10 +8,30 @@ import {RunHistoryProvider} from './hooks/run_history_context';
 import {SystemStatusProvider} from './hooks/system_status_context';
 import {Layout} from './layout';
 import {ChatWorkspace} from './pages/chat_workspace';
-import {RunDetail} from './pages/run_detail';
-import {SharedGoalReportPage} from './pages/shared_goal_report';
-import {ResearcherAccessPage} from './pages/researcher_access';
 import {ThemeProvider} from './theme_context';
+
+const RunDetail = lazy(() =>
+  import('./pages/run_detail').then(module => ({default: module.RunDetail})),
+);
+const SharedGoalReportPage = lazy(() =>
+  import('./pages/shared_goal_report').then(module => ({
+    default: module.SharedGoalReportPage,
+  })),
+);
+const ResearcherAccessPage = lazy(() =>
+  import('./pages/researcher_access').then(module => ({
+    default: module.ResearcherAccessPage,
+  })),
+);
+
+/** Keeps the existing shell visible while a routed page is downloaded. */
+function PageLoading() {
+  return (
+    <div className="grid h-full min-h-0 place-items-center p-6 text-sm text-cosci-muted">
+      <p role="status">Loading page…</p>
+    </div>
+  );
+}
 
 // Every routed page mounts with a NoIndex tag; this pairs them once.
 function page(title: string, element: ReactElement) {
@@ -74,7 +94,9 @@ export function WorkbenchApp() {
           <RunHistoryProvider>
             <ChatHistoryProvider>
               <Layout>
-                <WorkbenchRoutes />
+                <Suspense fallback={<PageLoading />}>
+                  <WorkbenchRoutes />
+                </Suspense>
               </Layout>
             </ChatHistoryProvider>
           </RunHistoryProvider>
