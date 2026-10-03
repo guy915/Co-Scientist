@@ -247,7 +247,7 @@ def _commit_leased_report_publication(
     return saved, report_seq, report_payload, status_seq, status_payload
 
 
-async def _publish_report(  # noqa: PLR0913
+async def _publish_report(
     run_id: str,
     research_goal: str,
     built: _BuiltReport,

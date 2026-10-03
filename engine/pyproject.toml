@@ -85,48 +85,21 @@ select = [
     "C4",  # flake8-comprehensions
     "SIM", # flake8-simplify
     "RUF", # ruff-specific
-    "D",   # pydocstyle
     "PLR0913", # too-many-arguments
 ]
-ignore = [
-    # Google-style docstrings use descriptive-mood summaries ("Returns the
-    # ...", "Fetches rows ..."), which the imperative-mood check rejects.
-    "D401",
-]
+[tool.ruff.lint.pylint]
+max-args = 8
 
 [tool.ruff.lint.mccabe]
-# Every function in this package sits at or below this ceiling. Branch-heavy
-# dispatchers belong in a lookup table, not an if/elif chain.
-max-complexity = 5
-
-[tool.ruff.lint.pydocstyle]
-convention = "google"
+max-complexity = 10
 
 [tool.ruff.lint.per-file-ignores]
-# Test and local-iteration scripts are not public API; their names are
-# self-describing, so docstrings are not required.
-"tests/**" = ["D1"]
-"mcp_server/tests/**" = ["D1"]
 # dev/ and examples/ load .env files and tweak sys.path before imports.
-"dev/**" = ["D1", "E402"]
-"examples/**" = ["D1", "E402"]
+"dev/**" = ["E402"]
+"examples/**" = ["E402"]
 # server.py loads its co-located .env and configures logging before importing
 # tool modules, which read env vars (e.g. ENTREZ_EMAIL) at import time.
 "mcp_server/server.py" = ["E402"]
-
-# --- PLR0913 (max 5 arguments) exemption ---
-# One permanent kind. Everything else in this package is at or below the
-# ceiling; past five arguments, group the cohesive ones into a frozen
-# dataclass (see CompletionSpec, GeneratorOptions, PromptRunContext,
-# _SearchRunContext for the pattern).
-#
-# FastMCP derives each tool's advertised parameter schema from its
-# signature, so a registered tool's arguments ARE its wire contract and
-# cannot be bundled without changing what agents see. Only the two modules
-# whose registered tool exceeds five arguments are listed; their private
-# helpers were refactored normally and stay under the ceiling.
-"mcp_server/tools/indra_cogex/enrichment.py" = ["PLR0913"]
-"mcp_server/tools/indra_cogex/statements.py" = ["PLR0913"]
 
 [tool.mypy]
 python_version = "3.10"

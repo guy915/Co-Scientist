@@ -107,7 +107,7 @@ def _record_failed_attempt(
     return json.dumps(attempts)
 
 
-def _persist_failed_attempt(  # noqa: PLR0913 -- writes retry timing atomically.
+def _persist_failed_attempt(
     conn: sqlite3.Connection,
     task: ScientificTask,
     worker_id: str,

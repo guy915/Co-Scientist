@@ -538,7 +538,7 @@ def _handle_qa_stream_error(run_id: str, exc: Exception) -> str:
     return fallback
 
 
-async def stream_answer(  # noqa: PLR0913
+async def stream_answer(
     run_id: str,
     question: QaQuestion,
     inputs: QaAnswerInputs,

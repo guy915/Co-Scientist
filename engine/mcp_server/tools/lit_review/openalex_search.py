@@ -105,9 +105,7 @@ def _reconstruct_abstract(inverted_index: Any) -> str:
     return " ".join(word for _, word in positions)
 
 
-def normalize_works(  # noqa: C901
-    data: dict[str, Any], max_papers: int
-) -> dict[str, Any]:
+def normalize_works(data: dict[str, Any], max_papers: int) -> dict[str, Any]:
     """Normalize OpenAlex results to metadata keyed by short work ID."""
     results = data.get("results") if isinstance(data, dict) else None
     if not isinstance(results, list):

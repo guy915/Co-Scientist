@@ -169,7 +169,7 @@ class PubmedSource(_EntrezClient):
 
         await asyncio.gather(*(download(paper_id) for paper_id in paper_ids))
 
-    def _supplement_from_shared_pool(  # noqa: C901, PLR0913
+    def _supplement_from_shared_pool(
         self,
         shared_dir: Path,
         run_dir: Path,
@@ -252,7 +252,7 @@ class PubmedSource(_EntrezClient):
             for paper_id in selected_ids[:max_papers]
         }
 
-    async def pubmed_search(  # noqa: C901, PLR0913
+    async def pubmed_search(  # noqa: C901
         self,
         query: str,
         slug: str,

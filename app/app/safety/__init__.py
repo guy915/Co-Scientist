@@ -248,7 +248,7 @@ async def _yield_terminal_status_event(
             yield event
 
 
-async def apply_safety_gate(  # noqa: PLR0913
+async def apply_safety_gate(
     run_id: str,
     result: SafetyDecision,
     emit: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],

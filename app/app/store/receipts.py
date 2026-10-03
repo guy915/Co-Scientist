@@ -61,7 +61,7 @@ def lookup_run_creation_receipt(
     )
 
 
-def add_run_creation_receipt(  # noqa: PLR0913 -- receipt identity has four persisted fields.
+def add_run_creation_receipt(
     client_id: str,
     idempotency_key: str,
     request_digest: str,
@@ -102,7 +102,7 @@ def _recheck_receipt_and_documents(
     return current, None
 
 
-def commit_run_creation(  # noqa: PLR0913 -- one atomic setup has ordered optional effects.
+def commit_run_creation(
     client_id: str,
     idempotency_key: str | None,
     request_digest: str | None,

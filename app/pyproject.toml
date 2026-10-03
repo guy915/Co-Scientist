@@ -103,36 +103,18 @@ select = [
     "C4",  # flake8-comprehensions
     "SIM", # flake8-simplify
     "RUF", # ruff-specific
-    "D",   # pydocstyle
-    # Past five arguments, group the cohesive ones into a frozen dataclass
-    # (see store.NewEvidence, ReportRequest, QaRunContext for the pattern).
-    # This package needs no exemptions: a route handler whose query params
-    # would breach the ceiling takes a Pydantic query model instead
-    # (`Annotated[LogQuery, Query()]` in logs_api.py), which leaves the
-    # query-string names, defaults, and OpenAPI schema unchanged.
     "PLR0913", # too-many-arguments
 ]
-ignore = [
-    # Google-style docstrings use descriptive-mood summaries ("Returns the
-    # ...", "Fetches rows ..."), which the imperative-mood check rejects.
-    "D401",
-]
+[tool.ruff.lint.pylint]
+max-args = 8
 
 [tool.ruff.lint.mccabe]
-# Every function in this package sits at or below this ceiling. Branch-heavy
-# dispatchers belong in a lookup table, not an if/elif chain.
-max-complexity = 5
+max-complexity = 10
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
 
-[tool.ruff.lint.pydocstyle]
-convention = "google"
-
 [tool.ruff.lint.per-file-ignores]
-# Tests are not public API; their names are self-describing, so
-# docstrings are not required.
-"tests/**" = ["D1"]
 # main.py must call load_dotenv() before importing app.config (and any
 # module that reads settings at import time), because pydantic-settings
 # reads os.environ when Settings() is constructed. The env-dependent

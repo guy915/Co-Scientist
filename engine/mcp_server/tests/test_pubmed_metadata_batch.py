@@ -115,7 +115,7 @@ def _matched_selection_elink(**kwargs: Any) -> _Handle:
 
 @pytest.mark.usefixtures("_restore_entrez_retry_policy")
 class TestPubmedMetadataBatch:
-    def test_batched_public_retrieval_maps_records_and_revalidates_cached_no_link(  # noqa: C901, E501
+    def test_batched_public_retrieval_maps_records_and_revalidates_cached_no_link(  # noqa: E501
         self,
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
@@ -902,7 +902,7 @@ def test_legacy_fetch_write_invalidates_no_link_proof_even_when_bytes_match(
     assert not sidecar.exists()
 
 
-def test_public_search_returns_metadata_on_elink_error_and_recovers_next_run(  # noqa: C901
+def test_public_search_returns_metadata_on_elink_error_and_recovers_next_run(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     cache_root = tmp_path / "cache"

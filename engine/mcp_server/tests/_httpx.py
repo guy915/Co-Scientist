@@ -379,7 +379,7 @@ def _validate_recovery_fields(
         _reject()
 
 
-def _validate_link_result(  # noqa: C901
+def _validate_link_result(
     result: Any, paper_id: str, pmc_available: dict[str, bool]
 ) -> None:
     if (
@@ -399,7 +399,7 @@ def _validate_link_result(  # noqa: C901
         _reject()
 
 
-def _validate_one_batch(  # noqa: C901
+def _validate_one_batch(
     batch: Any,
     *,
     batch_index: int,

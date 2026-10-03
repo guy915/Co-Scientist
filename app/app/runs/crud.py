@@ -191,7 +191,7 @@ def _resolve_run_settings(
 
 
 class _PersistNewRun(Protocol):
-    def __call__(  # noqa: PLR0913 -- mirrors the persisted run and initial event.
+    def __call__(
         self,
         req: CreateRunRequest,
         request: Request,
@@ -256,7 +256,7 @@ def _receipt_replay(
     return receipt.run
 
 
-def _persist_new_run_for_owner(  # noqa: PLR0913 -- these values define one run and its first event.
+def _persist_new_run_for_owner(
     req: CreateRunRequest,
     request: Request,
     interview: dict[str, Any] | None,
@@ -544,7 +544,7 @@ async def delete_run(run_id: str) -> dict[str, Any]:
     return {"id": run_id, "deleted": True, "counts": counts}
 
 
-def _persist_new_run(  # noqa: PLR0913 -- retain the route module's patch seam.
+def _persist_new_run(
     req: CreateRunRequest,
     request: Request,
     interview: dict[str, Any] | None,

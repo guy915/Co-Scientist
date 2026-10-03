@@ -391,7 +391,7 @@ def claim_task(
     return None
 
 
-def fail_task(  # noqa: PLR0913 -- retry timing stays atomic with failure.
+def fail_task(
     task_id: str,
     worker_id: str,
     error: str | TaskFailure,

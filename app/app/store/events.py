@@ -182,7 +182,7 @@ def _log_stage(run_id: str, type_: str, payload: dict[str, Any]) -> None:
         _stage_logger.info("%s", message, extra={"run_id": run_id})
 
 
-def _append_event(  # noqa: PLR0913 -- connection, timestamp, and mirror mode are store state.
+def _append_event(
     conn: sqlite3.Connection,
     run_id: str,
     type_: str,
