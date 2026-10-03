@@ -95,9 +95,8 @@ export function makeFullResearchContacts(): ResearchContacts {
 
 export function makeFullReport(): Report {
   return makeReport({
-    // Deliberately unequal: a run explores more ideas than it releases, and
-    // the two counts drive different parts of the summary. Equal fixtures
-    // let the lead stat read the released count without any test noticing.
+    // Unequal explored/released counts expose a lead statistic reading the
+    // wrong count.
     idea_count: 5,
     hypothesis_count: 2,
     verified_count: 1,

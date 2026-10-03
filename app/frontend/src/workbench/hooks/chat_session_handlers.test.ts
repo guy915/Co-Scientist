@@ -36,7 +36,6 @@ describe('chat session handlers', () => {
 
     await handlers.handleSubmit({preventDefault: vi.fn()} as never);
 
-    // The trailing sink is how the turn's live reasoning reaches the UI.
     expect(createInterview).toHaveBeenCalledWith(
       'Study liver fibrosis',
       expect.objectContaining({
@@ -52,9 +51,7 @@ describe('chat session handlers', () => {
   });
 
   test('asks the run a question instead of posting to the closed interview', async () => {
-    // The started session is the state the start round trip actually writes.
-    // The interview it closed server-side must never see another turn (A17);
-    // submit routes to the run's own Q&A endpoint instead.
+    // Starting closes the interview server-side; later turns must use run Q&A.
     vi.clearAllMocks();
     vi.mocked(askRunQuestion).mockResolvedValue(1);
     const deps = makeDeps({
@@ -114,26 +111,20 @@ describe('chat session handlers', () => {
         requirements: ['Human evidence'],
       }),
       expect.any(Number),
-      // The Agent's closing message is folded into the plan card as its intro,
-      // not appended as a separate assistant bubble; its chain of thought rides
-      // along so the completing turn keeps its thinking, and so does its turn
-      // id, which is what the card's retry re-derives the plan from.
+      // The closing turn id is needed to retry the plan while retaining its
+      // reasoning.
       {
         message: 'Which mechanisms should I prioritize?',
         reasoning: undefined,
         turnId: 1,
       },
     );
-    // Twice: the optimistic bubble for the prompt just sent, then the rebuild
-    // from the interview the server returned.
     expect(deps.setMessages).toHaveBeenCalledTimes(2);
   });
 
   test('drops the streamed reply once the turn it belonged to resolves', async () => {
-    // The live reply and its thinking belong to the turn in flight. Left
-    // behind, they were re-shown whole the next time anything set
-    // `isAwaitingAgent` -- clicking Start research put the interview's closing
-    // message back on screen underneath the plan it had just produced.
+    // Stale live drafts would reappear whenever another operation awaits the
+    // Agent.
     vi.clearAllMocks();
     vi.mocked(createInterview).mockImplementation(async (_text, sinks) => {
       sinks?.onReasoning?.('Ask about the model system.');
@@ -146,8 +137,6 @@ describe('chat session handlers', () => {
       preventDefault: vi.fn(),
     } as never);
 
-    // The sinks did fire, so an empty last call is the turn being cleaned up
-    // rather than nothing having streamed at all.
     expect(deps.setAgentDraft).toHaveBeenCalledTimes(3);
 
     expect(deps.setAgentDraft).toHaveBeenLastCalledWith('');
@@ -170,8 +159,6 @@ describe('chat session handlers draft spec', () => {
 
     handlers.handleRetryDraftSpec();
 
-    // Re-staging the spec already in hand could not change anything, so the
-    // control read as dead; retry means asking that turn again.
     expect(retryInterviewTurn).toHaveBeenCalledWith(
       'interview-1',
       9,
@@ -209,7 +196,6 @@ describe('chat session handlers messages', () => {
     vi.clearAllMocks();
   });
 
-  // The messages updater a handler passed to setMessages, applied to `prev`.
   function applyMessagesUpdate(
     setMessages: unknown,
     prev: ChatEntry[],
@@ -240,8 +226,6 @@ describe('chat session handlers messages', () => {
       }),
       expect.any(AbortSignal),
     );
-    // The rejected answer leaves the transcript rather than being duplicated
-    // below itself, which is what "retry" appeared to do before.
     expect(applyMessagesUpdate(deps.setMessages, [answer])).toEqual([]);
   });
 
@@ -304,8 +288,6 @@ describe('chat session handlers messages', () => {
       }),
       expect.any(AbortSignal),
     );
-    // The edited prompt stays where it was and the answer derived from the old
-    // wording goes; the composer is left alone for the next thing to say.
     expect(applyMessagesUpdate(deps.setMessages, [prompt, answer])).toEqual([
       {...prompt, content: 'Revised prompt'},
     ]);
@@ -323,9 +305,8 @@ describe('chat session handlers messages', () => {
   });
 
   test('revisions are closed once a run has started', () => {
-    // The timeline hides edit/retry affordances from the moment a run starts;
-    // the handlers enforce the same state so no path rewinds the interview a
-    // started run was created from.
+    // Handlers must not rewind the completed interview that a started run was
+    // created from.
     const deps = makeDeps({
       interview: makeInterview(),
       startedSession: {id: 'run-1', title: 'Started', at: 1},
@@ -377,12 +358,9 @@ describe('chat session handlers qa', () => {
       }),
       expect.any(Object),
     );
-    // The A17 trap: never posts to the interview once a run has started.
     expect(addInterviewTurn).not.toHaveBeenCalled();
     expect(createInterview).not.toHaveBeenCalled();
 
-    // Both the question and the streamed-then-finished answer land in the
-    // timeline, in order.
     expect(deps.setMessages).toHaveBeenCalledTimes(2);
     const firstUpdater = vi.mocked(deps.setMessages).mock.calls[0][0] as (
       prev: unknown[],
@@ -427,7 +405,6 @@ describe('chat session handlers qa', () => {
       }),
       expect.any(Object),
     );
-    // The live draft grows fragment by fragment, mirroring an interview turn.
     expect(deps.setAgentReasoning).toHaveBeenCalled();
 
     const secondUpdater = vi.mocked(deps.setMessages).mock.calls[1][0] as (
@@ -490,8 +467,6 @@ describe('chat session handlers qa', () => {
     await submitted;
 
     expect(deps.setError).not.toHaveBeenCalledWith(expect.any(String));
-    // Only the optimistic question bubble was appended -- the streamed
-    // answer never persisted server-side, so nothing is added for it.
     expect(deps.setMessages).toHaveBeenCalledTimes(1);
     expect(deps.setAgentDraft).toHaveBeenLastCalledWith('');
   });
@@ -507,10 +482,8 @@ describe('chat session handlers qa', () => {
   });
 
   test('marks the turn busy for the round trip, same as an interview turn', async () => {
-    // Composer's `busy` prop (fed by isStarting) is what blocks a second
-    // Enter/Send while a turn is in flight -- without this a question asked
-    // mid-stream would orphan the first turn's AbortController and interleave
-    // both answers into the one shared draft.
+    // Concurrent sends orphan AbortControllers and interleave replies into one
+    // draft.
     let resolveAsk: (id: number) => void = () => {};
     vi.mocked(askRunQuestion).mockImplementation(
       () => new Promise(resolve => (resolveAsk = resolve)),
@@ -552,7 +525,6 @@ describe('chat session handlers stop', () => {
     const handlers = buildChatHandlers(deps);
 
     const submitted = handlers.handleSubmit({preventDefault: vi.fn()} as never);
-    // Let submitComposerMessage reach its await before stopping it.
     await Promise.resolve();
     await Promise.resolve();
     handlers.handleStop();
@@ -586,13 +558,11 @@ describe('chat session handlers stop', () => {
 
     await handlers.handleSubmit({preventDefault: vi.fn()} as never);
 
-    // No error banner for a stop the scientist asked for.
     expect(deps.setError).not.toHaveBeenCalledWith(expect.any(String));
-    // The server is now the sole source of truth for what got persisted.
     expect(getInterview).toHaveBeenCalledWith(interview.id);
     expect(deps.setInterview).toHaveBeenCalledWith(resynced);
-    // The unfinished streamed draft never persisted; keeping it on screen
-    // would vanish on reload, so it is dropped.
+    // Unpersisted interrupted prose must disappear so the live view matches
+    // reload.
     expect(deps.setAgentDraft).toHaveBeenLastCalledWith('');
     expect(deps.setAgentReasoning).toHaveBeenLastCalledWith('');
   });
@@ -604,8 +574,7 @@ describe('chat session handlers stop', () => {
 
     await handlers.handleSubmit({preventDefault: vi.fn()} as never);
 
-    // The interview id only arrives with the closing frame, so a stopped
-    // creation leaves nothing to resync against.
+    // Stopped creation has no interview id until its closing frame arrives.
     expect(getInterview).not.toHaveBeenCalled();
     expect(deps.setError).not.toHaveBeenCalledWith(expect.any(String));
     expect(deps.clearSessionState).toHaveBeenCalledOnce();

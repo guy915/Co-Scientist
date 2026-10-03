@@ -19,8 +19,6 @@ describe('home recents data', () => {
     });
   });
 
-  // The caller's live clock (see useNowTick); only an active run's chip reads
-  // it, so the settled cases pass an arbitrary value.
   const NOW = 10_000;
 
   it('shows total time for a completed run with valid timestamps', () => {
@@ -39,7 +37,6 @@ describe('home recents data', () => {
       updated_at: 1000,
       completed_at: null,
     });
-    // Real span is zero (updated_at == created_at), not a fabricated 60s.
     expect(formatHomeRunTimeChip(run, NOW)).toBe('Total time: < 1 minute');
   });
 
@@ -54,8 +51,8 @@ describe('home recents data', () => {
   });
 
   it('measures an active run’s elapsed time against the live clock', () => {
-    // updated_at is 5 minutes behind the clock: it is the last server write,
-    // so reading it would freeze the chip between history refreshes.
+    // updated_at is a server-write timestamp, so elapsed time needs a live
+    // clock.
     const run = makeRun({
       status: 'synthesizing',
       created_at: NOW - 300,
@@ -75,9 +72,6 @@ describe('home recents data', () => {
     }
   });
 
-  // The exact task types the engine provider mints, as observed in the durable
-  // task table of real runs. Every one must land on a phase (or be a deliberate
-  // null), so an unmapped task type cannot silently strand the flow.
   const ENGINE_TASK_PHASES: [string, number | null][] = [
     ['engine.bootstrap', 1],
     ['engine.node.supervisor', 1],
@@ -133,8 +127,6 @@ describe('home recents data', () => {
   });
 
   it('derives the phase from a reported pipeline-stage event', () => {
-    // A run reporting stage events (`latest_stage`) rather than a leased
-    // durable task has that as its only progress signal.
     const cases: [string, number][] = [
       ['supervisor.plan', 1],
       ['literature_review', 2],
@@ -155,13 +147,8 @@ describe('home recents data', () => {
     }
   });
 
-  // Every stage event type paired with the durable task type that reports the
-  // same underlying node, so the two progress signals can be checked for
-  // agreement through the public API rather than by reaching into TASK_PHASE
-  // and STAGE_PHASE directly. `supervisor.plan` is the one stage type whose
-  // task counterpart is not name-for-name identical (`engine.node.supervisor`,
-  // per `_canonical_event_type` in app/engine_adapter/events.py); every other
-  // pair differs only by the `engine.node.` prefix.
+  // Stage and durable-task progress must agree; supervisor.plan maps to
+  // engine.node.supervisor.
   const STAGE_TASK_PAIRS: [string, string][] = [
     ['supervisor.plan', 'engine.node.supervisor'],
     ['literature_review', 'engine.node.literature_review'],
@@ -176,13 +163,8 @@ describe('home recents data', () => {
   ];
 
   it('reports the same phase for a stage event as for its durable-task counterpart', () => {
-    // TASK_PHASE and STAGE_PHASE are two tables for the same four-step flow;
-    // if they drift, a run reports a different step depending on which
-    // progress signal happens to be present rather than what work it is
-    // actually doing. This is what let deep_verification read phase 3 from a
-    // leased task and phase 4 from a stage event: each mapping's own pinned
-    // cases (above, and in ENGINE_TASK_PHASES) matched its own hand-written
-    // expectation and neither test caught the two disagreeing.
+    // Independent mapping snapshots cannot catch disagreement between stage and
+    // task progress.
     for (const [stage, task] of STAGE_TASK_PAIRS) {
       const stagePhase = homeRunStepIndex(
         makeRun({status: 'running', latest_stage: stage}),
@@ -193,8 +175,6 @@ describe('home recents data', () => {
   });
 
   it('reports no phase for a running run that reports no progress yet', () => {
-    // Neither signal is present: the caller holds the last phase rather than
-    // the flow claiming to be back at the first step.
     expect(
       homeRunStepIndex(makeRun({status: 'running', latest_stage: null})),
     ).toBeNull();
@@ -205,8 +185,7 @@ describe('home recents data', () => {
   });
 
   it('re-enters an earlier phase when the run cycles back to it', () => {
-    // The engine loops, so a later cycle genuinely returns to generation;
-    // the flow reports where the run actually is, not its furthest point.
+    // A later engine cycle legitimately returns to generation.
     expect(homeRunStepIndex(makeRun(activeTask('engine.ranking.match')))).toBe(
       4,
     );
@@ -225,8 +204,6 @@ describe('home recents elapsed', () => {
     const run = makeRun({
       status: 'running',
       created_at: createdAtSeconds,
-      // The last server write, deliberately stale: an executing run's elapsed
-      // chip must not be pinned to it.
       updated_at: createdAtSeconds,
       completed_at: null,
     });
@@ -252,8 +229,6 @@ describe('home recents elapsed', () => {
 
     expect(screen.getByText('Time elapsed: < 1 minute')).toBeInTheDocument();
 
-    // 30s + 60s = 90s, which rounds to two minutes. No refetch happens here:
-    // the chip has to move on its own clock.
     act(() => {
       vi.advanceTimersByTime(60_000);
     });
@@ -262,8 +237,6 @@ describe('home recents elapsed', () => {
 });
 
 describe('home recents run steps', () => {
-  // A running engine run leased on `active_task`: the only live progress signal
-  // that provider reports (it emits no stage events).
   function runOn(active_task: string): Run {
     return makeRun({
       status: 'running',
@@ -329,7 +302,6 @@ describe('home recents run steps', () => {
     expect(
       document.querySelectorAll('.reference-run-step-spinner'),
     ).toHaveLength(1);
-    // It stands in for a glyph rather than sitting beside one.
     const row = document
       .querySelector('.reference-run-step-spinner')
       ?.closest('.reference-run-step');
@@ -343,10 +315,6 @@ describe('home recents run steps', () => {
     );
     expect(shownPhases()).toHaveLength(4);
 
-    // The engine loops, so it genuinely re-enters reviewing — and proximity
-    // runs after the tournament. The flow reports the phase the run is in,
-    // rather than retaining the furthest one: hiding that backward step was
-    // the defect, since it presented a regression as forward progress.
     rerender(<RunStepFlow run={runOn('engine.fanout.review.item')} />);
     expect(shownPhases()).toEqual([
       'Exploring focus areas',
@@ -361,9 +329,6 @@ describe('home recents run steps', () => {
     );
     expect(shownPhases()).toHaveLength(4);
 
-    // Proximity executes after the tournament and maps to the same final
-    // display phase, so the flow holds all four steps rather than stepping
-    // back to reviewing.
     rerender(<RunStepFlow run={runOn('engine.node.proximity')} />);
     expect(shownPhases()).toHaveLength(4);
   });
@@ -372,7 +337,6 @@ describe('home recents run steps', () => {
     const {rerender} = render(
       <RunStepFlow run={runOn('engine.node.generate')} />,
     );
-    // Routing between agents reports no phase of its own.
     rerender(<RunStepFlow run={runOn('engine.node.orchestrator')} />);
     expect(shownPhases()).toEqual([
       'Exploring focus areas',

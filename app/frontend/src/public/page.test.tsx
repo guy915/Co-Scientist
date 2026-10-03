@@ -5,8 +5,7 @@ import {MemoryRouter} from 'react-router-dom';
 
 describe('no index', () => {
   describe('NoIndex', () => {
-    // NoIndex renders nothing directly; it drives document head metadata via
-    // its effect, so assert on the document rather than the DOM tree.
+    // NoIndex renders head metadata through an effect rather than DOM content.
     it('sets the document title to the page name plus the site', async () => {
       render(<NoIndex title="Settings" />);
       await waitFor(() =>

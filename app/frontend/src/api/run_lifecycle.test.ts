@@ -30,10 +30,8 @@ describe('run lifecycle', () => {
 
   type Question = (status: string | null | undefined) => boolean;
 
-  // Each question with the statuses that answer yes; every other status
-  // answers no. The asymmetries are the point: paused is started and stoppable
-  // but not active, failed/blocked are terminal but never "started", and
-  // cancelled retires a start intent while failed/blocked keep it.
+  // Paused, active, terminal and start-intent predicates deliberately have
+  // different boundaries.
   const QUESTIONS: Record<string, {ask: Question; yes: RunStatus[]}> = {
     isActiveStatus: {
       ask: isActiveStatus,
@@ -72,7 +70,6 @@ describe('run lifecycle', () => {
     isCancelledStatus: {ask: isCancelledStatus, yes: ['cancelled']},
   };
 
-  // Values a status can hold before the run loads or from a newer backend.
   const UNRECOGNIZED = [undefined, null, '', 'garbage', 'toString'] as const;
 
   describe('lifecycle questions', () => {
@@ -146,8 +143,7 @@ describe('run lifecycle', () => {
 describe('runs status', () => {
   describe('status predicates', () => {
     it('treats queued, running, and synthesizing as active', () => {
-      // 'synthesizing' matters: the workflow is still cancellable and still
-      // emits messages during synthesis, so the UI must treat it as active.
+      // Synthesis still accepts cancellation and messages.
       const active: RunStatus[] = ['queued', 'running', 'synthesizing'];
       for (const status of active) {
         expect(isActiveStatus(status)).toBe(true);
@@ -181,8 +177,6 @@ describe('runs status', () => {
     });
 
     it('treats draft and in-progress runs as not terminal', () => {
-      // A draft has not started, so a document it is given is still indexed
-      // once it runs; queued/running/synthesizing are plainly still going.
       const nonTerminal: RunStatus[] = [
         'draft',
         'queued',

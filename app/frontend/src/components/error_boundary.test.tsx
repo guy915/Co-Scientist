@@ -2,14 +2,13 @@ import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 import {render, screen} from '@testing-library/react';
 import {ErrorBoundary} from './error_boundary';
 
-/** A component that always throws when rendered. */
 function Boom(): never {
   throw new Error('boom');
 }
 
 describe('ErrorBoundary', () => {
   beforeEach(() => {
-    // React logs the caught error to the console; silence the expected noise.
+    // React logs caught render errors; silence only the expected noise.
     vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 

@@ -6,8 +6,6 @@ const GOAL =
   'What molecular checkpoints govern ferroptosis escape in ' +
   'glioblastoma stem cells?';
 
-// Fill the composer with the research goal, attach a private pilot-result file,
-// and submit to kick off the model-driven interview.
 async function draftGoalInComposer(page: Page): Promise<void> {
   const composer = page.getByRole('textbox');
   await composer.click();
@@ -23,11 +21,6 @@ async function draftGoalInComposer(page: Page): Promise<void> {
   await composer.press('Enter');
 }
 
-// The Agent runs a short, model-driven interview whose questions are generated
-// from the goal (their exact wording is not fixed) and which completes into an
-// editable research plan. Answer each question that appears until the plan's
-// "Start research" action is offered, rather than asserting on specific
-// question copy, then confirm the completed plan.
 async function answerInterviewUntilPlan(page: Page): Promise<void> {
   const startButton = page.getByRole('button', {name: 'Start research'});
   const assistantTurns = page.getByRole('button', {name: 'Copy response'});
@@ -43,8 +36,6 @@ async function answerInterviewUntilPlan(page: Page): Promise<void> {
     const priorTurns = await assistantTurns.count();
     await page.getByRole('textbox').last().fill(answer);
     await page.getByRole('button', {name: 'Send'}).click();
-    // The answer is consumed once the plan is ready or the model posts its
-    // next question (a new assistant response bubble appears).
     await expect(async () => {
       const ready = await startButton.isVisible().catch(() => false);
       const advanced = (await assistantTurns.count()) > priorTurns;
@@ -52,20 +43,12 @@ async function answerInterviewUntilPlan(page: Page): Promise<void> {
     }).toPass({timeout: 30_000});
   }
 
-  // The completed interview produces the editable research plan.
   await expect(startButton).toBeVisible({timeout: 30_000});
   await expect(page.getByText(GOAL).first()).toBeVisible();
 }
 
-/**
- * The plan turn must open at its *own* top, not the conversation's.
- *
- * The auto-scroll used to set the timeline's scrollTop to 0 when the plan
- * card arrived, which is the top of the whole conversation -- past a couple
- * of turns the scientist was thrown back to their opening message the moment
- * the plan was produced. Only a real browser lays the timeline out, so this
- * is the one place the geometry can be observed.
- */
+// Only a real browser exposes plan-anchor geometry; zero targets the
+// conversation, not the plan.
 async function assertPlanOpensAtItsOwnTop(page: Page): Promise<void> {
   await expect(async () => {
     const metrics = await page.evaluate(() => {
@@ -82,8 +65,6 @@ async function assertPlanOpensAtItsOwnTop(page: Page): Promise<void> {
       };
     });
     expect(metrics).not.toBeNull();
-    // A conversation short enough to fit has no scroll position to get
-    // wrong, so there is nothing here to observe.
     if (!metrics!.overflows) return;
     expect(metrics!.scrollTop).toBeGreaterThan(0);
     expect(metrics!.cardOffset).toBeGreaterThan(-8);
@@ -91,9 +72,6 @@ async function assertPlanOpensAtItsOwnTop(page: Page): Promise<void> {
   }).toPass({timeout: 10_000});
 }
 
-// Click "Start research" and capture both lifecycle mutations as direct
-// evidence that the browser owns and starts the same draft through the
-// cross-origin development topology. Returns the created run id.
 async function startRunFromPlan(page: Page): Promise<string> {
   const createdPromise = page.waitForResponse(
     response =>
@@ -105,10 +83,8 @@ async function startRunFromPlan(page: Page): Promise<string> {
       /\/api\/runs\/[^/]+\/start$/.test(new URL(response.url()).pathname) &&
       response.request().method() === 'POST',
   );
-  // The Agent's reply to the start request, which the session card renders as
-  // its lead-in. Captured here because a wrong route or frame vocabulary is
-  // invisible to either side's unit tests -- the card would simply show its
-  // standby copy, which is also what a correct offline run shows.
+  // Observe start frames because standby copy can hide an incorrect route or
+  // frame vocabulary.
   const announcedPromise = page.waitForResponse(
     response =>
       /\/api\/runs\/[^/]+\/messages\/started$/.test(
@@ -130,8 +106,6 @@ async function startRunFromPlan(page: Page): Promise<string> {
   return id;
 }
 
-// Open the run detail. Capture the SSE stream opening (browser -> backend) as
-// direct evidence the live event channel was established.
 async function openRunDetail(page: Page, id: string): Promise<void> {
   const ssePromise = page.waitForResponse(
     response => /\/api\/runs\/[^/]+\/events/.test(response.url()),
@@ -143,17 +117,6 @@ async function openRunDetail(page: Page, id: string): Promise<void> {
   await expect(page).toHaveURL(/\/runs\/[^/]+\/specifications/);
 }
 
-// The top-ranked idea (auto-selected on desktop) shows the mature review
-// cascade's structured findings -- proof that the offline backend's review
-// scores clear the initial "viable" gate and comprehensive_reflection's
-// full/simulation review batch actually ran for it, not just the quick
-// initial screen. The simulation review's fields (failure_points,
-// decisive_step) are unconditionally required in SIMULATION_REVIEW_SCHEMA;
-// the full/recurrent review's go_no_go_recommendation/time_to_verdict are
-// optional in FULL_REVIEW_SCHEMA but named in offline.llm's
-// _OPTIONAL_FIELD_HINTS, so the offline backend fills them too -- see
-// ideas_detail_review_findings.tsx's SimulationFindings/VerdictLines and
-// drain/reviews.py's detail_json build.
 async function assertIdeasTabShowsMatureReviews(page: Page): Promise<void> {
   const detail = page.getByRole('region', {name: 'Hypothesis detail'});
   const fullReviewHeading = detail.getByRole('heading', {
@@ -164,10 +127,8 @@ async function assertIdeasTabShowsMatureReviews(page: Page): Promise<void> {
   await expect(
     detail.getByRole('heading', {name: 'Simulation review', exact: true}),
   ).toBeVisible();
-  // Scoped to the Full review row's own container (its parent), not the
-  // whole detail pane: a recurrent review row, if one also rendered, would
-  // carry the same "Verdict:"/"Time to verdict:" lines and break
-  // Playwright's strict single-match mode.
+  // Full and recurrent reviews share labels; scope queries to the intended
+  // review container.
   const fullReviewSection = fullReviewHeading.locator('xpath=..');
   await expect(
     fullReviewSection.getByText('Verdict:', {exact: true}),
@@ -175,9 +136,8 @@ async function assertIdeasTabShowsMatureReviews(page: Page): Promise<void> {
   await expect(
     fullReviewSection.getByText('Time to verdict:', {exact: true}),
   ).toBeVisible();
-  // exact: true, since the simulation critique paragraph also flattens
-  // "Failure point: .../Decisive step: ..." into its own prose -- without
-  // it this resolves two elements and Playwright's strict mode fails.
+  // Critique prose repeats structured labels; exact matching avoids multiple
+  // elements.
   await expect(
     detail.getByText('Failure point:', {exact: true}),
   ).toBeVisible();
@@ -186,11 +146,6 @@ async function assertIdeasTabShowsMatureReviews(page: Page): Promise<void> {
   ).toBeVisible();
 }
 
-// The overview report's research-directions preview list, gated on 2+ named
-// directions (report/markdown/overview.py::_render_directions_preview,
-// mirrored in the frontend's DirectionsPreview) -- proof the offline
-// backend's research_overview call is sized past that gate rather than
-// defaulting to the generic filler's one item per array.
 async function assertOverviewTabShowsDirectionsPreview(
   page: Page,
 ): Promise<void> {
@@ -203,13 +158,6 @@ async function assertOverviewTabShowsDirectionsPreview(
   await expect(preview.getByRole('listitem')).toHaveCount(3);
 }
 
-// The Goal Report tabs appear only after the run reaches publication. Walk the
-// All Ideas, Research Overview, and Learning tabs to observe the streamed run
-// reaching completion.
-//
-// The tab strip is a nav of real deep-linkable links (not buttons), so each
-// tab is matched by its link role and its exact accessible name -- the labels
-// ReportTabNav renders in run_detail_shell.tsx.
 async function assertStreamedRunCompletes(page: Page): Promise<void> {
   const ideasTab = page.getByRole('link', {name: 'All Ideas', exact: true});
   await expect(ideasTab).toBeVisible({timeout: 30_000});
@@ -221,10 +169,8 @@ async function assertStreamedRunCompletes(page: Page): Promise<void> {
   await page
     .getByRole('link', {name: 'Research Overview', exact: true})
     .click();
-  // level: 3 picks the section heading, not a per-aim "Specific Aims N"
-  // heading (h4) -- both answer to the same phrase since
-  // OVERVIEW-AIMS-VOCABULARY-001 gave each aim a numbered heading of its
-  // own, mirroring the "Research directions" heading check below.
+  // The section and per-aim headings share a phrase; distinguish them by
+  // heading level.
   await expect(
     page.getByRole('heading', {name: /specific aims/i, level: 3}),
   ).toBeVisible();
@@ -236,15 +182,6 @@ async function assertStreamedRunCompletes(page: Page): Promise<void> {
   await expect(page.getByText('private-lactate-result.txt')).toBeVisible();
 }
 
-// Flow: create a run from the chat workspace, start it, watch the live
-// pipeline drive the run-detail surface over SSE, and see it complete.
-//
-// The run is created and started entirely through the UI (composer -> draft
-// spec card -> Start research -> started card). Opening the run detail mounts
-// the SSE subscription; the Ideas and Overview tabs then populate only because
-// streamed pipeline events (generate/ranking/report) drove the refetches, so
-// asserting on the Elo-ranked hypotheses and the synthesized report is a
-// genuine observation of the streamed run reaching completion.
 test('creates a run from chat, starts it, and watches it complete', async ({
   page,
 }) => {
@@ -290,8 +227,7 @@ test('manually continues a linked draft after a lost create response', async ({
     createKeys.push(route.request().headers()['idempotency-key'] ?? '');
     if (createBodies.length > 1) return route.continue();
 
-    // The API commits the run and interview link, but the browser loses the
-    // response before it can save the returned run id.
+    // Simulate response loss after the API commits the run/interview link.
     const response = await route.fetch();
     expect(response.status()).toBe(200);
     const {id} = (await response.json()) as {id: string};
@@ -367,7 +303,6 @@ test('manually continues a linked draft after a lost create response', async ({
   );
   expect(storedRequestMatches).toBe(true);
 
-  // A different owner cannot reopen the interview or see its recovery action.
   const otherContext = await browser.newContext();
   await otherContext.addInitScript(clientId => {
     window.localStorage.setItem('co_scientist_client_id', clientId);
@@ -381,7 +316,6 @@ test('manually continues a linked draft after a lost create response', async ({
   expect(await api.getRun(runId)).toMatchObject({status: 'draft'});
   await otherContext.close();
 
-  // Native button semantics make the recovery action available by keyboard.
   await continueButton.focus();
   const continueByKeyboard = continueButton.press('Enter');
   await startForwarded;
@@ -401,8 +335,6 @@ test('manually continues a linked draft after a lost create response', async ({
   expect(createBodies).toHaveLength(1);
   expect(await api.getRun(runId)).not.toMatchObject({status: 'draft'});
 
-  // Reopening a queued/running run shows it as the existing session and
-  // never creates or starts another one.
   await page.reload();
   await expect(
     page.getByRole('region', {name: 'Started research session'}),
@@ -413,11 +345,6 @@ test('manually continues a linked draft after a lost create response', async ({
 });
 
 test.describe('run detail tabs', () => {
-// Flow: the run-detail tabs (details / ideas / learning / overview) render a
-// completed run's hypotheses (with Elo scores) and report content.
-//
-// A seeded demo run is used for stable, fully-synthesized content: the test
-// opens it from the home recents list and walks every tab.
 test('run detail tabs render hypotheses, Elo, and report content', async ({
   page,
   api,
@@ -429,30 +356,23 @@ test('run detail tabs render hypotheses, Elo, and report content', async ({
   expect(demo).toBeTruthy();
   await page.goto(`/runs/${demo!.id}/specifications`);
 
-  // Details tab (default): the research goal and its details document.
   await expect(
     page.getByRole('heading', {name: /run specifications/i}),
   ).toBeVisible();
   await expect(page.getByText(/staphylococcus aureus/i).first()).toBeVisible();
 
-  // All Ideas tab: the Elo-ranked hypothesis list. The tab strip is a nav of
-  // real deep-linkable links (not buttons), so each tab is matched by its link
-  // role and its exact accessible name -- the labels ReportTabNav renders in
-  // run_detail_shell.tsx.
   await page.getByRole('link', {name: 'All Ideas', exact: true}).click();
   await expect(
     page.getByRole('list', {name: /ranked hypothesis list/i}),
   ).toBeVisible();
   await expect(page.getByText(/elo rating:/i).first()).toBeVisible();
 
-  // Learning tab: the synthesized learning sections and searchable references.
   await page.getByRole('link', {name: 'Learning', exact: true}).click();
   await expect(page.getByRole('heading', {name: /references/i})).toBeVisible();
   await expect(
     page.getByRole('textbox', {name: /search references/i}),
   ).toBeVisible();
 
-  // Overview tab: the synthesized report (winning ideas + tournament summary).
   await page
     .getByRole('link', {name: 'Research Overview', exact: true})
     .click();
@@ -469,21 +389,8 @@ test('run detail tabs render hypotheses, Elo, and report content', async ({
 });
 
 test.describe('cancel', () => {
-// Flow: cancel a running run and observe its terminal state in the UI.
-//
-// There is deliberately no in-product affordance to cancel a run (adding one
-// would be a forbidden behavior change), so the run is created, started, and
-// cancelled over the backend API — every call tagged with the same
-// X-Client-ID the browser uses, so the run is owned by this browser session
-// and surfaces on its home recents list. The observable under test is the
-// terminal state rendered in the UI: the recents card's "Status: Cancelled"
-// chip.
-//
-// Determinism: the run is sized large (extra iterations and hypotheses) so it
-// stays active long enough to catch running and to land a cooperative cancel
-// at an iteration checkpoint well before it could finish. What the card renders
-// depends only on the terminal status polled below, not on how far the run
-// progressed — so the assertion holds whether the cancel lands early or late.
+// Oversize the run so cooperative cancellation can land before offline
+// execution finishes.
 test('cancels a running run and shows the cancelled state on home', async ({
   page,
   api,
@@ -498,7 +405,6 @@ test('cancels a running run and shows the cancelled state on home', async ({
   });
   await api.startRun(id);
 
-  // Wait until the workflow is actually running before cancelling.
   await expect
     .poll(async () => (await api.getRun(id)).status, {
       timeout: 20_000,
@@ -508,8 +414,7 @@ test('cancels a running run and shows the cancelled state on home', async ({
 
   await api.cancelRun(id);
 
-  // Cancellation is cooperative; the workflow lands in CANCELLED at its next
-  // checkpoint.
+  // Cancellation settles cooperatively at the next checkpoint.
   await expect
     .poll(async () => (await api.getRun(id)).status, {
       timeout: 20_000,
@@ -517,10 +422,6 @@ test('cancels a running run and shows the cancelled state on home', async ({
     })
     .toBe('cancelled');
 
-  // The owned run surfaces on the session-home Recents, and its card reports
-  // the terminal state. Scoped to the Recents aside (rather than any link on
-  // the page) so a same-goal link elsewhere cannot stand in for it, and the
-  // assertions wait for the async history render rather than racing it.
   await page.goto('/');
   const recents = page.getByRole('complementary', {name: 'Recent runs'});
   const card = recents.getByRole('link').filter({hasText: goal});

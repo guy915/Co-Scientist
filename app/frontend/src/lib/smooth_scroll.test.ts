@@ -5,8 +5,7 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-// Stubs the getters read by findScrollContainer/smoothScrollToSection
-// (jsdom performs no real layout, so these are always 0 by default).
+// jsdom has no layout; stub the measurements used by scrolling.
 function stubRect(el: HTMLElement, rect: Partial<{top: number; left: number}>) {
   vi.spyOn(el, 'getBoundingClientRect').mockReturnValue({
     top: rect.top ?? 0,
@@ -52,7 +51,7 @@ it('scrolls a preferred pane container and returns true', () => {
 
   stubRect(pane, {top: 20});
   stubRect(target, {top: 120});
-  // scrollTo is not implemented on Element in jsdom.
+  // jsdom does not implement Element.scrollTo.
   const scrollTo = vi.fn();
   (pane as unknown as {scrollTo: typeof scrollTo}).scrollTo = scrollTo;
   pane.scrollTop = 50;
@@ -101,7 +100,6 @@ it('walks up to a scrollable ancestor with no preferred pane', () => {
   const outer = document.createElement('div');
   const scrollable = document.createElement('div');
   scrollable.style.overflowY = 'auto';
-  // Overflow is visible, so this ancestor must be skipped.
   const inert = document.createElement('div');
   const target = document.createElement('div');
   target.id = 'section-3';
@@ -111,7 +109,7 @@ it('walks up to a scrollable ancestor with no preferred pane', () => {
   outer.append(scrollable);
   document.body.append(outer);
 
-  stubScrollSize(scrollable, 500, 200); // overflowY set + actually overflowing
+  stubScrollSize(scrollable, 500, 200);
   const scrollTo = vi.fn();
   (scrollable as unknown as {scrollTo: typeof scrollTo}).scrollTo = scrollTo;
 
@@ -126,7 +124,6 @@ it('walks up to a scrollable ancestor with no preferred pane', () => {
 it('skips an overflow-y ancestor that does not actually overflow', () => {
   const scrollableButNotOverflowing = document.createElement('div');
   scrollableButNotOverflowing.style.overflowY = 'scroll';
-  // scrollHeight === clientHeight (both default 0 in jsdom): not overflowing.
   const target = document.createElement('div');
   target.id = 'section-4';
   scrollableButNotOverflowing.append(target);

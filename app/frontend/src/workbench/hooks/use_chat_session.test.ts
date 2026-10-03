@@ -33,8 +33,6 @@ function completedInterview(goal: string) {
     },
     current_question: null,
     documents: [],
-    // The transcript the session rebuilds itself from: the scientist's
-    // challenge, then the closing turn that becomes the plan card's lead-in.
     turns: [
       {
         id: 1,
@@ -107,7 +105,6 @@ it('submitting a goal stages a draft spec and logs it', async () => {
   expect(result.current.messages.filter(m => m.role === 'user')).toHaveLength(
     1,
   );
-  // The composer is cleared after submitting.
   expect(result.current.input).toBe('');
 });
 
@@ -190,8 +187,6 @@ it('editing a message revises it in place, not via the composer', async () => {
     }),
     expect.any(AbortSignal),
   );
-  // The correction replaces the prompt where it stands; the composer stays
-  // clear for the next thing the scientist wants to say.
   expect(result.current.messages).toHaveLength(1);
   expect(result.current.messages[0].content).toBe('Revised prompt');
   expect(result.current.input).toBe('');
@@ -243,8 +238,6 @@ it('asks the run instead of posting further interview turns once started', async
     await result.current.handleStartRun();
   });
   expect(result.current.startedSession?.id).toBe('run-xyz');
-  // Starting clears whatever was typed: the interview the composer posts to
-  // is closed server-side from here on.
   expect(result.current.input).toBe('');
   const messagesAfterStart = result.current.messages.length;
 
@@ -253,9 +246,6 @@ it('asks the run instead of posting further interview turns once started', async
     await result.current.handleSubmit(submitEvent());
   });
 
-  // The turn never reaches the completed interview, nor starts a new one --
-  // it asks the started run's own Q&A endpoint, adding a question and an
-  // answer bubble to the timeline.
   expect(runsApi.addInterviewTurn).not.toHaveBeenCalled();
   expect(runsApi.createInterview).toHaveBeenCalledOnce();
   expect(runsApi.askRunQuestion).toHaveBeenCalledWith(
@@ -293,7 +283,6 @@ it('resetting a started session reopens the composer for a new chat', async () =
     await result.current.handleSubmit(submitEvent());
   });
 
-  // The fresh session talks to a fresh interview again.
   expect(runsApi.createInterview).toHaveBeenCalledTimes(2);
   expect(runsApi.createInterview).toHaveBeenLastCalledWith(
     'A brand new goal',
@@ -333,8 +322,6 @@ it('stages attached documents before the run is created', async () => {
     await result.current.handleSubmit(submitEvent(), [file]);
   });
 
-  // Staged with the turn, so the Agent scopes the goal against it -- and
-  // before the run exists, so creation is what grounds the run.
   expect(runsApi.stageDocument).toHaveBeenCalledWith(file);
   expect(runsApi.createInterview).toHaveBeenCalledWith(
     'Use my private result',

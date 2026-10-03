@@ -19,10 +19,6 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-// The card's own composition, minus the rest of the card: the editor state
-// lives above the section, and the trigger that opens it is a sibling of the
-// section rather than part of it (RunSpecCard's PlanHeading pencil). Its
-// label matches the pencil's so the tests below read the way the UI does.
 function Harness({
   spec,
   onFieldsChange,
@@ -50,8 +46,6 @@ function renderSection(overrides: Parameters<typeof makeSpec>[0] = {}) {
   return {spec, onFieldsChange};
 }
 
-// The plan card around the section, for the rules that decide whether its
-// pencil is offered at all.
 function cardProps(spec: InferredRunSpec, locked = false) {
   return {
     spec,
@@ -97,21 +91,17 @@ test('the plan card offers its pencil, and hides it once the form is open', () =
 
   fireEvent.click(screen.getByLabelText('Edit plan'));
 
-  // The open form carries its own Save/Cancel, so a second way in would
-  // only be a way to reset what has been typed.
   expect(screen.queryByLabelText('Edit plan')).not.toBeInTheDocument();
   expect(screen.getByLabelText('Research Challenge')).toBeInTheDocument();
 });
 
 test('the plan card hides its pencil when there is nothing to edit', () => {
-  // No interview behind the spec: there is nowhere to save an edit to.
   const withoutInterview = render(
     <RunSpecCard {...cardProps(makeSpec({interviewId: undefined}))} />,
   );
   expect(screen.queryByLabelText('Edit plan')).not.toBeInTheDocument();
   withoutInterview.unmount();
 
-  // Locked: the plan is the one the run already started against.
   renderCard(makeSpec({interviewId: 'interview-1'}), true);
   expect(screen.queryByLabelText('Edit plan')).not.toBeInTheDocument();
 });

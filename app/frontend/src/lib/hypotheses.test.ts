@@ -15,10 +15,7 @@ it('orders played hypotheses by descending Elo', () => {
 });
 
 it('ranks an idea that lost a match above one that never played', () => {
-  // Every hypothesis starts at 1200, so a pure Elo sort presents "never
-  // competed" as better than "competed and lost". A production run led its
-  // standings with six unplayed ideas at 1200 above the real runner-up at
-  // 1136.
+  // Initial Elo can put unplayed ideas above actual tournament losers.
   const ranked = sortByEloDesc([
     makeHypothesis({id: 'unplayed', elo_rating: 1200}),
     makeHypothesis({id: 'loser', elo_rating: 1136, loss_count: 1}),
@@ -29,10 +26,8 @@ it('ranks an idea that lost a match above one that never played', () => {
 });
 
 it('sinks an undermined idea below every sound one', () => {
-  // Deep verification only probes the ideas leading the tournament, and its
-  // verdict lands after the matches that put them there, so an undermined
-  // idea carries the pool's top rating. On Elo alone the run would open its
-  // list with the one idea a probe found a fundamental flaw in.
+  // Deep verification can undermine the highest-rated idea after its matches
+  // finish.
   const ranked = sortByEloDesc([
     makeHypothesis({
       id: 'doubted',
@@ -67,9 +62,6 @@ it('reports the earned rating for an idea that played', () => {
 });
 
 it('drops the ideas a run withdrew from the presented list', () => {
-  // Both are excluded from the Goal Report too: "rejected" was ruled out on
-  // the merits, "duplicate" was folded into a higher-ranked idea making the
-  // same proposal. Neither is a result, so neither belongs in a ranking.
   const kept = makeHypothesis({id: 'kept'});
   const presented = presentedHypotheses([
     kept,
@@ -81,14 +73,13 @@ it('drops the ideas a run withdrew from the presented list', () => {
 });
 
 it('says "Unranked" for an unplayed idea still in good standing', () => {
-  // Typically created in the run's final wave, after the last comparisons.
+  // Final-wave ideas can arrive after the last comparisons.
   expect(ratingLabel(makeHypothesis({status: 'active'}))).toBe('Unranked');
   expect(ratingLabel(makeHypothesis({status: null}))).toBe('Unranked');
 });
 
 it('keeps the rating of a played idea that was later ruled out', () => {
-  // Deep verification can undermine an idea after it competed; the matches
-  // it played are real results and stay visible.
+  // Later verification does not invalidate matches already played.
   expect(
     ratingLabel(
       makeHypothesis({elo_rating: 1240, win_count: 1, status: 'rejected'}),

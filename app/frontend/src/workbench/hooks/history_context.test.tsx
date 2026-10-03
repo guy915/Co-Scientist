@@ -202,8 +202,7 @@ describe('active run polling', () => {
   });
 
   it('refreshes on a timer while a run is still executing', async () => {
-    // The recents step flow reads a run's live phase off this list, and no
-    // navigation or run-start event fires as the run advances.
+    // Run phases advance through polling without navigation or start events.
     loadMock.mockResolvedValue([makeRun({status: 'running'})]);
     renderProvider();
     await waitFor(() =>
@@ -232,16 +231,14 @@ describe('active run polling', () => {
   it('stops refreshing once the run reaches a terminal status', async () => {
     loadMock.mockResolvedValue([makeRun({status: 'running'})]);
     renderProvider();
-    // Wait for committed history and its poll effect, not just the request.
     await waitFor(() =>
       expect(screen.getByTestId('count')).toHaveTextContent('1'),
     );
     expect(loadMock).toHaveBeenCalledTimes(1);
 
     loadMock.mockResolvedValue([makeRun({status: 'completed'})]);
-    // Let the poll observe the terminal status and the timer tear down. A
-    // refresh already in flight when the status turns terminal may still land,
-    // so this asserts that polling settles rather than a call count.
+    // A terminal refresh can already be in flight; verify eventual polling
+    // quiescence.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(30_000);
     });

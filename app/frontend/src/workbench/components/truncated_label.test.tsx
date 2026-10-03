@@ -10,17 +10,12 @@ import {
 } from 'vitest';
 import {TruncatedLabel} from './truncated_label';
 
-// jsdom performs no real layout, so scrollWidth/clientWidth/scrollHeight/
-// clientHeight are always 0. Replace them file-wide with a simple
-// character-count model: the "container" size is a mutable variable tests
-// can adjust to simulate resizes, and the "content" size is the node's
-// current textContent length — close enough to real measurement for
-// exercising the truncation algorithm deterministically.
+// jsdom measurements are zero; character counts provide deterministic overflow
+// geometry.
 let containerWidth = 20;
 let containerHeight = 10;
 let originalDescriptors: Record<string, PropertyDescriptor | undefined>;
 
-/** Snapshots the layout property descriptors so afterAll can restore them. */
 function snapshotLayoutDescriptors(): Record<
   string,
   PropertyDescriptor | undefined
@@ -45,7 +40,6 @@ function snapshotLayoutDescriptors(): Record<
   };
 }
 
-/** Installs the character-count layout model on HTMLElement.prototype. */
 function installCharacterCountLayout() {
   Object.defineProperty(HTMLElement.prototype, 'scrollWidth', {
     configurable: true,
@@ -86,9 +80,8 @@ afterAll(() => {
   }
 });
 
-// Captures the ResizeObserver instance created for a render so tests can
-// fire a resize notification manually (the app-wide test_setup stub is a
-// no-op that never calls back).
+// The global ResizeObserver stub never calls back; capture this observer for
+// resize delivery.
 class FakeResizeObserver {
   static instances: FakeResizeObserver[] = [];
   observe = vi.fn();
@@ -103,16 +96,14 @@ class FakeResizeObserver {
 }
 vi.stubGlobal('ResizeObserver', FakeResizeObserver);
 
-/** Flushes the requestAnimationFrame fit() scheduled on mount. */
 async function flushNextFrame() {
   await act(async () => {
     await new Promise(resolve => requestAnimationFrame(resolve));
   });
 }
 
-// Fits are enqueued and run together one microtask later (see
-// truncated_label), so a trigger that is itself synchronous still needs
-// the queue drained before the label's text reflects it.
+// Fits batch one microtask later, so synchronous notifications still need a
+// queue drain.
 async function flushFitBatch() {
   await act(async () => {
     await Promise.resolve();
@@ -157,8 +148,6 @@ it('applies the className prop to the rendered span', () => {
 });
 
 it('measures against height (not width) when lines > 1', async () => {
-  // Wide enough that width-based measurement alone would never overflow,
-  // but taller than containerHeight (10) in this character-count model.
   containerWidth = 1000;
   const text = 'one two three four five six seven eight nine ten';
   const {container} = render(<TruncatedLabel text={text} lines={2} />);
@@ -173,15 +162,14 @@ it('re-fits when the ResizeObserver reports a size change', async () => {
   const {container} = render(<TruncatedLabel text={text} />);
   const span = container.querySelector('span')!;
   await flushNextFrame();
-  expect(span.textContent).not.toBe(text); // narrow container truncates it
+  expect(span.textContent).not.toBe(text);
 
-  containerWidth = 200; // widen: everything now fits
+  containerWidth = 200;
   const instance = FakeResizeObserver.instances.at(-1)!;
   act(() => instance.trigger());
 
-  // The re-fit lands on the next frame, not inside the observer callback:
-  // rewriting the observed node's text from within the delivery is what
-  // makes the browser report a ResizeObserver loop as an uncaught error.
+  // Writing during ResizeObserver delivery triggers browser loop errors; fit on
+  // the next frame.
   expect(span.textContent).not.toBe(text);
   await flushNextFrame();
   expect(span.textContent).toBe(text);
@@ -201,11 +189,9 @@ it('re-fits after web fonts finish loading', async () => {
   const {container} = render(<TruncatedLabel text={text} />);
   const span = container.querySelector('span')!;
   await flushNextFrame();
-  expect(span.textContent).not.toBe(text); // narrow container truncates it
+  expect(span.textContent).not.toBe(text);
 
-  // Widen only after the initial sync + rAF fits already ran, so the
-  // eventual match to the full text can only come from the fonts.ready
-  // continuation.
+  // Widen after initial fits so only fonts.ready can cause the next match.
   containerWidth = 200;
   await act(async () => {
     resolveFonts();
@@ -247,7 +233,7 @@ it('does not re-fit on visibilitychange while the tab is hidden', async () => {
     document.dispatchEvent(new Event('visibilitychange'));
   });
   await flushFitBatch();
-  expect(span.textContent).toBe(truncated); // unchanged: tab still hidden
+  expect(span.textContent).toBe(truncated);
 
   Object.defineProperty(document, 'hidden', {
     value: false,
@@ -268,15 +254,8 @@ it('re-fits when the text prop changes', async () => {
 });
 
 it('measures labels mounted together in lockstep, not one at a time', async () => {
-  // Each measurement forces the browser to flush layout, so fitting labels
-  // one after another pays a layout pass per probe: the ideas tab's 42 labels
-  // cost ~127 of them, which was two ~390ms blocking tasks and the whole of
-  // its "slow to open". Batched, every label writes its round-N candidate
-  // before any of them is measured, so a round costs one pass for the page.
-  //
-  // The read order is what distinguishes the two: sequential fitting reads
-  // one label repeatedly until it is done, lockstep visits each once per
-  // round.
+  // Measurements flush layout; lockstep fitting shares each round's flush
+  // across labels.
   const readers: string[] = [];
   const original = Object.getOwnPropertyDescriptor(
     HTMLElement.prototype,
@@ -301,7 +280,6 @@ it('measures labels mounted together in lockstep, not one at a time', async () =
   await flushNextFrame();
   Object.defineProperty(HTMLElement.prototype, 'scrollWidth', original);
 
-  // Every label is measured before any is measured twice.
   expect(new Set(readers.slice(0, 3))).toEqual(
     new Set(['first', 'second', 'third']),
   );

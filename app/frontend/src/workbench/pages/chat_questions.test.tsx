@@ -121,9 +121,8 @@ test('pressing Enter in the free-text field does not submit anything', () => {
   const {onAnswer} = renderChooser();
   const field = screen.getByLabelText(/Something else/);
   fireEvent.change(field, {target: {value: 'A decellularized scaffold'}});
-  // fireEvent returns false when the handler called preventDefault, which is
-  // what actually proves the guard fired -- jsdom has no implicit form
-  // submission for Enter to begin with, so `onAnswer` alone can't tell.
+  // jsdom lacks implicit Enter submission; preventDefault proves the guard
+  // fired.
   expect(fireEvent.keyDown(field, {key: 'Enter'})).toBe(false);
   expect(onAnswer).not.toHaveBeenCalled();
 });

@@ -9,7 +9,6 @@ vi.mock('@/api/runs', async importOriginal => ({
   getSharedGoalReport: vi.fn(),
 }));
 
-/** Builds a shared-report capability payload with one knowledge-base topic. */
 function buildSharedReport() {
   return {
     share_id: 'share-1',

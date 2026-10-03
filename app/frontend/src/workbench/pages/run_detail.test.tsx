@@ -4,9 +4,6 @@ import {beforeEach, expect, it, vi} from 'vitest';
 import * as runsApi from '@/api/runs';
 import {makeRun, renderAt} from './run_detail_test_support';
 
-// Controllable stream mock: tests mutate `streamState` then rerender to drive
-// the event-driven refetch effect. `setStream` replaces the events array so its
-// identity changes and the effect re-runs.
 const streamMock = vi.hoisted(() => ({
   state: {events: [] as {seq: number; type: string; payload: object}[]},
 }));
@@ -14,7 +11,6 @@ vi.mock('@/hooks/use_run_stream', () => ({
   useRunStream: () => ({events: streamMock.state.events, terminal: false}),
 }));
 
-// Render tests observe event refreshes immediately; data-hook tests cover timing.
 vi.mock('@/workbench/hooks/timers', async importOriginal => {
   const actual =
     await importOriginal<typeof import('@/workbench/hooks/timers')>();
@@ -53,7 +49,7 @@ vi.mock('@/api/runs', async importActual => {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // A stubbed viewport must not leak into the next test's breakpoint.
+  // Viewport stubs must not leak into another test.
   vi.unstubAllGlobals();
   setStream([]);
   vi.mocked(runsApi.getRun).mockResolvedValue(makeRun('Study pathway X'));
@@ -61,7 +57,7 @@ beforeEach(() => {
     plan: null,
     allocations: [],
   });
-  // Reset per-run collection mocks so overrides do not leak between tests.
+  // Reset collection overrides between tests.
   vi.mocked(runsApi.getHypotheses).mockResolvedValue([]);
   vi.mocked(runsApi.getMatches).mockResolvedValue([]);
   vi.mocked(runsApi.getReport).mockResolvedValue(null);
@@ -84,10 +80,6 @@ it('leaves the run for the workspace even when a chat started it', async () => {
 
   renderAt('/runs/run-1/details');
 
-  // The session switch in the shell header is what returns to the
-  // transcript now (see SessionSwitch), so this arrow keeps one meaning on
-  // every run -- leave the run -- rather than changing destination based on
-  // whether a conversation happens to exist.
   expect(await screen.findByRole('link', {name: 'Back'})).toHaveAttribute(
     'href',
     '/',
@@ -103,15 +95,7 @@ it('falls back to the workspace when no conversation started the run', async () 
   );
 });
 
-/**
- * Pins the viewport to one side of the phone breakpoint for a single test.
- *
- * `useIsMobile` reads `matchMedia`, which jsdom does not implement, so an
- * unstubbed test is always "desktop" -- which would let the mobile-only
- * assertion below pass for the wrong reason.
- *
- * @param mobile Whether the viewport should match the phone breakpoint.
- */
+// jsdom lacks matchMedia; unstubbed tests silently exercise desktop behavior.
 function stubViewport(mobile: boolean) {
   vi.stubGlobal(
     'matchMedia',
@@ -123,10 +107,7 @@ function stubViewport(mobile: boolean) {
   );
 }
 
-// MobileIdeaView (the ideas tab's mobile detail view) has no back control of
-// its own -- the titlebar's back arrow is its only visible escape back to
-// the ranked list, so an open idea must redirect it rather than leave the
-// run entirely.
+// The mobile titlebar is the detail view's only route back to the ranked list.
 it('returns to the ranked ideas list when an idea is open', async () => {
   stubViewport(true);
   renderAt('/runs/run-1/ideas?idea=h-1');
@@ -136,10 +117,8 @@ it('returns to the ranked ideas list when an idea is open', async () => {
   ).toHaveAttribute('href', '/runs/run-1/ideas');
 });
 
-// The desktop split-pane shows the ranked list and the detail together, so
-// the list is never somewhere the reader has navigated away from. Back keeps
-// meaning "leave the run" there; retargeting it on every `?idea=` would
-// strand a reader who pressed Back to get out of the run.
+// Desktop keeps the list visible; Back must leave the run rather than clear
+// selection.
 it('still leaves the run with an idea open on desktop', async () => {
   stubViewport(false);
   renderAt('/runs/run-1/ideas?idea=h-1');
@@ -178,16 +157,12 @@ it('shows live metrics and activity instead of report controls', async () => {
   renderAt('/runs/run-1/specifications');
 
   expect(await screen.findByText('Research in progress')).toBeInTheDocument();
-  // Elapsed time is measured, not projected, so it reads as a real duration
-  // from the first second rather than as an estimate.
   expect(screen.getByText('Time elapsed')).toBeInTheDocument();
   expect(screen.getByText('< 1 minute')).toBeInTheDocument();
   expect(screen.getByText('Sources Analyzed')).toBeInTheDocument();
   expect(screen.getByText('Ideas explored')).toBeInTheDocument();
   expect(screen.getByText('Engine Node Generate')).toBeInTheDocument();
   const activityLog = screen.getByRole('region', {name: 'Activity log'});
-  // The timeline maps the scientific_task's node (payload.task 'generate')
-  // to its human phase title.
   expect(activityLog).toHaveTextContent('Live activity');
   expect(activityLog).toHaveTextContent('Generating hypotheses');
   expect(screen.queryByText('Open in NotebookLM')).toBeNull();
@@ -311,9 +286,6 @@ it('shows a skeleton while loading, then the goal details', async () => {
   expect(await screen.findByText('Run Specifications')).toBeInTheDocument();
 });
 
-// A run that died shows its true state — status and recorded error — not
-// report tabs whose content either does not exist or presents a partial run
-// as finished.
 it('renders the failed end state with the recorded error, not report tabs', async () => {
   vi.mocked(runsApi.getRun).mockResolvedValue({
     ...makeRun('Study pathway X'),
@@ -362,18 +334,8 @@ it('renders the cancelled end state without report tabs', async () => {
   expect(screen.queryByText('Run Specifications')).toBeNull();
 });
 
-// A run held at intake produces no ideas, so a reader on the Ideas tab must
-// still learn it is waiting on a person -- not just a reader who happens to
-// open Goal Details, where the safety audit itself lives. Also pins the DOM
-// shape behind a real overlap bug: `.cosci-report-page` is a CSS grid whose
-// grid-rows template is sized for a fixed set of direct children (titlebar,
-// tabs, body), so a banner rendered as a fourth sibling landed in an unsized
-// implicit track and its content overflowed into the heading below. jsdom
-// runs no layout engine, so a pixel/getBoundingClientRect assertion here
-// would compare fabricated zeros -- the verifiable regression check is that
-// the notice lives inside the scrolling content region (alongside
-// ReportUngroundedNotice) rather than beside it, so it never competes for a
-// grid track.
+// jsdom cannot measure overlap; keep safety notices inside the scrolling body,
+// not extra grid tracks.
 it('shows the awaiting-decision notice on every tab, nested in the scroll region', async () => {
   vi.mocked(runsApi.getRun).mockResolvedValue({
     ...makeRun('Study pathway X'),
@@ -404,12 +366,7 @@ it('omits the notice for a paused run with nothing left to review', async () => 
   expect(screen.queryByRole('note')).toBeNull();
 });
 
-// The report page grid is nested inside .ucs-page--report, an ancestor whose
-// own overflow: hidden was relaxed to allow horizontal scrolling (see
-// shell_surface.css) -- an unconditional overflow-hidden here would keep
-// clipping locally before that ancestor ever saw the overflow, making the
-// ancestor fix inert. Vertical scrolling stays owned by the inner
-// .cosci-report-scroll region, so only the x axis is relaxed.
+// Local overflow clipping would defeat the ancestor's horizontal-scroll policy.
 it('lets report-page content scroll horizontally on phone instead of clipping it', async () => {
   renderAt('/runs/run-1/details');
   await screen.findByText('Run Specifications');

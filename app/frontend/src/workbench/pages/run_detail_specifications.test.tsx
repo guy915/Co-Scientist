@@ -63,8 +63,6 @@ describe('run detail specifications', () => {
     });
 
     it('falls back to the bare name for a malformed dict item', () => {
-      // Neither `scale` nor `values` -- shouldn't happen through the cleaned
-      // backend shape, but the renderer must not throw on it.
       const malformed = {name: 'Impact'} as unknown as RunAttribute;
       expect(attributeDisplayString(malformed)).toBe('Impact');
     });

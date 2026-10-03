@@ -1,6 +1,5 @@
-// Reopening (or hard-refreshing) a chat whose run has answered questions
-// must show those exchanges -- an answer that only ever lived in memory is
-// worse than no answer. See use_chat_rehydrate.ts's third effect.
+// Rehydration must recover persisted run Q&A rather than only in-memory
+// exchanges.
 
 import {screen, within} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
@@ -95,7 +94,6 @@ it('shows a run Q&A exchange after reopening the chat', async () => {
       applied: true,
       meta: {sources: []},
     },
-    // A steering message on the same run must not be mistaken for Q&A.
     {
       id: 12,
       run_id: 'run-1',
@@ -169,10 +167,6 @@ it('shows the reasoning a rehydrated Q&A answer persisted', async () => {
   ).toBeInTheDocument();
 });
 
-// The chat's opening exchange -- the scientist's "Start research" and the
-// Agent's reply to it -- reopens the same way its questions do, and the
-// session card carries that reply as its lead-in rather than a canned
-// notice. The local-only bubble this replaced vanished on every reload.
 it('restores the start exchange onto the session card', async () => {
   apiMock.getInterview.mockResolvedValue({
     ...completedInterview(),
@@ -217,10 +211,8 @@ it('restores the start exchange onto the session card', async () => {
 
   renderWorkspace('/chats/interview-1');
 
-  // Wait for the reply, not just for the card: the card is built from the
-  // chats and runs lists, and its lead-in arrives from a later, independent
-  // fetch of the run's messages. Waiting on the card alone reads it while it
-  // is still showing its standby copy.
+  // The card and its lead-in arrive from independent requests; wait for the
+  // reply.
   await screen.findByText('Cold-stress glucose work is under way.');
   const card = screen.getByRole('region', {
     name: 'Started research session',
@@ -228,17 +220,11 @@ it('restores the start exchange onto the session card', async () => {
   expect(
     within(card).getByText('Cold-stress glucose work is under way.'),
   ).toBeInTheDocument();
-  // The reply is the card's lead-in, not a bubble beside it, and the
-  // scientist's own prompt is a bubble outside the card.
   expect(within(card).queryByText('Start research')).not.toBeInTheDocument();
-  // The bubble, not the plan card's own Start control, which carries the
-  // same words.
   const prompt = screen
     .getAllByText('Start research')
     .find(node => node.closest('button') === null);
   expect(prompt).toBeDefined();
-  // The card is re-anchored to the reply it carries, so it sorts below the
-  // prompt rather than at the run's earlier creation time.
   expect(
     prompt!.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();

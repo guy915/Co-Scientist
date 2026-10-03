@@ -33,8 +33,6 @@ describe('run detail active', () => {
     );
   }
 
-  // The pulse dot is the "feed is live" claim; its ring is the only element
-  // carrying the ping animation.
   function hasLivePulse(): boolean {
     return document.querySelector('.animate-ping') !== null;
   }
@@ -64,8 +62,6 @@ describe('run detail active', () => {
   });
 
   it('treats a missing transport state as no signal, not a drop', () => {
-    // A stream double without the field (older test harnesses) must render
-    // exactly as a healthy stream rather than as a degraded one.
     renderView(undefined);
     expect(hasLivePulse()).toBe(true);
     expect(screen.queryByRole('status')).toBeNull();
@@ -100,9 +96,6 @@ describe('run detail activity log', () => {
 
   it('falls back to the legacy node-keyed table when `activity` is absent', () => {
     renderLog([event(1, {task: 'ranking'})]);
-    // The fallback table names the ranking node specifically; the
-    // closed-vocabulary title for the same node's activity must not appear,
-    // proving this rendered through the fallback and not the new table.
     expect(screen.getByText('Ranking tournament')).toBeInTheDocument();
     expect(screen.queryByText('Comparing ideas')).toBeNull();
   });
@@ -124,8 +117,6 @@ describe('run detail activity log', () => {
       event(3, {task: 'review', activity: 'review'}),
       event(4, {task: 'ranking', activity: 'tournament'}),
     ]);
-    // Two separate tournament cards -- the interrupting review event must not
-    // merge them into a single "4 steps" card.
     expect(screen.getByText('Comparing ideas · 2 steps')).toBeInTheDocument();
     expect(screen.getByText('Comparing ideas')).toBeInTheDocument();
     expect(screen.getByText('Reviewing hypotheses')).toBeInTheDocument();
@@ -151,7 +142,6 @@ describe('run detail activity log', () => {
       event(3, {task: 'review', activity: 'review'}),
       event(4, {task: 'review', activity: 'review'}),
     ]);
-    // Only the newest (review) group is still accumulating steps.
     expect(screen.getAllByText('In progress')).toHaveLength(1);
   });
 });

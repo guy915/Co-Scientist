@@ -97,7 +97,7 @@ describe('api key', () => {
     });
 
     it('persists the default for an unknown provider', () => {
-      // Cast: the guard is for values arriving from outside the type.
+      // The guard accepts values arriving outside the declared type.
       setStoredApiProvider('not-a-provider' as never);
       expect(localStorage.getItem(PROVIDER_KEY)).toBe(DEFAULT_BYOK_PROVIDER);
     });

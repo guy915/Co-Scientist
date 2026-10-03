@@ -4,9 +4,6 @@ import * as runsApi from '@/api/runs';
 import {makeHypothesis, makeMatch} from '@/test_fixtures';
 import {makeRun, renderAt} from './run_detail_test_support';
 
-// Controllable stream mock: tests mutate `streamState` then rerender to drive
-// the event-driven refetch effect. `setStream` replaces the events array so its
-// identity changes and the effect re-runs.
 const streamMock = vi.hoisted(() => ({
   state: {events: [] as {seq: number; type: string; payload: object}[]},
 }));
@@ -14,7 +11,6 @@ vi.mock('@/hooks/use_run_stream', () => ({
   useRunStream: () => ({events: streamMock.state.events, terminal: false}),
 }));
 
-// Render tests observe event refreshes immediately; data-hook tests cover timing.
 vi.mock('@/workbench/hooks/timers', async importOriginal => {
   const actual =
     await importOriginal<typeof import('@/workbench/hooks/timers')>();
@@ -54,7 +50,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   setStream([]);
   vi.mocked(runsApi.getRun).mockResolvedValue(makeRun('Study pathway X'));
-  // Reset per-run collection mocks so overrides do not leak between tests.
+  // Reset collection overrides between tests.
   vi.mocked(runsApi.getHypotheses).mockResolvedValue([]);
   vi.mocked(runsApi.getMatches).mockResolvedValue([]);
   vi.mocked(runsApi.getReport).mockResolvedValue(null);
@@ -115,7 +111,6 @@ it('leads the overview with a stat sentence and winning ideas', async () => {
 });
 
 it('omits stat clauses whose data is unavailable', async () => {
-  // No timing on the run, no matches: the duration and matches clauses drop.
   vi.mocked(runsApi.getHypotheses).mockResolvedValue([
     makeHypothesis({id: 'h1', title: 'Sole idea', elo_rating: 1500}),
   ]);

@@ -24,10 +24,9 @@ import {
 } from '@/lib/client_id';
 
 describe('runs', () => {
-  // The api client reads VITE_API_BASE_URL at module load; in the test env it is
-  // unset, so all request URLs are relative (no host prefix).
+  // VITE_API_BASE_URL is captured at import; unset values produce relative
+  // URLs.
 
-  /** Builds a minimal Response-like object that resolves the given JSON body. */
   function jsonResponse(body: unknown): Response {
     return {
       ok: true,
@@ -37,7 +36,6 @@ describe('runs', () => {
     } as unknown as Response;
   }
 
-  /** Builds a Response-like object representing a non-OK HTTP error. */
   function errorResponse(status: number, text = 'boom'): Response {
     return {
       ok: false,
@@ -48,12 +46,10 @@ describe('runs', () => {
     } as unknown as Response;
   }
 
-  /** The mocked global fetch, narrowed to its mock surface. */
   function fetchMock() {
     return globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
   }
 
-  /** Returns the [url, options] pair fetch was invoked with on the first call. */
   function firstCall(): [string, RequestInit | undefined] {
     return fetchMock().mock.calls[0] as [string, RequestInit | undefined];
   }
@@ -119,7 +115,6 @@ describe('runs', () => {
 
       const [url, opts] = firstCall();
       expect(url).toBe('/api/runs');
-      // No explicit method is set on this GET.
       expect(opts?.method).toBeUndefined();
       const headers = opts?.headers as Record<string, string>;
       expect(headers['X-Client-ID']).toBeTruthy();
@@ -219,8 +214,6 @@ describe('runs', () => {
   });
 
   describe('collection fetchers unwrap their keyed payload', () => {
-    // getEvidence/getMatches/getReviews share one shape: GET the run-scoped
-    // endpoint and unwrap the same-named array from the response body.
     const unwrapCases: [string, (id: string) => Promise<unknown>, unknown[]][] =
       [
         ['evidence', getEvidence, [{id: 'e1'}]],
@@ -263,8 +256,7 @@ describe('runs', () => {
   it('merges owned and demo runs, de-duped and sorted newest first', async () => {
     fetchMock().mockImplementation((url: string) => {
       if (url.includes('/demo')) {
-        // Demo runs are appended after owned runs, so a shared id here wins
-        // the de-dup (later demo entries replace owned entries).
+        // Later demo entries win when an owned run shares their id.
         return Promise.resolve(
           jsonResponse({
             runs: [
@@ -385,9 +377,7 @@ describe('runs', () => {
     afterEach(() => clearAccessToken());
 
     it('clears a stored access token when a request returns 401', async () => {
-      // A researcher session token expires server-side after 12h. Without this,
-      // clientHeaders keeps sending the dead Bearer token, every request 401s,
-      // and the tab is bricked until sessionStorage is cleared by hand.
+      // Clear expired tokens or every later request repeats the same 401.
       setAccessToken('expired-token');
       fetchMock().mockResolvedValue(errorResponse(401, 'token expired'));
 
@@ -406,9 +396,8 @@ describe('runs', () => {
     });
 
     it('clears a stored token when a streaming request returns 401', async () => {
-      // createInterview runs on the home page before any run exists, so its
-      // streaming path is the one a stale session hits first; a 401 there must
-      // clear the token too, not just the plain-JSON calls.
+      // Interview streaming is often the first request to encounter an expired
+      // session.
       setAccessToken('expired-token');
       fetchMock().mockResolvedValue(errorResponse(401, 'token expired'));
 
@@ -439,12 +428,8 @@ describe('runs', () => {
 });
 
 describe('runs byok', () => {
-  // Bring-your-own-key transport: the stored key/provider ride along as
-  // X-LLM-API-Key / X-LLM-Provider request headers on run creation and the
-  // interview path (never query parameters). The backend validates the pair
-  // live and stores the key encrypted for the run's lifetime.
+  // BYOK credentials travel in headers, never query parameters.
 
-  /** Builds a minimal Response-like object that resolves the given JSON body. */
   function jsonResponse(body: unknown): Response {
     return {
       ok: true,
@@ -454,7 +439,6 @@ describe('runs byok', () => {
     } as unknown as Response;
   }
 
-  /** Builds a Response-like object representing a non-OK HTTP error. */
   function errorResponse(status: number, text = 'boom'): Response {
     return {
       ok: false,
@@ -465,12 +449,10 @@ describe('runs byok', () => {
     } as unknown as Response;
   }
 
-  /** The mocked global fetch, narrowed to its mock surface. */
   function fetchMock() {
     return globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
   }
 
-  /** Returns the [url, options] pair fetch was invoked with on the first call. */
   function firstCall(): [string, RequestInit | undefined] {
     return fetchMock().mock.calls[0] as [string, RequestInit | undefined];
   }
@@ -568,7 +550,6 @@ describe('runs byok', () => {
     it('sends stored BYOK credentials on interview turns', async () => {
       localStorage.setItem('cosci-api-key', 'sk-byok-2');
       localStorage.setItem('cosci-api-provider', 'gemini');
-      // The error path asserts on the request before any frame is read.
       fetchMock().mockResolvedValue(errorResponse(400, 'rejected'));
 
       await expect(createInterview('a goal')).rejects.toThrow('400');

@@ -27,8 +27,6 @@ describe('chat workspace composer', () => {
 
     expect(screen.getByRole('menu', {name: 'Connectors'})).toBeInTheDocument();
     expect(screen.getByText('Connectors')).toBeInTheDocument();
-    // With no /status answer the menu says so, rather than passing its
-    // fallback off as the deployment's real source list.
     expect(screen.getByText('Checking available sources…')).toBeInTheDocument();
     expect(await screen.findByText(/Sources unavailable/)).toBeInTheDocument();
     expect(screen.queryByText('Google Search')).not.toBeInTheDocument();
@@ -58,8 +56,6 @@ describe('chat workspace composer', () => {
   });
 
   it('omits the web search connector when /status omits it', async () => {
-    // The backend drops the row when a web search would not reach a
-    // provider -- no key configured, or a key the provider now refuses.
     stubStatusConnectors([{id: 'pubmed', display: 'PubMed'}]);
     renderWorkspace();
 
@@ -82,8 +78,6 @@ describe('chat workspace composer', () => {
 
     fireEvent.click(webSearch);
 
-    // Turning web search off must leave the literature toggle untouched: both
-    // rows used to share one boolean, so this is the regression guard.
     expect(
       screen.getByRole('menuitemcheckbox', {name: 'Web search'}),
     ).toHaveAttribute('aria-checked', 'false');
@@ -169,8 +163,8 @@ describe('chat workspace composer attachments', () => {
 });
 
 describe('chat workspace composer suggestions', () => {
-  // The exact suggestion copy lives in one place (SUGGESTIONS); reference it by
-  // index here so re-wording a prompt never breaks these interaction tests.
+  // Use the shared suggestions so prompt rewording cannot break interaction
+  // checks.
   const [FIRST_SUGGESTION, SECOND_SUGGESTION] = SUGGESTIONS;
 
   beforeEach(() => {
@@ -216,7 +210,6 @@ describe('chat workspace composer suggestions', () => {
 
     fireEvent.click(suggestion);
 
-    // The card previews one sentence, but selecting it fills the full prompt.
     expect(screen.getByRole('textbox')).toHaveValue(FIRST_SUGGESTION.prompt);
     expect(suggestion).not.toHaveClass('selected');
     expect(suggestion).not.toHaveClass('is-previewed');

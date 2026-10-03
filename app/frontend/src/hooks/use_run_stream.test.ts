@@ -6,16 +6,10 @@ import {
   type StreamEvent,
 } from './use_run_stream';
 
-/** The mocked global fetch, narrowed to its mock surface. */
 function fetchMock() {
   return globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
 }
 
-/**
- * A controllable SSE body: tests push frames onto it and the hook's
- * `fetch`-based reader (`readSseFrames`) consumes them as they arrive, the
- * same way a real streamed response behaves.
- */
 class FakeSseBody {
   private controller: ReadableStreamDefaultController<Uint8Array> | null = null;
   readonly stream = new ReadableStream<Uint8Array>({
@@ -25,25 +19,21 @@ class FakeSseBody {
   });
   private readonly encoder = new TextEncoder();
 
-  /** Enqueues one SSE frame carrying the given event as its JSON payload. */
   push(ev: Partial<StreamEvent>): void {
     this.controller?.enqueue(
       this.encoder.encode(`data: ${JSON.stringify(ev)}\n\n`),
     );
   }
 
-  /** Enqueues one raw (non-JSON) SSE frame, to exercise the parse-error path. */
   pushRaw(data: string): void {
     this.controller?.enqueue(this.encoder.encode(`data: ${data}\n\n`));
   }
 
-  /** Ends the stream as the server closing the connection normally. */
   end(): void {
     this.controller?.close();
   }
 }
 
-/** Builds a Response-like object streaming from `body`. */
 function streamingResponse(body: FakeSseBody): Response {
   return {
     ok: true,
@@ -54,7 +44,6 @@ function streamingResponse(body: FakeSseBody): Response {
   } as unknown as Response;
 }
 
-/** Builds a Response-like object representing a non-OK HTTP error. */
 function errorResponse(status: number): Response {
   return {
     ok: false,
@@ -65,11 +54,7 @@ function errorResponse(status: number): Response {
   } as unknown as Response;
 }
 
-/**
- * Queues fetch responses in order; a call beyond the queue hangs (mirrors a
- * connection attempt still in flight), which is what a test asserting "no
- * further attempt happened yet" relies on.
- */
+// An exhausted response queue hangs to model a connection still in flight.
 function queueFetch(...responses: Response[]): void {
   const queue = [...responses];
   fetchMock().mockImplementation(() => {
@@ -80,14 +65,8 @@ function queueFetch(...responses: Response[]): void {
   });
 }
 
-/**
- * Advances fake timers by `ms` inside `act`, letting a chained read -> decode
- * -> batch -> flush pipeline settle. Unlike the synchronous `onmessage` a
- * native `EventSource` delivers, each hop here is its own microtask
- * boundary, so `vitest`'s async-aware timer advance (which yields between
- * each timer it fires) is what actually drains the chain rather than a
- * single real `setTimeout(0)`.
- */
+// Async timer advancement drains the microtask-separated read/decode/flush
+// chain.
 async function settle(ms = 0): Promise<void> {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(ms);
@@ -142,9 +121,7 @@ it('accumulates streamed events and reports the open state', async () => {
 });
 
 it('drops replayed events so a reconnect cannot duplicate the timeline', async () => {
-  // Every reconnect replays from seq=0, so the same seqs can arrive twice
-  // across attempts (or within one, on a burst); dedup keeps the second
-  // pass a no-op.
+  // Reconnects replay from zero, so duplicate sequence numbers are expected.
   const body = new FakeSseBody();
   queueFetch(streamingResponse(body));
   const {result} = renderHook(() => useRunStream('run-1'));
@@ -172,9 +149,7 @@ describe('terminal events', () => {
     await settle();
 
     expect(result.current.terminal).toBe(true);
-    // The terminal sentinel itself is not appended to the timeline.
     expect(result.current.events).toHaveLength(1);
-    // No further attempt follows a deliberate terminal stop.
     await settle(RECONNECT_DELAY_MS);
     expect(fetchMock().mock.calls).toHaveLength(1);
   });
@@ -191,8 +166,6 @@ describe('malformed payloads', () => {
     firstBody.pushRaw('not json{');
     await settle();
 
-    // The bad frame ends that attempt without surfacing a bogus event or
-    // throwing out of the hook; the retry timer then opens a new attempt.
     expect(result.current.events).toEqual([]);
     await settle(RECONNECT_DELAY_MS);
     expect(fetchMock().mock.calls.length).toBeGreaterThan(1);

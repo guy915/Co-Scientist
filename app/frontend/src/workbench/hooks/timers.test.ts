@@ -35,7 +35,6 @@ it('resets the timer when a new toast replaces the current one', async () => {
   await act(async () => vi.advanceTimersByTime(2000));
   await act(async () => result.current.setToast('second'));
 
-  // The original 3s window would have elapsed here, but the timer restarted.
   await act(async () => vi.advanceTimersByTime(2000));
   expect(result.current.toast).toEqual({message: 'second'});
 

@@ -11,8 +11,6 @@ import {
 beforeEach(() => installLayoutMocks());
 afterEach(() => vi.useRealTimers());
 
-// The clipboard payload is a context preamble followed by the entries as
-// JSON under a marker line; tests assert on the parsed entries.
 function copiedEntries(text: string): Record<string, unknown>[] {
   const json = text.slice(text.indexOf(EXPORT_LOGS_MARKER));
   return JSON.parse(json.slice(EXPORT_LOGS_MARKER.length)) as Record<
@@ -52,7 +50,6 @@ it('clears the persisted log from the Clear action', async () => {
   });
   fireEvent.click(screen.getByRole('button', {name: 'Clear'}));
 
-  // Clear deletes server-side, not just in this tab's memory.
   await waitFor(() => expect(logsApiMock.deleteAppLogs).toHaveBeenCalled());
   expect(
     await screen.findByText('No diagnostic events loaded.'),
@@ -81,7 +78,6 @@ it('copies the newest COPY_LIMIT entries, not the whole session', async () => {
   renderLayout();
 
   fireEvent.click(await screen.findByRole('button', {name: /Logs 140/i}));
-  // The full window loads when the popover opens; Copy reads it.
   await screen.findByText(/record 140/);
   fireEvent.click(screen.getByRole('button', {name: 'Copy'}));
 
@@ -90,7 +86,6 @@ it('copies the newest COPY_LIMIT entries, not the whole session', async () => {
     payload: {message: string};
   }[];
   expect(copied).toHaveLength(COPY_LIMIT);
-  // The newest tail, not the oldest head.
   expect(copied[0].payload.message).toBe('record 41');
   expect(copied[COPY_LIMIT - 1].payload.message).toBe('record 140');
 });
@@ -116,7 +111,6 @@ it('copies the real store ids, not the display numbers', async () => {
   renderLayout();
 
   fireEvent.click(await screen.findByRole('button', {name: /Logs 2/i}));
-  // The full window loads when the popover opens; Copy reads it.
   await screen.findByText(/record 30/);
   fireEvent.click(screen.getByRole('button', {name: 'Copy'}));
 
@@ -125,13 +119,11 @@ it('copies the real store ids, not the display numbers', async () => {
     id: number;
     number: number;
   }[];
-  // Copy stays cross-referenceable with `cosci logs` and after_id
-  // cursors, which speak store ids.
+  // Exports retain store ids for backend cursor cross-references.
   expect(copied.map(entry => entry.id)).toEqual([12, 30]);
   expect(copied.map(entry => entry.number)).toEqual([1, 2]);
 });
 
-// One INFO record, enough to open the panel and copy from it.
 function oneRecordPayload() {
   return {
     logs: [
@@ -164,8 +156,6 @@ it('prefixes the copied logs with an explanatory preamble', async () => {
 
   await waitFor(() => expect(writeText).toHaveBeenCalled());
   const text = writeText.mock.calls[0][0] as string;
-  // A pasted export explains itself: what the log is, what it omits,
-  // where it was taken, and how to read the two id columns.
   expect(text).toContain('=== ABOUT THESE DIAGNOSTIC LOGS ===');
   expect(text).toContain('=== WHAT THIS TRACKS ===');
   expect(text).toContain('=== SESSION DETAILS ===');
@@ -177,8 +167,8 @@ it('prefixes the copied logs with an explanatory preamble', async () => {
 });
 
 it('returns the Copy button to "Copy" after the confirmation', async () => {
-  // Real time still advances, so the render's own awaits resolve; only
-  // the "Copied" timeout is driven by hand.
+  // Keep real time for render awaits while manually driving only the copy
+  // timeout.
   vi.useFakeTimers({shouldAdvanceTime: true});
   logsApiMock.getAppLogs.mockResolvedValue(oneRecordPayload());
   const writeText = vi.fn().mockResolvedValue(undefined);
@@ -190,8 +180,6 @@ it('returns the Copy button to "Copy" after the confirmation', async () => {
   fireEvent.click(screen.getByRole('button', {name: 'Copy'}));
   expect(await screen.findByRole('button', {name: 'Copied'})).toBeTruthy();
 
-  // "Copied" is confirmation, not a mode: the label expires on its own so
-  // a second copy is never left guessing whether it took.
   act(() => {
     vi.advanceTimersByTime(2_000);
   });

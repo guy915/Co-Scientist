@@ -52,8 +52,7 @@ test('inserts a newline on Shift+Enter instead of submitting', () => {
 });
 
 test('does not submit on Enter while the submit button is disabled', () => {
-  // requestSubmit() ignores the submit button's disabled state, so Enter has
-  // to be gated on the same condition or it bypasses the greyed-out button.
+  // requestSubmit ignores disabled buttons; Enter must enforce the same guard.
   const {onSubmit} = renderComposer({input: '   '});
   fireEvent.keyDown(screen.getByRole('textbox'), {key: 'Enter'});
   expect(onSubmit).not.toHaveBeenCalled();
@@ -61,8 +60,6 @@ test('does not submit on Enter while the submit button is disabled', () => {
 
 test('blocks only submitting while the session is busy', () => {
   renderComposer({input: 'a goal', busy: true});
-  // Busy means "there is nothing to send this to yet", not "go away": the
-  // textarea must stay usable so the next message can be written meanwhile.
   expect(screen.getByRole('textbox')).toBeEnabled();
   expect(
     screen.getByRole('button', {name: /send|start|research/i}),
@@ -74,15 +71,13 @@ test('keeps focus and accepts typing while the session is busy', () => {
   const textarea = screen.getByRole('textbox');
   textarea.focus();
   fireEvent.change(textarea, {target: {value: 'a goal, refined'}});
-  // Disabling a focused element blurs it, which is what used to eject the
-  // caret mid-response and force a click to get back in.
+  // Disabling a focused textarea blurs it and ejects the caret mid-response.
   expect(textarea).toHaveFocus();
   expect(setInput).toHaveBeenCalledWith('a goal, refined');
 });
 
 test('takes focus on mount when asked, even while busy', () => {
-  // The in-conversation composer mounts busy, replacing the home one mid
-  // send; without this the caret lands on the body and typing needs a click.
+  // Replacing the home composer mid-send must preserve focus.
   renderComposer({input: 'a goal', busy: true, autoFocus: true});
   expect(screen.getByRole('textbox')).toHaveFocus();
 });

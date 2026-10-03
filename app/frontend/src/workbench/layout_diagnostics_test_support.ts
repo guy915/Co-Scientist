@@ -3,7 +3,6 @@ import {expect} from 'vitest';
 import type {AppLogRecord} from '@/api/logs';
 import {logsApiMock} from './layout_test_support';
 
-/** Builds an {@link AppLogRecord} with sane defaults for the given id. */
 export function logRecord(
   id: number,
   overrides: Partial<AppLogRecord> = {},
@@ -21,7 +20,7 @@ export function logRecord(
   };
 }
 
-/** jsdom does no layout, so the list's scroll geometry is stubbed. */
+// jsdom performs no layout; stub the list's scroll geometry.
 export function stubListGeometry(list: HTMLElement): void {
   Object.defineProperty(list, 'scrollHeight', {
     configurable: true,
@@ -33,12 +32,8 @@ export function stubListGeometry(list: HTMLElement): void {
   });
 }
 
-/**
- * Waits for the mount-time log loads to settle — including the remount
- * caused by the navigation-log version bump — so racing requests issued
- * afterwards belong to the same effect generation (the `disposed` guard
- * must not be what saves us).
- */
+// Settle remount-time loads so racing requests share one effect generation, not
+// disposal guards.
 export async function settleMountTimeLoads(): Promise<void> {
   await waitFor(() =>
     expect(logsApiMock.getAppLogs.mock.calls.length).toBeGreaterThanOrEqual(2),

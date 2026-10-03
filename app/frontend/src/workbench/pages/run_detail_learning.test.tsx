@@ -34,10 +34,8 @@ describe('run detail learning', () => {
     },
   ];
 
-  // Evidence titles carrying scientific terms whose casing must survive
-  // title-casing verbatim: an all-caps abbreviation glued to lowercase letters
-  // ("mRNA") and a Greek-letter prefix ("α-synuclein") that journals set
-  // lowercase, both of which naive per-word capitalization mangles.
+  // Scientific casing such as mRNA and lowercase Greek prefixes must survive
+  // title formatting.
   const scientificTermEvidence = [
     {
       id: 'ev-mrna',
@@ -63,8 +61,8 @@ describe('run detail learning', () => {
     },
   ];
 
-  // Four references so a topic can cite non-adjacent positions, which is what
-  // distinguishes real reference numbers from a per-topic 1..N counter.
+  // Non-adjacent references distinguish global numbering from per-topic
+  // counters.
   const numberedEvidence = ['ev-a', 'ev-b', 'ev-c', 'ev-d'].map(
     (id, index) => ({
       id,
@@ -195,8 +193,6 @@ describe('run detail learning', () => {
         'title',
         'The full source could not be reached when this evidence was gathered',
       );
-      // The row still carries a url, but an unreachable source must not render
-      // the normal "Open" action beside it.
       expect(screen.queryByRole('link', {name: 'Open'})).toBeNull();
     });
 
@@ -284,10 +280,8 @@ describe('run detail learning', () => {
 });
 
 describe('run detail retrieval degraded', () => {
-  // The run-level retrieval notice on the Summary tab: a run that could
-  // reach no literature source says so at the top of its report. Unlike a
-  // degraded section, nothing else in the output hints at it -- the ideas,
-  // reviews and tournament all look exactly like a healthy run's.
+  // Empty literature retrieval is otherwise invisible in a seemingly complete
+  // report.
 
   function renderWithReport(
     payloadOverrides: Parameters<typeof makeReport>[0],
@@ -337,8 +331,6 @@ describe('run detail retrieval degraded', () => {
   });
 
   it('drops a capability name it has no words for', () => {
-    // An engine that grows a new one should not print its identifier at a
-    // reader; the sentence is still true without it.
     renderWithReport({
       retrieval_degradation: {
         reason: 'mcp_unreachable',
@@ -399,14 +391,11 @@ describe('run detail insights', () => {
     expect(
       screen.getByText('The claimed affinity is unproven.'),
     ).toBeInTheDocument();
-    // The three fields must never be flattened back into an object repr.
     expect(document.body.textContent).not.toContain("{'focus_area'");
     expect(document.body.textContent).not.toContain('"focus_area"');
   });
 
   it('hides a section whose entries are all blank', () => {
-    // The list length alone used to decide whether a heading rendered, so a list
-    // of empty strings produced a heading with nothing beneath it.
     render(
       <AgentInsightsSection
         insights={makeInsights({contradictions: ['', '   ']})}
@@ -420,8 +409,7 @@ describe('run detail insights', () => {
   });
 
   it('still renders a recommendation from an older persisted report', () => {
-    // Report payloads are stored, so reports written before recommendations
-    // kept their three fields hold one flattened string per entry.
+    // Persisted older recommendations can contain flattened strings.
     render(
       <AgentInsightsSection
         insights={makeInsights({
@@ -452,8 +440,6 @@ describe('run detail insights', () => {
   });
 
   it('flags a meta-review that degraded to a fallback', () => {
-    // L7: the meta-review-derived lists are blank after a fallback, so the
-    // section must say generation failed instead of showing silence.
     render(<AgentInsightsSection insights={makeInsights()} degraded />);
 
     expect(

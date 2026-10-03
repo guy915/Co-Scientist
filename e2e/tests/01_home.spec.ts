@@ -1,22 +1,15 @@
 import {expect, test} from '../support/fixtures';
 
 test.describe('home', () => {
-// Flow: the faithful session-home page lists the seeded demo runs in Recents.
-// This also doubles as the plumbing smoke -- it is the first thing that must
-// work, since it proves both servers booted, the frontend reached the
-// isolated backend cross-origin, and the seeded demo data rendered.
-//
 test('faithful home lists seeded demo runs in recents', async ({page}) => {
   await page.goto('/');
 
-  // The desktop Recents panel is the app's own shell chrome.
   await expect(page.getByRole('heading', {name: /recents/i})).toBeVisible();
 
   const recents = page.getByRole('complementary', {name: /recent runs/i});
 
-  // Wait for the 3 seeded demo runs to land first: the panel mounts empty and
-  // swaps them in once loadRunHistory() resolves, so asserting the empty
-  // state before this settles races that fetch.
+  // Wait for seeded demos before checking an empty panel or the history fetch
+  // can race it.
   await expect(recents.getByRole('link')).toHaveCount(3);
   await expect(
     recents.getByText(/you have not started any sessions yet/i),
@@ -25,8 +18,6 @@ test('faithful home lists seeded demo runs in recents', async ({page}) => {
 });
 
 test.describe('not found', () => {
-// Flow: an unknown route renders the 404 page (the catch-all `*` route in
-// workbench_app.tsx).
 test('unknown route shows the 404 page', async ({page}) => {
   await page.goto('/this/route/definitely/does/not/exist');
 

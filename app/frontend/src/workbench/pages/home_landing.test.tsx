@@ -36,12 +36,6 @@ it('answers what the app is and how to start a run', () => {
   ).toBeInTheDocument();
 });
 
-// The FAQ used to carry a "Are there keyboard shortcuts?" entry, because the
-// two shortcuts it described had no other discoverable surface. Both are
-// gone, and the FAQ is the one place a reader would look to find out that
-// they exist -- documenting a binding the app no longer honors would be
-// worse than saying nothing, so the entry has to go with them. See
-// layout.test.tsx for the check that none came back.
 it('promises no keyboard shortcuts', () => {
   renderLanding();
   const faq = document.getElementById('faq')!;
@@ -66,7 +60,6 @@ it('shows each tier with the pool sizes the backend runs', () => {
     within(tiers)
       .getAllByText(/^\d+$/)
       .map(el => el.textContent);
-  // Standard is the default tier.
   expect(stats()).toEqual(['32', '8', '2']);
   fireEvent.click(within(tiers).getByRole('button', {name: 'Ultra'}));
   expect(stats()).toEqual(['96', '16', '4']);

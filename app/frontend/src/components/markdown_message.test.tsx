@@ -14,14 +14,11 @@ describe('markdown message', () => {
       expect(screen.getByRole('list')).toBeInTheDocument();
       expect(screen.getAllByRole('listitem')).toHaveLength(2);
       expect(screen.getByText('Primary').tagName).toBe('STRONG');
-      // The literal markdown must not survive into the rendered text.
       expect(screen.queryByText(/\*\*Primary\*\*/)).toBeNull();
     });
 
     it('gives emphasis weight but never a color of its own', () => {
-      // The thinking trail renders through this too, in grey. Naming a
-      // foreground color here made bold text inside it jump to the reply's
-      // color and read as a different voice.
+      // Inherited foreground color keeps bold reasoning in the same voice.
       render(<MarkdownMessage content={'A **bold** word'} />);
 
       const strong = screen.getByText('bold');
@@ -46,14 +43,13 @@ describe('markdown message', () => {
       const link = screen.getByRole('link', {name: 'PubMed'});
       expect(link).toHaveAttribute('href', 'https://pubmed.gov');
       expect(link).toHaveAttribute('target', '_blank');
-      // A citation must not navigate the workspace away from a live chat, and
-      // the opened page gets neither a window handle nor the referrer.
+      // Citation links must preserve the live workspace and withhold
+      // opener/referrer access.
       expect(link).toHaveAttribute('rel', 'noopener noreferrer');
     });
 
     it('does not render raw HTML embedded in model output', () => {
-      // This renders untrusted model output, so `rehype-raw` is deliberately
-      // absent: an <img onerror> in a reply is text, never an element.
+      // Model output is untrusted; raw HTML must remain inert text.
       render(
         <MarkdownMessage content={'<img src=x onerror="alert(1)"> and text'} />,
       );
@@ -65,19 +61,14 @@ describe('markdown message', () => {
 });
 
 describe('markdown message blocks', () => {
-  // The whole-message renderer emits a whitespace-only text node ("\n")
-  // between top-level block elements; splitting parses each block in
-  // isolation and never produces one. That whitespace collapses under normal
-  // CSS whitespace handling either way, so it is irrelevant to what the
-  // reader sees -- normalize it away rather than asserting on it.
+  // Whole-message parsing adds inter-block whitespace that normal CSS
+  // collapses; normalize it away.
   const normalize = (html: string) => html.replace(/>\s+</g, '><').trim();
 
   describe('MarkdownMessage per-block splitting', () => {
     it('renders identical DOM for a multi-block message, split or not', () => {
       const content = '# Heading\n\nA paragraph with **bold**.\n\n- one\n- two';
       const {container} = render(<MarkdownMessage content={content} />);
-      // A single block by construction: the whole-message path, unaffected by
-      // splitting, is what "identical to before" is measured against.
       const {container: singleBlock} = render(
         <MarkdownMessage content="A paragraph." />,
       );
@@ -93,11 +84,8 @@ describe('markdown message blocks', () => {
     });
 
     it('keeps every block a direct sibling of the wrapper, in source order', () => {
-      // This is the structural fact that keeps `first:`/`last:` correct after
-      // splitting: those are DOM-tree pseudo-classes, and jsdom does not
-      // apply Tailwind's compiled CSS, so this is the honest way to pin it --
-      // no extra wrapper element per block, same flat sibling list as one
-      // instance would have produced.
+      // jsdom cannot apply compiled CSS; flat siblings preserve first:/last:
+      // semantics.
       const content = '# Heading\n\nA paragraph.\n\n- one\n- two';
       const {container} = render(<MarkdownMessage content={content} />);
       const wrapper = container.firstElementChild!;
@@ -112,9 +100,7 @@ describe('markdown message blocks', () => {
     });
 
     it('resolves a reference-style link whose definition sits in a later block', () => {
-      // Definitions are document-scoped: severed from its block, this link
-      // would render as literal `[docs][d]` text. Proves the whole-message
-      // fallback actually fires, not just that the splitter reports it would.
+      // Reference definitions are document-scoped, so splitting must fall back.
       render(
         <MarkdownMessage
           content={
@@ -136,9 +122,6 @@ describe('markdown message blocks', () => {
         />,
       );
 
-      // querySelector on the wrapper excludes the wrapper itself, so this
-      // finds only an element the markdown produced -- none, since the two
-      // HTML blocks must stay literal text.
       expect(container.firstElementChild!.querySelector('div')).toBeNull();
       expect(screen.getByText(/plain text/)).toBeInTheDocument();
     });
@@ -157,7 +140,6 @@ describe('markdown message code', () => {
     });
   }
 
-  /** The header row's text, read off the copy button's parent element. */
   function codeHeaderText() {
     const button = screen.getByRole('button', {name: /copy code|copied/i});
     return button.parentElement?.textContent ?? '';
@@ -187,11 +169,8 @@ describe('markdown message code', () => {
     });
 
     it('zeroes the inner pre margin so the card opens/closes flush', () => {
-      // The user-agent stylesheet gives <pre> a `margin: 1em 0` default.
-      // jsdom does not apply the compiled Tailwind sheet, so the class is
-      // the only thing this test can pin -- but it is also the actual fix:
-      // without it, that UA margin opens a blank strip under the header bar
-      // and another above the card's bottom edge, on top of the p-3 padding.
+      // User-agent pre margins add blank strips; jsdom can only verify the
+      // override class.
       const {container} = render(
         <MarkdownMessage content={'```js\nconst x = 1;\n```'} />,
       );
@@ -226,11 +205,8 @@ describe('markdown message code', () => {
       fireEvent.click(screen.getByRole('button', {name: /copy code/i}));
 
       await waitFor(() => expect(writeText).toHaveBeenCalled());
-      // The message survives: the code (split across highlight-token spans,
-      // hence textContent rather than a single text node) is still on
-      // screen, and the button still reports success -- copyText's
-      // execCommand fallback absorbed the rejection, nothing unmounted or
-      // threw past the click handler.
+      // Highlighting splits code into spans, requiring textContent rather than
+      // a single text node.
       expect(container.querySelector('code')?.textContent).toContain(
         'const x = 1;',
       );

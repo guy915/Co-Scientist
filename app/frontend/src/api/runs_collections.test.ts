@@ -161,11 +161,6 @@ describe('runs outcomes', () => {
 });
 
 describe('runs interviews', () => {
-  // Tests for the runs.ts field-editing client. The api client
-  // reads VITE_API_BASE_URL at module load; in the test env it is unset, so
-  // all request URLs are relative (no host).
-
-  /** Builds a Response-like object carrying a JSON body. */
   function jsonResponse(status: number, body: unknown): Response {
     return {
       ok: status >= 200 && status < 300,
@@ -176,12 +171,10 @@ describe('runs interviews', () => {
     } as unknown as Response;
   }
 
-  /** The mocked global fetch, narrowed to its mock surface. */
   function fetchMock() {
     return globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
   }
 
-  /** Returns the [url, options] pair fetch was invoked with on the first call. */
   function firstCall(): [string, RequestInit | undefined] {
     return fetchMock().mock.calls[0] as [string, RequestInit | undefined];
   }

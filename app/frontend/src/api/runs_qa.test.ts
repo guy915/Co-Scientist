@@ -7,11 +7,6 @@ import {
 } from './runs';
 
 describe('runs qa', () => {
-  // askRunQuestion streams sources/chunk/error frames through QaSinks and
-  // resolves the persisted question id from `done`; getRunMessages unwraps the
-  // `messages` envelope. Mirrors the SSE test harness in use_run_stream.test.ts.
-
-  /** A controllable SSE body: tests push frames and the reader consumes them. */
   class FakeSseBody {
     private controller: ReadableStreamDefaultController<Uint8Array> | null =
       null;
@@ -142,11 +137,6 @@ describe('runs qa', () => {
 });
 
 describe('runs start', () => {
-  // announceRunStart streams the Agent's reply to "Start research" through its
-  // two sinks and resolves what the terminal `done` frame reports. Mirrors the
-  // SSE test harness in runs_qa.test.ts.
-
-  /** A controllable SSE body: tests push frames and the reader consumes them. */
   class FakeSseBody {
     private controller: ReadableStreamDefaultController<Uint8Array> | null =
       null;

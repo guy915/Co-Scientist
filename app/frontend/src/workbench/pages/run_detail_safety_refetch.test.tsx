@@ -8,9 +8,6 @@ import {RunHistoryProvider} from '@/workbench/hooks/history_context';
 import {RunDetail} from './run_detail';
 import {makeRun, renderAt} from './run_detail_test_support';
 
-// Controllable stream mock: tests mutate `streamState` then rerender to drive
-// the event-driven refetch effect. `setStream` replaces the events array so its
-// identity changes and the effect re-runs.
 const streamMock = vi.hoisted(() => ({
   state: {events: [] as {seq: number; type: string; payload: object}[]},
 }));
@@ -18,7 +15,6 @@ vi.mock('@/hooks/use_run_stream', () => ({
   useRunStream: () => ({events: streamMock.state.events, terminal: false}),
 }));
 
-// Render tests observe event refreshes immediately; data-hook tests cover timing.
 vi.mock('@/workbench/hooks/timers', async importOriginal => {
   const actual =
     await importOriginal<typeof import('@/workbench/hooks/timers')>();
@@ -50,7 +46,6 @@ vi.mock('@/api/runs', async importActual => {
   };
 });
 
-// A decision as the API returns it, with only the fields the audit reads.
 function decision(fields: Partial<SafetyDecision> & {id: number}) {
   return {
     stage: 'claim_gate',
@@ -80,7 +75,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   setStream([]);
   vi.mocked(runsApi.getRun).mockResolvedValue(makeRun('Study pathway X'));
-  // Reset per-run collection mocks so overrides do not leak between tests.
+  // Reset collection overrides between tests.
   vi.mocked(runsApi.getHypotheses).mockResolvedValue([]);
   vi.mocked(runsApi.getMatches).mockResolvedValue([]);
   vi.mocked(runsApi.getReport).mockResolvedValue(null);
@@ -99,9 +94,6 @@ it('shows a held safety decision without offering to resolve it', async () => {
     await screen.findByRole('heading', {name: 'Safety audit'}),
   ).toBeInTheDocument();
   expect(screen.getByText(/Ambiguous dual-use intent/)).toBeInTheDocument();
-  // Adjudicating releases withheld content into a run that then continues on
-  // its own, so the audit reports and never acts: no control here resolves a
-  // decision, and none may be reintroduced without that being a decision.
   expect(screen.queryByRole('button')).toBeNull();
 });
 
@@ -128,8 +120,6 @@ it('renders a held-for-review hypothesis', async () => {
   expect(
     await screen.findByRole('heading', {name: 'Safety audit'}),
   ).toBeInTheDocument();
-  // The held idea is surfaced as an explicit held-for-review item carrying
-  // the screen's rationale and the idea text, not a generic stage row.
   expect(screen.getByText('Held for review:')).toBeInTheDocument();
   expect(screen.getByText(/obfuscated intent/)).toBeInTheDocument();
   expect(
@@ -157,13 +147,9 @@ it('shows only the final verdict, not the per-hypothesis gate rows', async () =>
   ).toBeInTheDocument();
   expect(screen.queryByText(/Intake ok\./)).toBeNull();
   expect(screen.queryByText(/lack support/)).toBeNull();
-  // The stage prefix goes with them -- the paragraph stands alone.
   expect(screen.queryByText('final:')).toBeNull();
 });
 
-// The summary paragraph is the *last* final-stage row. A final hold that
-// still needs review is that row, so it must be rendered as the summary
-// rather than dropped for being excluded from the reviewable list.
 it('surfaces an unresolved final-stage hold', async () => {
   vi.mocked(runsApi.getSafety).mockResolvedValue([
     decision({
@@ -189,16 +175,12 @@ it('shows a recorded resolution when one exists', async () => {
   renderAt('/runs/run-1/specifications');
 
   await screen.findByRole('heading', {name: 'Safety audit'});
-  // Resolving happens through the API, and the audit reflects the outcome.
   expect(screen.getByText('Resolution: approved')).toBeInTheDocument();
 });
 
 it('refetches on a coalesced batch ending in status with data', async () => {
   const getRun = vi.mocked(runsApi.getRun);
-  // A fresh element each render — passing the same reference makes React
-  // bail out of re-rendering, so the mutated stream would never be re-read.
-  // RunDetail seeds a run's activity from the shared run history, so the
-  // provider is part of its harness (see renderAt).
+  // Create a fresh React element per render so mutated stream state is reread.
   const makeUi = () => (
     <MemoryRouter initialEntries={['/runs/run-1/specifications']}>
       <RunHistoryProvider>
@@ -215,14 +197,10 @@ it('refetches on a coalesced batch ending in status with data', async () => {
   await screen.findByText('Run Specifications');
   const afterMount = getRun.mock.calls.length;
 
-  // A pure-status delta must not refetch (preserves the original filter).
   setStream([{seq: 1, type: 'status', payload: {}}]);
   rerender(makeUi());
   expect(getRun.mock.calls.length).toBe(afterMount);
 
-  // A batch whose newest event is 'status' but which carries a data event
-  // must still refetch. The old tail-only check skipped this; the batch
-  // scan fixes it. This assertion fails against the pre-fix implementation.
   setStream([
     {seq: 1, type: 'status', payload: {}},
     {seq: 2, type: 'generate', payload: {}},

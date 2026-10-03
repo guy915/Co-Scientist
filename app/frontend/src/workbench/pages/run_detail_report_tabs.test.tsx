@@ -11,9 +11,6 @@ import {clearAccessToken, setAccessToken} from '@/lib/client_id';
 import {makeHypothesis} from '@/test_fixtures';
 import {makeRun, renderAt, tab} from './run_detail_test_support';
 
-// Controllable stream mock: tests mutate `streamState` then rerender to drive
-// the event-driven refetch effect. `setStream` replaces the events array so its
-// identity changes and the effect re-runs.
 const streamMock = vi.hoisted(() => ({
   state: {events: [] as {seq: number; type: string; payload: object}[]},
 }));
@@ -21,7 +18,6 @@ vi.mock('@/hooks/use_run_stream', () => ({
   useRunStream: () => ({events: streamMock.state.events, terminal: false}),
 }));
 
-// Render tests observe event refreshes immediately; data-hook tests cover timing.
 vi.mock('@/workbench/hooks/timers', async importOriginal => {
   const actual =
     await importOriginal<typeof import('@/workbench/hooks/timers')>();
@@ -64,7 +60,7 @@ beforeEach(() => {
   clearAccessToken();
   setStream([]);
   vi.mocked(runsApi.getRun).mockResolvedValue(makeRun('Study pathway X'));
-  // Reset per-run collection mocks so overrides do not leak between tests.
+  // Reset collection overrides between tests.
   vi.mocked(runsApi.getHypotheses).mockResolvedValue([]);
   vi.mocked(runsApi.getHypothesisOutcomes).mockResolvedValue([]);
   vi.mocked(runsApi.getHypothesisOutcomeRefinement).mockRejectedValue(
@@ -323,7 +319,6 @@ it('marks the Goal Details tab active for the base URL', async () => {
 });
 
 it('resolves a tab alias in the URL to its canonical tab', async () => {
-  // "specs" aliases to Goal Details.
   renderAt('/runs/run-1/specs');
   await screen.findByText('Run Specifications');
   expect(tab(/Goal Details/)).toHaveAttribute('aria-current', 'page');
@@ -336,8 +331,6 @@ it('activates the tab named directly in the URL', async () => {
 });
 
 it('renders each tab as a link to its canonical route', async () => {
-  // Anchors rather than buttons, so a middle- or cmd-click opens the tab in
-  // a new browser tab.
   renderAt('/runs/run-1');
   await screen.findByText('All Ideas');
   expect(tab(/^Goal Details$/)).toHaveAttribute('href', '/runs/run-1/details');
@@ -350,7 +343,6 @@ it('renders each tab as a link to its canonical route', async () => {
 });
 
 it('links to the canonical tab even from an aliased URL', async () => {
-  // "specs" aliases to details; the nav never links back to the alias.
   renderAt('/runs/run-1/specs');
   await screen.findByText('All Ideas');
   expect(tab(/^Goal Details$/)).toHaveAttribute('href', '/runs/run-1/details');
@@ -367,10 +359,6 @@ it('navigates when a tab is clicked', async () => {
   );
 });
 
-// The nav strip is a real <nav> of links, not a tablist, so the content
-// region below it carries its own accessible name instead of an
-// aria-controls/tabpanel relationship -- otherwise a screen-reader user
-// landing in the region has no way to tell which section they arrived in.
 it("labels the content region with the active tab's name", async () => {
   renderAt('/runs/run-1/overview');
   await screen.findByText('Summary');
@@ -392,10 +380,6 @@ const EVIDENCE_ROW = {
   retracted: false,
 } as Evidence;
 
-// A completed run whose literature retrieval returned nothing still reads
-// categorically unless flagged; offline-backed runs are illustrative
-// fixtures and exempt (mirrors store.run_used_offline's exemption of the
-// "Unverified" badge in GET /hypotheses).
 it('flags a completed run with no retrieved evidence as ungrounded', async () => {
   vi.mocked(runsApi.getRun).mockResolvedValue({
     ...makeRun('Study pathway X'),
@@ -451,8 +435,7 @@ it('exempts offline-backed runs from the ungrounded notice', async () => {
 });
 
 it('exempts legacy mock-provider runs from the ungrounded notice', async () => {
-  // Rows created before the llm_backend column existed fall back to the
-  // provider: the mock provider was always offline-backed.
+  // Pre-llm_backend rows use provider to identify offline provenance.
   vi.mocked(runsApi.getRun).mockResolvedValue({
     ...makeRun('Study pathway X'),
     provider: 'mock',

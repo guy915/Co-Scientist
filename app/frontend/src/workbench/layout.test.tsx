@@ -38,8 +38,6 @@ describe('layout logs', () => {
         button.querySelector('span')?.textContent?.trim(),
       ),
     ).toEqual(['Clear', 'Copy', 'Report']);
-    // Report is present but inert until the server can send mail, and says so
-    // rather than leaving the scientist to discover it by clicking.
     const report = screen.getByRole('button', {name: /Report/});
     expect(report).toBeDisabled();
     expect(report).toHaveAttribute(
@@ -55,9 +53,6 @@ describe('layout logs', () => {
     renderLayout();
     await screen.findByRole('button', {name: /Logs 0/i});
 
-    // A client record was persisted somewhere (e.g. a button click was
-    // logged): the api layer announces it and the badge updates without
-    // the popover ever being opened.
     logsApiMock.getAppLogs.mockResolvedValue({
       logs: [
         {
@@ -87,7 +82,6 @@ describe('layout logs', () => {
     vi.useFakeTimers();
     try {
       renderLayout();
-      // Flush the initial mount-time loads.
       await act(async () => {
         await vi.advanceTimersByTimeAsync(0);
       });
@@ -110,8 +104,6 @@ describe('layout logs', () => {
         total: 9,
         session_total: 9,
       });
-      // No popover open, no events: only the periodic background poll
-      // can pick up the new record.
       await act(async () => {
         await vi.advanceTimersByTimeAsync(5_000);
       });
@@ -123,19 +115,8 @@ describe('layout logs', () => {
 });
 
 describe('layout no shortcuts', () => {
-  // The app deliberately binds no keyboard shortcuts. It used to carry two --
-  // "g n" for home and ArrowLeft/ArrowRight to cycle a run's report tabs --
-  // bound on `document` regardless of focus, which is exactly what makes them
-  // hard to notice coming back: nothing on screen changes when one is added,
-  // and the only symptom is a keypress doing something unasked for. Spying on
-  // the registration is the one check that fails the moment a document-level
-  // binding returns.
-  //
-  // Dialog keys are a different thing and are not covered here: Escape closing
-  // an open dialog and Tab staying inside it are that dialog's own semantics
-  // (useEscapeKey, useFocusTrap in dom.ts), they register only while it is open, and
-  // removing them would be an accessibility regression rather than honoring
-  // this rule.
+  // Document shortcuts differ from dialog-local Escape/Tab semantics, which
+  // remain necessary.
   let addEventListener: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
@@ -147,8 +128,6 @@ describe('layout no shortcuts', () => {
     addEventListener.mockRestore();
   });
 
-  // The keydown events the removed shortcuts listened for, so a reintroduction
-  // under a different key name still has to pass the registration check above.
   function keydownRegistrations(): unknown[] {
     return addEventListener.mock.calls.filter(
       ([type]: [string, ...unknown[]]) => type === 'keydown',
@@ -171,9 +150,8 @@ describe('layout no shortcuts', () => {
 });
 
 describe('layout primitives', () => {
-  // O4: the shell's shared popover shell backs every interactive header/rail
-  // panel (Settings menu, Logs) -- none of them are status output, so the
-  // container must never carry an implicit `role="status"` live region.
+  // Interactive popovers are not status output and must not become implicit
+  // live regions.
 
   it('never renders as a status live region', () => {
     render(<ShellPopover className="test-popover">content</ShellPopover>);
@@ -210,10 +188,7 @@ describe('layout settings', () => {
       screen.getByRole('menuitem', {name: 'Appearance'}),
     ).toBeInTheDocument();
     expect(screen.getByRole('menuitem', {name: 'Model'})).toBeInTheDocument();
-    // Help is gone: its FAQ lives on the landing page under the chat home.
     expect(screen.queryByRole('menuitem', {name: 'Help'})).toBeNull();
-    // The menu itself has no location line and no theme control; those move
-    // into the dialog.
     expect(screen.queryByText(/Dublin/)).toBeNull();
     expect(screen.queryByRole('group', {name: 'Theme'})).toBeNull();
     expect(screen.queryByRole('dialog', {name: 'Settings'})).toBeNull();
@@ -231,7 +206,6 @@ describe('layout settings', () => {
     expect(
       await screen.findByRole('dialog', {name: 'Settings'}),
     ).toBeInTheDocument();
-    // The menu popover is dismissed once the dialog opens.
     expect(screen.queryByRole('menuitem', {name: 'Appearance'})).toBeNull();
 
     expect(screen.getByRole('group', {name: 'Theme'})).toBeInTheDocument();
@@ -251,8 +225,6 @@ describe('layout settings', () => {
     fireEvent.change(input, {target: {value: 'sk-test-123'}});
     fireEvent.keyDown(input, {key: 'Enter'});
     expect(window.localStorage.getItem('cosci-api-key')).toBe('sk-test-123');
-    // Saving says nothing: the field holds the value it just stored, and a
-    // toast repeating that only covered the page it was confirming.
     expect(screen.queryByText('Settings saved')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', {name: 'Close settings'}));
@@ -266,16 +238,12 @@ describe('layout settings', () => {
     fireEvent.click(screen.getByRole('menuitem', {name: 'Model'}));
     await screen.findByRole('dialog', {name: 'Settings'});
 
-    // The key label follows the chosen provider; deepseek is the default.
     expect(screen.getByLabelText('DeepSeek API key')).toBeInTheDocument();
 
-    // The chooser is our own menu, not a native select: nothing is in the DOM
-    // to pick from until the trigger opens it.
     const trigger = screen.getByRole('button', {name: 'Provider'});
     expect(screen.queryByRole('menuitemradio', {name: 'OpenAI'})).toBeNull();
     fireEvent.click(trigger);
 
-    // Azure is deliberately not offered (see BYOK_PROVIDERS).
     expect(screen.queryByRole('menuitemradio', {name: 'Azure'})).toBeNull();
     expect(
       screen.getByRole('menuitemradio', {name: 'DeepSeek'}),
@@ -285,7 +253,6 @@ describe('layout settings', () => {
     expect(window.localStorage.getItem('cosci-api-provider')).toBe('openai');
     expect(screen.getByLabelText('OpenAI API key')).toBeInTheDocument();
     expect(screen.queryByText('Settings saved')).toBeNull();
-    // Choosing closes the menu.
     expect(screen.queryByRole('menuitemradio', {name: 'OpenAI'})).toBeNull();
   });
 
@@ -296,8 +263,6 @@ describe('layout settings', () => {
     fireEvent.click(screen.getByRole('menuitem', {name: 'Model'}));
     await screen.findByRole('dialog', {name: 'Settings'});
 
-    // The default provider's link, and the link following a change of
-    // provider: a key page is only useful for the provider being keyed.
     expect(
       screen.getByRole('link', {name: /Get a DeepSeek API key/}),
     ).toHaveAttribute('href', 'https://platform.deepseek.com/api_keys');
@@ -308,7 +273,6 @@ describe('layout settings', () => {
       screen.getByRole('link', {name: /Get an Anthropic API key/}),
     ).toHaveAttribute('href', 'https://platform.claude.com/settings/keys');
 
-    // The line about what the server does with the key is gone.
     expect(screen.queryByText(/stores it encrypted/)).toBeNull();
   });
 
@@ -333,7 +297,6 @@ describe('layout sidebar', () => {
     installLayoutMocks();
   });
 
-  /** Renders the layout with twelve real chats feeding the sidebar list. */
   function renderTwelveSidebarChats() {
     apiMock.listInterviews.mockResolvedValue(
       Array.from({length: 12}, (_, index) =>
@@ -349,7 +312,6 @@ describe('layout sidebar', () => {
   it('toggles the Co-Scientist sidebar from the menu button', async () => {
     const {container} = renderLayout();
 
-    // Collapsed icon rail by default, matching the reference product.
     const menu = screen.getByRole('button', {name: 'Menu'});
     expect(menu).toHaveAttribute('aria-expanded', 'false');
     expect(menu).toHaveTextContent('Menu');
@@ -382,7 +344,6 @@ describe('layout sidebar', () => {
     expect(screen.getByRole('button', {name: /Logs 0/i})).toBeInTheDocument();
 
     expect(await screen.findByText('Chats')).toBeInTheDocument();
-    // This chat never started a run, so its row opens the conversation.
     await waitFor(() => {
       expect(screen.getByRole('link', {name: /ferroptosis/i})).toHaveAttribute(
         'href',
@@ -390,15 +351,12 @@ describe('layout sidebar', () => {
       );
     });
 
-    // A link, not a button: Cmd/middle-clicking it opens a fresh workspace in
-    // a new tab like every other navigation in the rail.
     const newChat = screen.getByRole('link', {name: 'New chat'});
     expect(newChat).toHaveAttribute('href', '/');
     expect(newChat).toHaveAttribute('data-tooltip', 'New chat');
     expect(newChat).toHaveClass('ucs-tooltip-anchor');
     expect(newChat).toHaveClass('ucs-tooltip-right');
 
-    // The non-functional "Search" nav item was removed.
     expect(screen.queryByRole('button', {name: 'Search'})).toBeNull();
 
     const chat = screen.getByRole('link', {name: /ferroptosis/i});
@@ -421,13 +379,10 @@ describe('layout sidebar', () => {
 
     renderLayout();
 
-    // The sidebar link renders the model-generated title, not a clause of the
-    // raw research goal, matching the recents cards.
     const chat = await screen.findByRole('link', {
       name: 'Ferroptosis in pancreatic cancer',
     });
     expect(chat).toHaveAttribute('href', '/chats/chat-titled');
-    // The full research goal still rides along as the hover tooltip.
     expect(chat.getAttribute('data-tooltip')).toMatch(
       /Generate testable hypotheses for ferroptosis/i,
     );
@@ -447,10 +402,6 @@ describe('layout sidebar', () => {
 
     renderLayout();
 
-    // A session that started a run has moved past its conversation, so the
-    // row goes to the run — whose own page picks the live progress view or
-    // the report from the run's status. A session that never started one
-    // still opens the transcript.
     expect(
       await screen.findByRole('link', {name: 'Senolytic clearance'}),
     ).toHaveAttribute('href', '/runs/run-senolytic/details');
