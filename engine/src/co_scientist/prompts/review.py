@@ -127,15 +127,7 @@ def get_review_batch_prompt(
 # to its node and renders it as a markdown section; all of them return ""
 # when the needed keys are absent, so guidance is strictly additive.
 def _format_critical_criterion_question(question: Any) -> str:
-    """Format one critical-criterion question line, or "" when unusable.
-
-    R12-23: each question mirrors the published Review Summary's bolded-
-    name-plus-question format (docs/CORPUS-EXTRACTION.md, line 2929) --
-    ``{name, question}``. A bare string (no separate name) still renders
-    as a plain question line; anything else (a malformed entry from a
-    live run under the json_object downgrade, or from an old checkpoint)
-    renders nothing rather than raising.
-    """
+    """Malformed model output and old checkpoints must still render."""
     if isinstance(question, str):
         text = question.strip()
         return f"  - {text}\n" if text else ""

@@ -108,18 +108,11 @@ _UNREACHABLE_ARMS = {
     ),
 }
 
-# Google's own published per-agent ablation numbers (Nature SI Note 3 /
-# Supplementary Table 1; docs/CORPUS-EXTRACTION.md R11-8). Landed here as a
-# READ-ONLY comparison baseline for the day a credentialed --live sweep with
-# real toggles exists -- see the two _UNREACHABLE_ARMS above, which are
-# exactly the arms these numbers cover. Nothing in this module computes,
-# compares, or gates against these; they are quoted reference data only. In
-# each metric pair, "baseline" is the paper's full-system run and "ablated"
-# is the same run with that agent/tool removed, in the order the source
-# states them.
+# Nature SI Note 3 / Supplementary Table 1 supplies reference numbers only;
+# they are not computed here and never gate this implementation.
 PUBLISHED_BASELINES: dict[str, dict[str, Any]] = {
     "reflection_search_tool": {
-        "source": "Nature SI Note 3 / Supplementary Table 1 (corpus R11-8)",
+        "source": "Nature SI Note 3 / Supplementary Table 1",
         "arm_removed": "Reflection's search tool",
         "metrics": {
             "novelty": {"baseline": 6.14, "ablated": 2.38},
@@ -134,7 +127,7 @@ PUBLISHED_BASELINES: dict[str, dict[str, Any]] = {
         ),
     },
     "evolution": {
-        "source": "Nature SI Note 3 / Supplementary Table 1 (corpus R11-8)",
+        "source": "Nature SI Note 3 / Supplementary Table 1",
         "arm_removed": "the Evolution agent",
         "metrics": {
             "gpqa_precision_pct": {"baseline": 70.9, "ablated": 75.4},
@@ -142,7 +135,7 @@ PUBLISHED_BASELINES: dict[str, dict[str, Any]] = {
         },
     },
     "meta_review": {
-        "source": "Nature SI Note 3 / Supplementary Table 1 (corpus R11-8)",
+        "source": "Nature SI Note 3 / Supplementary Table 1",
         "arm_removed": "the Meta-review agent",
         "metrics": {
             "auc_constructed": {"baseline": 0.521, "ablated": 0.597},
@@ -151,19 +144,15 @@ PUBLISHED_BASELINES: dict[str, dict[str, Any]] = {
     },
 }
 
-# Named by the same source but NOT quantified in the corpus extraction --
-# docs/CORPUS-EXTRACTION.md R11-8 records only "plus Ranking-prompt and
-# Proximity findings", with no numbers. Recorded so a reader knows these
-# exist in Google's published ablation table and their absence here is a
-# documented extraction gap, never a claim that no effect was found.
+# Missing extracted numbers do not imply that the published arm had no effect.
 PUBLISHED_BASELINES_UNQUANTIFIED: dict[str, str] = {
     "ranking_prompt": (
         "Named in Nature SI Note 3 / Supplementary Table 1 but no numbers "
-        "are captured in docs/CORPUS-EXTRACTION.md R11-8."
+        "are included in this local baseline."
     ),
     "proximity": (
         "Named in Nature SI Note 3 / Supplementary Table 1 but no numbers "
-        "are captured in docs/CORPUS-EXTRACTION.md R11-8."
+        "are included in this local baseline."
     ),
 }
 

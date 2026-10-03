@@ -1,13 +1,8 @@
 # Live-footage frames
 
-Curated frames extracted 2026-09-03 from the two real-product screen
-recordings that lived at `references/core/google-co-scientist/media/live-footage/`
-(gitignored, never in git history, deleted by the owner separately from this
-commit — see `docs/CORPUS-EXTRACTION.md` row `R13-1`). Both source mp4s were
-watched in full, in order, before this set was chosen; this is the curated
-evidence, not a raw dump. Full context and findings: `docs/CORPUS-EXTRACTION.md`
-rows `R13-1`–`R13-3` and `R13-13`–`R13-15`, and [docs/CORPUS-STATUS.md](https://github.com/guy915/Co-Scientist/blob/7c2878aeb071a962cb713e9c271cd88e1635ca5f/docs/CORPUS-STATUS.md)'s R13
-region.
+Curated frames extracted in September 2026 from two product recordings.
+The source recordings were never tracked. Historical analysis is preserved at
+[revision 33ec8984](https://github.com/guy915/Co-Scientist/tree/33ec8984c6f9292a6653cc6a661d32210f55c688/docs).
 
 **Source files** (both H.264, 120 fps, gitignored by `.gitignore:46`):
 
@@ -44,7 +39,7 @@ exact `(sampled-frame-index − 1) / sample-rate-fps`, not a rounded label.
 | Frame | Timestamp | Shows |
 |---|---|---|
 | `plan-card-requirements-t07.3s.jpg` | 7.3 s | The research-plan chat card mid-stream: title, `Goal:`, and the six `Requirements:` bullets, in the card/chat rendering (distinct from the later report-page rendering of the same content — see `plan-report-criteria-prose-t65.3s.jpg`). |
-| `plan-card-attributes-criteria-t09.3s.jpg` | 9.3 s | The plan card's `Attributes:` (five axes: Mechanism Novelty, Human Relevance, Clinical Translatability, Target Area, Validation Plan Strength) and the start of `Criteria:`, fully rendered. **Word-for-word match** to the transcription in `docs/CORPUS-EXTRACTION.md` (~line 1930) that `run_modes/attributes.py`/`run_modes/criteria.py` cite. |
+| `plan-card-attributes-criteria-t09.3s.jpg` | 9.3 s | The plan card's `Attributes:` (five axes: Mechanism Novelty, Human Relevance, Clinical Translatability, Target Area, Validation Plan Strength) and the start of `Criteria:`, fully rendered. |
 | `plan-card-focus-tier-start-t31.3s.jpg` | 31.3 s | The plan card's `Focus` (Prefer evidence / **Balance** selected / Prefer novelty / Breakthrough) and `Tier` (Express / **Standard** selected / Extended / Ultra) sections, fully rendered with the Cancel / Start research buttons. Confirms the published tier and focus option sets and order exactly, and that **Standard** (not Extended or Ultra) is selected at this point. |
 | `plan-readonly-thinking-t47.3s.jpg` | 47.3 s | Immediately after "Start research" is clicked: the plan scrolls out of view, "Co-Scientist / Thinking…" appears, and the composer is replaced by "This conversation is read only." — the whole chat locks; there is no way to keep typing into this session once a run starts. |
 | `plan-readonly-tier-extended-t54.0s.jpg` | 54.0 s | The user scrolls back up through the now-read-only plan card while "Thinking…" continues below. Here **Extended** (not Standard) shows as the selected Tier radio — see `R13-14`: a genuine footage discrepancy between this frame and `plan-card-focus-tier-start-t31.3s.jpg`, not resolved by anything visible in either video. |

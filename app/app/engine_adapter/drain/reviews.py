@@ -666,14 +666,7 @@ def _persist_scientist_review(
 
 
 def _novelty_review_lines(rv: dict[str, Any]) -> list[str]:
-    """Render the published novelty review's two named lists (MO-3).
 
-    Google's exemplar (docs/CORPUS-EXTRACTION.md,
-    reviews/als-reflection-reviews.md -- 106 lines, sha256 2f486c549886,
-    Figure A.11) prints a novelty review as "Aspects already explored:" and
-    "Novel Aspects:", each a bulleted list. Empty when the review named
-    nothing in either list.
-    """
     already = [str(x).strip() for x in rv.get("already_explored") or []]
     already = [x for x in already if x]
     novel = [str(x).strip() for x in rv.get("novel_aspects") or []]

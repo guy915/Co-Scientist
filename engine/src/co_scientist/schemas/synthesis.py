@@ -63,14 +63,8 @@ RESEARCH_OVERVIEW_MAX_DIRECTIONS: Final = 6
 RESEARCH_OVERVIEW_MAX_OPEN_QUESTIONS: Final = 10
 RESEARCH_OVERVIEW_MAX_PATTERNS: Final = 5
 
-# Task B: bound on unexpected_research_directions below, mirroring the
-# published MASH exemplar's own "Unexpected Research Directions" block
-# (docs/CORPUS-EXTRACTION.md, .../mash-liver-fibrosis-reversal-
-# therapeutic-hypothesis.md:418) -- three named bullets. Capped for the
-# same reason as RESEARCH_OVERVIEW_MAX_PATTERNS above: this is the
-# terminal synthesis call, and RESEARCH_OVERVIEW_MAX_TOKENS already sits
-# at the escalation ladder's own ceiling (see AGENTS.md), so a new field
-# here must not scale the response further.
+# The terminal synthesis already uses the token ladder ceiling; new fields
+# must not scale response size with the reviewed pool.
 RESEARCH_OVERVIEW_MAX_UNEXPECTED_DIRECTIONS: Final = 3
 
 # F8: bounds on the deep knowledge-base synthesis in this package's

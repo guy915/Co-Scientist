@@ -135,24 +135,9 @@ def stratification_attributes(
 
 
 def critical_criteria(final_state: dict[str, Any]) -> list[Any]:
-    """Return the Supervisor's synthesized per-goal evaluation criteria.
+    """Display-only guidance must never gate, rank, or disqualify hypotheses.
 
-    A read of guidance the Supervisor already synthesizes
-    (``supervisor_guidance.workflow_plan.review_phase.critical_criteria``)
-    and ``prompts/review.py`` already injects into every reviewer prompt
-    as "Critical Criteria to Emphasize" -- not a new computation, just
-    handing an existing one to the report (R12-18). Display only: the
-    report never uses this to gate, filter, rank, or disqualify a
-    hypothesis.
-
-    Two shapes pass through unfiltered (R12-23): the legacy bare
-    criterion-name string, and the richer ``{name, questions}`` object
-    the Supervisor now synthesizes to mirror the published Review
-    Summary's rubric (docs/CORPUS-EXTRACTION.md, line 2929) -- the report
-    renderers (``report/markdown/process.py``) handle both. Degrades
-    to an empty list, never an error, on an old checkpoint predating this
-    field or a malformed one; a list entry that is neither a string nor a
-    dict is dropped rather than passed through.
+    Older checkpoints may carry bare criterion names instead of objects.
     """
     guidance = final_state.get("supervisor_guidance")
     plan = guidance.get("workflow_plan") if isinstance(guidance, dict) else None
