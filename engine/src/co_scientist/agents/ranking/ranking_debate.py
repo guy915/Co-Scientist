@@ -377,28 +377,7 @@ def _prior_turn_order_note(entry: dict[str, Any], swapped: bool) -> str:
 def _append_debate_context(
     prompt: str, transcript: list[dict[str, Any]], *, swapped: bool = False
 ) -> str:
-    """Append prior debate turns to the judge prompt for a follow-up turn.
-
-    Multi-turn scientific debate: each subsequent turn re-examines the prior
-    turns' reasoning before delivering a refined verdict, spending more
-    test-time compute on the top-ranked comparisons (SSR §4). The turn
-    figures are single-sourced from the envelope constants the judge loop
-    enforces (see the module comment above).
-
-    ``templates/ranking_debate.md`` carries ranking-05's whole debate
-    procedure, on every turn; what only a follow-up turn can carry is the
-    prior exchange, which is why this block exists. It repeats
-    ranking-05's "Subsequent turns:" first bullet verbatim -- "Pose
-    clarifying questions to address any ambiguities or uncertainties"
-    (docs/CORPUS-EXTRACTION.md:1244, corpus R8-4, docs/CORPUS-STATUS.md)
-    -- and restates the turn envelope, because a turn reading a
-    transcript needs both aimed at that transcript; turn 1 renders no
-    debate context at all.
-    The judge still answers every turn against the same schema (``winner``
-    plus a ``decision_summary`` ending in the literal verdict line), so
-    this widens what the judge may weigh in that answer without inviting
-    it to withhold one.
-    """
+    """Only follow-up turns can re-examine prior reasoning."""
     lines = ["\n\n## Prior Debate Turns (re-examine and refine)\n"]
     for entry in transcript:
         lines.append(
@@ -1255,38 +1234,7 @@ async def _run_debate_turns(
     base: _MatchupPrompt,
     fallback: str,
 ) -> tuple[list[str], _DebateRun, dict[str, Any]]:
-    """Runs debate turns until consensus is reached, alternating order.
-
-    Deliberate local choice (finding E18): the "debate" is one judge
-    re-examining the accumulated verdicts each turn, not distinct
-    advocate/opponent personas. The published ranking-05 prompt (App. A,
-    docs/CORPUS-EXTRACTION.md:1210-1214) does frame the judge as
-    "simulating a panel of domain experts" who "possess no pre-existing
-    biases" -- so it names a panel, and this loop implements one voice,
-    not a simulated panel of several. What the paper never does, panel
-    framing or not, is name distinct advocate/opponent *personas* for
-    that panel; the Innovator/Pragmatist/Contrarian persona requirement
-    appears solely in the local reference corpus's clone-authored design
-    and is not treated as a fidelity target (see FINDINGS.md,
-    Corpus-integrity corrections).
-
-    Folds the matchup index into the starting presentation order so a
-    single-turn (lower-ranked) comparison does not always present
-    hypothesis A first (see ``_execute_debate_turn``).
-
-    Turns are strictly serial -- each one re-examines the transcript so far
-    -- so this loop is the deepest part of the run's critical path, and
-    ranking is its highest-volume stage. It is adaptive within the paper's
-    envelope (typically 3-5 turns, max 10): it stops as soon as
-    ``_ranking_debate_consensus`` holds -- at earliest once the
-    typical-minimum floor has run, at latest when the budget is spent --
-    so a settled verdict retires the remaining judge calls while a
-    genuinely contested one buys more depth.
-
-    Returns:
-        Tuple of (votes, debate run with the accumulated transcript, final
-        raw response).
-    """
+    """Turns must be serial: each judge re-examines the prior transcript."""
     run = _DebateRun(
         base=base,
         transcript=[],

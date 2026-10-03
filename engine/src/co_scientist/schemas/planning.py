@@ -393,29 +393,8 @@ _AGENTS_ASSESSED: tuple[str, ...] = (
     "meta_review",
 )
 
-# Bounds on workflow_plan.review_phase.critical_criteria below (R12-23,
-# R12-23b). Two different published sections name these criteria, and
-# they disagree on the count -- read both before touching either bound.
-# The "## **2. Evaluation Criteria**" section (docs/CORPUS-EXTRACTION.md,
-# line 2558) names 6: Mechanistic Novelty and Rigor in Fibrosis Reversal,
-# Kinetic Feasibility and Experimental Readouts, Human Data Integration
-# and Accuracy, Safety and Therapeutic Viability, Targeting and Delivery
-# Logic, and Biological Scope Alignment. The later "Review summary"
-# exemplar (line 2929) prints only 5 numbered criteria with 4/3/3/4/2
-# named yes/no reviewer questions (16 total) -- Targeting and Delivery
-# Logic is not a numbered criterion there because it was folded into
-# Safety and Therapeutic Viability as one of its own 4 questions (line
-# 2955). The count below is the union of the two sections, 6, not the
-# Review summary's 5: reading only the Review summary and "correcting"
-# this back to 5 silently truncates a real published criterion again.
-# CRITICAL_CRITERIA_MAX_QUESTIONS stays at the Review summary's per-
-# criterion ceiling (4) -- the folding changes how many *criteria* there
-# are, not how many questions any one of them carries. This layer
-# multiplies the response by (criteria x questions) on a call site that
-# runs per hypothesis, per review, so it is capped here and re-capped
-# defensively at the injection point in prompts/review.py, since
-# json_object mode (the production downgrade path) does not enforce
-# maxItems server-side.
+# Six criteria accommodate the full rubric; questions are bounded separately
+# because response size grows as criteria times questions.
 CRITICAL_CRITERIA_MAX_COUNT: Final = 6
 CRITICAL_CRITERIA_MAX_QUESTIONS: Final = 4
 

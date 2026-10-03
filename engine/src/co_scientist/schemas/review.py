@@ -316,17 +316,6 @@ FULL_REVIEW_SCHEMA: dict[str, Any] = {
                 "items": obj(
                     {
                         "assumption": {"type": "string"},
-                        # MO-9: the published full review (e.g.
-                        # docs/CORPUS-EXTRACTION.md,
-                        # validated-outputs/kira6-detailed-output-validated.md
-                        # -- 220 lines, sha256 b5a22b590874, "Reasoning about
-                        # assumptions") prints a free-text paragraph beside
-                        # every assumption; deep verification's
-                        # sub_assumptions[].verification already carries this
-                        # prose, but the full review previously carried only
-                        # the closed enum below, so a hypothesis reviewed
-                        # through full review alone lost the reasoning
-                        # entirely.
                         "reasoning": {
                             "type": "string",
                             "description": (
@@ -423,24 +412,7 @@ FULL_REVIEW_SCHEMA: dict[str, Any] = {
 # name is re-exported, so importers written against this module (the
 # schema registry and package ``__init__`` among them) keep resolving.
 
-# The eight scored criteria: the paper's five default output criteria
-# (SSR §1) -- relevance, plausibility, novelty, testability, safety --
-# plus scientific_soundness, clarity, and potential_impact.
-#
-# R14-17 (docs/CORPUS-EXTRACTION.md, 15/19 files): Google's published
-# per-hypothesis appendix always orders its four review axes Correctness
-# -> Novelty -> Feasibility -> Impact potential. This system's eight
-# axes don't collapse 1:1 onto Google's four -- Correctness splits into
-# two axes here (scientific_soundness, plausibility) and Feasibility
-# maps to testability -- so the order below places each of Google's four
-# axes first, in that order (Correctness's two axes adjacent), followed
-# by the three axes Google's four-axis rubric doesn't name at all
-# (relevance, safety, clarity). This is a pure ordering change: it
-# changes property order in _SCORES_SCHEMA/_DETAILED_FEEDBACK_SCHEMA
-# below (and so what order the model is asked to fill them in) at zero
-# token cost, and every reader of ``scores``/``detailed_feedback`` in
-# this codebase is name-keyed (``dict.get(axis)``), never order-keyed,
-# so nothing downstream depends on the previous order.
+# Axis ordering controls model output order; downstream readers use names.
 _SCORE_CRITERIA: tuple[str, ...] = (
     "scientific_soundness",  # Correctness (1 of 2)
     "plausibility",  # Correctness (2 of 2)
@@ -498,10 +470,6 @@ _DETAILED_FEEDBACK_SCHEMA: dict[str, Any] = obj(
     }
 )
 
-# Bounds each novelty-review list (MO-3, model output). Google's published
-# exemplar (docs/CORPUS-EXTRACTION.md, reviews/als-reflection-reviews.md --
-# 106 lines, sha256 2f486c549886, Figure A.11) prints six already-explored
-# entries and five novel-aspects entries for one hypothesis.
 NOVELTY_REVIEW_MAX_ITEMS = 6
 
 # The novelty review: two named lists distinguishing what the hypothesis

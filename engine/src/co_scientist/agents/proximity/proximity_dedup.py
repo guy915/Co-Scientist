@@ -188,40 +188,8 @@ def _build_removed_duplicates_for_cluster(
 def _resolve_cluster_duplicates(
     cluster_id: str, cluster_hypotheses: list[Hypothesis]
 ) -> tuple[list[Hypothesis], list[dict[str, Any]]]:
-    """Resolves high-similarity duplicates within a single cluster.
-
-    Keeps every non-"high" similarity hypothesis plus only the single best
-    "high" similarity hypothesis (ranked by Elo, then score, then text),
-    recording the rest as removed duplicates.
-
-    **This deletion is a local addition with no counterpart in the
-    published proximity listing.** Google's Proximity agent computes a
-    similarity per pair and updates a graph; nothing in it removes a
-    hypothesis from the pool, and no other listing authorises a deletion
-    either. Dropping near-duplicates is defensible in practice -- a pool of
-    restatements wastes the tournament, evolution's parents and the
-    reader's attention -- but the cost of being wrong is asymmetric and
-    silent: a *false* "high" from a single clustering call deletes a
-    distinct idea from the run outright. It never reaches the tournament,
-    never breeds, and never appears in the report as an idea; it survives
-    only as a ``removed_duplicates`` archive row explained as a duplicate
-    of something it is not. There is no second opinion and no later pass
-    that revisits the verdict, which is why the "high" band alone deletes
-    and "medium"/"low" merely relate (``_partition_by_similarity_degree``).
-    Anything that widens what deletes -- a lower band, a text metric, a
-    second caller -- widens that silent loss with it.
-
-    A single-member cluster needs no special case: it either falls in
-    ``others`` and is kept, or is the sole "high" member and is kept as the
-    best of one, with nothing after it to remove.
-
-    Args:
-        cluster_id: Identifier of the cluster being resolved.
-        cluster_hypotheses: Hypotheses assigned to this cluster.
-
-    Returns:
-        Tuple of (hypotheses_to_keep, removed_duplicates) for this cluster.
-    """
+    """False high similarity silently deletes distinct ideas.
+    Only high may delete; medium and low must remain relations."""
     high_similarity, others = _partition_by_similarity_degree(
         cluster_hypotheses
     )

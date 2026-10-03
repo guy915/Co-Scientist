@@ -151,28 +151,7 @@ _HYPOTHESIS_FIELD: dict[str, Any] = {
     ),
 }
 
-# R14-12 (docs/CORPUS-EXTRACTION.md): every published hypothesis title is
-# an authored, compact noun phrase ("Rapamycin Suppression of mTOR-Driven
-# Growth Signaling") -- never a truncated first sentence of the body text.
-# Before this field, app/app/engine_adapter/drain/hypotheses.py derived the
-# stored display title by clipping the hypothesis statement at its first
-# sentence boundary (first_sentence). That fallback stays exactly where it
-# was, for the one case it now exists to cover: a run predating this
-# field, or a json_object downgrade whose response omits/mistypes/empties
-# it -- see the single derivation point in drain/hypotheses.py. Shared by
-# identity with EVOLUTION_SCHEMA (schemas/evolution.py), the same pattern
-# _EXPERIMENT_FIELD below already establishes -- an evolved child needs a
-# fresh title by the same route, since its mechanism may have changed.
-# MAX_TITLE_CHARS bounds the schema description and is enforced again
-# defensively at that same derivation point, since json_object mode does
-# not enforce maxLength server-side (and, under that downgrade, is also
-# enforced by llm.structured.validate.reshape_json_output when the model
-# overruns it anyway). Raised from 100 to 120 after production run b82f9162:
-# real mechanistic titles naming multiple gene/receptor targets ("Lacosamide-
-# mediated Nav1.6/Nav1.7 slow inactivation...") ran 105-111 chars while
-# complying with the prompt's own "under 100 characters" instruction, so the cap
-# itself -- not the model's compliance -- was too tight for the domain
-# vocabulary the prompt asks for.
+# Downgraded JSON responses need defensive title validation at persistence.
 MAX_TITLE_CHARS: Final = 120
 
 _TITLE_FIELD: dict[str, Any] = {
@@ -199,36 +178,8 @@ _EXPLANATION_FIELD: dict[str, Any] = {
     ),
 }
 
-# R14-20 (docs/CORPUS-EXTRACTION.md): Google's published test plan is a
-# numbered pilot -- 2-5 steps, typically scripting/automation, then
-# ground-truth calibration, then an outgroup/control comparison, then a
-# concluding Go/No-Go Initial Experiment step -- closing on separately
-# bolded **Go:**/**No-Go:** criteria that state the exact pass/fail
-# threshold. Structured here (steps + go_criterion/no_go_criterion)
-# rather than left as one free-text paragraph, so the threshold is its
-# own field instead of prose a reader has to hunt through.
-#
-# This is the hypothesis's OWN proposed pilot threshold -- an experiment
-# *design* detail -- not a review verdict. Never confuse it with
-# go_no_go_recommendation on REVIEW_SCHEMA's full/recurrent review
-# (R14-15, schemas/review.py), a reviewer's testing recommendation about
-# the idea as a whole; the two live at different call sites and are
-# never merged. Nothing in this codebase may read go_criterion/
-# no_go_criterion to filter, rank, score, or disqualify a hypothesis --
-# this repo has a recorded incident where a never-revisited review gate
-# alone blocked 20 of 22 ideas and shrank the pool evolution bred from
-# (root AGENTS.md Gotchas, "An early gate that never reverses decides
-# the whole run"). test_experiment_plan.py::
-# test_criteria_never_reach_a_structured_hypothesis_field pins the
-# guarantee: format_experiment_plan collapses both criteria into prose
-# before they ever reach Hypothesis, which has no go_criterion/
-# no_go_criterion field for anything to gate on.
-#
-# MAX_EXPERIMENT_STEPS/_EXPERIMENT_*_CHARS bound the formatter in
-# agents/generation/experiment_plan.py (imported from there, never the
-# reverse, so this package keeps its no-runtime-imports convention) --
-# named here, not there, so the cap this field's own description states
-# can never drift from the cap actually enforced on the response.
+# Pilot go/no-go thresholds are proposer-authored design details, never reviewer
+# recommendations or inputs to the safety gate.
 MAX_EXPERIMENT_STEPS: Final = 5
 _EXPERIMENT_STEP_CHARS: Final = 300
 _EXPERIMENT_CRITERION_CHARS: Final = 300
@@ -320,16 +271,8 @@ _LITERATURE_GROUNDING_FIELD: dict[str, Any] = {
     ),
 }
 
-# MO-6: every published proposal opens with scene-setting -- an
-# Introduction and a Recent findings and related research section -- before
-# the mechanism (docs/CORPUS-EXTRACTION.md, hypotheses/als-generation-
-# output.md -- 34 lines, sha256 025d46737463, and validated-outputs/kira6-
-# detailed-output-validated.md -- 220 lines, sha256 b5a22b590874). No field
-# carried this before, so a reader went from the title straight into the
-# mechanism. Bounded to 2-4 sentences each (unlike the published exemplars'
-# full paragraphs) since this is model output emitted per hypothesis in an
-# array: an unbounded pair of new fields scales output tokens with pool
-# size.
+# Scene-setting is emitted per hypothesis, so unbounded prose multiplies output
+# tokens with the pool size.
 _INTRODUCTION_FIELD: dict[str, Any] = {
     "type": "string",
     "description": (
@@ -352,15 +295,7 @@ _RECENT_FINDINGS_FIELD: dict[str, Any] = {
     ),
 }
 
-# MO-10: the published proposal itself carries a pharmacological safety and
-# toxicity section (docs/CORPUS-EXTRACTION.md, validated-outputs/kira6-
-# detailed-output-validated.md -- 220 lines, sha256 b5a22b590874). Distinct
-# from the reviewer's safety_ethical_concerns (dual-use/ethics judgment,
-# REVIEW_SCHEMA): this is the proposer's own pharmacological assessment of
-# what it is proposing, and must never feed the safety gate (see
-# agents/safety.py) -- a proposer-authored field cannot be allowed to
-# influence whether its own hypothesis passes screening. Bounded the same
-# way as the scene-setting fields above.
+# Proposer-authored safety assessments must never affect their safety gate.
 _SAFETY_TOXICITY_FIELD: dict[str, Any] = {
     "type": "string",
     "description": (

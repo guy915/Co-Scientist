@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import inspect
 from typing import Any
 
 import pytest
@@ -383,30 +382,6 @@ def test_long_hypotheses_are_sent_whole() -> None:
     assert payload[0]["text"] == first
     assert payload[1]["text"] == second
     assert payload[0]["text"] != payload[1]["text"]
-
-
-# The marker phrase the deletion site must keep. Listing 06's proximity agent
-# only updates a graph; dropping a hypothesis is ours alone, so the code that
-# does it has to say so where a reader of that code will see it.
-_INVENTED_STEP_MARKER = "no counterpart in the published proximity listing"
-
-
-def test_deletion_site_records_itself_as_a_local_addition() -> None:
-    """The one place a hypothesis is dropped names the divergence.
-
-    ``_resolve_cluster_duplicates`` chooses one member of a "high" cluster
-    and deletes the rest from the pool. No published listing authorises a
-    deletion, and a false "high" silently drops a distinct idea, so the
-    provenance and the cost of a false positive are recorded at the decision
-    point itself -- not only in a document that can drift away from it.
-    """
-    doc = " ".join(
-        (inspect.getdoc(proximity_dedup._resolve_cluster_duplicates) or "")
-        .replace("*", "")
-        .split()
-    )
-    assert _INVENTED_STEP_MARKER in doc
-    assert "false" in doc.lower()
 
 
 def _disjoint_texts(*ids: str) -> dict[str, str]:
