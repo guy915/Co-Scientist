@@ -556,12 +556,6 @@ def test_ranking_prompt_keeps_coverage_sections() -> None:
 
 
 def test_review_prompt_critical_criteria_structured_shape() -> None:
-    """The richer {name, questions} shape surfaces both levels of names.
-
-    Criterion name, question name, and question text all reach the review
-    prompt -- matching the published Review Summary rubric
-    (docs/CORPUS-EXTRACTION.md line 2929).
-    """
     guidance = {
         "workflow_plan": {
             "review_phase": {

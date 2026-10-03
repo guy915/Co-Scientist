@@ -215,13 +215,6 @@ def test_generation_and_evolution_schemas_require_title() -> None:
 
 
 def test_generation_schemas_require_scene_setting() -> None:
-    """Introduction/recent_findings are required in both generation schemas.
-
-    Every published proposal opens with an Introduction and a Recent
-    findings and related research section before the mechanism
-    (docs/CORPUS-EXTRACTION.md, hypotheses/als-generation-output.md --
-    34 lines, sha256 025d46737463); no field carried this before (MO-6).
-    """
     generation_item = GENERATION_SCHEMA["schema"]["properties"]["hypotheses"][
         "items"
     ]
@@ -235,14 +228,6 @@ def test_generation_schemas_require_scene_setting() -> None:
 
 
 def test_generation_schemas_require_safety_and_toxicity() -> None:
-    """safety_and_toxicity is required in both generation schemas (MO-10).
-
-    The published proposal itself carries a pharmacological safety and
-    toxicity section (docs/CORPUS-EXTRACTION.md, validated-outputs/kira6-
-    detailed-output-validated.md -- 220 lines, sha256 b5a22b590874); no
-    proposer-side field carried this before, distinct from the reviewer's
-    safety_ethical_concerns (dual-use/ethics, REVIEW_SCHEMA).
-    """
     generation_item = GENERATION_SCHEMA["schema"]["properties"]["hypotheses"][
         "items"
     ]
