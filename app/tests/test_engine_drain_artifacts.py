@@ -1,5 +1,3 @@
-"""Tests for engine drain 1."""
-
 from __future__ import annotations
 
 import json
@@ -27,7 +25,6 @@ from tests._drain_helpers import (
 
 
 def test_drain_result_carries_critical_criteria(isolated_db: str) -> None:
-    """The drain hands the Supervisor's synthesized criteria to the report."""
     run = store.create_run("criteria goal", "standard", "engine", {})
     state = _final_state_with_features()
     state["supervisor_guidance"] = {
@@ -52,7 +49,6 @@ def test_drain_result_carries_critical_criteria(isolated_db: str) -> None:
 def test_drain_result_defaults_to_no_critical_criteria(
     isolated_db: str,
 ) -> None:
-    """A run with no supervisor guidance reports an empty list, not a crash."""
     run = store.create_run("no guidance goal", "standard", "engine", {})
 
     drained = _persist(
@@ -67,13 +63,8 @@ def test_drain_result_defaults_to_no_critical_criteria(
 def test_drain_result_carries_structured_critical_criteria(
     isolated_db: str,
 ) -> None:
-    """R12-23: the richer {name, questions} shape passes through unfiltered.
-
-    ``critical_criteria`` used to be typed (and filtered) as a bare list of
-    strings, so a well-formed structured answer -- every item a dict, none
-    a str -- was silently dropped to an empty list here even though the
-    Supervisor produced it correctly.
-    """
+    # Structured criterion objects are valid guidance; string-only filtering
+    # silently discards them.
     run = store.create_run("structured criteria goal", "standard", "engine", {})
     state = _final_state_with_features()
     state["supervisor_guidance"] = {
@@ -112,7 +103,6 @@ def test_drain_result_carries_structured_critical_criteria(
 def test_drain_result_drops_non_str_non_dict_criteria_entries(
     isolated_db: str,
 ) -> None:
-    """A list mixing valid entries with garbage keeps only the valid ones."""
     run = store.create_run("mixed criteria goal", "standard", "engine", {})
     state = _final_state_with_features()
     state["supervisor_guidance"] = {
@@ -138,7 +128,6 @@ def test_drain_result_drops_non_str_non_dict_criteria_entries(
 
 
 def test_drain_result_ignores_malformed_review_phase(isolated_db: str) -> None:
-    """A non-dict review_phase (an old or malformed checkpoint) degrades."""
     run = store.create_run("malformed goal", "standard", "engine", {})
     state = _final_state_with_features()
     state["supervisor_guidance"] = {
@@ -150,26 +139,7 @@ def test_drain_result_ignores_malformed_review_phase(isolated_db: str) -> None:
     assert drained.report_inputs["critical_criteria"] == []
 
 
-# The drain persists every field the per-idea review block renders.
-#
-# Reviews were generated, paid for, and persisted -- and then the report
-# showed none of them. Three families of content were reachable only as
-# flat prose or not at all:
-#
-# * the initial review's **eight axis scores**, of which only three ever
-#   reached a column (``novelty``, ``plausibility`` -- which actually holds
-#   ``scientific_soundness`` -- and ``testability``), and its six per-axis
-#   prose feedback fields, which reached nothing;
-# * the full/recurrent review's assumptions and prose, flattened into the
-#   ``critique`` text where no renderer can find the parts again;
-# * deep verification's probes, likewise flattened.
-#
-# Each now travels as structured ``detail_json`` beside the prose, which is
-# left untouched so the workbench keeps reading what it always did.
-
-
 def _engine_review() -> dict[str, Any]:
-    """One initial-review payload as ``REVIEW_SCHEMA`` shapes it."""
     return {
         "review_summary": "Sound but narrow.",
         "scores": {
@@ -197,13 +167,8 @@ def _engine_review() -> dict[str, Any]:
 
 
 def test_initial_review_detail_persists_all_eight_axis_scores() -> None:
-    """The five axes no column holds must survive the drain.
-
-    ``novelty``/``plausibility``/``testability`` have columns (the
-    ``plausibility`` column holding ``scientific_soundness``, a name
-    mismatch the renderer must never inherit), so the report's per-axis
-    ``Answer: N`` line had no source for the other five at all.
-    """
+    # Legacy plausibility holds scientific_soundness; persist the other axes in
+    # detail rather than infer scores.
     detail = _initial_review_detail(_engine_review())
 
     assert detail["scores"] == {
@@ -219,18 +184,14 @@ def test_initial_review_detail_persists_all_eight_axis_scores() -> None:
 
 
 def test_initial_review_detail_persists_per_axis_feedback() -> None:
-    """Per-axis prose reached no column and no JSON before this."""
     detail = _initial_review_detail(_engine_review())
 
     assert detail["detailed_feedback"]["novelty"] == "The pairing is unusual."
     assert len(detail["detailed_feedback"]) == 6
-    # The published Correctness axis prints these as its own "Suggested
-    # Improvements"; they used to reach only the flat critique prose.
     assert detail["constructive_feedback"] == "Name the control arm."
 
 
 def test_initial_review_detail_persists_the_novelty_two_lists() -> None:
-    """MO-3's two named lists, structured rather than baked into prose."""
     detail = _initial_review_detail(_engine_review())
 
     assert detail["already_explored"] == ["Target engagement is documented."]
@@ -240,12 +201,10 @@ def test_initial_review_detail_persists_the_novelty_two_lists() -> None:
 
 
 def test_initial_review_detail_is_empty_when_the_review_said_nothing() -> None:
-    """An empty result must persist as no row detail, not ``"{}"``."""
     assert _initial_review_detail({}) == {}
 
 
 def test_initial_review_detail_drops_unknown_and_out_of_range_axes() -> None:
-    """A json_object downgrade can answer with anything at all."""
     detail = _initial_review_detail(
         {"scores": {"novelty": 7, "vibes": 11, "clarity": "high"}}
     )
@@ -254,7 +213,6 @@ def test_initial_review_detail_drops_unknown_and_out_of_range_axes() -> None:
 
 
 def test_mature_review_detail_carries_assumptions_and_prose() -> None:
-    """MO-9's per-assumption reasoning, reachable as parts again."""
     detail = _mature_review_detail(
         {
             "correctness": "The logic holds.",
@@ -286,7 +244,6 @@ def test_mature_review_detail_carries_assumptions_and_prose() -> None:
 
 
 def test_mature_review_detail_carries_the_eight_part_reviews_summary() -> None:
-    """R14-14: the published executive block, part by part."""
     detail = _mature_review_detail(
         {
             "reviews_summary": {
@@ -309,25 +266,14 @@ def test_mature_review_detail_carries_the_eight_part_reviews_summary() -> None:
 
 
 def test_mature_review_detail_omits_an_absent_reviews_summary() -> None:
-    """A review that answered no part of it adds no key.
-
-    Required on the schema now, but a json_object-downgrade answer
-    reaches the drain back-filled with empty parts, and an empty scaffold
-    in the column reads as "this review had a summary and it said
-    nothing" rather than as "this review has none".
-    """
+    # Empty backfilled scaffolds must not imply a review actually supplied a
+    # summary.
     detail = _mature_review_detail({"correctness": "Holds."})
 
     assert "reviews_summary" not in detail
 
 
 def test_mature_review_detail_carries_the_per_axis_sub_parts() -> None:
-    """R14-17: the five published sub-parts, drained beside the prose.
-
-    Same call, same row, no extra plumbing: the full review's whole raw
-    response already reaches the drain, so these travel exactly as
-    ``correctness`` and ``literature_grounding`` always have.
-    """
     detail = _mature_review_detail(
         {
             "comparison_with_knowledge_base": "Agrees with the canon.",
@@ -349,24 +295,12 @@ def test_mature_review_detail_carries_the_per_axis_sub_parts() -> None:
 
 
 def test_mature_review_detail_omits_absent_per_axis_sub_parts() -> None:
-    """A resumed run's old-shaped review carries none of them.
-
-    And crashes on none of them: every field is read with ``get`` and
-    dropped when it is empty, so a review written before these existed
-    drains exactly as it always did.
-    """
     detail = _mature_review_detail({"correctness": "Holds."})
 
     assert detail == {"correctness": "Holds."}
 
 
 def test_deep_verification_detail_carries_the_published_probe_triple() -> None:
-    """R14-15's probes as parts, not as one indented prose blob.
-
-    ``format_deep_verification_critique`` renders the same content into
-    the row's ``critique``, but two-space-indented under a probe header,
-    which collapses into one paragraph wherever markdown renders it.
-    """
     detail = _deep_verification_detail(
         [
             {
@@ -392,12 +326,10 @@ def test_deep_verification_detail_carries_the_published_probe_triple() -> None:
 
 
 def test_deep_verification_detail_is_empty_without_probes() -> None:
-    """No probe means no row detail at all, verdict or not."""
     assert _deep_verification_detail([], "holds") == {}
 
 
 def test_persisted_rows_carry_the_detail_json(isolated_db: str) -> None:
-    """End to end: the drain writes the structured detail beside the prose."""
     from app import store
     from tests._drain_helpers import _engine_hypothesis, _persist
 
@@ -449,16 +381,8 @@ def test_persisted_rows_carry_the_detail_json(isolated_db: str) -> None:
 
 
 def test_review_axes_match_the_engine_score_criteria() -> None:
-    """The app's copy of the axis list must not drift from the engine's.
-
-    ``drain.review_detail._REVIEW_AXES`` and the report's own
-    ``_AXIS_SECTIONS`` name the axes rather than importing them, so a
-    drained row can be read without an engine schema import at runtime.
-    An axis added or reordered engine-side would otherwise silently stop
-    being persisted, and stop being rendered, with every test still
-    green -- the same drift the engine already pins for the offline
-    backend's copy of this list.
-    """
+    # App axis copies avoid runtime schema imports but must track engine
+    # additions and order.
     from co_scientist.schemas.review import _SCORE_CRITERIA
 
     from app.engine_adapter.drain.reviews import _REVIEW_AXES
@@ -471,7 +395,6 @@ def test_review_axes_match_the_engine_score_criteria() -> None:
 def test_drain_result_carries_stratification_attributes(
     isolated_db: str,
 ) -> None:
-    """The drain hands the Supervisor's synthesized attributes to the report."""
     run = store.create_run("attributes goal", "standard", "engine", {})
     state = _final_state_with_features()
     state["supervisor_guidance"] = {
@@ -503,7 +426,6 @@ def test_drain_result_carries_stratification_attributes(
 
 
 def test_drain_result_defaults_to_no_attributes(isolated_db: str) -> None:
-    """A run with no supervisor guidance reports an empty list, not a crash."""
     run = store.create_run("no guidance goal", "standard", "engine", {})
 
     drained = _persist(
@@ -518,7 +440,6 @@ def test_drain_result_defaults_to_no_attributes(isolated_db: str) -> None:
 def test_drain_result_ignores_malformed_config_synthesis(
     isolated_db: str,
 ) -> None:
-    """A non-dict config_synthesis (an old or malformed checkpoint) degrades."""
     run = store.create_run("malformed goal", "standard", "engine", {})
     state = _final_state_with_features()
     state["supervisor_guidance"] = {"config_synthesis": "not a dict"}
@@ -528,17 +449,7 @@ def test_drain_result_ignores_malformed_config_synthesis(
     assert drained.report_inputs["attributes"] == []
 
 
-# Unit tests for folding the finalize grounding pass's LLM telemetry.
-#
-# The real caller (``drain.persist_final_state``) always hands
-# ``fold_grounding_telemetry`` an already-plain ``final_state`` -- its
-# own caller runs ``_plain_final_state`` first, which serializes
-# ``metrics`` to a dict before drain ever sees it -- so these tests cover
-# that plain-dict shape, both empty and pre-populated.
-
-
 def test_grounding_telemetry_is_folded_into_plain_metrics() -> None:
-    """Non-empty usage merges into an existing plain-dict metrics field."""
     final_state: dict[str, Any] = {
         "metrics": {"llm_calls": 3, "model_usage": {}}
     }
@@ -559,7 +470,6 @@ def test_grounding_telemetry_is_folded_into_plain_metrics() -> None:
 
 
 def test_grounding_telemetry_handles_missing_metrics_key() -> None:
-    """A final_state with no prior metrics key still folds cleanly."""
     final_state: dict[str, Any] = {}
     usage = {"claim_grounding::llm:test-model": {"calls": 2}}
 
@@ -570,7 +480,6 @@ def test_grounding_telemetry_handles_missing_metrics_key() -> None:
 
 
 def test_a_grounding_pass_that_made_no_calls_charges_nothing() -> None:
-    """A fully-reused grounding pass must not manufacture a metrics key."""
     final_state: dict[str, Any] = {"metrics": {"llm_calls": 4}}
 
     fold_grounding_telemetry(final_state, {})
@@ -578,33 +487,11 @@ def test_a_grounding_pass_that_made_no_calls_charges_nothing() -> None:
     assert final_state["metrics"] == {"llm_calls": 4}
 
 
-# Tests for the real-engine final-state drain in engine_adapter.
-#
-# The drain runs only on the real-engine branch, which the mock-forced test
-# fixtures never reach. To keep it verifiable without an LLM, the drain is a
-# module-level helper (`persist_final_state`) that takes a synthetic final
-# state and writes hypotheses, evidence, matches, and reviews into the store,
-# returning the report inputs. The report itself is built and persisted by the
-# shared ``report.finalize.finalize_report`` path.
-#
-# This module holds the core drain, research-overview, lineage, matchup, and
-# synthesis-exclusion cases. Multi-parent (combination) lineage lives in
-# ``test_engine_drain_lineage.py``; citation classification and
-# deep-verification reviews live in ``test_engine_drain_citations.py``; the
-# pre-tournament safety screen and rank-and-publish gating live in
-# ``test_engine_drain_safety.py``.
-# Shared synthetic-state builders live in ``tests/_drain_helpers.py``. The
-# adapter's canonical event vocabulary is covered separately in
-# ``test_engine_adapter_events``.
-
-
 async def _emit(type_: str, payload: dict[str, Any]) -> dict[str, Any]:
-    """A plain-dict event emitter for finalize paths that need no event log."""
     return {"type": type_, "payload": payload}
 
 
 def _assert_features_proximity_edge(run_id: str, db_path: str) -> None:
-    """The single feature-fixture proximity edge is persisted intact."""
     edges = store.list_proximity_edges(run_id, db_path=db_path)
     hypotheses = store.list_hypotheses(run_id, db_path=db_path)
     hypothesis_ids = {hypothesis["id"] for hypothesis in hypotheses}
@@ -623,7 +510,6 @@ def _assert_features_proximity_edge(run_id: str, db_path: str) -> None:
 
 
 def _seed_safe_and_unsafe(run: Any, db_path: str) -> tuple[str, str]:
-    """Add one safe and one unsafe hypothesis, each with claim evidence."""
     safe_id = store.add_hypothesis(
         store.NewHypothesis(
             run_id=run.id,
@@ -678,7 +564,6 @@ def _seed_safe_and_unsafe(run: Any, db_path: str) -> tuple[str, str]:
 
 
 def _archived_parent_state() -> dict[str, Any]:
-    """A lineage state whose parent is archived as a proximity duplicate."""
     state = _final_state_with_lineage()
     parent = state["hypotheses"][0]
     state["hypotheses"] = [state["hypotheses"][1]]
@@ -705,7 +590,6 @@ def _archived_parent_state() -> dict[str, Any]:
 
 
 def test_persist_writes_research_overview_into_report(isolated_db: str) -> None:
-    """The research overview rides the report payload and markdown."""
     run = store.create_run("CSC goal", "standard", "engine", {})
     _persist_and_finalize(run, _final_state_with_features(), isolated_db)
 
@@ -735,12 +619,8 @@ def test_persist_writes_research_overview_into_report(isolated_db: str) -> None:
 
 
 def test_drain_persists_explicit_lineage(isolated_db: str) -> None:
-    """The drain carries parent_id/generation/origin from the engine fields.
-
-    Both parent and child survive (append semantics, no discard), the child
-    links to its parent, and generation/created_by_agent reflect the explicit
-    lineage rather than an evolution_history inference.
-    """
+    # Lineage is explicit and append-only; do not infer it from evolution
+    # history.
     run = store.create_run("kinase goal", "standard", "engine", {})
     _persist(
         run_id=run.id,
@@ -750,7 +630,7 @@ def test_drain_persists_explicit_lineage(isolated_db: str) -> None:
 
     hyps = store.list_hypotheses(run.id, db_path=isolated_db)
     by_id = {h["id"]: h for h in hyps}
-    assert set(by_id) == {"parent-1", "child-1"}  # both kept
+    assert set(by_id) == {"parent-1", "child-1"}
 
     parent = by_id["parent-1"]
     child = by_id["child-1"]
@@ -763,13 +643,9 @@ def test_drain_persists_explicit_lineage(isolated_db: str) -> None:
 
 
 def test_drain_drops_orphaned_parent_reference(isolated_db: str) -> None:
-    """A child whose parent is not persisted is stored as a root (FK-safe).
-
-    Guards the hypotheses.parent_id foreign key: a dangling reference (e.g. a
-    parent pruned by proximity) must not abort the drain transaction.
-    """
+    # A pruned parent must not leave a dangling foreign key that aborts the
+    # whole drain.
     state = _final_state_with_lineage()
-    # Drop the parent from the persisted set, leaving the child dangling.
     state["hypotheses"] = [
         h for h in state["hypotheses"] if h["id"] != "parent-1"
     ]
@@ -778,7 +654,6 @@ def test_drain_drops_orphaned_parent_reference(isolated_db: str) -> None:
 
     hyps = store.list_hypotheses(run.id, db_path=isolated_db)
     assert len(hyps) == 1
-    # The orphaned child is stored with parent_id cleared, generation intact.
     assert hyps[0]["id"] == "child-1"
     assert hyps[0]["parent_id"] is None
     assert hyps[0]["generation"] == 1
@@ -787,13 +662,8 @@ def test_drain_drops_orphaned_parent_reference(isolated_db: str) -> None:
 def test_drain_preserves_proximity_pruned_parent_as_a_duplicate(
     isolated_db: str,
 ) -> None:
-    """A duplicate archive retains lineage and is marked as a duplicate.
-
-    Not "rejected": nothing judged this idea, a higher-ranked one simply
-    said the same thing. Recording both outcomes as "rejected" made the UI
-    label a deduplicated idea "Disqualified", which reads as a verdict on
-    the science -- one run showed twenty ideas that way.
-    """
+    # Duplicates were folded into peers without judgment; rejection would
+    # misrepresent their science.
     state = _archived_parent_state()
     run = store.create_run("kinase archive goal", "standard", "engine", {})
 
@@ -813,7 +683,6 @@ def test_drain_preserves_proximity_pruned_parent_as_a_duplicate(
 def test_drain_persists_evidence_quarantine_as_rejected(
     isolated_db: str,
 ) -> None:
-    """The pre-ranking evidence gate maps to the Non-Viable archive."""
     state = _final_state_with_lineage()
     state["hypotheses"][0]["review_disposition"] = "evidence_blocked"
     run = store.create_run("grounded archive goal", "standard", "engine", {})
@@ -831,14 +700,8 @@ def test_drain_persists_evidence_quarantine_as_rejected(
 def test_drain_publishes_an_undermined_idea_but_records_the_verdict(
     isolated_db: str,
 ) -> None:
-    """Deep verification demotes on the merits; it no longer disqualifies.
-
-    An undermined idea now ranks and publishes, so ``status`` says
-    ``active`` like any other. That is exactly why the verdict has to be
-    persisted alongside it: it is the only remaining record that the idea
-    is doubted, and without it a published idea reaches the reader looking
-    indistinguishable from a sound one.
-    """
+    # Undermined ideas still publish, so persist the verdict that distinguishes
+    # them from sound ideas.
     state = _final_state_with_lineage()
     state["hypotheses"][0]["deep_verification_verdict"] = "undermined"
     run = store.create_run("undermined archive goal", "standard", "engine", {})
@@ -858,23 +721,16 @@ def test_drain_publishes_an_undermined_idea_but_records_the_verdict(
 async def test_unsafe_hypothesis_excluded_from_synthesis(
     isolated_db: str,
 ) -> None:
-    """A hypothesis a per-hypothesis review blocks never reaches the report.
-
-    Milestone 6/M9: the report synthesis excludes prohibited/ethical/uncertain
-    hypotheses from the leaderboard and top ideas, recording an audit decision.
-    """
     run = store.create_run("safety goal", "standard", "engine", {})
     safe_id, _unsafe_id = _seed_safe_and_unsafe(run, isolated_db)
 
     payload, markdown = await _build_report(run, isolated_db)
 
-    # Only the safe hypothesis is synthesized.
     assert payload["hypothesis_count"] == 1
     leaderboard_ids = {row["id"] for row in payload["leaderboard"]}
     assert leaderboard_ids == {safe_id}
     assert "Weaponize" not in markdown
 
-    # The exclusion is recorded as a per-hypothesis safety audit decision.
     decisions = store.list_safety_decisions(run.id, db_path=isolated_db)
     assert any(
         d["stage"] == "hypothesis" and d["decision"] == "block"
@@ -883,11 +739,6 @@ async def test_unsafe_hypothesis_excluded_from_synthesis(
 
 
 def test_resumed_finalize_does_not_double_publish(isolated_db: str) -> None:
-    """A resumed run that finalizes twice publishes exactly one report.
-
-    Milestone 4 idempotency: the single-publish guard (gated on ``resumed``)
-    makes a second finalize a no-op once a report exists.
-    """
     run = store.create_run("CSC goal", "standard", "engine", {})
     drained = _persist(
         run_id=run.id,
@@ -913,7 +764,6 @@ def test_resumed_finalize_does_not_double_publish(isolated_db: str) -> None:
         )
 
     first = _finalize(resumed=False)
-    # A resumed second finalize is a no-op: no new events, one report only.
     second = _finalize(resumed=True)
 
     assert any(e["type"] == "report" for e in first)
@@ -926,7 +776,6 @@ def test_resumed_finalize_does_not_double_publish(isolated_db: str) -> None:
 
 
 def test_persist_passes_engine_ids_through_to_store(isolated_db: str) -> None:
-    """Hypothesis rows carry the engine's stable id (id pass-through)."""
     run = store.create_run("CSC goal", "standard", "engine", {})
     _persist(
         run_id=run.id,
@@ -942,7 +791,6 @@ def test_persist_passes_engine_ids_through_to_store(isolated_db: str) -> None:
 def test_persist_writes_scene_setting_onto_the_hypothesis_row(
     isolated_db: str,
 ) -> None:
-    """Introduction/Recent findings (MO-6) persist on the hypothesis row."""
     run = store.create_run("CSC goal", "standard", "engine", {})
     final_state = {
         "hypotheses": [
@@ -979,14 +827,8 @@ def test_persist_writes_scene_setting_onto_the_hypothesis_row(
 
 
 def test_persist_matches_resolve_by_engine_id(isolated_db: str) -> None:
-    """Tournament matches resolve by id even when the matchup text has drifted.
-
-    The matchup's ``hypothesis_a``/``hypothesis_b`` display text is deliberately
-    made to NOT match the persisted hypothesis statements (as happens when
-    evolve mutates a hypothesis's text after ranking recorded the matchup). The
-    old text-prefix matching would drop such a match; id-based resolution must
-    still find it.
-    """
+    # Evolution can change matchup display text; identity must resolve by id
+    # rather than text prefixes.
     state = _final_state_with_features()
     state["tournament_matchups"][0]["hypothesis_a"] = "drifted text A"
     state["tournament_matchups"][0]["hypothesis_b"] = "drifted text B"
@@ -1000,21 +842,14 @@ def test_persist_matches_resolve_by_engine_id(isolated_db: str) -> None:
     matches = store.list_matches(run.id, db_path=isolated_db)
     assert len(matches) == 1
     match = matches[0]
-    # Ids flow straight through: the persisted match points at the engine ids.
     assert match["winner_id"] == "eng-hyp-a"
     assert match["loser_id"] == "eng-hyp-b"
-    # And those ids are real hypothesis rows for the run.
     assert store.get_hypothesis("eng-hyp-a", db_path=isolated_db) is not None
     assert store.get_hypothesis("eng-hyp-b", db_path=isolated_db) is not None
 
 
 def test_persist_skips_matchup_with_unresolved_id(isolated_db: str) -> None:
-    """A matchup referencing a dropped hypothesis id is skipped, not persisted.
-
-    Evolution discards lower-ranked hypotheses, so a final matchup can reference
-    an id absent from the final set. Such a matchup must be skipped rather than
-    persisted with a bad reference.
-    """
+    # Dropped participant ids must not produce dangling persisted matches.
     state = _final_state_with_features()
     state["tournament_matchups"][0]["hypothesis_b_id"] = "eng-hyp-gone"
     state["tournament_matchups"][0]["winner_id"] = "eng-hyp-gone"
@@ -1029,7 +864,6 @@ def test_persist_skips_matchup_with_unresolved_id(isolated_db: str) -> None:
 
 
 def test_persist_handles_missing_research_overview(isolated_db: str) -> None:
-    """Older runs without a research overview do not crash or emit a header."""
     state = _final_state_with_features()
     del state["research_overview"]
     run = store.create_run("No overview", "standard", "engine", {})
@@ -1043,7 +877,6 @@ def test_persist_handles_missing_research_overview(isolated_db: str) -> None:
 
 
 def test_persist_handles_empty_research_overview(isolated_db: str) -> None:
-    """An overview with empty sub-dicts emits no empty headers."""
     state = _final_state_with_features()
     state["research_overview"] = {"overview": {}, "nih_specific_aims": {}}
     run = store.create_run("Empty overview", "standard", "engine", {})
@@ -1055,17 +888,7 @@ def test_persist_handles_empty_research_overview(isolated_db: str) -> None:
     assert "## NIH Specific Aims" not in report["markdown_text"]
 
 
-# Engine-drain tests for citations and deep-verification reviews.
-#
-# Split out of ``test_engine_drain.py`` by concern. These cover the drain's
-# citation classification through the shared four-state classifier and the
-# persistence of deep-verification probes as review rows. Shared builders live
-# in
-# ``tests/_drain_helpers.py``.
-
-
 def test_persist_writes_deep_verification_reviews(isolated_db: str) -> None:
-    """Hypotheses with probes get a deep_verification review row."""
     run = store.create_run("CSC goal", "standard", "engine", {})
     _persist(
         run_id=run.id,
@@ -1075,7 +898,6 @@ def test_persist_writes_deep_verification_reviews(isolated_db: str) -> None:
 
     reviews = store.list_reviews(run.id, db_path=isolated_db)
     deep = [r for r in reviews if r["reviewer_agent"] == "deep_verification"]
-    # Only the first hypothesis has probes.
     assert len(deep) == 1
     critique = deep[0]["critique"]
     assert "Does CXCR1 signaling drive the stem-cell phenotype?" in critique
@@ -1084,13 +906,11 @@ def test_persist_writes_deep_verification_reviews(isolated_db: str) -> None:
         "weakened" in deep[0]["summary"].lower()
         or "weakened" in critique.lower()
     )
-    # Score columns are not produced by deep verification.
     assert deep[0]["novelty"] is None
     assert deep[0]["overall"] is None
 
 
 def _final_state_with_novelty_review() -> dict[str, Any]:
-    """A final state whose hypothesis carries the published novelty review."""
     return {
         "hypotheses": [
             _engine_hypothesis(
@@ -1122,7 +942,6 @@ def _final_state_with_novelty_review() -> dict[str, Any]:
 def test_persist_writes_novelty_review_lists_into_critique(
     isolated_db: str,
 ) -> None:
-    """Already-explored/novel-aspects lists reach the reader (MO-3)."""
     run = store.create_run("CSC goal", "standard", "engine", {})
     _persist(
         run_id=run.id,
@@ -1136,12 +955,10 @@ def test_persist_writes_novelty_review_lists_into_critique(
     assert "CXCR1 is a known breast-CSC marker." in review["critique"]
     assert "Novel Aspects:" in review["critique"]
     assert "The proposed feedback loop is new." in review["critique"]
-    # The plain constructive-feedback content is preserved too.
     assert "Tighten the controls." in review["critique"]
 
 
 def _final_state_with_mature_reviews() -> dict[str, Any]:
-    """A final state whose hypothesis carries all three mature reviews."""
     return {
         "hypotheses": [
             _engine_hypothesis(
@@ -1189,12 +1006,6 @@ def _final_state_with_mature_reviews() -> dict[str, Any]:
 
 
 def test_persist_writes_distinct_mature_review_rows(isolated_db: str) -> None:
-    """Full/simulation/recurrent results reach the reader as labeled rows.
-
-    They used to stop at the engine's enrichments (audit E1): nothing the
-    report reader could see. Each becomes its own review row under a
-    distinct reviewer_agent, with the verdict as the summary.
-    """
     run = store.create_run("CSC goal", "standard", "engine", {})
     _persist(
         run_id=run.id,
@@ -1214,8 +1025,6 @@ def test_persist_writes_distinct_mature_review_rows(isolated_db: str) -> None:
     )
     assert "Circular pathway reasoning." in by_agent["full_review"]["critique"]
     assert "CXCR1 is the only driver" in by_agent["full_review"]["critique"]
-    # The published free-text reasoning paragraph (MO-9) rides alongside
-    # the assumption and its support verdict.
     assert (
         "Two other chemokine receptors are independently sufficient."
         in by_agent["full_review"]["critique"]
@@ -1227,18 +1036,10 @@ def test_persist_writes_distinct_mature_review_rows(isolated_db: str) -> None:
     assert by_agent["recurrent_review"]["summary"] == (
         "Recurrent review verdict: needs_revision"
     )
-    # Retrieval bookkeeping never reaches the persisted row.
     assert "not persisted" not in str(by_agent)
 
 
 def _citations_citation_map() -> dict[str, Any]:
-    """Three citations engineered to land in three distinct citation states.
-
-    Once routed through ``classify_citation``: a retrieved paper whose abstract
-    overlaps the grounding (verified), a paper with a URL but no retrieved
-    abstract (unsupported), and a knowledge-graph source with no URL
-    (unavailable).
-    """
     return {
         "C1": {
             "type": "paper",
@@ -1262,7 +1063,6 @@ def _citations_citation_map() -> dict[str, Any]:
 
 
 def _final_state_with_citations() -> dict[str, Any]:
-    """A minimal final state whose hypothesis cites three distinct sources."""
     grounding = "CXCR1 signaling drives breast cancer stem cell renewal"
     return {
         "hypotheses": [
@@ -1292,12 +1092,6 @@ def _final_state_with_citations() -> dict[str, Any]:
 def test_persist_classifies_citations_via_shared_classifier(
     isolated_db: str,
 ) -> None:
-    """Engine citations run through classify_citation, not a hardcoded state.
-
-    Regression guard: the drain previously stamped every citation "verified",
-    leaving the four-state citation UI dead for real runs. Each source must now
-    resolve to the state its content warrants.
-    """
     run = store.create_run("CSC goal", "standard", "engine", {})
     _persist(
         run_id=run.id,
@@ -1317,15 +1111,8 @@ def test_persist_classifies_citations_via_shared_classifier(
 def test_a_knowledge_graph_citations_evidence_row_keeps_its_display_text(
     isolated_db: str,
 ) -> None:
-    """A non-paper citation's evidence title must not become its bare key.
-
-    ``_persist_one_citation`` fell back to the [C*] key itself
-    (``cite_info.get("title", cite_key)``) whenever a source carried no
-    "title" -- true of every non-paper source, which is keyed by "display"
-    instead (see ``citations._enrichment_reference_entries``). A run citing
-    an INDRA statement therefore persisted an evidence row titled literally
-    "C3" rather than the statement it names.
-    """
+    # Non-paper citations use display rather than title; falling back to the
+    # citation key loses source identity.
     run = store.create_run("CSC goal", "standard", "engine", {})
     _persist(
         run_id=run.id,
@@ -1341,13 +1128,6 @@ def test_a_knowledge_graph_citations_evidence_row_keeps_its_display_text(
 async def test_the_rendered_report_resolves_the_grounding_text_citation_keys(
     isolated_db: str,
 ) -> None:
-    """End to end: a drained run's report resolves its own [C*] keys.
-
-    The generation prompt writes [C1]/[C2]/[C3] into the mechanism text; the
-    drain persists the engine's citation_map into citations+evidence; the
-    report must join the two back together rather than leaving the reader
-    with bracketed keys that resolve to nothing.
-    """
     run = store.create_run("CSC goal", "standard", "engine", {})
     await drain_final_state.persist_final_state(
         run_id=run.id,
@@ -1361,20 +1141,12 @@ async def test_the_rendered_report_resolves_the_grounding_text_citation_keys(
     section = markdown.split("#### References", 1)[1]
     assert "CXCR1 drives CSC renewal" in section
     assert "INDRA: CXCR1 -> STAT3" in section
-    # The filler claim text a citation row carries for classification
-    # purposes must never leak into the reader-facing reference line.
     assert "cited in hypothesis" not in section
 
 
 def _final_state_with_multi_source_grounding() -> dict[str, Any]:
-    """A run-shaped grounding: several sentences, each citing its own paper.
-
-    The single-sentence fixture above cannot distinguish a citation matched
-    against the sentence that cites it from one matched against the whole
-    paragraph, because there is only one sentence. A real grounding is a
-    synthesis paragraph spanning every source, and each abstract restates
-    only its own sentence.
-    """
+    # Multiple sentences distinguish per-citation support from whole-paragraph
+    # lexical dilution.
     grounding = (
         "CXCR1 signaling drives breast cancer stem cell renewal [C1]. "
         "Hypoxia-inducible factor stabilization expands the perivascular "
@@ -1428,16 +1200,8 @@ def _final_state_with_multi_source_grounding() -> dict[str, Any]:
 def test_each_citation_is_scored_against_the_sentence_that_cites_it(
     isolated_db: str,
 ) -> None:
-    """A multi-source grounding must not make every citation unsupported.
-
-    Coverage is measured over the claim's own vocabulary, so handing the
-    classifier the whole grounding paragraph divides each source's real
-    overlap by every other source's words too. In one live run the best of
-    27 citations scored 0.23 against a 0.30 "partial" line, so a run whose
-    every citation was retrieved and on-point still reported 0 verified,
-    0 partial, 33 unsupported -- the same unreachable-upper-states failure
-    the Jaccard fix removed, arriving by a different route.
-    """
+    # Classify each cited sentence; unrelated source vocabulary can make the
+    # support threshold unreachable.
     run = store.create_run("CSC goal", "standard", "engine", {})
     _persist(
         run_id=run.id,

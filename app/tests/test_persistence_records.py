@@ -1,5 +1,3 @@
-"""Tests for persistence 1."""
-
 from __future__ import annotations
 
 import io
@@ -30,8 +28,6 @@ from tests._client import make_client, wait_for_status
 from tests._client import make_client as _client
 from tests._engine_tasks_helpers import _seed_checkpoint, _task_state
 from tests._store_helpers import _add
-
-# Consistent backups preserve committed WAL data and existing files.
 
 
 @pytest.mark.parametrize("timeout", [0, -1, float("inf"), float("nan")])
@@ -113,52 +109,13 @@ def test_failed_backup_leaves_no_published_or_temporary_file(
     assert not list(tmp_path.glob(".backup.db.*"))
 
 
-# Regression coverage for migrating a *populated* legacy-schema volume.
-#
-# ``app.store.db._init_schema`` runs the base ``_SCHEMA`` script (every
-# ``CREATE TABLE``/``CREATE INDEX ... IF NOT EXISTS``) and then
-# ``_run_migrations`` (idempotent ``ALTER TABLE ADD COLUMN`` plus backfills)
-# against every database on every process start -- fresh or already
-# populated. On a genuinely fresh database this is close to a no-op: the
-# current ``_SCHEMA`` already bakes in most historical migrations' columns
-# directly into the ``CREATE TABLE`` statements, so the column only needs
-# adding via ``ALTER`` on a database whose on-disk tables predate that.
-# The ordinary suite -- which always starts from ``isolated_db``, a brand
-# new file -- never exercises that case.
-#
-# It is exactly the case that matters in production: a Railway volume is a
-# single on-disk file that has been through some prefix of the migration
-# history, never all of it retroactively. ``db.py``'s own comments document
-# the invariant this depends on -- an index built in ``_SCHEMA`` over a
-# column that only ``_run_migrations`` adds would abort ``executescript``
-# against a database that lacks the column yet, while a fresh database
-# (which gets the column straight from ``_SCHEMA``) sails through unaffected.
-# That asymmetry is exactly how a schema change can look safe locally (every
-# test starts fresh) and break the first migration against the deployed
-# volume. This module builds an "ancient" database by hand -- tables with
-# only the pre-migration columns, populated with rows a real old volume
-# would hold -- and asserts the current store starts against it cleanly and
-# the migrations do what they claim, using the two migrations ``db.py``
-# itself calls out as ordering-sensitive: ``app_logs.client_id`` (added,
-# then immediately indexed, in ``_run_migrations`` rather than ``_SCHEMA``
-# specifically to avoid this failure mode) and the ``runs`` table's
-# client-isolation purge plus ``llm_backend`` backfill.
-#
-# Not a full replay of every ``_migrate_*`` function -- that would duplicate
-# the whole migration history as a second copy to keep in sync. Extend this
-# module's ancient-table fixtures when a new migration lands that shares the
-# same danger shape (a column added and then referenced by an index, a
-# default, or a backfill in the same or a later migration).
+# Create indexes only after adding their legacy columns; fresh-database fixtures
+# hide this ordering failure.
 
 
 def _create_ancient_tables(conn: sqlite3.Connection) -> None:
-    """Create ``runs``/``app_logs`` as they looked before recent migrations.
-
-    Mirrors ``schema.py``'s current column list minus every column
-    ``_run_migrations`` still adds via ``ALTER TABLE`` for these two
-    tables, so this is exactly the shape a volume never yet migrated
-    forward would present.
-    """
+    # Fresh databases already contain migration columns; only populated legacy
+    # fixtures exercise ALTER ordering.
     conn.executescript(
         """
         CREATE TABLE runs (
@@ -201,15 +158,8 @@ def _insert_ancient_run(
 def test_migrating_a_pre_isolation_volume_purges_orphaned_runs(
     isolated_db: str,
 ) -> None:
-    """A volume from before client isolation loses its unowned run rows.
-
-    This is destructive by design (``_migrate_client_isolation``'s purge,
-    documented in ``db.py``) -- unowned rows are invisible to every client
-    once ownership exists, so keeping them serves no one. The point under
-    test is that migrating this exact legacy shape does not raise, and
-    ``app_logs`` -- which has no purge, only an added, indexed column --
-    keeps its pre-existing row intact.
-    """
+    # Client-isolation purge is one-time: unowned legacy runs are inaccessible,
+    # while existing logs survive.
     raw = sqlite3.connect(isolated_db)
     try:
         _create_ancient_tables(raw)
@@ -222,7 +172,6 @@ def test_migrating_a_pre_isolation_volume_purges_orphaned_runs(
     finally:
         raw.close()
 
-    # Any store call establishes the connection and runs _init_schema.
     assert store.get_run("legacy-run-1", db_path=isolated_db) is None
 
     with store_db.connect(isolated_db) as conn:
@@ -243,13 +192,8 @@ def test_migrating_a_pre_isolation_volume_purges_orphaned_runs(
 def test_migrating_a_client_isolated_volume_backfills_llm_backend(
     isolated_db: str,
 ) -> None:
-    """A volume already carrying client_id still needs llm_backend backfilled.
-
-    Simulates a volume that already went through client isolation (an
-    earlier deploy) but predates the offline/real backend column -- so the
-    purge above must not fire again (both rows survive) while the backfill
-    still runs, keyed on each row's own provider.
-    """
+    # Already-owned volumes must backfill backend metadata without repeating the
+    # unowned-run purge.
     raw = sqlite3.connect(isolated_db)
     try:
         _create_ancient_tables(raw)
@@ -276,13 +220,6 @@ def test_migrating_a_client_isolated_volume_backfills_llm_backend(
 def test_migrating_a_volume_with_the_retired_feedback_table_drops_it(
     isolated_db: str,
 ) -> None:
-    """A volume carrying the retired pilot-feedback table loses it cleanly.
-
-    The current schema no longer creates ``feedback`` at all, so this is
-    the one migration only a populated legacy volume exercises: build the
-    table by hand, as an old deploy would still have it, and confirm the
-    ``DROP TABLE IF EXISTS`` migration removes it without raising.
-    """
     raw = sqlite3.connect(isolated_db)
     try:
         _create_ancient_tables(raw)
@@ -300,8 +237,6 @@ def test_migrating_a_volume_with_the_retired_feedback_table_drops_it(
     finally:
         raw.close()
 
-    # Any store call establishes the connection and runs _init_schema plus
-    # _run_migrations, which is where the drop happens.
     assert store.get_run("does-not-exist", db_path=isolated_db) is None
 
     with store_db.connect(isolated_db) as conn:
@@ -312,13 +247,6 @@ def test_migrating_a_volume_with_the_retired_feedback_table_drops_it(
             )
         }
         assert "feedback" not in tables
-
-
-# Tests for durable structured fact/contradiction derivation (audit G14).
-#
-# ``derive_knowledge_facts`` is a pure function (no DB), tested directly here.
-# Store round-trip and the report-finalize wiring are covered in
-# ``test_store_knowledge_facts.py``.
 
 
 def _edge(
@@ -338,7 +266,6 @@ def _edge(
 
 
 def test_supports_edge_becomes_a_fact() -> None:
-    """A ``supports`` edge becomes a durable "fact" row."""
     facts = derive_knowledge_facts([_edge("supports")])
     assert len(facts) == 1
     assert facts[0]["kind"] == "fact"
@@ -346,7 +273,6 @@ def test_supports_edge_becomes_a_fact() -> None:
 
 
 def test_contradicts_edge_becomes_a_contradiction() -> None:
-    """A ``contradicts`` edge becomes a durable "contradiction" row."""
     facts = derive_knowledge_facts([_edge("contradicts")])
     assert len(facts) == 1
     assert facts[0]["kind"] == "contradiction"
@@ -354,13 +280,11 @@ def test_contradicts_edge_becomes_a_contradiction() -> None:
 
 
 def test_insufficient_edge_is_dropped() -> None:
-    """An insufficient edge asserts nothing and is not carried over."""
     facts = derive_knowledge_facts([_edge("insufficient")])
     assert facts == []
 
 
 def test_edge_with_no_claim_text_is_dropped() -> None:
-    """A settled edge with blank claim text produces no row either way."""
     facts = derive_knowledge_facts([_edge("supports", claim="  ")])
     assert facts == []
 
@@ -374,7 +298,6 @@ def test_fact_carries_the_statement_and_hypothesis() -> None:
 
 
 def test_fact_extracts_entities_from_the_claim() -> None:
-    """Entities mentioned in the claim text are tagged onto the row."""
     facts = derive_knowledge_facts(
         [_edge("supports", claim="TREM2 promotes microglial clearance.")]
     )
@@ -382,7 +305,6 @@ def test_fact_extracts_entities_from_the_claim() -> None:
 
 
 def test_fact_evidence_id_comes_from_the_supporting_spans() -> None:
-    """A fact's evidence id is read from supporting, not contradicting."""
     facts = derive_knowledge_facts(
         [
             _edge(
@@ -396,11 +318,8 @@ def test_fact_evidence_id_comes_from_the_supporting_spans() -> None:
 
 
 def test_contradiction_evidence_id_comes_from_the_contradicting_spans() -> None:
-    """A contradiction's evidence id is read from contradicting.
-
-    Not from supporting -- the two labels' evidence lives in different span
-    lists on the same edge.
-    """
+    # Supporting and contradicting edges store their evidence in different span
+    # lists.
     facts = derive_knowledge_facts(
         [
             _edge(
@@ -414,13 +333,11 @@ def test_contradiction_evidence_id_comes_from_the_contradicting_spans() -> None:
 
 
 def test_fact_evidence_id_is_none_without_a_span() -> None:
-    """A settled edge with no evidence-id span leaves evidence_id None."""
     facts = derive_knowledge_facts([_edge("supports")])
     assert facts[0]["evidence_id"] is None
 
 
 def test_mixed_edges_only_keep_settled_ones() -> None:
-    """A mixed batch keeps supports/contradicts, dropping insufficient."""
     edges = [
         _edge("supports", claim="A supports claim."),
         _edge("insufficient", claim="An insufficient claim."),
@@ -431,9 +348,6 @@ def test_mixed_edges_only_keep_settled_ones() -> None:
         "A supports claim.",
         "A contradicts claim.",
     ]
-
-
-# Tests for the messages store layer.
 
 
 def test_append_and_list_messages(isolated_db: str) -> None:
@@ -549,12 +463,8 @@ def test_mark_steering_applied(isolated_db: str) -> None:
 def test_queued_steering_flags_engine_pending_steering(
     isolated_db: str,
 ) -> None:
-    """Queued steering makes the engine opts carry a high-priority flag (M7).
-
-    The real engine's orchestrator treats ``pending_steering`` as a
-    high-priority request to generate anew; the adapter must set it when
-    steering is queued (in addition to folding the text into preferences).
-    """
+    # Steering needs the pending flag as well as preference text because the
+    # orchestrator prioritizes that flag.
     from app.engine_adapter.opts import build_engine_opts
 
     run = store.create_run(
@@ -576,7 +486,6 @@ def test_queued_steering_flags_engine_pending_steering(
 
     opts = build_engine_opts(run.config, run.id, isolated_db)
     assert opts.get("pending_steering") is True
-    # The steering text is also folded into the preferences context.
     assert "kinase X" in str(opts.get("preferences") or "")
 
 
@@ -595,7 +504,6 @@ def test_no_steering_leaves_pending_flag_unset(isolated_db: str) -> None:
 
 
 def test_engine_opts_bind_private_attachment_context(isolated_db: str) -> None:
-    """A consented attachment becomes engine literature and citation context."""
     from app.engine_adapter.opts import build_engine_opts
 
     run = store.create_run(
@@ -648,11 +556,6 @@ def test_message_to_dict(isolated_db: str) -> None:
     assert "created_at" in d
 
 
-# ---------------------------------------------------------------------------
-# API endpoint tests
-# ---------------------------------------------------------------------------
-
-
 def _make_run(client: TestClient, goal: str = "test goal") -> str:
     client.headers.update({"X-Client-ID": "test-client"})
     res = client.post(
@@ -679,7 +582,6 @@ def test_send_message_endpoint(isolated_db: str) -> None:
 
 
 def test_steering_reopens_completed_engine_run(isolated_db: str) -> None:
-    """Post-report steering continues from the durable engine checkpoint."""
     client = _client()
     client.headers.update({"X-Client-ID": "test-client"})
     run = store.create_run(
@@ -717,10 +619,6 @@ def test_steering_reopens_completed_engine_run(isolated_db: str) -> None:
 
 
 def test_send_message_always_stores_as_steering(isolated_db: str) -> None:
-    """POST /messages always stores as steering.
-
-    Q&A routing is the frontend's job.
-    """
     client = _client()
     run_id = _make_run(client)
 
@@ -754,10 +652,6 @@ def test_list_messages_404_on_unknown_run(isolated_db: str) -> None:
 
 
 def test_steering_messages_applied_after_run(isolated_db: str) -> None:
-    """Steering messages sent before a run starts are applied later.
-
-    They should be marked applied when the run completes.
-    """
     client = _client()
     run_id = _make_run(client, goal="test steering injection")
 
@@ -781,13 +675,6 @@ def test_steering_messages_applied_after_run(isolated_db: str) -> None:
 def test_milestone_messages_generated_by_durable_run(
     isolated_db: str,
 ) -> None:
-    """The durable run surfaces node milestones as system chat messages.
-
-    Every durable node commit emits the same milestone side-messages the
-    frontend shows (via ``append_node_milestone``). Drive a run through the
-    durable node executor (the surface ``/start`` uses) and assert the
-    milestone messages land, each authored by ``system``.
-    """
     import asyncio
 
     from app import task_worker
@@ -818,16 +705,9 @@ def test_milestone_messages_generated_by_durable_run(
     assert all(m.sender == "system" for m in milestones)
 
 
-# Tests for the time-based retention sweep (N4): app.retention.
-
-
 def _backdate_completion(db_path: str, run_id: str, seconds_ago: float) -> None:
-    """Force a run's completed_at/updated_at into the past for a test.
-
-    ``store`` has no setter for this (a real run's timestamps are always
-    "now" when it settles), so the sweep's age judgment is exercised here
-    by writing the column directly rather than by waiting out real time.
-    """
+    # Write timestamps directly so age-based sweeps are deterministic without
+    # real-time waits.
     backdated = time.time() - seconds_ago
     with sqlite3.connect(db_path) as conn:
         conn.execute(
@@ -896,14 +776,12 @@ def test_sweep_deletes_only_terminal_runs_past_the_window(
     ).json()["id"]
     store.update_run_status(recent_completed, store.RunStatus.COMPLETED)
 
-    # Only the completed row backdated past the default 90-day window
-    # should be swept.
     deleted = retention.sweep_expired_runs()
 
     assert deleted == [old_completed]
     assert not store.run_exists(old_completed)
-    assert store.run_exists(old_running)  # never terminal -> never swept
-    assert store.run_exists(recent_completed)  # not yet expired
+    assert store.run_exists(old_running)
+    assert store.run_exists(recent_completed)
 
 
 def test_sweep_expired_documents_deletes_only_past_the_window(
@@ -925,9 +803,6 @@ def test_sweep_expired_documents_deletes_only_past_the_window(
     assert store.get_staged_documents([document_id], "retention-tester") == []
 
 
-# Tests for durable workflow-checkpoint persistence (Milestone 4).
-
-
 def _run(db: str) -> str:
     return store.create_run(
         "goal", "standard", "mock", {}, store.RunCreateOptions(db_path=db)
@@ -935,7 +810,6 @@ def _run(db: str) -> str:
 
 
 def test_save_and_get_latest_checkpoint(isolated_db: str) -> None:
-    """Saving checkpoints assigns monotonic seqs; latest is returned."""
     run_id = _run(isolated_db)
     assert store.get_latest_checkpoint(run_id, db_path=isolated_db) is None
     assert not store.has_checkpoint(run_id, db_path=isolated_db)
@@ -972,7 +846,6 @@ def test_save_and_get_latest_checkpoint(isolated_db: str) -> None:
 
 
 def test_checkpoints_are_run_scoped(isolated_db: str) -> None:
-    """A checkpoint belongs only to its run."""
     run_a = _run(isolated_db)
     run_b = _run(isolated_db)
     store.save_checkpoint(
@@ -987,7 +860,6 @@ def test_checkpoints_are_run_scoped(isolated_db: str) -> None:
 
 
 def _count(db: str) -> int:
-    """Return the total number of checkpoint rows across all runs."""
     with store.connect(db) as conn:
         return int(
             conn.execute("SELECT COUNT(*) FROM checkpoints").fetchone()[0]
@@ -995,7 +867,6 @@ def _count(db: str) -> int:
 
 
 def _seed_raw_checkpoints(db: str, run_id: str, count: int) -> None:
-    """Insert ``count`` checkpoint rows directly, bypassing the prune path."""
     with store.connect(db) as conn:
         for i in range(1, count + 1):
             conn.execute(
@@ -1007,13 +878,8 @@ def _seed_raw_checkpoints(db: str, run_id: str, count: int) -> None:
 
 
 def test_saving_prunes_the_checkpoints_it_supersedes(isolated_db: str) -> None:
-    """Only the newest checkpoint survives, because only it is readable.
-
-    Regression: every boundary crossed used to leave a full WorkflowState
-    snapshot behind forever. In production that grew the checkpoints table to
-    380 MB -- 97% of the database -- and filled the volume until every write
-    failed with "database or disk is full".
-    """
+    # Only the newest checkpoint is readable; retaining every full state can
+    # fill the volume.
     run_id = _run(isolated_db)
     for i in range(5):
         store.save_checkpoint(
@@ -1030,8 +896,6 @@ def test_saving_prunes_the_checkpoints_it_supersedes(isolated_db: str) -> None:
     assert _count(isolated_db) == 1
     latest = store.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert latest is not None
-    # Pruning must not disturb the seq counter: it is assigned as MAX(seq) + 1
-    # and the bootstrap path asserts on it.
     assert latest["seq"] == 5
     assert latest["stage"] == "stage_4"
     assert latest["state"] == {"round": 4}
@@ -1039,7 +903,6 @@ def test_saving_prunes_the_checkpoints_it_supersedes(isolated_db: str) -> None:
 
 
 def test_pruning_is_per_run(isolated_db: str) -> None:
-    """One run's checkpoints are never pruned by another run's progress."""
     first, second = _run(isolated_db), _run(isolated_db)
     for run_id in (first, second):
         for i in range(3):
@@ -1065,11 +928,7 @@ def test_pruning_is_per_run(isolated_db: str) -> None:
 def test_prune_superseded_reclaims_pre_existing_history(
     isolated_db: str,
 ) -> None:
-    """The startup sweep applies the rule to a database written without it.
-
-    Simulates the production database: rows inserted directly, bypassing the
-    pruning write path, exactly as the old code left them.
-    """
+    # Direct inserts reproduce old databases that bypassed checkpoint pruning.
     run_id = _run(isolated_db)
     _seed_raw_checkpoints(isolated_db, run_id, 20)
     assert _count(isolated_db) == 20
@@ -1078,7 +937,6 @@ def test_prune_superseded_reclaims_pre_existing_history(
 
     assert deleted == 19
     assert _count(isolated_db) == 1
-    # The run is still resumable, from precisely the boundary it reached.
     latest = store.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert latest is not None
     assert latest["seq"] == 20
@@ -1086,7 +944,6 @@ def test_prune_superseded_reclaims_pre_existing_history(
 
 
 def test_prune_superseded_is_idempotent(isolated_db: str) -> None:
-    """Safe to run on every startup: a second sweep finds nothing to do."""
     run_id = _run(isolated_db)
     store.save_checkpoint(
         run_id,
@@ -1104,15 +961,8 @@ def test_prune_superseded_is_idempotent(isolated_db: str) -> None:
 def test_prune_batches_and_folds_the_wal_between_batches(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The sweep must survive the full disk it exists to relieve.
-
-    Regression: the first version issued one DELETE for the whole history and
-    ran at startup. On the full production volume the write failed with
-    SQLITE_FULL, the statement rolled back whole -- reclaiming nothing -- and
-    the exception took the server down with it. Now the WAL is folded back
-    first, for headroom, and each small batch commits before the next is
-    attempted, so partial progress survives a volume that is still full.
-    """
+    # Reclamation must survive SQLITE_FULL; commit small batches so headroom
+    # shortages cannot roll back all progress.
     from app.store import checkpoints as checkpoints_module
 
     run_id = _run(isolated_db)
@@ -1131,21 +981,11 @@ def test_prune_batches_and_folds_the_wal_between_batches(
 
     assert deleted == 10
     assert _count(isolated_db) == 1
-    # Several bounded batches rather than one all-or-nothing statement, each
-    # one committed before the next is journalled.
     assert len(checkpoints) >= 2
     assert checkpoints == sorted(checkpoints, reverse=True)
     latest = store.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert latest is not None
     assert latest["seq"] == 11
-
-
-# Tests for the ``activity`` discriminator on run_events payloads.
-#
-# Covers the pure mapping (``activity_for_event``), its coverage of every
-# engine node, and the round trip through ``store.append_event``/
-# ``list_events`` including backward compatibility with events persisted
-# before this field existed.
 
 
 def test_known_node_types_map_to_their_activity() -> None:
@@ -1177,7 +1017,6 @@ def test_unknown_stage_maps_to_catch_all_never_raises() -> None:
 
 
 def test_every_node_in_node_to_agent_has_an_activity() -> None:
-    """A node added to the engine without an activity must not go unnoticed."""
     from co_scientist.agents import NODE_TO_AGENT
 
     for node_name in NODE_TO_AGENT:
@@ -1200,11 +1039,6 @@ def test_append_event_persists_activity_inside_payload(
 def test_list_events_reads_row_persisted_without_activity_key(
     isolated_db: str,
 ) -> None:
-    """A run resumed across this deploy replays events with no ``activity``.
-
-    Simulates that by inserting a row directly, bypassing ``append_event``'s
-    activity computation entirely.
-    """
     run = store.create_run("legacy row test", "standard", "mock", {})
     old_payload = {"status": "completed"}
     with sqlite3.connect(isolated_db) as conn:
@@ -1219,15 +1053,6 @@ def test_list_events_reads_row_persisted_without_activity_key(
     assert "activity" not in events[0]["payload"]
 
 
-# Store round-trip and report-finalize wiring for knowledge facts (G14).
-#
-# ``derive_knowledge_facts`` itself (pure, no DB) is tested in
-# ``test_knowledge_facts.py``; this file covers the durable store I/O
-# (``replace_knowledge_facts``/``list_knowledge_facts``) and the real
-# end-to-end path: a run's report finalizing actually persists rows a caller
-# can read back, including through the collections endpoint.
-
-
 _SUPPORTED = "IL-6 increases inflammation via STAT3 signaling."
 
 
@@ -1236,7 +1061,6 @@ async def _emit(type_: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _finalize(run: Any, db_path: str) -> None:
-    """Run the real finalize_report pipeline (safety gate + persistence)."""
     _drain(
         report_finalize.finalize_report(
             run.id,
@@ -1250,9 +1074,6 @@ def _finalize(run: Any, db_path: str) -> None:
             _emit,
         )
     )
-
-
-# --- store round-trip --------------------------------------------------
 
 
 def test_replace_and_list_round_trip(isolated_db: str) -> None:
@@ -1280,7 +1101,6 @@ def test_replace_and_list_round_trip(isolated_db: str) -> None:
 
 
 def test_replace_clears_prior_rows(isolated_db: str) -> None:
-    """A second replace fully supersedes the first -- no accumulation."""
     run = store.create_run("kf goal", "standard", "mock", {})
     hyp_id = _add(run.id, "H", _SUPPORTED, isolated_db)
     first = [
@@ -1371,7 +1191,6 @@ def test_list_filters_by_entity_case_insensitively(isolated_db: str) -> None:
 
 
 def test_facts_are_scoped_per_run(isolated_db: str) -> None:
-    """A fact belongs to exactly one run -- G14's per-run-only requirement."""
     run_a = store.create_run("goal a", "standard", "mock", {})
     run_b = store.create_run("goal b", "standard", "mock", {})
     hyp_a = _add(run_a.id, "H", _SUPPORTED, isolated_db)
@@ -1394,7 +1213,6 @@ def test_facts_are_scoped_per_run(isolated_db: str) -> None:
 
 
 def test_run_deletion_cascades_to_knowledge_facts(isolated_db: str) -> None:
-    """Deleting a run's row cascades to its knowledge_facts (FK CASCADE)."""
     run = store.create_run("kf goal", "standard", "mock", {})
     hyp_id = _add(run.id, "H", _SUPPORTED, isolated_db)
     store.replace_knowledge_facts(
@@ -1419,22 +1237,9 @@ def test_run_deletion_cascades_to_knowledge_facts(isolated_db: str) -> None:
     assert store.list_knowledge_facts(run.id, db_path=isolated_db) == []
 
 
-# --- end-to-end: report finalize persists facts -------------------------
-
-
 def test_finalize_report_persists_knowledge_facts(isolated_db: str) -> None:
-    """A published report derives and durably persists its knowledge facts.
-
-    Drives the real ``finalize_report`` pipeline (safety gate included) --
-    not a fixture -- against a run carrying one supports and one contradicts
-    claim-evidence edge, then reads the rows back from the store.
-
-    The two edges sit on separate hypotheses on purpose. A contradicted
-    claim excludes its own hypothesis from synthesis, so putting both on one
-    idea leaves the leaderboard empty and the run is blocked from publishing
-    (finding N25 removed the offline exemption that used to let this
-    through), which would mean no report and so no facts to assert on.
-    """
+    # Use separate hypotheses: the contradicted one is excluded, while the
+    # supported one keeps publication viable.
     run = store.create_run("kf e2e goal", "standard", "mock", {})
     hyp_id = _add(run.id, "Supported", _SUPPORTED, isolated_db)
     contradicted_id = _add(run.id, "Contradicted", _SUPPORTED, isolated_db)
@@ -1482,7 +1287,6 @@ def test_finalize_report_persists_knowledge_facts(isolated_db: str) -> None:
 def test_finalize_report_replaces_facts_on_re_finalize(
     isolated_db: str,
 ) -> None:
-    """Re-finalizing does not accumulate duplicate knowledge-facts rows."""
     run = store.create_run("kf goal", "standard", "mock", {})
     hyp_id = _add(run.id, "Supported", _SUPPORTED, isolated_db)
     store.add_claim_evidence(
@@ -1502,9 +1306,6 @@ def test_finalize_report_replaces_facts_on_re_finalize(
     first = store.list_knowledge_facts(run.id, db_path=isolated_db)
     assert len(first) == 1
 
-    # A second finalize call is a documented no-op (report already
-    # published) at the finalize_report layer, so exercise the persistence
-    # helper directly the way a resumed run's re-finalize would.
     store.replace_knowledge_facts(
         run.id,
         [dict(row, evidence_id=None) for row in first],
@@ -1517,7 +1318,6 @@ def test_finalize_report_replaces_facts_on_re_finalize(
 async def test_knowledge_facts_endpoint_returns_persisted_rows(
     isolated_db: str,
 ) -> None:
-    """``GET /runs/{id}/knowledge-facts`` reads back the persisted rows."""
     from app.runs.collections import get_knowledge_facts
 
     run = store.create_run("kf goal", "standard", "mock", {})
@@ -1544,9 +1344,6 @@ async def test_knowledge_facts_endpoint_returns_persisted_rows(
     )
 
 
-# Tests for the persisted application log store (app_logs table).
-
-
 def _append(
     isolated_db: str,
     message: str,
@@ -1555,8 +1352,6 @@ def _append(
     logger_name: str = "app.test",
     run_id: str | None = None,
 ) -> int:
-    # The numeric level always tracks the name, so it is derived here
-    # rather than passed alongside it.
     return store.append_log(
         store.NewLogRecord(
             level=level,
@@ -1601,7 +1396,6 @@ def test_list_after_id_and_limit(isolated_db: str) -> None:
     )
     assert [row["message"] for row in rows] == ["m2", "m3", "m4"]
     rows = store.list_logs(limit=2, db_path=isolated_db)
-    # A limit keeps the NEWEST rows, still returned in ascending order.
     assert [row["message"] for row in rows] == ["m3", "m4"]
 
 
@@ -1664,10 +1458,8 @@ def test_count_logs_honours_the_cursor(isolated_db: str) -> None:
     _append(isolated_db, "old one")
     cursor = _append(isolated_db, "old two")
     _append(isolated_db, "new one")
-    # Two counts of the same set, differing only in the cursor. The
-    # after-cursor count is its own query rather than a subtraction: rows
-    # below the cursor are deleted by retention pruning and by a scoped
-    # clear, which drives such a difference negative.
+    # Retention and scoped clears remove pre-cursor rows, so after-cursor counts
+    # cannot be derived by subtraction.
     assert store.count_logs(db_path=isolated_db) == 3
     assert (
         store.count_logs(
@@ -1691,8 +1483,6 @@ def test_noise_loggers_hidden_below_warning(isolated_db: str) -> None:
     rows = store.list_logs(
         filters=store.LogFilters(noise_loggers=noise), db_path=isolated_db
     )
-    # INFO chatter from noise loggers is hidden; WARNING+ always shows,
-    # and INFO from other loggers is untouched.
     assert [row["message"] for row in rows] == [
         "run started",
         "request failed",
@@ -1703,7 +1493,6 @@ def test_noise_loggers_hidden_below_warning(isolated_db: str) -> None:
         )
         == 2
     )
-    # Without the filter everything is still there.
     assert store.count_logs(db_path=isolated_db) == 4
 
 
@@ -1722,7 +1511,6 @@ def test_prune_logs_keeps_newest(isolated_db: str) -> None:
     assert deleted == 6
     rows = store.list_logs(db_path=isolated_db)
     assert [row["message"] for row in rows] == ["m6", "m7", "m8", "m9"]
-    # Under the cap: nothing to delete.
     assert store.prune_logs(max_rows=4, db_path=isolated_db) == 0
 
 
@@ -1731,9 +1519,6 @@ def test_clear_logs_empties_and_restarts_ids(isolated_db: str) -> None:
         _append(isolated_db, f"m{i}")
     assert store.clear_logs(db_path=isolated_db) == 3
     assert store.list_logs(db_path=isolated_db) == []
-    # A clear is a fresh start: ids restart at 1 so the id-numbered UI
-    # badge reads as a count again. Followers detect the reset via
-    # last_id dropping below their cursor.
     assert _append(isolated_db, "after clear") == 1
 
 
