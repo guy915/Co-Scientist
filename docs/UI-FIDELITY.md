@@ -159,9 +159,10 @@ draft).** *Confidence: high.*
   clearly a blue accent bar under the active tab). The **green** underline
   appears only in the **older** ESN stills (`esn-knowledge-base-clinical-
   definitions.jpg`).
-- **Our impl:** `run_detail.tsx:78–79` `REPORT_TAB_SELECTED_CLASSES` uses
-  `text-cosci-blue` + `after:bg-cosci-blue-strong`; `--cosci-blue-strong` =
-  `#1a73e8` light / `#8ab4f8` dark (`reference_surface.css:17,38`). Ours is blue.
+- **Our impl:** `run_detail_shell.tsx` `REPORT_TAB_SELECTED_CLASSES` uses
+  `text-cosci-blue` + `after:bg-cosci-blue-strong`; both utilities reference
+  `--cosci-blue` = `#0b57d0` light / `#a8c7fa` dark (`styles/tokens.css`).
+  Ours is blue.
 - **Verifier note:** the prior draft filed this as **Drift ("should be green")**.
   That was an *era* artifact — it compared our newer-era UI to an older-era still.
   Against the canonical newer footage, the blue underline is **faithful**. See
@@ -465,7 +466,7 @@ findings were re-verified against primary evidence. Net changes:
 - **Prior "Finding B" — active tab underline "should be green" (Drift) →
   REVERSED to WIN (W2).** The green underline is **older-ESN-only**; the
   canonical newer footage (66 s frame) shows a **blue** underline, which matches
-  ours (`--cosci-blue-strong`). It was an era mismatch, not drift.
+  ours (`--cosci-blue`). It was an era mismatch, not drift.
 - **Prior "Finding D" / F5 wording — "`report_tab.tsx` is one of the six report
   tabs" → CORRECTED.** `report_tab.tsx` **does not exist**. There are 6 real
   non-test tab files; 5 orphaned, 1 (`ideas_tab`) wired. `CLAUDE.md` is stale in

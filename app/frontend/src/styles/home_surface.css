@@ -36,7 +36,7 @@
   inset-inline: 0;
   bottom: 0;
   padding-top: 2.75rem;
-  background: linear-gradient(to top, var(--cosci-surface-bg) 62%, transparent);
+  background: linear-gradient(to top, var(--cosci-bg) 62%, transparent);
   pointer-events: none;
 }
 
@@ -154,32 +154,10 @@
   }
 }
 
-/* The way into a discovery run, under the composer. Understated on
-   purpose: it is the product's second mode, not a peer of the one the
-   home opens on. */
-.reference-home-discovery-entry {
-  justify-self: center;
-  margin-top: 0.85rem;
-  border: 0;
-  background: none;
-  color: var(--cosci-muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.8125rem;
-  padding: 0.25rem 0.5rem;
-}
-
-.reference-home-discovery-entry:hover,
-.reference-home-discovery-entry:focus-visible {
-  color: var(--cosci-fg);
-  text-decoration: underline;
-  text-underline-offset: 0.25rem;
-}
-
 .reference-home-title {
   width: min(100%, 34.375rem);
   margin: 0 auto 0.5rem;
-  color: var(--cosci-home-heading);
+  color: var(--cosci-text);
   font-family: 'Google Sans', system-ui, sans-serif;
   font-size: clamp(2.25rem, 3.4vw, 2.8125rem);
   font-weight: 400;
@@ -224,7 +202,7 @@
 .reference-step-body {
   max-width: 16rem;
   margin-top: 0.25rem;
-  color: var(--cosci-step-text);
+  color: var(--cosci-text);
   font-size: 0.875rem;
   line-height: 1.43;
 }
@@ -235,8 +213,8 @@
   height: 1.875rem;
   place-items: center;
   border-radius: 9999px;
-  background: var(--cosci-step-dot-bg);
-  color: var(--cosci-step-dot-text);
+  background: var(--cosci-accent);
+  color: var(--cosci-accent-fg);
   font-size: 1rem;
   font-weight: 400;
   transition: background-color 0.3s ease-in-out;
@@ -244,7 +222,7 @@
 
 .reference-step-heading {
   margin: 0;
-  color: var(--cosci-step-heading);
+  color: var(--cosci-shell-icon);
   font-size: 0.875rem;
   font-weight: 400;
 }
@@ -270,10 +248,10 @@
   min-height: 4.4rem;
   max-height: 4.4rem;
   overflow: hidden;
-  border: 1px solid var(--cosci-suggestion-border);
+  border: 1px solid var(--cosci-border);
   border-radius: 1rem;
   background: var(--cosci-suggestion-bg);
-  color: var(--cosci-suggestion-text);
+  color: var(--cosci-text);
   cursor: pointer;
   line-height: 1.35;
   outline: 0;
@@ -287,8 +265,8 @@
 .reference-suggestion-button:hover,
 .reference-suggestion-button:focus-visible,
 .reference-suggestion-button.is-previewed {
-  border-color: var(--cosci-suggestion-hover-border);
-  background: var(--cosci-suggestion-hover-bg);
+  border-color: var(--cosci-border);
+  background: var(--cosci-hover);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -410,7 +388,7 @@
 
 .reference-recents-heading-title {
   margin: 0;
-  color: var(--cosci-recents-heading);
+  color: var(--cosci-text);
   font-size: 1.15rem;
   font-weight: 600;
 }
@@ -458,7 +436,7 @@
   display: block;
   width: 2.1rem;
   height: 1.95rem;
-  color: var(--cosci-logo-color);
+  color: var(--cosci-accent);
 }
 
 .reference-recents-empty-copy {
@@ -475,10 +453,10 @@
   min-height: 15.75rem;
   align-content: start;
   gap: 0.7rem;
-  border: 1px solid var(--cosci-recent-card-border);
+  border: 1px solid var(--cosci-suggestion-bg);
   border-radius: 0.75rem;
-  background: var(--cosci-recent-card-bg);
-  color: var(--cosci-recent-card-text);
+  background: var(--cosci-composer-bg);
+  color: var(--cosci-text);
   cursor: pointer;
   padding: 1rem;
   text-align: left;
@@ -514,8 +492,8 @@
    pill would be worse than moving the pill down. */
 .reference-recent-meta-chip {
   border-radius: 0.3125rem;
-  background: var(--cosci-recent-meta-bg);
-  color: var(--cosci-recent-meta-text);
+  background: var(--cosci-menu-row-hover);
+  color: var(--cosci-text);
   font-size: 0.6875rem;
   font-weight: 500;
   letter-spacing: 0.1px;
@@ -536,7 +514,7 @@
 .reference-recent-description {
   display: -webkit-box;
   overflow: hidden;
-  color: var(--cosci-recent-card-copy);
+  color: var(--cosci-shell-icon);
   font-size: 0.9rem;
   line-height: 1.35;
   -webkit-box-orient: vertical;
@@ -556,7 +534,7 @@
   gap: 0.25rem;
   border-radius: 0.3125rem;
   background: var(--cosci-recent-chip-bg);
-  color: var(--cosci-recent-chip-text);
+  color: var(--cosci-text);
   font-size: 0.6875rem;
   font-weight: 500;
   letter-spacing: 0.1px;
@@ -573,7 +551,7 @@
   gap: 0.65rem;
   margin: 0.15rem 0 0;
   padding: 0;
-  color: var(--cosci-recent-card-text);
+  color: var(--cosci-text);
   font-size: 0.75rem;
   letter-spacing: 0.1px;
   line-height: 1.33;
@@ -616,7 +594,7 @@
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  color: var(--cosci-recent-card-text);
+  color: var(--cosci-text);
   font-size: 0.85rem;
   font-weight: 500;
   line-height: 1.2;
@@ -626,7 +604,7 @@
   width: 1.25rem;
   height: 1.25rem;
   flex-shrink: 0;
-  color: var(--cosci-recent-card-copy);
+  color: var(--cosci-shell-icon);
 }
 
 .reference-run-step-label {
@@ -784,14 +762,6 @@
     grid-row: 7;
   }
 
-  /* Appended below the composer rather than folded into an existing
-     track: every child here is pinned, so an unplaced one flows into
-     row 1 and lands above the title. A trailing max-content row takes
-     its height off the 1fr spacer above and moves nothing else. */
-  .reference-home-main > .reference-home-discovery-entry {
-    grid-row: 8;
-  }
-
   .reference-home-title {
     width: min(100%, 43.5rem);
     font-size: clamp(2.35rem, 3vw, 2.8125rem);
@@ -882,8 +852,8 @@
   }
 
   .reference-recent-meta-chip {
-    background: var(--cosci-recent-meta-bg);
-    color: var(--cosci-recent-meta-text);
+    background: var(--cosci-menu-row-hover);
+    color: var(--cosci-text);
     font-size: 0.6875rem;
     line-height: 1.45;
     padding: 0.25rem 0.5rem;
@@ -910,7 +880,7 @@
 
   .reference-winner-list {
     gap: 0.5rem;
-    color: var(--cosci-recent-card-text);
+    color: var(--cosci-text);
     font-size: 0.75rem;
     letter-spacing: 0.1px;
     line-height: 1.33;
@@ -975,10 +945,6 @@
 
   .reference-home-main > .reference-home-composer {
     grid-row: 6;
-  }
-
-  .reference-home-main > .reference-home-discovery-entry {
-    grid-row: 7;
   }
 
   .reference-step-timeline {
@@ -1056,7 +1022,7 @@
     height: auto;
     align-self: center;
     margin: auto auto 1rem;
-    color: var(--cosci-logo-color);
+    color: var(--cosci-accent);
   }
 
   .reference-home-logo path {

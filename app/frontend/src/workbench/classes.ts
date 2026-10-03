@@ -38,7 +38,7 @@ export const SETUP_SECONDARY_BUTTON_CLASSES =
 export const OPTION_MARKER_CLASSES =
   'mt-[0.08rem] size-[1.28rem] rounded-full border-2 border-cosci-option-marker';
 export const OPTION_MARKER_SELECTED_CLASSES =
-  'border-cosci-option-marker-on bg-[radial-gradient(circle,var(--cosci-option-marker-on)_0_42%,transparent_44%)]';
+  'border-cosci-option-marker-on bg-[radial-gradient(circle,var(--cosci-blue)_0_42%,transparent_44%)]';
 export const OPTION_INPUT_CLASSES = 'absolute pointer-events-none opacity-0';
 export const OPTION_LABEL_CLASSES = 'min-w-0 text-base leading-[1.2] font-bold';
 export const SETUP_ACTIONS_CLASSES =
