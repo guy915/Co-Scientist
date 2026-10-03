@@ -1,5 +1,3 @@
-"""Shared test fixtures for llm fake."""
-
 from __future__ import annotations
 
 import asyncio
@@ -51,15 +49,7 @@ _counter = itertools.count(1)
 
 
 def _next_leaf(_field: str = "") -> str:
-    """Returns the next process-wide-unique fake string leaf.
-
-    Takes (and ignores) the property name ``_fill_schema`` now passes: the
-    runtime router varies its prose by field, but tests want short,
-    obviously-fake, globally unique values instead.
-
-    Returns:
-        ``"stub-<n>"`` for the next value of the shared ``_counter``.
-    """
+    """Globally unique leaves prevent generated hypotheses from colliding."""
     return f"stub-{next(_counter)}"
 
 
@@ -67,12 +57,6 @@ Respond = Callable[..., Awaitable[Any]]
 
 
 class FakeBackend:
-    """Answers completions from a test's own coroutine function.
-
-    Attributes:
-        requests: The keyword arguments of every request, in order.
-    """
-
     def __init__(
         self,
         respond: Respond,
@@ -80,17 +64,6 @@ class FakeBackend:
         requests: list[dict[str, Any]] | None = None,
         supports_json_schema: Callable[[str], bool] | None = None,
     ) -> None:
-        """Builds the fake.
-
-        Args:
-            respond: Awaited with each request's keyword arguments; what it
-                returns (or raises) is the provider's answer.
-            requests: A list to record into, when the test already holds one;
-                otherwise a fresh one.
-            supports_json_schema: The capability answer for any model; left
-                out, the real default answer (profile, then litellm's
-                registry) is used.
-        """
         self._respond = respond
         self.requests: list[dict[str, Any]] = (
             [] if requests is None else requests
@@ -98,27 +71,18 @@ class FakeBackend:
         self._supports = supports_json_schema
 
     async def complete(self, **completion_args: Any) -> Any:
-        """Records the request, then answers it."""
         self.requests.append(completion_args)
         return await self._respond(**completion_args)
 
     def supports_json_schema(self, model_name: str) -> bool:
-        """Answers from the test when it gave an answer, else the default."""
         if self._supports is not None:
             return self._supports(model_name)
         return backend.litellm_supports_json_schema(model_name)
 
 
 def restore_backend_at_teardown(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Puts back, when the test ends, whichever backend is installed now.
-
-    Recording the current value with ``monkeypatch`` (even when set to
-    itself) registers it for restoration; this is the one place a test
-    reaches the registry's slot.
-
-    Args:
-        monkeypatch: The pytest monkeypatch fixture.
-    """
+    """Monkeypatching the slot to itself registers restoration of the current
+    backend."""
     monkeypatch.setattr(backend, "_installed", backend._installed)
 
 
@@ -129,18 +93,6 @@ def install_fake_backend(
     requests: list[dict[str, Any]] | None = None,
     supports_json_schema: Callable[[str], bool] | None = None,
 ) -> FakeBackend:
-    """Installs a ``FakeBackend`` for the rest of the test.
-
-    Args:
-        monkeypatch: The pytest monkeypatch fixture.
-        respond: Awaited with each request's keyword arguments.
-        requests: A list to record into, when the test already holds one.
-        supports_json_schema: The capability answer for any model; left out,
-            the real default answer is used.
-
-    Returns:
-        The installed fake, for the test to inspect.
-    """
     fake = FakeBackend(
         respond, requests=requests, supports_json_schema=supports_json_schema
     )
@@ -150,15 +102,7 @@ def install_fake_backend(
 
 
 def disable_llm_cache(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Force ``llm.precall.get_cache`` to hand back a disabled cache.
-
-    A disabled ``LLMCache`` returns ``None`` from ``get`` and no-ops in
-    ``set``, so the completion path always runs and nothing leaks between
-    tests.
-
-    Args:
-        monkeypatch: The pytest monkeypatch fixture.
-    """
+    """A disabled cache prevents replay from bypassing a scripted provider."""
     monkeypatch.setattr(precall, "get_cache", lambda: LLMCache(enabled=False))
 
 
@@ -167,25 +111,8 @@ def stub_call_llm_json(
     module: types.ModuleType,
     response: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    """Patch one node module's ``call_llm_json`` to a fixed response.
-
-    The node-level unit-test idiom (see the module docstring): a node
-    imports ``call_llm_json`` into its own namespace, so patching that name
-    on the node's module replaces its only LLM dependency. The same
-    ``response`` comes back regardless of arguments, so in a parallel path
-    every item receives an identical result.
-
-    Every invocation is recorded, which callers that only need the stub can
-    ignore.
-
-    Args:
-        monkeypatch: The pytest monkeypatch fixture.
-        module: The node module whose imported ``call_llm_json`` to patch.
-        response: The dict the stub returns for every call.
-
-    Returns:
-        A list the stub appends each call's kwargs to, for spy assertions.
-    """
+    """Patch the consumer namespace because nodes import their collaborators
+    by name."""
     calls: list[dict[str, Any]] = []
 
     async def fake(**kwargs: Any) -> dict[str, Any]:
@@ -197,16 +124,7 @@ def stub_call_llm_json(
 
 
 def make_test_generator() -> HypothesisGenerator:
-    """Builds a small, fast HypothesisGenerator for the end-to-end tests.
-
-    Sized so a full run stays quick: one iteration, two initial
-    hypotheses, two evolution slots, and a two-pair tournament, with the
-    LLM cache off so the faked completions above are never replayed from
-    an earlier test's on-disk entries.
-
-    Returns:
-        A HypothesisGenerator over the fake ``"fake/model"`` name.
-    """
+    """Disable caching so previous disk transcripts cannot bypass the fake."""
     return HypothesisGenerator(
         model_name="fake/model",
         max_iterations=1,
@@ -220,25 +138,11 @@ def make_test_generator() -> HypothesisGenerator:
 
 
 async def _fake_acompletion(**kwargs: Any) -> Any:
-    """Stands in for ``litellm.acompletion``: schema-true JSON or free text.
-
-    Args:
-        **kwargs: The completion arguments built by
-            ``co_scientist.llm._build_completion_args`` (model, messages,
-            response_format, ...); only ``response_format`` and the
-            outgoing prompt text are inspected.
-
-    Returns:
-        A fake completion response exposing
-        ``.choices[0].message.content``.
-    """
     response_format = kwargs.get("response_format")
     if response_format and response_format.get("type") == "json_schema":
         json_schema = response_format["json_schema"]
         schema = json_schema["schema"]
         if json_schema.get("name") == "supervisor_allocation":
-            # Exercise model-directed scheduling with a stable adaptive
-            # portfolio: improve leaders first, then explore new regions.
             content = _supervisor_allocation_response(_prompt_text(kwargs))
             return _fake_response(content)
         length_hint = _ARRAY_LENGTH_HINTS.get(json_schema.get("name", ""))
@@ -249,9 +153,6 @@ async def _fake_acompletion(**kwargs: Any) -> Any:
         )
         content = json.dumps(_fill_schema(schema, _next_leaf, hints))
     elif response_format and response_format.get("type") == "json_object":
-        # No production call site reaches this branch (every call site
-        # that requests JSON also supplies a schema), but it is kept as a
-        # safe, schema-less fallback.
         content = "{}"
     else:
         content = f"free-form response {next(_counter)}"
@@ -259,39 +160,19 @@ async def _fake_acompletion(**kwargs: Any) -> Any:
 
 
 def install_fake_llm(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Patches the LLM and cache boundaries for a fast, deterministic run.
-
-    Installs a fake completion backend (see module docstring) and forces LLM
-    caching off. The cache override resets the process-wide singleton in
-    ``co_scientist.cache`` in addition to setting the env var: the
-    singleton is memoized on first use and other test modules may have
-    already initialized it as enabled earlier in the same pytest process,
-    a state a plain env-var override cannot undo.
-
-    Also forces every schema'd call onto the native "json_schema" response
-    format, regardless of the (made-up) test model name: real litellm's
-    provider registry does not recognize it and reports no json_schema
-    support, which would otherwise route every call through the
-    json_object provider-capability shim (schema restated as prompt text
-    instead of structured ``response_format``) -- a real production path,
-    but not the one this fake speaks, since it builds its response from
-    the structured schema rather than parsing it back out of prompt text.
-
-    Args:
-        monkeypatch: The pytest monkeypatch fixture.
-    """
+    """Reset the cache singleton as well as environment defaults to isolate
+    runs."""
     install_fake_backend(
         monkeypatch,
         _fake_acompletion,
+        # Fake answers read schema objects, not the json_object prompt shim.
+        # The gateway downgrade has separate coverage.
         supports_json_schema=lambda _model_name: True,
     )
     monkeypatch.setenv("COSCIENTIST_CACHE_ENABLED", "false")
     monkeypatch.setattr(cache, "_global_cache", None)
 
 
-# A schema with a nested required object, shared by the capability-shim
-# tests (prompt injection) and the back-fill tests (recursion into
-# nested objects) so both exercise the same shape.
 NESTED_SCHEMA: dict[str, Any] = {
     "name": "capability_shim_test",
     "schema": {
@@ -320,39 +201,12 @@ def make_message(
     tool_calls: list[Any] | None = None,
     role: str = "assistant",
 ) -> SimpleNamespace:
-    """Build a litellm-shaped ``choices[0].message`` object.
-
-    Args:
-        content: The assistant message text (``None`` mirrors an empty
-            completion).
-        tool_calls: Optional list of tool-call namespaces; ``None`` ends the
-            tool loop because the wrapper guards with
-            ``and message.tool_calls``.
-        role: The message role echoed back into the message history.
-
-    Returns:
-        A ``SimpleNamespace`` exposing ``role``, ``content``, and
-        ``tool_calls``.
-    """
     return SimpleNamespace(role=role, content=content, tool_calls=tool_calls)
 
 
 def make_usage(
     prompt_tokens: int, completion_tokens: int, reasoning_tokens: int = 0
 ) -> SimpleNamespace:
-    """Build a litellm-shaped ``response.usage`` object.
-
-    Args:
-        prompt_tokens: Prompt tokens to report.
-        completion_tokens: Completion tokens to report.
-        reasoning_tokens: Reasoning tokens to report under
-            ``completion_tokens_details.reasoning_tokens``; 0 omits nothing
-            (the field is still present, just zero).
-
-    Returns:
-        A namespace exposing ``prompt_tokens``, ``completion_tokens``, and
-        ``completion_tokens_details.reasoning_tokens``.
-    """
     return SimpleNamespace(
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
@@ -367,21 +221,6 @@ def make_completion(
     usage: SimpleNamespace | None = None,
     finish_reason: str | None = None,
 ) -> SimpleNamespace:
-    """Wrap a message in the ``choices[0].message`` envelope litellm returns.
-
-    Args:
-        message: The message namespace from :func:`make_message`.
-        usage: Optional token-usage namespace from :func:`make_usage`;
-            omitted (``None``) mirrors a response with no usage reported.
-        finish_reason: Why the provider stopped. Omitted (``None``) leaves
-            the attribute off the choice entirely, mirroring a provider
-            that does not report one -- which is what the readers in
-            ``llm.request.response`` are written to tolerate.
-
-    Returns:
-        A response namespace with a single choice carrying ``message``,
-        plus ``usage`` when given.
-    """
     choice = SimpleNamespace(message=message)
     if finish_reason is not None:
         choice.finish_reason = finish_reason
@@ -389,16 +228,6 @@ def make_completion(
 
 
 def make_tool_call(call_id: str, name: str, arguments: str) -> SimpleNamespace:
-    """Build a litellm-shaped tool-call namespace.
-
-    Args:
-        call_id: The tool-call id echoed into the message history.
-        name: The function name the wrapper reads via ``tc.function.name``.
-        arguments: The raw JSON argument string (kept opaque by the wrapper).
-
-    Returns:
-        A namespace exposing ``id`` and ``function.{name,arguments}``.
-    """
     return SimpleNamespace(
         id=call_id, function=SimpleNamespace(name=name, arguments=arguments)
     )
@@ -409,18 +238,6 @@ def patch_acompletion(
     responses: list[SimpleNamespace],
     recorder: list[dict[str, Any]] | None = None,
 ) -> dict[str, int]:
-    """Install a fake backend that returns queued responses in order.
-
-    Args:
-        monkeypatch: The pytest monkeypatch fixture.
-        responses: Completion namespaces to return on successive calls.
-        recorder: Appended the keyword arguments of each call, for tests
-            asserting on what was actually sent rather than on what came
-            back.
-
-    Returns:
-        A mutable dict whose ``"calls"`` key counts how many times the fake ran.
-    """
     state = {"calls": 0}
     queue = iter(responses)
 
@@ -432,9 +249,7 @@ def patch_acompletion(
     return state
 
 
-# The tool schema shared verbatim by every call_llm_with_tools test; the
-# wrapper only reads it (passes it through to the fake acompletion), never
-# mutates it, so sharing one instance across tests is safe.
+# The wrapper only reads the shared schema, so tests can safely reuse it.
 SEARCH_TOOL: list[dict[str, Any]] = [
     {"type": "function", "function": {"name": "search"}}
 ]
@@ -475,23 +290,12 @@ async def echo_executor(tc: Any) -> dict[str, Any]:
 
 @dataclass(frozen=True)
 class Entry:
-    """One public entry point, as the tests call it.
-
-    Attributes:
-        kind: ``"text"`` (``call_llm``), ``"json"`` (``call_llm_json``) or
-            ``"tools"`` (``call_llm_with_tools``).
-        model: The model the call names.
-        options: The call options, if any.
-        executor: What runs a tool call, for the ``"tools"`` kind.
-    """
-
     kind: str
     model: str = _MODEL
     options: LLMCallOptions | None = None
     executor: Callable[[Any], Awaitable[dict[str, Any]]] = echo_executor
 
     async def __call__(self, max_attempts: int) -> Any:
-        """Makes the call; a tool turn has no attempt budget to hand over."""
         spec = CompletionSpec(model_name=self.model, max_tokens=8000)
         if self.kind == "text":
             return await call_llm("a prompt", spec, self.options, max_attempts)
@@ -515,8 +319,6 @@ STANDARD = pytest.mark.parametrize(
 
 @dataclass
 class Run:
-    """Everything observable about one scripted call."""
-
     calls: list[dict[str, Any]]
     slept: list[float]
     error: Exception | None
@@ -527,37 +329,30 @@ class Run:
 
     @property
     def max_tokens(self) -> list[int]:
-        """The budget each attempt asked for."""
         return [call["max_tokens"] for call in self.calls]
 
     @property
     def thinking(self) -> list[str]:
-        """Whether each attempt asked for thinking, as the wire says it."""
         return [call["extra_body"]["thinking"]["type"] for call in self.calls]
 
     @property
     def reasoning(self) -> list[Any]:
-        """The reasoning knob each attempt carried, where the route has one."""
         return [call["extra_body"].get("reasoning") for call in self.calls]
 
     @property
     def prompts(self) -> list[str]:
-        """The prompt text each attempt sent."""
         return [call["messages"][0]["content"] for call in self.calls]
 
     @property
     def logged(self) -> list[Line]:
-        """The lines a reader of a production log (WARNING and up) sees."""
         return [line for line in self.lines if line[1] != "DEBUG"]
 
     @property
     def retry_debug(self) -> list[Line]:
-        """The loop's own per-retry debug lines."""
         return [line for line in self.lines if line[0] == "retry-debug"]
 
 
 def _classify(record: logging.LogRecord) -> Line | None:
-    """Name a record by the retry line it is, or None when it is neither."""
     text = record.getMessage()
     for needle, kind in _LINE_KINDS:
         if needle in text:
@@ -568,8 +363,6 @@ def _classify(record: logging.LogRecord) -> Line | None:
 
 
 class Driver:
-    """Calls an entry point against a scripted provider and a fake sleep."""
-
     def __init__(
         self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
     ) -> None:
@@ -579,18 +372,6 @@ class Driver:
     async def __call__(
         self, entry: Entry, script: list[Any], max_attempts: int = 3
     ) -> Run:
-        """Runs ``entry`` once and records what happened.
-
-        Args:
-            entry: The entry point under test.
-            script: What the provider does on successive calls; an
-                exception is raised, anything else is returned, and the
-                last entry repeats.
-            max_attempts: The attempt budget handed to the entry point.
-
-        Returns:
-            What went out, what came back and what was logged.
-        """
         disable_llm_cache(self._monkeypatch)
         calls: list[dict[str, Any]] = []
         slept: list[float] = []
@@ -638,18 +419,15 @@ class Driver:
 def drive(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> Driver:
-    """The scripted-provider driver, bound to this test's fixtures."""
     return Driver(monkeypatch, caplog)
 
 
 def ok(entry: Entry) -> SimpleNamespace:
-    """The completion that answers ``entry`` successfully."""
     text = '{"a": 1}' if entry.kind == "json" else "fine"
     return make_completion(make_message(text))
 
 
 def rate_limited(reset_in: float | None = None) -> RateLimitError:
-    """A 429; with ``reset_in`` it names a platform cap that far off."""
     response = None
     if reset_in is not None:
         reset_ms = int((time.time() + reset_in) * 1000)
@@ -691,7 +469,6 @@ def reasoning_mandatory() -> BadRequestError:
 
 
 def exhausted() -> SimpleNamespace:
-    """A completion that reasoned to its ceiling and wrote nothing."""
     return make_completion(
         make_message(None),
         usage=make_usage(500, 18000, reasoning_tokens=18000),
@@ -700,7 +477,8 @@ def exhausted() -> SimpleNamespace:
 
 
 def thinking_only() -> SimpleNamespace:
-    """A completion that reasoned, stopped normally and wrote nothing."""
+    """More room cannot fix thinking-only output; recovery must change
+    reasoning."""
     return make_completion(
         make_message(None),
         usage=make_usage(500, 1149, reasoning_tokens=1149),
@@ -709,7 +487,6 @@ def thinking_only() -> SimpleNamespace:
 
 
 def wrong_type() -> SimpleNamespace:
-    """A completion whose JSON parses but breaks the schema."""
     return make_completion(make_message('{"a": "not a number"}'))
 
 

@@ -1,5 +1,3 @@
-"""Tests for engine ranking 1."""
-
 from __future__ import annotations
 
 import logging
@@ -49,11 +47,8 @@ from tests._engine_tasks_helpers import (
 
 from ._llm_fake_backend import install_completion_backend
 
-# Pre-ranking evidence-gate and semantic-audit tests for the executor.
-
 
 def _private_corpus_source() -> dict[str, Any]:
-    """An uploaded private document that grounds the hypothesis's claim."""
     return {
         "display": (
             "Private scientist source 'Lab notes': Astrocyte lactate "
@@ -72,7 +67,6 @@ def _private_corpus_source() -> dict[str, Any]:
 def _tasks_gate_install_counting_assessor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> dict[str, int]:
-    """Patch build_assessor with a call-counting deterministic assessor."""
     calls = {"n": 0}
 
     def counting(claim: str, passages: Any) -> Any:
@@ -90,12 +84,10 @@ def _tasks_gate_install_counting_assessor(
 def _install_peak_assessor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> dict[str, int]:
-    """Patch build_assessor to record peak concurrent claim assessments."""
     state = {"active": 0, "peak": 0}
     lock = threading.Lock()
 
     def _slow_assessor(claim: str, passages: Any) -> AssessorDraft:
-        """Record how many assessments overlap, then stall like a call."""
         with lock:
             state["active"] += 1
             state["peak"] = max(state["peak"], state["active"])
@@ -116,13 +108,11 @@ def _install_peak_assessor(
 def _install_overlap_assessor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> dict[str, bool]:
-    """Patch build_assessor to flag overlap between two hypotheses' claims."""
     in_flight: set[str] = set()
     flags = {"overlapped": False}
     lock = threading.Lock()
 
     def _slow_assessor(claim: str, passages: Any) -> AssessorDraft:
-        """Flag whenever two different hypotheses' claims overlap."""
         owner = "alpha" if "alpha" in claim else "beta"
         with lock:
             in_flight.add(owner)
@@ -143,7 +133,6 @@ def _install_overlap_assessor(
 
 
 def _tasks_gate_multi_claim_state() -> dict[str, Any]:
-    """A viable two-claim hypothesis grounded by one supporting article."""
     hypothesis = Hypothesis(
         text=(
             "Astrocyte lactate accelerates synaptic ATP recovery. "
@@ -170,7 +159,6 @@ def _tasks_gate_multi_claim_state() -> dict[str, Any]:
 
 @pytest.mark.asyncio
 async def test_pre_ranking_gate_labels_novel_proposal_as_speculative() -> None:
-    """A grounded proposal may rank with its novel claim made explicit."""
     hypothesis = Hypothesis(
         text="We hypothesize astrocyte channel X may accelerate ATP recovery.",
         literature_grounding=(
@@ -201,14 +189,8 @@ async def test_pre_ranking_gate_labels_novel_proposal_as_speculative() -> None:
 
 @pytest.mark.asyncio
 async def test_pre_ranking_gate_grounds_claims_in_private_corpus() -> None:
-    """A scientist's uploaded document is admissible grounding evidence.
-
-    The private corpus (``context_enrichment_sources``) must count toward the
-    pre-ranking evidence gate, not only retrieved literature, so uploaded
-    an uploaded supporting document verifies an otherwise-unsupported idea —
-    matching the disclosed private-repository behavior (the idea ranks
-    throughout; the corpus adds a supports edge).
-    """
+    # Uploaded private documents are admissible support alongside retrieved
+    # literature.
     hypothesis = Hypothesis(
         text="Astrocyte lactate accelerates synaptic ATP recovery.",
         literature_grounding=(
@@ -231,7 +213,6 @@ async def test_pre_ranking_gate_grounds_claims_in_private_corpus() -> None:
 async def test_pre_ranking_gate_reuses_unchanged_semantic_audit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Repeated tournaments do not repay for identical claim assessments."""
     calls = _tasks_gate_install_counting_assessor(monkeypatch)
     hypothesis = Hypothesis(
         text="We hypothesize lactate may accelerate ATP recovery.",
@@ -260,7 +241,6 @@ async def test_pre_ranking_gate_reuses_unchanged_semantic_audit(
 
 @pytest.mark.asyncio
 async def test_pre_ranking_gate_assesses_literature_rationale() -> None:
-    """Records each claim's label; an unsupported rationale stays rankable."""
     hypothesis = Hypothesis(
         text="Astrocyte lactate accelerates synaptic ATP recovery.",
         literature_grounding=(
@@ -298,16 +278,8 @@ async def test_pre_ranking_gate_assesses_literature_rationale() -> None:
 async def test_pre_ranking_gate_assesses_claims_concurrently(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The gate must assess a run's claims in parallel, not one at a time.
-
-    Every claim is assessed independently, so overlapping them changes no
-    verdict -- only how long the phase takes. With the LLM assessor each is a
-    synchronous provider call, and run one at a time this node was the
-    longest serial stretch of a finished run: measured in production,
-    ``engine.node.ranking`` was 26% of an express run's wall clock, nearly
-    all of it this gate. The provider is not the constraint -- twenty-four
-    concurrent completions return in the same wall clock as four.
-    """
+    # Independent assessments may overlap without changing verdicts; serial
+    # provider calls dominate gate latency.
     probe = _install_peak_assessor(monkeypatch)
     state = _tasks_gate_multi_claim_state()
 
@@ -323,14 +295,8 @@ async def test_pre_ranking_gate_assesses_claims_concurrently(
 async def test_pre_ranking_gate_overlaps_claims_across_hypotheses(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The whole run's claims are in flight together, not one idea at a time.
-
-    Measured in production a hypothesis carries 7-25 atomic claims and a run
-    reaches this gate with dozens, so assessing one hypothesis to completion
-    before starting the next leaves most of the wave idle. Claims are
-    independent across hypotheses as well as within one, so the gate flattens
-    them into a single bounded wave.
-    """
+    # Bound one wave across hypotheses; serializing by idea leaves most
+    # assessment capacity idle.
     flags = _install_overlap_assessor(monkeypatch)
     first = Hypothesis(
         text=(
@@ -359,32 +325,8 @@ async def test_pre_ranking_gate_overlaps_claims_across_hypotheses(
 
 @pytest.mark.asyncio
 async def test_pre_ranking_gate_ignores_contradicted_go_no_go() -> None:
-    """R14-20's Go/No-Go pilot-plan criteria can never block a hypothesis.
-
-    ``_harvest_hypothesis_claims`` reads ``hypothesis.experiment`` -- which
-    carries R14-20's ``**Go:**``/``**No-Go:**`` threshold lines -- as well as
-    the statement/grounding/explanation fields, and tags every claim it
-    finds there "speculative" (see the field-role tuple in
-    ``_harvest_hypothesis_claims``). ``_apply_gate_verdict`` then calls
-    ``publication_gate`` with ``allow_speculative=True`` and that same role
-    map as ``explicitly_speculative_claims``, which excuses a speculative
-    claim from blocking whether the evidence merely fails to support it
-    (``allow_speculative``) or actively contradicts it (named in
-    ``explicitly_speculative_claims`` -- the one exemption
-    ``publication_gate`` grants a *contradicted* claim). This hypothesis's
-    evidence pool is built to literally contradict its own Go/No-Go
-    criteria, markdown markers and all -- the worst case a pilot-plan
-    threshold statement can put in front of the assessor -- and the gate
-    must still let it through, proving the threshold text cannot gate
-    anything even when the evidence disagrees with it outright.
-
-    The final, report-facing grounding pass
-    (``claims.grounding_assess._CLAIM_FIELD_ROLES``) is a separate,
-    independent guarantee: it never reads ``experiment`` at all, so this
-    threshold text never reaches a persisted ``claim_evidence`` row or the
-    "Unverified" badge either. This test covers the one path that does read
-    it.
-    """
+    # Pilot-plan Go/No-Go thresholds are speculative and cannot gate publication
+    # even when contradicted.
     hypothesis = Hypothesis(
         text="Inhibiting the target restores homeostasis in the model.",
         experiment=(
@@ -427,15 +369,8 @@ async def test_pre_ranking_gate_ignores_contradicted_go_no_go() -> None:
 def test_log_gate_wave_reports_entailment_calls(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """The gate's INFO line reports the actual provider calls it spent.
-
-    Separate from ``claims_assessed`` on purpose: under the batch path one
-    call judges a whole hypothesis's claims (see
-    ``app.claims.assess_claims_batch``), so the two numbers are meant to
-    diverge -- that divergence is the batching win a production ultra run
-    measured (218 claims assessed one at a time across 13 hypotheses;
-    batched, the same pass costs 13 calls, or up to 26 with a split).
-    """
+    # Batch calls and assessed-claim counts intentionally differ; telemetry
+    # reports actual provider work.
     plan = _GatePlan(
         hypothesis=object(),
         claims=("claim one", "claim two"),
@@ -456,14 +391,8 @@ def test_log_gate_wave_reports_entailment_calls(
 
 
 def test_harvest_reads_each_field_in_its_role_and_strict_wins_a_tie() -> None:
-    """Each field is read in its role, and the strict role wins a tie.
-
-    Rationale is categorical and the proposed-idea fields are speculative; a
-    sentence appearing under both is categorical. The role map is what
-    ``_apply_gate_verdict`` hands the publication gate as its excused set, so
-    a mislabelled field would either block ideas for proposing something or
-    let an unevidenced "established" claim through.
-    """
+    # A sentence repeated in rationale and proposal takes the stricter
+    # categorical role.
     shared = "Kinase X inhibition reduces AML relapse rates."
     hypothesis = Hypothesis(
         text=f"{shared} Kinase Y blockade may slow tumor growth.",
@@ -489,7 +418,6 @@ def test_harvest_reads_each_field_in_its_role_and_strict_wins_a_tie() -> None:
 def test_gate_verdict_blocks_only_a_categorical_contradiction(
     role: str, disposition: str
 ) -> None:
-    """A contradicted claim blocks the idea unless it is only a proposal."""
     claim = "Kinase X inhibition reduces AML relapse rates."
     hypothesis = Hypothesis(text=claim)
     hypothesis.review_disposition = "viable"
@@ -515,21 +443,9 @@ def test_gate_verdict_blocks_only_a_categorical_contradiction(
     assert hypothesis.review_disposition == disposition
 
 
-# Pre-ranking evidence-gate rankability skip and engine-seam integration.
-#
-# Split out of ``test_engine_tasks_gate.py`` to keep it within the module-
-# size budget. Covers two things the sibling file does not: which
-# hypotheses the gate skips assessing before spending a single provider
-# call (unrankable-forever vs. its own reversible ``evidence_blocked``),
-# and that its entailment calls -- now routed through the engine's
-# ``call_llm_json`` seam (``app.claims.verifier``) -- are visible to the
-# run's LLM-call budget and telemetry the way any other engine call is.
-
-
 def _seam_install_counting_assessor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> dict[str, int]:
-    """Patch build_assessor with a call-counting deterministic assessor."""
     from app.claims import deterministic_assessor
     from app.claims import grounding as claim_grounding
 
@@ -548,7 +464,6 @@ def _seam_install_counting_assessor(
 
 
 def _seam_multi_claim_state() -> dict[str, Any]:
-    """A viable two-claim hypothesis grounded by one supporting article."""
     hypothesis = Hypothesis(
         text=(
             "Astrocyte lactate accelerates synaptic ATP recovery. "
@@ -577,14 +492,8 @@ def _seam_multi_claim_state() -> dict[str, Any]:
 async def test_pre_ranking_gate_skips_hypotheses_review_already_rejected(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An idea the initial review gate already barred is never assessed.
-
-    ``inaccurate``/``non_novel``/``unsafe`` can never reach the tournament
-    (``Hypothesis.is_rankable``), and the initial review gate never
-    reverses those verdicts -- so spending a wave of provider calls on
-    their claims buys nothing. Only ``evidence_blocked`` (this gate's own,
-    reversible verdict) must still be reassessed; see the sibling test.
-    """
+    # Permanent review rejection needs no further provider calls;
+    # evidence_blocked remains reassessable.
     calls = _seam_install_counting_assessor(monkeypatch)
     rejected = Hypothesis(text="A rejected idea about lactate.")
     rejected.review_disposition = "inaccurate"
@@ -601,15 +510,8 @@ async def test_pre_ranking_gate_skips_hypotheses_review_already_rejected(
 async def test_pre_ranking_gate_reassesses_changed_evidence_blocked_idea(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A previously blocked idea is reassessed once its text changes.
-
-    ``evidence_blocked`` is this gate's own verdict, not the initial
-    review's, so an idea it blocked must stay reassessable -- unlike a
-    disposition the initial review gate decided for good (the sibling
-    test above). Revising the hypothesis's text changes its input
-    fingerprint, so the fingerprint cache cannot be the reason it is
-    skipped; only a disposition-based skip could wrongly bar it here.
-    """
+    # Evidence-blocked is reversible after text/evidence changes, unlike
+    # permanent review dispositions.
     calls = _seam_install_counting_assessor(monkeypatch)
     hypothesis = Hypothesis(text="stale, previously-blocked text")
     hypothesis.review_disposition = "evidence_blocked"
@@ -641,13 +543,6 @@ async def test_pre_ranking_gate_reassesses_changed_evidence_blocked_idea(
 
 
 def _install_fake_acompletion(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Install a fake engine completion backend that replies with a batch.
-
-    An empty ``verdicts`` array is a valid (if uninformative) batch reply --
-    every claim falls back to the deterministic assessor for want of a
-    verdict at its index, which these two tests do not care about; they
-    only need the call to actually reach the boundary.
-    """
 
     async def _fake_acompletion(**_kwargs: Any) -> Any:
         message = types.SimpleNamespace(content='{"verdicts": []}')
@@ -657,9 +552,6 @@ def _install_fake_acompletion(monkeypatch: pytest.MonkeyPatch) -> None:
 
     install_completion_backend(monkeypatch, _fake_acompletion)
     monkeypatch.setattr(settings, "claim_assessor", "llm")
-    # build_assessor takes the deterministic assessor whatever the mode
-    # says while the process looks offline -- put it in the state where a
-    # provider call is permissible, like the LLM-assessor tests above.
     monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
     monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-not-called-by-this-test")
@@ -669,16 +561,8 @@ def _install_fake_acompletion(monkeypatch: pytest.MonkeyPatch) -> None:
 async def test_pre_ranking_gate_calls_are_visible_to_the_run_budget(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The gate's entailment calls now count against a run's LLM-call ceiling.
-
-    Before routing through the engine seam these calls were invisible to
-    ``co_scientist.llm.admission.call_budget`` -- a production run spent $4.70
-    over ~1,000 provider requests against a 2500-call ceiling that never saw
-    them. Batching judges this hypothesis's several claims in a single call (see
-    ``app.claims.assess_claims_batch``), so a ceiling of 0 -- not 1 -- is what
-    the very first call must already exceed to prove the ceiling sees this
-    gate's calls at all.
-    """
+    # Entailment must use the engine admission seam so its provider calls
+    # consume the run ceiling.
     from co_scientist.cache import scoped_cache_override
     from co_scientist.exceptions import LLMCallBudgetExceededError
     from co_scientist.llm import scoped_llm_call_budget
@@ -698,14 +582,8 @@ async def test_pre_ranking_gate_calls_are_visible_to_the_run_budget(
 async def test_pre_ranking_gate_telemetry_is_attributed_and_not_double_counted(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The gate's calls land in ``claim_gate`` telemetry exactly once.
-
-    Telemetry (``model_usage``) now carries these calls, replacing the old
-    manual ``llm_calls`` charge (``_charge_entailment_calls``, removed) --
-    ``llm_calls`` equalling the summed ``model_usage`` call count (not
-    double that) proves the seam's own count is the only source, with
-    nothing added on top of it.
-    """
+    # Engine telemetry is the only call-count source; manual additions
+    # double-charge spend.
     from co_scientist.cache import scoped_cache_override
 
     _install_fake_acompletion(monkeypatch)
@@ -728,22 +606,10 @@ async def test_pre_ranking_gate_telemetry_is_attributed_and_not_double_counted(
     assert metrics.llm_calls == total_calls
 
 
-# Pre-ranking evidence-gate eligibility tests for the durable executor.
-#
-# Covers the rank-and-publish policy: an unsupported (but non-contradicted) idea
-# stays rankable, its claim graduates to supported once evidence arrives, and a
-# claim-gated idea is left out of the decisive Elo tournament. Split from
-# ``test_engine_tasks.py`` to keep that core file small.
-
-
 @pytest.mark.asyncio
 async def test_pre_ranking_gate_keeps_unsupported_ideas_rankable() -> None:
-    """Unsupported (but non-contradicted) ideas stay rankable.
-
-    Under the rank-and-publish policy the pre-ranking gate only withholds
-    contradicted or unsafe ideas; a merely-unsupported idea stays viable (it is
-    later published and badged "unverified") rather than being quarantined.
-    """
+    # Unsupported ideas remain rankable and publish Unverified under
+    # rank-and-publish.
     supported = Hypothesis(
         text="Astrocyte lactate accelerates synaptic ATP recovery."
     )
@@ -778,7 +644,6 @@ async def test_pre_ranking_gate_keeps_unsupported_ideas_rankable() -> None:
 
 @pytest.mark.asyncio
 async def test_pre_ranking_gate_records_support_when_evidence_arrives() -> None:
-    """A rankable idea's claim graduates to supported once evidence arrives."""
     hypothesis = Hypothesis(
         text="Astrocyte lactate accelerates synaptic ATP recovery.",
         literature_grounding=(
@@ -788,7 +653,6 @@ async def test_pre_ranking_gate_records_support_when_evidence_arrives() -> None:
     hypothesis.review_disposition = "viable"
     state: dict[str, Any] = {"hypotheses": [hypothesis], "articles": []}
     await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
-    # No evidence yet, but a merely-unsupported idea still ranks.
     assert hypothesis.review_disposition == "viable"
 
     state["articles"] = [
@@ -804,23 +668,14 @@ async def test_pre_ranking_gate_records_support_when_evidence_arrives() -> None:
 
 
 def test_evidence_blocked_idea_is_excluded_from_ranking() -> None:
-    """A claim-gated idea must not enter the decisive Elo tournament.
-
-    The pre-ranking gate marks an unsupported idea ``evidence_blocked``; the
-    ranking scheduler must then leave it out of the tournament, not merely drop
-    it at publish time, so its unsupported claim never shifts other ideas' Elo.
-    """
-    # `_ranking_eligible` requires `has_peer_review` alongside
-    # `is_rankable` (HITL-MANUAL-HYP-001's RANK-retry closure); every
-    # idea this test builds is meant to already be past review.
+    # Blocked ideas must leave the tournament before their claims can shift peer
+    # Elo.
     supported = _add_fixture_review(Hypothesis(text="Supported idea."))
     supported.review_disposition = "viable"
     blocked = _add_fixture_review(Hypothesis(text="Unsupported idea."))
     blocked.review_disposition = "evidence_blocked"
-    # Deep verification is the other way round: its verdict demotes rather
-    # than withholds, so an undermined idea keeps competing. The durable
-    # path must agree with the engine's own predicate about that, which is
-    # why it asks ``Hypothesis.is_rankable`` instead of restating the rule.
+    # Deep-verification doubt demotes rather than withholds; rankability must
+    # follow the engine predicate.
     undermined = _add_fixture_review(Hypothesis(text="Undermined idea."))
     undermined.review_disposition = "viable"
     undermined.deep_verification_verdict = "undermined"
@@ -834,21 +689,12 @@ def test_evidence_blocked_idea_is_excluded_from_ranking() -> None:
     assert undermined in eligible
 
 
-# Tournament progress-cadence and wave-concurrency tests for ranking.
-
-
 @pytest.mark.asyncio
 async def test_long_tournament_reports_progress_between_its_matches(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A multi-match tournament emits periodic progress, not silence.
-
-    Each Elo match is its own durable task, so a long tournament used to run
-    for tens of minutes committing real work while emitting no event at all --
-    the live-activity feed showed a healthy run as frozen. Progress is emitted
-    on a cadence rather than per match so the feed (which renders only the
-    newest handful of events) still shows the surrounding phases.
-    """
+    # Periodic progress prevents long healthy tournaments looking frozen without
+    # flooding the activity feed.
     run = store.create_run("Task-level science", "standard", "engine", {})
     store.update_run_status(
         run.id, store.RunStatus.RUNNING, db_path=isolated_db
@@ -872,9 +718,7 @@ async def test_long_tournament_reports_progress_between_its_matches(
     matches = await _drain_ranking_matches(run.id, isolated_db)
 
     progress = _running_ranking_events(run.id, isolated_db)
-    # The tournament is no longer silent...
     assert progress, "a long tournament emitted no progress at all"
-    # ...but it does not drown the feed either.
     assert len(progress) < matches
     every = engine_tasks_support.RANKING_PROGRESS_EVERY
     assert progress[0]["payload"]["message"] == (
@@ -886,14 +730,8 @@ async def test_long_tournament_reports_progress_between_its_matches(
 async def test_tournament_judges_a_wave_of_matchups_concurrently(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """One match task advances several matchups, judged in parallel.
-
-    A matchup is ~45s of real model work (three debate turns), and the
-    tournament ran them strictly one per durable task, so a 128-match round
-    took ~94 minutes of wall clock at a concurrency of one. The engine's
-    ranking semaphore already bounds parallel judging; the durable path just
-    never gave it more than one call to bound.
-    """
+    # Parallel judging must use the engine semaphore rather than serializing one
+    # matchup per task.
     run = store.create_run("Wave science", "standard", "engine", {})
     _seed_ranking_node(
         run.id,
@@ -925,16 +763,8 @@ async def test_tournament_judges_a_wave_of_matchups_concurrently(
 async def test_tournament_wave_fills_to_the_configured_size(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A wave judges RANKING_WAVE_SIZE matchups when the budget allows.
-
-    ``_ranking_wave`` picks from the candidate pairings it is handed, so the
-    pool it is given is an upper bound on the wave. The durable path asked
-    for ``min(3, rounds)`` candidates -- inherited from the retired
-    streaming path, which generated a few and picked one -- so a wave could
-    never reach the configured size no matter how many rounds remained. Each
-    matchup is real model work, and every short wave is another sequential
-    durable task: the ultra run spent about two hours across 178 of them.
-    """
+    # Candidate supply must reach wave size; a smaller inherited pool silently
+    # serializes tournaments.
     run = store.create_run("Wave size", "standard", "engine", {})
     _seed_ranking_node(
         run.id,
@@ -967,27 +797,17 @@ async def test_tournament_wave_fills_to_the_configured_size(
 
 
 def test_progress_cadence_survives_a_stride_that_skips_boundaries() -> None:
-    """Progress reports a boundary the wave stepped over, not just landed on.
-
-    A wave advances the round index by a variable stride, so testing for an
-    exact multiple silently skips any boundary the stride jumps. That is how
-    a whole tournament once emitted nothing: the strides simply never landed
-    on a multiple. The cadence is now defined by the boundary crossed.
-    """
+    # Variable-stride waves can cross cadence boundaries without landing on
+    # exact multiples.
     every = engine_tasks_support.RANKING_PROGRESS_EVERY
 
     def reports(index: int, next_index: int) -> int | None:
-        """Return the milestone announced for one wave, or None."""
         crossed = index // every != next_index // every
         return (next_index // every) * every if crossed else None
 
-    # A stride that steps straight over a boundary still reports it.
     assert reports(0, every + 2) == every
-    # Landing exactly on one reports that boundary.
     assert reports(0, every) == every
-    # Moving within a single interval stays quiet.
     assert reports(1, every - 1) is None
-    # A stride spanning several boundaries reports the newest reached.
     assert reports(0, every * 3 + 1) == every * 3
 
 
@@ -995,23 +815,8 @@ def test_progress_cadence_survives_a_stride_that_skips_boundaries() -> None:
 async def test_spent_budget_schedules_no_tournament(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A run out of tournament budget must not open another tournament.
-
-    Not merely wasted work: entering a tournament clears
-    ``pending_ranking_matchups``, so an empty one overwrites the matches
-    the run already judged. The scheduler asks for ranking once per cycle,
-    so this is the ordinary case late in a run, and the symptom was a
-    completed run reporting zero matches after judging a full round.
-
-    The pool is seeded as already played: a spent budget still owes a first
-    match to any hypothesis that has never had one, so only a fully covered
-    pool isolates the budget behaviour under test.
-
-    Consumed rounds are counted against the *effective* budget, which scales
-    with the pool (``TOURNAMENT_MATCHES_PER_HYPOTHESIS`` matches per idea, two
-    ideas per match) rather than stopping at the tier's own number -- eight
-    rankable ideas here, so twelve.
-    """
+    # Opening an empty tournament erases prior matches; spent budgets must
+    # preserve already judged work.
     run = store.create_run("Spent budget", "standard", "engine", {})
     _seed_ranking_node(
         run.id,
@@ -1030,7 +835,6 @@ async def test_spent_budget_schedules_no_tournament(
     scheduled = await _run_ranking_node(run.id, isolated_db)
 
     assert scheduled.get("tournament_rounds") is None
-    # The node still advances the run; it just opens no tournament.
     successor = store.claim_task("w", run_id=run.id, db_path=isolated_db)
     assert successor is not None
     assert successor.task_type != engine_tasks_support.RANKING_MATCH_TASK
@@ -1040,11 +844,8 @@ async def test_spent_budget_schedules_no_tournament(
 async def test_partial_budget_schedules_only_what_is_left(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Remaining budget, not the tier's full allowance, sizes the pass.
-
-    The pool has already played, so no first match is owed and the
-    remaining budget is the only thing sizing the pass.
-    """
+    # The pool is already covered so no first-match obligation overrides
+    # remaining budget.
     run = store.create_run("Partial budget", "standard", "engine", {})
     _seed_ranking_node(
         run.id,
@@ -1066,15 +867,8 @@ async def test_partial_budget_schedules_only_what_is_left(
 
 
 def test_wave_elo_is_applied_sequentially_within_the_round() -> None:
-    """A later match in a wave sees the Elo the earlier match committed.
-
-    Judgments in a wave run concurrently, but rating application is not a
-    judgment input -- it lands one match at a time, in wave order, so each
-    match's displayed before/after ratings and upset margin reflect every
-    match applied before it (finding H7). Two matches sharing hypothesis A:
-    the second must start from the rating the first left A at, not from the
-    pre-wave snapshot both were drawn from.
-    """
+    # Judging overlaps, but Elo applies in wave order so each match sees earlier
+    # committed ratings.
     from co_scientist.agents.ranking import RankingJudgement
     from co_scientist.models import Hypothesis
 
@@ -1093,14 +887,9 @@ def test_wave_elo_is_applied_sequentially_within_the_round() -> None:
     details, _, _ = _apply_wave_elo(wave, judged, {"current_iteration": 2})
 
     first, second = details
-    # The durable path stamps the cycle it judged the wave in: the drain
-    # persists every cycle's matchups together, so the detail is the only
-    # place that number survives.
     assert [d["iteration"] for d in details] == [2, 2]
-    # A wins match 1 at 1200 -> 1212 ...
     assert first["winner_elo_before"] == 1200
     assert first["winner_elo_after"] == 1212
-    # ... and match 2 starts from 1212, not the pre-wave 1200.
     assert second["winner_elo_before"] == first["winner_elo_after"]
     assert second["winner_elo_after"] == 1223
     assert hyp_a.total_matches == 2
@@ -1232,9 +1021,6 @@ async def test_preparation_admits_eligible_pool_and_preserves_checkpoint_order(
     assert state["pending_ranking_matchups"] == []
 
 
-# Pause and resume at durable ranking task boundaries.
-
-
 _OWNER = {"X-Client-ID": "ranking-pause-owner"}
 
 
@@ -1258,7 +1044,6 @@ def _owned_running_run(db_path: str) -> tuple[Any, str]:
 async def test_paused_ranking_match_resumes_its_exact_successor(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A leased match commits under pause; resume leases its exact successor."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client, run_id = _owned_running_run(isolated_db)
     monkeypatch.setattr(engine_tasks_ranking_wave, "_wave_size", lambda: 3)
@@ -1394,7 +1179,6 @@ async def test_paused_ranking_match_resumes_its_exact_successor(
 async def test_paused_ranking_finalize_keeps_elo_metrics_and_exact_resume(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Finalize commits ranking once; resume claims its recorded successor."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client, run_id = _owned_running_run(isolated_db)
     _seed_ranking_node(

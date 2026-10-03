@@ -1,5 +1,3 @@
-"""Offline acceptance for ordinary gates after targeted outcome refinement."""
-
 from __future__ import annotations
 
 import asyncio
@@ -27,8 +25,6 @@ def _disable_embedded_provider_worker(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 class _OfflineGateStubs:
-    """Provider-boundary stubs for the ordinary durable gate workflow."""
-
     def __init__(self, parent_id: str, sibling_id: str) -> None:
         self.parent_id = parent_id
         self.sibling_id = sibling_id
@@ -117,7 +113,6 @@ class _OfflineGateStubs:
 def _install_deterministic_gate_stubs(
     monkeypatch: pytest.MonkeyPatch, parent_id: str, sibling_id: str
 ) -> _OfflineGateStubs:
-    """Patch provider boundaries while leaving durable gates in the path."""
     from co_scientist.agents.reflection import review as review_module
 
     stubs = _OfflineGateStubs(parent_id, sibling_id)
@@ -134,7 +129,6 @@ def _install_deterministic_gate_stubs(
 
 
 def _run_until_ranking_finalized(run_id: str, db_path: str) -> list[str]:
-    """Execute durable work through ranking without report synthesis."""
     completed_types: list[str] = []
     for _ in range(100):
         task = store.claim_task(
@@ -161,7 +155,6 @@ def _run_until_ranking_finalized(run_id: str, db_path: str) -> list[str]:
 def test_targeted_child_traverses_standard_review_safety_claim_and_elo_gates(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The targeted child completes ordinary gates before the run finalizes."""
     monkeypatch.setattr(settings, "claim_assessor", "deterministic")
     client = make_client()
     run_id, parent_id, sibling_id, action_id = _setup_action(

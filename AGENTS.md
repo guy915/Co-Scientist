@@ -52,6 +52,8 @@ Read the relevant entries before editing their implementation. In particular:
 - Never hold a SQLite write lock over network I/O or write on every poll tick.
 - Keep startup cheap; recovery executes outside the port-binding critical path.
 - Preserve durable task idempotency, leases, retry budgets, and explicit recovery.
+- Future-due queued tasks keep their cohort alive; log cursor IDs may have gaps.
+- Steering admission permits one extra cycle to incorporate input before it is marked applied.
 - Node keys persist in task types, checkpoints and idempotency keys; rename them only with a migration.
 - No asyncio primitive may be shared between the worker cohorts' event loops.
 - Preserve bounded provider calls, token/reasoning budget escalation, and spend caps.

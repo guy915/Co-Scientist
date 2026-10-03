@@ -1,5 +1,3 @@
-"""Tests for run integration."""
-
 from __future__ import annotations
 
 import asyncio
@@ -44,18 +42,8 @@ from tests._drain_helpers import (
     _persist,
 )
 
-# Reader-facing visibility of engine schema degradations (L7).
-#
-# The engine records every enhancement node served a placeholder fallback
-# instead of parseable LLM output (``degraded_nodes`` in workflow state).
-# These tests pin the app half: the drain hands the list to the report
-# path, the persisted report payload carries it as ``degraded_sections``,
-# and canonical node events surface it once a commit holds it -- so a blank
-# report section can explain itself instead of showing silence.
-
 
 def test_drain_result_carries_degraded_sections(isolated_db: str) -> None:
-    """The drain hands the engine's degraded nodes to the report path."""
     run = store.create_run("degraded goal", "standard", "engine", {})
     state = _final_state_with_features()
     state["degraded_nodes"] = ["meta_review", "research_overview"]
@@ -71,7 +59,6 @@ def test_drain_result_carries_degraded_sections(isolated_db: str) -> None:
 def test_drain_result_defaults_to_no_degraded_sections(
     isolated_db: str,
 ) -> None:
-    """A run without degradations reports an empty list, not an absent key."""
     run = store.create_run("clean goal", "standard", "engine", {})
 
     drained = _persist(
@@ -84,7 +71,6 @@ def test_drain_result_defaults_to_no_degraded_sections(
 
 
 def test_report_payload_carries_degraded_sections(isolated_db: str) -> None:
-    """The persisted report payload names the sections that degraded."""
     run = store.create_run("degraded goal", "standard", "engine", {})
     state = _final_state_with_features()
     state["degraded_nodes"] = ["meta_review"]
@@ -119,7 +105,6 @@ def test_report_payload_carries_degraded_sections(isolated_db: str) -> None:
 def test_report_payload_degraded_sections_default_empty(
     isolated_db: str,
 ) -> None:
-    """Reports for clean runs still carry the field, empty."""
     run = store.create_run("clean goal", "standard", "engine", {})
 
     drained = _persist(
@@ -154,7 +139,6 @@ def test_report_payload_degraded_sections_default_empty(
 
 
 def test_node_event_payload_surfaces_degraded_nodes() -> None:
-    """A node commit holding degradations carries them on its event."""
     state: dict[str, Any] = {
         "current_iteration": 1,
         "degraded_nodes": ["deep_verification"],
@@ -168,7 +152,6 @@ def test_node_event_payload_surfaces_degraded_nodes() -> None:
 
 
 def test_node_event_payload_omits_degraded_when_clean() -> None:
-    """Clean runs emit no degraded key on their node events."""
     state: dict[str, Any] = {"current_iteration": 0, "degraded_nodes": []}
 
     payload = _canonical_engine_payload(
@@ -176,12 +159,6 @@ def test_node_event_payload_omits_degraded_when_clean() -> None:
     )
 
     assert "degraded" not in payload
-
-
-# Tests for restart-safety: interrupted-run reconciliation and WAL checkpoint.
-#
-# These harness fixes ensure a long research run does not get stuck "running"
-# forever when the server is restarted mid-run.
 
 
 def _make_run(goal: str, isolated_db: str) -> str:
@@ -196,7 +173,6 @@ def _make_run(goal: str, isolated_db: str) -> str:
 
 
 def test_reconcile_fails_interrupted_runs(isolated_db: str) -> None:
-    """Queued/running/synthesizing runs become failed; terminal runs left."""
     running = _make_run("running goal", isolated_db)
     store.update_run_status(
         running, store.RunStatus.RUNNING, db_path=isolated_db
@@ -214,7 +190,6 @@ def test_reconcile_fails_interrupted_runs(isolated_db: str) -> None:
 
     reconciled = store.reconcile_interrupted_runs(db_path=isolated_db)
 
-    # None of these have a checkpoint, so all fail (none resumable).
     assert set(reconciled["failed"]) == {running, queued, synth}
     assert reconciled["resumable"] == []
     for rid in (running, queued, synth):
@@ -222,7 +197,6 @@ def test_reconcile_fails_interrupted_runs(isolated_db: str) -> None:
         assert row is not None
         assert row.status == store.RunStatus.FAILED.value
         assert row.error and "restart" in row.error
-    # Terminal runs are untouched.
     done_row = store.get_run(done, db_path=isolated_db)
     assert done_row is not None
     assert done_row.status == store.RunStatus.COMPLETED.value
@@ -231,7 +205,6 @@ def test_reconcile_fails_interrupted_runs(isolated_db: str) -> None:
 def test_active_engine_tasks_are_discoverable_before_lease_expiry(
     isolated_db: str,
 ) -> None:
-    """Startup recovery sees a live lease without waiting to reconcile it."""
     run = store.create_run(
         "recover leased science",
         "standard",
@@ -262,7 +235,6 @@ def test_active_engine_tasks_are_discoverable_before_lease_expiry(
 
 
 def test_reconcile_marks_checkpointed_run_resumable(isolated_db: str) -> None:
-    """An interrupted run with a checkpoint is resumable, not failed (M4)."""
     rid = _make_run("g", isolated_db)
     store.update_run_status(rid, store.RunStatus.RUNNING, db_path=isolated_db)
     store.save_checkpoint(
@@ -280,11 +252,9 @@ def test_reconcile_marks_checkpointed_run_resumable(isolated_db: str) -> None:
 
     assert reconciled["resumable"] == [rid]
     assert reconciled["failed"] == []
-    # A resumable run is NOT marked failed.
     row = store.get_run(rid, db_path=isolated_db)
     assert row is not None
     assert row.status != store.RunStatus.FAILED.value
-    # A 'resumable' status event is logged for the stream/UI.
     events = store.list_events(rid, db_path=isolated_db)
     assert any(
         e["type"] == "status" and e["payload"].get("status") == "resumable"
@@ -293,7 +263,6 @@ def test_reconcile_marks_checkpointed_run_resumable(isolated_db: str) -> None:
 
 
 def test_reconcile_appends_status_event(isolated_db: str) -> None:
-    """A reconciled run gets a terminal 'failed' status event for the stream."""
     rid = _make_run("g", isolated_db)
     store.update_run_status(rid, store.RunStatus.RUNNING, db_path=isolated_db)
     store.reconcile_interrupted_runs(db_path=isolated_db)
@@ -305,7 +274,6 @@ def test_reconcile_appends_status_event(isolated_db: str) -> None:
 
 
 def test_reconcile_is_idempotent(isolated_db: str) -> None:
-    """A second pass finds nothing to reconcile (all runs already terminal)."""
     rid = _make_run("g", isolated_db)
     store.update_run_status(rid, store.RunStatus.RUNNING, db_path=isolated_db)
     assert store.reconcile_interrupted_runs(db_path=isolated_db)["failed"] == [
@@ -315,11 +283,6 @@ def test_reconcile_is_idempotent(isolated_db: str) -> None:
 
 
 def test_reconciled_run_is_restartable(isolated_db: str) -> None:
-    """A reconciled (failed) run is restartable.
-
-    It is no longer in an un-startable in-progress state -- ``start_run``
-    only rejects running/synthesizing/completed.
-    """
     rid = _make_run("g", isolated_db)
     store.update_run_status(rid, store.RunStatus.RUNNING, db_path=isolated_db)
     store.reconcile_interrupted_runs(db_path=isolated_db)
@@ -333,19 +296,13 @@ def test_reconciled_run_is_restartable(isolated_db: str) -> None:
 
 
 def test_checkpoint_wal_runs_cleanly(isolated_db: str) -> None:
-    """The WAL checkpoint helper succeeds on an initialized database."""
     _make_run("g", isolated_db)
-    # Should not raise.
     store.checkpoint_wal(db_path=isolated_db)
 
 
 def test_headerless_run_survives_restart(isolated_db: str) -> None:
-    """A header-less (empty client_id) run is not purged on restart.
-
-    The pre-client-isolation purge must be one-time (only when the column is
-    first added), not run on every startup -- otherwise every API run created
-    without an X-Client-ID header would silently vanish on restart.
-    """
+    # Client-isolation purge runs only when ownership is introduced, never on
+    # every restart.
     run = store.create_run(
         "g",
         "default",
@@ -353,14 +310,10 @@ def test_headerless_run_survives_restart(isolated_db: str) -> None:
         {},
         store.RunCreateOptions(client_id="", db_path=isolated_db),
     )
-    # Simulate a server restart re-running migrations on the existing DB.
     with store.connect(isolated_db) as conn:
         store_db._run_migrations(conn)
     rows = store.list_runs(client_id="", db_path=isolated_db)
     assert any(r.id == run.id for r in rows)
-
-
-# Tests for append-only evolution and hypothesis lineage.
 
 
 def _wait_completed(
@@ -372,17 +325,12 @@ def _wait_completed(
 
 
 def _by_id(hyps: list[dict[str, Any]], hid: str) -> dict[str, Any]:
-    """Look up a hypothesis by id within a fetched hypothesis list."""
     return next(h for h in hyps if h["id"] == hid)
 
 
 def _walk_to_root(
     hyps: list[dict[str, Any]], child: dict[str, Any]
 ) -> dict[str, Any]:
-    """Walk a hypothesis's parent chain back to its root.
-
-    Asserts there is no cycle along the way.
-    """
     cur = child
     seen: set[str] = set()
     while cur["parent_id"]:
@@ -395,7 +343,6 @@ def _walk_to_root(
 def _split_by_lineage(
     hyps: list[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Split hypotheses into (initial, evolved) by parent_id presence."""
     initial = [h for h in hyps if h["parent_id"] is None]
     evolved = [h for h in hyps if h["parent_id"] is not None]
     return initial, evolved
@@ -404,12 +351,6 @@ def _split_by_lineage(
 def _assert_child_lineage(
     hyps: list[dict[str, Any]], child: dict[str, Any], initial_ids: set[str]
 ) -> None:
-    """Assert one evolved child's lineage, generation, and identity.
-
-    Walks the child's lineage back to an initial (gen 0) hypothesis, checks
-    its generation is exactly one past its parent's, and confirms the engine
-    did not overwrite the parent in place (distinct id from every initial).
-    """
     root = _walk_to_root(hyps, child)
     assert root["id"] in initial_ids
     parent_row = _by_id(hyps, child["parent_id"])
@@ -418,12 +359,8 @@ def _assert_child_lineage(
 
 
 def _three_generation_state() -> dict[str, Any]:
-    """A final state whose lineage runs root -> child -> grandchild.
-
-    Two generations deep on purpose: a run that evolves more than once
-    breeds from children as well as roots, and depth one cannot tell a
-    correct parent walk from one that stops at the first hop.
-    """
+    # Two generations distinguish a complete parent walk from one that stops
+    # after the first hop.
     return {
         "hypotheses": [
             _engine_hypothesis(
@@ -459,17 +396,8 @@ def _three_generation_state() -> dict[str, Any]:
 def test_evolution_creates_new_rows_with_parent_lineage(
     isolated_db: str,
 ) -> None:
-    """Evolved rows sit alongside their parents and keep a walkable lineage.
-
-    Driven through the drain rather than a live run. A live run cannot
-    assert that any child exists: the near-duplicate guard legitimately
-    creates no child when a refinement lands on text a peer already holds,
-    which offline content -- built from one goal's small template pool --
-    reaches often enough to make the assertion a coin flip. What the
-    product does guarantee is that whatever evolution *does* produce is
-    appended with correct lineage, which is what this pins, at the depth
-    a multi-iteration run actually reaches.
-    """
+    # Offline near-duplicate guards may produce no child; deterministic drain
+    # fixtures test actual lineage guarantees.
     run = store.create_run(
         "Targeted apoptosis in glioma stem cells",
         "express",
@@ -489,7 +417,6 @@ def test_evolution_creates_new_rows_with_parent_lineage(
     hyps = client.get(f"/api/runs/{run.id}/hypotheses").json()["hypotheses"]
     initial, evolved = _split_by_lineage(hyps)
 
-    # Append semantics: the root survives its own refinement.
     assert [h["id"] for h in initial] == ["root-1"]
     assert {h["id"] for h in evolved} == {"child-1", "grandchild-1"}
 
@@ -499,18 +426,8 @@ def test_evolution_creates_new_rows_with_parent_lineage(
 
 
 def test_evolution_runs_between_ranking_rounds(isolated_db: str) -> None:
-    """Evolve runs after the first tournament and feeds a second one.
-
-    The durable node executor records a completed ``evolve`` task in the run
-    event log, and the tournament produces matches on both sides of it.
-
-    Deliberately does not assert that a child was published. The
-    near-duplicate guard creates no child when a refinement matches text a
-    peer already holds, which is correct behaviour and happens often enough
-    against offline content to make that assertion a coin flip. Lineage
-    itself is pinned deterministically by
-    ``test_evolution_creates_new_rows_with_parent_lineage``.
-    """
+    # Evolution need not create a child when a peer already holds its refinement
+    # text.
     from app import store
 
     client = _client()
@@ -527,52 +444,26 @@ def test_evolution_runs_between_ranking_rounds(isolated_db: str) -> None:
     res = client.get(f"/api/runs/{rid}/events")
     assert res.status_code == 200
 
-    # The durable path emits a scientific_task event per specialist node; the
-    # evolve node's completion is the direct signal it ran.
     events = store.list_events(rid, db_path=isolated_db)
     assert any(
         e["type"] == "scientific_task" and e["payload"].get("task") == "evolve"
         for e in events
     )
-    # The tournament produced matches on both sides of the evolve step.
     assert len(client.get(f"/api/runs/{rid}/matches").json()["matches"]) >= 2
 
 
-# Integration tests spanning router + store + engine_adapter + report.finalize.
-#
-# ``test_runs.py`` and friends already cover single-endpoint behavior; this file
-# covers multi-component journeys none of them exercise: a full run's event log
-# cross-checked through both the store and the HTTP API, SSE replay-then-live
-# consistency over a real HTTP round trip, and a mid-run cancellation leaving a
-# consistent terminal state everywhere.
-#
-# The SSE scenario needs genuine concurrency between the run's background
-# workflow and the request that observes it mid-flight. ``TestClient`` cannot
-# provide that: Starlette runs ``BackgroundTasks`` to completion inside the same
-# ASGI call that scheduled them, so a synchronous ``client.post(.../start)``
-# never returns until the whole run has finished. It instead uses
-# ``httpx.AsyncClient`` over ``ASGITransport`` on a single event loop, driving
-# the run as a concurrent ``asyncio`` task and polling the store (which is
-# synchronous but process-local, so writes are visible the instant they commit)
-# to know when to act. The API cancel endpoint's own contract (a draft/
-# restart-survivor cancel, and the terminal event replay) is covered in
-# ``test_runs_edge.py``.
+# Use one async loop for concurrent SSE observation; TestClient background
+# execution can finish before return.
 
 
 def _asgi_app() -> FastAPI:
-    """Import and return the FastAPI app lazily.
-
-    Deferred so ``app.main`` (which reads settings from the environment at
-    import time) only imports after the ``isolated_db`` fixture has set its
-    environment variables -- mirrors ``tests._client.make_client``.
-    """
+    # Import settings only after isolated_db establishes its environment.
     from app.main import app
 
     return app
 
 
 def _parse_sse(text: str) -> list[dict[str, Any]]:
-    """Parse an SSE response body into its ``data:`` event dicts, in order."""
     events: list[dict[str, Any]] = []
     for line in text.splitlines():
         if line.startswith("data: "):
@@ -586,11 +477,6 @@ async def _await_condition(
     timeout: float = 5.0,
     interval: float = 0.005,
 ) -> None:
-    """Poll ``predicate`` on the running loop until true, or fail on timeout.
-
-    Each sleep cedes control to the event loop, which is what lets the
-    concurrently-running workflow task make progress between checks.
-    """
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
     while loop.time() < deadline:
@@ -601,7 +487,6 @@ async def _await_condition(
 
 
 def _start_express_run(client: Any, goal: str) -> str:
-    """Create and start an express run over the sync client; return its id."""
     res = client.post(
         "/api/runs", json={"research_goal": goal, "tier": "express"}
     )
@@ -615,7 +500,6 @@ def _start_express_run(client: Any, goal: str) -> str:
 async def _drive_replay_then_live_run(
     isolated_db: str,
 ) -> tuple[str, httpx.Response, httpx.Response, int]:
-    """Start a run and capture its SSE stream opened mid-flight."""
     async with httpx.AsyncClient(
         transport=ASGITransport(app=_asgi_app()),
         base_url="http://test",
@@ -633,9 +517,6 @@ async def _drive_replay_then_live_run(
         start_task = asyncio.create_task(
             client.post(f"/api/runs/{run_id}/start", json={})
         )
-        # Let a handful of events land before the stream opens, so the request
-        # below genuinely mixes replayed history with live-tail delivery
-        # instead of only ever seeing a full-history snapshot.
         await _await_condition(
             lambda: len(store.list_events(run_id, db_path=isolated_db)) >= 3
         )
@@ -645,12 +526,6 @@ async def _drive_replay_then_live_run(
         )
         start_resp = await start_task
     return run_id, events_resp, start_resp, events_at_open
-
-
-# ---------------------------------------------------------------------------
-# Full run: creation -> start -> completion, event log cross-checked via the
-# store AND the HTTP API.
-# ---------------------------------------------------------------------------
 
 
 def test_full_run_flow_persists_events_matching_store_and_api(
@@ -669,8 +544,6 @@ def test_full_run_flow_persists_events_matching_store_and_api(
     assert api_events[-1]["type"] == "_terminal"
     assert api_events[-1]["payload"]["status"] == "completed"
 
-    # Every persisted event is replayed verbatim (seq, type, and payload),
-    # in order, ahead of the synthetic terminal marker.
     replayed = api_events[:-1]
     assert [e["seq"] for e in replayed] == [e["seq"] for e in stored]
     assert [e["type"] for e in replayed] == [e["type"] for e in stored]
@@ -685,12 +558,6 @@ def test_full_run_flow_persists_events_matching_store_and_api(
     assert store_report is not None
     assert api_report["id"] == store_report["id"]
     assert api_report["payload"] == store_report["payload"]
-
-
-# ---------------------------------------------------------------------------
-# SSE replay-then-live: opening the stream mid-run must still return the
-# run's full persisted timeline, proving live-tail delivery beyond replay.
-# ---------------------------------------------------------------------------
 
 
 async def test_sse_stream_replay_then_live_matches_full_event_log(
@@ -714,12 +581,6 @@ async def test_sse_stream_replay_then_live_matches_full_event_log(
     assert [e["seq"] for e in non_terminal] == [e["seq"] for e in stored]
     assert [e["type"] for e in non_terminal] == [e["type"] for e in stored]
 
-    # The stream's full content includes events that postdate the open-time
-    # snapshot, so what came back is more than a frozen replay: the response
-    # only completes once the workflow reaches a terminal state, and the
-    # live-tail poll loop is what lets events appended afterward reach it
-    # (verified directly, without this end-to-end request's buffering, in
-    # test_runs_events.py's ``_stream_live_tail`` unit tests).
     assert len(non_terminal) > events_at_open
 
 
@@ -727,9 +588,6 @@ def test_completion_notification_is_opt_in_and_durable(
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A requested email becomes a retryable task only after report release."""
-    # An SMTP transport has to exist for the opt-in to mean anything; without
-    # one the task is never enqueued (see _enqueue_completion_notification).
     monkeypatch.setattr(settings, "smtp_host", "smtp.example.org")
     monkeypatch.setattr(settings, "smtp_from_email", "noreply@example.org")
     headers = {"X-Client-ID": "notification-scientist"}
@@ -773,7 +631,6 @@ def test_completion_notification_is_skipped_without_an_smtp_transport(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """An unsendable notice is reported, not queued to fail three times."""
     monkeypatch.setattr(settings, "smtp_host", "")
     monkeypatch.setattr(settings, "smtp_from_email", "")
     headers = {"X-Client-ID": "unconfigured-scientist"}
@@ -796,24 +653,10 @@ def test_completion_notification_is_skipped_without_an_smtp_transport(
     assert "SMTP is not configured" in caplog.text
 
 
-# End-to-end durability of steering and fan-out isolation on a real run.
-#
-# Both tests drive a whole offline-backed express run through the durable
-# executor -- the real ``HypothesisGenerator`` on the deterministic offline
-# backend, the real graph, the real ``build_engine_opts``, the real task
-# queue -- and inject one fault into it.
-#
-# The first queues a scientist steer mid-run and loses the worker between
-# the moment the steer is read and the moment the checkpoint that honors it
-# commits. The second fails one matchup of the tournament fan-out and
-# checks that its siblings were committed rather than re-judged.
-
-
 _STEER = "Prioritise chaperone co-expression over temperature shifts"
 
 
 def _persist_offline_run(isolated_db: str) -> Any:
-    """Persist an offline-backed express run on the engine path."""
     return store.create_run(
         "Explain how protein X folds under crowding.",
         "express",
@@ -828,7 +671,6 @@ def _persist_offline_run(isolated_db: str) -> Any:
 
 
 def _drive(run_id: str, isolated_db: str) -> None:
-    """Run the whole durable cohort for one run to settlement."""
     asyncio.run(
         task_worker.run_run_worker_pool(
             run_id,
@@ -841,15 +683,8 @@ def _drive(run_id: str, isolated_db: str) -> None:
 def _steer_mid_run_then_crash(
     monkeypatch: pytest.MonkeyPatch, run_id: str, db_path: str
 ) -> dict[str, int]:
-    """Queue a steer after the run is under way, then lose the next commit.
-
-    The steer is appended from the second successor commit, so it enters a
-    run already past bootstrap. The first commit that then *carries* it
-    dies before its transaction, which is exactly the window between
-    reading the steering queue and committing the checkpoint that honors
-    it. Patched in all three namespaces the helper is imported into, since
-    each caller resolves its own module-level name.
-    """
+    # Lose the first commit carrying steering to test the read-before-checkpoint
+    # failure window.
     real = engine_tasks_support._save_state_and_enqueue
     box = {"commits": 0, "crashes": 0}
 
@@ -893,7 +728,6 @@ def _steer_mid_run_then_crash(
 def test_mid_run_steering_survives_a_crash_and_applies_once(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A steer queued mid-run reaches the engine exactly once, crash or not."""
     from app.config import settings
 
     monkeypatch.setattr(settings, "semantic_safety_enabled", False)
@@ -918,7 +752,6 @@ def test_mid_run_steering_survives_a_crash_and_applies_once(
 
 
 def _fail_one_judged_matchup(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
-    """Make one tournament matchup's judge raise, the rest go through."""
     import co_scientist.agents.ranking.operations as ranking_module
 
     real = ranking_module.judge_matchup
@@ -938,7 +771,6 @@ def _fail_one_judged_matchup(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
 def test_one_failed_matchup_leaves_the_rest_of_the_run_intact(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A per-item fault in the tournament fan-out settles the run anyway."""
     from app.config import settings
 
     monkeypatch.setattr(settings, "semantic_safety_enabled", False)
@@ -954,10 +786,8 @@ def test_one_failed_matchup_leaves_the_rest_of_the_run_intact(
     assert final.status == RunStatus.COMPLETED.value
     matches = store.list_matches(run.id, db_path=isolated_db)
     assert len(matches) > 1
-    # Every judged matchup but the failed one was committed, and none was
-    # judged twice: an aborted wave would have re-judged its siblings on
-    # the task's retry, so the call count would exceed the match count by
-    # a whole wave rather than by the single failure.
+    # Sibling matchup commits survive one failure; only the failed judgment may
+    # rerun.
     assert box["calls"] == len(matches) + 1
     failed_tasks = [
         task
@@ -967,27 +797,13 @@ def test_one_failed_matchup_leaves_the_rest_of_the_run_intact(
     assert failed_tasks == []
 
 
-# Offline engine workflow: unified event vocabulary and artifact shape.
-#
-# These tests drive the durable run path (the same node-level task executor a
-# real ``POST /start`` uses) pinned to the deterministic offline backend, then
-# read the persisted event log. They assert the unified engine event vocabulary,
-# the terminal lifecycle, and the shape of the deep-verification and
-# research-overview artifacts. The offline router's per-call determinism is
-# proven in the engine's own ``tests/test_offline_llm.py``; run-level artifact
-# determinism does *not* hold here (later prompts embed fresh per-hypothesis
-# identifiers), so it is not asserted.
+# Fresh hypothesis identifiers affect later prompts, so run-level offline
+# artifact equality is not guaranteed.
 
 
 def _run_offline_workflow(
     goal: str, db_path: str
 ) -> tuple[str, list[dict[str, Any]]]:
-    """Drive one express offline engine run and return (run_id, events).
-
-    Delivers the run through the durable task queue and drains it with a
-    bounded worker cohort (as the embedded API worker does), then returns the
-    persisted event log so the vocabulary and ordering can be asserted.
-    """
     run = store.create_run(
         goal,
         "express",
@@ -1010,19 +826,14 @@ def _run_offline_workflow(
 def test_offline_workflow_emits_canonical_event_sequence(
     isolated_db: str,
 ) -> None:
-    """The durable run emits the gate/stage vocabulary in graph order."""
     run_id, events = _run_offline_workflow("Sequence test goal", isolated_db)
     types = [e["type"] for e in events]
-    # Each durable node commit surfaces a ``scientific_task`` event naming the
-    # node it completed; the graph stages are read from those, not from
-    # per-node top-level event types, which this path does not emit.
     nodes = [
         e["payload"].get("task")
         for e in events
         if e["type"] == "scientific_task"
     ]
 
-    # The lifecycle gate/stage events the durable path emits at the boundaries.
     expected_gate_events = {
         "safety.intake",
         "safety.hypothesis",
@@ -1035,11 +846,8 @@ def test_offline_workflow_emits_canonical_event_sequence(
         f"missing gate events: {expected_gate_events - set(types)}"
     )
 
-    # Every substantive graph node the engine runs appears as a completed
-    # durable task. Proximity is not in this set: the scheduler only runs it
-    # when the pool grew since the last proximity pass, and evolution's
-    # children are sometimes rejected (unchanged echoes or near-duplicates),
-    # so an offline express run can legitimately finish without one.
+    # Proximity only runs after pool growth; near-duplicate rejection can
+    # legitimately leave no pass.
     expected_nodes = {
         "supervisor",
         "generate",
@@ -1054,16 +862,10 @@ def test_offline_workflow_emits_canonical_event_sequence(
         f"missing nodes: {expected_nodes - set(nodes)}"
     )
 
-    # The scheduling link still holds: pool growth is the trigger for a
-    # proximity pass, and express's max_iterations=1 rules out a second
-    # generate, so an evolved child in the store exactly mirrors the
-    # scheduler's pool-grew signal.
     hyps = store.list_hypotheses(run_id, db_path=isolated_db)
     if any(h.get("parent_id") for h in hyps):
         assert "proximity" in nodes, "missing nodes: {'proximity'}"
 
-    # Ordering the graph guarantees: intake gates first, planning precedes
-    # generation, and the report is the last thing before the terminal status.
     assert types.index("safety.intake") == 0
     assert nodes.index("supervisor") < nodes.index("generate")
     assert types[-1] == "status"
@@ -1071,7 +873,6 @@ def test_offline_workflow_emits_canonical_event_sequence(
 
 
 def test_offline_workflow_completes_with_report(isolated_db: str) -> None:
-    """A keyless offline run reaches completed and publishes a ranked report."""
     run_id, events = _run_offline_workflow("Completion test goal", isolated_db)
 
     assert events[-1]["type"] == "status"
@@ -1090,7 +891,6 @@ def test_offline_workflow_completes_with_report(isolated_db: str) -> None:
 
 
 def test_offline_deep_verification_writes_reviews(isolated_db: str) -> None:
-    """Deep verification runs as a durable node and attaches its review rows."""
     run_id, events = _run_offline_workflow(
         "Deep verification goal", isolated_db
     )
@@ -1102,8 +902,6 @@ def test_offline_deep_verification_writes_reviews(isolated_db: str) -> None:
     ]
     assert "deep_verification" in nodes
 
-    # The reviews table carries deep_verification-authored rows for the probed
-    # hypotheses, alongside the standard review pass.
     reviews = store.list_reviews(run_id, db_path=isolated_db)
     deep = [r for r in reviews if r["reviewer_agent"] == "deep_verification"]
     assert deep
@@ -1111,7 +909,6 @@ def test_offline_deep_verification_writes_reviews(isolated_db: str) -> None:
 
 
 def test_offline_research_overview_rides_report(isolated_db: str) -> None:
-    """The research overview lands in the report payload and its markdown."""
     run_id, events = _run_offline_workflow(
         "Research overview goal", isolated_db
     )
@@ -1131,13 +928,6 @@ def test_offline_research_overview_rides_report(isolated_db: str) -> None:
     assert "## Research Overview" in markdown
 
 
-# Tests for the startup demo-run seeder in ``app.seed``.
-#
-# Exercises the full seed-then-reseed lifecycle directly (not through the app's
-# lifespan), including the already-seeded no-op branch, the reseed-on-missing-
-# report branch, and the per-goal failure isolation.
-
-
 def _seed(db_path: str) -> None:
     asyncio.run(seed.seed_demo_runs(db_path=db_path))
 
@@ -1152,7 +942,6 @@ def test_seed_demo_runs_creates_three_runs_with_reports(
     goals = {r.research_goal for r in runs}
     assert goals == set(seed._DEMO_GOALS)
     for run in runs:
-        # Each default demo is a complete browseable, offline-backed example.
         assert run.status == "completed"
         assert run.llm_backend == "offline"
         assert store.run_used_offline(run)
@@ -1164,16 +953,10 @@ def test_seed_demo_runs_creates_three_runs_with_reports(
         assert len(hypotheses) == expected_ideas
         evidence = store.list_evidence(run.id, db_path=isolated_db)
         assert len(evidence) == 6
-        # R12-12: the demo's real curated sources carry a PubMed id
-        # wired through from their own url, so the run-wide bibliography
-        # is populated with real identifiers rather than empty.
         assert all(item["pmid"] for item in evidence)
         assert "\n## References\n" in md
         assert md.count("\n- [") == 6
         key = scenario_key(scenario)
-        # Every idea carries reflection + deep_verification; only the
-        # highest-ranked ideas additionally carry a curated full/simulation
-        # review row (see app.seed.overview).
         expected_reviews = (
             expected_ideas * 2
             + full_review_count(key)
@@ -1186,7 +969,6 @@ def test_seed_demo_runs_creates_three_runs_with_reports(
         assert len(store.list_matches(run.id, db_path=isolated_db)) == (
             expected_ideas - 1 + expected_ideas // 2
         )
-        # Every example idea has a tournament record; none is shown unranked.
         assert all(
             hypothesis["win_count"] + hypothesis["loss_count"]
             for hypothesis in hypotheses
@@ -1215,17 +997,8 @@ def test_seed_demo_runs_creates_three_runs_with_reports(
 def test_seed_demo_runs_render_criteria_and_unexpected_directions(
     isolated_db: str,
 ) -> None:
-    """Both R12-18/R12-23 report sections are populated, not merely wired.
-
-    A report is stored, frozen ``reports.markdown_text``; nothing
-    re-renders it, so a demo only shows a new section once it is re-seeded
-    with curated data that supplies it. This pins that the curated
-    ``critical_criteria`` (``seed/config_synthesis.py``) fill the report's
-    prose "Evaluation Criteria" section (``_render_evaluation_criteria_
-    markdown``) and that the curated ``unexpected_research_directions``
-    fill the "Unexpected research directions" bullets
-    (``_render_unexpected_directions_section``) on all three demos.
-    """
+    # Demo reports are frozen markdown; newly curated sections require reseeding
+    # rather than lazy rendering.
     _seed(isolated_db)
 
     runs = store.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
@@ -1267,15 +1040,6 @@ def test_seed_demo_runs_render_criteria_and_unexpected_directions(
 def test_seed_demo_runs_render_main_research_directions(
     isolated_db: str,
 ) -> None:
-    """R14-27: all three demos show the report's own narrative directions.
-
-    Pins that the curated ``main_research_directions``
-    (``seed/meta_review.py``) fills the report's "## Main
-    Research Directions" section, sitting immediately before Top
-    hypotheses (R14-27's own published "before Candidate Ideas"
-    placement), with two genuinely populated paragraphs -- not a bare
-    heading.
-    """
     _seed(isolated_db)
 
     runs = store.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
@@ -1315,7 +1079,6 @@ def test_seed_demo_runs_is_idempotent_when_reports_exist(
     after_runs = store.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
     assert len(after_runs) == 3
     assert {r.id for r in after_runs} == set(before)
-    # No report was regenerated: created_at timestamps are unchanged.
     for run in after_runs:
         report = store.get_latest_report(run.id, db_path=isolated_db)
         assert report is not None
@@ -1339,7 +1102,6 @@ def test_seed_demo_runs_reseeds_run_missing_report(isolated_db: str) -> None:
     runs = store.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
     assert len(runs) == 3
     reseeded = next(r for r in runs if r.research_goal == goal)
-    # The existing row is reused (re-seeded in place), not duplicated.
     assert reseeded.id == run.id
     assert (
         store.read_report_markdown(reseeded.id, db_path=isolated_db) is not None
@@ -1347,7 +1109,6 @@ def test_seed_demo_runs_reseeds_run_missing_report(isolated_db: str) -> None:
 
 
 def test_seed_demo_runs_replaces_legacy_demo_content(isolated_db: str) -> None:
-    """An older persisted report is upgraded to the curated scenario."""
     goal = seed._DEMO_GOALS[0]
     run = store.create_run(
         goal,
@@ -1367,7 +1128,6 @@ def test_seed_demo_runs_replaces_legacy_demo_content(isolated_db: str) -> None:
 
 
 def test_seed_demo_runs_backfills_goal_detail_config(isolated_db: str) -> None:
-    """A current report cannot leave an old demo row's details empty."""
     goal = seed._DEMO_GOALS[0]
     run = store.create_run(
         goal,
@@ -1397,7 +1157,6 @@ def test_seed_demo_run_failure_is_swallowed(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A failed per-goal seed is logged and does not abort the others."""
 
     async def _boom(goal: str, run: RunRow | None, db_path: str | None) -> None:
         raise RuntimeError("seed failure")
@@ -1414,12 +1173,8 @@ def test_seed_demo_run_failure_is_swallowed(
 def test_seed_demo_run_creates_new_run_when_none_given(
     isolated_db: str,
 ) -> None:
-    """``_seed_demo_run`` creates a run itself when passed ``run=None``."""
-    # This exercises the seeding primitive directly, bypassing
-    # ``seed_demo_runs`` (which installs the router itself), so install the
-    # offline router first -- otherwise the engine run's offline/ model calls
-    # have no handler and the run fails. Idempotent; a passthrough for real
-    # models.
+    # Direct seeding bypasses the wrapper that installs the offline router;
+    # install it before offline model calls.
     from co_scientist.offline.llm import install_offline_router
 
     install_offline_router()
