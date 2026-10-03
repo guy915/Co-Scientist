@@ -2,8 +2,6 @@
 
 from co_scientist.workspace.checks import (
     CheckFinding,
-    Snapshot,
-    WorkspaceSnapshotter,
     check_paths,
 )
 from co_scientist.workspace.output import (
@@ -22,8 +20,6 @@ from co_scientist.workspace.run_workspace import (
     build_workspace_tools,
     open_draft_workspace,
     open_run_workspace,
-    open_variant_workspace,
-    variant_workspace_path,
     workspace_path,
     workspaces_root,
 )
@@ -66,10 +62,8 @@ __all__ = [
     "PatchOutcome",
     "SecretRegistrationError",
     "SecretRegistry",
-    "Snapshot",
     "WorkspaceIdError",
     "WorkspaceSession",
-    "WorkspaceSnapshotter",
     "WorkspaceToolInputError",
     "WorkspaceToolProvider",
     "build_workspace_tools",
@@ -77,8 +71,6 @@ __all__ = [
     "check_paths",
     "open_draft_workspace",
     "open_run_workspace",
-    "open_variant_workspace",
-    "variant_workspace_path",
     "workspace_path",
     "workspace_tool_schemas",
     "workspaces_root",

@@ -43,8 +43,7 @@ WORKSPACE_DIR_ENV = "COSCIENTIST_WORKSPACE_DIR"
 # root is resolved.
 _WORKSPACES_DIRNAME = "coscientist-workspaces"
 
-# Subdirectory of a run's workspace holding one directory per variant.
-_VARIANTS_DIRNAME = "variants"
+# Subdirectories for the run's separate review and drafting workspaces.
 _REVIEWS_DIRNAME = "reviews"
 _DRAFTS_DIRNAME = "drafts"
 
@@ -141,40 +140,6 @@ def open_run_workspace(
     return session
 
 
-def variant_workspace_path(run_id: str, variant_id: str) -> Path:
-    """Returns one variant's directory, without creating it."""
-    return workspace_path(run_id) / _VARIANTS_DIRNAME / _safe_run_id(variant_id)
-
-
-def open_variant_workspace(
-    run_id: str, variant_id: str, *, network_allowed: bool = False
-) -> WorkspaceSession:
-    """Opens the workspace belonging to one variant of one run.
-
-    Variants of a run are proposed and evaluated concurrently, so they
-    cannot share the run's directory: two evaluations writing their
-    programs to the same paths would each run partly the other's code,
-    and the resulting scores would be attributed to the wrong variants.
-    Nothing about that failure is visible in a result -- both variants
-    return a plausible number -- so the isolation has to be structural
-    rather than a convention about who writes when.
-
-    Args:
-        run_id: The run identifier.
-        variant_id: The variant identifier.
-        network_allowed: Whether commands may reach the network.
-
-    Returns:
-        A session confined to that variant's directory.
-    """
-    root = variant_workspace_path(run_id, variant_id)
-    # The run's own directory is created (and permission-restricted)
-    # first, so the variant tree never exists under a world-readable
-    # parent even for the moment between the two mkdirs.
-    open_run_workspace(run_id, network_allowed=network_allowed)
-    return WorkspaceSession(root, network_allowed=network_allowed)
-
-
 def draft_workspace_path(run_id: str, draft_id: str) -> Path:
     """Returns one drafting pass's directory, without creating it."""
     return workspace_path(run_id) / _DRAFTS_DIRNAME / _safe_run_id(draft_id)
@@ -203,8 +168,8 @@ def open_draft_workspace(run_id: str, draft_id: str) -> WorkspaceSession:
         open and the skills offered.
     """
     root = draft_workspace_path(run_id, draft_id)
-    # As with variants and reviews: the run directory is created (and
-    # permission-restricted) first so this tree is never briefly
+    # Create and permission-restrict the run directory before opening
+    # this child directory, so its parent is never briefly
     # world-readable.
     open_run_workspace(run_id)
     return WorkspaceSession(root, network_allowed=True, skills_enabled=True)
@@ -222,12 +187,12 @@ def open_review_workspace(
 ) -> WorkspaceSession:
     """Opens the workspace one review of one hypothesis works in.
 
-    Per hypothesis for the same reason variants get their own
-    directory: reviews of a round's hypotheses are fanned out as
-    separate leased tasks and run concurrently, so a shared directory
-    would have two simulations each reading part of the other's model.
-    Both would then report a coherent-looking observation about the
-    wrong hypothesis, which no review makes visible.
+    Each hypothesis gets its own directory because a round's reviews
+    are fanned out as separate leased tasks and run concurrently.
+    Sharing a directory would let two simulations read parts of each
+    other's models. Both could then report a plausible observation
+    about the wrong hypothesis, and the review could not expose that
+    mix-up.
 
     Args:
         run_id: The run identifier.
@@ -238,8 +203,8 @@ def open_review_workspace(
         A session confined to that review's directory.
     """
     root = review_workspace_path(run_id, hypothesis_id)
-    # As with variants: the run directory is created (and
-    # permission-restricted) first so this tree is never briefly
+    # Create and permission-restrict the run directory before opening
+    # this child directory, so its parent is never briefly
     # world-readable.
     open_run_workspace(run_id, network_allowed=network_allowed)
     return WorkspaceSession(root, network_allowed=network_allowed)

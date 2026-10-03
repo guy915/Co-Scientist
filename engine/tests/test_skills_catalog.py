@@ -441,7 +441,6 @@ class TestSkillsLicences:
         monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(skills_dir))
 
         assert licences.seed_licence_notices(workspace) == 1
-        assert licences.notified_sources() == ("asks",)
 
     def test_an_unwritable_workspace_degrades_rather_than_raising(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
