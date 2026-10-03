@@ -141,3 +141,23 @@ privacy admission requires verified zero-retention hosts.
 Repeatedly judging the sole pair in a two-idea pool adds no evidence and inflates
 Elo. Steering is consumed on observation, so it buys one cycle beyond an exhausted
 ceiling to incorporate the input before marking it applied.
+
+## Durable fan-out recovery
+
+Propagate budget and rate-park exception types through gathered work so the
+worker can terminate or park it correctly. Permanent failure or plan divergence
+cancels dependent portfolio tasks in one transaction. Lost campaign leases may
+retry only under the persisted zero-price policy, without caller keys.
+
+Verification issuance markers survive failed attempts and checkpoint restore;
+otherwise recovery funds the same evidence pass again. Periodic companion nodes
+run serially and retain their list on restore to prevent checkpoint forks.
+Successful simulation is not reissued because full review failed, and a failed
+simulation is not retried after full review succeeds.
+
+## Usage and failure attribution
+
+Price the served model while retaining its gateway prefix: unprefixed names can
+turn paid calls into apparent zero-cost usage. Lower layers log failures at
+debug; the retry boundary emits one reader-facing record per attempt with the
+actual sent budget and call identity.

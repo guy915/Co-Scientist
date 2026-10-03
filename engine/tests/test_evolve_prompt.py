@@ -1,5 +1,3 @@
-"""Offline contracts for evolve prompt."""
-
 from __future__ import annotations
 
 from typing import Any
@@ -24,17 +22,13 @@ from co_scientist.models import HypothesisReview
 from co_scientist.offline.llm import subject_terms
 from tests._state import make_hypothesis, make_state
 
-# --- _build_review_feedback --------------------------------------------------
-
 
 def test_build_review_feedback_empty_when_no_reviews() -> None:
-    """A hypothesis with no reviews yields an empty feedback string."""
     hypothesis = make_hypothesis(text="a hypothesis", reviews=[])
     assert _build_review_feedback(hypothesis) == ""
 
 
 def test_build_review_feedback_renders_latest_review_as_json() -> None:
-    """The most recent review's fields are rendered as indented JSON."""
     review = HypothesisReview(
         review_summary="Solid mechanism, weak controls.",
         scores={"novelty": 7, "rigor": 5},
@@ -53,15 +47,7 @@ def test_build_review_feedback_renders_latest_review_as_json() -> None:
     assert "6.5" in feedback
 
 
-# --- _format_diversity_instruction ------------------------------------------
-
-
 def test_diversity_instruction_short_text_not_marked_truncated() -> None:
-    """Text under 200 chars renders without an appended "..." marker.
-
-    Regression guard: the local bullet-list formatter this prompt used to
-    carry appended "..." unconditionally, even to text it never truncated.
-    """
     short_text = "a short hypothesis well under the 200-char cap"
     result = _format_diversity_instruction([short_text], [])
     assert short_text in result
@@ -69,7 +55,6 @@ def test_diversity_instruction_short_text_not_marked_truncated() -> None:
 
 
 def test_diversity_instruction_long_text_truncated_with_marker() -> None:
-    """Text over 200 chars is cut to 200 chars with a "..." marker."""
     long_text = "x" * 250
     result = _format_diversity_instruction([long_text], [])
     assert ("x" * 200 + "...") in result
@@ -77,13 +62,6 @@ def test_diversity_instruction_long_text_truncated_with_marker() -> None:
 
 
 def test_diversity_instruction_empty_lists_render_none_provided() -> None:
-    """No other hypotheses or removed duplicates renders "None provided".
-
-    Regression guard: the local formatter this prompt used to carry
-    returned "" on an empty list, which a caller-side ``or "None"``
-    papered over with a bare "None" rather than the "None provided" every
-    other prompt uses for an absent list.
-    """
     result = _format_diversity_instruction([], [])
     assert "**Other hypotheses in the active pool:**\nNone provided" in result
     assert (
@@ -93,12 +71,8 @@ def test_diversity_instruction_empty_lists_render_none_provided() -> None:
 
 
 def test_combination_diversity_instruction_exempts_partners() -> None:
-    """Combination exempts its partners from the stay-distinct rule.
-
-    The result must stay distinct from non-partner hypotheses but is
-    required to synthesize the designated partners, so the blanket
-    "remain distinct from all" requirement is replaced.
-    """
+    """Synthesis requires overlap with designated partners while staying
+    distinct from other peers."""
     result = _format_diversity_instruction(
         ["a peer hypothesis"],
         ["a removed duplicate"],
@@ -106,25 +80,20 @@ def test_combination_diversity_instruction_exempts_partners() -> None:
     )
     assert "MUST synthesize the designated" in result
     assert "designated partner" in result.replace("\n", " ")
-    # The contradictory blanket "distinct from all" requirement is gone.
     assert "MUST remain DISTINCT from:\n1. All other hypotheses" not in result
-    # Recreating removed duplicates stays forbidden.
     assert "NOT recreate any previously removed duplicate" in result
 
 
 def test_non_combination_diversity_instruction_keeps_blanket_rule() -> None:
-    """Every other operator still demands distinction from all peers."""
+    """Synthesis requires overlap with designated partners while staying
+    distinct from other peers."""
     result = _format_diversity_instruction(
         ["a peer hypothesis"], [], EvolutionOperator.ENHANCEMENT
     )
     assert "MUST remain DISTINCT from" in result
 
 
-# --- _format_partner_context -------------------------------------------------
-
-
 def test_partner_context_renders_full_fields_for_combination() -> None:
-    """Combination partners render whole, never truncated."""
     partner = make_hypothesis(
         text="partner mechanism " + "x" * 300,
         explanation="a full explanation",
@@ -134,7 +103,7 @@ def test_partner_context_renders_full_fields_for_combination() -> None:
     result = _format_partner_context((partner,), EvolutionOperator.COMBINATION)
     assert "## Combination Partners" in result
     assert "### Partner 1" in result
-    assert partner.text in result  # untruncated
+    assert partner.text in result
     assert "a full explanation" in result
     assert "full grounding text" in result
     assert "a full experiment design" in result
@@ -142,7 +111,6 @@ def test_partner_context_renders_full_fields_for_combination() -> None:
 
 
 def test_partner_context_inspiration_header() -> None:
-    """Inspiration renders the same full fields under its own header."""
     partner = make_hypothesis(text="an existing top-ranked approach")
     result = _format_partner_context((partner,), EvolutionOperator.INSPIRATION)
     assert "## Inspiration Sources" in result
@@ -150,13 +118,11 @@ def test_partner_context_inspiration_header() -> None:
 
 
 def test_partner_context_placeholder_for_other_operators() -> None:
-    """Operators without partners render an explicit placeholder."""
     result = _format_partner_context((), EvolutionOperator.SIMPLIFICATION)
     assert "No partners are assigned" in result
 
 
 def test_partner_context_empty_pool_for_combination() -> None:
-    """A one-idea pool still renders the header with an empty note."""
     result = _format_partner_context((), EvolutionOperator.COMBINATION)
     assert "## Combination Partners" in result
     assert "No partners are available" in result
@@ -183,7 +149,6 @@ def test_supervisor_guidance_formats_each_phase_field(
     phase: dict[str, Any],
     expected: str,
 ) -> None:
-    """Evolution guidance preserves list/string priorities and strategy text."""
     result = _build_supervisor_guidance_text(
         {"workflow_plan": {"evolution_phase": phase}}
     )
@@ -195,23 +160,17 @@ def test_supervisor_guidance_formats_each_phase_field(
     )
 
 
-# --- _build_supervisor_guidance_text ----------------------------------------
-
-
 def test_build_supervisor_guidance_text_none_returns_empty() -> None:
-    """None supervisor_guidance yields an empty string."""
     assert _build_supervisor_guidance_text(None) == ""
 
 
 def test_build_supervisor_guidance_text_no_evolution_phase_returns_empty() -> (
     None
 ):
-    """A workflow_plan with no evolution_phase key yields an empty string."""
     assert _build_supervisor_guidance_text({"workflow_plan": {}}) == ""
 
 
 def test_build_supervisor_guidance_text_renders_evolution_phase() -> None:
-    """A populated evolution_phase renders the full guidance block."""
     guidance = {
         "workflow_plan": {
             "evolution_phase": {
@@ -229,11 +188,7 @@ def test_build_supervisor_guidance_text_renders_evolution_phase() -> None:
     assert "Use this guidance to align your refinement" in result
 
 
-# --- _build_evolution_prompt: K3 novelty contract / K5 lab constraints ------
-
-
 def _evolution_context(**state_overrides: Any) -> EvolutionContext:
-    """A minimal evolution context carrying a full workflow state."""
     return EvolutionContext(
         model_name="test-model",
         meta_review={},
@@ -243,7 +198,6 @@ def _evolution_context(**state_overrides: Any) -> EvolutionContext:
 
 
 def test_evolution_prompt_hedges_novelty_claims() -> None:
-    """Refinements must not assert definitive novelty (K3)."""
     prompt, _ = _build_evolution_prompt(
         make_hypothesis(text="the parent hypothesis"),
         ["a peer hypothesis"],
@@ -265,11 +219,6 @@ def test_evolution_prompt_hedges_novelty_claims() -> None:
 def test_published_templates_hedge_novelty_claims(
     operator: EvolutionOperator,
 ) -> None:
-    """K3 applies to the two operators that render a published prompt.
-
-    Their templates are separate files, so the hedging instruction has to
-    be carried into each rather than inherited from evolution.md.
-    """
     prompt, _ = _build_evolution_prompt(
         make_hypothesis(text="the parent hypothesis"),
         ["a peer hypothesis"],
@@ -282,14 +231,8 @@ def test_published_templates_hedge_novelty_claims(
 
 
 def test_feasibility_prompt_stays_on_topic_offline() -> None:
-    """The offline backend must find the parent under A.6's own label.
-
-    Published evolution-06 names the parent slot "Original
-    Conceptualization", not "Original Hypothesis"; offline.content mines
-    that slot for the run's subject terms, so a label it does not know
-    silently degrades every offline feasibility refinement to generic
-    prose while its siblings stay on topic.
-    """
+    """The offline miner must recognize the parent label or refinements lose
+    the run subject."""
     prompt, _ = _build_evolution_prompt(
         make_hypothesis(text="pirfenidone suppresses myofibroblast activation"),
         [],
@@ -300,7 +243,6 @@ def test_feasibility_prompt_stays_on_topic_offline() -> None:
 
 
 def test_evolution_prompt_renders_lab_constraints() -> None:
-    """State lab constraints reach the feasibility guidance (K5)."""
     prompt, _ = _build_evolution_prompt(
         make_hypothesis(text="the parent hypothesis"),
         ["a peer hypothesis"],
@@ -312,7 +254,6 @@ def test_evolution_prompt_renders_lab_constraints() -> None:
 
 
 def test_evolution_prompt_unchanged_without_lab_constraints() -> None:
-    """Empty constraints render no section and no MISSING sentinel (K5)."""
     prompt, _ = _build_evolution_prompt(
         make_hypothesis(text="the parent hypothesis"),
         ["a peer hypothesis"],
@@ -323,17 +264,7 @@ def test_evolution_prompt_unchanged_without_lab_constraints() -> None:
     assert "{{MISSING" not in prompt
 
 
-# --- _build_evolution_prompt: MP-2 research goal ----------------------------
-
-
 def test_evolution_prompt_includes_research_goal() -> None:
-    """Published evolution prompts open with "Goal: {goal}" (MP-2).
-
-    evolution-06-feasibility-improvement.md and
-    evolution-07-out-of-the-box-thinking.md both open with the research
-    goal; the template had no goal placeholder at all, so every evolved
-    hypothesis was rewritten by a model never told what the run was for.
-    """
     prompt, _ = _build_evolution_prompt(
         make_hypothesis(text="the parent hypothesis"),
         ["a peer hypothesis"],
@@ -346,17 +277,7 @@ def test_evolution_prompt_includes_research_goal() -> None:
     assert "{{MISSING" not in prompt
 
 
-# --- _build_evolution_prompt: MP-3 evaluation criteria/preferences ---------
-
-
 def test_evolution_prompt_includes_preferences() -> None:
-    """Published evolution prompts carry the scientist's criteria (MP-3).
-
-    evolution-06 ("Evaluation Criteria: {preferences}") and evolution-07
-    ("Criteria for a robust hypothesis: {preferences}") both surface the
-    scientist's stated preferences to the refinement; ours dropped them
-    entirely.
-    """
     prompt, _ = _build_evolution_prompt(
         make_hypothesis(text="the parent hypothesis"),
         ["a peer hypothesis"],
@@ -370,7 +291,6 @@ def test_evolution_prompt_includes_preferences() -> None:
 
 
 def test_evolution_prompt_defaults_preferences_when_absent() -> None:
-    """Absent preferences fall back to the same default as generation's."""
     prompt, _ = _build_evolution_prompt(
         make_hypothesis(text="the parent hypothesis"),
         ["a peer hypothesis"],
@@ -380,8 +300,6 @@ def test_evolution_prompt_defaults_preferences_when_absent() -> None:
     assert "Focus on novelty, testability, and potential impact." in prompt
 
 
-# The six strategies the paper discloses for the Evolution agent, plus the
-# analogy operator the engine carries from the expanded operator specs.
 _DISCLOSED_OPERATORS = {
     "enhancement",
     "coherence_feasibility",
@@ -394,7 +312,6 @@ _DISCLOSED_OPERATORS = {
 
 
 def _operator_child_payload(operator: EvolutionOperator) -> dict[str, Any]:
-    """The stubbed LLM response an operator run should turn into a child."""
     return {
         "hypothesis": (
             f"The {operator.value} route tests a distinct temporal "
@@ -407,7 +324,6 @@ def _operator_child_payload(operator: EvolutionOperator) -> dict[str, Any]:
 
 
 def _appended_operators() -> list[EvolutionOperator]:
-    """The operators briefed by an instruction appended to evolution.md."""
     return [
         operator
         for operator in EvolutionOperator
@@ -416,7 +332,6 @@ def _appended_operators() -> list[EvolutionOperator]:
 
 
 def _published_operators() -> list[EvolutionOperator]:
-    """The operators that render a published prompt of their own."""
     return [
         operator
         for operator in EvolutionOperator
@@ -425,7 +340,6 @@ def _published_operators() -> list[EvolutionOperator]:
 
 
 def _operator_prompt(operator: EvolutionOperator) -> str:
-    """Render one operator's evolution prompt with a partner available."""
     prompt, _ = _build_evolution_prompt(
         hypothesis=make_hypothesis("Parent mechanism."),
         other_hypotheses_texts=["Complementary peer mechanism."],
@@ -441,7 +355,6 @@ def _operator_prompt(operator: EvolutionOperator) -> str:
 
 
 def test_portfolio_contains_every_disclosed_operator() -> None:
-    """All paper evolution strategies are executable and distinct."""
     assert {operator.value for operator in EvolutionOperator} == (
         _DISCLOSED_OPERATORS
     )
@@ -450,12 +363,8 @@ def test_portfolio_contains_every_disclosed_operator() -> None:
 
 
 def test_every_operator_is_briefed_exactly_once() -> None:
-    """An operator carries a published template or an instruction, not both.
-
-    The two operators Google published a whole prompt for state their own
-    brief in the prompt's role sentence; a second, paraphrased instruction
-    appended beside it is the drift this split exists to remove.
-    """
+    """A separate template already supplies its own brief; appending another
+    duplicates guidance."""
     for operator in _published_operators():
         with pytest.raises(KeyError):
             operator_instruction(operator)
@@ -464,12 +373,6 @@ def test_every_operator_is_briefed_exactly_once() -> None:
 
 
 def test_coherence_feasibility_renders_the_published_prompt() -> None:
-    """Coherence/feasibility is its own operator with its own brief.
-
-    Its brief is published A.6 itself (feasibility improvement), which is
-    why it renders a template rather than an appended instruction; the
-    enhancement operator it was split out of stays on evolution.md.
-    """
     assert operator_template(EvolutionOperator.COHERENCE_FEASIBILITY) == (
         "evolution_feasibility"
     )
@@ -489,13 +392,8 @@ def test_coherence_feasibility_renders_the_published_prompt() -> None:
 
 
 def test_selection_covers_every_operator_across_rounds() -> None:
-    """Consecutive rounds of a tier-sized parent set cover the portfolio.
-
-    The old ``(index + iteration) % len`` round-robin left operators a
-    small parent count never reached structurally unselected. Dealing from
-    a rotated deck covers all seven operators within two five-parent rounds
-    whatever the deck order.
-    """
+    """Small parent sets must not leave operators structurally unreachable
+    across rounds."""
     covered = {
         operator
         for iteration in range(2)
@@ -505,7 +403,6 @@ def test_selection_covers_every_operator_across_rounds() -> None:
 
 
 def test_selection_is_deterministic_under_the_seed() -> None:
-    """The same (seed, iteration, count) always assigns the same operators."""
     first = select_operators(5, 0, "seeded-run")
     again = select_operators(5, 0, "seeded-run")
     assert first == again
@@ -513,14 +410,12 @@ def test_selection_is_deterministic_under_the_seed() -> None:
 
 
 def test_selection_rotates_across_iterations() -> None:
-    """Later rounds deal different portfolio positions, not the same five."""
     round_zero = select_operators(5, 0, "rotating-run")
     round_one = select_operators(5, 1, "rotating-run")
     assert round_zero != round_one
 
 
 def test_selection_small_pool_and_empty_pool() -> None:
-    """Fewer parents than operators deals distinct operators; zero is safe."""
     two = select_operators(2, 0, "express-run")
     assert len(two) == 2
     assert len(set(two)) == 2
@@ -528,14 +423,12 @@ def test_selection_small_pool_and_empty_pool() -> None:
 
 
 def test_selection_wraps_when_parents_exceed_operators() -> None:
-    """More parents than operators wraps the deck without dropping any."""
     nine = select_operators(9, 0, "wrapping-run")
     assert len(nine) == 9
     assert set(nine) == set(EvolutionOperator)
 
 
 def test_prompt_requires_assigned_operator() -> None:
-    """Combination tasks explicitly permit synthesis instead of preservation."""
     prompt, _ = _build_evolution_prompt(
         hypothesis=make_hypothesis("Parent mechanism."),
         other_hypotheses_texts=["Complementary peer mechanism."],
@@ -549,14 +442,6 @@ def test_prompt_requires_assigned_operator() -> None:
 
 
 def test_prompt_carries_the_anti_aggregation_guard_for_combination() -> None:
-    """Published evolution-07's anti-aggregation guard applies template-wide.
-
-    "This should not be a mere aggregation of existing methods or
-    entities. Think out-of-the-box." was absent from every operator in
-    evolution.md, including COMBINATION -- the operator it most directly
-    polices, since a faithful combination that stops at concatenating its
-    partners' methods is exactly what the guard forbids (MP-5).
-    """
     prompt, _ = _build_evolution_prompt(
         hypothesis=make_hypothesis("Parent mechanism."),
         other_hypotheses_texts=["Complementary peer mechanism."],
@@ -575,16 +460,6 @@ def test_prompt_carries_the_anti_aggregation_guard_for_combination() -> None:
 def test_prompt_carries_the_published_reasoning_order(
     operator: EvolutionOperator,
 ) -> None:
-    """Published evolution-06/07's reasoning scaffold applies template-wide.
-
-    Both prompts scaffold the model's reasoning before it writes the
-    answer -- a domain overview, a synopsis of recent research, a reasoned
-    argument for viability, then the core contribution -- and evolution.md
-    dropped it rather than reformatting it into the JSON schema (MP-7).
-    Restored for every operator evolution.md still serves; the two with a
-    published prompt of their own carry the published imperatives instead
-    (see below), which is the same scaffold in Google's own words.
-    """
     prompt = _operator_prompt(operator)
     assert "## Reasoning Order" in prompt
     assert "overview of the relevant" in prompt
@@ -593,7 +468,6 @@ def test_prompt_carries_the_published_reasoning_order(
 
 
 def test_feasibility_prompt_carries_the_published_guidelines() -> None:
-    """A.6's four-step scaffold is present verbatim, in published order."""
     prompt = _operator_prompt(EvolutionOperator.COHERENCE_FEASIBILITY)
     steps = (
         "Begin with an introductory overview of the relevant scientific"
@@ -609,13 +483,6 @@ def test_feasibility_prompt_carries_the_published_guidelines() -> None:
 
 
 def test_out_of_box_prompt_is_the_published_analogy_prompt() -> None:
-    """A.7's role, its concepts input, and its anti-aggregation guard.
-
-    MP-8: the operator carrying A.7's name now also carries its content --
-    one hypothesis reasoned by analogy from the supplied concepts -- so the
-    partner block it never used to receive is the published {hypotheses}
-    input, and no paraphrased operator instruction is appended beside it.
-    """
     prompt = _operator_prompt(EvolutionOperator.OUT_OF_BOX)
 
     assert (
@@ -639,14 +506,6 @@ def test_out_of_box_prompt_is_the_published_analogy_prompt() -> None:
 async def test_out_of_box_task_draws_partners_from_the_ranked_pool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A.7's {hypotheses} input is filled on the node's own task path.
-
-    ``_build_single_evolution_task`` is where an operator is granted (or
-    denied) partners, so MP-8's resolution is pinned here rather than only
-    at ``_build_evolution_prompt``: without OUT_OF_BOX in
-    ``_PARTNER_OPERATORS`` the published concepts block renders its
-    empty-pool note on every real run.
-    """
     observed_prompt = ""
 
     async def fake_llm(*, prompt: str, **_: Any) -> dict[str, Any]:
@@ -680,7 +539,6 @@ async def test_every_operator_executes_as_a_distinct_evolution_task(
     monkeypatch: pytest.MonkeyPatch,
     operator: EvolutionOperator,
 ) -> None:
-    """Each disclosed operator reaches a child and records its behavior."""
     observed_prompt = ""
 
     async def fake_llm(*, prompt: str, **_: Any) -> dict[str, Any]:
@@ -711,8 +569,6 @@ async def test_every_operator_executes_as_a_distinct_evolution_task(
         assert f"**Operator:** {operator.value}" in observed_prompt
         assert operator_instruction(operator) in observed_prompt
     else:
-        # A published template states the brief in its own role sentence;
-        # the operator itself is recorded on the child, not in the prompt.
         assert "## Required Evolution Operator" not in observed_prompt
     assert detail["operator"] == operator.value
     assert child.parent_id == parent.id

@@ -1,5 +1,3 @@
-"""Tests for configuration."""
-
 from __future__ import annotations
 
 import pathlib
@@ -74,25 +72,13 @@ from tests._interviews_helpers import (
 from tests._llm_fake_backend import install_completion_backend
 from tests._process_mode_helpers import FakeProcessMode
 
-# The suite must not share the working directory's LLM cache.
-#
-# Caching is on by default and its directory resolves relative to the working
-# directory, so a suite run from ``app/`` would write into ``app/cache`` --
-# shared with every previous run, with local development, and gitignored, so
-# nothing surfaces it. The engine consults that cache *before* the offline
-# router, which makes it a correctness problem: a test can be served a
-# response another run recorded under different code.
+# Shared response caches can replay earlier-code results before the offline
+# router.
 
 
 def test_the_suite_resolves_its_own_cache_directory() -> None:
-    """The resolved cache directory is a throwaway, not the repo's own.
-
-    Pins the placement as much as the value: the assignment has to happen
-    before ``app.config`` is imported, because ``Settings()`` reads the
-    environment at that module's import time and ``app.main`` bridges what
-    it captured back. Moving the two lines below the import leaves the
-    default in place and fails here.
-    """
+    # Cache placement precedes Settings import or environment bridging
+    # overwrites the isolated directory.
     _, cache_dir, _ = _resolve_cache_env()
     resolved = pathlib.Path(cache_dir).resolve()
 
@@ -100,9 +86,6 @@ def test_the_suite_resolves_its_own_cache_directory() -> None:
         pathlib.Path(tempfile.gettempdir()).resolve()
     ), resolved
     assert not resolved.is_relative_to(pathlib.Path.cwd()), resolved
-
-
-# Campaign model selection stays scoped to persisted campaign work.
 
 
 def _cfg() -> dict[str, Any]:
@@ -162,8 +145,6 @@ def _callbacks(policy: str) -> runs_crud_create.RunCreationCallbacks:
     def resolve_settings(*_args: Any) -> _ResolvedRunSettings:
         return _ResolvedRunSettings(
             config={"setup": {"goal": "study"}},
-            # Express: a keyless real run outside it is refused as free
-            # usage before the campaign route is reached.
             run_mode="express",
             provider="engine",
             focus="balance",
@@ -538,9 +519,6 @@ async def test_legacy_campaign_recovery_keeps_checkpoint_route_and_byok(
     }
 
 
-# Campaign policy survives public creation and durable task recovery.
-
-
 _PAID_MODEL = "openrouter/campaign/paid"
 _PAID_KEY = "paid-test-key"
 
@@ -637,7 +615,6 @@ def _assert_completed(task_id: str, expected: str, db_path: str) -> None:
 async def test_recovered_campaign_blocks_paid_transport_while_byok_runs(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Persisted policy, not current identity config, controls recovery."""
     from co_scientist.llm.admission import free_policy as free_catalog
 
     monkeypatch.setattr(settings, "auth_secret", "campaign-test-secret")
@@ -694,8 +671,6 @@ async def test_recovered_campaign_blocks_paid_transport_while_byok_runs(
     campaign_task = _expire_claimed_task(campaign_id, isolated_db)
     ordinary_task = _expire_claimed_task(ordinary_id, isolated_db)
 
-    # Recovery must trust the stored marker after identity configuration and
-    # process-local database initialization have both changed.
     monkeypatch.setattr(settings, "campaign_researcher_ids", set())
     from app.store import db as store_db
 
@@ -798,9 +773,6 @@ async def test_recovered_new_campaign_sends_zero_price_stealth_request(
     _assert_completed(task_id, "campaign recovery", isolated_db)
 
 
-# Server-derived campaign policy persistence for interviews and runs.
-
-
 def _campaign_headers(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
     monkeypatch.setattr(settings, "auth_secret", "campaign-test-secret")
     monkeypatch.setattr(settings, "campaign_researcher_ids", {"researcher-a"})
@@ -823,7 +795,6 @@ def test_campaign_researcher_setting_normalizes_and_rejects_empty_ids() -> None:
 
 
 def test_legacy_rows_migrate_to_standard_policy(isolated_db: str) -> None:
-    """Rows created before the policy columns retain ordinary behavior."""
     run = store.create_run(
         "Legacy run",
         "standard",
@@ -855,7 +826,6 @@ def test_legacy_rows_migrate_to_standard_policy(isolated_db: str) -> None:
 def test_campaign_interview_survives_restart_and_cannot_downgrade_linked_run(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The campaign marker survives allowlist removal and a fresh connection."""
     headers = _campaign_headers(monkeypatch)
     _patch_model_sequence(
         monkeypatch,
@@ -882,8 +852,6 @@ def test_campaign_interview_survives_restart_and_cannot_downgrade_linked_run(
     )
     monkeypatch.setattr(settings, "campaign_researcher_ids", set())
 
-    # A fresh connection/process initialization must read the durable marker,
-    # not re-derive it from the now-changed deployment allowlist.
     from app.store import db as store_db
 
     store_db._initialized.discard(isolated_db)
@@ -911,7 +879,6 @@ def test_campaign_interview_survives_restart_and_cannot_downgrade_linked_run(
 def test_unsigned_identity_and_body_cannot_originate_campaign(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Compatibility identity and body policy fields remain standard."""
     monkeypatch.setattr(settings, "campaign_researcher_ids", {"researcher-a"})
     _patch_model_sequence(
         monkeypatch,
@@ -946,7 +913,6 @@ def test_unsigned_identity_and_body_cannot_originate_campaign(
 async def test_campaign_run_rejects_byok_before_transport(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A campaign request never probes a caller-supplied paid credential."""
     headers = {
         **_campaign_headers(monkeypatch),
         "X-LLM-Provider": "openai",
@@ -984,9 +950,6 @@ async def test_campaign_run_rejects_byok_before_transport(
     assert "campaign" in response.json()["detail"].lower()
     assert called is False
     assert store.list_runs(client_id="researcher-a") == []
-
-
-# Persisted campaign policy reaches every app-side model boundary.
 
 
 def _run(policy: str, *, owner: str = "owner") -> store.RunRow:
@@ -1350,16 +1313,8 @@ async def test_contribution_safety_uses_persisted_run_policy(
     assert campaign_free_mode() is False
 
 
-# The models this deployment defaults to must be ones the engine prices.
-#
-# An unpriced model is not a cosmetic gap. ``estimate_cost_usd`` returns 0.0
-# for a model absent from ``MODEL_PRICING``, so every run reports a cost of
-# zero -- and, on an OpenRouter route,
-# ``llm.request.thinking._gateway_provider``
-# derives its ``max_price`` ceiling from the same table and simply omits the
-# cap when there is no entry, which lets a call land on the most expensive
-# host serving that model. Both failures are silent, which is why the
-# pairing is asserted rather than left to the pricing table's comment.
+# Unknown model pricing silently reports zero spend and removes gateway price
+# caps.
 
 
 _MODEL_FIELDS = (
@@ -1372,13 +1327,8 @@ _SYSTEM_DEFAULT_MODEL = "openrouter/stealth/space-bunny-alpha"
 
 
 def _default_models() -> set[str]:
-    """Every model name this deployment ships as a tier's default.
-
-    Read off the field declarations rather than the live ``settings``
-    object: a developer's own ``.env`` overrides those at import time, and
-    a check that passes only because the local environment names a priced
-    model is not checking the shipped default at all.
-    """
+    # Inspect shipped field defaults rather than dotenv-overridden live
+    # settings.
     return {
         default
         for field in _MODEL_FIELDS
@@ -1387,7 +1337,6 @@ def _default_models() -> set[str]:
 
 
 def test_all_system_default_roles_select_space_bunny() -> None:
-    """Worker, supervisor, chat and semantic safety share the selected model."""
     actual = {
         field: Settings.model_fields[field].default for field in _MODEL_FIELDS
     }
@@ -1397,7 +1346,6 @@ def test_all_system_default_roles_select_space_bunny() -> None:
 
 
 def test_every_default_model_is_priced() -> None:
-    """Each tier's default model carries a rate in the engine's table."""
     unpriced = sorted(_default_models() - set(MODEL_PRICING))
 
     assert not unpriced, (
@@ -1406,7 +1354,6 @@ def test_every_default_model_is_priced() -> None:
 
 
 def test_every_byok_default_model_is_priced() -> None:
-    """A bring-your-own-key run is priced the same way a house run is."""
     unpriced = sorted(
         set(BYOK_PROVIDER_DEFAULT_MODELS.values()) - set(MODEL_PRICING)
     )
@@ -1414,18 +1361,7 @@ def test_every_byok_default_model_is_priced() -> None:
     assert not unpriced, f"BYOK models missing from MODEL_PRICING: {unpriced}"
 
 
-# Tests for the DeepSeek thinking-mode helpers in ``app.config``.
-#
-# The two helpers translate the thinking toggle into DeepSeek's request
-# params: a ``thinking`` object plus ``reasoning_effort``. Getting the
-# format wrong is silent rather than an error, so the shape is pinned here.
-# Every app call site thinks now, titling included; the opt-out
-# (``deepseek_non_thinking_extra_body``) has no live caller but stays
-# covered here as a tested seam -- see its docstring.
-
-
 def test_thinking_kwargs_native_deepseek() -> None:
-    """Native DeepSeek gets the thinking object at low reasoning effort."""
     kwargs = deepseek_thinking_kwargs("deepseek/deepseek-v4-pro")
 
     assert kwargs == {
@@ -1435,33 +1371,22 @@ def test_thinking_kwargs_native_deepseek() -> None:
 
 
 def test_thinking_kwargs_empty_for_other_models() -> None:
-    """Non-DeepSeek models carry no thinking params at all."""
     assert deepseek_thinking_kwargs("gemini/gemini-2.5-flash") == {}
 
 
 def test_non_thinking_body_native_deepseek() -> None:
-    """The opt-out disables thinking explicitly on the native API."""
     body = deepseek_non_thinking_extra_body("deepseek/deepseek-v4-flash")
 
     assert body == {"thinking": {"type": "disabled"}}
 
 
 def test_non_thinking_body_empty_for_other_models() -> None:
-    """Non-DeepSeek models carry no thinking params at all."""
     assert deepseek_non_thinking_extra_body("gpt-4o-mini") == {}
 
 
-# --- thinking token floor ----------------------------------------------------
-
-
 def test_thinking_floor_raises_an_answer_sized_budget() -> None:
-    """A DeepSeek budget sized for the answer alone is lifted to the floor.
-
-    The provider counts reasoning against ``max_tokens``, so an answer-sized
-    budget lets a long chain of thought return empty content -- billed in
-    full, and for the claim verifier indistinguishable from "the LLM
-    assessor never wins".
-    """
+    # Reasoning counts toward output budget; answer-only budgets can return
+    # empty content at full cost.
     from app.config import THINKING_FLOOR_MAX_TOKENS, thinking_safe_max_tokens
 
     assert (
@@ -1471,7 +1396,6 @@ def test_thinking_floor_raises_an_answer_sized_budget() -> None:
 
 
 def test_thinking_floor_never_lowers_a_larger_budget() -> None:
-    """The floor only raises; a call site asking for more keeps its number."""
     from app.config import THINKING_FLOOR_MAX_TOKENS, thinking_safe_max_tokens
 
     above = THINKING_FLOOR_MAX_TOKENS + 5_000
@@ -1480,22 +1404,14 @@ def test_thinking_floor_never_lowers_a_larger_budget() -> None:
 
 
 def test_thinking_floor_leaves_non_deepseek_budgets_alone() -> None:
-    """Models without a thinking mode spend the whole budget on the answer."""
     from app.config import thinking_safe_max_tokens
 
     assert thinking_safe_max_tokens("gemini/gemini-2.5-flash", 3_000) == 3_000
 
 
-# --- thinking timeout floor --------------------------------------------------
-
-
 def test_thinking_timeout_floor_raises_an_answer_sized_deadline() -> None:
-    """A deadline sized for the answer alone is lifted to the floor.
-
-    Funding the chain of thought without extending the clock only moves the
-    failure: the call is cut off mid-reasoning instead of returning empty,
-    and both land in the same silent fallback.
-    """
+    # Token floors require enough deadline for reasoning or calls merely fail
+    # later in the same fallback.
     from app.config import THINKING_FLOOR_TIMEOUT_SECONDS, thinking_safe_timeout
 
     assert (
@@ -1505,7 +1421,6 @@ def test_thinking_timeout_floor_raises_an_answer_sized_deadline() -> None:
 
 
 def test_thinking_timeout_floor_never_lowers_a_longer_deadline() -> None:
-    """The floor only raises; a call site allowing more keeps its number."""
     from app.config import THINKING_FLOOR_TIMEOUT_SECONDS, thinking_safe_timeout
 
     above = THINKING_FLOOR_TIMEOUT_SECONDS + 120.0
@@ -1514,19 +1429,14 @@ def test_thinking_timeout_floor_never_lowers_a_longer_deadline() -> None:
 
 
 def test_thinking_timeout_floor_leaves_non_deepseek_deadlines_alone() -> None:
-    """Models without a thinking mode keep their own, tighter deadline."""
     from app.config import thinking_safe_timeout
 
     assert thinking_safe_timeout("gemini/gemini-2.5-flash", 20.0) == 20.0
 
 
 def test_thinking_timeout_floor_admits_the_token_floor() -> None:
-    """The clock must allow the token budget it is paired with to arrive.
-
-    The two ceilings are one setting in two places. Pinning the relationship
-    here is what stops a later tightening of the deadline from silently
-    re-breaking every call the token floor was raised to fix.
-    """
+    # Token and time ceilings must remain compatible; tuning one can silently
+    # break the other.
     from app.config import (
         THINKING_FLOOR_MAX_TOKENS,
         THINKING_FLOOR_TIMEOUT_SECONDS,
@@ -1541,15 +1451,8 @@ def test_thinking_timeout_floor_admits_the_token_floor() -> None:
 
 
 def test_the_thinking_knob_is_the_engine_s_to_choose() -> None:
-    """One place decides how a route expresses thinking, not two.
-
-    The app and the engine both send thinking parameters, and the shape
-    depends on the route rather than on the model: a gateway normalizes
-    reasoning into its own parameter and ignores DeepSeek's. Two copies
-    of that rule is one more thing to keep in step, and the copy that
-    gets forgotten sends a disable that reads as an enable -- which
-    costs a whole token budget and returns nothing.
-    """
+    # Thinking wire shapes depend on routes; duplicated shaping can turn a
+    # requested disable into enable.
     from app.config import (
         deepseek_non_thinking_extra_body,
         deepseek_thinking_kwargs,
@@ -1558,17 +1461,8 @@ def test_the_thinking_knob_is_the_engine_s_to_choose() -> None:
     routed = "openrouter/deepseek/deepseek-v4-flash"
     direct = "deepseek/deepseek-v4-flash"
 
-    # The price ceiling is the engine's too: a gateway spreads one model
-    # over hosts differing 6.5x in price, and neither the host ordering
-    # nor the throughput floor considers price at all. Restating any of
-    # it here would be the second copy this test exists to prevent.
-    #
-    # `order` replaced `sort: throughput` after the latter was measured
-    # scattering consecutive calls across upstreams and collapsing the
-    # prompt-cache hit rate to 6.9% (against 33.7% for the month) on the
-    # run of 2026-09-04; `preferred_min_throughput` keeps the slow-host
-    # protection `sort` used to provide. Full rationale lives with the
-    # engine's own copy in test_llm_wrappers_thinking.py.
+    # Stable provider ordering preserves prompt caches; price caps remain
+    # engine-owned across differently priced hosts.
     gateway = {
         "require_parameters": True,
         "allow_fallbacks": True,
@@ -1591,25 +1485,13 @@ def test_the_thinking_knob_is_the_engine_s_to_choose() -> None:
     assert deepseek_non_thinking_extra_body("gemini/gemini-2.5-flash") == {}
     assert deepseek_thinking_kwargs("gemini/gemini-2.5-flash") == {}
 
-    # The tier is stated once, in the shape the route understands. A
-    # top-level ``reasoning_effort`` beside the gateway's own ``reasoning``
-    # object is the copy litellm refuses (``UnsupportedParamsError``) for a
-    # model its OpenRouter support map does not list -- and these app call
-    # sites reach litellm directly, without the ``drop_params`` every engine
-    # call carries. It parked runs at the contextual safety screen.
+    # Duplicate top-level and gateway reasoning parameters can fail before
+    # contextual safety runs.
     assert "reasoning_effort" not in deepseek_thinking_kwargs(routed)
     assert deepseek_thinking_kwargs(direct)["reasoning_effort"] == "high"
 
 
-# --- per-surface effort override, and the thinking-off retry rung -----------
-
-
 def test_effort_override_replaces_the_gateway_s_nested_tier() -> None:
-    """A gateway route carries the tier nested in ``extra_body["reasoning"]``.
-
-    The interview and chat turns pass a lower tier for exactly this route
-    shape (see ``app.config.CONVERSATIONAL_REASONING_EFFORT``).
-    """
     routed = "openrouter/deepseek/deepseek-v4-flash"
 
     kwargs = deepseek_thinking_kwargs(routed, effort="medium")
@@ -1618,7 +1500,6 @@ def test_effort_override_replaces_the_gateway_s_nested_tier() -> None:
 
 
 def test_effort_override_replaces_the_direct_route_s_top_level_tier() -> None:
-    """A direct, non-gateway route carries the tier as a top-level kwarg."""
     direct = "deepseek/deepseek-v4-flash"
 
     kwargs = deepseek_thinking_kwargs(direct, effort="medium")
@@ -1627,14 +1508,12 @@ def test_effort_override_replaces_the_direct_route_s_top_level_tier() -> None:
 
 
 def test_effort_override_is_a_no_op_for_a_model_with_no_thinking_mode() -> None:
-    """Nothing to override on a model that carries no thinking params."""
     assert (
         deepseek_thinking_kwargs("gemini/gemini-2.5-flash", effort="low") == {}
     )
 
 
 def test_omitted_effort_keeps_the_engine_s_high_floor() -> None:
-    """No override argument means no change to the existing behavior."""
     direct = "deepseek/deepseek-v4-flash"
 
     assert (
@@ -1647,33 +1526,15 @@ def test_omitted_effort_keeps_the_engine_s_high_floor() -> None:
 def test_thinking_off_kwargs_wraps_the_disable_body_for_a_completion_call() -> (
     None
 ):
-    """The rung a thinking-only stream is retried at.
-
-    ``deepseek_non_thinking_extra_body`` returns the bare disable knob;
-    this wraps it the way every call site actually spreads kwargs, so a
-    caller cannot forget the ``extra_body`` wrapper one of the two shapes
-    needs.
-    """
     assert thinking_off_kwargs("deepseek/deepseek-v4-flash") == {
         "extra_body": {"thinking": {"type": "disabled"}}
     }
     assert thinking_off_kwargs("gemini/gemini-2.5-flash") == {}
 
 
-# The process-mode seam: one installed adapter answers every reader.
-#
-# The behaviour the adapters implement is pinned elsewhere, through the
-# environment (``test_provider_selection.py`` for the offline truth table,
-# ``test_safety_process_modes.py`` for the fail-closed screen). These cases pin
-# the seam itself: that installing an adapter reaches every consumer, which is
-# what lets a test state a process fact once instead of patching each module
-# that happens to read it.
-
-
 def test_one_adapter_answers_every_offline_reader(
     fake_process_mode: FakeProcessMode,
 ) -> None:
-    """Online reaches the re-exports, the run-backend rule, the chat guard."""
     fake_process_mode.online()
 
     assert process_mode.offline_mode() is False
@@ -1692,7 +1553,6 @@ def test_one_adapter_answers_every_offline_reader(
 def test_a_credential_callable_is_asked_per_model(
     fake_process_mode: FakeProcessMode,
 ) -> None:
-    """A test can vary the answer by model, and see which models were asked."""
     asked: list[str] = []
 
     def credentialed(model: str) -> bool:
@@ -1709,7 +1569,6 @@ def test_a_credential_callable_is_asked_per_model(
 def test_install_returns_the_replaced_adapter_so_it_can_be_restored(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Restoring what ``install`` returned puts the env-derived answer back."""
     monkeypatch.setenv("COSCIENTIST_FORCE_OFFLINE", "1")
     fake = FakeProcessMode()
     fake.online()

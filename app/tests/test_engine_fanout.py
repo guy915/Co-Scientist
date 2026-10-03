@@ -1,5 +1,3 @@
-"""Tests for engine fanout 1."""
-
 from __future__ import annotations
 
 import asyncio
@@ -42,12 +40,6 @@ from tests._engine_tasks_helpers import (
     _task_state,
 )
 
-# Review fan-out mechanics for the durable engine executor.
-#
-# Independent child leases committing through a single aggregate. The
-# deep-verification family's own mechanics live in the sibling
-# ``test_engine_tasks_fanout_verification``.
-
 
 async def _fake_review(**kwargs: Any) -> HypothesisReview:
     return HypothesisReview(
@@ -66,7 +58,6 @@ async def _advance_to_review_parent(
     generator: _Generator,
     db_path: str,
 ) -> None:
-    """Bootstrap, route supervisor->review, and fan out the review parent."""
     _patch_generator(monkeypatch, generator, restore=True, screen=True)
     engine_tasks.enqueue_bootstrap(run_id, db_path=db_path)
     await task_worker.run_once("bootstrap", run_id=run_id, db_path=db_path)
@@ -94,7 +85,6 @@ async def _advance_to_review_parent(
 
 
 async def _run_review_children_and_aggregate(run_id: str, db_path: str) -> None:
-    """Lease both review children in parallel and commit one aggregate."""
     first = store.claim_task("child-a", run_id=run_id, db_path=db_path)
     second = store.claim_task("child-b", run_id=run_id, db_path=db_path)
     assert first is not None and second is not None
@@ -130,7 +120,6 @@ async def _run_review_children_and_aggregate(run_id: str, db_path: str) -> None:
 async def test_review_fanout_uses_independent_leases_and_one_aggregate_commit(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Parallel review children share one checkpoint and aggregate once."""
     run = store.create_run("Task-level science", "standard", "engine", {})
     state = _task_state(run.id)
     state["hypotheses"] = [Hypothesis(text="alpha"), Hypothesis(text="beta")]
@@ -147,9 +136,6 @@ async def test_review_fanout_uses_independent_leases_and_one_aggregate_commit(
     assert checkpoint is not None and checkpoint["seq"] == 3
     persisted = checkpoint["state"]["state"]["hypotheses"]
     assert [hypothesis["score"] for hypothesis in persisted] == [8.0, 8.0]
-    # The review fan-out aggregate -- one of the five node types the fan-out
-    # architecture previously left silent on the event stream -- now emits
-    # its own scientific_task completion, same as the generic node path.
     review_events = _task_events(run.id, "review", db_path=isolated_db)
     assert len(review_events) == 1
     assert (
@@ -161,7 +147,6 @@ async def test_review_fanout_uses_independent_leases_and_one_aggregate_commit(
 async def test_review_fanout_created_during_pause_waits_for_resume(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A leased review planner's item wave is unavailable until resume."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     original_dispatch = engine_tasks_node._dispatch_node_fanout
 
@@ -240,7 +225,6 @@ async def test_review_fanout_created_during_pause_waits_for_resume(
 async def test_review_aggregate_is_ready_after_isolated_child_failure(
     isolated_db: str,
 ) -> None:
-    """An allowed failed dependency does not permanently strand aggregation."""
     run = store.create_run("Task-level science", "standard", "engine", {})
     failed = store.enqueue_task(
         store.NewTask(
@@ -277,17 +261,8 @@ async def test_review_aggregate_is_ready_after_isolated_child_failure(
     assert ready is not None and ready.id == aggregate.id
 
 
-# A parked or over-budget review must reach the worker, not the fan-out.
-#
-# Production run bc77950f (extended tier): the free model chain hit its
-# per-day cap. The ranking node parked as designed, while eleven
-# ``engine.fanout.reflection.item`` tasks failed permanently at attempt 3/3
-# -- the review swallowed the park, returned no review, and this executor
-# reported that as a plain ``RuntimeError``, which the worker treats as a
-# transient hiccup worth three attempts against a cap that had not reset.
-#
-# ``task_worker.outcomes`` is what decides both outcomes; these tests pin
-# that the exception types it dispatches on actually arrive there.
+# Preserve rate-park and call-budget exception types through review handlers to
+# worker outcome policy.
 
 
 PARK = LLMRateLimitParkError(1788825600.0, "message_per_day")
@@ -297,7 +272,6 @@ OVER_BUDGET = LLMCallBudgetExceededError(2501, 2500)
 def _seed_mature_review_item(
     run_id: str, monkeypatch: pytest.MonkeyPatch, db_path: str
 ) -> store.ScientificTask:
-    """Enqueue and lease one full-review item over a one-hypothesis state."""
     state = _task_state(run_id)
     hypothesis = Hypothesis(text="a mechanism worth reviewing")
     hypothesis.review_disposition = "viable"
@@ -325,14 +299,8 @@ def _seed_mature_review_item(
 def _install_failing_review(
     monkeypatch: pytest.MonkeyPatch, error: Exception
 ) -> None:
-    """Fail the review's own provider call, inside the engine's handler.
-
-    Injected at the LLM seam rather than at ``_run_review`` itself: the
-    handler that swallowed the park in bc77950f is inside that function,
-    so a stand-in for the whole function would prove nothing about it.
-    Patched on the engine module because the executor imports the review
-    inside its own body.
-    """
+    # Inject failures inside the review provider seam; replacing the whole
+    # handler would hide swallowed parks.
     import co_scientist.agents.reflection.comprehensive_reflection as comp
     from co_scientist.agents.reflection.review_evidence import _ReviewEvidence
 
@@ -354,12 +322,8 @@ def _install_failing_review(
 async def test_a_control_flow_error_leaves_the_item_unchanged(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch, error: Exception
 ) -> None:
-    """Its own type has to survive the executor, not become a RuntimeError.
-
-    ``task_worker.outcomes`` dispatches on the type: a park returns the
-    row to ``queued`` with its attempt undone, and the call-budget
-    ceiling terminates the run. A ``RuntimeError`` gets neither.
-    """
+    # Workers dispatch by exception type; wrapping parks or budget errors as
+    # RuntimeError changes retry outcomes.
     run = store.create_run("Task-level science", "extended", "engine", {})
     leased = _seed_mature_review_item(run.id, monkeypatch, isolated_db)
     _install_failing_review(monkeypatch, error)
@@ -373,7 +337,6 @@ async def test_a_control_flow_error_leaves_the_item_unchanged(
 async def test_an_ordinary_provider_failure_is_still_a_retryable_failure(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A review that ran and answered nothing keeps its three attempts."""
     run = store.create_run("Task-level science", "extended", "engine", {})
     leased = _seed_mature_review_item(run.id, monkeypatch, isolated_db)
     _install_failing_review(monkeypatch, ValueError("unparseable answer"))
@@ -388,13 +351,8 @@ async def test_an_ordinary_provider_failure_is_still_a_retryable_failure(
 def test_a_control_flow_error_escapes_the_ranking_wave(
     error: Exception,
 ) -> None:
-    """The wave's gather collects exceptions, which swallows these too.
-
-    Dropping a park here keeps judging the rest of the wave against a cap
-    that has not reset, and commits a tournament round short of the
-    matchups it was budgeted -- the same trade the reviews lost eleven
-    items to.
-    """
+    # gather must propagate parks or waves commit incomplete rounds against an
+    # unchanged provider cap.
     from co_scientist.agents.ranking import RankingJudgement
 
     from app.engine_tasks.ranking import _surviving_judgements
@@ -406,7 +364,6 @@ def test_a_control_flow_error_escapes_the_ranking_wave(
 
 
 def test_an_ordinary_judge_failure_still_leaves_its_wave_siblings() -> None:
-    """Per-matchup isolation is unchanged for an ordinary failure."""
     from co_scientist.agents.ranking import RankingJudgement
 
     from app.engine_tasks.ranking import _surviving_judgements
@@ -421,17 +378,7 @@ def test_an_ordinary_judge_failure_still_leaves_its_wave_siblings() -> None:
     assert survived.judgements == [verdict]
 
 
-# The durable review aggregate re-derives dispositions, pool-wide.
-#
-# The durable path is the canonical mirror of the published per-hypothesis
-# review chaining (FIX-9), so it is also where the review disposition must
-# stop being a one-shot write (FIX-4): the aggregate re-derives every
-# hypothesis in the pool from the review record it holds, not only the ones
-# this batch reviewed.
-
-
 def _dispositions_blocking_review() -> HypothesisReview:
-    """An initial screen that lands in the not-viable band."""
     return HypothesisReview(
         review_summary="unsound",
         scores={"scientific_soundness": 2, "novelty": 8},
@@ -443,7 +390,6 @@ def _dispositions_blocking_review() -> HypothesisReview:
 
 
 def _dispositions_blocked_hypothesis() -> Hypothesis:
-    """A hypothesis the initial screen barred from the tournament."""
     hypothesis = Hypothesis(
         text="alpha", reviews=[_dispositions_blocking_review()]
     )
@@ -452,7 +398,6 @@ def _dispositions_blocked_hypothesis() -> Hypothesis:
 
 
 def test_aggregate_reopens_an_idea_a_deeper_review_cleared() -> None:
-    """A full review recorded since the last pass restores ranking."""
     hypothesis = _dispositions_blocked_hypothesis()
     hypothesis.enrichments["full"] = {"verdict": "sound"}
 
@@ -465,11 +410,8 @@ def test_aggregate_reopens_an_idea_a_deeper_review_cleared() -> None:
 
 
 def test_aggregate_leaves_the_evidence_gate_s_disposition_alone() -> None:
-    """``evidence_blocked`` belongs to the pre-ranking gate, which restores it.
-
-    Re-deriving it here would strand the idea: the gate stores the
-    disposition it displaced and puts that back itself.
-    """
+    # The evidence gate owns displaced dispositions; re-deriving
+    # evidence_blocked elsewhere strands recovery.
     hypothesis = _dispositions_blocked_hypothesis()
     hypothesis.review_disposition = "evidence_blocked"
     hypothesis.enrichments["full"] = {"verdict": "sound"}
@@ -480,7 +422,6 @@ def test_aggregate_leaves_the_evidence_gate_s_disposition_alone() -> None:
 
 
 def test_aggregate_keeps_a_hypothesis_no_review_can_grade_untouched() -> None:
-    """Nothing gradable held means nothing derived, not a clean bill."""
     hypothesis = Hypothesis(text="beta")
 
     _apply_review_items({hypothesis.id: hypothesis}, [], None)
@@ -489,7 +430,6 @@ def test_aggregate_keeps_a_hypothesis_no_review_can_grade_untouched() -> None:
 
 
 def test_aggregate_reads_the_run_s_criteria_when_re_deriving() -> None:
-    """Scientist criteria select the axes, on the refresh path as well."""
     hypothesis = Hypothesis(
         text="gamma",
         reviews=[
@@ -510,24 +450,13 @@ def test_aggregate_reads_the_run_s_criteria_when_re_deriving() -> None:
     assert not hypothesis.is_rankable()
 
 
-# One failed item must not discard the batch it was gathered with.
-#
-# The durable ranking wave judges several matchups against one Elo snapshot
-# under a single ``asyncio.gather``. Without isolation the first judge to
-# raise cancels its siblings and fails the whole wave task, so a run loses
-# every comparison the wave had already paid for and re-judges them on the
-# retry -- and burns the wave's retry budget on a fault that is per-matchup,
-# not per-wave.
+# Isolate matchup faults so retrying one failure does not discard or re-judge
+# paid sibling comparisons.
 
 
 def _install_judge_failing_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> dict[str, int]:
-    """Patch ``judge_matchup`` so its first call raises, the rest succeed.
-
-    Returns a counter box whose ``calls`` key records every invocation, so
-    a test can tell an isolated failure from a cancelled sibling.
-    """
     import co_scientist.agents.ranking.operations as ranking_module
 
     box = {"calls": 0}
@@ -552,7 +481,6 @@ def _install_judge_failing_once(
 async def test_one_failed_matchup_leaves_its_wave_siblings_committed(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A raising judge costs its own matchup, not the whole tournament."""
     run = store.create_run("Task-level science", "standard", "engine", {})
     _seed_ranking_node(
         run.id,
@@ -579,17 +507,11 @@ async def test_one_failed_matchup_leaves_its_wave_siblings_committed(
     assert [task.status for task in tasks if task.status == "failed"] == []
 
 
-# Which mature-review tasks the durable path enqueues.
-#
-# The durable fan-out is the path production runs, and it used to carry its
-# own copy of the maturity rule. Both copies re-issued a simulation review
-# that had already succeeded whenever the full review had not -- so fixing
-# only the engine's copy would have left the cost exactly where it was
-# being paid.
+# Durable maturity selection must follow the engine rule rather than repeat
+# already successful reviews.
 
 
 def _hypothesis(**enrichments: Any) -> Hypothesis:
-    """An engine hypothesis carrying the given stored reviews."""
     hypothesis = Hypothesis(id="h1", text="a mechanism")
     hypothesis.enrichments.update(enrichments)
     return hypothesis
@@ -603,13 +525,8 @@ def test_a_fresh_hypothesis_is_owed_both() -> None:
 
 
 def test_a_succeeded_simulation_is_not_re_enqueued() -> None:
-    """One firing of the tool loop per hypothesis, not one per iteration.
-
-    The task's idempotency key carries the checkpoint sequence, so a
-    later iteration is a genuinely new row rather than a no-op collision:
-    the work really did run again, on the tier where that work is a tool
-    loop.
-    """
+    # Checkpoint sequences make later tool-loop rows new work even though
+    # iteration repeats the phase.
     hypothesis = _hypothesis(simulation={"verdict": "breaks_down"})
 
     for iteration in (0, 1, 2):
@@ -620,9 +537,6 @@ def test_a_mature_hypothesis_gets_its_recurrent_review() -> None:
     assert _maturity_specs(_hypothesis(full={"verdict": "sound"}), 1) == [
         ("h1", "recurrent")
     ]
-
-
-# Durable adaptations of the public Reflection item operations.
 
 
 def _restore_item(monkeypatch: pytest.MonkeyPatch, mode: str = "full") -> Any:
@@ -748,19 +662,13 @@ async def test_durable_mature_review_keeps_ledger_beside_review(
     assert "research_ledger" not in result["review"]
 
 
-# The durable path gives a blocked idea one recheck, and only one.
-#
-# The durable task path is the one production runs, so the bounded closure
-# of FIX-4 has to hold here: the reflection fan-out materializes one
-# recurrent review per blocked idea, the aggregate records the attempt from
-# the item's own inputs -- completed or not -- and a later cycle, reading
-# the pool back from the checkpoint, schedules nothing further.
+# Blocked ideas get one recurrent recheck; record attempts even on failure so
+# later cycles cannot refund it.
 
 
 def _patch_item(
     monkeypatch: pytest.MonkeyPatch, inputs: dict[str, Any], status: str
 ) -> None:
-    """Serve one canned item task, carrying inputs but never a result."""
 
     class _Item:
         def __init__(self) -> None:
@@ -776,7 +684,6 @@ def _patch_item(
 
 
 def _recheck_blocking_review() -> HypothesisReview:
-    """An initial screen that lands in the not-viable band."""
     return HypothesisReview(
         review_summary="unsound",
         scores={"scientific_soundness": 2, "novelty": 8},
@@ -788,19 +695,16 @@ def _recheck_blocking_review() -> HypothesisReview:
 
 
 def _recheck_blocked_hypothesis(text: str = "alpha") -> Hypothesis:
-    """A hypothesis the initial review gate barred from the tournament."""
     hypothesis = Hypothesis(text=text, reviews=[_recheck_blocking_review()])
     hypothesis.review_disposition = "inaccurate"
     return hypothesis
 
 
 def _state(hypotheses: list[Hypothesis]) -> dict[str, Any]:
-    """A restored-state shape carrying only what the fan-out reads."""
     return {"hypotheses": hypotheses, "current_iteration": 0}
 
 
 def test_the_fanout_schedules_one_recheck_per_blocked_idea() -> None:
-    """Blocked ideas are unreachable from the cascade's viable filter."""
     pool = [_recheck_blocked_hypothesis(f"idea {index}") for index in range(20)]
 
     specs = _mature_reflection_specs(_state(pool))
@@ -813,7 +717,6 @@ def test_the_fanout_schedules_one_recheck_per_blocked_idea() -> None:
 def test_a_failed_recheck_item_still_records_its_attempt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Marking only on success would re-fire the wave on every cycle."""
     hypothesis = _recheck_blocked_hypothesis()
     _patch_item(
         monkeypatch,
@@ -832,7 +735,6 @@ def test_a_failed_recheck_item_still_records_its_attempt(
 def test_a_cascade_item_records_no_recheck(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The marker belongs to the recheck, not to every reflection item."""
     hypothesis = _recheck_blocked_hypothesis()
     _patch_item(
         monkeypatch,
@@ -848,7 +750,6 @@ def test_a_cascade_item_records_no_recheck(
 
 
 def test_the_cascade_still_owns_the_viable_ideas() -> None:
-    """The recheck arm is additive: it changes no cascade scheduling."""
     viable = Hypothesis(text="cleared")
     viable.review_disposition = "viable"
 
@@ -863,15 +764,7 @@ def test_the_cascade_still_owns_the_viable_ideas() -> None:
     ]
 
 
-# Deep-verification fan-out mechanics for the durable engine executor.
-#
-# Who is fanned out (every idea still owed its one verification, and only
-# those), that the family commits through a single aggregate, and that a
-# pool with nothing left to verify still hands the run into the tournament.
-
-
 def _lease_verification_parent(run_id: str, db_path: str) -> Any:
-    """Enqueue and lease a deep_verification node task to fan out from."""
     parent = store.enqueue_task(
         store.NewTask(
             run_id=run_id,
@@ -890,12 +783,6 @@ def _lease_verification_parent(run_id: str, db_path: str) -> Any:
 async def test_verification_fanout_materializes_one_task_per_unverified_idea(
     isolated_db: str,
 ) -> None:
-    """Every idea is verified before the tournament, not an Elo slice.
-
-    The node now runs between the safety screen and ranking, so there is
-    no tournament ordering to take a top-k from and nothing enters a
-    match unprobed.
-    """
     run = store.create_run("Task-level science", "standard", "engine", {})
     leased = _lease_verification_parent(run.id, isolated_db)
     state = _task_state(run.id)
@@ -923,12 +810,8 @@ async def test_verification_fanout_materializes_one_task_per_unverified_idea(
 async def test_a_resumed_run_fans_out_only_the_ideas_still_owed_one(
     isolated_db: str,
 ) -> None:
-    """The once-ever marker survives the checkpoint and bounds the wave.
-
-    Blanket verification is affordable only because it is incremental. A
-    marker held anywhere but on the hypothesis would let every restart
-    re-fund the whole pool.
-    """
+    # Once-ever verification markers must survive checkpoints or restarts
+    # re-fund the whole pool.
     run = store.create_run("Task-level science", "standard", "engine", {})
     leased = _lease_verification_parent(run.id, isolated_db)
     state = _task_state(run.id)
@@ -955,13 +838,8 @@ async def test_a_resumed_run_fans_out_only_the_ideas_still_owed_one(
 async def test_a_pool_with_nothing_left_to_verify_advances_into_ranking(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The steady state from cycle two on must not stall the run.
-
-    Every idea already carries its marker, so the fan-out enqueues no item
-    tasks at all. The aggregate then has no dependencies, is claimable
-    immediately, and has to commit the checkpoint and hand on to the
-    tournament exactly as a populated one does.
-    """
+    # Empty fan-outs still need an immediately claimable aggregate that commits
+    # and advances the run.
     run = store.create_run("Task-level science", "standard", "engine", {})
     state = _task_state(run.id)
     hypotheses = [Hypothesis(text=f"verified-{index}") for index in range(3)]
@@ -1010,8 +888,6 @@ async def test_a_pool_with_nothing_left_to_verify_advances_into_ranking(
 
 
 async def _fake_verify(*_: Any, **__: Any) -> dict[str, Any]:
-    # "holds" is a real DEEP_VERIFICATION_SCHEMA verdict: the aggregate
-    # fails closed on anything outside the schema enum (audit E9).
     return {
         "probes": [{"question": "q"}],
         "verdict": "holds",
@@ -1031,7 +907,6 @@ async def _fake_verify(*_: Any, **__: Any) -> dict[str, Any]:
 async def _advance_verification_node(
     run_id: str, monkeypatch: pytest.MonkeyPatch, db_path: str
 ) -> None:
-    """Seed a 3-candidate deep_verification node and fan it out."""
     state = _task_state(run_id)
     state["hypotheses"] = [
         Hypothesis(text=f"candidate-{index}", elo_rating=1200 + index)
@@ -1061,7 +936,6 @@ async def _advance_verification_node(
 async def _run_verification_children_and_aggregate(
     run_id: str, db_path: str, before_aggregate: Any | None = None
 ) -> None:
-    """Lease the three verification children and commit one aggregate."""
     children = [
         store.claim_task(f"child-{index}", run_id=run_id, db_path=db_path)
         for index in range(3)
@@ -1101,13 +975,8 @@ async def _run_verification_children_and_aggregate(
 def _assert_verifications_are_marked_once_ever(
     run_id: str, db_path: str
 ) -> None:
-    """Every item marks its hypothesis, so no later cycle re-offers it.
-
-    Written at the aggregate boundary rather than by the items, because
-    that is the only place that sees the whole family -- and read back
-    through the checkpoint, since a marker that does not survive the
-    round trip bounds nothing on a resume.
-    """
+    # Aggregate boundaries see the whole family and persist attempt markers even
+    # when items fail.
     latest = store.get_latest_checkpoint(run_id, db_path=db_path)
     assert latest is not None
     restored = latest["state"]["state"]["hypotheses"]
@@ -1117,7 +986,6 @@ def _assert_verifications_are_marked_once_ever(
 
 
 def _assert_verification_committed(run_id: str, db_path: str) -> None:
-    """Pin the aggregate-boundary commit: verdicts, evidence, milestone."""
     latest = store.get_latest_checkpoint(run_id, db_path=db_path)
     assert latest is not None
     restored = latest["state"]["state"]["hypotheses"]
@@ -1133,21 +1001,14 @@ def _assert_verification_committed(run_id: str, db_path: str) -> None:
         run_id, "deep_verification", db_path=db_path
     )
     assert len(verification_events) == 1
-    # Verification precedes tournament entry (``03-reflection.md``), so it
-    # hands the run into ranking rather than back to the loop point.
     assert verification_events[0]["payload"]["successor"] == "ranking"
 
 
 def _assert_fingerprints_survive_the_checkpoint(
     run_id: str, db_path: str
 ) -> None:
-    """Every committed verification records what it was produced from.
-
-    The durable path is the only one production takes, so a fingerprint
-    missing here means no leader is ever recognized as current and deep
-    verification re-runs on every cycle for the life of the run. It has to
-    survive the checkpoint round-trip to be worth anything on resume.
-    """
+    # Verification fingerprints must survive checkpoints or every later cycle
+    # repeats the same paid work.
     from co_scientist.agents.reflection.deep_verification import (
         verification_fingerprint,
     )
@@ -1157,7 +1018,6 @@ def _assert_fingerprints_survive_the_checkpoint(
     assert latest is not None
     state = latest["state"]["state"]
     for payload in state["hypotheses"]:
-        # Round-tripped through the checkpoint, not the in-memory object.
         hypothesis = Hypothesis.from_dict(payload)
         assert hypothesis.deep_verification_fingerprint == (
             verification_fingerprint(hypothesis, state["model_name"])
@@ -1168,7 +1028,6 @@ def _assert_fingerprints_survive_the_checkpoint(
 async def test_verification_children_commit_through_single_aggregator(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Verification results update state only at the aggregate boundary."""
     run = store.create_run("Task-level science", "standard", "engine", {})
     await _advance_verification_node(run.id, monkeypatch, isolated_db)
 
@@ -1186,7 +1045,6 @@ async def test_verification_children_commit_through_single_aggregator(
 async def test_verification_aggregate_pauses_and_resumes_to_ranking(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Leased verifier aggregate retains evidence and the ranking successor."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
 
     with make_client() as client:
@@ -1266,16 +1124,8 @@ async def test_verification_aggregate_pauses_and_resumes_to_ranking(
 async def test_failed_verification_items_record_explicit_unverified(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A provider failure fails closed at the aggregate boundary (audit E9).
-
-    Errored verification items must not leave their ideas merely untouched
-    -- that read as an implicit pass. The aggregate stamps the explicit
-    ``unverified`` verdict, keeps the fingerprints stale so nothing reads
-    a failure as a stored verdict, and the ideas remain rankable. The
-    attempt is still spent: the once-ever marker is written for a failed
-    item too, so the next cycle does not re-fund the whole population the
-    verifier just failed on.
-    """
+    # Failed verification is explicitly unverified with stale fingerprints;
+    # spend its once-ever marker anyway.
     run = store.create_run("Task-level science", "standard", "engine", {})
     await _advance_verification_node(run.id, monkeypatch, isolated_db)
 
@@ -1314,11 +1164,9 @@ async def test_failed_verification_items_record_explicit_unverified(
         item["deep_verification_verdict"] == "unverified" for item in restored
     )
     assert all(item["deep_verification_probes"] == [] for item in restored)
-    # Stale fingerprints: nothing reads a failure as a stored verdict.
     assert all(
         item["deep_verification_fingerprint"] is None for item in restored
     )
-    # But the attempt was spent, so the wave does not re-fire next cycle.
     assert all(
         item["enrichments"]["deep_verification_issued"] for item in restored
     )

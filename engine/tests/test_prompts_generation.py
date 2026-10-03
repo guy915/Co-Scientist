@@ -1,5 +1,3 @@
-"""Offline contracts for prompts generation."""
-
 from __future__ import annotations
 
 from co_scientist.prompts import (
@@ -31,11 +29,8 @@ from co_scientist.prompts.generation_draft import (
 from co_scientist.prompts.loading import load_prompt
 from tests._state import make_article
 
-# --- get_debate_generation_prompt ------------------------------------------
-
 
 def test_debate_generation_non_final_turn_has_no_schema() -> None:
-    """A non-final debate turn returns a conversational prompt, schema None."""
     prompt, schema = get_debate_generation_prompt(
         DebatePromptRequest(
             research_goal="design a self-healing polymer",
@@ -51,7 +46,6 @@ def test_debate_generation_non_final_turn_has_no_schema() -> None:
 
 
 def test_debate_generation_final_turn_appends_json_block_and_schema() -> None:
-    """The final turn appends JSON output instructions and returns a schema."""
     prompt, schema = get_debate_generation_prompt(
         DebatePromptRequest(
             research_goal="design a self-healing polymer",
@@ -65,11 +59,7 @@ def test_debate_generation_final_turn_appends_json_block_and_schema() -> None:
     assert isinstance(schema, dict)
 
 
-# --- get_draft_prompt_with_tools -------------------------------------------
-
-
 def test_draft_prompt_with_tools_interpolates_goal_count_articles() -> None:
-    """The draft-with-tools prompt embeds goal, count, and article metadata."""
     article = make_article(
         title="A landmark paper on neuroinflammation",
         authors=["A. Researcher"],
@@ -90,11 +80,7 @@ def test_draft_prompt_with_tools_interpolates_goal_count_articles() -> None:
     assert isinstance(schema, dict)
 
 
-# --- get_reflection_prompt -------------------------------------------------
-
-
 def test_reflection_prompt_interpolates_hypothesis_and_evidence() -> None:
-    """The reflection prompt embeds the hypothesis, summary, and KG evidence."""
     prompt, schema = get_reflection_prompt(
         articles_with_reasoning="Summary: APOE4 increases risk.",
         hypothesis_text="APOE4 impairs lipid transport in astrocytes",
@@ -107,11 +93,7 @@ def test_reflection_prompt_interpolates_hypothesis_and_evidence() -> None:
     assert isinstance(schema, dict)
 
 
-# --- format_articles_metadata ----------------------------------------------
-
-
 def test_format_articles_metadata_renders_used_articles() -> None:
-    """Used articles are rendered with title, authors, and year."""
     article = make_article(
         title="Targeting senescent cells",
         authors=["J. Doe", "K. Smith"],
@@ -126,17 +108,12 @@ def test_format_articles_metadata_renders_used_articles() -> None:
 
 
 def test_format_articles_metadata_empty_when_none_used() -> None:
-    """An empty list, or articles not used in analysis, yields an empty str."""
     assert format_articles_metadata([]) == ""
     unused = make_article(title="Unused", used_in_analysis=False)
     assert format_articles_metadata([unused]) == ""
 
 
-# --- literature query / paper analysis builders ----------------------------
-
-
 def test_pubmed_query_prompt_interpolates_goal_and_lists() -> None:
-    """The PubMed query prompt embeds the goal and provided literature."""
     prompt = get_literature_review_query_generation_prompt(
         research_goal="find biomarkers for sepsis",
         source_type="pubmed",
@@ -151,7 +128,6 @@ def test_pubmed_query_prompt_interpolates_goal_and_lists() -> None:
 
 
 def test_paper_analysis_prompt_interpolates_metadata() -> None:
-    """The paper-analysis prompt embeds the goal, title, authors, and year."""
     prompt = get_literature_review_paper_analysis_prompt(
         research_goal="explain insulin resistance",
         title="Hepatic glucose output revisited",
@@ -164,16 +140,13 @@ def test_paper_analysis_prompt_interpolates_metadata() -> None:
     assert "P. First" in prompt
     assert "2019" in prompt
     assert "Full text body discussing gluconeogenesis." in prompt
-    # Every placeholder this builder owns is filled. (A blanket "{{MISSING"
-    # check is not used here: the template embeds a literal ``{{...}}`` JSON
-    # example block that ``substitute_variables`` mis-reads as a placeholder,
-    # which is a template-escaping quirk independent of the builder's inputs.)
+    # Literal JSON braces resemble placeholders; test only the builder-owned
+    # slots.
     for var in ("research_goal", "title", "authors", "year", "fulltext"):
         assert f"{{{{MISSING:{var}}}}}" not in prompt
 
 
 def test_get_deep_verification_prompt_substitutes_and_returns_schema() -> None:
-    """The deep-verification prompt embeds the goal and hypothesis text."""
     prompt, schema = get_deep_verification_prompt(
         research_goal="Repurpose a drug for AML",
         hypothesis_text="Reparixin inhibits CXCR1/2 in AML",
@@ -181,11 +154,10 @@ def test_get_deep_verification_prompt_substitutes_and_returns_schema() -> None:
     assert "Reparixin inhibits CXCR1/2 in AML" in prompt
     assert "Repurpose a drug for AML" in prompt
     assert schema is not None
-    assert "{hypothesis_text}" not in prompt  # placeholder fully substituted
+    assert "{hypothesis_text}" not in prompt
 
 
 def test_get_research_overview_prompt_substitutes_and_returns_schema() -> None:
-    """The research-overview prompt embeds the goal and hypotheses summary."""
     prompt, schema = get_research_overview_prompt(
         research_goal="Find liver-fibrosis targets",
         hypotheses_summary="1. HDAC inhibition (Elo 1700)\n2. BRD4 (Elo 1650)",
@@ -199,11 +171,7 @@ def test_get_research_overview_prompt_substitutes_and_returns_schema() -> None:
     assert schema is not None
 
 
-# --- untested prompt getters (characterization) ----------------------------
-
-
 def test_source_aware_query_prompt_selects_template_by_source_type() -> None:
-    """The source-aware query builder embeds the goal for each source type."""
     for source_type in ("knowledge_graph", "pubmed", "academic"):
         prompt = get_literature_review_query_generation_prompt(
             research_goal="find biomarkers for sepsis",
@@ -219,7 +187,6 @@ def test_source_aware_query_prompt_selects_template_by_source_type() -> None:
 
 
 def test_literature_synthesis_prompt_renders_paper_analyses() -> None:
-    """The synthesis builder embeds the goal and each paper's findings."""
     prompt = get_literature_review_synthesis_prompt(
         research_goal="explain insulin resistance",
         paper_analyses=[
@@ -243,7 +210,6 @@ def test_literature_synthesis_prompt_renders_paper_analyses() -> None:
 
 
 def test_novelty_analysis_prompt_interpolates_metadata() -> None:
-    """The novelty-analysis builder embeds the hypothesis and metadata."""
     prompt = get_hypothesis_novelty_analysis_prompt(
         hypothesis_text="APOE4 impairs astrocyte lipid transport",
         title="Astrocyte lipid handling in AD",
@@ -255,16 +221,13 @@ def test_novelty_analysis_prompt_interpolates_metadata() -> None:
     assert "APOE4 impairs astrocyte lipid transport" in prompt
     assert "Astrocyte lipid handling in AD" in prompt
     assert "2021" in prompt
-    # Every placeholder this builder owns is filled. (A blanket "{{MISSING"
-    # check is not used here: the template embeds a literal ``{{...}}`` JSON
-    # example block that ``substitute_variables`` mis-reads as a placeholder,
-    # which is a template-escaping quirk independent of the builder's inputs.)
+    # Literal JSON braces resemble placeholders; test only the builder-owned
+    # slots.
     for var in ("hypothesis_text", "title", "authors", "year", "fulltext"):
         assert f"{{{{MISSING:{var}}}}}" not in prompt
 
 
 def test_validation_synthesis_with_tools_returns_schema() -> None:
-    """The tools variant embeds drafts and returns a non-None schema."""
     prompt, schema = get_validation_synthesis_prompt_with_tools(
         ValidationSynthesisRequest(
             research_goal="reduce tumor metastasis",
@@ -287,39 +250,27 @@ def test_validation_synthesis_with_tools_returns_schema() -> None:
     assert schema is not None
 
 
-# --- _format_debate_attributes ----------------------------------------------
-
-
 def test_format_debate_attributes_joins_list() -> None:
-    """A list of attributes is comma-joined."""
     assert _format_debate_attributes(["novel", "testable"]) == "novel, testable"
 
 
 def test_format_debate_attributes_empty_list_falls_back() -> None:
-    """An empty list falls back to the default attributes phrase."""
     assert _format_debate_attributes([]) == "testable and falsifiable"
 
 
 def test_format_debate_attributes_string_passthrough() -> None:
-    """A plain string is returned unchanged."""
     assert _format_debate_attributes("bold") == "bold"
 
 
 def test_format_debate_attributes_none_falls_back() -> None:
-    """None falls back to the default attributes phrase."""
     assert _format_debate_attributes(None) == "testable and falsifiable"
 
 
-# --- _format_supervisor_guidance_for_debate ---------------------------------
-
-
 def test_supervisor_guidance_none_returns_empty() -> None:
-    """A None supervisor_guidance yields an empty guidance section."""
     assert _format_supervisor_guidance_for_debate(None) == ""
 
 
 def test_supervisor_guidance_non_dict_returns_empty() -> None:
-    """A non-dict supervisor_guidance yields an empty guidance section."""
     guidance = _format_supervisor_guidance_for_debate(
         "not a dict"  # type: ignore[arg-type]
     )
@@ -327,17 +278,10 @@ def test_supervisor_guidance_non_dict_returns_empty() -> None:
 
 
 def test_supervisor_guidance_populated_dict_with_no_relevant_keys() -> None:
-    """A truthy dict with no research-goal/workflow-plan keys yields "".
-
-    Exercises the body of the function (goal_analysis/workflow_plan
-    extraction) without either sub-section producing content, so the final
-    join-or-empty branch takes the empty path.
-    """
     assert _format_supervisor_guidance_for_debate({"unrelated": "value"}) == ""
 
 
 def test_supervisor_guidance_key_areas_only() -> None:
-    """Key research areas alone render under their own header."""
     guidance = {
         "research_goal_analysis": {
             "key_areas": ["membrane biology", "signal transduction"]
@@ -351,11 +295,6 @@ def test_supervisor_guidance_key_areas_only() -> None:
 
 
 def test_supervisor_guidance_generation_phase_only() -> None:
-    """Generation-phase focus areas alone get their own header (needs_header).
-
-    With no key areas, the generation-phase section owns the header (since
-    no earlier section already introduced the guidance block).
-    """
     guidance = {
         "workflow_plan": {
             "generation_phase": {"focus_areas": ["kinase inhibitors", "CNS"]}
@@ -368,7 +307,6 @@ def test_supervisor_guidance_generation_phase_only() -> None:
 
 
 def test_supervisor_guidance_generation_phase_focus_areas_as_string() -> None:
-    """A plain-string focus_areas value is used as-is (no join)."""
     guidance = {
         "workflow_plan": {
             "generation_phase": {"focus_areas": "receptor pharmacology"}
@@ -379,12 +317,6 @@ def test_supervisor_guidance_generation_phase_focus_areas_as_string() -> None:
 
 
 def test_supervisor_guidance_key_areas_and_generation_phase_combined() -> None:
-    """With key areas present, the generation-phase section skips its header.
-
-    The key-areas section already introduced the guidance block, so
-    needs_header is False for the generation-phase section: only the "Focus
-    on:" line appears, no second "Generation guidance:" header.
-    """
     guidance = {
         "research_goal_analysis": {"key_areas": ["oncology"]},
         "workflow_plan": {"generation_phase": {"focus_areas": ["biomarkers"]}},
@@ -397,23 +329,13 @@ def test_supervisor_guidance_key_areas_and_generation_phase_combined() -> None:
 
 
 def test_supervisor_guidance_generation_phase_without_focus_areas() -> None:
-    """A generation_phase dict with no focus_areas key yields the empty str.
-
-    generation_phase is truthy (non-empty dict) so the "not generation_phase"
-    guard is skipped, but focus_areas is absent so no "Focus on:" line is
-    appended and only the header line is produced (or nothing further).
-    """
     guidance = {"workflow_plan": {"generation_phase": {"other_key": "x"}}}
     result = _format_supervisor_guidance_for_debate(guidance)
     assert "Generation guidance:" in result
     assert "Focus on:" not in result
 
 
-# --- _build_debate_literature_variables -------------------------------------
-
-
 def test_build_debate_literature_variables_includes_reasoning() -> None:
-    """articles_with_reasoning is included in variables only when truthy."""
     variables = _build_debate_literature_variables(
         articles_with_reasoning="Synthesis of prior work.",
         articles=None,
@@ -425,7 +347,6 @@ def test_build_debate_literature_variables_includes_reasoning() -> None:
 def test_build_debate_literature_variables_omits_reasoning_when_absent() -> (
     None
 ):
-    """A None articles_with_reasoning leaves the key out of the dict."""
     variables = _build_debate_literature_variables(
         articles_with_reasoning=None,
         articles=None,
@@ -434,11 +355,7 @@ def test_build_debate_literature_variables_omits_reasoning_when_absent() -> (
     assert "articles_with_reasoning" not in variables
 
 
-# --- get_debate_generation_prompt: end-to-end branch coverage --------------
-
-
 def test_get_debate_generation_prompt_with_list_attributes() -> None:
-    """List-valued attributes are comma-joined into the rendered prompt."""
     prompt, _schema = get_debate_generation_prompt(
         DebatePromptRequest(
             research_goal="engineer a drought-resistant crop",
@@ -450,12 +367,6 @@ def test_get_debate_generation_prompt_with_list_attributes() -> None:
 
 
 def test_get_debate_generation_prompt_with_articles_with_reasoning() -> None:
-    """Providing articles_with_reasoning selects the literature template.
-
-    This both exercises the articles_with_reasoning branch in
-    _build_debate_literature_variables and the prompt_name selection in
-    get_debate_generation_prompt.
-    """
     prompt, schema = get_debate_generation_prompt(
         DebatePromptRequest(
             research_goal="engineer a drought-resistant crop",
@@ -466,15 +377,11 @@ def test_get_debate_generation_prompt_with_articles_with_reasoning() -> None:
         )
     )
     assert "Prior work suggests ABA signaling matters." in prompt
-    # The builder supplies every placeholder the literature template
-    # declares (including user_hypotheses and instructions), so the render
-    # leaves no {{MISSING:...}} sentinel behind.
     assert "{{MISSING" not in prompt
     assert schema is None
 
 
 def test_get_debate_generation_prompt_with_full_supervisor_guidance() -> None:
-    """Supervisor guidance with both key areas and phase focus is embedded."""
     prompt, _schema = get_debate_generation_prompt(
         DebatePromptRequest(
             research_goal="engineer a drought-resistant crop",
@@ -496,18 +403,6 @@ def test_get_debate_generation_prompt_with_full_supervisor_guidance() -> None:
 
 
 def test_debate_prompt_does_not_force_clone_sentence_template() -> None:
-    """The prompt must not impose the clone 'We want to develop X' format.
-
-    The audit (E30/H15/K11) flagged the forced 'We want to develop [X] to
-    enable [Y]' 2-3 sentence template as distorting mechanistic hypotheses.
-    The final-turn instructions must instead ask for a domain-language
-    mechanistic claim with a falsification criterion, and may only mention the
-    old phrase to prohibit it.
-
-    The contract lives on the final turn, which is the turn that writes the
-    hypothesis; the free-form discussion turns carry the published debate
-    procedure and no output contract at all.
-    """
     prompt, _schema = get_debate_generation_prompt(
         DebatePromptRequest(
             research_goal="reduce cardiac senescence",
@@ -515,7 +410,6 @@ def test_debate_prompt_does_not_force_clone_sentence_template() -> None:
             is_final_turn=True,
         )
     )
-    # The phrase may appear only inside a negative instruction ("Do NOT ...").
     assert "to enable [Y]" not in prompt
     assert "2-3 sentences" not in prompt
     assert "mechanistic" in prompt.lower()
@@ -523,15 +417,6 @@ def test_debate_prompt_does_not_force_clone_sentence_template() -> None:
 
 
 def test_research_expansion_feedback_is_wired() -> None:
-    """Research expansion re-runs generation informed by the meta-review.
-
-    The mechanism is the meta-review context threaded into the generation
-    prompts (consumed when the orchestrator re-enters generate in a later
-    cycle), so assert the placeholder is present in the ``generation_after_
-    debate`` prompt the research-expansion technique re-runs. It fills the
-    published A.2 ``{reviews_overview}`` slot, which is where the panel is
-    shown the reviews of what it is refining.
-    """
     raw = load_prompt(
         "generation_after_debate",
         {
@@ -543,20 +428,10 @@ def test_research_expansion_feedback_is_wired() -> None:
             "debate_transcript": "",
         },
     )
-    # The meta-review feedback is substituted into the prompt (not dropped).
     assert "META-REVIEW-FEEDBACK-MARKER" in raw
 
 
-# --- user_hypotheses / instructions slots (finding E2) ----------------------
-
-
 def test_debate_literature_prompt_renders_user_hypotheses() -> None:
-    """User-supplied starting hypotheses reach the literature debate prompt.
-
-    The grounded-debate template declares a {{user_hypotheses}} slot; the
-    builder must fill it with the seed hypotheses rather than letting it
-    render as a {{MISSING:...}} sentinel.
-    """
     prompt, _schema = get_debate_generation_prompt(
         DebatePromptRequest(
             research_goal="engineer a drought-resistant crop",
@@ -574,7 +449,6 @@ def test_debate_literature_prompt_renders_user_hypotheses() -> None:
 
 
 def test_debate_literature_prompt_renders_instructions() -> None:
-    """Explicit debate instructions reach the literature template's slot."""
     prompt, _schema = get_debate_generation_prompt(
         DebatePromptRequest(
             research_goal="engineer a drought-resistant crop",
@@ -588,12 +462,6 @@ def test_debate_literature_prompt_renders_instructions() -> None:
 
 
 def test_debate_literature_prompt_fallbacks_when_inputs_absent() -> None:
-    """Without seeds/instructions the slots render explicit fallbacks.
-
-    Neither slot may ever render the {{MISSING:...}} sentinel: an empty run
-    gets an explicit "none provided" line for the starting hypotheses and a
-    default task instruction.
-    """
     prompt, _schema = get_debate_generation_prompt(
         DebatePromptRequest(
             research_goal="engineer a drought-resistant crop",
@@ -606,13 +474,6 @@ def test_debate_literature_prompt_fallbacks_when_inputs_absent() -> None:
 
 
 def test_debate_prompts_have_no_missing_slots_on_either_template() -> None:
-    """Both debate-turn templates render fully interpolated prompts.
-
-    The literature-aware template declares the user_hypotheses/instructions
-    slots; the no-literature template declares neither. Either way the
-    builder must leave no {{MISSING:...}} sentinel behind, whether or not
-    the request carries user hypotheses.
-    """
     for articles_with_reasoning in ("lit synthesis", None):
         for user_hypotheses in (["a seed hypothesis"], None):
             prompt, _schema = get_debate_generation_prompt(
@@ -626,8 +487,6 @@ def test_debate_prompts_have_no_missing_slots_on_either_template() -> None:
             assert "{{MISSING" not in prompt
 
 
-# A supervisor_guidance dict shaped the way agents/supervisor/supervisor.py
-# assembles it, carrying an instruction list for each writer mode.
 _GUIDANCE = {
     "research_goal_analysis": {"key_areas": ["oncology"]},
     "workflow_plan": {"generation_phase": {"focus_areas": ["biomarkers"]}},
@@ -639,16 +498,8 @@ _GUIDANCE = {
     },
 }
 
-# --- format_supervisor_guidance_for_generation ------------------------------
-
 
 def test_draft_guidance_renders_the_plan_rather_than_nothing() -> None:
-    """The draft writer sees the supervisor's focus areas and preferences.
-
-    Regression: this formatter read a free-text "research_plan" key, which
-    is what the streamed output payload renames supervisor_guidance to --
-    not a field inside it -- so it returned "" on every real run.
-    """
     result = format_supervisor_guidance_for_generation(_GUIDANCE)
 
     assert "## Supervisor Guidance for Generation" in result
@@ -657,7 +508,6 @@ def test_draft_guidance_renders_the_plan_rather_than_nothing() -> None:
 
 
 def test_draft_guidance_carries_only_the_drafting_instructions() -> None:
-    """Each writer mode gets its own list, never a sibling mode's."""
     result = format_supervisor_guidance_for_generation(_GUIDANCE)
 
     assert "anchor each idea in a reported result" in result
@@ -666,12 +516,6 @@ def test_draft_guidance_carries_only_the_drafting_instructions() -> None:
 
 
 def test_draft_guidance_bullets_a_bare_string_as_one_item() -> None:
-    """A string where the schema declares an array is one bullet, not many.
-
-    Production runs on a provider whose json_object mode does not enforce
-    the schema, so a bare string arrives; iterating it would bullet every
-    character.
-    """
     guidance = {"config_synthesis": {"preferences": "must be falsifiable"}}
 
     result = format_supervisor_guidance_for_generation(guidance)
@@ -681,14 +525,12 @@ def test_draft_guidance_bullets_a_bare_string_as_one_item() -> None:
 
 
 def test_draft_guidance_is_empty_without_a_plan() -> None:
-    """Nothing to say renders nothing, not a bare header."""
     assert format_supervisor_guidance_for_generation(None) == ""
     assert format_supervisor_guidance_for_generation({}) == ""
     assert format_supervisor_guidance_for_generation({"unrelated": 1}) == ""
 
 
 def test_draft_guidance_survives_a_scalar_where_an_object_belongs() -> None:
-    """An unenforced schema can answer an object field with a scalar."""
     assert (
         format_supervisor_guidance_for_generation(
             {"workflow_plan": {"generation_phase": "focus on kinases"}}
@@ -703,11 +545,7 @@ def test_draft_guidance_survives_a_scalar_where_an_object_belongs() -> None:
     )
 
 
-# --- _format_supervisor_guidance_for_debate ---------------------------------
-
-
 def test_debate_guidance_carries_only_the_debate_instructions() -> None:
-    """The debate writer reads preferences plus its own instruction list."""
     result = _format_supervisor_guidance_for_debate(_GUIDANCE)
 
     assert "- testable within two years" in result
@@ -716,7 +554,6 @@ def test_debate_guidance_carries_only_the_debate_instructions() -> None:
 
 
 def test_debate_guidance_keeps_its_existing_plan_sections() -> None:
-    """The config slice is added to the key-areas/focus sections, not over."""
     result = _format_supervisor_guidance_for_debate(_GUIDANCE)
 
     assert "Key research areas to consider:" in result
@@ -724,7 +561,6 @@ def test_debate_guidance_keeps_its_existing_plan_sections() -> None:
 
 
 def test_debate_guidance_renders_config_alone() -> None:
-    """A run whose plan carries only a config still reaches the writer."""
     guidance = {
         "config_synthesis": {"debate_instructions": ["contest the framing"]}
     }
@@ -734,11 +570,7 @@ def test_debate_guidance_renders_config_alone() -> None:
     assert "contest the framing" in result
 
 
-# --- end to end -------------------------------------------------------------
-
-
 def test_the_drafting_writer_actually_receives_the_guidance() -> None:
-    """The block reaches the rendered prompt, not just its formatter."""
     prompt, _ = get_draft_prompt_with_tools(
         DraftPromptRequest(
             research_goal="find a new target in fibrosis",

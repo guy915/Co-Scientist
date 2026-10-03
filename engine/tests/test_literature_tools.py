@@ -1,5 +1,3 @@
-"""Offline contracts for literature tools."""
-
 from __future__ import annotations
 
 import json
@@ -42,35 +40,16 @@ from co_scientist.tools.provider import MCPToolProvider
 from tests._mcp import FakeCallToolClient
 from tests._state import make_article, make_hypothesis, make_state
 
-# -----------------------------------------------------------------------------
-# Shared fixtures / fakes
-# -----------------------------------------------------------------------------
-
-
-# The MCP client here is the shared ``FakeCallToolClient``, which
-# implements ``call_tool`` and nothing else. That is enough because
-# ``MCPToolProvider`` only reaches for ``get_tools``/``execute_tool_call``
-# when a whitelist is supplied; with the registry disabled neither runs,
-# leaving ``call_tool`` (the legacy paper-search fallback) as the only
-# method under test. Its canned response is the papers dict a search
-# returns.
-
 
 class _FakeReferenceIndex:
-    """Stand-in for a citation reference index (``.text`` / ``.sources``)."""
-
     def __init__(self, text: str, sources: dict[str, dict[str, Any]]) -> None:
         self.text = text
         self.sources = sources
 
 
 def _disable_registry(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Force the no-registry fallback in both generation phases.
-
-    ``get_tool_registry`` is imported locally (``from co_scientist.config
-    import get_tool_registry``) so it is patched at its source module; making it
-    raise drives both phases down the documented "No tool registry" branch.
-    """
+    """Patch the locally imported collaborator at its source. Without a
+    registry whitelist, the provider needs only the legacy call_tool seam."""
 
     def _raise(*_: Any, **__: Any) -> Any:
         raise RuntimeError("registry disabled for test")
@@ -81,7 +60,6 @@ def _disable_registry(monkeypatch: pytest.MonkeyPatch) -> None:
 def _stub_draft_llm(
     monkeypatch: pytest.MonkeyPatch, final_response: str
 ) -> None:
-    """Stub ``draft.call_llm_with_tools`` to return a fixed final response."""
 
     async def fake(**_: Any) -> tuple[str, list[Any]]:
         return final_response, []
@@ -89,13 +67,7 @@ def _stub_draft_llm(
     monkeypatch.setattr(draft_mod, "call_llm_with_tools", fake)
 
 
-# -----------------------------------------------------------------------------
-# draft_hypotheses
-# -----------------------------------------------------------------------------
-
-
 async def test_draft_parses_plain_json(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A bare JSON object yields the parsed list of draft dicts verbatim."""
     _disable_registry(monkeypatch)
     drafts = [
         {
@@ -124,7 +96,6 @@ async def test_draft_parses_plain_json(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 async def test_draft_strips_json_fence(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A ```json fenced response is unwrapped before parsing."""
     _disable_registry(monkeypatch)
     drafts = [{"text": "fenced hypothesis", "gap_reasoning": "gap"}]
     fenced = "```json\n" + json.dumps({"drafts": drafts}) + "\n```"
@@ -143,10 +114,7 @@ async def test_draft_strips_json_fence(monkeypatch: pytest.MonkeyPatch) -> None:
 async def test_draft_repairs_trailing_comma(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A malformed response with a trailing comma is repaired, not rejected."""
     _disable_registry(monkeypatch)
-    # Trailing comma after the array element -- invalid JSON that
-    # attempt_json_repair fixes via its minor-repair path.
     malformed = '{"drafts": [{"text": "repaired hypothesis"},]}'
     _stub_draft_llm(monkeypatch, malformed)
 
@@ -163,13 +131,8 @@ async def test_draft_repairs_trailing_comma(
 async def test_draft_single_dict_not_wrapped_in_list_is_recovered(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A single draft object (not wrapped in a list) still parses.
-
-    A model asked to draft one hypothesis can plausibly write the single
-    object directly rather than wrapping it in a one-element array; the
-    draft-parsing seam is schema-less (a tool-calling loop's freeform
-    final turn), so this must be recovered rather than silently dropped.
-    """
+    """Tool-loop final prose is schema-less; a single bare hypothesis is a
+    plausible answer."""
     _disable_registry(monkeypatch)
     single_draft = {"text": "unwrapped hypothesis", "gap_reasoning": "gap"}
     _stub_draft_llm(monkeypatch, json.dumps({"drafts": single_draft}))
@@ -187,7 +150,6 @@ async def test_draft_single_dict_not_wrapped_in_list_is_recovered(
 async def test_draft_missing_drafts_key_defaults_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A well-formed object lacking a 'drafts' key defaults to an empty list."""
     _disable_registry(monkeypatch)
     _stub_draft_llm(monkeypatch, json.dumps({"notes": "no drafts here"}))
 
@@ -204,9 +166,7 @@ async def test_draft_missing_drafts_key_defaults_empty(
 async def test_draft_unparseable_response_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A response surviving every repair attempt raises ResponseParseError."""
     _disable_registry(monkeypatch)
-    # No braces anywhere: attempt_json_repair cannot recover a dict.
     _stub_draft_llm(monkeypatch, "the agent failed to emit any json output")
 
     with pytest.raises(ResponseParseError):
@@ -219,23 +179,15 @@ async def test_draft_unparseable_response_raises(
 
 
 def test_corpus_slug_is_deterministic() -> None:
-    """Draft and validation derive the same corpus slug from the goal."""
     slug = corpus_slug("cure the common cold")
     assert slug == corpus_slug("cure the common cold")
     assert slug.startswith("research_")
-    # Deterministic: derived from research_goal via md5, length "research_" + 8.
     assert len(slug) == len("research_") + 8
-
-
-# -----------------------------------------------------------------------------
-# validate_hypotheses
-# -----------------------------------------------------------------------------
 
 
 def _stub_synthesis_llm(
     monkeypatch: pytest.MonkeyPatch, hypotheses: list[dict[str, Any]]
 ) -> None:
-    """Stub ``validate.call_llm_with_tools`` (the synthesis pass)."""
 
     async def fake(**_: Any) -> tuple[str, list[Any]]:
         return json.dumps({"hypotheses": hypotheses}), []
@@ -264,11 +216,6 @@ _TWO_HYPOTHESIS_SYNTHESIS: list[dict[str, Any]] = [
 async def test_validate_builds_literature_tools_hypotheses(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Synthesis output is assembled into LITERATURE_TOOLS Hypothesis objects.
-
-    Papers search returns empty, so the novelty pass is skipped and only the
-    synthesis seam is exercised -- the clean synthesis-only path.
-    """
     _disable_registry(monkeypatch)
     _stub_synthesis_llm(monkeypatch, _TWO_HYPOTHESIS_SYNTHESIS)
     drafts = [
@@ -292,20 +239,14 @@ async def test_validate_builds_literature_tools_hypotheses(
     assert result[0].experiment == "run the kinase assay"
     assert result[0].novelty_validation == "no exact prior match found"
     assert result[1].literature_grounding is None
-    # No reference index -> citation_map stays empty.
     assert result[0].citation_map == {}
 
 
 async def test_validate_single_hypothesis_not_wrapped_in_list_is_recovered(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A synthesis batch of one can plausibly return a bare object.
-
-    Mirrors the draft-phase recovery test: the synthesis pass shares the
-    same schema-less ``parse_tool_loop_json`` seam, so a single hypothesis
-    object under ``"hypotheses"`` (not wrapped in a list) must still be
-    assembled rather than silently dropped.
-    """
+    """Tool-loop synthesis is schema-less; a single bare hypothesis is a
+    plausible answer."""
     _disable_registry(monkeypatch)
     single_hypothesis = {
         "hypothesis": "unwrapped hypothesis",
@@ -351,11 +292,6 @@ _VALIDATED_ALPHA_SYNTHESIS: list[dict[str, Any]] = [
 async def test_validate_runs_novelty_pass_when_papers_found(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A populated paper search drives the parallel per-paper novelty pass.
-
-    This exercises ``call_llm_json`` (the novelty seam) for real, which the
-    empty-papers path never reaches.
-    """
     _disable_registry(monkeypatch)
     novelty_calls: list[bool] = []
 
@@ -373,7 +309,6 @@ async def test_validate_runs_novelty_pass_when_papers_found(
         tool_registry=None,
     )
 
-    # The novelty pass ran once for the single found paper.
     assert novelty_calls == [True]
     assert len(result) == 1
     assert result[0].text == "alpha hypothesis validated"
@@ -383,7 +318,6 @@ async def test_validate_runs_novelty_pass_when_papers_found(
 async def test_validate_empty_drafts_returns_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """No drafts means no synthesis batches and an empty result list."""
     _disable_registry(monkeypatch)
 
     called: list[bool] = []
@@ -402,14 +336,12 @@ async def test_validate_empty_drafts_returns_empty(
     )
 
     assert result == []
-    # Zero batches -> the synthesis LLM is never invoked.
     assert called == []
 
 
 async def test_validate_text_fallback_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Synthesis output using 'text' (not 'hypothesis') is still assembled."""
     _disable_registry(monkeypatch)
     _stub_synthesis_llm(
         monkeypatch,
@@ -436,7 +368,6 @@ async def test_validate_text_fallback_key(
 async def test_validate_resolves_citation_map(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A [C*] key in the grounding resolves against the reference index."""
     _disable_registry(monkeypatch)
     _stub_synthesis_llm(
         monkeypatch,
@@ -468,13 +399,7 @@ async def test_validate_resolves_citation_map(
     }
 
 
-# -----------------------------------------------------------------------------
-# _count_used_articles / _count_used_articles_with_pdfs
-# -----------------------------------------------------------------------------
-
-
 def test_count_used_articles_counts_only_flagged() -> None:
-    """Only articles with used_in_analysis=True are counted."""
     articles = [
         make_article(used_in_analysis=True),
         make_article(used_in_analysis=False),
@@ -484,7 +409,6 @@ def test_count_used_articles_counts_only_flagged() -> None:
 
 
 def test_count_used_articles_with_pdfs_requires_both_flags() -> None:
-    """Only used-and-PDF-backed articles count toward the PDF subset."""
     articles = [
         make_article(used_in_analysis=True, pdf_links=["http://a"]),
         make_article(used_in_analysis=True, pdf_links=[]),
@@ -493,25 +417,17 @@ def test_count_used_articles_with_pdfs_requires_both_flags() -> None:
     assert lit_tools_mod._count_used_articles_with_pdfs(articles) == 1
 
 
-# -----------------------------------------------------------------------------
-# _log_warm_start_diagnostics
-# -----------------------------------------------------------------------------
-
-
 def test_log_warm_start_diagnostics_none_returns_early() -> None:
-    """None articles is a no-op (does not raise)."""
     lit_tools_mod._log_warm_start_diagnostics(None)
 
 
 def test_log_warm_start_diagnostics_empty_returns_early() -> None:
-    """An empty articles list is a no-op (does not raise)."""
     lit_tools_mod._log_warm_start_diagnostics([])
 
 
 def test_log_warm_start_diagnostics_zero_used_warns(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """No used_in_analysis articles logs the fresh-search warning."""
     caplog.set_level("WARNING", logger=lit_tools_mod.__name__)
     articles = [make_article(used_in_analysis=False)]
     lit_tools_mod._log_warm_start_diagnostics(articles)
@@ -521,7 +437,6 @@ def test_log_warm_start_diagnostics_zero_used_warns(
 def test_log_warm_start_diagnostics_used_with_mixed_pdfs(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Used articles log the pdf/abstract-only split, not the warning."""
     caplog.set_level("INFO", logger=lit_tools_mod.__name__)
     articles = [
         make_article(used_in_analysis=True, pdf_links=["http://a"]),
@@ -532,15 +447,9 @@ def test_log_warm_start_diagnostics_used_with_mixed_pdfs(
     assert "agent will search fresh" not in caplog.text
 
 
-# -----------------------------------------------------------------------------
-# _get_mcp_client_for_generation
-# -----------------------------------------------------------------------------
-
-
 async def test_get_mcp_client_for_generation_returns_client(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A successful get_mcp_client call returns its client unchanged."""
     sentinel = object()
 
     async def fake_get_mcp_client(**_: Any) -> Any:
@@ -555,7 +464,6 @@ async def test_get_mcp_client_for_generation_returns_client(
 async def test_get_mcp_client_for_generation_reraises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A failing get_mcp_client call is logged and re-raised, not swallowed."""
 
     async def fake_get_mcp_client(**_: Any) -> Any:
         raise RuntimeError("mcp unreachable")
@@ -566,31 +474,17 @@ async def test_get_mcp_client_for_generation_reraises(
         await lit_tools_mod._get_mcp_client_for_generation(None)
 
 
-# -----------------------------------------------------------------------------
-# _log_generated_hypothesis_methods
-# -----------------------------------------------------------------------------
-
-
 def test_log_generated_hypothesis_methods_handles_set_and_none() -> None:
-    """Logging tolerates both a set generation_method and a None one."""
     hyps = [
         make_hypothesis(
             text="a", generation_method=GenerationMethod.LITERATURE_TOOLS
         ),
         make_hypothesis(text="b", generation_method=None),
     ]
-    # No assertion beyond "does not raise": this is a debug-trace helper.
     lit_tools_mod._log_generated_hypothesis_methods(hyps)
 
 
-# -----------------------------------------------------------------------------
-# generate_with_tools
-# -----------------------------------------------------------------------------
-
-
 class _OrchestrationProbe:
-    """Sentinels and recorded phase calls for the orchestration test."""
-
     def __init__(self) -> None:
         self.client = object()
         self.registry = object()
@@ -602,7 +496,6 @@ class _OrchestrationProbe:
 def _install_orchestration_fakes(
     monkeypatch: pytest.MonkeyPatch, probe: _OrchestrationProbe
 ) -> None:
-    """Stub client resolution and both phases to record onto ``probe``."""
 
     async def fake_get_mcp_client(**kwargs: Any) -> Any:
         assert kwargs["tool_registry"] is probe.registry
@@ -632,11 +525,6 @@ def _install_orchestration_fakes(
 async def test_generate_with_tools_orchestrates_both_phases(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """generate_with_tools threads the resolved client/registry through.
-
-    Resolves the MCP client and threads it and the registry into both
-    phases, returning phase 2's hypotheses unchanged.
-    """
     probe = _OrchestrationProbe()
     _install_orchestration_fakes(monkeypatch, probe)
 
@@ -661,12 +549,8 @@ async def test_generate_with_tools_orchestrates_both_phases(
 
 
 def test_novelty_prompt_strips_citation_markers() -> None:
-    """The candidate paper's own citation markers do not reach the prompt.
-
-    Left in, the novelty-verdict model can copy one into its own
-    reasoning -- a real-looking reference attached to a claim the cited
-    source never made.
-    """
+    """Copied source citations can misattribute generated claims to real
+    sources."""
     metadata = {
         "title": "Prior work",
         "authors": ["Doe"],
@@ -681,7 +565,6 @@ def test_novelty_prompt_strips_citation_markers() -> None:
 
 
 def test_novelty_prompt_leaves_stored_metadata_unchanged() -> None:
-    """Stripping is for the prompt copy only, never for storage."""
     original = "This confirms an earlier result (Smith et al. 2019) [12]."
     metadata = {
         "title": "Prior work",
@@ -695,33 +578,19 @@ def test_novelty_prompt_leaves_stored_metadata_unchanged() -> None:
     assert metadata["fulltext"] == original
 
 
-# -----------------------------------------------------------------------------
-# _first
-# -----------------------------------------------------------------------------
-
-
 def test_first_returns_first_truthy_value() -> None:
-    """The first truthy positional value wins."""
     assert _first(None, "", "b", "c") == "b"
 
 
 def test_first_returns_last_value_when_none_truthy() -> None:
-    """With no truthy value, the last (falsy) value is returned."""
     assert _first(None, "", 0) == 0
 
 
 def test_first_returns_none_for_no_values() -> None:
-    """Calling with zero values returns None."""
     assert _first() is None
 
 
-# -----------------------------------------------------------------------------
-# _articles_to_paper_dict
-# -----------------------------------------------------------------------------
-
-
 def test_articles_to_paper_dict_maps_fields_and_keys_by_source_id() -> None:
-    """Articles are keyed by the first available id and content fallback."""
     articles = [
         make_article(
             title="Paper A",
@@ -751,34 +620,23 @@ def test_articles_to_paper_dict_maps_fields_and_keys_by_source_id() -> None:
     assert result["http://example.test/b"]["fulltext"] == ("only an abstract")
 
 
-# -----------------------------------------------------------------------------
-# _find_search_tool
-# -----------------------------------------------------------------------------
-
-
 class _FakeRegistry:
-    """Minimal stand-in exposing only what _find_search_tool reads."""
-
     def __init__(self, tool_ids: list[str], tools: dict[str, ToolConfig]):
         self._tool_ids = tool_ids
         self._tools = tools
 
     def get_tools_for_workflow(self, _workflow: str) -> list[str]:
-        """Return the configured workflow tool ids."""
         return self._tool_ids
 
     def get_tool(self, tool_id: str) -> ToolConfig | None:
-        """Resolve a tool id to its config, or None if unconfigured."""
         return self._tools.get(tool_id)
 
 
 def test_find_search_tool_no_registry_returns_none() -> None:
-    """A falsy tool_registry short-circuits to (None, None)."""
     assert _find_search_tool(None) == (None, None)
 
 
 def test_find_search_tool_returns_first_matching_category() -> None:
-    """The first search/search_with_content-category tool wins."""
     search_tool = ToolConfig(
         server="s", mcp_tool_name="search_x", category="search"
     )
@@ -794,7 +652,6 @@ def test_find_search_tool_returns_first_matching_category() -> None:
 
 
 def test_find_search_tool_skips_non_matching_categories() -> None:
-    """Non-search-category tools are skipped, falling through to None."""
     utility_tool = ToolConfig(
         server="s", mcp_tool_name="util_x", category="utility"
     )
@@ -804,11 +661,6 @@ def test_find_search_tool_skips_non_matching_categories() -> None:
     )
 
     assert _find_search_tool(registry) == (None, None)
-
-
-# -----------------------------------------------------------------------------
-# _search_papers_via_tool_config
-# -----------------------------------------------------------------------------
 
 
 def _search_tool_config() -> ToolConfig:
@@ -831,7 +683,6 @@ def _search_tool_config() -> ToolConfig:
 
 
 async def test_search_papers_via_tool_config_returns_paper_dict() -> None:
-    """A config-driven search maps the parsed articles into a paper dict."""
     tool_config = _search_tool_config()
     mcp_client = FakeCallToolClient(
         {"p1": {"title": "Paper One", "authors": ["A"], "year": 2020}}
@@ -864,7 +715,6 @@ async def test_search_papers_via_tool_config_returns_paper_dict() -> None:
 
 
 async def test_search_papers_via_tool_config_omits_run_id_when_absent() -> None:
-    """A falsy run_id is not injected into the canonical search params."""
     tool_config = _search_tool_config()
     mcp_client = FakeCallToolClient({})
 
@@ -884,13 +734,7 @@ async def test_search_papers_via_tool_config_omits_run_id_when_absent() -> None:
     assert "run_id" not in kwargs
 
 
-# -----------------------------------------------------------------------------
-# _search_papers_for_hypothesis
-# -----------------------------------------------------------------------------
-
-
 async def test_search_papers_for_hypothesis_uses_config_tool() -> None:
-    """A resolved search tool routes through the config-driven path."""
     tool_config = _search_tool_config()
     registry = cast(
         ToolRegistry,
@@ -917,7 +761,6 @@ async def test_search_papers_for_hypothesis_uses_config_tool() -> None:
 async def test_search_papers_for_hypothesis_no_tool_returns_empty(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A registry with no matching search tool skips the novelty search."""
     registry = cast(ToolRegistry, _FakeRegistry([], {}))
     mcp_client = FakeCallToolClient({})
 
@@ -937,7 +780,6 @@ async def test_search_papers_for_hypothesis_no_tool_returns_empty(
 
 
 async def test_search_papers_for_hypothesis_legacy_fallback() -> None:
-    """No tool_registry at all falls back to the legacy direct call."""
     mcp_client = FakeCallToolClient({"p1": {"title": "Legacy paper"}})
 
     result = await _search_papers_for_hypothesis(
@@ -957,33 +799,20 @@ async def test_search_papers_for_hypothesis_legacy_fallback() -> None:
     assert kwargs["slug"] == "slug-1"
 
 
-# -----------------------------------------------------------------------------
-# _setup_validation_tool_provider
-# -----------------------------------------------------------------------------
-
-
 class _FakeGlobalRegistry:
-    """Minimal registry stand-in for the "resolve global registry" branch."""
-
     def get_tools_for_workflow(self, _workflow: str) -> list[str]:
-        """Return one configured tool id."""
         return ["search_tool"]
 
     def get_mcp_tool_names(self, _tool_ids: list[str]) -> list[str]:
-        """Return the resolved MCP tool names for the given tool ids."""
         return ["mcp_search_tool"]
 
 
 def test_setup_validation_tool_provider_resolves_global_registry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """tool_registry=None resolves the global registry's whitelist."""
     fake_registry = cast(Any, _FakeGlobalRegistry())
     monkeypatch.setattr(config_mod, "get_tool_registry", lambda: fake_registry)
 
-    # A None mcp_client is safe here: MCPToolProvider.get_tools degrades to
-    # an empty tools dict when no client is configured, so this only
-    # exercises the registry-resolution branches under test.
     provider, openai_tools, resolved_registry, max_iterations = (
         _setup_validation_tool_provider(None, None, 3)
     )
@@ -994,15 +823,9 @@ def test_setup_validation_tool_provider_resolves_global_registry(
     assert max_iterations > 0
 
 
-# -----------------------------------------------------------------------------
-# _log_synthesis_tool_call_summary
-# -----------------------------------------------------------------------------
-
-
 def test_log_synthesis_tool_call_summary_logs_when_calls_present(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A non-empty call-count map logs a per-tool summary line."""
     caplog.set_level("INFO")
     _log_synthesis_tool_call_summary("1", {"search": 2, "read": 1})
     assert "3 tool calls" in caplog.text
@@ -1011,19 +834,12 @@ def test_log_synthesis_tool_call_summary_logs_when_calls_present(
 def test_log_synthesis_tool_call_summary_silent_when_empty(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A zero-call-count map logs nothing."""
     caplog.set_level("INFO")
     _log_synthesis_tool_call_summary("1", {})
     assert "tool calls" not in caplog.text
 
 
-# -----------------------------------------------------------------------------
-# _parse_synthesis_response
-# -----------------------------------------------------------------------------
-
-
 def test_parse_synthesis_response_raises_on_unparseable() -> None:
-    """A response with no recoverable JSON raises ResponseParseError."""
     with pytest.raises(ResponseParseError):
         _parse_synthesis_response("no json anywhere in this text", "1")
 
@@ -1031,26 +847,17 @@ def test_parse_synthesis_response_raises_on_unparseable() -> None:
 def test_parse_synthesis_response_repairs_truncated_json(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A truncated-but-repairable response logs a repair warning."""
     caplog.set_level("WARNING")
     truncated = '{"hypotheses": [{"hypothesis": "x"}'
     result = _parse_synthesis_response(truncated, "1")
     assert result == [{"hypothesis": "x"}]
-    # The warning names the batch, so a log reader can still tell which
-    # synthesis phase needed repairing.
     assert "required major repairs" in caplog.text
     assert "batch 1" in caplog.text
-
-
-# -----------------------------------------------------------------------------
-# _run_synthesis_batches
-# -----------------------------------------------------------------------------
 
 
 async def test_run_synthesis_batches_isolates_failures(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """One batch raising does not prevent the others from succeeding."""
     caplog.set_level("WARNING")
 
     async def call_synthesis(
@@ -1070,13 +877,7 @@ async def test_run_synthesis_batches_isolates_failures(
     assert "will retry hypotheses individually" in caplog.text
 
 
-# -----------------------------------------------------------------------------
-# _retry_one_hypothesis
-# -----------------------------------------------------------------------------
-
-
 async def test_retry_one_hypothesis_success_accumulates_text() -> None:
-    """A successful retry extends both the result list and text context."""
 
     async def call_synthesis(
         batch: list[dict[str, Any]],
@@ -1102,7 +903,6 @@ async def test_retry_one_hypothesis_success_accumulates_text() -> None:
 
 
 async def test_retry_one_hypothesis_skips_empty_text_result() -> None:
-    """A result without a hypothesis text is not added to the text context."""
 
     async def call_synthesis(
         _batch: list[dict[str, Any]],
@@ -1128,7 +928,6 @@ async def test_retry_one_hypothesis_skips_empty_text_result() -> None:
 async def test_retry_one_hypothesis_failure_drops_and_logs(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A retry that raises is dropped, leaving the accumulators unchanged."""
     caplog.set_level("ERROR")
 
     async def call_synthesis(
@@ -1153,15 +952,9 @@ async def test_retry_one_hypothesis_failure_drops_and_logs(
     assert "Individual retry failed" in caplog.text
 
 
-# -----------------------------------------------------------------------------
-# _retry_failed_synthesis_batches
-# -----------------------------------------------------------------------------
-
-
 async def test_retry_failed_synthesis_batches_seeds_context_and_retries() -> (
     None
 ):
-    """Retries run per-hypothesis, seeded with already-validated texts."""
     calls: list[tuple[str, list[str] | None]] = []
 
     async def call_synthesis(
@@ -1187,5 +980,4 @@ async def test_retry_failed_synthesis_batches_seeds_context_and_retries() -> (
     assert {"hypothesis": "a"} in all_validated
     assert len(all_validated) == 2
     assert len(calls) == 2
-    # The pre-existing validated hypothesis seeds the first retry's context.
     assert calls[0] == ("1_retry_1", ["seed"])

@@ -1,5 +1,3 @@
-"""Tests for run lifecycle 2."""
-
 from __future__ import annotations
 
 import asyncio
@@ -30,12 +28,6 @@ from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
 from tests._engine_tasks_helpers import _seed_checkpoint, _task_state
 
-# Run lifecycle: create, start, persistence, reopen.
-#
-# Safety-decision adjudication and the awaiting-decision status live in
-# ``test_run_safety_adjudication.py`` (split out when this file grew past the
-# line-length ceiling).
-
 
 def _start_and_complete(
     client: TestClient,
@@ -44,7 +36,6 @@ def _start_and_complete(
     tier: str = "express",
     timeout: float = 30.0,
 ) -> str:
-    """Create and start a run, returning its id once it completes."""
     res = client.post("/api/runs", json={"research_goal": goal, "tier": tier})
     run_id: str = res.json()["id"]
     assert client.post(f"/api/runs/{run_id}/start", json={}).status_code == 200
@@ -55,7 +46,6 @@ def _start_and_complete(
 
 
 def _run_views(client: TestClient, run_id: str) -> dict[str, Any]:
-    """Fetch every persisted run collection the durable path publishes."""
 
     def _get(name: str) -> Any:
         return client.get(f"/api/runs/{run_id}/{name}").json()
@@ -95,7 +85,6 @@ def test_create_run_returns_draft_status() -> None:
 def test_owned_proximity_endpoint_returns_persisted_landscape(
     isolated_db: str,
 ) -> None:
-    """The scientist can inspect persisted conceptual-neighbor edges."""
     from app import store
 
     client = _client()
@@ -171,9 +160,6 @@ def test_legacy_profile_and_tiny_overrides_run_as_default(
         evolution_max_count=1,
     )
 
-    # _Request is a minimal stand-in for fastapi.Request; the handler only
-    # touches the attributes the stub provides. No provider key is configured
-    # under test, so create_run schedules no title task on this queue.
     run = asyncio.run(
         create_run(req, _Request(), BackgroundTasks())  # type: ignore[arg-type]
     )
@@ -221,7 +207,6 @@ def test_create_run_persists_setup_and_exact_tier_defaults(
 def test_create_run_without_spec_gets_baseline_planning(
     isolated_db: str,
 ) -> None:
-    """A goal-only run (no UI-inferred spec) still gets baseline guidance."""
     from app.run_modes import (
         DEFAULT_ATTRIBUTES,
         DEFAULT_CRITERIA,
@@ -241,13 +226,6 @@ def test_create_run_without_spec_gets_baseline_planning(
 
 
 def test_default_run_completes_and_persists(isolated_db: str) -> None:
-    """A keyless run drives the engine on the offline backend end-to-end.
-
-    The API start path runs the durable node executor, so the assertions here
-    are on the durable path's persisted observables (hypotheses, matches,
-    claim grounding, report). Literature review is disabled under test, so a
-    keyless run produces no evidence/citations -- that is the offline reality.
-    """
     client = _client()
     run_id = _start_and_complete(
         client,
@@ -256,37 +234,30 @@ def test_default_run_completes_and_persists(isolated_db: str) -> None:
     views = _run_views(client, run_id)
     hyps = views["hyps"]
 
-    assert len(hyps) >= 2  # initial + evolved children
+    assert len(hyps) >= 2
     assert any(h["parent_id"] for h in hyps), "no evolved children persisted"
     assert all(h["elo_rating"] >= 1000 for h in hyps)
-    # An Elo moved off the initial 1200, so the tournament updated something.
     assert any(h["elo_rating"] != 1200 for h in hyps), "no Elo updates observed"
-    # No literature review under test, so a keyless run grounds no evidence.
     assert views["evidence"] == []
     assert views["citations"] == []
     assert len(views["matches"]) >= 2
     assert {s["stage"] for s in views["safety"]} >= {"intake", "final"}
-    # Pre-tournament safety screen ran: benign hypotheses are 'allow'.
     assert all(h["safety_status"] == "allow" for h in hyps)
-    # The pre-tournament claim grounding persisted the entailment graph.
     assert len(views["claim_evidence"]) >= 1
     assert all(
         e["label"] in {"supports", "contradicts", "insufficient"}
         for e in views["claim_evidence"]
     )
-    # Offline fixtures are illustrative, so the "Unverified" badge stays off.
     assert all(h.get("unverified") is False for h in hyps)
     assert views["report"]["payload"]["leaderboard"]
 
 
 def test_run_reopens_after_restart(isolated_db: str) -> None:
-    """Run completes; new TestClient (= simulated restart) can still read it."""
     client = _client()
     run_id = _start_and_complete(
         client, "Senescent cell removal in aged tissues"
     )
 
-    # Discard the client and re-import the app, simulating a fresh process.
     import importlib
 
     import app.main
@@ -307,7 +278,6 @@ def test_run_reopens_after_restart(isolated_db: str) -> None:
     report = new_client.get(f"/api/runs/{run_id}/report").json()
     assert report["payload"]["leaderboard"]
 
-    # Markdown report file survives.
     md = new_client.get(f"/api/runs/{run_id}/report.md")
     assert md.status_code == 200
     assert "Research Overview" in md.text
@@ -316,13 +286,8 @@ def test_run_reopens_after_restart(isolated_db: str) -> None:
 def test_legacy_advanced_profile_maps_to_standard_tier(
     isolated_db: str,
 ) -> None:
-    """The retired ``advanced`` profile normalizes to the standard tier.
-
-    ``profile`` is a legacy request field the API no longer honors as a tier
-    selector, so a run created with it falls through to the default standard
-    tier. The run still completes on the engine; depth assertions track the
-    durable path's published pool rather than the mock's fixed counts.
-    """
+    # Legacy profile is not a tier selector; only the current tier field chooses
+    # run depth.
     client = _client()
     res = client.post(
         "/api/runs",
@@ -346,9 +311,6 @@ def test_legacy_advanced_profile_maps_to_standard_tier(
     assert len(matches) >= 2
 
 
-# Start and restart admission races at the durable run boundary.
-
-
 def _new_run(c: TestClient, goal: str, *, tier: str = "express") -> str:
     response = c.post("/api/runs", json={"research_goal": goal, "tier": tier})
     return cast(str, response.json()["id"])
@@ -357,7 +319,6 @@ def _new_run(c: TestClient, goal: str, *, tier: str = "express") -> str:
 def test_cancel_after_capacity_reservation_prevents_bootstrap_admission(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A start transaction orders admission before a waiting cancellation."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     start_client = _client()
     cancel_client = _client()
@@ -393,8 +354,6 @@ def test_cancel_after_capacity_reservation_prevents_bootstrap_admission(
             pending_cancel = executor.submit(
                 cancel_client.post, f"/api/runs/{rid}/cancel"
             )
-            # If cancellation enters its transaction before admission releases
-            # the lock, the old split reservation/enqueue design is exposed.
             if cancel_entered_transaction.wait(timeout=0.5):
                 early_cancel = pending_cancel.result(timeout=5)
         finally:
@@ -430,7 +389,6 @@ def test_cancel_after_capacity_reservation_prevents_bootstrap_admission(
 def test_cancel_before_capacity_reservation_is_not_a_restart(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A stale start read cannot reinterpret its cancelled run as restart."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     start_client = _client()
     cancel_client = _client()
@@ -488,7 +446,6 @@ def test_cancel_before_capacity_reservation_is_not_a_restart(
 def test_normal_start_and_explicit_restart_requeue_cancelled_bootstrap(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A deliberate restart revives the existing bootstrap task row."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client = _client()
     rid = _new_run(client, "Restart a cancelled bootstrap")
@@ -531,7 +488,6 @@ def test_normal_start_and_explicit_restart_requeue_cancelled_bootstrap(
 def test_cancelled_run_with_checkpoint_resumes_instead_of_restarting(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A cancelled progressed run rejects fresh start and offers resume."""
     from app.store import RunStatus
     from tests._engine_tasks_helpers import _seed_checkpoint, _task_state
 
@@ -585,7 +541,6 @@ def test_failed_run_with_checkpoint_uses_resume(
 def test_blocked_bootstrap_without_checkpoint_requires_new_run(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A succeeded, checkpoint-free safety block is never revived as queued."""
     from app.store import RunStatus
 
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
@@ -613,7 +568,6 @@ def test_blocked_bootstrap_without_checkpoint_requires_new_run(
 def test_blocked_run_with_completed_finalize_requires_new_run(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A completed finalize row must not make blocked /start look resumable."""
     from app.store import RunStatus
     from tests._engine_tasks_helpers import _seed_checkpoint, _task_state
 
@@ -682,7 +636,6 @@ def test_blocked_run_with_completed_finalize_requires_new_run(
 def test_start_rolls_back_capacity_when_bootstrap_enqueue_fails(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Quota reservation and durable admission share one transaction."""
     from fastapi import HTTPException
 
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
@@ -709,7 +662,6 @@ def test_start_rolls_back_capacity_when_bootstrap_enqueue_fails(
 def test_cancelled_paused_bootstrap_can_be_explicitly_restarted(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Cancelling a paused pre-bootstrap run makes its task revivable."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client = _client()
     rid = _new_run(client, "Restart a paused bootstrap")
@@ -729,30 +681,17 @@ def test_cancelled_paused_bootstrap_can_be_explicitly_restarted(
     assert task is not None and task.status == "queued"
 
 
-# Tests for the SSE streaming helpers in ``app.runs.events``.
-#
-# Covers the pure per-tick helpers directly (terminal-status detection, frame
-# draining) plus the two async generators (``_stream_live_tail`` and
-# ``_event_stream``) via a minimal fake ``Request`` stand-in, since a full
-# HTTP round-trip through ``TestClient`` cannot easily control tick timing.
-
-
 class _FakeRequest:
-    """Minimal stand-in for fastapi.Request's disconnect check."""
-
     def __init__(
         self,
         disconnected: bool = False,
         disconnect_after: int | None = None,
     ) -> None:
         self.disconnected = disconnected
-        # 1-indexed call count at which is_disconnected() starts reporting
-        # True, regardless of `disconnected`. None disables this behavior.
         self.disconnect_after = disconnect_after
         self._checks = 0
 
     async def is_disconnected(self) -> bool:
-        """Report disconnect state, honoring the configured call-count."""
         self._checks += 1
         if (
             self.disconnect_after is not None
@@ -762,22 +701,12 @@ class _FakeRequest:
         return self.disconnected
 
 
-# ---------------------------------------------------------------------------
-# _terminal_frame
-# ---------------------------------------------------------------------------
-
-
 def test_terminal_frame_formats_sse_payload() -> None:
     frame = runs_events._terminal_frame("completed", 5)
     assert frame.startswith("data: ")
     assert '"type": "_terminal"' in frame
     assert '"status": "completed"' in frame
     assert '"seq": 5' in frame
-
-
-# ---------------------------------------------------------------------------
-# _terminal_status_from_event
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -799,11 +728,6 @@ def test_terminal_status_from_event(
     event: dict[str, object], expected: str | None
 ) -> None:
     assert runs_events._terminal_status_from_event(event) == expected
-
-
-# ---------------------------------------------------------------------------
-# _terminal_status_from_run
-# ---------------------------------------------------------------------------
 
 
 def test_terminal_status_from_run_returns_none_for_unknown_run(
@@ -831,11 +755,6 @@ def test_terminal_status_from_run_returns_terminal_status(
     assert runs_events._terminal_status_from_run(run.id) == "completed"
 
 
-# ---------------------------------------------------------------------------
-# _resolve_tick_terminal
-# ---------------------------------------------------------------------------
-
-
 def test_resolve_tick_terminal_prefers_event_terminal_status(
     isolated_db: str,
 ) -> None:
@@ -848,7 +767,6 @@ def test_resolve_tick_terminal_prefers_event_terminal_status(
 def test_resolve_tick_terminal_skips_run_query_on_non_safety_tick(
     isolated_db: str,
 ) -> None:
-    # tick=3 (3 % 10 != 9): no store query, even though the run is terminal.
     run = store.create_run(
         "g", "default", "mock", {}, store.RunCreateOptions(db_path=isolated_db)
     )
@@ -864,11 +782,6 @@ def test_resolve_tick_terminal_safety_net_queries_on_tenth_tick(
     )
     store.update_run_status(run.id, RunStatus.COMPLETED, db_path=isolated_db)
     assert runs_events._resolve_tick_terminal(None, run.id, 9) == "completed"
-
-
-# ---------------------------------------------------------------------------
-# _drain_tick_frames
-# ---------------------------------------------------------------------------
 
 
 def test_drain_tick_frames_returns_new_events_as_sse_frames(
@@ -905,11 +818,6 @@ def test_drain_tick_frames_detects_terminal_status_event(
     assert len(frames) == 1
 
 
-# ---------------------------------------------------------------------------
-# _stream_live_tail
-# ---------------------------------------------------------------------------
-
-
 def test_stream_live_tail_returns_immediately_on_disconnect(
     isolated_db: str,
 ) -> None:
@@ -929,7 +837,6 @@ def test_stream_live_tail_returns_immediately_on_disconnect(
 
 
 def test_stream_live_tail_ends_on_terminal_event(isolated_db: str) -> None:
-    """The poll drains the terminal status event and closes the stream."""
     run = store.create_run(
         "g", "default", "mock", {}, store.RunCreateOptions(db_path=isolated_db)
     )
@@ -945,14 +852,13 @@ def test_stream_live_tail_ends_on_terminal_event(isolated_db: str) -> None:
             0,
         )
     )
-    assert len(frames) == 2  # the status event frame + synthetic terminal
+    assert len(frames) == 2
     assert '"type": "status"' in frames[0]
     assert '"type": "_terminal"' in frames[1]
     assert f'"seq": {seq}' in frames[1]
 
 
 def test_stream_live_tail_polls_to_a_cancelled_close(isolated_db: str) -> None:
-    """A cancelled run's status event ends the polled stream."""
     run = store.create_run(
         "g", "default", "mock", {}, store.RunCreateOptions(db_path=isolated_db)
     )
@@ -970,11 +876,6 @@ def test_stream_live_tail_polls_to_a_cancelled_close(isolated_db: str) -> None:
     )
     assert any('"type": "_terminal"' in f for f in frames)
     assert any('"status": "cancelled"' in f for f in frames)
-
-
-# ---------------------------------------------------------------------------
-# _event_stream
-# ---------------------------------------------------------------------------
 
 
 def test_event_stream_replays_history_then_terminal_for_finished_run(
@@ -1004,13 +905,8 @@ def test_event_stream_replays_history_then_terminal_for_finished_run(
 def test_event_stream_falls_through_to_live_tail_for_active_run(
     isolated_db: str,
 ) -> None:
-    """A non-terminal run row falls through to the live-tail poll loop.
-
-    An event is appended concurrently, shortly after the stream starts
-    polling, mirroring a producer emitting a new event while a client is
-    connected (a pre-existing event would be caught by the history replay
-    phase instead, which is a different code path).
-    """
+    # Append after streaming starts to exercise live-tail delivery rather than
+    # replay of pre-existing history.
     run = store.create_run(
         "g", "default", "mock", {}, store.RunCreateOptions(db_path=isolated_db)
     )
@@ -1045,12 +941,6 @@ def test_event_stream_falls_through_to_live_tail_for_active_run(
 def test_events_endpoint_serves_json_snapshot_when_stream_false(
     isolated_db: str,
 ) -> None:
-    """``stream=false`` returns the persisted log as one JSON response.
-
-    The default SSE behavior is covered by the round-trip tests in
-    ``test_integration_run_flow``; this covers the one-shot snapshot the
-    workbench diagnostics popover consumes.
-    """
     from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
 
     run = store.create_run(
@@ -1079,14 +969,10 @@ def test_events_endpoint_serves_json_snapshot_when_stream_false(
     assert [e["seq"] for e in after.json()["events"]] == [2]
 
 
-# Owned API acceptance for pause quiescence across a late task commit.
-
-
 _OWNER = {"X-Client-ID": "pause-cohort-owner"}
 
 
 def _owned_running_run(db_path: str) -> tuple[TestClient, str]:
-    """Create the RUNNING run through the owner-scoped API."""
     client = make_client()
     created = client.post(
         "/api/runs",
@@ -1105,7 +991,6 @@ def _owned_running_run(db_path: str) -> tuple[TestClient, str]:
 def _leased_supervisor(
     run_id: str, db_path: str
 ) -> tuple[dict[str, Any], int, store.ScientificTask]:
-    """Seed an engine checkpoint and claim its supervisor writer."""
     state = _task_state(run_id)
     checkpoint_seq = _seed_checkpoint(run_id, state, db_path=db_path)
     writer = store.enqueue_task(
@@ -1131,7 +1016,6 @@ async def _complete_supervisor_after_pause(
     db_path: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Finish deterministic node work across the completed pause boundary."""
     state, checkpoint_seq, leased = writer
     monkeypatch.setattr(
         engine_tasks_node,
@@ -1181,7 +1065,6 @@ async def _complete_supervisor_after_pause(
 async def test_owned_pause_fences_late_checkpoint_successor_until_resume(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A leased node may finish, but its late successor waits for resume."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client, run_id = _owned_running_run(isolated_db)
     writer = _leased_supervisor(run_id, isolated_db)
@@ -1201,8 +1084,6 @@ async def test_owned_pause_fences_late_checkpoint_successor_until_resume(
     successor_type = f"{engine_tasks.NODE_TASK_PREFIX}generate"
     assert checkpoint["state"]["resume_successor"] == successor_type
 
-    # This late row models the shared queue boundary only; family tests cover
-    # actual bootstrap, fan-out, ranking, and finalizer commits after pause.
     successor = store.enqueue_task(
         store.NewTask(
             run_id=run_id,
@@ -1291,16 +1172,11 @@ async def test_owned_pause_fences_late_checkpoint_successor_until_resume(
     )
 
 
-# Restart acceptance for paused runs with late durable successors.
-
-
 _OLD_OWNER = "pre-restart-worker"
 
 
 @dataclass
 class _StartupProbe:
-    """Observe recovery completion and any startup or resume cohorts."""
-
     recovery_finished: Event = field(default_factory=Event)
     worker_started: Event = field(default_factory=Event)
     task_scans: list[list[str]] = field(default_factory=list)
@@ -1309,8 +1185,6 @@ class _StartupProbe:
 
 @dataclass(frozen=True)
 class _PausedRestart:
-    """Persisted identifiers needed across restart and explicit resume."""
-
     run_id: str
     writer_id: str
     successor_id: str
@@ -1318,7 +1192,6 @@ class _PausedRestart:
 
 
 def _seed_paused_restart(db_path: str) -> _PausedRestart:
-    """Seed a leased writer and its late-committed checkpoint successor."""
     run = store.create_run(
         "Pause restart acceptance",
         "express",
@@ -1347,7 +1220,6 @@ def _seed_paused_restart(db_path: str) -> _PausedRestart:
 def _append_late_successor(
     run_id: str, writer: ScientificTask, db_path: str
 ) -> tuple[str, int]:
-    """Pause after leasing the writer, then persist its checkpoint successor."""
     successor_type = f"{engine_tasks.NODE_TASK_PREFIX}ranking"
     store.update_run_status(run_id, RunStatus.PAUSED, db_path=db_path)
     paused_seq = store.append_event(
@@ -1378,7 +1250,6 @@ def _append_late_successor(
 
 
 def _observe_startup(monkeypatch: pytest.MonkeyPatch) -> _StartupProbe:
-    """Keep startup offline and record its recovery and cohort boundaries."""
     from app import main as main_module
 
     probe = _StartupProbe()
@@ -1416,7 +1287,6 @@ def _assert_startup_left_run_paused(
     state: _PausedRestart,
     db_path: str,
 ) -> None:
-    """Check restart leaves paused engine work untouched."""
     assert probe.recovery_finished.wait(5), "startup recovery did not finish"
     assert probe.task_scans
     assert all(state.run_id not in run_ids for run_ids in probe.task_scans)
@@ -1441,7 +1311,6 @@ def _assert_resume_reuses_successor(
     state: _PausedRestart,
     db_path: str,
 ) -> None:
-    """Resume explicitly, finish the leased writer, and claim one successor."""
     before = store.list_tasks(state.run_id, db_path=db_path)
     before_ids = {task.id for task in before}
     assert before_ids == {state.writer_id, state.successor_id}
@@ -1469,7 +1338,6 @@ def _assert_resume_reuses_successor(
 def _assert_ordered_event_replay(
     client: TestClient, run_id: str, paused_seq: int
 ) -> None:
-    """Check ordered full replay and the ordered post-pause resume suffix."""
     events = client.get(f"/api/runs/{run_id}/events?stream=false").json()[
         "events"
     ]
@@ -1488,7 +1356,6 @@ def _assert_ordered_event_replay(
 def test_restart_keeps_paused_successor_idle_until_explicit_resume(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Startup leaves paused work alone; resume reuses its one continuation."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", True)
     restart = _seed_paused_restart(isolated_db)
     probe = _observe_startup(monkeypatch)

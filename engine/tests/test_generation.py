@@ -1,5 +1,3 @@
-"""Offline contracts for generation."""
-
 from __future__ import annotations
 
 import re
@@ -33,7 +31,6 @@ from tests._state import make_hypothesis, make_state
 
 
 def _stub_debate_llm(monkeypatch: pytest.MonkeyPatch, final_text: str) -> None:
-    """Stub debate turns (call_llm) and the final hypothesis (call_llm_json)."""
 
     async def fake_call_llm(**_: Any) -> str:
         return "a debate turn argument"
@@ -55,7 +52,6 @@ def _stub_debate_llm(monkeypatch: pytest.MonkeyPatch, final_text: str) -> None:
 
 
 async def test_count_zero_returns_empty() -> None:
-    """Requesting zero debates short-circuits without any LLM call."""
     hyps, transcripts, llm_calls = await generate_with_debate(
         make_state(), count=0
     )
@@ -67,7 +63,6 @@ async def test_count_zero_returns_empty() -> None:
 def _stub_debate_llm_counting(
     monkeypatch: pytest.MonkeyPatch, turn_texts: list[str]
 ) -> tuple[list[str], list[int]]:
-    """Stub debate turns with scripted text, counting calls of each kind."""
     free_form: list[str] = []
     finals: list[int] = []
 
@@ -97,12 +92,8 @@ def _stub_debate_llm_counting(
 async def test_declared_convergence_ends_the_debate_early(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A turn writing the HYPOTHESIS sentinel skips to the final turn.
-
-    The prompt's termination condition asks the panel to conclude with
-    "HYPOTHESIS" in capitals; honouring it retires the remaining free-form
-    turns of the budget, which are serial LLM calls.
-    """
+    """Free-form turns are serial provider calls; an explicit conclusion
+    retires unused turns."""
     free_form, finals = _stub_debate_llm_counting(
         monkeypatch,
         ["still arguing", "HYPOTHESIS: the panel agrees", "unreached"],
@@ -112,7 +103,6 @@ async def test_declared_convergence_ends_the_debate_early(
 
     assert len(hyps) == 1
     assert hyps[0].text == "converged idea"
-    # Two free-form turns, then the structured turn - not the full budget.
     assert len(free_form) == 2
     assert len(finals) == 1
     assert llm_calls == 3
@@ -121,7 +111,6 @@ async def test_declared_convergence_ends_the_debate_early(
 async def test_lowercase_hypothesis_prose_does_not_end_the_debate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Ordinary talk about "the hypothesis" is not a termination signal."""
     turns = ["the hypothesis is weak"] * _DEBATE_MAX_DISCUSSION_TURNS
     free_form, finals = _stub_debate_llm_counting(monkeypatch, turns)
 
@@ -134,12 +123,6 @@ async def test_lowercase_hypothesis_prose_does_not_end_the_debate(
 async def test_a_debate_that_never_converges_stops_at_the_envelope_cap(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A panel that never agrees spends the whole envelope, then stops.
-
-    The paper bounds a debate at 10 conversational turns (SSR note 9.1);
-    the loop must enforce that ceiling itself -- no token, no extra turns
-    (findings E13/E16).
-    """
     turns = ["the panel still disagrees"] * _DEBATE_MAX_DISCUSSION_TURNS
     free_form, finals = _stub_debate_llm_counting(monkeypatch, turns)
 
@@ -163,12 +146,8 @@ async def test_a_debate_that_never_converges_stops_at_the_envelope_cap(
     ],
 )
 def test_convergence_token_variants_end_the_debate(turn_text: str) -> None:
-    """Case/wording variants of the consensus marker are all honoured.
-
-    The prompt instructs the panel to write "HYPOTHESIS" in all capitals;
-    panels slip on the casing or decorate the marker, so the parse accepts
-    the common variants rather than paying the whole envelope for each.
-    """
+    """Panels vary marker casing or decoration; strict spelling buys
+    unnecessary debate turns."""
     assert _debate_converged(turn_text)
 
 
@@ -186,25 +165,19 @@ def test_convergence_token_variants_end_the_debate(turn_text: str) -> None:
 def test_ordinary_hypothesis_prose_does_not_end_the_debate(
     turn_text: str,
 ) -> None:
-    """Discussion content must not be mistaken for the consensus marker.
-
-    Enumerating candidate hypotheses and quoting the instruction are both
-    ordinary turn content; only a real conclusion marker stops the debate.
-    """
+    """Enumeration and quoted instructions are discussion, not conclusion
+    markers."""
     assert not _debate_converged(turn_text)
 
 
 async def test_debate_produces_one_hypothesis_per_debate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Each debate yields a DEBATE-method hypothesis with a unique debate id."""
     _stub_debate_llm(monkeypatch, "tumor suppressor X gates the pathway")
     hyps, transcripts, llm_calls = await generate_with_debate(
         make_state(), count=2
     )
     assert len(hyps) == 2
-    # Each debate never converges on the stubbed text, so it spends the
-    # full discussion envelope plus its final synthesis turn.
     assert llm_calls == 2 * (_DEBATE_MAX_DISCUSSION_TURNS + 1)
     assert all(h.text == "tumor suppressor X gates the pathway" for h in hyps)
     assert all(h.generation_method == GenerationMethod.DEBATE for h in hyps)
@@ -219,7 +192,6 @@ async def test_debate_produces_one_hypothesis_per_debate(
 async def test_parallel_debates_receive_distinct_focus_prompts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Parallel debates are seeded with distinct angles to avoid collapse."""
     final_prompts: list[str] = []
 
     async def fake_call_llm(**_: Any) -> str:
@@ -260,12 +232,8 @@ async def test_parallel_debates_receive_distinct_focus_prompts(
 async def test_single_debate_of_a_larger_batch_gets_its_own_angle(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A per-debate durable task angles like the batch member it is (E14).
-
-    The durable path runs each debate as its own task; passing the task's
-    index and the batch total must reproduce the diversity angle the same
-    debate would have received inside one in-process batch of that size.
-    """
+    """Durable per-debate tasks need the same diversity angle as their batch
+    position."""
     final_prompts: list[str] = []
 
     async def fake_call_llm(**_: Any) -> str:
@@ -297,8 +265,6 @@ async def test_single_debate_of_a_larger_batch_gets_its_own_angle(
     assert hyps[0].debate_id == 2
     assert transcripts[0]["debate_id"] == 2
     assert "Parallel debate 3 of 4" in final_prompts[0]
-    # The angle is exactly the one a four-debate in-process batch would
-    # have assigned to its third member.
     expected = debate._debate_diversity_instruction(2, 4)
     assert expected is not None
     assert expected in final_prompts[0]
@@ -307,7 +273,6 @@ async def test_single_debate_of_a_larger_batch_gets_its_own_angle(
 async def test_a_lone_debate_still_gets_no_angle(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Without siblings there is nothing to diverge from, angle-free."""
     final_prompts: list[str] = []
 
     async def fake_call_llm(**_: Any) -> str:
@@ -341,13 +306,6 @@ async def test_a_lone_debate_still_gets_no_angle(
 async def test_debate_prompts_carry_starting_hypotheses(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """State starting hypotheses reach every turn's prompt (finding E2).
-
-    The grounded-debate template declares {{user_hypotheses}} and
-    {{instructions}} slots; the node must thread the state's
-    starting_hypotheses into the request so no turn renders a
-    {{MISSING:...}} sentinel or silently drops the seeds.
-    """
     prompts: list[str] = []
 
     async def fake_call_llm(**kwargs: Any) -> str:
@@ -374,17 +332,14 @@ async def test_debate_prompts_carry_starting_hypotheses(
         starting_hypotheses=["seed idea: blocking receptor R halts fibrosis"],
         articles_with_reasoning="Literature synthesis on receptor R.",
     )
-    # The coordinator passes articles_with_reasoning explicitly; doing so
-    # here selects the literature-aware debate template that declares the
-    # {{user_hypotheses}} slot.
+    # Explicit literature context selects the template with starting-hypothesis
+    # slots.
     await generate_with_debate(
         state,
         count=1,
         articles_with_reasoning=state["articles_with_reasoning"],
     )
 
-    # The full discussion envelope (no scripted convergence) plus the
-    # final structured turn; every one of them carries the seeds.
     assert len(prompts) == _DEBATE_MAX_DISCUSSION_TURNS + 1
     for prompt in prompts:
         assert "seed idea: blocking receptor R halts fibrosis" in prompt
@@ -394,7 +349,6 @@ async def test_debate_prompts_carry_starting_hypotheses(
 async def test_empty_final_response_raises_generation_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A final turn that returns no hypotheses surfaces a GenerationError."""
 
     async def fake_call_llm(**_: Any) -> str:
         return "turn"
@@ -411,11 +365,8 @@ async def test_empty_final_response_raises_generation_error(
 async def test_generate_node_attaches_metrics_and_passes_through(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """generate_node merges coordinator output with hypothesis-count metric."""
 
     async def fake_coordinator(_: Any) -> dict[str, Any]:
-        # Mirrors the real coordinator's contract, which always includes
-        # hypothesis_count alongside the hypotheses.
         return {
             "hypotheses": [
                 make_hypothesis(text="h1"),
@@ -432,7 +383,6 @@ async def test_generate_node_attaches_metrics_and_passes_through(
 
 
 def _one_hypothesis_payload() -> dict[str, Any]:
-    """The stubbed LLM response: one grounded hypothesis citing ``[C1]``."""
     return {
         "hypotheses": [
             {
@@ -446,7 +396,6 @@ def _one_hypothesis_payload() -> dict[str, Any]:
 
 
 def _c1_reference_index() -> Any:
-    """A reference index whose sole source is keyed ``C1``."""
     from co_scientist.agents.generation.citations import ReferenceIndex
 
     return ReferenceIndex(
@@ -456,7 +405,6 @@ def _c1_reference_index() -> Any:
 
 
 def test_assumptions_technique_produces_hypotheses() -> None:
-    """The assumptions technique emits hypotheses directly."""
     _, schema = load_prompt_with_schema(
         "generation_assumptions",
         {
@@ -473,14 +421,6 @@ def test_assumptions_technique_produces_hypotheses() -> None:
 async def test_assumptions_grounds_in_supplied_literature(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Assumptions ingests literature context and resolves its citations (E07).
-
-    When a reference index is supplied (literature-available run), the built
-    prompt must carry the ``[C*]`` Citation Reference List so the technique can
-    ground claims in real sources, and the resulting hypothesis's citation keys
-    must resolve against those sources (previously the technique hardcoded an
-    empty ``domain_context`` and an empty source map, so it could never ground).
-    """
     from co_scientist.agents.generation import assumptions as assumptions_mod
 
     captured: dict[str, str] = {}
@@ -503,9 +443,7 @@ async def test_assumptions_grounds_in_supplied_literature(
         reference_index=reference_index,
     )
 
-    # The [C*] citation list reaches the assumptions prompt.
     assert "[C1]" in captured["prompt"]
-    # The generated hypothesis's citation key resolves against the sources.
     assert result[0].citation_map
     assert "C1" in result[0].citation_map
 
@@ -513,13 +451,6 @@ async def test_assumptions_grounds_in_supplied_literature(
 async def test_assumptions_live_prompt_hedges_and_threads_constraints(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The live technique prompt hedges novelty and threads constraints.
-
-    No reference index is supplied, i.e. the degraded LLM-only run whose
-    novelty claims are the least verified (K3) -- its prompt must still
-    carry the hedging contract, and the state's lab constraints (K5) must
-    reach the final generation call.
-    """
     from co_scientist.agents.generation import assumptions as assumptions_mod
 
     captured: dict[str, str] = {}
@@ -547,15 +478,8 @@ async def test_assumptions_live_prompt_hedges_and_threads_constraints(
 async def test_assumptions_generation_is_never_cached(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Independent generation tasks must not be served one shared answer.
-
-    Generation fans out one durable task per hypothesis, so several tasks
-    issue this call with an identical prompt and rely on sampling to
-    explore different ideas. A cache hit would hand them all the same
-    hypothesis, which the state reducer then dedupes on append -- the run
-    commits one hypothesis where the tier asked for several, and nothing
-    fails to reveal it.
-    """
+    """Identical generation prompts rely on sampling; cache replay collapses
+    the pool through dedup."""
     from co_scientist.agents.generation import assumptions as assumptions_mod
 
     captured: dict[str, Any] = {}
@@ -576,7 +500,6 @@ async def test_assumptions_generation_is_never_cached(
 def _tree_response(
     count: int = 2, load_bearing_from: int = 0
 ) -> dict[str, Any]:
-    """A level-0 payload of ``count`` assumptions, some load-bearing."""
     return {
         "assumptions": [
             {
@@ -589,7 +512,6 @@ def _tree_response(
 
 
 def _sub_response(*entries: tuple[int, list[str]]) -> dict[str, Any]:
-    """A level-1 payload mapping parents (by index) to sub-assumptions."""
     return {
         "parents": [
             {"parent_index": index, "sub_assumptions": subs}
@@ -599,7 +521,6 @@ def _sub_response(*entries: tuple[int, list[str]]) -> dict[str, Any]:
 
 
 def _final_response(text: str = "a challenging hypothesis") -> dict[str, Any]:
-    """A final GENERATION_SCHEMA payload with one hypothesis."""
     return {
         "hypotheses": [
             {
@@ -615,12 +536,6 @@ def _final_response(text: str = "a challenging hypothesis") -> dict[str, Any]:
 def _install_sequence(
     monkeypatch: pytest.MonkeyPatch, responses: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
-    """Patch call_llm_json to serve ``responses`` in order, recording calls.
-
-    Returns:
-        The list each call appends its kwargs to (the prompt arrives as
-        the first positional argument, recorded under "prompt").
-    """
     calls: list[dict[str, Any]] = []
     remaining = list(responses)
 
@@ -635,7 +550,6 @@ def _install_sequence(
 async def test_tree_makes_three_bounded_calls(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Level 0, level 1, and the final generation call all run in order."""
     calls = _install_sequence(
         monkeypatch,
         [
@@ -661,7 +575,6 @@ async def test_tree_makes_three_bounded_calls(
 async def test_tree_section_reaches_the_final_prompt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The final call is prompted with the tree the earlier levels built."""
     calls = _install_sequence(
         monkeypatch,
         [
@@ -676,18 +589,15 @@ async def test_tree_section_reaches_the_final_prompt(
     assert "assumption 0" in final_prompt
     assert "(load-bearing)" in final_prompt
     assert "sub A" in final_prompt
-    # Level-0 assumptions stay positional in the rendered tree too.
     assert "assumption 1" in final_prompt
 
 
 async def test_sub_call_lists_parents_positionally(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The sub-level prompt numbers parents; only load-bearing ones expand."""
     calls = _install_sequence(
         monkeypatch,
         [
-            # Only the second assumption is load-bearing.
             _tree_response(2, load_bearing_from=1),
             _sub_response((0, ["sub of the load-bearing parent"])),
             _final_response(),
@@ -704,7 +614,6 @@ async def test_sub_call_lists_parents_positionally(
 async def test_tree_bounds_are_enforced(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Oversized model output is capped at every level of the tree."""
     calls = _install_sequence(
         monkeypatch,
         [
@@ -721,15 +630,11 @@ async def test_tree_bounds_are_enforced(
     await generate_with_assumptions(make_state(), 1)
 
     final_prompt = calls[-1]["prompt"]
-    # Level 0 capped: assumption MAX_TOP-1 exists, MAX_TOP never entered.
     assert f"assumption {ASSUMPTION_TREE_MAX_TOP - 1}" in final_prompt
     assert f"assumption {ASSUMPTION_TREE_MAX_TOP} " not in final_prompt
-    # Level 1 capped: only MAX_LOAD_BEARING parents were expanded.
     sub_prompt = calls[1]["prompt"]
     listed_parents = re.findall(r"(?m)^\d+\. assumption \d+", sub_prompt)
     assert len(listed_parents) == ASSUMPTION_TREE_MAX_LOAD_BEARING
-    # Each expanded parent keeps at most MAX_SUB_PER_PARENT sub-assumptions
-    # (six were offered); subs render as "   <parent>.<n> <text>".
     for parent_index in range(ASSUMPTION_TREE_MAX_LOAD_BEARING):
         kept = re.findall(rf"(?m)^\s+{parent_index}\.\d+ sub ", final_prompt)
         assert len(kept) == ASSUMPTION_TREE_MAX_SUB_PER_PARENT
@@ -738,12 +643,8 @@ async def test_tree_bounds_are_enforced(
 async def test_out_of_range_parent_index_wraps_deterministically(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A fixed out-of-range index still yields a satisfiable tree.
-
-    The deterministic offline filler fills integers with a constant
-    (4), so the parser must map a stray index back into the parent list
-    (modulo) rather than discarding the whole level.
-    """
+    """The offline integer filler emits a constant index, which must remain a
+    satisfiable parent."""
     calls = _install_sequence(
         monkeypatch,
         [
@@ -760,7 +661,6 @@ async def test_out_of_range_parent_index_wraps_deterministically(
 async def test_no_load_bearing_assumptions_skips_level_1(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Without load-bearing parents there is no sub call, only the final."""
     calls = _install_sequence(
         monkeypatch,
         [
@@ -780,7 +680,6 @@ async def test_no_load_bearing_assumptions_skips_level_1(
 async def test_empty_tree_degrades_to_single_final_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An empty level-0 answer degrades to the plain final call, no failure."""
     calls = _install_sequence(
         monkeypatch,
         [{"assumptions": []}, _final_response()],
@@ -795,7 +694,6 @@ async def test_empty_tree_degrades_to_single_final_call(
 async def test_tree_levels_are_never_cached(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Every level opts out of the cache, like the rest of generation."""
     calls = _install_sequence(
         monkeypatch,
         [
@@ -811,7 +709,6 @@ async def test_tree_levels_are_never_cached(
 async def test_literature_context_grounds_every_level(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A real reference index reaches the tree, sub, and final prompts."""
     from co_scientist.agents.generation.citations import ReferenceIndex
 
     calls = _install_sequence(
@@ -839,7 +736,6 @@ async def test_literature_context_grounds_every_level(
 async def test_expansion_and_wrong_assumption_context_reach_the_tree(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """E11b/K9 sections render into the tree level and the final call."""
     calls = _install_sequence(
         monkeypatch,
         [
@@ -876,12 +772,6 @@ async def test_expansion_and_wrong_assumption_context_reach_the_tree(
 async def test_assumptions_slice_runs_the_tree_in_the_real_graph(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A count>=4 run routes its assumptions slice through the real graph.
-
-    Mirrors the durable path's entry: the coordinator allocates one
-    hypothesis to the assumptions strategy, which must build the tree
-    (two extra schema calls on the fake) and still deliver its count.
-    """
     from co_scientist.generator import GeneratorOptions, HypothesisGenerator
     from tests._llm_fake import install_fake_llm
 
@@ -911,12 +801,6 @@ async def test_assumptions_slice_runs_the_tree_in_the_real_graph(
 async def test_offline_tree_is_deterministic(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The offline backend produces the same tree run after run.
-
-    Exercises the real offline router (schema-filling included), so the
-    new ASSUMPTION_TREE/ASSUMPTION_SUB schemas must stay satisfiable by
-    the canned filler -- one assumption, one parent, wrapped indices.
-    """
     from co_scientist.offline import llm as offline_llm
     from tests._mcp import isolate_offline_router
 
@@ -943,7 +827,6 @@ def _probe(
     fundamental: bool = False,
     **extra: object,
 ) -> dict[str, object]:
-    """Build one deep-verification probe dict."""
     probe: dict[str, object] = {
         "question": question,
         "answer": answer,
@@ -956,12 +839,6 @@ def _probe(
 
 
 def test_weakened_hypothesis_contributes_nonfundamental_probes() -> None:
-    """Verdict 'weakened' records non-fundamental gaps; those are admitted.
-
-    'weakened' is the verifier's own statement that non-fundamental
-    assumptions failed while the idea survives -- exactly the record K9
-    says must steer later generation.
-    """
     hyp = make_hypothesis(
         deep_verification_probes=[
             _probe(question="Is acrB essential here?"),
@@ -976,7 +853,6 @@ def test_weakened_hypothesis_contributes_nonfundamental_probes() -> None:
 
 
 def test_holds_verdict_contributes_nothing() -> None:
-    """Probes of a hypothesis whose assumptions all survive stay out."""
     hyp = make_hypothesis(
         deep_verification_probes=[_probe()],
         deep_verification_verdict="holds",
@@ -985,7 +861,6 @@ def test_holds_verdict_contributes_nothing() -> None:
 
 
 def test_undermined_verdict_contributes_nothing() -> None:
-    """Fundamental failure kills the idea; it is a different channel."""
     hyp = make_hypothesis(
         deep_verification_probes=[_probe()],
         deep_verification_verdict="undermined",
@@ -994,7 +869,6 @@ def test_undermined_verdict_contributes_nothing() -> None:
 
 
 def test_explicit_assumption_holds_false_is_admitted_alone() -> None:
-    """A per-probe falsification record is authoritative when present."""
     hyp = make_hypothesis(
         deep_verification_probes=[_probe(assumption_holds=False)],
         deep_verification_verdict="holds",
@@ -1004,7 +878,6 @@ def test_explicit_assumption_holds_false_is_admitted_alone() -> None:
 
 
 def test_explicit_assumption_holds_true_overrides_weakened() -> None:
-    """A probe recorded as holding is excluded even under 'weakened'."""
     hyp = make_hypothesis(
         deep_verification_probes=[_probe(assumption_holds=True)],
         deep_verification_verdict="weakened",
@@ -1013,7 +886,6 @@ def test_explicit_assumption_holds_true_overrides_weakened() -> None:
 
 
 def test_guidance_is_capped() -> None:
-    """The block stays prompt-sized no matter how many probes qualify."""
     probes = [_probe(question=f"Q{i}?") for i in range(10)]
     hyp = make_hypothesis(
         deep_verification_probes=probes,
@@ -1024,7 +896,6 @@ def test_guidance_is_capped() -> None:
 
 
 def test_section_empty_until_something_is_falsified() -> None:
-    """No verified-wrong assumption means no block in the prompt."""
     assert build_falsified_assumptions_section(None) == ""
     assert build_falsified_assumptions_section([]) == ""
     clean = make_hypothesis(
@@ -1035,7 +906,6 @@ def test_section_empty_until_something_is_falsified() -> None:
 
 
 def test_section_carries_the_avoid_or_rework_instruction() -> None:
-    """The rendered block tells generation to avoid or rework them."""
     hyp = make_hypothesis(
         deep_verification_probes=[_probe(question="Does efflux matter?")],
         deep_verification_verdict="weakened",

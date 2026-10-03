@@ -1,5 +1,3 @@
-"""Tests for engine execution 1."""
-
 from __future__ import annotations
 
 import asyncio
@@ -39,8 +37,6 @@ from tests._engine_tasks_helpers import (
     _task_events,
     _task_state,
 )
-
-# The bootstrap commit resolves pause requests under its commit lock.
 
 
 class _PauseDuringPrepare:
@@ -239,25 +235,11 @@ def test_resume_keeps_intake_safety_artifacts_for_leased_bootstrap(
     )
 
 
-# Durable node-level engine task execution and checkpoint commit tests.
-#
-# Core executor coverage: scientist-input merge, bootstrap, node dispatch,
-# in-flight pause, and the PARITY-pinned ranking-match case. Sibling
-# ``test_engine_tasks_*.py`` files hold the pre-ranking-gate, gate, fan-out,
-# ranking-tournament, and dispatch clusters.
-
-
 def _forbid_contextual_escalation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Fail the run if it escalates to the contextual safety model.
-
-    Patched in both namespaces: ``app.safety`` is the seam the escalation
-    wrapper calls, and ``engine_tasks`` is where a direct ``screen_contextual``
-    import rebinds it -- so reintroducing the call fails rather than silently
-    escalating again (raising=False: the name is absent while the code routes
-    through the wrapper, which is the point).
-    """
+    # Patch both wrapper and direct-import namespaces so accidental contextual
+    # calls cannot evade the guard.
 
     async def _fail_if_called(*_: Any, **__: Any) -> Any:
         raise AssertionError(
@@ -275,7 +257,6 @@ async def _advance_to_supervisor(
     monkeypatch: pytest.MonkeyPatch,
     db_path: str,
 ) -> Any:
-    """Bootstrap ``run_id`` and return its claimed supervisor node task."""
     bootstrap = engine_tasks.enqueue_bootstrap(run_id, db_path=db_path)
     leased = store.claim_task("worker", run_id=run_id, db_path=db_path)
     assert leased is not None
@@ -291,7 +272,6 @@ async def _advance_to_supervisor(
 def test_scientist_inputs_merge_into_engine_state_once(
     isolated_db: str,
 ) -> None:
-    """Manual ideas and reviews become typed inputs to later specialists."""
     run = store.create_run("Scientist loop", "standard", "engine", {})
     hypothesis_id = store.add_hypothesis(
         store.NewHypothesis(
@@ -303,8 +283,6 @@ def test_scientist_inputs_merge_into_engine_state_once(
         ),
         db_path=isolated_db,
     )
-    # No verdict column: a row written before the review gained one, so the
-    # merge recovers the verdict from the summary prose (the legacy path).
     store.add_review(
         store.NewReview(
             run_id=run.id,
@@ -324,15 +302,11 @@ def test_scientist_inputs_merge_into_engine_state_once(
     assert [hypothesis.id for hypothesis in merged] == [hypothesis_id]
     assert merged[0].origin.value == "scientist_manual"
     assert len(merged[0].reviews) == 1
-    # On the engine's own 1-10 review rubric, not a separate 0-100 scale:
-    # the ranking prompt reads this score beside the agents' (see
-    # human_input.VERDICT_REVIEW_SCORES).
     assert merged[0].reviews[0].overall_score == NOT_VIABLE_SCORE
     assert "cannot distinguish" in merged[0].reviews[0].constructive_feedback
 
 
 def test_scientist_input_reopens_completed_engine_run(isolated_db: str) -> None:
-    """A completed engine report can continue from its durable checkpoint."""
     run = store.create_run("Continuation", "standard", "engine", {})
     checkpoint_seq = _seed_checkpoint(
         run.id,
@@ -373,11 +347,6 @@ async def test_bootstrap_commits_state_and_enqueues_supervisor(
     checkpoint = store.get_latest_checkpoint(run.id, db_path=isolated_db)
     assert checkpoint is not None and checkpoint["seq"] == 1
     tasks = store.list_tasks(run.id, db_path=isolated_db)
-    # The commit also plans as much of supervisor's own deterministic
-    # successor as it can resolve without running it (finding F4): with
-    # `mcp_available=False` (the fixture state), that is `generate`,
-    # chained behind supervisor rather than reactively enqueued once
-    # supervisor itself runs.
     assert [task.task_type for task in tasks] == [
         "engine.bootstrap",
         "engine.node.supervisor",
@@ -394,15 +363,8 @@ async def test_bootstrap_commits_state_and_enqueues_supervisor(
 async def test_bootstrap_never_escalates_an_offline_backed_run(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """An offline-backed run's intake gate makes no contextual model call.
-
-    The durable bootstrap screens through ``screen_with_escalation``, whose
-    offline guard must hold at that boundary. Without it the contextual model
-    is called for keyless/offline runs, and a nondeterministic "uncertain"
-    verdict silently pauses a run that should have completed. Patched at
-    ``app.safety.screen_contextual`` -- the seam the escalation wrapper itself
-    calls -- so the guard is exercised, not bypassed.
-    """
+    # Offline bootstrap must not ask a contextual model whose uncertain verdict
+    # could pause deterministic runs.
     run = store.create_run(
         "Task-level science",
         "standard",
@@ -418,8 +380,6 @@ async def test_bootstrap_never_escalates_an_offline_backed_run(
 
     result = await engine_tasks.execute_bootstrap(leased, db_path=isolated_db)
 
-    # The success path returns the committed checkpoint, not a status verdict;
-    # a withheld/paused run would carry one instead of enqueuing a successor.
     assert result.get("status") != "withheld"
     assert "checkpoint_seq" in result
     refreshed = store.get_run(run.id, db_path=isolated_db)
@@ -458,7 +418,6 @@ async def test_node_task_commits_once_and_schedules_successor(
 
 
 def _seed_ranking_state(run_id: str, db_path: str) -> tuple[Any, _Generator]:
-    """Seed a 3-idea ranking node whose grounded ideas survive the gate."""
     state = _task_state(run_id)
     hypotheses = [
         Hypothesis(
@@ -502,7 +461,6 @@ def _seed_ranking_state(run_id: str, db_path: str) -> tuple[Any, _Generator]:
 def _patch_ranking_judge(
     monkeypatch: pytest.MonkeyPatch, generator: _Generator
 ) -> None:
-    """Route the generator seams and stub the pairwise Elo judge."""
     _patch_generator(monkeypatch, generator, restore=True)
     _install_plain_fake_judge(monkeypatch)
 
@@ -510,12 +468,8 @@ def _patch_ranking_judge(
 async def _drain_ranking_matches(
     run_id: str, db_path: str
 ) -> tuple[Any, list[int], int]:
-    """Claim and judge each match wave in order; return the finalizer.
-
-    Matchups are judged concurrently inside a wave, but the waves themselves
-    stay sequential: each observes the checkpoint its predecessor committed.
-    The first match is replayed to prove idempotent re-execution.
-    """
+    # Waves observe predecessor checkpoints sequentially; replay a match to
+    # exercise idempotency.
     observed_sequences: list[int] = []
     committed = 0
     index = 0
@@ -548,7 +502,6 @@ async def _finalize_and_assert_ranking(
     observed_sequences: list[int],
     db_path: str,
 ) -> None:
-    """Run the ranking finalizer and pin the committed tournament state."""
     from co_scientist.checkpoint import restore_workflow_state
 
     result = await engine_tasks_ranking.execute_ranking_finalize(
@@ -575,8 +528,6 @@ async def _finalize_and_assert_ranking(
     ]
     ranking_events = _task_events(run_id, "ranking", db_path=db_path)
     assert len(ranking_events) == 1
-    # Verification precedes tournament entry (``03-reflection.md``), so a
-    # finished tournament hands straight back to the loop point.
     assert ranking_events[0]["payload"]["successor"] == "orchestrator"
 
 
@@ -584,7 +535,6 @@ async def _finalize_and_assert_ranking(
 async def test_ranking_matches_are_separate_sequential_checkpointed_tasks(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Every Elo match observes the checkpoint committed by its predecessor."""
     run = store.create_run("Task-level science", "standard", "engine", {})
     node, generator = _seed_ranking_state(run.id, isolated_db)
     _patch_ranking_judge(monkeypatch, generator)
@@ -613,14 +563,8 @@ async def test_ranking_matches_are_separate_sequential_checkpointed_tasks(
 async def test_inflight_pause_checkpoints_exact_successor(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A node finishing after pause commits state but enqueues no next work.
-
-    Bootstrap's own commit already planned `generate` as supervisor's
-    resolvable successor (finding F4's portfolio lookahead), so that row
-    exists before the pause; the pause path itself must still enqueue
-    nothing further, and resume must land on that same pre-planned row
-    rather than create a second one.
-    """
+    # Bootstrap already planned a successor; pause must not add another, and
+    # resume reuses that row.
     run = store.create_run("Task-level science", "standard", "engine", {})
     supervisor = await _advance_to_supervisor(run.id, monkeypatch, isolated_db)
     before_pause = store.list_tasks(run.id, db_path=isolated_db)
@@ -641,8 +585,6 @@ async def test_inflight_pause_checkpoints_exact_successor(
     checkpoint = store.get_latest_checkpoint(run.id, db_path=isolated_db)
     assert checkpoint is not None
     assert checkpoint["state"]["resume_successor"] == "engine.node.generate"
-    # The pause enqueues nothing itself: the task count is unchanged from
-    # before it (bootstrap, supervisor, and the pre-planned generate row).
     assert len(store.list_tasks(run.id, db_path=isolated_db)) == len(
         before_pause
     )
@@ -654,11 +596,7 @@ async def test_inflight_pause_checkpoints_exact_successor(
     assert resumed.id == before_pause[-1].id, "reuses the pre-planned row"
 
 
-# Cancellation and lease races at the durable bootstrap boundary.
-
-
 def _cancel_after_second_run_read(run_id: str, client: Any) -> Any:
-    """Cancel immediately after bootstrap's final pre-running status read."""
     real_get_run = store.get_run
     run_reads = 0
 
@@ -683,7 +621,6 @@ def _cancel_after_second_run_read(run_id: str, client: Any) -> Any:
 async def test_cancel_after_bootstrap_read_cannot_be_overwritten(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Bootstrap's RUNNING write cannot reverse a completed cancellation."""
     from app.config import settings
 
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
@@ -751,7 +688,6 @@ async def test_cancel_during_bootstrap_safety_gate_keeps_cancelled_status(
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A late intake verdict cannot overwrite completed cancellation."""
     from app.config import settings
     from app.safety.types import SafetyDecision
 
@@ -820,7 +756,6 @@ async def test_stale_bootstrap_lease_cannot_apply_intake_stop(
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A late verdict cannot stop a run after an owner-authorized retry."""
     from app.config import settings
     from app.safety.types import SafetyDecision
 
@@ -885,7 +820,6 @@ async def test_stale_bootstrap_lease_cannot_apply_intake_stop(
 async def test_replaced_bootstrap_lease_cannot_prepare_paused_run(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A stale worker cannot prepare or sync a run that is already paused."""
     from app.config import settings
     from app.store import RunStatus
 
@@ -950,9 +884,6 @@ async def test_replaced_bootstrap_lease_cannot_prepare_paused_run(
     )
 
 
-# Cancellation racing with a durable task's checkpoint commit.
-
-
 _OWNER = {"X-Client-ID": "cancel-commit-owner"}
 
 
@@ -998,7 +929,6 @@ def _leased_task(
 async def test_cancel_completed_after_node_status_check_blocks_commit(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A successful cancel cannot be followed by this task's checkpoint."""
     client, run_id = _owned_running_run(isolated_db)
     state = _task_state(run_id)
     task, checkpoint_seq = _leased_task(
@@ -1062,7 +992,6 @@ async def test_cancel_completed_after_node_status_check_blocks_commit(
 async def test_pause_after_node_status_refresh_keeps_successor_unclaimable(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A final-boundary pause checkpoints without making work claimable."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client, run_id = _owned_running_run(isolated_db)
     state = _task_state(run_id)
@@ -1157,7 +1086,6 @@ async def test_pause_after_node_status_refresh_keeps_successor_unclaimable(
 def test_pause_api_serializes_queued_revocation_with_node_commit(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A commit cannot slip between pause's queue and run-state writes."""
     client, run_id = _owned_running_run(isolated_db)
     task, checkpoint_seq = _leased_task(
         run_id, "engine.node.supervisor", "pause-api-transaction", isolated_db
@@ -1231,7 +1159,6 @@ def test_pause_api_serializes_queued_revocation_with_node_commit(
 async def test_cancel_before_review_fanout_transaction_blocks_enqueue(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A canceled review task cannot leave item or aggregate work queued."""
     client, run_id = _owned_running_run(isolated_db)
     task, checkpoint_seq = _leased_task(
         run_id, "engine.node.review", "cancel-review-fanout", isolated_db
@@ -1277,7 +1204,6 @@ async def test_cancel_before_review_fanout_transaction_blocks_enqueue(
 def test_terminal_run_cannot_commit_an_exact_successor(
     isolated_db: str,
 ) -> None:
-    """An otherwise-owned lease cannot publish work for a terminal run."""
     _client, run_id = _owned_running_run(isolated_db)
     task, checkpoint_seq = _leased_task(
         run_id, "engine.ranking.match", "terminal-exact-task", isolated_db
@@ -1309,7 +1235,6 @@ def test_terminal_run_cannot_commit_an_exact_successor(
 def test_old_same_owner_attempt_cannot_commit_after_re_lease(
     isolated_db: str,
 ) -> None:
-    """An explicit retry to the same worker ID revokes the old attempt."""
     _client, run_id = _owned_running_run(isolated_db)
     stale_task, checkpoint_seq = _leased_task(
         run_id, "engine.node.supervisor", "same-owner-re-lease", isolated_db
@@ -1369,7 +1294,6 @@ def test_old_same_owner_attempt_cannot_commit_after_re_lease(
 def test_cancelled_generation_planner_cannot_enqueue_fanout(
     isolated_db: str,
 ) -> None:
-    """Generation's direct plan transaction obeys the same lease guard."""
     client, run_id = _owned_running_run(isolated_db)
     task, checkpoint_seq = _leased_task(
         run_id, "engine.node.generate", "cancel-generation-plan", isolated_db

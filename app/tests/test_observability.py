@@ -1,5 +1,3 @@
-"""Tests for observability."""
-
 from __future__ import annotations
 
 import io
@@ -26,8 +24,6 @@ from tests._client import append_log_row, make_client, make_operator_client
 from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
 
-# Tests for the app logging module: formats, run-id tagging, idempotency.
-
 
 def _record(message: str = "hello") -> logging.LogRecord:
     return logging.LogRecord(
@@ -42,13 +38,9 @@ def _record(message: str = "hello") -> logging.LogRecord:
 
 
 def _restore_default_logging() -> None:
-    """Reinstall the app's default handler so later tests see normal logs."""
     from app.config import settings
 
     configure_logging(settings.log_format)
-
-
-# --- run-id context ----------------------------------------------------------
 
 
 def test_run_log_context_binds_and_restores_run_id() -> None:
@@ -67,9 +59,6 @@ def test_run_id_filter_stamps_context_run_id_onto_records() -> None:
     unscoped = _record()
     RunIdFilter().filter(unscoped)
     assert unscoped.run_id is None  # type: ignore[attr-defined]
-
-
-# --- formatters --------------------------------------------------------------
 
 
 def test_text_formatter_appends_run_id_suffix_only_when_bound() -> None:
@@ -109,9 +98,6 @@ def test_json_formatter_includes_exception_detail() -> None:
     payload = json.loads(JsonFormatter().format(record))
 
     assert "kaboom" in payload["exc_info"]
-
-
-# --- configure_logging -------------------------------------------------------
 
 
 def _cosci_handlers() -> list[logging.Handler]:
@@ -184,16 +170,7 @@ def test_json_handler_redacts_a_byok_key_from_exception_text() -> None:
     assert diagnostic in payload["exc_info"]
 
 
-# --- workflow correlation ----------------------------------------------------
-
-
 def test_workflow_records_carry_the_run_id(isolated_db: str) -> None:
-    """Records logged inside a run's workflow task carry that run's id.
-
-    Uses a list-capturing handler with the RunIdFilter attached (mirroring
-    the configured stdout handler) so the assertion sees exactly what the
-    formatter would.
-    """
 
     class _Capture(logging.Handler):
         def __init__(self) -> None:
@@ -226,17 +203,9 @@ def test_workflow_records_carry_the_run_id(isolated_db: str) -> None:
     assert run_id in tagged
 
 
-# --- LiteLLM logging noise ---------------------------------------------------
-
-
 def test_configure_logging_raises_litellm_loggers_to_warning() -> None:
-    """Root's own INFO level must not let LiteLLM's loggers stay chatty.
-
-    LiteLLM attaches its own handler directly to these loggers, bypassing
-    root entirely, so this must be a level set on the logger itself
-    (perturbed to DEBUG first so the assertion cannot pass on stale
-    module-import state).
-    """
+    # LiteLLM attaches handlers below root; silence dependency chatter at the
+    # logger itself.
     for name in _LITELLM_LOGGER_NAMES:
         logging.getLogger(name).setLevel(logging.DEBUG)
 
@@ -248,11 +217,8 @@ def test_configure_logging_raises_litellm_loggers_to_warning() -> None:
 
 
 def test_configure_logging_does_not_touch_warning_and_above() -> None:
-    """The fix silences chatter, not genuine trouble reports.
-
-    Matches ``UNPERSISTED_LOGGERS``'s own boundary: WARNING+ must still
-    reach a handler, since that is what says a dependency is in trouble.
-    """
+    # Dependency WARNING and ERROR remain visible because they indicate genuine
+    # provider trouble.
     configure_logging()
     litellm_logger = logging.getLogger("LiteLLM")
 
@@ -262,23 +228,15 @@ def test_configure_logging_does_not_touch_warning_and_above() -> None:
 
 
 def test_configure_logging_suppresses_litellms_debug_print_banner() -> None:
-    """The "Provider List" banner is a plain print(), not a log record.
-
-    ``litellm.suppress_debug_info`` is the only switch guarding it
-    (litellm's ``get_llm_provider_logic.py``), so the logger-level fix
-    above leaves it printing unless this flag is also set.
-    """
+    # The provider banner is print(), so logger levels alone cannot suppress it.
     import litellm
 
-    litellm.suppress_debug_info = False  # perturb first
+    litellm.suppress_debug_info = False
 
     configure_logging()
 
     assert litellm.suppress_debug_info is True
     _restore_default_logging()
-
-
-# Tests for the persisted-logs endpoints (/api/logs, /api/runs/{id}/logs).
 
 
 def _logs_endpoint_seed(
@@ -360,8 +318,6 @@ def test_logs_endpoint_total_counts_beyond_limit(isolated_db: str) -> None:
     for i in range(5):
         _logs_endpoint_seed(isolated_db, f"line {i}")
     body = make_operator_client().get("/api/logs", params={"limit": 2}).json()
-    # The window is capped, but `total` reports every matching row so the
-    # UI badge can show the true table size.
     assert len(body["logs"]) == 2
     assert body["total"] == 5
 
@@ -376,7 +332,6 @@ def test_logs_endpoint_total_respects_filters_not_cursor(
     client = make_operator_client()
     body = client.get("/api/logs", params={"min_level": "warning"}).json()
     assert body["total"] == 1
-    # `after_id` is a paging cursor; it must not shrink the total.
     body = client.get("/api/logs", params={"after_id": cursor}).json()
     assert body["logs"] == []
     assert body["total"] == 2
@@ -390,21 +345,15 @@ def test_logs_endpoint_session_total_follows_the_cursor(
     _logs_endpoint_seed(isolated_db, "after the cursor")
     client = make_operator_client()
 
-    # Filtered to the seeded rows: log capture writes the app's own
-    # startup records from a background thread, so an unfiltered count
-    # here would race it.
     body = client.get(
         "/api/logs", params={"after_id": cursor, "q": "cursor"}
     ).json()
     assert [row["message"] for row in body["logs"]] == ["after the cursor"]
-    # Two counts of the same filtered set, differing only in the cursor:
-    # `total` is the whole matching set, `session_total` only what this
-    # poller's anchor has seen. A UI counting its own slice reads the
-    # latter, so rows deleted below the anchor cannot drive it negative.
+    # Compute cursor counts directly; deletion below anchors makes subtraction
+    # invalid.
     assert body["total"] == 3
     assert body["session_total"] == 1
 
-    # Filters narrow both counts; only the cursor separates them.
     body = client.get("/api/logs", params={"q": "at the"}).json()
     assert body["total"] == 1
     assert body["session_total"] == 1
@@ -420,12 +369,9 @@ def test_logs_endpoint_hides_noise_by_default(isolated_db: str) -> None:
         level="ERROR",
         levelno=logging.ERROR,
     )
-    # MCP availability probes repeat on every /status poll: noise too.
     _seed_from(
         isolated_db, "co_scientist.mcp_client", "initializing MCP client"
     )
-    # The engine's per-call INFO (hundreds per run) is hidden, but a real
-    # engine WARNING still surfaces.
     _seed_from(
         isolated_db,
         "co_scientist.evidence.search",
@@ -440,9 +386,6 @@ def test_logs_endpoint_hides_noise_by_default(isolated_db: str) -> None:
     )
     client = make_operator_client()
 
-    # Default: high-volume chatter (HTTP access, clicks, navigation,
-    # dependency loggers, engine per-call INFO) is hidden below WARNING;
-    # warnings and errors always show.
     body = client.get("/api/logs").json()
     assert [row["message"] for row in body["logs"]] == [
         "run started",
@@ -451,7 +394,6 @@ def test_logs_endpoint_hides_noise_by_default(isolated_db: str) -> None:
     ]
     assert body["total"] == 3
 
-    # verbose=1 opts back into the full stream.
     body = client.get("/api/logs", params={"verbose": "1"}).json()
     assert [row["message"] for row in body["logs"]] == [
         "run started",
@@ -497,7 +439,6 @@ def test_delete_logs_clears_and_restarts_ids(isolated_db: str) -> None:
     body = client.get("/api/logs").json()
     assert body["logs"] == []
     assert body["last_id"] == 0
-    # Records after a clear restart at id 1: the log reads as brand new.
     assert _logs_endpoint_seed(isolated_db, "fresh") == 1
 
 
@@ -522,7 +463,6 @@ def test_post_logs_ingests_ui_records(isolated_db: str) -> None:
     assert body["added"] == 2
     rows = client.get("/api/logs").json()["logs"]
     by_message = {row["message"]: row for row in rows}
-    # Client records are namespaced under ui.* so their origin is obvious.
     assert by_message["clicked start"]["logger"] == "ui.session"
     assert by_message["clicked start"]["level"] == "INFO"
     assert by_message["stream dropped"]["logger"] == "ui.stream"
@@ -552,12 +492,8 @@ def test_post_logs_caps_batch_and_truncates_messages(
     assert len(rows[0]["message"]) == 2000
 
 
-# Tests for the persisted-log access controls.
-#
-# The app-wide log carries other tenants' research goals, run activity, and
-# server internals, so a remote caller must only ever see records that are
-# theirs. Operators (loopback, or a configured admin token) keep the
-# app-wide view the CLI needs.
+# Shared logs contain other tenants and server internals; remote reads need
+# ownership or operator access.
 
 
 def _security_seed(
@@ -589,14 +525,10 @@ def test_records_are_scoped_to_the_owning_client(isolated_db: str) -> None:
         filters=store.LogFilters(scope_client_id="alice"), db_path=isolated_db
     )
     messages = [r["message"] for r in rows]
-    # Own run records and own ingested records, nothing else -- not
-    # another tenant's, and not un-owned server internals.
     assert "alice run record" in messages
     assert "alice ui record" in messages
     assert "bob ui record" not in messages
     assert "server startup record" not in messages
-    # Creating the run also logged alice's own lifecycle stage record,
-    # so assert the invariant rather than a fixed number.
     assert store.count_logs(
         filters=store.LogFilters(scope_client_id="alice"), db_path=isolated_db
     ) == len(rows)
@@ -618,10 +550,8 @@ def test_clear_can_be_scoped_to_one_client(isolated_db: str) -> None:
     assert remaining == ["bob ui record"]
 
 
-# --------------------------------------------------------------------------
-# Endpoint access control. TestClient requests report a non-loopback host,
-# so they exercise the remote path unless an admin token is supplied.
-# --------------------------------------------------------------------------
+# TestClient reports a non-loopback host, exercising remote policy unless an
+# operator token is supplied.
 
 
 def _admin_token(monkeypatch: pytest.MonkeyPatch, token: str) -> None:
@@ -659,7 +589,6 @@ def test_admin_token_grants_the_app_wide_view(
 
     body = client.get("/api/logs", headers={"X-Logs-Token": "s3cret"}).json()
     assert len(body["logs"]) == 2
-    # A wrong token must not fall back to the app-wide view.
     body = client.get("/api/logs", headers={"X-Logs-Token": "nope"}).json()
     assert body["logs"] == []
 
@@ -693,7 +622,6 @@ def test_ingested_records_are_stamped_with_the_caller(
         filters=store.LogFilters(scope_client_id="alice"), db_path=isolated_db
     )
     assert [r["message"] for r in rows] == ["alice clicked"]
-    # And it is not visible to another tenant.
     assert (
         store.list_logs(
             filters=store.LogFilters(scope_client_id="bob"), db_path=isolated_db
@@ -719,8 +647,6 @@ def test_ingestion_strips_control_characters(isolated_db: str) -> None:
     row = store.list_logs(
         filters=store.LogFilters(scope_client_id="alice"), db_path=isolated_db
     )[0]
-    # Newlines and tabs would let a submitted message forge extra lines
-    # in the CLI's tab-delimited output.
     assert "\n" not in row["message"]
     assert "\t" not in row["message"]
     assert "\n" not in row["logger"]
@@ -741,9 +667,6 @@ def test_ingestion_is_rate_limited(isolated_db: str) -> None:
     assert last is not None and last.status_code == 429
 
 
-# API tests for the run execution-metrics sub-resource.
-
-
 _METRIC_FIELDS = (
     "total_time",
     "hypothesis_count",
@@ -754,14 +677,8 @@ _METRIC_FIELDS = (
     "phase_times",
 )
 
-# The offline backend renders byte-identical content for byte-identical
-# prompts, but each run's prompts are shaped by that run's own (genuinely
-# random) hypothesis ids, so whether evolution's near-duplicate guard accepts
-# or rejects a refinement is a real per-run draw -- on express tier's small
-# post-dedup pool, occasionally every attempt is rejected and the run
-# completes having evolved nothing. A handful of independent, freshly seeded
-# runs (never reusing one) makes that rare draw a non-issue without
-# weakening what the final assertions check.
+# Random hypothesis ids shape prompts; offline duplicate rejection can
+# legitimately produce no evolved child.
 _MAX_RUN_ATTEMPTS = 5
 
 
@@ -784,17 +701,6 @@ def test_metrics_null_before_finalize(isolated_db: str) -> None:
 
 
 def _run_to_completion(client: TestClient, goal: str) -> dict[str, Any]:
-    """Create, start, and wait out one express-tier run; return its metrics.
-
-    Args:
-        client: API client to drive the run through.
-        goal: Research goal for this run; callers vary it across attempts so
-            each retry is a genuinely distinct run rather than a replay.
-
-    Returns:
-        The completed run's execution-metrics payload (never None: the run
-        reached "completed", which only happens after finalize persists it).
-    """
     created = client.post(
         "/api/runs", json={"research_goal": goal, "tier": "express"}
     )
@@ -811,16 +717,6 @@ def _run_to_completion(client: TestClient, goal: str) -> dict[str, Any]:
 def test_completed_run_serves_engine_metrics(
     isolated_db: str,
 ) -> None:
-    """A completed offline engine run persists real execution metrics.
-
-    The engine records metrics from its own instrumentation (LLM calls, phase
-    timings, node counts) rather than a mock formula, so the assertions here
-    are on the metrics being present, well-formed, and internally consistent
-    with the run having done real work -- not on a reconstructed identity with
-    the store's summary counts. Own setup: this test seeds and completes its
-    own run(s) here rather than depending on any run created elsewhere in
-    this module, so it is reachable by name and order-independent.
-    """
     client = _client()
     metrics: dict[str, Any] | None = None
     for attempt in range(_MAX_RUN_ATTEMPTS):
@@ -833,8 +729,6 @@ def test_completed_run_serves_engine_metrics(
     assert metrics is not None
     for field in _METRIC_FIELDS:
         assert field in metrics
-    # A real engine run generated hypotheses, ran the tournament, evolved, and
-    # made LLM calls; the recorded counts must all reflect that work.
     assert metrics["hypothesis_count"] >= 1
     assert metrics["tournaments_count"] >= 1
     assert metrics["evolutions_count"] > 0

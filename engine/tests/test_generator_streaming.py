@@ -1,5 +1,3 @@
-"""Offline contracts for generator streaming."""
-
 from __future__ import annotations
 
 from typing import Any, cast
@@ -32,7 +30,6 @@ from tests._state import collect_stream_events, make_article, make_hypothesis
 async def testprepare_task_state_populates_core_config(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Initial state carries the configured model names and counts."""
     stub_mcp_availability(monkeypatch, available=False)
     gen = HypothesisGenerator(
         model_name="m",
@@ -62,7 +59,6 @@ async def testprepare_task_state_populates_core_config(
 async def testprepare_task_state_generates_run_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A run_id is auto-generated and threaded into the state when absent."""
     stub_mcp_availability(monkeypatch, available=False)
     gen = HypothesisGenerator()
     state = await gen.prepare_task_state("goal")
@@ -72,7 +68,6 @@ async def testprepare_task_state_generates_run_id(
 async def testprepare_task_state_honors_explicit_run_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A caller-supplied run_id is used verbatim."""
     stub_mcp_availability(monkeypatch, available=False)
     gen = HypothesisGenerator()
     state = await gen.prepare_task_state("goal", run_id="fixed-id")
@@ -82,14 +77,12 @@ async def testprepare_task_state_honors_explicit_run_id(
 async def testprepare_task_state_passes_through_opts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Optional preferences/constraints and user inputs land in the state."""
     stub_mcp_availability(monkeypatch, available=False)
     gen = HypothesisGenerator()
     opts = {
         "preferences": "pref-X",
         "attributes": ["attr-Y"],
         "constraints": ["cons-Z"],
-        # K5: the interview's lab constraints thread opts -> state -> prompts.
         "lab_constraints": ["zebrafish only"],
         "user_inputs": {
             "starting_hypotheses": ["h1"],
@@ -108,7 +101,6 @@ async def testprepare_task_state_passes_through_opts(
 async def testprepare_task_state_opt_defaults(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Omitted optional fields default to None / empty / False."""
     stub_mcp_availability(monkeypatch, available=False)
     gen = HypothesisGenerator()
     state = await gen.prepare_task_state("goal")
@@ -125,7 +117,6 @@ async def testprepare_task_state_opt_defaults(
 async def testprepare_task_state_dev_isolation_flag(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The dev lit-tools isolation flag is passed through to the state."""
     stub_mcp_availability(monkeypatch, available=False)
     gen = HypothesisGenerator()
     state = await gen.prepare_task_state(
@@ -137,11 +128,8 @@ async def testprepare_task_state_dev_isolation_flag(
 async def testprepare_task_state_reads_dev_mode_env_into_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """COSCIENTIST_DEV_MODE is read here, at the boundary, and put in state.
-
-    The literature review node consumes ``dev_mode`` from state, so this is
-    the one place the env var is allowed to enter a run.
-    """
+    """Environment configuration enters at the run boundary, not inside node
+    execution."""
     stub_mcp_availability(monkeypatch, available=False)
     monkeypatch.setenv("COSCIENTIST_DEV_MODE", "true")
     gen = HypothesisGenerator()
@@ -152,7 +140,6 @@ async def testprepare_task_state_reads_dev_mode_env_into_state(
 async def testprepare_task_state_dev_mode_opt_overrides_env(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A per-run dev_mode opt beats the session-wide env var, either way."""
     stub_mcp_availability(monkeypatch, available=False)
     monkeypatch.setenv("COSCIENTIST_DEV_MODE", "true")
     gen = HypothesisGenerator()
@@ -167,7 +154,6 @@ async def testprepare_task_state_dev_mode_opt_overrides_env(
 async def testprepare_task_state_dev_mode_defaults_off(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """With neither an opt nor the env var, a run is not in dev mode."""
     stub_mcp_availability(monkeypatch, available=False)
     monkeypatch.delenv("COSCIENTIST_DEV_MODE", raising=False)
     gen = HypothesisGenerator()
@@ -175,13 +161,9 @@ async def testprepare_task_state_dev_mode_defaults_off(
     assert state["dev_mode"] is False
 
 
-# --- prepare_task_state: MCP detection & graph selection --------------------
-
-
 async def test_mcp_available_enables_lit_review_graph(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """When MCP is available the auto-detected graph includes lit review."""
     stub_mcp_availability(monkeypatch, available=True)
     gen = HypothesisGenerator()
     state = await gen.prepare_task_state("goal")
@@ -194,7 +176,6 @@ async def test_mcp_available_enables_lit_review_graph(
 async def test_mcp_unavailable_uses_simplified_graph(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Without MCP, lit review is dropped and flags reflect unavailability."""
     stub_mcp_availability(monkeypatch, available=False)
     gen = HypothesisGenerator()
     state = await gen.prepare_task_state("goal")
@@ -206,7 +187,6 @@ async def test_mcp_unavailable_uses_simplified_graph(
 async def test_mcp_availability_cached_per_instance(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """MCP probes run once; the cached result persists across calls."""
     calls = {"n": 0}
 
     async def counting(**_: Any) -> bool:
@@ -222,7 +202,6 @@ async def test_mcp_availability_cached_per_instance(
     await gen.prepare_task_state("goal")
     after_first = calls["n"]
     await gen.prepare_task_state("goal again")
-    # No additional probe calls on the second preparation.
     assert calls["n"] == after_first
     assert gen._mcp_available is True
 
@@ -230,7 +209,6 @@ async def test_mcp_availability_cached_per_instance(
 async def test_explicit_disable_skips_mcp_probe(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Explicitly disabling lit review avoids invoking the MCP probes."""
 
     async def explode(**_: Any) -> bool:
         raise AssertionError("MCP probe should not be called")
@@ -252,7 +230,6 @@ async def test_explicit_disable_skips_mcp_probe(
 async def test_tool_calling_honored_when_mcp_available(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Tool-calling generation stays on when MCP + lit review are available."""
     stub_mcp_availability(monkeypatch, available=True)
     gen = HypothesisGenerator()
     state = await gen.prepare_task_state(
@@ -264,7 +241,6 @@ async def test_tool_calling_honored_when_mcp_available(
 async def test_tool_calling_disabled_when_mcp_unavailable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Tool-calling generation is silently disabled when MCP is unavailable."""
     stub_mcp_availability(monkeypatch, available=False)
     gen = HypothesisGenerator()
     state = await gen.prepare_task_state(
@@ -276,15 +252,6 @@ async def test_tool_calling_disabled_when_mcp_unavailable(
 async def test_tool_calling_with_lit_disabled_does_not_raise(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Tool calling + explicit lit-review-off degrades gracefully (no raise).
-
-    Note: ``prepare_task_state`` documents a ValueError for this combination,
-    but explicitly disabling the literature review forces ``mcp_available`` to
-    False *before* the tool-calling validation runs, so the MCP-unavailable
-    branch always fires first and the ValueError branch is never reached. This
-    asserts the observed graceful-disable behavior rather than the documented
-    raise.
-    """
     stub_mcp_availability(monkeypatch, available=True)
     gen = HypothesisGenerator()
     state = await gen.prepare_task_state(
@@ -298,21 +265,11 @@ async def test_tool_calling_with_lit_disabled_does_not_raise(
     assert state["mcp_available"] is False
 
 
-# --- E11a: tool-calling generation is opt-in, even where tools exist ---
-
-
 async def test_tool_calling_off_by_default_when_tools_available(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Available tools are not on their own a request for the agentic path.
-
-    The draft agent spends one LLM round-trip per tool call and re-sends
-    every prior result, so it costs roughly nine calls per hypothesis on
-    prompts that grow past 12k tokens -- per hypothesis, per cycle. Live
-    telemetry had it as the largest single line in an express run's token
-    budget. Availability decides whether it *can* run; the caller decides
-    whether it *should*, and the app opts in only for the deep tiers.
-    """
+    """Availability is not opt-in: tool transcripts multiply cost per
+    hypothesis and cycle."""
     stub_mcp_availability(monkeypatch, available=True)
     gen = HypothesisGenerator()
     state = await gen.prepare_task_state("goal")
@@ -322,12 +279,6 @@ async def test_tool_calling_off_by_default_when_tools_available(
 async def test_tool_calling_opt_in_survives_prepare_task_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The durable-task entry point carries an explicit opt-in through.
-
-    ``prepare_task_state`` is the exact call the app's durable executor
-    makes before enqueueing node tasks, so the flag it writes decides
-    whether the generation fan-out allocates the tool-based strategy.
-    """
     stub_mcp_availability(monkeypatch, available=True)
     gen = HypothesisGenerator()
     state = await gen.prepare_task_state(
@@ -339,7 +290,6 @@ async def test_tool_calling_opt_in_survives_prepare_task_state(
 async def test_tool_calling_explicit_opt_out_honored(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An explicit False opts out even when tools are available."""
     stub_mcp_availability(monkeypatch, available=True)
     gen = HypothesisGenerator()
     state = await gen.prepare_task_state(
@@ -351,7 +301,6 @@ async def test_tool_calling_explicit_opt_out_honored(
 async def test_tool_calling_stays_off_by_default_without_mcp(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Without MCP there are no literature tools, so the default is off."""
     stub_mcp_availability(monkeypatch, available=False)
     gen = HypothesisGenerator()
     state = await gen.prepare_task_state("goal")
@@ -361,12 +310,8 @@ async def test_tool_calling_stays_off_by_default_without_mcp(
 async def test_tool_calling_forced_off_for_offline_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Offline runs keep the plain deterministic path even with MCP.
-
-    The offline responder never emits tool calls, so a tool loop would
-    "finish" on its first canned reply and fail parsing; the capability
-    default must not admit that.
-    """
+    """The offline responder emits no tool calls; a tool-loop reply cannot
+    satisfy its parser."""
     from co_scientist.offline.llm import DEFAULT_OFFLINE_MODEL
 
     stub_mcp_availability(monkeypatch, available=True)
@@ -374,7 +319,6 @@ async def test_tool_calling_forced_off_for_offline_model(
     state = await gen.prepare_task_state("goal")
     assert state["enable_tool_calling_generation"] is False
 
-    # An explicit request cannot override the offline backend either.
     gen2 = HypothesisGenerator(model_name=DEFAULT_OFFLINE_MODEL)
     state2 = await gen2.prepare_task_state(
         "goal", opts={"enable_tool_calling_generation": True}
@@ -382,11 +326,7 @@ async def test_tool_calling_forced_off_for_offline_model(
     assert state2["enable_tool_calling_generation"] is False
 
 
-# --- _merge_node_state_into_cumulative --------------------------------------
-
-
 def test_merge_copies_streamed_keys_last_write_wins() -> None:
-    """Plain streamed keys are copied verbatim, overwriting prior values."""
     cumulative = _initial_cumulative_stream_state()
     hyp = make_hypothesis("h1")
     _merge_node_state_into_cumulative(
@@ -417,7 +357,6 @@ def test_merge_copies_streamed_keys_last_write_wins() -> None:
 
 
 def test_merge_ignores_keys_absent_from_node_state() -> None:
-    """Keys not present in the node update leave cumulative state untouched."""
     cumulative = _initial_cumulative_stream_state()
     original_hypotheses = cumulative["hypotheses"]
     _merge_node_state_into_cumulative(cumulative, {})
@@ -426,18 +365,15 @@ def test_merge_ignores_keys_absent_from_node_state() -> None:
 
 
 def test_merge_renames_supervisor_guidance_to_research_plan() -> None:
-    """``supervisor_guidance`` is copied under the ``research_plan`` key."""
     cumulative = _initial_cumulative_stream_state()
     _merge_node_state_into_cumulative(
         cumulative, {"supervisor_guidance": {"plan": "do X"}}
     )
     assert cumulative["research_plan"] == {"plan": "do X"}
-    # The source key itself is not added to cumulative state.
     assert "supervisor_guidance" not in cumulative
 
 
 def test_merge_merges_metrics_instead_of_replacing() -> None:
-    """``metrics`` updates are merged (summed) rather than overwritten."""
     cumulative = _initial_cumulative_stream_state()
     cumulative["metrics"] = ExecutionMetrics(llm_calls=2, reviews_count=1)
     _merge_node_state_into_cumulative(
@@ -451,7 +387,6 @@ def test_merge_merges_metrics_instead_of_replacing() -> None:
 
 
 def test_merge_handles_multiple_keys_in_one_update() -> None:
-    """A single node update touching several streamed keys merges all."""
     cumulative = _initial_cumulative_stream_state()
     hyp = make_hypothesis("multi")
     _merge_node_state_into_cumulative(
@@ -467,11 +402,7 @@ def test_merge_handles_multiple_keys_in_one_update() -> None:
     assert cumulative["metrics"].llm_calls == 1
 
 
-# --- _initial_cumulative_stream_state ---------------------------------------
-
-
 def test_initial_cumulative_stream_state_seeds_every_field() -> None:
-    """The seed state has empty/zero defaults for every streamed field."""
     state = _initial_cumulative_stream_state()
     assert state["hypotheses"] == []
     assert state["meta_review"] == {}
@@ -487,11 +418,7 @@ def test_initial_cumulative_stream_state_seeds_every_field() -> None:
     assert state["debate_transcripts"] is None
 
 
-# --- _build_stream_state_dict ------------------------------------------------
-
-
 def test_build_stream_state_dict_serializes_hypotheses_and_articles() -> None:
-    """Hypotheses/articles are serialized via ``to_dict``; metrics flattened."""
     cumulative = _initial_cumulative_stream_state()
     hyp = make_hypothesis("h1", score=3.5)
     cumulative["hypotheses"] = [hyp]
@@ -526,7 +453,6 @@ def test_build_stream_state_dict_serializes_hypotheses_and_articles() -> None:
 
 
 def test_build_stream_state_dict_includes_all_streamed_keys() -> None:
-    """Every key in ``_STREAMED_STATE_KEYS`` is present in the payload."""
     cumulative = _initial_cumulative_stream_state()
     result = _build_stream_state_dict(cumulative)
     for key in (
@@ -544,18 +470,7 @@ def test_build_stream_state_dict_includes_all_streamed_keys() -> None:
         assert key in result
 
 
-# --- _build_generation_result ------------------------------------------------
-
-
 def _make_final_state(**overrides: Any) -> WorkflowState:
-    """Builds a minimal final-state dict for ``_build_generation_result``.
-
-    Args:
-        **overrides: Fields to override on top of the minimal defaults.
-
-    Returns:
-        A dict shaped like the fields ``_build_generation_result`` reads.
-    """
     base: dict[str, Any] = {
         "hypotheses": [make_hypothesis("final h")],
         "metrics": ExecutionMetrics(
@@ -572,7 +487,6 @@ def _make_final_state(**overrides: Any) -> WorkflowState:
 
 
 def test_build_generation_result_shapes_full_state() -> None:
-    """A final state with every optional field populated is fully shaped."""
     final_state = _make_final_state(
         meta_review={"summary": "s"},
         research_overview={"o": 1},
@@ -603,7 +517,6 @@ def test_build_generation_result_shapes_full_state() -> None:
 
 
 def test_build_generation_result_defaults_missing_optional_fields() -> None:
-    """Optional final-state fields missing entirely default sensibly."""
     final_state = _make_final_state()
     result = _build_generation_result(final_state, execution_time=1.0)
 
@@ -639,22 +552,7 @@ def test_an_omitted_option_is_not_a_request() -> None:
     )
 
 
-# The node execution order for one max_iterations=1 run in LLM-only mode
-# (literature_review/reflection are absent -- see tests/test_generator.py's
-# _SIMPLE_NODES). One full pass through generate/review/ranking reaches the
-# orchestrator, which schedules one evolve cycle, then a proximity refresh,
-# then terminates (converged) into research_overview. Deep verification
-# follows every ranking pass, probing the tournament's leaders (audit E9).
-# The orchestrator is the loop point that appears before each routed phase.
-#
-# Each tournament is followed by a second ranking pass: this pool holds two
-# rankable ideas, so one pairing leaves both at one match of the
-# TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS the tournament's coverage floor asks
-# for, and the orchestrator's owed-coverage check settles the shortfall before
-# moving on. The settlement round re-enters through safety_screen and ranking
-# like any other routed ranking phase. It fires once per tournament, not
-# repeatedly: settling brings the pool to the minimum, which closes the
-# settlement episode.
+# Owed coverage adds one settlement pass after a two-idea tournament.
 _EXPECTED_NODE_SEQUENCE = [
     "supervisor",
     "generate",
@@ -680,37 +578,21 @@ _EXPECTED_NODE_SEQUENCE = [
     "orchestrator",
     "research_overview",
 ]
-# The second tournament needs no settlement round of its own, because the run
-# is charged for matches judged rather than for rounds offered
-# (``ranking_results._ranking_metrics_update``). The two-idea passes are
-# unaffected either way -- a two-idea pool holds exactly one pair, so they
-# judge one match whichever number is charged. The difference lands on the
-# third pass, over the evolved four-idea pool: charged for offered rounds it
-# arrived with 4 of the 6-round budget already spent, judged the 2 that were
-# left, and still owed coverage -- which bought a fourth ranking phase for one
-# more match. Charged for matches judged it arrives with 2 spent, judges 4 at
-# once, and closes the shortfall inside the tournament. Measured: 27 nodes /
-# 5 matches / 7 charged before, 23 nodes / 6 matches / 6 charged after.
+# Charge judged matches, not offered rounds, to avoid an unnecessary later
+# settlement.
 
 
 def _assert_public_hypothesis_shape(hyp: dict[str, Any]) -> None:
-    """A serialized hypothesis is a plain dict with the public fields."""
     assert isinstance(hyp, dict)
     assert hyp["text"]
     assert isinstance(hyp["reviews"], list) and hyp["reviews"]
     assert hyp["elo_rating"] != 0
-    # Lineage fields are part of the public serialized shape.
     assert "parent_id" in hyp and "origin" in hyp
 
 
 def _assert_streaming_final_state(
     events: list[tuple[str, dict[str, Any]]],
 ) -> None:
-    """The final yielded state matches the non-streaming shape invariants.
-
-    The pool grew to 4: 2 generation-0 parents plus 2 appended evolution
-    children.
-    """
     node_name, final_state = events[-1]
     assert node_name == "research_overview"
     assert len(final_state["hypotheses"]) == 4
@@ -728,7 +610,6 @@ def _assert_streaming_final_state(
 async def test_generate_hypotheses_non_streaming_result_shape(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """``stream=False`` returns a single, fully-populated result dict."""
     install_fake_llm(monkeypatch)
     gen = make_test_generator()
 
@@ -740,20 +621,17 @@ async def test_generate_hypotheses_non_streaming_result_shape(
 
     hypotheses = result["hypotheses"]
     assert isinstance(hypotheses, list)
-    # 2 generation-0 parents plus 2 appended evolution children.
     assert len(hypotheses) == 4
     assert sorted(h["generation"] for h in hypotheses) == [0, 0, 1, 1]
     for hyp in hypotheses:
         _assert_public_hypothesis_shape(hyp)
-    # Deep verification runs on the top-k by Elo, so at least the top-ranked
-    # hypotheses carry a verdict.
     verdicts = [h["deep_verification_verdict"] for h in hypotheses]
     assert verdicts.count("holds") >= 1
 
     assert result["meta_review"]["summary"]
     assert result["research_overview"]["overview"]
     assert result["research_overview"]["nih_specific_aims"]
-    assert result["research_plan"]  # supervisor guidance, renamed
+    assert result["research_plan"]
     assert result["tournament_matchups"]
     assert result["evolution_details"]
     assert result["execution_time"] >= 0
@@ -770,7 +648,6 @@ async def test_generate_hypotheses_non_streaming_result_shape(
 async def test_generate_hypotheses_streaming_event_progression(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """``stream=True`` yields nodes in graph order with growing state."""
     install_fake_llm(monkeypatch)
     gen = make_test_generator()
 
@@ -780,42 +657,29 @@ async def test_generate_hypotheses_streaming_event_progression(
 
     assert [name for name, _ in events] == _EXPECTED_NODE_SEQUENCE
 
-    # Right after "generate", the cumulative state already carries the
-    # full initial hypothesis pool (as serialized dicts).
     generate_state = dict(events)["generate"]
     assert len(generate_state["hypotheses"]) == 2
     assert all(isinstance(h, dict) for h in generate_state["hypotheses"])
 
-    # The first "ranking" pass has already recorded tournament matchups.
     first_ranking_state = events[6][1]
     assert events[6][0] == "ranking"
     assert first_ranking_state["tournament_matchups"]
 
-    # "meta_review" carries a populated meta_review payload from that
-    # point on.
     meta_review_state = dict(events)["meta_review"]
     assert meta_review_state["meta_review"]["summary"]
 
-    # The stream is strictly cumulative: current_iteration never resets
-    # across the run once proximity has incremented it.
     iterations = [state["current_iteration"] for _, state in events]
     assert iterations == sorted(iterations)
     assert iterations[-1] == 1
 
-    # Final yielded state (after research_overview) matches the shape and
-    # content invariants of the non-streaming result.
     _assert_streaming_final_state(events)
 
 
 async def test_streaming_and_non_streaming_agree_on_final_shape(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Both modes settle on the same cumulative counts for equal configs.
-
-    The two runs use independent fake-LLM content (a shared, ever-incrementing
-    counter backs every stub string), so hypothesis text differs between them;
-    this asserts structural agreement, not byte-for-byte equality.
-    """
+    """Independent fake runs draw different text from one global counter;
+    compare structure."""
     install_fake_llm(monkeypatch)
 
     non_streaming_result = await make_test_generator().generate_hypotheses(
@@ -863,12 +727,8 @@ def _make() -> HypothesisGenerator:
 
 
 def _pre_orchestrator_index(states: list[dict[str, Any]]) -> int:
-    """Return the first full state right before the orchestrator runs.
-
-    That boundary has every hypothesis reviewed and a tournament recorded, but
-    no scheduling decision yet (``next_task`` is None). Resuming from it
-    re-enters the orchestrator for the first time — no completed node re-runs.
-    """
+    """This boundary resumes before scheduling without rerunning completed
+    nodes."""
     for i, s in enumerate(states):
         hyps = s.get("hypotheses") or []
         if (
@@ -884,7 +744,6 @@ def _pre_orchestrator_index(states: list[dict[str, Any]]) -> int:
 async def _stream_states(
     gen: HypothesisGenerator, goal: str
 ) -> list[dict[str, Any]]:
-    """Run the graph in values mode, returning every full post-node state."""
     initial = await gen.prepare_task_state(
         goal, opts={"enable_literature_review_node": False}
     )
@@ -900,19 +759,14 @@ async def _stream_states(
 def _assert_preserves_and_completes(
     boundary: dict[str, Any], final: dict[str, Any]
 ) -> None:
-    """Assert resume preserved the checkpointed pool and completed cleanly."""
     boundary_by_id = {h.id: h for h in boundary["hypotheses"]}
     final_ids = [h.id for h in final["hypotheses"]]
 
-    # No duplicated hypotheses.
     assert len(final_ids) == len(set(final_ids))
-    # Every checkpointed hypothesis survives byte-for-byte (id + text).
     for hyp in final["hypotheses"]:
         if hyp.id in boundary_by_id:
             assert hyp.text == boundary_by_id[hyp.id].text
-    # Nothing checkpointed was lost.
     assert set(boundary_by_id) <= set(final_ids)
-    # The resumed run reached a proper terminal state.
     assert final.get("termination_reason")
     assert final.get("research_overview")
 
@@ -920,14 +774,12 @@ def _assert_preserves_and_completes(
 async def test_resume_preserves_checkpointed_pool_and_completes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Interrupt at a safe boundary, resume in a rebuilt generator, complete."""
     install_fake_llm(monkeypatch)
 
     states = await _stream_states(_make(), "Explain how protein X folds")
     boundary = states[_pre_orchestrator_index(states)]
     checkpoint = serialize_workflow_state(boundary, last_event_seq=10)
 
-    # Simulate a process restart: a fresh generator rebuilds the graph.
     restarted = _make()
     await restarted.prepare_task_state(
         "Explain how protein X folds",
@@ -948,7 +800,6 @@ async def test_resume_preserves_checkpointed_pool_and_completes(
 async def test_double_restart_preserves_pool_and_completes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Two consecutive checkpoint/restore cycles still preserve and complete."""
     install_fake_llm(monkeypatch)
 
     gen = _make()
