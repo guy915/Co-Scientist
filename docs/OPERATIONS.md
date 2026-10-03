@@ -122,3 +122,22 @@ Per-run cache enablement must not mutate process environment or singleton defaul
 an offline demo once disabled caching for later real runs. Cost accounting uses
 measured cache-read rates, and alternative offline-generator comparisons need
 cold caches rather than responses cached by the first generator.
+
+## Queued work and log cursors
+
+Future-due queued tasks keep their worker cohort alive until they become claimable.
+Retention and scoped log clears leave ID gaps: count matching rows after a cursor,
+rather than subtracting cursor IDs.
+
+## Gateway routing and privacy
+
+OpenRouter accepts at most three entries in a models array; free allowances belong
+to individual models. Preserve upstream preference for cache locality rather than
+round-robin hosts. `require_parameters` binds support to the selected host, and
+privacy admission requires verified zero-retention hosts.
+
+## Ranking and steering
+
+Repeatedly judging the sole pair in a two-idea pool adds no evidence and inflates
+Elo. Steering is consumed on observation, so it buys one cycle beyond an exhausted
+ceiling to incorporate the input before marking it applied.

@@ -165,6 +165,8 @@ def install_fake_llm(monkeypatch: pytest.MonkeyPatch) -> None:
     install_fake_backend(
         monkeypatch,
         _fake_acompletion,
+        # Fake answers read schema objects, not the json_object prompt shim.
+        # The gateway downgrade has separate coverage.
         supports_json_schema=lambda _model_name: True,
     )
     monkeypatch.setenv("COSCIENTIST_CACHE_ENABLED", "false")
