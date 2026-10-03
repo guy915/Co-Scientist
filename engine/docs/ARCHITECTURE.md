@@ -98,7 +98,8 @@ The workflow consists of specialized nodes that handle different aspects of hypo
        └──── [terminate] ────► RESEARCH OVERVIEW ────► END
 ```
 
-A rendered (mermaid) version of the same graph, plus the exact orchestrator routing table (`TASK_ROUTES`), is in [`docs/EXPLAINER.md`](../../docs/EXPLAINER.md) §4.
+The orchestrator routing table is `TASK_ROUTES` in
+`src/co_scientist/workflow_topology.py`.
 
 ### Dynamic orchestration
 

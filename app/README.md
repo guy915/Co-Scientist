@@ -134,7 +134,7 @@ All backend settings are read from `.env` (or environment variables). See `.env.
 The default Space Bunny route pins the Stealth provider, disables provider
 and model fallback, checks the free listing, and enforces a zero-price request
 ceiling. Explicit environment and BYOK model choices remain supported.
-See [security](../SECURITY.md) and [launch guidance](../docs/LAUNCH.md) before
+See [deployment](../docs/DEPLOYMENT.md) and [launch guidance](../docs/LAUNCH.md) before
 hosting the service publicly.
 
 The frontend reads a single variable:

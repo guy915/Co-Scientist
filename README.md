@@ -36,8 +36,8 @@ Generated hypotheses need researcher review and experimental validation.
 - Supervised hypothesis generation, review, Elo ranking, and evolution.
 - Durable, resumable task execution with persisted progress and lineage.
 - Literature retrieval, document attachments, and claim-level evidence assessment.
-- Intake, hypothesis, and final-output safety screening; see the
-  [limitations](docs/FIDELITY.md).
+- Intake, hypothesis, and final-output safety screening. Contextual judgments
+  still need researcher review; offline evaluations do not establish safety.
 - Researcher steering and grounded Q&A during a run.
 - Authenticated hosted access, BYOK credentials, and revocable report sharing.
 - Deterministic offline mode for development without a model API key.
@@ -73,7 +73,7 @@ has its own configuration under `engine/mcp_server/.env`. See
 Run `make help` for all targets.
 
 Before exposing the API, follow [deployment](docs/DEPLOYMENT.md) and
-[security](SECURITY.md), including `AUTH_MODE=required`. Compatibility mode
+[launch guidance](docs/LAUNCH.md), including `AUTH_MODE=required`. Compatibility mode
 uses caller-selected IDs and is intended for local development.
 
 ## Using the workbench
@@ -131,9 +131,10 @@ remain explicit opt-in operations.
 | `PLAN.md` | Active lean campaign plan |
 
 Start with [architecture](docs/ARCHITECTURE.md),
-[the product walkthrough](docs/EXPLAINER.md), and
-[launch readiness](docs/LAUNCH.md). For contributions, see
-[CONTRIBUTING.md](CONTRIBUTING.md).
+[launch readiness](docs/LAUNCH.md), and [contributor guidance](AGENTS.md).
+Report vulnerabilities privately through
+[GitHub security advisories](https://github.com/guy915/Co-Scientist/security/advisories/new)
+or [the maintainer](https://github.com/guy915), excluding credentials and researcher data.
 
 ## License
 

@@ -48,7 +48,7 @@ cd app
 COSCIENTIST_DB_PATH=../coscientist.db ../.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8008
 ```
 
-Do not expose the development stack publicly. See [SECURITY.md](../SECURITY.md)
+Do not expose the development stack publicly. See [launch guidance](LAUNCH.md)
 and [DEPLOYMENT.md](DEPLOYMENT.md) for authenticated hosting.
 
 ## Model and retrieval configuration
