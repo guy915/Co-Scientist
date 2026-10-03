@@ -1000,17 +1000,6 @@ def test_empty_question_id_does_not_collapse_distinct_questions() -> None:
     assert "Which inhibitors target SLC9A1?" in markdown
 
 
-# R12-8: the report header carries the run's own configuration.
-#
-# The MASH Goal Report opens with a ``Research Goal Details`` block --
-# Goal / Requirements / Attributes / Criteria -- before any hypothesis
-# content (``docs/CORPUS-EXTRACTION.md`` R12-8, MASH report L3-40). Our
-# header rendered only the title, a provider line, and an optional summary;
-# requirements, attributes, and criteria are collected by
-# ``run_modes.setup_config`` into the run's persisted ``setup`` block but
-# were never rendered. This pins that the header now surfaces them.
-
-
 def _header_markdown(setup: dict[str, object] | None) -> str:
     """Render a minimal report carrying only the given setup block."""
     return report_markdown.render_report_markdown(
@@ -1222,24 +1211,6 @@ def test_redact_run_goal_clears_the_restatement(isolated_db: str) -> None:
     reloaded = store.get_run(run.id, db_path=isolated_db)
     assert reloaded is not None
     assert reloaded.goal_restatement is None
-
-
-# R12-6: the report renders the run's Knowledge Base.
-#
-# The MASH Goal Report carries a ``Knowledge Base`` section as a two-level
-# heading hierarchy -- named themes, each wrapping the named subject
-# headings that hold the dense prose -- and, notably, zero citations
-# anywhere in the span (``docs/CORPUS-EXTRACTION.md`` R12-6).
-# ``report.content._knowledge_base_topics`` / ``_synthesized_knowledge_base_
-# topics`` already compute this, and it is persisted into the payload and
-# rendered in the React UI, but the markdown renderer never emitted it --
-# computed, paid for, and dropped on this one surface only. This pins that
-# the section now renders as ``## Knowledge Base`` / ``### <theme>`` /
-# ``#### <subject>``, that a themed topic's ``### <theme>`` heading uses
-# the theme's own name, that the flat fallback shape (a topic carrying no
-# theme) falls under ``### Knowledge Summary`` instead, and that the span
-# carries no reference/citation apparatus, matching the published
-# exemplar.
 
 
 def _base_markdown(knowledge_base: list[dict[str, object]]) -> str:

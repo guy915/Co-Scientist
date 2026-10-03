@@ -180,20 +180,8 @@ def test_next_year_is_plausible_for_an_in_press_paper() -> None:
     )
 
 
-# Tests for the live evidence-identifier resolver (fidelity-audit G12).
-#
-# ``offline_resolver`` (app/citations/metadata.py) only ever reads back
-# metadata a
-# source already claimed. These tests cover ``citation_resolver``'s
-# dereference logic in isolation, with the actual HTTP calls stubbed so the
-# suite stays hermetic (no network in CI). The PMID path specifically covers
-# why it goes through NCBI's ESummary API rather than a status-code check
-# against the human-facing PubMed page (see the module docstring): that page
-# returned 403 to a plain client during development regardless of headers,
-# which a status-code-only check would have silently misread as
-# "unresolvable" for every real, reachable article.
-
-
+# PubMed pages can return 403 for reachable articles; resolve PMIDs through
+# NCBI ESummary so access filtering is not mistaken for missing evidence.
 def _recording_reachable(calls: list[str], *, result: bool = True) -> object:
     """A ``_reachable`` stub that records the url it was called with."""
 

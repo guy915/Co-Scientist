@@ -5,24 +5,6 @@ from typing import Any
 from app.report import markdown as report_markdown
 from app.report.markdown.overview import render_research_overview_markdown
 
-# R12-18: the report renders the Supervisor's synthesized evaluation criteria.
-#
-# The published MASH plan carries a "## **2. Evaluation Criteria**" section:
-# goal-specific criteria synthesized for that run, with names like "Kinetic
-# Feasibility and Experimental Readouts" and "Human Data Integration and
-# Accuracy" (``docs/CORPUS-EXTRACTION.md``, MASH body). The Supervisor
-# already synthesizes this list as ``workflow_plan.review_phase.
-# critical_criteria`` and ``prompts/review.py`` already injects it into
-# every reviewer prompt as "Critical Criteria to Emphasize" -- but nothing
-# ever rendered it to the reader. This pins that the markdown export now
-# does, under a heading distinct from the run's user-authored "Criteria"
-# bullet list under "Research Goal Details" (a different, plain-string field
-# from ``run_modes.DEFAULT_CRITERIA`` or the user's own setup -- see the
-# ``report_markdown`` module's vocabulary warning: "Criteria" names two
-# differently-shaped things, one user-authored and one model-synthesized,
-# and conflating them would present the model's synthesis as the user's
-# own setup).
-
 
 def _criteria_markdown(
     critical_criteria: list[Any] | None,
@@ -104,11 +86,6 @@ def test_malformed_criteria_render_no_section() -> None:
 
 
 def test_criteria_render_with_description() -> None:
-    """R12-23b: a criterion carrying prose renders Google's own shape.
-
-    docs/CORPUS-EXTRACTION.md line 2558's section is a bolded name, a
-    colon, then a prose paragraph -- not a bare name bullet.
-    """
     markdown = _criteria_markdown(
         [
             {
@@ -503,18 +480,6 @@ def test_a_bare_string_sub_theme_still_renders() -> None:
     assert "- State every assumption explicitly." in markdown
 
 
-# R12-10: open questions and cross-cutting patterns render in the overview.
-#
-# The MASH Goal Report carries top-level ``Open Questions``, ``Clear
-# Patterns:``, and ``Unexpected Patterns:`` sections
-# (``docs/CORPUS-EXTRACTION.md`` R12-10). The research-overview synthesis --
-# the terminal cross-hypothesis narrative -- is the natural home: Google's own
-# second exemplar (``research-overview.md``, R14-1) lists ``Open questions``
-# beside its research-directions summary in that same document family, one
-# level up from where our ``Unexpected connections``/``Recommendation``
-# sections already live in ``meta_review``.
-
-
 def _questions_markdown(payload: dict[str, object]) -> str:
     """Render the overview payload to a single markdown string."""
     return "\n".join(render_research_overview_markdown(payload))
@@ -572,20 +537,6 @@ def test_a_json_string_open_question_is_flattened() -> None:
 
     assert "What drives X?" in markdown
     assert '{"question"' not in markdown
-
-
-# R12-11: strategic recommendations render as a staged roadmap.
-#
-# The MASH Goal Report's ``9 Recommendation and Strategic Roadmap`` names a
-# primary recommendation, then sequences four named phases each with
-# concrete next steps (``docs/CORPUS-EXTRACTION.md`` R12-11). Our
-# ``strategic_recommendations`` is a flat list of
-# ``{focus_area, recommendation, justification}`` with no phase name,
-# dependency, or ordering field -- so named phases with assays would be
-# invented content the schema cannot support. This is a presentation
-# change only: the first recommendation is distinguished as the primary
-# one and the rest render as a numbered roadmap, matching what the data
-# actually carries.
 
 
 def test_the_section_is_named_recommendation_and_strategic_roadmap() -> None:
@@ -746,23 +697,6 @@ def test_a_report_with_none_of_the_new_fields_is_unaffected() -> None:
     assert "Recommended idea" not in markdown
 
 
-# R12-17: the report renders the Supervisor's synthesized attributes.
-#
-# The published MASH plan prints its run Attributes at the top of the
-# report, as named rating scales: four carrying a 1-5 scale with worked
-# anchor examples, plus one categorical scale with a fixed value set
-# (``docs/CORPUS-EXTRACTION.md`` R12-17, Appendix C). The Supervisor already
-# synthesizes this shape as ``config_synthesis.attributes`` and
-# ``prompts/review.py`` already injects it into every reviewer prompt as
-# "Stratification attributes (score each 1-5)" -- but nothing ever rendered
-# it to the reader. This pins that the markdown export now does, under a
-# heading distinct from the run's user-authored "Attributes" bullet list
-# under "Research Goal Details" (a different, plain-string field -- see the
-# CORPUS-EXTRACTION.md mirror-pass-1 vocabulary warning: "Attributes" names
-# two differently-shaped things in Google's own documents, and conflating
-# them would reproduce the wrong one).
-
-
 def _attributes_markdown(
     attributes: list[dict[str, object]] | None,
     setup: dict[str, object] | None = None,
@@ -847,23 +781,6 @@ def test_distinct_from_the_user_authored_attributes_list() -> None:
     assert "Should be testable in human tissue" in markdown
 
 
-# R12-7: the report surfaces the meta-review's cross-idea connections.
-#
-# The MASH Goal Report carries an ``8 Key Findings and Unexpected Molecular
-# Connections`` section and a top-level ``Unexpected Connections`` section
-# (``docs/CORPUS-EXTRACTION.md`` R12-7). The engine already computes this --
-# ``agents/meta_review/meta_review.py`` produces ``potential_connections`` and
-# ``prompts/_common.py`` re-injects it into downstream prompts -- but
-# ``_META_REVIEW_BULLET_SECTIONS`` never rendered it, so it was paid for and
-# discarded. Google's exemplar entries are not reproduced here: the published
-# four-field shape (Claims/Reasoning/Novelty/Relevance) has no analogue in our
-# schema, which computes ``related_hypotheses`` (short subject labels, e.g.
-# "Fluspirilene (Hypothesis 1)"), ``connection_type``, and
-# ``synthesis_opportunity`` instead -- so this renders those real fields under
-# the published section name rather than inventing novelty/relevance verdicts
-# that were never judged.
-
-
 def test_a_connection_renders_its_related_hypotheses_type_and_opportunity() -> (
     None
 ):
@@ -907,18 +824,6 @@ def test_a_malformed_connection_entry_is_skipped_not_stringified() -> None:
     markdown = _meta_review_markdown({"potential_connections": ["not a dict"]})
 
     assert "not a dict" not in markdown
-
-
-# Task B: 'Unexpected research directions' renders in the overview.
-#
-# MASH's own published exemplar carries a fourth block, ``Unexpected
-# Research Directions``, directly beneath its expanded restatement of the
-# five main directions (``docs/CORPUS-EXTRACTION.md``, .../mash-liver-
-# fibrosis-reversal-therapeutic-hypothesis.md:418) -- three bolded-name-
-# plus-prose bullets naming genuinely novel strategic directions, not a
-# repeat of the main research_directions and not the same thing as
-# ``unexpected_patterns`` (R12-10, a pattern observed across the ideas,
-# not a direction worth pursuing).
 
 
 def _render_unexpected_directions(payload: dict[str, object]) -> str:

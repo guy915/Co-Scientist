@@ -557,23 +557,6 @@ def test_critiques_rollup_renders_nothing_when_absent() -> None:
     assert _render_critiques_rollup([_row("review", {})]) == []
 
 
-# R12-23: the report renders the Supervisor's synthesized review rubric.
-#
-# The published "Review summary" section (``docs/CORPUS-EXTRACTION.md``,
-# line 2929) is the rubric reviewers were given, not a verdict: 5 numbered
-# criteria, each with 3-4 named yes/no reviewer questions. The Supervisor
-# already synthesizes ``workflow_plan.review_phase.critical_criteria`` and
-# ``prompts/review.py`` already injects it into every reviewer prompt; this
-# pins that the markdown export now renders it as its own "## Review
-# Summary" section, distinct from the flat "## Evaluation Criteria" list
-# (``test_report_critical_criteria.py``) that renders only the names.
-#
-# Runs persisted before R12-23 carry ``critical_criteria`` as a bare list of
-# strings (no questions), and production's json_object downgrade means a
-# live run can answer with either shape -- both must render without
-# crashing, the legacy shape degrading to numbered names with no questions.
-
-
 def _summary_markdown(critical_criteria: list[Any] | None) -> str:
     """Render a minimal report carrying only the given critical criteria."""
     hypothesis: dict[str, object] = {
@@ -1059,21 +1042,6 @@ def test_a_turn_without_a_recorded_order_renders_as_it_did() -> None:
     markdown = _debate_markdown([_match()])
 
     assert "**Turn 1 (favors idea 1):** Idea 1 names" in markdown
-
-
-# R12-15/MO-4: per-assumption support renders as Google's published prose.
-#
-# ``docs/CORPUS-EXTRACTION.md:4135-4141``
-# (``validated-outputs/kira6-detailed-output-validated.md``'s "Reasoning
-# about assumptions") prints each assumption's support as "Plausible:",
-# "Plausible, but requires careful investigation:", or "Unknown:" -- not
-# this schema's closed enum name (``supported``/``uncertain``/
-# ``likely_false``, ``engine/src/co_scientist/schemas/review.py``). Two of
-# the three values mirror that wording directly; the third does not --
-# Google's own exemplar never marks an assumption the evidence actively
-# contradicts, only ones nothing has tested yet, so ``likely_false`` keeps
-# an honest label of its own rather than a mismatched "Unknown". See
-# ``_ASSUMPTION_SUPPORT_LABELS``'s own comment in ``drain/reviews.py``.
 
 
 def test_supported_renders_as_the_published_plausible_label() -> None:

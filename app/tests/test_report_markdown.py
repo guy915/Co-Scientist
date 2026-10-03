@@ -6,14 +6,6 @@ from app.report import markdown as report_markdown
 from app.report.markdown import document as report_markdown_toc
 from app.report.markdown.overview import render_research_overview_markdown
 
-# The run-wide 'References' section (R12-12): every source a run retrieved.
-#
-# Google's published MASH report ends with a flat, deduplicated bibliography
-# (docs/CORPUS-EXTRACTION.md R12-12) -- these tests pin the aggregate section
-# this repo adds for that: dedup across sources on a stable identity, stable
-# alphabetical ordering, placement last in the document, and a clean degrade
-# when a run retrieved nothing.
-
 
 def _hypothesis() -> dict[str, Any]:
     """A minimal report-ready hypothesis; content is irrelevant here."""
@@ -899,19 +891,6 @@ def test_stored_reports_in_the_previous_aims_shape_still_render() -> None:
     assert "**Rationale:** Nothing else measures it." in text
     assert "**Approach:** Knockdown in a matched model." in text
     assert "### Impact" in text
-
-
-# R14-1: the report opens with a table of contents naming its sections.
-#
-# Google's published ``research-overview.md`` opens with an explicit
-# ``#### Table of contents:`` block, six bulleted nav items pointing at that
-# document's own sections (``docs/CORPUS-EXTRACTION.md`` R14-1). Our Goal
-# Report document renders a different, run-dependent set of top-level
-# sections, each independently conditional (R14-23) -- these pin that the
-# nav list always reflects what this particular render actually produced,
-# never a static mirror of Google's fixed six, and that it degrades safely
-# rather than mistaking a model-authored field's prose for one of the
-# report's own section headings.
 
 
 def _contents_markdown(**overrides: Any) -> str:
