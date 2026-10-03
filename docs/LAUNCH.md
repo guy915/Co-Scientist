@@ -1,7 +1,7 @@
 # Launch readiness
 
-Use this document for product releases. [PLAN.md](../PLAN.md) retains the
-completed reference campaign's conclusions and immutable evidence links.
+Use this document for product releases. The completed reference campaign's conclusions and
+immutable evidence links are preserved at [`PLAN.md` @ 33ec8984](https://github.com/guy915/Co-Scientist/blob/33ec8984c6f9292a6653cc6a661d32210f55c688/PLAN.md).
 Scientific evaluations remain scoped to
 their original protocols and must not be summarized as general validation.
 
