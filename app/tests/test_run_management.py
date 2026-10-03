@@ -140,13 +140,26 @@ async def test_durable_auxiliary_admission_with_stored_credential(
 
     calls = {
         "claim": partial(
-            claim_verifier._call_llm_entailment_async, "deployment", "claim", []
+            claim_verifier._call_claim_json_async,
+            "deployment",
+            claim_verifier._EntailmentRequest(
+                lambda: claim_verifier._entailment_prompt("claim", []),
+                claim_verifier._ENTAILMENT_DRAFT_SCHEMA,
+                claim_verifier._MAX_TOKENS,
+                "claim_verifier",
+            ),
         ),
         "batch": partial(
-            claim_verifier_batch._call_llm_batch_entailment_async,
+            claim_verifier_batch._call_claim_json_async,
             "deployment",
-            ["claim"],
-            [],
+            claim_verifier_batch._EntailmentRequest(
+                lambda: claim_verifier_batch._batch_entailment_prompt(
+                    ["claim"], []
+                ),
+                claim_verifier_batch._BATCH_DRAFT_SCHEMA,
+                claim_verifier_batch._BATCH_MAX_TOKENS,
+                "claim_verifier_batch",
+            ),
         ),
         "safety": partial(
             safety_semantic._call_semantic_safety_model,

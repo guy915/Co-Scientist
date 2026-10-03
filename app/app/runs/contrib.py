@@ -95,19 +95,6 @@ async def add_attachment(
     }
 
 
-async def _extract_uploaded_document(
-    file: UploadFile,
-) -> document_ingest.ExtractedDocument:
-    """Read and extract the upload, raising 422 on an invalid document."""
-    data = await file.read(document_ingest.MAX_UPLOAD_BYTES + 1)
-    try:
-        return document_ingest.extract_document(
-            data, file.content_type or "application/octet-stream"
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-
 def _persist_and_notify_upload(
     run_id: str,
     title: str,
@@ -157,7 +144,7 @@ async def upload_attachment(
         raise HTTPException(
             status_code=422, detail="consent is required to index a document"
         )
-    extracted = await _extract_uploaded_document(file)
+    extracted = await document_ingest.extract_upload(file)
     title = (file.filename or "Uploaded document").strip()
     evidence_id, continuation = _persist_and_notify_upload(
         run_id, title, extracted, uploader

@@ -11,6 +11,8 @@ import shutil
 import subprocess
 from typing import Any
 
+from fastapi import HTTPException, UploadFile
+
 _TEXT_TYPES = {
     "text/plain",
     "text/markdown",
@@ -81,6 +83,17 @@ class ExtractedDocument:
     sha256: str
     byte_size: int
     extraction_tool: str
+
+
+async def extract_upload(file: UploadFile) -> ExtractedDocument:
+    """Read and extract one upload, raising 422 on an invalid document."""
+    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    try:
+        return extract_document(
+            data, file.content_type or "application/octet-stream"
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 def extract_document(data: bytes, mime_type: str) -> ExtractedDocument:

@@ -218,7 +218,7 @@ def test_llm_assessor_fallback_cannot_yield_an_unfounded_contradiction(
     from app.claims import verifier as claim_verifier
 
     monkeypatch.setattr(
-        claim_verifier, "_call_llm_entailment", lambda *a, **k: None
+        claim_verifier, "_call_claim_json", lambda *a, **k: None
     )
     assessor, assessor_id = claim_verifier.make_llm_assessor("m")
     passage = _passage(
@@ -229,6 +229,46 @@ def test_llm_assessor_fallback_cannot_yield_an_unfounded_contradiction(
     draft = assessor(_REDUCTION_CLAIM, [passage])
     assert assessor_id == "llm:m"
     assert draft.label is not EntailmentLabel.CONTRADICTS
+
+
+@pytest.mark.parametrize("batch", [False, True])
+def test_prompt_render_failure_keeps_deterministic_fallback(
+    monkeypatch: pytest.MonkeyPatch, batch: bool
+) -> None:
+    """Prompt construction remains within both assessors' fallback boundary."""
+    from app.claims import verifier
+
+    rendered: list[bool] = []
+
+    def broken_prompt(*_args: object) -> str:
+        rendered.append(True)
+        raise ValueError("unrenderable evidence")
+
+    monkeypatch.setattr(
+        verifier,
+        "_batch_entailment_prompt" if batch else "_entailment_prompt",
+        broken_prompt,
+    )
+    passage = _passage(_REDUCTION_QUOTE)
+    if batch:
+        assessor, assessor_id = verifier.make_llm_batch_assessor("m")
+        result = assess_claims_batch(
+            [_REDUCTION_CLAIM],
+            [passage],
+            batch_assessor=assessor,
+            assessor_id=assessor_id,
+        )[0]
+    else:
+        single, assessor_id = verifier.make_llm_assessor("m")
+        result = assess_claim(
+            _REDUCTION_CLAIM,
+            [passage],
+            assessor=single,
+            assessor_id=assessor_id,
+        )
+    expected = deterministic_assessor(_REDUCTION_CLAIM, [passage])
+    assert rendered == [True]
+    assert result.label is expected.label
 
 
 def test_batch_fallback_cannot_yield_an_unfounded_contradiction() -> None:

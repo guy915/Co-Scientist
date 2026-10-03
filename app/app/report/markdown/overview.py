@@ -797,6 +797,16 @@ _EXISTING_SOLUTION_FIELDS = (
 )
 
 
+# Google's report carries the candidate comparison twice under one title
+# (R12-9): a thematic prose comparison and a structured per-idea table.
+# Its axes follow the run's subject rather than a fixed vocabulary, so
+# a wet-lab biology idea need not carry "computational scalability".
+# The summary and bold-labeled bullet blocks follow the other sections'
+# convention, rather than introducing a markdown table. Empty existing-
+# solutions comparisons are expected: the prompt asks the model to leave
+# them out when the goal has no standard-of-care landscape to compare.
+
+
 def _render_legacy_comparison_fields(
     entry: dict[str, Any], fields: tuple[tuple[str, str], ...]
 ) -> list[str]:
@@ -827,93 +837,58 @@ def _render_axis_values(axes: list[Any], values: Any) -> list[str]:
     return lines
 
 
-def _render_idea_comparison(idea: Any, axes: list[Any]) -> list[str]:
-    """Render one candidate-idea comparison row, or nothing when unlabeled.
+def _render_comparison_row(
+    row: Any,
+    axes: list[Any],
+    label_key: str,
+    legacy_fields: tuple[tuple[str, str], ...],
+) -> list[str]:
+    """Render a labeled row under its current axes or legacy columns.
 
     Prefers the domain-aware ``values`` shape, paired positionally against
     the table's own ``axes``; falls back to the older fixed field set
-    (``_IDEA_COMPARISON_FIELDS``) for a run whose meta-review predates that.
-    """
-    if not isinstance(idea, dict):
-        return []
-    label = str(idea.get("idea") or "").strip()
-    if not label:
-        return []
-    lines = [f"- **{label}**"]
-    if axes and isinstance(idea.get("values"), list):
-        lines += _render_axis_values(axes, idea["values"])
-    else:
-        lines += _render_legacy_comparison_fields(idea, _IDEA_COMPARISON_FIELDS)
-    return lines
-
-
-def _render_candidate_comparison(comparison: Any) -> list[str]:
-    """Render 'Comparison of candidate ideas', or nothing when empty.
-
-    Google's published report carries this comparison twice under the
-    same title (R12-9): a thematic prose comparison (section 5) and a
-    structured per-idea table (section 6). The table's columns follow the
-    run's own subject matter (``axes``, chosen per run rather than fixed --
-    a wet-lab biology idea has no use for "computational scalability"),
-    rendered as a thematic summary paragraph plus one bullet block per
-    idea, in the bold-label style every other section here uses (see
-    ``_render_connection``) rather than a markdown table, which nothing in
-    this renderer emits elsewhere.
-    """
-    if not isinstance(comparison, dict):
-        return []
-    summary = str(comparison.get("thematic_summary") or "").strip()
-    axes = comparison.get("axes") or []
-    idea_lines: list[str] = []
-    for idea in comparison.get("ideas") or []:
-        idea_lines += _render_idea_comparison(idea, axes)
-    if not (summary or idea_lines):
-        return []
-    lines = ["\n### Comparison of candidate ideas\n"]
-    if summary:
-        lines += [summary, ""]
-    lines += idea_lines
-    return lines
-
-
-def _render_existing_solution_row(row: Any, axes: list[Any]) -> list[str]:
-    """Render one existing-solutions comparison row, or nothing when unnamed.
-
-    Same axes/values-or-legacy-fields choice as ``_render_idea_comparison``.
+    for a run whose meta-review predates that.
     """
     if not isinstance(row, dict):
         return []
-    label = str(row.get("method") or "").strip()
+    label = str(row.get(label_key) or "").strip()
     if not label:
         return []
     lines = [f"- **{label}**"]
     if axes and isinstance(row.get("values"), list):
         lines += _render_axis_values(axes, row["values"])
     else:
-        lines += _render_legacy_comparison_fields(
-            row, _EXISTING_SOLUTION_FIELDS
-        )
+        lines += _render_legacy_comparison_fields(row, legacy_fields)
     return lines
 
 
-def _render_existing_solutions_comparison(comparison: Any) -> list[str]:
-    """Render 'Comparison to existing solutions', or nothing when empty.
-
-    Empty (not just absent) is a real, expected case here: the prompt
-    tells the model to leave this whole comparison out when the goal has
-    no standard-of-care landscape to compare against (e.g. a basic
-    mechanism question), rather than inventing one.
-    """
+def _render_comparison(
+    comparison: Any, *, existing_solutions: bool = False
+) -> list[str]:
+    """Render one comparison section, omitting an empty table and summary."""
     if not isinstance(comparison, dict):
         return []
-    summary = str(comparison.get("summary") or "").strip()
+    summary_key = "summary" if existing_solutions else "thematic_summary"
+    rows_key = "rows" if existing_solutions else "ideas"
+    label_key = "method" if existing_solutions else "idea"
+    legacy_fields = (
+        _EXISTING_SOLUTION_FIELDS
+        if existing_solutions
+        else _IDEA_COMPARISON_FIELDS
+    )
+    heading = (
+        "Comparison to existing solutions"
+        if existing_solutions
+        else "Comparison of candidate ideas"
+    )
+    summary = str(comparison.get(summary_key) or "").strip()
     axes = comparison.get("axes") or []
     row_lines: list[str] = []
-    for row in comparison.get("rows") or []:
-        row_lines += _render_existing_solution_row(row, axes)
+    for row in comparison.get(rows_key) or []:
+        row_lines += _render_comparison_row(row, axes, label_key, legacy_fields)
     if not (summary or row_lines):
         return []
-    lines = ["\n### Comparison to existing solutions\n"]
+    lines = [f"\n### {heading}\n"]
     if summary:
         lines += [summary, ""]
     lines += row_lines
@@ -1056,11 +1031,10 @@ def _render_meta_review_ranking_markdown(
     if not meta_review:
         return []
     body: list[str] = []
-    body += _render_candidate_comparison(
-        meta_review.get("candidate_comparison")
-    )
-    body += _render_existing_solutions_comparison(
-        meta_review.get("existing_solutions_comparison")
+    body += _render_comparison(meta_review.get("candidate_comparison"))
+    body += _render_comparison(
+        meta_review.get("existing_solutions_comparison"),
+        existing_solutions=True,
     )
     body += _render_strategic_recommendations(
         meta_review.get("strategic_recommendations") or []
