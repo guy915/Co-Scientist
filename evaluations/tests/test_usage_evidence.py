@@ -1,5 +1,3 @@
-"""Usage evidence regression tests."""
-
 from __future__ import annotations
 
 import os
@@ -12,8 +10,6 @@ import pytest
 from evaluations._run_driver import compute_arm_metrics
 from evaluations.golden_run import _cost_summary
 from evaluations.tests._engine_fake_backend import SCRIPT_PRELUDE
-
-# Usage evidence.
 
 
 def test_golden_artifact_retains_unknown_identity_and_cost() -> None:
@@ -162,8 +158,6 @@ def test_durable_merge_retains_events_without_claiming_complete_tracking() -> (
     assert old["recorded_deterministic_fallbacks"] == {}
     assert old["fallback_evidence"] == "recorded_events_only"
 
-
-# Panel usage.
 
 _ROOT = Path(__file__).resolve().parents[2]
 

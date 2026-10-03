@@ -1,5 +1,3 @@
-"""Offline contracts for server."""
-
 import asyncio
 import inspect
 import logging
@@ -50,7 +48,6 @@ def _make_app(secret: str | None) -> Starlette:
 
 
 def test_unset_secret_allows_every_request() -> None:
-    """No env var set reproduces today's behaviour: nothing is checked."""
     client = TestClient(_make_app(secret=None))
 
     response = client.post("/mcp")
@@ -94,7 +91,6 @@ def test_configured_secret_accepts_matching_header() -> None:
 
 
 def test_status_route_stays_exempt_even_with_secret_set() -> None:
-    """The plain status route is what Compose's own healthcheck probes."""
     client = TestClient(_make_app(secret="s3cret"))
 
     response = client.get("/")
@@ -175,7 +171,6 @@ def _client_factory(app: Any):  # type: ignore[no-untyped-def]
 
 
 async def test_concurrent_fastmcp_sessions_receive_request_policy() -> None:
-    """The SDK's tool task inherits only its own authenticated request."""
     both_entered = asyncio.Event()
     entered = 0
     lock = asyncio.Lock()
@@ -397,7 +392,6 @@ async def test_campaign_rejects_unqualified_registered_calls(
         return {}
 
     wrapped = with_call_logging(tool, name)
-    # Cover a tool registered before campaign mode was enabled.
     monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
     with pytest.raises(RuntimeError, match="campaign"):
         await wrapped()
@@ -444,12 +438,8 @@ def test_logs_name_arguments_and_result(
 def test_distinguishes_empty_from_populated(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """An empty result is the signature of a degraded call, so name it.
-
-    Every tool here returns {} on a failed request, a missing key, and a
-    genuine no-match alike, so the log line is the only way to tell that a
-    call happened at all.
-    """
+    """Provider failure, missing keys and no matches all return empty
+    results; logs distinguish calls."""
 
     def nothing(q: str) -> str:
         return "{}"
@@ -460,7 +450,6 @@ def test_distinguishes_empty_from_populated(
 
 
 def test_logs_dict_returning_tools(caplog: pytest.LogCaptureFixture) -> None:
-    """Some tools return dicts rather than JSON strings."""
 
     def as_dict(q: str) -> dict[str, int]:
         return {"x": 1}
@@ -477,12 +466,10 @@ def test_logs_and_reraises_failures(caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.ERROR), pytest.raises(RuntimeError):
         with_call_logging(broken, "broken")("q")
     assert "raised RuntimeError" in caplog.text
-    # The traceback survives, since a raise is unexpected for these tools.
     assert "upstream down" in caplog.text
 
 
 def test_wraps_async_tools(caplog: pytest.LogCaptureFixture) -> None:
-    """Most tools here are async, so the wrapper must stay awaitable."""
 
     async def fetch(q: str) -> str:
         return '{"a": 1}'
@@ -495,12 +482,8 @@ def test_wraps_async_tools(caplog: pytest.LogCaptureFixture) -> None:
 
 
 def test_preserves_the_signature_fastmcp_advertises() -> None:
-    """FastMCP builds each tool's parameter schema from its signature.
-
-    A bare *args/**kwargs wrapper would erase every parameter from the schema
-    the agent sees, leaving tools that look argument-less and cannot be
-    called correctly. This is the property that would break silently.
-    """
+    """FastMCP derives advertised parameters from the signature; a generic
+    wrapper erases them."""
 
     def search(query: str, max_passages: int = 5) -> str:
         """Docstring feeds the tool description."""
@@ -524,12 +507,10 @@ def test_truncates_a_long_argument(caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.INFO):
         with_call_logging(search, "search")("x" * 500)
     assert "..." in caplog.text
-    # The line stays readable rather than dumping the whole argument.
     assert len(max(caplog.text.split("\n"), key=len)) < 400
 
 
 def test_returns_the_result_unchanged() -> None:
-    """Logging is an observer; it must not alter what the agent receives."""
 
     def tool(q: str) -> str:
         return '{"untouched": true}'

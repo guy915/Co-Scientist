@@ -1,5 +1,3 @@
-"""Offline contracts for biomedical databases."""
-
 import logging
 from typing import Any
 
@@ -23,14 +21,8 @@ _BIOMEDICAL_DATABASES_MOCK_TRANSPORT = httpx.MockTransport
 
 
 class _ErrorStatusClient:
-    """A canned httpx.AsyncClient returning a real non-2xx response.
-
-    Uses a genuine ``httpx.Response`` (rather than the shared
-    ``StubResponse``, whose ``raise_for_status`` never raises) so this
-    path raises the real ``httpx.HTTPStatusError`` a 503 from EBI during
-    an outage would produce. That is what keeps it a local class rather
-    than another caller of ``stub_responses``.
-    """
+    """A real non-2xx httpx response exercises status failure; the shared
+    stub always succeeds."""
 
     def __init__(self, status_code: int) -> None:
         self._status_code = status_code
@@ -89,7 +81,6 @@ async def test_registered_biomedical_tools_report_outcome_at_mcp_boundary(
     monkeypatch: pytest.MonkeyPatch,
     tool_case: dict[str, Any],
 ) -> None:
-    """The public MCP contract preserves results and marks provider errors."""
     from mcp_server.server import mcp
 
     tool_name = tool_case["tool_name"]
@@ -239,7 +230,6 @@ async def test_search_chembl_degrades_on_transport_failure(
     stub_failure(monkeypatch, httpx.ConnectError("connection refused"))
     with caplog.at_level(logging.WARNING):
         result = await biomedical_databases.search_chembl("aspirin")
-    # A transient outage keeps provider failure local to this source.
     assert result == {
         "source": "ChEMBL",
         "query": "aspirin",
@@ -296,7 +286,6 @@ async def test_search_uniprot_degrades_on_http_status_error(
 
 
 def _study(**overrides: object) -> dict[str, object]:
-    """Builds one v2 study payload with the modules the tool reads."""
     status: dict[str, object] = {
         "overallStatus": "TERMINATED",
         "whyStopped": "Insufficient efficacy",
@@ -325,13 +314,6 @@ def _study(**overrides: object) -> dict[str, object]:
 async def test_a_terminated_trial_reports_why_it_stopped(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The registry's value over the literature is the negative result.
-
-    A trial that ran and failed is the strongest possible answer to "has
-    anyone tried this", and it is the case least likely to have been
-    written up -- which is exactly what makes a gap argued from papers
-    alone unreliable.
-    """
     stub_responses(monkeypatch, {"studies": [_study()]})
 
     result = await clinical_trials.search_clinical_trials("adavosertib")
@@ -346,7 +328,6 @@ async def test_a_terminated_trial_reports_why_it_stopped(
 async def test_a_study_missing_modules_is_ordinary_not_an_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Registrations are incomplete all the time; that is not a failure."""
     stub_responses(
         monkeypatch,
         {"studies": [{"protocolSection": {"identificationModule": {}}}]},
@@ -364,7 +345,6 @@ class TestClinicalTrials:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """One unreachable source must not fail a step consulting several."""
         stub_failure(monkeypatch, httpx.ConnectError("boom"))
 
         result = await clinical_trials.search_clinical_trials("adavosertib")
@@ -379,12 +359,8 @@ class TestClinicalTrials:
 async def test_ensembl_carries_the_stable_identifier_and_locus(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A symbol is resolved to something that does not get reused.
-
-    Gene symbols are renamed and reused; Ensembl ids are not. A
-    hypothesis built on "WEE1" and one built on ENSG00000166483 are the
-    same claim only if the resolution happened.
-    """
+    """Gene symbols can be renamed or reused; stable ids make claims
+    comparable."""
     stub_responses(
         monkeypatch,
         {
@@ -410,13 +386,8 @@ async def test_ensembl_carries_the_stable_identifier_and_locus(
 async def test_gnomad_carries_the_direction_each_number_runs_in(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The constraint numbers are meaningless without their conventions.
-
-    pLI near 1 means intolerant while LOEUF *below* 0.35 means
-    constrained, so the two headline metrics run in opposite directions.
-    A model handed a bare 0.35 cannot tell which it is looking at, and a
-    hypothesis that reads it backwards is confidently wrong.
-    """
+    """pLI near 1 means intolerant; LOEUF below 0.35 means constrained, in
+    the opposite direction."""
     stub_responses(
         monkeypatch,
         {
@@ -446,11 +417,7 @@ async def test_gnomad_carries_the_direction_each_number_runs_in(
 async def test_a_gene_without_constraint_data_returns_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A gene gnomAD has no constraint for says nothing, not zero.
-
-    Returning a record of ``None`` values would read as "unconstrained",
-    which is the opposite of "not measured".
-    """
+    """Unmeasured constraint is not evidence of an unconstrained gene."""
     stub_responses(
         monkeypatch,
         {"data": {"gene": {"gene_id": "ENSG1", "gnomad_constraint": None}}},
@@ -472,7 +439,6 @@ class TestGenomicsDatabases:
     async def test_a_failed_request_degrades_instead_of_raising(
         self, monkeypatch: pytest.MonkeyPatch, tool: object, source: str
     ) -> None:
-        """One unreachable source must not fail a step consulting several."""
         stub_failure(monkeypatch, httpx.ConnectError("boom"))
 
         result = await tool("WEE1")  # type: ignore[operator]
@@ -483,13 +449,8 @@ class TestGenomicsDatabases:
 async def test_string_keeps_the_evidence_channels_apart(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A link is reported with its channels, not just a combined score.
-
-    STRING's combined score mixes experimental support with text mining,
-    and a pair supported only by co-mention in abstracts is a far weaker
-    claim than one with experiments behind it. Collapsing them would let
-    a hypothesis cite 0.9 without saying 0.9 of what.
-    """
+    """STRING combines experiments with text mining; high co-mention scores
+    are weaker evidence."""
     stub_responses(
         monkeypatch,
         [
@@ -518,13 +479,8 @@ async def test_string_keeps_the_evidence_channels_apart(
 async def test_reactome_resolves_the_entity_before_asking_for_pathways(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Pathway membership is a lookup from the entity, not a text search.
-
-    Searching Reactome for "WEE1" finds the reactions and complexes whose
-    names match. The question a mechanism needs answered is which
-    pathways WEE1 *participates in*, which is a second call keyed by the
-    entity id the search resolved.
-    """
+    """Text matches find entities; membership is a separate lookup keyed by
+    resolved entity id."""
     client = stub_responses(
         monkeypatch,
         {
@@ -547,14 +503,12 @@ async def test_reactome_resolves_the_entity_before_asking_for_pathways(
     (record,) = result["records"]
     assert record["pathway_id"] == "R-HSA-69478"
     assert record["name"] == "G2/M DNA replication"
-    # The second request is the entity-keyed one, built from the first.
     assert "R-HSA-69253" in client.calls[1][0]
 
 
 async def test_reactome_without_a_matching_entity_returns_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An unresolvable symbol stops after one call, and says nothing."""
     client = stub_responses(monkeypatch, {"results": []})
 
     result = await systems_biology.search_reactome_pathways("NOTAGENE")
@@ -566,12 +520,8 @@ async def test_reactome_without_a_matching_entity_returns_empty(
 async def test_open_targets_reports_only_satisfied_tractability(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """False buckets say nothing and are the overwhelming majority.
-
-    Open Targets returns every tractability bucket with a flag. Carrying
-    the false ones would spend most of the record telling the model what
-    a target is *not*, in a payload it re-sends every turn.
-    """
+    """False tractability buckets dominate the response and are rebilled on
+    every tool turn."""
     stub_responses(
         monkeypatch,
         {
@@ -633,12 +583,6 @@ class TestSystemsBiology:
     async def test_a_failed_request_degrades_instead_of_raising(
         self, monkeypatch: pytest.MonkeyPatch, tool: object, source: str
     ) -> None:
-        """One unreachable source must not fail the step that consults several.
-
-        These are wired into literature-review enrichment and reflection
-        alongside four other tools; an exception here would take the whole
-        step down over one API's outage.
-        """
         stub_failure(monkeypatch, httpx.ConnectError("boom"))
 
         result = await tool("WEE1")  # type: ignore[operator]
@@ -807,7 +751,6 @@ async def test_http_failure_is_distinct_from_a_valid_empty_lookup(
 async def test_zero_total_without_embedded_associations_is_valid_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The official HAL page omits ``_embedded`` when totalElements is zero."""
     requests = _install_responses(
         monkeypatch,
         [

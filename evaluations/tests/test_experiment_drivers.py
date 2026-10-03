@@ -1,5 +1,3 @@
-"""Experiment drivers regression tests."""
-
 from __future__ import annotations
 
 import pathlib
@@ -13,8 +11,6 @@ from evaluations.ablation_driver import (
     run_ablation_sweep,
 )
 from evaluations.scaling_budget_driver import run_budget_curve
-
-# Ablation driver.
 
 _GOALS = (
     (
@@ -34,12 +30,8 @@ _ARMS: dict[str, dict[str, Any]] = {
 def _drive_one_arm(
     overrides: dict[str, Any],
 ) -> tuple[dict[str, Any], str]:
-    """Drive a single offline arm and return (arm detail, db_path).
-
-    Bypasses ``run_ablation_sweep`` so the test can read the arm run's
-    persisted checkpoint back off the same db and prove the toggle
-    round-tripped into engine state, not merely into the run config.
-    """
+    # Read the persisted checkpoint to prove toggles reached workflow state, not
+    # only run configuration.
     tmp = pathlib.Path(tempfile.mkdtemp(prefix="ablation-arm-"))
     db_path = str(tmp / "arm.db")
     _run_driver.configure_environment(db_path, str(tmp / "cache"), live=False)
@@ -57,7 +49,6 @@ def _drive_one_arm(
 
 
 def _persisted_state(run_id: str, db_path: str) -> dict[str, Any]:
-    """Return the run's latest checkpoint's deserialized workflow state."""
     from app import store
 
     checkpoint = store.get_latest_checkpoint(run_id, db_path=db_path)
@@ -88,12 +79,6 @@ def test_offline_ablation_sweep_pairs_every_goal_across_arms() -> None:
 
 
 def test_ablation_records_carry_real_floats_ablation_summary_requires() -> None:
-    """``ablation_summary`` reads cost/latency/diversity unconditionally.
-
-    A None here would raise inside ``ablation_summary`` -- see its
-    ``float(item["cost_usd"])`` etc, which are not None-guarded the way
-    ``expert_quality``/``verified_claim_ratio`` are.
-    """
     report = run_ablation_sweep(_GOALS, "express", live=False, arms=_ARMS)
     for record in report["records"]:
         assert isinstance(record["cost_usd"], float)
@@ -103,14 +88,8 @@ def test_ablation_records_carry_real_floats_ablation_summary_requires() -> None:
 
 
 def test_no_meta_review_arm_completes_and_disables_the_flag() -> None:
-    """The meta-review toggle reaches engine state and the run still ends.
-
-    Reads the persisted checkpoint rather than the run config, so this
-    proves the opt threaded all the way into the workflow state the
-    scheduler's cadence check reads. Not asserting "zero meta_review
-    tasks": the EVOLVE branch still enters that node, so this arm removes
-    the *periodic* cadence, not the node (see the driver docstring).
-    """
+    # The toggle removes periodic cadence; evolution still enters the meta-
+    # review node.
     arm, db_path = _drive_one_arm({"enable_meta_review": False})
     assert arm["completed"], arm
     state = _persisted_state(arm["run_id"], db_path)
@@ -118,7 +97,6 @@ def test_no_meta_review_arm_completes_and_disables_the_flag() -> None:
 
 
 def test_debate_only_arm_completes_and_forces_the_strategy() -> None:
-    """The generation-strategy toggle reaches engine state and completes."""
     arm, db_path = _drive_one_arm({"generation_strategy": "no_lit"})
     assert arm["completed"], arm
     state = _persisted_state(arm["run_id"], db_path)
@@ -126,13 +104,6 @@ def test_debate_only_arm_completes_and_forces_the_strategy() -> None:
 
 
 def test_documents_the_now_reachable_and_residual_unreachable_arms() -> None:
-    """Meta-review and debate-strategy are now driveable arms.
-
-    They used to live in ``unreachable_arms`` (no engine switch existed);
-    this row built the switches, so they are ordinary arms now. The one
-    arm still genuinely unreachable -- the Evolution agent, which no config
-    toggle disables -- stays documented so its absence is not silent.
-    """
     report = run_ablation_sweep(_GOALS, "express", live=False, arms=_ARMS)
     assert {"no_meta_review", "debate_only_strategy"} <= set(report["arms_run"])
     assert "no_meta_review" not in report["unreachable_arms"]
@@ -141,10 +112,6 @@ def test_documents_the_now_reachable_and_residual_unreachable_arms() -> None:
 
 
 def test_published_baselines_cover_reflection_evolution_meta_review() -> None:
-    """Google's ablation numbers (R11-8) cover the arms.
-
-    Plus the reachable Reflection search-tool arm.
-    """
     assert set(PUBLISHED_BASELINES) == {
         "reflection_search_tool",
         "evolution",
@@ -155,8 +122,6 @@ def test_published_baselines_cover_reflection_evolution_meta_review() -> None:
         "baseline": 6.14,
         "ablated": 2.38,
     }
-    # Not uniformly directional: correctness improves while novelty
-    # collapses. Both numbers must survive, never smoothed into one story.
     assert (
         reflection["metrics"]["correctness"]["baseline"]
         < (reflection["metrics"]["correctness"]["ablated"])
@@ -175,10 +140,8 @@ def test_published_baselines_unquantified_names_ranking_and_proximity() -> None:
 
 
 def test_published_baselines_are_carried_in_the_report_unmodified() -> None:
-    """Reference data only, never fed into the computed ``summary``.
-
-    ``summary`` reads only the driven ``records``.
-    """
+    # Reference baselines are report data and must not feed computed arm
+    # summaries.
     report = run_ablation_sweep(_GOALS, "express", live=False, arms=_ARMS)
     assert report["published_baselines"] == PUBLISHED_BASELINES
     assert (
@@ -188,16 +151,7 @@ def test_published_baselines_are_carried_in_the_report_unmodified() -> None:
     assert "published_baselines" not in report["summary"]
 
 
-# Scaling budget driver.
-
-
 def test_offline_budget_curve_orders_tiers_by_compute() -> None:
-    """Two tiers, run offline, produce an ordered curve with real shape.
-
-    ``express`` requests strictly less compute than ``standard`` in every
-    tier default (hypotheses/tournament pairs/evidence/max_llm_calls), so a
-    genuinely-wired driver must place express first regardless of content.
-    """
     report = run_budget_curve(
         "Explain a plausible mechanism of antibiotic tolerance in "
         "biofilm-embedded bacteria.",
@@ -224,7 +178,6 @@ def test_offline_budget_curve_orders_tiers_by_compute() -> None:
 
 
 def test_offline_snapshots_carry_claim_counts_scaling_eval_expects() -> None:
-    """Each hypothesis in a snapshot has the fields ``scaling_curve`` reads."""
     report = run_budget_curve(
         "Explain a plausible mechanism of antibiotic tolerance in "
         "biofilm-embedded bacteria.",
@@ -246,21 +199,6 @@ def test_offline_snapshots_carry_claim_counts_scaling_eval_expects() -> None:
 
 
 def test_offline_snapshot_carries_a_real_temporal_curve() -> None:
-    """R1-13: each arm's own within-run temporal curve, from a real run.
-
-    Express requests 4 initial hypotheses (fewer than the published
-    method's 10 buckets), so this also exercises the "fewer than ten
-    hypotheses" degenerate case against a genuine offline durable run
-    rather than only synthetic dicts.
-
-    Also asserts the ordering signal actually varies, end to end from a real
-    offline durable run: ``creation_iteration`` (the authoring-cycle axis the
-    engine stamps, the drain persists, and the eval buckets by) and its
-    ``generation`` fallback must each span at least two values, or a passing
-    curve would not prove the bucketing tracks anything temporal rather than
-    an arbitrary, flat order -- see ``scaling_eval._temporal_order_key`` for
-    why ``created_at`` alone does not carry it.
-    """
     report = run_budget_curve(
         "Explain a plausible mechanism of antibiotic tolerance in "
         "biofilm-embedded bacteria.",

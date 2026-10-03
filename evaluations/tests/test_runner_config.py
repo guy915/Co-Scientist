@@ -1,5 +1,3 @@
-"""Runner config regression tests."""
-
 from __future__ import annotations
 
 import os
@@ -13,18 +11,12 @@ import pytest
 from evaluations._run_driver import configure_environment
 from evaluations.tests._engine_fake_backend import SCRIPT_PRELUDE
 
-# Run driver env.
-
 
 def test_an_offline_invocation_leaves_no_credential_to_spend(
     monkeypatch: pytest.MonkeyPatch, tmp_path: pytest.TempPathFactory
 ) -> None:
-    """Credentials are removed, not merely unused.
-
-    Asserted by suffix rather than against a list of provider names, the
-    same way the code removes them: a hand-kept list of credentials is the
-    thing that fell behind once already.
-    """
+    # Credential names evolve; suffix-based removal avoids an incomplete
+    # provider allowlist.
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-would-be-billed")
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-would-be-billed")
 
@@ -37,21 +29,14 @@ def test_an_offline_invocation_leaves_no_credential_to_spend(
 def test_an_offline_invocation_disables_literature_review(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Offline evidence blocks every idea, so the node is switched off.
-
-    Generated passages cannot support a generated claim under the
-    deterministic assessor, so every idea is withheld and the run ends
-    blocked before the report -- the stages a sweep exists to exercise. The
-    app suite disables the node for the same reason.
-    """
+    # Generated evidence cannot support generated claims, blocking the stages
+    # sweeps need to exercise.
     monkeypatch.delenv("FORCE_LITERATURE_REVIEW", raising=False)
 
     configure_environment("/tmp/db.sqlite", "/tmp/cache", live=False)
 
     assert os.environ["FORCE_LITERATURE_REVIEW"] == "0"
 
-
-# Live runner config.
 
 _ROOT = Path(__file__).resolve().parents[2]
 
@@ -196,9 +181,6 @@ asyncio.run(check())
         timeout=45,
     )
     assert result.returncode == 0, result.stderr
-
-
-# Golden run admission.
 
 
 @pytest.mark.parametrize(

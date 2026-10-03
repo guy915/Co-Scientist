@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-# Starting count at be6105ab. Lower with each reduction; never raise.
+# Lower the production ceiling after reductions; never raise it.
 CODE_SIZE_CEILING = 160_118
 SOURCE_SUFFIXES = {".py", ".ts", ".tsx", ".css"}
 EXCLUDED_DIRECTORIES = {

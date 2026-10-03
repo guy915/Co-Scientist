@@ -1,5 +1,3 @@
-"""Offline contracts for entrez."""
-
 from __future__ import annotations
 
 import itertools
@@ -103,22 +101,17 @@ def test_standard_request_keeps_its_entrez_key(
     assert b"api_key=service-held-key" in wire
 
 
-# Short enough to keep the tests fast, long enough that thread scheduling
-# noise cannot fake a passing spacing measurement.
 _TEST_INTERVAL = 0.05
 
 
 @pytest.fixture
 def paced(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Pace at a test-sized interval, with the next slot already due."""
     monkeypatch.setattr(
         entrez_rate_limit, "_request_interval", lambda: _TEST_INTERVAL
     )
     monkeypatch.setattr(entrez_rate_limit, "_next_slot", 0.0)
-    # Take the overdue slot here rather than in a test: a caller whose slot is
-    # already in the past issues immediately, so the moment it records is the
-    # moment the interpreter gets round to it, and that lag would show up as a
-    # short first gap. Every slot a test then measures is one it waited for.
+    # Consume the overdue slot before measuring; interpreter lag otherwise
+    # shortens the first gap.
     entrez_rate_limit.entrez_call(lambda **_kwargs: None)
 
 
@@ -128,16 +121,8 @@ class TestEntrezRateLimit:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Back-to-back calls leave at least the interval between them.
-
-        Driven by a fake clock rather than real elapsed time. Real time ties
-        the assertion to OS scheduling: the gap it measures includes however
-        long it takes the interpreter to get rescheduled after a real
-        ``time.sleep`` returns, and machine load can stretch that enough to
-        push a perfectly-spaced pair under the floor -- a false failure in the
-        measurement, not in the pacer. A fake clock has no such lag, so this
-        pins the pacer's slot arithmetic on its own.
-        """
+        """A fake clock isolates pacing arithmetic from operating-system
+        scheduling lag."""
         fake_now = [0.0]
 
         def clock() -> float:
@@ -163,13 +148,8 @@ class TestEntrezRateLimit:
         assert all(gap >= _TEST_INTERVAL for gap in gaps), gaps
 
     def test_concurrent_callers_do_not_burst(self) -> None:
-        """Threads take separate slots instead of all firing at once.
-
-        Biopython reads and writes its "previous request" timestamp
-        without a lock, so every thread computes the same wait and then issues
-        together -- the burst the limit exists to prevent, and the source of the
-        429s that cost runs whole evidence sources.
-        """
+        """Biopython's unlocked previous-request timestamp lets concurrent
+        threads burst together."""
         issued: list[float] = []
         guard = threading.Lock()
 
@@ -188,22 +168,15 @@ class TestEntrezRateLimit:
         for thread in threads:
             thread.join()
 
-        # Measured as the span the six requests occupy rather than pair by pair:
-        # a thread can be descheduled between waiting for its slot and recording
-        # that it took it, which only ever pushes one timestamp later and so can
-        # squeeze the pair after it. The span cannot be faked -- six requests
-        # bursting together would occupy no time at all.
+        # Measure the whole span: descheduling can squeeze an adjacent gap but
+        # cannot fake a burst-free span.
         assert len(issued) == 6
         span = max(issued) - min(issued)
         assert span >= 5 * _TEST_INTERVAL * 0.9, span
 
     def test_the_wait_does_not_hold_the_lock(self) -> None:
-        """A slow request cannot block the next caller from taking its slot.
-
-        The pacer bounds when requests *leave*; holding the lock across the call
-        would also serialize their responses, turning a fan-out of independent
-        fetches into one queue at the speed of the slowest.
-        """
+        """Pacing bounds departure times; holding a lock over I/O serializes
+        independent responses."""
         started = threading.Event()
         release = threading.Event()
 
@@ -230,7 +203,6 @@ class TestEntrezRateLimit:
         slow_thread.join()
 
     def test_arguments_reach_the_underlying_call(self) -> None:
-        """entrez_call forwards its keyword arguments verbatim."""
         seen: dict[str, Any] = {}
 
         def request(**kwargs: Any) -> str:
@@ -249,7 +221,8 @@ _STUDY_ID_ENV = "COSCIENTIST_PUBMED_STUDY_ID"
 
 @pytest.fixture
 def isolate_process_budget(monkeypatch: pytest.MonkeyPatch) -> Any:
-    """Each offline case starts with the one process budget unused."""
+    """The process-wide pacing budget must start unused for each independent
+    case."""
     max_tries = Entrez.max_tries
     sleep_between_tries = Entrez.sleep_between_tries
     monkeypatch.setattr(
@@ -580,7 +553,6 @@ class TestEntrezStudy4Recovery:
 
 
 def _capture_requests(monkeypatch: pytest.MonkeyPatch) -> list[Request]:
-    """Intercepts Biopython after request construction and before I/O."""
     requests: list[Request] = []
 
     def capture(request: Request) -> Request:
@@ -594,7 +566,6 @@ def _capture_requests(monkeypatch: pytest.MonkeyPatch) -> list[Request]:
 
 
 def _request_params(request: Request) -> dict[str, list[str]]:
-    """Reads the encoded query string or POST body from a Request."""
     data = request.data
     if data is None:
         encoded = urlsplit(request.full_url).query
