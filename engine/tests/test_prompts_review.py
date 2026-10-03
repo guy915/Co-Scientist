@@ -1,5 +1,3 @@
-"""Offline contracts for prompts review."""
-
 from __future__ import annotations
 
 import pathlib
@@ -22,8 +20,6 @@ from co_scientist.prompts.loading import _get_domain_variables
 from co_scientist.schemas import _PROMPT_SCHEMA_MAP
 from co_scientist.schemas.review import RANKING_SCHEMA
 
-# A supervisor_guidance dict shaped like the real planner output. Used to
-# exercise the guidance-formatting branches of several builders.
 _GUIDANCE: dict[str, Any] = {
     "research_goal_analysis": {
         "key_areas": ["mitochondrial dysfunction", "oxidative stress"],
@@ -45,34 +41,24 @@ _GUIDANCE: dict[str, Any] = {
     },
 }
 
-# --- pure helpers ----------------------------------------------------------
-
 
 def test_substitute_variables_replaces_placeholder() -> None:
-    """``{{name}}`` placeholders are replaced by the mapped value."""
     assert substitute_variables("Hello {{name}}", {"name": "World"}) == (
         "Hello World"
     )
 
 
 def test_substitute_variables_coerces_non_string_values() -> None:
-    """Non-string values are stringified during substitution."""
     assert substitute_variables("count={{n}}", {"n": 7}) == "count=7"
 
 
 def test_substitute_variables_missing_key_emits_marker() -> None:
-    """An unmapped placeholder yields a ``MISSING`` marker, not a crash."""
     out = substitute_variables("a {{absent}} b", {})
     assert "{{MISSING:absent}}" in out
 
 
 def test_load_prompt_with_schema_returns_prompt_and_schema() -> None:
-    """``load_prompt_with_schema`` returns a filled string and a schema dict.
-
-    This calls the low-level loader with only two of the template's variables,
-    so the remaining placeholders stay unfilled; the test asserts only on what
-    it supplied (the goal) and the schema shape, not full interpolation.
-    """
+    """This low-level loader leaves unsupplied placeholders unfilled."""
     prompt, schema = load_prompt_with_schema(
         "review",
         {
@@ -87,13 +73,11 @@ def test_load_prompt_with_schema_returns_prompt_and_schema() -> None:
 
 
 def test_load_prompt_with_schema_none_for_unschemaed_prompt() -> None:
-    """A prompt with no registered schema returns ``None`` for the schema."""
     _, schema = load_prompt_with_schema("literature_review_synthesis", {})
     assert schema is None
 
 
 def test_get_domain_variables_none_returns_string_dict() -> None:
-    """``_get_domain_variables(None)`` returns expected keys, all strings."""
     variables = _get_domain_variables(None)
     expected_keys = {
         "domain_context",
@@ -106,11 +90,7 @@ def test_get_domain_variables_none_returns_string_dict() -> None:
     assert all(isinstance(v, str) for v in variables.values())
 
 
-# --- get_supervisor_prompt -------------------------------------------------
-
-
 def test_supervisor_prompt_interpolates_goal_and_counts() -> None:
-    """The supervisor prompt embeds the goal and the planning counts."""
     prompt, schema = get_supervisor_prompt(
         SupervisorPromptInputs(
             research_goal="map gut-brain axis signaling",
@@ -130,7 +110,6 @@ def test_supervisor_prompt_interpolates_goal_and_counts() -> None:
 
 
 def test_supervisor_prompt_constraints_branch_changes_output() -> None:
-    """Supplying constraints injects them; omitting them shows the default."""
     with_constraints, _ = get_supervisor_prompt(
         SupervisorPromptInputs(
             research_goal="goal",
@@ -146,7 +125,6 @@ def test_supervisor_prompt_constraints_branch_changes_output() -> None:
 
 
 def test_supervisor_prompt_pubmed_availability_branch() -> None:
-    """PubMed/MCP availability flips the literature-review description text."""
     available, _ = get_supervisor_prompt(
         SupervisorPromptInputs(research_goal="g", pubmed_available=True)
     )
@@ -160,7 +138,6 @@ def test_supervisor_prompt_pubmed_availability_branch() -> None:
 
 
 def test_prompt_builders_include_run_setup_guidance() -> None:
-    """Durable setup guidance is embedded in node prompts."""
     setup_guidance = "Run setup:\n- Requirements:\n  - Focus on primary data"
     focus_guidance = "Prefer novelty while preserving testability."
     prompt, _ = get_supervisor_prompt(
@@ -177,11 +154,7 @@ def test_prompt_builders_include_run_setup_guidance() -> None:
     assert "Causal clarity" in prompt
 
 
-# --- get_review_prompt / get_review_batch_prompt ---------------------------
-
-
 def test_review_prompt_interpolates_goal_and_hypothesis() -> None:
-    """The review prompt embeds both the research goal and hypothesis text."""
     prompt, schema = get_review_prompt(
         research_goal="explain long-COVID fatigue",
         hypothesis_text="Persistent viral antigen drives T-cell exhaustion",
@@ -194,7 +167,6 @@ def test_review_prompt_interpolates_goal_and_hypothesis() -> None:
 
 
 def test_review_prompt_supervisor_guidance_branch() -> None:
-    """Supervisor guidance adds a review-guidance section to the prompt."""
     without_guidance, _ = get_review_prompt(
         research_goal="g", hypothesis_text="h"
     )
@@ -209,11 +181,6 @@ def test_review_prompt_supervisor_guidance_branch() -> None:
 
 
 def test_review_prompt_surfaces_synthesized_config() -> None:
-    """config_synthesis lands its fields in the review prompt.
-
-    Covers preferences, review_instructions, and attributes (with their
-    1-5 rubric).
-    """
     guidance = {
         "config_synthesis": {
             "preferences": ["testable within 2 years"],
@@ -239,12 +206,7 @@ def test_review_prompt_surfaces_synthesized_config() -> None:
     assert "1 impossible .. 5 routine" in prompt
 
 
-# critical_criteria's richer {name, questions} shape (R12-23) is covered
-# in test_prompts_review_critical_criteria.py (file-length ceiling).
-
-
 def test_review_prompt_meta_review_branch() -> None:
-    """Meta-review context surfaces common strengths/weaknesses in prompt."""
     meta_review = {
         "common_strengths": ["clear mechanism"],
         "common_weaknesses": ["weak controls"],
@@ -260,7 +222,6 @@ def test_review_prompt_meta_review_branch() -> None:
 
 
 def test_review_batch_prompt_interpolates_goal_and_list() -> None:
-    """The batch review prompt embeds the goal and the hypotheses list block."""
     prompt, schema = get_review_batch_prompt(
         research_goal="reduce tumor metastasis",
         hypotheses_list="1. block CXCR4\n2. inhibit MMP-9",
@@ -272,16 +233,7 @@ def test_review_batch_prompt_interpolates_goal_and_list() -> None:
     assert isinstance(schema, dict)
 
 
-# --- get_meta_review_prompt ------------------------------------------------
-
-
 def test_meta_review_prompt_interpolates_goal_and_reviews() -> None:
-    """The meta-review prompt embeds the goal, reviews, and any instructions.
-
-    Regression guard: ``get_meta_review_prompt`` now substitutes the
-    ``instructions`` template variable, so a caller-supplied value lands in the
-    prompt and no ``{{MISSING:instructions}}`` sentinel leaks through.
-    """
     prompt, schema = get_meta_review_prompt(
         research_goal="characterise synaptic pruning",
         all_reviews="Review A: strong. Review B: weak controls.",
@@ -295,14 +247,6 @@ def test_meta_review_prompt_interpolates_goal_and_reviews() -> None:
 
 
 def test_meta_review_prompt_includes_preferences() -> None:
-    """The published meta-review prompt carries "Preferences: {preferences}".
-
-    meta-review-08-meta-review-generation.md has a dedicated Preferences
-    slot, separate from "Additional instructions"; ours had no preferences
-    placeholder at all, so the scientist's stated preferences never
-    reached meta-review -- and, via _common.py's re-injection, never
-    reached the six-plus downstream nodes that read meta_review either.
-    """
     prompt, _ = get_meta_review_prompt(
         research_goal="g",
         all_reviews="r",
@@ -313,13 +257,11 @@ def test_meta_review_prompt_includes_preferences() -> None:
 
 
 def test_meta_review_prompt_defaults_preferences_when_absent() -> None:
-    """Absent preferences fall back to the same default as generation's."""
     prompt, _ = get_meta_review_prompt(research_goal="g", all_reviews="r")
     assert "Focus on novelty, testability, and potential impact." in prompt
 
 
 def test_meta_review_prompt_supervisor_guidance_branch() -> None:
-    """Guidance adds key areas and evolution guidance to the meta-review."""
     with_guidance, _ = get_meta_review_prompt(
         research_goal="g",
         all_reviews="r",
@@ -329,11 +271,7 @@ def test_meta_review_prompt_supervisor_guidance_branch() -> None:
     assert "Evolution Phase Guidance" in with_guidance
 
 
-# --- get_proximity_prompt --------------------------------------------------
-
-
 def test_proximity_prompt_encodes_dict_and_str_hypotheses() -> None:
-    """Proximity JSON-encodes hypothesis texts from both dicts and strings."""
     prompt, schema = get_proximity_prompt(
         hypotheses=[
             {"text": "alpha pathway hypothesis"},
@@ -347,18 +285,13 @@ def test_proximity_prompt_encodes_dict_and_str_hypotheses() -> None:
 
 
 def test_proximity_prompt_guidance_branch() -> None:
-    """Supervisor guidance adds a key-research-areas block to proximity."""
     prompt, _ = get_proximity_prompt(
         hypotheses=["h"], supervisor_guidance=_GUIDANCE
     )
     assert "oxidative stress" in prompt
 
 
-# --- get_ranking_prompt ----------------------------------------------------
-
-
 def test_ranking_prompt_interpolates_both_hypotheses() -> None:
-    """The ranking prompt embeds the goal and both compared hypotheses."""
     prompt, schema = get_ranking_prompt(
         research_goal="optimise CRISPR delivery",
         side_a=RankingSide(text="lipid nanoparticle approach"),
@@ -372,7 +305,6 @@ def test_ranking_prompt_interpolates_both_hypotheses() -> None:
 
 
 def test_ranking_prompt_review_scores_branch() -> None:
-    """Review scores render inside that side's own published review slot."""
     prompt, _ = get_ranking_prompt(
         research_goal="g",
         side_a=RankingSide(
@@ -386,14 +318,6 @@ def test_ranking_prompt_review_scores_branch() -> None:
 
 
 def test_ranking_prompt_review_scores_says_disregard_not_consider() -> None:
-    """The review-scores section instructs the judge per the published prompt.
-
-    Published (ranking-04-pairwise-comparison.md): "Disregard these scores
-    in your comparative analysis, as they may not be directly comparable
-    across reviews." Ours used to say the opposite ("Consider these
-    scores, but make your judgment based on comprehensive comparison, not
-    just scores.").
-    """
     prompt, _ = get_ranking_prompt(
         research_goal="g",
         side_a=RankingSide(text="a", review={"overall_score": 8.5}),
@@ -407,7 +331,6 @@ def test_ranking_prompt_review_scores_says_disregard_not_consider() -> None:
 
 
 def test_ranking_prompt_reflection_notes_default_when_absent() -> None:
-    """Absent reflection notes fall back to the documented placeholder text."""
     prompt, _ = get_ranking_prompt(
         research_goal="g",
         side_a=RankingSide(text="a"),
@@ -417,7 +340,6 @@ def test_ranking_prompt_reflection_notes_default_when_absent() -> None:
 
 
 def test_ranking_prompt_renders_mature_review_findings() -> None:
-    """Mature-review verdicts reach the judge through the side summary."""
     prompt, _ = get_ranking_prompt(
         research_goal="g",
         side_a=RankingSide(
@@ -445,7 +367,6 @@ def test_ranking_prompt_renders_mature_review_findings() -> None:
 
 
 def test_ranking_prompt_has_no_mature_review_block_without_reviews() -> None:
-    """Before the mature cascade the prompt renders no findings block."""
     prompt, _ = get_ranking_prompt(
         research_goal="g",
         side_a=RankingSide(text="a"),
@@ -455,11 +376,7 @@ def test_ranking_prompt_has_no_mature_review_block_without_reviews() -> None:
     assert "{{MISSING" not in prompt
 
 
-# --- domain injection ------------------------------------------------------
-
-
 def test_domain_injection_populates_domain_placeholders() -> None:
-    """A registry with prompts_config fills domain_* placeholders (review)."""
 
     class _StubPromptsConfig:
         domain_context = "ONCOLOGY-CONTEXT"
@@ -498,14 +415,7 @@ _COVERAGE_META_REVIEW = {
 
 
 def test_review_prompt_omits_coverage_sections() -> None:
-    """The scored review prompt excludes the two novelty-adjacent sections.
-
-    Deliberate scoping (see ``_format_meta_review_context``'s docstring):
-    this prompt's score feeds the sticky, never-revisited initial review
-    gate on its ``novelty`` axis, and "this area is already covered" /
-    "this direction is open" read as direct novelty cues. The pre-
-    existing strengths/weaknesses/recommendations sections are unaffected.
-    """
+    """Coverage cues can bias the sticky initial novelty gate."""
     prompt, _ = get_review_prompt(
         research_goal="g",
         hypothesis_text="h",
@@ -524,7 +434,6 @@ def test_review_prompt_omits_coverage_sections() -> None:
 
 
 def test_review_batch_prompt_omits_coverage_sections() -> None:
-    """The comparative batch review prompt excludes the same two sections."""
     prompt, _ = get_review_batch_prompt(
         research_goal="reduce tumor metastasis",
         hypotheses_list="1. block CXCR4\n2. inhibit MMP-9",
@@ -541,10 +450,6 @@ def test_review_batch_prompt_omits_coverage_sections() -> None:
 
 
 def test_ranking_prompt_keeps_coverage_sections() -> None:
-    """Contrast: the tournament judge keeps both sections by default.
-
-    It is a reversible Elo signal, not a gate.
-    """
     prompt, _ = get_ranking_prompt(
         research_goal="g",
         side_a=RankingSide(text="A"),
@@ -595,7 +500,6 @@ def test_review_prompt_critical_criteria_structured_shape() -> None:
 
 
 def test_review_prompt_critical_criteria_legacy_shape() -> None:
-    """A bare list of strings (pre-R12-23 persisted shape) still renders."""
     guidance = {
         "workflow_plan": {
             "review_phase": {
@@ -613,15 +517,7 @@ def test_review_prompt_critical_criteria_legacy_shape() -> None:
 
 
 def test_review_prompt_critical_criteria_caps_count_and_questions() -> None:
-    """A live run's uncapped answer is defensively re-sliced at injection.
-
-    json_object mode (the production downgrade path) does not enforce the
-    schema's maxItems server-side, so this caps to Google's own published
-    counts (6 criteria -- the union of the Evaluation Criteria and Review
-    summary sections, R12-23b -- 4 questions each) regardless of what the
-    model actually returned -- the same defense
-    research_overview_directions.py applies for its own nested lists.
-    """
+    """The json_object downgrade does not enforce maxItems server-side."""
     guidance = {
         "workflow_plan": {
             "review_phase": {
@@ -650,7 +546,6 @@ def test_review_prompt_critical_criteria_caps_count_and_questions() -> None:
 
 
 def test_review_prompt_critical_criteria_malformed_entries_degrade() -> None:
-    """Malformed entries are skipped, not raised, alongside valid ones."""
     guidance = {
         "workflow_plan": {
             "review_phase": {
@@ -674,7 +569,6 @@ def test_review_prompt_critical_criteria_malformed_entries_degrade() -> None:
 
 
 def test_review_prompt_critical_criteria_absent_renders_no_section() -> None:
-    """No critical_criteria means no 'Critical Criteria to Emphasize' line."""
     prompt, _ = get_review_prompt(
         research_goal="g",
         hypothesis_text="h",
@@ -689,11 +583,6 @@ def test_review_prompt_critical_criteria_absent_renders_no_section() -> None:
 
 
 def test_review_prompt_critical_criteria_not_a_list_degrades() -> None:
-    """A malformed (non-list) critical_criteria field degrades, not crashes.
-
-    ``_guidance_items`` wraps a bare string as a single-item list, so this
-    still renders it as one legacy-shaped criterion rather than raising.
-    """
     guidance = {
         "workflow_plan": {
             "review_phase": {"critical_criteria": "not a list"},
@@ -708,17 +597,8 @@ def test_review_prompt_critical_criteria_not_a_list_degrades() -> None:
 
 
 def test_review_prompt_excludes_description_even_when_present() -> None:
-    """R12-23b: ``description`` is deliberately report-only, never injected.
-
-    ``description`` backs the report's own "Evaluation Criteria" section
-    (``report/markdown/supervisor.py``) -- this call site runs per
-    hypothesis, per review, and the prose states the same substance the
-    questions already express operationally, so injecting it here would
-    roughly double this per-hypothesis guidance block for no reviewer
-    benefit (see planning.py's ``CRITICAL_CRITERIA_MAX_COUNT`` comment).
-    This is the test that protects that design decision: the name and
-    questions must still reach the reviewer, the description must not.
-    """
+    """Descriptions are report-only; injecting them duplicates per-review
+    guidance."""
     marker = "UNIQUE_DESCRIPTION_PROSE_MARKER_NEVER_INJECTED"
     guidance = {
         "workflow_plan": {
@@ -754,11 +634,6 @@ def test_review_prompt_excludes_description_even_when_present() -> None:
 
 
 def test_review_prompt_blank_description_is_harmless() -> None:
-    """A whitespace-only description doesn't affect prompt injection either.
-
-    ``description`` is never read here regardless of its content, so a
-    blank one behaves exactly like an absent one.
-    """
     guidance = {
         "workflow_plan": {
             "review_phase": {
@@ -791,7 +666,6 @@ _TEMPLATES = (
 
 
 def _enum_values(node: Any, path: str = "") -> list[tuple[str, list[Any]]]:
-    """Collects (property path, enum values) for every enum in a schema."""
     if not isinstance(node, dict):
         return []
     found: list[tuple[str, list[Any]]] = []
@@ -820,16 +694,7 @@ def test_prompts_name_the_enum_values_their_schema_accepts() -> None:
 
 
 def test_ranking_prompt_names_every_comparison_field() -> None:
-    """Both tournament prompts name the keys their judgment allows.
-
-    judgment_explanation is closed, and its keys appeared nowhere but the
-    schema block appended to the prompt -- the criteria the prompt itself
-    lists are prose headings ("Novelty and originality"). A judge asked
-    for comparisons in one vocabulary and given keys in another answered
-    with a key of its own invention, which cost the match a second call.
-    Both published ranking prompts answer against this one schema, so
-    both must name every key.
-    """
+    """Prose/schema vocabulary disagreement costs the judge another call."""
     explanation = RANKING_SCHEMA["schema"]["properties"]["judgment_explanation"]
     for name in ("ranking_pairwise", "ranking_debate"):
         template = (_TEMPLATES / f"{name}.md").read_text()

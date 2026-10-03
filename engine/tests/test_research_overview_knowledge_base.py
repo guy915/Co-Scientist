@@ -1,5 +1,3 @@
-"""Offline contracts for research overview knowledge base."""
-
 from __future__ import annotations
 
 from typing import Any
@@ -101,7 +99,6 @@ _MATERIAL = ThemeWritingMaterial(
 
 
 def _research_overview_knowledge_base_funded_state(**overrides: Any) -> Any:
-    """State for a tier whose ceiling pays for the extra call."""
     return make_state(
         research_goal="g",
         supervisor_model_name="test/model",
@@ -111,13 +108,11 @@ def _research_overview_knowledge_base_funded_state(**overrides: Any) -> Any:
 
 
 def test_the_cheapest_tier_does_not_fund_the_extra_call() -> None:
-    """Express declares 1200 calls; the deep synthesis is not sold there."""
     express = make_state(budget={"max_iterations": 1, "max_llm_calls": 1200})
     assert not kb.knowledge_base_is_funded(express)
 
 
 def test_a_run_that_declares_no_ceiling_does_not_fund_it() -> None:
-    """No declared tier is not a licence to spend the largest call."""
     assert not kb.knowledge_base_is_funded(make_state())
     assert not kb.knowledge_base_is_funded(
         make_state(budget={"max_iterations": 2})
@@ -125,7 +120,6 @@ def test_a_run_that_declares_no_ceiling_does_not_fund_it() -> None:
 
 
 def test_standard_and_above_fund_it() -> None:
-    """The gate is the tier's declared ceiling, read inside this node."""
     standard = make_state(budget={"max_iterations": 2, "max_llm_calls": 2500})
     assert kb.knowledge_base_is_funded(standard)
     assert kb.knowledge_base_is_funded(
@@ -134,11 +128,8 @@ def test_standard_and_above_fund_it() -> None:
 
 
 def test_the_schema_never_echoes_the_evidence_pool_back() -> None:
-    """Output length must not scale with the corpus offered to the prompt.
-
-    The trap proximity clustering hit: a schema that names its input by
-    repeating its text truncates identically on every retry.
-    """
+    """Echoed input scales output with the corpus and truncates identical
+    retries."""
     for schema in (KNOWLEDGE_BASE_OUTLINE_SCHEMA, KNOWLEDGE_BASE_THEME_SCHEMA):
         text = str(schema)
         assert "abstract" not in text
@@ -147,12 +138,6 @@ def test_the_schema_never_echoes_the_evidence_pool_back() -> None:
 
 
 def test_themed_sections_reach_the_topic_list_grounded() -> None:
-    """Each written section becomes one topic carrying its theme and refs.
-
-    The flattening the report renders from, asserted against the response
-    shape directly: which calls produce that shape is the split pass's
-    concern, next door.
-    """
     topics = kb.validate_themes(
         _THEMED_RESPONSE["themes"], _RESEARCH_OVERVIEW_KNOWLEDGE_BASE_CORPUS
     )
@@ -170,7 +155,6 @@ def test_themed_sections_reach_the_topic_list_grounded() -> None:
 
 
 def test_a_theme_beyond_the_readable_count_is_never_flattened_in() -> None:
-    """The report reads eight themes and stops; json_object mode may not."""
     themes = [
         {
             "title": f"Theme {index}",
@@ -191,7 +175,6 @@ def test_a_theme_beyond_the_readable_count_is_never_flattened_in() -> None:
 async def test_an_empty_corpus_never_spends_the_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Nothing to synthesize from is not something to pay a model for."""
     fake = AsyncMock(return_value=_THEMED_RESPONSE)
     monkeypatch.setattr(kbc, "call_llm_json", fake)
 
@@ -206,26 +189,13 @@ async def test_an_empty_corpus_never_spends_the_call(
 
 
 def test_the_section_word_band_starts_at_the_exemplar_mean() -> None:
-    """The old band's floor is what the model actually wrote.
-
-    Measured 2026-09-07: the published exemplar's 43 subject sections
-    average 218 words (median 196, eleven above 250, top 505); production
-    run ``d1273490`` wrote 38 sections averaging 164 (median 162, none
-    above 213) against a prompt naming "150-250". A band is a floor, not
-    a target, so the floor is now the exemplar's own mean.
-    """
     assert KNOWLEDGE_BASE_SECTION_WORDS[0] >= 200
     assert KNOWLEDGE_BASE_PRINCIPAL_SECTION_WORDS[1] >= 500
     assert KNOWLEDGE_BASE_TARGET_SECTIONS[0] >= 40
 
 
 def test_the_prompt_and_the_schema_carry_the_same_targets() -> None:
-    """One measurement, stated in both places a downgraded model reads.
-
-    Under the json_object downgrade the schema's own field descriptions
-    ride with the request beside the prompt, so a band written in one and
-    not the other is two instructions disagreeing.
-    """
+    """Downgraded models read prompt and schema descriptions side by side."""
     outline, _ = get_knowledge_base_outline_prompt(
         "goal", "1. an idea", "corpus"
     )
@@ -233,9 +203,7 @@ def test_the_prompt_and_the_schema_carry_the_same_targets() -> None:
     detail = KNOWLEDGE_BASE_THEME_SCHEMA["schema"]["properties"]["sections"][
         "items"
     ]["properties"]["detail"]
-    # The word bands ride with the writing call, which is the only one
-    # asked for prose; the counts ride with the outline, which is the only
-    # one that decides how many sections there are.
+    # Writers need prose bands; only the outline controls section counts.
     for bound in (
         *KNOWLEDGE_BASE_SECTION_WORDS,
         *KNOWLEDGE_BASE_PRINCIPAL_SECTION_WORDS,
@@ -244,20 +212,11 @@ def test_the_prompt_and_the_schema_carry_the_same_targets() -> None:
         assert str(bound) in detail["description"]
     for bound in KNOWLEDGE_BASE_TARGET_SECTIONS:
         assert str(bound) in outline
-    # A section total with no theme count invites a ninth theme, which
-    # validate_themes slices off in silence -- and the json_object
-    # downgrade's array trim does it before the slice ever sees it.
+    # Extra themes may be silently trimmed before validation.
     assert f"no more than {KNOWLEDGE_BASE_MAX_THEMES} themes" in outline
 
 
 def test_the_prompt_asks_for_the_density_the_exemplar_carries() -> None:
-    """Three content kinds the measured gap is made of.
-
-    The exemplar names a dozen markers in one sentence, states every
-    number with its unit, and devotes whole subsections to interventions
-    that failed and findings that contradict each other. Ours asked for
-    none of the three by name.
-    """
     theme, _ = get_knowledge_base_theme_prompt("goal", _MATERIAL, "corpus")
     outline, _ = get_knowledge_base_outline_prompt(
         "goal", "1. an idea", "corpus"
@@ -270,7 +229,6 @@ def test_the_prompt_asks_for_the_density_the_exemplar_carries() -> None:
 
 
 def test_the_prompt_adds_no_citation_apparatus() -> None:
-    """The span carries zero citations by design, mirroring the exemplar."""
     theme, _ = get_knowledge_base_theme_prompt("goal", _MATERIAL, "corpus")
     assert "no citation markers" in theme.lower()
     assert "no bullet lists" in theme.lower()
@@ -355,7 +313,6 @@ _THEME_SECTIONS: dict[str, dict[str, Any]] = {
 def _research_overview_knowledge_base_split_funded_state(
     **overrides: Any,
 ) -> Any:
-    """State for a tier whose ceiling pays for the extra calls."""
     return make_state(
         research_goal="g",
         supervisor_model_name="test/model",
@@ -365,8 +322,6 @@ def _research_overview_knowledge_base_split_funded_state(
 
 
 class _Responder:
-    """Answers each part call from the fixtures above, recording the specs."""
-
     def __init__(self, failing_theme: str | None = None) -> None:
         self.failing_theme = failing_theme
         self.specs: list[Any] = []
@@ -394,14 +349,6 @@ class _Responder:
 async def test_the_synthesis_is_one_outline_call_plus_one_call_per_theme(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """No single call can carry the section, so it is not asked to.
-
-    The count is the whole cost argument. A full-size outline is eight
-    themes, so this pass costs at most nine requests where it used to cost
-    one: run ``e47a3ba1`` spent 291 LLM calls against standard's declared
-    2,500, so the eight extra are 0.32% of that ceiling (0.11% of
-    extended's 7,000) for a section that otherwise publishes nothing.
-    """
     responder = _Responder()
     monkeypatch.setattr(kbc, "call_llm_json", responder)
 
@@ -419,14 +366,8 @@ async def test_the_synthesis_is_one_outline_call_plus_one_call_per_theme(
 async def test_no_part_asks_for_more_output_than_the_clock_can_serve(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Every part is sized at or under an ordinary thinking call's budget.
-
-    The 42,000-token ask was ~1,100-1,500s of generation at the throughput
-    its own failing attempts measured, against a 600s per-call ceiling. The
-    bound that matters is therefore not "does the model advertise this
-    output size" but "can it be written inside one call", and the budget
-    this deployment has actually proven is the thinking floor.
-    """
+    """Advertised output capacity can exceed what the per-call clock can
+    serve."""
     responder = _Responder()
     monkeypatch.setattr(kbc, "call_llm_json", responder)
 
@@ -444,15 +385,8 @@ async def test_no_part_asks_for_more_output_than_the_clock_can_serve(
 async def test_every_part_bounds_its_own_chain_of_thought(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Reasoning spent the whole clock and wrote nothing; it is bounded now.
-
-    All three failed attempts of run ``e47a3ba1`` came back with
-    ``completion_tokens == reasoning_tokens`` -- 10,080 to 20,949 tokens of
-    chain of thought and not one answer token. Asking not to think is what
-    reaches ``_minimal_reasoning_knob`` on this chain, which sends an
-    explicit ``MINIMAL_REASONING_MAX_TOKENS`` bound rather than a disable
-    the endpoint rejects.
-    """
+    """Unbounded reasoning can spend the whole clock without writing an
+    answer."""
     responder = _Responder()
     monkeypatch.setattr(kbc, "call_llm_json", responder)
 
@@ -471,7 +405,6 @@ async def test_every_part_bounds_its_own_chain_of_thought(
 async def test_the_assembled_topics_keep_the_outline_order_and_grounding(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Parts reassemble into the same topic list the one call produced."""
     responder = _Responder()
     monkeypatch.setattr(kbc, "call_llm_json", responder)
 
@@ -497,7 +430,6 @@ async def test_the_assembled_topics_keep_the_outline_order_and_grounding(
 async def test_a_theme_that_does_not_answer_drops_only_its_own_sections(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """One dropped stream must not cancel the themes written beside it."""
     responder = _Responder(failing_theme="Hepatic Stellate Cell Plasticity")
     monkeypatch.setattr(kbc, "call_llm_json", responder)
 
@@ -516,7 +448,6 @@ async def test_a_theme_that_does_not_answer_drops_only_its_own_sections(
 async def test_a_failed_outline_never_spends_the_writing_calls(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Nothing to write from is not something to pay eight models for."""
     fake = AsyncMock(side_effect=RuntimeError("boom"))
     monkeypatch.setattr(kbc, "call_llm_json", fake)
 
@@ -534,15 +465,12 @@ async def test_a_failed_outline_never_spends_the_writing_calls(
     "outline",
     [
         {"themes": []},
-        # A theme with no usable sections buys a writing call with nothing
-        # to write, on a chain capped at ~100 requests per model per day.
         {"themes": [{"title": "Empty Theme", "sections": []}]},
     ],
 )
 async def test_an_outline_with_no_themes_stops_before_the_writing_calls(
     outline: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """An answered-but-empty outline is the same dead end as a failed one."""
     fake = AsyncMock(return_value=outline)
     monkeypatch.setattr(kbc, "call_llm_json", fake)
 
@@ -559,13 +487,8 @@ async def test_an_outline_with_no_themes_stops_before_the_writing_calls(
 async def test_a_writer_that_cites_nothing_falls_back_to_the_outline_ids(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The outline already chose the sources; a silent writer keeps them.
-
-    Splitting the call splits the grounding decision away from the prose,
-    so a writer that omits ``evidence_ids`` would drop a section the
-    outline had grounded perfectly well -- the section is dropped for
-    citing nothing, which reads as a thin corpus rather than a lost field.
-    """
+    """Splitting grounding and prose must not lose the outline-selected
+    evidence."""
 
     async def responder(**kwargs: Any) -> dict[str, Any]:
         spec = kwargs["spec"]
@@ -608,7 +531,6 @@ async def test_a_writer_that_cites_nothing_falls_back_to_the_outline_ids(
 async def test_each_writer_is_shown_the_whole_outline(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Writers that cannot see each other's headings write the same section."""
     responder = _Responder()
     monkeypatch.setattr(kbc, "call_llm_json", responder)
 
@@ -626,16 +548,7 @@ async def test_each_writer_is_shown_the_whole_outline(
 async def test_the_parts_are_attributed_to_their_own_telemetry_sub_phase(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Nine calls inside one node must not hide the tenth's own usage.
-
-    Telemetry is folded per (phase, model) and the phase is the durable
-    task name, so before this the outline and every theme landed in the
-    same bucket as the research-overview draft they run beside -- and
-    nothing logs a single call's tokens on the success path, so that
-    bucket is the only record a production run leaves. The draft's own
-    budget was reasoned about rather than measured for exactly this
-    reason.
-    """
+    """Phase-folded telemetry otherwise hides outline and writer costs."""
     responder = _Responder()
 
     async def _recording(**kwargs: Any) -> dict[str, Any]:
@@ -669,7 +582,6 @@ _DRAFT: dict[str, Any] = {
 
 
 def _revised(summary: str) -> dict[str, Any]:
-    """A reviser response identical to ``_DRAFT`` but for the summary."""
     return {
         "overview": {"summary": summary, "research_directions": []},
         "nih_specific_aims": {"disease_description": "i", "aims": []},
@@ -701,7 +613,6 @@ async def _run_loop(
 async def test_accept_first_time_runs_no_reviser_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A first-pass accept costs one call and leaves the draft untouched."""
     fake = AsyncMock(return_value={"accept": True})
     monkeypatch.setattr(ror, "call_llm_json", fake)
 
@@ -717,7 +628,6 @@ async def test_accept_first_time_runs_no_reviser_call(
 async def test_a_revision_round_changes_the_published_prose(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A rejection followed by acceptance publishes the revised prose."""
     revised = _revised("Corrected, hedged summary.")
     fake = AsyncMock(side_effect=[_reject(), revised, {"accept": True}])
     monkeypatch.setattr(ror, "call_llm_json", fake)
@@ -735,7 +645,6 @@ async def test_a_revision_round_changes_the_published_prose(
 async def test_the_cycle_cap_holds_when_the_reviewer_objects_forever(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The reviewer is asked at most twice; the last revision publishes."""
     second_revision = _revised("Second revision.")
     fake = AsyncMock(
         side_effect=[
@@ -750,8 +659,6 @@ async def test_the_cycle_cap_holds_when_the_reviewer_objects_forever(
     state = make_state(supervisor_model_name="test/model")
     final, meta, calls = await _run_loop(state)
 
-    # Two review calls, two revise calls -- no third review call spent on
-    # a verdict that could not change the outcome.
     assert fake.await_count == 4
     assert calls == 4
     assert final["overview"]["summary"] == "Second revision."
@@ -779,7 +686,6 @@ def _base_state(**overrides: Any) -> Any:
 async def test_review_disabled_by_default_skips_the_loop(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """No ``enable_overview_review`` flag means the loop never runs."""
     synth = AsyncMock(return_value=_OVERVIEW_RESPONSE)
     monkeypatch.setattr(ro, "call_llm_json", synth)
     loop = AsyncMock(side_effect=AssertionError("loop must not run"))
@@ -792,15 +698,12 @@ async def test_review_disabled_by_default_skips_the_loop(
         "reviewed": False,
         "rounds": 0,
     }
-    # Two calls: the draft, plus the one call that develops its single
-    # drafted direction (research_overview_direction_calls).
     assert out["metrics"].llm_calls == 2
 
 
 async def test_a_review_round_changes_the_published_overview(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A revision the loop returns is what actually publishes."""
     synth = AsyncMock(return_value=_OVERVIEW_RESPONSE)
     monkeypatch.setattr(ro, "call_llm_json", synth)
     revised = {
@@ -826,19 +729,14 @@ async def test_a_review_round_changes_the_published_overview(
         "reviewed": True,
         "rounds": 1,
     }
-    # One synthesis call, the three the loop reports spending, and one
-    # per drafted direction developed afterwards.
     assert out["metrics"].llm_calls == 4 + _DIRECTIONS
 
 
 async def test_an_exception_in_the_review_loop_publishes_the_original_draft(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A report that fails to publish is worse than one that is unreviewed.
-
-    Any exception in the review loop must degrade to the drafted overview
-    exactly as synthesized -- never raise out of the node.
-    """
+    """Review failure must degrade to the draft rather than prevent
+    publication."""
     synth = AsyncMock(return_value=_OVERVIEW_RESPONSE)
     monkeypatch.setattr(ro, "call_llm_json", synth)
     loop = AsyncMock(side_effect=RuntimeError("provider exploded"))
@@ -854,6 +752,4 @@ async def test_an_exception_in_the_review_loop_publishes_the_original_draft(
         "reviewed": False,
         "rounds": 0,
     }
-    # Two calls: the draft, plus the one call that develops its single
-    # drafted direction (research_overview_direction_calls).
     assert out["metrics"].llm_calls == 2

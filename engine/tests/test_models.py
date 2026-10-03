@@ -1,5 +1,3 @@
-"""Offline contracts for models."""
-
 from __future__ import annotations
 
 import pytest
@@ -14,7 +12,6 @@ from co_scientist.models import (
 )
 from tests._state import make_review
 
-# Exact serialized key sets are part of the contract this net pins.
 _HYPOTHESIS_DICT_KEYS = {
     "id",
     "parent_id",
@@ -53,11 +50,8 @@ _HYPOTHESIS_DICT_KEYS = {
     "win_rate",
 }
 
-# --- Hypothesis: construction and defaults ----------------------------------
-
 
 def test_hypothesis_minimal_construction_defaults() -> None:
-    """Only ``text`` is required; other fields use documented defaults."""
     hyp = Hypothesis(text="A hypothesis")
     assert hyp.text == "A hypothesis"
     assert hyp.category is None
@@ -81,7 +75,6 @@ def test_hypothesis_minimal_construction_defaults() -> None:
 
 
 def test_hypothesis_mutable_defaults_not_shared() -> None:
-    """``default_factory`` fields are independent per instance (no sharing)."""
     a = Hypothesis(text="a")
     b = Hypothesis(text="b")
     a.evolution_history.append("step 1")
@@ -92,17 +85,7 @@ def test_hypothesis_mutable_defaults_not_shared() -> None:
     assert b.reviews == []
 
 
-# --- Hypothesis: lineage / evolution ----------------------------------------
-
-
 def test_gen_zero_hypothesis_has_no_lineage() -> None:
-    """A fresh (gen-0) hypothesis carries no parent lineage.
-
-    The explicit lineage fields default to a root: ``parent_id`` None,
-    ``generation`` 0, ``origin`` GENERATION. ``evolution_history`` (empty),
-    ``debate_id`` (None), and ``generation_method`` (None) are also root
-    defaults.
-    """
     hyp = Hypothesis(text="origin")
     assert hyp.parent_id is None
     assert hyp.generation == 0
@@ -114,7 +97,6 @@ def test_gen_zero_hypothesis_has_no_lineage() -> None:
 
 
 def test_evolved_hypothesis_records_lineage() -> None:
-    """An evolved child references its parent via explicit lineage fields."""
     parent = Hypothesis(text="origin")
     evolved = Hypothesis(
         text="refined",
@@ -128,12 +110,10 @@ def test_evolved_hypothesis_records_lineage() -> None:
     assert evolved.generation == 1
     assert evolved.origin is HypothesisOrigin.EVOLUTION
     assert evolved.creation_iteration == 2
-    # The child has a distinct id from its parent.
     assert evolved.id != parent.id
 
 
 def test_multi_parent_lineage_records_every_parent() -> None:
-    """A combination child keeps parent_id primary and parent_ids all."""
     primary = Hypothesis(text="primary parent")
     partner = Hypothesis(text="partner parent")
     child = Hypothesis(
@@ -145,64 +125,44 @@ def test_multi_parent_lineage_records_every_parent() -> None:
     )
     assert child.parent_id == primary.id
     assert child.parent_ids == [primary.id, partner.id]
-    # The full parent list survives serialization round-trips (checkpoints).
     restored = Hypothesis.from_dict(child.to_dict())
     assert restored.parent_id == primary.id
     assert restored.parent_ids == [primary.id, partner.id]
 
 
 def test_parent_ids_default_empty_and_legacy_payloads_load() -> None:
-    """parent_ids defaults to empty; pre-lineage payloads still load."""
     assert Hypothesis(text="x").parent_ids == []
     legacy = Hypothesis(text="x").to_dict()
-    legacy.pop("parent_ids")  # a cached payload from before the field
+    legacy.pop("parent_ids")
     assert Hypothesis.from_dict(legacy).parent_ids == []
 
 
-# --- Hypothesis: computed properties ----------------------------------------
-
-
 def test_total_matches_sums_wins_and_losses() -> None:
-    """``total_matches`` is ``win_count + loss_count``."""
     hyp = Hypothesis(text="x", win_count=3, loss_count=2)
     assert hyp.total_matches == 5
 
 
 def test_win_rate_with_matches() -> None:
-    """``win_rate`` is a 0-100 percentage of wins over total matches."""
     hyp = Hypothesis(text="x", win_count=3, loss_count=1)
     assert hyp.win_rate == 75.0
 
 
 def test_win_rate_zero_matches_guard() -> None:
-    """No matches yields ``0.0`` win rate (no ZeroDivisionError)."""
     hyp = Hypothesis(text="x")
     assert hyp.total_matches == 0
     assert hyp.win_rate == 0.0
 
 
-# --- Hypothesis: serialization ----------------------------------------------
-
-
 def test_hypothesis_to_dict_shape_and_computed_fields() -> None:
-    """``to_dict`` adds computed fields and omits ``similarity_degree``.
-
-    The computed ``total_matches``/``win_rate`` properties are serialized while
-    the ``similarity_degree`` field is intentionally left out.
-    """
     hyp = Hypothesis(text="x", win_count=2, loss_count=2)
     d = hyp.to_dict()
-    # Computed fields are serialized even though they are properties.
     assert d["total_matches"] == 4
     assert d["win_rate"] == 50.0
-    # similarity_degree is a real field but is intentionally NOT serialized.
     assert "similarity_degree" not in d
-    # Exact key set is part of the contract this regression net pins.
     assert set(d.keys()) == _HYPOTHESIS_DICT_KEYS
 
 
 def test_hypothesis_to_dict_serializes_reviews() -> None:
-    """Nested reviews are flattened to plain dicts inside ``to_dict``."""
     review = make_review()
     hyp = Hypothesis(text="x", reviews=[review])
     d = hyp.to_dict()
@@ -213,11 +173,7 @@ def test_hypothesis_to_dict_serializes_reviews() -> None:
     assert serialized["scores"] == review.scores
 
 
-# --- Hypothesis: equality and hashing ---------------------------------------
-
-
 def test_hypothesis_equality_is_field_based() -> None:
-    """Dataclass equality compares all fields; identical fields are equal."""
     a = Hypothesis(text="same", score=5.0)
     b = Hypothesis(text="same", score=5.0)
     c = Hypothesis(text="same", score=6.0)
@@ -226,16 +182,11 @@ def test_hypothesis_equality_is_field_based() -> None:
 
 
 def test_hypothesis_is_unhashable() -> None:
-    """The dataclass is unhashable (eq=True, not frozen): ``hash`` raises."""
     with pytest.raises(TypeError):
         hash(Hypothesis(text="x"))
 
 
-# --- Hypothesis: stable id --------------------------------------------------
-
-
 def test_hypothesis_id_present_and_unique() -> None:
-    """Each hypothesis gets a distinct, non-empty id on construction."""
     a = Hypothesis(text="x")
     b = Hypothesis(text="x")
     assert a.id
@@ -244,11 +195,7 @@ def test_hypothesis_id_present_and_unique() -> None:
 
 
 def test_hypothesis_id_excluded_from_equality() -> None:
-    """``id`` is ``compare=False`` so it never affects dataclass equality.
-
-    Two hypotheses with identical content but distinct ids remain equal, which
-    keeps the text-based dedup heuristics unperturbed.
-    """
+    """Content equality keeps text-based dedup independent of minted ids."""
     a = Hypothesis(text="same", score=5.0)
     b = Hypothesis(text="same", score=5.0)
     assert a.id != b.id
@@ -256,17 +203,12 @@ def test_hypothesis_id_excluded_from_equality() -> None:
 
 
 def test_hypothesis_to_dict_includes_id() -> None:
-    """``to_dict`` serializes the stable id."""
     hyp = Hypothesis(text="x")
     assert hyp.to_dict()["id"] == hyp.id
 
 
 def test_hypothesis_from_dict_preserves_id() -> None:
-    """``from_dict`` round-trips a provided id verbatim.
-
-    Equality ignores id (``compare=False``), so the round-trip is asserted on
-    the id value directly rather than via ``==``.
-    """
+    """Equality ignores ids, so a round-trip must compare the id itself."""
     original = Hypothesis(text="x", win_count=2, loss_count=1)
     restored = Hypothesis.from_dict(original.to_dict())
     assert restored.id == original.id
@@ -276,7 +218,6 @@ def test_hypothesis_from_dict_preserves_id() -> None:
 
 
 def test_hypothesis_category_round_trips() -> None:
-    """``category`` serializes and reconstructs through to_dict/from_dict."""
     hyp = Hypothesis(text="x", category="Metabolic reprogramming")
     d = hyp.to_dict()
     assert d["category"] == "Metabolic reprogramming"
@@ -285,7 +226,6 @@ def test_hypothesis_category_round_trips() -> None:
 
 
 def test_hypothesis_lineage_round_trips() -> None:
-    """Lineage fields serialize and reconstruct, with origin as its enum."""
     child = Hypothesis(
         text="child",
         parent_id="parent-123",
@@ -296,7 +236,7 @@ def test_hypothesis_lineage_round_trips() -> None:
     d = child.to_dict()
     assert d["parent_id"] == "parent-123"
     assert d["generation"] == 2
-    assert d["origin"] == "evolution"  # serialized as the enum value
+    assert d["origin"] == "evolution"
     assert d["creation_iteration"] == 3
     restored = Hypothesis.from_dict(d)
     assert restored.parent_id == "parent-123"
@@ -306,11 +246,6 @@ def test_hypothesis_lineage_round_trips() -> None:
 
 
 def test_hypothesis_from_dict_pre_lineage_payload_defaults() -> None:
-    """A legacy cached payload without lineage keys deserializes to a root.
-
-    Backward-compatibility guard: older caches predate the lineage fields, so
-    ``from_dict`` must fill the generation-0 defaults rather than raising.
-    """
     payload = Hypothesis(text="legacy").to_dict()
     for key in ("parent_id", "generation", "origin", "creation_iteration"):
         del payload[key]
@@ -322,7 +257,6 @@ def test_hypothesis_from_dict_pre_lineage_payload_defaults() -> None:
 
 
 def test_hypothesis_from_dict_generates_id_when_absent() -> None:
-    """A pre-id payload (no ``id`` key) reconstructs with a fresh id."""
     payload = Hypothesis(text="legacy").to_dict()
     del payload["id"]
     restored = Hypothesis.from_dict(payload)
@@ -331,12 +265,7 @@ def test_hypothesis_from_dict_generates_id_when_absent() -> None:
 
 
 def test_hypothesis_from_dict_restores_enum_and_reviews() -> None:
-    """``from_dict`` rebuilds the enum and nested reviews so to_dict re-runs.
-
-    A naive ``cls(**data)`` would leave ``generation_method`` as a str and
-    ``reviews`` as dicts, crashing a subsequent ``to_dict``. This pins the
-    round-trip through ``to_dict -> from_dict -> to_dict``.
-    """
+    """Raw strings/dicts cannot support the next serialization round-trip."""
     hyp = Hypothesis(
         text="x",
         generation_method=GenerationMethod.DEBATE,
@@ -345,22 +274,16 @@ def test_hypothesis_from_dict_restores_enum_and_reviews() -> None:
     restored = Hypothesis.from_dict(hyp.to_dict())
     assert restored.generation_method == GenerationMethod.DEBATE
     assert isinstance(restored.reviews[0], HypothesisReview)
-    # to_dict must not raise on the reconstructed object.
     assert restored.to_dict()["generation_method"] == "debate"
 
 
-# --- Hypothesis: deep-verification fields -----------------------------------
-
-
 def test_hypothesis_deep_verification_fields_default_empty() -> None:
-    """A fresh hypothesis has no deep-verification probes or verdict."""
     h = Hypothesis(text="X inhibits Y")
     assert h.deep_verification_probes == []
     assert h.deep_verification_verdict is None
 
 
 def test_hypothesis_to_dict_includes_deep_verification() -> None:
-    """``to_dict`` serializes the deep-verification probes and verdict."""
     h = Hypothesis(text="X inhibits Y")
     h.deep_verification_probes = [
         {
@@ -376,23 +299,12 @@ def test_hypothesis_to_dict_includes_deep_verification() -> None:
     assert d["deep_verification_verdict"] == "weakened"
 
 
-# --- Hypothesis: review/verification summaries -------------------------------
-#
-# Prompt-ready projections shared by the ranking-matchup and evolution
-# prompts (agents/ranking/ranking_debate_turns.py,
-# agents/evolution/evolve_prompt.py, agents/evolution/evolve_context.py),
-# which each read only the subset of
-# fields they need from the result.
-
-
 def test_review_summary_none_when_no_reviews() -> None:
-    """A hypothesis with no reviews yields None, not a hollow dict."""
     hyp = Hypothesis(text="x")
     assert hyp.review_summary() is None
 
 
 def test_review_summary_projects_latest_review() -> None:
-    """The most recent review's fields are projected into a summary dict."""
     review = make_review(
         review_summary="Solid mechanism, weak controls.",
         scores={"novelty": 7, "rigor": 5},
@@ -409,7 +321,6 @@ def test_review_summary_projects_latest_review() -> None:
 
 
 def test_review_summary_uses_the_latest_of_several_reviews() -> None:
-    """With multiple reviews, only the most recent one is projected."""
     first = make_review(overall_score=3.0)
     second = make_review(overall_score=8.0)
     hyp = Hypothesis(text="x", reviews=[first, second])
@@ -419,18 +330,13 @@ def test_review_summary_uses_the_latest_of_several_reviews() -> None:
 
 
 def test_deep_verification_summary_none_when_no_probes() -> None:
-    """A hypothesis with no deep-verification probes yields None.
-
-    None (rather than a dict of Nones/empties) lets a prompt builder drop
-    the block entirely instead of shipping a hollow one -- the drift that
-    used to separate this projection from evolution's own inline copy.
-    """
+    """None lets prompt builders omit the block rather than emit hollow
+    evidence."""
     hyp = Hypothesis(text="x")
     assert hyp.deep_verification_summary() is None
 
 
 def test_deep_verification_summary_returns_probes_and_verdict() -> None:
-    """Populated probes/verdict are returned as a summary dict."""
     probes = [
         {
             "question": "does it hold under X?",
@@ -475,17 +381,12 @@ _ARTICLE_DICT_KEYS = {
 }
 
 
-# --- HypothesisReview -------------------------------------------------------
-
-
 def test_hypothesis_review_requires_all_fields() -> None:
-    """``HypothesisReview`` has no defaults; all six fields are required."""
     with pytest.raises(TypeError):
         HypothesisReview()  # type: ignore[call-arg]
 
 
 def test_hypothesis_review_construction() -> None:
-    """A fully-specified review stores each field verbatim."""
     review = HypothesisReview(
         review_summary="Solid",
         scores={"novelty": 8},
@@ -499,11 +400,7 @@ def test_hypothesis_review_construction() -> None:
     assert review.detailed_feedback == {"novelty": "novel angle"}
 
 
-# --- ExecutionMetrics -------------------------------------------------------
-
-
 def test_execution_metrics_defaults() -> None:
-    """All ``ExecutionMetrics`` fields default to zero / empty."""
     m = ExecutionMetrics()
     assert m.total_time == 0.0
     assert m.hypothesis_count == 0
@@ -516,7 +413,6 @@ def test_execution_metrics_defaults() -> None:
 
 
 def test_execution_metrics_phase_times_not_shared() -> None:
-    """``phase_times`` uses a per-instance ``default_factory`` dict."""
     a = ExecutionMetrics()
     b = ExecutionMetrics()
     a.phase_times["generate"] = 1.5
@@ -524,7 +420,6 @@ def test_execution_metrics_phase_times_not_shared() -> None:
 
 
 def test_execution_metrics_model_usage_not_shared() -> None:
-    """``model_usage`` uses a per-instance ``default_factory`` dict."""
     a = ExecutionMetrics()
     b = ExecutionMetrics()
     a.model_usage["generate::m"] = {"calls": 1}
@@ -532,7 +427,6 @@ def test_execution_metrics_model_usage_not_shared() -> None:
 
 
 def test_execution_metrics_round_trips_model_usage() -> None:
-    """``to_dict``/``from_dict`` preserve ``model_usage`` verbatim."""
     usage = {"generate::m": {"calls": 2, "prompt_tokens": 30}}
     m = ExecutionMetrics(model_usage=usage)
     restored = ExecutionMetrics.from_dict(m.to_dict())
@@ -540,7 +434,6 @@ def test_execution_metrics_round_trips_model_usage() -> None:
 
 
 def test_merge_metrics_sums_model_usage_across_nodes() -> None:
-    """``merge_metrics`` sums per-(phase, model) usage across two deltas."""
     from co_scientist.models import merge_metrics
 
     first = ExecutionMetrics(
@@ -598,15 +491,10 @@ def test_merge_metrics_sums_model_usage_across_nodes() -> None:
     assert merged.model_usage["generate::m"]["cache_misses"] == 2
     assert merged.model_usage["generate::m"]["errors"] == {"TimeoutError": 1}
     assert merged.model_usage["review::m"]["cache_hits"] == 1
-    # Original operands are untouched (a new dict is built, not mutated).
     assert first.model_usage["generate::m"]["calls"] == 1
 
 
-# --- Article ----------------------------------------------------------------
-
-
 def test_article_minimal_construction_defaults() -> None:
-    """Only ``title`` required; ``citations`` and ``source`` have defaults."""
     art = Article(title="A paper")
     assert art.title == "A paper"
     assert art.url is None
@@ -623,7 +511,6 @@ def test_article_minimal_construction_defaults() -> None:
 
 
 def test_article_mutable_defaults_not_shared() -> None:
-    """``authors`` and ``pdf_links`` are independent per instance."""
     a = Article(title="a")
     b = Article(title="b")
     a.authors.append("Doe, J.")
@@ -633,7 +520,6 @@ def test_article_mutable_defaults_not_shared() -> None:
 
 
 def test_article_to_dict_shape() -> None:
-    """``Article.to_dict`` round-trips every field with no extras."""
     art = Article(
         title="A paper",
         url="http://example.com",
@@ -664,7 +550,6 @@ def test_article_to_dict_shape() -> None:
 
 
 def test_article_equality_is_field_based() -> None:
-    """Dataclass equality compares all fields."""
     a = Article(title="same", citations=3)
     b = Article(title="same", citations=3)
     c = Article(title="same", citations=4)

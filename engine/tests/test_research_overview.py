@@ -1,5 +1,3 @@
-"""Offline contracts for research overview."""
-
 from __future__ import annotations
 
 from typing import Any
@@ -22,8 +20,6 @@ from co_scientist.scheduling import TaskType
 from co_scientist.schemas.synthesis import RESEARCH_OVERVIEW_SCHEMA
 from tests._state import make_article, make_hypothesis, make_state
 
-# A grounded LLM response: one contact and one knowledge-base topic trace back
-# to the analyzed source, and one of each is invented and must be dropped.
 _RESEARCH_OVERVIEW_OVERVIEW_RESPONSE: dict[str, Any] = {
     "overview": {
         "summary": "S",
@@ -81,7 +77,6 @@ _RESEARCH_OVERVIEW_OVERVIEW_RESPONSE: dict[str, Any] = {
 
 
 def _research_overview_grounded_articles() -> list[Article]:
-    """One analyzed source grounding the contacts and knowledge base."""
     return [
         make_article(
             title="Fibrosis mechanisms",
@@ -96,7 +91,6 @@ def _research_overview_grounded_articles() -> list[Article]:
 async def test_produces_overview_and_aims(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The node returns the overview and NIH Specific Aims from the LLM."""
     fake = AsyncMock(return_value=_RESEARCH_OVERVIEW_OVERVIEW_RESPONSE)
     monkeypatch.setattr(ro, "call_llm_json", fake)
 
@@ -119,8 +113,6 @@ async def test_produces_overview_and_aims(
         ]
         == "A"
     )
-    # Two calls: the draft, plus the one call that develops its single
-    # drafted direction (research_overview_direction_calls).
     assert fake.await_count == 2
     contacts = out["research_overview"]["research_contacts"]
     assert len(contacts) == 1
@@ -138,13 +130,6 @@ async def test_produces_overview_and_aims(
 async def test_open_questions_and_patterns_map_through(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """R12-10: open_questions/clear_patterns/unexpected_patterns pass through.
-
-    New research-overview fields (see
-    ``schemas.synthesis.RESEARCH_OVERVIEW_SCHEMA``); this pins that the
-    node's formatting carries them into the state delta unchanged, the
-    same way ``overview``/``nih_specific_aims`` already do.
-    """
     response = {
         **_RESEARCH_OVERVIEW_OVERVIEW_RESPONSE,
         "open_questions": ["What drives the reversal threshold?"],
@@ -179,12 +164,7 @@ async def test_open_questions_and_patterns_map_through(
 async def test_a_contact_with_no_research_direction_defaults_to_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A json_object-mode response omitting the field never raises.
-
-    The schema declares research_direction required, but nothing enforces
-    that server-side under the json_object downgrade, so the model may
-    still omit it -- this must degrade to an empty string, not a KeyError.
-    """
+    """The json_object downgrade can omit schema-required fields."""
     response = {
         **_RESEARCH_OVERVIEW_OVERVIEW_RESPONSE,
         "research_contacts": [
@@ -215,13 +195,6 @@ async def test_a_contact_with_no_research_direction_defaults_to_empty(
     assert contacts[0]["research_direction"] == ""
 
 
-# One (field, value) pair per publication-gate exclusion category: the
-# blocking review dispositions and the blocking safety outcomes.
-#
-# A deep-verification "undermined" verdict is deliberately not here: it
-# demotes rather than withholds, so the synthesis sees the idea. What it
-# must not do is headline it -- pinned by
-# test_an_undermined_idea_never_headlines_the_synthesis below.
 _BLOCKED_HYPOTHESIS_FIELDS: list[tuple[str, str]] = [
     ("review_disposition", "inaccurate"),
     ("review_disposition", "non_novel"),
@@ -234,11 +207,8 @@ _BLOCKED_HYPOTHESIS_FIELDS: list[tuple[str, str]] = [
 
 
 def _blocked_hypotheses() -> list[Hypothesis]:
-    """One hypothesis per exclusion category, each outranking healthy ideas.
-
-    The high Elo ratings make the failure mode visible: an unfiltered
-    top-k summary would consist of exactly these withheld ideas.
-    """
+    """Blocked ideas outrank healthy ones to expose filtering after top-k
+    selection."""
     return [
         make_hypothesis(
             text=f"blocked idea {index} ({field_name}={value})",
@@ -252,14 +222,8 @@ def _blocked_hypotheses() -> list[Hypothesis]:
 async def test_publication_gates_filter_before_synthesis(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Blocked hypotheses never reach the synthesis prompt.
-
-    The pool mixes healthy hypotheses with one representative of every
-    exclusion category; the blocked ones all outrank the healthy ones by
-    Elo, so ranking the unfiltered pool would feed the withheld ideas to
-    the synthesis LLM. Filtering must happen before that call -- prose
-    already synthesized from a blocked idea cannot be unlabeled later.
-    """
+    """Prose synthesized from a blocked idea cannot be safely unlabeled
+    later."""
     fake = AsyncMock(return_value=_RESEARCH_OVERVIEW_OVERVIEW_RESPONSE)
     monkeypatch.setattr(ro, "call_llm_json", fake)
 
@@ -279,8 +243,6 @@ async def test_publication_gates_filter_before_synthesis(
     )
     out = await ro.research_overview_node(state)
 
-    # Two calls: the draft, plus the one call that develops its single
-    # drafted direction (research_overview_direction_calls).
     assert fake.await_count == 2
     assert fake.await_args_list[0] is not None
     prompt = fake.await_args_list[0].kwargs["prompt"]
@@ -295,11 +257,6 @@ async def test_publication_gates_filter_before_synthesis(
 async def test_all_blocked_pool_skips_synthesis(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """When the gates withhold everything, no LLM call happens.
-
-    The node takes the same empty-pool branch as a run with no hypotheses
-    at all and returns an empty research_overview.
-    """
     fake = AsyncMock(return_value=_RESEARCH_OVERVIEW_OVERVIEW_RESPONSE)
     monkeypatch.setattr(ro, "call_llm_json", fake)
 
@@ -318,11 +275,6 @@ async def test_all_blocked_pool_skips_synthesis(
 async def test_healthy_pool_keeps_top_k_elo_order(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A fully publishable pool keeps the top-k Elo-order behavior.
-
-    More hypotheses than the top-k cap are offered; the summary must hold
-    exactly the strongest RESEARCH_OVERVIEW_TOP_K, in descending Elo order.
-    """
     fake = AsyncMock(return_value=_RESEARCH_OVERVIEW_OVERVIEW_RESPONSE)
     monkeypatch.setattr(ro, "call_llm_json", fake)
 
@@ -338,8 +290,6 @@ async def test_healthy_pool_keeps_top_k_elo_order(
     )
     await ro.research_overview_node(state)
 
-    # Two calls: the draft, plus the one call that develops its single
-    # drafted direction (research_overview_direction_calls).
     assert fake.await_count == 2
     assert fake.await_args_list[0] is not None
     prompt = fake.await_args_list[0].kwargs["prompt"]
@@ -356,13 +306,8 @@ async def test_healthy_pool_keeps_top_k_elo_order(
 async def test_an_undermined_idea_never_headlines_the_synthesis(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """It reaches the synthesis, but below every sound idea.
-
-    Its Elo is the highest in the pool because deep verification only
-    probes the tournament's leaders and the verdict lands after the matches
-    that promoted it -- so plain Elo order would open the run's synthesis
-    with the one idea a probe found a fundamental flaw in.
-    """
+    """Verification lands after matches; a flawed idea may still hold highest
+    Elo."""
     fake = AsyncMock(return_value=_RESEARCH_OVERVIEW_OVERVIEW_RESPONSE)
     monkeypatch.setattr(ro, "call_llm_json", fake)
 
@@ -389,14 +334,8 @@ async def test_an_undermined_idea_never_headlines_the_synthesis(
 
 
 def test_evidence_corpus_interleaves_sources() -> None:
-    """The corpus head samples every source, not one source's top cluster.
-
-    Articles arrive best-first (search results are ranked by retrieval score),
-    which clusters each source's top papers together at the front. Feeding that
-    order to the synthesis LLM makes it over-cite the first few references, so
-    the corpus is round-robined across sources before it is numbered: the first
-    N entries (N = source count) must cover all N sources.
-    """
+    """Source-clustered ordering encourages over-citation of the first
+    references."""
     articles = [
         make_article(title="P1", source="pubmed", used_in_analysis=True),
         make_article(title="P2", source="pubmed", used_in_analysis=True),
@@ -409,29 +348,21 @@ def test_evidence_corpus_interleaves_sources() -> None:
     corpus = ro._build_evidence_corpus(articles)
     ordered = list(corpus.values())
 
-    # Ids are contiguous in presentation order.
     assert [entry["evidence_id"] for entry in ordered] == [
         f"evidence-{i + 1}" for i in range(6)
     ]
-    # The head (first three, one per source) covers every source rather than
-    # three pubmed papers in a row.
     assert {entry["source"] for entry in ordered[:3]} == {
         "pubmed",
         "openalex",
         "third_source",
     }
-    # Best-first order is preserved within each source.
     pubmed_titles = [e["title"] for e in ordered if e["source"] == "pubmed"]
     assert pubmed_titles == ["P1", "P2", "P3"]
 
 
 def test_evidence_corpus_prompt_strips_citation_markers() -> None:
-    """A source's own citations do not reach the synthesis prompt.
-
-    Left in, the synthesis model can copy one into the research overview
-    it writes -- a real-looking reference attached to a claim the cited
-    source never made.
-    """
+    """Copied source citations can attach real-looking references to false
+    claims."""
     abstract = "This confirms prior work (Smith et al. 2019) [12]."
     articles = [
         make_article(
@@ -450,11 +381,7 @@ def test_evidence_corpus_prompt_strips_citation_markers() -> None:
 
 
 def test_evidence_corpus_dict_keeps_citation_markers_for_the_report() -> None:
-    """The corpus dict must keep the abstract as retrieved.
-
-    It is reused to attach source metadata to the knowledge-base topics
-    the report ships, so stripping belongs to the prompt formatter alone.
-    """
+    """Report provenance needs source metadata as retrieved."""
     abstract = "This confirms prior work (Smith et al. 2019) [12]."
     articles = [
         make_article(
@@ -471,8 +398,6 @@ def test_evidence_corpus_dict_keeps_citation_markers_for_the_report() -> None:
     assert next(iter(corpus.values()))["abstract"] == abstract
 
 
-# Mirrors test_research_overview.py's _OVERVIEW_RESPONSE: one contact and
-# one knowledge-base topic trace back to the analyzed source.
 _RESEARCH_OVERVIEW_CONTACTS_OVERVIEW_RESPONSE: dict[str, Any] = {
     "overview": {
         "summary": "S",
@@ -530,7 +455,6 @@ _RESEARCH_OVERVIEW_CONTACTS_OVERVIEW_RESPONSE: dict[str, Any] = {
 
 
 def _research_overview_contacts_grounded_articles() -> list[Article]:
-    """One analyzed source grounding the contacts and knowledge base."""
     return [
         make_article(
             title="Fibrosis mechanisms",
@@ -545,14 +469,6 @@ def _research_overview_contacts_grounded_articles() -> list[Article]:
 async def test_research_contact_groups_resolve_indices_to_real_ids(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """R14-6: a group's example indices resolve to real hypothesis ids.
-
-    The model never writes a title itself -- it names a 1-based position
-    in the numbered top-k list, and the node resolves that back to the
-    real hypothesis id. An out-of-range index (99, when only one
-    hypothesis was offered) is dropped rather than guessed at, and a
-    group naming no direction is dropped entirely.
-    """
     response = {
         **_RESEARCH_OVERVIEW_CONTACTS_OVERVIEW_RESPONSE,
         "research_contact_groups": [
@@ -593,7 +509,6 @@ async def test_research_contact_groups_resolve_indices_to_real_ids(
 async def test_research_contact_groups_default_to_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A response omitting research_contact_groups degrades to []."""
     fake = AsyncMock(return_value=_RESEARCH_OVERVIEW_CONTACTS_OVERVIEW_RESPONSE)
     monkeypatch.setattr(ro, "call_llm_json", fake)
 
@@ -615,7 +530,6 @@ async def test_research_contact_groups_default_to_empty(
 async def test_research_overview_synthesizes_without_nullable_authors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An analyzed article with null authors cannot block the overview."""
     fake = AsyncMock(return_value=_RESEARCH_OVERVIEW_CONTACTS_OVERVIEW_RESPONSE)
     monkeypatch.setattr(ro, "call_llm_json", fake)
 
@@ -677,7 +591,6 @@ def _state(**overrides: Any) -> Any:
 async def test_a_periodic_firing_writes_only_the_interim_overview(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """``research_overview`` stays the published document's own key."""
     monkeypatch.setattr(ro, "call_llm_json", AsyncMock(return_value=_RESPONSE))
 
     out = await ro.research_overview_node(
@@ -692,7 +605,6 @@ async def test_a_periodic_firing_writes_only_the_interim_overview(
 async def test_a_periodic_firing_buys_neither_extra(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """One call: no accuracy-review loop, no deep knowledge-base call."""
     fake = AsyncMock(return_value=_RESPONSE)
     monkeypatch.setattr(ro, "call_llm_json", fake)
     review = AsyncMock()
@@ -710,14 +622,7 @@ async def test_a_periodic_firing_buys_neither_extra(
 async def test_a_periodic_firing_asks_only_for_directions_and_questions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The interim call's own schema, not the terminal document's ten.
-
-    Before this schema existed every periodic firing still paid for the
-    NIH Specific Aims page, the contacts and the knowledge base at the
-    terminal call's own generation cost, and discarded all of it --
-    ``build_interim_overview`` only ever reads direction titles and open
-    questions back out.
-    """
+    """Periodic calls must not buy terminal prose their consumers discard."""
     fake = AsyncMock(return_value=_RESPONSE)
     monkeypatch.setattr(ro, "call_llm_json", fake)
 
@@ -739,13 +644,6 @@ async def test_a_periodic_firing_asks_only_for_directions_and_questions(
 
 
 def test_the_interim_schema_is_a_strict_subset_of_the_terminal_one() -> None:
-    """Direction titles and open questions only -- named once, reused.
-
-    ``RESEARCH_OVERVIEW_INTERIM_MAX_DIRECTIONS``/``_MAX_QUESTIONS`` are the
-    same constants ``interim_overview.build_interim_overview`` renders
-    from, so this call is never asked to write a title or question the
-    next generate cycle will not see.
-    """
     from co_scientist.schemas.synthesis import RESEARCH_OVERVIEW_INTERIM_SCHEMA
 
     terminal_top = set(RESEARCH_OVERVIEW_SCHEMA["schema"]["properties"])
@@ -768,13 +666,7 @@ def test_the_interim_schema_is_a_strict_subset_of_the_terminal_one() -> None:
 async def test_a_periodic_firing_is_budgeted_below_the_terminal_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A tiny ask does not need the terminal document's base budget.
-
-    Whether this actually lowers the deployed chain's *effective*
-    ceiling depends on whether the model thinks -- see
-    ``RESEARCH_OVERVIEW_INTERIM_MAX_TOKENS``'s own docstring -- but the
-    base budget passed to the call is smaller either way.
-    """
+    """Effective ceilings also depend on the model reasoning policy."""
     fake = AsyncMock(return_value=_RESPONSE)
     monkeypatch.setattr(ro, "call_llm_json", fake)
 
@@ -789,7 +681,6 @@ async def test_a_periodic_firing_is_budgeted_below_the_terminal_call(
 async def test_the_terminal_firing_is_unchanged(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """TERMINATE still publishes the overview and writes no interim."""
     monkeypatch.setattr(ro, "call_llm_json", AsyncMock(return_value=_RESPONSE))
     monkeypatch.setattr(
         ro, "synthesize_knowledge_base", AsyncMock(return_value=([], 0))
@@ -809,12 +700,6 @@ async def test_the_terminal_firing_is_unchanged(
 
 
 def test_generation_reads_the_interim_overview_as_context() -> None:
-    """The feedback edge lands where the generation prompts already read.
-
-    Spliced onto the literature context the strategies are handed rather
-    than into a new prompt slot: the block describes this run's own
-    findings so far, which is what that context is.
-    """
     state = make_state(interim_overview="Direction 1: block the brake.")
     augmented = operations._with_interim_overview(state, "Paper A says X.")
 
@@ -824,12 +709,6 @@ def test_generation_reads_the_interim_overview_as_context() -> None:
 
 
 async def testprepare_task_state_splices_the_block_into_its_context() -> None:
-    """The splice itself, at the seam every strategy is handed.
-
-    ``_with_interim_overview`` being correct in isolation is not the fix:
-    the call in ``prepare_generation`` is what puts it in front of the
-    generation prompts.
-    """
     state = make_state(
         supervisor_guidance={"focus": "x"},
         initial_hypotheses_count=2,
@@ -846,7 +725,6 @@ async def testprepare_task_state_splices_the_block_into_its_context() -> None:
 
 
 def test_generation_context_is_untouched_before_the_first_firing() -> None:
-    """No firing yet means byte-identical prompts to before this fix."""
     state = make_state()
     unchanged = operations._with_interim_overview(state, "Paper A says X.")
     assert unchanged == "Paper A says X."

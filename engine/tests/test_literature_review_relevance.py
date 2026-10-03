@@ -1,5 +1,3 @@
-"""Offline contracts for literature review relevance."""
-
 from __future__ import annotations
 
 import asyncio
@@ -26,12 +24,6 @@ def _literature_review_relevance_isolate_offline_router(
     offline_llm.install_offline_router()
 
 
-# --- normalize_lexical / combine_hybrid_score (pure) ------------------------
-
-
-# --- apply_semantic_relevance (end to end, offline router) ------------------
-
-
 def _candidate(title: str, lexical_score: float) -> dict[str, object]:
     return {
         "title": title,
@@ -40,11 +32,7 @@ def _candidate(title: str, lexical_score: float) -> dict[str, object]:
     }
 
 
-# --- batched judgment call (stubbed call_llm_json) --------------------------
-
-
 def _stub_judgments(*, count: int, start_relevance: float = 0.0) -> list[Any]:
-    """Builds ``count`` in-order judgments, relevance increasing by index."""
     return [
         {
             "index": i,
@@ -68,8 +56,6 @@ class TestLiteratureReviewRelevance:
         assert relevance.normalize_lexical(0.0) == 0.0
         assert relevance.normalize_lexical(1.0) == 1.0
         assert relevance.normalize_lexical(0.5) == 0.5
-        # Out-of-range inputs (e.g. floating point noise) still clamp rather
-        # than producing a score outside [0, 1].
         assert relevance.normalize_lexical(-0.2) == 0.0
         assert relevance.normalize_lexical(1.5) == 1.0
 
@@ -79,12 +65,10 @@ class TestLiteratureReviewRelevance:
         assert relevance.combine_hybrid_score(0.5, None) == 0.5
 
     def test_combine_hybrid_score_averages_lexical_and_semantic(self) -> None:
-        """A judged candidate's score is the documented 50/50 blend."""
         assert relevance.combine_hybrid_score(0.5, 1.0) == 0.75
         assert relevance.combine_hybrid_score(0.0, 0.0) == 0.0
 
     def test_combine_hybrid_score_clamps_out_of_range_semantic(self) -> None:
-        """A malformed model response outside [0, 1] does not skew the blend."""
         assert relevance.combine_hybrid_score(
             0.5, 4.0
         ) == relevance.combine_hybrid_score(0.5, 1.0)
@@ -93,11 +77,6 @@ class TestLiteratureReviewRelevance:
         ) == relevance.combine_hybrid_score(0.5, 0.0)
 
     def test_semantic_pool_size_is_bounded(self) -> None:
-        """The pool never exceeds the absolute cap.
-
-        However large the candidate set or the multiplier-scaled budget would
-        otherwise allow.
-        """
         assert relevance._semantic_pool_size(1000, budget=50) == (
             relevance._SEMANTIC_POOL_CAP
         )
@@ -125,12 +104,6 @@ class TestLiteratureReviewRelevance:
     async def test_apply_semantic_relevance_skips_pool_without_goal(
         self,
     ) -> None:
-        """An empty research goal never triggers an LLM call.
-
-        Candidates still get the normalized lexical-only baseline, so the
-        persisted score is on the same [0, 1] scale whether or not the
-        semantic pass ran.
-        """
         ranked = {"p1": _candidate("Paper One", 1.0)}
         result = await relevance.apply_semantic_relevance(
             ranked,
@@ -146,16 +119,7 @@ class TestLiteratureReviewRelevance:
     async def test_apply_semantic_relevance_preserves_lexical_differentiation(
         self,
     ) -> None:
-        """Better lexical matches retain higher semantic pass scores.
-
-        Regression guard: ``_stamp_hybrid_score`` must read each candidate's
-        original raw lexical score, not the already-combined value its own
-        first (baseline) pass wrote back onto the same metadata dict -- an
-        earlier version of this function fed that combined value into
-        :func:`combine_hybrid_score` a second time, silently double-weighting
-        the semantic term so every candidate collapsed onto the exact same
-        score regardless of its real lexical quality.
-        """
+        """Scoring a combined baseline twice erases lexical differences."""
         ranked = {
             "best": _candidate("Best lexical", 1.0),
             "worst": _candidate("Worst lexical", 0.0),
@@ -170,12 +134,8 @@ class TestLiteratureReviewRelevance:
             result["best"]["retrieval_score"]
             > result["worst"]["retrieval_score"]
         )
-        # The offline router's deterministic filler answers every "number"
-        # field with 4.0 (co_scientist.offline.llm._SCALAR_DEFAULTS;
-        # "literature_relevance" carries no scalar-value override), which
-        # combine_hybrid_score clamps to 1.0 -- identical for both candidates,
-        # so any observed difference in the final score comes only from the
-        # lexical half.
+        # Offline relevance clamps to the same 1.0 for both candidates;
+        # final-score differences must come from the lexical term.
         assert result["best"][
             "retrieval_score"
         ] == relevance.combine_hybrid_score(1.0, 1.0)
@@ -184,7 +144,6 @@ class TestLiteratureReviewRelevance:
         ] == relevance.combine_hybrid_score(0.0, 1.0)
 
     async def test_apply_semantic_relevance_bounds_pool_by_budget(self) -> None:
-        """Candidates outside the over-fetched pool stay lexical-only."""
         ranked = {
             "best": _candidate("Best", 1.0),
             "worst": _candidate("Worst", 0.0),
@@ -193,7 +152,6 @@ class TestLiteratureReviewRelevance:
             ranked,
             research_goal="a research goal",
             model_name=offline_llm.DEFAULT_OFFLINE_MODEL,
-            # budget=0 disables the pool entirely regardless of candidate count.
             budget=0,
         )
         assert result["best"]["retriever_version"] == (
@@ -204,7 +162,6 @@ class TestLiteratureReviewRelevance:
         )
 
     async def test_apply_semantic_relevance_is_deterministic(self) -> None:
-        """The same candidates and goal score identically on repeated runs."""
         ranked = {
             "p1": _candidate("Paper One", 0.8),
             "p2": _candidate("Paper Two", 0.4),
@@ -235,12 +192,6 @@ class TestLiteratureReviewRelevance:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """25 candidates at batch size 10 costs exactly 3 calls, not 25.
-
-        The pool cap (``_SEMANTIC_POOL_CAP`` = 24) means the 25th candidate is
-        never judged at all -- it stays lexical-only -- and the 24 that are
-        judged split into batches of 10, 10, 4.
-        """
         monkeypatch.setattr(relevance, "_RELEVANCE_BATCH_SIZE", 10)
         calls: list[int] = []
 
@@ -260,8 +211,6 @@ class TestLiteratureReviewRelevance:
 
         assert len(calls) == 3
         assert sorted(calls) == [4, 10, 10]
-        # The 25th candidate (worst lexical score) fell outside the capped
-        # pool and was never sent to a batch call.
         assert (
             result["p25"]["retriever_version"]
             == relevance._LEXICAL_ONLY_VERSION
@@ -275,9 +224,7 @@ class TestLiteratureReviewRelevance:
         async def fake_call_llm_json(
             *, prompt: str, spec: Any
         ) -> dict[str, Any]:
-            # Reversed order plus a distinct relevance per index -- if the
-            # mapping used list position instead of `index`, scores would
-            # land on the wrong candidates.
+            # Reversal distinguishes candidate indices from list positions.
             return {
                 "judgments": [
                     {"index": 3, "relevance": 0.3, "rationale": "third"},
@@ -301,12 +248,6 @@ class TestLiteratureReviewRelevance:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """A whole-batch call failure degrades every candidate in it to 0.0.
-
-        Mirrors the single-call path's failure handling: a bad call never
-        aborts the search, it just leaves that candidate's semantic score at
-        0.0 with a rationale naming the failure.
-        """
 
         async def failing_call_llm_json(*, prompt: str, spec: Any) -> Any:
             raise RuntimeError("provider exploded")
@@ -328,13 +269,7 @@ class TestLiteratureReviewRelevance:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """A non-numeric ``relevance`` degrades only that one candidate.
-
-        Under the json_object downgrade (no server-side schema enforcement) a
-        field can hold the wrong type entirely. This must not raise out of
-        the batch call -- that would abort every sibling batch through
-        ``asyncio.gather`` and fail the whole search over one bad field.
-        """
+        """One malformed field must not abort sibling batches through gather."""
 
         async def fake_call_llm_json(
             *, prompt: str, spec: Any
@@ -362,19 +297,10 @@ class TestLiteratureReviewRelevance:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """A response array shorter than the batch never raises an index error.
-
-        Regression guard for the offline backend's own filler, which sizes
-        every array to one item unless an explicit hint says otherwise (see
-        "offline backend under-populates" -- a hint bug elsewhere could
-        silently starve this schema too). A short response should degrade the
-        candidates it left unnamed, not crash the whole review.
-        """
 
         async def fake_call_llm_json(
             *, prompt: str, spec: Any
         ) -> dict[str, Any]:
-            # Only one judgment for a three-candidate batch.
             return {
                 "judgments": [{"index": 1, "relevance": 0.7, "rationale": "ok"}]
             }
@@ -397,14 +323,11 @@ class TestLiteratureReviewRelevance:
     def test_match_batch_judgments_missing_index_falls_back_to_list_order(
         self,
     ) -> None:
-        """An entry with no usable index still fills a slot, in list order."""
         judgments: list[Any] = [
             {"relevance": 0.5, "rationale": "no index"},
             {"index": 1, "relevance": 0.9, "rationale": "explicit"},
         ]
         matched = relevance._match_batch_judgments(judgments, ["p1", "p2"])
-        # p1 (index 1) claims its explicit slot; the indexless entry fills
-        # the remaining empty slot (p2) rather than being dropped.
         assert matched[0]["rationale"] == "explicit"
         assert matched[1]["rationale"] == "no index"
 
@@ -428,9 +351,6 @@ def _literature_review_search_single_source_isolate_offline_router(
     offline_llm.install_offline_router()
 
 
-# Two queries' worth of pubmed results: query 2 repeats query 1's "Shared
-# paper" (case-insensitively) and adds a retracted entry, so dedup and the
-# retraction filter both fire.
 _OVERFETCH_RESULTS: list[dict[str, dict[str, Any]]] = [
     {
         "p1": {"title": "Shared paper", "source": "pubmed", "year": 2025},
@@ -458,7 +378,6 @@ _OVERFETCH_RESULTS: list[dict[str, dict[str, Any]]] = [
 
 
 def _recording_search_all_queries(observed: dict[str, int]) -> Any:
-    """Fake ``_search_all_queries`` recording budget args into ``observed``."""
 
     async def fake_search_all_queries(
         queries: list[str],
@@ -482,7 +401,6 @@ class TestLiteratureReviewSearchSingleSource:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Expanded queries fill one unique, quality-ranked evidence budget."""
         observed: dict[str, int] = {}
         monkeypatch.setattr(
             search,
@@ -521,12 +439,6 @@ class TestLiteratureReviewSearchSingleSource:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """A configured research goal runs the semantic pass before capping.
-
-        Every surviving paper is re-ranked onto the hybrid scorer's [0, 1]
-        scale and carries its provenance, rather than the bare lexical score
-        ``_phase2_collect_papers_single_source`` produces without a goal.
-        """
         observed: dict[str, int] = {}
         monkeypatch.setattr(
             search,
@@ -579,7 +491,6 @@ class _FlakyClient:
 
 @pytest.fixture
 def _no_real_sleep(monkeypatch: pytest.MonkeyPatch) -> list[float]:
-    """Record backoff delays instead of waiting them out."""
     slept: list[float] = []
 
     async def _record(delay: float) -> None:
@@ -607,11 +518,6 @@ class TestLiteratureReviewSearchRetry:
     async def test_a_source_survives_more_than_one_transient_failure(
         self,
     ) -> None:
-        """Two failures in a row must not cost the query.
-
-        The old budget was one retry, so the second failure raised and the
-        caller dropped the query entirely.
-        """
         client = _FlakyClient(failures=2)
 
         result = await search_query._call_search_tool(
@@ -623,11 +529,8 @@ class TestLiteratureReviewSearchRetry:
 
     @pytest.mark.asyncio
     async def test_exhausted_retries_still_raise_to_the_caller(self) -> None:
-        """A source that never recovers surfaces its failure, not an empty hit.
-
-        The caller distinguishes "search broke" from "no results"; swallowing
-        the exhausted case here would erase that difference.
-        """
+        """Callers must distinguish failed searches from successful empty
+        results."""
         client = _FlakyClient(failures=search_query._SEARCH_ATTEMPTS)
 
         with pytest.raises(RuntimeError, match="throttling"):
@@ -642,11 +545,8 @@ class TestLiteratureReviewSearchRetry:
         self,
         _no_real_sleep: list[float],
     ) -> None:
-        """Delays escalate, and no two runs share a schedule.
-
-        A fixed schedule releases every throttled caller of a concurrent wave at
-        the same moment, reproducing the burst that caused the throttling.
-        """
+        """Fixed schedules release throttled waves together and recreate their
+        burst."""
         client = _FlakyClient(failures=search_query._SEARCH_ATTEMPTS - 1)
         await search_query._call_search_tool(
             cast(MCPToolClient, client), "search_pubmed", {}
@@ -661,21 +561,13 @@ class TestLiteratureReviewSearchRetry:
 
         assert len(first) == search_query._SEARCH_ATTEMPTS - 1
         assert first == sorted(first)
-        assert sum(first) > 4 * 0.25  # comfortably past the old single 0.25s
+        assert sum(first) > 4 * 0.25
         assert first != _no_real_sleep
 
     @pytest.mark.asyncio
     async def test_a_tool_reported_error_is_not_retried(self) -> None:
-        """A query OpenAlex's API already rejected must not be re-asked.
-
-        FastMCP formats an unmasked tool exception as "Error calling tool
-        '<name>': <detail>" and returns that text as the tool's own result
-        (not a transport failure), so the query -- not the connection -- is
-        what is wrong; retrying it identically wastes the whole attempt
-        budget on a call that can never succeed (this is what produced eight
-        "JSONDecodeError: Expecting value" warnings in two minutes for one
-        OpenAlex wildcard query in production).
-        """
+        """MCP tool errors are rejected queries, not transient transport
+        failures."""
         client = _ToolErrorClient(
             "Error calling tool 'search_openalex': OpenAlex could not be "
             "searched: HTTP 400; Wildcards (* or ?) require exact (no-stem) "
@@ -713,12 +605,8 @@ class TestLiteratureReviewSearchRetry:
     def test_undecodable_payload_is_quoted_in_the_error(
         self, payload: str, expected: str
     ) -> None:
-        """Decode failures identify the received payload.
-
-        "Expecting value: line 1 column 1 (char 0)" reports the one thing
-        already known, and cannot tell a gateway error page from a throttling
-        notice from an empty body -- which need different fixes.
-        """
+        """Payloads distinguish gateway pages, throttling notices and empty
+        bodies."""
         with pytest.raises(json.JSONDecodeError) as caught:
             parse_mcp_result(payload)
 
@@ -746,11 +634,7 @@ class TestLiteratureReviewSearchRetry:
 
     @pytest.mark.asyncio
     async def test_a_campaign_policy_refusal_is_not_retried(self) -> None:
-        """The policy answers the same way on every attempt.
-
-        It used to read as a transient failure, so every refused call was
-        retried four times and logged a warning for each retry.
-        """
+        """Campaign policy refuses identically on every attempt."""
 
         class _RefusingClient:
             calls = 0

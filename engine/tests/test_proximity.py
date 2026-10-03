@@ -1,5 +1,3 @@
-"""Offline contracts for proximity."""
-
 from __future__ import annotations
 
 from typing import Any
@@ -27,10 +25,7 @@ from co_scientist.agents.proximity.proximity_graph import (
 from co_scientist.models import Hypothesis
 from tests._state import make_hypothesis, make_state
 
-# A two-member cluster whose members are both "high" similarity: dedup keeps
-# only the top-Elo member. This is the retired text-echo shape, kept for the
-# tests that exercise the echoed-text fallback specifically; anything asserting
-# on what production does should use _HIGH_HIGH_BY_INDEX below.
+# Legacy text-echo fixtures exercise fallback; live responses use indices.
 _HIGH_HIGH_CLUSTERS: dict[str, Any] = {
     "similarity_clusters": [
         {
@@ -50,9 +45,7 @@ _HIGH_HIGH_CLUSTERS: dict[str, Any] = {
 }
 
 
-# The same two-member "high"/"high" cluster in the live schema shape: members
-# are named by the index the prompt assigned and carry no ``text`` key at all,
-# which is what PROXIMITY_SCHEMA permits.
+# Live schemas name members by index and forbid echoed text.
 _HIGH_HIGH_BY_INDEX: dict[str, Any] = {
     "similarity_clusters": [
         {
@@ -67,7 +60,6 @@ _HIGH_HIGH_BY_INDEX: dict[str, Any] = {
 
 
 def _alpha_beta_pair() -> tuple[Hypothesis, Hypothesis]:
-    """The low-Elo alpha / high-Elo beta hypotheses used by the dedup tests."""
     low = make_hypothesis(
         text="alpha pathway drives tumor growth", elo_rating=1200
     )
@@ -80,7 +72,6 @@ def _alpha_beta_pair() -> tuple[Hypothesis, Hypothesis]:
 def _stub_clusters(
     monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]
 ) -> None:
-    """Patch proximity's call_llm_json to return a fixed clusters response."""
 
     async def fake(**_: Any) -> dict[str, Any]:
         return response
@@ -89,11 +80,6 @@ def _stub_clusters(
 
 
 async def test_single_hypothesis_skips_analysis() -> None:
-    """A single hypothesis returns unchanged.
-
-    Proximity no longer advances the iteration counter — the orchestrator owns
-    loop bookkeeping (Milestone 2), so the counter is untouched here.
-    """
     state = make_state(
         hypotheses=[make_hypothesis(text="only one")], current_iteration=2
     )
@@ -105,7 +91,6 @@ async def test_single_hypothesis_skips_analysis() -> None:
 async def test_high_similarity_duplicate_removed_keeping_best_elo(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Within a high-similarity cluster, only the top-Elo hypothesis wins."""
     low, high = _alpha_beta_pair()
     state = make_state(hypotheses=[low, high])
     _stub_clusters(monkeypatch, _HIGH_HIGH_CLUSTERS)
@@ -123,7 +108,6 @@ async def test_high_similarity_duplicate_removed_keeping_best_elo(
 async def test_low_similarity_keeps_all(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Clusters with no high-similarity members remove nothing."""
     state = make_state(
         hypotheses=[make_hypothesis(text="aaa"), make_hypothesis(text="bbb")]
     )
@@ -149,31 +133,19 @@ async def test_low_similarity_keeps_all(
 async def test_empty_clusters_returns_all(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An empty clusters response short-circuits to the original hypotheses."""
     state = make_state(
         hypotheses=[make_hypothesis(text="aaa"), make_hypothesis(text="bbb")]
     )
     _stub_clusters(monkeypatch, {"similarity_clusters": []})
     result = await proximity_node(state)
     assert len(result["hypotheses"]) == 2
-    # Proximity no longer touches the iteration counter (orchestrator owns it).
     assert "current_iteration" not in result
 
 
 async def test_proximity_graph_has_weighted_edge_for_surviving_cluster(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A live 2-member cluster yields one weighted edge in the graph.
-
-    Regression guard for the schema-contract bug, which recurred once the
-    schema stopped echoing member text: the graph builder resolved members by
-    ``text`` only, ``PROXIMITY_SCHEMA`` emits ``index`` and forbids ``text``,
-    so every member resolved to nothing and every production graph was empty
-    while deduplication (which resolves by index) kept working. The members
-    below carry no ``text`` key, exactly as a live response does, so the
-    index path is the only way this edge can exist. Both are "medium" so both
-    survive dedup and become graph nodes.
-    """
+    """Live schemas name members by index and forbid echoed text."""
     state = make_state(
         hypotheses=[make_hypothesis(text="aaa"), make_hypothesis(text="bbb")]
     )
@@ -196,29 +168,18 @@ async def test_proximity_graph_has_weighted_edge_for_surviving_cluster(
     assert graph["meta"]["edge_count"] == 1
     assert graph["meta"]["node_count"] == 2
     edge = graph["edges"][0]
-    assert edge["similarity"] == 0.6  # both members "medium"
+    assert edge["similarity"] == 0.6
     assert edge["cluster_id"] == "c1"
 
 
 async def test_proximity_graph_excludes_deduped_high_similarity_member(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A removed high-similarity duplicate is not a graph node.
-
-    The graph is built over dedup survivors, so a cluster whose members are
-    all "high" (one kept, the rest removed) leaves no surviving pair and
-    therefore no edge. Members carry the live ``index`` shape, so this pins
-    survivors-only resolution on the path production actually takes: the
-    dropped duplicate's prompt position must resolve to nothing rather than
-    to whichever hypothesis now sits at that position. A later change cannot
-    "fix" empty edges by pairing against a removed hypothesis, which would
-    persist edges to ideas the report no longer contains.
-    """
+    """Removed prompt positions must not resolve to newly shifted survivors."""
     low, high = _alpha_beta_pair()
     state = make_state(hypotheses=[low, high])
     _stub_clusters(monkeypatch, _HIGH_HIGH_BY_INDEX)
     result = await proximity_node(state)
-    # One survivor after high-similarity dedup -> no pair -> no edges.
     assert len(result["hypotheses"]) == 1
     assert result["proximity_graph"]["edges"] == []
 
@@ -227,17 +188,8 @@ async def test_proximity_graph_excludes_deduped_high_similarity_member(
 async def test_cluster_members_match_by_index(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A cluster member is resolved by the index the prompt already assigns.
-
-    The response schema used to require each member to echo its hypothesis's
-    full text, while matching only ever read the first 100 characters. On a
-    large pool that echo cannot fit: 46 hypotheses averaging 1250 characters
-    need roughly 14k output tokens against a 10k budget, so the JSON
-    truncated, every retry truncated identically, and the node fell through
-    to "no similarity clusters" -- burning five attempts and silently
-    skipping deduplication. Returning the index keeps the same clustering
-    judgement in an encoding that fits.
-    """
+    """Echoing full hypotheses can exceed output budgets and truncate every
+    retry."""
     low, high = _alpha_beta_pair()
     state = make_state(hypotheses=[low, high])
     _stub_clusters(monkeypatch, _HIGH_HIGH_BY_INDEX)
@@ -253,11 +205,7 @@ async def test_cluster_members_match_by_index(
 async def test_cluster_members_still_match_by_text_without_index(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Text matching stays as a fallback when a response omits the index.
-
-    Text-prefix matching was chosen for robustness against the quoting drift
-    a model introduces, so it remains the fallback rather than being replaced.
-    """
+    """Text prefixes tolerate model quoting drift in legacy responses."""
     low, high = _alpha_beta_pair()
     state = make_state(hypotheses=[low, high])
     _stub_clusters(monkeypatch, _HIGH_HIGH_CLUSTERS)
@@ -269,13 +217,6 @@ async def test_cluster_members_still_match_by_text_without_index(
 
 
 def test_echoed_member_resolves_through_the_normalized_key() -> None:
-    """Case and whitespace drift in an echoed member still resolves.
-
-    The fallback compares a re-quote against the stored text, so it has to
-    normalize the way the persisted graph's own lookup does. Comparing raw
-    prefixes made a capitalized or space-padded re-quote a stranger to
-    clustering and a member to the graph, from one model response.
-    """
     hypothesis = make_hypothesis(text="alpha pathway drives tumor growth")
 
     proximity_dedup._assign_cluster_ids(
@@ -300,13 +241,7 @@ def test_echoed_member_resolves_through_the_normalized_key() -> None:
 async def test_drifted_echo_dedupes_and_leaves_no_stale_edge(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Dedup and the persisted graph agree on who a cluster member is.
-
-    They resolve the same echoed text with the same key, so a member either
-    counts for both or for neither. Resolving it only in the graph left a
-    persisted high-similarity edge between two hypotheses deduplication had
-    just judged distinct enough to both keep.
-    """
+    """Dedup and graph resolution must agree on member identity."""
     low, high = _alpha_beta_pair()
     state = make_state(hypotheses=[low, high])
     _stub_clusters(
@@ -335,16 +270,10 @@ async def test_drifted_echo_dedupes_and_leaves_no_stale_edge(
     assert len(result["hypotheses"]) == 1
     assert result["hypotheses"][0].elo_rating == 1400
     assert len(result["removed_duplicates"]) == 1
-    # The dropped member is gone from the graph too, rather than persisting
-    # as an edge to a survivor that no longer has a neighbour.
     assert result["proximity_graph"]["edges"] == []
 
 
-# --- Prompt payload clipping -------------------------------------------------
-
-
 def test_short_hypotheses_are_sent_whole() -> None:
-    """A hypothesis inside the budget reaches the prompt untouched."""
     from co_scientist.agents.proximity.proximity import (
         _prepare_hypotheses_for_analysis,
     )
@@ -356,15 +285,8 @@ def test_short_hypotheses_are_sent_whole() -> None:
 
 
 def test_long_hypotheses_are_sent_whole() -> None:
-    """The clustering payload is never truncated, however long the text.
-
-    Proximity is the tempting place to economise -- it is the only node that
-    puts the whole pool in one prompt -- and the wrong one. Its verdict
-    deletes work, and the differences that spare a hypothesis from a "high"
-    are argued in the tail: methodology, assumptions, applications. A head
-    that reads identically to a neighbour's is not evidence the two are
-    duplicates. Truncation here was tried and reverted; this pins it out.
-    """
+    """Deletion decisions need tail differences in methods, assumptions and
+    uses."""
     from co_scientist.agents.proximity.proximity import (
         _prepare_hypotheses_for_analysis,
     )
@@ -385,31 +307,15 @@ def test_long_hypotheses_are_sent_whole() -> None:
 
 
 def _disjoint_texts(*ids: str) -> dict[str, str]:
-    """One text per id, sharing no vocabulary with any of the others.
-
-    The cluster fixtures below assert on the *judged* edges alone, so their
-    hypotheses are given deliberately disjoint wording: every computed pair
-    scores 0.0, which is below ``PROXIMITY_EDGE_FLOOR``, so no computed edge
-    joins the graph and the counts stay about what the clustering said.
-    ``test_a_disjoint_pair_is_below_the_floor`` pins that this is by design
-    rather than by luck.
-    """
+    """Disjoint vocabulary suppresses computed edges, isolating judged
+    clusters."""
     return {
         hyp_id: " ".join(f"{hyp_id}word{n}" for n in range(6)) for hyp_id in ids
     }
 
 
 def _survivors(*ids: str, texts: dict[str, str] | None = None) -> SurvivorIndex:
-    """Build a survivor index from ids in prompt order (index i -> ids[i]).
-
-    Texts default to ``_disjoint_texts``, so a fixture that says nothing
-    about them gets no computed edges at all and its assertions are about
-    the clustering alone.
-
-    ``by_text`` is left empty on purpose: a live response carries no member
-    text, so leaving the fallback table populated would let these tests
-    resolve a member by text and pass even with the index path broken.
-    """
+    """An empty text fallback prevents broken index resolution from passing."""
     return SurvivorIndex(
         by_index=dict(enumerate(ids)),
         by_text={},
@@ -418,7 +324,6 @@ def _survivors(*ids: str, texts: dict[str, str] | None = None) -> SurvivorIndex:
 
 
 def _clusters() -> list[dict[str, object]]:
-    """Two clusters (live schema shape): one pair, one singleton."""
     return [
         {
             "cluster_id": "c1",
@@ -440,7 +345,6 @@ _SURVIVORS = _survivors("h-a", "h-b", "h-c")
 
 
 def test_builds_weighted_edges_within_clusters() -> None:
-    """A same-cluster pair gets one edge weighted by the stronger degree."""
     graph = build_proximity_graph(
         _clusters(),
         _SURVIVORS,
@@ -449,17 +353,15 @@ def test_builds_weighted_edges_within_clusters() -> None:
         updated_at=123.0,
     )
     edges = graph["edges"]
-    assert len(edges) == 1  # only c1 has a pair; c2 is a singleton
+    assert len(edges) == 1
     edge = edges[0]
     assert {edge["source"], edge["target"]} == {"h-a", "h-b"}
-    # Weight is the stronger of the two members' degrees (high -> 1.0).
     assert edge["similarity"] == 1.0
     assert edge["degree"] == "high"
     assert edge["cluster_id"] == "c1"
 
 
 def test_graph_meta_records_provenance() -> None:
-    """The graph meta carries method/version/model/goal/update-time."""
     graph = build_proximity_graph(
         _clusters(),
         _SURVIVORS,
@@ -478,14 +380,11 @@ def test_graph_meta_records_provenance() -> None:
 
 
 def test_unresolvable_members_are_skipped() -> None:
-    """A member whose index is not a survivor's position is dropped."""
     clusters = [
         {
             "cluster_id": "c1",
             "similar_hypotheses": [
                 {"index": 0, "similarity_degree": "high"},
-                # No survivor sits at this position: either dedup removed it
-                # or the model invented an out-of-range index.
                 {"index": 7, "similarity_degree": "high"},
             ],
         }
@@ -497,12 +396,10 @@ def test_unresolvable_members_are_skipped() -> None:
         model="m",
         updated_at=1.0,
     )
-    # Only one resolvable member -> no pair -> no edges.
     assert graph["edges"] == []
 
 
 def test_empty_clusters_yield_empty_graph() -> None:
-    """No clusters yields an empty edge set with valid meta."""
     graph = build_proximity_graph(
         [],
         _SURVIVORS,
@@ -516,14 +413,8 @@ def test_empty_clusters_yield_empty_graph() -> None:
 
 
 def test_documented_local_algorithm_identity_and_weights() -> None:
-    """The H2 documented local choice: llm-cluster v1, fixed degree weights.
-
-    The paper leaves the similarity metric open ("e.g. text embeddings"),
-    so this deployment's first-class algorithm is the LLM-judged cluster
-    with the fixed qualitative-degree mapping. Pinning the identity and
-    the weights keeps the documented algorithm and the implemented one the
-    same thing; a future metric must register as a new method/version.
-    """
+    """New metrics need new versions so persisted algorithm identities stay
+    true."""
     assert PROXIMITY_METHOD == "llm-cluster"
     assert PROXIMITY_METHOD_VERSION == "1"
 
@@ -547,8 +438,6 @@ def test_documented_local_algorithm_identity_and_weights() -> None:
         frozenset((edge["source"], edge["target"])): edge["similarity"]
         for edge in graph["edges"]
     }
-    # The stronger of each pair's degrees sets the weight: high/medium and
-    # high/low pairs both read 1.0, the medium/low pair reads 0.6.
     assert weights[frozenset({"h-a", "h-b"})] == 1.0
     assert weights[frozenset({"h-a", "h-c"})] == 1.0
     assert weights[frozenset({"h-b", "h-c"})] == 0.6
@@ -557,12 +446,6 @@ def test_documented_local_algorithm_identity_and_weights() -> None:
 
 
 def test_graph_is_deterministic_on_fixed_inputs() -> None:
-    """Two builds from identical inputs are identical, edges and meta.
-
-    The documented algorithm promises reproducibility: given a fixed
-    clustering output, the persisted graph -- edge set, weights, order,
-    and provenance -- is a pure function of it.
-    """
     clusters = _clusters()
     first = build_proximity_graph(
         clusters,
@@ -582,13 +465,7 @@ def test_graph_is_deterministic_on_fixed_inputs() -> None:
 
 
 def test_resolves_member_text_drifted_beyond_prefix() -> None:
-    """A member echoed with drift past the first 100 chars still resolves.
-
-    An older response echoes each hypothesis's text instead of its index, and
-    may edit it past the first 100 characters (the reason the node matches on
-    a 100-char prefix). The fallback must key on the same normalized prefix,
-    or the edge is silently lost even though the node clustered the members.
-    """
+    """Legacy echoed members may drift beyond the matching prefix."""
     prefix_a = "x" * 100
     prefix_b = "y" * 100
     survivors = SurvivorIndex(
@@ -606,7 +483,6 @@ def test_resolves_member_text_drifted_beyond_prefix() -> None:
         {
             "cluster_id": "c1",
             "similar_hypotheses": [
-                # Same first 100 chars as h-1, different tail.
                 {
                     "text": prefix_a + " DIFFERENT tail",
                     "similarity_degree": "medium",
@@ -632,15 +508,6 @@ def test_resolves_member_text_drifted_beyond_prefix() -> None:
     }
 
 
-# --- Every pair: a computed edge wherever the clustering drew none ----------
-#
-# Listing 06 quantifies over every pair of hypotheses, and the clustering call
-# relates only the pairs it chose to cluster. The builder measures the rest
-# deterministically (``proximity_graph.pair_similarity``, zero extra LLM
-# calls) and keeps the ones at or above ``PROXIMITY_EDGE_FLOOR``. These pin
-# that coverage, the precedence of a judged edge over a computed one, and the
-# two ends of the metric's range.
-
 _RELATED_TEXTS = {
     "h-a": "autocrine TGF-beta signaling sustains myofibroblast activation",
     "h-b": "myofibroblast activation is sustained by autocrine TGF-beta",
@@ -649,7 +516,6 @@ _RELATED_TEXTS = {
 
 
 def _edges_by_pair(graph: dict[str, Any]) -> dict[frozenset[str], Any]:
-    """Index a graph's edges by their unordered endpoint pair."""
     return {
         frozenset({str(edge["source"]), str(edge["target"])}): edge
         for edge in graph["edges"]
@@ -657,7 +523,6 @@ def _edges_by_pair(graph: dict[str, Any]) -> dict[frozenset[str], Any]:
 
 
 def _related_graph(clusters: list[dict[str, Any]]) -> dict[str, Any]:
-    """Build the graph over ``_RELATED_TEXTS`` with the given clustering."""
     return build_proximity_graph(
         clusters,
         _survivors("h-a", "h-b", "h-c", texts=_RELATED_TEXTS),
@@ -668,10 +533,9 @@ def _related_graph(clusters: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def test_every_pair_of_the_pool_carries_an_edge() -> None:
-    """With no clustering at all, all n(n-1)/2 pairs are still measured."""
     graph = _related_graph([])
     by_pair = _edges_by_pair(graph)
-    assert len(by_pair) == 3  # 3 * 2 / 2
+    assert len(by_pair) == 3
     assert set(by_pair) == {
         frozenset({"h-a", "h-b"}),
         frozenset({"h-a", "h-c"}),
@@ -688,13 +552,8 @@ def test_every_pair_of_the_pool_carries_an_edge() -> None:
 
 
 def test_a_judged_edge_overrides_the_computed_value() -> None:
-    """Where the clustering spoke, its verdict is the pair's only edge.
-
-    ``h-a``/``h-b`` are near-paraphrases, so the computed metric scores them
-    far above the "low" degree the clustering assigned. The judged weight
-    still wins: the LLM pass is the first-class algorithm and the computed
-    value only fills in the pairs it left unjudged.
-    """
+    """Computed similarities fill only pairs the scientific judge left
+    unjudged."""
     computed = pair_similarity(_RELATED_TEXTS["h-a"], _RELATED_TEXTS["h-b"])
     graph = _related_graph(
         [
@@ -717,7 +576,6 @@ def test_a_judged_edge_overrides_the_computed_value() -> None:
 
 
 def test_a_computed_edge_is_symmetric() -> None:
-    """Swapping the pool order leaves every computed weight unchanged."""
     forward = _edges_by_pair(_related_graph([]))
     reversed_pool = build_proximity_graph(
         [],
@@ -733,7 +591,6 @@ def test_a_computed_edge_is_symmetric() -> None:
 
 
 def test_an_identical_pair_scores_at_the_top_of_the_range() -> None:
-    """Two verbatim-identical survivors are measured as fully similar."""
     text = _RELATED_TEXTS["h-a"]
     graph = build_proximity_graph(
         [],
@@ -746,13 +603,6 @@ def test_an_identical_pair_scores_at_the_top_of_the_range() -> None:
 
 
 def test_a_disjoint_pair_is_below_the_floor() -> None:
-    """A topically unrelated pair is measured, scores 0.0, and is not stored.
-
-    The floor is what bounds the persisted graph (see its constant), so the
-    below-floor case must be absent *because it was measured and found
-    unrelated*, not because the pair was never considered. Asserting the
-    measurement here is what makes the absence a design, not an accident.
-    """
     texts = _disjoint_texts("h-a", "h-b")
     assert pair_similarity(texts["h-a"], texts["h-b"]) < PROXIMITY_EDGE_FLOOR
     graph = build_proximity_graph(
@@ -767,12 +617,10 @@ def test_a_disjoint_pair_is_below_the_floor() -> None:
 
 
 def test_computed_edges_are_deterministic() -> None:
-    """The same pool and texts yield a byte-identical graph."""
     assert _related_graph([]) == _related_graph([])
 
 
 def test_graph_meta_counts_judged_and_computed_edges_apart() -> None:
-    """Meta keeps ``edge_count`` judged-only and reports computed beside it."""
     graph = _related_graph(
         [
             {
@@ -792,27 +640,14 @@ def test_graph_meta_counts_judged_and_computed_edges_apart() -> None:
 
 
 def test_an_edge_without_a_method_reads_as_judged() -> None:
-    """A graph checkpointed before this change resumes as all-judged.
-
-    Every edge under ``edges`` in an older checkpoint came from the
-    clustering call -- the computed ones did not exist and the placeholder
-    ones lived under a separate key nothing reads now -- so a missing
-    ``method`` must not demote a real judgement to a computed value.
-    """
+    """Older checkpoints predate computed edges; their edges are real
+    judgments."""
     assert is_judged_edge({"source": "h-a", "target": "h-b"})
     assert not is_judged_edge({"method": PROXIMITY_COMPUTED_METHOD})
 
 
 def test_a_computed_edge_does_not_reach_the_duplicate_guard() -> None:
-    """Evolution measures the child against the peer, never the parent.
-
-    ``find_nearest_peer`` prefers a proximity edge's weight over its own
-    token-coverage reading, and a computed edge scores the *parent* against
-    the peer -- which cannot see a child that converged onto that peer. So
-    only judged edges are consulted there, and the guard's own child-vs-peer
-    measurement decides the rest. Imported from the evolution package on
-    purpose: this fails the moment the filter is dropped.
-    """
+    """A parent-peer metric cannot detect child-peer convergence."""
     from co_scientist.agents.evolution.evolve_prompt import find_nearest_peer
     from tests._state import make_hypothesis
 
@@ -841,18 +676,15 @@ _HYPOTHESIS = (
 
 
 def test_identical_texts_score_at_the_top_of_the_range() -> None:
-    """A verbatim-identical pair is the maximum the metric can report."""
     assert pair_similarity(_HYPOTHESIS, _HYPOTHESIS) == 1.0
 
 
 def test_disjoint_vocabulary_scores_at_the_bottom() -> None:
-    """A topically unrelated pair shares no tokens and scores zero."""
     unrelated = "Tidal mixing redistributes heat across the Southern Ocean."
     assert pair_similarity("alpha beta gamma delta", unrelated) == 0.0
 
 
 def test_similarity_is_symmetric() -> None:
-    """Neither hypothesis is privileged: the two orders agree exactly."""
     other = (
         "Senescent cell clearance reduces inflammation without reversing "
         "established pulmonary fibrosis."
@@ -863,13 +695,8 @@ def test_similarity_is_symmetric() -> None:
 
 
 def test_containment_alone_does_not_score_as_identical() -> None:
-    """A short text wholly inside a long one is not a duplicate of it.
-
-    The maximum of the two directional coverages would read 1.0 here --
-    every token of the short side appears in the long one -- and assert a
-    duplicate between two hypotheses that are nothing of the sort. The
-    harmonic mean pays for the length gap instead.
-    """
+    """One-sided token containment would misclassify short/long ideas as
+    duplicates."""
     short = "alpha beta"
     long_text = "alpha beta " + " ".join(f"term{i}" for i in range(20))
     assert token_coverage(short, long_text) == 1.0
@@ -877,6 +704,5 @@ def test_containment_alone_does_not_score_as_identical() -> None:
 
 
 def test_empty_text_scores_zero() -> None:
-    """A text with no tokens has nothing to share."""
     assert pair_similarity("", _HYPOTHESIS) == 0.0
     assert pair_similarity(_HYPOTHESIS, "") == 0.0

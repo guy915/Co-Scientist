@@ -1,5 +1,3 @@
-"""Offline contracts for meta review."""
-
 from __future__ import annotations
 
 from typing import Any
@@ -51,11 +49,6 @@ from tests._state import make_hypothesis, make_review, make_state
 async def test_no_reviews_returns_default_without_llm(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Hypotheses with empty reviews short-circuit to the default meta_review.
-
-    The LLM must not be called, and the returned dict carries only the
-    ``meta_review`` key with the four default subfields.
-    """
     calls = stub_call_llm_json(
         monkeypatch, meta_review, {"meta_review_summary": "should not appear"}
     )
@@ -65,7 +58,7 @@ async def test_no_reviews_returns_default_without_llm(
 
     result = await meta_review_node(state)
 
-    assert calls == []  # The LLM was never invoked.
+    assert calls == []
     assert result == {
         "meta_review": {
             "summary": "No reviews available",
@@ -74,7 +67,6 @@ async def test_no_reviews_returns_default_without_llm(
             "strategic_recommendations": [],
         }
     }
-    # The short-circuit branch omits emerging_themes/metrics/messages.
     assert "emerging_themes" not in result["meta_review"]
     assert "metrics" not in result
     assert "messages" not in result
@@ -83,12 +75,6 @@ async def test_no_reviews_returns_default_without_llm(
 async def test_with_reviews_maps_response_fields(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A populated review triggers the LLM and maps its response fields.
-
-    summary/strengths/weaknesses/strategic_recommendations/
-    potential_connections are copied through to their meta_review keys,
-    and the LLM is called exactly once.
-    """
     calls = stub_call_llm_json(
         monkeypatch,
         meta_review,
@@ -115,18 +101,15 @@ async def test_with_reviews_maps_response_fields(
 
     result = await meta_review_node(state)
 
-    assert len(calls) == 1  # Exactly one LLM call for the synthesis.
+    assert len(calls) == 1
     mr = result["meta_review"]
     assert mr["summary"] == "overall the set is promising"
     assert mr["common_strengths"] == ["clear mechanism", "testable"]
     assert mr["common_weaknesses"] == ["narrow scope"]
     assert mr["strategic_recommendations"] == ["broaden the cohort"]
-    # I2: potential_connections (the field closest to "which directions
-    # remain open") is threaded into state, not discarded.
     assert mr["potential_connections"][0]["synthesis_opportunity"] == (
         "combine both interventions"
     )
-    # The with-reviews branch carries metrics and a message.
     assert "metrics" in result
     assert result["messages"][0]["metadata"]["phase"] == "meta_review"
 
@@ -134,14 +117,6 @@ async def test_with_reviews_maps_response_fields(
 async def test_candidate_and_existing_solutions_comparisons_map_through(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """R12-9: the two comparison fields copy through from the LLM response.
-
-    ``candidate_comparison`` and ``existing_solutions_comparison`` are
-    meta-review fields whose comparison axes follow the run's own subject
-    matter (see ``schemas.meta_review_schema.META_REVIEW_SCHEMA``); this
-    pins that the node's mapping carries them -- axes included -- into
-    state unchanged, the same way ``potential_connections`` already does.
-    """
     stub_call_llm_json(
         monkeypatch,
         meta_review,
@@ -199,14 +174,6 @@ async def test_candidate_and_existing_solutions_comparisons_map_through(
 async def test_main_research_directions_maps_through(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """R14-27: the narrative directions summary copies through unchanged.
-
-    ``main_research_directions`` is the ranking document's own
-    "Main Research Directions" prose section (two paragraphs weaving the
-    run's directions together, distinct from the itemized per-direction
-    array on the research-overview payload) -- see
-    ``schemas.meta_review_schema.META_REVIEW_SCHEMA``.
-    """
     stub_call_llm_json(
         monkeypatch,
         meta_review,
@@ -237,11 +204,6 @@ async def test_main_research_directions_maps_through(
 async def test_state_preferences_reach_the_rendered_prompt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """state["preferences"] threads into the meta-review prompt (MP-4).
-
-    Published meta-review-08 has a dedicated "Preferences: {preferences}"
-    slot; the node must supply it from the run's own state.
-    """
     calls = stub_call_llm_json(
         monkeypatch, meta_review, {"meta_review_summary": "s"}
     )
@@ -261,11 +223,6 @@ async def test_state_preferences_reach_the_rendered_prompt(
 async def test_recurring_themes_flattened_to_emerging_themes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """recurring_themes objects and plain strings flatten to theme strings.
-
-    A dict entry contributes its ``theme`` value; a plain-string entry is
-    stringified, exercising both branches of the flattening logic.
-    """
     stub_call_llm_json(
         monkeypatch,
         meta_review,
@@ -298,19 +255,6 @@ async def test_recurring_themes_flattened_to_emerging_themes(
 async def test_recurring_themes_carry_description_and_frequency(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The full theme taxonomy survives to state, not just theme names.
-
-    Before this, ``recurring_themes`` was flattened straight to
-    ``emerging_themes`` and its description/frequency were discarded --
-    computed by the model, paid for in tokens, and never reaching the
-    renderer. The whole nested taxonomy is now carried through (MO-2, see
-    ``agents/meta_review/meta_review``): a dict's fields are
-    coerced to strings (frequency may come back as an int under
-    json_object mode), a bare-string entry -- the same schema-
-    noncompliance the flattening already tolerated -- fills the rest
-    empty rather than being dropped, and a theme carrying no
-    ``sub_themes`` (an older checkpoint's shape) gains an empty list.
-    """
     stub_call_llm_json(
         monkeypatch,
         meta_review,
@@ -366,7 +310,6 @@ async def test_recurring_themes_carry_description_and_frequency(
 
 
 def test_review_collection_keeps_complete_history() -> None:
-    """An older critique remains visible after a later review is added."""
     hypothesis = make_hypothesis(
         text="reviewed hyp",
         reviews=[
@@ -382,12 +325,8 @@ def test_review_collection_keeps_complete_history() -> None:
 
 
 def test_review_collection_numbers_hypotheses_from_one() -> None:
-    """The index the model quotes back to a scientist starts at 1.
-
-    Meta-review's recommendations name ideas by this number ("Fluspirilene
-    (Hypothesis 1)"), so it is user-facing prose rather than an offset, and
-    a 0-based one published an off-by-one in the report.
-    """
+    """Recommendations quote these user-facing idea numbers, not array
+    offsets."""
     hypotheses = [
         make_hypothesis(text=f"hyp {i}", reviews=[make_review()])
         for i in range(3)
@@ -399,11 +338,6 @@ def test_review_collection_numbers_hypotheses_from_one() -> None:
 
 
 def test_review_collection_includes_mature_review_findings() -> None:
-    """Full/simulation/recurrent outputs join the synthesis (audit E1).
-
-    They were computed at LLM + retrieval cost but read by nothing before
-    this; the meta-review must see their verdicts like any other review.
-    """
     hypothesis = make_hypothesis(text="reviewed hyp", reviews=[make_review()])
     hypothesis.enrichments["full"] = {
         "verdict": "rejected",
@@ -426,7 +360,6 @@ def test_review_collection_includes_mature_review_findings() -> None:
 
 
 def test_review_collection_omits_mature_reviews_before_the_cascade() -> None:
-    """No mature review has run -> no hollow mature_reviews block."""
     hypothesis = make_hypothesis(text="reviewed hyp", reviews=[make_review()])
 
     [record] = _collect_review_summaries([hypothesis])
@@ -435,7 +368,6 @@ def test_review_collection_omits_mature_reviews_before_the_cascade() -> None:
 
 
 def test_feedback_collection_keeps_full_debate_transcript() -> None:
-    """Every ranking debate turn reaches Meta-review unchanged."""
     transcript = [
         {"turn": 1, "reasoning": "A has stronger causal evidence."},
         {"turn": 2, "reasoning": "B has a cleaner falsification test."},
@@ -457,14 +389,12 @@ def test_feedback_collection_keeps_full_debate_transcript() -> None:
 
 
 def _themes_node() -> dict[str, Any]:
-    """The schema node describing one ``recurring_themes`` entry."""
     node = META_REVIEW_SCHEMA["schema"]["properties"]["recurring_themes"]
     assert isinstance(node, dict)
     return node
 
 
 def test_schema_nests_sub_themes_under_each_theme() -> None:
-    """A theme entry declares sub-themes, which declare their own points."""
     item = _themes_node()["items"]
     sub_themes = item["properties"]["sub_themes"]
     assert "sub_themes" in item["required"]
@@ -475,12 +405,6 @@ def test_schema_nests_sub_themes_under_each_theme() -> None:
 
 
 def test_schema_caps_do_not_clip_the_published_taxonomy() -> None:
-    """The exemplar's own maxima fit inside every cap.
-
-    Five themes, eight points under the largest theme, five sub-points
-    under the largest point. A cap below any of these would truncate a
-    taxonomy shaped exactly like the artifact it is derived from.
-    """
     themes = _themes_node()
     sub_themes = themes["items"]["properties"]["sub_themes"]
     points = sub_themes["items"]["properties"]["points"]
@@ -491,7 +415,6 @@ def test_schema_caps_do_not_clip_the_published_taxonomy() -> None:
 
 
 def test_normalize_carries_the_nesting_through() -> None:
-    """Sub-themes and their points survive normalization."""
     normalized = normalize_recurring_themes(
         [
             {
@@ -526,11 +449,7 @@ def test_normalize_carries_the_nesting_through() -> None:
 
 
 def test_normalize_tolerates_a_flat_entry_from_an_older_checkpoint() -> None:
-    """A resumed run's flat theme gains an empty sub-theme list, not a crash.
-
-    ``meta_review`` is checkpointed state, so a run interrupted before
-    this schema existed resumes carrying the flat three-field shape.
-    """
+    """Checkpointed themes may predate the nested schema."""
     normalized = normalize_recurring_themes(
         [
             {
@@ -559,7 +478,6 @@ def test_normalize_tolerates_a_flat_entry_from_an_older_checkpoint() -> None:
 
 
 def test_normalize_tolerates_junk_in_the_nested_positions() -> None:
-    """json_object mode enforces nothing, so every nested shape is a guess."""
     normalized = normalize_recurring_themes(
         [
             {"theme": "t", "sub_themes": "not a list"},
@@ -581,7 +499,6 @@ _BUDGET = Budget(max_iterations=4, max_llm_calls=7000)
 
 
 def _due_stats(**overrides: object) -> SchedulerStats:
-    """Stats with the meta-review cadence due (a cycle and material since)."""
     base: dict[str, object] = {
         "pool_size": 6,
         "reviewed_count": 6,
@@ -599,14 +516,12 @@ def _due_stats(**overrides: object) -> SchedulerStats:
 
 
 def test_cadence_fires_when_enabled_and_due() -> None:
-    """The default (enabled) path is unchanged: a due cadence fires."""
     decision = _check_meta_review_cadence(_due_stats())
     assert decision is not None
     assert decision.next_task is TaskType.META_REVIEW
 
 
 def test_cadence_suppressed_when_disabled_even_though_due() -> None:
-    """meta_review_enabled=False returns None despite the cadence being due."""
     assert (
         _check_meta_review_cadence(_due_stats(meta_review_enabled=False))
         is None
@@ -614,12 +529,6 @@ def test_cadence_suppressed_when_disabled_even_though_due() -> None:
 
 
 def test_disabled_cadence_stacks_no_meta_review_companion() -> None:
-    """The companion rides the same gated predicate as the standalone step.
-
-    With the cadence enabled a non-terminating primary carries a
-    META_REVIEW companion; disabling it removes that companion, so no
-    periodic meta-review is queued from either path.
-    """
     enabled = _due_stats(unreviewed_count=0)
     stacked = stack_companions(
         decide_next_task(enabled, _BUDGET), enabled, _BUDGET
@@ -638,13 +547,7 @@ def test_disabled_cadence_stacks_no_meta_review_companion() -> None:
 
 
 def test_evolve_still_enters_meta_review_when_cadence_disabled() -> None:
-    """Disabling the cadence is not disabling the node.
-
-    An EVOLVE primary carries no meta-review companion (it enters that node
-    itself), and disabling the cadence does not change that -- the node is
-    still reached via EVOLVE, which is what keeps the run's critique
-    channel to evolution intact.
-    """
+    """Evolution still needs critique when periodic meta-review is disabled."""
     evolve = SupervisorDecision(
         next_task=TaskType.EVOLVE, reason="evolution out-yields generation"
     )
@@ -655,10 +558,6 @@ def test_evolve_still_enters_meta_review_when_cadence_disabled() -> None:
 
 
 def test_state_flag_threads_into_scheduler_stats() -> None:
-    """enable_meta_review in state reaches SchedulerStats.meta_review_enabled.
-
-    Default (absent/True) leaves it on; an explicit False turns it off.
-    """
     on = _compute_stats(make_state(), {})
     assert on.meta_review_enabled is True
     off = _compute_stats(make_state(enable_meta_review=False), {})
@@ -684,7 +583,6 @@ _META_REVIEW_PROMPT_THREADING_META_REVIEW = {
 
 
 def _meta_review_prompt_threading_assert_critique_present(prompt: str) -> None:
-    """Assert the meta-review context section and its critique text render."""
     assert "Meta-Review Context" in prompt
     assert _META_REVIEW_PROMPT_THREADING_WEAKNESS in prompt
     assert _META_REVIEW_PROMPT_THREADING_STRENGTH in prompt
@@ -692,7 +590,6 @@ def _meta_review_prompt_threading_assert_critique_present(prompt: str) -> None:
 
 
 def test_generation_debate_prompt_includes_meta_review() -> None:
-    """The Generation (debate) prompt carries the meta-review critique."""
     prompt, _ = get_debate_generation_prompt(
         DebatePromptRequest(
             research_goal="Find a synthetic-lethal target",
@@ -706,7 +603,6 @@ def test_generation_debate_prompt_includes_meta_review() -> None:
 
 
 def test_reflection_prompt_includes_meta_review() -> None:
-    """The Reflection prompt carries the meta-review critique."""
     prompt, _ = get_reflection_prompt(
         articles_with_reasoning="Some prior work.",
         hypothesis_text="Inhibiting X reduces Y.",
@@ -718,7 +614,6 @@ def test_reflection_prompt_includes_meta_review() -> None:
 
 
 def test_review_prompt_includes_meta_review() -> None:
-    """The Review prompt carries the meta-review critique."""
     prompt, _ = get_review_prompt(
         research_goal="Find a synthetic-lethal target",
         hypothesis_text="Inhibiting X reduces Y.",
@@ -730,7 +625,6 @@ def test_review_prompt_includes_meta_review() -> None:
 
 
 def test_review_batch_prompt_includes_meta_review() -> None:
-    """The comparative batch-review prompt carries the meta-review critique."""
     prompt, _ = get_review_batch_prompt(
         research_goal="Find a synthetic-lethal target",
         hypotheses_list="1. Inhibiting X reduces Y.\n2. Blocking Z helps.",
@@ -742,7 +636,6 @@ def test_review_batch_prompt_includes_meta_review() -> None:
 
 
 def test_empty_meta_review_adds_no_context_section() -> None:
-    """With no meta-review, no critique section is injected (no-op)."""
     prompt, _ = get_review_prompt(
         research_goal="Find a synthetic-lethal target",
         hypothesis_text="Inhibiting X reduces Y.",
@@ -774,7 +667,6 @@ _ARTICLES = "Article 1: observation A supports pathway X."
 
 
 def _meta_review_surface_threading_assert_critique_present(prompt: str) -> None:
-    """Assert the meta-review context section and its critique render."""
     assert "Meta-Review Context" in prompt
     assert _META_REVIEW_SURFACE_THREADING_STRENGTH in prompt
     assert _META_REVIEW_SURFACE_THREADING_WEAKNESS in prompt
@@ -782,24 +674,17 @@ def _meta_review_surface_threading_assert_critique_present(prompt: str) -> None:
 
 
 def _assert_empty_state(prompt: str) -> None:
-    """Assert no critique section and no unresolved placeholder."""
     assert "Meta-Review Context" not in prompt
     assert "{{MISSING" not in prompt
-
-
-# --- Proximity ---------------------------------------------------------
 
 
 def _stub_proximity_llm(
     monkeypatch: pytest.MonkeyPatch,
 ) -> list[dict[str, Any]]:
-    """Patch proximity's call_llm_json, capturing each call's kwargs."""
     calls: list[dict[str, Any]] = []
 
     async def fake(**kwargs: Any) -> dict[str, Any]:
         calls.append(kwargs)
-        # Empty clusters: the node skips deduplication for this pass,
-        # which is fine -- only the rendered prompt matters here.
         return {"similarity_clusters": []}
 
     monkeypatch.setattr(proximity, "call_llm_json", fake)
@@ -810,7 +695,6 @@ def _stub_proximity_llm(
 async def test_proximity_prompt_includes_meta_review(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The similarity judgment sees the meta-review's direction."""
     calls = _stub_proximity_llm(monkeypatch)
     state = make_state(
         hypotheses=[
@@ -830,7 +714,6 @@ async def test_proximity_prompt_includes_meta_review(
 async def test_proximity_prompt_empty_state_without_meta_review(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Iteration-1 proximity prompts carry no critique section."""
     calls = _stub_proximity_llm(monkeypatch)
     state = make_state(
         hypotheses=[
@@ -845,11 +728,7 @@ async def test_proximity_prompt_empty_state_without_meta_review(
     _assert_empty_state(calls[0]["prompt"])
 
 
-# --- Literature review: query formulation ------------------------------
-
-
 def test_query_generation_prompt_includes_meta_review() -> None:
-    """Query formulation searches what the critique says is missing."""
     prompt = get_literature_review_query_generation_prompt(
         "Reverse liver fibrosis",
         meta_review=_META_REVIEW_SURFACE_THREADING_META_REVIEW,
@@ -858,7 +737,6 @@ def test_query_generation_prompt_includes_meta_review() -> None:
 
 
 def test_query_generation_prompt_empty_state() -> None:
-    """Iteration-1 query prompts carry no critique section."""
     prompt = get_literature_review_query_generation_prompt(
         "Reverse liver fibrosis"
     )
@@ -866,7 +744,6 @@ def test_query_generation_prompt_empty_state() -> None:
 
 
 def test_pubmed_query_generation_prompt_includes_meta_review() -> None:
-    """The PubMed query variant carries the critique too."""
     prompt = get_literature_review_query_generation_prompt(
         "Reverse liver fibrosis",
         source_type="pubmed",
@@ -875,11 +752,7 @@ def test_pubmed_query_generation_prompt_includes_meta_review() -> None:
     _meta_review_surface_threading_assert_critique_present(prompt)
 
 
-# --- Literature review: synthesis --------------------------------------
-
-
 def test_synthesis_prompt_includes_meta_review() -> None:
-    """Source analysis weighs the critique's gaps and weaknesses."""
     prompt = get_literature_review_synthesis_prompt(
         "Reverse liver fibrosis",
         [],
@@ -889,19 +762,14 @@ def test_synthesis_prompt_includes_meta_review() -> None:
 
 
 def test_synthesis_prompt_empty_state() -> None:
-    """Iteration-1 synthesis prompts carry no critique section."""
     prompt = get_literature_review_synthesis_prompt(
         "Reverse liver fibrosis", []
     )
     _assert_empty_state(prompt)
 
 
-# --- Safety screen ------------------------------------------------------
-
-
 @pytest.mark.asyncio()
 async def test_safety_decisions_carry_meta_review_context() -> None:
-    """Blocked/held decisions record the critique as adjudication context."""
     unsafe = make_hypothesis(
         "Weaponize engineered pathogens for maximum spread", id="bad-1"
     )
@@ -920,7 +788,6 @@ async def test_safety_decisions_carry_meta_review_context() -> None:
 
 @pytest.mark.asyncio()
 async def test_safety_decisions_empty_state_without_meta_review() -> None:
-    """Iteration-1 decisions record no critique context at all."""
     unsafe = make_hypothesis(
         "Weaponize engineered pathogens for maximum spread", id="bad-1"
     )
@@ -933,11 +800,8 @@ async def test_safety_decisions_empty_state_without_meta_review() -> None:
 
 
 def _policy_pool() -> list[Any]:
-    """A fresh safe/unsafe hypothesis pair for one screening pass.
-
-    Fresh objects per pass: a hypothesis screened once carries its
-    safety_status, and the screen skips hypotheses it already stamped.
-    """
+    """Already-screened hypotheses carry stamps and are skipped on later
+    screens."""
     return [
         make_hypothesis(
             "CRISPR-Cas9 targeting of BRCA1 mutations in breast cancer",
@@ -951,12 +815,7 @@ def _policy_pool() -> list[Any]:
 
 @pytest.mark.asyncio()
 async def test_meta_review_context_never_overrides_safety_policy() -> None:
-    """Context informs; it never loosens. Outcomes are identical with it.
-
-    A critique that praises the research direction must not clear a
-    prohibited hypothesis, and the held/removed pool split must match a
-    screen run without any meta-review.
-    """
+    """A favorable critique must never loosen admission policy."""
     praising = {
         "common_strengths": ["the pathogen work is promising"],
         "strategic_recommendations": ["keep the pathogen direction"],
@@ -977,14 +836,10 @@ async def test_meta_review_context_never_overrides_safety_policy() -> None:
     ]
 
 
-# --- Observation review --------------------------------------------------
-
-
 @pytest.mark.asyncio()
 async def test_observation_review_node_threads_meta_review(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The observation node renders the state's meta-review into its prompt."""
     calls = stub_call_llm_json(
         monkeypatch,
         reflection,
@@ -1006,7 +861,6 @@ async def test_observation_review_node_threads_meta_review(
 async def test_observation_review_node_empty_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Iteration-1 observation prompts carry no critique section."""
     calls = stub_call_llm_json(
         monkeypatch,
         reflection,
@@ -1039,7 +893,6 @@ _PROBES = [
 
 
 def test_reflection_prompt_includes_meta_review_when_present() -> None:
-    """The reflection prompt surfaces meta-review feedback when present."""
     prompt, _ = get_reflection_prompt(
         articles_with_reasoning="lit",
         hypothesis_text="H",
@@ -1049,7 +902,6 @@ def test_reflection_prompt_includes_meta_review_when_present() -> None:
 
 
 def test_reflection_prompt_omits_meta_review_when_empty() -> None:
-    """The reflection prompt omits meta-review feedback when absent."""
     prompt, _ = get_reflection_prompt(
         articles_with_reasoning="lit",
         hypothesis_text="H",
@@ -1059,7 +911,6 @@ def test_reflection_prompt_omits_meta_review_when_empty() -> None:
 
 
 def test_ranking_prompt_includes_meta_review_when_present() -> None:
-    """The ranking prompt surfaces meta-review feedback when present."""
     prompt, _ = get_ranking_prompt(
         research_goal="g",
         side_a=RankingSide(text="A"),
@@ -1070,7 +921,6 @@ def test_ranking_prompt_includes_meta_review_when_present() -> None:
 
 
 def test_ranking_prompt_omits_meta_review_when_empty() -> None:
-    """The ranking prompt has no meta-review section when feedback is absent."""
     prompt, _ = get_ranking_prompt(
         research_goal="g",
         side_a=RankingSide(text="A"),
@@ -1081,12 +931,7 @@ def test_ranking_prompt_omits_meta_review_when_empty() -> None:
 
 
 def test_ranking_prompt_empty_optional_slots_are_byte_clean() -> None:
-    """Empty meta-review and deep-verification slots add no extra blank lines.
-
-    With both optional slots empty the tail of the ranking prompt must keep
-    its original single-blank-line spacing, so iteration-1 prompts (and their
-    sha256 cache keys) are unchanged.
-    """
+    """Whitespace changes alter iteration-one prompt hashes and cache keys."""
     prompt, _ = get_ranking_prompt(
         research_goal="g",
         side_a=RankingSide(text="A"),
@@ -1101,7 +946,6 @@ def test_ranking_prompt_empty_optional_slots_are_byte_clean() -> None:
 
 
 def test_ranking_prompt_includes_deep_verification_when_present() -> None:
-    """Deep-verification probes and verdict appear in the ranking prompt."""
     prompt, _ = get_ranking_prompt(
         research_goal="g",
         side_a=RankingSide(
@@ -1117,7 +961,6 @@ def test_ranking_prompt_includes_deep_verification_when_present() -> None:
 
 
 def test_ranking_prompt_omits_deep_verification_when_empty() -> None:
-    """The ranking prompt has no deep-verification section when none exists."""
     prompt, _ = get_ranking_prompt(
         research_goal="g",
         side_a=RankingSide(text="A"),
@@ -1127,7 +970,6 @@ def test_ranking_prompt_omits_deep_verification_when_empty() -> None:
 
 
 def test_emerging_themes_render_as_covered_areas() -> None:
-    """Recurring themes render under an explicit already-covered header."""
     prompt = _format_meta_review_context(
         {"emerging_themes": ["mitochondrial dysfunction pathway"]}
     )
@@ -1136,13 +978,11 @@ def test_emerging_themes_render_as_covered_areas() -> None:
 
 
 def test_emerging_themes_absent_when_empty() -> None:
-    """No themes -> no covered-areas header, and no empty section either."""
     prompt = _format_meta_review_context({"common_strengths": ["x"]})
     assert "Research Areas Already Covered" not in prompt
 
 
 def test_potential_connections_render_as_open_directions() -> None:
-    """Potential connections render under an open-directions header."""
     prompt = _format_meta_review_context(
         {
             "potential_connections": [
@@ -1161,13 +1001,11 @@ def test_potential_connections_render_as_open_directions() -> None:
 
 
 def test_potential_connections_absent_when_empty() -> None:
-    """No connections -> no open-directions header."""
     prompt = _format_meta_review_context({"common_strengths": ["x"]})
     assert "Open Directions Flagged for Further Exploration" not in prompt
 
 
 def test_potential_connection_tolerates_partial_fields() -> None:
-    """A connection missing one of the two prose fields still renders."""
     prompt = _format_meta_review_context(
         {
             "potential_connections": [
@@ -1179,7 +1017,6 @@ def test_potential_connection_tolerates_partial_fields() -> None:
 
 
 def test_potential_connection_tolerates_non_dict_entries() -> None:
-    """A model ignoring the schema and returning bare strings still renders."""
     prompt = _format_meta_review_context(
         {"potential_connections": ["a bare string connection"]}
     )
@@ -1187,6 +1024,5 @@ def test_potential_connection_tolerates_non_dict_entries() -> None:
 
 
 def test_no_meta_review_renders_nothing() -> None:
-    """Absent meta-review still yields the byte-clean empty string."""
     assert _format_meta_review_context(None) == ""
     assert _format_meta_review_context({}) == ""
