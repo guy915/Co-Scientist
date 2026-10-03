@@ -1,5 +1,3 @@
-"""Shared TestClient factory and polling helpers for the app's endpoints."""
-
 from __future__ import annotations
 
 import asyncio
@@ -14,26 +12,13 @@ from fastapi.testclient import TestClient
 
 _T = TypeVar("_T")
 
-# The identity every test client carries unless a request overrides
-# X-Client-ID itself. Real callers always carry *some* persistent identity
-# (the browser's localStorage id, the CLI's stored id -- see
-# app.cli.main); a compatibility caller sending no header at all gets
-# no private scope (app.auth.require_client_scope), so a bare TestClient()
-# must mint one too, or the overwhelming majority of this suite -- which
-# creates a run with no header and reads it back the same way -- would 400
-# on every creation. A fixed constant (not a fresh id per instance) is
-# deliberate: several tests build a second client mid-test to simulate a
-# reconnect or a restart and expect it to see the first client's runs, and
-# per-test database isolation (see conftest.isolated_db) means the constant
-# never collides across tests. Pass an explicit ``headers={"X-Client-ID":
-# ...}`` on a request to act as a different caller -- request-level headers
-# override a client's own defaults for the same header name.
+# A fixed identity supports restarts within isolated test databases; anonymous
+# requests have no private scope.
 DEFAULT_TEST_CLIENT_ID = "pytest-default-client"
 _DEFAULT_HEADERS = {"X-Client-ID": DEFAULT_TEST_CLIENT_ID}
 
 
 def drain(gen: AsyncIterator[_T]) -> list[_T]:
-    """Collect every item an async generator yields into a list."""
 
     async def _run() -> list[_T]:
         return [item async for item in gen]
@@ -42,27 +27,14 @@ def drain(gen: AsyncIterator[_T]) -> list[_T]:
 
 
 def make_client() -> TestClient:
-    """Return a TestClient bound to the app, under a default test identity.
-
-    A fresh instance per call, so tests that need to simulate a restart can
-    build a second client against the same (isolated) database and still
-    see the first client's runs (see :data:`DEFAULT_TEST_CLIENT_ID`).
-    """
+    # Stable client identity survives reconnections and restarts.
     from app.main import app
 
     return TestClient(app, headers=_DEFAULT_HEADERS)
 
 
 def make_operator_client() -> TestClient:
-    """Return a TestClient that looks like a loopback (operator) caller.
-
-    The log endpoints grant the app-wide view to loopback callers -- the
-    local CLI and agents -- and scope everyone else to their own
-    records. Tests covering app-wide behaviour use this; tests covering
-    remote access control use :func:`make_client`, whose requests report
-    a non-loopback host. Carries the same default identity as
-    :func:`make_client` so an operator client can still create runs.
-    """
+    # Loopback operator access differs from remote client scope.
     from app.main import app
 
     return TestClient(
@@ -71,21 +43,6 @@ def make_operator_client() -> TestClient:
 
 
 def append_log_row(db_path: str, message: str, **fields: Any) -> int:
-    """Persist one log record and return its row id.
-
-    The low-level ``NewLogRecord`` construction the log suites share. Each
-    suite keeps its own purpose-named wrapper on top, naming only the fields
-    that suite varies; everything else takes the INFO/``app.seeded`` default
-    below (or ``NewLogRecord``'s own, for fields not named here).
-
-    Args:
-        db_path: Path to the per-test SQLite database.
-        message: The record's message text.
-        **fields: Any ``store.NewLogRecord`` field, overriding the defaults.
-
-    Returns:
-        The new record's row id.
-    """
     from app import store
 
     record: dict[str, Any] = {
@@ -104,7 +61,6 @@ def wait_for(
     timeout: float = 10.0,
     interval: float = 0.05,
 ) -> bool:
-    """Poll ``predicate`` until it is true or the timeout elapses."""
     deadline = time.time() + timeout
     while time.time() < deadline:
         if predicate():
@@ -121,15 +77,7 @@ def wait_for_status(
     timeout: float = 15.0,
     interval: float = 0.05,
 ) -> bool:
-    """Poll ``GET /api/runs/{id}`` until the run reaches ``status``.
-
-    Polls under ``client``'s own default identity (see
-    :data:`DEFAULT_TEST_CLIENT_ID`) -- every caller that creates its run
-    through a bare :func:`make_client` shares it. A caller that created its
-    run under an explicit, different ``X-Client-ID`` cannot use this helper
-    to poll it (ownership would hide the row behind a 404); write a small
-    local poll passing that header instead.
-    """
+    # Poll with the owner identity; other identities receive 404.
 
     def _reached() -> bool:
         response = client.get(f"/api/runs/{run_id}")
@@ -143,17 +91,6 @@ def wait_for_status(
 def fake_litellm(
     chunks: list[str], *, raise_exc: Exception | None = None
 ) -> types.SimpleNamespace:
-    """Build a fake ``litellm`` module streaming ``chunks`` as deltas.
-
-    Args:
-        chunks: Plain-text deltas to stream back, one per fake chunk.
-        raise_exc: If set, ``acompletion`` raises this instead of streaming.
-
-    Returns:
-        A module-like object exposing an ``acompletion`` matching the shape
-        ``qa.stream_llm_deltas`` expects: an async function returning an
-        object that supports ``async for``.
-    """
 
     async def _chunk_stream() -> AsyncIterator[Any]:
         for content in chunks:

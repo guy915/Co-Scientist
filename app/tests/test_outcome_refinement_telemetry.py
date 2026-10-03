@@ -1,5 +1,3 @@
-"""A targeted outcome task retains its model call in run metrics."""
-
 import asyncio
 from typing import Any
 

@@ -1,5 +1,3 @@
-"""Outcome-refinement eligibility and request-boundary acceptance tests."""
-
 from __future__ import annotations
 
 from typing import Any, cast

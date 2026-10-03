@@ -1,5 +1,3 @@
-"""Tests for cli commands suite."""
-
 from __future__ import annotations
 
 import argparse
@@ -28,9 +26,6 @@ from tests._cli_helpers import (
 )
 from tests._client import wait_for
 
-# Unit tests for the agent-focused cosci commands (httpx MockTransport).
-
-
 cli_main = importlib.import_module("app.cli.main")
 
 
@@ -38,11 +33,6 @@ def _read_args(
     run_id: str = "r1", as_json: bool = False, command: str = ""
 ) -> argparse.Namespace:
     return argparse.Namespace(run_id=run_id, json=as_json, runs_command=command)
-
-
-# ---------------------------------------------------------------------------
-# New read subcommands
-# ---------------------------------------------------------------------------
 
 
 def test_matches_lists_rows(capsys: pytest.CaptureFixture[str]) -> None:
@@ -206,11 +196,6 @@ def test_config_renders_defaults(capsys: pytest.CaptureFixture[str]) -> None:
     assert "3" in out
 
 
-# ---------------------------------------------------------------------------
-# runs wait
-# ---------------------------------------------------------------------------
-
-
 def _wait_args(
     run_id: str = "r1",
     *,
@@ -224,7 +209,6 @@ def _wait_args(
 
 
 def _status_sequence(*statuses: str) -> Any:
-    """Build a handler serving each status in turn, then repeating the last."""
     calls = {"n": 0}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -242,7 +226,6 @@ def test_wait_polls_until_completed(
     rc = runs_stream_cmd.handle_wait(_wait_args(), api_client(handler))
     assert rc == 0
     out = capsys.readouterr().out
-    # One line per status change, not per poll.
     assert out.count("running") == 1
     assert out.count("completed") == 1
 
@@ -279,11 +262,6 @@ def test_wait_json_emits_final_run_only(
     out = capsys.readouterr().out
     assert out.count('"status"') == 1
     assert '"completed"' in out
-
-
-# ---------------------------------------------------------------------------
-# Stdin arguments and create --start
-# ---------------------------------------------------------------------------
 
 
 def _create_args(**overrides: Any) -> argparse.Namespace:
@@ -383,11 +361,6 @@ def test_empty_stdin_argument_is_an_error(
     assert "stdin is empty" in excinfo.value.message
 
 
-# ---------------------------------------------------------------------------
-# Verbose logging and --version
-# ---------------------------------------------------------------------------
-
-
 def test_verbose_logs_requests_to_stderr(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -416,11 +389,6 @@ def test_version_flag_prints_and_exits_zero(
     assert "cosci" in capsys.readouterr().out
 
 
-# ---------------------------------------------------------------------------
-# Parser wiring
-# ---------------------------------------------------------------------------
-
-
 def test_parser_wires_new_commands() -> None:
     parser = cli_main.build_parser()
     wait_args = parser.parse_args(["runs", "wait", "r1"])
@@ -446,20 +414,7 @@ def test_parser_wires_new_commands() -> None:
         assert parser.parse_args(command).handler is handler, command
 
 
-# End-to-end tests for the cosci CLI runs lifecycle verbs.
-#
-# create / list / start+watch / wait / steer / pause / resume / cancel, driven
-# against the shared offline uvicorn server from ``tests._cli_helpers`` (see
-# its module docstring for the offline-server rationale). The diagnostics,
-# read, report, and Q&A commands live in ``test_cli_commands.py``.
-
-
 __all__ = ["cli_server"]
-
-
-# ---------------------------------------------------------------------------
-# Create / list
-# ---------------------------------------------------------------------------
 
 
 def test_create_prints_id_and_status(
@@ -510,11 +465,6 @@ def test_list_scoped_to_client(
         assert len(line.split("\t")) == 4
 
 
-# ---------------------------------------------------------------------------
-# Start + watch streaming, wait
-# ---------------------------------------------------------------------------
-
-
 def test_start_and_watch_to_terminal(
     cli_server: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -523,7 +473,7 @@ def test_start_and_watch_to_terminal(
         _invoke(cli_server, "runs", "start", run_id, client_id="watch-client")
         == 0
     )
-    capsys.readouterr()  # drop the start line
+    capsys.readouterr()
     assert (
         _invoke(cli_server, "runs", "watch", run_id, client_id="watch-client")
         == 0
@@ -554,17 +504,9 @@ def test_wait_follows_run_to_completed(
     assert lines[-1] == f"{run_id}\tcompleted"
 
 
-# ---------------------------------------------------------------------------
-# Steering
-# ---------------------------------------------------------------------------
-
-
 def test_steer_queues_message(
     cli_server: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    # Uses a dedicated draft run, not the shared ``completed_run``: steering a
-    # completed engine run enqueues a durable scientist continuation that
-    # reopens it, which would mutate the fixture other tests depend on.
     client_id = "steer-client"
     run_id = _create(cli_server, client_id)
     assert (
@@ -585,21 +527,11 @@ def test_steer_queues_message(
     assert any(m["content"] == "Prioritize testability" for m in msgs)
 
 
-# ---------------------------------------------------------------------------
-# Lifecycle: pause / resume / cancel
-# ---------------------------------------------------------------------------
-
-
 def test_pause_then_resume_cycle(
     cli_server: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    # A multi-iteration run stays active for seconds, so the pause request
-    # lands well inside its run window.
     run_id = _create(cli_server, "pause-client", tier="standard")
     _start(cli_server, run_id, "pause-client")
-    # Pause only once the run has committed a checkpoint with hypotheses: the
-    # durable executor checkpoints per node, so pausing before the first node
-    # lands would leave nothing to resume from (a 409 on resume).
     assert wait_for(
         lambda: (
             _run_summary(cli_server, run_id, "pause-client").get(
@@ -613,8 +545,6 @@ def test_pause_then_resume_cycle(
         _invoke(cli_server, "runs", "pause", run_id, client_id="pause-client")
         == 0
     )
-    # A durable engine run pauses at the DB (no in-process handle to signal a
-    # transitional "pausing"), so the endpoint reports the settled "paused".
     assert "paused" in capsys.readouterr().out
     _wait_status(cli_server, run_id, "paused", "pause-client")
 
@@ -631,9 +561,6 @@ def test_cancel_active_run(
 ) -> None:
     run_id = _create(cli_server, "cancel-client", tier="standard")
     _start(cli_server, run_id, "cancel-client")
-    # Cancel once the run is genuinely mid-flight (a checkpoint with hypotheses
-    # committed), so this exercises a real active-run cancel rather than a
-    # pre-start abort.
     assert wait_for(
         lambda: (
             _run_summary(cli_server, run_id, "cancel-client").get(
@@ -647,8 +574,6 @@ def test_cancel_active_run(
         _invoke(cli_server, "runs", "cancel", run_id, client_id="cancel-client")
         == 0
     )
-    # A durable engine run cancels at the DB (no in-process handle to signal a
-    # transitional "cancelling"), so the endpoint reports the settled state.
     assert "cancelled" in capsys.readouterr().out
     _wait_status(cli_server, run_id, "cancelled", "cancel-client")
 
@@ -656,7 +581,6 @@ def test_cancel_active_run(
 def test_delete_terminal_run(
     cli_server: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """N3: the CLI can permanently delete a run once it has settled."""
     run_id = _create(cli_server, "delete-client")
 
     assert (

@@ -1,12 +1,3 @@
-"""Durable-path consumption of reviews: dispositions and criteria (E1/K4).
-
-The durable fan-out is the only path production runs take, so the
-aggregate commits must apply the same review effects as the in-process
-nodes: a fatal full/simulation/recurrent finding changes the disposition
-(E1), and the scientist's criteria select the scored axes the initial
-gate consults (K4).
-"""
-
 from __future__ import annotations
 
 import dataclasses
@@ -20,7 +11,6 @@ from app.engine_tasks import fanout_aggregates as reflection
 
 
 def _make_item(result: dict[str, Any]) -> Any:
-    """A stand-in item task carrying one completed per-item result."""
 
     class _Item:
         status = "completed"
@@ -35,7 +25,6 @@ def _make_item(result: dict[str, Any]) -> Any:
 def _patch_items(
     monkeypatch: pytest.MonkeyPatch, results: dict[str, dict[str, Any]]
 ) -> None:
-    """Serve canned item results from both aggregate modules."""
 
     def _require(item_id: Any, db_path: Any, kind: str = "") -> Any:
         return _make_item(results[str(item_id)])
@@ -47,7 +36,6 @@ def _patch_items(
 def test_mature_reflection_aggregate_applies_fatal_dispositions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A rejected full review blocks the idea on the durable path too."""
     hypothesis = Hypothesis(text="idea")
     hypothesis.review_disposition = "viable"
     _patch_items(
@@ -85,7 +73,6 @@ def test_mature_reflection_aggregate_applies_fatal_dispositions(
 def test_mature_reflection_aggregate_keeps_viable_for_sound_reviews(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Non-fatal canned verdicts leave the disposition where it was."""
     hypothesis = Hypothesis(text="idea")
     hypothesis.review_disposition = "viable"
     _patch_items(
@@ -119,7 +106,6 @@ def test_mature_reflection_aggregate_keeps_viable_for_sound_reviews(
 def test_review_aggregate_gates_on_the_run_criteria(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The durable initial-review gate weighs the scientist's criteria."""
     hypothesis = Hypothesis(text="idea")
     review = HypothesisReview(
         review_summary="summary",
@@ -154,7 +140,6 @@ def test_review_aggregate_gates_on_the_run_criteria(
 def test_review_aggregate_without_criteria_keeps_the_default_gate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The same scores pass when no criteria select the testability axis."""
     hypothesis = Hypothesis(text="idea")
     review = HypothesisReview(
         review_summary="summary",
@@ -186,13 +171,8 @@ def test_review_aggregate_without_criteria_keeps_the_default_gate(
 def test_the_aggregate_carries_each_item_s_research_to_the_run(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An item's own result is discarded once it has been applied.
-
-    The searches a review paid for belong to the run, not to the
-    hypothesis, so the aggregate has to lift them out on the state
-    update -- and the two reviews of one hypothesis share one
-    retrieval, so the same ledger arriving twice is one ledger.
-    """
+    # Retrieval ledgers belong to the run and must survive discarded item
+    # results without duplicate searches.
     hypothesis = Hypothesis(text="idea")
     hypothesis.review_disposition = "viable"
     ledger = {"goal": "reverse fibrosis", "calls": []}
@@ -230,7 +210,6 @@ def test_the_aggregate_carries_each_item_s_research_to_the_run(
 def test_an_unresearched_review_adds_no_ledger(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Most reviews research nothing, and must not write an empty one."""
     hypothesis = Hypothesis(text="idea")
     hypothesis.review_disposition = "viable"
     _patch_items(

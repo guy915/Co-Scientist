@@ -1,5 +1,3 @@
-"""Public invite exchanges have a bounded, non-spoofable attempt budget."""
-
 import pytest
 from fastapi.testclient import TestClient
 

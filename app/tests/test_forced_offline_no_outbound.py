@@ -1,23 +1,4 @@
-"""Forced offline must reach no provider from the app's own chat calls.
-
-The engine's offline router only intercepts ``offline/``-prefixed models, so
-it does not cover app chat calls: interview, Q&A, announcements, titles
-and goal restatements. Each of those carries the
-scientist's research goal verbatim, so a deployment that sets
-``COSCIENTIST_FORCE_OFFLINE=1`` while a provider key happens to be present
-in the environment must still send nothing: the point of the switch is that
-the goal text does not leave the process.
-
-Every case here asserts at the transport, not at the answer. A deterministic
-fallback answer is indistinguishable from a real one that failed, so the
-probe replaces ``litellm.acompletion`` with a function that records the
-attempt and raises; "no outbound request" means that recorder stayed empty.
-An ``offline/``-prefixed call (e.g. ``make_client()``'s startup demo
-seeding, which synthesizes each curated demo's R14-3 goal restatement) is
-not such an attempt -- the offline router answers it locally, so it is
-passed through to the real (router-installed) ``acompletion`` rather than
-counted as a leak.
-"""
+# The engine offline router does not intercept forced-offline chat transport.
 
 from __future__ import annotations
 
@@ -40,24 +21,13 @@ from ._interviews_helpers import _interview_payload
 
 @pytest.fixture(autouse=True)
 def _forced_offline_with_a_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Pin the exact posture N9 describes: forced offline, key reachable."""
     monkeypatch.setenv("COSCIENTIST_FORCE_OFFLINE", "1")
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-present-but-must-be-unused")
 
 
 @pytest.fixture
 def attempts(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
-    """Replace litellm.acompletion with a recorder that refuses real calls.
-
-    An ``offline/``-prefixed model is not a real outbound attempt -- it is
-    passed through to the actual (router-installed) ``acompletion``, which
-    answers it locally -- so only a non-offline model is recorded and
-    refused.
-
-    Returns:
-        The list every attempted *real* completion is appended to; it must
-        stay empty for the whole forced-offline posture.
-    """
+    # Only non-offline models count as outbound attempts.
     import litellm
     from co_scientist.offline.llm import is_offline_model
 
@@ -82,7 +52,6 @@ _GOAL = "How can resistant bacteria regain drug susceptibility?"
 def test_interview_turn_makes_no_outbound_request(
     attempts: list[dict[str, Any]],
 ) -> None:
-    """The opening interview turn must not reach the configured model."""
     with make_client() as client:
         response = client.post(
             "/api/interviews", json={"research_challenge": _GOAL}
@@ -96,7 +65,6 @@ def test_interview_turn_makes_no_outbound_request(
 def test_qa_answer_makes_no_outbound_request(
     attempts: list[dict[str, Any]],
 ) -> None:
-    """A run Q&A answer must not reach the configured chat model."""
     with make_client() as client:
         created = client.post("/api/runs", json={"research_goal": _GOAL})
         assert created.status_code == 200
@@ -114,7 +82,6 @@ def test_qa_answer_makes_no_outbound_request(
 async def test_run_titling_makes_no_outbound_request(
     attempts: list[dict[str, Any]],
 ) -> None:
-    """Titling condenses the goal, so it must not send it either."""
     assert await goal_text.generate_run_title(_GOAL) is None
     assert attempts == []
 
@@ -123,14 +90,8 @@ async def test_run_titling_makes_no_outbound_request(
 async def test_byok_still_reaches_its_own_key(
     attempts: list[dict[str, Any]],
 ) -> None:
-    """A scientist's own validated key is not shadowed by forced offline.
-
-    Forced offline withholds the *deployment's* credential. A scoped
-    bring-your-own-key credential is the scientist's explicit instruction to
-    bill their own provider, and ``resolve_offline_backend`` already exempts
-    it for engine runs; the chat paths must agree rather than silently
-    dropping to a scripted answer.
-    """
+    # Explicit owner credentials exempt BYOK from the deployment-key offline
+    # guard.
     credential = credentials.ByokCredential(
         provider="deepseek", api_key="sk-scientist-own", model="deepseek/chat"
     )
@@ -146,7 +107,6 @@ async def test_byok_still_reaches_its_own_key(
 def test_qa_dispatch_stays_on_the_offline_answer(
     attempts: list[dict[str, Any]],
 ) -> None:
-    """The offline Q&A answer is still grounded in the run's own artifacts."""
     with make_client() as client:
         created = client.post("/api/runs", json={"research_goal": _GOAL})
         run_id = created.json()["id"]
@@ -157,11 +117,8 @@ def test_qa_dispatch_stays_on_the_offline_answer(
     assert "offline mode" in answered.text
     assert attempts == []
     assert store.list_messages(run_id)
-    # The refusal has to come from the answer path itself, so pin that the
-    # router still dispatches into the module the guard lives in. Read
-    # through sys.modules: app.runs.chat imports qa for its own use and does
-    # not re-export it, so reaching for the attribute directly is a private
-    # access the typechecker is right to reject.
+    # Read the installed module through sys.modules rather than a private
+    # package attribute.
     assert sys.modules["app.runs.chat"].qa is qa
 
 

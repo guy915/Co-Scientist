@@ -1,5 +1,3 @@
-"""Tests for cli transport."""
-
 from __future__ import annotations
 
 import argparse
@@ -16,8 +14,6 @@ import pytest
 from app.cli import logs_cmd, render, runs_cmd, runs_stream_cmd
 from app.cli.http import ApiClient, ApiUnreachableError, CliError
 from tests._cli_helpers import api_client
-
-# Unit tests for the cosci CLI HTTP client (httpx MockTransport).
 
 
 def test_request_json_returns_body() -> None:
@@ -108,7 +104,6 @@ def test_stream_lines_raises_on_error_status() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(404, json={"detail": "gone"})
 
-    # The client reads the body and raises on context entry, before yielding.
     with (
         pytest.raises(CliError) as excinfo,
         api_client(handler).stream_lines("GET", "/events"),
@@ -121,9 +116,6 @@ def test_cli_error_custom_exit_code() -> None:
     err = CliError("bad", exit_code=3)
     assert err.exit_code == 3
     assert str(err) == "bad"
-
-
-# Unit tests for the ``cosci logs`` command (httpx MockTransport).
 
 
 _logs_cli_main = importlib.import_module("app.cli.main")
@@ -201,7 +193,6 @@ def test_logs_passes_filters(capsys: pytest.CaptureFixture[str]) -> None:
     assert "min_level=warning" in url
     assert "q=boom" in url
     assert "after_id=5" in url
-    # Default view: no verbose flag is sent.
     assert "verbose" not in url
 
 
@@ -256,8 +247,6 @@ def test_logs_follow_recovers_from_a_server_clear(
                 200, json={"logs": [_row(50, "old line")], "last_id": 50}
             )
         if len(urls) == 2:
-            # The log was cleared server-side: ids restarted from 1, so
-            # last_id dropped below the follower's cursor.
             return httpx.Response(200, json={"logs": [], "last_id": 0})
         if len(urls) == 3:
             return httpx.Response(
@@ -269,7 +258,6 @@ def test_logs_follow_recovers_from_a_server_clear(
     assert rc == 130
     out = capsys.readouterr().out
     assert "old line" in out
-    # The cursor reset instead of stalling above the restarted ids.
     assert "fresh line" in out
     assert "after_id=0" in urls[2]
 
@@ -312,9 +300,6 @@ def test_parser_wires_logs_command() -> None:
     assert args.run == "r1"
     assert args.level == "warning"
     assert args.follow is True
-
-
-# Unit tests for the cosci CLI output formatters (no server needed).
 
 
 def test_oneline_collapses_whitespace() -> None:
@@ -384,7 +369,6 @@ def test_sse_data_ignores_non_data_and_malformed() -> None:
     assert render.sse_data("event: message") is None
     assert render.sse_data("data: not json") is None
     assert render.sse_data("data: ") is None
-    # A JSON array is valid JSON but not an event object.
     assert render.sse_data("data: [1, 2]") is None
 
 
@@ -402,17 +386,7 @@ def test_format_event_line_omits_empty_payload() -> None:
     assert line == "2\tlifecycle"
 
 
-# Robustness tests for the cosci CLI: retries, reconnects, and guards.
-
-
-# The package re-exports the ``main`` function under the same name as the
-# module, so fetch the module itself for monkeypatching.
 _robustness_cli_main = importlib.import_module("app.cli.main")
-
-
-# ---------------------------------------------------------------------------
-# GET retries
-# ---------------------------------------------------------------------------
 
 
 def test_get_retries_transient_connect_error() -> None:
@@ -483,11 +457,6 @@ def test_post_is_not_retried() -> None:
     assert attempts == 1
 
 
-# ---------------------------------------------------------------------------
-# Base URL and timeout handling
-# ---------------------------------------------------------------------------
-
-
 def test_base_url_without_scheme_defaults_to_http() -> None:
     assert ApiClient("localhost:8008").base_url == "http://localhost:8008"
 
@@ -497,8 +466,6 @@ def test_base_url_with_scheme_is_preserved() -> None:
 
 
 class _RecordingClient:
-    """Stand-in for ApiClient that records constructor arguments."""
-
     captured: ClassVar[dict[str, Any]] = {}
 
     def __init__(
@@ -546,15 +513,9 @@ def test_timeout_env_var_is_default(
     assert _RecordingClient.captured["timeout"] == 7.5
 
 
-# ---------------------------------------------------------------------------
-# Interrupt and pipe handling in main
-# ---------------------------------------------------------------------------
-
-
 def _dispatch_raising(
     monkeypatch: pytest.MonkeyPatch, exc: BaseException
 ) -> int:
-    """Run ``cosci status`` with a handler that raises ``exc``."""
 
     def handler(args: argparse.Namespace, client: Any) -> int:
         raise exc
@@ -569,11 +530,6 @@ def test_keyboard_interrupt_exits_130(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     assert _dispatch_raising(monkeypatch, KeyboardInterrupt()) == 130
-
-
-# ---------------------------------------------------------------------------
-# Path quoting and response-shape guards
-# ---------------------------------------------------------------------------
 
 
 def test_run_id_is_percent_quoted_in_paths(
@@ -611,10 +567,6 @@ def test_lifecycle_non_object_body_is_a_clean_error() -> None:
     assert "unexpected non-object response" in excinfo.value.message
 
 
-# ---------------------------------------------------------------------------
-# Watch reconnection
-# ---------------------------------------------------------------------------
-
 _TERMINAL_BODY = (
     b'data: {"seq": 2, "type": "generation", "payload": {}}\n\n'
     b'data: {"seq": 3, "type": "_terminal",'
@@ -629,9 +581,6 @@ def _watch_args(after: int = 0) -> argparse.Namespace:
 def _watch_client(
     handler: object, monkeypatch: pytest.MonkeyPatch
 ) -> ApiClient:
-    # ``handle_watch`` reads the constant from its defining module at call
-    # time, so the patch must target ``runs_stream_cmd`` (the re-export in
-    # ``runs_cmd`` is a separate binding).
     monkeypatch.setattr(runs_stream_cmd, "WATCH_RECONNECT_WAIT", 0.0)
     return api_client(handler)
 
@@ -721,8 +670,6 @@ def test_watch_gives_up_after_repeated_failures(
 
 
 def test_broken_pipe_exits_141() -> None:
-    # Run in a subprocess: the handler's fd-level devnull redirect would
-    # break pytest's own capture if exercised in-process.
     code = (
         "import importlib, sys\n"
         "m = importlib.import_module('app.cli.main')\n"

@@ -1,12 +1,3 @@
-"""Shared builders for the interview test modules.
-
-These helpers are imported by ``test_interviews.py`` (endpoint and field
-CRUD cases), ``test_interviews_model.py`` (direct ``_call_interview_model``
-cases) and ``test_run_title_from_interview.py`` (the title a completed
-interview hands the run it seeds), so they live in a non-test module to
-avoid pytest collecting them.
-"""
-
 from __future__ import annotations
 
 import dataclasses
@@ -23,8 +14,6 @@ from app.interviews.model import CLOSE_MARKER, OPEN_MARKER
 
 @dataclasses.dataclass(frozen=True)
 class InterviewFields:
-    """The structured fields one interview-model response carries."""
-
     challenge: str = "How can resistant bacteria regain drug susceptibility?"
     focus: list[str] | None = None
     preferences: list[str] | None = None
@@ -47,12 +36,6 @@ def _response(
 
 
 def _wire_turn(response: dict[str, Any]) -> str:
-    """Render a response dict as one turn in the model's wire format.
-
-    The prose the scientist reads, then the trailing spec block carrying
-    everything else, which is what the model is asked to produce and what
-    ``TurnSplitter`` is written to take apart.
-    """
     fields = {
         key: value
         for key, value in response.items()
@@ -65,18 +48,6 @@ def _wire_turn(response: dict[str, Any]) -> str:
 
 
 def _interview_payload(response: Any) -> dict[str, Any]:
-    """Return the interview carried by a streamed turn's terminal frame.
-
-    Args:
-        response: The TestClient response for a streamed interview endpoint.
-
-    Returns:
-        The interview row from the closing ``interview`` frame.
-
-    Raises:
-        AssertionError: If the stream carried no ``interview`` frame, which
-            means the turn errored instead of resolving.
-    """
     for line in response.text.splitlines():
         if not line.startswith("data: "):
             continue
@@ -89,13 +60,8 @@ def _interview_payload(response: Any) -> dict[str, Any]:
 def _patch_model_sequence(
     monkeypatch: pytest.MonkeyPatch, responses: list[dict[str, Any]]
 ) -> None:
-    """Patch the interview model to return each response in turn.
-
-    The prose sink is accepted and ignored: these cases assert on what a
-    turn resolves to, not on how it streamed, and a fake that refused the
-    argument would fail every turn as a provider outage rather than as the
-    signature mismatch it is.
-    """
+    # The fake accepts the prose-sink argument so it cannot fabricate a provider
+    # failure.
     replies = iter(responses)
 
     async def _model(
@@ -109,7 +75,6 @@ def _patch_model_sequence(
 
 
 def _antibiotic_responses() -> list[dict[str, Any]]:
-    """Return the three model turns of the antibiotic-resistance interview."""
     return [
         _response("Which resistance mechanism should the study prioritize?"),
         _response(
@@ -134,7 +99,6 @@ def _antibiotic_responses() -> list[dict[str, Any]]:
 def _run_antibiotic_interview(
     client: TestClient, headers: dict[str, str]
 ) -> tuple[str, Any, Any, Any]:
-    """Drive the three-turn antibiotic interview; return id and responses."""
     created = client.post(
         "/api/interviews",
         headers=headers,
@@ -164,19 +128,7 @@ def _run_antibiotic_interview(
 
 
 def _fake_stream(content: str, reasoning: str = "") -> Any:
-    """Build a litellm-style streaming completion.
-
-    Mirrors the real DeepSeek delta order verified against the live API: the
-    whole chain of thought arrives as ``reasoning_content`` deltas before the
-    first ``content`` delta.
-
-    Args:
-        content: The answer text, delivered as a single content delta.
-        reasoning: Optional chain of thought delivered before the answer.
-
-    Returns:
-        An async iterator of litellm-shaped streaming chunks.
-    """
+    # DeepSeek can emit reasoning before content.
 
     def _chunk(
         *, reasoning_content: str | None = None, content: str | None = None

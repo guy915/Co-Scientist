@@ -1,5 +1,3 @@
-"""Tests for report publication."""
-
 from __future__ import annotations
 
 import json
@@ -34,22 +32,8 @@ from tests.test_report_cancel_publication import (
     _seed_owned_finalize,
 )
 
-# The blocked-run reason and each idea's own reason must agree on why.
-#
-# ``_hypothesis_passes_safety_gate`` (report/gates.py) decides
-# exclusion in a fixed order: status (duplicate/rejected) first, then a
-# contradicting claim, then a blocking safety status. ``_exclusion_cause``
-# mirrors that order to build the run-level blocked reason
-# (``_empty_leaderboard_reason``). ``_non_viable_reasons`` (report/content.py)
-# builds the per-idea reason shown in ``idea_buckets`` and must mirror the
-# same precedence, or a hypothesis that is both status-rejected and
-# contradicted gets attributed to two different causes on the two surfaces:
-# the run's blocked reason names one cause while the per-idea reason names
-# another, for the very same exclusion decision.
-
 
 def _hypothesis(identifier: str, status: str) -> dict[str, object]:
-    """Build one report-ready hypothesis fixture with a given status."""
     return {
         "id": identifier,
         "title": "An idea",
@@ -60,7 +44,6 @@ def _hypothesis(identifier: str, status: str) -> dict[str, object]:
 
 
 def _contradicting_edge(hypothesis_id: str) -> dict[str, object]:
-    """Build one categorical 'contradicts' claim edge for a hypothesis."""
     return {
         "hypothesis_id": hypothesis_id,
         "claim": "The idea contradicts prior data.",
@@ -73,19 +56,13 @@ def _contradicting_edge(hypothesis_id: str) -> dict[str, object]:
 
 
 def test_rejected_and_contradicted_idea_agrees_across_both_surfaces() -> None:
-    """One hypothesis, two report surfaces, one cause.
-
-    The gate excludes this idea for its status -- checked before the
-    contradicting claim is ever considered (see
-    ``_hypothesis_passes_safety_gate``) -- so both the run's blocked
-    reason and the idea's own per-idea reason must say the idea was set
-    aside during review, never that it was contradicted by the evidence.
-    """
+    # Status exclusions precede contradiction exclusions across shared report
+    # surfaces.
     hyp = _hypothesis("h1", "rejected")
     edges = [_contradicting_edge("h1")]
 
     contradicted = report_gates.contradicted_hypothesis_ids("run1", None, edges)
-    assert "h1" in contradicted  # sanity: the idea really is both
+    assert "h1" in contradicted
 
     buckets = report_content._idea_buckets([], [hyp], edges)
     per_idea_reason = buckets["non_viable"][0]["reason"].lower()
@@ -100,12 +77,11 @@ def test_rejected_and_contradicted_idea_agrees_across_both_surfaces() -> None:
 
 
 def test_duplicate_and_contradicted_idea_agrees_across_both_surfaces() -> None:
-    """Same scenario, the other status the gate checks before evidence."""
     hyp = _hypothesis("h2", "duplicate")
     edges = [_contradicting_edge("h2")]
 
     contradicted = report_gates.contradicted_hypothesis_ids("run1", None, edges)
-    assert "h2" in contradicted  # sanity: the idea really is both
+    assert "h2" in contradicted
 
     buckets = report_content._idea_buckets([], [hyp], edges)
     per_idea_reason = buckets["non_viable"][0]["reason"].lower()
@@ -119,9 +95,6 @@ def test_duplicate_and_contradicted_idea_agrees_across_both_surfaces() -> None:
     assert "contradicted" not in blocked_reason
 
 
-# Cancellation races with final safety and the empty-leaderboard block.
-
-
 def _seed_leased_finalize(
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
@@ -129,7 +102,6 @@ def _seed_leased_finalize(
     *,
     monitor_halt: bool = False,
 ) -> tuple[Any, dict[str, str], str, Any]:
-    """Create an owner-scoped run with a real claimed finalize task."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     owner = make_client()
     headers = {"X-Client-ID": client_id}
@@ -192,7 +164,6 @@ def _seed_leased_finalize(
 def _install_report(
     monkeypatch: pytest.MonkeyPatch, *, empty: bool = True
 ) -> None:
-    """Stub a deterministic empty or publishable report."""
     leaderboard = (
         []
         if empty
@@ -225,7 +196,6 @@ def _assert_cancelled_task(
     task_id: str,
     db_path: str,
 ) -> list[dict[str, Any]]:
-    """Return events after confirming the owner cancellation stayed terminal."""
     persisted = store.get_run(run_id, db_path=db_path)
     assert persisted is not None
     assert persisted.status == store.RunStatus.CANCELLED.value
@@ -248,7 +218,6 @@ def _owner_events(
 async def test_cancel_race_does_not_block_run(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A stale finalize cannot overwrite cancellation with a readiness block."""
     owner, headers, run_id, task = _seed_leased_finalize(
         isolated_db, monkeypatch, "readiness-cancel-owner"
     )
@@ -274,7 +243,6 @@ async def test_cancel_race_does_not_block_run(
         cancel_before_readiness_write,
     )
 
-    # The finalize task passed its status check; cancel before readiness writes.
     with pytest.raises(task_worker._LeaseLostError):
         await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
@@ -300,7 +268,6 @@ async def test_cancel_race_does_not_block_run(
 async def test_empty_leaderboard_block_remains_auditable(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A valid empty-board block remains ordered and auditable."""
     owner, headers, run_id, task = _seed_leased_finalize(
         isolated_db, monkeypatch, "readiness-block-owner"
     )
@@ -344,7 +311,6 @@ async def test_empty_leaderboard_block_remains_auditable(
 async def test_leased_finalize_redaction_audits_and_scrubs_report(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A leased final screen keeps its audit span and scrubs report copies."""
     owner, headers, run_id, task = _seed_leased_finalize(
         isolated_db, monkeypatch, "final-redaction-owner"
     )
@@ -397,7 +363,6 @@ async def test_leased_finalize_redaction_audits_and_scrubs_report(
 async def test_cancel_before_monitor_halt_gate_leaves_no_halt_audit(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A monitor verdict cannot write after owner cancellation."""
     owner, headers, run_id, task = _seed_leased_finalize(
         isolated_db,
         monkeypatch,
@@ -448,7 +413,6 @@ async def test_cancel_before_monitor_halt_gate_leaves_no_halt_audit(
 async def test_leased_monitor_halt_remains_auditable(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A valid leased monitor halt remains visible in owner event replay."""
     owner, headers, run_id, task = _seed_leased_finalize(
         isolated_db,
         monkeypatch,
@@ -494,7 +458,6 @@ async def test_cancel_during_final_screen_has_no_final_safety_audit(
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Cancellation during screening fences final decision and event writes."""
     owner, headers, run_id, task = _seed_leased_finalize(
         isolated_db, monkeypatch, f"final-screen-cancel-{decision}"
     )
@@ -528,14 +491,10 @@ async def test_cancel_during_final_screen_has_no_final_safety_audit(
     assert store.get_latest_report(run_id, db_path=isolated_db) is None
 
 
-# Finalize drain pause/cancellation acceptance through the owner API.
-
-
 @pytest.mark.asyncio
 async def test_early_finalize_pause_skips_final_drain(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A pause present before finalize checkpoints without invoking drain."""
     owner, run_id, task, _hypothesis_id = _seed_owned_finalize(
         isolated_db, monkeypatch
     )
@@ -563,13 +522,11 @@ async def test_early_finalize_pause_skips_final_drain(
 async def test_cancel_during_final_drain_keeps_cancelled_state(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A cancel committed in drain prevents stage events and checkpointing."""
     real_drain = engine_tasks_node._drain_and_persist_final_state
     owner, run_id, _queued_task, hypothesis_id = _seed_owned_finalize(
         isolated_db, monkeypatch, claim=False
     )
     _install_report_stubs(hypothesis_id, monkeypatch)
-    # Restore the real drain replaced by the shared fixture.
     _install_runtime(monkeypatch).drain_final_state = real_drain
     cancel_responses: list[dict[str, Any]] = []
 
@@ -618,7 +575,6 @@ async def test_cancel_during_final_drain_keeps_cancelled_state(
 async def test_resume_after_finalize_pause_read_does_not_write_stale_checkpoint(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A resume committed before the checkpoint transaction wins."""
     owner, run_id, task, hypothesis_id = _seed_owned_finalize(
         isolated_db, monkeypatch
     )
@@ -687,7 +643,6 @@ async def test_resume_after_finalize_pause_read_does_not_write_stale_checkpoint(
 async def test_pause_during_final_drain_waits_for_explicit_resume(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A pause committed during drain waits for explicit resume."""
     real_drain = engine_tasks_node._drain_and_persist_final_state
     owner, run_id, original_task, hypothesis_id = _seed_owned_finalize(
         isolated_db, monkeypatch, claim=False
@@ -763,7 +718,6 @@ async def test_pause_during_final_drain_waits_for_explicit_resume(
         is None
     )
 
-    # Startup settlement leaves a cooperatively paused finalize checkpoint idle.
     from app import main
 
     recovered = main._reconcile_and_log_interrupted_runs()
@@ -826,7 +780,6 @@ async def test_pause_during_final_drain_waits_for_explicit_resume(
 async def test_cancel_after_drain_commit_orders_stages_before_cancel(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Cancellation after drain commit withholds publication and stays last."""
     real_drain = engine_tasks_node._drain_and_persist_final_state
     owner, run_id, _queued_task, hypothesis_id = _seed_owned_finalize(
         isolated_db, monkeypatch, claim=False
@@ -906,11 +859,7 @@ async def test_cancel_after_drain_commit_orders_stages_before_cancel(
     )
 
 
-# End-to-end tests for revocable public Goal Report capabilities.
-
-
 def _run_with_report(isolated_db: str) -> str:
-    """Persist a completed run with a saved Goal Report; return its id."""
     run = store.create_run(
         "Study a causal pathway",
         "standard",
@@ -928,7 +877,6 @@ def _run_with_report(isolated_db: str) -> str:
 
 
 def test_share_link_is_unique_hashed_and_revocable(isolated_db: str) -> None:
-    """Owner creation hashes the token; revocation closes public access."""
     run_id = _run_with_report(isolated_db)
     with TestClient(app) as client:
         denied = client.post(
@@ -969,14 +917,6 @@ def test_share_link_is_unique_hashed_and_revocable(isolated_db: str) -> None:
 def _run_with_blocked_and_released_content(
     isolated_db: str,
 ) -> tuple[str, str, str]:
-    """Persist a run with one released idea and every blocked-idea kind.
-
-    The run also holds one cited literature record and one private
-    attachment, so the shared payload has both kinds of evidence to filter.
-
-    Returns:
-        A tuple of (run id, released hypothesis id, cited evidence id).
-    """
     run = store.create_run(
         "Map a signaling pathway",
         "standard",
@@ -1112,12 +1052,8 @@ def _run_with_blocked_and_released_content(
 def test_shared_payload_is_filtered_to_release_artifact(
     isolated_db: str,
 ) -> None:
-    """A share returns the report's filtered view, not the raw run tables.
-
-    Blocked ideas (safety, review, dedup, contradiction), private attachment
-    text, and the run configuration must not appear; the released idea and
-    the evidence citing it must.
-    """
+    # Shared views filter blocked ideas, private attachments, and private
+    # configuration.
     run_id, released_id, cited_id = _run_with_blocked_and_released_content(
         isolated_db
     )
@@ -1150,14 +1086,12 @@ def test_shared_payload_is_filtered_to_release_artifact(
     ):
         assert secret not in serialized
 
-    # The run view keeps exactly the fields the public page renders.
     assert payload["run"] == {
         "title": None,
         "research_goal": "Map a signaling pathway",
         "run_mode": "standard",
     }
 
-    # The release content itself stays intact and text-free of full bodies.
     shared = payload["hypotheses"][0]
     assert shared["title"] == "Released feedback idea"
     assert shared["statement"] == (
@@ -1165,6 +1099,4 @@ def test_shared_payload_is_filtered_to_release_artifact(
     )
     assert "abstract" not in payload["evidence"][0]
     assert payload["evidence"][0]["title"] == "A public pathway paper"
-    # Retraction status travels with `available` into the public payload --
-    # at least as relevant to a public reader as reachability is.
     assert payload["evidence"][0]["retracted"] is False

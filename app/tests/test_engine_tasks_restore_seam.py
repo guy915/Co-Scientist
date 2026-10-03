@@ -1,13 +1,5 @@
-"""A restore generator installed through the test helper is the one used.
-
-Every durable handler that rebuilds workflow state does so with a generator
-built for restore. The helper in ``_engine_tasks_helpers`` installs a fixture
-generator in its place; a patch on a namespace that nothing looks the name up in
-is inert, so it would install nothing and the suite would silently run the
-real generator. The fixture generator carries a marker registry, and a spy on
-the engine-level restore proves that registry is what each handler restored
-with.
-"""
+# Patch the actual lookup seam; the marker proves the handler restored the
+# fixture registry.
 
 from __future__ import annotations
 
@@ -52,7 +44,6 @@ class _Case(NamedTuple):
 
 @pytest.fixture
 def restore_spy(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
-    """Record the tool registry each restore is given, then stop the handler."""
     seen: list[Any] = []
 
     def spy(serialized: dict[str, Any], *, tool_registry: Any = None) -> Any:
@@ -131,7 +122,6 @@ async def test_handler_restores_with_the_installed_generator(
     monkeypatch: pytest.MonkeyPatch,
     restore_spy: list[Any],
 ) -> None:
-    """The handler restores with the generator the helper installed."""
     run = store.create_run("Task-level science", "standard", "engine", {})
     task = _leased_task(run.id, case.task_type, case.extra_inputs, isolated_db)
     _patch_generator(monkeypatch, _MarkedGenerator({}), restore=True)
@@ -147,7 +137,6 @@ def test_outcome_refinement_restores_with_the_installed_generator(
     monkeypatch: pytest.MonkeyPatch,
     restore_spy: list[Any],
 ) -> None:
-    """Outcome refinement restores its checkpoint with the same generator."""
     run = store.create_run("Task-level science", "standard", "engine", {})
     task = _leased_task(
         run.id, engine_tasks.OUTCOME_REFINEMENT_TASK, {}, isolated_db

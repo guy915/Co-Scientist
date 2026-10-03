@@ -1,11 +1,4 @@
-"""The title a completed interview hands the run it seeds.
-
-Two paths meet on ``runs.title``: the interview names the session from the
-whole conversation, and ``goal_text`` names it from the goal alone. The
-interview's name wins where it has one, so these cases pin which path runs
--- generation used to fire unconditionally and overwrite the better title
-with the worse one.
-"""
+# A completed interview title takes precedence over a goal-derived title.
 
 from __future__ import annotations
 
@@ -30,17 +23,13 @@ from ._interviews_helpers import (
 
 @pytest.fixture(autouse=True)
 def _titling_is_reachable(fake_process_mode: FakeProcessMode) -> None:
-    """Report a keyed deployment so the scheduling guard is the only gate.
-
-    Offline runs skip titling wholesale, which would make every assertion
-    here pass for the wrong reason.
-    """
+    # Use an online fake so the offline skip cannot make this title guard pass
+    # accidentally.
     fake_process_mode.online()
 
 
 @pytest.fixture
 def _generated_titles(monkeypatch: pytest.MonkeyPatch) -> list[str]:
-    """Record every goal that reaches title generation."""
     seen: list[str] = []
 
     async def _generate(goal: str) -> str | None:
@@ -54,7 +43,6 @@ def _generated_titles(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 def _create_run_from_interview(
     client: TestClient, headers: dict[str, str], interview_id: str
 ) -> dict[str, Any]:
-    """Create a run seeded by ``interview_id`` and return its payload."""
     response = client.post(
         "/api/runs",
         headers=headers,
@@ -69,7 +57,6 @@ def test_interview_title_is_kept_and_generation_never_runs(
     monkeypatch: pytest.MonkeyPatch,
     _generated_titles: list[str],
 ) -> None:
-    """A named interview settles the title; nothing regenerates over it."""
     _patch_model_sequence(monkeypatch, _antibiotic_responses())
     headers = {"X-Client-ID": "scientist-a"}
     with TestClient(app) as client:
@@ -78,13 +65,11 @@ def test_interview_title_is_kept_and_generation_never_runs(
         settled = client.get(f"/api/runs/{run['id']}", headers=headers).json()
 
     assert run["title"] == "Restoring Antibiotic Susceptibility"
-    # The background task is the thing under test: it must never have run.
     assert _generated_titles == []
     assert settled["title"] == "Restoring Antibiotic Susceptibility"
 
 
 def _overlong_title_responses() -> list[dict[str, Any]]:
-    """Interview turns whose final title busts the title-length ceiling."""
     responses = _antibiotic_responses()
     responses[-1] = _response(
         "The goal is ready for run configuration.",
@@ -102,13 +87,7 @@ def test_overlong_interview_title_falls_through_to_generation(
     monkeypatch: pytest.MonkeyPatch,
     _generated_titles: list[str],
 ) -> None:
-    """A title too long for the surfaces is rejected, not stored.
-
-    Keeping the interview's title means it is no longer overwritten by a
-    bounded generated one, so it has to clear the same ceiling every other
-    title path clears; rejected, it leaves the run unnamed and generation
-    supplies the name as it always did.
-    """
+    # Accepted interview titles share the generated-title length cap.
     _patch_model_sequence(monkeypatch, _overlong_title_responses())
     headers = {"X-Client-ID": "scientist-a"}
     with TestClient(app) as client:
@@ -117,7 +96,6 @@ def test_overlong_interview_title_falls_through_to_generation(
         run = _create_run_from_interview(client, headers, interview_id)
         settled = client.get(f"/api/runs/{run['id']}", headers=headers).json()
 
-    # The interview itself still carries what the model wrote.
     assert len(fields["title"]) > 80
     assert run["title"] is None
     assert _generated_titles == [run["research_goal"]]

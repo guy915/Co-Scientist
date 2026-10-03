@@ -1,5 +1,3 @@
-"""BYOK credential transport, crypto, storage, validation, and redaction."""
-
 from __future__ import annotations
 
 import logging
@@ -93,15 +91,12 @@ def test_run_credential_deleted_with_the_run(byok_secret: str) -> None:
         provider="openai", api_key=_KEY, model="openai/gpt-4o"
     )
     credentials.store_run_credential(run.id, run.client_id, cred)
-    # Simulates the run-deletion path: the credential row must cascade
-    # away with its run (stage-9 deletion builds on this FK).
     with store.connect() as conn:
         conn.execute("DELETE FROM runs WHERE id=?", (run.id,))
     assert credentials.get_run_credential(run.id) is None
 
 
 def test_stored_token_is_not_plaintext(byok_secret: str) -> None:
-    """The persisted row must hold ciphertext, never the raw key."""
     run = _make_run()
     cred = credentials.ByokCredential(
         provider="openai", api_key=_KEY, model="openai/gpt-4o"

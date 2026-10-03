@@ -1,5 +1,3 @@
-"""Tests for document ingest."""
-
 from __future__ import annotations
 
 import io
@@ -15,8 +13,6 @@ from app.pdf import (
     raw_bookmark_matches,
 )
 
-# One line per (text, font resource name, size, x, y). Font resource names
-# are looked up in each page's own /Font dict (see _page_object below).
 Line = tuple[str, str, float, float, float]
 
 
@@ -71,12 +67,7 @@ def _build_objects(
 
 
 def _serialize(objects: dict[int, bytes]) -> bytes:
-    """Assemble objects into a minimal well-formed PDF.
-
-    Offsets are computed from actual byte positions rather than hand-
-    counted, since hand-counted xref offsets are the fiddliest part of
-    writing raw PDF and the easiest to get silently wrong.
-    """
+    # Compute PDF offsets from real bytes; hand-counted offsets are fragile.
     all_nums = sorted(objects)
     max_num = max(all_nums)
     buf = io.BytesIO()
@@ -105,10 +96,6 @@ def build_pdf(
     pages_lines: list[list[Line]],
     outline: list[tuple[str, int]] | None = None,
 ) -> bytes:
-    """Build a real PDF from per-page text-object lines.
-
-    ``outline``, when given, is a flat list of (title, target page index).
-    """
     objects, _ = _build_objects(pages_lines)
     raw = _serialize(objects)
     if not outline:
@@ -125,23 +112,11 @@ def build_pdf(
     return out.getvalue()
 
 
-# Heading inference driven through the real pypdf parser, end to end.
-#
-# ``test_document_upload.py`` fakes ``pypdf`` wholesale for its own tests,
-# which would let a heading-inference suite pass identically whether or not
-# the feature works on a real file. These tests build small real PDFs from
-# raw PDF syntax (see ``_pdf_fixtures.py``) and drive them through
-# ``document_ingest._extract_pdf`` unpatched, so the cascade is proven wired
-# to something, not just internally consistent.
+# Use the real PDF parser so a fake cannot hide missing wiring.
 
 
 def test_bookmark_outline_sets_heading_levels() -> None:
-    """A top-level and a nested bookmark produce h1 and h2 respectively.
-
-    Both lines are also plain, unstyled body-size text with no numbering
-    marker, so a passing result proves the bookmark signal fired on its
-    own rather than piggybacking on numbering or size.
-    """
+    # Use uniform unnumbered body text to isolate bookmark headings.
     pdf = build_pdf(
         [
             [
@@ -158,11 +133,10 @@ def test_bookmark_outline_sets_heading_levels() -> None:
 
     assert "# Overview" in text
     assert "# Scope" in text
-    assert "## " not in text  # both bookmarks sit at the same, top depth
+    assert "## " not in text
 
 
 def test_numbering_without_an_outline_sets_nested_heading_levels() -> None:
-    """1. / 1.1 numbering alone infers a two-level hierarchy."""
     pdf = build_pdf(
         [
             [
@@ -181,12 +155,7 @@ def test_numbering_without_an_outline_sets_nested_heading_levels() -> None:
 
 
 def test_larger_font_infers_a_heading_with_no_outline_or_numbering() -> None:
-    """A visually larger, bold line stands out from uniform body text.
-
-    Several same-size body lines are included so the body-size estimate
-    (the font size most lines share) is unambiguous -- a single heading
-    against a single body line would tie, which no real document does.
-    """
+    # Uniform body lines disambiguate body-size estimation from headings.
     pdf = build_pdf(
         [
             [
@@ -205,11 +174,7 @@ def test_larger_font_infers_a_heading_with_no_outline_or_numbering() -> None:
 
 
 def test_uniform_font_with_no_signal_extracts_exactly_as_before() -> None:
-    """No outline, no numbering, one font size: byte-identical output.
-
-    This is the fail-soft floor -- heading inference must never change a
-    document that gives it nothing to infer from.
-    """
+    # PDF ingestion must leave output unchanged when no heading signals exist.
     lines: list[tuple[str, str, float, float, float]] = [
         ("A plain narrative paragraph about the assay.", "F1", 10, 50, 450),
         ("A second plain paragraph, same size.", "F1", 10, 50, 430),
@@ -221,9 +186,6 @@ def test_uniform_font_with_no_signal_extracts_exactly_as_before() -> None:
     assert "#" not in text
     assert "A plain narrative paragraph about the assay." in text
     assert "A second plain paragraph, same size." in text
-
-
-# PDF heading recovery from font styles, numbering and bookmark matches.
 
 
 def test_larger_size_ranks_above_smaller_size() -> None:
@@ -240,12 +202,7 @@ def test_larger_size_ranks_above_smaller_size() -> None:
 
 
 def test_near_equal_sizes_merge_into_one_cluster() -> None:
-    """A couple of points of glyph-measurement noise must not invent levels.
-
-    18.0 and 17.6 are the same nominal heading size measured on two lines
-    with different descenders; they must land at the same level, while
-    12.0 (clearly the body-adjacent tier) stays distinct.
-    """
+    # Glyph measurement noise must not split one heading level.
     styles = {
         0: LineStyle(size=18.0, bold=False, all_caps=False),
         1: LineStyle(size=17.6, bold=False, all_caps=False),
@@ -282,11 +239,7 @@ def test_all_caps_ranks_above_mixed_case_at_the_same_size_and_weight() -> None:
 
 
 def test_a_line_at_or_below_body_size_is_not_a_heading_candidate() -> None:
-    """Style detection only fires strictly above the body's own size.
-
-    A shorter line at body size or smaller (a caption, a footnote) is not
-    a heading just because it happens to be short.
-    """
+    # Small captions and footnotes are not headings.
     styles = {
         0: LineStyle(size=18.0, bold=False, all_caps=False),
         1: LineStyle(size=10.0, bold=False, all_caps=False),
@@ -309,7 +262,6 @@ def test_exact_title_match_takes_the_bookmark_depth() -> None:
 
 
 def test_numbering_marker_on_the_page_is_ignored_when_matching() -> None:
-    """A bookmark titled "Background" still matches "1.1 Background"."""
     outline = [("Background", 1)]
     lines = ["1.1 Background"]
 
@@ -328,7 +280,6 @@ def test_unmatched_bookmark_contributes_nothing() -> None:
 
 
 def test_raw_bookmark_depths_compress_to_contiguous_levels() -> None:
-    """A document whose shallowest bookmark is depth 2 still starts at 1."""
     outline = [("Chapter One", 2), ("Overview", 3)]
     lines = ["Chapter One", "Overview"]
 
@@ -340,7 +291,6 @@ def test_raw_bookmark_depths_compress_to_contiguous_levels() -> None:
 
 
 def test_dotted_decimal_depth_maps_directly_to_level() -> None:
-    """1. / 1.1 / 1.1.1 form three nested levels, in that order."""
     lines = ["1. Introduction", "1.1 Background", "1.1.1 Prior work"]
 
     levels = infer_numbering_levels(lines)
@@ -349,7 +299,6 @@ def test_dotted_decimal_depth_maps_directly_to_level() -> None:
 
 
 def test_part_keyword_outranks_arabic_numbering() -> None:
-    """PART I sits above a plain arabic section in the family order."""
     lines = ["PART I", "1. Scope", "PART II", "2. Definitions"]
 
     levels = infer_numbering_levels(lines)
@@ -359,13 +308,8 @@ def test_part_keyword_outranks_arabic_numbering() -> None:
 
 
 def test_alpha_and_roman_parenthetical_markers_rank_below_arabic() -> None:
-    """(a) and (i) sit deeper than a leading arabic section marker.
-
-    A second Roman marker ("(ii)") is unambiguous, which is what tips the
-    single-letter "(i)" into the Roman family rather than the alpha one
-    "(a)" already established -- ambiguity resolution reads the whole
-    document's markers, not just one line at a time.
-    """
+    # A second Roman numeral disambiguates the first marker from alphabetic
+    # numbering.
     lines = [
         "1. Scope",
         "(a) First clause",
@@ -379,17 +323,14 @@ def test_alpha_and_roman_parenthetical_markers_rank_below_arabic() -> None:
 
 
 def test_ambiguous_single_letter_resolves_by_document_context() -> None:
-    """A lone 'II.' reads as Roman when unambiguous Roman siblings exist."""
     lines = ["I. First part", "II. Second part", "III. Third part"]
 
     levels = infer_numbering_levels(lines)
 
-    # All three are the same family/depth, so they compress to one level.
     assert levels == {0: 1, 1: 1, 2: 1}
 
 
 def test_lines_without_a_recognizable_marker_are_absent() -> None:
-    """A plain sentence carries no numbering signal at all."""
     lines = ["1. Introduction", "This is ordinary prose, not a heading."]
 
     levels = infer_numbering_levels(lines)

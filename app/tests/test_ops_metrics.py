@@ -1,10 +1,4 @@
-"""``/metrics``: the Prometheus exposition-format ops surface.
-
-Covers the whole chain: the endpoint's format/content-type/auth gating,
-each metric family's derivation from ``runs``/``scientific_tasks``, the
-short-TTL cache, and -- the hard constraint -- that a scrape issues no
-write (see AGENTS.md on never writing on a poll tick).
-"""
+# Metric scrapes must not write to the database.
 
 from __future__ import annotations
 
@@ -23,12 +17,11 @@ pytestmark = pytest.mark.usefixtures("isolated_db")
 
 @pytest.fixture(autouse=True)
 def _clear_metrics_cache() -> None:
-    """Every test gets its own isolated DB; the cache must not straddle it."""
+    # Metric caches must not cross isolated databases.
     ops_metrics.clear_metrics_cache()
 
 
 def _families(text: str) -> dict[str, Any]:
-    """Parse exposition text into {metric name: family}."""
     return {
         family.name: family for family in text_string_to_metric_families(text)
     }
@@ -71,7 +64,6 @@ def _enqueue(
 
 
 def _set_task_row(task_id: str, db_path: str, **fields: Any) -> None:
-    """Directly overwrite columns on a task row (test seeding only)."""
     assignments = ",".join(f"{col}=?" for col in fields)
     with connect(db_path) as conn:
         conn.execute(
@@ -79,11 +71,6 @@ def _set_task_row(task_id: str, db_path: str, **fields: Any) -> None:
             (*fields.values(), task_id),
         )
         conn.commit()
-
-
-# ---------------------------------------------------------------------------
-# Endpoint shape: format, content type, auth gating
-# ---------------------------------------------------------------------------
 
 
 def test_metrics_requires_operator_access() -> None:
@@ -103,11 +90,6 @@ def test_metrics_returns_valid_exposition_format() -> None:
     assert "coscientist_build_info" in families
 
 
-# ---------------------------------------------------------------------------
-# Runs by status
-# ---------------------------------------------------------------------------
-
-
 def test_metrics_counts_runs_per_status(isolated_db: str) -> None:
     _make_run(isolated_db, store.RunStatus.COMPLETED)
     _make_run(isolated_db, store.RunStatus.COMPLETED)
@@ -122,11 +104,6 @@ def test_metrics_counts_runs_per_status(isolated_db: str) -> None:
     assert _sample_value(family, status="running") == 1
 
 
-# ---------------------------------------------------------------------------
-# Tasks by status
-# ---------------------------------------------------------------------------
-
-
 def test_metrics_counts_tasks_per_status(isolated_db: str) -> None:
     run_id = _make_run(isolated_db, store.RunStatus.RUNNING)
     _enqueue(run_id, "k1", isolated_db)
@@ -138,11 +115,6 @@ def test_metrics_counts_tasks_per_status(isolated_db: str) -> None:
 
     assert _sample_value(family, status="queued") == 1
     assert _sample_value(family, status="completed") == 1
-
-
-# ---------------------------------------------------------------------------
-# Failed-task retry-budget exhaustion
-# ---------------------------------------------------------------------------
 
 
 def test_metrics_splits_failed_tasks_by_exhaustion(isolated_db: str) -> None:
@@ -167,11 +139,6 @@ def test_metrics_splits_failed_tasks_by_exhaustion(isolated_db: str) -> None:
     assert _sample_value(family, exhausted="false") == 1
 
 
-# ---------------------------------------------------------------------------
-# Latency histogram
-# ---------------------------------------------------------------------------
-
-
 def test_metrics_latency_reflects_started_completed_timestamps(
     isolated_db: str,
 ) -> None:
@@ -179,8 +146,6 @@ def test_metrics_latency_reflects_started_completed_timestamps(
     task_id = _enqueue(
         run_id, "k1", isolated_db, task_type="engine.node.ranking"
     )
-    # A 20s-duration task falls into the 30s bucket and every bucket above
-    # it, but not the 5s or 15s buckets below it.
     _set_task_row(
         task_id,
         isolated_db,
@@ -210,11 +175,6 @@ def test_metrics_latency_reflects_started_completed_timestamps(
     assert sum_sample.value == 20.0
 
 
-# ---------------------------------------------------------------------------
-# Cache
-# ---------------------------------------------------------------------------
-
-
 def test_metrics_cache_avoids_requerying_within_ttl(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -232,11 +192,6 @@ def test_metrics_cache_avoids_requerying_within_ttl(
 
     assert calls["n"] == 1
     assert first == second
-
-
-# ---------------------------------------------------------------------------
-# No write on a scrape
-# ---------------------------------------------------------------------------
 
 
 def test_metrics_endpoint_issues_no_write(isolated_db: str) -> None:

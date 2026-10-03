@@ -1,5 +1,3 @@
-"""Retry behavior for schema-invalid batched entailment responses."""
-
 from __future__ import annotations
 
 import types
@@ -24,7 +22,6 @@ def _disable_llm_response_cache() -> Any:
 def _install_replies(
     monkeypatch: pytest.MonkeyPatch, contents: list[str]
 ) -> list[dict[str, Any]]:
-    """Mock physical completions and retain their request arguments."""
     requests: list[dict[str, Any]] = []
 
     async def _completion(**kwargs: Any) -> Any:

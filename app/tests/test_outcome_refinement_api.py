@@ -1,5 +1,3 @@
-"""Owned, durable outcome-refinement API acceptance tests."""
-
 from __future__ import annotations
 
 import pytest

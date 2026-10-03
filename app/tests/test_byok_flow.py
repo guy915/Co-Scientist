@@ -1,13 +1,3 @@
-"""End-to-end bring-your-own-key behavior across the app surface.
-
-Covers what the unit tests in test_credentials.py cannot: run creation
-validation and persistence, the offline exemption, credential threading
-into the engine generator and the durable task scope, checkpoint-blob
-absence, diagnostics exclusion, and the run/interview LLM paths using
-the right key. Everything runs hermetically: litellm is monkeypatched,
-so no provider is ever reached.
-"""
-
 from __future__ import annotations
 
 import json
@@ -33,7 +23,6 @@ _HEADERS = {
 
 @pytest.fixture
 def byok_deployment(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Configure the deployment to accept BYOK runs."""
     monkeypatch.setattr(settings, "byok_encryption_key", _SECRET)
 
 
@@ -41,12 +30,8 @@ def byok_deployment(monkeypatch: pytest.MonkeyPatch) -> None:
 def _no_background_title_network(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Keep the create-run background title task off any network.
-
-    Titling a BYOK run calls the provider for real; the suite is
-    hermetic, so the flow tests neutralize it here (the
-    ``byok_model_and_key`` threading it uses is covered by unit tests).
-    """
+    # Disable background titling so credential-flow tests cannot reach the
+    # network.
 
     async def _no_title(goal: str) -> None:
         return None
@@ -55,7 +40,6 @@ def _no_background_title_network(
 
 
 def _node_task(run_id: str) -> store.ScientificTask:
-    """Shape a minimal node-task row for the dispatch/scope tests."""
     return store.ScientificTask(
         id="task-1",
         run_id=run_id,
@@ -83,7 +67,6 @@ def _node_task(run_id: str) -> store.ScientificTask:
 def _fake_validation(
     monkeypatch: pytest.MonkeyPatch, *, fail_auth: bool = False
 ) -> dict[str, Any]:
-    """Replace the validation completion with a recording fake."""
     captured: dict[str, Any] = {}
 
     async def fake_acompletion(**kwargs: Any) -> SimpleNamespace:
@@ -106,12 +89,6 @@ def _fake_validation(
 
 
 def _create_byok_run(client: TestClient) -> dict[str, Any]:
-    """Create one BYOK run through the real endpoint.
-
-    The validation fake must already be installed (see
-    ``_fake_validation``) so each test controls what the provider call
-    records.
-    """
     response = client.post(
         "/api/runs",
         json={"research_goal": "BYOK goal"},
@@ -168,12 +145,10 @@ def test_byok_disabled_deployment_refuses_keys(
 def test_byok_run_is_real_backed_and_stores_the_credential(
     byok_deployment: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Even with FORCE_OFFLINE=1 (the suite default), a BYOK run is real."""
     captured = _fake_validation(monkeypatch)
     with TestClient(app) as client:
         run = _create_byok_run(client)
 
-    # The validation call used the pair, and nothing echoed the key back.
     assert captured["api_key"] == _KEY
     assert captured["model"] == "deepseek/deepseek-v4-flash"
     assert _KEY not in json.dumps(run)
@@ -183,9 +158,6 @@ def test_byok_run_is_real_backed_and_stores_the_credential(
     assert row.config.get("byok_provider") == "deepseek"
     assert _KEY not in json.dumps(row.config)
 
-    # The bootstrap boundary re-resolves the backend from the round-
-    # tripped config; the byok_provider flag must survive that trip and
-    # keep the run real-backed even under FORCE_OFFLINE=1.
     from app.engine_adapter import (
         resolve_offline_backend,
         sync_engine_llm_backend,
@@ -221,7 +193,7 @@ def test_generator_for_a_byok_run_uses_the_runs_key(
     assert generator.model_name == "deepseek/deepseek-v4-flash"
     assert generator.supervisor_model_name == "deepseek/deepseek-v4-flash"
     assert generator.api_key == _KEY
-    # BYOK runs never share the response cache (keys are not cache keys).
+    # BYOK calls must not share cached replies; credentials are not cache keys.
     assert generator.enable_cache is False
 
 
@@ -248,7 +220,6 @@ async def test_execute_engine_task_scopes_the_credential(
     assert seen["engine_key"] == _KEY
     assert seen["app_credential"] is not None
     assert seen["app_credential"].api_key == _KEY
-    # The scope is gone once the task returns.
     assert current_api_key() is None
     assert credentials.current_byok() is None
 
@@ -256,7 +227,6 @@ async def test_execute_engine_task_scopes_the_credential(
 async def test_byok_key_absent_from_serialized_checkpoint(
     byok_deployment: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The checkpointed workflow state must never contain the key."""
     from co_scientist.checkpoint import serialize_workflow_state
 
     from app.engine_tasks.support import _generator_and_opts
@@ -270,8 +240,6 @@ async def test_byok_key_absent_from_serialized_checkpoint(
     state = await generator.prepare_task_state(
         "BYOK goal", opts=opts, run_id=run["id"]
     )
-    # The exact envelope the durable path persists (curated serialization:
-    # live objects like the tool registry never reach the blob).
     envelope = serialize_workflow_state(state, last_event_seq=0)
     from app.store.checkpoints import NewCheckpoint, save_checkpoint
 
@@ -299,19 +267,14 @@ def test_diagnostics_never_report_key_material(
         operator_status = operator.get("/status")
 
     assert status.status_code == 200
-    # `byok_enabled` names the deployment's credential posture, so it is an
-    # operator-only field (finding N14); an anonymous caller sees it null.
     assert operator_status.json()["byok_enabled"] is True
     assert status.json()["byok_enabled"] is None
-    # Key material must be absent for *either* caller -- operator access
-    # widens what is disclosed about the deployment, never to a secret.
     for response in (status, config, operator_status):
         assert _KEY not in response.text
         assert _SECRET not in response.text
 
 
 def _byok_qa_stream(**kwargs: Any) -> Any:
-    """Shape a one-chunk streaming completion recording its kwargs."""
     chunk = SimpleNamespace(
         choices=[
             SimpleNamespace(
