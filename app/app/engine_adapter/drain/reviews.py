@@ -363,32 +363,8 @@ def _initial_review_detail(rv: dict[str, Any]) -> dict[str, Any]:
     return detail
 
 
-# R12-15/MO-4: Google's own per-assumption reasoning renders each item's
-# support as prose -- "Plausible:", "Plausible, but requires careful
-# investigation:", "Unknown:" (docs/CORPUS-EXTRACTION.md:4135-4141,
-# kira6-detailed-output-validated.md's "Reasoning about assumptions") --
-# not the schema's closed enum name. Two of the three values mirror that
-# wording directly, matching both the published word and the prompts'
-# own definition of the value (full_review.md/deep_verification.md):
-# `supported` ("the evidence backs it") is Google's "Plausible:";
-# `uncertain` ("the evidence is thin or mixed") is Google's "Plausible,
-# but requires careful investigation:". The third does not: `likely_false`
-# means "the evidence points against it" -- a genuine negative verdict --
-# while every "Unknown:" in the published exemplar marks an assumption
-# nothing has tested yet ("limited safety data exists... unknown and
-# needs experiments to verify"), not one the evidence contradicts.
-# Relabeling `likely_false` as "Unknown" would understate that verdict to
-# the reader, so it keeps its own honest label instead of a borrowed,
-# mismatched one -- "Implausible", read alongside "Plausible" as its
-# direct opposite. The published vocabulary simply carries no negative
-# verdict to mirror here.
-#
-# The stored enum (`review.py`'s ASSUMPTION_SUPPORT_VALUES) is unchanged --
-# `mature_reviews._project_full_review` keys its `assumptions_likely_false`
-# filter (fed into the ranking judge's prompt context) off the literal
-# `"likely_false"` string, so migrating stored values would silently break
-# that filter for a purely cosmetic gain. Only this render-time lookup
-# translates the value a reader sees.
+# Display labels must distinguish negative evidence from uncertainty. Keep
+# stored values unchanged because ranking filters match their literal strings.
 _ASSUMPTION_SUPPORT_LABELS: dict[str, str] = {
     "supported": "Plausible",
     "uncertain": "Plausible, but requires careful investigation",
