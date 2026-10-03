@@ -99,3 +99,26 @@ IDs are development identity only. Keep MCP private with matching shared secrets
 BYOK encryption uses a separate key: rotation requires migrating or removing the
 affected stored credentials. Keep database sidecars, caches and outputs out of
 commits and image build contexts.
+
+## Claim adjudication
+
+A contradiction requires a verbatim, on-topic negating quote. Off-target or
+confirmatory passages cannot block a hypothesis, including deterministic fallback
+under LLM provenance. Tolerating passage numbers or legacy evidence IDs never
+bypasses the requirement that the quote occur in evidence actually shown.
+Ground passage-sized chunks before variable claims to preserve cache reuse.
+
+## Classification and held tasks
+
+Classification calls disable reasoning or use the smallest capped mandatory
+reasoning budget; raising output floors can fund more reasoning rather than an
+answer. A configured but unreachable safety assessor refuses; offline mode must
+be deliberate. Safety holds park claimable tasks without spending retry attempts,
+and re-enqueuing an already-succeeded idempotency key cannot revive the task.
+
+## Per-run cache isolation
+
+Per-run cache enablement must not mutate process environment or singleton defaults:
+an offline demo once disabled caching for later real runs. Cost accounting uses
+measured cache-read rates, and alternative offline-generator comparisons need
+cold caches rather than responses cached by the first generator.
