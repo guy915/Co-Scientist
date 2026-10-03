@@ -9,7 +9,7 @@ import pytest
 
 from co_scientist.agents.meta_review import meta_review
 from co_scientist.agents.meta_review.meta_review import meta_review_node
-from co_scientist.agents.safety.safety_monitor import (
+from co_scientist.agents.safety import (
     monitor_research_direction,
     review_direction_safety,
 )
@@ -809,7 +809,7 @@ class TestSafetyScreenRemoval:
     async def test_prohibited_removed_from_pool(
         self, safe_hypothesis: Hypothesis, prohibited_hypothesis: Hypothesis
     ) -> None:
-        from co_scientist.agents.safety.safety_screen import safety_screen_node
+        from co_scientist.agents.safety import safety_screen_node
 
         state = make_state(hypotheses=[safe_hypothesis, prohibited_hypothesis])
         result = await safety_screen_node(state)
@@ -824,7 +824,7 @@ class TestSafetyScreenRemoval:
     async def test_ethical_concern_removed_from_pool(
         self, safe_hypothesis: Hypothesis, ethical_hypothesis: Hypothesis
     ) -> None:
-        from co_scientist.agents.safety.safety_screen import safety_screen_node
+        from co_scientist.agents.safety import safety_screen_node
 
         state = make_state(hypotheses=[safe_hypothesis, ethical_hypothesis])
         result = await safety_screen_node(state)
@@ -839,7 +839,7 @@ class TestSafetyScreenRemoval:
     async def test_uncertain_removed_from_pool_and_held(
         self, safe_hypothesis: Hypothesis, uncertain_hypothesis: Hypothesis
     ) -> None:
-        from co_scientist.agents.safety.safety_screen import safety_screen_node
+        from co_scientist.agents.safety import safety_screen_node
 
         state = make_state(hypotheses=[safe_hypothesis, uncertain_hypothesis])
         result = await safety_screen_node(state)
@@ -860,7 +860,7 @@ class TestSafetyScreenRemoval:
         safe_hypothesis: Hypothesis,
         safe_hypothesis_2: Hypothesis,
     ) -> None:
-        from co_scientist.agents.safety.safety_screen import safety_screen_node
+        from co_scientist.agents.safety import safety_screen_node
 
         state = make_state(hypotheses=[safe_hypothesis, safe_hypothesis_2])
         result = await safety_screen_node(state)
@@ -879,7 +879,7 @@ class TestSafetyScreenAllBlocked:
         prohibited_hypothesis: Hypothesis,
         ethical_hypothesis: Hypothesis,
     ) -> None:
-        from co_scientist.agents.safety.safety_screen import safety_screen_node
+        from co_scientist.agents.safety import safety_screen_node
 
         state = make_state(
             hypotheses=[prohibited_hypothesis, ethical_hypothesis]
@@ -929,7 +929,7 @@ class TestSafetyScreenRedaction:
     async def test_dual_use_stays_with_redacted_fields(
         self, dual_use_hypothesis: Hypothesis
     ) -> None:
-        from co_scientist.agents.safety.safety_screen import safety_screen_node
+        from co_scientist.agents.safety import safety_screen_node
         from co_scientist.safety import REDACTED_PLACEHOLDER
 
         state = make_state(hypotheses=[dual_use_hypothesis])
@@ -948,7 +948,7 @@ class TestSafetyScreenRedaction:
     async def test_redact_stays_with_redacted_fields(
         self, redact_hypothesis: Hypothesis
     ) -> None:
-        from co_scientist.agents.safety.safety_screen import safety_screen_node
+        from co_scientist.agents.safety import safety_screen_node
         from co_scientist.safety import REDACTED_PLACEHOLDER
 
         state = make_state(hypotheses=[redact_hypothesis])
@@ -970,7 +970,7 @@ class TestSafetyScreenAuditTrail:
     async def test_blocked_decisions_recorded(
         self, safe_hypothesis: Hypothesis, prohibited_hypothesis: Hypothesis
     ) -> None:
-        from co_scientist.agents.safety.safety_screen import safety_screen_node
+        from co_scientist.agents.safety import safety_screen_node
 
         state = make_state(hypotheses=[safe_hypothesis, prohibited_hypothesis])
         result = await safety_screen_node(state)
@@ -985,7 +985,7 @@ class TestSafetyScreenAuditTrail:
     async def test_decisions_accumulate_across_passes(
         self, prohibited_hypothesis: Hypothesis
     ) -> None:
-        from co_scientist.agents.safety.safety_screen import safety_screen_node
+        from co_scientist.agents.safety import safety_screen_node
 
         prior_decision = {
             "hypothesis_id": "prior-1",
@@ -1010,7 +1010,7 @@ class TestSafetyScreenSafetyStatus:
     async def test_safe_hypothesis_gets_allow_status(
         self, safe_hypothesis: Hypothesis
     ) -> None:
-        from co_scientist.agents.safety.safety_screen import safety_screen_node
+        from co_scientist.agents.safety import safety_screen_node
 
         state = make_state(hypotheses=[safe_hypothesis])
         result = await safety_screen_node(state)

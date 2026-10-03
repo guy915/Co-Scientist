@@ -328,12 +328,11 @@ def test_main_returns_zero_on_clean_ledger() -> None:
 
 _DOCS = pathlib.Path(__file__).resolve().parent.parent.parent / "docs"
 _FIDELITY = _DOCS / "FIDELITY.md"
-_VERIFICATION = _DOCS / "PARITY-VERIFICATION.md"
 _ARCHITECTURE = _DOCS / "ARCHITECTURE.md"
 
 
-def test_verification_snapshot_matches_checker() -> None:
-    """PARITY-VERIFICATION.md's status snapshot must equal the live checker.
+def test_ledger_snapshot_matches_checker() -> None:
+    """PARITY.md's status snapshot must equal the live checker.
 
     This is the guard that would have caught the audit's finding: a stale
     ``verified=54, partial=0`` snapshot while the ledger had drifted. The
@@ -343,7 +342,7 @@ def test_verification_snapshot_matches_checker() -> None:
     """
     result = parity_check.check_parity(_LEDGER)
     counts = result.status_counts()
-    text = _VERIFICATION.read_text(encoding="utf-8")
+    text = _LEDGER.read_text(encoding="utf-8")
 
     # Isolate the snapshot line ("over NN requirement rows: **status=NN, ...**")
     # so historical numbers elsewhere in the prose (e.g. the reclassification

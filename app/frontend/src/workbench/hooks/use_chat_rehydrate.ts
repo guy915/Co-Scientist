@@ -18,8 +18,8 @@ import {
 import {conciseTitle} from '@/lib/text';
 import {type InferredRunSpec} from '../run_spec';
 import type {StartedSession} from '../pages/chat_timeline_run_spec_card';
-import {useChatHistoryContext} from './chat_history_context';
-import {useRunHistoryContext} from './run_history_context';
+import {useChatHistoryContext} from './history_context';
+import {useRunHistoryContext} from './history_context';
 import {
   applyInterview,
   qaMessagesToEntries,

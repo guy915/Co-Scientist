@@ -289,7 +289,7 @@ _EXPERIMENT_FIELD: dict[str, Any] = obj(
 
 # Phase 1 draft sketch only: kept as free prose, unlike the structured
 # pilot plan above, because nothing downstream ever reads a draft's
-# `experiment` back out. prompts/generation_validation.py's
+# `experiment` back out. prompts/literature.py's
 # _format_novelty_hypothesis_section (the only place a draft dict is
 # read again) forwards just text/gap_reasoning/literature_sources into
 # the Phase 2 synthesis prompt that produces the hypothesis's real,
@@ -358,7 +358,7 @@ _RECENT_FINDINGS_FIELD: dict[str, Any] = {
 # from the reviewer's safety_ethical_concerns (dual-use/ethics judgment,
 # REVIEW_SCHEMA): this is the proposer's own pharmacological assessment of
 # what it is proposing, and must never feed the safety gate (see
-# agents/safety/) -- a proposer-authored field cannot be allowed to
+# agents/safety.py) -- a proposer-authored field cannot be allowed to
 # influence whether its own hypothesis passes screening. Bounded the same
 # way as the scene-setting fields above.
 _SAFETY_TOXICITY_FIELD: dict[str, Any] = {

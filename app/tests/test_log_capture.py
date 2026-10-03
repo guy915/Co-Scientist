@@ -281,7 +281,7 @@ def test_orphaned_litellm_worker_tasks_are_not_persisted(
 
     The message is an ERROR emitted by asyncio's garbage collector, from
     a task litellm orphaned on an event-loop rebind (see
-    ``app.litellm_shutdown``). Nothing is wrong when it fires and nothing
+    ``app.async_bridge``). Nothing is wrong when it fires and nothing
     in this app can prevent it, but it lands against whatever run is
     executing at collection time and reads as that run failing.
     """

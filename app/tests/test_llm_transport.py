@@ -26,9 +26,12 @@ from co_scientist.llm import (
 from litellm.litellm_core_utils.logging_worker import GLOBAL_LOGGING_WORKER
 
 from app import llm_request, offline_guard
-from app.async_bridge import propagate_context, run_coroutine_sync
+from app.async_bridge import (
+    propagate_context,
+    run_coroutine_sync,
+    run_in_scoped_loop,
+)
 from app.config import settings
-from app.litellm_shutdown import run_in_scoped_loop
 from app.llm_scope import (
     app_call_scope,
     budgeted,

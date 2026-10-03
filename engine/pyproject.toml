@@ -110,10 +110,8 @@ convention = "google"
 # dev/ and examples/ load .env files and tweak sys.path before imports.
 "dev/**" = ["D1", "E402"]
 "examples/**" = ["D1", "E402"]
-# server.py imports config before the tool modules on purpose: importing
-# mcp_server.config loads the co-located .env, and several tool modules read
-# those env vars (e.g. ENTREZ_EMAIL) at import time, so the config import and
-# the logging setup it configures must run first.
+# server.py loads its co-located .env and configures logging before importing
+# tool modules, which read env vars (e.g. ENTREZ_EMAIL) at import time.
 "mcp_server/server.py" = ["E402"]
 
 # --- PLR0913 (max 5 arguments) exemption ---

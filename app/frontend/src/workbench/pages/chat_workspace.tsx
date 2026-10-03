@@ -17,8 +17,8 @@ import {
 } from 'react-router-dom';
 import {conciseTitle} from '@/lib/text';
 import {HEADER_TITLE_EVENT, NEW_CHAT_EVENT} from '../dom_events';
-import {useToast, type ToastState} from '../hooks/use_toast';
-import {useRunHistoryContext} from '../hooks/run_history_context';
+import {useToast, type ToastState} from '../hooks/timers';
+import {useRunHistoryContext} from '../hooks/history_context';
 import {
   useChatSession,
   type SpecStage,
@@ -29,7 +29,7 @@ import {type ConnectorToggleProps, Composer} from './chat_composer';
 import {HomeStage} from './chat_home_stage';
 import type {StartedSession} from './chat_timeline_run_spec_card';
 import {pendingQuestions} from './chat_questions';
-import {QuestionChooser} from './chat_questions_panel';
+import {QuestionChooser} from './chat_questions';
 import {
   buildTimelineItems,
   type TimelineItem,

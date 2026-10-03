@@ -8,7 +8,7 @@ import {
 import {joinClasses} from '../classes';
 import {useIsMobile} from '../hooks/dom';
 import {Composer, type ConnectorToggleProps} from './chat_composer';
-import {useChatHistoryContext} from '../hooks/chat_history_context';
+import {useChatHistoryContext} from '../hooks/history_context';
 import {GoogleLabsIcon} from '../layout_primitives';
 import {Icon, type IconName} from '@/components/icon';
 import {smoothScrollToSection} from '@/lib/smooth_scroll';

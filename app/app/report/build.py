@@ -12,12 +12,12 @@ from typing import Any, NamedTuple
 
 from app import store
 from app.elo import live_leaderboard, rank_for_publication
-from app.knowledge_facts import derive_knowledge_facts
 from app.report.content import (
     _agent_insights,
     _idea_buckets,
     _knowledge_base_topics,
     _synthesized_knowledge_base_topics,
+    derive_knowledge_facts,
     released_claim_evidence,
 )
 from app.report.gates import (
@@ -186,7 +186,7 @@ async def build_report_content(run_id: str, req: ReportRequest) -> _BuiltReport:
         # Derived from the run's whole claim-evidence graph, not the
         # released subset the payload/markdown are scoped to -- the
         # knowledge base records everything the run found (see
-        # app.knowledge_facts).
+        # app.report.content).
         facts=derive_knowledge_facts(data.claim_edges),
         exclusion_tally=data.exclusion_tally,
     )

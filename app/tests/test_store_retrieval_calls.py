@@ -25,7 +25,7 @@ from co_scientist.research import (
     ThreadStatus,
 )
 
-from app import research_provenance, store
+from app import store
 
 
 @pytest.fixture
@@ -88,9 +88,7 @@ def test_a_search_round_trips_with_its_question_and_ranking(db: str) -> None:
     run = store.create_run("provenance", "standard", "engine", {})
     result = _result()
 
-    store.add_retrieval_calls(
-        research_provenance.retrieval_call_rows(run.id, result)
-    )
+    store.add_retrieval_calls(store.retrieval_call_rows(run.id, result))
 
     rows = store.list_retrieval_calls(run.id)
     assert len(rows) == 1
@@ -118,7 +116,7 @@ def test_the_same_search_persisted_twice_is_one_row(db: str) -> None:
     partial ledger safe.
     """
     run = store.create_run("resume", "standard", "engine", {})
-    rows = research_provenance.retrieval_call_rows(run.id, _result())
+    rows = store.retrieval_call_rows(run.id, _result())
 
     assert store.add_retrieval_calls(rows) == 1
     assert store.add_retrieval_calls(rows) == 0
@@ -138,12 +136,8 @@ def test_two_runs_asking_the_same_thing_keep_separate_rows(db: str) -> None:
     second = store.create_run("goal", "standard", "engine", {})
     result = _result()
 
-    store.add_retrieval_calls(
-        research_provenance.retrieval_call_rows(first.id, result)
-    )
-    store.add_retrieval_calls(
-        research_provenance.retrieval_call_rows(second.id, result)
-    )
+    store.add_retrieval_calls(store.retrieval_call_rows(first.id, result))
+    store.add_retrieval_calls(store.retrieval_call_rows(second.id, result))
 
     assert len(store.list_retrieval_calls(first.id)) == 1
     assert len(store.list_retrieval_calls(second.id)) == 1
@@ -179,9 +173,7 @@ def test_a_failed_search_is_recorded_not_dropped(db: str) -> None:
         ]
     )
 
-    store.add_retrieval_calls(
-        research_provenance.retrieval_call_rows(run.id, result)
-    )
+    store.add_retrieval_calls(store.retrieval_call_rows(run.id, result))
 
     by_source = {
         row["source"]: row for row in store.list_retrieval_calls(run.id)
@@ -198,7 +190,7 @@ def test_a_deeper_search_records_the_level_it_ran_at(db: str) -> None:
     run = store.create_run("descent", "standard", "engine", {})
 
     store.add_retrieval_calls(
-        research_provenance.retrieval_call_rows(run.id, _result(depth=3))
+        store.retrieval_call_rows(run.id, _result(depth=3))
     )
 
     assert store.list_retrieval_calls(run.id)[0]["depth"] == 3
@@ -208,7 +200,7 @@ def test_evidence_can_name_the_search_that_found_it(db: str) -> None:
     """The link exists in both directions of the join."""
     run = store.create_run("link", "standard", "engine", {})
     result = _result()
-    rows = research_provenance.retrieval_call_rows(run.id, result)
+    rows = store.retrieval_call_rows(run.id, result)
     store.add_retrieval_calls(rows)
 
     ev_id = store.add_evidence(

@@ -390,7 +390,7 @@ class WorkflowState(TypedDict):
     safety_blocked: bool | None
     """True once the mid-flight safety monitor halted the run (J6).
 
-    Written by ``agents/safety/safety_monitor.py`` when the meta-review
+    Written by ``agents/safety.py`` when the meta-review
     overview -- the run's own account of where its ideas are heading --
     reaches prohibited content, and read as a hard stop by the scheduler
     (``scheduling.policy_checks``) and by the durable runtime, which

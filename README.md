@@ -29,7 +29,7 @@ its evidence and hypothesis lineage, and share a final report.
 This is an independent implementation inspired by Google's published
 AI Co-Scientist research. It is not affiliated with or endorsed by Google.
 The [parity ledger](docs/PARITY.md) records implemented requirements,
-deliberate differences, and evaluation gaps; the [fidelity audit](docs/fidelity-audit/README.md)
+deliberate differences, and evaluation gaps; the [fidelity audit](docs/fidelity-audit/FINDINGS.md)
 provides the supporting analysis. Passing implementation tests does not
 establish scientific validity, expert agreement, or wet-lab results.
 Generated hypotheses need researcher review and experimental validation.

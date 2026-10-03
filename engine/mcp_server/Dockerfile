@@ -27,8 +27,7 @@ COPY mcp_server/pyproject.toml mcp_server/README.md mcp_server/LICENSE mcp_serve
 # (pyproject.toml's `package-dir`) and lists its subpackages explicitly, so
 # setuptools' egg_info step needs those subpackage directories to exist even
 # though their contents arrive in the source COPY below.
-RUN mkdir -p ./mcp_server/tools/indra_cogex ./mcp_server/tools/lit_review \
-    ./mcp_server/tools/web
+RUN mkdir -p ./mcp_server/tools/indra_cogex ./mcp_server/tools/lit_review
 
 # install python dependencies
 RUN pip install --no-cache-dir -e ./mcp_server

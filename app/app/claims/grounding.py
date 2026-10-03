@@ -511,7 +511,7 @@ def build_assessor(mode: str, model: str) -> tuple[Assessor, str]:
     the guard belongs here, at the seam every caller shares, rather than in
     each of them.
     """
-    from app.engine_adapter.provider import offline_mode
+    from app.engine_adapter import offline_mode
 
     if mode == "llm" and not offline_mode():
         from app.claims.verifier import make_llm_assessor
@@ -541,7 +541,7 @@ def build_batch_assessor(
         The batch assessor, or None when the flat per-claim path (or the
         deterministic assessor) applies instead.
     """
-    from app.engine_adapter.provider import offline_mode
+    from app.engine_adapter import offline_mode
 
     if mode == "llm" and not offline_mode():
         from app.claims.verifier import make_llm_batch_assessor

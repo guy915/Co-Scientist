@@ -108,7 +108,7 @@ def offline_mode() -> bool:
     A process-level, request-time predicate: use it to decide a *new* run's
     backend, never to infer a *past* run's backend (use
     ``store.run_used_offline`` for that -- see the note in
-    ``engine_adapter.provider.select_provider``).
+    ``engine_adapter.select_provider``).
     """
     return _current.is_offline()
 

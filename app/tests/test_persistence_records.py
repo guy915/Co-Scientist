@@ -15,9 +15,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import retention, store
-from app.knowledge_facts import derive_knowledge_facts
 from app.report import build as report_build
 from app.report import finalize as report_finalize
+from app.report.content import derive_knowledge_facts
 from app.store import db as store_db
 from app.store.events import (
     ACTIVITY_OTHER,

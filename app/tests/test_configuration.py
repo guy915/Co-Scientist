@@ -46,7 +46,7 @@ from app.config import (
     settings,
     thinking_off_kwargs,
 )
-from app.engine_adapter import provider, restore_workflow_state
+from app.engine_adapter import restore_workflow_state
 from app.engine_adapter.opts import build_generator
 from app.engine_tasks import gate as engine_tasks_gate
 from app.execution_policy import (
@@ -1678,16 +1678,14 @@ def test_one_adapter_answers_every_offline_reader(
 
     assert process_mode.offline_mode() is False
     assert engine_adapter.offline_mode() is False
-    assert provider.offline_mode() is False
-    assert provider.resolve_offline_backend({}) is False
+    assert engine_adapter.resolve_offline_backend({}) is False
     assert offline_guard.remote_chat_allowed() is True
 
     fake_process_mode.offline = True
 
     assert process_mode.offline_mode() is True
     assert engine_adapter.offline_mode() is True
-    assert provider.offline_mode() is True
-    assert provider.resolve_offline_backend({}) is True
+    assert engine_adapter.resolve_offline_backend({}) is True
     assert offline_guard.remote_chat_allowed() is False
 
 

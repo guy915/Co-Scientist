@@ -14,13 +14,13 @@ from typing import Any, ClassVar
 import pytest
 from co_scientist import HypothesisGenerator
 
+import app.engine_adapter as provider
 from app import process_mode, store
 from app.config import (
     PROVIDER_CREDENTIAL_ENV,
     any_provider_credential,
     settings,
 )
-from app.engine_adapter import provider
 from app.engine_adapter.events import (
     _canonical_engine_payload,
     _canonical_event_type,
@@ -825,7 +825,7 @@ def test_resolved_run_config_honors_web_search_override() -> None:
     assert cfg["enable_web_search"] is False
 
 
-# Tests for provider selection in ``app.engine_adapter.provider``.
+# Tests for provider selection in ``app.engine_adapter``.
 #
 # Covers ``select_provider`` (now always ``"engine"``, with the engine a hard
 # dependency), the ``offline_mode`` truth table, the ``_engine_importable``
@@ -976,7 +976,7 @@ def test_missing_engine_src_gets_added_to_syspath_on_import(
     """The module-level sys.path bridge fires when the src dir is absent.
 
     In this checkout the editable install's .pth file already puts the
-    sibling engine's src on sys.path before provider.py's own manual insert
+    sibling engine's src on sys.path before engine_adapter's own manual insert
     runs, so that line is otherwise unreachable. Removing the entry and
     reloading the module reproduces the "not yet on sys.path" case the
     bridge exists for.

@@ -7,8 +7,8 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request, Response
 
 from app import store
+from app.api_contracts import SharesResponse
 from app.api_contracts.reports import SharedGoalReport
-from app.api_contracts.responses import SharesResponse
 from app.api_contracts.runs import ReportShare
 from app.auth import client_id
 from app.evidence_chunking import parent_evidence_id

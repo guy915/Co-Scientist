@@ -17,8 +17,7 @@ from co_scientist.safety import (
     review_hypothesis_safety,
 )
 
-from app.async_bridge import propagate_context
-from app.litellm_shutdown import run_in_scoped_loop
+from app.async_bridge import propagate_context, run_in_scoped_loop
 
 logger = logging.getLogger(__name__)
 
@@ -245,7 +244,7 @@ def _escalate_one_on_worker_thread(
     ``run_in_scoped_loop`` here starts and tears down one scoped to this
     single call -- it never touches the run's own per-run event loop
     (AGENTS.md: "No process-global asyncio primitives"), and it closes
-    litellm's logging worker with it (see ``app.litellm_shutdown``).
+    litellm's logging worker with it (see ``app.async_bridge``).
     Mirrors how
     ``app.claims.grounding`` drives its own LLM assessor from a
     synchronous ``ThreadPoolExecutor.map`` call, for the same reason: the

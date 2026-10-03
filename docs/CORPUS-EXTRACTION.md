@@ -530,7 +530,7 @@ vocabularies **inline**, with a citation comment, before the folder goes.
 | DEL-14 | `docs/UI-FIDELITY.md:36-52`, `:109-123` | Calls the corpus the functional source of truth and cites a specific mp4 frame — see R13-3. **Done 2026-09-03**: both spans now cite the committed `docs/assets/live-footage/plan-report-four-tabs-t66.0s.jpg` instead of the mp4 offset | M |
 | DEL-15 | `engine/src/co_scientist/prompts/templates/README.md:5` | Cites `prompting-architecture-and-prompt-library.md` §4 as where the eight published prompts are reproduced | S |
 | DEL-16 | `docs/EXPLAINER.md:5`, `:350`; `docs/FIDELITY.md:14`; `AGENTS.md:14` | Point readers at the folder and at `media/` | S |
-| DEL-17 | `docs/fidelity-audit/README.md:65`, `FINDINGS.md:480` | Cite "files 02–09" as the clone-invented set — a reference to the folder's own structure | S |
+| DEL-17 | [original audit README, line 65](https://github.com/guy915/Co-Scientist/blob/5ef0530ede8607b6cc39a6ec06274327bd10cd09/docs/fidelity-audit/README.md#L65), [original findings, line 480](https://github.com/guy915/Co-Scientist/blob/5ef0530ede8607b6cc39a6ec06274327bd10cd09/docs/fidelity-audit/FINDINGS.md#L480) | Cite "files 02–09" as the clone-invented set — a reference to the folder's own structure | S |
 
 **DEL-13 is not a mechanical path rewrite.** R1 turned out to be roughly
 two-thirds paper-backed, so an `SSR §n` citation behind a PAPER-class row should

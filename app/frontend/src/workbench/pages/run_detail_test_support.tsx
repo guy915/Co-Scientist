@@ -1,8 +1,8 @@
 import {render, screen} from '@testing-library/react';
 import {MemoryRouter, Route, Routes, useLocation} from 'react-router-dom';
 import type {RunWithSummary} from '@/api/runs';
-import {ChatHistoryProvider} from '@/workbench/hooks/chat_history_context';
-import {RunHistoryProvider} from '@/workbench/hooks/run_history_context';
+import {ChatHistoryProvider} from '@/workbench/hooks/history_context';
+import {RunHistoryProvider} from '@/workbench/hooks/history_context';
 import {RunDetail} from './run_detail';
 
 export const makeRun = (

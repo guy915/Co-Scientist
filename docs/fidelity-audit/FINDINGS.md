@@ -5,8 +5,13 @@ Every distinct gap between this repository and Google's AI Co-Scientist (Nature
 (2026-07-12, 2026-07-20, 2026-07-21) that raised 506 rows between them in three
 incompatible vocabularies. Duplicates are collapsed; nothing is dropped.
 
-See [README.md](README.md) for method, evidence, and how the three audits relate.
-See [PLAN.md](PLAN.md) for the sequenced work.
+The audit method and provenance are retained [below](#audit-method-and-provenance).
+The [completed remediation plan](https://github.com/guy915/Co-Scientist/blob/5ef0530ede8607b6cc39a6ec06274327bd10cd09/docs/fidelity-audit/PLAN.md)
+remains in git history: stages 1–12 are closed; stage 13 is continuing
+maintenance of documentation from executable evidence. Evidence-boundary items
+close only when new primary evidence appears. Verify the implementation before
+acting on a finding: the register can lag the tree. Every run uses the durable
+`engine_tasks` path; audit text describing another live run path is historical.
 
 **Columns.** `Sev` — Critical / High / Medium / Low. `Class` — `missing`,
 `partial`, `incorrect` (claims the behavior but violates it), `divergent`
@@ -154,7 +159,7 @@ change made staleness likely. A blank `St` on a Medium/Low row therefore means
 | F9 | Medium | incorrect | Several fan-outs abort the whole batch on one item failure instead of committing successful siblings | ✓ | 12:F09/L08, 20:EB-010/EB-043 |
 | F10 | Medium | partial | Evolution is not strictly stagnation-gated — on the common both-zero tie it alternates, so it fires without stagnation. Closed, but note the trap found on the way: gating the tie on `rank_stable_cycles` alone starves generation outright, because stagnation is a *standing* condition, so once the Elo ordering settles the tie-break returns evolve forever and the run only ever evolves. That is the recorded pool-narrowing failure mode — evolution breeding from a shrinking pool re-derives the same idea. Stagnation is therefore edge-triggered — evolution wins a tie only on the transition into stagnation, never twice off the same standing reading | ✓ | 21:R32 |
 | F11 | Low | divergent | Termination is iteration budget / convergence / LLM-call budget, not the paper's `MaxIdeas` and `MaxMatchesPerIdea`. Closed: both added to `Budget` (default `None`, no limit) as real predicates enforced at *both* sites — the deterministic policy and the code-enforced hard stop ahead of the model — so the two paths cannot diverge. `MAX_IDEAS` is gated on an empty review backlog so it drains rather than stranding fresh ideas | ✓ | 12:F06, 20:EB-011, 21:F6 |
-| F12 | Low | note | **This finding's premise was mostly wrong; measured per reason.** `SAFETY` is genuinely live — `safety_blocked` is written by `agents/safety/safety_monitor.py` and invoked from meta-review every cycle. `MAX_TASKS`/`WALL_CLOCK` have real counters (`len(task_history)`, `start_time`); only their *limits* are unset by first-party callers, and they are supported public `GeneratorOptions.budget` keys, so removing them would break a library contract. Only `CANCELLED` was truly dead — nothing anywhere sets `cancel_requested` — and it is removed; cancellation is enforced more strongly by the durable executor never dispatching another node | ✓ | 21:F8 |
+| F12 | Low | note | **This finding's premise was mostly wrong; measured per reason.** `SAFETY` is genuinely live — `safety_blocked` is written by `agents/safety.py` and invoked from meta-review every cycle. `MAX_TASKS`/`WALL_CLOCK` have real counters (`len(task_history)`, `start_time`); only their *limits* are unset by first-party callers, and they are supported public `GeneratorOptions.budget` keys, so removing them would break a library contract. Only `CANCELLED` was truly dead — nothing anywhere sets `cancel_requested` — and it is removed; cancellation is enforced more strongly by the durable executor never dispatching another node | ✓ | 21:F8 |
 | F13 | Low | note | The compiled LangGraph was built on every bootstrap but never invoked for real runs | ✓ | 20:EB-007, 21:R54 |
 | F14 | Low | note | A queued task whose dependency failed (without `allow_failed_dependencies`) is not claimable yet still blocks run settlement and keeps the cohort polling — a dependency livelock; settlement conservatively treats queued as claimable | | observed during F1 fix, 2026-08-05 |
 | F15 | Medium | incorrect | `mcp_client._global_client` holds an `asyncio.Lock()` created at construction — the process-global asyncio primitive `AGENTS.md` records as a production failure for the ranking semaphore. Latent only because `initialize()` short-circuits once `_tools_dict` is set, so the lock is rarely awaited | | observed during B5 fix, 2026-08-06 |
@@ -351,7 +356,7 @@ Marked `=` above: `A5`, `A12`, `A14`, `B6`, `C5`, `C7`, `C8`, `D1`,
 were removed from this list 2026-09-02 — corrected to `matched`, not a
 deliberate divergence; see their rows above.) Each is a
 real difference from Google, correctly observed — and each is how this product
-is meant to work. They are closed, and [PLAN.md](PLAN.md) does not carry them.
+is meant to work. They are closed, and [completed plan](https://github.com/guy915/Co-Scientist/blob/5ef0530ede8607b6cc39a6ec06274327bd10cd09/docs/fidelity-audit/PLAN.md) does not carry them.
 
 One of them is load-bearing beyond its surface and is worth knowing about while
 working anywhere near audience or corpus code: the **`M5` affiliation control
@@ -519,7 +524,7 @@ it, not after.
 
 ## Open, but not code
 
-Three findings stay open and are deliberately absent from [PLAN.md](PLAN.md),
+Three findings stay open and are deliberately absent from [completed plan](https://github.com/guy915/Co-Scientist/blob/5ef0530ede8607b6cc39a6ec06274327bd10cd09/docs/fidelity-audit/PLAN.md),
 because no amount of work in this repository closes them. They are the
 repository owner's to act on, not an implementer's.
 
@@ -572,4 +577,105 @@ verified Google behavior.
 | **Is the Ideas tab supposed to be an Elo leaderboard?** 07-12 scored us `partial` for not building a *richer* leaderboard; 07-21 says the leaderboard itself is the divergence. | 07-21 controls. The requirement traces to the local corpus, not to any Google capture. Building a better leaderboard moves away from fidelity. |
 | **Is NotebookLM export required?** 07-12 and 07-20 treat it as verified-missing (current Google Help lists it); 07-21 calls it clone-invented for this product. | **Open.** 07-20 cites live Help directly, which outweighs inference — weighted toward "required". Recorded as D16. |
 | **`Run Specification` or `Run Specifications`?** 07-21 read singular from captures; 07-20 read plural from current Help. | 07-20 controls — it checked live Help on its audit date. Older footage shows the singular. |
-| **Was the 07-12 implementation campaign's work retained?** It reported 86 findings implemented on 07-14; 07-20 and 07-21 found several reverted. | The later audits control. See [README.md](README.md#the-2026-07-12-campaign). |
+| **Was the 07-12 implementation campaign's work retained?** It reported 86 findings implemented on 07-14; 07-20 and 07-21 found several reverted. | The later audits control. See [README.md](#the-2026-07-12-campaign). |
+
+## Audit method and provenance
+
+Evidence screenshots: [`docs/assets/fidelity-audit-2026-07-20/`](https://github.com/guy915/Co-Scientist/tree/7c2878aeb071a962cb713e9c271cd88e1635ca5f/docs/assets/fidelity-audit-2026-07-20)
+— 15 captures at desktop 16:9, desktop 2:1, and mobile 1:2.
+
+### Where this came from
+
+Three independent audits, synthesized here into one register. They raised 506
+rows between them in three incompatible vocabularies; the substance is preserved
+in FINDINGS.md and the originals remain in git history.
+
+| | 2026-07-12 | 2026-07-20 | 2026-07-21 |
+|---|---|---|---|
+| Revision | pre-campaign tree | `11a31082` | `11a31082` |
+| Rows | 232 (`A01`–`M20`) | 216 (`F-*`, `EB-*`, `OP-*`) | 58 (`R1`–`R58`) |
+| Method | source inspection + live local service + a real-provider run | source inspection + **isolated runtime reproduction** + **browser captures** | exhaustive source reading (14 subsystem dossiers, `file:line`) + **offline end-to-end probe** |
+| Strongest evidence | a real-provider run whose citation audit was 0 verified / 0 partial / 13 unsupported | 2 reproducible offline runs with SQL reconciliation, 15 screenshots, 10 dated live Google sources | empirical confirmation of engine invariants (Elo 1200, evolution new-only, proximity `edges = 0`) |
+| Only audit to cover | — | operations, privacy, packaging, CI, deployment; accessibility | corpus-integrity corrections; several specific engine defects |
+
+All three declined to assign a numerical fidelity score, and all three concluded
+a literal 1:1 claim is unprovable from public evidence. The defensible target is
+an **evidence-bounded reconstruction**: exactly implement every verified public
+behavior, label every local choice, and never call a proprietary unknown
+"matched".
+
+### Verdicts
+
+- **2026-07-12** — "inspired by Google Co-Scientist", not a behavioral replica.
+- **2026-07-20** — "a functioning local Co-Scientist-inspired research workbench
+  with meaningful published-mechanism coverage and substantial non-faithful
+  product/operations extensions."
+- **2026-07-21** — "a strong, working approximation of the paper's reasoning loop
+  with several correctness gaps; the product is a recognizable but clearly
+  distinct re-skin."
+
+The engine is closest to the paper; the product surface is furthest from Google's.
+
+### Reading rules
+
+1. **Only reachable, working behavior counts.** No audit credits names, schemas
+   without consumers, dormant API clients, unused UI, comments, plans, seeded
+   demos, offline fixtures, or passing tests that exercise a different shape than
+   production.
+2. **A feature that exceeds, replaces, or improves on Google's design is a
+   fidelity violation**, not an advantage — recorded as `ext` or `divergent`.
+3. **The project's own claims are not evidence.** No audit credits
+   `docs/FIDELITY.md`, `docs/PARITY.md`, `docs/UI-FIDELITY.md`, `.remember/`, or
+   prior closure matrices. Where those disagree with FINDINGS.md, they are the
+   ones that are wrong.
+4. **Much of what the corpus's clone-authored consolidation files presented
+   as "Google requirements" was invented**, not Google canon — including the
+   Elo-leaderboard Ideas tab, the 12-agent roster, and the 3-persona debate
+   (see the region map in [`CORPUS-EXTRACTION.md`](../CORPUS-EXTRACTION.md)).
+   See the corpus-integrity corrections in FINDINGS.md before treating any
+   reference doc as a requirement.
+
+### The 2026-07-12 campaign
+
+The first audit was followed by an implementation campaign that reconciled all
+232 findings and reported 86 implemented, 104 partial. Eight days later the two
+later audits independently found several of those behaviors absent again — most
+visibly the Standard/Advanced run model, closed as *implemented* on 07-14, was
+back to Express/Standard/Extended/Ultra.
+
+Two lessons carried into [the completed plan](https://github.com/guy915/Co-Scientist/blob/5ef0530ede8607b6cc39a6ec06274327bd10cd09/docs/fidelity-audit/PLAN.md): closure claims decay, and **behavior that lands
+without a test that fails in its absence does not stay landed.**
+
+The campaign's own honest framing is worth keeping: 104 partials, 11 unverifiable
+boundaries, and no completed real-provider run — both attempted runs terminated
+`blocked` at the claim-level evidence gate, which was correct fail-closed
+behavior.
+
+### Status of the findings
+
+The `St` column in FINDINGS.md was re-verified against `main` on **2026-08-05**,
+276 commits past the audited revision. Every Critical and High finding was
+checked against the working tree; Mediums and Lows were checked where a nearby
+commit made staleness likely.
+
+Fifteen findings closed and eleven partly closed — see
+[the re-verification log](#re-verification-2026-08-05), which cites
+the file that decided each verdict and lists what was deliberately not re-read.
+
+One verdict is a trap: **G1 was re-scoped, not fixed.** Contradicted ideas are
+now withheld and merely-unsupported ones publish with an "Unverified" badge, so
+a claim-gate block relabels an idea rather than suppressing it. Confirm that is
+the intended policy before treating the row as closed.
+
+### Recovering the originals
+
+The three source audits, their implementation prompts, the 232-row closure matrix
+and its JSON, the session handoffs, and the runtime evidence ledger are all in
+git history:
+
+```bash
+git log --diff-filter=D --name-only -- 'docs/audits/**'
+```
+
+They were removed from the tree in favor of this synthesis, not deleted from
+history.

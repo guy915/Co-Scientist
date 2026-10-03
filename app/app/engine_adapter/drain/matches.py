@@ -12,7 +12,6 @@ from co_scientist.agents.ranking.ranking_debate import (
 )
 from co_scientist.research import result_from_dict
 
-import app.research_provenance as research_provenance
 import app.store as store
 from app.elo import INITIAL_ELO
 
@@ -44,9 +43,7 @@ def _persist_retrieval_calls(
         row
         for ledger in ledgers
         if isinstance(ledger, dict) and ledger
-        for row in research_provenance.retrieval_call_rows(
-            run_id, result_from_dict(ledger)
-        )
+        for row in store.retrieval_call_rows(run_id, result_from_dict(ledger))
     ]
     if not rows:
         return 0

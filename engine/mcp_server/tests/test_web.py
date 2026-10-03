@@ -6,14 +6,14 @@ from typing import Any
 import httpx
 import pytest
 from mcp_server.tests._httpx import stub_failure, stub_responses
-from mcp_server.tools.web import providers
-from mcp_server.tools.web.fetch import (
+from mcp_server.tools import web_providers as providers
+from mcp_server.tools.web_fetch import (
     UrlNotFetchableError,
     check_fetchable,
     extract_text_from_html,
     read_url,
 )
-from mcp_server.tools.web.providers import (
+from mcp_server.tools.web_providers import (
     _brave_freshness,
     _clear_credential_error,
     _record_credential_error,
@@ -213,7 +213,7 @@ async def test_read_url_extracts_html(monkeypatch: pytest.MonkeyPatch) -> None:
         request=httpx.Request("GET", "https://example.com/a"),
     )
     monkeypatch.setattr(
-        "mcp_server.tools.web.fetch.check_fetchable", lambda url: None
+        "mcp_server.tools.web_fetch.check_fetchable", lambda url: None
     )
     monkeypatch.setattr(httpx, "AsyncClient", _client_returning(response))
     text = await read_url("https://example.com/a")
@@ -229,7 +229,7 @@ async def test_read_url_reports_http_error(
         request=httpx.Request("GET", "https://example.com/missing"),
     )
     monkeypatch.setattr(
-        "mcp_server.tools.web.fetch.check_fetchable", lambda url: None
+        "mcp_server.tools.web_fetch.check_fetchable", lambda url: None
     )
     monkeypatch.setattr(httpx, "AsyncClient", _client_returning(response))
     result = await read_url("https://example.com/missing")
@@ -246,7 +246,7 @@ async def test_read_url_notes_unsupported_content_type(
         request=httpx.Request("GET", "https://example.com/i.png"),
     )
     monkeypatch.setattr(
-        "mcp_server.tools.web.fetch.check_fetchable", lambda url: None
+        "mcp_server.tools.web_fetch.check_fetchable", lambda url: None
     )
     monkeypatch.setattr(httpx, "AsyncClient", _client_returning(response))
     result = await read_url("https://example.com/i.png")
@@ -436,7 +436,7 @@ def test_unknown_provider_falls_back_to_autodetect(
 async def test_search_web_returns_empty_without_provider(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from mcp_server.tools.web.providers import search_web
+    from mcp_server.tools.web_providers import search_web
 
     monkeypatch.delenv("BRAVE_API_KEY", raising=False)
     monkeypatch.delenv("TAVILY_API_KEY", raising=False)
@@ -451,7 +451,7 @@ async def test_search_web_clamps_max_results(
     monkeypatch: pytest.MonkeyPatch, requested: int, expected: int
 ) -> None:
     """A model can ask for any number; the provider must see a sane one."""
-    import mcp_server.tools.web.providers as web_search_module
+    import mcp_server.tools.web_providers as web_search_module
 
     captured: dict[str, int] = {}
 
@@ -474,7 +474,7 @@ async def test_search_web_clamps_max_results(
 async def test_search_web_floors_negative_recency(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import mcp_server.tools.web.providers as web_search_module
+    import mcp_server.tools.web_providers as web_search_module
 
     captured: dict[str, int] = {}
 
@@ -604,7 +604,7 @@ class TestWebSearchCredentials:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """The connector probe reports usability, not mere registration."""
-        from mcp_server.tools.web.providers import check_web_search_available
+        from mcp_server.tools.web_providers import check_web_search_available
 
         monkeypatch.setenv("BRAVE_API_KEY", "k")
         monkeypatch.delenv("TAVILY_API_KEY", raising=False)
@@ -620,7 +620,7 @@ class TestWebSearchCredentials:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """No key configured is also "not usable", by the same answer."""
-        from mcp_server.tools.web.providers import check_web_search_available
+        from mcp_server.tools.web_providers import check_web_search_available
 
         monkeypatch.delenv("BRAVE_API_KEY", raising=False)
         monkeypatch.delenv("TAVILY_API_KEY", raising=False)
@@ -692,7 +692,7 @@ class TestWebSearchCredentials:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """One search survives the moment the first provider runs out."""
-        from mcp_server.tools.web.providers import search_web
+        from mcp_server.tools.web_providers import search_web
 
         monkeypatch.delenv("WEB_SEARCH_PROVIDER", raising=False)
         monkeypatch.setenv("BRAVE_API_KEY", "k")
@@ -728,7 +728,7 @@ class TestWebSearchCredentials:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Finding nothing is an answer; only a refusal justifies re-asking."""
-        from mcp_server.tools.web.providers import search_web
+        from mcp_server.tools.web_providers import search_web
 
         monkeypatch.delenv("WEB_SEARCH_PROVIDER", raising=False)
         monkeypatch.setenv("BRAVE_API_KEY", "k")
@@ -761,7 +761,7 @@ class TestWebSearchCredentials:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """The connector is usable as long as one key still works."""
-        from mcp_server.tools.web.providers import check_web_search_available
+        from mcp_server.tools.web_providers import check_web_search_available
 
         monkeypatch.delenv("WEB_SEARCH_PROVIDER", raising=False)
         monkeypatch.setenv("BRAVE_API_KEY", "k")

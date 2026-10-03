@@ -47,10 +47,8 @@ vi.mock('./theme_context', () => ({
 vi.mock('./hooks/system_status_context', () => ({
   SystemStatusProvider: ({children}: {children: ReactNode}) => children,
 }));
-vi.mock('./hooks/run_history_context', () => ({
+vi.mock('./hooks/history_context', () => ({
   RunHistoryProvider: ({children}: {children: ReactNode}) => children,
-}));
-vi.mock('./hooks/chat_history_context', () => ({
   ChatHistoryProvider: ({children}: {children: ReactNode}) => children,
 }));
 

@@ -18,7 +18,7 @@ import {
   retryInterviewTurn,
 } from '@/api/runs';
 import {copyText} from '@/lib/clipboard';
-import {announceChatsChanged} from './chat_history_context';
+import {announceChatsChanged} from './history_context';
 import {
   type ChatSessionDeps,
   type HandlerDeps,

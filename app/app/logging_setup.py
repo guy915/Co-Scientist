@@ -426,7 +426,7 @@ class _RepeatSuppressor:
 
 
 # The one asyncio record this app cannot prevent and must not surface.
-# See app.litellm_shutdown for the mechanism: litellm's process-global
+# See app.async_bridge for the mechanism: litellm's process-global
 # logging worker orphans its own task on every event-loop rebind, and the
 # garbage collector destroys it while pending, long after the loop that
 # owned it and against whatever run is executing at that moment. Matched

@@ -639,7 +639,7 @@ CREATE INDEX IF NOT EXISTS idx_tasks_run
 
 -- One search: one query, against one source, serving one question. Written
 -- by the deep-research capability (co_scientist.research) through
--- app.research_provenance, after the network work returns -- never across
+-- app.store.retrieval_calls, after the network work returns -- never across
 -- it, since a transaction spanning outbound I/O freezes every other writer
 -- for its duration (see the store gotchas in AGENTS.md).
 CREATE TABLE IF NOT EXISTS retrieval_calls (

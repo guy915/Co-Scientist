@@ -14,7 +14,7 @@ from typing import Any
 
 from app import store
 from app.elo import INITIAL_ELO
-from app.engine_adapter.provider import sync_engine_llm_backend
+from app.engine_adapter import sync_engine_llm_backend
 from app.engine_tasks import runtime as engine_tasks_runtime
 from app.engine_tasks.support import (
     BOOTSTRAP_TASK,
@@ -196,7 +196,7 @@ SCIENTIST_AUTHOR_MARK = "scientist_author"
 # The column's own default, meaning "no screen has run on this row yet"
 # (``store/schema.py``). It must not be carried into engine state, because
 # there a *non-None* ``safety_status`` means "already screened, leave it"
-# (``agents/safety/safety_screen._screen_one_hypothesis``): copying the
+# (``agents/safety._screen_one_hypothesis``): copying the
 # placeholder across would tell the engine's screen to skip exactly the
 # hypothesis whose screen never completed.
 _UNSCREENED_SAFETY_STATUS = "pending"
