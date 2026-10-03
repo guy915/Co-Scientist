@@ -285,7 +285,7 @@ def run_ablation_sweep(
     driven, records = _drive_every_pair(
         goals, tier, arm_overrides, db_path, live=live
     )
-    from evaluations._comparison_groups import validate_comparison
+    from evaluations._identity import validate_comparison
 
     validation = validate_comparison(driven, kind="ablation")
     return {

@@ -1,36 +1,21 @@
-"""Schema definitions for tool configuration.
+"""Root schema and public exports for tool configuration.
 
-Uses dataclasses to match existing codebase patterns.
-
-Overview: this package section defines the typed, validated shape of
-tools.yaml (and any domain-specific overrides layered on top of it by
-registry.py's merge logic). Each dataclass mirrors one YAML section
-(servers, tools, workflows, prompts, enrichments) and exposes a
-from_dict() classmethod that turns a raw parsed-YAML dict into the
-dataclass, filling in defaults for absent keys and silently dropping
-unrecognized ones. The implementation is split across sibling modules by
-responsibility: the shared from_dict kwargs helper (``schema_fields``),
-content-param placeholder substitution (``content_params``),
-server/tool dataclasses (``tool_schema``), and
-workflow/enrichment/prompts dataclasses (``workflow_schema``). This
-module hosts the root ToolsConfig -- registry.py assembles a single
-merged dict from the default/user/custom YAML files, substitutes
-environment variables, and calls ToolsConfig.from_dict() once to produce
-the final object the rest of the engine (nodes, prompt builders)
-consumes -- and re-exports every name historically importable from
-``co_scientist.config.schema``.
+The registry merges tools.yaml overlays and parses them through ToolsConfig.
+Server/tool dataclasses and parsing helpers live in tool_schema; workflow,
+enrichment and prompt dataclasses live in workflow_schema. Unknown YAML
+fields are ignored and absent fields use the dataclass defaults.
 """
 
 from dataclasses import dataclass, field
 from typing import Any
 
-from co_scientist.config.content_params import resolve_content_params
-from co_scientist.config.schema_fields import _declared_field_kwargs
 from co_scientist.config.tool_schema import (
     ParameterConfig,
     ResponseFormat,
     ServerConfig,
     ToolConfig,
+    _declared_field_kwargs,
+    resolve_content_params,
 )
 from co_scientist.config.workflow_schema import (
     EnrichmentConfig,

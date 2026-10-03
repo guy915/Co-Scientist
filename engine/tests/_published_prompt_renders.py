@@ -203,7 +203,7 @@ def _render_ranking_04() -> Rendered:
         counterparts=(
             Counterpart(
                 "ranking_single_shot",
-                "agents/ranking/ranking_prompt.py::_build_matchup_prompt"
+                "agents/ranking/ranking_debate_turns.py::_build_matchup_prompt"
                 " -> prompts/ranking.py::get_ranking_prompt"
                 " (_format_ranking_preferences,"
                 " _format_ranking_evaluation_criteria,"

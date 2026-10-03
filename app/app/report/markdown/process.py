@@ -1,46 +1,153 @@
-"""The tournament's debate transcripts, rendered under the comparison.
+"""Render the synthesized evaluation rubric and published tournament debates.
 
-Google publishes a whole tournament match as an artifact in its own right
-(``outputs/ranking-tournament/als-tournament-debate.md``, Figure A.17): a
-turn-by-turn exchange, roughly 412 words, closing on a single
-``Better idea: <n>`` line. Our judge runs the same multi-turn debate and
-returns every turn, but the drain used to keep only the closing rationale
-(65-167 words), so the reader saw the tournament's conclusion and never
-its argument. ``matches.debate_transcript`` now carries the turns and this
-module renders them, immediately after the meta-review's own candidate
-comparison -- the tournament's verdict, then the debate behind it.
-
-**Why the section is capped.** The published exemplar is one match; a run
-judges every pairing it can afford (11 on the express run this was
-measured against, 10 of them multi-turn), so rendering every transcript in
-full would add more words than the rest of the report holds. Three caps
-bound it, and each is stated as a constant below rather than tuned in the
-renderer: how many debates render, how many turns of one debate render,
-and how long one turn's argument may be.
-
-**Why the closing line is capitalised.** The two published sources
-disagree: the ranking prompt asks the judge for ``better idea: 1``
-(paper lines 794 and 853, and ``prompts/templates/ranking_debate.md``
-repeats it verbatim), while Figure A.17's rendered artifact prints
-``Better idea: 1`` (paper line 1122). This section mirrors the rendered
-artifact, not the prompt, so it prints the capitalised form; the judge is
-still asked for the lower-case phrasing, unchanged, and the engine's
-``test_published_artifact_shapes`` pins the figure's casing separately,
-against the exemplar rather than against this renderer.
-
-**Why a withheld idea's debate never renders.** A transcript argues both
-sides at length, quoting each idea's mechanism. An idea the content gates
-withheld (duplicate, rejected, or safety-held) is absent from
-``hypothesis_title_by_id``, which is built from the published pool -- so a
-match with an unresolvable side is skipped entirely rather than rendered
-with an anonymous participant, which would republish exactly the text the
-gate removed.
+The rubric displays model-generated attributes and criteria, distinct from
+the researcher-authored setup; it never gates or ranks hypotheses. Debates
+render only when both participants belong to the released hypothesis pool.
 """
 
 from __future__ import annotations
 
 import json
 from typing import Any, Final, NamedTuple
+
+
+def _render_stratification_attributes_markdown(
+    attributes: list[dict[str, Any]] | None,
+) -> list[str]:
+    """Render the Supervisor's synthesized 1-5 stratification attributes."""
+    items = [
+        attr
+        for attr in attributes or []
+        if isinstance(attr, dict) and str(attr.get("name") or "").strip()
+    ]
+    if not items:
+        return []
+    lines = ["## Stratification Attributes\n"]
+    for attr in items:
+        name = str(attr["name"]).strip()
+        rubric = str(attr.get("rubric") or "").strip()
+        lines.append(f"- **{name}:** {rubric}" if rubric else f"- **{name}**")
+    lines.append("")
+    return lines
+
+
+def _critical_criterion_name(criterion: Any) -> str:
+    """Extract a critical criterion's display name, or "" when unusable."""
+    if isinstance(criterion, str):
+        return criterion.strip()
+    if isinstance(criterion, dict):
+        return str(criterion.get("name") or "").strip()
+    return ""
+
+
+def _critical_criterion_description(criterion: Any) -> str:
+    """Extract a critical criterion's prose description, or ""."""
+    if not isinstance(criterion, dict):
+        return ""
+    return str(criterion.get("description") or "").strip()
+
+
+def _critical_criteria_entries(
+    critical_criteria: list[Any] | None,
+) -> list[tuple[str, str]]:
+    """Extract (name, description) pairs, skipping unusable entries.
+
+    Kept separate from ``_render_evaluation_criteria_markdown`` (its only
+    caller today) so a non-list ``critical_criteria`` field and an
+    unusable entry both filter out here, once, rather than in the
+    renderer's own layout logic.
+    """
+    if not isinstance(critical_criteria, list):
+        return []
+    return [
+        (name, _critical_criterion_description(item))
+        for item in critical_criteria
+        for name in [_critical_criterion_name(item)]
+        if name
+    ]
+
+
+def _render_evaluation_criterion(name: str, description: str) -> list[str]:
+    """Render one Evaluation Criteria entry."""
+    if description:
+        return [f"**{name}:** {description}", ""]
+    return [f"- {name}"]
+
+
+def _render_evaluation_criteria_markdown(
+    critical_criteria: list[Any] | None,
+) -> list[str]:
+    """Render the Supervisor's synthesized per-goal evaluation criteria."""
+    entries = _critical_criteria_entries(critical_criteria)
+    if not entries:
+        return []
+    lines = ["## Evaluation Criteria\n"]
+    for name, description in entries:
+        lines.extend(_render_evaluation_criterion(name, description))
+    if lines[-1] != "":
+        lines.append("")
+    return lines
+
+
+def _render_review_summary_question(question: Any) -> str:
+    """Render one reviewer question bullet, or "" when unusable.
+
+    Mirrors the published Review Summary's bolded-name-plus-question
+    format (docs/CORPUS-EXTRACTION.md, line 2929): ``{name, question}``,
+    the name bolded when present. A malformed question entry (missing
+    text, or not an object -- ``questions`` has no legacy bare-string
+    shape to fall back to, unlike the criteria themselves) renders "".
+    """
+    if not isinstance(question, dict):
+        return ""
+    name = str(question.get("name") or "").strip()
+    text = str(question.get("question") or "").strip()
+    if not text:
+        return ""
+    return f"- **{name}:** {text}" if name else f"- {text}"
+
+
+def _render_review_summary_criterion(
+    index: int, criterion: Any, name: str
+) -> list[str]:
+    """Render one numbered criterion heading plus its question bullets.
+
+    A legacy bare-name entry (``criterion`` is a str, not a dict) carries
+    no ``questions`` to look up, so it numbers in with no bullets beneath
+    it -- degraded, not dropped.
+    """
+    lines = [f"### {index}. {name}\n"]
+    raw_questions = (
+        criterion.get("questions") if isinstance(criterion, dict) else None
+    )
+    questions = raw_questions if isinstance(raw_questions, list) else []
+    for question in questions:
+        line = _render_review_summary_question(question)
+        if line:
+            lines.append(line)
+    lines.append("")
+    return lines
+
+
+def _render_review_summary_markdown(
+    critical_criteria: list[Any] | None,
+) -> list[str]:
+    """Render the Supervisor's synthesized review rubric as its own section."""
+    if not isinstance(critical_criteria, list):
+        return []
+    named = [
+        (criterion, name)
+        for criterion in critical_criteria
+        for name in [_critical_criterion_name(criterion)]
+        if name
+    ]
+    if not named:
+        return []
+    lines = ["## Review Summary\n"]
+    for index, (criterion, name) in enumerate(named, start=1):
+        lines.extend(_render_review_summary_criterion(index, criterion, name))
+    return lines
+
 
 _MAX_DEBATES: Final = 5
 """Debates rendered, deepest first.
@@ -153,16 +260,7 @@ def _turn_text(turn: dict[str, Any]) -> str:
 
 
 def _numbering_note(turn: dict[str, Any]) -> str:
-    """State which idea this turn's own text calls "Hypothesis 1".
-
-    The judge sees the pair in alternating order (the tournament's
-    position-bias control), so a swapped turn's prose calls idea 2
-    "Hypothesis 1". Rendered without that fact, production run f8db4d04
-    showed one judge asserting "Hypothesis 1 is superior" and
-    "Hypothesis 2 is superior" on two turns that favoured the same idea.
-    A turn stored before the order was recorded says nothing rather than
-    guessing.
-    """
+    """State which idea this turn's own text calls "Hypothesis 1"."""
     first = str(turn.get("first") or "")
     if first not in ("1", "2"):
         return ""
@@ -200,19 +298,7 @@ def _render_tournament_debates_markdown(
     matches: list[dict[str, Any]],
     hypothesis_title_by_id: dict[str, str] | None,
 ) -> list[str]:
-    """Render the 'Tournament debates' section, or nothing when empty.
-
-    Args:
-        matches: The run's persisted match rows (``store.list_matches``).
-        hypothesis_title_by_id: Titles of the published hypotheses, which
-            is also the gate on which debates may render at all.
-
-    Returns:
-        The section's lines, or an empty list when no match carries a
-        renderable debate -- a run judged before the transcript column
-        existed, a run that never reached the tournament, or one whose
-        debates all involve a withheld idea.
-    """
+    """Render the 'Tournament debates' section, or nothing when empty."""
     debates = _select_debates(matches, hypothesis_title_by_id or {})
     if not debates:
         return []

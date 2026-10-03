@@ -1,8 +1,7 @@
 """Bookmark-to-heading fuzzy matching, on plain strings.
 
 Bookmark matching accepts plain outline entries and candidate lines.
-The real ``PdfReader``
-outline walk is exercised only through a real PDF, in
+The real ``PdfReader`` outline walk is exercised through a real PDF in
 ``test_document_ingest_pdf.py``.
 """
 

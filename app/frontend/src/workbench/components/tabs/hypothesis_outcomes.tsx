@@ -1,19 +1,15 @@
 import {useState, type FormEvent} from 'react';
-import {addHypothesisOutcome} from '@/api/runs';
-import type {Hypothesis, HypothesisOutcome} from '@/api/runs';
-import {getAccessToken} from '@/lib/client_id';
 import {
-  canUseOutcomeRefinement,
-  hasEmptyOutcomeCollection,
-  outcomeHypothesisTitle,
-  outcomeRefinementContext,
-} from './hypothesis_outcome_data';
+  addHypothesisOutcome,
+  type Hypothesis,
+  type HypothesisOutcome,
+} from '@/api/runs';
+import {getAccessToken} from '@/lib/client_id';
 import {HypothesisOutcomeRefinement} from './hypothesis_outcome_refinement';
 import {
   ReportDocument,
   REPORT_H4_CLASSES,
 } from '@/workbench/pages/run_detail_document';
-import {TextField} from './hypothesis_outcome_text_field';
 
 interface OutcomeCollectionProps {
   outcomes?: HypothesisOutcome[];
@@ -482,5 +478,82 @@ function OutcomeDetail({label, value}: {label: string; value: string}) {
       <dt className="font-medium">{label}</dt>
       <dd className="whitespace-pre-wrap text-cosci-fg">{value}</dd>
     </div>
+  );
+}
+
+function canUseOutcomeRefinement(
+  allowed: boolean,
+  readOnly: boolean,
+  hasResearcherSession: boolean,
+): boolean {
+  return allowed && !readOnly && hasResearcherSession;
+}
+
+function outcomeRefinementContext(
+  allowed: boolean,
+  runId?: string,
+  hypothesisId?: string,
+  statusOnly = false,
+): {runId: string; hypothesisId: string; statusOnly?: boolean} | undefined {
+  if (!allowed || !runId || !hypothesisId) return undefined;
+  return {runId, hypothesisId, statusOnly};
+}
+
+function outcomeHypothesisTitle(
+  outcome: HypothesisOutcome,
+  titleById?: Map<string, string>,
+): string {
+  return (
+    titleById?.get(outcome.hypothesis_id) ??
+    outcome.hypothesis_snapshot?.title ??
+    outcome.hypothesis_id
+  );
+}
+
+function hasEmptyOutcomeCollection(
+  loading: boolean,
+  error: string | null,
+  count: number,
+): boolean {
+  return !loading && !error && count === 0;
+}
+
+const FIELD_CLASSES =
+  'w-full rounded-md border border-cosci-border bg-cosci-bg px-3 py-2 ' +
+  'text-sm text-cosci-fg focus-visible:outline-2 ' +
+  'focus-visible:outline-cosci-accent';
+
+function TextField({
+  name,
+  label,
+  required = false,
+  hint,
+}: {
+  name: string;
+  label: string;
+  required?: boolean;
+  hint?: string;
+}) {
+  const isMultiline = name !== 'units';
+  return (
+    <label className="grid gap-1 text-sm font-medium">
+      {label}
+      {isMultiline ? (
+        <textarea
+          className={FIELD_CLASSES}
+          name={name}
+          rows={2}
+          required={required}
+          aria-describedby={hint ? `${name}-hint` : undefined}
+        />
+      ) : (
+        <input className={FIELD_CLASSES} name={name} required={required} />
+      )}
+      {hint && (
+        <span id={`${name}-hint`} className="font-normal text-cosci-muted">
+          {hint}
+        </span>
+      )}
+    </label>
   );
 }

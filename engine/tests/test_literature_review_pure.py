@@ -15,7 +15,7 @@ from co_scientist.agents.generation.literature_review import (
 from co_scientist.agents.generation.literature_review import node as lr
 from co_scientist.config import ToolRegistry
 from co_scientist.constants import LITERATURE_REVIEW_PAPERS_COUNT_DEV
-from co_scientist.evidence import errors
+from co_scientist.evidence import retrieval_support as errors
 from tests._state import make_state
 
 

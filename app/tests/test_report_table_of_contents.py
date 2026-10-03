@@ -14,7 +14,7 @@ report's own section headings.
 from typing import Any
 
 from app.report import markdown as report_markdown
-from app.report.markdown import toc as report_markdown_toc
+from app.report.markdown import document as report_markdown_toc
 
 
 def _markdown(**overrides: Any) -> str:

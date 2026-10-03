@@ -25,9 +25,11 @@ from co_scientist.research_adapter.budget import (
     budget_for_tier,
     tier_researches,
 )
-from co_scientist.research_adapter.composite import ResearchRetrieval
 from co_scientist.research_adapter.model import LlmResearchModel
-from co_scientist.research_adapter.retrieval import McpRetrieval
+from co_scientist.research_adapter.retrieval import (
+    McpRetrieval,
+    ResearchRetrieval,
+)
 
 __all__ = [
     "LlmResearchModel",

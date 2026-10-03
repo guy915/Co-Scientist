@@ -16,7 +16,7 @@ from co_scientist.prompts._common import (
     _format_meta_review_context,
     _run_guidance_section,
 )
-from co_scientist.prompts.generation_formatting import format_preferences
+from co_scientist.prompts.generation_draft import format_preferences
 from co_scientist.prompts.loading import _build_prompt
 
 # Published meta-review-08 renders "Additional instructions:" over

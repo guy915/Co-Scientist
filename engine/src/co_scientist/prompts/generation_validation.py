@@ -4,11 +4,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.prompts._common import _format_authors, _format_year
-from co_scientist.prompts.generation_formatting import (
+from co_scientist.prompts.generation_draft import (
     _build_citation_reference_section,
+    build_tool_instructions,
     format_articles_metadata,
 )
-from co_scientist.prompts.generation_tools import build_tool_instructions
 from co_scientist.prompts.loading import (
     _build_prompt,
     load_prompt,

@@ -20,7 +20,7 @@ import {
   type SafetyDecision,
 } from '@/api/runs';
 import type {StreamEvent} from '@/hooks/use_run_stream';
-import {useResetTimer} from '@/workbench/hooks/use_reset_timer';
+import {useResetTimer} from '@/workbench/hooks/timers';
 
 export type RunDataKey =
   | 'hypotheses'

@@ -25,16 +25,14 @@ from co_scientist.prompts.generation_debate import (
 )
 from co_scientist.prompts.generation_draft import (
     DraftPromptRequest,
-    get_draft_prompt_with_tools,
-)
-from co_scientist.prompts.generation_formatting import (
+    build_tool_instructions,
     format_articles_metadata,
     format_attributes,
     format_preferences,
     format_supervisor_guidance_for_generation,
     format_user_hypotheses,
+    get_draft_prompt_with_tools,
 )
-from co_scientist.prompts.generation_tools import build_tool_instructions
 from co_scientist.prompts.generation_validation import (
     ValidationSynthesisRequest,
     get_hypothesis_novelty_analysis_prompt,

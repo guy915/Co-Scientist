@@ -4,7 +4,7 @@
 
 import {useMemo, useRef} from 'react';
 import {joinClasses} from '../classes';
-import {simulateEloHistory} from './home_landing_elo';
+import {simulateEloHistory} from './home_landing_content';
 import {type MotionProps, useInView} from './home_landing_hooks';
 
 const LO = 1100;

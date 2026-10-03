@@ -7,13 +7,123 @@ absent keys and silently dropping unrecognized ones.
 """
 
 import datetime
-from dataclasses import dataclass, field
+import re
+from dataclasses import dataclass, field, fields
 from typing import Any
 
-from co_scientist.config.schema_fields import (
-    _declared_field_kwargs,
-    _tolerant_field_kwargs,
-)
+
+def _declared_field_kwargs(
+    cls: type[Any],
+    data: dict[str, Any] | None,
+    *,
+    exclude: tuple[str, ...] = (),
+) -> dict[str, Any]:
+    """Build constructor kwargs from keys in data that are declared fields.
+
+    Keys absent from ``data`` are omitted so the dataclass declaration
+    remains the single source of truth for defaults. Keys not matching a
+    declared field are ignored (unknown YAML keys are tolerated). A key
+    present with an explicit ``null`` value is forwarded as ``None``,
+    matching the legacy ``data.get(key, default)`` semantics where presence
+    wins over the default.
+
+    ``data`` may also be None: a YAML section written with an empty body
+    (``prompts:``) parses to None rather than to ``{}``, and every caller
+    used to guard for that itself with an ``if not data: return cls()``
+    line that meant exactly "all defaults" -- which is what an empty kwargs
+    mapping already produces.
+
+    Args:
+        cls: Dataclass whose declared fields define the accepted keys.
+        data: Raw configuration dictionary (typically parsed YAML), or None
+            for an absent/empty section.
+        exclude: Field names the caller handles explicitly (nested
+            parsing, renamed keys, or defaults that differ from the
+            dataclass declaration).
+
+    Returns:
+        Mapping of field name to raw value, suitable for ``cls(**kwargs)``.
+    """
+    # Field names declared on the dataclass, minus the ones the caller
+    # handles itself; only keys matching this set are forwarded.
+    names = {f.name for f in fields(cls)} - set(exclude)
+    return {key: value for key, value in (data or {}).items() if key in names}
+
+
+def _tolerant_field_kwargs(
+    cls: type[Any],
+    data: dict[str, Any],
+    required: str,
+) -> dict[str, Any]:
+    """Build constructor kwargs, defaulting one dataclass-required field.
+
+    Three config dataclasses declare a field with no default -- so it must
+    be passed -- while tolerating its absence in YAML. Each stated the
+    field name twice (once to ``data.get``, once to ``exclude``) plus the
+    same explanatory comment; naming the pattern once keeps the two
+    mentions from drifting apart.
+
+    Args:
+        cls: Dataclass whose declared fields define the accepted keys.
+        data: Raw configuration dictionary (typically parsed YAML).
+        required: The field to supply as "" when YAML omits it.
+
+    Returns:
+        Mapping of field name to raw value, suitable for ``cls(**kwargs)``.
+    """
+    return {
+        required: data.get(required, ""),
+        **_declared_field_kwargs(cls, data, exclude=(required,)),
+    }
+
+
+_PLACEHOLDER_PATTERN = re.compile(r"\{(\w+)\}")
+
+
+def _substitute_placeholders(
+    value: str, context: dict[str, Any], *, preserve_type: bool = True
+) -> Any:
+    """Resolve known placeholders, preserving whole values when requested."""
+    exact = _PLACEHOLDER_PATTERN.fullmatch(value)
+    if preserve_type and exact and exact[1] in context:
+        return context[exact[1]]
+    # Keep the original occurrence order: later replacements may also apply
+    # to placeholder text introduced by an earlier context value.
+    for name in _PLACEHOLDER_PATTERN.findall(value):
+        if name in context:
+            value = value.replace(f"{{{name}}}", str(context[name]))
+    return value
+
+
+def resolve_content_params(
+    params: dict[str, Any], context: dict[str, Any]
+) -> dict[str, Any]:
+    """Resolve ``{name}`` references in string parameters and list items.
+
+    Args:
+        params: Tool content parameters containing optional placeholders.
+        context: Runtime values keyed by placeholder name.
+
+    Returns:
+        Resolved parameters. Unknown placeholders stay literal; a parameter
+        consisting of exactly one known placeholder retains its value type.
+    """
+    if not params:
+        return {}
+    resolved: dict[str, Any] = {}
+    for key, value in params.items():
+        if isinstance(value, str):
+            resolved[key] = _substitute_placeholders(value, context)
+        elif isinstance(value, list):
+            resolved[key] = [
+                _substitute_placeholders(item, context, preserve_type=False)
+                if isinstance(item, str)
+                else item
+                for item in value
+            ]
+        else:
+            resolved[key] = value
+    return resolved
 
 
 @dataclass

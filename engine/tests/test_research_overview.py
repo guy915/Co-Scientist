@@ -12,6 +12,9 @@ from unittest.mock import AsyncMock
 import pytest
 
 from co_scientist.agents.meta_review import research_overview as ro
+from co_scientist.agents.meta_review.research_overview_evidence import (
+    _format_evidence_corpus,
+)
 from co_scientist.constants import RESEARCH_OVERVIEW_TOP_K
 from co_scientist.models import Article, Hypothesis
 from tests._state import make_article, make_hypothesis, make_state
@@ -437,7 +440,7 @@ def test_evidence_corpus_prompt_strips_citation_markers() -> None:
     ]
 
     corpus = ro._build_evidence_corpus(articles)
-    formatted = ro._format_evidence_corpus(corpus)
+    formatted = _format_evidence_corpus(corpus)
 
     assert "(Smith et al. 2019)" not in formatted
     assert "[12]" not in formatted
@@ -460,6 +463,6 @@ def test_evidence_corpus_dict_keeps_citation_markers_for_the_report() -> None:
     ]
 
     corpus = ro._build_evidence_corpus(articles)
-    ro._format_evidence_corpus(corpus)
+    _format_evidence_corpus(corpus)
 
     assert next(iter(corpus.values()))["abstract"] == abstract

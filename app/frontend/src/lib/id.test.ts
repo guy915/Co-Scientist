@@ -1,5 +1,5 @@
 import {afterEach, describe, expect, it, vi} from 'vitest';
-import {makePrefixedId} from './id';
+import {makePrefixedId} from './client_id';
 
 afterEach(() => {
   vi.unstubAllGlobals();

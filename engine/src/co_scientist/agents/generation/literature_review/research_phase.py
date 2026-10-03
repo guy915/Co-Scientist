@@ -21,7 +21,7 @@ the review this node always produced.
 import logging
 from typing import Any, NamedTuple
 
-from co_scientist.evidence.research_records import records_from_findings
+from co_scientist.evidence.article_support import records_from_findings
 from co_scientist.evidence.search_support import (
     SearchConfig,
 )

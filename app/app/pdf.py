@@ -1,8 +1,8 @@
-"""Recover PDF headings from bookmarks, numbering, then font styles.
+"""Recover PDF headings using bookmarks, numbering, then font styles.
 
-Signals are ranked across the whole document, with bookmarks taking
-precedence. Unmatched lines retain their extracted text. The helpers use
-plain data; only the page style collector requires pypdf's visitor API.
+Signals are pooled across the document so heading levels remain consistent.
+Bookmarks take precedence over numbering and font styles; unmatched lines
+retain their extracted text. Helpers accept plain data for parser-free tests.
 """
 
 from __future__ import annotations
@@ -20,12 +20,7 @@ _Rank = TypeVar("_Rank", bound=Hashable)
 
 
 def compress_to_levels(raw: dict[_Key, _Rank]) -> dict[_Key, int]:
-    """Map each key's raw rank to a contiguous 1-based level.
-
-    ``_Rank`` values must be mutually orderable (an int depth, a
-    ``(family_rank, depth)`` tuple, a ``(cluster, bold, caps)`` tuple --
-    every rank type this cascade actually produces).
-    """
+    """Map mutually orderable raw ranks to contiguous 1-based levels."""
     if not raw:
         return {}
     # _Rank is bound to Hashable, not Comparable -- mypy cannot see that
@@ -81,12 +76,7 @@ def _best_match(title: str, lines: list[str], claimed: set[int]) -> int | None:
 def raw_bookmark_matches(
     outline: list[tuple[str, int]], lines: list[str]
 ) -> dict[int, int]:
-    """Match each bookmark to at most one line; depths are not yet compressed.
-
-    Each line is claimed by at most one bookmark (first confident match
-    wins, in outline order), so two similarly-titled bookmarks cannot both
-    land on the same line.
-    """
+    """Match bookmarks to unique lines, retaining their raw depths."""
     claimed: set[int] = set()
     matches: dict[int, int] = {}
     for title, depth in outline:
@@ -238,14 +228,7 @@ def _resolve_one_ambiguous(
 
 
 def _resolve_ambiguous(markers: list[_Marker | None]) -> None:
-    """Resolve single-letter Roman/alpha markers using document context.
-
-    A lone ``I.`` reads as Roman when the document also carries an
-    unambiguous Roman sibling (``II``, ``III``, ...) and as alpha when it
-    carries an unambiguous alpha sibling (``B``, ``F``, ...). With no
-    evidence either way, ``I``/``i`` default to Roman (the common legal
-    reading) and any other letter defaults to alpha.
-    """
+    """Resolve single-letter Roman/alpha markers using document context."""
     upper_roman = _has_unambiguous(markers, "roman_u")
     upper_alpha = _has_unambiguous(markers, "alpha_u")
     lower_roman = _has_unambiguous(markers, "roman_l")
@@ -268,13 +251,7 @@ def _family_rank(family: str) -> int:
 
 
 def infer_numbering_levels(lines: list[str]) -> dict[int, int]:
-    """Map each numbered line's index to a 1-based heading level.
-
-    Levels are compressed from the (family, depth) keys actually present
-    in ``lines``, so a document that starts at "1." begins at level 1
-    rather than being forced to leave room for an absent "PART" level.
-    Lines with no recognizable marker are absent from the result.
-    """
+    """Map each numbered line's index to a 1-based heading level."""
     markers = [_parse_marker(line) for line in lines]
     _resolve_ambiguous(markers)
 
@@ -311,12 +288,7 @@ def _is_all_caps(text: str) -> bool:
 
 
 def _is_bold(font_dict: Any) -> bool:
-    """Guess boldness from the font's own name (no embedded-font parsing).
-
-    Standard and subsetted PDF fonts alike carry their weight in the
-    ``/BaseFont`` name (``Helvetica-Bold``, ``ABCDEF+Arial-BoldMT``), so a
-    substring check covers both without needing the font's descriptor.
-    """
+    """Guess boldness from the font's own name (no embedded-font parsing)."""
     if not isinstance(font_dict, dict):
         return False
     base_font = str(font_dict.get("/BaseFont", ""))
@@ -325,22 +297,16 @@ def _is_bold(font_dict: Any) -> bool:
 
 
 def _effective_size(font_size: float, tm_matrix: list[float]) -> float:
-    """Font size actually rendered, after the text matrix's own scaling.
-
-    A generator that sets ``Tf 1`` and scales through ``Tm`` instead would
-    report every run at size 1.0 if the raw ``Tf`` value were trusted, so
-    the vertical scale of the text matrix is folded in.
-    """
+    """Font size actually rendered, after the text matrix's own scaling."""
     scale = math.hypot(tm_matrix[1], tm_matrix[3])
     return font_size * (scale or 1.0)
 
 
 class _LineCollector:
-    r"""Groups pypdf's per-run visitor callbacks into per-line style votes.
+    """Groups visitor callbacks into per-line style votes.
 
-    A run boundary (font change, positioning op) does not by itself end a
-    line -- only an embedded ``"\n"`` does, which pypdf appends to the run
-    text that precedes a detected line break.
+    Only an embedded line break ends a line; font and positioning changes
+    do not.
     """
 
     def __init__(self) -> None:
@@ -383,14 +349,7 @@ class _LineCollector:
 
 
 def collect_line_styles(page: Any) -> dict[str, LineStyle]:
-    """Map each short candidate line's own text to its rendered style.
-
-    Runs a second, ``visitor_text``-driven extraction pass over the page
-    (the layout-mode pass used for the page's actual output text ignores
-    ``visitor_text`` entirely). Keyed by the line's stripped text rather
-    than position, since the two passes reconstruct lines independently
-    and are matched back together by content in the document-wide cascade.
-    """
+    """Map each short candidate line's own text to its rendered style."""
     collector = _LineCollector()
     page.extract_text(visitor_text=collector)
     collector._flush_line()
@@ -423,14 +382,7 @@ def _cluster_sizes(sizes: set[float]) -> dict[float, int]:
 def rank_heading_styles(
     styles: dict[int, LineStyle], body_size: float
 ) -> dict[int, int]:
-    """Rank lines strictly larger than the body size into heading levels.
-
-    Order: font size first (with near-equal sizes merged), then weight
-    (bold above regular), then case (all-caps above mixed) as the
-    tie-break within a shared size cluster. A line at or below the body
-    size is not a heading candidate at all -- it is caption- or
-    footnote-scaled, not emphasized -- and is left out of the result.
-    """
+    """Rank lines strictly larger than the body size into heading levels."""
     candidates = {
         index: style
         for index, style in styles.items()
@@ -472,12 +424,7 @@ def _walk_outline(
 
 
 def flatten_outline(reader: Any) -> list[tuple[str, int, int]]:
-    """Flatten ``reader.outline`` into (title, nesting depth, page index).
-
-    Raises whatever ``reader.outline`` itself raises (including on a
-    reader that carries no such attribute at all) -- the caller is
-    responsible for the fail-soft boundary around the whole cascade.
-    """
+    """Flatten ``reader.outline`` into (title, nesting depth, page index)."""
     outline = reader.outline
     if not outline:
         return []
@@ -572,12 +519,7 @@ def _rewrite_lines(
 def apply_heading_markup(
     reader: Any, pages: list[Any], pages_text: list[str]
 ) -> list[str]:
-    """Weave inferred ATX heading markers into per-page extracted text.
-
-    ``pages_text`` is the page text produced by plain extraction, one
-    entry per page in ``pages``/``reader.pages`` order. Returns a same-
-    length list; a line no signal reaches is copied through unchanged.
-    """
+    """Weave inferred ATX heading markers into per-page extracted text."""
     lines_per_page = [text.split("\n") for text in pages_text]
     outline = flatten_outline(reader)
     bookmark_levels = _pool_bookmark_levels(outline, lines_per_page)

@@ -1,5 +1,5 @@
 import {type Dispatch, type SetStateAction} from 'react';
-import {makePrefixedId} from '@/lib/id';
+import {makePrefixedId} from '@/lib/client_id';
 import {type QaSource} from '@/api/runs';
 import {DIAGNOSTIC_EVENT} from '../dom_events';
 import {type ChatEntry} from '../pages/chat_timeline_bubble';

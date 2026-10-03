@@ -25,7 +25,7 @@ from co_scientist.llm import (
     ToolLoop,
     scoped_telemetry,
 )
-from co_scientist.llm.attempts import backoff
+from co_scientist.llm.attempts import retry as backoff
 from co_scientist.llm.request import completion, transport
 from tests._llm_fake import install_fake_backend
 

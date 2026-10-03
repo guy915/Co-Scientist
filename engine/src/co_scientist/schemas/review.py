@@ -78,7 +78,7 @@ REVIEW_SCORE_MAXIMUM: int = 10
 # Sub-schemas shared by REVIEW_SCHEMA and REVIEW_BATCH_SCHEMA, referenced
 # by identity from both (nothing mutates schema dicts at runtime; sharing
 # schema objects across registry entries is the established pattern -- see
-# GENERATION_SCHEMA's reuse in schemas/registry.py).
+# GENERATION_SCHEMA's reuse in schemas/__init__.py).
 _SCORES_SCHEMA: dict[str, Any] = obj(
     {
         name: {

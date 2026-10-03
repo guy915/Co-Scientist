@@ -5,7 +5,7 @@
 import {useEffect, useRef, useState} from 'react';
 import {Icon, type IconName} from '@/components/icon';
 import {joinClasses} from '../classes';
-import {SUGGESTIONS} from './chat_home_suggestions';
+import {SUGGESTIONS} from './chat_home_stage';
 import {type MotionProps, useInView} from './home_landing_hooks';
 
 const STAGES: readonly {icon: IconName; label: string}[] = [

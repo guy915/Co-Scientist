@@ -12,7 +12,7 @@ import {installLayoutMocks, renderLayout} from './layout_test_support';
 //
 // Dialog keys are a different thing and are not covered here: Escape closing
 // an open dialog and Tab staying inside it are that dialog's own semantics
-// (use_escape_key, use_focus_trap), they register only while it is open, and
+// (useEscapeKey, useFocusTrap in dialog_accessibility.ts), they register only while it is open, and
 // removing them would be an accessibility regression rather than honoring
 // this rule.
 let addEventListener: ReturnType<typeof vi.spyOn>;

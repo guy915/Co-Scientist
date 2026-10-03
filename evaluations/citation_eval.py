@@ -167,7 +167,7 @@ def run(
     """
     assessor, assessor_id = _selected_assessor(use_llm)
     dataset = _load_dataset(dataset_path or _DATASET)
-    from evaluations._panel_identity import capture_panel
+    from evaluations._identity import capture_panel
 
     with capture_panel(
         "citation_entailment",

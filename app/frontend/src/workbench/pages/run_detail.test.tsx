@@ -15,9 +15,11 @@ vi.mock('@/hooks/use_run_stream', () => ({
 }));
 
 // Render tests observe event refreshes immediately; data-hook tests cover timing.
-vi.mock('@/workbench/hooks/use_reset_timer', () => {
+vi.mock('@/workbench/hooks/timers', async importOriginal => {
+  const actual =
+    await importOriginal<typeof import('@/workbench/hooks/timers')>();
   const timer = {schedule: (run: () => void) => run(), cancel: () => {}};
-  return {useResetTimer: () => timer};
+  return {...actual, useResetTimer: () => timer};
 });
 
 function setStream(events: {seq: number; type: string; payload: object}[]) {

@@ -8,7 +8,7 @@ review's numbered failure points (R14-22) -- for each scenario's five
 highest-ranked ideas (full review) and two highest-ranked ideas (simulation
 review, the more expensive review type a real run reserves for fewer
 candidates), grounded in that idea's own mechanism and limitation already
-authored in ``demo_seed_data.scenarios``/``demo_seed_data.proposals``.
+authored in ``demo_seed_data.scenarios``/``demo_seed_data.supplements``.
 
 Split out of ``seed.scenario`` so that module stays within the line-count
 cap; content and row-shaping only, keyed by ``scenario_key`` and hypothesis

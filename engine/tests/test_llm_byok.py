@@ -170,7 +170,7 @@ def test_api_key_not_in_cache_request() -> None:
 
 def test_generator_constructor_forces_cache_off_with_api_key() -> None:
     from co_scientist.generator.core import HypothesisGenerator
-    from co_scientist.generator.options import GeneratorOptions
+    from co_scientist.generator.run_setup import GeneratorOptions
 
     generator = HypothesisGenerator(
         model_name="openai/gpt-x",
@@ -187,7 +187,7 @@ def test_generator_api_key_stays_out_of_initial_state() -> None:
     travel through the generator attribute and the scoped context.
     """
     from co_scientist.generator.core import HypothesisGenerator
-    from co_scientist.generator.options import GeneratorOptions
+    from co_scientist.generator.run_setup import GeneratorOptions
 
     generator = HypothesisGenerator(
         model_name="openai/gpt-x",

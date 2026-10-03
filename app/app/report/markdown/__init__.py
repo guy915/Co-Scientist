@@ -9,34 +9,36 @@ from __future__ import annotations
 import dataclasses
 from typing import Any
 
-from app.report.markdown.bibliography import _render_references_section
-from app.report.markdown.header import (
+from app.report.markdown.document import (
     _render_about_disclosure,
+    _render_data_sources_section,
+    _render_knowledge_base_markdown,
     _render_provenance_line,
     _render_research_goal_details,
     _render_summary_section,
+    _render_table_of_contents,
     _render_title_and_provider,
 )
 from app.report.markdown.hypothesis import (
     _render_hypothesis_entry,
     _reviews_by_hypothesis,
 )
-from app.report.markdown.knowledge_base import _render_knowledge_base_markdown
 from app.report.markdown.meta_review import (
     _render_main_research_directions_markdown,
     _render_meta_review_overview_markdown,
     _render_meta_review_ranking_markdown,
 )
 from app.report.markdown.overview import research_overview_sections
-from app.report.markdown.references import references_by_hypothesis
-from app.report.markdown.sources import _render_data_sources_section
-from app.report.markdown.supervisor import (
+from app.report.markdown.process import (
     _render_evaluation_criteria_markdown,
     _render_review_summary_markdown,
     _render_stratification_attributes_markdown,
+    _render_tournament_debates_markdown,
 )
-from app.report.markdown.toc import _render_table_of_contents
-from app.report.markdown.tournament import _render_tournament_debates_markdown
+from app.report.markdown.references import (
+    _render_references_section,
+    references_by_hypothesis,
+)
 
 
 def _claim_evidence_by_hypothesis(
@@ -168,12 +170,12 @@ class ReportMarkdownInputs:
     # not conflate them under one heading. Each entry is the legacy bare
     # criterion-name string, the R12-23 {name, questions} object, or the
     # richer R12-23b {name, description, questions} object; both
-    # renderers in report/markdown/supervisor.py handle every shape.
+    # renderers in report/markdown/process.py handle every shape.
     critical_criteria: list[Any] | None = None
     # Epoch seconds this report was built, rendered as the provenance and
     # research-purposes-only caution line. None omits that line entirely
     # rather than stating a date via the wall clock -- see
-    # report.markdown.header._render_provenance_line.
+    # report.markdown.document._render_provenance_line.
     prepared_at: float | None = None
     summary: str | None = None
     claim_evidence: list[dict[str, Any]] | None = None
@@ -193,7 +195,7 @@ class ReportMarkdownInputs:
     # This run's hypothesis titles by id, for a contact group's example
     # hypotheses (R14-6) -- see report.build._hypothesis_title_by_id. Also
     # the published-pool gate the tournament section renders behind (see
-    # report.markdown.tournament).
+    # report.markdown.process).
     hypothesis_title_by_id: dict[str, str] | None = None
     # Every tournament match row the drain persisted
     # (store.list_matches), rendered as "Tournament debates" from the
@@ -250,7 +252,7 @@ def _report_sections(inputs: ReportMarkdownInputs) -> list[list[str]]:
         ),
         _render_citation_audit(inputs.citation_summary),
         # R12-12: the run-wide bibliography, deduplicated -- see
-        # report/markdown/bibliography.py for placement and dedup
+        # report/markdown/references.py for placement and dedup
         # rationale. Sits last, matching the published MASH report's own
         # References span running to the end of the document.
         _render_references_section(inputs.evidence or []),

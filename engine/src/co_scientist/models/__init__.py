@@ -1,26 +1,21 @@
-"""Data models for hypothesis generation workflow.
+"""Hypothesis models and run-scoped identifier minting.
 
-These models maintain compatibility with the original AI-CoScientist
-while providing clean type safety for LangGraph.
-
-The execution-metrics models and node state-update helpers live in
-``models.metrics``, hypothesis-id minting in ``models.ids``, the
-literature-article record in ``models.article``, and the review record plus
-the Hypothesis serialization helpers in ``models.review``; all four are
-re-exported here so import sites are unaffected by the split.
+Execution metrics and state updates live in models.metrics, Article in
+models.article, and review records and serialization in models.review.
+Their public names are exported here alongside Hypothesis.
 """
 
+import contextlib
 import enum
+import itertools
+import uuid
+from collections.abc import Callable, Iterator
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
 
 from co_scientist.constants import INITIAL_ELO_RATING
 from co_scientist.models.article import Article as Article
-from co_scientist.models.ids import new_hypothesis_id as new_hypothesis_id
-from co_scientist.models.ids import (
-    run_scoped_hypothesis_ids as run_scoped_hypothesis_ids,
-)
-from co_scientist.models.ids import run_seed_material as run_seed_material
 from co_scientist.models.metrics import ExecutionMetrics as ExecutionMetrics
 from co_scientist.models.metrics import MetricDeltas as MetricDeltas
 from co_scientist.models.metrics import (
@@ -39,6 +34,88 @@ from co_scientist.models.review import _assessment_fields as _assessment_fields
 from co_scientist.models.review import _claim_fields as _claim_fields
 from co_scientist.models.review import _rebuild_reviews as _rebuild_reviews
 from co_scientist.models.review import has_peer_review as has_peer_review
+
+# None (the default) means "draw a random uuid4", which is every context
+# outside an in-process run.
+_ID_FACTORY: ContextVar[Callable[[], str] | None] = ContextVar(
+    "hypothesis_id_factory", default=None
+)
+
+
+def new_hypothesis_id() -> str:
+    """Mints the identifier for a freshly constructed hypothesis.
+
+    Returns:
+        This run's next deterministic id when a run installed a factory in
+        the calling context, otherwise a fresh random ``uuid4``.
+    """
+    factory = _ID_FACTORY.get()
+    if factory is None:
+        return str(uuid.uuid4())
+    return factory()
+
+
+def run_seed_material(run_id: str, research_goal: str) -> str:
+    """Builds the text identifying one run's id stream.
+
+    Args:
+        run_id: The run's unique identifier.
+        research_goal: The run's research question or goal.
+
+    Returns:
+        Seed text combining both, NUL-separated so no pair of inputs can
+        be concatenated into another pair's seed.
+    """
+    return f"{run_id}\x00{research_goal}"
+
+
+def _make_id_factory(seed_material: str) -> Callable[[], str]:
+    """Builds one run's deterministic id minter.
+
+    Args:
+        seed_material: Text identifying this run (see
+            ``run_seed_material``). Runs differing in it get disjoint
+            namespaces, so their ids can never collide.
+
+    Returns:
+        A callable minting ``uuid5(run namespace, ordinal)`` ids: unique
+        within the run, and disjoint from every other run's.
+    """
+    namespace = uuid.uuid5(uuid.NAMESPACE_OID, seed_material)
+    ordinals = itertools.count(1)
+
+    def _mint() -> str:
+        # next() on an itertools.count is atomic, so two nodes minting
+        # concurrently never draw the same ordinal. Which node draws
+        # which ordinal follows the run's own execution order -- the same
+        # basis the rest of the offline pipeline's determinism rests on.
+        return str(uuid.uuid5(namespace, str(next(ordinals))))
+
+    return _mint
+
+
+@contextlib.contextmanager
+def run_scoped_hypothesis_ids(seed_material: str) -> Iterator[None]:
+    """Mints deterministic hypothesis ids for the duration of one run.
+
+    Args:
+        seed_material: Text identifying this run (see
+            ``run_seed_material``).
+
+    Yields:
+        None; hypotheses constructed inside the block, and inside any task
+        or thread it spawns, draw their ids from this run's stream.
+    """
+    _ID_FACTORY.set(_make_id_factory(seed_material))
+    try:
+        yield
+    finally:
+        # Cleared rather than reset from a token: a streaming run holds
+        # this block open across yields, so entry and exit can run in
+        # different consumer contexts, and ``ContextVar.reset`` rejects a
+        # token from another context. Clearing restores the default
+        # (``uuid4``) and cannot raise.
+        _ID_FACTORY.set(None)
 
 
 class GenerationMethod(str, enum.Enum):
@@ -102,7 +179,7 @@ class Hypothesis:
         id: Stable unique identifier that survives serialization and
             evolution. Excluded from equality/hashing (``compare=False``) so the
             text-based dedup heuristics are unaffected. Minted by
-            ``models.ids.new_hypothesis_id``: a random uuid4, or this run's
+            ``models.new_hypothesis_id``: a random uuid4, or this run's
             next deterministic id inside a ``run_scoped_hypothesis_ids``
             block.
         category: Short classification label for the hypothesis (e.g. the

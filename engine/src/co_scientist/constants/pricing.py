@@ -1,7 +1,7 @@
 """Per-model USD pricing for LLM cost estimation.
 
 Split out of the ``constants`` package root (size cap; see
-``constants/cache.py`` for the same pattern) rather than grown into it.
+``constants/__init__.py`` for the same pattern) rather than grown into it.
 Deliberately a plain lookup rather than a live pricing service or
 third-party dependency: this is an estimate, not a billing record, and every
 field is named for what it is.

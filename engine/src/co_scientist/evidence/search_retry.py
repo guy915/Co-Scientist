@@ -8,7 +8,7 @@ from typing import Any
 from langchain_core.tools import ToolException
 
 from co_scientist.backoff import jittered_backoff_seconds
-from co_scientist.evidence.errors import (
+from co_scientist.evidence.retrieval_support import (
     describe_exception,
 )
 from co_scientist.mcp_client import MCPToolClient

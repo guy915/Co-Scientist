@@ -14,15 +14,13 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
+from co_scientist.constants import corpus_slug
 from co_scientist.evidence.relevance import (
     apply_semantic_relevance,
 )
 from co_scientist.evidence.search_budget import (
     select_within_budget,
 )
-
-# Query execution lives in search_query; this module owns fan-out and
-# reduction across queries and sources.
 from co_scientist.evidence.search_query import (
     _search_single_query as _search_single_query,
 )
@@ -37,7 +35,39 @@ from co_scientist.evidence.search_support import (
     extract_source_name,
     merge_search_results,
 )
+from co_scientist.mcp_client import MCPToolClient
 from co_scientist.mcp_client.campaign import campaign_serves_tool
+from co_scientist.state import WorkflowState
+
+
+async def collect_papers(
+    queries: list[str],
+    state: WorkflowState,
+    config: SearchConfig,
+    mcp_client: MCPToolClient,
+    search_errors: list[str],
+) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+    """Phase 2: collect papers from configured sources.
+
+    Dispatches to the multi-source or single-source collection path based on
+    config.is_multi_source. The slug ties this run's searches to the shared
+    on-disk corpus so a warm-started corpus from a prior run/tool-based
+    generation phase is reused rather than re-downloaded.
+    """
+    ctx = _SearchRunContext(
+        slug=corpus_slug(state["research_goal"]),
+        run_id=state["run_id"],
+        mcp_client=mcp_client,
+        errors=search_errors,
+    )
+
+    if config.is_multi_source:
+        return await _phase2_collect_papers_multi_source(queries, config, ctx)
+    return await _phase2_collect_papers_single_source(queries, config, ctx)
+
+
+# Query execution lives in search_query; this module owns fan-out and
+# reduction across queries and sources.
 
 if TYPE_CHECKING:
     from co_scientist.config import SearchSourceConfig, ToolConfig, ToolRegistry

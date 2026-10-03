@@ -5,9 +5,6 @@ import logging
 from dataclasses import dataclass
 from typing import Any, NamedTuple, cast
 
-from co_scientist.agents.generation.literature_review.analysis import (
-    _phase3_analyze_papers,
-)
 from co_scientist.agents.generation.literature_review.collection import (
     _collect_papers_with_diagnostics as _collect_papers_with_diagnostics,
 )
@@ -16,6 +13,10 @@ from co_scientist.agents.generation.literature_review.collection import (
 )
 from co_scientist.agents.generation.literature_review.collection import (
     _enrich_collected_papers as _enrich_collected_papers,
+)
+from co_scientist.agents.generation.literature_review.collection import (
+    _handle_no_fulltext_available,
+    _handle_no_papers_found,
 )
 from co_scientist.agents.generation.literature_review.collection import (
     _log_collection_summary as _log_collection_summary,
@@ -28,11 +29,8 @@ from co_scientist.agents.generation.literature_review.enrichment import (
     _format_kg_section_with_keys,
     _phase2_6_fetch_context_enrichment,
 )
-from co_scientist.agents.generation.literature_review.outcomes import (
-    _handle_no_fulltext_available,
-    _handle_no_papers_found,
-)
 from co_scientist.agents.generation.literature_review.synthesis import (
+    _phase3_analyze_papers,
     _phase4_synthesize,
 )
 from co_scientist.cache import NodeCache

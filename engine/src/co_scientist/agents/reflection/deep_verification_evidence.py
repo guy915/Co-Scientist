@@ -228,7 +228,7 @@ async def _collect_probe_papers(
         articles -- a probe whose search back end is unreachable degrades
         to ungrounded rather than aborting the verification around it.
     """
-    from co_scientist.evidence.collection import (
+    from co_scientist.evidence.search import (
         collect_papers,
     )
     from co_scientist.mcp_client import get_mcp_client

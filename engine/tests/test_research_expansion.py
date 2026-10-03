@@ -12,20 +12,18 @@ from typing import Any, cast
 import pytest
 
 from co_scientist.agents.generation.expansion_research import (
+    EXPANSION_EXTRA_DRAFT_ITERATIONS,
+    EXPANSION_POOL_ITEM_CHARS,
+    EXPANSION_POOL_SAMPLE_SIZE,
     ExpansionResearch,
     _expansion_goal,
+    build_expansion_section,
+    explored_hypothesis_summaries,
+    is_research_expansion,
     research_for_expansion,
 )
 from co_scientist.agents.generation.literature_tools.draft import (
     _compute_draft_iteration_budget,
-)
-from co_scientist.agents.generation.research_expansion import (
-    EXPANSION_EXTRA_DRAFT_ITERATIONS,
-    EXPANSION_POOL_ITEM_CHARS,
-    EXPANSION_POOL_SAMPLE_SIZE,
-    build_expansion_section,
-    explored_hypothesis_summaries,
-    is_research_expansion,
 )
 from co_scientist.constants import get_draft_max_iterations
 from co_scientist.mcp_client import MCPToolClient

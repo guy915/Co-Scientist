@@ -1,24 +1,248 @@
-"""Research-overview markdown renderers for the report.
+"""Render research directions, questions, Specific Aims and research contacts.
 
-Renders the engine's ``research_overview`` payload — the overview summary
-and research directions, the NIH Specific Aims section, and the research
-contacts — as markdown lines. Every function here is pure.
+Model-written fields may contain objects, lists or serialized JSON; text
+coercion and contact grouping live beside the sections that use them.
 """
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
-# R14-6: the research-contacts renderers (flat and grouped-by-direction)
-# live in report.markdown.contact_groups -- split out to keep this module
-# within the size cap, and a leaf relative to this one (it imports only
-# report.markdown.text, never this module) so the two never form a
-# cross-import cycle.
-from app.report.markdown.contact_groups import _render_research_contacts_section
 
-# The malformed-field text coercion is a leaf module shared with
-# report.markdown.contact_groups (R14-6).
-from app.report.markdown.text import _readable_text, _readable_text_list
+def _readable_text(value: Any) -> str:
+    """Flatten a possibly-malformed field into readable plain text.
+
+    Flattens a JSON-looking string, a dict, or a list into human-readable
+    text, and passes a well-formed string through unchanged.
+    """
+    if isinstance(value, str):
+        return _readable_from_string(value)
+    if isinstance(value, list):
+        return _join_readable(value, " ")
+    if isinstance(value, dict):
+        return _join_readable(list(value.values()), " - ")
+    return "" if value is None else str(value)
+
+
+def _readable_from_string(value: str) -> str:
+    """Parse and flatten a JSON-looking string; else return it unchanged."""
+    trimmed = value.strip()
+    if not _is_json_like(trimmed):
+        return value
+    try:
+        return _readable_text(json.loads(trimmed))
+    except (ValueError, TypeError):
+        return value
+
+
+def _is_json_like(text: str) -> bool:
+    """Whether the string looks like a serialized JSON object or array."""
+    return (text.startswith("{") and text.endswith("}")) or (
+        text.startswith("[") and text.endswith("]")
+    )
+
+
+def _join_readable(values: list[Any], separator: str) -> str:
+    """Flatten each value to text, drop the empties, and join them."""
+    return separator.join(
+        text for text in (_readable_text(item) for item in values) if text
+    )
+
+
+def _readable_text_list(value: Any) -> list[str]:
+    """Flatten a possibly-malformed list field into readable strings.
+
+    Tolerates a JSON-encoded string, a lone dict, or a list whose items are
+    dicts or serialized JSON, mirroring ``_readable_text``.
+    """
+    if isinstance(value, str):
+        return _list_from_string(value)
+    if isinstance(value, list):
+        return [text for text in map(_readable_text, value) if text]
+    if isinstance(value, dict):
+        text = _readable_text(value)
+        return [text] if text else []
+    return []
+
+
+def _list_from_string(value: str) -> list[str]:
+    """Parse a JSON-array string into readable items; else a single line."""
+    trimmed = value.strip()
+    if not trimmed:
+        return []
+    if not _is_json_like(trimmed):
+        return [trimmed]
+    try:
+        return _readable_text_list(json.loads(trimmed))
+    except (ValueError, TypeError):
+        return [trimmed]
+
+
+def _render_contact_evidence_line(contact: dict[str, Any]) -> list[str]:
+    """Render a contact's source-evidence line, or nothing when unsourced."""
+    title = _readable_text(contact.get("source_title"))
+    url = contact.get("source_url")
+    if not title:
+        return []
+    source = f"[{title}]({url})" if url else title
+    return [f"**Supporting article:** {source}\n"]
+
+
+def _render_contact_entry(
+    contact: dict[str, Any],
+    *,
+    heading: str = "###",
+    show_direction: bool = True,
+) -> list[str]:
+    """Render one research-contact entry, or nothing when unnamed.
+
+    ``heading``/``show_direction`` let a grouped rendering nest a
+    contact one level under its group's own direction heading without
+    repeating the direction line that heading already states; the
+    defaults reproduce MO-7's original flat shape unchanged, which every
+    ungrouped contact still uses.
+    """
+    if not isinstance(contact, dict) or not contact.get("name"):
+        return []
+    lines = [f"{heading} {_readable_text(contact['name'])}\n"]
+    if show_direction:
+        direction = _readable_text(contact.get("research_direction"))
+        if direction:
+            lines.append(f"**Research direction:** {direction}\n")
+    lines += _render_contact_body(contact)
+    lines += _render_contact_evidence_line(contact)
+    return lines
+
+
+def _render_contact_body(contact: dict[str, Any]) -> list[str]:
+    """Render a contact's expertise and justification lines, or nothing."""
+    lines: list[str] = []
+    expertise = _readable_text(contact.get("expertise"))
+    if expertise:
+        lines.append(f"**Relevant expertise:** {expertise}\n")
+    justification = _readable_text(contact.get("justification"))
+    if justification:
+        lines.append(f"**Justification:** {justification}\n")
+    return lines
+
+
+def _direction_key(direction: Any) -> str:
+    """Normalize a research-direction tag for group/contact matching."""
+    return _readable_text(direction).casefold()
+
+
+def _render_group_example_titles(
+    example_hypothesis_ids: Any, hypothesis_title_by_id: dict[str, str]
+) -> list[str]:
+    """Render a group's 'Example Hypothesis Titles' bullets, or nothing."""
+    ids = (
+        example_hypothesis_ids
+        if isinstance(example_hypothesis_ids, list)
+        else []
+    )
+    titles = [
+        hypothesis_title_by_id[hid]
+        for hid in ids
+        if isinstance(hid, str) and hypothesis_title_by_id.get(hid)
+    ]
+    if not titles:
+        return []
+    return (
+        ["**Example Hypothesis Titles:**\n"]
+        + [f"- {title}" for title in titles]
+        + [""]
+    )
+
+
+def _render_contact_group(
+    group: dict[str, Any],
+    contacts: list[dict[str, Any]],
+    hypothesis_title_by_id: dict[str, str],
+) -> list[str]:
+    """Render one direction group: heading, rationale, examples, contacts.
+
+    Nothing renders when the group names no direction, or no contact in
+    this report actually matched it (a group the model wrote for a
+    direction that has no corresponding contact tag) -- a heading with
+    nothing under it is worse than omitting it.
+    """
+    direction = _readable_text(group.get("research_direction"))
+    if not direction or not contacts:
+        return []
+    lines = [f"### {direction}\n"]
+    rationale = _readable_text(group.get("rationale"))
+    if rationale:
+        lines.append(f"**Why they are best for this direction:** {rationale}\n")
+    lines += _render_group_example_titles(
+        group.get("example_hypothesis_ids"), hypothesis_title_by_id
+    )
+    for contact in contacts:
+        lines += _render_contact_entry(
+            contact, heading="####", show_direction=False
+        )
+    return lines
+
+
+def _partition_contacts_by_group(
+    contacts: list[Any], group_keys: set[str]
+) -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, Any]]]:
+    """Split contacts into per-group buckets and an ungrouped remainder."""
+    by_key: dict[str, list[dict[str, Any]]] = {key: [] for key in group_keys}
+    ungrouped: list[dict[str, Any]] = []
+    for contact in contacts:
+        if not isinstance(contact, dict):
+            continue
+        key = _direction_key(contact.get("research_direction"))
+        if key and key in by_key:
+            by_key[key].append(contact)
+        else:
+            ungrouped.append(contact)
+    return by_key, ungrouped
+
+
+def _render_grouped_contacts(
+    contacts: list[Any],
+    groups: Any,
+    hypothesis_title_by_id: dict[str, str],
+) -> list[str]:
+    """Render every contact, grouped by direction where a group matches.
+
+    A contact whose direction matches no group renders exactly as MO-7's
+    flat shape always has, so this is purely additive: an old report, or
+    a response that never populates ``research_contact_groups``, looks
+    unchanged.
+    """
+    valid_groups = [g for g in (groups or []) if isinstance(g, dict)]
+    group_keys = {
+        _direction_key(g.get("research_direction")) for g in valid_groups
+    }
+    by_key, ungrouped = _partition_contacts_by_group(contacts, group_keys)
+
+    lines: list[str] = []
+    for group in valid_groups:
+        key = _direction_key(group.get("research_direction"))
+        lines += _render_contact_group(
+            group, by_key.get(key, []), hypothesis_title_by_id
+        )
+    for contact in ungrouped:
+        lines += _render_contact_entry(contact)
+    return lines
+
+
+def _render_research_contacts_section(
+    contacts: Any,
+    groups: Any = None,
+    hypothesis_title_by_id: dict[str, str] | None = None,
+) -> list[str]:
+    """Render the 'Research Contacts' section, or nothing when empty."""
+    if not isinstance(contacts, list) or not contacts:
+        return []
+    lines = ["\n## Research Contacts\n"]
+    lines += _render_grouped_contacts(
+        contacts, groups, hypothesis_title_by_id or {}
+    )
+    return lines
 
 
 def _render_optional_paragraph(text: str | None) -> list[str]:
@@ -135,18 +359,7 @@ def _direction_titles(directions: list[Any]) -> list[str]:
 
 
 def _render_directions_preview(directions: list[Any]) -> list[str]:
-    """Render a compact preview list naming each direction, or nothing.
-
-    MO-12: both published exemplars front-load a named preview list ahead
-    of the full per-direction detail that follows (ALS: "We will be
-    focusing on these interrelated areas"; cf-PICI: "Main Research
-    Directions"). Titles only, no new model output -- naming each
-    direction rather than repeating its prose avoids duplicating the
-    paragraphs the full detail below already carries.
-
-    Renders nothing below two named directions: a "preview" of a single
-    entry duplicates it rather than orienting the reader.
-    """
+    """Render a compact preview list naming each direction, or nothing."""
     titles = _direction_titles(directions)
     if len(titles) < 2:
         return []
@@ -163,7 +376,7 @@ def _render_unexpected_direction(direction: Any) -> str:
     Task B: a bolded name plus prose, matching MASH's own published
     ``Unexpected Research Directions`` bullets. Degrades a missing
     description to a bare title bullet, the same contract
-    ``_render_evaluation_criterion`` (report/markdown/supervisor.py)
+    ``_render_evaluation_criterion`` (report/markdown/process.py)
     follows for a missing criterion description.
     """
     if not isinstance(direction, dict):
@@ -176,16 +389,7 @@ def _render_unexpected_direction(direction: Any) -> str:
 
 
 def _render_unexpected_directions_section(directions: list[Any]) -> list[str]:
-    """Render 'Unexpected research directions', or [] when nothing usable.
-
-    Task B: MASH's own published exemplar carries this as a fourth block
-    directly beneath its expanded restatement of the five main research
-    directions -- genuinely new strategic directions, not a repeat of
-    ``research_directions`` above and not ``unexpected_patterns``
-    (R12-10, a pattern observed *across the ideas*, not a direction worth
-    pursuing). Rendered adjacent to the directions content, inside this
-    same "## Research Overview" section, by the caller below.
-    """
+    """Render 'Unexpected research directions', or [] when nothing usable."""
     lines = [
         line
         for direction in directions
@@ -232,15 +436,7 @@ def _render_pattern_list(heading: str, items: Any) -> list[str]:
 
 
 def _render_open_questions_section(payload: dict[str, Any]) -> list[str]:
-    """Render 'Open questions' plus its Clear/Unexpected patterns pair.
-
-    R12-10: the published report's top-level ``Open Questions``, ``Clear
-    Patterns:``, and ``Unexpected Patterns:`` sections. Google's second
-    exemplar (R14-1) lists ``Open questions`` beside the research-
-    directions summary in the same document family this overview
-    renders, so it lands here rather than beside the ``meta_review``-
-    sourced ``Unexpected connections`` section one level up.
-    """
+    """Render 'Open questions' plus its Clear/Unexpected patterns pair."""
     questions = _readable_text_list(payload.get("open_questions") or [])
     clear_lines = _render_pattern_list(
         "### Clear patterns", payload.get("clear_patterns") or []
@@ -357,28 +553,7 @@ def research_overview_sections(
     overview: dict[str, Any],
     hypothesis_title_by_id: dict[str, str] | None = None,
 ) -> list[list[str]]:
-    """Return the overview's four optional sub-sections, each its own list.
-
-    Split out of ``render_research_overview_markdown`` so the report's
-    table of contents (R14-1) can tell which of these actually rendered
-    without re-deriving the guard logic, and without scanning arbitrary
-    field prose for a false '## ' match -- each returned list either is
-    empty or leads with that sub-section's own heading.
-
-    Args:
-        overview: The engine ``research_overview`` payload, shaped as
-            ``{"overview": {...}, "nih_specific_aims": {...}}``. May be empty
-            or carry empty sub-dicts for runs without hypotheses.
-        hypothesis_title_by_id: This run's persisted hypothesis titles by
-            id (R14-6), for resolving a research-contact-group's example
-            hypotheses. Omitted where the caller has none -- those
-            examples then simply do not render.
-
-    Returns:
-        Four lists, in document order: Research Overview, Open questions,
-        NIH Specific Aims, Research Contacts. Any of them is empty when
-        that sub-section has nothing to render.
-    """
+    """Return the overview's four optional sub-sections, each its own list."""
     # The isinstance guard here (and inside each section renderer) is
     # defensive: this payload can originate from LLM-produced structured
     # output (engine path), which is schema-validated but still worth

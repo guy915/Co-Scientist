@@ -1,37 +1,4 @@
-"""One provider call per drafted research direction.
-
-Google's published overviews enumerate six main research directions
-(cf-PICI) and five (protein assemblies), each developed to 800-1,000
-words: a multi-point argument for the area, the baseline of what is
-already known, concrete experiments, and named sub-topics carrying their
-own reasoning, worked example and questions. Ours asked for four, and
-the reason was arithmetic rather than taste -- the draft call had to
-write every direction's body inside its own answer, and six at that
-density is ~13.9k tokens on top of the ~9.9k the rest of the overview
-costs. That is the whole 24000-token ceiling with nothing left for the
-chain of thought sharing it, and 643-881s of generation at the 27-37
-tokens per second this deployment measures, against a 600s per-call
-bound. The clock said no, not the budget.
-
-So the draft names the six and argues each in a paragraph, and each
-direction is developed here on its own call, concurrently -- the shape
-the Knowledge Base already uses
-(``research_overview_knowledge_base_calls``), and the shape the
-published document itself has: a "Main Research Directions" list, then
-"Detailed Description of Each Main Research Direction". A failing call
-costs one direction its depth, not all six theirs, and that direction's
-drafted title and argument still publish.
-
-Two rules keep the wave honest:
-
-* The calls dispatch through the seam handed in by the node, so the
-  research-overview node has one provider surface rather than two.
-* A direction the draft already developed is not re-bought. The draft is
-  asked to leave the body empty, but a model that ignores that and
-  writes sub-topics anyway has done the work, and paying for it twice on
-  a free chain capped near 100 requests per model per day is the waste
-  this split exists to avoid.
-"""
+"""Format and develop the overview research directions with bounded calls."""
 
 from __future__ import annotations
 
@@ -41,9 +8,6 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
-from co_scientist.agents.meta_review.research_overview_directions import (
-    format_overview,
-)
 from co_scientist.agents.meta_review.research_overview_evidence import (
     prompt_context,
 )
@@ -61,11 +25,115 @@ from co_scientist.prompts import (
     DirectionWritingMaterial,
     get_research_overview_direction_prompt,
 )
+from co_scientist.schemas.synthesis import (
+    RESEARCH_OVERVIEW_MAX_DIRECTIONS,
+    RESEARCH_OVERVIEW_MAX_SUB_TOPIC_QUESTIONS,
+    RESEARCH_OVERVIEW_MAX_SUB_TOPICS,
+)
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
+
+def _validate_specific_questions(raw_questions: Any) -> list[Any]:
+    """Cap a sub-topic's questions, or default to empty when malformed."""
+    if not isinstance(raw_questions, list):
+        return []
+    return raw_questions[:RESEARCH_OVERVIEW_MAX_SUB_TOPIC_QUESTIONS]
+
+
+def _validate_sub_topic(raw: Any) -> dict[str, Any] | None:
+    """Format one sub-topic, or None when raw is not even a dict."""
+    if not isinstance(raw, dict):
+        return None
+    return {
+        "title": raw.get("title") or "",
+        "why": raw.get("why") or "",
+        "what": raw.get("what") or "",
+        # F7: the exemplar's "Example idea" block, read the same
+        # defensive way its why/what siblings are -- json_object mode
+        # omits required fields, and an absent example must degrade to a
+        # sub-topic without one, not to a raised response.
+        "example_idea": raw.get("example_idea") or "",
+        "specific_questions": _validate_specific_questions(
+            raw.get("specific_questions")
+        ),
+    }
+
+
+def _validate_sub_topics(raw_sub_topics: Any) -> list[dict[str, Any]]:
+    """Cap and format a direction's sub-topics, dropping malformed entries."""
+    if not isinstance(raw_sub_topics, list):
+        return []
+    sliced = raw_sub_topics[:RESEARCH_OVERVIEW_MAX_SUB_TOPICS]
+    formatted = (_validate_sub_topic(raw) for raw in sliced)
+    return [sub_topic for sub_topic in formatted if sub_topic is not None]
+
+
+def _validate_research_direction(raw: Any) -> Any:
+    """Add MO-1/MO-12's two new fields to one direction, defensively.
+
+    Every other field is left exactly as the model returned it -- their
+    established convention is the render-layer's own flattening, not
+    validation here. A non-dict direction is returned unchanged so the
+    existing pass-through fields still see whatever malformed shape they
+    always tolerated.
+    """
+    if not isinstance(raw, dict):
+        return raw
+    return {
+        **raw,
+        "recent_findings": raw.get("recent_findings") or "",
+        "sub_topics": _validate_sub_topics(raw.get("sub_topics")),
+    }
+
+
+def _validate_research_directions(raw_directions: Any) -> Any:
+    """Cap the directions list and add the new per-direction fields.
+
+    F5 raised the asked-for direction count, which raises the response's
+    size with it. This node's budget already sits at the escalation
+    ladder's own ceiling, so an over-producing response is sliced here
+    rather than trusted -- the same reason the sub-topic layer above is,
+    and for the same reason: json_object mode does not enforce the
+    schema's ``maxItems`` server-side.
+    """
+    if not isinstance(raw_directions, list):
+        return raw_directions
+    sliced = raw_directions[:RESEARCH_OVERVIEW_MAX_DIRECTIONS]
+    return [_validate_research_direction(raw) for raw in sliced]
+
+
+def format_overview(raw_overview: Any) -> Any:
+    """Format the raw ``overview`` sub-object for the report.
+
+    Only touches ``research_directions``, and only when the model
+    actually returned that key -- everything else (a missing/malformed
+    ``overview`` entirely, ``summary``, and every existing per-direction
+    field) passes through exactly as before this module existed.
+
+    Args:
+        raw_overview: The response's raw ``overview`` value, any shape.
+
+    Returns:
+        The same value, with ``research_directions`` (if present) run
+        through ``_validate_research_directions``.
+    """
+    has_directions = (
+        isinstance(raw_overview, dict) and "research_directions" in raw_overview
+    )
+    if not has_directions:
+        return raw_overview
+    return {
+        **raw_overview,
+        "research_directions": _validate_research_directions(
+            raw_overview["research_directions"]
+        ),
+    }
+
+
 JsonCall = Callable[..., Awaitable[dict[str, Any]]]
+
 """The node's own ``call_llm_json`` seam, handed in rather than imported.
 
 The research-overview node dispatches a draft, an accuracy review and
@@ -74,12 +142,14 @@ node's provider access stubs the whole node, with no second path able to
 reach a provider that caller thought it had replaced.
 """
 
+
 _BODY_FIELDS = (
     "importance",
     "recent_findings",
     "suggested_experiments",
     "sub_topics",
 )
+
 """The fields a writing call may contribute to its direction.
 
 Named rather than derived from the response: an undeclared key must not

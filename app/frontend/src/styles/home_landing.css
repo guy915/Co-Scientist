@@ -380,7 +380,7 @@ html:has(.ucs-landing) body {
 }
 
 /* The one pill that slides between the selected items of the rail and the
-   tier picker (home_landing_slider.tsx); the items themselves stay clear
+   tier picker (home_landing_hooks.tsx); the items themselves stay clear
    and sit above it. */
 .ucs-landing-slider {
   position: absolute;

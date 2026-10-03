@@ -25,8 +25,10 @@ fields = {"version": 1, "dataset": {"name": "ordered", "items": []}}
 sealed = {**fields, "digest": identity_digest(fields)}
 assert validate_identity(sealed) is sealed
 assert request_policy()
-assert "evaluations._comparison_identity" not in sys.modules
-assert "evaluations._panel_identity" not in sys.modules
+assert "evaluations._run_driver" not in sys.modules
+assert "evaluations._usage_evidence" not in sys.modules
+assert not any(name.startswith("app.") for name in sys.modules)
+assert not any(name.startswith("co_scientist.") for name in sys.modules)
 """,
         ],
         cwd=Path(__file__).resolve().parents[2],

@@ -20,8 +20,8 @@ from co_scientist.agents.proximity.proximity_graph import (
     build_proximity_graph,
     is_judged_edge,
     member_match_key,
+    pair_similarity,
 )
-from co_scientist.agents.proximity.proximity_similarity import pair_similarity
 
 
 def _disjoint_texts(*ids: str) -> dict[str, str]:
@@ -276,7 +276,7 @@ def test_resolves_member_text_drifted_beyond_prefix() -> None:
 #
 # Listing 06 quantifies over every pair of hypotheses, and the clustering call
 # relates only the pairs it chose to cluster. The builder measures the rest
-# deterministically (``proximity_similarity.pair_similarity``, zero extra LLM
+# deterministically (``proximity_graph.pair_similarity``, zero extra LLM
 # calls) and keeps the ones at or above ``PROXIMITY_EDGE_FLOOR``. These pin
 # that coverage, the precedence of a judged edge over a computed one, and the
 # two ends of the metric's range.

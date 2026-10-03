@@ -29,7 +29,7 @@ import pytest
 from co_scientist.agents.generation.literature_review.enrichment import (
     _build_enrichment_canonical_params,
 )
-from co_scientist.agents.generation.literature_tools.draft_tools import (
+from co_scientist.agents.generation.literature_tools.draft_skills import (
     _setup_tool_provider,
 )
 from co_scientist.agents.generation.literature_tools.validate_search import (

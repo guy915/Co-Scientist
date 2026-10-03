@@ -1,38 +1,71 @@
-"""R12-5: the run-level Attributes field's structured shape and back-compat.
+"""Normalize and render structured planning criteria and attributes.
 
-Split out of ``run_modes`` to keep that module within the size cap, mirroring
-the sibling ``run_modes.criteria`` module R12-4 added. Google's published run
-plan renders Attributes as five named scoring axes
-(docs/CORPUS-EXTRACTION.md line 1930): four on an explicit 1-5 scale with
-anchor text at points 1, 3, and 5 (Mechanism Novelty, Human Relevance,
-Clinical Translatability, Validation Plan Strength), and one categorical
-with an enumerated value set (Target Area: Epigenetics / Stellate Cell
-Biology / Stromal-Immune Crosstalk).
-
-Unlike Criteria -- goal-agnostic, mirrored verbatim -- these five are
-specific to that one run's goal (liver fibrosis), so copying their text
-would hardcode one study's rubric as every run's default. What generalizes
-is the *structure*: an attribute is a named axis that is either scaled
-(anchors at 1, 3, and 5 -- Human Relevance in the published block carries
-only 1 and 5, so a scale need not fill every point) or categorical (a name
-plus an enumerated set of allowed values). This module owns that structure
--- the default that mirrors it with goal-agnostic content, the
-caller-input cleaning that still accepts a producer's own free-prose
-attributes, and the back-compat rendering shared by every consumer of a
-run's stored ``attributes`` -- whichever shape it holds.
-
-A goal-*specific* attribute rubric is a separate, already-built field:
-``config_synthesis.attributes`` (R12-17), which the Supervisor synthesizes
-per run and ``report/markdown/supervisor.py`` renders as "Stratification
-Attributes" -- deliberately not this field, and not touched here.
-
-Every name here is re-exported from ``run_modes`` so ``run_modes.<name>``
-keeps resolving for existing importers.
+Legacy free-prose values remain supported alongside named criteria,
+scaled attributes and categorical attributes. Defaults are goal-agnostic.
 """
 
 from __future__ import annotations
 
 from typing import Any
+
+# Unlike Attributes -- a separate, goal-specific row -- these three are
+# goal-agnostic, so the default mirrors them exactly rather than adapting
+# them. Pinned against the source doc by
+# tests/test_published_plan_config_criteria.py.
+DEFAULT_CRITERIA: tuple[dict[str, str], ...] = (
+    {"name": "Idea correctness", "value": "Required"},
+    {"name": "Idea novelty", "value": "Required"},
+    {"name": "Maximize impact", "value": "Yes"},
+)
+
+
+def _named_criterion(item: dict[str, Any]) -> tuple[str, str] | None:
+    """Extract a name/value pair from one dict-shaped criteria item."""
+    name = str(item.get("name") or "").strip()
+    if not name:
+        return None
+    return name, str(item.get("value") or "").strip()
+
+
+def clean_criteria_list(values: list[Any] | None = None) -> list[Any]:
+    """Trim and validate a caller-supplied criteria list."""
+    cleaned: list[Any] = []
+    for item in values or []:
+        if isinstance(item, dict):
+            pair = _named_criterion(item)
+            if pair is not None:
+                cleaned.append({"name": pair[0], "value": pair[1]})
+        else:
+            text = str(item).strip()
+            if text:
+                cleaned.append(text)
+    return cleaned
+
+
+def _criterion_display_line(item: Any) -> str:
+    """Render one criteria item (either stored shape) as a display line."""
+    if isinstance(item, dict):
+        pair = _named_criterion(item)
+        if pair is None:
+            return ""
+        name, value = pair
+        return f"{name}: {value}" if value else name
+    return str(item).strip()
+
+
+def criteria_display_strings(raw_values: Any) -> list[str]:
+    """Render stored criteria as flat display/prompt lines."""
+    if not isinstance(raw_values, list):
+        return []
+    return [
+        line for item in raw_values if (line := _criterion_display_line(item))
+    ]
+
+
+def _default_criteria() -> list[dict[str, str]]:
+    """Fresh copies of ``DEFAULT_CRITERIA`` so callers never share dicts."""
+    return [dict(pair) for pair in DEFAULT_CRITERIA]
+
 
 _SCALE_POINTS: tuple[str, ...] = ("1", "3", "5")
 
@@ -76,11 +109,7 @@ DEFAULT_ATTRIBUTES: tuple[dict[str, Any], ...] = (
 
 
 def _clean_scale(raw: Any) -> dict[str, str]:
-    """Trim a stored scale dict to its present, non-empty anchors.
-
-    Anchors need not fill every point -- the published block's own Human
-    Relevance axis carries only 1 and 5, no midpoint.
-    """
+    """Trim a stored scale dict to its present, non-empty anchors."""
     if not isinstance(raw, dict):
         return {}
     cleaned: dict[str, str] = {}
@@ -99,12 +128,7 @@ def _clean_values(raw: Any) -> list[str]:
 
 
 def _clean_attribute_dict(item: dict[str, Any]) -> dict[str, Any] | None:
-    """Normalize one dict-shaped attribute item, or None if unnamed.
-
-    A scale wins over a values list when a producer sends both (malformed
-    input); an item with neither still keeps its bare name, matching
-    ``clean_criteria_list``'s own forgiving rule for an unnamed value.
-    """
+    """Normalize one dict-shaped attribute item, or None if unnamed."""
     name = str(item.get("name") or "").strip()
     if not name:
         return None
@@ -118,18 +142,7 @@ def _clean_attribute_dict(item: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def clean_attributes_list(values: list[Any] | None = None) -> list[Any]:
-    """Trim and validate a caller-supplied attributes list.
-
-    Each item is either the legacy free-prose string (a run persisted
-    before R12-5, or a caller -- CLI, demo seeding, an Agent interview's
-    ``focus_area`` -- that still supplies its own prose attributes) or the
-    structured axis shape mirroring Google's published run plan
-    (``DEFAULT_ATTRIBUTES``): ``{"name", "scale"}`` for a 1-5 rating with
-    anchor text, or ``{"name", "values"}`` for a categorical axis. Both
-    are accepted here so an existing producer of free-text attributes
-    keeps working unchanged; only the *default*, used when a caller
-    supplies none, moved to the structured shape.
-    """
+    """Trim and validate a caller-supplied attributes list."""
     cleaned: list[Any] = []
     for item in values or []:
         if isinstance(item, dict):
@@ -144,12 +157,7 @@ def clean_attributes_list(values: list[Any] | None = None) -> list[Any]:
 
 
 def _join_with_or(values: list[str]) -> str:
-    """Join values with a trailing "or", matching the published phrasing.
-
-    ``["A", "B", "C"]`` -> ``"A, B, or C"``, mirroring the published
-    Target Area bullet's own "(Epigenetics, Stellate Cell Biology, or
-    Stromal-Immune Crosstalk)" punctuation.
-    """
+    """Join values with a trailing "or", matching the published phrasing."""
     if len(values) == 1:
         return values[0]
     if len(values) == 2:
@@ -192,19 +200,7 @@ def _attribute_display_line(item: Any) -> str:
 
 
 def attribute_display_strings(raw_values: Any) -> list[str]:
-    """Render stored attributes as flat display/report lines.
-
-    Back-compat (R12-5): a run persisted before this change stored
-    ``attributes`` as a list of free-prose strings; one created after
-    stores the structured axis shape mirroring Google's published run
-    plan (``DEFAULT_ATTRIBUTES``). Both shapes render here -- the bare
-    string, ``"{name}: 1-5 scale (...)"``, or ``"{name} (A, B, or C)"`` --
-    so a legacy run's report, Goal Details, and specifications tab keep
-    reading exactly as they always did, and every consumer of the setup
-    block's attributes (``setup_guidance``, the report header, the specs
-    tab) shares this one coercion instead of each guessing at the shape
-    on its own.
-    """
+    """Render stored attributes as flat display/report lines."""
     if not isinstance(raw_values, list):
         return []
     return [
@@ -213,20 +209,7 @@ def attribute_display_strings(raw_values: Any) -> list[str]:
 
 
 def attribute_names(raw_values: Any) -> list[str]:
-    """Return just the bare name of each stored attribute item.
-
-    Feeds the engine's comma-joined and bullet-joined attribute prompt
-    slots (``format_attributes``, ``_format_debate_attributes``, and the
-    csv-joined ``attributes`` slot in ``prompts/planning.py`` and
-    ``prompts/literature.py``) with short quality descriptors, exactly as
-    a legacy free-prose run always sent -- an anchor's own internal
-    punctuation would otherwise land inside a comma-joined prompt slot
-    and read as extra list items. The full anchored rubric
-    (``attribute_display_strings``) still reaches the engine, bulleted,
-    through ``setup_guidance``'s "Attributes:" block, folded into the
-    "preferences" opt -- nothing here is lost, only kept out of the
-    slots that were never meant to carry it.
-    """
+    """Return just the bare name of each stored attribute item."""
     if not isinstance(raw_values, list):
         return []
     names: list[str] = []

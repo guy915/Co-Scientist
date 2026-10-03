@@ -423,7 +423,7 @@ def run(*, use_llm: bool) -> dict[str, Any]:
     live_comparator = _make_llm_comparator() if use_llm else None
     dataset = _load_dataset()
     items = dataset["items"]
-    from evaluations._panel_identity import capture_panel
+    from evaluations._identity import capture_panel
 
     model = (
         live_comparator[1].removeprefix("llm:")

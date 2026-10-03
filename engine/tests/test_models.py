@@ -381,8 +381,9 @@ def test_hypothesis_to_dict_includes_deep_verification() -> None:
 # --- Hypothesis: review/verification summaries -------------------------------
 #
 # Prompt-ready projections shared by the ranking-matchup and evolution
-# prompts (agents/ranking/ranking_prompt.py, agents/evolution/evolve_prompt.py,
-# agents/evolution/evolve_feedback.py), which each read only the subset of
+# prompts (agents/ranking/ranking_debate_turns.py,
+# agents/evolution/evolve_prompt.py, agents/evolution/evolve_context.py),
+# which each read only the subset of
 # fields they need from the result.
 
 

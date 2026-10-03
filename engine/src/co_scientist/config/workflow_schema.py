@@ -10,7 +10,7 @@ unrecognized ones.
 from dataclasses import dataclass, field
 from typing import Any
 
-from co_scientist.config.schema_fields import (
+from co_scientist.config.tool_schema import (
     _declared_field_kwargs,
     _tolerant_field_kwargs,
 )

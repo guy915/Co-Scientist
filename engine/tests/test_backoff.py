@@ -9,7 +9,7 @@ attempt, and a cap that only the search path asks for -- so a later
 
 from co_scientist import backoff
 from co_scientist.evidence import search_retry
-from co_scientist.llm.attempts import backoff as llm_backoff
+from co_scientist.llm.attempts import retry as llm_backoff
 
 
 def test_wait_is_drawn_from_the_top_half_of_the_ceiling() -> None:

@@ -8,7 +8,7 @@ reader asserted rather than argued. The turns are now persisted on the
 match row (``matches.debate_transcript``) and rendered here.
 
 The section is deliberately bounded -- see the caps in
-``report.markdown.tournament`` -- because a run judges every pairing while
+``report.markdown.process`` -- because a run judges every pairing while
 Google publishes one exemplar, and an uncapped transcript dump would be a
 larger document than the report it sits in.
 """

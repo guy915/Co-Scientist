@@ -6,7 +6,6 @@ from collections.abc import Mapping
 from html import escape
 from typing import Any
 
-from co_scientist.agents.evolution.context import EvolutionContext
 from co_scientist.agents.evolution.evolution_operators import (
     EvolutionOperator,
     operator_instruction,
@@ -18,6 +17,7 @@ from co_scientist.agents.evolution.evolve_context import (
 from co_scientist.agents.evolution.evolve_grounding import (
     not_applicable_block,
 )
+from co_scientist.agents.evolution.operations import EvolutionContext
 from co_scientist.agents.generation.assumption_feedback import (
     build_falsified_assumptions_section,
 )
@@ -32,7 +32,7 @@ from co_scientist.prompts._common import (
     _format_bullet_list,
     _format_run_guidance,
 )
-from co_scientist.prompts.generation_formatting import (
+from co_scientist.prompts.generation_draft import (
     _build_citation_reference_section,
 )
 from co_scientist.prompts.loading import _get_domain_variables

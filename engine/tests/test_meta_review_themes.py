@@ -18,7 +18,7 @@ the exemplar is never clipped by ``reshape_json_output``.
 
 from typing import Any
 
-from co_scientist.agents.meta_review.meta_review_themes import (
+from co_scientist.agents.meta_review.meta_review import (
     normalize_recurring_themes,
 )
 from co_scientist.schemas.meta_review_schema import META_REVIEW_SCHEMA

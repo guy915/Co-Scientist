@@ -60,7 +60,7 @@ def test_no_prepared_at_renders_no_provenance_line() -> None:
     Covers a report persisted before this field existed rather than
     stating a date this system does not actually know. Checks the
     provenance line's own wording, not the bare "For research purposes
-    only" phrase -- the R14-4 About disclosure (report/markdown/header.py)
+    only" phrase -- the R14-4 About disclosure (report/markdown/document.py)
     carries that same closing phrase unconditionally, on every render.
     """
     markdown = _markdown(None)

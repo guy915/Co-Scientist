@@ -57,21 +57,13 @@ def test_engine_does_not_depend_on_app() -> None:
         ("generation/operations.py", {"generation.coordinator"}),
         ("ranking/operations.py", {"ranking.ranking"}),
         (
-            "reflection/operations.py",
+            "reflection/verification.py",
             {
                 "reflection.deep_verification",
                 "reflection.comprehensive_reflection",
                 "reflection.reflection",
                 "reflection.review",
             },
-        ),
-        (
-            "reflection/verification.py",
-            {"reflection.deep_verification", "reflection.operations"},
-        ),
-        (
-            "evolution/context.py",
-            {"evolution.evolve", "evolution.evolve_prompt"},
         ),
         (
             "evolution/operations.py",

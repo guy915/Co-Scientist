@@ -7,7 +7,7 @@ import {
 } from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {firstSentenceClause} from '@/lib/text';
-import {useNowTick} from '@/workbench/hooks/use_now_tick';
+import {useNowTick} from '@/workbench/hooks/timers';
 import {GoogleLabsIcon} from '../components/google_labs_icon';
 import {TruncatedLabel} from '../components/truncated_label';
 import {preferredSessionSide} from '../layout_session_memory';

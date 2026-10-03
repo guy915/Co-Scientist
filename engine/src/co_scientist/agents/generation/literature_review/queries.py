@@ -15,7 +15,7 @@ from co_scientist.constants import (
     HIGH_TEMPERATURE,
     LITERATURE_REVIEW_MAX_QUERIES,
 )
-from co_scientist.evidence.errors import (
+from co_scientist.evidence.retrieval_support import (
     describe_exception,
 )
 from co_scientist.evidence.search_support import (

@@ -41,6 +41,6 @@ but do not update them to match later changes.
 | [PROMPT-PRESERVATION.md](PROMPT-PRESERVATION.md) | Record (2026-09-01, rows updated 2026-09-06) auditing each of the eight published prompts (`docs/CORPUS-EXTRACTION.md` Appendix A) instruction-by-instruction against its corresponding template, beyond the `MP-*` checklist's spot findings. All eight now render verbatim and in published order; the live per-template provenance is `engine/src/co_scientist/prompts/templates/README.md` and the standing check is `engine/tests/test_published_prompt_fidelity.py` |
 | [CORPUS-STATUS.md](CORPUS-STATUS.md) | Point-in-time record (2026-09-02) re-classifying every `work`/`unclear` row in `docs/CORPUS-EXTRACTION.md` as BUILT/OPEN/DECISION/FALSE, checked against the code and git history rather than the table |
 | `decisions/` | Dated decision records |
-| [archive/](archive/README.md) | Retired prototypes and pointers to completed campaign evidence |
+| [External-reference campaign](../PLAN.md) | Completed execution record and immutable receipts; start from the [final report](../references/external/campaign-final-report.md) for conclusions |
 | `superpowers/plans/` | Dated implementation plans |
 | `superpowers/specs/` | Dated design specs |

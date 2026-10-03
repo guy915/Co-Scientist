@@ -16,7 +16,7 @@ from typing import Any, cast
 
 from co_scientist.config import ToolConfig
 from co_scientist.evidence import search
-from co_scientist.evidence.query_broadening import (
+from co_scientist.evidence.search_query import (
     broadened_queries,
 )
 from co_scientist.evidence.search_support import (

@@ -9,8 +9,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from evaluations._identity import validate_identity
-from evaluations._panel_identity import PANEL_FILES
+from evaluations._identity import PANEL_FILES, validate_identity
 
 
 def _validated_panel(report: dict[str, Any]) -> dict[str, Any]:

@@ -12,16 +12,15 @@ these calls out across sources and queries, and reducing what they return to
 the run's evidence budget, is ``search.py``.
 """
 
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from co_scientist.constants import LITERATURE_REVIEW_RECENCY_YEARS
-from co_scientist.evidence.errors import (
+from co_scientist.evidence.retrieval_support import (
     describe_exception,
-)
-from co_scientist.evidence.query_broadening import (
-    broadened_queries,
 )
 from co_scientist.evidence.search_retry import (
     _call_search_tool,
@@ -31,6 +30,44 @@ from co_scientist.evidence.search_support import (
     normalize_search_response,
 )
 from co_scientist.mcp_client import MCPToolClient
+
+# Two terms still name a topic ("mifepristone glioblastoma"); one term is a
+# subject heading that would swamp the budget with unrelated papers.
+_MIN_QUERY_TERMS = 2
+
+
+def broadened_queries(query: str) -> list[str]:
+    """Return progressively broader forms of ``query``, narrowest first.
+
+    Halving rather than dropping one term at a time keeps the ladder to at
+    most two extra calls on the run's serial spine while still reaching the
+    productive range: the nine-term query above returns nothing until its
+    fifth term is dropped, and one-at-a-time would have spent five calls
+    discovering that.
+
+    Terms are dropped from the end because query formulation appends
+    qualifiers -- mechanism and setting come first, hedges and endpoints
+    last -- so a prefix stays on topic while a suffix is what over-constrains
+    it.
+
+    Args:
+        query: The keyword query as formulated, terms separated by spaces.
+
+    Returns:
+        The query followed by any broader forms, each strictly shorter than
+        the last. A query already at or below the floor yields just itself.
+    """
+    terms = query.split()
+    if len(terms) <= _MIN_QUERY_TERMS:
+        return [query]
+
+    ladder = [query]
+    for count in ((len(terms) + 1) // 2, _MIN_QUERY_TERMS):
+        broader = " ".join(terms[:count])
+        if count < len(terms) and broader not in ladder:
+            ladder.append(broader)
+    return ladder
+
 
 if TYPE_CHECKING:
     from co_scientist.config import ToolConfig
@@ -74,7 +111,7 @@ class _QueryTarget:
     """
 
     tool_name: str
-    tool_config: Optional["ToolConfig"]
+    tool_config: ToolConfig | None
     label: str
     max_papers: int
 
@@ -84,7 +121,7 @@ def _build_query_tool_params(
     slug: str,
     run_id: str,
     max_papers: int,
-    tool_config: Optional["ToolConfig"],
+    tool_config: ToolConfig | None,
 ) -> dict[str, Any]:
     """Build tool-call params for a search query in the tool's own shape.
 
@@ -193,7 +230,7 @@ async def _attempt_query(
 async def _search_source_for_query(
     query: str,
     ctx: _SearchRunContext,
-    tool_config: "ToolConfig",
+    tool_config: ToolConfig,
     src_name: str,
     papers_per_query: int,
 ) -> dict[str, dict[str, Any]]:

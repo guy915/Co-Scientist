@@ -5,14 +5,50 @@ Converts the nested Entrez efetch response for a single PubMed id into a flat
 journal venue/year sub-structures.
 """
 
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from Bio import Entrez
 
 from mcp_server.entrez import read_entrez
 from mcp_server.entrez_rate_limit import entrez_call
-from mcp_server.models import Article
 from mcp_server.tools.text import clean_markup
+
+
+@dataclass
+class Article:
+    """A literature article with extracted content and metadata."""
+
+    title: str
+    url: str | None = None
+    authors: list[str] = field(default_factory=list)
+    year: int | None = None
+    # Publication venue, e.g. journal or conference name.
+    venue: str | None = None
+    # Citation count, when available from the source; 0 if unknown.
+    citations: int = 0
+    abstract: str | None = None
+    # Full extracted text, e.g. markdown from PMC fulltext (see
+    # text_extraction.py); None if only metadata/abstract was retrieved.
+    content: str | None = None
+    # Source-specific identifier (e.g. PubMed ID), independent of url.
+    source_id: str | None = None
+    # Default reflects this dataclass's shared, multi-source origin; PubMed
+    # tools in this server explicitly set "pubmed" via field_mapping.
+    source: str = "google_scholar"
+    # Direct links to downloadable PDF(s), if the source exposes any.
+    pdf_links: list[str] = field(default_factory=list)
+    # Set true once an agent has actually consulted this article's content,
+    # as opposed to it merely appearing in search results.
+    used_in_analysis: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        """Converts the article to a dictionary for serialization.
+
+        Returns:
+            Dict with all article fields.
+        """
+        return asdict(self)
 
 
 def _pubmed_article_url(doi: str | None, paper_id: str) -> str:

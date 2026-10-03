@@ -65,13 +65,13 @@ class ReportRequest(NamedTuple):
             attributes (``config_synthesis.attributes``), rendered as the
             report's "Stratification Attributes" section -- a different,
             LLM-synthesized field from ``setup["attributes"]`` above (see
-            ``report.markdown.supervisor``'s vocabulary warning).
+            ``report.markdown.process``'s vocabulary warning).
         critical_criteria: The Supervisor's synthesized per-goal evaluation
             criteria (``workflow_plan.review_phase.critical_criteria``),
             rendered as both the report's flat "Evaluation Criteria" list
             and its "Review Summary" rubric section -- a different,
             LLM-synthesized field from ``setup["criteria"]`` above (see
-            ``report.markdown.supervisor``'s vocabulary warning). Each entry is
+            ``report.markdown.process``'s vocabulary warning). Each entry is
             either a legacy bare name (a run persisted before R12-23) or a
             ``{name, questions}`` object; both renderers handle either
             shape.

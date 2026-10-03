@@ -1,9 +1,3 @@
-// The landing page below the chat home. The home still opens exactly as it
-// always has; a quiet hint under the composer (see chat_home_stage.tsx)
-// invites a scroll, and this page explains the system: a hero with the
-// wordmark, a sticky tab rail, then the sections in home_landing_sections.
-// Lazy-loaded by the home stage so none of it weighs on the first paint.
-
 import {
   type MouseEvent,
   type RefObject,
@@ -21,8 +15,9 @@ import {
   scrollParent,
   useReducedMotion,
   useSlidingIndicator,
+  SlidingPill,
+  shapePath,
 } from './home_landing_hooks';
-import {SlidingPill} from './home_landing_slider';
 import {
   ClosingSection,
   EvidenceSection,
@@ -33,7 +28,12 @@ import {
   TournamentSection,
 } from './home_landing_sections';
 import {OverviewSection} from './home_landing_overview';
-import {shapePath} from './home_landing_shapes';
+
+// The landing page below the chat home. The home still opens exactly as it
+// always has; a quiet hint under the composer (see chat_home_stage.tsx)
+// invites a scroll, and this page explains the system: a hero with the
+// wordmark, a sticky tab rail, then the sections in home_landing_sections.
+// Lazy-loaded by the home stage so none of it weighs on the first paint.
 
 /** The landing page's root id, which the scroll hint links to. */
 export const LANDING_ID = 'landing';

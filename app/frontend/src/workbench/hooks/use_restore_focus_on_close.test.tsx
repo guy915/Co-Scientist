@@ -1,6 +1,6 @@
 import {render} from '@testing-library/react';
 import {expect, it} from 'vitest';
-import {useRestoreFocusOnClose} from './use_restore_focus_on_close';
+import {useRestoreFocusOnClose} from './dialog_accessibility';
 
 function Dialog() {
   useRestoreFocusOnClose();

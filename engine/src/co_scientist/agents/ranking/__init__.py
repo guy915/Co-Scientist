@@ -25,7 +25,7 @@ from co_scientist.agents.ranking.ranking_lifecycle import (
     prepare_ranking_round,
     remaining_ranking_rounds,
 )
-from co_scientist.agents.ranking.ranking_pairings import (
+from co_scientist.agents.ranking.ranking_matchmaking import (
     build_tournament_pairings,
 )
 

@@ -13,8 +13,8 @@ from typing import Any
 
 import pytest
 
-from co_scientist.agents.generation import coordinator_enrichment
-from co_scientist.agents.generation.coordinator_enrichment import (
+from co_scientist.agents.generation import operations as coordinator_enrichment
+from co_scientist.agents.generation.operations import (
     _enrich_hypotheses,
     _enrich_one_hypothesis,
     _ResolvedEnrichment,

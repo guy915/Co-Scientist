@@ -10,7 +10,7 @@ import {
 import {type SettingsSection} from './components/settings_dialog';
 import {HEADER_TITLE_EVENT} from './dom_events';
 import {useChatHistoryContext} from './hooks/chat_history_context';
-import {useEscapeKey} from './hooks/use_escape_key';
+import {useEscapeKey} from './hooks/dialog_accessibility';
 import {closeDrawerIfMobile} from './hooks/use_is_mobile';
 
 /**

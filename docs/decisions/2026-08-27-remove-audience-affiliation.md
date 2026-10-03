@@ -46,8 +46,9 @@ Removed with it, because each existed only to serve an audience:
   its table. The account-export endpoint that shared its module was extracted
   to `app/app/account_export.py` first — it was never part of the feature.
 - **The proposals graph.** The `/proposals` route, its module, and its
-  stylesheets. Its content is preserved as a self-contained `proposals.html`
-  at the repository root.
+  stylesheets. The self-contained HTML was retired from the checkout during
+  the 2026-10-02 file cleanup. Recover it from Git if needed:
+  `git log --all -- docs/archive/proposals.html proposals.html`.
 
 ## Consequences
 

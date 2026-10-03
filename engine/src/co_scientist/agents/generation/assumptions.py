@@ -37,7 +37,7 @@ from co_scientist.agents.generation.citations import (
     ReferenceIndex,
     hypothesis_from_llm_output,
 )
-from co_scientist.agents.generation.research_expansion import (
+from co_scientist.agents.generation.expansion_research import (
     build_expansion_section,
 )
 from co_scientist.constants import (
@@ -56,7 +56,7 @@ from co_scientist.prompts._common import (
     _format_meta_review_context,
     format_lab_constraints_section,
 )
-from co_scientist.prompts.generation_formatting import (
+from co_scientist.prompts.generation_draft import (
     _build_citation_reference_section,
 )
 from co_scientist.prompts.loading import load_prompt_with_schema

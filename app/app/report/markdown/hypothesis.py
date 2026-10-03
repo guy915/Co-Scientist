@@ -14,9 +14,9 @@ from typing import Any
 
 from app.claims.verdict import claim_status, role_of
 from app.human_input import SCIENTIST_MANUAL_ORIGIN
-from app.report.markdown.header import _ABOUT_DISCLOSURE, _SYSTEM_NAME
+from app.report.markdown.document import _ABOUT_DISCLOSURE, _SYSTEM_NAME
 from app.report.markdown.references import _render_references_markdown
-from app.report.markdown.review_block import (
+from app.report.markdown.reviews import (
     _render_critiques_rollup,
     _render_deep_verification,
     _render_hypothesis_reviews,
@@ -28,7 +28,7 @@ from app.text_utils import hypothesis_statement, hypothesis_title
 # (docs/CORPUS-EXTRACTION.md R14-13) -- a fixed disclaimer, not derived
 # from the hypothesis, so it carries no field guard and always renders.
 # Shared with the report-level About disclosure (R14-4,
-# ``report.markdown.header._ABOUT_DISCLOSURE``) -- Google's two published
+# ``report.markdown.document._ABOUT_DISCLOSURE``) -- Google's two published
 # instances of this wording are byte-identical, so this re-exports the one
 # constant rather than maintaining a second copy of the string.
 _HYPOTHESIS_DISCLAIMER = _ABOUT_DISCLOSURE

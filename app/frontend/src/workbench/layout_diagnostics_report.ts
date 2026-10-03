@@ -1,6 +1,6 @@
 import {useState} from 'react';
 import {reportAppLogs} from '@/api/logs';
-import {useResetTimer} from './hooks/use_reset_timer';
+import {useResetTimer} from './hooks/timers';
 import type {
   DiagnosticCounts,
   DiagnosticLogEntry,

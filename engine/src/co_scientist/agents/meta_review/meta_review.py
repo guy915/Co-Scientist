@@ -1,13 +1,10 @@
-"""Meta-review node - synthesize insights from all reviews."""
+"""Meta-review synthesis and normalization of recurring critique themes."""
 
 import dataclasses
 import json
 import logging
 from typing import Any
 
-from co_scientist.agents.meta_review.meta_review_themes import (
-    normalize_recurring_themes,
-)
 from co_scientist.agents.node_degradation import run_or_degrade
 from co_scientist.agents.reflection.mature_reviews import (
     mature_review_summary,
@@ -37,6 +34,87 @@ from co_scientist.prompts import PromptRunContext, get_meta_review_prompt
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
+
+
+def normalize_recurring_themes(
+    recurring_themes: list[Any],
+) -> list[dict[str, Any]]:
+    """Coerce every entry into a uniform nested taxonomy node.
+
+    Args:
+        recurring_themes: The model's ``recurring_themes`` array, of any
+            shape.
+
+    Returns:
+        One ``{theme, description, frequency, sub_themes}`` dict per
+        entry, with ``sub_themes`` itself normalized.
+    """
+    return [_normalize_theme(entry) for entry in recurring_themes]
+
+
+def _normalize_theme(entry: Any) -> dict[str, Any]:
+    """Normalize one top-level theme.
+
+    A non-dict entry keeps its text as ``theme`` with everything else
+    empty, rather than being dropped: the flattening this replaced already
+    tolerated a bare string, and a model that ignores the schema at the
+    top level has still said something worth reporting.
+    """
+    if not isinstance(entry, dict):
+        return _theme_node(str(entry), "", "", [])
+    return _theme_node(
+        str(entry.get("theme", "")),
+        str(entry.get("description", "")),
+        # A lax provider returns frequency as a bare integer even though
+        # the schema declares it a string.
+        str(entry.get("frequency", "")),
+        _normalize_sub_themes(entry.get("sub_themes")),
+    )
+
+
+def _theme_node(
+    theme: str,
+    description: str,
+    frequency: str,
+    sub_themes: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Build one theme node, so its key set is written down once."""
+    return {
+        "theme": theme,
+        "description": description,
+        "frequency": frequency,
+        "sub_themes": sub_themes,
+    }
+
+
+def _normalize_sub_themes(sub_themes: Any) -> list[dict[str, Any]]:
+    """Normalize a theme's sub-theme list, tolerating a non-list value."""
+    if not isinstance(sub_themes, list):
+        return []
+    return [_normalize_sub_theme(entry) for entry in sub_themes]
+
+
+def _normalize_sub_theme(entry: Any) -> dict[str, Any]:
+    """Normalize one critique point under a theme.
+
+    ``points`` is the taxonomy's third level and the published artifact's
+    last: a list of plain guidance sentences, with nothing nested below
+    them.
+    """
+    if not isinstance(entry, dict):
+        return {"theme": str(entry), "description": "", "points": []}
+    return {
+        "theme": str(entry.get("theme", "")),
+        "description": str(entry.get("description", "")),
+        "points": _normalize_points(entry.get("points")),
+    }
+
+
+def _normalize_points(points: Any) -> list[str]:
+    """Coerce a sub-theme's guidance points to strings."""
+    if not isinstance(points, list):
+        return []
+    return [str(point) for point in points]
 
 
 async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
@@ -378,7 +456,7 @@ def _build_meta_review(response: dict[str, Any]) -> dict[str, Any]:
     """
     # Schema returns recurring_themes as a nested taxonomy: {theme,
     # description, frequency, sub_themes[{theme, description, points}]}
-    # (MO-2 -- see meta_review_themes and schemas/meta_review_schema).
+    # Recurring-theme normalization preserves the taxonomy (MO-2).
     # emerging_themes stays the flat list of TOP-LEVEL theme names only:
     # it feeds every downstream prompt through
     # prompts._common._format_meta_review_context and the safety monitor,

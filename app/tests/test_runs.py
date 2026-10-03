@@ -203,8 +203,7 @@ def test_create_run_without_spec_gets_baseline_planning(
 ) -> None:
     """A goal-only run (no UI-inferred spec) still gets baseline guidance."""
     from app.run_modes import DEFAULT_REQUIREMENTS
-    from app.run_modes.attributes import DEFAULT_ATTRIBUTES
-    from app.run_modes.criteria import DEFAULT_CRITERIA
+    from app.run_modes.planning import DEFAULT_ATTRIBUTES, DEFAULT_CRITERIA
 
     client = _client()
     res = client.post(

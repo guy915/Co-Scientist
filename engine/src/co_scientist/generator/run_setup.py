@@ -14,6 +14,7 @@ import logging
 import os
 import time
 import uuid
+from dataclasses import dataclass, field
 from typing import Any
 
 from co_scientist.agents.generation.coordinator_strategy import (
@@ -21,8 +22,62 @@ from co_scientist.agents.generation.coordinator_strategy import (
     TOOLS_REQUIRING_STRATEGIES,
 )
 from co_scientist.config.registry import parse_bool_env
+from co_scientist.constants import ELO_K_FACTOR
 from co_scientist.offline.llm import is_offline_model
 from co_scientist.research_adapter.budget import tier_researches
+
+
+@dataclass(frozen=True)
+class GeneratorOptions:
+    """Optional generator configuration beyond the core run-size knobs.
+
+    Every field defaults to the generator's historical default, so
+    ``GeneratorOptions()`` reproduces the old all-defaults constructor.
+
+    Attributes:
+        supervisor_model_name: Model for the supervisor and meta-review
+            steps (None = use the generator's ``model_name``).
+        tournament_pairs: Number of Elo tournament comparisons per ranking.
+        elo_k_factor: Rating sensitivity applied to every committed match.
+        literature_review_papers_count: Number of papers to read/analyze.
+        enable_cache: Enable/disable LLM response caching for this
+            generator's own calls (None = the process default from
+            ``COSCIENTIST_CACHE_ENABLED``). Scoped to this generator's own
+            execution via ``cache.scoped_cache_override`` rather than
+            mutating that env var, so it never disables caching for another
+            generator running in the same process.
+        cache_dir: Directory for cache files (None = use default).
+        tools_config: Path to custom tools YAML config file (None =
+            use defaults).
+        disable_tools: Tool IDs to disable (None = use all enabled tools).
+        budget: Optional serialized ``scheduling.Budget`` (keys
+            ``max_iterations``/``max_llm_calls``/``max_tasks``/
+            ``max_wall_clock_s``) giving the adaptive scheduler hard
+            termination ceilings beyond ``max_iterations``. None derives a
+            budget from ``max_iterations`` alone.
+        api_key: Bring-your-own-key provider credential for the run. When
+            set, every completion the run makes passes it to litellm as
+            the per-call ``api_key``, overriding the deployment's
+            environment credential for this generator's execution only --
+            no env mutation, no process-wide state. The key is held on the
+            instance and scoped into a task-local contextvar around
+            execution; it is never placed in the workflow state, so it
+            cannot enter a checkpoint. Caching is force-disabled for such
+            runs (cache keys carry no credential, so a shared cache could
+            replay one tenant's responses into another's run).
+    """
+
+    supervisor_model_name: str | None = None
+    tournament_pairs: int = 12
+    elo_k_factor: int = ELO_K_FACTOR
+    literature_review_papers_count: int = 8
+    enable_cache: bool | None = None
+    cache_dir: str | None = None
+    tools_config: str | None = None
+    disable_tools: list[str] | None = None
+    budget: dict[str, Any] | None = field(default=None)
+    api_key: str | None = None
+
 
 logger = logging.getLogger(__name__)
 

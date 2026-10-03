@@ -1,16 +1,15 @@
 import {useMemo} from 'react';
-import {
-  type Hypothesis,
-  type HypothesisOutcome,
-  type MatchRow,
-  type Report,
-  type ReportPayload,
-  type ResearchOverview,
-  type RunWithSummary,
+import type {
+  Hypothesis,
+  HypothesisOutcome,
+  MatchRow,
+  Report,
+  ReportPayload,
+  ResearchOverview,
+  RunWithSummary,
 } from '@/api/runs';
-import {formatDurationPhrase} from '@/lib/duration';
+import {formatDurationPhrase, readableText} from '@/lib/text';
 import {sortByEloDesc} from '@/lib/hypotheses';
-import {readableText} from '@/lib/text';
 import {
   AgentInsightsSection,
   DegradedSectionNotice,
