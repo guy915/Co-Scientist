@@ -469,8 +469,6 @@ def test_round_trip_build_then_resolve() -> None:
 
 
 def test_hypothesis_from_llm_output_carries_authored_title() -> None:
-    """Coverage is owed only to reviewed ideas; new entrants first owe a
-    review."""
     hyp = hypothesis_from_llm_output(
         {
             "hypothesis": "X inhibits Y.",
@@ -483,8 +481,6 @@ def test_hypothesis_from_llm_output_carries_authored_title() -> None:
 
 
 def test_hypothesis_from_llm_output_defaults_missing_title() -> None:
-    """Coverage is owed only to reviewed ideas; new entrants first owe a
-    review."""
     hyp = hypothesis_from_llm_output(
         {"hypothesis": "X inhibits Y."},
         sources={},
@@ -494,8 +490,6 @@ def test_hypothesis_from_llm_output_defaults_missing_title() -> None:
 
 
 def test_hypothesis_from_llm_output_carries_scene_setting() -> None:
-    """Coverage is owed only to reviewed ideas; new entrants first owe a
-    review."""
     hyp = hypothesis_from_llm_output(
         {
             "hypothesis": "X inhibits Y.",
@@ -510,8 +504,6 @@ def test_hypothesis_from_llm_output_carries_scene_setting() -> None:
 
 
 def test_hypothesis_from_llm_output_defaults_missing_scene_setting() -> None:
-    """Coverage is owed only to reviewed ideas; new entrants first owe a
-    review."""
     hyp = hypothesis_from_llm_output(
         {"hypothesis": "X inhibits Y."},
         sources={},
@@ -522,8 +514,6 @@ def test_hypothesis_from_llm_output_defaults_missing_scene_setting() -> None:
 
 
 def test_hypothesis_from_llm_output_carries_safety_and_toxicity() -> None:
-    """Coverage is owed only to reviewed ideas; new entrants first owe a
-    review."""
     hyp = hypothesis_from_llm_output(
         {
             "hypothesis": "X inhibits Y.",
@@ -536,8 +526,6 @@ def test_hypothesis_from_llm_output_carries_safety_and_toxicity() -> None:
 
 
 def test_hypothesis_from_llm_output_formats_structured_experiment() -> None:
-    """Coverage is owed only to reviewed ideas; new entrants first owe a
-    review."""
     hyp = hypothesis_from_llm_output(
         {
             "hypothesis": "X inhibits Y.",
@@ -558,8 +546,6 @@ def test_hypothesis_from_llm_output_formats_structured_experiment() -> None:
 
 
 def test_hypothesis_from_llm_output_degrades_malformed_experiment() -> None:
-    """Coverage is owed only to reviewed ideas; new entrants first owe a
-    review."""
     hyp = hypothesis_from_llm_output(
         {"hypothesis": "X inhibits Y.", "experiment": "old-style paragraph."},
         sources={},

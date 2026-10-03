@@ -465,8 +465,6 @@ def test_orchestrator_forces_review_before_budget_can_terminate() -> None:
 def test_orchestrator_does_not_touch_hypotheses_on_an_unrelated_decision() -> (
     None
 ):
-    """Coverage is owed only to reviewed ideas; new entrants first owe a
-    review."""
     hyps = [make_hypothesis(f"h{i}", elo_rating=1200) for i in range(4)]
     state = make_state(hypotheses=hyps, current_iteration=0)
 

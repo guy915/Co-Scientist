@@ -283,7 +283,6 @@ async def test_individual_missing_scores_defaults_to_overall_score(
 async def test_empty_hypotheses_returns_empty_without_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Tournament entrants require completed review stamps."""
 
     async def fail(**_: Any) -> dict[str, Any]:
         raise AssertionError("no LLM call expected for an empty pool")
@@ -299,7 +298,6 @@ async def test_empty_hypotheses_returns_empty_without_error(
 async def test_second_invocation_reviews_only_new_hypotheses(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Tournament entrants require completed review stamps."""
     calls: list[dict[str, Any]] = []
 
     async def counting_stub(**kwargs: Any) -> dict[str, Any]:
@@ -425,7 +423,6 @@ def test_valid_scores_pass_through_as_integers() -> None:
 
 
 def test_entries_match_by_hypothesis_index_not_list_order() -> None:
-    """Tournament entrants require completed review stamps."""
     entries = [_entry(3, "third"), _entry(1, "first"), _entry(2, "second")]
     matched = _match_batch_entries_to_hypotheses(entries, 3)
     assert [entry["review_summary"] for entry in matched] == [

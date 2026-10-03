@@ -394,8 +394,6 @@ async def test_progress_callback_emits_start_and_complete(
 
 
 async def test_enrich_one_hypothesis_unwraps_results_path() -> None:
-    """Coverage is owed only to reviewed ideas; new entrants first owe a
-    review."""
     hyp = make_hypothesis(text="h1", explanation="the explanation")
     enrichment = EnrichmentConfig(
         tool="cve_lookup",
@@ -422,8 +420,6 @@ async def test_enrich_one_hypothesis_unwraps_results_path() -> None:
 async def test_enrich_one_hypothesis_without_results_path_uses_raw_parsed() -> (
     None
 ):
-    """Coverage is owed only to reviewed ideas; new entrants first owe a
-    review."""
     hyp = make_hypothesis(text="h1")
     enrichment = EnrichmentConfig(tool="cve_lookup", max_results=3)
     tool_config = ToolConfig(server="s", mcp_tool_name="nvd_search")
@@ -440,8 +436,6 @@ async def test_enrich_one_hypothesis_without_results_path_uses_raw_parsed() -> (
 
 
 async def test_enrich_one_hypothesis_defaults_input_to_text() -> None:
-    """Coverage is owed only to reviewed ideas; new entrants first owe a
-    review."""
     hyp = make_hypothesis(text="fallback text")
     enrichment = EnrichmentConfig(tool="cve_lookup")
     tool_config = ToolConfig(server="s", mcp_tool_name="nvd_search")
@@ -459,8 +453,6 @@ async def test_enrich_one_hypothesis_defaults_input_to_text() -> None:
 
 
 async def test_enrich_one_hypothesis_records_error_on_failure() -> None:
-    """Coverage is owed only to reviewed ideas; new entrants first owe a
-    review."""
     hyp = make_hypothesis(text="h1")
     enrichment = EnrichmentConfig(tool="cve_lookup")
     tool_config = ToolConfig(server="s", mcp_tool_name="nvd_search")
@@ -503,8 +495,6 @@ async def test_run_one_enrichment_missing_tool_is_noop(
 
 
 async def test_run_one_enrichment_fans_out_per_hypothesis() -> None:
-    """Coverage is owed only to reviewed ideas; new entrants first owe a
-    review."""
     tool_config = ToolConfig(server="s", mcp_tool_name="nvd_search")
     mcp_client = FakeCallToolClient({"ok": True})
     hyps = [make_hypothesis(text="h1"), make_hypothesis(text="h2")]
@@ -535,8 +525,6 @@ class _EnrichmentRegistry:
 
 
 async def test_enrich_hypotheses_no_registry_is_noop() -> None:
-    """Coverage is owed only to reviewed ideas; new entrants first owe a
-    review."""
     hyps = [make_hypothesis(text="h1")]
     state = make_state(tool_registry=None)
 
@@ -546,8 +534,6 @@ async def test_enrich_hypotheses_no_registry_is_noop() -> None:
 
 
 async def test_enrich_hypotheses_no_configs_is_noop() -> None:
-    """Coverage is owed only to reviewed ideas; new entrants first owe a
-    review."""
     hyps = [make_hypothesis(text="h1")]
     state = make_state(tool_registry=_EnrichmentRegistry([]))
 
@@ -559,8 +545,6 @@ async def test_enrich_hypotheses_no_configs_is_noop() -> None:
 async def test_enrich_hypotheses_runs_each_configured_enrichment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Coverage is owed only to reviewed ideas; new entrants first owe a
-    review."""
     recorded: list[tuple[str, Any]] = []
 
     async def fake_run_one_enrichment(

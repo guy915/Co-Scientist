@@ -480,8 +480,6 @@ def test_replace_preserves_ranking_order() -> None:
 
 
 def test_append_adds_new_hypotheses() -> None:
-    """Coverage is owed only to reviewed ideas; new entrants first owe a
-    review."""
     existing = [make_hypothesis("A"), make_hypothesis("B")]
     new = [make_hypothesis("C"), make_hypothesis("D")]
     result = deduplicate_hypotheses(existing, AppendHypotheses(new))

@@ -107,8 +107,6 @@ async def test_a_tier_that_funds_no_reviews_researches_none(
 async def test_only_the_best_ranked_hypotheses_are_researched(
     tmp_path: Path, scripted: _ScriptedModel, client: FakeResearchClient
 ) -> None:
-    """Coverage is owed only to reviewed ideas; new entrants first owe a
-    review."""
     limit = reviewed_hypothesis_limit("extended")
     pool = [_viable(f"mechanism {n}", elo=1000 + n) for n in range(limit + 3)]
     state = _reflection_research_evidence_state(tmp_path, pool, tier="extended")
@@ -144,8 +142,6 @@ def test_before_any_tournament_the_review_score_decides(
 async def test_a_funded_hypothesis_researches_and_names_its_searches(
     tmp_path: Path, scripted: _ScriptedModel, client: FakeResearchClient
 ) -> None:
-    """Coverage is owed only to reviewed ideas; new entrants first owe a
-    review."""
     hypothesis = _viable("mechanism X drives fibrosis", elo=1600)
 
     found = await research_for_review(
@@ -209,8 +205,6 @@ async def test_the_first_questions_are_the_doubts_already_on_record(
 async def test_a_hypothesis_with_no_recorded_doubts_plans_its_own(
     tmp_path: Path, scripted: _ScriptedModel, client: FakeResearchClient
 ) -> None:
-    """Coverage is owed only to reviewed ideas; new entrants first owe a
-    review."""
     hypothesis = _viable("mechanism X drives fibrosis", elo=1600)
 
     found = await research_for_review(
