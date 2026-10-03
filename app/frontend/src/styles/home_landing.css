@@ -100,7 +100,7 @@ html:has(.ucs-landing) body {
 
 /* ---- Tokens ---- */
 .ucs-landing {
-  --l-bg: var(--cosci-surface-bg);
+  --l-bg: var(--cosci-bg);
   --l-surface: #f3f6fb;
   --l-ink: var(--cosci-text);
   --l-muted: #5f6368;
@@ -170,8 +170,7 @@ html:has(.ucs-landing) body {
 }
 
 .ucs-landing-hero,
-.ucs-landing-body,
-.ucs-landing-foot {
+.ucs-landing-body {
   width: min(100% - 32px, 1240px);
   margin-inline: auto;
 }
@@ -311,7 +310,9 @@ html:has(.ucs-landing) body {
   overflow: visible;
 }
 
-.ucs-landing-hero-art > path {
+.ucs-landing-hero-art > path,
+.ucs-landing-badge > svg:first-child path,
+.ucs-landing-specimen > path {
   fill: var(--tone-c);
 }
 
@@ -564,7 +565,8 @@ html:has(.ucs-landing) body {
   background: var(--l-surface);
 }
 
-.ucs-landing-diagram-svg {
+.ucs-landing-diagram-svg,
+.ucs-landing-tree svg {
   display: block;
   width: 100%;
   height: auto;
@@ -845,15 +847,12 @@ html:has(.ucs-landing) body {
   color: var(--tone-o);
 }
 
-.ucs-landing-badge > svg:first-child {
+.ucs-landing-badge > svg:first-child,
+.ucs-landing-specimen {
   display: block;
   width: 100%;
   height: auto;
   overflow: visible;
-}
-
-.ucs-landing-badge > svg:first-child path {
-  fill: var(--tone-c);
 }
 
 .ucs-landing-badge > svg:last-child {
@@ -868,13 +867,6 @@ html:has(.ucs-landing) body {
 .ucs-landing-tree {
   gap: 20px;
   margin-top: 48px;
-}
-
-.ucs-landing-tree svg {
-  display: block;
-  width: 100%;
-  height: auto;
-  font-family: var(--l-body);
 }
 
 .ucs-landing-tree-leaf rect {
@@ -1084,17 +1076,6 @@ html:has(.ucs-landing) body {
   align-items: center;
   gap: 48px;
   margin-top: 40px;
-}
-
-.ucs-landing-specimen {
-  display: block;
-  width: 100%;
-  height: auto;
-  overflow: visible;
-}
-
-.ucs-landing-specimen > path {
-  fill: var(--tone-c);
 }
 
 .ucs-landing-verdicts {

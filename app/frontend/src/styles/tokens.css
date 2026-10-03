@@ -28,14 +28,9 @@
   --cosci-muted: #747775;
   --cosci-subtle: #9aa0a6;
   --cosci-blue: #0b57d0;
-  --cosci-blue-strong: #0b57d0;
   --cosci-hover: #e9eef6;
   --cosci-shell-icon: #444746;
   --cosci-shell-hover-bg: #dfeafc;
-  --cosci-shell-hover-text: #1f1f1f;
-  --cosci-workspace-bg: #fff;
-  --cosci-surface-bg: #fff;
-  --cosci-home-heading: #1f1f1f;
 
   /* The app's one accent: the brand teal-green and the text that reads on
      it. Every surface that wants "our accent" — the logo, the logs popover —
@@ -52,69 +47,31 @@
      teal-green dot with a near-white number, and a line blending the brand
      teal with the neutral outline. */
   --cosci-step-line: color-mix(in srgb, var(--cosci-accent) 38%, #c4c7c5);
-  --cosci-step-dot-bg: var(--cosci-accent);
-  --cosci-step-dot-text: var(--cosci-accent-fg);
-  --cosci-logo-color: var(--cosci-accent);
-  --cosci-step-heading: #444746;
-  --cosci-step-text: #1f1f1f;
-  --cosci-suggestion-border: #c4c7c5;
   /* Suggestion chips read as outlined pills — transparent at rest so
      they sit on the page rather than as filled cards; hover paints a
      subtle state layer. */
   --cosci-suggestion-bg: transparent;
-  --cosci-suggestion-text: #1f1f1f;
-  --cosci-suggestion-hover-border: #c4c7c5;
-  --cosci-suggestion-hover-bg: #e9eef6;
-  --cosci-suggestion-active-bg: #e9eef6;
   --cosci-composer-border: #e9eef6;
   --cosci-composer-bg: #fff;
 
   /* Reference: box-shadow 0 2px 12px -2px surface-container-high in light,
      NO shadow in dark (form .form-elements next-gen rules). */
   --cosci-composer-shadow: 0 2px 12px -2px #e9eef6;
-  --cosci-composer-label: #747775;
-  --cosci-composer-text: #1f1f1f;
   --cosci-composer-submit: var(--cosci-teal);
   --cosci-composer-submit-disabled: #c4c7c5;
-  --cosci-source-button: #747775;
   --cosci-source-button-hover: #444746;
 
   /* Shared state-layer fill for round icon buttons (see
      ICON_BUTTON_CLASSES). */
   --cosci-icon-button-hover-bg: #f0f4f9;
-  --cosci-menu-border: #c4c7c5;
   --cosci-menu-bg: #fff;
-  --cosci-menu-text: #1f1f1f;
   --cosci-menu-row-hover: #f0f4f9;
   --cosci-menu-divider: #e9eef6;
-  --cosci-menu-icon: #747775;
-  --cosci-recents-heading: #1f1f1f;
-  --cosci-recent-card-border: transparent;
-  --cosci-recent-card-bg: #fff;
   --cosci-recent-card-hover-bg: #f8fafd;
-  --cosci-recent-card-text: #1f1f1f;
-  --cosci-recent-card-copy: #444746;
-  --cosci-recent-meta-bg: #f0f4f9;
-  --cosci-recent-meta-text: #1f1f1f;
   --cosci-recent-chip-bg: #beefbb;
-  --cosci-recent-chip-text: #1f1f1f;
-  --cosci-idea-list-border: #c4c7c5;
-  --cosci-idea-row-border: #c4c7c5;
-  --cosci-idea-row-bg: transparent;
-  --cosci-idea-row-text: var(--cosci-text);
-  --cosci-idea-row-hover-border: #c4c7c5;
-  --cosci-idea-row-hover-bg: #f0f4f9;
-  --cosci-idea-row-selected-border: #0b57d0;
   --cosci-idea-row-selected-bg: #f4faff;
   /* The reference excludes selected rows from the hover rule — no change. */
-  --cosci-idea-row-selected-hover-bg: #f4faff;
   --cosci-idea-chip-bg: #e0f4ff;
-  --cosci-idea-chip-text: #1f1f1f;
-  --cosci-idea-title-text: #1f1f1f;
-  --cosci-idea-preview-text: var(--cosci-text);
-  --cosci-idea-breadcrumb-bg: #f0f4f9;
-  --cosci-idea-breadcrumb-text: #1f1f1f;
-  --cosci-idea-detail-text: var(--cosci-text);
 }
 
 :root[data-theme='dark'] {
@@ -131,15 +88,10 @@
   --cosci-muted: #c4c7c5;
   --cosci-subtle: #8e918f;
   --cosci-blue: #a8c7fa;
-  --cosci-blue-strong: #a8c7fa;
   --cosci-hover: #282a2c;
   --cosci-green: #68d0c0;
   --cosci-shell-icon: var(--cosci-muted);
   --cosci-shell-hover-bg: #282a2c;
-  --cosci-shell-hover-text: var(--cosci-text);
-  --cosci-workspace-bg: var(--cosci-bg);
-  --cosci-surface-bg: var(--cosci-bg);
-  --cosci-home-heading: #fff;
 
   /* Dark: the accent is the mint green (matching the submit button), with a
      near-black text color on it; the step line blends mint with the dark
@@ -151,70 +103,32 @@
     var(--cosci-accent) 52%,
     var(--cosci-border)
   );
-  --cosci-step-dot-bg: var(--cosci-accent);
-  --cosci-step-dot-text: var(--cosci-accent-fg);
-  --cosci-logo-color: var(--cosci-accent);
-  --cosci-step-heading: var(--cosci-muted);
-  --cosci-step-text: var(--cosci-text);
-  --cosci-suggestion-border: var(--cosci-border);
   --cosci-suggestion-bg: transparent;
-  --cosci-suggestion-text: var(--cosci-text);
-  --cosci-suggestion-hover-border: var(--cosci-border);
-  --cosci-suggestion-hover-bg: #282a2c;
-  --cosci-suggestion-active-bg: #282a2c;
   /* Dark composer: surface-container fill, no border, NO shadow (the
      reference's dark next-gen form zeroes the box-shadow). */
   --cosci-composer-border: transparent;
   --cosci-composer-bg: var(--cosci-panel);
   --cosci-composer-shadow: none;
-  --cosci-composer-label: var(--cosci-muted);
-  --cosci-composer-text: var(--cosci-text);
   --cosci-composer-submit: var(--cosci-green);
   --cosci-composer-submit-disabled: var(--cosci-subtle);
-  --cosci-source-button: var(--cosci-muted);
   --cosci-source-button-hover: var(--cosci-text);
   --cosci-icon-button-hover-bg: #282a2c;
-  --cosci-menu-border: #444746;
   --cosci-menu-bg: #282a2c;
-  --cosci-menu-text: var(--cosci-text);
   --cosci-menu-row-hover: #333537;
   --cosci-menu-divider: #444746;
-  --cosci-menu-icon: var(--cosci-muted);
-  --cosci-recents-heading: var(--cosci-text);
 
   /* Recents card dark: surface-container fill on the #131314 canvas; hover
      LIGHTENS to the shared dark hover fill (#282a2c, matching the rail,
      suggestions, and icon buttons) so the state layer reads as a highlight
      rather than sinking darker into the canvas. Chips surface-container-highest,
      winning chip green90's dark value #006c35 with on-surface text. */
-  --cosci-recent-card-border: transparent;
-  --cosci-recent-card-bg: #1e1f20;
   --cosci-recent-card-hover-bg: #282a2c;
-  --cosci-recent-card-text: var(--cosci-text);
-  --cosci-recent-card-copy: var(--cosci-muted);
-  --cosci-recent-meta-bg: #333537;
-  --cosci-recent-meta-text: var(--cosci-text);
   --cosci-recent-chip-bg: #006c35;
-  --cosci-recent-chip-text: var(--cosci-text);
-  --cosci-idea-list-border: var(--cosci-border);
-  --cosci-idea-row-border: var(--cosci-border);
-  --cosci-idea-row-bg: transparent;
-  --cosci-idea-row-text: var(--cosci-text);
-  --cosci-idea-row-hover-border: var(--cosci-border);
-  --cosci-idea-row-hover-bg: #1e1f20;
   /* Ideas list dark: selected row = blue-variant98's dark value #003d64 with
      primary #a8c7fa border; rank/Elo chips = blue-variant95's dark value
      #133043; breadcrumb chips = surface-container; all text on-surface. */
-  --cosci-idea-row-selected-border: #a8c7fa;
   --cosci-idea-row-selected-bg: #003d64;
-  --cosci-idea-row-selected-hover-bg: #003d64;
   --cosci-idea-chip-bg: #133043;
-  --cosci-idea-chip-text: var(--cosci-text);
-  --cosci-idea-title-text: var(--cosci-text);
-  --cosci-idea-preview-text: var(--cosci-text);
-  --cosci-idea-breadcrumb-bg: #1e1f20;
-  --cosci-idea-breadcrumb-text: var(--cosci-text);
-  --cosci-idea-detail-text: var(--cosci-text);
 
   background: var(--cosci-bg);
 }
@@ -234,13 +148,12 @@ body {
     #1a6b5e;
 }
 
-/* Semantic component tokens.
+/* Shared component colors.
  *
- * Every themed component surface — alerts, attachments, toasts, logs, radio
- * option cards, buttons, chat bubbles — is defined here ONCE PER MODE as a
- * --cosci-* token pair: light values in :root, dark values in the
- * :root[data-theme="dark"] block. Components reference the token with NO
- * dark: variant, so a surface's light/dark appearance lives in one place.
+ * Components use semantic Tailwind utilities from index.css. Utilities with
+ * the same light/dark color pair reference one canonical palette token here,
+ * so their values stay together without repeated declarations. Components
+ * need no dark: variant; the shared pair owns both modes.
  *
  * Two rules when adding tokens:
  *  1. Alias baseline tokens (var()/color-mix() over the palette in
@@ -262,9 +175,6 @@ body {
 
   /* Attachment cards. The extension badge keeps one mid-grey in both themes
      (white label text stays legible on it either way). */
-  --cosci-attach-bg: #f0f4f9;
-  --cosci-attach-fg: #1f1f1f;
-  --cosci-attach-meta: #444746;
   --cosci-attach-badge: #7d8797;
 
   /* Center toast + raised action pill (toast = MD3 inverse surface pair).
@@ -273,17 +183,13 @@ body {
   --cosci-toast-bg: #303030;
   --cosci-toast-fg: #f2f2f2;
   --cosci-toast-action: #a8c7fa;
-  --cosci-surface-raised: #fff;
 
   /* Skeleton loaders */
-  --cosci-skeleton-bg: #f0f4f9;
 
   /* Diagnostics / Logs — every value aliases an existing baseline token, no
      bespoke hex. The teal tonal is the app's one green; surface/border/text/
      meta reuse the neutral scale. Because those tokens already re-theme, the
      logs need no dark-mode overrides. */
-  --cosci-logs-accent-bg: var(--cosci-accent);
-  --cosci-logs-accent-fg: var(--cosci-accent-fg);
   --cosci-logs-accent-hover: color-mix(
     in srgb,
     var(--cosci-accent) 88%,
@@ -294,88 +200,49 @@ body {
     var(--cosci-accent-fg) 16%,
     transparent
   );
-  --cosci-logs-action-border: var(--cosci-accent);
-  --cosci-logs-action-bg: transparent;
-  --cosci-logs-action-fg: var(--cosci-accent);
   --cosci-logs-action-hover: color-mix(
     in srgb,
     var(--cosci-accent) 10%,
     transparent
   );
-  --cosci-logs-surface: var(--cosci-surface-raised);
-  --cosci-logs-border: var(--cosci-border);
-  --cosci-logs-heading: var(--cosci-text);
-  --cosci-logs-meta: var(--cosci-muted);
-  --cosci-logs-panel-bg: var(--cosci-hover);
-  --cosci-logs-panel-fg: var(--cosci-muted);
-  --cosci-logs-code-fg: var(--cosci-text);
-  --cosci-logs-danger-bg: var(--cosci-danger-bg);
-  --cosci-logs-danger-fg: var(--cosci-danger-fg);
-  --cosci-logs-warn-bg: var(--cosci-warning-bg);
-  --cosci-logs-warn-fg: var(--cosci-warning-fg);
 
   /* Radio option cards */
-  --cosci-option-bg: #fff;
-  --cosci-option-hover-bg: #e9eef6;
-  --cosci-option-hover-border: #c4c7c5;
   --cosci-option-marker: #747775;
-  --cosci-option-marker-on: #0b57d0;
 
   /* Buttons. Filled = md-filled-button (primary fill); outlined =
      md-outlined-button (outline-colored border, primary label) per the
      reference's Cancel/Start-session pair. */
-  --cosci-btn-primary-bg: #0b57d0;
   --cosci-btn-primary-fg: #fff;
   --cosci-btn-primary-hover: #0842a0;
-  --cosci-btn-outline-border: #747775;
-  --cosci-btn-outline-fg: #0b57d0;
   --cosci-btn-outline-hover-bg: rgb(11 87 208 / 8%);
   --cosci-btn-secondary-border: #747775;
-  --cosci-btn-secondary-fg: #444746;
-  --cosci-btn-secondary-hover-bg: #f0f4f9;
-  --cosci-btn-disabled-border: #c4c7c5;
-  --cosci-btn-disabled-bg: #f0f4f9;
-  --cosci-btn-disabled-fg: #747775;
 
   /* Composer source-menu toggles */
   --cosci-toggle-on-track: #d3e3fd;
-  --cosci-toggle-on-knob: #0b57d0;
   --cosci-toggle-off-track: #e1e3e1;
-  --cosci-toggle-off-knob: #747775;
 
   /* Selected tinted row (settings section rail, theme segment, affiliation
      option): the shell's shared blue selection tint, inverted in dark. */
-  --cosci-selected-row-bg: #d3e3fd;
   --cosci-selected-row-fg: #0b57d0;
 
   /* Chat bubbles + setup document (reference: user bubble =
      surface-container-high; setup .plan-details = surface-container light,
      surface-container-highest dark) */
-  --cosci-user-bubble-bg: #e9eef6;
   /* Hover state layer for icon buttons that sit ON the bubble (the expand
      toggle): --cosci-hover equals the bubble bg, so it needs its own shade. */
   --cosci-user-bubble-hover: #dbe2ee;
-  --cosci-setup-doc-bg: #f0f4f9;
 
   /* References "Open" pill — neutral outlined pill (external-link icon) that
      matches the report/knowledge-base reference rows in the captures. Aliases
      the neutral scale so it re-themes without bespoke dark values. */
-  --cosci-reference-open-border: var(--cosci-border);
-  --cosci-reference-open-fg: var(--cosci-text);
-  --cosci-reference-open-hover-bg: var(--cosci-hover);
-  --cosci-reference-open-hover-border: var(--cosci-muted);
 
   /* Global scrollbar thumb (index.css). Bespoke grey ramp — the dark
      values don't line up with any existing neutral token pair. */
   --cosci-scrollbar-thumb: #bdc1c6;
-  --cosci-scrollbar-thumb-hover: #747775;
 
   /* Tooltips — an inverse surface like the center toast: bg/fg alias the
      toast pair, and the border is the neutral border inverted (dark-mode
      border shade while the app is light, and vice versa). */
-  --cosci-tooltip-border: #444746;
-  --cosci-tooltip-bg: var(--cosci-toast-bg);
-  --cosci-tooltip-fg: var(--cosci-toast-fg);
 
   /* Settings dialog surfaces: the theme segment track and the section
      cards share a light tint but diverge in dark. */
@@ -395,7 +262,6 @@ body {
      against --cosci-hover in its own mode (measured against #e9eef6 light /
      #282a2c dark). */
   --cosci-code-comment: #5f6368;
-  --cosci-code-keyword: var(--cosci-blue);
   --cosci-code-string: #146c2e;
   --cosci-code-title: #7c3fa6;
   --cosci-code-number: #9a5b16;
@@ -410,54 +276,30 @@ body {
   --cosci-warning-bg: #3a2113;
   --cosci-warning-fg: #ffb787;
 
-  --cosci-attach-bg: #333537;
-  --cosci-attach-fg: #fff;
-  --cosci-attach-meta: #c4c7c5;
 
   --cosci-toast-bg: #e3e3e3;
   --cosci-toast-fg: #303030;
   --cosci-toast-action: #0b57d0;
-  --cosci-surface-raised: #1e1f20;
 
-  --cosci-skeleton-bg: #282a2c;
 
-  --cosci-option-bg: #1e1f20;
-  --cosci-option-hover-bg: #282a2c;
-  --cosci-option-hover-border: #444746;
   --cosci-option-marker: #8e918f;
-  --cosci-option-marker-on: #a8c7fa;
 
   /* MD3 dark filled buttons invert: primary #a8c7fa fill, on-primary #062e6f
      label. Outlined keeps the outline-colored border with a primary label. */
-  --cosci-btn-primary-bg: #a8c7fa;
   --cosci-btn-primary-fg: #062e6f;
   --cosci-btn-primary-hover: #9bbbef;
-  --cosci-btn-outline-border: #8e918f;
-  --cosci-btn-outline-fg: #a8c7fa;
   --cosci-btn-outline-hover-bg: rgb(168 199 250 / 8%);
   --cosci-btn-secondary-border: var(--cosci-border);
-  --cosci-btn-secondary-fg: var(--cosci-text);
-  --cosci-btn-secondary-hover-bg: #282a2c;
-  --cosci-btn-disabled-border: #444746;
-  --cosci-btn-disabled-bg: #282a2c;
-  --cosci-btn-disabled-fg: #8e918f;
 
   --cosci-toggle-on-track: #0842a0;
-  --cosci-toggle-on-knob: #a8c7fa;
   --cosci-toggle-off-track: #444746;
-  --cosci-toggle-off-knob: #8e918f;
 
-  --cosci-selected-row-bg: #0842a0;
   --cosci-selected-row-fg: #d3e3fd;
 
-  --cosci-user-bubble-bg: #282a2c;
   --cosci-user-bubble-hover: #34363a;
-  --cosci-setup-doc-bg: #333537;
 
   --cosci-scrollbar-thumb: #444746;
-  --cosci-scrollbar-thumb-hover: #8e918f;
 
-  --cosci-tooltip-border: #c4c7c5;
 
   --cosci-settings-segment-bg: #1b1b1b;
   --cosci-settings-card-bg: #1e1f20;
@@ -465,7 +307,6 @@ body {
   --cosci-run-step-done: var(--cosci-green);
 
   --cosci-code-comment: #9aa0a6;
-  --cosci-code-keyword: var(--cosci-blue);
   --cosci-code-string: #7ee787;
   --cosci-code-title: #d9a8ff;
   --cosci-code-number: #ffb787;
@@ -499,7 +340,7 @@ body {
 .hljs-section,
 .hljs-link,
 .hljs-operator {
-  color: var(--cosci-code-keyword);
+  color: var(--cosci-blue);
 }
 
 .hljs-string,
