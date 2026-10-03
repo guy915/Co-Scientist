@@ -31,12 +31,7 @@ export interface Run {
   title?: string | null;
   run_mode?: 'standard' | 'advanced' | 'express' | 'extended' | 'ultra';
   profile:
-    | 'standard'
-    | 'advanced'
-    | 'express'
-    | 'extended'
-    | 'ultra'
-    | 'default';
+    'standard' | 'advanced' | 'express' | 'extended' | 'ultra' | 'default';
   status: RunStatus;
   provider: 'mock' | 'engine';
   config: RunConfig;
@@ -90,12 +85,7 @@ export interface RunWithSummary {
   title?: string | null;
   run_mode?: 'standard' | 'advanced' | 'express' | 'extended' | 'ultra';
   profile:
-    | 'standard'
-    | 'advanced'
-    | 'express'
-    | 'extended'
-    | 'ultra'
-    | 'default';
+    'standard' | 'advanced' | 'express' | 'extended' | 'ultra' | 'default';
   status: RunStatus;
   provider: 'mock' | 'engine';
   config: RunConfig;
