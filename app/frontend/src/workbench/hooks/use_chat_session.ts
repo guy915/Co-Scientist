@@ -14,7 +14,7 @@ import type {InferredRunSpec} from '../run_spec';
 import type {Interview, StagedDocument} from '@/api/runs';
 import type {ChatEntry} from '../pages/chat_timeline_bubble';
 import type {StartedSession} from '../pages/chat_timeline_run_spec_card';
-import type {ToastSetter} from './use_toast';
+import type {ToastSetter} from './timers';
 
 /**
  * Owns the chat workspace's session state machine: the composer input, the

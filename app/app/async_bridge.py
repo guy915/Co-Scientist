@@ -35,7 +35,10 @@ schedules each awaited coroutine independently on it.
 to one dedicated thread and awaits it, so the durable task's own event
 loop -- and the lease heartbeat renewing on it -- stays responsive for
 the wave's duration.
-schedules each awaited coroutine independently on it.
+
+``run_in_scoped_loop`` closes temporary cohort loops after stopping the
+LiteLLM logging worker when that worker belongs to the same loop. Other
+loops keep their own tasks; orphaned worker noise is handled in logging capture.
 """
 
 from __future__ import annotations
@@ -43,10 +46,13 @@ from __future__ import annotations
 import asyncio
 import contextvars
 import functools
+import logging
 import threading
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Coroutine
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, TypeVar
+
+logger = logging.getLogger(__name__)
 
 _T = TypeVar("_T")
 
@@ -147,3 +153,70 @@ async def run_off_loop(call: Callable[[], _T]) -> _T:
     loop = asyncio.get_running_loop()
     with ThreadPoolExecutor(max_workers=1) as host:
         return await loop.run_in_executor(host, propagate_context(call))
+
+
+# Ceiling on the worker's own shutdown. ``stop()`` cancels the loop task,
+# whose CancelledError handler drains the queue under litellm's own 5s cap,
+# so this only guards against a callback that ignores cancellation -- a
+# cohort's exit must not wait on one.
+_STOP_TIMEOUT_SECONDS = 10.0
+
+
+async def stop_litellm_logging_worker() -> None:
+    """Stop litellm's logging worker when it belongs to the running loop.
+
+    Skips the shutdown when the worker is bound elsewhere: several cohort
+    loops are live at once in this process, on different threads, and
+    cancelling a task that belongs to another loop is the same
+    cross-loop trap the ranking semaphore hit (AGENTS.md: "No
+    process-global asyncio primitives"). The loop that does own it runs
+    this on its own way out.
+
+    Best effort throughout -- this is logging plumbing, and a failure
+    here must never become the outcome of the work it followed.
+    """
+    try:
+        from litellm.litellm_core_utils.logging_worker import (
+            GLOBAL_LOGGING_WORKER,
+        )
+    except Exception:
+        logger.debug("litellm logging worker unavailable", exc_info=True)
+        return
+
+    # ``_bound_loop`` is private, but it is the only record litellm keeps of
+    # which loop the worker's task was created on, and reading it is what
+    # makes the guard above possible.
+    bound_loop = getattr(GLOBAL_LOGGING_WORKER, "_bound_loop", None)
+    if bound_loop is not asyncio.get_running_loop():
+        return
+
+    try:
+        await asyncio.wait_for(
+            GLOBAL_LOGGING_WORKER.stop(), timeout=_STOP_TIMEOUT_SECONDS
+        )
+    except Exception:
+        logger.debug(
+            "Stopping the litellm logging worker failed", exc_info=True
+        )
+
+
+def run_in_scoped_loop(coro: Coroutine[Any, Any, _T]) -> _T:
+    """Run ``coro`` on a private loop, closing litellm's worker with it.
+
+    Drop-in replacement for ``asyncio.run`` at every site that opens a
+    loop this process will later discard.
+
+    Args:
+        coro: The coroutine to drive to completion.
+
+    Returns:
+        Whatever ``coro`` returns.
+    """
+
+    async def _runner() -> _T:
+        try:
+            return await coro
+        finally:
+            await stop_litellm_logging_worker()
+
+    return asyncio.run(_runner())

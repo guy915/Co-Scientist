@@ -26,7 +26,7 @@ What it scores, per persisted run:
 provider key and no MCP server a driven run does no research at all, so
 scoring one would measure an empty set and report a perfect score. The
 default instead persists a synthetic ledger through the real writer
-(``app.research_provenance`` into ``store.add_retrieval_calls``), which
+(``store.retrieval_call_rows`` into ``store.add_retrieval_calls``), which
 exercises the serialization and the schema but not any model or network.
 ``--run <id>`` scores a real run already in the store, which is the mode
 that says anything about production. Every artifact records which mode
@@ -126,12 +126,12 @@ def score_synthetic(db_path: str) -> dict[str, Any]:
     insert the drain uses, so a change that breaks replayability breaks
     this without needing a provider key or a search service.
     """
-    from app import research_provenance, store
+    from app import store
 
     run = store.create_run(_SYNTHETIC_GOAL, "extended", "engine", {})
     result = _synthetic_result()
     store.add_retrieval_calls(
-        research_provenance.retrieval_call_rows(run.id, result),
+        store.retrieval_call_rows(run.id, result),
         db_path=db_path,
     )
     for finding in result.findings:

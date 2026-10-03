@@ -1,7 +1,11 @@
 # Tooling configuration only — evaluations/ is not an installable package.
-# It runs from the repo root as a plain package (see pytest.ini). The ruff
+# It runs from the repo root as a plain package. The ruff
 # and mypy settings mirror engine/ and app/ (Google style, 80 columns,
 # strict typing) so `make lint` / `make typecheck` cover this directory.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
 
 [tool.ruff]
 line-length = 80

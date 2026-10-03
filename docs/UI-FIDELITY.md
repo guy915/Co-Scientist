@@ -1,7 +1,7 @@
 # UI Fidelity Audit — replica vs. reference
 
 > **Precedence:** the authoritative gap analysis is
-> [`fidelity-audit/`](fidelity-audit/README.md) — it does not credit this
+> [`fidelity-audit/`](fidelity-audit/FINDINGS.md) — it does not credit this
 > document as evidence, and where the two disagree, it wins. Read that first;
 > this file remains useful as narrative background.
 

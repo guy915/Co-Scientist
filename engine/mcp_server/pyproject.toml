@@ -51,7 +51,6 @@ packages = [
     "mcp_server.tools",
     "mcp_server.tools.indra_cogex",
     "mcp_server.tools.lit_review",
-    "mcp_server.tools.web",
 ]
 
 [tool.setuptools.package-dir]

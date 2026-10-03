@@ -130,7 +130,7 @@ def _monitor_halt_decision(state: dict[str, Any]) -> SafetyDecision:
     whose record did not survive the checkpoint still blocks, on the
     generic reason: the flag is the decision, the record only its detail.
     """
-    from co_scientist.agents.safety.safety_monitor import MONITOR_STAGE
+    from co_scientist.agents.safety import MONITOR_STAGE
 
     records = [
         item

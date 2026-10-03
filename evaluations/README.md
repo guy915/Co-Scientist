@@ -49,7 +49,7 @@ the baseline used by the parity gate remains local.
   checks that every evidence row naming a search resolves to one, and
   checks that everything a call admitted or dropped appears in the hits it
   recorded. Offline by default, persisting a synthetic ledger through the
-  real writer (`app.research_provenance` → `store.add_retrieval_calls`) --
+  real writer (`store.retrieval_call_rows` → `store.add_retrieval_calls`) --
   a driven offline run does no research at all, so scoring one would
   measure an empty set and report a perfect score. `--run <id>` scores a
   real persisted run, which is the mode that says anything about
@@ -164,7 +164,7 @@ the baseline used by the parity gate remains local.
   CORS, ownership isolation, MCP/SMTP status disclosure, sanitized share
   404). GET/OPTIONS only, never wired into CI (hermetic-CI forbids live
   network -- see `docs/CI.md`); run it by hand before/after a release. Its
-  own unit tests (`tests/test_prod_smoke.py`) exercise the check logic
+  own unit tests (`tests/test_live_smoke.py`) exercise the check logic
   offline via `httpx.MockTransport`.
 - `mcp_live_smoke.py` — another deliberate exception: a live contract +
   rate-limit smoke against the real PubMed (NCBI E-utilities), OpenAlex, and
@@ -173,7 +173,7 @@ the baseline used by the parity gate remains local.
   a well-formed HTTP response rather than a crash. `engine/mcp_server`'s own
   suite fakes every HTTP client (correctly, for hermetic CI) and so cannot
   catch either. Also never wired into CI; its own unit tests
-  (`tests/test_mcp_live_smoke.py`) exercise the check logic offline via a
+  (`tests/test_live_smoke.py`) exercise the check logic offline via a
   monkeypatched transport.
 - `datasets/` — versioned, synthetic, legally shareable labeled sets.
 - `results/` — dated machine-readable result artifacts.

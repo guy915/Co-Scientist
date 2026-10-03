@@ -33,18 +33,16 @@ from co_scientist.prompts.generation_draft import (
     format_user_hypotheses,
     get_draft_prompt_with_tools,
 )
-from co_scientist.prompts.generation_validation import (
-    ValidationSynthesisRequest,
-    get_hypothesis_novelty_analysis_prompt,
-    get_validation_synthesis_prompt_with_tools,
-)
 from co_scientist.prompts.literature import (
     LiteratureQueryInputs,
+    ValidationSynthesisRequest,
+    get_hypothesis_novelty_analysis_prompt,
     get_hypothesis_query_generation_prompt,
     get_literature_review_paper_analysis_prompt,
     get_literature_review_query_generation_prompt,
     get_literature_review_relevance_batch_prompt,
     get_literature_review_synthesis_prompt,
+    get_validation_synthesis_prompt_with_tools,
 )
 from co_scientist.prompts.loading import (
     get_prompt_save_path,

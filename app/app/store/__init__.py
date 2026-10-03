@@ -150,10 +150,14 @@ from app.store.records import (
     safety_stage_is_approved,
 )
 from app.store.reports import (
+    create_report_share,
     get_latest_report,
     list_knowledge_facts,
+    list_report_shares,
     read_report_markdown,
     replace_knowledge_facts,
+    resolve_report_share,
+    revoke_report_share,
     save_report,
 )
 from app.store.retrieval_calls import (
@@ -161,6 +165,7 @@ from app.store.retrieval_calls import (
     add_retrieval_calls,
     get_run_metrics,
     list_retrieval_calls,
+    retrieval_call_rows,
     save_run_metrics,
 )
 from app.store.runs import (
@@ -192,12 +197,6 @@ from app.store.runs_views import (
     list_expired_terminal_runs,
     list_runs,
     reconcile_interrupted_runs,
-)
-from app.store.shares import (
-    create_report_share,
-    list_report_shares,
-    resolve_report_share,
-    revoke_report_share,
 )
 from app.store.supervisor_plan import (
     NewSupervisorPlan,
@@ -381,6 +380,7 @@ __all__ = [
     "resolve_report_share",
     "resolve_safety_decision",
     "resume_run_tasks",
+    "retrieval_call_rows",
     "retry_task",
     "review_exists",
     "revive_task_for_retry",

@@ -28,7 +28,7 @@ from typing import Any
 
 from app import store
 from app.config import any_provider_credential, settings
-from app.engine_adapter.provider import _engine_importable
+from app.engine_adapter import _engine_importable
 from app.store.db import default_db_path
 from app.store.tasks import queue_health_snapshot
 

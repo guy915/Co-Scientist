@@ -143,7 +143,7 @@ export const DESKTOP_VIEWPORT: Viewport = {width: 1440, height: 720};
 export const MOBILE_VIEWPORT: Viewport = {width: 390, height: 780};
 
 // Screenshots are build artifacts, not tracked docs assets: write them under
-// e2e/test-results/, which e2e/.gitignore already covers, so a local run never
+// e2e/test-results/, which the root .gitignore already covers, so a local run never
 // leaves untracked PNGs in docs/assets/ for a later `git add -A` to pick up.
 function assetPath(name: string): string {
   return fileURLToPath(new URL(`../test-results/${name}`, import.meta.url));

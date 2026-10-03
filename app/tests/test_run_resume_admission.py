@@ -1105,7 +1105,7 @@ def test_an_unscreened_row_does_not_suppress_the_engine_safety_screen(
     A non-None ``safety_status`` tells the engine's screen the hypothesis
     is already decided, so the placeholder must not travel as one.
     """
-    from co_scientist.agents.safety.safety_screen import (
+    from co_scientist.agents.safety import (
         _screen_one_hypothesis,
     )
 

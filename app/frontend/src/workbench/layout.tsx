@@ -11,7 +11,7 @@ import {
 import {useLocation} from 'react-router-dom';
 import type {RunStatus} from '@/api/runs';
 import {joinClasses} from './classes';
-import {useRunHistoryContext} from './hooks/run_history_context';
+import {useRunHistoryContext} from './hooks/history_context';
 import {
   SettingsDialog,
   type SettingsSection,
@@ -24,7 +24,7 @@ import {
   sessionSwitchData,
   type SessionSwitchData,
 } from './layout_session_switch';
-import {useChatHistoryContext} from './hooks/chat_history_context';
+import {useChatHistoryContext} from './hooks/history_context';
 
 // The value returned by useLayoutChrome, threaded through the components
 // below so each only needs the single prop rather than the whole fan-out.

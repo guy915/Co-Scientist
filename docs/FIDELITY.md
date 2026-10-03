@@ -1,7 +1,7 @@
 # Fidelity to Google's AI Co-Scientist
 
 > **Precedence:** the authoritative gap analysis is
-> [`fidelity-audit/`](fidelity-audit/README.md) — it does not credit this
+> [`fidelity-audit/`](fidelity-audit/FINDINGS.md) — it does not credit this
 > document as evidence, and where the two disagree, it wins. Read that first;
 > this file remains useful as narrative background.
 
@@ -195,7 +195,7 @@ The "Towards an AI co-scientist" paper is the primary fidelity reference. The im
 -   Safety as a fail-closed gate on hazardous biomedical / chemical content
     **at the run level** (intake + final), **plus** a structured
     per-hypothesis safety review (`SAFE-PERHYP-001`). The engine-native
-    `safety_screen` node (`agents/safety/safety_screen.py`) now runs pre-ranking on
+    `safety_screen` node (`agents/safety.py`) now runs pre-ranking on
     every path — including the orchestrator's direct `rank` route — removing
     blocked hypotheses from `WorkflowState` before they reach the tournament,
     evolution, or meta-review; the app's `engine_adapter/drain/final_state.py` retains a

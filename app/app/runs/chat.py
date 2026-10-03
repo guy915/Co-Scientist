@@ -24,7 +24,7 @@ from app import (
     run_start_announcement,
     store,
 )
-from app.api_contracts.responses import MessagesResponse
+from app.api_contracts import MessagesResponse
 from app.api_contracts.runs import RunMessage
 from app.execution_policy import CAMPAIGN, campaign_model_for_config
 from app.runs.models import (

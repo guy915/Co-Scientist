@@ -1,24 +1,22 @@
-"""Safety screen node - pre-ranking per-hypothesis safety gate.
+"""Per-hypothesis screening and monitoring of the research direction.
 
-Runs after review and before ranking (and before any direct orchestrator
-route to ranking) so an unsafe hypothesis never enters the tournament,
-evolution parent set, meta-review, or final report. The node:
-
-1. Screens every hypothesis in the pool against the safety classifier.
-2. Removes blocked hypotheses (PROHIBITED, ETHICAL_CONCERN, UNCERTAIN)
-   from the pool via ReplaceHypotheses.
-3. Holds UNCERTAIN hypotheses in ``held_for_review`` (full dict, not a
-   stub) so the app can surface them for manual review.
-4. Redacts operational-detail fields for DUAL_USE/REDACT outcomes on
-   hypotheses that remain in the pool.
-5. Records an audit trail in ``safety_decisions``.
+Safety is a cross-cutting concern alongside the six scientific agents.
+The ``safety_screen`` node keeps blocked hypotheses out of the tournament,
+holds uncertain hypotheses for manual review, and redacts dual-use details.
+The meta-review node calls ``monitor_research_direction`` after each synthesis
+to halt a run whose direction reaches content the final report gate blocks.
+Both paths retain their existing audit records and graph node keys.
 """
+
+from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Mapping
 from typing import Any, NamedTuple
 
 from co_scientist.constants import (
+    PROGRESS_META_REVIEW_COMPLETE,
     PROGRESS_SAFETY_SCREEN_COMPLETE,
     PROGRESS_SAFETY_SCREEN_START,
 )
@@ -26,13 +24,22 @@ from co_scientist.models import Hypothesis, create_metrics_update, phase_message
 from co_scientist.progress import emit_progress
 from co_scientist.prompts._common import _format_meta_review_context
 from co_scientist.safety import (
+    ContentSafetyReview,
     SafetyOutcome,
     redact_hypothesis_fields,
+    review_content_safety,
     review_hypothesis_safety,
 )
 from co_scientist.state import ReplaceHypotheses, WorkflowState
 
 logger = logging.getLogger(__name__)
+
+__all__ = [
+    "MONITOR_STAGE",
+    "monitor_research_direction",
+    "review_direction_safety",
+    "safety_screen_node",
+]
 
 
 def _screen_text(h: Hypothesis) -> str:
@@ -268,3 +275,126 @@ async def safety_screen_node(
     )
 
     return _build_screen_result(hypotheses, outcome, state, elapsed)
+
+
+# Stage recorded on the monitor's audit entry. Distinct from the
+# per-hypothesis screen's records, which are keyed by hypothesis id: this one
+# is about the run's direction and names no single idea.
+MONITOR_STAGE = "research_direction"
+
+# Overview fields the monitor reads. Every part of the synthesis the model
+# writes prose into -- a direction that drifted shows up in the
+# recommendations at least as often as in the summary, and reading only the
+# summary would miss it.
+_MONITORED_FIELDS: tuple[str, ...] = (
+    "summary",
+    "common_strengths",
+    "common_weaknesses",
+    "emerging_themes",
+    "strategic_recommendations",
+)
+
+
+def _field_text(value: Any) -> str:
+    """Flatten one overview field into screenable text.
+
+    Handles both shapes a field can arrive in: a string, or a list of them.
+    Anything else is stringified rather than skipped -- production runs
+    structured output through providers that do not enforce the schema, and a
+    field that came back as a dict still has to be screened.
+    """
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return " ".join(_field_text(item) for item in value)
+    return "" if value is None else str(value)
+
+
+def _direction_text(meta_review: Mapping[str, Any] | None) -> str:
+    """Concatenate the monitored fields of one meta-review overview."""
+    overview = meta_review or {}
+    return " ".join(
+        _field_text(overview.get(field)) for field in _MONITORED_FIELDS
+    ).strip()
+
+
+def review_direction_safety(
+    meta_review: Mapping[str, Any] | None,
+) -> ContentSafetyReview:
+    """Screen the run's synthesized direction under the report gate's policy.
+
+    Args:
+        meta_review: The overview the meta-review node just assembled.
+
+    Returns:
+        The policy decision: ``block`` halts the run, everything else lets
+        it continue unchanged.
+    """
+    return review_content_safety(_direction_text(meta_review), "final")
+
+
+def _halt_record(review: ContentSafetyReview) -> dict[str, Any]:
+    """Build the audit-trail entry for a halt, matching the screen's shape."""
+    return {
+        "stage": MONITOR_STAGE,
+        "outcome": review.category,
+        "reason": review.reason,
+        "matches": list(review.matches),
+        "policy_version": review.policy_version,
+    }
+
+
+def _halt_update(
+    state: WorkflowState, review: ContentSafetyReview
+) -> dict[str, Any]:
+    """Build the state delta that halts the run.
+
+    ``safety_decisions`` has no reducer, so this pass carries the existing
+    audit trail forward explicitly; ``or []`` rather than a ``.get`` default
+    because a checkpoint restore can carry an explicit None.
+    """
+    existing: list[dict[str, Any]] = state.get("safety_decisions") or []
+    return {
+        "safety_blocked": True,
+        "safety_decisions": [*existing, _halt_record(review)],
+        "messages": phase_message(
+            "safety_monitor",
+            "Run halted: the research direction reached prohibited content",
+            outcome=review.category,
+        ),
+    }
+
+
+async def monitor_research_direction(
+    state: WorkflowState, meta_review: Mapping[str, Any] | None
+) -> dict[str, Any]:
+    """Monitor one meta-review synthesis and halt the run if it must stop.
+
+    Args:
+        state: Current workflow state, for the audit trail and progress.
+        meta_review: The overview the meta-review node just assembled.
+
+    Returns:
+        The halting state delta, or an empty dict when the direction is
+        allowed -- a healthy run's state is left byte-identical.
+    """
+    review = review_direction_safety(meta_review)
+    if review.decision != "block":
+        return {}
+
+    logger.error(
+        "Safety monitor: halting the run; the research direction matches a "
+        "prohibited policy rule (matches=%s)",
+        list(review.matches),
+    )
+    # Reported at the meta-review boundary's own value: the monitor reads
+    # that node's output, and the progress numbers name phases rather than a
+    # completion fraction, so several checkpoints sharing one is the norm.
+    await emit_progress(
+        state,
+        "safety_monitor_halt",
+        "Run halted by the safety monitor",
+        PROGRESS_META_REVIEW_COMPLETE,
+        outcome=review.category,
+    )
+    return _halt_update(state, review)

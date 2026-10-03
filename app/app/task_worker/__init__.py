@@ -15,8 +15,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from app import engine_tasks, store
+from app.async_bridge import run_in_scoped_loop
 from app.config import settings
-from app.litellm_shutdown import run_in_scoped_loop
 from app.logging_setup import run_log_context
 from app.notifications import deliver_completion_notification
 from app.store import ScientificTask

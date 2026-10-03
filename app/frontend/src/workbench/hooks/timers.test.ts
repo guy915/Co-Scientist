@@ -1,6 +1,6 @@
 import {act, renderHook} from '@testing-library/react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
-import {useToast} from './use_toast';
+import {useToast} from './timers';
 
 beforeEach(() => {
   vi.useFakeTimers();

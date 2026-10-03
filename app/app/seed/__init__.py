@@ -18,8 +18,8 @@ import logging
 from typing import Any
 
 from app import store, task_worker
+from app.async_bridge import run_in_scoped_loop
 from app.demo_seed_data import DEMO_SCENARIOS, DEMO_SEED_VERSION
-from app.litellm_shutdown import run_in_scoped_loop
 from app.run_modes import resolved_run_config, setup_config
 from app.seed.scenario import (
     _scenario_planning_lists as _scenario_planning_lists,

@@ -1,15 +1,24 @@
 import {act, render, screen, waitFor} from '@testing-library/react';
 import {MemoryRouter, useNavigate} from 'react-router-dom';
 import {StrictMode, type ReactNode} from 'react';
-import {beforeEach, expect, it, vi, type MockedFunction} from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type MockedFunction,
+} from 'vitest';
 import {listInterviews, loadRunHistory, type ChatSummary} from '@/api/runs';
 import {makeRun} from '@/test_fixtures';
 import {CHATS_CHANGED_EVENT, RUNS_CHANGED_EVENT} from '../dom_events';
 import {
   ChatHistoryProvider,
+  RunHistoryProvider,
   useChatHistoryContext,
-} from './chat_history_context';
-import {RunHistoryProvider, useRunHistoryContext} from './run_history_context';
+  useRunHistoryContext,
+} from './history_context';
 
 vi.mock('@/api/runs', async importActual => {
   const actual = await importActual<typeof import('@/api/runs')>();
@@ -163,4 +172,84 @@ it('keeps chat history visible after a transient reload failure', async () => {
   vi.mocked(listInterviews).mockRejectedValue(new Error('API unavailable'));
   await act(async () => reloadCurrent());
   expect(screen.getByTestId('rows')).toHaveTextContent('saved-chat');
+});
+
+describe('active run polling', () => {
+  const loadMock = vi.mocked(loadRunHistory);
+
+  function HistoryProbe() {
+    const {history} = useRunHistoryContext();
+    return <span data-testid="count">{history.length}</span>;
+  }
+
+  function renderProvider() {
+    return render(
+      <MemoryRouter>
+        <RunHistoryProvider>
+          <HistoryProbe />
+        </RunHistoryProvider>
+      </MemoryRouter>,
+    );
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({shouldAdvanceTime: true});
+    loadMock.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('refreshes on a timer while a run is still executing', async () => {
+    // The recents step flow reads a run's live phase off this list, and no
+    // navigation or run-start event fires as the run advances.
+    loadMock.mockResolvedValue([makeRun({status: 'running'})]);
+    renderProvider();
+    await waitFor(() =>
+      expect(screen.getByTestId('count')).toHaveTextContent('1'),
+    );
+    expect(loadMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(loadMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(loadMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('stops refreshing once no run is executing', async () => {
+    loadMock.mockResolvedValue([makeRun({status: 'completed'})]);
+    renderProvider();
+    await waitFor(() =>
+      expect(screen.getByTestId('count')).toHaveTextContent('1'),
+    );
+    expect(loadMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(loadMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops refreshing once the run reaches a terminal status', async () => {
+    loadMock.mockResolvedValue([makeRun({status: 'running'})]);
+    renderProvider();
+    // Wait for committed history and its poll effect, not just the request.
+    await waitFor(() =>
+      expect(screen.getByTestId('count')).toHaveTextContent('1'),
+    );
+    expect(loadMock).toHaveBeenCalledTimes(1);
+
+    loadMock.mockResolvedValue([makeRun({status: 'completed'})]);
+    // Let the poll observe the terminal status and the timer tear down. A
+    // refresh already in flight when the status turns terminal may still land,
+    // so this asserts that polling settles rather than a call count.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    const callsOnceSettled = loadMock.mock.calls.length;
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(loadMock).toHaveBeenCalledTimes(callsOnceSettled);
+  });
 });

@@ -8,7 +8,7 @@ import {
   type RunWithSummary,
   type TerminalNonCompletedStatus,
 } from '@/api/runs';
-import {useRunHistoryContext} from '@/workbench/hooks/run_history_context';
+import {useRunHistoryContext} from '@/workbench/hooks/history_context';
 import {IdeasTab} from '../components/tabs/ideas_tab';
 import {RunOutcomesReport} from '../components/tabs/hypothesis_outcomes';
 import {ActiveRunView} from './run_detail_active';

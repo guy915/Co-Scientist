@@ -186,7 +186,7 @@ def test_byok_run_is_real_backed_and_stores_the_credential(
     # The bootstrap boundary re-resolves the backend from the round-
     # tripped config; the byok_provider flag must survive that trip and
     # keep the run real-backed even under FORCE_OFFLINE=1.
-    from app.engine_adapter.provider import (
+    from app.engine_adapter import (
         resolve_offline_backend,
         sync_engine_llm_backend,
     )

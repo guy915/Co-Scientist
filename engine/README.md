@@ -392,7 +392,7 @@ src/co_scientist/
     ├── evolution/      # evolve.py + evolve_* helpers
     ├── meta_review/    # meta_review.py, research_overview.py
     ├── proximity/      # proximity.py (dedup)
-    └── safety/         # safety_screen.py (cross-cutting safety screen)
+    └── safety.py       # hypothesis screen and research-direction monitor
 ```
 
 ## Documentation

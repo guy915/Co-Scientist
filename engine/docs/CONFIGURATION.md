@@ -956,7 +956,7 @@ are expanded into full page text before analysis.
 
 ### Adding a provider
 
-`mcp_server/tools/web/providers.py` holds a dispatch table. A provider is one
+`mcp_server/tools/web_providers.py` holds a dispatch table. A provider is one
 async function `(query, max_results, recency_days) -> dict[str, Any]` that
 calls its vendor API and normalizes the response into
 `{result_id: {title, url, abstract, source, published_date}}`, plus one entry
@@ -978,7 +978,7 @@ markup.
 **`read_url` screens every URL before fetching it.** The URL comes from an LLM,
 influenced by search results the LLM did not write, and in production the MCP
 server sits on a private network beside the API service. The screen
-(`mcp_server/tools/web/url_guard.py`) rejects non-`http(s)` schemes and any
+(`mcp_server/tools/web_fetch.py`) rejects non-`http(s)` schemes and any
 host that resolves to a loopback, private, link-local, or reserved address, and
 re-screens every redirect hop. Resolution happens through DNS rather than
 string matching, so hostnames that point at internal addresses

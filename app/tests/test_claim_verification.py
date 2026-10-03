@@ -48,9 +48,9 @@ from app.claims.grounding import (
     persist_grounding,
 )
 from app.claims.verifier import make_llm_assessor
-from app.knowledge_facts import derive_knowledge_facts
 from app.report import content as report_content
 from app.report import gates as report_gates
+from app.report.content import derive_knowledge_facts
 from app.report.markdown.hypothesis import _render_claim_evidence
 from app.store import NewClaimEvidence, db
 from tests._client import make_client

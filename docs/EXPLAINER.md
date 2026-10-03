@@ -31,7 +31,7 @@ The layered stack: React workbench talks to FastAPI over HTTP + SSE; FastAPI per
 | Engine | `engine/src/co_scientist/` | LangGraph `StateGraph` of 14 registered nodes (12 when MCP is unavailable — `literature_review`/`reflection` are excluded from the graph, not skipped at runtime). Selected by `engine_adapter.select_provider()`. |
 | MCP server | `engine/mcp_server/` | FastMCP + Biopython. 26 tools (24 without a web-search provider key): PubMed search/fulltext, OpenAlex, ChEMBL/UniProt, `search_web`/`read_url`, and 8 INDRA CoGex queries. Python 3.12 only. |
 
-Provider selection (`app/app/engine_adapter/provider.py`): `select_provider()` always returns `"engine"` — the engine is a hard runtime dependency now. What varies is the LLM backend: `offline_mode()` returns `True` when `COSCIENTIST_FORCE_OFFLINE=1` (or the deprecated `COSCIENTIST_FORCE_MOCK=1`) is set, or no provider key is present, in which case `co_scientist.offline.llm.install_offline_router()` answers `offline/`-prefixed model calls deterministically instead of calling a real provider — the same graph emits the identical event sequence either way, so the UI and tests work with zero external dependencies.
+Provider selection (`app/app/engine_adapter/__init__.py`): `select_provider()` always returns `"engine"` — the engine is a hard runtime dependency now. What varies is the LLM backend: `offline_mode()` returns `True` when `COSCIENTIST_FORCE_OFFLINE=1` (or the deprecated `COSCIENTIST_FORCE_MOCK=1`) is set, or no provider key is present, in which case `co_scientist.offline.llm.install_offline_router()` answers `offline/`-prefixed model calls deterministically instead of calling a real provider — the same graph emits the identical event sequence either way, so the UI and tests work with zero external dependencies.
 
 ---
 
@@ -54,7 +54,7 @@ supervisor → literature_review → generate → reflection → review
 
 - **Supervisor** builds a research plan and strategy (`agents/supervisor/supervisor.py`).
 - **Literature Review** + **Reflection** are MCP-gated (dashed in the diagram). When MCP is unavailable the graph is built *without* those two nodes and the first pass collapses to `supervisor → generate → review → …` (the dashed bypass arrow in the SVG).
-- **Comprehensive Reflection** and the pre-ranking **Safety screen** sit between Review and Ranking on every path — including the orchestrator's direct re-rank route (`workflow_topology.py::WORKFLOW_ROUTES`) — so a blocked hypothesis never reaches the tournament, evolution, or meta-review (`agents/safety/safety_screen.py`).
+- **Comprehensive Reflection** and the pre-ranking **Safety screen** sit between Review and Ranking on every path — including the orchestrator's direct re-rank route (`workflow_topology.py::WORKFLOW_ROUTES`) — so a blocked hypothesis never reaches the tournament, evolution, or meta-review (`agents/safety.py`).
 - **Deep Verification** runs *before* Ranking, probing every rankable hypothesis still owed its one verification (`agents/reflection/deep_verification.py`), so no idea is ranked or bred from before its core assumptions are challenged. Once ever per idea, not once per cycle: a checkpointed `deep_verification_issued` enrichment marks the attempt when it is issued (`agents/reflection/deep_verification.py`), so a resume cannot re-fire the wave. It is not a separate tournament round.
 
 ### Iteration cycle (runs up to `max_iterations` times)

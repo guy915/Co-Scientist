@@ -16,7 +16,7 @@ from co_scientist.agents.meta_review.meta_review import (
 from co_scientist.agents.proximity import proximity, proximity_node
 from co_scientist.agents.reflection import reflection
 from co_scientist.agents.reflection.reflection import reflection_node
-from co_scientist.agents.safety.safety_screen import safety_screen_node
+from co_scientist.agents.safety import safety_screen_node
 from co_scientist.agents.supervisor.orchestrator import _compute_stats
 from co_scientist.prompts import (
     DebatePromptRequest,

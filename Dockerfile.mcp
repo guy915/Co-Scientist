@@ -30,7 +30,6 @@ RUN apt-get update && apt-get install -y build-essential && rm -rf /var/lib/apt/
 # pre-creates an empty src/.
 COPY engine/mcp_server/pyproject.toml engine/mcp_server/README.md engine/mcp_server/LICENSE engine/mcp_server/NOTICE ./mcp_server/
 RUN mkdir -p ./mcp_server/tools/indra_cogex ./mcp_server/tools/lit_review \
-        ./mcp_server/tools/web \
     && pip install --no-cache-dir --no-deps -e ./mcp_server
 COPY engine/mcp_server/ ./mcp_server/
 

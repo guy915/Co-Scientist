@@ -78,7 +78,7 @@ into markdown, keeping abstracts and section headings. Set
 skipping downloads and extraction.
 
 `tools/lit_review/` implements the literature providers, `tools/indra_cogex/`
-contains graph queries, and `tools/web/` handles search and page extraction.
+contains graph queries, and `tools/web_providers.py` and `tools/web_fetch.py` handle search and page extraction.
 `read_url` screens resolved addresses and every redirect before fetching.
 The registration wrapper logs tool outcomes while preserving the signatures
 FastMCP uses to advertise parameters.

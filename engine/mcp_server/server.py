@@ -6,9 +6,11 @@ PubMed-only implementation for biomedical research.
 
 import logging
 import os
+from pathlib import Path
 
 import fastmcp
 import uvicorn
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -18,8 +20,18 @@ from fastmcp import FastMCP
 # scaled horizontally / restarted without clients needing session affinity.
 fastmcp.settings.stateless_http = True
 
-# Import config early to load .env
-from mcp_server import config
+# Load the server's co-located .env before importing tools that read it.
+# Deployments can also supply these variables directly.
+logger = logging.getLogger(__name__)
+env_path = Path(__file__).parent / ".env"
+if env_path.exists():
+    load_dotenv(dotenv_path=env_path)
+    logger.info("Loaded environment from %s", env_path)
+else:
+    logger.warning(
+        ".env file not found at %s - using system environment only", env_path
+    )
+
 from mcp_server.campaign import (
     PUBLIC_TOOLS,
     campaign_free_mode,
@@ -27,7 +39,11 @@ from mcp_server.campaign import (
 )
 
 # Configure logging based on .env
-log_level = getattr(logging, config.LOG_LEVEL, logging.INFO)
+configured_log_level = (
+    os.environ.get("COSCIENTIST_MCP_LOG_LEVEL")
+    or os.environ.get("LOG_LEVEL", "INFO")
+).upper()
+log_level = getattr(logging, configured_log_level, logging.INFO)
 # Set root logger to INFO (default for all libraries)
 logging.basicConfig(
     level=logging.INFO,
@@ -80,17 +96,13 @@ from mcp_server.tools.lit_review.search_pubmed import (
     pubmed_search_with_fulltext,
     search_pubmed,
 )
-from mcp_server.tools.web import (
+from mcp_server.tools.web_fetch import read_url
+from mcp_server.tools.web_providers import (
     check_web_search_available,
-    read_url,
-    search_web,
-)
-from mcp_server.tools.web.providers import (
     resolve_provider,
+    search_web,
     web_search_credential_error,
 )
-
-logger = logging.getLogger(__name__)
 
 # Log startup configuration
 entrez_email_present = bool(os.environ.get("ENTREZ_EMAIL"))

@@ -19,7 +19,6 @@ import {
   ReportDocument,
   ReportList,
 } from './run_detail_shell';
-import {errorMessage, SafetyReviewSection} from './run_detail_safety_review';
 import {capitalizeTerm} from '@/lib/text';
 
 const UPLOAD_LABEL_CLASSES =
@@ -380,4 +379,48 @@ function TerminationNotice({value}: {value?: string | null}) {
 
 function taskLabel(taskType: string): string {
   return capitalizeTerm(taskType.replaceAll('_', ' '));
+}
+
+// Upload failures are shown using the server's message when available.
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+// Show the latest run-wide verdict and decisions flagged for human review.
+// Routine claim-gate rows stay out of the audit. Adjudication remains an API
+// operation because approval releases held content and resumes the run.
+function SafetyReviewSection({decisions}: {decisions: SafetyDecision[]}) {
+  const summary = decisions
+    .filter(decision => decision.stage === 'final')
+    .at(-1);
+  const reviewable = decisions.filter(
+    decision => decision.requires_review && decision.id !== summary?.id,
+  );
+  if (!summary && !reviewable.length) return null;
+
+  return (
+    <section className="mt-8 border-t border-cosci-border pt-5">
+      <h3 className={REPORT_H3_CLASSES}>Safety audit</h3>
+      {summary && <p className="mb-5">{summary.reason}</p>}
+      {reviewable.map(decision => (
+        <div key={decision.id} className="mb-5">
+          {decision.stage === 'hypothesis' && decision.decision === 'hold' ? (
+            <p>
+              <strong>Held for review:</strong> {decision.reason}
+            </p>
+          ) : (
+            <p>
+              <strong>{decision.stage}:</strong>{' '}
+              {decision.category
+                ? `${decision.category} — ${decision.reason}`
+                : decision.reason}
+            </p>
+          )}
+          {decision.resolution ? (
+            <p>Resolution: {decision.resolution}</p>
+          ) : null}
+        </div>
+      ))}
+    </section>
+  );
 }

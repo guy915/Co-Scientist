@@ -11,11 +11,18 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from co_scientist.agents.reflection.reflection_helpers import (
+    extract_entity_names,
+)
+
 from app.claims.gate import (
+    KNOWLEDGE_CONTRADICTION,
+    KNOWLEDGE_FACT,
     is_categorical_contradiction,
     is_contradicting,
     is_excused,
     is_supporting,
+    knowledge_kind,
 )
 from app.evidence_chunking import parent_evidence_id
 from app.hypothesis.safety import is_blocking_status
@@ -28,8 +35,10 @@ from app.text_utils import (
 logger = logging.getLogger(__name__)
 
 
-def _claim_evidence_ids(edge: dict[str, Any]) -> list[str]:
-    """Evidence ids cited by one claim edge's supporting passages.
+def _claim_evidence_ids(
+    edge: dict[str, Any], span_key: str = "supporting"
+) -> list[str]:
+    """Evidence ids cited by one claim edge's selected passages.
 
     A stored edge carries its provenance inside the ``supporting`` span
     objects (``{evidence_id, quote, ...}``), never as a flat ``evidence_id``
@@ -40,7 +49,7 @@ def _claim_evidence_ids(edge: dict[str, Any]) -> list[str]:
     article-level id.
     """
     ids: list[str] = []
-    for span in edge.get("supporting") or []:
+    for span in edge.get(span_key) or []:
         raw = span.get("evidence_id") if isinstance(span, dict) else None
         if raw:
             ids.append(parent_evidence_id(str(raw)))
@@ -497,3 +506,69 @@ def format_deep_verification_critique(
                 lines.append(f"  {label}: {value}")
         lines.append("")
     return summary, "\n".join(lines).strip()
+
+
+# Each kind's corroborating evidence lives in a different span list on the
+# edge (see app.report.content._claim_evidence_ids for the "supports" half
+# of this same reasoning). Which edges are a kind at all -- only ``supports``
+# and ``contradicts``, never ``partial`` or ``insufficient``, which assert
+# nothing settled -- is ``claims.gate.knowledge_kind``.
+_SPAN_KEY_BY_KIND = {
+    KNOWLEDGE_FACT: "supporting",
+    KNOWLEDGE_CONTRADICTION: "contradicting",
+}
+
+# A claim statement is denser than the single hypothesis title
+# reflection_entities.extract_entity_names is tuned for (it typically names
+# both a driver and what it acts on), so the cap is raised a little rather
+# than reused verbatim.
+_MAX_ENTITIES_PER_FACT = 5
+
+
+def _fact_row(edge: dict[str, Any]) -> dict[str, Any] | None:
+    """Build one durable fact/contradiction row from a claim-evidence edge.
+
+    Args:
+        edge: One row from ``store.list_claim_evidence``.
+
+    Returns:
+        A row ready for ``store.replace_knowledge_facts``, or None when the
+        edge's label asserts nothing settled or carries no claim text.
+    """
+    kind = knowledge_kind(edge)
+    if kind is None:
+        return None
+    statement = str(edge.get("claim") or "").strip()
+    if not statement:
+        return None
+    evidence_ids = _claim_evidence_ids(edge, _SPAN_KEY_BY_KIND[kind])
+    return {
+        "hypothesis_id": str(edge.get("hypothesis_id") or ""),
+        "evidence_id": evidence_ids[0] if evidence_ids else None,
+        "kind": kind,
+        "statement": statement,
+        "entities": extract_entity_names(
+            statement, max_entities=_MAX_ENTITIES_PER_FACT
+        ),
+        "state": str(edge["label"]),
+    }
+
+
+def derive_knowledge_facts(
+    claim_edges: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Derive durable fact/contradiction rows from a run's claim-evidence graph.
+
+    Args:
+        claim_edges: A run's *whole* claim-evidence graph (every hypothesis,
+            not only the released ones) -- the knowledge base records what
+            the run found, independent of what the published report shows,
+            matching how ``report.content._contradicted_claims`` reads the
+            same table.
+
+    Returns:
+        One row per settled (fact or contradiction) claim, in ``claim_edges``
+        order.
+    """
+    rows = (_fact_row(edge) for edge in claim_edges)
+    return [row for row in rows if row is not None]

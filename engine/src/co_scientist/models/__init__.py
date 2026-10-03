@@ -406,7 +406,7 @@ class Hypothesis:
             assessment of what the hypothesis proposes (MO-10; the
             published 'Safety and toxicity'). Distinct from the reviewer's
             ``safety_ethical_concerns`` (dual-use/ethics) and never
-            consulted by the safety gate (see agents/safety/).
+            consulted by the safety gate (see agents/safety.py).
         explanation: Step-by-step layman explanation of the hypothesis
         literature_grounding: Explicit grounding in literature review with
             [P1]/[KG1]-style citation keys

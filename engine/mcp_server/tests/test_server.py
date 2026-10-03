@@ -18,9 +18,9 @@ from mcp_server.auth_middleware import (
 )
 from mcp_server.campaign import campaign_free_mode
 from mcp_server.tool_logging import with_call_logging
+from mcp_server.tools import web_providers as providers
 from mcp_server.tools.lit_review.openalex_search import search_openalex
-from mcp_server.tools.web import providers
-from mcp_server.tools.web.providers import (
+from mcp_server.tools.web_providers import (
     check_web_search_available,
     search_web,
 )
