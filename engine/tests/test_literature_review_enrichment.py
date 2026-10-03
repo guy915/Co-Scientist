@@ -1,5 +1,3 @@
-"""Offline contracts for literature review enrichment."""
-
 from __future__ import annotations
 
 import json
@@ -29,13 +27,8 @@ from tests._research_fakes import (
 )
 from tests._state import make_state
 
-# =============================================================================
-# _call_enrichment_tool_for_entity
-# =============================================================================
-
 
 async def test_call_enrichment_tool_for_entity_success() -> None:
-    """A successful call returns the raw tool result."""
     client = FakeToolResultsClient(results={"kg_tool": {"statements": []}})
     result = await lr_enrichment._call_enrichment_tool_for_entity(
         "kg_tool", {"entity_name": "KRAS"}, cast(MCPToolClient, client)
@@ -45,7 +38,6 @@ async def test_call_enrichment_tool_for_entity_success() -> None:
 
 
 async def test_call_enrichment_tool_for_entity_error_returns_none() -> None:
-    """A raising tool call is swallowed and returns None."""
     client = FakeToolResultsClient(error_tools={"kg_tool"})
     result = await lr_enrichment._call_enrichment_tool_for_entity(
         "kg_tool", {"entity_name": "KRAS"}, cast(MCPToolClient, client)
@@ -53,13 +45,7 @@ async def test_call_enrichment_tool_for_entity_error_returns_none() -> None:
     assert result is None
 
 
-# =============================================================================
-# _format_one_indra_statement / _format_indra_statements
-# =============================================================================
-
-
 def test_format_one_indra_statement_missing_endpoint_returns_none() -> None:
-    """A statement missing either endpoint's name formats to None."""
     assert (
         lr_enrichment._format_one_indra_statement(
             {"subj": {}, "obj": {"name": "MAPK1"}}
@@ -69,9 +55,8 @@ def test_format_one_indra_statement_missing_endpoint_returns_none() -> None:
 
 
 def test_format_indra_statements_skips_unformattable_entries() -> None:
-    """A mix of valid and invalid statements skips the invalid ones."""
     stmts: list[dict[str, Any]] = [
-        {"subj": {}, "obj": {"name": "MAPK1"}},  # unformattable: skipped
+        {"subj": {}, "obj": {"name": "MAPK1"}},
         {
             "subj": {"name": "KRAS"},
             "obj": {"name": "MAPK1"},
@@ -85,15 +70,10 @@ def test_format_indra_statements_skips_unformattable_entries() -> None:
 
 
 def test_format_indra_statements_survives_a_non_dict_endpoint() -> None:
-    """A non-dict endpoint degrades to unformattable, not to an exception.
-
-    A knowledge-graph server can return a bare name where an agent object is
-    expected. Nothing between here and the per-tool gather catches that, so
-    one such statement used to discard the whole tool's enrichment -- every
-    entity, not just this one -- and read as an unavailable tool.
-    """
+    """One malformed knowledge-graph endpoint must not discard all
+    enrichment."""
     stmts: list[dict[str, Any]] = [
-        {"subj": "KRAS", "obj": {"name": "MAPK1"}},  # subj is not an agent
+        {"subj": "KRAS", "obj": {"name": "MAPK1"}},
         {
             "subj": {"name": "EGFR"},
             "obj": {"name": "MAPK1"},
@@ -107,12 +87,8 @@ def test_format_indra_statements_survives_a_non_dict_endpoint() -> None:
 
 
 def test_format_one_indra_statement_formats_complex_members() -> None:
-    """A Complex/family statement formats from its members.
-
-    These statements carry ``members`` instead of a subject and object.
-    Reflection has always rendered them; enrichment dropped them silently,
-    so a knowledge graph answered mostly in complexes contributed nothing.
-    """
+    """Complex/family statements use members rather than subject/object
+    pairs."""
     formatted = lr_enrichment._format_one_indra_statement(
         {
             "members": [{"name": "BRCA1"}, {"name": "BARD1"}],
@@ -127,20 +103,13 @@ def test_format_one_indra_statement_formats_complex_members() -> None:
 
 
 def test_format_one_indra_statement_shapeless_still_returns_none() -> None:
-    """A statement with neither endpoints nor members formats to None."""
     assert (
         lr_enrichment._format_one_indra_statement({"type": "Activation"})
         is None
     )
 
 
-# =============================================================================
-# _format_dict_result -- fallback when neither statements nor results present
-# =============================================================================
-
-
 def test_format_dict_result_falls_back_to_stringified_dict() -> None:
-    """A dict with neither ``statements`` nor ``results`` stringifies itself."""
     data = {"other": "value"}
     text, items = lr_enrichment._format_dict_result(data)
     assert text == str(data)
@@ -148,40 +117,26 @@ def test_format_dict_result_falls_back_to_stringified_dict() -> None:
 
 
 def test_format_dict_result_empty_dict_stringifies_braces() -> None:
-    """An empty dict (no statements/results) stringifies to a literal ``{}``."""
     text, items = lr_enrichment._format_dict_result({})
     assert text == "{}"
     assert items == [{"display": "{}", "data": {}}]
 
 
-# =============================================================================
-# _parse_enrichment_result -- list and scalar raw shapes
-# =============================================================================
-
-
 def test_parse_enrichment_result_bare_list_raw() -> None:
-    """A raw (non-string) list input is formatted like a generic items list."""
     text, items = lr_enrichment._parse_enrichment_result([{"n": 1}, {"n": 2}])
     assert len(items) == 2
     assert text
 
 
 def test_parse_enrichment_result_scalar_raw() -> None:
-    """A raw scalar (not dict, list, or unparsable string) stringifies."""
     text, items = lr_enrichment._parse_enrichment_result(42)
     assert text == "42"
     assert items == [{"display": "42", "data": {}}]
 
 
-# =============================================================================
-# _call_enrichment_tool_for_entities
-# =============================================================================
-
-
 async def test_call_enrichment_tool_for_entities_queries_all_in_parallel() -> (
     None
 ):
-    """Every entity is queried once; results are tagged and joined by entity."""
     tool_config = ToolConfig(
         server="s", mcp_tool_name="kg_tool", display_name="KG Tool"
     )
@@ -203,11 +158,8 @@ async def test_call_enrichment_tool_for_entities_queries_all_in_parallel() -> (
 
 
 async def test_call_enrichment_tool_for_entities_no_result() -> None:
-    """An entity whose call returns no result contributes no text or items."""
     tool_config = ToolConfig(server="s", mcp_tool_name="kg_tool")
-    client = (
-        make_tool_results_client()
-    )  # no configured results: call_tool returns None
+    client = make_tool_results_client()
 
     text, items = await lr_enrichment._call_enrichment_tool_for_entities(
         tool_config, ["KRAS"], client
@@ -217,13 +169,7 @@ async def test_call_enrichment_tool_for_entities_no_result() -> None:
     assert items == []
 
 
-# =============================================================================
-# _resolve_enrichment_tool_configs
-# =============================================================================
-
-
 def test_resolve_enrichment_tool_configs_filters_availability() -> None:
-    """Only enabled tools whose MCP name the client reports available pass."""
     available = ToolConfig(
         server="s", mcp_tool_name="mcp_available", enabled=True
     )
@@ -255,13 +201,7 @@ def test_resolve_enrichment_tool_configs_filters_availability() -> None:
     assert configs[0]._yaml_tool_id == "avail"
 
 
-# =============================================================================
-# _aggregate_enrichment_results
-# =============================================================================
-
-
 def test_aggregate_enrichment_results_skips_exceptions() -> None:
-    """A tool result that is an exception is logged and skipped, not raised."""
     tc_ok = ToolConfig(server="s", mcp_tool_name="mcp_ok", display_name="OK")
     tc_ok._yaml_tool_id = "ok_tool"
     tc_failed = ToolConfig(server="s", mcp_tool_name="mcp_failed")
@@ -280,7 +220,6 @@ def test_aggregate_enrichment_results_skips_exceptions() -> None:
 
 
 def test_aggregate_enrichment_results_empty_text_adds_no_section() -> None:
-    """A tool result with empty text contributes items but no section."""
     tc = ToolConfig(server="s", mcp_tool_name="mcp_tool")
     tc._yaml_tool_id = "tool_id"
 
@@ -292,13 +231,7 @@ def test_aggregate_enrichment_results_empty_text_adds_no_section() -> None:
     assert items == []
 
 
-# =============================================================================
-# _resolve_enrichment_context
-# =============================================================================
-
-
 def test_resolve_enrichment_context_no_tool_registry_returns_none() -> None:
-    """A configured workflow with no tool registry cannot resolve context."""
     workflow = WorkflowConfig(context_enrichment_tools=["kg"])
     config = make_search_config(workflow=workflow, tool_registry=None)
     state = make_state(research_goal="Study of KRAS in cancer")
@@ -307,7 +240,6 @@ def test_resolve_enrichment_context_no_tool_registry_returns_none() -> None:
 
 
 def test_resolve_enrichment_context_no_entities_returns_none() -> None:
-    """A research goal with no extractable entities resolves to None."""
     workflow = WorkflowConfig(context_enrichment_tools=["kg"])
     config = make_search_config(workflow=workflow, tool_registry=_registry({}))
     state = make_state(research_goal="a plain lowercase research goal")
@@ -316,7 +248,6 @@ def test_resolve_enrichment_context_no_entities_returns_none() -> None:
 
 
 def test_resolve_enrichment_context_success() -> None:
-    """A configured workflow with extractable entities resolves cleanly."""
     workflow = WorkflowConfig(context_enrichment_tools=["kg"])
     registry = _registry({})
     config = make_search_config(workflow=workflow, tool_registry=registry)
@@ -331,13 +262,7 @@ def test_resolve_enrichment_context_success() -> None:
     assert entities == ["KRAS"]
 
 
-# =============================================================================
-# _run_enrichment_tools
-# =============================================================================
-
-
 async def test_run_enrichment_tools_aggregates_across_tools() -> None:
-    """Every configured tool is queried and its output aggregated."""
     tc = ToolConfig(server="s", mcp_tool_name="kg_tool", display_name="KG")
     client = make_tool_results_client(
         results={"kg_tool": json.dumps({"results": [{"n": 1}]})}
@@ -352,18 +277,11 @@ async def test_run_enrichment_tools_aggregates_across_tools() -> None:
     assert len(items) == 1
 
 
-# =============================================================================
-# _cap_enrichment_text
-# =============================================================================
-
-
 def test_cap_enrichment_text_under_limit_passes_through() -> None:
-    """Text within the budget is returned unchanged."""
     assert lr_enrichment._cap_enrichment_text("short text") == "short text"
 
 
 def test_cap_enrichment_text_truncates_over_limit() -> None:
-    """Text over the budget is truncated with a truncation marker."""
     long_text = "x" * (lr_enrichment._CONTEXT_ENRICHMENT_MAX_CHARS + 100)
 
     result = lr_enrichment._cap_enrichment_text(long_text)
@@ -374,15 +292,8 @@ def test_cap_enrichment_text_truncates_over_limit() -> None:
     )
 
 
-# =============================================================================
-# _phase2_6_fetch_context_enrichment
-# =============================================================================
-
-
 async def test_phase2_6_no_available_tool_configs_returns_empty() -> None:
-    """Entities extracted but no tool resolves: the phase returns empty."""
     workflow = WorkflowConfig(context_enrichment_tools=["kg"])
-    # "kg" not present in the registry, so resolution yields no tool configs.
     registry = _registry({})
     config = make_search_config(workflow=workflow, tool_registry=registry)
     state = make_state(research_goal="Study of KRAS in cancer")
@@ -395,20 +306,11 @@ async def test_phase2_6_no_available_tool_configs_returns_empty() -> None:
 
 
 async def test_phase2_6_resolved_tool_yields_nothing_returns_empty() -> None:
-    """A resolvable, available tool that returns no results yields empty.
-
-    Distinct from the no-tool-configs case: here ``_resolve_enrichment_tool_
-    configs`` finds an available tool, but every entity query comes back
-    empty, so aggregation produces neither sections nor structured items.
-    """
     tool_cfg = ToolConfig(server="s", mcp_tool_name="mcp_kg")
     registry = _registry({"kg": tool_cfg})
     workflow = WorkflowConfig(context_enrichment_tools=["kg"])
     config = make_search_config(workflow=workflow, tool_registry=registry)
     state = make_state(research_goal="Study of KRAS in cancer")
-    # "mcp_kg" is available but configured with no results: every entity
-    # query returns None, so _call_enrichment_tool_for_entities yields
-    # ("", []) for the tool.
     client = make_tool_results_client(available_tools={"mcp_kg"})
 
     text, items = await lr_enrichment._phase2_6_fetch_context_enrichment(
@@ -419,7 +321,6 @@ async def test_phase2_6_resolved_tool_yields_nothing_returns_empty() -> None:
 
 
 async def test_phase2_6_success_returns_combined_text_and_items() -> None:
-    """A fully configured workflow returns combined text and structured data."""
     tool_cfg = ToolConfig(
         server="s", mcp_tool_name="mcp_kg", display_name="Knowledge Graph"
     )
@@ -454,7 +355,6 @@ _PAPERS = {
 
 
 def _config(tmp_path: Path) -> SearchConfig:
-    """A search config over the shared research tool fixture."""
     registry = research_registry(tmp_path)
     return SearchConfig(
         tool_registry=registry,
@@ -504,14 +404,12 @@ class _ScriptedModel:
 
 @pytest.fixture
 def scripted(monkeypatch: pytest.MonkeyPatch) -> _ScriptedModel:
-    """Route the adapter's model calls to a scripted answerer."""
     model = _ScriptedModel()
     monkeypatch.setattr("co_scientist.research_adapter.call_llm_json", model)
     return model
 
 
 def _client() -> MCPToolClient:
-    """A client whose search returns two papers and reads one of them."""
     return cast(
         MCPToolClient,
         FakeResearchClient(
@@ -526,7 +424,7 @@ def _client() -> MCPToolClient:
 async def test_a_run_that_asked_for_no_research_does_none(
     tmp_path: Path, scripted: _ScriptedModel
 ) -> None:
-    """Off unless a tier asked: the loop is a multiplier on run cost."""
+    """Research multiplies cost and requires an explicit tier request."""
     client = _client()
 
     outcome = await run_research_phase(
@@ -541,7 +439,6 @@ async def test_a_run_that_asked_for_no_research_does_none(
 async def test_research_seeds_its_first_level_from_what_was_read(
     tmp_path: Path, scripted: _ScriptedModel
 ) -> None:
-    """The gaps the papers stated beat a fresh guess from the goal."""
     analyses = [
         {"analysis": {"gaps_identified": "No human data on TGF-beta blockade"}}
     ]
@@ -556,14 +453,12 @@ async def test_research_seeds_its_first_level_from_what_was_read(
     assert outcome is not None
     asked = [thread["question"]["text"] for thread in outcome.ledger["threads"]]
     assert "No human data on TGF-beta blockade" in asked
-    # Seeded, so no stance planning call was made.
     assert not any("perspectives to research" in p for p in scripted.prompts)
 
 
 async def test_research_plans_its_own_coverage_when_nothing_was_stated(
     tmp_path: Path, scripted: _ScriptedModel
 ) -> None:
-    """An analysis with no gaps is not a reason to skip the phase."""
     outcome = await run_research_phase(
         make_state(research_tier="extended", run_id="run-1"),
         _config(tmp_path),
@@ -578,7 +473,6 @@ async def test_research_plans_its_own_coverage_when_nothing_was_stated(
 async def test_only_papers_something_was_drawn_from_join_the_pool(
     tmp_path: Path, scripted: _ScriptedModel
 ) -> None:
-    """A hit that was merely listed must not enter every later prompt."""
     outcome = await run_research_phase(
         make_state(research_tier="extended", run_id="run-1"),
         _config(tmp_path),
@@ -594,7 +488,6 @@ async def test_only_papers_something_was_drawn_from_join_the_pool(
 async def test_every_researched_paper_names_the_search_that_found_it(
     tmp_path: Path, scripted: _ScriptedModel
 ) -> None:
-    """This is the link that makes the stored provenance resolvable."""
     outcome = await run_research_phase(
         make_state(research_tier="extended", run_id="run-1"),
         _config(tmp_path),
@@ -613,7 +506,6 @@ async def test_every_researched_paper_names_the_search_that_found_it(
 async def test_the_findings_reach_the_text_every_later_agent_reads(
     tmp_path: Path, scripted: _ScriptedModel
 ) -> None:
-    """A finding that lives only in the ledger was recorded, not used."""
     outcome = await run_research_phase(
         make_state(research_tier="extended", run_id="run-1"),
         _config(tmp_path),
@@ -629,7 +521,6 @@ async def test_the_findings_reach_the_text_every_later_agent_reads(
 async def test_a_run_with_no_enabled_source_researches_nothing(
     tmp_path: Path, scripted: _ScriptedModel
 ) -> None:
-    """No source to search is a configuration state, not a failure."""
     config = _config(tmp_path)
     assert config.workflow is not None
     for source in config.workflow.search_sources:
@@ -646,7 +537,6 @@ async def test_a_run_with_no_enabled_source_researches_nothing(
 
 
 def test_seed_questions_stop_at_the_first_level_breadth() -> None:
-    """More seeds than the level can fund would be declined anyway."""
     analyses = [
         {"analysis": {"gaps_identified": f"gap {n}", "unexplored_areas": ""}}
         for n in range(6)
@@ -656,7 +546,7 @@ def test_seed_questions_stop_at_the_first_level_breadth() -> None:
 
 
 def test_the_same_gap_stated_twice_is_one_question() -> None:
-    """Two papers naming the same hole must not buy two searches."""
+    """Repeated gaps must not buy duplicate searches."""
     analyses = [
         {"analysis": {"gaps_identified": "No human data"}},
         {"analysis": {"gaps_identified": "no human data  "}},

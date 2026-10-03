@@ -1,5 +1,3 @@
-"""Tests for claim verification."""
-
 from __future__ import annotations
 
 import json
@@ -58,12 +56,6 @@ from tests._drain_helpers import _build_report
 from tests._store_helpers import _add
 
 from ._llm_fake_backend import install_completion_backend
-
-# The claim-verdict interface over a persisted claim-evidence edge.
-#
-# ``test_claim_verdict_matrix.py`` pins what each reader of the edge answers;
-# this file pins the interface they now share, including how it degrades on
-# legacy edges (no label, no role, an unrecognized value).
 
 
 def _verdict_edge(**fields: Any) -> dict[str, Any]:
@@ -152,29 +144,13 @@ def test_status_reads_a_missing_label_as_insufficient() -> None:
     assert claim_status(_verdict_edge()) == "Unsupported categorical claim"
 
 
-# Pin how each site reads a claim-evidence edge: the label x role matrix.
-#
-# The persisted edge's ``label`` (supports / partial / contradicts /
-# insufficient) and ``claim_role`` (categorical / speculative) are read at many
-# sites, each asking a slightly different question. The answers are *not* all
-# the
-# same rule, and the differences are deliberate:
-#
-# * ``partial`` counts as supported for the report's "Unverified" badge and the
-#   claim gate, but is *not* a durable knowledge-base fact.
-# * ``contradicts`` + ``speculative`` does not withhold an idea from the report,
-#   yet the withheld-contradiction panel and the knowledge base still list it.
-# * A missing label reads as ``insufficient`` for the reader-facing status text
-#   but is *not* excused by a speculative role in the unsupported-reasons check.
-#
-# This table was written against the sites' string comparisons and is kept
-# unchanged across the refactor that moved them behind ``app.claims.gate``;
-# a change to any cell is a change in published behavior.
+# Partial supports the publication badge but is not a durable knowledge fact.
+# Speculative contradictions remain findings; missing labels are not excused by
+# speculative roles.
 
 
 _LABELS = ("supports", "partial", "contradicts", "insufficient", None)
 _ROLES = ("categorical", "speculative", None)
-# Values no writer produces; the sites must degrade, not raise.
 _ODD = (("bogus", "categorical"), ("insufficient", "exotic"))
 
 _SUPPORTED = {"supports", "partial"}
@@ -255,7 +231,6 @@ def test_reader_facing_status_text(label: Any, role: Any) -> None:
     else:
         expected = _UNEXCUSED_STATUS
     line = _render_claim_evidence([_matrix_edge(label, role)])[2]
-    # The role is printed as persisted; a missing one reads as categorical.
     shown_role = role or "categorical"
     assert line.startswith(f"- **{expected} · {shown_role}** — ")
 
@@ -319,9 +294,6 @@ def test_an_unproven_verdict_downgrades_to_insufficient(
 def test_a_persisted_edge_defaults_to_a_categorical_claim() -> None:
     edge = NewClaimEvidence("r", "h", "c", "supports", [], [], "a")
     assert edge.claim_role == "categorical"
-
-
-# Verification methods survive grounding, API readback and legacy upgrades.
 
 
 async def test_grounding_retains_method_across_api_reopen(
@@ -434,9 +406,6 @@ def test_no_candidates_cannot_claim_model_verification() -> None:
         "A hypothesis without retrieved evidence.", [], assessor=assess
     )
     assert result.verification_method == "no_evidence"
-
-
-# Semantic opposition through the public assessor and completion boundaries.
 
 
 CLAIM = "Kinase X inhibition reduces tumor growth in AML cells."

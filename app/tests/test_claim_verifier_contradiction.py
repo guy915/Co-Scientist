@@ -1,14 +1,5 @@
-"""Regression tests for unfounded CONTRADICTS verdicts (b82f9162).
-
-Split out of ``test_claim_verifier.py`` when this file passed the module-size
-budget. Measured on production ultra run b82f9162 (2026-09-06): 105 of 183
-claim-evidence edges came back CONTRADICTS from the free-model LLM assessor,
-including a quote about a different molecule/target and a quote that merely
-confirmed the claim's own mechanism. Both real shapes are reproduced verbatim
-in miniature below, proving ``claims.verifier_opposition.guard_contradictions``
-downgrades them to INSUFFICIENT while a genuine, on-topic negation still
-blocks.
-"""
+# Verbatim production examples contain off-target or confirmatory quotes;
+# neither can justify contradiction.
 
 from __future__ import annotations
 
@@ -25,10 +16,8 @@ from ._llm_fake_backend import install_completion_backend
 
 @pytest.fixture(autouse=True)
 def _disable_llm_response_cache() -> Any:
-    """Force every call in this file to miss the engine's response cache.
-
-    See ``test_claim_verifier.py``'s identical fixture for why.
-    """
+    # Repeated claims use different fake replies; cache isolation prevents
+    # replaying an earlier test verdict.
     from co_scientist.cache import scoped_cache_override
 
     with scoped_cache_override(False):
@@ -36,7 +25,6 @@ def _disable_llm_response_cache() -> Any:
 
 
 def _fake_completion(content: str) -> Any:
-    """Return a fake provider answer yielding ``content``."""
 
     async def _completion(**_kwargs: Any) -> Any:
         message = types.SimpleNamespace(content=content)
@@ -47,20 +35,14 @@ def _fake_completion(content: str) -> Any:
 
 
 def _install(monkeypatch: pytest.MonkeyPatch, completion: Any) -> None:
-    """Install the fake engine completion backend."""
     install_completion_backend(monkeypatch, completion)
 
 
 def test_offtarget_quote_does_not_yield_contradiction(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A quote about a different molecule/target cannot contradict a claim.
-
-    Real example from run b82f9162: a claim about donepezil occupying
-    sigma-1R was marked CONTRADICTS on a quote about a *different* ligand
-    failing to block wild-type NaVs -- a different molecule, a different
-    target, no negation of anything the claim actually asserts.
-    """
+    # This verbatim production quote concerns a different ligand and target, not
+    # the asserted claim.
     claim = (
         "Donepezil, at clinically achievable human brain free "
         "concentrations of 10-30 nM, occupies sigma-1R (Ki ~14 nM) at the "
@@ -95,13 +77,7 @@ def test_offtarget_quote_does_not_yield_contradiction(
 def test_confirmatory_quote_does_not_yield_contradiction(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A quote that states the claim's own mechanism cannot contradict it.
-
-    Real example from run b82f9162: a claim about GBM cells engaging
-    compensatory autophagy/glycolysis programs was marked CONTRADICTS on a
-    quote that *describes that same compensatory interplay* -- on-topic,
-    but carrying no negation at all.
-    """
+    # This verbatim production quote confirms the mechanism without negating it.
     claim = (
         "GBM cells engage compensatory stress-response programs "
         "(autophagy-glycolysis crosstalk) to survive metabolic stress."
@@ -136,11 +112,8 @@ def test_confirmatory_quote_does_not_yield_contradiction(
 def test_genuine_negation_still_yields_contradiction(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A real, on-topic negation must still block -- the guard is not blanket.
-
-    Same subject as the claim, and an explicit negation of it: this must
-    keep clearing as CONTRADICTS despite the new subject/negation check.
-    """
+    # A genuine on-topic negation must survive the guard; downgrading every
+    # contradiction would fail open.
     claim = "Kinase X inhibition reduces tumor growth in AML cells."
     passage = EvidencePassage(
         evidence_id="ev-1",

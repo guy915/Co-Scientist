@@ -1,10 +1,5 @@
-"""An intake redaction must scrub the stored goal, not just label it.
-
-The bootstrap gate recorded ``decision="redact"`` and then prepared the
-workflow from the same ``runs.research_goal`` column, so the original stayed
-readable through ``GET /api/runs/{id}``, the run list, and every report built
-from it. These drive the real durable bootstrap and read the row back.
-"""
+# Recording redact without scrubbing the stored goal leaks it through every
+# later read and report.
 
 from __future__ import annotations
 
@@ -26,12 +21,10 @@ _STRICT_GOAL = "Assess select agent stockpile resilience across regions."
 
 @pytest.fixture(autouse=True)
 def _strict_intake(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Run the intake gate in strict mode, where dual-use content redacts."""
     monkeypatch.setattr(safety, "SAFETY_MODE", safety.SafetyMode.STRICT)
 
 
 def _persist_run(db_path: str) -> Any:
-    """Persist an offline-backed run whose goal trips the dual-use rule."""
     return store.create_run(
         _STRICT_GOAL,
         "express",
@@ -49,7 +42,6 @@ def _persist_run(db_path: str) -> Any:
 async def test_intake_redaction_scrubs_the_persisted_goal(
     isolated_db: str,
 ) -> None:
-    """The stored goal and title lose the matched span before the run starts."""
     run = _persist_run(isolated_db)
     assert safety.screen_intake(_STRICT_GOAL).decision == "redact"
 
@@ -86,7 +78,6 @@ async def test_intake_redaction_scrubs_the_persisted_goal(
 async def test_cancelled_bootstrap_cannot_commit_intake_redaction(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """An intake verdict returned after owner cancellation has no effects."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     owner = make_client()
     created = owner.post("/api/runs", json={"research_goal": _STRICT_GOAL})
@@ -144,7 +135,6 @@ async def test_cancelled_bootstrap_cannot_commit_intake_redaction(
 async def test_expired_bootstrap_lease_cannot_commit_intake_allow(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """An expired lease cannot treat an otherwise benign intake as allowed."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     owner = make_client()
     created = owner.post(
@@ -186,7 +176,6 @@ async def test_expired_bootstrap_lease_cannot_commit_intake_allow(
 
 
 def test_intake_redaction_survives_into_the_report(isolated_db: str) -> None:
-    """A redacted goal never reappears in the published run artifacts."""
     run = _persist_run(isolated_db)
     owner = make_client()
     headers = {"X-Client-ID": "intake-redaction"}

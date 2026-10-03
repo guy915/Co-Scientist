@@ -1,5 +1,3 @@
-"""Offline contracts for literature review queries."""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -45,19 +43,6 @@ from tests._state import make_state
 
 
 def _search_config(**overrides: Any) -> SearchConfig:
-    """Build a SearchConfig over the pubmed source, overriding given fields.
-
-    The pubmed tool and source names are this module's own -- query
-    generation reads them into the prompt -- so they stay explicit here
-    rather than inheriting the shared builder's placeholders.
-
-    Args:
-        **overrides: Any SearchConfig fields to set (e.g. ``workflow``,
-            ``tool_registry``).
-
-    Returns:
-        A SearchConfig naming pubmed as the search source.
-    """
     return make_search_config(
         search_tool_name="pubmed_search_with_fulltext",
         source_name="pubmed",
@@ -65,15 +50,9 @@ def _search_config(**overrides: Any) -> SearchConfig:
     )
 
 
-# =============================================================================
-# _generate_queries_via_mcp
-# =============================================================================
-
-
 async def test_generate_queries_via_mcp_success_returns_parsed_queries() -> (
     None
 ):
-    """A successful MCP call returns the parsed query list."""
     client = FakeCallToolClient(response=["query one", "query two"])
 
     result = await queries._generate_queries_via_mcp(
@@ -87,11 +66,6 @@ async def test_generate_queries_via_mcp_success_returns_parsed_queries() -> (
 
 
 async def test_generate_queries_via_mcp_error_returns_empty_list() -> None:
-    """A raised exception falls back to an empty list, not a raise.
-
-    An empty list here is the signal that lets ``_phase1_generate_queries``
-    fall through to LLM-based generation.
-    """
     client = FakeCallToolClient(error=RuntimeError("mcp down"))
 
     result = await queries._generate_queries_via_mcp(
@@ -101,15 +75,9 @@ async def test_generate_queries_via_mcp_error_returns_empty_list() -> None:
     assert result == []
 
 
-# =============================================================================
-# _generate_queries_via_llm
-# =============================================================================
-
-
 async def test_generate_queries_via_llm_error_returns_empty_list(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A raised exception from the LLM call falls back to an empty list."""
 
     async def _raise(**_: Any) -> dict[str, Any]:
         raise RuntimeError("llm down")
@@ -122,32 +90,19 @@ async def test_generate_queries_via_llm_error_returns_empty_list(
     assert result == []
 
 
-# =============================================================================
-# _resolve_query_format
-# =============================================================================
-
-
 def test_resolve_query_format_defaults_to_boolean_when_unset() -> None:
-    """An empty ``query_format`` on the workflow falls back to ``boolean``."""
     workflow = WorkflowConfig(query_format="")
     assert queries._resolve_query_format(workflow) == "boolean"
 
 
 def test_resolve_query_format_honors_configured_value() -> None:
-    """A configured ``query_format`` is returned unchanged."""
     workflow = WorkflowConfig(query_format="natural_language")
     assert queries._resolve_query_format(workflow) == "natural_language"
-
-
-# =============================================================================
-# _resolve_query_generation_tool
-# =============================================================================
 
 
 def test_resolve_query_generation_tool_missing_tool_config_returns_none() -> (
     None
 ):
-    """A configured tool id the registry can't resolve returns None."""
     workflow = WorkflowConfig(query_generation_tool="qgen_missing")
     config = _search_config(
         tool_registry=make_tool_lookup_registry({}),
@@ -158,7 +113,6 @@ def test_resolve_query_generation_tool_missing_tool_config_returns_none() -> (
 
 
 def test_resolve_query_generation_tool_returns_name_and_format() -> None:
-    """A resolvable tool id returns its MCP name and configured format."""
     tool_config = make_tool_config(mcp_tool_name="qgen_mcp")
     workflow = WorkflowConfig(
         query_generation_tool="qgen_tool", query_format="natural_language"
@@ -174,13 +128,7 @@ def test_resolve_query_generation_tool_returns_name_and_format() -> None:
     )
 
 
-# =============================================================================
-# _try_mcp_query_generation
-# =============================================================================
-
-
 async def test_try_mcp_query_generation_calls_the_resolved_tool() -> None:
-    """A resolved query-generation tool is invoked via the MCP client."""
     tool_config = make_tool_config(mcp_tool_name="qgen_mcp")
     workflow = WorkflowConfig(
         query_generation_tool="qgen_tool", query_format="boolean"
@@ -200,22 +148,10 @@ async def test_try_mcp_query_generation_calls_the_resolved_tool() -> None:
     assert client.calls[0][0] == "qgen_mcp"
 
 
-# =============================================================================
-# _phase1_generate_queries -- final fallback to the research goal
-# =============================================================================
-
-
 async def test_final_fallback_distills_the_goal_instead_of_sending_it_raw(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """When both generators fail, the fallback query is keyword-shaped.
-
-    Sending the prose goal verbatim -- articles, punctuation, question
-    words and all -- hands Entrez a query that collapses under its own
-    AND-every-term semantics before the broadening ladder even runs. The
-    fallback must strip that down to the same keyword shape the query-
-    generation prompt itself asks the model for.
-    """
+    """Entrez ANDs terms; prose boilerplate can erase every result."""
 
     async def _raise(**_: Any) -> dict[str, Any]:
         raise RuntimeError("llm down")
@@ -236,8 +172,6 @@ async def test_final_fallback_distills_the_goal_instead_of_sending_it_raw(
 
     assert result != [state["research_goal"]]
     assert len(result) == 1
-    # Both generators were exhausted before the keyword fallback, so the
-    # LLM-fallback path did run (and failed) -- it still spent one call.
     assert phase_result.llm_calls == 1
     fallback = result[0]
     assert "?" not in fallback
@@ -259,7 +193,6 @@ _NINE_TERMS = (
 
 
 def test_ladder_narrows_to_the_range_that_actually_returns_records() -> None:
-    """The rungs are the measured recovery points, not arbitrary lengths."""
     assert broadened_queries(_NINE_TERMS) == [
         _NINE_TERMS,
         # 1 record on PubMed, where the nine-term form returns none.
@@ -270,7 +203,6 @@ def test_ladder_narrows_to_the_range_that_actually_returns_records() -> None:
 
 
 def test_a_query_already_short_enough_is_left_alone() -> None:
-    """Two terms name a topic; one is a subject heading. Neither broadens."""
     assert broadened_queries("mifepristone glioblastoma") == [
         "mifepristone glioblastoma"
     ]
@@ -296,12 +228,10 @@ class _QueryScriptedClient:
 
 
 def _papers(*ids: str) -> dict[str, Any]:
-    """A search response carrying the given paper ids."""
     return {i: {"title": i} for i in ids}
 
 
 def _ctx(client: Any, errors: list[str]) -> search._SearchRunContext:
-    """A run context over the shared slug for search calls."""
     return search._SearchRunContext(
         slug="slug",
         run_id="run1",
@@ -311,7 +241,6 @@ def _ctx(client: Any, errors: list[str]) -> search._SearchRunContext:
 
 
 async def _search(client: Any, query: str, errors: list[str]) -> Any:
-    """Run one source query through the function under test."""
     return await search._search_source_for_query(
         query,
         _ctx(client, errors),
@@ -322,7 +251,6 @@ async def _search(client: Any, query: str, errors: list[str]) -> Any:
 
 
 async def test_an_empty_query_is_retried_in_broader_form() -> None:
-    """The over-constrained query returns nothing; the broader one lands."""
     ladder = broadened_queries(_NINE_TERMS)
     client = _QueryScriptedClient(
         {
@@ -336,12 +264,10 @@ async def test_an_empty_query_is_retried_in_broader_form() -> None:
 
     assert sorted(result) == ["p1", "p2"]
     assert client.queries == [ladder[0], ladder[1]]
-    # Zero results is not an error: nothing broke, the query was too narrow.
     assert errors == []
 
 
 async def test_broadening_walks_to_the_floor_when_it_has_to() -> None:
-    """Some queries only return records at the shortest form."""
     ladder = broadened_queries(_NINE_TERMS)
     client = _QueryScriptedClient(
         {
@@ -358,7 +284,6 @@ async def test_broadening_walks_to_the_floor_when_it_has_to() -> None:
 
 
 async def test_a_query_that_returns_records_is_never_broadened() -> None:
-    """Broadening is a recovery path, not a second search on every query."""
     client = _QueryScriptedClient({_NINE_TERMS: _papers("p1")})
 
     result = await _search(client, _NINE_TERMS, [])
@@ -368,11 +293,8 @@ async def test_a_query_that_returns_records_is_never_broadened() -> None:
 
 
 async def test_a_failed_search_is_not_retried_broader() -> None:
-    """The query was not what failed, so a shorter one fails the same way.
-
-    Retrying would multiply an outage across every query in the run rather
-    than recovering anything.
-    """
+    """Broadening a failed transport multiplies an outage instead of
+    recovering."""
     client = _QueryScriptedClient({_NINE_TERMS: RuntimeError("backend down")})
     errors: list[str] = []
 
@@ -385,19 +307,7 @@ async def test_a_failed_search_is_not_retried_broader() -> None:
     assert errors and "backend down" in errors[0]
 
 
-# =============================================================================
-# The single-source path broadens on the same terms
-# =============================================================================
-
-
 def _single_source_config() -> SearchConfig:
-    """The config shape a ``primary_search``-only deployment resolves to.
-
-    ``examples/arxiv_only.yaml`` and ``examples/google_scholar.yaml`` both
-    declare a ``primary_search`` with no ``search_sources``, which is exactly
-    what ``WorkflowConfig.is_multi_source()`` reads, so Phase 2 dispatches
-    every one of their queries to the single-source path.
-    """
     return SearchConfig(
         tool_registry=None,
         workflow=None,
@@ -411,20 +321,12 @@ def _single_source_config() -> SearchConfig:
 
 
 async def _search_single(client: Any, query: str, errors: list[str]) -> Any:
-    """Run one query through the single-source path."""
     return await search._search_single_query(
         query, 1, 4, _ctx(client, errors), _single_source_config()
     )
 
 
 async def test_the_single_source_path_broadens_too() -> None:
-    """One configured source is the case that can least afford the miss.
-
-    Nothing about an AND-ed keyword query is multi-source-specific -- it is
-    how the back ends read the query -- and a lone source has no sibling to
-    make up for what it returns nothing for. Left unbroadened, a
-    single-source deployment silently gets the pre-broadening behavior.
-    """
     ladder = broadened_queries(_NINE_TERMS)
     client = _QueryScriptedClient(
         {ladder[0]: _papers(), ladder[1]: _papers("p1", "p2")}
@@ -435,17 +337,10 @@ async def test_the_single_source_path_broadens_too() -> None:
 
     assert sorted(result) == ["p1", "p2"]
     assert client.queries == [ladder[0], ladder[1]]
-    # Zero results is not an error here either: the query was too narrow.
     assert errors == []
 
 
 async def test_a_failed_single_source_search_still_names_its_query() -> None:
-    """Sharing the search body must not relabel single-source diagnostics.
-
-    The single-source path has no source name to report -- one tool serves
-    every query -- so the query index is what makes an aggregated error
-    traceable back to a query.
-    """
     client = _QueryScriptedClient({_NINE_TERMS: RuntimeError("backend down")})
     errors: list[str] = []
 
@@ -457,7 +352,6 @@ async def test_a_failed_single_source_search_still_names_its_query() -> None:
 
 
 async def test_phase4_synthesize_no_analyses_returns_failure_sentinel() -> None:
-    """An empty analyses list returns the sentinel without calling the LLM."""
     state = make_state(research_goal="goal")
 
     result = await synthesis._phase4_synthesize([], state)
@@ -468,13 +362,7 @@ async def test_phase4_synthesize_no_analyses_returns_failure_sentinel() -> None:
 async def test_phase4_synthesize_llm_failure_with_analyses_degrades_to_rollup(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A synthesis LLM failure must not discard successfully-retrieved papers.
-
-    Losing the synthesis *prose* should not delete the *retrieval* -- the
-    per-paper analyses cost real LLM calls to produce, so a failed synthesis
-    call degrades to a deterministic roll-up of them rather than the
-    failure sentinel.
-    """
+    """Losing synthesis prose must not delete paid-for retrieved analyses."""
 
     async def _raise(**_: Any) -> str:
         raise RuntimeError("llm unavailable")
@@ -496,11 +384,7 @@ async def test_phase4_synthesize_llm_failure_with_analyses_degrades_to_rollup(
     result = await synthesis._phase4_synthesize(paper_analyses, state)
 
     assert result != LITERATURE_REVIEW_FAILED
-    # Honest about what it is: a mechanical roll-up, not a synthesis.
     assert "not an LLM synthesis" in result
-    # The retrieved content actually survives into the fallback text --
-    # gaps_identified and unexplored_areas are both hypothesis-generative
-    # (what's missing, what nobody has tried), so both must survive.
     assert "A paper about X" in result
     assert "X causes Y under condition Z." in result
     assert "Mechanism of Y is unclear." in result
@@ -510,15 +394,8 @@ async def test_phase4_synthesize_llm_failure_with_analyses_degrades_to_rollup(
 async def test_phase4_synthesize_fallback_rollup_is_length_bounded(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A huge pool of analyses must not blow a downstream prompt's budget.
-
-    Also the crowded case for the per-paper allowance: with 50 papers each
-    carrying long text in all three signal fields, the cap is spent
-    thinly across papers instead of the first few consuming it all --
-    so a paper well past where an unbounded roll-up would have run out
-    (5-6 papers' worth of untruncated text exhausts 8000 chars) still
-    gets a representation, with all three of its signals present.
-    """
+    """Per-paper allowances preserve later papers within the shared text
+    budget."""
 
     async def _raise(**_: Any) -> str:
         raise RuntimeError("llm unavailable")
@@ -543,8 +420,6 @@ async def test_phase4_synthesize_fallback_rollup_is_length_bounded(
     # truncate() may append a short "..." suffix past the raw cap; the
     # bound that matters is "close to the cap", not "byte-exact".
     assert len(result) <= LITERATURE_SYNTHESIS_FALLBACK_MAX_CHARS + 10
-    # A paper far past what an unbounded roll-up could ever have reached
-    # still made it in, with all three of its signals represented.
     assert "Paper number 20" in result
     assert "Finding text." in result
     assert "Gap text." in result
@@ -554,7 +429,6 @@ async def test_phase4_synthesize_fallback_rollup_is_length_bounded(
 async def test_phase4_synthesize_no_analyses_never_reaches_the_llm(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The empty-analyses branch never reaches the LLM call at all."""
 
     async def _raise(**_: Any) -> str:
         raise AssertionError("must not be called with no analyses")
@@ -570,7 +444,6 @@ async def test_phase4_synthesize_no_analyses_never_reaches_the_llm(
 async def test_cached_research_keeps_ledger_and_article_call_id(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """A hit reuses both the search result and its research ledger."""
     cache = NodeCache(str(tmp_path), enabled=True, ttl_seconds=None)
     monkeypatch.setattr(cache_nodes, "campaign_free_mode", lambda: False)
     monkeypatch.setattr(cache_nodes, "current_api_key", lambda: None)
@@ -608,7 +481,6 @@ async def test_cached_research_keeps_ledger_and_article_call_id(
 async def test_legacy_research_cache_entry_is_refreshed(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """An article call ID without its ledger makes the cache entry stale."""
     cache = NodeCache(str(tmp_path), enabled=True, ttl_seconds=None)
     monkeypatch.setattr(cache_nodes, "campaign_free_mode", lambda: False)
     monkeypatch.setattr(cache_nodes, "current_api_key", lambda: None)
@@ -665,7 +537,6 @@ async def test_ordinary_cache_hit_without_research_provenance_is_preserved(
     cache_enabled: bool,
     force_cache: bool,
 ) -> None:
-    """Ordinary Phase 2 articles have no ledger and remain cacheable."""
     cache = NodeCache(str(tmp_path), enabled=cache_enabled, ttl_seconds=None)
     monkeypatch.setattr(cache_nodes, "campaign_free_mode", lambda: False)
     monkeypatch.setattr(cache_nodes, "current_api_key", lambda: None)
@@ -693,17 +564,14 @@ async def test_ordinary_cache_hit_without_research_provenance_is_preserved(
 
 
 async def _boom(*_: Any, **__: Any) -> Any:
-    """Stand in for a phase whose external dependency went down."""
     raise RuntimeError("external dependency refused the call")
 
 
 async def _enrichment_ok(*_: Any, **__: Any) -> tuple[str, list[Any]]:
-    """Stand in for a context-enrichment phase that succeeded."""
     return "KRAS activates MAPK", [{"id": "kg:1"}]
 
 
 async def _fetch_content_and_enrichment() -> tuple[str, list[Any]]:
-    """Drive the phase pair with the module's own fixtures."""
     return await lr_orchestration._fetch_content_and_enrichment(
         {},
         {},
@@ -716,7 +584,6 @@ async def _fetch_content_and_enrichment() -> tuple[str, list[Any]]:
 async def test_failed_retrieval_keeps_the_enrichment_it_ran_beside(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A retrieval fault does not discard the enrichment branch's result."""
     monkeypatch.setattr(lr_orchestration, "_discover_then_fetch_content", _boom)
     monkeypatch.setattr(
         lr_orchestration, "_phase2_6_fetch_context_enrichment", _enrichment_ok
@@ -731,7 +598,6 @@ async def test_failed_retrieval_keeps_the_enrichment_it_ran_beside(
 async def test_failed_enrichment_degrades_to_empty_context(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An enrichment fault leaves the node with the empty context it handles."""
     retrieved: list[str] = []
 
     async def _retrieval_ok(*_: Any, **__: Any) -> None:

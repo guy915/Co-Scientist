@@ -1,5 +1,3 @@
-"""Offline contracts for model profile."""
-
 from __future__ import annotations
 
 import contextlib
@@ -61,14 +59,12 @@ _NO_CACHE = LLMCallOptions(use_cache=False)
 
 
 def _response(content: str = "ok") -> SimpleNamespace:
-    """Shape a litellm completion response with one text choice."""
     return SimpleNamespace(
         choices=[SimpleNamespace(message=SimpleNamespace(content=content))]
     )
 
 
 def _capturing_acompletion(captured: dict[str, Any]) -> Any:
-    """A fake ``acompletion`` recording its kwargs into ``captured``."""
 
     async def acompletion(**kwargs: Any) -> SimpleNamespace:
         captured.clear()
@@ -79,7 +75,6 @@ def _capturing_acompletion(captured: dict[str, Any]) -> Any:
 
 
 def _message(content: str = "final") -> SimpleNamespace:
-    """Shape an assistant message for the tool-loop path."""
     return SimpleNamespace(role="assistant", content=content)
 
 
@@ -181,13 +176,11 @@ def test_scoped_api_key_resets_on_exit() -> None:
     with scoped_api_key("sk-byok"):
         assert current_api_key() == "sk-byok"
         with scoped_api_key(None):
-            # None is a no-op scope: the outer key stays in effect.
             assert current_api_key() == "sk-byok"
     assert current_api_key() is None
 
 
 def test_api_key_not_in_cache_request() -> None:
-    """The cache-key object must never carry the credential."""
     request = LLMCacheRequest(
         prompt="p",
         model_name="m",
@@ -210,11 +203,8 @@ def test_generator_constructor_forces_cache_off_with_api_key() -> None:
 
 
 def test_generator_api_key_stays_out_of_initial_state() -> None:
-    """A BYOK generator's config fields must not carry the key.
-
-    The workflow state is checkpointed wholesale; the key may only ever
-    travel through the generator attribute and the scoped context.
-    """
+    """Workflow state is checkpointed wholesale; BYOK credentials must stay
+    out."""
     from co_scientist.generator.core import HypothesisGenerator
     from co_scientist.generator.run_setup import GeneratorOptions
 
@@ -231,7 +221,6 @@ _STEALTH = "openrouter/stealth/space-bunny-alpha"
 
 
 def test_a_table_entry_and_a_profile_list_the_same_fields() -> None:
-    """``Facts`` is a profile's fields, each optional; none may drift."""
     assert set(Facts.__annotations__) == {
         field.name for field in dataclasses.fields(ModelProfile)
     }
@@ -242,12 +231,10 @@ def test_a_table_entry_and_a_profile_list_the_same_fields() -> None:
     ["gpt-4o", "ollama/llama3", "openrouter/x/y", "openrouter/x/y:free"],
 )
 def test_an_unknown_route_gets_the_defaults(model: str) -> None:
-    """No reasoning knob, no routing, no price, and litellm decides schema."""
     assert model_profile(model) == ModelProfile()
 
 
 def test_capabilities_resolve_without_regard_to_case() -> None:
-    """Callers lowercase nothing; the profile does."""
     assert model_profile("DeepSeek/DeepSeek-V4-Flash") == model_profile(
         "deepseek/deepseek-v4-flash"
     )
@@ -267,13 +254,11 @@ def test_capabilities_resolve_without_regard_to_case() -> None:
 def test_how_a_route_is_asked_to_think_follows_its_family(
     model: str, thinking: Thinking, gateway: bool
 ) -> None:
-    """A new DeepSeek release needs no entry; an unknown gateway route none."""
     profile = model_profile(model)
     assert (profile.thinking, profile.gateway) == (thinking, gateway)
 
 
 def test_a_family_can_reach_a_route_it_shares_with_another() -> None:
-    """Both families apply, the later over the earlier where they differ."""
     profile = model_profile("openrouter/vendor/gemini-3-deepseek-hybrid")
     assert profile.min_temperature == 1.0
     assert profile.thinking is Thinking.GATEWAY
@@ -283,7 +268,6 @@ def test_a_family_can_reach_a_route_it_shares_with_another() -> None:
 def test_an_exact_entry_overrides_its_family(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The route's own word beats the family's, field by field."""
     route = "openrouter/deepseek/pinned"
     own: Facts = {"reasons": False, "json_schema": True}
     monkeypatch.setitem(ROUTES, route, own)
@@ -298,13 +282,6 @@ def test_an_exact_entry_overrides_its_family(
 
 
 def test_no_exact_route_overrules_a_family_on_json_schema() -> None:
-    """Exact routes win now; before the table, a family answered first.
-
-    Resolving json_schema used to check the json_object-only family ahead of
-    any exact route, and every other fact the exact route first. They agree
-    only while no route states a json_schema its family contradicts, so that
-    is held here: lifting it would change what such a route is sent.
-    """
     for route, facts in ROUTES.items():
         for family in FAMILIES:
             stated = family.facts.get("json_schema")
@@ -318,7 +295,6 @@ def _resolved_profiles() -> list[tuple[str, ModelProfile]]:
 
 
 def test_the_thinking_knob_and_the_gateway_agree() -> None:
-    """A gateway reasoning object needs routing; DeepSeek's own cannot."""
     for name, profile in _resolved_profiles():
         if profile.thinking is Thinking.GATEWAY:
             assert profile.gateway, name
@@ -327,7 +303,6 @@ def test_the_thinking_knob_and_the_gateway_agree() -> None:
 
 
 def test_every_declared_gateway_route_is_priced_and_funded() -> None:
-    """No price means no ceiling on a gateway call; no floor means no answer."""
     routes = gateway_routes()
     assert routes
     for name in routes:
@@ -337,14 +312,12 @@ def test_every_declared_gateway_route_is_priced_and_funded() -> None:
 
 
 def test_the_price_table_is_the_profile_prices() -> None:
-    """One statement of each price: ``MODEL_PRICING`` is read off the table."""
     assert priced_routes() == MODEL_PRICING
     for name, price in MODEL_PRICING.items():
         assert model_profile(name).price == price, name
 
 
 def test_the_default_route_is_pinned_free_with_no_fallback() -> None:
-    """The selected zero-price route stays on Stealth, free, with no chain."""
     profile = model_profile(_STEALTH)
     assert profile.provider_only == "Stealth"
     assert profile.fallbacks == ()
@@ -353,7 +326,6 @@ def test_the_default_route_is_pinned_free_with_no_fallback() -> None:
 
 
 def test_promotion_is_matched_exactly_as_the_catalog_spells_the_id() -> None:
-    """A gateway-relative id, case-sensitive: admission checks the catalog."""
     assert promotional_free_route("stealth/space-bunny-alpha")
     assert not promotional_free_route("Stealth/Space-Bunny-Alpha")
     assert not promotional_free_route(_STEALTH)
@@ -379,7 +351,6 @@ _BASE_PROVIDER: dict[str, Any] = {
 
 @contextlib.contextmanager
 def _registry(answer: bool | type[Exception]) -> Iterator[None]:
-    """Stands in for litellm's capability registry, cache cleared around it."""
 
     def stub(model: str) -> bool:
         if isinstance(answer, bool):
@@ -396,7 +367,6 @@ def _registry(answer: bool | type[Exception]) -> Iterator[None]:
 
 
 def _schema_route(model: str) -> bool | str:
-    """True/False when fixed, ``"registry"`` when litellm decides."""
     answers = []
     for stub in (True, False, RuntimeError):
         with _registry(stub):
@@ -417,7 +387,6 @@ def _free_row(model: str) -> str:
 
 
 def _bodies(model: str) -> list[dict[str, Any]]:
-    """The thinking body when requested, when not, and when recovering."""
     with scoped_minimal_reasoning():
         recovering = deepseek_thinking_extra_body(model, enabled=False)
     return [
@@ -428,7 +397,6 @@ def _bodies(model: str) -> list[dict[str, Any]]:
 
 
 def _routing(model: str, body: dict[str, Any]) -> dict[str, Any]:
-    """A body without its knob, its provider block named when standard."""
     routing = {k: v for k, v in body.items() if k not in _KNOB_KEYS}
     if routing.get("provider") == _gateway_provider(model.lower()):
         routing["provider"] = "gateway provider"
@@ -436,7 +404,6 @@ def _routing(model: str, body: dict[str, Any]) -> dict[str, Any]:
 
 
 def _split_body(model: str) -> tuple[list[Any], dict[str, Any]]:
-    """The three modes' knob objects, and the routing they share."""
     bodies = _bodies(model)
     routings = [_routing(model, body) for body in bodies]
     assert routings[0] == routings[1] == routings[2], model
@@ -478,7 +445,6 @@ def _thinks(model: str) -> list[bool]:
 
 
 def _capabilities(model: str) -> dict[str, Any]:
-    """Every capability the engine would act on for ``model`` today."""
     knobs, routing = _split_body(model)
     return {
         "reasons": model_reasons(model),
@@ -514,7 +480,6 @@ def _provider_delta(provider: dict[str, Any]) -> dict[str, Any]:
 
 
 def _money(model: str) -> list[Any]:
-    """What ``model`` costs and what a gateway call to it may be charged."""
     price = MODEL_PRICING.get(model)
     return [
         None
@@ -536,7 +501,6 @@ _CAPABILITY_ROWS = [
 
 @pytest.fixture
 def _hermetic_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The environment variables that reshape these answers."""
     monkeypatch.delenv("COSCIENTIST_GATEWAY_PROVIDER_ORDER", raising=False)
     monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
     monkeypatch.setenv("COSCIENTIST_LLM_TIMEOUT_SECONDS", "0")
@@ -548,7 +512,6 @@ class TestModelProfileSnapshot:
     def test_every_capability_of_the_model_is_unchanged(
         self, model: str, row: dict[str, Any]
     ) -> None:
-        """The engine answers each capability question as it was recorded."""
         observed = _capabilities(model)
         for fact, expected in row.items():
             assert observed[fact] == expected, (model, fact)
@@ -558,7 +521,6 @@ class TestModelProfileSnapshot:
     def test_the_price_and_routing_cap_of_the_model_are_unchanged(
         self, model: str, row: list[Any]
     ) -> None:
-        """The engine charges and caps each model as it was recorded."""
         assert _money(model) == row
 
     def test_every_model_has_both_rows(self) -> None:
@@ -568,20 +530,14 @@ class TestModelProfileSnapshot:
 
 
 def test_unlisted_model_prices_at_zero() -> None:
-    """A model absent from the table is zero-cost, not a raised error."""
     assert (
         estimate_cost_usd("offline/does-not-exist", 1_000_000, 1_000_000) == 0.0
     )
 
 
 def test_known_model_prices_proportional_to_tokens() -> None:
-    """Cost scales linearly with prompt and completion tokens.
-
-    Reads the rate out of the table rather than restating it. A test
-    that spells the number out again pins the price rather than the
-    arithmetic, and then fails on a provider's price change -- which is
-    a fact to record, not a regression to catch.
-    """
+    """Provider prices are outside facts; this tests arithmetic from their
+    table."""
     model = "deepseek/deepseek-v4-flash"
     price = MODEL_PRICING[model]
 
@@ -595,19 +551,12 @@ def test_known_model_prices_proportional_to_tokens() -> None:
 
 
 def test_zero_tokens_costs_nothing() -> None:
-    """A call with no billed tokens costs 0.0 regardless of the model."""
     assert estimate_cost_usd("deepseek/deepseek-v4-pro", 0, 0) == 0.0
 
 
 def test_a_cached_prefix_is_billed_at_the_cache_rate() -> None:
-    """The cached share of a prompt prices below the rest of it.
-
-    A tool loop re-sends its whole transcript every turn, so most of what
-    a run sends is a prefix the provider already holds. Measured through
-    OpenRouter, a concurrent fan-out re-sending one prefix reported 95% of
-    its prompt tokens cached -- pricing that at the full input rate is
-    what made this project's reported run cost several times the bill.
-    """
+    """Tool turns resend cached prefixes; full input pricing overstates their
+    cost."""
     model = "openrouter/deepseek/deepseek-v4-flash"
     price = MODEL_PRICING[model]
     assert price.cached_prompt_usd_per_million < price.prompt_usd_per_million
@@ -624,12 +573,7 @@ def test_a_cached_prefix_is_billed_at_the_cache_rate() -> None:
 
 
 def test_a_model_with_no_measured_cache_rate_prices_as_before() -> None:
-    """An unlisted cache rate means unmeasured, never free.
-
-    Reading a cached count from a provider whose cache-read rate nobody
-    has checked and billing it at zero would report a run as cheaper than
-    it was, which is the one direction an estimate must never err in.
-    """
+    """An unknown cache-read price must not be treated as free."""
     model = "openai/gpt-4o"
     assert MODEL_PRICING[model].cached_prompt_usd_per_million == 0.0
 
@@ -639,7 +583,6 @@ def test_a_model_with_no_measured_cache_rate_prices_as_before() -> None:
 
 
 def test_a_cached_count_never_exceeds_the_prompt_it_slices() -> None:
-    """Cached tokens are part of the prompt, never an addition to it."""
     model = "openrouter/deepseek/deepseek-v4-flash"
     price = MODEL_PRICING[model]
 

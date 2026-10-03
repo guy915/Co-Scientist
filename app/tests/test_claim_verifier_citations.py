@@ -1,14 +1,3 @@
-"""Tests for citing evidence by bracketed passage number.
-
-Split out of ``test_claim_verifier.py`` when this file passed the
-module-size budget. The prompt no longer shows an evidence id to cite
-(see ``claims.verifier._render_passages``); the judge instead cites a
-passage's bracketed position in the rendered list, and ``claims.span``
-resolves that number back to the passage it names -- these tests pin
-both the successful resolution and the drop-and-log path for a number
-naming a passage that was never shown.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -30,10 +19,8 @@ from ._llm_fake_backend import install_completion_backend
 
 @pytest.fixture(autouse=True)
 def _disable_llm_response_cache() -> Any:
-    """Force every call in this file to miss the engine's response cache.
-
-    See ``test_claim_verifier.py``'s identical fixture for why.
-    """
+    # Repeated claims use different fake replies; cache isolation prevents
+    # replaying an earlier test verdict.
     from co_scientist.cache import scoped_cache_override
 
     with scoped_cache_override(False):
@@ -41,7 +28,6 @@ def _disable_llm_response_cache() -> Any:
 
 
 def _fake_completion(content: str) -> Any:
-    """Return a fake provider answer yielding ``content``."""
 
     async def _completion(**_kwargs: Any) -> Any:
         message = types.SimpleNamespace(content=content)
@@ -52,7 +38,6 @@ def _fake_completion(content: str) -> Any:
 
 
 def _install(monkeypatch: pytest.MonkeyPatch, completion: Any) -> None:
-    """Install the fake engine completion backend."""
     install_completion_backend(monkeypatch, completion)
 
 
@@ -67,12 +52,6 @@ _PASSAGE = EvidencePassage(
 def test_citation_by_passage_number_resolves_to_that_passage(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A verdict citing "3" (a string) resolves to the third shown passage.
-
-    The prompt no longer shows an evidence id to cite (see
-    ``_render_passages``); the judge cites the passage's bracketed
-    number instead, exactly as ``claims.span`` already resolves.
-    """
     _install(
         monkeypatch,
         _fake_completion(
@@ -99,13 +78,6 @@ def test_out_of_range_passage_number_is_dropped_and_logged(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A citation naming a passage never shown is dropped, not trusted.
-
-    The prompt only shows one passage here, so "9" is out of range; the
-    quote is also nowhere in that passage, so the fallback verbatim
-    search cannot rescue it either -- this is a genuine drop, not a
-    mis-cited-but-locatable quote.
-    """
     _install(
         monkeypatch,
         _fake_completion(
