@@ -1,33 +1,25 @@
-"""Research-overview prompt assembly and synthesis orchestration."""
+"""Final and interim research overview synthesis with bounded degradation."""
+
+from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable
 from typing import Any, Final
 
-from co_scientist.agents.meta_review.interim_overview import (
-    build_interim_overview,
-)
-from co_scientist.agents.meta_review.research_overview_contacts import (
-    _build_contact_candidates,
-    _format_contact_candidates,
-    _validate_research_contact_groups,
-    _validate_research_contacts,
-)
-from co_scientist.agents.meta_review.research_overview_degrade import (
-    is_interim_firing as _is_interim_firing,
-)
-from co_scientist.agents.meta_review.research_overview_degrade import (
-    synthesize_or_degrade,
-)
 from co_scientist.agents.meta_review.research_overview_direction_calls import (
     DirectionWaveContext,
     develop_directions_into,
     format_overview,
 )
 from co_scientist.agents.meta_review.research_overview_evidence import (
-    _build_evidence_corpus as _build_evidence_corpus,
+    _build_contact_candidates,
+    _format_contact_candidates,
+    _format_evidence_corpus,
+    _validate_research_contact_groups,
+    _validate_research_contacts,
 )
 from co_scientist.agents.meta_review.research_overview_evidence import (
-    _format_evidence_corpus,
+    _build_evidence_corpus as _build_evidence_corpus,
 )
 from co_scientist.agents.meta_review.research_overview_knowledge_base import (
     _validate_knowledge_base,
@@ -42,6 +34,10 @@ from co_scientist.agents.meta_review.research_overview_review import (
 from co_scientist.agents.meta_review.research_overview_review import (
     review_research_overview as review_research_overview,
 )
+from co_scientist.agents.node_degradation import (
+    durable_retries_remain,
+    run_or_degrade,
+)
 from co_scientist.constants import (
     MEDIUM_TEMPERATURE,
     PROGRESS_RESEARCH_OVERVIEW_COMPLETE,
@@ -50,7 +46,7 @@ from co_scientist.constants import (
     RESEARCH_OVERVIEW_MAX_TOKENS,
     RESEARCH_OVERVIEW_TOP_K,
 )
-from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
+from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS, short_error_text
 from co_scientist.llm import (
     CompletionSpec,
     call_llm_json,
@@ -69,9 +65,194 @@ from co_scientist.prompts import (
     get_research_overview_prompt,
 )
 from co_scientist.safety import is_blocking_status
+from co_scientist.scheduling.models import TaskType, stacked_task_values
+from co_scientist.schemas.synthesis import (
+    RESEARCH_OVERVIEW_INTERIM_MAX_DIRECTIONS as _MAX_DIRECTIONS,
+)
+from co_scientist.schemas.synthesis import (
+    RESEARCH_OVERVIEW_INTERIM_MAX_QUESTIONS as _MAX_QUESTIONS,
+)
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
+
+
+# The node's key in ``llm.structured.validate._ENHANCEMENT_NODE_FALLBACKS``, and
+# the label the report reads back as a degraded section.
+_OVERVIEW_SCHEMA = "research_overview"
+
+_LOST = (
+    "publishing the report without the overview, Specific Aims, knowledge "
+    "base and research contacts"
+)
+
+
+def is_interim_firing(state: WorkflowState) -> bool:
+    """Whether this is a periodic firing rather than the terminal one.
+
+    The scheduler's own recorded decision is what tells them apart, the
+    same value the graph and the durable route table both read: SYNTHESIZE
+    returns to the loop point (FIX-6), TERMINATE ends the run.
+
+    Read from ``next_task`` alone this is wrong for the periodic branch's
+    *stacked* form (``scheduling.policy.stack_companions``), where the
+    primary keeps that field and the overview rides the pass's queue
+    actions. A stacked firing read as terminal would buy the accuracy
+    review and the knowledge-base calls, emit the run's 95% progress
+    marker from the middle of a cycle, and publish a ``research_overview``
+    the finished report would then carry -- so the queue actions are part
+    of the question, exactly as they are for the routers.
+    """
+    if str(state.get("next_task") or "") == TaskType.SYNTHESIZE.value:
+        return True
+    actions = state.get("supervisor_queue_actions") or []
+    return TaskType.SYNTHESIZE.value in stacked_task_values(actions)
+
+
+async def synthesize_or_degrade(
+    state: WorkflowState,
+    synthesize: Callable[[], Awaitable[dict[str, Any]]],
+) -> dict[str, Any]:
+    """Run the overview synthesis, degrading it if the provider fails.
+
+    Args:
+        state: The node's workflow state.
+        synthesize: The node's own synthesis, called once.
+
+    Returns:
+        The synthesis result, or the empty overview the report renders
+        without.
+    """
+    if is_interim_firing(state):
+        return await _interim_or_degrade(state, synthesize)
+    return await run_or_degrade(
+        state,
+        synthesize,
+        schema_name=_OVERVIEW_SCHEMA,
+        fallback=_degraded_overview_result,
+        lost=_LOST,
+    )
+
+
+async def _interim_or_degrade(
+    state: WorkflowState,
+    synthesize: Callable[[], Awaitable[dict[str, Any]]],
+) -> dict[str, Any]:
+    """Draft the interim overview, or leave the next cycle without one.
+
+    Deliberately records no degradation: ``degraded_nodes`` names a blank
+    section of the finished report, and this firing writes no document --
+    the terminal firing still can, so labelling the section here would
+    mark an overview that came out fine.
+
+    It shares the task's retry budget with the terminal firing, so it
+    spends it the same way (``node_degradation.durable_retries_remain``):
+    a retry declined here is one the run does not get back.
+    """
+    try:
+        return await synthesize()
+    except TASK_CONTROL_FLOW_ERRORS:
+        raise
+    except Exception as exc:
+        if durable_retries_remain(state):
+            raise
+        logger.error(
+            "Interim research overview could not reach the provider (%s); "
+            "the next generate cycle runs without one",
+            short_error_text(exc),
+        )
+        return {}
+
+
+def _degraded_overview_result() -> dict[str, Any]:
+    """The state delta a failed terminal synthesis publishes instead.
+
+    The same empty ``research_overview`` the node already returns when the
+    publication gates withhold every hypothesis, so the report renderer
+    needs no new branch. No metrics delta: the requests that failed were
+    already counted by ``llm.admission.call_budget.record_provider_request``,
+    and this produced no overview to attribute a successful call to.
+    """
+    return {
+        "research_overview": {},
+        "messages": phase_message(
+            "research_overview",
+            "Research overview synthesis could not reach the provider; "
+            "the report is published without it",
+        ),
+    }
+
+
+# The two caps above are the single source both ends of the edge read:
+# an interim firing's own schema (RESEARCH_OVERVIEW_INTERIM_SCHEMA) bounds
+# the ask to exactly what this module renders, so the model is never
+# asked to write a title or question this block then discards.
+
+_HEADER: Final = (
+    "## Interim research overview (this run's own synthesis so far)\n\n"
+    "The system synthesized the ideas produced so far into the directions"
+    " and open questions below. Push into what they leave open: prefer a"
+    " mechanism, model system or intervention these do not already cover,"
+    " and do not re-derive a direction already named here.\n"
+)
+
+
+def build_interim_overview(response: dict[str, Any]) -> str:
+    """Render a drafted overview response as the block generation reads.
+
+    Args:
+        response: The raw research-overview synthesis response.
+
+    Returns:
+        The formatted block, or an empty string when the response carries
+        neither a direction nor an open question.
+    """
+    overview = response.get("overview")
+    directions = (
+        overview.get("research_directions")
+        if isinstance(overview, dict)
+        else None
+    )
+    lines = _titled_lines(directions, "Directions", _MAX_DIRECTIONS)
+    lines += _question_lines(response.get("open_questions"))
+    return f"{_HEADER}\n" + "\n".join(lines) + "\n" if lines else ""
+
+
+def _titled_lines(raw: Any, header: str, limit: int) -> list[str]:
+    """Render up to ``limit`` titled entries as one bulleted block."""
+    if not isinstance(raw, list):
+        return []
+    bullets = [
+        f"- {str(item.get('title') or '').strip()}"
+        for item in raw[:limit]
+        if isinstance(item, dict) and str(item.get("title") or "").strip()
+    ]
+    return [f"**{header}:**", *bullets, ""] if bullets else []
+
+
+def _question_lines(raw: Any) -> list[str]:
+    """Render up to ``_MAX_QUESTIONS`` open questions as a bulleted block."""
+    if not isinstance(raw, list):
+        return []
+    bullets = [
+        f"- {str(item).strip()}"
+        for item in raw[:_MAX_QUESTIONS]
+        if str(item).strip()
+    ]
+    return ["**Open questions:**", *bullets, ""] if bullets else []
+
+
+def format_interim_overview(state: WorkflowState) -> str:
+    """Return the interim overview block, or "" before the first firing.
+
+    Args:
+        state: The workflow state the generate node was entered with.
+
+    Returns:
+        The block written by the most recent periodic firing, or an empty
+        string when this run has not had one.
+    """
+    return str(state.get("interim_overview") or "").strip()
 
 
 def _run_prompt_context(state: WorkflowState) -> PromptRunContext:
@@ -512,3 +693,6 @@ def _build_research_overview_result(
             "Synthesized research overview and Specific Aims",
         ),
     }
+
+
+_is_interim_firing = is_interim_firing

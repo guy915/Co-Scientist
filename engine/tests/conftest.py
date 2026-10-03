@@ -51,17 +51,11 @@ def _patch_mcp_seam(
     Returns:
         The per-test fake client class, for tests that configure it.
     """
-    from langchain_core.tools import (
-        StructuredTool,
-    )
+    from langchain_core.tools import StructuredTool
 
-    from co_scientist.mcp_client import (
-        reset_mcp_client,
-    )
-    from co_scientist.mcp_client import session as mcp_session_mod
-    from tests._mcp import (
-        FakeMultiServerMCPClient,
-    )
+    import co_scientist.mcp_client as mcp_session_mod
+    from co_scientist.mcp_client import reset_mcp_client
+    from tests._mcp import FakeMultiServerMCPClient
 
     class _Fake(FakeMultiServerMCPClient):
         instances_created = 0
@@ -77,7 +71,7 @@ def _patch_mcp_seam(
 @pytest.fixture(autouse=True)
 def _free_catalog(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     """Synthetic metadata keeps mocked free-model requests hermetic."""
-    from co_scientist.constants.pricing import MODEL_PRICING
+    from co_scientist.constants import MODEL_PRICING
     from co_scientist.llm.admission import free_policy as free_catalog
 
     catalog = {

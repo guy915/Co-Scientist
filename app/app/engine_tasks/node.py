@@ -7,28 +7,28 @@ from typing import Any
 
 from app import store
 from app.engine_tasks import runtime as engine_tasks_runtime
-from app.engine_tasks.context import TaskCommit, _task_commit
-from app.engine_tasks.emit import NodeCompletion, _emit_node_completion
 from app.engine_tasks.fanout import (
+    _enqueue_generation_fanout,
     _enqueue_mature_reflection_fanout,
     _enqueue_review_fanout,
     _enqueue_verification_fanout,
 )
-from app.engine_tasks.fanout_generation import _enqueue_generation_fanout
 from app.engine_tasks.gate import _apply_pre_ranking_evidence_gate
 from app.engine_tasks.inputs import _merge_scientist_inputs
-from app.engine_tasks.pause import (
-    _pause_node_task_if_requested,
-    _save_paused_state,
-)
-from app.engine_tasks.queue_actions import _durable_queue_snapshot
+from app.engine_tasks.portfolio import _durable_queue_snapshot
 from app.engine_tasks.ranking import _schedule_ranking_chain
 from app.engine_tasks.support import (
     NODE_TASK_PREFIX,
+    NodeCompletion,
     SupersededTaskError,
+    TaskCommit,
+    _emit_node_completion,
     _latest_task_checkpoint,
+    _pause_node_task_if_requested,
+    _save_paused_state,
     _save_state_and_enqueue,
     _successor_task_type,
+    _task_commit,
 )
 from app.store import RunStatus, ScientificTask
 
@@ -107,7 +107,7 @@ def _restore_node_task_state(
     failing the task -- which, at the terminal node, settles the run and
     loses the report. The formula mirrors
     ``app.task_worker.outcomes._is_terminal_failure``, which mirrors
-    ``app.store.tasks_attempts._persist_failed_attempt``'s own
+    ``app.store.tasks_lifecycle._persist_failed_attempt``'s own
     retry-left test; it assumes the failure is retryable, which holds
     because the two failures the worker refuses to retry
     (``TASK_CONTROL_FLOW_ERRORS``) never reach the degrade decision.

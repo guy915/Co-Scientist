@@ -1,24 +1,11 @@
-"""What ``call_llm`` and ``call_llm_json`` answer a failed attempt with.
+"""Offline contracts for llm attempt loop."""
 
-Both entry points share one attempt loop: a failure no rung of the
-escalation ladder answers is retried in place up to ``max_attempts``, a
-throttle or an outage is waited out first (a platform-wide cap parks the
-task instead), and a failure the same request cannot survive is never
-retried. This file drives each through scripted failure sequences against
-a fake provider and a fake sleep and pins attempt count, waits, the rung
-each attempt was sent at, the final exception and the level of every retry
-line -- see ``_llm_attempt_fakes`` for the harness. Tool turns' bounded
-recovery and distinct request shaping are pinned in
-``test_llm_attempt_loop_tools.py``.
-
-``call_llm_json`` adds one thing the loop cannot decide alone: a response
-that arrives but breaks the schema is retried at once, on the same rung,
-with the validation error appended to the prompt.
-"""
+from __future__ import annotations
 
 import time
 from collections.abc import Callable
 from dataclasses import replace
+from typing import Any
 
 import pytest
 from jsonschema.exceptions import ValidationError
@@ -30,19 +17,34 @@ from co_scientist.exceptions import (
     LLMBudgetExhaustedError,
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
+    LLMThinkingOnlyError,
     LLMTimeoutError,
 )
 from co_scientist.llm import LLMCallOptions
-from tests._llm_attempt_fakes import (
+from co_scientist.llm.attempts.escalation import BudgetEscalation
+from co_scientist.llm.attempts.retry import (
+    Accepted,
+    Attempt,
+    AttemptPlan,
+    Judge,
+    Rejected,
+    run_attempts,
+)
+from tests._llm_fake import (
     GATEWAY_MODEL,
     JSON,
     SCHEMA_FEEDBACK,
     STANDARD,
+    TOOLS,
     WAITED_THEN_GAVE_UP,
     Driver,
     Entry,
     call_ceiling,
+    echo_executor,
     exhausted,
+    make_completion,
+    make_message,
+    make_tool_call,
     ok,
     overloaded,
     rate_limited,
@@ -52,7 +54,9 @@ from tests._llm_attempt_fakes import (
     too_big,
     wrong_type,
 )
-from tests._llm_attempt_fakes import drive as drive
+from tests._llm_fake import drive as drive
+
+__all__ = ["drive"]
 
 # --- call_llm and call_llm_json: the standard policy ------------------------
 
@@ -374,13 +378,14 @@ async def test_escalation_only_plan_stops_before_revisiting_a_rung(
     mandatory_first: bool,
 ) -> None:
     import asyncio
-    from typing import Any
 
     from co_scientist.exceptions import LLMThinkingOnlyError
     from co_scientist.llm import rate_limited_attempt_count, scoped_telemetry
-    from co_scientist.llm.attempts.contract import Attempt, AttemptPlan
     from co_scientist.llm.attempts.escalation import BudgetEscalation
-    from co_scientist.llm.attempts.retry import run_attempts
+    from co_scientist.llm.attempts.retry import (
+        AttemptPlan,
+        run_attempts,
+    )
 
     mandatory = reasoning_mandatory()
     thinking = LLMThinkingOnlyError("reasoning stopped without an answer")
@@ -427,9 +432,8 @@ async def test_escalation_only_plan_stops_before_revisiting_a_rung(
 
 
 async def test_escalation_only_ladder_is_finite_and_call_local() -> None:
-    from co_scientist.llm.attempts.contract import Attempt, AttemptPlan
     from co_scientist.llm.attempts.escalation import BudgetEscalation
-    from co_scientist.llm.attempts.retry import run_attempts
+    from co_scientist.llm.attempts.retry import AttemptPlan, run_attempts
 
     attempts: list[Attempt] = []
     for _ in range(2):
@@ -460,3 +464,433 @@ async def test_escalation_only_ladder_is_finite_and_call_local() -> None:
         BudgetEscalation.MINIMAL_REASONING_REQUIRED,
     ] * 2
     assert [attempt.number for attempt in attempts] == [1, 2, 3, 4] * 2
+
+
+@pytest.mark.parametrize(
+    ("failure", "error_type"),
+    [
+        (timed_out, LLMTimeoutError),
+        (call_ceiling, LLMCallBudgetExceededError),
+        (too_big, ContextWindow),
+        (lambda: FreeModelEligibilityError("no"), FreeModelEligibilityError),
+    ],
+    ids=[
+        "timeout",
+        "call-budget-ceiling",
+        "context-window",
+        "free-eligibility",
+    ],
+)
+async def test_a_tool_turn_unretryable_failure_propagates_at_once(
+    drive: Driver,
+    failure: Callable[[], Exception],
+    error_type: type[Exception],
+) -> None:
+    run = await drive(TOOLS, [failure()])
+
+    assert type(run.error) is error_type
+    assert len(run.calls) == 1
+    assert run.slept == []
+    assert run.throttled == 0
+    assert run.retries == 0
+    assert run.retry_debug == []
+    assert run.logged == (
+        []
+        if error_type is FreeModelEligibilityError
+        else [("terminal", "ERROR")]
+    )
+
+
+async def test_a_tool_turn_climbs_the_ladder_and_gives_up_at_the_top(
+    drive: Driver,
+) -> None:
+    run = await drive(TOOLS, [exhausted()])
+
+    assert isinstance(run.error, LLMBudgetExhaustedError)
+    assert len(run.calls) == 3, "the top rung is not resent"
+    assert run.thinking == ["enabled", "enabled", "disabled"]
+    first, raised, last = run.max_tokens
+    assert raised > first
+    assert last == raised
+    assert run.slept == []
+    assert run.retries == 2
+    assert len(run.retry_debug) == 2
+    assert run.logged == [
+        ("failed", "WARNING"),
+        ("escalated", "WARNING"),
+        ("failed", "WARNING"),
+        ("escalated", "WARNING"),
+        ("failed", "ERROR"),
+    ]
+
+
+async def test_a_tool_turn_thinking_only_answer_skips_to_thinking_off(
+    drive: Driver,
+) -> None:
+    run = await drive(TOOLS, [thinking_only(), ok(TOOLS)])
+
+    assert run.error is None
+    assert run.thinking == ["enabled", "disabled"]
+    assert run.retries == 1
+    assert run.logged == [("failed", "WARNING"), ("escalated", "WARNING")]
+
+
+async def test_a_tool_turn_mandatory_reasoning_rung_sends_no_minimal_effort(
+    drive: Driver,
+) -> None:
+    entry = replace(TOOLS, model=GATEWAY_MODEL)
+
+    run = await drive(entry, [reasoning_mandatory(), ok(entry)])
+
+    assert run.error is None
+    assert len(run.calls) == 2
+    # Unlike call_llm and call_llm_json, the tool turn resends the very
+    # reasoning request it sent before (no minimal-effort tier), at the
+    # raised budget.
+    assert run.reasoning == [{"enabled": True, "effort": "high"}] * 2
+    assert run.max_tokens[1] > run.max_tokens[0]
+    assert run.logged == [("failed", "WARNING"), ("escalated", "WARNING")]
+
+
+async def test_mandatory_reasoning_refusals_exhaust_a_tool_turn(
+    drive: Driver,
+) -> None:
+    entry = replace(TOOLS, model=GATEWAY_MODEL)
+
+    run = await drive(entry, [reasoning_mandatory()])
+
+    assert isinstance(run.error, BadRequestError)
+    assert len(run.calls) == 3
+    assert run.logged == [
+        ("failed", "WARNING"),
+        ("escalated", "WARNING"),
+        ("failed", "WARNING"),
+        ("failed", "ERROR"),
+    ]
+
+
+@pytest.mark.parametrize("mandatory_first", [False, True])
+async def test_alternating_reasoning_failures_exhaust_the_tool_attempt_budget(
+    drive: Driver, mandatory_first: bool
+) -> None:
+    entry = replace(TOOLS, model=GATEWAY_MODEL)
+    mandatory = reasoning_mandatory()
+    pair = (
+        [mandatory, thinking_only()]
+        if mandatory_first
+        else [thinking_only(), mandatory]
+    )
+    # A finite reproducer: the old loop reaches "fine" on attempt 21.
+    run = await drive(entry, pair * 10 + [ok(entry)])
+
+    if mandatory_first:
+        assert run.error is mandatory, (
+            f"expected current refusal; attempts={len(run.calls)}, "
+            f"result={run.result!r}"
+        )
+    else:
+        assert isinstance(run.error, LLMThinkingOnlyError), (
+            f"expected current thinking failure; attempts={len(run.calls)}, "
+            f"result={run.result!r}"
+        )
+    assert run.result is None, "the success sentinel must remain unreachable"
+    assert len(run.calls) == 3
+    enabled = {"enabled": True, "effort": "high"}
+    disabled = {"enabled": False}
+    assert run.reasoning == (
+        [enabled, enabled, disabled]
+        if mandatory_first
+        else [enabled, disabled, enabled]
+    )
+    assert run.max_tokens == [18000, 24000, 24000]
+    assert all(c["messages"] == run.calls[0]["messages"] for c in run.calls)
+    assert run.slept == []
+    assert run.throttled == 0
+    assert run.retries == 2
+    assert len(run.retry_debug) == 2
+    assert not any(kind == "park" for kind, _ in run.logged)
+    assert run.logged[-1] == ("failed", "ERROR")
+
+
+async def test_a_tool_turn_budget_stops_before_a_fourth_recovery_attempt(
+    drive: Driver,
+) -> None:
+    entry = replace(TOOLS, model=GATEWAY_MODEL)
+    refusal = reasoning_mandatory()
+    run = await drive(entry, [exhausted(), exhausted(), refusal, ok(entry)])
+
+    assert run.error is refusal
+    assert run.result is None, (
+        "a fourth-attempt success must remain unreachable"
+    )
+    assert len(run.calls) == 3
+    assert run.max_tokens == [18000, 24000, 24000]
+    assert run.reasoning == [
+        {"enabled": True, "effort": "high"},
+        {"enabled": True, "effort": "high"},
+        {"enabled": False},
+    ]
+    assert run.slept == []
+    assert run.throttled == 0
+    assert run.retries == 2
+
+
+async def test_each_tool_turn_receives_its_own_three_attempt_budget(
+    drive: Driver,
+) -> None:
+    asked_for_a_tool = make_completion(
+        make_message(None, tool_calls=[make_tool_call("c1", "search", "{}")])
+    )
+    executed: list[str] = []
+
+    async def executor(tc: Any) -> dict[str, Any]:
+        executed.append(tc.id)
+        return await echo_executor(tc)
+
+    entry = replace(TOOLS, model=GATEWAY_MODEL, executor=executor)
+    recovery = [exhausted(), exhausted()]
+    run = await drive(
+        entry, [*recovery, asked_for_a_tool, *recovery, ok(entry)]
+    )
+
+    assert run.error is None
+    assert run.result[0] == "fine"
+    assert len(run.calls) == 6
+    assert run.max_tokens == [18000, 24000, 24000] * 2
+    assert run.reasoning[:3] == run.reasoning[3:]
+    assert executed == ["c1"]
+    for call in run.calls[3:]:
+        assert [m["role"] for m in call["messages"]] == [
+            "user",
+            "assistant",
+            "tool",
+        ]
+    assert run.slept == []
+    assert run.throttled == 0
+    assert run.retries == 4
+
+
+@pytest.mark.parametrize("failure", [exhausted, rate_limited, overloaded])
+async def test_a_tool_turn_retry_never_spans_tool_execution(
+    drive: Driver,
+    failure: Callable[[], Any],
+) -> None:
+    asked_for_a_tool = make_completion(
+        make_message(None, tool_calls=[make_tool_call("c1", "search", "{}")])
+    )
+    executed: list[str] = []
+
+    async def executor(tc: Any) -> dict[str, Any]:
+        executed.append(tc.id)
+        return await echo_executor(tc)
+
+    entry = replace(TOOLS, executor=executor)
+
+    run = await drive(entry, [asked_for_a_tool, failure(), ok(entry)])
+
+    assert run.error is None
+    assert len(run.calls) == 3
+    assert executed == ["c1"], "the answerless turn must not rerun the tools"
+    # The retried turn is the second one, and it resends the same transcript.
+    roles = [m["role"] for m in run.calls[2]["messages"]]
+    assert roles == ["user", "assistant", "tool"]
+    assert run.calls[1]["messages"] == run.calls[2]["messages"]
+    # The rung resets for the next turn: it starts at the caller's budget.
+    assert run.max_tokens[1] == run.max_tokens[0]
+    if failure is exhausted:
+        assert run.max_tokens[2] > run.max_tokens[1]
+    else:
+        assert run.max_tokens[2] == run.max_tokens[1]
+
+
+def _rejecting_judge() -> Judge[str, str]:
+    """A judge that rejects every response with feedback, then gives up."""
+
+    def verdict(response: str, attempt: Attempt) -> Accepted[str] | Rejected:
+        return Rejected(
+            ValueError(f"bad {attempt.number}"),
+            response_text=response,
+            feedback=f"feedback {attempt.number}",
+        )
+
+    def exhausted(last: Rejected) -> str:
+        return f"gave up: {last.error} / {last.response_text}"
+
+    return Judge(verdict, exhausted)
+
+
+async def test_each_attempt_is_told_its_number_rung_and_feedback() -> None:
+    seen: list[Attempt] = []
+
+    async def make_attempt(attempt: Attempt) -> str:
+        seen.append(attempt)
+        return f"response {attempt.number}"
+
+    result = await run_attempts(
+        make_attempt, AttemptPlan("m", max_attempts=3), _rejecting_judge()
+    )
+
+    assert result == "gave up: bad 3 / response 3"
+    assert [a.number for a in seen] == [1, 2, 3]
+    assert [a.is_final for a in seen] == [False, False, True]
+    assert [a.feedback for a in seen] == [None, "feedback 1", "feedback 2"]
+    assert {a.rung for a in seen} == {BudgetEscalation.NONE}
+
+
+async def test_a_judge_that_accepts_ends_the_loop_with_its_value() -> None:
+    calls = 0
+
+    async def make_attempt(attempt: Attempt) -> str:
+        nonlocal calls
+        calls += 1
+        return f"response {attempt.number}"
+
+    def verdict(response: str, attempt: Attempt) -> Accepted[int] | Rejected:
+        if attempt.number == 2:
+            return Accepted(len(response))
+        return Rejected(ValueError("no"))
+
+    def exhausted(_last: Rejected) -> int:
+        raise AssertionError("an accepted response must not exhaust")
+
+    result = await run_attempts(
+        make_attempt,
+        AttemptPlan("m", max_attempts=5),
+        Judge(verdict, exhausted),
+    )
+
+    assert (result, calls) == (len("response 2"), 2)
+
+
+async def test_exhaustion_reports_the_last_response_text_any_attempt_gave() -> (
+    None
+):
+    async def make_attempt(attempt: Attempt) -> str:
+        return f"response {attempt.number}"
+
+    def verdict(_response: str, attempt: Attempt) -> Accepted[str] | Rejected:
+        text = "the only text" if attempt.number == 1 else None
+        return Rejected(ValueError(f"bad {attempt.number}"), text)
+
+    def exhausted(last: Rejected) -> str:
+        return f"{last.error} / {last.response_text}"
+
+    result = await run_attempts(
+        make_attempt,
+        AttemptPlan("m", max_attempts=2),
+        Judge(verdict, exhausted),
+    )
+
+    assert result == "bad 2 / the only text"
+
+
+async def test_a_final_attempt_failure_is_raised_not_handed_to_the_judge() -> (
+    None
+):
+    async def make_attempt(attempt: Attempt) -> str:
+        if attempt.is_final:
+            raise RuntimeError("provider exploded")
+        return "response"
+
+    def exhausted(_last: Rejected) -> str:
+        raise AssertionError("a failure is raised, never judged")
+
+    with pytest.raises(RuntimeError, match="provider exploded"):
+        await run_attempts(
+            make_attempt,
+            AttemptPlan("m", max_attempts=2),
+            Judge(_rejecting_judge().verdict, exhausted),
+        )
+
+
+async def test_no_attempts_still_resolves_through_the_judge() -> None:
+    async def make_attempt(_attempt: Attempt) -> str:
+        raise AssertionError("no attempt may be made")
+
+    result = await run_attempts(
+        make_attempt, AttemptPlan("m", max_attempts=0), _rejecting_judge()
+    )
+
+    assert result == "gave up: no attempt was made / None"
+
+
+async def test_an_escalation_only_plan_raises_a_failure_no_rung_answers() -> (
+    None
+):
+    calls = 0
+
+    async def make_attempt(_attempt: Attempt) -> str:
+        nonlocal calls
+        calls += 1
+        raise RuntimeError("provider exploded")
+
+    with pytest.raises(RuntimeError, match="provider exploded"):
+        await run_attempts(make_attempt, AttemptPlan.escalation_only("m"))
+
+    assert calls == 1
+
+
+async def test_an_escalation_only_plan_climbs_the_ladder_then_raises() -> None:
+    rungs: list[BudgetEscalation] = []
+
+    async def make_attempt(attempt: Attempt) -> str:
+        rungs.append(attempt.rung)
+        raise LLMBudgetExhaustedError("answerless")
+
+    with pytest.raises(LLMBudgetExhaustedError):
+        await run_attempts(make_attempt, AttemptPlan.escalation_only("m"))
+
+    assert rungs == [
+        BudgetEscalation.NONE,
+        BudgetEscalation.RAISED_BUDGET,
+        BudgetEscalation.NO_THINKING,
+    ]
+
+
+async def test_an_escalation_only_plan_never_marks_an_attempt_final() -> None:
+    finals: list[bool] = []
+
+    async def make_attempt(attempt: Attempt) -> str:
+        finals.append(attempt.is_final)
+        if attempt.number < 3:
+            raise LLMBudgetExhaustedError("answerless")
+        return "answered"
+
+    result = await run_attempts(make_attempt, AttemptPlan.escalation_only("m"))
+
+    assert result == "answered"
+    assert finals == [False, False, False]
+
+
+@pytest.mark.parametrize("failure", [rate_limited, overloaded])
+async def test_tool_turn_recovers_a_transient_failure(
+    drive: Driver, failure: Callable[[], Exception]
+) -> None:
+    run = await drive(TOOLS, [failure(), ok(TOOLS)])
+
+    assert run.error is None
+    assert len(run.calls) == 2
+    assert len(run.slept) == 1 and run.slept[0] > 0
+    assert run.retries == 1
+    assert run.calls[0] == run.calls[1]
+
+
+@pytest.mark.parametrize("failure", [rate_limited, overloaded])
+async def test_tool_turn_stops_after_three_attempts(
+    drive: Driver, failure: Callable[[], Exception]
+) -> None:
+    run = await drive(TOOLS, [failure()])
+
+    assert isinstance(run.error, (RateLimitError, APIError))
+    assert len(run.calls) == 3
+    assert len(run.slept) == 2
+    assert run.retries == 2
+
+
+async def test_tool_turn_parks_a_platform_quota(drive: Driver) -> None:
+    run = await drive(TOOLS, [rate_limited(reset_in=7200)])
+
+    assert isinstance(run.error, LLMRateLimitParkError)
+    assert len(run.calls) == 1
+    assert run.slept == []
+    assert run.retries == 0

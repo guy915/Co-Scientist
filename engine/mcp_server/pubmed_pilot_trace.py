@@ -10,7 +10,7 @@ from typing import Any, cast
 from Bio import Entrez
 
 import mcp_server.pubmed_client as pubmed_client
-from mcp_server.entrez_rate_limit import (
+from mcp_server.entrez import (
     PILOT_ENTREZ_MAX_TRIES,
     PILOT_ENTREZ_SLEEP_BETWEEN_TRIES,
     STUDY4_MAX_RETRIES_PER_LOGICAL_REQUEST,

@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.agents.ranking.ranking_debate import (
+    _apply_matchup_elo,
+    _build_matchup_detail,
     _DebateContext,
     _matchup_debate_turns,
     _median_elo,
@@ -17,10 +19,6 @@ from co_scientist.agents.ranking.ranking_debate import (
 from co_scientist.agents.ranking.ranking_lifecycle import (
     TournamentGuidance,
     _gather_tournament_context,
-)
-from co_scientist.agents.ranking.ranking_results import (
-    _apply_matchup_elo,
-    _build_matchup_detail,
 )
 from co_scientist.models import Hypothesis
 from co_scientist.state import WorkflowState

@@ -18,7 +18,7 @@ from co_scientist.constants import corpus_slug
 from co_scientist.evidence.relevance import (
     apply_semantic_relevance,
 )
-from co_scientist.evidence.search_budget import (
+from co_scientist.evidence.search_fusion import (
     select_within_budget,
 )
 from co_scientist.evidence.search_query import (
@@ -35,8 +35,7 @@ from co_scientist.evidence.search_support import (
     extract_source_name,
     merge_search_results,
 )
-from co_scientist.mcp_client import MCPToolClient
-from co_scientist.mcp_client.campaign import campaign_serves_tool
+from co_scientist.mcp_client import MCPToolClient, campaign_serves_tool
 from co_scientist.state import WorkflowState
 
 

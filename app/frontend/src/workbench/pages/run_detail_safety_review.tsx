@@ -1,5 +1,5 @@
 import {type SafetyDecision} from '@/api/runs';
-import {REPORT_H3_CLASSES} from './run_detail_document';
+import {REPORT_H3_CLASSES} from './run_detail_shell';
 
 // Display values derived from a safety decision: the human-readable category
 // when one was assigned. The policy version and assessor are

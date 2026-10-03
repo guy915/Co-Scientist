@@ -2,7 +2,7 @@ import {act, renderHook} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
 import type {HypothesisOutcome} from '@/api/runs';
 import {getHypothesisOutcomes} from '@/api/runs';
-import {useRunOutcomeCollection} from './run_detail_collections';
+import {useRunOutcomeCollection} from './run_detail_data';
 
 vi.mock('@/api/runs', () => ({getHypothesisOutcomes: vi.fn()}));
 

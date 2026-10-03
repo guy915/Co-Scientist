@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from app.claims.verdict import (
+from app.claims.gate import (
     is_categorical_contradiction,
     is_contradicting,
     is_excused,

@@ -9,7 +9,7 @@ import {HypothesisOutcomeRefinement} from './hypothesis_outcome_refinement';
 import {
   ReportDocument,
   REPORT_H4_CLASSES,
-} from '@/workbench/pages/run_detail_document';
+} from '@/workbench/pages/run_detail_shell';
 
 interface OutcomeCollectionProps {
   outcomes?: HypothesisOutcome[];

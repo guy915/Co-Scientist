@@ -1,24 +1,4 @@
-"""Report persistence: structured JSON rows plus Markdown artifacts.
-
-A report is stored as a JSON payload row in the reports table, with the
-rendered Markdown kept both in the database (durable across container
-restarts) and as an on-disk file (backwards compatibility and local dev
-convenience).
-
-R14-11 split a run's report into two documents for a time, persisted via a
-second column (``markdown_text_ranking``) on this same row rather than a
-second table -- see the reports table's own comment in schema.py. That
-split was reversed 2026-09-04 (docs/PARITY.md's REPORT-DOCUMENT-SPLIT-001
-row); ``save_report`` writes only ``markdown_text`` again, exactly as
-before the split, and ``markdown_text_ranking`` is never written by any
-code path from here on. The column itself stays -- a forward migration
-cannot be un-run against the production SQLite volume, so dropping it is
-not an option -- and ``read_report_markdown`` below still checks it: a
-run whose report was built during the split window has its full "Top
-hypotheses" write-up sitting only in that column, and without this check
-``/report.md`` for that run would silently read as the shorter overview-
-only half.
-"""
+"""Report persistence: structured JSON rows plus Markdown artifacts."""
 
 from __future__ import annotations
 
@@ -29,9 +9,86 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from app.store.db import _now, _reports_dir, _use_conn, connect
+from app.store.db import _list_by_run, _now, _reports_dir, _use_conn, connect
 
 logger = logging.getLogger(__name__)
+
+
+def replace_knowledge_facts(
+    run_id: str,
+    facts: list[dict[str, Any]],
+    *,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> None:
+    """Replace a run's knowledge-facts rows wholesale.
+
+    Matches the ``claim_evidence``/``run_metrics`` pattern used elsewhere in
+    this store: rows are fully reconstructed from the claim-evidence graph
+    each time a report is finalized, so re-finalizing a resumed run never
+    accumulates duplicates.
+
+    Args:
+        run_id: Owning run.
+        facts: Rows as built by
+            ``app.knowledge_facts.derive_knowledge_facts`` --
+            ``{hypothesis_id, evidence_id, kind, statement, entities,
+            state}`` dicts.
+        db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse (e.g. from ``transaction``).
+    """
+    with _use_conn(conn, db_path) as conn:
+        conn.execute("DELETE FROM knowledge_facts WHERE run_id = ?", (run_id,))
+        now = _now()
+        conn.executemany(
+            "INSERT INTO knowledge_facts (run_id, hypothesis_id, "
+            "evidence_id, kind, statement, entities_json, state, "
+            "created_at) VALUES (?,?,?,?,?,?,?,?)",
+            [
+                (
+                    run_id,
+                    fact["hypothesis_id"],
+                    fact.get("evidence_id"),
+                    fact["kind"],
+                    fact["statement"],
+                    json.dumps(fact.get("entities") or []),
+                    fact["state"],
+                    now,
+                )
+                for fact in facts
+            ],
+        )
+
+
+def list_knowledge_facts(
+    run_id: str,
+    *,
+    kind: str | None = None,
+    entity: str | None = None,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> list[dict[str, Any]]:
+    """Return a run's durable facts/contradictions, decoded and filterable.
+
+    Args:
+        run_id: Owning run.
+        kind: Optional filter to ``"fact"`` or ``"contradiction"``.
+        entity: Optional case-insensitive entity-name filter.
+        db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse.
+
+    Returns:
+        Rows oldest first, each with ``entities`` decoded to a list.
+    """
+    rows = _list_by_run(
+        "knowledge_facts", run_id, db_path, conn, json_fields=("entities",)
+    )
+    if kind is not None:
+        rows = [r for r in rows if r["kind"] == kind]
+    if entity is not None:
+        needle = entity.strip().upper()
+        rows = [r for r in rows if needle in {e.upper() for e in r["entities"]}]
+    return rows
 
 
 def write_report_markdown(markdown_path: str, markdown: str) -> None:

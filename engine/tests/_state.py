@@ -1,18 +1,25 @@
-"""Factories for building WorkflowState and Hypothesis values in node tests.
+"""Shared test fixtures for state."""
 
-The pipeline nodes read from and write to a large ``WorkflowState`` TypedDict.
-``make_state`` returns a complete state populated with inert defaults so a test
-only has to override the few fields it exercises.
-"""
+from __future__ import annotations
 
 from typing import Any, cast
 
+import pytest
+from langgraph.graph import END, START, StateGraph
+
+from co_scientist.agents.generation import generate as coordinator
+from co_scientist.generator import HypothesisGenerator
+from co_scientist.generator.graph import (
+    _add_workflow_edges,
+    _add_workflow_nodes,
+)
 from co_scientist.models import (
     Article,
     ExecutionMetrics,
     Hypothesis,
     HypothesisReview,
 )
+from co_scientist.scheduling import Budget, SchedulerStats, TaskType
 from co_scientist.state import WorkflowState
 
 
@@ -139,3 +146,218 @@ def make_state(**overrides: Any) -> WorkflowState:
     }
     base.update(overrides)
     return cast(WorkflowState, base)
+
+
+class _ToolsRecorder:
+    """Records calls to the stubbed ``generate_with_tools`` leaf strategy."""
+
+    def __init__(
+        self, hypotheses: list[Hypothesis], llm_calls: int = 0
+    ) -> None:
+        self._hypotheses = hypotheses
+        self.llm_calls = llm_calls
+        self.called = False
+        self.count: int | None = None
+
+    async def __call__(
+        self, _state: Any, count: int, _reference_index: Any
+    ) -> tuple[list[Hypothesis], int]:
+        self.called = True
+        self.count = count
+        return list(self._hypotheses), self.llm_calls
+
+
+class _DebateRecorder:
+    """Records calls to the stubbed ``generate_with_debate`` leaf strategy."""
+
+    def __init__(
+        self,
+        hypotheses: list[Hypothesis],
+        transcripts: list[dict[str, Any]],
+        llm_calls: int = 0,
+    ) -> None:
+        self._hypotheses = hypotheses
+        self._transcripts = transcripts
+        self.llm_calls = llm_calls
+        self.called = False
+        self.count: int | None = None
+        self.articles_with_reasoning: str | None = None
+
+    async def __call__(
+        self,
+        *,
+        state: Any,
+        count: int,
+        articles_with_reasoning: str | None = None,
+        reference_index: Any = None,
+    ) -> tuple[list[Hypothesis], list[dict[str, Any]], int]:
+        self.called = True
+        self.count = count
+        self.articles_with_reasoning = articles_with_reasoning
+        return list(self._hypotheses), list(self._transcripts), self.llm_calls
+
+
+class _AssumptionsRecorder:
+    """Records calls to the stubbed ``generate_with_assumptions`` leaf."""
+
+    def __init__(
+        self, hypotheses: list[Hypothesis], llm_calls: int = 0
+    ) -> None:
+        self._hypotheses = hypotheses
+        self.llm_calls = llm_calls
+        self.called = False
+        self.count: int | None = None
+        self.articles_with_reasoning: str | None = None
+        self.reference_index: Any = None
+
+    async def __call__(
+        self,
+        _state: Any,
+        count: int,
+        articles_with_reasoning: str | None = None,
+        reference_index: Any = None,
+    ) -> tuple[list[Hypothesis], int]:
+        self.called = True
+        self.count = count
+        self.articles_with_reasoning = articles_with_reasoning
+        self.reference_index = reference_index
+        return list(self._hypotheses), self.llm_calls
+
+
+def _install(
+    monkeypatch: pytest.MonkeyPatch,
+    tools: _ToolsRecorder,
+    debate: _DebateRecorder,
+    assumptions: _AssumptionsRecorder | None = None,
+) -> None:
+    """Patch the leaf strategies on the coordinator's namespace."""
+    monkeypatch.setattr(coordinator, "generate_with_tools", tools)
+    monkeypatch.setattr(coordinator, "generate_with_debate", debate)
+    monkeypatch.setattr(
+        coordinator,
+        "generate_with_assumptions",
+        assumptions or _AssumptionsRecorder([]),
+    )
+
+
+# A generous budget so budget ceilings never fire unless a test sets them.
+BUDGET = Budget(max_iterations=5, max_llm_calls=1000, max_tasks=100)
+
+
+def healthy_stats(**overrides: object) -> SchedulerStats:
+    """A mid-run pool with no backlog, adequate coverage, room to iterate."""
+    base: dict[str, object] = {
+        "pool_size": 6,
+        "reviewed_count": 6,
+        "unreviewed_count": 0,
+        "rankable_count": 6,
+        "match_coverage": 3.0,
+        "iteration": 1,
+        "rank_stable_cycles": 0,
+    }
+    base.update(overrides)
+    return SchedulerStats(**base)  # type: ignore[arg-type]
+
+
+async def collect_stream_events(
+    gen: HypothesisGenerator, goal: str
+) -> list[tuple[str, dict[str, Any]]]:
+    """Consume the streaming API into a list of (node_name, state) tuples.
+
+    Args:
+        gen: The generator whose streaming run is consumed.
+        goal: The research goal to run with.
+
+    Returns:
+        One ``(node_name, cumulative_state_dict)`` tuple per yielded event.
+    """
+    events: list[tuple[str, dict[str, Any]]] = []
+    async for node_name, state_dict in gen.generate_hypotheses(
+        goal,
+        opts={"enable_literature_review_node": False},
+        stream=True,
+    ):
+        events.append((node_name, state_dict))
+    return events
+
+
+# Marks a node the compiled graph does not register at all (the
+# literature-review nodes in the simplified flow); distinct from ``None``,
+# which is the end of the run.
+ABSENT = "<absent>"
+
+
+def build_graph(literature_review: bool) -> StateGraph[Any, Any, Any, Any]:
+    """The workflow graph, wired and compiled, in one flow shape.
+
+    Returned as the builder: its ``edges`` and ``branches`` are the wiring
+    that was declared, and compiling it proves LangGraph accepts that wiring.
+    """
+    workflow = StateGraph(WorkflowState)
+    _add_workflow_nodes(workflow, literature_review)
+    _add_workflow_edges(workflow, literature_review)
+    workflow.compile()
+    return workflow
+
+
+def graph_successor(
+    graph: StateGraph[Any, Any, Any, Any], node: str, state: WorkflowState
+) -> str | None:
+    """What the compiled graph runs after ``node`` in ``state``.
+
+    Returns:
+        The successor's name, ``None`` where the graph ends, or ``ABSENT``
+        when the graph has no such node.
+
+    Raises:
+        AssertionError: If the node has anything but exactly one outgoing
+            edge (one fixed edge, or one conditional branch).
+    """
+    if node not in graph.nodes and node != START:
+        return ABSENT
+    fixed = [target for source, target in graph.edges if source == node]
+    branches = list(graph.branches.get(node, {}).values())
+    assert len(fixed) + len(branches) == 1, (node, fixed, branches)
+    if fixed:
+        return fixed[0]
+    branch = branches[0]
+    chosen: Any = branch.path.invoke(state)
+    target = branch.ends[chosen] if branch.ends else chosen
+    return None if target == END else str(target)
+
+
+def _stacked(*companions: str) -> list[dict[str, Any]]:
+    return [
+        {"action": "enqueue", "task_type": task, "reason": "stacked"}
+        for task in companions
+    ]
+
+
+def decision_states() -> list[WorkflowState]:
+    """States covering every branch a resolver route reads.
+
+    No decision, each task the orchestrator can record, an unknown task, and
+    the passes that stack the periodic companions ahead of a primary. Only
+    stackings the scheduler can produce (``scheduling.policy.stack_companions``)
+    appear: LangGraph rejects a resolver value outside its path map, and the
+    unproducible ones (meta-review stacked ahead of EVOLVE, an overview
+    stacked onto its own SYNTHESIZE or onto TERMINATE) are exactly those.
+    """
+    meta, overview = TaskType.META_REVIEW.value, TaskType.SYNTHESIZE.value
+    decisions: list[dict[str, Any]] = [{}, {"next_task": None}]
+    decisions += [{"next_task": task.value} for task in TaskType]
+    decisions.append({"next_task": "not_a_task"})
+    stackings = [
+        (TaskType.REFLECT, (meta,)),
+        (TaskType.REFLECT, (overview,)),
+        (TaskType.REFLECT, (meta, overview)),
+        (TaskType.SYNTHESIZE, (meta,)),
+    ]
+    for primary, companions in stackings:
+        decisions.append(
+            {
+                "next_task": primary.value,
+                "supervisor_queue_actions": _stacked(*companions),
+            }
+        )
+    return [make_state(**decision) for decision in decisions]

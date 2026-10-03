@@ -17,18 +17,18 @@ from co_scientist.agents.reflection.comprehensive_reflection import (
 )
 from co_scientist.agents.reflection.deep_verification import (
     deep_verification_node,
+    has_valid_verification,
+    select_hypotheses_to_verify,
+    verify_hypothesis,
 )
 from co_scientist.agents.reflection.reflection import (
     observe_hypothesis,
     reflection_node,
 )
 from co_scientist.agents.reflection.review import review_node
-from co_scientist.agents.reflection.review_gate import apply_initial_review_gate
-from co_scientist.agents.reflection.review_types import ReviewType
-from co_scientist.agents.reflection.verification import (
-    has_valid_verification,
-    select_hypotheses_to_verify,
-    verify_hypothesis,
+from co_scientist.agents.reflection.review_gate import (
+    ReviewType,
+    apply_initial_review_gate,
 )
 
 __all__ = [

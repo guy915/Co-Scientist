@@ -1,9 +1,0 @@
-# M11 precise-rung trace failure: offline diagnosis
-
-The retained run prefix records one successful MCP tool response followed by a `FileNotFoundError` while the runner read `.search-trace.json`. Its call row retains the cache root, but the temporary cache and server logs were removed, and no launch-time trace or cache environment values remain. The durable evidence therefore cannot distinguish tracing disabled in the server from a server cache root different from the runner's configured root.
-
-The maintained tool writes the trace at `<COSCIENTIST_LIT_REVIEW_DIR>/pubmed/<slug>/runs/<run_id>/.search-trace.json`: `pubmed_search_with_fulltext` constructs `PubmedSource` under the `pubmed` directory, and `PubmedSource` writes the trace into the per-run directory. The runner reads the same relative path under `Arm.cache`; no path mismatch was reproduced when both use the same root. The maintained trace tests pass with fake Entrez responses and verify the emitted file at that location.
-
-An offline runner test models a successful maintained-tool response and cache manifest with no trace file. It failed first because the runner kept only the exception class, omitting the expected missing path. The runner now records that path only for a trace-stage `FileNotFoundError`, bounded to 500 characters. It still stops at the first error and does not retry. This diagnostic change does not establish why the stopped live process lacked the file.
-
-Frozen preregistration SHA-256 remains `5b9d7a0ac076fb44574a2b357f6b7de2a5bc151140049ac478f6d3e96b69d08b`; baseline and candidate MCP source trees were not edited. The runner bytes changed, so the prior runner hash does not authorize a new retrieval. No PubMed/NCBI/model/network call, retry, scoring, or unblinding occurred; the actual PubMed request count for the stopped run remains unknown.

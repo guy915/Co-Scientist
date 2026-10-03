@@ -49,7 +49,7 @@ that is what makes them deterministic and trustworthy as merge gates.
   engine's deterministic offline LLM backend (`COSCIENTIST_FORCE_OFFLINE=1`);
   no model API keys exist in CI.
 - MCP server tests: fake `httpx` clients, no network (see
-  `engine/mcp_server/tests/test_openalex.py` docstring).
+  `engine/mcp_server/tests/test_literature.py` docstring).
 - Browser tests: the existing development flows plus a built-asset launch
   check with `AUTH_MODE=required`. Each invocation gets a fresh temporary
   store, fixed test-only invite codes, disabled local dotenv loading, offline
@@ -79,7 +79,7 @@ runs them (deploys stay manual);
 itself, so it is exactly as hermetic as the jobs it exercises.
 
 Migrating a *populated* legacy-schema database is also covered, without a
-dedicated job: `app/tests/test_db_migration_on_volume.py` builds an
+dedicated job: `app/tests/test_persistence_records.py` builds an
 on-disk SQLite file shaped like a pre-migration volume (the exact danger
 `app/app/store/db.py`'s migration comments call out — a column added by
 `_run_migrations` but referenced by an index or backfill that runs before

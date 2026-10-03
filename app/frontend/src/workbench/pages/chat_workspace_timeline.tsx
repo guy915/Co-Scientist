@@ -5,7 +5,7 @@ import {type InferredRunSpec} from '../run_spec';
 import {
   type LinkedDraftRecovery,
   type SpecStage,
-} from '../hooks/chat_session_types';
+} from '../hooks/use_chat_session';
 import {
   type ChatEntry,
   ChatBubble,
@@ -15,7 +15,7 @@ import {RunSpecCard} from './chat_timeline_run_spec_card';
 import {
   type StartedSession,
   StartedSessionCard,
-} from './chat_timeline_started_card';
+} from './chat_timeline_run_spec_card';
 
 /**
  * One renderable entry in the chat timeline.
@@ -31,7 +31,7 @@ export interface TimelineItem {
   node: ReactNode;
   /**
    * Extra input to the scroll signature, for an item whose content grows in
-   * place rather than by another item arriving (see chat_workspace_scroll.ts).
+   * place rather than by another item arriving (see chat_workspace.tsx).
    * Without it such growth is invisible to the auto-scroll, since neither the
    * item's id nor its timestamp changes as it fills.
    */
@@ -39,7 +39,7 @@ export interface TimelineItem {
 }
 
 // Fixed ids of the (at most one each) run-spec card entries. The scroll hook
-// (chat_workspace_scroll.ts) anchors these tall cards to the top when they
+// (chat_workspace.tsx) anchors these tall cards to the top when they
 // arrive, so it matches on the same constants.
 export const DRAFT_SPEC_ITEM_ID = 'draft-spec';
 export const CONFIRMED_SPEC_ITEM_ID = 'confirmed-spec';

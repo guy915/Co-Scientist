@@ -6,7 +6,7 @@ import logging
 from typing import Any
 
 from co_scientist.agents.node_degradation import run_or_degrade
-from co_scientist.agents.reflection.mature_reviews import (
+from co_scientist.agents.reflection.review_gate import (
     mature_review_summary,
 )
 from co_scientist.agents.safety.safety_monitor import (

@@ -1,9 +1,6 @@
-"""Shared fixtures and stand-ins for the durable engine-task test suite.
+"""Durable task fixtures."""
 
-Leading underscore so pytest does not collect this module. The split
-``test_engine_tasks*.py`` files import these builders, which were extracted
-verbatim from the original single ``test_engine_tasks.py``.
-"""
+from __future__ import annotations
 
 import asyncio
 import time
@@ -23,6 +20,8 @@ from app.engine_tasks import ranking as engine_tasks_ranking
 from app.engine_tasks import runtime as engine_tasks_runtime
 from app.engine_tasks import support as engine_tasks_support
 from app.engine_tasks.runtime import ProductionEngineTaskRuntime
+
+from ._llm_fake_backend import load_engine_fake
 
 
 def _task_state(run_id: str) -> dict[str, Any]:
@@ -368,3 +367,99 @@ def _running_ranking_events(run_id: str, db_path: str) -> list[dict[str, Any]]:
         if e["payload"].get("task") == "ranking"
         and e["payload"].get("status") == "running"
     ]
+
+
+def _run() -> str:
+    return store.create_run("queue goal", "standard", "engine", {}).id
+
+
+def _enqueue(
+    run_id: str, task_type: str, key: str, db: str, **kwargs: Any
+) -> Any:
+    """Enqueue an empty-input task by type and idempotency key."""
+    return store.enqueue_task(
+        store.NewTask(
+            run_id=run_id,
+            task_type=task_type,
+            inputs={},
+            idempotency_key=key,
+            **kwargs,
+        ),
+        db_path=db,
+    )
+
+
+def _three_control_tasks(run_id: str, db: str) -> tuple[str, str, str]:
+    """Enqueue promote/cancel/retry tasks and fail the retry one.
+
+    Returns the ``(promoted, cancelled, failed)`` task ids.
+    """
+    promoted = _enqueue(
+        run_id, "reflection.full", "control:promote", db, priority=1
+    )
+    cancelled = _enqueue(
+        run_id, "generation.assumptions", "control:cancel", db, priority=2
+    )
+    failed = _enqueue(
+        run_id,
+        "verification.deep",
+        "control:retry",
+        db,
+        priority=100,
+        max_attempts=1,
+    )
+    leased = store.claim_task("failed-worker", run_id=run_id, db_path=db)
+    assert leased is not None and leased.id == failed.id
+    assert store.fail_task(
+        failed.id,
+        "failed-worker",
+        "transient provider error",
+        retryable=False,
+        db_path=db,
+    )
+    return promoted.id, cancelled.id, failed.id
+
+
+def make_cancellable_executor(
+    started: asyncio.Event, interrupted: asyncio.Event
+) -> Callable[..., Awaitable[dict[str, bool]]]:
+    """Build an executor stub that records its own cancellation.
+
+    The stub matches the ``execute_engine_task`` signature. It sets
+    ``started``, then waits forever; when the surrounding task is
+    cancelled it sets ``interrupted`` and re-raises, proving the
+    cancellation reached the payload coroutine.
+
+    Args:
+        started: Set as soon as the stub begins executing.
+        interrupted: Set when the stub is cancelled.
+
+    Returns:
+        The async executor stub to patch over ``execute_engine_task``.
+    """
+
+    async def _execute(
+        _task: store.ScientificTask, *, db_path: str | None = None
+    ) -> dict[str, bool]:
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            interrupted.set()
+            raise
+        return {"completed": True}
+
+    return _execute
+
+
+def _install_fake_engine_llm(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fake the engine's LLM boundary and force literature review off."""
+    load_engine_fake().install_fake_llm(monkeypatch)
+    # Hard kill switch: never probe the (possibly live) local MCP server.
+    monkeypatch.setenv("FORCE_LITERATURE_REVIEW", "0")
+    # These tests exercise resume, not the safety gate; keep the app-level
+    # semantic screen offline (it makes a real provider call) so a
+    # rate-limited or degraded assessment cannot spuriously hold the run.
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "semantic_safety_enabled", False)

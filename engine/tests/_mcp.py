@@ -1,23 +1,16 @@
-"""Shared fakes and builders for the MCP seams the tests stand in for.
+"""Shared test fixtures for mcp."""
 
-The MCP client wrapper's only external dependency is ``MultiServerMCPClient``
-from ``langchain_mcp_adapters`` - a network client that talks to a live MCP
-server. These helpers provide an in-memory ``FakeMultiServerMCPClient`` (patched
-in over the real class by the ``_patch_mcp_seam`` fixture in ``conftest``), a
-``FakeToolRegistry`` for the config-driven multi-server path, and small builders
-for real ``StructuredTool`` instances and LiteLLM-shaped tool-call objects.
-
-Also here, for the consumers of that client rather than the client itself:
-``FakeToolResultsClient`` (the duck-typed ``call_tool``/``has_tool`` stand-in
-the literature-review phase tests drive) and ``stub_mcp_availability`` (the
-generator's two MCP-availability probes forced to a fixed answer).
-"""
+from __future__ import annotations
 
 import types
 from typing import Any, ClassVar, cast
 
 import pytest
 from langchain_core.tools import StructuredTool
+
+from co_scientist.generator import GeneratorOptions, HypothesisGenerator
+from co_scientist.offline import llm as offline_llm
+from tests._llm_fake import restore_backend_at_teardown
 
 # --- Real tool builders -----------------------------------------------------
 
@@ -316,3 +309,33 @@ def make_tool_call(name: str, arguments: str, call_id: str = "call-1") -> Any:
 def make_registry(**kwargs: Any) -> Any:
     """Build a FakeToolRegistry typed as the ToolRegistry the code expects."""
     return cast(Any, FakeToolRegistry(**kwargs))
+
+
+def isolate_offline_router(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Isolates ``install_offline_router``'s state to one test at a time.
+
+    ``install_offline_router`` installs a backend process-wide, so a permanent
+    install in one test would otherwise leak into every later test in the
+    process. Registering the installed backend for restoration at teardown,
+    and resetting the module's own idempotency flag, guarantees a fresh
+    install every test.
+
+    Args:
+        monkeypatch: The pytest monkeypatch fixture.
+    """
+    restore_backend_at_teardown(monkeypatch)
+    monkeypatch.setattr(offline_llm, "_installed", False)
+
+
+def make_offline_generator() -> HypothesisGenerator:
+    """Builds the small single-iteration generator offline runs use."""
+    return HypothesisGenerator(
+        model_name=offline_llm.DEFAULT_OFFLINE_MODEL,
+        max_iterations=1,
+        initial_hypotheses_count=2,
+        evolution_max_count=2,
+        options=GeneratorOptions(
+            tournament_pairs=2,
+            enable_cache=False,
+        ),
+    )

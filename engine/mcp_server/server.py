@@ -44,13 +44,17 @@ from mcp_server.auth_middleware import (
     resolve_shared_secret,
 )
 from mcp_server.tool_logging import with_call_logging
-from mcp_server.tools.biomedical_databases import search_chembl, search_uniprot
-from mcp_server.tools.clinical_trials import search_clinical_trials
-from mcp_server.tools.genomics_databases import (
+from mcp_server.tools.biomedical_databases import (
+    search_chembl,
+    search_clinical_trials,
     search_ensembl_gene,
     search_gnomad_constraint,
+    search_gwas_catalog_associations,
+    search_open_targets,
+    search_reactome_pathways,
+    search_string_interactions,
+    search_uniprot,
 )
-from mcp_server.tools.gwas_catalog import search_gwas_catalog_associations
 from mcp_server.tools.indra_cogex import (
     query_causal_subnetwork,
     query_clinical_trials,
@@ -75,11 +79,6 @@ from mcp_server.tools.lit_review.search_pubmed import (
     check_pubmed_available,
     pubmed_search_with_fulltext,
     search_pubmed,
-)
-from mcp_server.tools.systems_biology import (
-    search_open_targets,
-    search_reactome_pathways,
-    search_string_interactions,
 )
 from mcp_server.tools.web import (
     check_web_search_available,

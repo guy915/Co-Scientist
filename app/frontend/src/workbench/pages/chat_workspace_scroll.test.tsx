@@ -1,13 +1,13 @@
 import {Fragment, useState} from 'react';
 import {act, render} from '@testing-library/react';
 import {beforeEach, expect, test, vi} from 'vitest';
-import {useChatTimelineScroll} from './chat_workspace_scroll';
+import {useChatTimelineScroll} from './chat_workspace';
 import {
   CONFIRMED_SPEC_ITEM_ID,
   DRAFT_SPEC_ITEM_ID,
   type TimelineItem,
 } from './chat_workspace_timeline';
-import {type StartedSession} from './chat_timeline_started_card';
+import {type StartedSession} from './chat_timeline_run_spec_card';
 import {TIMELINE_ANCHOR_ATTRIBUTE} from './chat_timeline_bubble';
 
 // jsdom gives every element a zero height, which would read as "already at

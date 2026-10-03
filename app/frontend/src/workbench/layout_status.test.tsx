@@ -1,7 +1,7 @@
 import {render, screen, waitFor} from '@testing-library/react';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import type {SystemStatus} from '@/api/system';
-import {SystemStatusIndicator, buildSystemStatusChip} from './layout_status';
+import {SystemStatusIndicator, buildSystemStatusChip} from './layout_header';
 
 const apiMock = vi.hoisted(() => ({getSystemStatus: vi.fn()}));
 

@@ -222,12 +222,10 @@ export MCP_SERVER_URL=http://localhost:8888/mcp
 
 The engine uses a YAML-based tool registry that decouples literature sources from library code. This lets you bring your own MCP servers without modifying the engine.
 
-The default config (`src/co_scientist/config/tools.yaml`) targets the bundled PubMed server. Pre-built examples in `src/co_scientist/config/examples/` cover:
-
-- `arxiv_only.yaml` — arXiv for AI/ML/CS/physics research
-- `multiple_sources.yaml` — PubMed + arXiv + Google Scholar in parallel
-- `google_scholar.yaml` — Google Scholar with two-step PDF retrieval
-- `indra_cancer.yaml` / `indra_alzheimers.yaml` / `indra_ibd.yaml` / `indra_hfpef.yaml` — domain-specific biomedical configs extending PubMed with INDRA CoGex knowledge-graph tools
+The default config (`src/co_scientist/config/tools.yaml`) declares the bundled
+academic, biomedical and web tools. The retained examples extend it with INDRA
+CoGex guidance for oncology (`indra_cancer.yaml`) and cardiac remodeling
+(`indra_hfpef.yaml`). Use either as the starting point for a custom YAML overlay.
 
 Pass a config at construction time:
 
@@ -239,7 +237,7 @@ generator = HypothesisGenerator(
 )
 ```
 
-See `src/co_scientist/config/examples/README.md` and `docs/LITERATURE_REVIEW_TOOLS_CONFIGURATION.md` for the full schema.
+See `docs/CONFIGURATION.md` for the full schema.
 
 ## Caching
 
@@ -399,12 +397,6 @@ src/co_scientist/
 
 ## Documentation
 
-- [Architecture](docs/ARCHITECTURE.md) — workflow diagram, node descriptions, state management
-- [Development](docs/DEVELOPMENT.md) — project structure, adding a node, debugging
-- [MCP Integration](docs/MCP_INTEGRATION.md) — literature review setup and configuration
-- [Web Search](docs/WEB_SEARCH.md) — open-web search and browsing tools
-- [Generation Modes](docs/GENERATION_MODES.md) — three generate node modes explained
-- [Configuration](docs/CONFIGURATION.md) — all parameters, caching, performance tuning
-- [Domain Customization](docs/DOMAIN_CUSTOMIZATION.md) — adapting to new domains via YAML config
-- [Literature Review Tools Configuration](docs/LITERATURE_REVIEW_TOOLS_CONFIGURATION.md) — YAML schema reference for custom MCP servers
-- [Logging](docs/LOGGING.md) — file logging, rotating logs, log levels
+- [Architecture](docs/ARCHITECTURE.md) — agents, workflow, state and generation modes
+- [Configuration](docs/CONFIGURATION.md) — parameters, tool schemas, MCP, web search and domain overlays
+- [Development](docs/DEVELOPMENT.md) — adding nodes, debugging, tests and logging

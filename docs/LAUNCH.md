@@ -1,11 +1,11 @@
 # Launch readiness
 
-Use this document for product releases. The root `PLAN.md` and
-`references/external/` retain the completed reference campaign's evidence;
-they are not the launch checklist. Scientific evaluations remain scoped to
+Use this document for product releases. [PLAN.md](../PLAN.md) retains the
+completed reference campaign's conclusions and immutable evidence links.
+Scientific evaluations remain scoped to
 their original protocols and must not be summarized as general validation.
 
-The [1 October cleanup validation record](PUBLICATION-REVIEW.md) reports
+The [1 October cleanup validation record](https://github.com/guy915/Co-Scientist/blob/7c2878aeb071a962cb713e9c271cd88e1635ca5f/docs/PUBLICATION-REVIEW.md) reports
 completed checks, detector triage, and outstanding external release gates.
 
 ## Repository checks

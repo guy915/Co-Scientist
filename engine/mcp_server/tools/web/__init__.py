@@ -5,7 +5,7 @@ sources: ``search_web`` finds pages, ``read_url`` reads them.
 """
 
 from mcp_server.tools.web.fetch import read_url
-from mcp_server.tools.web.web_search import (
+from mcp_server.tools.web.providers import (
     check_web_search_available,
     search_web,
 )

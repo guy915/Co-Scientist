@@ -23,7 +23,7 @@ from co_scientist.exceptions import (
     LLMBudgetExhaustedError,
     LLMThinkingOnlyError,
 )
-from co_scientist.llm.request.gateway_body import effective_thinking_enabled
+from co_scientist.llm.request.thinking import effective_thinking_enabled
 
 logger = logging.getLogger(__name__)
 

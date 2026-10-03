@@ -1,34 +1,115 @@
-"""What a piece of research is made of, and how each piece is named.
-
-Every artifact here is immutable and **content-addressed**: its id is a
-hash of the things that make it what it is, not a counter handed out at
-creation. Two properties follow, and both are the point.
-
-**The same source read for two questions is two findings.** A locator
-alone does not identify evidence, because the reason it was fetched is
-part of what it is. A paper that answers "what is the mechanism" and a
-paper that answers "what contradicts this" are different evidence even
-when they are the same PDF, and collapsing them loses the only record of
-why the run went looking. So a finding's id spans locator, span and
-question, and a search call's id spans source, question and query.
-
-**Identity survives a restart without a registry.** Re-running the same
-question against the same source produces the same ids, so a resumed run
-recognises work it already paid for instead of duplicating it.
-
-This is the one decision in this package that cannot be revised later: an
-id scheme can be changed only while no rows exist. The fields are
-therefore chosen against what persistence will need — the ranked result
-set as returned, what the budget dropped, the status, and the timing —
-rather than against what the loop happens to use today.
-"""
+"""Research budgets, input and output records, and collaborator protocols."""
 
 from __future__ import annotations
 
 import hashlib
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
+from typing import Protocol
+
+# Below this, halving stops. A one-question level is not research, it is
+# a single lookup, and the descent may as well end instead.
+DEFAULT_BREADTH_FLOOR = 2
+
+
+@dataclass(frozen=True)
+class ResearchBudget:
+    """Ceilings for one research request.
+
+    Attributes:
+        depth: Levels of follow-up remaining, counting this one.
+        breadth: Questions this level may open.
+        concurrency: Threads that may run at once.
+        hits_per_question: Documents read per question, across all
+            sources.
+        sources: Source names to search, in preference order. Opaque
+            strings; the retrieval port decides what they mean.
+        breadth_floor: Breadth never decays below this.
+        reserved_slots: ``(source, places)`` pairs guaranteeing a source
+            that many of each question's documents before the rest are
+            filled in source order. Empty by default, which is the
+            preference-order behaviour on its own.
+
+    Raises:
+        ValueError: If any ceiling is below one, no source is named, or a
+            reservation is unfillable (see :meth:`_check_reservations`).
+    """
+
+    depth: int = 2
+    breadth: int = 4
+    concurrency: int = 2
+    hits_per_question: int = 4
+    sources: tuple[str, ...] = ()
+    breadth_floor: int = DEFAULT_BREADTH_FLOOR
+    reserved_slots: tuple[tuple[str, int], ...] = ()
+
+    def __post_init__(self) -> None:
+        """Reject a budget that cannot describe any work."""
+        for name in ("depth", "breadth", "concurrency", "hits_per_question"):
+            value = getattr(self, name)
+            if value < 1:
+                raise ValueError(f"{name} must be at least 1, got {value}")
+        if self.breadth_floor < 1:
+            raise ValueError("breadth_floor must be at least 1")
+        if not self.sources:
+            raise ValueError("at least one source is required")
+        self._check_reservations()
+
+    def _check_reservations(self) -> None:
+        """Reject reservations that cannot be honoured.
+
+        A reservation naming a source this budget will not search is a
+        typo that would otherwise do nothing at all, and reserving every
+        place leaves preference order deciding nothing -- both are
+        configuration mistakes worth failing on rather than absorbing.
+
+        Raises:
+            ValueError: A reservation names an unsearched source, asks
+                for fewer than one place, or the reservations together
+                claim every document the question may read.
+        """
+        total = 0
+        for source, places in self.reserved_slots:
+            if source not in self.sources:
+                raise ValueError(f"reserved slots for unsearched {source!r}")
+            if places < 1:
+                raise ValueError(f"reserved slots for {source!r} must be >= 1")
+            total += places
+        if total >= self.hits_per_question and total:
+            raise ValueError(
+                f"reservations claim all {self.hits_per_question} hits"
+            )
+
+    def descend(self) -> ResearchBudget | None:
+        """Return the budget for the next level down.
+
+        Returns:
+            A budget with one less level and half the breadth, or None
+            when this was the last level.
+        """
+        if self.depth <= 1:
+            return None
+        return replace(
+            self,
+            depth=self.depth - 1,
+            breadth=max(self.breadth_floor, self.breadth // 2),
+        )
+
+    def max_threads(self) -> int:
+        """Return the most threads this budget can open, all levels.
+
+        The number a caller can quote before spending anything. Useful
+        for a cost estimate and for asserting in a test that the loop
+        cannot exceed what it was given.
+        """
+        total = 0
+        level: ResearchBudget | None = self
+        while level is not None:
+            total += level.breadth
+            level = level.descend()
+        return total
+
 
 # Ids are truncated SHA-256. Long enough that a collision is not a
 # practical concern at run scale, short enough to read in a log line.
@@ -286,3 +367,188 @@ def dedupe_findings(findings: Sequence[Finding]) -> tuple[Finding, ...]:
         seen.add(finding.id)
         kept.append(finding)
     return tuple(kept)
+
+
+@dataclass(frozen=True)
+class Document:
+    """One admitted result, with whatever text could be read for it.
+
+    Attributes:
+        hit: The result as the source returned it.
+        text: Full text where the port could fetch it, otherwise the
+            snippet. Never empty.
+        full_text: Whether ``text`` is the document or only its snippet,
+            so an extractor can weigh a title-and-abstract read against
+            a whole paper.
+    """
+
+    hit: SourceHit
+    text: str
+    full_text: bool
+
+
+@dataclass(frozen=True)
+class ExtractedFinding:
+    """One claim an extractor drew from one document.
+
+    Attributes:
+        text: The finding in the extractor's words.
+        locator: Which document it came from.
+        span: The quoted text supporting it. An extractor that cannot
+            quote has not found anything.
+    """
+
+    text: str
+    locator: str
+    span: str
+
+
+@dataclass(frozen=True)
+class Extraction:
+    """What one thread's reading produced.
+
+    Attributes:
+        findings: Claims drawn from the documents.
+        follow_ups: Questions the reading raised and did not answer.
+            These become the next level's questions -- research
+            direction derived from what was read, rather than the
+            original goal planned again.
+    """
+
+    findings: tuple[ExtractedFinding, ...] = ()
+    follow_ups: tuple[str, ...] = ()
+
+
+class RetrievalError(Exception):
+    """Raised by a retrieval port when a source could not be searched.
+
+    The loop records it as a failed call and carries on with the other
+    sources; it never propagates. Ports are free to raise anything --
+    this exists so a port can be explicit about an expected failure.
+
+    Attributes:
+        source: Which source failed.
+        reason: What went wrong.
+    """
+
+    def __init__(self, source: str, reason: str = "") -> None:
+        """Record which source failed and why."""
+        self.source = source
+        self.reason = reason
+        super().__init__(f"{source}: {reason}" if reason else source)
+
+
+class RetrievalPort(Protocol):
+    """Search and fetch, however the caller does those."""
+
+    async def search(
+        self, *, query: str, source: str, limit: int
+    ) -> Sequence[SourceHit]:
+        """Search one source.
+
+        Args:
+            query: The query to issue.
+            source: Which source to search.
+            limit: Most results wanted.
+
+        Returns:
+            Results in the source's own ranking.
+        """
+        ...
+
+    async def read(self, *, locator: str) -> str | None:
+        """Fetch a document's text.
+
+        Args:
+            locator: Identifier from a hit.
+
+        Returns:
+            The text, or None when it could not be fetched -- in which
+            case the loop falls back to the hit's snippet rather than
+            skipping the document.
+        """
+        ...
+
+
+class ResearchModelPort(Protocol):
+    """The five model-shaped judgements the loop needs."""
+
+    async def plan_stances(self, *, goal: str, limit: int) -> Sequence[str]:
+        """Choose the perspectives the first level should cover.
+
+        Coverage planned before it is searched: deciding whose questions
+        matter, before deciding what to search for, is what makes a
+        first level wide on purpose rather than wide by accident.
+
+        Args:
+            goal: What the research is for.
+            limit: Most stances wanted.
+
+        Returns:
+            Stance names, e.g. mechanism, contradicting evidence,
+            methodology, prior art.
+        """
+        ...
+
+    async def ask_questions(
+        self, *, goal: str, stance: str, limit: int
+    ) -> Sequence[str]:
+        """Ask what this stance needs to know.
+
+        Args:
+            goal: What the research is for.
+            stance: The perspective asking.
+            limit: Most questions wanted.
+
+        Returns:
+            Questions, in the stance's voice.
+        """
+        ...
+
+    async def to_query(self, *, question: str) -> str:
+        """Turn a question into a search query.
+
+        Kept separate from the question deliberately: a query is a
+        lossy, source-shaped rendering, and when it is broadened or
+        retried the question it was serving has to survive.
+
+        Args:
+            question: What is being asked.
+
+        Returns:
+            The query to issue.
+        """
+        ...
+
+    async def extract(
+        self, *, question: str, documents: Sequence[Document]
+    ) -> Extraction:
+        """Read the documents for one question.
+
+        Args:
+            question: What the thread is answering.
+            documents: What it admitted and read.
+
+        Returns:
+            Findings bound to their sources, plus the questions the
+            reading left open.
+        """
+        ...
+
+    async def compress(
+        self, *, question: str, findings: Sequence[Finding]
+    ) -> str:
+        """Reduce a thread to an account its caller can hold.
+
+        A thread reads far more than its caller can carry, so it hands
+        back a summary rather than a transcript. The findings survive
+        whole in the result either way.
+
+        Args:
+            question: What the thread answered.
+            findings: What it found.
+
+        Returns:
+            The thread's account of itself.
+        """
+        ...

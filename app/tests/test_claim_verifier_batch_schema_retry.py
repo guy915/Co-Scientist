@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from app.claims import EntailmentLabel, EvidencePassage, assess_claims_batch
-from app.claims.verifier_batch import make_llm_batch_assessor
+from app.claims.verifier import make_llm_batch_assessor
 
 from ._llm_fake_backend import install_completion_backend
 

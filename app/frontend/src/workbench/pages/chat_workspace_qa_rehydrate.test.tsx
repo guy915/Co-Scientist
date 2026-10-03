@@ -13,10 +13,8 @@ import {
 
 const pendingIntentMock = vi.hoisted(() => vi.fn());
 
-vi.mock('../hooks/chat_session_create_intent', async importOriginal => ({
-  ...(await importOriginal<
-    typeof import('../hooks/chat_session_create_intent')
-  >()),
+vi.mock('../hooks/chat_session_start_run', async importOriginal => ({
+  ...(await importOriginal<typeof import('../hooks/chat_session_start_run')>()),
   readPendingCreateIntent: pendingIntentMock,
 }));
 

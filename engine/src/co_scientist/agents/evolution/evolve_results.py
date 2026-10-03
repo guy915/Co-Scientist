@@ -4,14 +4,14 @@ import dataclasses
 import logging
 from typing import Any
 
-from co_scientist.agents.evolution.evolve_context import find_nearest_peer
 from co_scientist.agents.evolution.evolve_prompt import (
     _EvolutionOperation,
+    find_nearest_peer,
 )
 from co_scientist.agents.evolution.operations import EvolutionContext
-from co_scientist.agents.generation.citations import resolve_citation_keys
-from co_scientist.agents.generation.experiment_plan import (
+from co_scientist.agents.generation.citations import (
     format_experiment_plan,
+    resolve_citation_keys,
 )
 from co_scientist.constants import (
     DUPLICATE_SIMILARITY_THRESHOLD,

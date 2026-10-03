@@ -17,9 +17,9 @@ from typing import Any, NamedTuple
 import co_scientist.checkpoint as engine_checkpoint
 import pytest
 
+import app.engine_tasks.fanout as engine_tasks_fanout_items
 from app import engine_tasks, store
 from app.engine_tasks import fanout_aggregates as engine_tasks_fanout_aggregates
-from app.engine_tasks import fanout_items as engine_tasks_fanout_items
 from app.engine_tasks import (
     outcome_refinement as engine_tasks_outcome_refinement,
 )

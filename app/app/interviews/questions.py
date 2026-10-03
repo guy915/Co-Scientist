@@ -1,32 +1,16 @@
-"""Structured multiple-choice questions one interview turn may offer.
-
-An Agent turn is markdown prose ending on a question (see
-``app.interviews.prompts``). When that question has a small, known set of
-sensible answers, the turn also carries them as structured options, in the
-same trailing spec block its five fields already ride in
-(``app.interviews.wire``). The scientist then clicks an answer instead of
-typing one; the click is posted as an ordinary scientist turn, so the model
-sees the conversation it would have seen anyway.
-
-The wire shape mirrors two things deliberately. Its anatomy -- a short
-header, the question, and options carrying a label and a one-line
-description -- is the one every shipped assistant converged on. Its
-semantics come from MCP's elicitation schema (SEP-1330): a choice is
-single- or multi-select, and a scientist may accept it, answer something
-else entirely, or dismiss it without answering.
-
-Everything here normalizes and *drops*; nothing raises. Production runs
-DeepSeek's ``json_object`` mode, which constrains the response to some JSON
-object and never to this schema, so a malformed block is an ordinary
-outcome rather than an error. The prose is the turn -- losing the options
-costs the scientist a click, while failing the turn would cost them the
-answer.
-"""
+"""Structured multiple-choice questions one interview turn may offer."""
 
 from __future__ import annotations
 
 import logging
 from typing import Any
+
+from co_scientist.llm import CompletionSpec, LLMCallOptions, call_llm_json
+from co_scientist.schemas.builders import obj
+
+import app.credentials as credentials
+import app.offline_guard as offline_guard
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -111,9 +95,100 @@ def normalized_questions(raw: Any) -> list[dict[str, Any]]:
     if raw and not questions:
         # A turn that tried to offer a choice and lost it to normalization
         # is invisible otherwise: the scientist just sees prose. The repair
-        # pass (app.interviews.question_repair) recovers the click, but the
+        # pass (app.interviews.questions) recovers the click, but the
         # count of these is how a malformed-block regression is noticed.
         logger.warning(
             "Interview turn offered %d question(s), none usable", len(raw)
         )
     return questions[:MAX_QUESTIONS]
+
+
+# The repair answers one question -- the one the prose asked -- so the
+# schema describes a single question rather than the turn's whole array.
+# ``question`` empty is how the model says the prose asked nothing; the
+# normalizer then drops it, which is the outcome that path wants.
+_QUESTION_SCHEMA = obj(
+    {
+        "header": {"type": "string"},
+        "question": {"type": "string"},
+        "multi_select": {"type": "boolean"},
+        "options": {
+            "type": "array",
+            "items": obj(
+                {"label": {"type": "string"}, "description": {"type": "string"}}
+            ),
+        },
+    }
+)
+
+# Short by construction: a header, a question restated from prose already
+# written, and at most six label/description pairs. The engine's thinking
+# floor raises this for a model that reasons, so the answer's own share is
+# never what a chain of thought spends.
+_MAX_TOKENS = 1200
+
+_PROMPT = """\
+A research-goal interview turn has just been written to a scientist. Read \
+it and return the question it ends on as clickable answers.
+
+- ``question`` is that question, in full, in the turn's own words.
+- ``header`` is a two-or-three word label for what is being chosen.
+- ``options`` is {min} to {max} answers a scientist could plausibly click, \
+each a short ``label`` and a one-line ``description`` of what choosing it \
+would mean for the work. Where the answer space is open, enumerate the \
+directions the answer could take rather than guessing at exact values.
+- ``multi_select`` is true when several answers can hold at once and false \
+when they are alternatives.
+
+If the turn does not ask the scientist anything, return an empty \
+``question`` and no options. Never invent a question the turn did not ask.
+
+The turn:
+---
+{message}
+---
+"""
+
+
+def _prompt(message: str) -> str:
+    """Render the repair prompt for one turn's message."""
+    return _PROMPT.format(
+        min=MIN_OPTIONS, max=MAX_OPTIONS, message=message.strip()
+    )
+
+
+async def repair_questions(message: str) -> list[dict[str, Any]]:
+    """Derive the clickable answers for the question ``message`` asks.
+
+    Args:
+        message: The Agent's whole message to the scientist for this turn.
+
+    Returns:
+        The turn's questions in the persisted shape, or an empty list when
+        the turn asked nothing or the call could not be completed.
+    """
+    if not message.strip() or not offline_guard.remote_chat_allowed():
+        return []
+    model, api_key = credentials.byok_model_and_key(
+        settings.effective_chat_model
+    )
+    spec = CompletionSpec(
+        model_name=model,
+        max_tokens=_MAX_TOKENS,
+        temperature=0,
+        json_schema=_QUESTION_SCHEMA,
+        api_key=api_key,
+    )
+    try:
+        result = await call_llm_json(
+            _prompt(message),
+            spec,
+            max_attempts=2,
+            options=LLMCallOptions(
+                prompt_name="interview_question_repair", enable_thinking=False
+            ),
+        )
+    except Exception:
+        logger.warning("Interview question repair failed", exc_info=True)
+        return []
+    return normalized_questions([result])

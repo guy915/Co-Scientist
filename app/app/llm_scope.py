@@ -1,5 +1,7 @@
 """Separate call budgets and usage summaries for app operations."""
 
+from __future__ import annotations
+
 import asyncio
 import logging
 from collections.abc import (
@@ -16,9 +18,11 @@ from typing import Any, ParamSpec, TypeVar
 
 from co_scientist.llm import scoped_completion_budget, scoped_telemetry
 
+logger = logging.getLogger(__name__)
+
 P = ParamSpec("P")
 T = TypeVar("T")
-logger = logging.getLogger(__name__)
+
 _active: ContextVar[bool] = ContextVar("app_call_scope_active", default=False)
 # asyncio holds weak task references. Keep producers alive until their stream
 # finalizers can cancel/join them, even when a consumer is collected in a cycle.
@@ -145,3 +149,61 @@ def budgeted_stream(
         return invoke
 
     return decorate
+
+
+async def stream_chunks(
+    response: Any,
+    *,
+    stall_seconds: float,
+    total_seconds: float,
+) -> AsyncIterator[Any]:
+    """Yield chunks from a streaming completion under two deadlines.
+
+    Args:
+        response: The streaming completion returned by litellm.
+        stall_seconds: Longest silence tolerated between two chunks. This is
+            the real health check: a thinking model streams its chain of
+            thought continuously, so a gap this long means the provider has
+            stopped, not that it is reasoning.
+        total_seconds: Backstop on the whole stream, for the pathological
+            case of a provider that keeps emitting without ever finishing.
+
+    Yields:
+        Each chunk, in order.
+
+    Raises:
+        asyncio.TimeoutError: If either deadline passes.
+    """
+    try:
+        async for chunk in _timed_chunks(
+            response, stall_seconds, total_seconds
+        ):
+            yield chunk
+    finally:
+        close = getattr(response, "aclose", None)
+        if close is not None:
+            await close()
+
+
+async def _timed_chunks(
+    response: Any, stall_seconds: float, total_seconds: float
+) -> AsyncIterator[Any]:
+    """Apply both clocks while the outer iterator guarantees cleanup."""
+    deadline = asyncio.get_running_loop().time() + total_seconds
+    iterator = response.__aiter__()
+    while True:
+        remaining = deadline - asyncio.get_running_loop().time()
+        if remaining <= 0:
+            raise asyncio.TimeoutError(
+                f"stream exceeded {total_seconds}s in total"
+            )
+        try:
+            chunk = await asyncio.wait_for(
+                iterator.__anext__(), timeout=min(stall_seconds, remaining)
+            )
+        except StopAsyncIteration:
+            return
+        yield chunk
+
+
+__all__ = ["stream_chunks"]

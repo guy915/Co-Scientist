@@ -1,10 +1,10 @@
 """Durable scientific task queue with leases and idempotent completion.
 
 The row <-> dataclass mapping (``ScientificTask``, ``_decode``) lives in
-``app.store.tasks_model``, split out so ``app.store.tasks_attempts`` can
+``app.store.models``, split out so ``app.store.tasks_lifecycle`` can
 decode a task row without importing back from this module. The
 lease-outcome writes for a completed or renewed task, and the bounded
-failed-attempt history bookkeeping, live in ``app.store.tasks_attempts``.
+failed-attempt history bookkeeping, live in ``app.store.tasks_lifecycle``.
 ``fail_task`` itself stays here: it also calls
 ``_settle_run_for_failed_task``, and a test monkeypatches that name on
 this module to verify the whole write is transactional, which only holds
@@ -13,8 +13,8 @@ while the call site resolving it lives here too.
 The control-plane lifecycle operations (Supervisor reprioritize/cancel/
 retry, run-scoped cancel/pause/resume, and terminally-dead task revival)
 live in ``app.store.tasks_lifecycle``, and the read-only cohort liveness
-probes live in ``app.store.tasks_probes``. Ambiguous provider outcomes and
-expired-lease recovery live in ``app.store.tasks_recovery``. The names from
+probes live in ``app.store.tasks_lifecycle``. Ambiguous provider outcomes and
+expired-lease recovery live in ``app.store.tasks_lifecycle``. The names from
 those sibling modules that callers use are re-exported here.
 """
 
@@ -27,16 +27,24 @@ import uuid
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-from app.store import tasks_recovery
+import app.store.tasks_lifecycle as tasks_recovery
 from app.store.db import _now, _use_conn, connect, transaction
-from app.store.runs_reconcile import (
+from app.store.models import ScientificTask as ScientificTask
+from app.store.models import TaskFailure as TaskFailure
+from app.store.models import _decode as _decode
+from app.store.runs_views import (
     _settle_run_for_failed_task as _settle_run_for_failed_task,
 )
-from app.store.tasks_attempts import (
+from app.store.tasks_lifecycle import (
+    _ENGINE_RUN_STATUS_GUARD as _ENGINE_RUN_STATUS_GUARD,
+)
+from app.store.tasks_lifecycle import (
+    _EXPIRED_LEASE_RESCUABLE as _EXPIRED_LEASE_RESCUABLE,
+)
+from app.store.tasks_lifecycle import _has_claimable_task as _has_claimable_task
+from app.store.tasks_lifecycle import (
     _persist_failed_attempt as _persist_failed_attempt,
 )
-from app.store.tasks_attempts import complete_task as complete_task
-from app.store.tasks_attempts import renew_task_lease as renew_task_lease
 from app.store.tasks_lifecycle import (
     abandon_dead_leases as abandon_dead_leases,
 )
@@ -45,33 +53,23 @@ from app.store.tasks_lifecycle import cancel_task as cancel_task
 from app.store.tasks_lifecycle import (
     clamp_task_priority as clamp_task_priority,
 )
+from app.store.tasks_lifecycle import cohort_poll as cohort_poll
+from app.store.tasks_lifecycle import complete_task as complete_task
+from app.store.tasks_lifecycle import has_task_of_type as has_task_of_type
 from app.store.tasks_lifecycle import park_task as park_task
 from app.store.tasks_lifecycle import (
     park_task_for_rate_limit as park_task_for_rate_limit,
 )
 from app.store.tasks_lifecycle import pause_run_tasks as pause_run_tasks
+from app.store.tasks_lifecycle import (
+    queue_health_snapshot as queue_health_snapshot,
+)
+from app.store.tasks_lifecycle import renew_task_lease as renew_task_lease
 from app.store.tasks_lifecycle import reprioritize_task as reprioritize_task
 from app.store.tasks_lifecycle import resume_run_tasks as resume_run_tasks
 from app.store.tasks_lifecycle import retry_task as retry_task
 from app.store.tasks_lifecycle import (
     revive_task_for_retry as revive_task_for_retry,
-)
-from app.store.tasks_model import ScientificTask as ScientificTask
-from app.store.tasks_model import TaskFailure as TaskFailure
-from app.store.tasks_model import _decode as _decode
-from app.store.tasks_probes import (
-    _ENGINE_RUN_STATUS_GUARD as _ENGINE_RUN_STATUS_GUARD,
-)
-from app.store.tasks_probes import (
-    _EXPIRED_LEASE_RESCUABLE as _EXPIRED_LEASE_RESCUABLE,
-)
-from app.store.tasks_probes import (
-    _has_claimable_task as _has_claimable_task,
-)
-from app.store.tasks_probes import cohort_poll as cohort_poll
-from app.store.tasks_probes import has_task_of_type as has_task_of_type
-from app.store.tasks_probes import (
-    queue_health_snapshot as queue_health_snapshot,
 )
 
 _fail_ambiguous_expired_leases = tasks_recovery._fail_ambiguous_expired_leases

@@ -258,7 +258,7 @@ def test_repeated_identical_records_are_persisted_once(
     dropped.
     """
     configure_log_capture()
-    probe = logging.getLogger("co_scientist.mcp_client.availability")
+    probe = logging.getLogger("co_scientist.mcp_client")
     probe.setLevel(logging.INFO)
     for _ in range(20):
         probe.warning("MCP server unavailable at %s", "http://127.0.0.1:9/mcp")

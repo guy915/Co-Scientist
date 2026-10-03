@@ -2,7 +2,9 @@
 
 Reproducible evaluation harness for the parity work. Everything here runs **offline** (no LLM, no network) unless a runner
 explicitly says otherwise; machine-readable results are written under
-`results/`.
+`results/`. Historical receipts are retained in the
+[pinned results tree](https://github.com/guy915/Co-Scientist/tree/7c2878aeb071a962cb713e9c271cd88e1635ca5f/evaluations/results);
+the baseline used by the parity gate remains local.
 
 ## Layout
 
@@ -219,7 +221,7 @@ Two panels exercise the claim-entailment assessor:
   retracted sources, and low-overlap paraphrase support/contradiction. It is
   the production-gate panel.
 
-Latest recorded results (2026-07-14, `results/`):
+Recorded results from 2026-07-14 ([archived receipts](https://github.com/guy915/Co-Scientist/tree/7c2878aeb071a962cb713e9c271cd88e1635ca5f/evaluations/results)):
 
 | Assessor | Panel | n | accuracy | contradiction recall | gates |
 |---|---|---|---|---|---|
@@ -332,7 +334,7 @@ credential in the environment; it does not read `.env` or choose a model default
 It remains a separate non-campaign acceptance check and may incur charges.
 Campaign mode rejects it before execution because INDRA is not qualified by the
 campaign MCP policy. Do not turn off campaign mode to run it during the campaign.
-Use the [public-evidence procedure](../references/external/campaign.md#public-evidence-acceptance-workflow)
+Use the [public-evidence procedure](https://github.com/guy915/Co-Scientist/blob/7c2878aeb071a962cb713e9c271cd88e1635ca5f/references/external/campaign.md#public-evidence-acceptance-workflow)
 for campaign acceptance. Passing that procedure does not establish INDRA acceptance.
 
 Live citation entailment, citation usefulness and Elo panels use campaign

@@ -1,31 +1,39 @@
-"""Tests for the generation coordinator's strategy routing.
+"""Offline contracts for coordinator."""
 
-``generate_hypotheses`` selects among three generation strategies based on
-state flags (literature availability, tool-calling, dev isolation) and
-runs the chosen leaf strategies in parallel. These tests stub the leaf
-strategies (``generate_with_tools``, ``generate_with_debate``, and
-``generate_with_assumptions``) on the coordinator's module namespace --
-so no LLM or MCP runs -- and assert the real routing, count-allocation,
-and degraded-mode fallback logic. Result-assembly, the missing-guidance
-precondition, and progress-event lifecycle tests live in the sibling
-``test_coordinator_assembly.py``.
-"""
+from __future__ import annotations
 
+import asyncio
+import dataclasses
 import logging
+import re
+from typing import Any
 
 import pytest
 
-from co_scientist.agents.generation.generate import (
-    generate_hypotheses,
+from co_scientist.agents.generation import generate as coordinator
+from co_scientist.agents.generation import operations as coordinator_enrichment
+from co_scientist.agents.generation import prepare_generation
+from co_scientist.agents.generation.generate import generate_hypotheses
+from co_scientist.agents.generation.operations import (
+    _enrich_hypotheses,
+    _enrich_one_hypothesis,
+    _ResolvedEnrichment,
+    _run_one_enrichment,
 )
+from co_scientist.config.schema import EnrichmentConfig, ToolConfig
 from co_scientist.constants import LITERATURE_REVIEW_FAILED
-from tests._generation_fakes import (
+from co_scientist.exceptions import GenerationError
+from co_scientist.models import GenerationMethod
+from tests._mcp import FakeCallToolClient
+from tests._state import (
     _AssumptionsRecorder,
     _DebateRecorder,
     _install,
     _ToolsRecorder,
+    make_article,
+    make_hypothesis,
+    make_state,
 )
-from tests._state import make_hypothesis, make_state
 
 
 async def test_condition_a_splits_tools_debate_and_assumptions(
@@ -339,3 +347,558 @@ async def test_dev_isolation_routes_all_to_tools(
     assert not debate.called
     assert result["hypothesis_count"] == 3
     assert "3 tool-based" in result["message"]
+
+
+async def test_missing_supervisor_guidance_raises() -> None:
+    """Falsy supervisor_guidance raises GenerationError before any strategy."""
+    # make_state() defaults supervisor_guidance to {} (falsy).
+    with pytest.raises(GenerationError):
+        await generate_hypotheses(make_state())
+
+
+async def test_result_dict_shape_and_message_format(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The result dict carries expected keys and 'Generated N ...' message."""
+    tools = _ToolsRecorder([make_hypothesis(text="t1")])
+    debate = _DebateRecorder(
+        [make_hypothesis(text="d1")], [{"hypothesis_text": "d1"}]
+    )
+    _install(monkeypatch, tools, debate)
+
+    state = make_state(
+        supervisor_guidance={"focus": "x"},
+        initial_hypotheses_count=2,
+        mcp_available=True,
+        articles_with_reasoning="papers",
+        enable_tool_calling_generation=True,
+    )
+    result = await generate_hypotheses(state)
+
+    assert set(result.keys()) == {
+        "hypotheses",
+        "debate_transcripts",
+        "hypothesis_count",
+        "llm_call_count",
+        "message",
+    }
+    assert result["message"] == (
+        "Generated 2 hypotheses (1 tool-based, 1 debate-with-literature)"
+    )
+
+
+async def test_later_generation_is_disclosed_as_research_expansion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Later Supervisor cycles expose research expansion and base provenance."""
+    tools = _ToolsRecorder([])
+    hypothesis = make_hypothesis(text="underexplored branch")
+    hypothesis.generation_method = GenerationMethod.DEBATE
+    debate = _DebateRecorder([hypothesis], [])
+    _install(monkeypatch, tools, debate)
+
+    state = make_state(
+        supervisor_guidance={"focus": "seek an underexplored branch"},
+        initial_hypotheses_count=1,
+        current_iteration=2,
+        mcp_available=False,
+        enable_tool_calling_generation=False,
+    )
+    result = await generate_hypotheses(state)
+
+    expanded = result["hypotheses"].items[0]
+    assert expanded.creation_iteration == 2
+    assert expanded.generation_method == GenerationMethod.RESEARCH_EXPANSION
+    assert expanded.enrichments["base_generation_method"] == "debate"
+
+
+async def test_progress_callback_emits_start_and_complete(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A progress_callback receives start and complete generation events."""
+    tools = _ToolsRecorder([])
+    debate = _DebateRecorder(
+        [make_hypothesis(text="d1")], [{"hypothesis_text": "d1"}]
+    )
+    _install(monkeypatch, tools, debate)
+
+    events: list[tuple[str, dict[str, Any]]] = []
+
+    async def callback(event: str, payload: dict[str, Any]) -> None:
+        events.append((event, payload))
+
+    state = make_state(
+        supervisor_guidance={"focus": "x"},
+        initial_hypotheses_count=1,
+        mcp_available=True,
+        articles_with_reasoning="papers",
+        enable_tool_calling_generation=False,
+        progress_callback=callback,
+    )
+    await generate_hypotheses(state)
+
+    emitted = [name for name, _ in events]
+    assert emitted == ["generation_start", "generation_complete"]
+    assert events[1][1]["hypotheses_count"] == 1
+
+
+# -----------------------------------------------------------------------------
+# _enrich_one_hypothesis
+# -----------------------------------------------------------------------------
+
+
+async def test_enrich_one_hypothesis_unwraps_results_path() -> None:
+    """A configured results_path unwraps a nested list from a dict result."""
+    hyp = make_hypothesis(text="h1", explanation="the explanation")
+    enrichment = EnrichmentConfig(
+        tool="cve_lookup",
+        input_field="explanation",
+        max_results=5,
+        results_path="results",
+    )
+    tool_config = ToolConfig(server="s", mcp_tool_name="nvd_search")
+    mcp_client = FakeCallToolClient({"results": [{"id": "CVE-1"}], "total": 1})
+
+    await _enrich_one_hypothesis(
+        hyp,
+        _ResolvedEnrichment(enrichment, tool_config, "cves"),
+        mcp_client,
+        asyncio.Semaphore(2),
+    )
+
+    assert hyp.enrichments["cves"] == [{"id": "CVE-1"}]
+    assert mcp_client.calls == [
+        ("nvd_search", {"topic": "the explanation", "max_results": 5})
+    ]
+
+
+async def test_enrich_one_hypothesis_without_results_path_uses_raw_parsed() -> (
+    None
+):
+    """No results_path stores the parsed response as-is."""
+    hyp = make_hypothesis(text="h1")
+    enrichment = EnrichmentConfig(tool="cve_lookup", max_results=3)
+    tool_config = ToolConfig(server="s", mcp_tool_name="nvd_search")
+    mcp_client = FakeCallToolClient({"raw": "payload"})
+
+    await _enrich_one_hypothesis(
+        hyp,
+        _ResolvedEnrichment(enrichment, tool_config, "cves"),
+        mcp_client,
+        asyncio.Semaphore(2),
+    )
+
+    assert hyp.enrichments["cves"] == {"raw": "payload"}
+
+
+async def test_enrich_one_hypothesis_defaults_input_to_text() -> None:
+    """input_field falling back to 'text' queries with hyp.text."""
+    hyp = make_hypothesis(text="fallback text")
+    enrichment = EnrichmentConfig(tool="cve_lookup")
+    tool_config = ToolConfig(server="s", mcp_tool_name="nvd_search")
+    mcp_client = FakeCallToolClient({})
+
+    await _enrich_one_hypothesis(
+        hyp,
+        _ResolvedEnrichment(enrichment, tool_config, "cves"),
+        mcp_client,
+        asyncio.Semaphore(1),
+    )
+
+    _, kwargs = mcp_client.calls[0]
+    assert kwargs["topic"] == "fallback text"
+
+
+async def test_enrich_one_hypothesis_records_error_on_failure() -> None:
+    """A failing tool call stores an error payload instead of raising."""
+    hyp = make_hypothesis(text="h1")
+    enrichment = EnrichmentConfig(tool="cve_lookup")
+    tool_config = ToolConfig(server="s", mcp_tool_name="nvd_search")
+    mcp_client = FakeCallToolClient(error=RuntimeError("mcp down"))
+
+    await _enrich_one_hypothesis(
+        hyp,
+        _ResolvedEnrichment(enrichment, tool_config, "cves"),
+        mcp_client,
+        asyncio.Semaphore(1),
+    )
+
+    assert hyp.enrichments["cves"] == {"error": "mcp down"}
+
+
+# -----------------------------------------------------------------------------
+# _run_one_enrichment
+# -----------------------------------------------------------------------------
+
+
+class _ToolLookupRegistry:
+    """Minimal registry stand-in exposing only get_tool."""
+
+    def __init__(self, tool: ToolConfig | None) -> None:
+        self._tool = tool
+
+    def get_tool(self, _tool_id: str) -> ToolConfig | None:
+        """Return the configured tool, or None to model a missing one."""
+        return self._tool
+
+
+async def test_run_one_enrichment_missing_tool_is_noop(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An enrichment whose tool is unresolvable in the registry is skipped."""
+    caplog.set_level("WARNING")
+    hyps = [make_hypothesis(text="h1")]
+
+    await _run_one_enrichment(
+        EnrichmentConfig(tool="missing_tool"),
+        _ToolLookupRegistry(None),
+        hyps,
+        mcp_client=None,
+        semaphore=asyncio.Semaphore(1),
+    )
+
+    assert hyps[0].enrichments == {}
+    assert "not found in registry" in caplog.text
+
+
+async def test_run_one_enrichment_fans_out_per_hypothesis() -> None:
+    """A resolved tool runs once per hypothesis, keyed by output_key."""
+    tool_config = ToolConfig(server="s", mcp_tool_name="nvd_search")
+    mcp_client = FakeCallToolClient({"ok": True})
+    hyps = [make_hypothesis(text="h1"), make_hypothesis(text="h2")]
+    # output_key left blank -> falls back to the tool id.
+    enrichment = EnrichmentConfig(tool="cve_lookup")
+
+    await _run_one_enrichment(
+        enrichment,
+        _ToolLookupRegistry(tool_config),
+        hyps,
+        mcp_client,
+        asyncio.Semaphore(2),
+    )
+
+    assert {kwargs["topic"] for _, kwargs in mcp_client.calls} == {
+        "h1",
+        "h2",
+    }
+    assert hyps[0].enrichments["cve_lookup"] == {"ok": True}
+    assert hyps[1].enrichments["cve_lookup"] == {"ok": True}
+
+
+# -----------------------------------------------------------------------------
+# _enrich_hypotheses
+# -----------------------------------------------------------------------------
+
+
+class _EnrichmentRegistry:
+    """Minimal registry stand-in exposing only get_enrichment_configs."""
+
+    def __init__(self, configs: list[EnrichmentConfig]) -> None:
+        self._configs = configs
+
+    def get_enrichment_configs(self) -> list[EnrichmentConfig]:
+        """Return the configured enrichment configs."""
+        return self._configs
+
+
+async def test_enrich_hypotheses_no_registry_is_noop() -> None:
+    """No tool_registry on state short-circuits before touching MCP."""
+    hyps = [make_hypothesis(text="h1")]
+    state = make_state(tool_registry=None)
+
+    await _enrich_hypotheses(hyps, state)
+
+    assert hyps[0].enrichments == {}
+
+
+async def test_enrich_hypotheses_no_configs_is_noop() -> None:
+    """A registry with no enrichment configs short-circuits before MCP."""
+    hyps = [make_hypothesis(text="h1")]
+    state = make_state(tool_registry=_EnrichmentRegistry([]))
+
+    await _enrich_hypotheses(hyps, state)
+
+    assert hyps[0].enrichments == {}
+
+
+async def test_enrich_hypotheses_runs_each_configured_enrichment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Each enabled enrichment config drives one _run_one_enrichment call."""
+    recorded: list[tuple[str, Any]] = []
+
+    async def fake_run_one_enrichment(
+        enrichment: EnrichmentConfig,
+        _tool_registry: Any,
+        _hypotheses: list[Any],
+        mcp_client: Any,
+        _semaphore: asyncio.Semaphore,
+    ) -> None:
+        recorded.append((enrichment.tool, mcp_client))
+
+    async def fake_get_mcp_client(**_: Any) -> str:
+        return "fake-mcp-client"
+
+    monkeypatch.setattr(
+        coordinator_enrichment, "_run_one_enrichment", fake_run_one_enrichment
+    )
+    monkeypatch.setattr(
+        coordinator_enrichment, "get_mcp_client", fake_get_mcp_client
+    )
+
+    configs = [
+        EnrichmentConfig(tool="cve_lookup"),
+        EnrichmentConfig(tool="trial_lookup"),
+    ]
+    registry = _EnrichmentRegistry(configs)
+    hyps = [make_hypothesis(text="h1")]
+    state = make_state(tool_registry=registry)
+
+    await _enrich_hypotheses(hyps, state)
+
+    assert recorded == [
+        ("cve_lookup", "fake-mcp-client"),
+        ("trial_lookup", "fake-mcp-client"),
+    ]
+
+
+_SUMMARY_RE = re.compile(r"Generated (\d+) total hypotheses \(([^)]*)\)")
+
+
+def _stub_leaf_strategies(
+    monkeypatch: pytest.MonkeyPatch,
+    tools: list[str],
+    debate: list[str],
+    assumptions: list[str],
+) -> None:
+    """Patch the three leaf strategies to return fixed hypothesis texts."""
+
+    async def fake_tools(*_args: Any, **_kwargs: Any) -> Any:
+        return [make_hypothesis(text=t) for t in tools], 0
+
+    async def fake_debate(*_args: Any, **_kwargs: Any) -> Any:
+        return ([make_hypothesis(text=t) for t in debate], [], 0)
+
+    async def fake_assumptions(*_args: Any, **_kwargs: Any) -> Any:
+        return [make_hypothesis(text=t) for t in assumptions], 0
+
+    monkeypatch.setattr(coordinator, "generate_with_tools", fake_tools)
+    monkeypatch.setattr(coordinator, "generate_with_debate", fake_debate)
+    monkeypatch.setattr(
+        coordinator, "generate_with_assumptions", fake_assumptions
+    )
+
+
+def _summary_record(caplog: pytest.LogCaptureFixture) -> str:
+    """Return the single rendered generation-summary log message."""
+    messages = [
+        record.getMessage()
+        for record in caplog.records
+        if _SUMMARY_RE.search(record.getMessage())
+    ]
+    assert len(messages) == 1, messages
+    return messages[0]
+
+
+def _parse_summary(message: str) -> tuple[int, list[int]]:
+    """Split a summary line into its total and its breakdown numbers."""
+    match = _SUMMARY_RE.search(message)
+    assert match is not None, message
+    total = int(match.group(1))
+    parts = [int(n) for n in re.findall(r"\d+", match.group(2))]
+    return total, parts
+
+
+async def test_summary_breakdown_sums_to_total_with_assumptions(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The breakdown accounts for the assumptions slice, not just the total.
+
+    A batch of 8 under condition (a) allocates 2 to the iterative-assumptions
+    technique, so a breakdown naming only tools/debate-with-lit/debate-only
+    falls short of the total printed beside it.
+    """
+    _stub_leaf_strategies(
+        monkeypatch,
+        tools=["t1", "t2", "t3"],
+        debate=["d1", "d2", "d3"],
+        assumptions=["a1", "a2"],
+    )
+    state = make_state(
+        supervisor_guidance={"focus": "x"},
+        initial_hypotheses_count=8,  # >= 4 -> a nonzero assumptions slice
+        mcp_available=True,
+        articles_with_reasoning="some papers and reasoning",
+        enable_tool_calling_generation=True,
+    )
+
+    with caplog.at_level(logging.INFO):
+        result = await generate_hypotheses(state)
+
+    # The fixture must actually exercise the assumptions bucket, or the
+    # sum below holds whether or not the breakdown names it.
+    assert result["hypothesis_count"] == 8
+    total, parts = _parse_summary(_summary_record(caplog))
+    assert total == 8
+    assert sum(parts) == total
+
+
+async def test_summary_breakdown_sums_to_total_without_assumptions(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A batch too small to split (< 4) still balances, with a zero slice."""
+    _stub_leaf_strategies(
+        monkeypatch, tools=["t1"], debate=["d1", "d2"], assumptions=[]
+    )
+    state = make_state(
+        supervisor_guidance={"focus": "x"},
+        initial_hypotheses_count=3,
+        mcp_available=True,
+        articles_with_reasoning="some papers and reasoning",
+        enable_tool_calling_generation=True,
+    )
+
+    with caplog.at_level(logging.INFO):
+        await generate_hypotheses(state)
+
+    total, parts = _parse_summary(_summary_record(caplog))
+    assert total == 3
+    assert sum(parts) == total
+
+
+async def test_assumptions_bucket_methods_are_logged(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Every populated bucket gets a generation_methods debug line."""
+    _stub_leaf_strategies(
+        monkeypatch,
+        tools=["t1", "t2", "t3"],
+        debate=["d1", "d2", "d3"],
+        assumptions=["a1", "a2"],
+    )
+    state = make_state(
+        supervisor_guidance={"focus": "x"},
+        initial_hypotheses_count=8,
+        mcp_available=True,
+        articles_with_reasoning="some papers and reasoning",
+        enable_tool_calling_generation=True,
+    )
+
+    with caplog.at_level(logging.DEBUG):
+        await generate_hypotheses(state)
+
+    labels = {
+        record.getMessage().split(" generation_methods:")[0]
+        for record in caplog.records
+        if " generation_methods:" in record.getMessage()
+    }
+    assert labels == {"tool-based", "debate-with-Lit", "assumptions"}
+
+
+@pytest.mark.parametrize(
+    ("options", "expected_counts", "degraded"),
+    [
+        ({}, (0, 0, 6, 2), True),
+        (
+            {"mcp_available": True, "articles_with_reasoning": "papers"},
+            (0, 6, 0, 2),
+            False,
+        ),
+        (
+            {
+                "mcp_available": True,
+                "articles_with_reasoning": "papers",
+                "enable_tool_calling_generation": True,
+            },
+            (3, 3, 0, 2),
+            False,
+        ),
+        (
+            {
+                "mcp_available": True,
+                "articles_with_reasoning": LITERATURE_REVIEW_FAILED,
+            },
+            (0, 0, 6, 2),
+            True,
+        ),
+        (
+            {
+                "mcp_available": True,
+                "articles_with_reasoning": "papers",
+                "generation_strategy": "no_lit",
+            },
+            (0, 0, 6, 2),
+            True,
+        ),
+        ({"dev_test_lit_tools_isolation": True}, (8, 0, 0, 0), False),
+        (
+            {
+                "mcp_available": True,
+                "articles_with_reasoning": "papers",
+                "enable_tool_calling_generation": True,
+                "initial_hypotheses_count": 1,
+            },
+            (1, 0, 0, 0),
+            False,
+        ),
+    ],
+)
+async def test_plan_allocations_keep_the_existing_mix(
+    options: dict[str, object],
+    expected_counts: tuple[int, int, int, int],
+    degraded: bool,
+) -> None:
+    state = make_state(
+        **{
+            "supervisor_guidance": {"focus": "test"},
+            "initial_hypotheses_count": 8,
+            **options,
+        }
+    )
+    plan = await prepare_generation(state)
+
+    assert tuple(plan.counts.strategy_counts) == (
+        "tools",
+        "debate_lit",
+        "debate_only",
+        "assumptions",
+    )
+    assert tuple(plan.counts.strategy_counts.values()) == expected_counts
+    assert plan.counts.is_degraded_mode is degraded
+    assert sum(expected_counts) == state["initial_hypotheses_count"]
+    # The counts still serialize to the durable aggregate's existing shape.
+    assert set(dataclasses.asdict(plan.counts)) == {
+        "tools_count",
+        "debate_with_lit_count",
+        "debate_only_count",
+        "assumptions_count",
+        "is_dev_isolation",
+        "is_degraded_mode",
+    }
+
+
+async def test_plan_citation_namespace_includes_only_analyzed_sources() -> None:
+    state = make_state(
+        supervisor_guidance={"focus": "test"},
+        mcp_available=True,
+        articles_with_reasoning="Read evidence",
+        articles=[
+            make_article("Analyzed source", used_in_analysis=True),
+            make_article("Unread search hit", used_in_analysis=False),
+        ],
+        context_enrichment_sources=[
+            {"type": "knowledge_graph", "display": "A activates B"}
+        ],
+    )
+    plan = await prepare_generation(state)
+
+    assert plan.literature == "Read evidence"
+    assert list(plan.reference_index.sources) == ["C1", "C2"]
+    assert plan.reference_index.sources["C1"]["title"] == "Analyzed source"
+    assert "Unread search hit" not in plan.reference_index.text
+    assert "A activates B" in plan.reference_index.text
+
+
+async def test_plan_requires_supervisor_guidance() -> None:
+    with pytest.raises(GenerationError, match="No supervisor_guidance"):
+        await prepare_generation(make_state())

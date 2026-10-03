@@ -15,7 +15,7 @@ import logging
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from app.claims.verdict import ClaimRole, is_speculative
+from app.claims.gate import ClaimRole, is_speculative
 from app.config import settings
 from app.execution_policy import effective_execution_model
 
@@ -175,7 +175,7 @@ def _per_claim_fingerprints(
     costs its own retrieval pass over the pool, so deriving one level from
     the other rather than recomputing matters at a few hundred claims.
     """
-    from app.claims.freshness import ClaimRecord, claim_fingerprint
+    from app.claims.grounding import ClaimRecord, claim_fingerprint
 
     return {
         claim: claim_fingerprint(
@@ -233,7 +233,7 @@ def _plan_hypothesis_gate(
         or hypothesis.review_disposition
         or "viable"
     )
-    from app.claims.freshness import combined_fingerprint
+    from app.claims.grounding import combined_fingerprint
 
     ordered_claims, claim_roles = _harvest_hypothesis_claims(hypothesis)
     claim_fingerprints = _per_claim_fingerprints(

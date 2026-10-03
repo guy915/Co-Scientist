@@ -1,3 +1,4 @@
+import type {ChatSummary, Run} from '@/api/runs';
 import type {
   Interview,
   RunAttribute,
@@ -5,7 +6,7 @@ import type {
   RunFocus,
   RunTier,
 } from '@/api/runs';
-import {getStoredApiKey} from '@/lib/api_key';
+import {getStoredApiKey} from '@/lib/client_id';
 
 /**
  * The only run type free usage (no API key of one's own) may start; the
@@ -269,4 +270,111 @@ export function attributeDisplayString(item: RunAttribute): string {
 export function criterionDisplayString(item: RunCriterion): string {
   if (typeof item === 'string') return item;
   return `${item.name}: ${item.value}`;
+}
+
+export interface PendingRunCreatePayload extends Record<string, unknown> {
+  research_goal?: string;
+  requirements?: string[];
+  attributes?: string[];
+  criteria?: string[];
+  focus?: RunFocus;
+  tier?: RunTier;
+  notify_on_completion?: boolean;
+  completion_email?: string;
+}
+
+export interface LinkedRunTarget {
+  chatId: string;
+  runId: string;
+  chat: ChatSummary | undefined;
+  interview: Interview | null;
+}
+
+function firstDefined<T>(fallback: T, ...values: (T | undefined)[]): T {
+  return values.find(value => value !== undefined) ?? fallback;
+}
+
+function whenPresent<A, B>(
+  source: A | null | undefined,
+  get: (source: A) => B | undefined,
+): B | undefined {
+  if (source === undefined || source === null) return undefined;
+  return get(source);
+}
+
+export function recoverySpecForRun(
+  target: LinkedRunTarget,
+  run: Run,
+  payload: PendingRunCreatePayload | undefined,
+): InferredRunSpec {
+  const setup = run.config.setup;
+  const interviewTitle = whenPresent(
+    target.interview,
+    interview => interview.fields.title,
+  );
+  const interviewGoal = whenPresent(
+    target.interview,
+    interview => interview.fields.research_challenge,
+  );
+  const interviewPreferences = whenPresent(
+    target.interview,
+    interview => interview.fields.preferences,
+  );
+  const interviewAttributes = whenPresent(
+    target.interview,
+    interview => interview.fields.focus_area,
+  );
+  return {
+    interviewId: firstDefined(
+      target.chatId,
+      whenPresent(target.interview, interview => interview.id),
+    ),
+    title: firstDefined(
+      whenPresent(target.chat, chat => chat.title),
+      interviewTitle,
+    ),
+    goal: firstDefined(
+      run.research_goal,
+      whenPresent(setup, value => value.goal),
+      whenPresent(payload, value => value.research_goal),
+      interviewGoal,
+    ),
+    requirements: firstDefined(
+      [],
+      whenPresent(setup, value => value.requirements),
+      whenPresent(payload, value => value.requirements),
+      interviewPreferences,
+    ),
+    attributes: firstDefined(
+      [],
+      whenPresent(setup, value => value.attributes.map(attributeDisplayString)),
+      whenPresent(payload, value => value.attributes),
+      interviewAttributes,
+    ),
+    criteria: firstDefined(
+      [],
+      whenPresent(setup, value => value.criteria.map(criterionDisplayString)),
+      whenPresent(payload, value => value.criteria),
+    ),
+    focus: firstDefined(
+      'balance',
+      whenPresent(setup, value => value.focus),
+      run.config.focus,
+      whenPresent(payload, value => value.focus),
+    ),
+    tier: firstDefined(
+      'standard',
+      whenPresent(setup, value => value.tier),
+      run.config.tier,
+      whenPresent(payload, value => value.tier),
+    ),
+    notifyOnCompletion: firstDefined(
+      false,
+      whenPresent(payload, value => value.notify_on_completion),
+    ),
+    completionEmail: firstDefined(
+      '',
+      whenPresent(payload, value => value.completion_email),
+    ),
+  };
 }

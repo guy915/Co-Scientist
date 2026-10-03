@@ -1,4 +1,4 @@
-"""Admission policy for campaign requests and system-default free routes."""
+"""Provider credentials and the verified free-model admission policy."""
 
 import asyncio
 import contextlib
@@ -17,6 +17,40 @@ import litellm
 
 from co_scientist.exceptions import FreeModelEligibilityError
 from co_scientist.llm.profile import promotional_free_route
+
+_byok_api_key: ContextVar[str | None] = ContextVar("byok_api_key", default=None)
+
+
+def current_api_key() -> str | None:
+    """Return the BYOK key scoped to the current task, if any.
+
+    Returns:
+        The key set by an enclosing ``scoped_api_key`` block, else None.
+    """
+    return _byok_api_key.get()
+
+
+@contextlib.contextmanager
+def scoped_api_key(api_key: str | None) -> Iterator[None]:
+    """Scope a BYOK key to the current asyncio task for the block.
+
+    Args:
+        api_key: The provider key every completion inside the block
+            should use, or None for a no-op scope (callers can pass an
+            optional credential straight through).
+
+    Yields:
+        None.
+    """
+    if api_key is None:
+        yield
+        return
+    token = _byok_api_key.set(api_key)
+    try:
+        yield
+    finally:
+        _byok_api_key.reset(token)
+
 
 FREE_MODE_ENV = "COSCIENTIST_REQUIRE_FREE_MODELS"
 _API_BASE = "https://openrouter.ai/api/v1"

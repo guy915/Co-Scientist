@@ -10,7 +10,7 @@ from typing import Any
 
 from co_scientist.config.schema import ToolConfig
 from co_scientist.models import Article
-from co_scientist.tools.messages import parse_mcp_result as parse_mcp_result
+from co_scientist.tools.provider import parse_mcp_result as parse_mcp_result
 
 logger = logging.getLogger(__name__)
 

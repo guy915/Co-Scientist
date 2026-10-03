@@ -22,10 +22,18 @@ identity that includes the question that fetched it from `storm`.
 """
 
 from co_scientist.research.artifacts import (
+    DEFAULT_BREADTH_FLOOR,
     CallStatus,
+    Document,
+    ExtractedFinding,
+    Extraction,
     Finding,
     Question,
+    ResearchBudget,
+    ResearchModelPort,
     ResearchResult,
+    RetrievalError,
+    RetrievalPort,
     SearchCall,
     SourceHit,
     StopReason,
@@ -34,19 +42,7 @@ from co_scientist.research.artifacts import (
     content_id,
     dedupe_findings,
 )
-from co_scientist.research.budget import (
-    DEFAULT_BREADTH_FLOOR,
-    ResearchBudget,
-)
 from co_scientist.research.loop import SEED_STANCE, conduct_research
-from co_scientist.research.ports import (
-    Document,
-    ExtractedFinding,
-    Extraction,
-    ResearchModelPort,
-    RetrievalError,
-    RetrievalPort,
-)
 from co_scientist.research.serialization import (
     result_from_dict,
     result_to_dict,

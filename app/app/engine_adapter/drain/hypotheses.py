@@ -1,26 +1,27 @@
-"""Evidence and hypothesis persistence for the engine final-state drain.
-
-Holds the per-row persistence helpers the drain runs inside its first
-transaction: retrieved articles as evidence rows, and each engine
-hypothesis (identity/lineage derivation, the store row, its mutable Elo
-state, and its reviews/citations via the ``drain.reviews`` helpers), plus
-the proximity-pruned archive merge. The orchestrator
-(``drain.final_state``) imports the names it needs from here; nothing
-outside the package does.
-"""
+"""Evidence and hypothesis persistence for the engine final-state drain."""
 
 from __future__ import annotations
 
 import logging
+import re
 import sqlite3
 from dataclasses import dataclass
 from typing import Any, NamedTuple
 
 from co_scientist.models import Hypothesis
 
-from app import store
+import app.citations as citation_resolver
+import app.store as store
+from app.citations import (
+    CitationMetadata,
+    Resolvability,
+    Resolver,
+    SourceType,
+    classify_source_type,
+    offline_resolver,
+)
+from app.config import settings
 from app.elo import INITIAL_ELO
-from app.engine_adapter.drain.evidence_resolution import ResolvedArticle
 from app.engine_adapter.drain.reviews import (
     _CitationSink,
     _persist_engine_citations,
@@ -29,6 +30,130 @@ from app.engine_adapter.drain.reviews import (
 from app.text_utils import first_sentence
 
 logger = logging.getLogger(__name__)
+
+_PUBMED_URL_PMID = re.compile(r"pubmed\.ncbi\.nlm\.nih\.gov/(\d+)")
+
+
+@dataclass(frozen=True)
+class ResolvedArticle:
+    """One article's persisted identity, availability, and source type.
+
+    ``retracted`` is reported alongside ``available`` rather than folded
+    into it: a retracted source and a merely-unresolvable one both persist
+    as ``available=False`` (every gate that reads ``available`` -- citation
+    classification, claim grounding -- keeps treating them alike), but they
+    are different facts for a reader, who should be told which one it was.
+    ``source_type`` gates nothing at all: a preprint is a perfectly usable
+    source, and withholding one would be a research decision this check has
+    no business making.
+    """
+
+    doi: str | None
+    pmid: str | None
+    available: bool
+    retracted: bool = False
+    source_type: str = SourceType.UNKNOWN.value
+
+
+def _article_doi(art: dict[str, Any]) -> str:
+    return str(art.get("doi") or "").strip()
+
+
+def _article_pmid(art: dict[str, Any]) -> str:
+    """Return the article's PMID, from its source id or a PubMed URL.
+
+    ``source_id`` is the PMID verbatim for a PubMed-sourced article (see
+    ``build_article_from_metadata``); other sources carry no PMID unless
+    their URL happens to be a PubMed link.
+    """
+    if str(art.get("source") or "").lower() == "pubmed":
+        source_id = str(art.get("source_id") or "").strip()
+        if source_id.isdigit():
+            return source_id
+    match = _PUBMED_URL_PMID.search(str(art.get("url") or ""))
+    return match.group(1) if match else ""
+
+
+def _article_retracted(art: dict[str, Any]) -> bool:
+    return bool(art.get("is_retracted")) or (
+        str(art.get("correction_status") or "").lower() == "retracted"
+    )
+
+
+def _article_year(art: dict[str, Any]) -> int | None:
+    """Read the article's publication year, tolerating a string value."""
+    try:
+        return int(art["year"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _article_metadata(art: dict[str, Any]) -> CitationMetadata:
+    """Extract one article's citation metadata, the check's only input."""
+    return CitationMetadata(
+        url=str(art.get("url") or ""),
+        doi=_article_doi(art),
+        pmid=_article_pmid(art),
+        retracted=_article_retracted(art),
+        source=str(art.get("source") or ""),
+        publication_type=str(art.get("publication_type") or ""),
+        year=_article_year(art),
+    )
+
+
+def _configured_resolver() -> Resolver:
+    """Return the ``Resolver`` this deployment resolves citations through."""
+    if settings.evidence_resolver == "live":
+        return citation_resolver.live_resolver
+    return offline_resolver
+
+
+def _resolved_article(
+    meta: CitationMetadata, verdict: Resolvability
+) -> ResolvedArticle:
+    """Build one article's persisted row from its metadata and verdict.
+
+    The verdict is already RETRACTED for both retraction sources -- the
+    article's own metadata flag and, on the live path, the resolver's
+    independent ``retraction_set`` lookup -- so it alone decides both
+    flags, and the retraction fact is carried through rather than
+    collapsed into plain unavailability.
+    """
+    return ResolvedArticle(
+        doi=meta.doi or None,
+        pmid=meta.pmid or None,
+        available=verdict is Resolvability.RESOLVABLE,
+        retracted=verdict is Resolvability.RETRACTED,
+        source_type=classify_source_type(meta).value,
+    )
+
+
+def resolve_articles(
+    articles: list[dict[str, Any]],
+) -> list[ResolvedArticle]:
+    """Resolve every article's identity and availability, in input order.
+
+    Live mode (``settings.evidence_resolver == "live"``, the production
+    default) dereferences each identifier against the real web; offline
+    mode (the hermetic test default) judges availability from metadata
+    alone and never performs network I/O. Both go through the same
+    ``assess_resolvability`` seam.
+
+    Args:
+        articles: The engine's retrieved articles (``Article.to_dict()``
+            payloads).
+
+    Returns:
+        One :class:`ResolvedArticle` per article, same order as ``articles``.
+    """
+    metas = [_article_metadata(art) for art in articles]
+    verdicts = citation_resolver.resolve_many(
+        metas, resolver=_configured_resolver()
+    )
+    return [
+        _resolved_article(meta, verdict)
+        for meta, verdict in zip(metas, verdicts, strict=True)
+    ]
 
 
 @dataclass(frozen=True)

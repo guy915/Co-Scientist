@@ -1,28 +1,4 @@
-"""Iterative-assumption-tree hypothesis generation (SSR §4, audits E12/K9).
-
-The assumptions technique builds a bounded assumption/sub-assumption tree
-before ideating, instead of asking for assumptions and hypotheses in one
-structured call:
-
-1. Level 0 decomposes the research area into its taken-for-granted
-   assumptions and marks the load-bearing ones.
-2. Level 1 decomposes the selected load-bearing parents into
-   sub-assumptions, identified by positional index (schemas never echo
-   input text back).
-3. A final structured call generates hypotheses challenging the weakest
-   nodes of the tree, via the shared ``GENERATION_SCHEMA`` shape, tagged
-   ``GenerationMethod.ASSUMPTIONS``.
-
-Every level is grounded in the run's retrieved literature context when a
-reference index is available, and carries the research-expansion and
-verified-wrong-assumption sections when those apply (see
-``research_expansion`` and ``assumption_feedback``).
-
-Depth and breadth are bounded by the constants below, so the technique
-makes at most three LLM calls per batch regardless of what the model
-returns; an empty tree degrades to the final call alone rather than
-failing the strategy.
-"""
+"""Assumption-guided generation and feedback from existing mature reviews."""
 
 from __future__ import annotations
 
@@ -30,9 +6,6 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-from co_scientist.agents.generation.assumption_feedback import (
-    build_falsified_assumptions_section,
-)
 from co_scientist.agents.generation.citations import (
     ReferenceIndex,
     hypothesis_from_llm_output,
@@ -45,6 +18,7 @@ from co_scientist.constants import (
     DEFAULT_MAX_TOKENS,
     LOW_TEMPERATURE,
     MEDIUM_TEMPERATURE,
+    truncate,
 )
 from co_scientist.llm import (
     CompletionSpec,
@@ -63,6 +37,128 @@ from co_scientist.prompts.loading import load_prompt_with_schema
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
+
+
+# How much of the record reaches one prompt: six probe lines covers the
+# weakened leaders of a tournament without competing with the ideation
+# the prompt is actually asking for.
+MAX_FALSIFIED_ASSUMPTION_LINES = 6
+
+_PROBE_FIELD_CHARS = 240
+
+
+def _probe_explicitly_falsified(probe: dict[str, Any]) -> bool | None:
+    """Reads an explicit per-probe correctness record when one exists.
+
+    Args:
+        probe: One deep-verification probe entry.
+
+    Returns:
+        True if the probe records the assumption as falsified
+        (``assumption_holds: False``), False if it records it as
+        holding, None when the probe carries no explicit record.
+    """
+    holds = probe.get("assumption_holds")
+    if isinstance(holds, bool):
+        return not holds
+    return None
+
+
+def _probe_admitted(probe: dict[str, Any], verdict: str | None) -> bool:
+    """Decides whether one probe belongs in the falsified-assumption record.
+
+    Fundamental probes never qualify (their failure kills the idea, which
+    is a different channel). An explicit ``assumption_holds`` record is
+    authoritative in both directions; without one, only probes of a
+    "weakened" hypothesis are admitted -- that verdict is the verifier's
+    statement that non-fundamental assumptions failed, and these are the
+    probes of those assumptions.
+    """
+    if probe.get("assumption_is_fundamental"):
+        return False
+    explicit = _probe_explicitly_falsified(probe)
+    if explicit is not None:
+        return explicit
+    return verdict == "weakened"
+
+
+def _format_probe_line(probe: dict[str, Any]) -> str:
+    """Renders one falsified probe as a single guidance line."""
+    question = truncate(
+        str(probe.get("question") or "").strip(), _PROBE_FIELD_CHARS
+    )
+    answer = truncate(
+        str(probe.get("answer") or "").strip(), _PROBE_FIELD_CHARS
+    )
+    if answer:
+        return f"{question} -- finding: {answer}"
+    return question
+
+
+def _falsified_lines_for_hypothesis(hypothesis: Hypothesis) -> list[str]:
+    """Renders the admitted falsified-probe lines for one hypothesis."""
+    probes = hypothesis.deep_verification_probes
+    if not probes:
+        return []
+    verdict = hypothesis.deep_verification_verdict
+    return [
+        _format_probe_line(probe)
+        for probe in probes
+        if _probe_admitted(probe, verdict)
+    ]
+
+
+def falsified_nonfundamental_assumptions(
+    hypotheses: list[Hypothesis],
+) -> list[str]:
+    """Collects the run's falsified non-fundamental assumptions.
+
+    Args:
+        hypotheses: The run's hypothesis pool (any order; the record is
+            prompt guidance, not a ranking input).
+
+    Returns:
+        One guidance line per admitted probe, capped at
+        ``MAX_FALSIFIED_ASSUMPTION_LINES``. Empty until deep verification
+        has weakened at least one hypothesis.
+    """
+    lines: list[str] = []
+    for hypothesis in hypotheses:
+        lines.extend(_falsified_lines_for_hypothesis(hypothesis))
+        if len(lines) >= MAX_FALSIFIED_ASSUMPTION_LINES:
+            logger.info(
+                "Falsified-assumption guidance capped at %s lines",
+                MAX_FALSIFIED_ASSUMPTION_LINES,
+            )
+            return lines[:MAX_FALSIFIED_ASSUMPTION_LINES]
+    return lines
+
+
+def build_falsified_assumptions_section(
+    hypotheses: list[Hypothesis] | None,
+) -> str:
+    """Renders the avoid-or-rework guidance block for generation prompts.
+
+    Args:
+        hypotheses: The run's hypothesis pool, or None.
+
+    Returns:
+        The rendered block, or an empty string when no assumption has
+        been verified wrong yet (the prompt placeholder then renders
+        nothing).
+    """
+    lines = falsified_nonfundamental_assumptions(hypotheses or [])
+    if not lines:
+        return ""
+    bullets = "".join(f"- {line}\n" for line in lines)
+    return (
+        "## Assumptions Verified Incorrect (avoid or rework)\n\n"
+        "Verification in this run already found these non-fundamental"
+        " assumptions incorrect. Do not build new hypotheses on them;"
+        " avoid them or rework around them:\n"
+        f"{bullets}\n"
+    )
+
 
 # Tree bounds (E12): depth is two levels by construction (top + sub); the
 # three widths bound breadth. Kept here, not in the constants package, because

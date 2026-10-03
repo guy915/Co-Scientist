@@ -1,12 +1,4 @@
-"""Model-driven, durable research-goal interview API.
-
-This module owns the HTTP surface. Durable turn advancement lives in
-``interviews.turns`` and shared request guards in ``interviews.support``;
-the provider call lives in ``interviews.model``, request shaping in
-``interviews.prompts``, SSE transport in ``interviews.stream``, and revision
-endpoints in ``interviews.revision``. Existing import names are re-exported
-here; tests patch collaborators in their defining modules.
-"""
+"""Model-driven, durable research-goal interview API."""
 
 from __future__ import annotations
 
@@ -15,89 +7,182 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from app import staged_documents, store
+import app.interviews.turns as support
+import app.staged_documents as staged_documents
+import app.store as store
 from app.api_contracts.interviews import ChatSummary, Interview
 from app.auth import client_id, require_client_scope
 from app.execution_policy import resolve_execution_policy
-from app.interviews import revision as interviews_revision
 from app.interviews.model import (
-    ProseSink as ProseSink,
+    CreateInterviewRequest as CreateInterviewRequest,
 )
 from app.interviews.model import (
-    ReasoningSink as ReasoningSink,
+    InterviewFieldsRequest as InterviewFieldsRequest,
 )
-from app.interviews.model import (
-    _call_interview_model as _call_interview_model,
-)
+from app.interviews.model import InterviewTurnRequest
+from app.interviews.model import ProseSink as ProseSink
+from app.interviews.model import ReasoningSink as ReasoningSink
+from app.interviews.model import _call_interview_model as _call_interview_model
+from app.interviews.model import _clean_list as _clean_list
+from app.interviews.model import _essentials_ready as _essentials_ready
 from app.interviews.model import (
     _fallback_interview_response as _fallback_interview_response,
 )
-from app.interviews.prompts import (
-    _clean_list as _clean_list,
-)
-from app.interviews.prompts import (
-    _essentials_ready as _essentials_ready,
-)
-from app.interviews.prompts import (
-    _normalized_fields as _normalized_fields,
-)
-from app.interviews.prompts import (
-    _ready as _ready,
-)
-from app.interviews.question_repair import (
-    repair_questions as repair_questions,
-)
+from app.interviews.model import _normalized_fields as _normalized_fields
+from app.interviews.model import _ready as _ready
 from app.interviews.questions import (
     normalized_questions as normalized_questions,
 )
-from app.interviews.stream import (
-    _interview_stream as _interview_stream,
-)
-from app.interviews.support import (
-    _attach_documents as _attach_documents,
-)
-from app.interviews.support import (
-    _with_documents as _with_documents,
-)
-from app.interviews.support import (
-    owned_interview as _owned_interview,
-)
-from app.interviews.support import (
-    request_byok as _request_byok,
-)
+from app.interviews.questions import repair_questions as repair_questions
+from app.interviews.stream import _interview_stream
+from app.interviews.turns import _attach_documents as _attach_documents
 from app.interviews.turns import (
     _interview_turn_completed as _interview_turn_completed,
 )
 from app.interviews.turns import (
     _persist_interview_turn as _persist_interview_turn,
 )
-from app.interviews.turns import (
-    _reasoning_capture as _reasoning_capture,
-)
-from app.interviews.turns import (
-    _resolved_turn as _resolved_turn,
-)
-from app.interviews.turns import (
-    _ResolvedTurn as _ResolvedTurn,
-)
-from app.interviews.turns import (
-    _run_interview_turn as _run_interview_turn,
-)
+from app.interviews.turns import _reasoning_capture as _reasoning_capture
+from app.interviews.turns import _resolved_turn as _resolved_turn
+from app.interviews.turns import _ResolvedTurn as _ResolvedTurn
+from app.interviews.turns import _run_interview_turn as _run_interview_turn
+from app.interviews.turns import _with_documents as _with_documents
 from app.interviews.turns import (
     _with_repaired_questions as _with_repaired_questions,
 )
-from app.interviews.turns import (
-    advance_turn as advance_turn,
-)
-from app.interviews.wire import (
-    CreateInterviewRequest as CreateInterviewRequest,
-)
-from app.interviews.wire import (
-    InterviewFieldsRequest as InterviewFieldsRequest,
-)
-from app.interviews.wire import (
-    InterviewTurnRequest as InterviewTurnRequest,
-)
+from app.interviews.turns import advance_turn as advance_turn
+from app.interviews.turns import owned_interview as _owned_interview
+from app.interviews.turns import request_byok as _request_byok
+
+_revision_router = APIRouter()
+
+
+def _require_revisable_turn(
+    interview: dict[str, Any], turn_id: int, role: str
+) -> None:
+    """Check the turn a revision targets, or raise a 4xx explaining why not.
+
+    Raises:
+        HTTPException: 409 when the interview is closed to revision, 404 when
+            the turn is not one of its own, 409 when it is not the kind of
+            turn this revision applies to.
+    """
+    if interview["status"] == "cancelled":
+        raise HTTPException(status_code=409, detail="interview is cancelled")
+    turn = next(
+        (t for t in interview["turns"] if int(t["id"]) == turn_id), None
+    )
+    if turn is None:
+        raise HTTPException(status_code=404, detail="turn not found")
+    if turn["role"] != role:
+        raise HTTPException(
+            status_code=409, detail=f"turn is not a {role} turn"
+        )
+
+
+def _reset_derivation(interview_id: str) -> None:
+    """Re-baseline the five fields after a rewind, and reopen the interview.
+
+    The stored fields are the model's derivation from a transcript that no
+    longer exists, so keeping them would feed the next turn exactly the
+    conclusions the scientist just withdrew. They are cleared back to the
+    opening challenge -- whatever the first surviving user turn says -- and
+    the model re-derives the rest from what remains.
+    """
+    interview = store.get_interview(interview_id)
+    assert interview is not None
+    opening = next((t for t in interview["turns"] if t["role"] == "user"), None)
+    store.update_interview(
+        interview_id,
+        {
+            "research_challenge": str(opening["content"]) if opening else "",
+            "focus_area": [],
+            "preferences": [],
+            "lab_constraints": [],
+            "title": None,
+        },
+        "Continue the interview.",
+        completed=False,
+    )
+
+
+def _rewind_and_restream(
+    interview_id: str,
+    turn_id: int,
+    request: Request,
+    *,
+    role: str,
+    replacement: str | None = None,
+) -> StreamingResponse:
+    """Rewind an owned interview to ``turn_id`` and answer again from there.
+
+    The one revision path. Editing a scientist turn and retrying an Agent
+    turn differ only in which role they may target and whether a replacement
+    prompt takes the rewound turn's place; everything else -- ownership, the
+    revisability check, discarding the tail, re-deriving the four fields, and
+    streaming the next turn -- is the same, and has to stay the same.
+
+    Args:
+        interview_id: The interview being revised.
+        turn_id: The turn the revision targets; it and everything after it
+            are discarded.
+        request: Incoming request, used to check ownership.
+        role: The role the targeted turn must have.
+        replacement: Scientist text to append in the rewound turn's place,
+            or None to re-answer the surviving prompt unchanged.
+
+    Returns:
+        The SSE response streaming the re-derived turn.
+    """
+    interview = support.owned_interview(interview_id, request)
+    byok = support.request_byok(request, str(interview["execution_policy"]))
+    _require_revisable_turn(interview, turn_id, role)
+    store.rewind_interview(interview_id, turn_id)
+    if replacement is not None:
+        store.append_interview_turn(
+            interview_id, store.NewInterviewTurn("user", replacement)
+        )
+    _reset_derivation(interview_id)
+    return _interview_stream(
+        interview_id,
+        byok,
+        execution_policy=str(interview["execution_policy"]),
+    )
+
+
+@_revision_router.put("/{interview_id}/turns/{turn_id}")
+async def edit_interview_turn(
+    interview_id: str,
+    turn_id: int,
+    body: InterviewTurnRequest,
+    request: Request,
+) -> StreamingResponse:
+    """Replace one scientist turn in place and re-answer from there.
+
+    An edited prompt is a correction, not a new question: the turn is
+    rewritten where it stands and the Agent answers it again, rather than the
+    old wording staying in the transcript with the correction appended after
+    it -- which is what makes the two readings of "what did I ask?" disagree.
+    Everything the Agent said after it was derived from the old wording, so
+    it goes with it.
+    """
+    return _rewind_and_restream(
+        interview_id, turn_id, request, role="user", replacement=body.content
+    )
+
+
+@_revision_router.post("/{interview_id}/turns/{turn_id}/retry")
+async def retry_interview_turn(
+    interview_id: str, turn_id: int, request: Request
+) -> StreamingResponse:
+    """Discard one Agent turn and answer the same prompt again.
+
+    Retry has to remove the answer it is replacing. Re-running the model
+    with the rejected turn still in the transcript asks it to continue from
+    the answer rather than to reconsider it.
+    """
+    return _rewind_and_restream(interview_id, turn_id, request, role="agent")
+
 
 router = APIRouter(prefix="/api/interviews", tags=["interviews"])
 
@@ -172,7 +257,7 @@ async def delete_interview(
 ) -> dict[str, Any]:
     """Permanently delete an owned chat and its transcript.
 
-    Unlike a run (see ``app.runs.deletion``) a chat has no worker that
+    Unlike a run (see ``app.runs.crud``) a chat has no worker that
     could be mid-write, so there is no active state to refuse: an
     interview is only ever advanced by a request the caller makes. A chat
     already carried into a run is still deletable, and deleting it leaves
@@ -213,10 +298,10 @@ async def add_interview_turn(
 
 
 # The rewind/retry revision endpoints (PUT .../turns/{turn_id} and POST
-# .../turns/{turn_id}/retry) live in app.interviews.revision and are
+# .../turns/{turn_id}/retry) live in app.interviews and are
 # mounted here so they keep their original paths under this router's
 # "/api/interviews" prefix.
-router.include_router(interviews_revision.router)
+router.include_router(_revision_router)
 
 
 @router.put("/{interview_id}/fields", response_model=Interview)
@@ -239,3 +324,31 @@ async def edit_interview_fields(
     updated = store.get_interview(interview_id)
     assert updated is not None
     return updated
+
+
+__all__ = [
+    "CreateInterviewRequest",
+    "InterviewFieldsRequest",
+    "InterviewTurnRequest",
+    "ProseSink",
+    "ReasoningSink",
+    "_ResolvedTurn",
+    "_attach_documents",
+    "_call_interview_model",
+    "_clean_list",
+    "_essentials_ready",
+    "_fallback_interview_response",
+    "_interview_stream",
+    "_interview_turn_completed",
+    "_normalized_fields",
+    "_persist_interview_turn",
+    "_ready",
+    "_reasoning_capture",
+    "_resolved_turn",
+    "_run_interview_turn",
+    "_with_documents",
+    "_with_repaired_questions",
+    "advance_turn",
+    "normalized_questions",
+    "repair_questions",
+]

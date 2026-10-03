@@ -1,4 +1,4 @@
-import {mkdtempSync} from 'node:fs';
+import {mkdtempSync, rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {dirname, join, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -48,4 +48,20 @@ export function runStateDir(): string {
   const dir = mkdtempSync(join(tmpdir(), 'cosci-e2e-'));
   process.env.COSCI_E2E_STATE_DIR = dir;
   return dir;
+}
+
+
+/**
+ * Removes the per-invocation run-state directory (SQLite DB, reports, cache)
+ * created by {@link runStateDir}. Best-effort: a failed cleanup must not fail
+ * the suite, and a fresh directory is minted next invocation regardless.
+ */
+export default function globalTeardown(): void {
+  const dir = process.env.COSCI_E2E_STATE_DIR;
+  if (!dir) return;
+  try {
+    rmSync(dir, {recursive: true, force: true});
+  } catch {
+    // Leaving a temp dir behind is harmless; never fail teardown over it.
+  }
 }

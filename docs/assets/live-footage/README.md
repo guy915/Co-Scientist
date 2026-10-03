@@ -6,7 +6,7 @@ recordings that lived at `references/core/google-co-scientist/media/live-footage
 commit — see `docs/CORPUS-EXTRACTION.md` row `R13-1`). Both source mp4s were
 watched in full, in order, before this set was chosen; this is the curated
 evidence, not a raw dump. Full context and findings: `docs/CORPUS-EXTRACTION.md`
-rows `R13-1`–`R13-3` and `R13-13`–`R13-15`, and `docs/CORPUS-STATUS.md`'s R13
+rows `R13-1`–`R13-3` and `R13-13`–`R13-15`, and [docs/CORPUS-STATUS.md](https://github.com/guy915/Co-Scientist/blob/7c2878aeb071a962cb713e9c271cd88e1635ca5f/docs/CORPUS-STATUS.md)'s R13
 region.
 
 **Source files** (both H.264, 120 fps, gitignored by `.gitignore:46`):

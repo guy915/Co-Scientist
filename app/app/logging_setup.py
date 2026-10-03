@@ -1,45 +1,148 @@
-"""Application logging: configurable format, run-id correlation, capture.
-
-Configures the root logger once at startup (``configure_logging``) with
-either the default human-readable text format or one JSON object per
-line, both on stdout. Run-id correlation and the record formatters live
-in ``app.logging_format``, and silencing LiteLLM's own noisy loggers
-lives in ``app.logging_format`` (both re-exported here, so this module
-stays the stable import surface).
-
-``configure_log_capture`` additionally persists every record that
-reaches the root logger into the ``app_logs`` table: the hot path only
-enqueues (a ``QueueHandler`` stamped with the run id on the emitting
-thread), and a background ``QueueListener`` thread writes rows and
-enforces retention, so logging never blocks on SQLite and a store
-failure can never take down the caller.
-
-This module only configures the *application* process. The engine is a
-library and stays handler-free (see ``engine/docs/LOGGING.md``); its
-records propagate to the root handler configured here.
-"""
+"""Application logging: configurable format, run-id correlation, capture."""
 
 from __future__ import annotations
 
 import contextlib
 import copy
+import json
 import logging
 import logging.handlers
 import queue
 import sys
 import threading
+from collections.abc import Generator
+from contextvars import ContextVar
 
-from app import store
-from app.logging_format import RunIdFilter
-from app.logging_format import (
-    _build_formatter as _build_formatter,
+import app.store as store
+
+# The run id bound to the current (async) execution context, or None
+# outside run-scoped work. Async tasks inherit the value from the context
+# they were created in, so one bind at the top of a workflow task covers
+# every log record the run emits.
+_run_id_var: ContextVar[str | None] = ContextVar("cosci_run_id", default=None)
+
+TEXT_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+
+def current_run_id() -> str | None:
+    """Return the run id bound to the current context, if any."""
+    return _run_id_var.get()
+
+
+@contextlib.contextmanager
+def run_log_context(run_id: str) -> Generator[None, None, None]:
+    """Bind ``run_id`` to every log record emitted inside the block.
+
+    Args:
+        run_id: Identifier of the run the enclosed work belongs to.
+    """
+    token = _run_id_var.set(run_id)
+    try:
+        yield
+    finally:
+        _run_id_var.reset(token)
+
+
+class RunIdFilter(logging.Filter):
+    """Stamps the context's run id onto every record as ``record.run_id``."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Attach the bound run id (or None) and keep the record."""
+        record.run_id = _run_id_var.get()
+        return True
+
+
+class TextRunIdFormatter(logging.Formatter):
+    """Text formatter that appends ``[run_id=...]`` for run-scoped records."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        """Format the record, suffixing the run id when one is bound."""
+        base = super().format(record)
+        run_id = getattr(record, "run_id", None)
+        if run_id:
+            return f"{base} [run_id={run_id}]"
+        return base
+
+
+class JsonFormatter(logging.Formatter):
+    """Formats each record as one JSON object per line.
+
+    Fields: ``time`` (ISO-like, from asctime), ``level``, ``logger``,
+    ``message``, plus ``run_id`` when the record is run-scoped and
+    ``exc_info`` when an exception was attached.
+    """
+
+    def format(self, record: logging.LogRecord) -> str:
+        """Serialize the record as one JSON object."""
+        payload: dict[str, object] = {
+            "time": self.formatTime(record),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        run_id = getattr(record, "run_id", None)
+        if run_id:
+            payload["run_id"] = run_id
+        if record.exc_info:
+            payload["exc_info"] = record.exc_text or self.formatException(
+                record.exc_info
+            )
+        return json.dumps(payload, default=str)
+
+
+def _build_formatter(log_format: str) -> logging.Formatter:
+    """Return the formatter for ``log_format`` ("json" or text default)."""
+    if log_format == "json":
+        return JsonFormatter()
+    return TextRunIdFormatter(TEXT_FORMAT)
+
+
+# LiteLLM attaches its own handler directly to these loggers at import
+# (litellm/_logging.py): a colored StreamHandler defaulting to stderr,
+# independent of the root handler ``logging_setup`` configures. Root's own
+# level does nothing to it -- an ordinary INFO line comes back as two
+# records, a colored one on stderr (Railway reads stderr as
+# `severity: error`, and this doubled a stdout call-count taken earlier)
+# and a plain one on stdout via propagation to root. ``LITELLM_LOG``
+# (litellm's own env var) does not stop either: read once at import, it
+# sets only that handler's level, never the logger's own, so propagation
+# is unaffected. Setting the level directly on the logger does stop both
+# -- a logger's effective level gates whether a record is created at all,
+# before any handler runs and before propagation. Verified live: with
+# root at INFO, an unpatched ``getLogger("LiteLLM").info(...)`` produced
+# both copies regardless of ``LITELLM_LOG``; after ``setLevel(WARNING)``
+# it produced neither, and ``.warning()`` still came through on both.
+_LITELLM_LOGGER_NAMES: tuple[str, ...] = (
+    "LiteLLM",
+    "LiteLLM Router",
+    "LiteLLM Proxy",
 )
-from app.logging_format import (
-    run_log_context as run_log_context,
-)
-from app.logging_format import (
-    silence_litellm_logging as silence_litellm_logging,
-)
+
+
+def silence_litellm_logging() -> None:
+    """Raise LiteLLM's own loggers to WARNING; drop its debug print banner.
+
+    Two unrelated mechanisms. The logger levels (module comment above)
+    stop the duplicated per-call INFO lines. ``litellm.suppress_debug_info``
+    is unrelated to logging entirely -- the repeated "Provider List"
+    banner is a plain ``print()`` in litellm's provider-resolution code,
+    guarded only by that flag.
+
+    Called at import of this module, so a durable worker process (which
+    never calls ``configure_logging``) inherits this merely by importing
+    ``app.logging_setup`` for ``run_log_context``, and again from
+    ``configure_logging`` itself so reconfiguring cannot leave it unset.
+    """
+    for name in _LITELLM_LOGGER_NAMES:
+        logging.getLogger(name).setLevel(logging.WARNING)
+    try:
+        import litellm
+    except ImportError:
+        return
+    litellm.suppress_debug_info = True
+
+
+silence_litellm_logging()
 
 
 def _byok_redaction_filter() -> logging.Filter:
@@ -467,3 +570,6 @@ def shutdown_log_capture() -> None:
     if _capture is not None:
         _capture.stop()
         _capture = None
+
+
+__all__ = ["_build_formatter", "run_log_context", "silence_litellm_logging"]

@@ -1,12 +1,12 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {setStoredApiKey, setStoredApiProvider} from '@/lib/api_key';
+import {setStoredApiKey, setStoredApiProvider} from '@/lib/client_id';
 import {clearAccessToken, setAccessToken} from '@/lib/client_id';
 import {
   getPendingCreateIntent,
   readPendingCreateIntent,
   rememberPendingCreateRun,
   retirePendingCreateIntent,
-} from './chat_session_create_intent';
+} from './chat_session_start_run';
 
 const PAYLOAD = {
   research_goal: 'map the pathway',
@@ -32,7 +32,7 @@ describe('pending create intent', () => {
 
     vi.resetModules();
     const {getPendingCreateIntent: afterReload} =
-      await import('./chat_session_create_intent');
+      await import('./chat_session_start_run');
     const second = await afterReload('chat-1', PAYLOAD);
 
     expect(second.key).toBe(first.key);

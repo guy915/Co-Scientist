@@ -27,7 +27,7 @@ from co_scientist.exceptions import (
 from app import engine_tasks, store
 from app.engine_tasks.portfolio import cancel_downstream_portfolio_chain
 from app.store import ScientificTask
-from app.store.tasks_model import UNKNOWN_PROVIDER_OUTCOME_ERROR
+from app.store.models import UNKNOWN_PROVIDER_OUTCOME_ERROR
 
 logger = logging.getLogger(__name__)
 
@@ -185,7 +185,7 @@ def _is_terminal_failure(task: ScientificTask, *, retryable: bool) -> bool:
     lets a permanently failing task's downstream portfolio chain
     (finding F4) be cancelled *before* ``fail_task`` commits, so its own
     "settle the run if nothing claimable remains" check
-    (``app.store.runs_reconcile``) sees the cancelled chain already gone
+    (``app.store.runs_views``) sees the cancelled chain already gone
     rather than finding a queued row and silently declining to settle --
     its one chance to fire, since nothing revisits that decision later.
     """

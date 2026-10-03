@@ -678,11 +678,11 @@
   outline-offset: 0;
 }
 
-/* Provider chooser (settings_model_select.tsx). Full panel width, matching
+/* Provider chooser (settings_dialog.tsx). Full panel width, matching
    the API key field directly under it: the two are one stacked pair, and a
    content-width trigger beside a full-width input read as a control that had
    failed to lay out. The menu is placed under the trigger by
-   useAnchoredMenu (settings_model_select.tsx). */
+   useAnchoredMenu (settings_dialog.tsx). */
 .ucs-provider-select {
   position: relative;
   display: grid;
@@ -774,7 +774,7 @@
   font-size: 1.05rem;
 }
 
-/* Supervisor and worker model selects (settings_model_select.tsx): two
+/* Supervisor and worker model selects (settings_dialog.tsx): two
    equal columns under the key field, stacking on a narrow dialog. */
 .ucs-settings-model-grid {
   display: grid;

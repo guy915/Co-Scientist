@@ -1,28 +1,8 @@
-"""Tests for the planning/evaluation prompt builders in ``co_scientist``.
+"""Offline contracts for prompts review."""
 
-Covers the pure template helpers (``substitute_variables``,
-``load_prompt_with_schema``, ``_get_domain_variables``) and the supervisor,
-review, meta-review, proximity, and ranking prompt builders. The generation and
-literature-review prompt builders are covered in ``test_prompts_generation``.
+from __future__ import annotations
 
-These functions are pure template builders: each reads a markdown template,
-substitutes ``{{variable}}`` placeholders with the caller's inputs, and returns
-either a prompt string or a ``(prompt, schema)`` tuple. The tests assert that
-the returned prompt is a non-empty ``str`` that interpolates the key inputs,
-that schemas have the right shape, and that a few conditional branches change
-the output.
-
-``substitute_variables`` replaces any template placeholder the builder does not
-supply with a literal ``{{MISSING:<name>}}`` sentinel rather than raising. The
-builders leave no sentinels behind, so their tests assert ``"{{MISSING" not in
-prompt`` to verify *full* interpolation.
-
-The builders perform no LLM or network calls, so the tests are deterministic
-with no mocking. Domain-variable injection (``_get_domain_variables``) falls
-back to empty strings when no tool registry config is available, so prompts are
-exercised in their plain (domain-agnostic) form.
-"""
-
+import pathlib
 from typing import Any
 
 from co_scientist.prompts import (
@@ -39,6 +19,8 @@ from co_scientist.prompts import (
     substitute_variables,
 )
 from co_scientist.prompts.loading import _get_domain_variables
+from co_scientist.schemas import _PROMPT_SCHEMA_MAP
+from co_scientist.schemas.review import RANKING_SCHEMA
 
 # A supervisor_guidance dict shaped like the real planner output. Used to
 # exercise the guidance-formatting branches of several builders.
@@ -497,3 +479,365 @@ def test_domain_injection_populates_domain_placeholders() -> None:
     )
     assert "ONCOLOGY-CONTEXT" in prompt
     assert "REVIEW-G" in prompt
+
+
+_COVERAGE_META_REVIEW = {
+    "common_strengths": ["clear mechanism"],
+    "common_weaknesses": ["weak controls"],
+    "emerging_themes": ["UNIQUEMARKER-already-covered-kinase-inhibition"],
+    "strategic_recommendations": ["broaden the cohort"],
+    "potential_connections": [
+        {
+            "connection_type": "complementary_mechanism",
+            "synthesis_opportunity": (
+                "UNIQUEMARKER-open-direction-combine-autophagy-proteasome"
+            ),
+        }
+    ],
+}
+
+
+def test_review_prompt_omits_coverage_sections() -> None:
+    """The scored review prompt excludes the two novelty-adjacent sections.
+
+    Deliberate scoping (see ``_format_meta_review_context``'s docstring):
+    this prompt's score feeds the sticky, never-revisited initial review
+    gate on its ``novelty`` axis, and "this area is already covered" /
+    "this direction is open" read as direct novelty cues. The pre-
+    existing strengths/weaknesses/recommendations sections are unaffected.
+    """
+    prompt, _ = get_review_prompt(
+        research_goal="g",
+        hypothesis_text="h",
+        context=PromptRunContext(meta_review=_COVERAGE_META_REVIEW),
+    )
+    assert "Meta-Review Context" in prompt
+    assert "clear mechanism" in prompt
+    assert "weak controls" in prompt
+    assert "broaden the cohort" in prompt
+    assert "Research Areas Already Covered" not in prompt
+    assert "Open Directions Flagged for Further Exploration" not in prompt
+    assert "UNIQUEMARKER-already-covered-kinase-inhibition" not in prompt
+    assert "UNIQUEMARKER-open-direction-combine-autophagy-proteasome" not in (
+        prompt
+    )
+
+
+def test_review_batch_prompt_omits_coverage_sections() -> None:
+    """The comparative batch review prompt excludes the same two sections."""
+    prompt, _ = get_review_batch_prompt(
+        research_goal="reduce tumor metastasis",
+        hypotheses_list="1. block CXCR4\n2. inhibit MMP-9",
+        context=PromptRunContext(meta_review=_COVERAGE_META_REVIEW),
+    )
+    assert "Meta-Review Context" in prompt
+    assert "broaden the cohort" in prompt
+    assert "Research Areas Already Covered" not in prompt
+    assert "Open Directions Flagged for Further Exploration" not in prompt
+    assert "UNIQUEMARKER-already-covered-kinase-inhibition" not in prompt
+    assert "UNIQUEMARKER-open-direction-combine-autophagy-proteasome" not in (
+        prompt
+    )
+
+
+def test_ranking_prompt_keeps_coverage_sections() -> None:
+    """Contrast: the tournament judge keeps both sections by default.
+
+    It is a reversible Elo signal, not a gate.
+    """
+    prompt, _ = get_ranking_prompt(
+        research_goal="g",
+        side_a=RankingSide(text="A"),
+        side_b=RankingSide(text="B"),
+        context=PromptRunContext(meta_review=_COVERAGE_META_REVIEW),
+    )
+    assert "UNIQUEMARKER-already-covered-kinase-inhibition" in prompt
+    assert "UNIQUEMARKER-open-direction-combine-autophagy-proteasome" in prompt
+
+
+def test_review_prompt_critical_criteria_structured_shape() -> None:
+    """The richer {name, questions} shape surfaces both levels of names.
+
+    Criterion name, question name, and question text all reach the review
+    prompt -- matching the published Review Summary rubric
+    (docs/CORPUS-EXTRACTION.md line 2929).
+    """
+    guidance = {
+        "workflow_plan": {
+            "review_phase": {
+                "critical_criteria": [
+                    {
+                        "name": "Kinetic Feasibility",
+                        "questions": [
+                            {
+                                "name": "Biological Timeframe Consistency",
+                                "question": (
+                                    "Does the design account for the"
+                                    " mechanism's kinetics?"
+                                ),
+                            },
+                            {
+                                "name": "Kinetic Competition",
+                                "question": (
+                                    "Does degradation outpace synthesis?"
+                                ),
+                            },
+                        ],
+                    }
+                ]
+            }
+        }
+    }
+    prompt, _ = get_review_prompt(
+        research_goal="g",
+        hypothesis_text="h",
+        context=PromptRunContext(supervisor_guidance=guidance),
+    )
+    assert "Kinetic Feasibility" in prompt
+    assert "Biological Timeframe Consistency" in prompt
+    assert "Does the design account for the mechanism's kinetics?" in prompt
+    assert "Kinetic Competition" in prompt
+    assert "Does degradation outpace synthesis?" in prompt
+
+
+def test_review_prompt_critical_criteria_legacy_shape() -> None:
+    """A bare list of strings (pre-R12-23 persisted shape) still renders."""
+    guidance = {
+        "workflow_plan": {
+            "review_phase": {
+                "critical_criteria": ["novelty", "testability"],
+            }
+        }
+    }
+    prompt, _ = get_review_prompt(
+        research_goal="g",
+        hypothesis_text="h",
+        context=PromptRunContext(supervisor_guidance=guidance),
+    )
+    assert "novelty" in prompt
+    assert "testability" in prompt
+
+
+def test_review_prompt_critical_criteria_caps_count_and_questions() -> None:
+    """A live run's uncapped answer is defensively re-sliced at injection.
+
+    json_object mode (the production downgrade path) does not enforce the
+    schema's maxItems server-side, so this caps to Google's own published
+    counts (6 criteria -- the union of the Evaluation Criteria and Review
+    summary sections, R12-23b -- 4 questions each) regardless of what the
+    model actually returned -- the same defense
+    research_overview_directions.py applies for its own nested lists.
+    """
+    guidance = {
+        "workflow_plan": {
+            "review_phase": {
+                "critical_criteria": [
+                    {
+                        "name": f"criterion {i}",
+                        "questions": [
+                            {"name": f"q{i}-{j}", "question": f"text {i}-{j}?"}
+                            for j in range(6)
+                        ],
+                    }
+                    for i in range(8)
+                ]
+            }
+        }
+    }
+    prompt, _ = get_review_prompt(
+        research_goal="g",
+        hypothesis_text="h",
+        context=PromptRunContext(supervisor_guidance=guidance),
+    )
+    assert "criterion 5" in prompt
+    assert "criterion 6" not in prompt
+    assert "text 0-3?" in prompt
+    assert "text 0-4?" not in prompt
+
+
+def test_review_prompt_critical_criteria_malformed_entries_degrade() -> None:
+    """Malformed entries are skipped, not raised, alongside valid ones."""
+    guidance = {
+        "workflow_plan": {
+            "review_phase": {
+                "critical_criteria": [
+                    {"name": "Valid Criterion", "questions": ["plain text q"]},
+                    {"name": ""},
+                    {"questions": []},
+                    42,
+                    None,
+                ],
+            }
+        }
+    }
+    prompt, _ = get_review_prompt(
+        research_goal="g",
+        hypothesis_text="h",
+        context=PromptRunContext(supervisor_guidance=guidance),
+    )
+    assert "Valid Criterion" in prompt
+    assert "plain text q" in prompt
+
+
+def test_review_prompt_critical_criteria_absent_renders_no_section() -> None:
+    """No critical_criteria means no 'Critical Criteria to Emphasize' line."""
+    prompt, _ = get_review_prompt(
+        research_goal="g",
+        hypothesis_text="h",
+        context=PromptRunContext(
+            supervisor_guidance={
+                "workflow_plan": {"review_phase": {"review_depth": "deep"}}
+            }
+        ),
+    )
+    assert "Critical Criteria to Emphasize" not in prompt
+    assert "Review Depth Required" in prompt
+
+
+def test_review_prompt_critical_criteria_not_a_list_degrades() -> None:
+    """A malformed (non-list) critical_criteria field degrades, not crashes.
+
+    ``_guidance_items`` wraps a bare string as a single-item list, so this
+    still renders it as one legacy-shaped criterion rather than raising.
+    """
+    guidance = {
+        "workflow_plan": {
+            "review_phase": {"critical_criteria": "not a list"},
+        }
+    }
+    prompt, _ = get_review_prompt(
+        research_goal="g",
+        hypothesis_text="h",
+        context=PromptRunContext(supervisor_guidance=guidance),
+    )
+    assert "not a list" in prompt
+
+
+def test_review_prompt_excludes_description_even_when_present() -> None:
+    """R12-23b: ``description`` is deliberately report-only, never injected.
+
+    ``description`` backs the report's own "Evaluation Criteria" section
+    (``report/markdown/supervisor.py``) -- this call site runs per
+    hypothesis, per review, and the prose states the same substance the
+    questions already express operationally, so injecting it here would
+    roughly double this per-hypothesis guidance block for no reviewer
+    benefit (see planning.py's ``CRITICAL_CRITERIA_MAX_COUNT`` comment).
+    This is the test that protects that design decision: the name and
+    questions must still reach the reviewer, the description must not.
+    """
+    marker = "UNIQUE_DESCRIPTION_PROSE_MARKER_NEVER_INJECTED"
+    guidance = {
+        "workflow_plan": {
+            "review_phase": {
+                "critical_criteria": [
+                    {
+                        "name": "Kinetic Feasibility",
+                        "description": (
+                            f"{marker}: explains what this criterion"
+                            " demands and why it matters for the goal."
+                        ),
+                        "questions": [
+                            {
+                                "name": "Kinetic Competition",
+                                "question": "Does degradation outpace"
+                                " synthesis?",
+                            }
+                        ],
+                    }
+                ],
+            }
+        }
+    }
+    prompt, _ = get_review_prompt(
+        research_goal="g",
+        hypothesis_text="h",
+        context=PromptRunContext(supervisor_guidance=guidance),
+    )
+    assert "Kinetic Feasibility" in prompt
+    assert "Kinetic Competition" in prompt
+    assert "Does degradation outpace synthesis?" in prompt
+    assert marker not in prompt
+
+
+def test_review_prompt_blank_description_is_harmless() -> None:
+    """A whitespace-only description doesn't affect prompt injection either.
+
+    ``description`` is never read here regardless of its content, so a
+    blank one behaves exactly like an absent one.
+    """
+    guidance = {
+        "workflow_plan": {
+            "review_phase": {
+                "critical_criteria": [
+                    {
+                        "name": "Valid Criterion",
+                        "description": "   ",
+                        "questions": [{"question": "Q?"}],
+                    }
+                ],
+            }
+        }
+    }
+    prompt, _ = get_review_prompt(
+        research_goal="g",
+        hypothesis_text="h",
+        context=PromptRunContext(supervisor_guidance=guidance),
+    )
+    assert "Valid Criterion" in prompt
+    assert "Q?" in prompt
+
+
+_TEMPLATES = (
+    pathlib.Path(__file__).resolve().parents[1]
+    / "src"
+    / "co_scientist"
+    / "prompts"
+    / "templates"
+)
+
+
+def _enum_values(node: Any, path: str = "") -> list[tuple[str, list[Any]]]:
+    """Collects (property path, enum values) for every enum in a schema."""
+    if not isinstance(node, dict):
+        return []
+    found: list[tuple[str, list[Any]]] = []
+    if "enum" in node:
+        found.append((path or "<root>", node["enum"]))
+    for name, subschema in (node.get("properties") or {}).items():
+        found += _enum_values(subschema, f"{path}.{name}" if path else name)
+    if "items" in node:
+        found += _enum_values(node["items"], path + "[]")
+    return found
+
+
+def test_prompts_name_the_enum_values_their_schema_accepts() -> None:
+    unnamed: list[str] = []
+    for prompt_name, schema in sorted(_PROMPT_SCHEMA_MAP.items()):
+        template = _TEMPLATES / f"{prompt_name}.md"
+        assert template.exists(), f"{prompt_name} has no template"
+        text = template.read_text()
+        for path, values in _enum_values(schema.get("schema", schema)):
+            missing = [str(v) for v in values if str(v) not in text]
+            if missing:
+                unnamed.append(f"  {prompt_name}.md: {path} omits {missing}")
+    assert not unnamed, "prompts that do not name their enum values:\n" + (
+        "\n".join(unnamed)
+    )
+
+
+def test_ranking_prompt_names_every_comparison_field() -> None:
+    """Both tournament prompts name the keys their judgment allows.
+
+    judgment_explanation is closed, and its keys appeared nowhere but the
+    schema block appended to the prompt -- the criteria the prompt itself
+    lists are prose headings ("Novelty and originality"). A judge asked
+    for comparisons in one vocabulary and given keys in another answered
+    with a key of its own invention, which cost the match a second call.
+    Both published ranking prompts answer against this one schema, so
+    both must name every key.
+    """
+    explanation = RANKING_SCHEMA["schema"]["properties"]["judgment_explanation"]
+    for name in ("ranking_pairwise", "ranking_debate"):
+        template = (_TEMPLATES / f"{name}.md").read_text()
+        for field in explanation["required"]:
+            assert field in template, f"{name}.md does not name {field}"

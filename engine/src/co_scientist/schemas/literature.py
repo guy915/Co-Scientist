@@ -1,13 +1,112 @@
-"""JSON schemas for the literature-review stage.
-
-These schemas are used with response_format of type json_schema to
-constrain LLM outputs during literature search-query generation and
-per-paper analysis.
-"""
+"""Structured literature retrieval, paper analysis and deep-research schemas."""
 
 from typing import Any
 
-from co_scientist.schemas.builders import obj
+from co_scientist.schemas.builders import obj, str_array
+
+RESEARCH_STANCES_SCHEMA: dict[str, Any] = {
+    "name": "research_stances",
+    "strict": False,
+    "schema": obj(
+        {
+            "stances": str_array(
+                "Distinct perspectives to research the goal from, each a"
+                " short noun phrase (e.g. mechanism, contradicting"
+                " evidence, methodology, prior art)"
+            )
+        }
+    ),
+}
+
+RESEARCH_QUESTIONS_SCHEMA: dict[str, Any] = {
+    "name": "research_questions",
+    "strict": False,
+    "schema": obj(
+        {
+            "questions": str_array(
+                "Answerable questions this stance needs settled, each"
+                " narrow enough for one literature search"
+            )
+        }
+    ),
+}
+
+RESEARCH_QUERY_SCHEMA: dict[str, Any] = {
+    "name": "research_query",
+    "strict": False,
+    "schema": obj(
+        {
+            "query": {
+                "type": "string",
+                "description": (
+                    "The question rendered as a literature search query:"
+                    " the terms a source indexes on, not a sentence"
+                ),
+            }
+        }
+    ),
+}
+
+RESEARCH_EXTRACT_SCHEMA: dict[str, Any] = {
+    "name": "research_extract",
+    "strict": False,
+    "schema": obj(
+        {
+            "findings": {
+                "type": "array",
+                "description": (
+                    "What the documents actually say about the question."
+                    " Omit anything you cannot quote."
+                ),
+                "items": obj(
+                    {
+                        "document": {
+                            "type": "integer",
+                            "description": (
+                                "Index of the document this comes from,"
+                                " as numbered in the prompt"
+                            ),
+                        },
+                        "claim": {
+                            "type": "string",
+                            "description": (
+                                "The finding in your own words, one sentence"
+                            ),
+                        },
+                        "quote": {
+                            "type": "string",
+                            "description": (
+                                "The passage from that document which"
+                                " supports the claim, verbatim"
+                            ),
+                        },
+                    }
+                ),
+            },
+            "follow_ups": str_array(
+                "Questions this reading raised and did not answer. Leave"
+                " empty when the documents settled the question."
+            ),
+        }
+    ),
+}
+
+RESEARCH_COMPRESS_SCHEMA: dict[str, Any] = {
+    "name": "research_compress",
+    "strict": False,
+    "schema": obj(
+        {
+            "summary": {
+                "type": "string",
+                "description": (
+                    "What this question's reading established, in a few"
+                    " sentences, including where the sources disagree"
+                ),
+            }
+        }
+    ),
+}
+
 
 # Literature review query generation schema
 # Imported directly (not via get_schema_for_prompt) by

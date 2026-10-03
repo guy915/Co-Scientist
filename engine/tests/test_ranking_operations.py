@@ -1,10 +1,14 @@
-"""Shared scientific contracts for graph tournaments and durable waves."""
+"""Offline contracts for ranking operations."""
 
+from __future__ import annotations
+
+import pathlib
 from dataclasses import FrozenInstanceError
 from typing import Any
 
 import pytest
 
+import co_scientist.agents.ranking.ranking_debate as ranking_elo
 from co_scientist.agents.ranking import (
     RankingJudgement,
     RankingMatchResult,
@@ -17,11 +21,29 @@ from co_scientist.agents.ranking import (
     prepare_ranking_prompt_context,
     prepare_ranking_round,
     ranking_debate,
-    ranking_elo,
     remaining_ranking_rounds,
 )
+from co_scientist.agents.ranking.ranking_debate import (
+    _RANKING_DEBATE_MAX_TURNS,
+    _RANKING_DEBATE_TYPICAL_MAX_TURNS,
+    _RANKING_DEBATE_TYPICAL_MIN_TURNS,
+    _build_matchup_detail,
+    _build_matchup_prompt,
+    _DebateContext,
+    _extract_criteria_comparisons,
+    _MatchupPromptContext,
+    _parse_matchup_winner,
+    _parse_verdict_line,
+    _resolve_turn_winner,
+    _review_summary,
+    judge_matchup,
+)
 from co_scientist.constants import INITIAL_ELO_RATING
-from co_scientist.models import ExecutionMetrics
+from co_scientist.models import ExecutionMetrics, HypothesisReview
+from co_scientist.schemas.review import (
+    RANKING_COMPARISON_CRITERIA,
+    RANKING_SCHEMA,
+)
 from tests._state import make_hypothesis, make_review, make_state
 
 
@@ -225,3 +247,384 @@ async def test_graph_captures_prompt_once_and_refreshes_sorted_pool_each_match(
     assert snapshots[0] != snapshots[1] != snapshots[2]
     assert [ctx.preferences for ctx in captured] == ["preferences"] * 3
     assert [ctx.criteria for ctx in captured] == [["feasible"]] * 3
+
+
+# --- _review_summary ---------------------------------------------------------
+
+
+def test_review_summary_none_when_no_reviews() -> None:
+    """A hypothesis with no reviews yields None."""
+    hypothesis = make_hypothesis(text="a hypothesis", reviews=[])
+    assert _review_summary(hypothesis) is None
+
+
+def test_review_summary_returns_latest_scores_and_overall_score() -> None:
+    """The most recent review's scores/overall_score are extracted."""
+    review = HypothesisReview(
+        review_summary="summary",
+        scores={"novelty": 8, "rigor": 6},
+        safety_ethical_concerns="none",
+        detailed_feedback={},
+        constructive_feedback="tighten the mechanism",
+        overall_score=7.0,
+    )
+    hypothesis = make_hypothesis(text="a hypothesis", reviews=[review])
+    assert _review_summary(hypothesis) == {
+        "scores": {"novelty": 8, "rigor": 6},
+        "overall_score": 7.0,
+    }
+
+
+# --- mature review findings (audit E1) ----------------------------------
+
+
+def _matchup_context() -> _MatchupPromptContext:
+    """Build the minimal run-level context a matchup prompt needs."""
+    return _MatchupPromptContext(research_goal="test goal")
+
+
+def _debate_matchup_context() -> _MatchupPromptContext:
+    """The same context for a top-ranked, multi-turn (ranking-05) matchup."""
+    return _MatchupPromptContext(research_goal="test goal", debate=True)
+
+
+def test_matchup_prompt_surfaces_fatal_mature_review_findings() -> None:
+    """A fatal full/simulation result reaches the judge's prompt (E1).
+
+    The reviews were computed at LLM + retrieval cost but read by nothing
+    before this; the verdict and its decisive findings must appear on the
+    affected side so they can influence the outcome.
+    """
+    hypothesis_a = make_hypothesis(text="idea A")
+    hypothesis_a.enrichments["full"] = {
+        "verdict": "rejected",
+        "justification": "the proposed pathway is circular",
+        "retrieved_articles": [{"title": "never shown to a judge"}],
+    }
+    hypothesis_a.enrichments["simulation"] = {
+        "verdict": "breaks_down",
+        "decisive_step": "ligand binding never occurs",
+        "failure_points": ["step two"],
+    }
+    hypothesis_b = make_hypothesis(text="idea B")
+
+    prompt, _, _, _ = _build_matchup_prompt(
+        hypothesis_a, hypothesis_b, _matchup_context()
+    )
+
+    assert "Hypothesis 1 Mature Review Findings" in prompt
+    assert "Full review verdict: rejected" in prompt
+    assert "the proposed pathway is circular" in prompt
+    assert "Simulation review verdict: breaks_down" in prompt
+    assert "ligand binding never occurs" in prompt
+    # Side B has no mature reviews: no block, and no retrieval internals.
+    assert "Hypothesis 2 Mature Review Findings" not in prompt
+    assert "never shown to a judge" not in prompt
+
+
+def test_matchup_prompt_is_unchanged_before_the_cascade_runs() -> None:
+    """No mature reviews means no findings block on either side."""
+    prompt, _, _, _ = _build_matchup_prompt(
+        make_hypothesis(text="idea A"),
+        make_hypothesis(text="idea B"),
+        _matchup_context(),
+    )
+
+    assert "Mature Review Findings" not in prompt
+
+
+# --- panel framing (corpus R8-6) ----------------------------------------
+
+
+def test_matchup_prompt_frames_the_judge_as_a_panel() -> None:
+    """The published ranking-05 "panel of domain experts" framing renders.
+
+    Google's ranking-05 opens "simulating a panel of domain experts
+    engaged in a structured discussion" (docs/CORPUS-EXTRACTION.md:1210)
+    -- and that is ranking-05's opening, not ranking-04's. It belongs to
+    the multi-turn debate prompt only; a single-shot comparison renders
+    ranking-04, which names one expert evaluator.
+    """
+    prompt, _, _, _ = _build_matchup_prompt(
+        make_hypothesis(text="idea A"),
+        make_hypothesis(text="idea B"),
+        _debate_matchup_context(),
+    )
+
+    assert "panel of domain experts" in prompt
+    assert "structured discussion" in prompt
+
+
+def test_single_shot_matchup_renders_the_published_single_evaluator() -> None:
+    """A lower-ranked comparison gets ranking-04's own role, not A.5's."""
+    prompt, _, _, _ = _build_matchup_prompt(
+        make_hypothesis(text="idea A"),
+        make_hypothesis(text="idea B"),
+        _matchup_context(),
+    )
+
+    assert "You are an expert evaluator tasked with comparing two" in prompt
+    assert "panel of domain experts" not in prompt
+
+
+def test_panel_framing_does_not_dislodge_the_decisive_verdict_instruction() -> (
+    None
+):
+    """Adding the panel framing must not soften the required verdict line.
+
+    Ranking is the run's most expensive call site and already carries a
+    measured ~23% answerless-retry rate on this prompt family (corpus
+    R8-4); the panel framing must not read as an invitation to keep
+    deliberating instead of committing to a verdict.
+    """
+    prompt, _, _, _ = _build_matchup_prompt(
+        make_hypothesis(text="idea A"),
+        make_hypothesis(text="idea B"),
+        _debate_matchup_context(),
+    )
+
+    assert "Make a clear decision" in prompt
+    assert '"better idea: 1"' in prompt and '"better idea: 2"' in prompt
+    # Every turn answers, turn 1 included: the published prompt defers
+    # its judgment to termination, but each of our turns is its own call.
+    assert "answer every turn - turn 1 included" in prompt
+
+
+# --- the debate template's own turn envelope ----------------------------
+
+_TEMPLATES = (
+    pathlib.Path(__file__).resolve().parents[1]
+    / "src"
+    / "co_scientist"
+    / "prompts"
+    / "templates"
+)
+
+
+def test_debate_template_states_the_envelope_the_loop_enforces() -> None:
+    """ranking_debate.md prints the turn envelope the judge loop applies.
+
+    Published ranking-05 carries the numbers as literals, so they are
+    literals in the template; this is what keeps them from drifting from
+    the constants ``_ranking_debate_consensus`` and
+    ``_matchup_debate_turns`` actually enforce. The panel paces itself
+    against whatever number it is told, so a stale figure reads as a real
+    instruction.
+    """
+    template = (_TEMPLATES / "ranking_debate.md").read_text(encoding="utf-8")
+
+    assert (
+        "typically ranging from"
+        f" {_RANKING_DEBATE_TYPICAL_MIN_TURNS} to"
+        f" {_RANKING_DEBATE_TYPICAL_MAX_TURNS}, with a maximum of"
+        f" {_RANKING_DEBATE_MAX_TURNS}." in template
+    )
+    assert (
+        f"(typically {_RANKING_DEBATE_TYPICAL_MIN_TURNS}"
+        f"-{_RANKING_DEBATE_TYPICAL_MAX_TURNS} turns, up to"
+        f" {_RANKING_DEBATE_MAX_TURNS} turns)" in template
+    )
+
+
+def test_matchup_prompt_keeps_reflection_and_verification() -> None:
+    hypothesis_a = make_hypothesis(
+        text="idea A",
+        reflection_notes="Measured flux from pathway A.",
+        deep_verification_probes=[
+            {
+                "question": "Does the flux persist?",
+                "answer": "Yes, under the measured condition.",
+                "reasoning": "The control confirms it.",
+                "assumption_is_fundamental": True,
+            }
+        ],
+        deep_verification_verdict="holds",
+    )
+    hypothesis_b = make_hypothesis(text="idea B")
+    prompt, _, notes_a, notes_b = _build_matchup_prompt(
+        hypothesis_a, hypothesis_b, _matchup_context()
+    )
+    assert "Measured flux from pathway A." in prompt
+    assert "Does the flux persist?" in prompt
+    assert "Yes, under the measured condition." in prompt
+    assert notes_a == hypothesis_a.reflection_notes
+    assert notes_b is None
+
+
+def _judgment(summary: str = "", winner: str = "a") -> dict[str, Any]:
+    """Build a judge response with a decision_summary and a JSON winner."""
+    return {"decision_summary": summary, "winner": winner}
+
+
+# --- verdict-line parsing -------------------------------------------------
+
+
+def test_verdict_line_maps_the_papers_numbers_onto_sides() -> None:
+    """Hypothesis 1 as presented is side a; Hypothesis 2 is side b."""
+    assert _parse_verdict_line("... better idea: 1") == "a"
+    assert _parse_verdict_line("... better idea: 2") == "b"
+
+
+def test_verdict_line_accepts_case_and_wording_variants() -> None:
+    """Case variants and the paper's alternate wording all parse."""
+    assert _parse_verdict_line("Better Idea: 1") == "a"
+    assert _parse_verdict_line("BETTER IDEA:2") == "b"
+    assert _parse_verdict_line("better hypothesis: 2") == "b"
+    assert _parse_verdict_line("better idea: A") == "a"
+
+
+def test_the_concluding_verdict_wins_over_an_earlier_quote() -> None:
+    """A rationale may quote the format before concluding with a verdict."""
+    text = (
+        "End with better idea: 1 or 2. After weighing both sides,"
+        " the stronger mechanism prevails.\n\nbetter idea: 2"
+    )
+    assert _parse_verdict_line(text) == "b"
+
+
+def test_a_quoted_format_is_not_a_verdict() -> None:
+    """A quote of the protocol format ("1 or 2") decides nothing."""
+    assert _parse_verdict_line("conclude with better idea: 1 or 2") is None
+    assert _parse_verdict_line("") is None
+    assert _parse_verdict_line("no verdict here") is None
+
+
+def test_an_invalid_verdict_token_yields_no_verdict() -> None:
+    """Anything but 1/2/a/b is not a decision."""
+    assert _parse_verdict_line("better idea: 3") is None
+    assert _parse_verdict_line("better idea: both") is None
+
+
+def test_verdict_line_takes_precedence_over_the_json_winner() -> None:
+    """The paper's concluding line outranks the JSON enum when both exist."""
+    winner, valid = _parse_matchup_winner(
+        _judgment(summary="rationale.\nbetter idea: 2", winner="a"),
+        fallback="a",
+    )
+    assert winner == "b"
+    assert valid is True
+
+
+def test_json_winner_fallback_when_no_verdict_line() -> None:
+    """The offline backend answers in the JSON shape; nothing breaks.
+
+    A response with no literal line resolves through the enum exactly as
+    before -- this is the deterministic offline path's contract.
+    """
+    winner, valid = _parse_matchup_winner(
+        _judgment(summary="plain rationale", winner="b"), fallback="a"
+    )
+    assert winner == "b"
+    assert valid is True
+
+
+def test_neither_verdict_nor_valid_winner_uses_the_fallback() -> None:
+    winner, valid = _parse_matchup_winner(
+        _judgment(summary="", winner=""), fallback="b"
+    )
+    assert winner == "b"
+    assert valid is False
+
+
+def test_verdict_unswaps_with_presentation_order() -> None:
+    """On a swapped turn, side 1 as presented is the B hypothesis.
+
+    The verdict names the hypotheses in presentation order, so a
+    "better idea: 1" on a swapped turn votes for the unswapped side b.
+    """
+    winner, valid = _resolve_turn_winner(
+        _judgment(summary="better idea: 1", winner="a"),
+        swapped=True,
+        fallback="a",
+    )
+    assert winner == "b"
+    assert valid is True
+
+
+async def test_judge_matchup_parses_the_literal_verdict_line(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """End to end: the concluding line decides the matchup."""
+
+    async def fake(**_: Any) -> dict[str, Any]:
+        return {
+            "winner": "a",  # contradicted by the literal line below
+            "decision_summary": "B is stronger.\nbetter idea: 2",
+            "confidence_level": "High",
+        }
+
+    monkeypatch.setattr(ranking_debate, "call_llm_json", fake)
+    ctx = _DebateContext(
+        make_hypothesis(text="alpha"),
+        make_hypothesis(text="beta"),
+        "goal",
+        "fake/model",
+    )
+
+    winner, response = await judge_matchup(ctx, debate_turns=1)
+
+    assert winner == "b"
+    assert response["consensus_votes"] == ["b"]
+
+
+# --- criteria collection --------------------------------------------------
+
+
+def _full_explanation() -> dict[str, str]:
+    """One assessment per canonical criterion, plus an invented key."""
+    return {
+        **{name: f"assesses {name}" for name in RANKING_COMPARISON_CRITERIA},
+        "invented_extra_comparison": "not in the closed schema",
+    }
+
+
+def test_criteria_comparisons_collect_all_seven_canonical_axes() -> None:
+    response = {"judgment_explanation": _full_explanation()}
+    comparisons = _extract_criteria_comparisons(response)
+    assert set(comparisons) == set(RANKING_COMPARISON_CRITERIA)
+    assert comparisons["novelty_comparison"] == "assesses novelty_comparison"
+
+
+def test_invented_and_empty_criteria_are_dropped() -> None:
+    explanation = _full_explanation()
+    explanation["feasibility_comparison"] = ""
+    comparisons = _extract_criteria_comparisons(
+        {"judgment_explanation": explanation}
+    )
+    assert "invented_extra_comparison" not in comparisons
+    assert "feasibility_comparison" not in comparisons
+
+
+def test_criteria_comparisons_empty_without_an_explanation() -> None:
+    assert _extract_criteria_comparisons({}) == {}
+    assert (
+        _extract_criteria_comparisons({"judgment_explanation": "prose"}) == {}
+    )
+
+
+def test_matchup_detail_carries_the_criteria_comparisons() -> None:
+    """The persisted match record is inspectable criterion by criterion."""
+    from co_scientist.agents.ranking.ranking_debate import _apply_matchup_elo
+
+    hyp_a = make_hypothesis(text="alpha")
+    hyp_b = make_hypothesis(text="beta")
+    outcome = _apply_matchup_elo(hyp_a, hyp_b, "a")
+
+    detail = _build_matchup_detail(
+        (hyp_a, hyp_b),
+        "a",
+        {"judgment_explanation": _full_explanation()},
+        outcome,
+        0,
+    )
+
+    assert set(detail["criteria_comparisons"]) == set(
+        RANKING_COMPARISON_CRITERIA
+    )
+
+
+def test_ranking_schema_criteria_are_single_sourced() -> None:
+    """The schema's judgment keys are exactly the canonical seven."""
+    explanation = RANKING_SCHEMA["schema"]["properties"]["judgment_explanation"]
+    assert set(explanation["properties"]) == set(RANKING_COMPARISON_CRITERIA)
+    assert set(explanation["required"]) == set(RANKING_COMPARISON_CRITERIA)

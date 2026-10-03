@@ -15,15 +15,11 @@ from typing import Any
 _ROOT = Path(__file__).resolve().parents[1]
 _POLICY_FILES = (
     "constants/__init__.py",
-    "constants/tokens.py",
     "llm/values.py",
     "llm/profile/__init__.py",
-    "llm/profile/routes.py",
     "llm/request/backend.py",
     "llm/request/completion.py",
     "llm/admission/free_policy.py",
-    "llm/request/gateway_routing.py",
-    "llm/request/gateway_body.py",
     "llm/request/thinking.py",
     "llm/attempts/escalation.py",
 )

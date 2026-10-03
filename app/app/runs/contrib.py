@@ -1,11 +1,4 @@
-"""Scientist-contributed input endpoints: hypotheses, reviews, attachments.
-
-Split out of ``app.runs`` (which re-exports the names callers use and mounts
-``router`` on its own, so the served route set is unchanged): the
-Milestone 7 human-in-the-loop surface — scientist-authored hypotheses
-and reviews, text/document attachments to the run's private corpus, and
-keyword search over that corpus.
-"""
+"""Scientist-contributed input endpoints: hypotheses, reviews, attachments."""
 
 from __future__ import annotations
 
@@ -13,18 +6,21 @@ from typing import Annotated, Any
 
 from fastapi import (
     APIRouter,
+    File,
+    Form,
     Header,
     HTTPException,
     Request,
+    UploadFile,
 )
 from fastapi.responses import JSONResponse
 from starlette.background import BackgroundTask
 
-from app import (
-    human_input,
-    store,
-    task_worker,
-)
+import app.document_ingest as document_ingest
+import app.human_input as human_input
+import app.run_corpus as run_corpus
+import app.store as store
+import app.task_worker as task_worker
 from app.api_contracts.science import HypothesisOutcome
 from app.auth import client_id, require_bearer_principal
 from app.config import settings
@@ -33,8 +29,8 @@ from app.execution_policy import (
     campaign_model_for_config,
     scoped_execution_policy,
 )
-from app.hypothesis.screening import screen_hypotheses
-from app.outcome_refinement.action import (
+from app.hypothesis import screen_hypotheses
+from app.outcome_refinement import (
     OutcomeRefinementContextTooLargeError,
     OutcomeRefinementIneligibleError,
     OutcomeRefinementNotFoundError,
@@ -43,17 +39,158 @@ from app.outcome_refinement.action import (
     get_owner_outcome_refinement_action,
     request_outcome_refinement_action,
 )
-from app.runs.contrib_attachments import (
-    router as attachments_router,
-)
 from app.runs.models import (
+    HumanAttachmentRequest,
     HumanHypothesisRequest,
     HumanReviewRequest,
     HypothesisOutcomeRequest,
 )
-from app.runs.support import _require_run, _run_or_404
-from app.runs.support import _steer_and_continue as _steer_and_continue
+from app.runs.support import _require_run, _run_or_404, _steer_and_continue
 from app.store import ScientificTask
+
+attachments_router = APIRouter()
+
+
+def _persist_and_notify_attachment(
+    run_id: str, req: HumanAttachmentRequest
+) -> tuple[str, ScientificTask | None]:
+    """Persist the pasted document as evidence and steer the run with it."""
+    ev_id = store.add_evidence(
+        store.NewEvidence(
+            run_id=run_id,
+            title=req.title,
+            source=run_corpus.ATTACHMENT_SOURCE,
+            abstract=req.text,
+        )
+    )
+    continuation = _steer_and_continue(
+        run_id,
+        "scientist",
+        f"Use the private research document '{req.title}' in subsequent work.",
+        {"kind": "attachment", "evidence_id": ev_id},
+    )
+    store.append_event(
+        run_id,
+        "scientist.attachment",
+        {"evidence_id": ev_id, "title": req.title},
+    )
+    return ev_id, continuation
+
+
+@attachments_router.post("/{run_id}/attachments")
+async def add_attachment(
+    run_id: str, req: HumanAttachmentRequest
+) -> dict[str, Any]:
+    """Attach a consented text document to the run's private corpus."""
+    _require_run(run_id)
+    if not req.consent:
+        raise HTTPException(
+            status_code=422, detail="consent is required to index a document"
+        )
+    ev_id, continuation = _persist_and_notify_attachment(run_id, req)
+    return {
+        "id": ev_id,
+        "indexed": True,
+        "continuation_task_id": continuation.id if continuation else None,
+    }
+
+
+async def _extract_uploaded_document(
+    file: UploadFile,
+) -> document_ingest.ExtractedDocument:
+    """Read and extract the upload, raising 422 on an invalid document."""
+    data = await file.read(document_ingest.MAX_UPLOAD_BYTES + 1)
+    try:
+        return document_ingest.extract_document(
+            data, file.content_type or "application/octet-stream"
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+def _persist_and_notify_upload(
+    run_id: str,
+    title: str,
+    extracted: document_ingest.ExtractedDocument,
+    uploader: str,
+) -> tuple[str, ScientificTask | None]:
+    """Persist the extracted document as evidence and steer the run with it."""
+    evidence_id = store.add_evidence(
+        store.NewEvidence(
+            run_id=run_id,
+            title=title,
+            source=run_corpus.ATTACHMENT_SOURCE,
+            abstract=extracted.text,
+            mime_type=extracted.mime_type,
+            sha256=extracted.sha256,
+            byte_size=extracted.byte_size,
+            document_version=extracted.sha256,
+            extraction_tool=extracted.extraction_tool,
+        )
+    )
+    continuation = _steer_and_continue(
+        run_id,
+        uploader,
+        "Use the uploaded private research document "
+        f"'{title}' in subsequent work.",
+        {"kind": "attachment", "evidence_id": evidence_id},
+    )
+    store.append_event(
+        run_id,
+        "scientist.attachment",
+        {"evidence_id": evidence_id, "title": title},
+    )
+    return evidence_id, continuation
+
+
+@attachments_router.post("/{run_id}/attachments/upload")
+async def upload_attachment(
+    run_id: str,
+    request: Request,
+    file: Annotated[UploadFile, File()],
+    consent: Annotated[bool, Form()],
+) -> dict[str, Any]:
+    """Extract and index a real scientist-uploaded document with provenance."""
+    _require_run(run_id)
+    uploader = client_id(request)
+    if not consent:
+        raise HTTPException(
+            status_code=422, detail="consent is required to index a document"
+        )
+    extracted = await _extract_uploaded_document(file)
+    title = (file.filename or "Uploaded document").strip()
+    evidence_id, continuation = _persist_and_notify_upload(
+        run_id, title, extracted, uploader
+    )
+    return {
+        "id": evidence_id,
+        "indexed": True,
+        "sha256": extracted.sha256,
+        "byte_size": extracted.byte_size,
+        "mime_type": extracted.mime_type,
+        "extraction_tool": extracted.extraction_tool,
+        "continuation_task_id": continuation.id if continuation else None,
+    }
+
+
+@attachments_router.get("/{run_id}/attachments/search")
+async def search_attachments(run_id: str, q: str) -> dict[str, Any]:
+    """Retrieve a run's attachment corpus by keyword."""
+    _require_run(run_id)
+    documents = run_corpus.corpus_from_evidence(store.list_evidence(run_id))
+    retriever = run_corpus.KeywordCorpusRetriever(documents)
+    hits = retriever.retrieve(q)
+    return {
+        "results": [
+            {
+                "id": h.document.doc_id,
+                "title": h.document.title,
+                "score": h.score,
+            }
+            for h in hits
+        ]
+    }
+
 
 router = APIRouter()
 router.include_router(attachments_router)
@@ -355,3 +492,6 @@ async def add_human_review(
         "continuation_task_id": continuation.id if continuation else None,
         **review.to_dict(),
     }
+
+
+__all__ = ["_steer_and_continue"]

@@ -1,0 +1,1526 @@
+"""Tests for engine ranking 1."""
+
+from __future__ import annotations
+
+import logging
+import threading
+import time
+import types
+from typing import Any, cast
+
+import pytest
+from co_scientist.models import (
+    Article,
+    Hypothesis,
+)
+
+import app.engine_tasks.ranking as engine_tasks_ranking_wave
+from app import engine_tasks, store
+from app.claims import (
+    AssessorDraft,
+    ClaimAssessment,
+    EntailmentLabel,
+    deterministic_assessor,
+)
+from app.claims import grounding as claim_grounding
+from app.claims.gate import SupportSpan
+from app.config import settings
+from app.engine_tasks import gate as engine_tasks_gate
+from app.engine_tasks import ranking as engine_tasks_ranking
+from app.engine_tasks import support as engine_tasks_support
+from app.engine_tasks.gate import (
+    _apply_gate_verdict,
+    _GatePlan,
+    _GateWave,
+    _harvest_hypothesis_claims,
+    _log_gate_wave,
+)
+from tests._client import make_client
+from tests._engine_tasks_helpers import (
+    _add_fixture_review,
+    _drain_ranking_matches,
+    _install_concurrency_tracking_judge,
+    _install_plain_fake_judge,
+    _RankingSeed,
+    _run_ranking_node,
+    _running_ranking_events,
+    _seed_ranking_node,
+)
+
+from ._llm_fake_backend import install_completion_backend
+
+# Pre-ranking evidence-gate and semantic-audit tests for the executor.
+
+
+def _private_corpus_source() -> dict[str, Any]:
+    """An uploaded private document that grounds the hypothesis's claim."""
+    return {
+        "display": (
+            "Private scientist source 'Lab notes': Astrocyte lactate "
+            "accelerates synaptic ATP recovery."
+        ),
+        "source_type": "private_document",
+        "data": {
+            "document_id": "doc-1",
+            "title": "Lab notes",
+            "excerpt": ("Astrocyte lactate accelerates synaptic ATP recovery."),
+            "private": True,
+        },
+    }
+
+
+def _tasks_gate_install_counting_assessor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[str, int]:
+    """Patch build_assessor with a call-counting deterministic assessor."""
+    calls = {"n": 0}
+
+    def counting(claim: str, passages: Any) -> Any:
+        calls["n"] += 1
+        return deterministic_assessor(claim, passages)
+
+    monkeypatch.setattr(
+        claim_grounding,
+        "build_assessor",
+        lambda *_: (counting, "counting-v1"),
+    )
+    return calls
+
+
+def _install_peak_assessor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[str, int]:
+    """Patch build_assessor to record peak concurrent claim assessments."""
+    state = {"active": 0, "peak": 0}
+    lock = threading.Lock()
+
+    def _slow_assessor(claim: str, passages: Any) -> AssessorDraft:
+        """Record how many assessments overlap, then stall like a call."""
+        with lock:
+            state["active"] += 1
+            state["peak"] = max(state["peak"], state["active"])
+        time.sleep(0.05)
+        with lock:
+            state["active"] -= 1
+        return AssessorDraft(label=EntailmentLabel.INSUFFICIENT)
+
+    monkeypatch.setattr(
+        claim_grounding,
+        "build_assessor",
+        lambda *_: (_slow_assessor, "slow-v1"),
+    )
+    monkeypatch.setattr(settings, "claim_assessor", "llm")
+    return state
+
+
+def _install_overlap_assessor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[str, bool]:
+    """Patch build_assessor to flag overlap between two hypotheses' claims."""
+    in_flight: set[str] = set()
+    flags = {"overlapped": False}
+    lock = threading.Lock()
+
+    def _slow_assessor(claim: str, passages: Any) -> AssessorDraft:
+        """Flag whenever two different hypotheses' claims overlap."""
+        owner = "alpha" if "alpha" in claim else "beta"
+        with lock:
+            in_flight.add(owner)
+            if len(in_flight) > 1:
+                flags["overlapped"] = True
+        time.sleep(0.05)
+        with lock:
+            in_flight.discard(owner)
+        return AssessorDraft(label=EntailmentLabel.INSUFFICIENT)
+
+    monkeypatch.setattr(
+        claim_grounding,
+        "build_assessor",
+        lambda *_: (_slow_assessor, "slow-v1"),
+    )
+    monkeypatch.setattr(settings, "claim_assessor", "llm")
+    return flags
+
+
+def _tasks_gate_multi_claim_state() -> dict[str, Any]:
+    """A viable two-claim hypothesis grounded by one supporting article."""
+    hypothesis = Hypothesis(
+        text=(
+            "Astrocyte lactate accelerates synaptic ATP recovery. "
+            "Neuronal mitochondria buffer the resulting calcium influx."
+        ),
+        literature_grounding=(
+            "Astrocytes participate in neuronal energy support. "
+            "Lactate shuttling is documented in cortical slices."
+        ),
+        explanation="Glycolytic flux rises before the ATP rebound.",
+        experiment="Measure ATP recovery under lactate blockade.",
+    )
+    hypothesis.review_disposition = "viable"
+    return {
+        "hypotheses": [hypothesis],
+        "articles": [
+            Article(
+                title="Astrocyte energetics",
+                abstract="Astrocytes participate in neuronal energy support.",
+            )
+        ],
+    }
+
+
+@pytest.mark.asyncio
+async def test_pre_ranking_gate_labels_novel_proposal_as_speculative() -> None:
+    """A grounded proposal may rank with its novel claim made explicit."""
+    hypothesis = Hypothesis(
+        text="We hypothesize astrocyte channel X may accelerate ATP recovery.",
+        literature_grounding=(
+            "Astrocytes participate in neuronal energy support."
+        ),
+    )
+    hypothesis.review_disposition = "viable"
+    state = {
+        "hypotheses": [hypothesis],
+        "articles": [
+            Article(
+                title="Astrocyte energetics",
+                abstract="Astrocytes participate in neuronal energy support.",
+            )
+        ],
+    }
+
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
+
+    assert hypothesis.review_disposition == "viable"
+    gate = hypothesis.enrichments["claim_gate"]
+    assert gate["decision"] == "allow"
+    speculative = next(
+        claim for claim in gate["claims"] if claim["role"] == "speculative"
+    )
+    assert speculative["label"] == "insufficient"
+
+
+@pytest.mark.asyncio
+async def test_pre_ranking_gate_grounds_claims_in_private_corpus() -> None:
+    """A scientist's uploaded document is admissible grounding evidence.
+
+    The private corpus (``context_enrichment_sources``) must count toward the
+    pre-ranking evidence gate, not only retrieved literature, so uploaded
+    an uploaded supporting document verifies an otherwise-unsupported idea —
+    matching the disclosed private-repository behavior (the idea ranks
+    throughout; the corpus adds a supports edge).
+    """
+    hypothesis = Hypothesis(
+        text="Astrocyte lactate accelerates synaptic ATP recovery.",
+        literature_grounding=(
+            "Astrocyte lactate accelerates synaptic ATP recovery."
+        ),
+    )
+    hypothesis.review_disposition = "viable"
+    state: dict[str, Any] = {"hypotheses": [hypothesis], "articles": []}
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
+    assert hypothesis.review_disposition == "viable"
+
+    state["context_enrichment_sources"] = [_private_corpus_source()]
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
+
+    assert hypothesis.review_disposition == "viable"
+    assert hypothesis.enrichments["claim_gate"]["decision"] == "allow"
+
+
+@pytest.mark.asyncio
+async def test_pre_ranking_gate_reuses_unchanged_semantic_audit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Repeated tournaments do not repay for identical claim assessments."""
+    calls = _tasks_gate_install_counting_assessor(monkeypatch)
+    hypothesis = Hypothesis(
+        text="We hypothesize lactate may accelerate ATP recovery.",
+        literature_grounding="Astrocyte lactate accelerates ATP recovery.",
+    )
+    hypothesis.review_disposition = "viable"
+    state = {
+        "hypotheses": [hypothesis],
+        "articles": [
+            Article(
+                title="Astrocyte energetics",
+                abstract="Astrocyte lactate accelerates ATP recovery.",
+                source_id="PMID-1",
+            )
+        ],
+    }
+
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
+    first_call_count = calls["n"]
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
+
+    assert first_call_count > 0
+    assert calls["n"] == first_call_count
+    assert hypothesis.enrichments["claim_gate"]["input_fingerprint"]
+
+
+@pytest.mark.asyncio
+async def test_pre_ranking_gate_assesses_literature_rationale() -> None:
+    """Records each claim's label; an unsupported rationale stays rankable."""
+    hypothesis = Hypothesis(
+        text="Astrocyte lactate accelerates synaptic ATP recovery.",
+        literature_grounding=(
+            "A fictional kinase completely reverses neuronal aging."
+        ),
+    )
+    hypothesis.review_disposition = "viable"
+    state = {
+        "hypotheses": [hypothesis],
+        "articles": [
+            Article(
+                title="Astrocyte energetics",
+                abstract=(
+                    "Astrocyte lactate accelerates synaptic ATP recovery."
+                ),
+            )
+        ],
+    }
+
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
+
+    assert hypothesis.review_disposition == "viable"
+    claims = hypothesis.enrichments["claim_gate"]["claims"]
+    assert [claim["label"] for claim in claims] == [
+        "supports",
+        "insufficient",
+    ]
+    assert [claim["verification_method"] for claim in claims] == [
+        "deterministic_lexical",
+        "no_evidence",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_pre_ranking_gate_assesses_claims_concurrently(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The gate must assess a run's claims in parallel, not one at a time.
+
+    Every claim is assessed independently, so overlapping them changes no
+    verdict -- only how long the phase takes. With the LLM assessor each is a
+    synchronous provider call, and run one at a time this node was the
+    longest serial stretch of a finished run: measured in production,
+    ``engine.node.ranking`` was 26% of an express run's wall clock, nearly
+    all of it this gate. The provider is not the constraint -- twenty-four
+    concurrent completions return in the same wall clock as four.
+    """
+    probe = _install_peak_assessor(monkeypatch)
+    state = _tasks_gate_multi_claim_state()
+
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
+
+    claims = state["hypotheses"][0].enrichments["claim_gate"]["claims"]
+    assert len(claims) > 1
+    peak = probe["peak"]
+    assert peak > 1, f"claims were assessed serially (peak concurrency {peak})"
+
+
+@pytest.mark.asyncio
+async def test_pre_ranking_gate_overlaps_claims_across_hypotheses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The whole run's claims are in flight together, not one idea at a time.
+
+    Measured in production a hypothesis carries 7-25 atomic claims and a run
+    reaches this gate with dozens, so assessing one hypothesis to completion
+    before starting the next leaves most of the wave idle. Claims are
+    independent across hypotheses as well as within one, so the gate flattens
+    them into a single bounded wave.
+    """
+    flags = _install_overlap_assessor(monkeypatch)
+    first = Hypothesis(
+        text=(
+            "Alpha lactate accelerates alpha ATP recovery. "
+            "Alpha mitochondria buffer the alpha calcium influx."
+        ),
+        literature_grounding="Alpha astrocytes support alpha metabolism.",
+    )
+    second = Hypothesis(
+        text=(
+            "Beta lactate accelerates beta ATP recovery. "
+            "Beta mitochondria buffer the beta calcium influx."
+        ),
+        literature_grounding="Beta astrocytes support beta metabolism.",
+    )
+    for hypothesis in (first, second):
+        hypothesis.review_disposition = "viable"
+    state = {"hypotheses": [first, second], "articles": []}
+
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
+
+    assert first.enrichments["claim_gate"]["claims"]
+    assert second.enrichments["claim_gate"]["claims"]
+    assert flags["overlapped"], "hypotheses were assessed one after another"
+
+
+@pytest.mark.asyncio
+async def test_pre_ranking_gate_ignores_contradicted_go_no_go() -> None:
+    """R14-20's Go/No-Go pilot-plan criteria can never block a hypothesis.
+
+    ``_harvest_hypothesis_claims`` reads ``hypothesis.experiment`` -- which
+    carries R14-20's ``**Go:**``/``**No-Go:**`` threshold lines -- as well as
+    the statement/grounding/explanation fields, and tags every claim it
+    finds there "speculative" (see the field-role tuple in
+    ``_harvest_hypothesis_claims``). ``_apply_gate_verdict`` then calls
+    ``publication_gate`` with ``allow_speculative=True`` and that same role
+    map as ``explicitly_speculative_claims``, which excuses a speculative
+    claim from blocking whether the evidence merely fails to support it
+    (``allow_speculative``) or actively contradicts it (named in
+    ``explicitly_speculative_claims`` -- the one exemption
+    ``publication_gate`` grants a *contradicted* claim). This hypothesis's
+    evidence pool is built to literally contradict its own Go/No-Go
+    criteria, markdown markers and all -- the worst case a pilot-plan
+    threshold statement can put in front of the assessor -- and the gate
+    must still let it through, proving the threshold text cannot gate
+    anything even when the evidence disagrees with it outright.
+
+    The final, report-facing grounding pass
+    (``claims.grounding_assess._CLAIM_FIELD_ROLES``) is a separate,
+    independent guarantee: it never reads ``experiment`` at all, so this
+    threshold text never reaches a persisted ``claim_evidence`` row or the
+    "Unverified" badge either. This test covers the one path that does read
+    it.
+    """
+    hypothesis = Hypothesis(
+        text="Inhibiting the target restores homeostasis in the model.",
+        experiment=(
+            "1. Run the pilot assay in the xenograft model.\n"
+            "**Go:** Tumor regression exceeds fifty percent in the"
+            " xenograft model.\n"
+            "**No-Go:** Tumor regression remains below ten percent in the"
+            " xenograft model."
+        ),
+    )
+    hypothesis.review_disposition = "viable"
+    state = {
+        "hypotheses": [hypothesis],
+        "articles": [
+            Article(
+                title="Xenograft regression trial",
+                abstract=(
+                    "Tumor regression did not exceed fifty percent in the"
+                    " xenograft model in this trial."
+                ),
+            )
+        ],
+    }
+
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
+
+    assert hypothesis.review_disposition == "viable"
+    gate = hypothesis.enrichments["claim_gate"]
+    assert gate["decision"] == "allow"
+    go_no_go_claims = [
+        claim for claim in gate["claims"] if "**Go:**" in claim["claim"]
+    ]
+    assert go_no_go_claims, "the Go/No-Go claim was not extracted at all"
+    assert all(claim["role"] == "speculative" for claim in go_no_go_claims)
+    assert any(claim["label"] == "contradicts" for claim in go_no_go_claims), (
+        "test setup did not actually produce a contradiction to be excused"
+    )
+
+
+def test_log_gate_wave_reports_entailment_calls(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The gate's INFO line reports the actual provider calls it spent.
+
+    Separate from ``claims_assessed`` on purpose: under the batch path one
+    call judges a whole hypothesis's claims (see
+    ``app.claims.assess_claims_batch``), so the two numbers are meant to
+    diverge -- that divergence is the batching win a production ultra run
+    measured (218 claims assessed one at a time across 13 hypotheses;
+    batched, the same pass costs 13 calls, or up to 26 with a split).
+    """
+    plan = _GatePlan(
+        hypothesis=object(),
+        claims=("claim one", "claim two"),
+        roles={},
+        fingerprint="f",
+        claim_fingerprints={},
+        prior_disposition="viable",
+    )
+    wave = _GateWave(
+        plans=[plan], considered=1, skipped_unrankable=0, skipped_unchanged=0
+    )
+
+    with caplog.at_level(logging.INFO, logger="app.engine_tasks.gate"):
+        _log_gate_wave(wave, 7)
+
+    assert "claims_assessed=2" in caplog.text
+    assert "entailment_calls=7" in caplog.text
+
+
+def test_harvest_reads_each_field_in_its_role_and_strict_wins_a_tie() -> None:
+    """Each field is read in its role, and the strict role wins a tie.
+
+    Rationale is categorical and the proposed-idea fields are speculative; a
+    sentence appearing under both is categorical. The role map is what
+    ``_apply_gate_verdict`` hands the publication gate as its excused set, so
+    a mislabelled field would either block ideas for proposing something or
+    let an unevidenced "established" claim through.
+    """
+    shared = "Kinase X inhibition reduces AML relapse rates."
+    hypothesis = Hypothesis(
+        text=f"{shared} Kinase Y blockade may slow tumor growth.",
+        literature_grounding=f"{shared} Kinase Z is expressed in blasts.",
+        explanation="Kinase W signalling may sustain quiescence.",
+        experiment="Measure relapse in a pilot cohort.",
+    )
+
+    ordered, roles = _harvest_hypothesis_claims(hypothesis)
+
+    assert list(roles) == ordered
+    assert roles[shared] == "categorical"
+    assert roles["Kinase Y blockade may slow tumor growth."] == "speculative"
+    assert roles["Kinase Z is expressed in blasts."] == "categorical"
+    assert roles["Kinase W signalling may sustain quiescence."] == "speculative"
+    assert roles["Measure relapse in a pilot cohort."] == "speculative"
+
+
+@pytest.mark.parametrize(
+    ("role", "disposition"),
+    [("categorical", "evidence_blocked"), ("speculative", "viable")],
+)
+def test_gate_verdict_blocks_only_a_categorical_contradiction(
+    role: str, disposition: str
+) -> None:
+    """A contradicted claim blocks the idea unless it is only a proposal."""
+    claim = "Kinase X inhibition reduces AML relapse rates."
+    hypothesis = Hypothesis(text=claim)
+    hypothesis.review_disposition = "viable"
+    span = SupportSpan(evidence_id="e1", quote="no effect", start=0, end=9)
+    assessment = ClaimAssessment(
+        claim=claim,
+        label=EntailmentLabel.CONTRADICTS,
+        supporting_passages=(),
+        contradicting_passages=(span,),
+        assessor="test",
+    )
+    plan = _GatePlan(
+        hypothesis=hypothesis,
+        claims=(claim,),
+        roles={claim: role},
+        fingerprint="f",
+        claim_fingerprints={claim: "f"},
+        prior_disposition="viable",
+    )
+
+    _apply_gate_verdict(plan, [assessment], "test")
+
+    assert hypothesis.review_disposition == disposition
+
+
+# Pre-ranking evidence-gate rankability skip and engine-seam integration.
+#
+# Split out of ``test_engine_tasks_gate.py`` to keep it within the module-
+# size budget. Covers two things the sibling file does not: which
+# hypotheses the gate skips assessing before spending a single provider
+# call (unrankable-forever vs. its own reversible ``evidence_blocked``),
+# and that its entailment calls -- now routed through the engine's
+# ``call_llm_json`` seam (``app.claims.verifier``) -- are visible to the
+# run's LLM-call budget and telemetry the way any other engine call is.
+
+
+def _seam_install_counting_assessor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[str, int]:
+    """Patch build_assessor with a call-counting deterministic assessor."""
+    from app.claims import deterministic_assessor
+    from app.claims import grounding as claim_grounding
+
+    calls = {"n": 0}
+
+    def counting(claim: str, passages: Any) -> Any:
+        calls["n"] += 1
+        return deterministic_assessor(claim, passages)
+
+    monkeypatch.setattr(
+        claim_grounding,
+        "build_assessor",
+        lambda *_: (counting, "counting-v1"),
+    )
+    return calls
+
+
+def _seam_multi_claim_state() -> dict[str, Any]:
+    """A viable two-claim hypothesis grounded by one supporting article."""
+    hypothesis = Hypothesis(
+        text=(
+            "Astrocyte lactate accelerates synaptic ATP recovery. "
+            "Neuronal mitochondria buffer the resulting calcium influx."
+        ),
+        literature_grounding=(
+            "Astrocytes participate in neuronal energy support. "
+            "Lactate shuttling is documented in cortical slices."
+        ),
+        explanation="Glycolytic flux rises before the ATP rebound.",
+        experiment="Measure ATP recovery under lactate blockade.",
+    )
+    hypothesis.review_disposition = "viable"
+    return {
+        "hypotheses": [hypothesis],
+        "articles": [
+            Article(
+                title="Astrocyte energetics",
+                abstract="Astrocytes participate in neuronal energy support.",
+            )
+        ],
+    }
+
+
+@pytest.mark.asyncio
+async def test_pre_ranking_gate_skips_hypotheses_review_already_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An idea the initial review gate already barred is never assessed.
+
+    ``inaccurate``/``non_novel``/``unsafe`` can never reach the tournament
+    (``Hypothesis.is_rankable``), and the initial review gate never
+    reverses those verdicts -- so spending a wave of provider calls on
+    their claims buys nothing. Only ``evidence_blocked`` (this gate's own,
+    reversible verdict) must still be reassessed; see the sibling test.
+    """
+    calls = _seam_install_counting_assessor(monkeypatch)
+    rejected = Hypothesis(text="A rejected idea about lactate.")
+    rejected.review_disposition = "inaccurate"
+    state = {"hypotheses": [rejected], "articles": []}
+
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
+
+    assert calls["n"] == 0
+    assert "claim_gate" not in rejected.enrichments
+    assert rejected.review_disposition == "inaccurate"
+
+
+@pytest.mark.asyncio
+async def test_pre_ranking_gate_reassesses_changed_evidence_blocked_idea(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A previously blocked idea is reassessed once its text changes.
+
+    ``evidence_blocked`` is this gate's own verdict, not the initial
+    review's, so an idea it blocked must stay reassessable -- unlike a
+    disposition the initial review gate decided for good (the sibling
+    test above). Revising the hypothesis's text changes its input
+    fingerprint, so the fingerprint cache cannot be the reason it is
+    skipped; only a disposition-based skip could wrongly bar it here.
+    """
+    calls = _seam_install_counting_assessor(monkeypatch)
+    hypothesis = Hypothesis(text="stale, previously-blocked text")
+    hypothesis.review_disposition = "evidence_blocked"
+    hypothesis.enrichments["claim_gate"] = {
+        "decision": "block",
+        "reason": "a prior contradicted claim",
+        "assessor": "counting-v1",
+        "input_fingerprint": "stale-fingerprint",
+        "prior_review_disposition": "viable",
+        "claims": [],
+    }
+    hypothesis.text = "Astrocyte lactate accelerates synaptic ATP recovery."
+    state: dict[str, Any] = {
+        "hypotheses": [hypothesis],
+        "articles": [
+            Article(
+                title="Astrocyte energetics",
+                abstract=(
+                    "Astrocyte lactate accelerates synaptic ATP recovery."
+                ),
+            )
+        ],
+    }
+
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
+
+    assert calls["n"] > 0
+    assert hypothesis.review_disposition == "viable"
+
+
+def _install_fake_acompletion(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Install a fake engine completion backend that replies with a batch.
+
+    An empty ``verdicts`` array is a valid (if uninformative) batch reply --
+    every claim falls back to the deterministic assessor for want of a
+    verdict at its index, which these two tests do not care about; they
+    only need the call to actually reach the boundary.
+    """
+
+    async def _fake_acompletion(**_kwargs: Any) -> Any:
+        message = types.SimpleNamespace(content='{"verdicts": []}')
+        return types.SimpleNamespace(
+            choices=[types.SimpleNamespace(message=message)]
+        )
+
+    install_completion_backend(monkeypatch, _fake_acompletion)
+    monkeypatch.setattr(settings, "claim_assessor", "llm")
+    # build_assessor takes the deterministic assessor whatever the mode
+    # says while the process looks offline -- put it in the state where a
+    # provider call is permissible, like the LLM-assessor tests above.
+    monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
+    monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-not-called-by-this-test")
+
+
+@pytest.mark.asyncio
+async def test_pre_ranking_gate_calls_are_visible_to_the_run_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The gate's entailment calls now count against a run's LLM-call ceiling.
+
+    Before routing through the engine seam these calls were invisible to
+    ``co_scientist.llm.admission.call_budget`` -- a production run spent $4.70
+    over ~1,000 provider requests against a 2500-call ceiling that never saw
+    them. Batching judges this hypothesis's several claims in a single call (see
+    ``app.claims.assess_claims_batch``), so a ceiling of 0 -- not 1 -- is what
+    the very first call must already exceed to prove the ceiling sees this
+    gate's calls at all.
+    """
+    from co_scientist.cache import scoped_cache_override
+    from co_scientist.exceptions import LLMCallBudgetExceededError
+    from co_scientist.llm import scoped_llm_call_budget
+
+    _install_fake_acompletion(monkeypatch)
+    state = _seam_multi_claim_state()
+
+    with (
+        pytest.raises(LLMCallBudgetExceededError),
+        scoped_cache_override(False),
+        scoped_llm_call_budget("gate-budget-test-run", 0),
+    ):
+        await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
+
+
+@pytest.mark.asyncio
+async def test_pre_ranking_gate_telemetry_is_attributed_and_not_double_counted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The gate's calls land in ``claim_gate`` telemetry exactly once.
+
+    Telemetry (``model_usage``) now carries these calls, replacing the old
+    manual ``llm_calls`` charge (``_charge_entailment_calls``, removed) --
+    ``llm_calls`` equalling the summed ``model_usage`` call count (not
+    double that) proves the seam's own count is the only source, with
+    nothing added on top of it.
+    """
+    from co_scientist.cache import scoped_cache_override
+
+    _install_fake_acompletion(monkeypatch)
+    state = _seam_multi_claim_state()
+
+    with scoped_cache_override(False):
+        await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
+
+    metrics = state["metrics"]
+    gate_usage = {
+        key: entry
+        for key, entry in metrics.model_usage.items()
+        if key.startswith("claim_gate::")
+    }
+    assert gate_usage, (
+        f"no claim_gate telemetry recorded: {metrics.model_usage}"
+    )
+    total_calls = sum(entry["calls"] for entry in gate_usage.values())
+    assert total_calls >= 1
+    assert metrics.llm_calls == total_calls
+
+
+# Pre-ranking evidence-gate eligibility tests for the durable executor.
+#
+# Covers the rank-and-publish policy: an unsupported (but non-contradicted) idea
+# stays rankable, its claim graduates to supported once evidence arrives, and a
+# claim-gated idea is left out of the decisive Elo tournament. Split from
+# ``test_engine_tasks.py`` to keep that core file small.
+
+
+@pytest.mark.asyncio
+async def test_pre_ranking_gate_keeps_unsupported_ideas_rankable() -> None:
+    """Unsupported (but non-contradicted) ideas stay rankable.
+
+    Under the rank-and-publish policy the pre-ranking gate only withholds
+    contradicted or unsafe ideas; a merely-unsupported idea stays viable (it is
+    later published and badged "unverified") rather than being quarantined.
+    """
+    supported = Hypothesis(
+        text="Astrocyte lactate accelerates synaptic ATP recovery."
+    )
+    unsupported = Hypothesis(
+        text="We hypothesize a fictional kinase may alter neuronal aging.",
+        literature_grounding=(
+            "A fictional kinase completely reverses neuronal aging."
+        ),
+    )
+    for hypothesis in (supported, unsupported):
+        hypothesis.review_disposition = "viable"
+    state = {
+        "hypotheses": [supported, unsupported],
+        "articles": [
+            Article(
+                title="Astrocyte energetics",
+                abstract=(
+                    "Astrocyte lactate accelerates synaptic ATP recovery."
+                ),
+                source_id="PMID-1",
+            )
+        ],
+    }
+
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
+
+    assert supported.review_disposition == "viable"
+    assert supported.enrichments["claim_gate"]["decision"] == "allow"
+    assert unsupported.review_disposition == "viable"
+    assert unsupported.enrichments["claim_gate"]["decision"] == "allow"
+
+
+@pytest.mark.asyncio
+async def test_pre_ranking_gate_records_support_when_evidence_arrives() -> None:
+    """A rankable idea's claim graduates to supported once evidence arrives."""
+    hypothesis = Hypothesis(
+        text="Astrocyte lactate accelerates synaptic ATP recovery.",
+        literature_grounding=(
+            "Astrocyte lactate accelerates synaptic ATP recovery."
+        ),
+    )
+    hypothesis.review_disposition = "viable"
+    state: dict[str, Any] = {"hypotheses": [hypothesis], "articles": []}
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
+    # No evidence yet, but a merely-unsupported idea still ranks.
+    assert hypothesis.review_disposition == "viable"
+
+    state["articles"] = [
+        Article(
+            title="Synaptic energetics",
+            abstract="Astrocyte lactate accelerates synaptic ATP recovery.",
+        )
+    ]
+    await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
+
+    assert hypothesis.review_disposition == "viable"
+    assert hypothesis.enrichments["claim_gate"]["decision"] == "allow"
+
+
+def test_evidence_blocked_idea_is_excluded_from_ranking() -> None:
+    """A claim-gated idea must not enter the decisive Elo tournament.
+
+    The pre-ranking gate marks an unsupported idea ``evidence_blocked``; the
+    ranking scheduler must then leave it out of the tournament, not merely drop
+    it at publish time, so its unsupported claim never shifts other ideas' Elo.
+    """
+    # `_ranking_eligible` requires `has_peer_review` alongside
+    # `is_rankable` (HITL-MANUAL-HYP-001's RANK-retry closure); every
+    # idea this test builds is meant to already be past review.
+    supported = _add_fixture_review(Hypothesis(text="Supported idea."))
+    supported.review_disposition = "viable"
+    blocked = _add_fixture_review(Hypothesis(text="Unsupported idea."))
+    blocked.review_disposition = "evidence_blocked"
+    # Deep verification is the other way round: its verdict demotes rather
+    # than withholds, so an undermined idea keeps competing. The durable
+    # path must agree with the engine's own predicate about that, which is
+    # why it asks ``Hypothesis.is_rankable`` instead of restating the rule.
+    undermined = _add_fixture_review(Hypothesis(text="Undermined idea."))
+    undermined.review_disposition = "viable"
+    undermined.deep_verification_verdict = "undermined"
+
+    eligible = engine_tasks_ranking._ranking_eligible(
+        {"hypotheses": [supported, blocked, undermined]}
+    )
+
+    assert supported in eligible
+    assert blocked not in eligible
+    assert undermined in eligible
+
+
+# Tournament progress-cadence and wave-concurrency tests for ranking.
+
+
+@pytest.mark.asyncio
+async def test_long_tournament_reports_progress_between_its_matches(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A multi-match tournament emits periodic progress, not silence.
+
+    Each Elo match is its own durable task, so a long tournament used to run
+    for tens of minutes committing real work while emitting no event at all --
+    the live-activity feed showed a healthy run as frozen. Progress is emitted
+    on a cadence rather than per match so the feed (which renders only the
+    newest handful of events) still shows the surrounding phases.
+    """
+    run = store.create_run("Task-level science", "standard", "engine", {})
+    store.update_run_status(
+        run.id, store.RunStatus.RUNNING, db_path=isolated_db
+    )
+    _seed_ranking_node(
+        run.id,
+        monkeypatch,
+        _RankingSeed(
+            hypothesis_count=4,
+            tournament_pairs=12,
+            idempotency_key="ranking-node",
+        ),
+        isolated_db,
+    )
+    _install_plain_fake_judge(monkeypatch)
+
+    scheduled = await _run_ranking_node(run.id, isolated_db)
+    rounds = int(scheduled["tournament_rounds"])
+    assert rounds > engine_tasks_support.RANKING_PROGRESS_EVERY
+
+    matches = await _drain_ranking_matches(run.id, isolated_db)
+
+    progress = _running_ranking_events(run.id, isolated_db)
+    # The tournament is no longer silent...
+    assert progress, "a long tournament emitted no progress at all"
+    # ...but it does not drown the feed either.
+    assert len(progress) < matches
+    every = engine_tasks_support.RANKING_PROGRESS_EVERY
+    assert progress[0]["payload"]["message"] == (
+        f"Tournament match {every} of {rounds}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_tournament_judges_a_wave_of_matchups_concurrently(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One match task advances several matchups, judged in parallel.
+
+    A matchup is ~45s of real model work (three debate turns), and the
+    tournament ran them strictly one per durable task, so a 128-match round
+    took ~94 minutes of wall clock at a concurrency of one. The engine's
+    ranking semaphore already bounds parallel judging; the durable path just
+    never gave it more than one call to bound.
+    """
+    run = store.create_run("Wave science", "standard", "engine", {})
+    _seed_ranking_node(
+        run.id,
+        monkeypatch,
+        _RankingSeed(
+            hypothesis_count=6,
+            tournament_pairs=12,
+            idempotency_key="wave-ranking-node",
+        ),
+        isolated_db,
+    )
+    tracker = _install_concurrency_tracking_judge(monkeypatch)
+
+    scheduled = await _run_ranking_node(run.id, isolated_db)
+    assert int(scheduled["tournament_rounds"]) > 1
+
+    match = store.claim_task("w", run_id=run.id, db_path=isolated_db)
+    assert match is not None
+    assert match.task_type == engine_tasks_support.RANKING_MATCH_TASK
+    result = await engine_tasks_ranking.execute_ranking_match(
+        match, db_path=isolated_db
+    )
+
+    assert tracker["peak"] > 1, "matchups in a wave must be judged concurrently"
+    assert result["matches_committed"] > 1, "one task must advance a wave"
+
+
+@pytest.mark.asyncio
+async def test_tournament_wave_fills_to_the_configured_size(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A wave judges RANKING_WAVE_SIZE matchups when the budget allows.
+
+    ``_ranking_wave`` picks from the candidate pairings it is handed, so the
+    pool it is given is an upper bound on the wave. The durable path asked
+    for ``min(3, rounds)`` candidates -- inherited from the retired
+    streaming path, which generated a few and picked one -- so a wave could
+    never reach the configured size no matter how many rounds remained. Each
+    matchup is real model work, and every short wave is another sequential
+    durable task: the ultra run spent about two hours across 178 of them.
+    """
+    run = store.create_run("Wave size", "standard", "engine", {})
+    _seed_ranking_node(
+        run.id,
+        monkeypatch,
+        _RankingSeed(
+            hypothesis_count=8,
+            tournament_pairs=20,
+            idempotency_key="wave-size-ranking-node",
+        ),
+        isolated_db,
+    )
+    _install_plain_fake_judge(monkeypatch)
+
+    scheduled = await _run_ranking_node(run.id, isolated_db)
+    assert (
+        int(scheduled["tournament_rounds"])
+        >= engine_tasks_ranking_wave.RANKING_WAVE_SIZE
+    )
+
+    match = store.claim_task("w", run_id=run.id, db_path=isolated_db)
+    assert match is not None
+    result = await engine_tasks_ranking.execute_ranking_match(
+        match, db_path=isolated_db
+    )
+
+    assert (
+        result["matches_committed"]
+        == engine_tasks_ranking_wave.RANKING_WAVE_SIZE
+    )
+
+
+def test_progress_cadence_survives_a_stride_that_skips_boundaries() -> None:
+    """Progress reports a boundary the wave stepped over, not just landed on.
+
+    A wave advances the round index by a variable stride, so testing for an
+    exact multiple silently skips any boundary the stride jumps. That is how
+    a whole tournament once emitted nothing: the strides simply never landed
+    on a multiple. The cadence is now defined by the boundary crossed.
+    """
+    every = engine_tasks_support.RANKING_PROGRESS_EVERY
+
+    def reports(index: int, next_index: int) -> int | None:
+        """Return the milestone announced for one wave, or None."""
+        crossed = index // every != next_index // every
+        return (next_index // every) * every if crossed else None
+
+    # A stride that steps straight over a boundary still reports it.
+    assert reports(0, every + 2) == every
+    # Landing exactly on one reports that boundary.
+    assert reports(0, every) == every
+    # Moving within a single interval stays quiet.
+    assert reports(1, every - 1) is None
+    # A stride spanning several boundaries reports the newest reached.
+    assert reports(0, every * 3 + 1) == every * 3
+
+
+@pytest.mark.asyncio
+async def test_spent_budget_schedules_no_tournament(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A run out of tournament budget must not open another tournament.
+
+    Not merely wasted work: entering a tournament clears
+    ``pending_ranking_matchups``, so an empty one overwrites the matches
+    the run already judged. The scheduler asks for ranking once per cycle,
+    so this is the ordinary case late in a run, and the symptom was a
+    completed run reporting zero matches after judging a full round.
+
+    The pool is seeded as already played: a spent budget still owes a first
+    match to any hypothesis that has never had one, so only a fully covered
+    pool isolates the budget behaviour under test.
+
+    Consumed rounds are counted against the *effective* budget, which scales
+    with the pool (``TOURNAMENT_MATCHES_PER_HYPOTHESIS`` matches per idea, two
+    ideas per match) rather than stopping at the tier's own number -- eight
+    rankable ideas here, so twelve.
+    """
+    run = store.create_run("Spent budget", "standard", "engine", {})
+    _seed_ranking_node(
+        run.id,
+        monkeypatch,
+        _RankingSeed(
+            hypothesis_count=8,
+            tournament_pairs=6,
+            idempotency_key="spent-budget-ranking-node",
+            consumed_rounds=12,
+            played=True,
+        ),
+        isolated_db,
+    )
+    _install_plain_fake_judge(monkeypatch)
+
+    scheduled = await _run_ranking_node(run.id, isolated_db)
+
+    assert scheduled.get("tournament_rounds") is None
+    # The node still advances the run; it just opens no tournament.
+    successor = store.claim_task("w", run_id=run.id, db_path=isolated_db)
+    assert successor is not None
+    assert successor.task_type != engine_tasks_support.RANKING_MATCH_TASK
+
+
+@pytest.mark.asyncio
+async def test_partial_budget_schedules_only_what_is_left(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Remaining budget, not the tier's full allowance, sizes the pass.
+
+    The pool has already played, so no first match is owed and the
+    remaining budget is the only thing sizing the pass.
+    """
+    run = store.create_run("Partial budget", "standard", "engine", {})
+    _seed_ranking_node(
+        run.id,
+        monkeypatch,
+        _RankingSeed(
+            hypothesis_count=8,
+            tournament_pairs=12,
+            idempotency_key="partial-budget-ranking-node",
+            consumed_rounds=9,
+            played=True,
+        ),
+        isolated_db,
+    )
+    _install_plain_fake_judge(monkeypatch)
+
+    scheduled = await _run_ranking_node(run.id, isolated_db)
+
+    assert int(scheduled["tournament_rounds"]) == 3
+
+
+def test_wave_elo_is_applied_sequentially_within_the_round() -> None:
+    """A later match in a wave sees the Elo the earlier match committed.
+
+    Judgments in a wave run concurrently, but rating application is not a
+    judgment input -- it lands one match at a time, in wave order, so each
+    match's displayed before/after ratings and upset margin reflect every
+    match applied before it (finding H7). Two matches sharing hypothesis A:
+    the second must start from the rating the first left A at, not from the
+    pre-wave snapshot both were drawn from.
+    """
+    from co_scientist.agents.ranking import RankingJudgement
+    from co_scientist.models import Hypothesis
+
+    from app.engine_tasks.ranking import _apply_wave_elo
+
+    hyp_a = Hypothesis(text="shared A")
+    hyp_b = Hypothesis(text="opponent B")
+    hyp_c = Hypothesis(text="opponent C")
+    wave = [(hyp_a, hyp_b), (hyp_a, hyp_c)]
+    verdict = {"decision_summary": "A wins.", "confidence_level": "High"}
+    judged = [
+        RankingJudgement("a", dict(verdict, debate_turns=1), 1),
+        RankingJudgement("a", dict(verdict, debate_turns=1), 1),
+    ]
+
+    details, _, _ = _apply_wave_elo(wave, judged, {"current_iteration": 2})
+
+    first, second = details
+    # The durable path stamps the cycle it judged the wave in: the drain
+    # persists every cycle's matchups together, so the detail is the only
+    # place that number survives.
+    assert [d["iteration"] for d in details] == [2, 2]
+    # A wins match 1 at 1200 -> 1212 ...
+    assert first["winner_elo_before"] == 1200
+    assert first["winner_elo_after"] == 1212
+    # ... and match 2 starts from 1212, not the pre-wave 1200.
+    assert second["winner_elo_before"] == first["winner_elo_after"]
+    assert second["winner_elo_after"] == 1223
+    assert hyp_a.total_matches == 2
+
+
+@pytest.mark.asyncio
+async def test_wave_snapshots_context_once_and_commits_in_wave_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import asyncio
+
+    from co_scientist.agents.ranking import operations
+    from co_scientist.models import Hypothesis
+
+    from app.engine_tasks.ranking import (
+        _advance_ranking_wave,
+        _WavePlan,
+        _WaveResult,
+    )
+
+    a, b, c = [Hypothesis(text=name) for name in ("A", "B", "C")]
+    completed: list[int] = []
+    captured: list[Any] = []
+    medians: list[Any] = []
+    guidance: list[Any] = []
+    second_finished = asyncio.Event()
+    real_median = operations._median_elo
+    real_guidance = operations._gather_tournament_context
+
+    def median(pool: list[Hypothesis]) -> float:
+        medians.append([h.id for h in pool])
+        return float(real_median(pool))
+
+    def gather(state: Any) -> Any:
+        guidance.append(1)
+        return real_guidance(state)
+
+    async def judge(ctx: Any, debate_turns: int) -> tuple[str, dict[str, Any]]:
+        captured.append(ctx)
+        if ctx.matchup_index == 7:
+            await second_finished.wait()
+        else:
+            second_finished.set()
+        completed.append(ctx.matchup_index)
+        return "a", {"debate_turns": ctx.matchup_index - 5}
+
+    monkeypatch.setattr(operations, "judge_matchup", judge)
+    monkeypatch.setattr(operations, "_median_elo", median)
+    monkeypatch.setattr(operations, "_gather_tournament_context", gather)
+    state = {
+        "research_goal": "goal",
+        "model_name": "model",
+        "current_iteration": 4,
+        "criteria": ["scientist criterion"],
+        "preferences": "omitted preference",
+    }
+    plan = _WavePlan([(a, b), (a, c)], 7, 9)
+    result = await _advance_ranking_wave(
+        plan, state, [b, a, c], _WaveResult([], 0, 7, [])
+    )
+    assert completed == [8, 7]
+    assert medians == [[b.id, a.id, c.id]]
+    assert guidance == [1]
+    assert all(ctx.criteria == ["scientist criterion"] for ctx in captured)
+    assert all(ctx.preferences is None for ctx in captured)
+    assert result.total_calls == 5
+    assert result.next_index == 9
+    assert (
+        result.details[1]["winner_elo_before"]
+        == result.details[0]["winner_elo_after"]
+    )
+    assert [detail["winner_elo_after"] for detail in result.details] == [
+        1212,
+        1223,
+    ]
+    assert [detail["iteration"] for detail in result.details] == [4, 4]
+
+
+@pytest.mark.asyncio
+async def test_preparation_admits_eligible_pool_and_preserves_checkpoint_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from typing import cast
+
+    import co_scientist.agents.ranking as ranking_package
+    from co_scientist.models import Hypothesis
+
+    from tests._engine_tasks_helpers import _viable_hypotheses
+
+    low, high = _viable_hypotheses(2)
+    low.score, high.score = 1, 9
+    low.elo_rating = high.elo_rating = 0
+    blocked = _viable_hypotheses(1)[0]
+    blocked.review_disposition = "inaccurate"
+    blocked.elo_rating = 0
+    unreviewed = Hypothesis(text="scientist newcomer", elo_rating=0)
+    pool = [low, unreviewed, blocked, high]
+    state: dict[str, Any] = {"hypotheses": pool, "research_goal": "goal"}
+    budget_pools: list[Any] = []
+    prepared_pools: list[Any] = []
+    prepare = ranking_package.prepare_ranking_round
+
+    def budget(state: Any, hypotheses: Any) -> int:
+        budget_pools.append(hypotheses)
+        return 3
+
+    async def prepare_pool(state: Any, hypotheses: Any) -> Any:
+        prepared_pools.append(list(hypotheses))
+        return await prepare(state, hypotheses)
+
+    monkeypatch.setattr(ranking_package, "remaining_ranking_rounds", budget)
+    monkeypatch.setattr(ranking_package, "prepare_ranking_round", prepare_pool)
+    monkeypatch.setattr(
+        engine_tasks_ranking,
+        "_enqueue_first_ranking_match",
+        lambda *args: (7, "next"),
+    )
+    result = await engine_tasks_ranking._schedule_ranking_chain(
+        cast(store.ScientificTask, object()), state, 6, db_path=None
+    )
+    assert result is not None
+    assert budget_pools == [pool]
+    assert prepared_pools == [[low, high]]
+    assert [h.id for h in state["hypotheses"]] == [h.id for h in pool]
+    assert engine_tasks_ranking._ranking_eligible(state) == [low, high]
+    assert low.elo_rating == high.elo_rating == 1200
+    assert unreviewed.elo_rating == blocked.elo_rating == 0
+    assert result["successor_task_id"] == "next"
+    assert state["pending_ranking_matchups"] == []
+
+
+# Pause and resume at durable ranking task boundaries.
+
+
+_OWNER = {"X-Client-ID": "ranking-pause-owner"}
+
+
+def _owned_running_run(db_path: str) -> tuple[Any, str]:
+    client = make_client()
+    created = client.post(
+        "/api/runs",
+        headers=_OWNER,
+        json={
+            "research_goal": "Pause during a durable ranking match",
+            "tier": "standard",
+        },
+    )
+    assert created.status_code == 200, created.text
+    run_id = str(created.json()["id"])
+    store.update_run_status(run_id, store.RunStatus.RUNNING, db_path=db_path)
+    return client, run_id
+
+
+@pytest.mark.asyncio
+async def test_paused_ranking_match_resumes_its_exact_successor(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A leased match commits under pause; resume leases its exact successor."""
+    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
+    client, run_id = _owned_running_run(isolated_db)
+    monkeypatch.setattr(engine_tasks_ranking_wave, "_wave_size", lambda: 3)
+    _seed_ranking_node(
+        run_id,
+        monkeypatch,
+        _RankingSeed(
+            hypothesis_count=4,
+            tournament_pairs=12,
+            idempotency_key="pause-ranking-node",
+            criteria=["retained scientist criterion"],
+            preferences="durable preference stays omitted",
+        ),
+        isolated_db,
+    )
+    scheduled = await _run_ranking_node(run_id, isolated_db)
+
+    import co_scientist.agents.ranking.operations as ranking_module
+
+    paused = False
+    judge_inputs: list[Any] = []
+
+    async def pause_during_judging(
+        ctx: Any, **kwargs: Any
+    ) -> tuple[str, dict[str, Any]]:
+        nonlocal paused
+        judge_inputs.append(ctx)
+        if not paused:
+            unauthorized = client.post(
+                f"/api/runs/{run_id}/pause",
+                headers={"X-Client-ID": "ranking-pause-other-owner"},
+            )
+            assert unauthorized.status_code == 404
+            still_running = store.get_run(run_id, db_path=isolated_db)
+            assert still_running is not None
+            assert still_running.status == store.RunStatus.RUNNING.value
+            response = client.post(f"/api/runs/{run_id}/pause", headers=_OWNER)
+            assert response.status_code == 200, response.text
+            assert response.json()["status"] == "paused"
+            paused = True
+        return "a", {
+            "decision_summary": "A is stronger",
+            "confidence_level": "high",
+            "debate_turns": int(kwargs["debate_turns"]),
+            "debate_transcript": [],
+            "judge_model": "fixture",
+        }
+
+    monkeypatch.setattr(ranking_module, "judge_matchup", pause_during_judging)
+    match = store.claim_task(
+        "ranking-match", run_id=run_id, db_path=isolated_db
+    )
+    assert match is not None
+    assert match.task_type == engine_tasks_support.RANKING_MATCH_TASK
+    result = await engine_tasks_ranking.execute_ranking_match(
+        match, db_path=isolated_db
+    )
+    assert paused
+    assert store.complete_task(
+        match.id, "ranking-match", result, db_path=isolated_db
+    )
+
+    checkpoint = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+    assert checkpoint is not None
+    assert checkpoint["seq"] == int(scheduled["checkpoint_seq"]) + 1
+    assert checkpoint["stage"] == f"engine_task:{match.id}"
+    from co_scientist.checkpoint import restore_workflow_state
+
+    state = restore_workflow_state(checkpoint["state"])
+    details = state["pending_ranking_matchups"]
+    assert len(details) == result["matches_committed"] == 3
+    assert (
+        sum(hypothesis.total_matches for hypothesis in state["hypotheses"]) == 6
+    )
+    assert any(
+        hypothesis.elo_rating != 1200 for hypothesis in state["hypotheses"]
+    )
+
+    successor = store.get_task(result["successor_task_id"], db_path=isolated_db)
+    assert successor is not None
+    assert successor.task_type == engine_tasks_support.RANKING_MATCH_TASK
+    assert successor.status == "queued"
+    assert successor.inputs["checkpoint_seq"] == checkpoint["seq"]
+    assert successor.dependencies == (match.id,)
+    assert (
+        successor.provenance["scheduled_by"]
+        == engine_tasks_support.RANKING_MATCH_TASK
+    )
+    paused_run = store.get_run(run_id, db_path=isolated_db)
+    assert paused_run is not None
+    assert paused_run.status == store.RunStatus.PAUSED.value
+    assert (
+        store.claim_task("before-resume", run_id=run_id, db_path=isolated_db)
+        is None
+    )
+
+    events = store.list_events(run_id, db_path=isolated_db)
+    pause_event = next(
+        event
+        for event in events
+        if event["type"] == "lifecycle"
+        and event["payload"].get("event") == "pause_requested"
+    )
+    assert not any(
+        event["type"] == "scientific_task"
+        and event["payload"].get("task") == "ranking"
+        and event["payload"].get("status") == "running"
+        and event["seq"] > pause_event["seq"]
+        for event in events
+    )
+
+    resumed = client.post(f"/api/runs/{run_id}/resume", headers=_OWNER)
+    assert resumed.status_code == 200, resumed.text
+    resumed_task = store.get_task(successor.id, db_path=isolated_db)
+    assert resumed_task is not None and resumed_task.status == "queued"
+    claim = store.claim_task("after-resume", run_id=run_id, db_path=isolated_db)
+    assert claim is not None
+    assert claim.id == successor.id
+    assert claim.task_type == engine_tasks_support.RANKING_MATCH_TASK
+    resumed_result = await engine_tasks_ranking.execute_ranking_match(
+        claim, db_path=isolated_db
+    )
+    assert resumed_result["matches_committed"] == 6
+    assert [ctx.matchup_index for ctx in judge_inputs] == list(range(6))
+    assert all(
+        ctx.criteria == ["retained scientist criterion"]
+        and ctx.preferences is None
+        for ctx in judge_inputs
+    )
+
+
+@pytest.mark.asyncio
+async def test_paused_ranking_finalize_keeps_elo_metrics_and_exact_resume(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Finalize commits ranking once; resume claims its recorded successor."""
+    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
+    client, run_id = _owned_running_run(isolated_db)
+    _seed_ranking_node(
+        run_id,
+        monkeypatch,
+        _RankingSeed(
+            hypothesis_count=4,
+            tournament_pairs=12,
+            idempotency_key="pause-ranking-finalize-node",
+        ),
+        isolated_db,
+    )
+    await _run_ranking_node(run_id, isolated_db)
+    _install_plain_fake_judge(monkeypatch)
+
+    while True:
+        match = store.claim_task(
+            "ranking-match", run_id=run_id, db_path=isolated_db
+        )
+        assert match is not None
+        if match.task_type == engine_tasks_support.RANKING_FINALIZE_TASK:
+            finalizer = match
+            break
+        assert match.task_type == engine_tasks_support.RANKING_MATCH_TASK
+        result = await engine_tasks_ranking.execute_ranking_match(
+            match, db_path=isolated_db
+        )
+        assert store.complete_task(
+            match.id, "ranking-match", result, db_path=isolated_db
+        )
+
+    import co_scientist.agents.ranking as ranking_package
+
+    finalize_ranking = ranking_package.finalize_ranking
+
+    async def pause_after_finalize(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        update = await finalize_ranking(*args, **kwargs)
+        response = client.post(f"/api/runs/{run_id}/pause", headers=_OWNER)
+        assert response.status_code == 200, response.text
+        assert response.json()["status"] == "paused"
+        return cast(dict[str, Any], update)
+
+    monkeypatch.setattr(
+        ranking_package, "finalize_ranking", pause_after_finalize
+    )
+    result = await engine_tasks_ranking.execute_ranking_finalize(
+        finalizer, db_path=isolated_db
+    )
+    assert store.complete_task(
+        finalizer.id, "ranking-match", result, db_path=isolated_db
+    )
+
+    checkpoint = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+    assert checkpoint is not None
+    assert checkpoint["seq"] == int(finalizer.inputs["checkpoint_seq"]) + 1
+    assert checkpoint["stage"] == f"engine_task:{finalizer.id}"
+    from co_scientist.checkpoint import restore_workflow_state
+
+    state = restore_workflow_state(checkpoint["state"])
+    details = state["tournament_matchups"]
+    assert len(details) == result["matches_committed"] == 6
+    assert not state.get("pending_ranking_matchups")
+    assert (
+        sum(hypothesis.total_matches for hypothesis in state["hypotheses"])
+        == 12
+    )
+    assert any(
+        hypothesis.elo_rating != 1200 for hypothesis in state["hypotheses"]
+    )
+    metrics = store.get_run_metrics(run_id, db_path=isolated_db)
+    assert metrics is not None
+    assert metrics["tournaments_count"] == len(details)
+    assert metrics["llm_calls"] == sum(
+        int(detail["debate_turns"]) for detail in details
+    )
+
+    successor = store.get_task(result["successor_task_id"], db_path=isolated_db)
+    assert successor is not None
+    assert successor.task_type == f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
+    assert successor.status == "queued"
+    assert successor.dependencies == (finalizer.id,)
+    assert (
+        successor.provenance["scheduled_by"]
+        == engine_tasks_support.RANKING_FINALIZE_TASK
+    )
+    assert checkpoint["state"]["resume_successor"] == successor.task_type
+    paused_run = store.get_run(run_id, db_path=isolated_db)
+    assert paused_run is not None
+    assert paused_run.status == store.RunStatus.PAUSED.value
+    assert (
+        store.claim_task(
+            "before-finalize-resume", run_id=run_id, db_path=isolated_db
+        )
+        is None
+    )
+
+    events = store.list_events(run_id, db_path=isolated_db)
+    pause_event = next(
+        event
+        for event in events
+        if event["type"] == "lifecycle"
+        and event["payload"].get("event") == "pause_requested"
+    )
+    completion = next(
+        event
+        for event in events
+        if event["type"] == "scientific_task"
+        and event["payload"].get("task") == "ranking"
+        and event["payload"].get("status") == "completed"
+        and event["payload"].get("checkpoint_seq") == checkpoint["seq"]
+    )
+    assert completion["seq"] > pause_event["seq"]
+    assert completion["payload"]["successor"] == "orchestrator"
+    assert not any(
+        event["type"] == "scientific_task"
+        and event["payload"].get("task") == "ranking"
+        and event["payload"].get("status") == "running"
+        and event["seq"] > pause_event["seq"]
+        for event in events
+    )
+
+    resumed = client.post(f"/api/runs/{run_id}/resume", headers=_OWNER)
+    assert resumed.status_code == 200, resumed.text
+    claim = store.claim_task(
+        "after-finalize-resume", run_id=run_id, db_path=isolated_db
+    )
+    assert claim is not None
+    assert claim.id == successor.id
+    assert claim.task_type == successor.task_type

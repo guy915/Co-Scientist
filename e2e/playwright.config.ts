@@ -102,7 +102,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: 0,
   reporter: process.env.CI ? [['list'], ['html', {open: 'never'}]] : 'list',
-  globalTeardown: './support/global_teardown.ts',
+  globalTeardown: './support/paths.ts',
   timeout: 60_000,
   expect: {timeout: 15_000},
   use: {

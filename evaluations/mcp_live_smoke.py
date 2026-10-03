@@ -1,7 +1,7 @@
 """Live PubMed/OpenAlex/INDRA contract + rate-limit smoke (N34).
 
 ``engine/mcp_server``'s own test suite fakes every HTTP client (see
-``mcp_server/tests/test_openalex.py``'s docstring) -- correctly, since that
+``mcp_server/tests/test_literature.py``'s docstring) -- correctly, since that
 suite runs in hermetic CI (no external network, no API keys, no retries;
 see ``docs/CI.md``). But a fake client can only ever agree with the
 assumption it was written against; it cannot notice that NCBI or OpenAlex

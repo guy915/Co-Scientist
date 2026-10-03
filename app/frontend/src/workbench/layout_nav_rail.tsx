@@ -1,4 +1,4 @@
-import {type RefObject} from 'react';
+import type {RefObject} from 'react';
 import {Link} from 'react-router-dom';
 import {Icon, type IconName} from '@/components/icon';
 import {isModifiedClick} from '@/workbench/dom_events';
@@ -6,14 +6,18 @@ import {
   SETTINGS_SECTIONS,
   type SettingsSection,
 } from './components/settings_dialog';
-// Re-exported so `ChatRailData` keeps its long-standing import site (the
-// shell reads it from the rail, not from the list module it now lives in).
-import {ChatHistorySidebar, type ChatRailData} from './layout_chat_list';
-import {type ShellPanel} from './layout_hooks';
+import type {ShellPanel} from './layout';
 import {NAV_ICON_CLASSES, ShellPopover} from './layout_primitives';
 import {tooltipClassNames} from './tooltip';
+import type {ChatSummary} from '@/api/runs';
+import {conciseTitle} from '@/lib/text';
+import {TruncatedLabel} from './components/truncated_label';
+import {useFittingRows, useOverflowing} from './hooks/dom';
+import {preferredSessionSide} from './layout_session_switch';
+import {tabPath} from './run_tabs';
 
-export type {ChatRailData};
+// Re-exported so `ChatRailData` keeps its long-standing import site (the
+// shell reads it from the rail, not from the list module it now lives in).
 
 // The constants below pair a CSS class for the "open" rail state with one
 // for the "collapsed"/default state; each pair is selected at render time by
@@ -348,5 +352,204 @@ function SettingsMenuButton({
       />
       <span>{label}</span>
     </button>
+  );
+}
+
+const SIDE_HEADING_CLASSES = 'ucs-side-heading';
+
+const CHAT_LIST_CLASSES = 'ucs-chat-list';
+
+// Applied only while the list has more chats than the rail can show, since it
+// turns the list into a scroll container (which clips its tooltips).
+const CHAT_LIST_SCROLLABLE_CLASSES = 'ucs-chat-list--scrollable';
+
+const CHAT_HISTORY_LINK_CLASSES = 'ucs-chat-link';
+
+const CHAT_HISTORY_LINK_ACTIVE_CLASSES = 'ucs-chat-link--active';
+
+const CHAT_HISTORY_LABEL_CLASSES = 'ucs-chat-label';
+
+const CHAT_HISTORY_MORE_CLASSES = 'ucs-chat-more';
+
+/**
+ * The chat-list state the rail renders, threaded whole through NavRail so
+ * each level passes one value instead of five.
+ */
+export interface ChatRailData {
+  chats: ChatSummary[];
+  /** The chat being viewed on /chats/:id, if any. */
+  activeChatId: string | undefined;
+  /** The run being viewed on /runs/:id, so its chat stays highlighted. */
+  activeRunId: string | undefined;
+  showAllChats: boolean;
+  onToggleShowAllChats: () => void;
+}
+
+// Whether a chat row is the one currently being viewed -- either opened
+// directly, or through the run it started.
+function isActiveChat(chat: ChatSummary, rail: ChatRailData): boolean {
+  if (rail.activeChatId) return chat.id === rail.activeChatId;
+  return Boolean(chat.run_id) && chat.run_id === rail.activeRunId;
+}
+
+/**
+ * Where a chat row leads: wherever this reader last had the Chat/Results
+ * switch on for this session, defaulting to the stage the session has
+ * actually reached.
+ *
+ * A session that has started a run has moved past its conversation, so by
+ * default the row opens the run -- which is the live progress view while it
+ * executes and the report once it lands, chosen by the run page itself.
+ * Reopening the transcript instead put every session, running or long
+ * finished, back at the same settled prompt and made the rail read as a list
+ * of drafts. That default yields to memory once the reader has actually used
+ * the header's Chat/Results switch (see layout_session_memory) -- only a chat
+ * that never started a run, or one with no recorded side yet, opens by the
+ * rule above.
+ */
+function chatPath(chat: ChatSummary): string {
+  if (!chat.run_id) return `/chats/${chat.id}`;
+  return preferredSessionSide(chat.run_id) === 'chat'
+    ? `/chats/${chat.id}`
+    : tabPath(chat.run_id, undefined);
+}
+
+// One row in the "Chats" list: the chat's generated title, falling back to a
+// concise clause of the scientist's challenge.
+function ChatHistoryLink({
+  chat,
+  isActive,
+}: {
+  chat: ChatSummary;
+  isActive: boolean;
+}) {
+  return (
+    <Link
+      data-fitting-row=""
+      to={chatPath(chat)}
+      className={tooltipClassNames({
+        className: isActive
+          ? `${CHAT_HISTORY_LINK_CLASSES} ${CHAT_HISTORY_LINK_ACTIVE_CLASSES}`
+          : CHAT_HISTORY_LINK_CLASSES,
+        placement: 'right',
+        wrap: true,
+      })}
+      aria-current={isActive ? 'page' : undefined}
+      data-tooltip={chat.challenge}
+    >
+      <TruncatedLabel
+        className={CHAT_HISTORY_LABEL_CLASSES}
+        text={chat.title?.trim() || conciseTitle(chat.challenge)}
+      />
+    </Link>
+  );
+}
+
+// The "Show more"/"Show less" toggle at the bottom of the chat list.
+function ShowMoreChatsButton({
+  showAllChats,
+  onToggle,
+}: {
+  showAllChats: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={CHAT_HISTORY_MORE_CLASSES}
+      onClick={onToggle}
+    >
+      {showAllChats ? 'Show less' : 'Show more'}
+      <Icon
+        aria-hidden="true"
+        name={showAllChats ? 'expand_less' : 'expand_more'}
+      />
+    </button>
+  );
+}
+
+// The scrollable chat list itself, plus the "Show more"/"Show less" toggle
+// when the history exceeds what fits. Split out of ChatHistorySidebar so the
+// overflow-tracking ref/state (only ever read by this list) stays local to
+// the piece that uses it.
+interface ChatListProps {
+  visibleChats: ChatSummary[];
+  rail: ChatRailData;
+  hasExtraChats: boolean;
+  listRef: React.RefObject<HTMLDivElement | null>;
+}
+
+function ChatList({visibleChats, rail, hasExtraChats, listRef}: ChatListProps) {
+  // Only scroll the list when the rail cannot fit it. A scroll container clips
+  // its content even with no scrollbar showing, which would cut off the
+  // chat-link tooltips escaping to the right.
+  const [chatListRef, chatListOverflows] = useOverflowing<HTMLDivElement>();
+
+  return (
+    <div
+      // One element, two measurements: the overflow probe decides whether it
+      // scrolls, the fitting probe (owned by the parent) decides how many rows
+      // it is handed.
+      ref={node => {
+        chatListRef.current = node;
+        listRef.current = node;
+      }}
+      className={
+        chatListOverflows
+          ? `${CHAT_LIST_CLASSES} ${CHAT_LIST_SCROLLABLE_CLASSES}`
+          : CHAT_LIST_CLASSES
+      }
+    >
+      {visibleChats.map(chat => (
+        <ChatHistoryLink
+          key={chat.id}
+          chat={chat}
+          isActive={isActiveChat(chat, rail)}
+        />
+      ))}
+      {hasExtraChats && (
+        <ShowMoreChatsButton
+          showAllChats={rail.showAllChats}
+          onToggle={rail.onToggleShowAllChats}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * The "Chats" section of the rail: the chat list, capped to what the rail
+ * actually has room for until expanded, with the active chat highlighted.
+ *
+ * @param sideContentClasses The rail's open/collapsed section classes, passed
+ *   in so this module stays independent of the rail's variant table.
+ * @param rail The chats, the expansion flag, and what to highlight.
+ */
+export function ChatHistorySidebar({
+  sideContentClasses,
+  rail,
+}: {
+  sideContentClasses: string;
+  rail: ChatRailData;
+}) {
+  const {containerRef, listRef, visibleCount} = useFittingRows<
+    HTMLDivElement,
+    HTMLDivElement
+  >();
+  const visibleChats = rail.showAllChats
+    ? rail.chats
+    : rail.chats.slice(0, visibleCount);
+  const hasExtraChats = rail.chats.length > visibleChats.length;
+
+  return (
+    <div ref={containerRef} className={sideContentClasses}>
+      <p className={SIDE_HEADING_CLASSES}>Chats</p>
+      <ChatList
+        visibleChats={visibleChats}
+        rail={rail}
+        hasExtraChats={hasExtraChats || rail.showAllChats}
+        listRef={listRef}
+      />
+    </div>
   );
 }

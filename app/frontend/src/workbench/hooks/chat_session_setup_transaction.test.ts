@@ -1,6 +1,6 @@
 import {beforeEach, expect, it, vi} from 'vitest';
 import {type InferredRunSpec} from '../run_spec';
-import {type HandlerDeps} from './chat_session_types';
+import {type HandlerDeps} from './use_chat_session';
 
 // Spread the real module so the pure status questions stay real and only the
 // network calls are faked.
@@ -14,7 +14,7 @@ vi.mock('@/api/runs', async importActual => ({
 
 // Imported after the mock is registered so the module under test binds to it.
 import {cancelRun, createRun, getRun, startRun} from '@/api/runs';
-import {readPendingCreateIntent} from './chat_session_create_intent';
+import {readPendingCreateIntent} from './chat_session_start_run';
 import {promoteDraftToRun} from './chat_session_start_run';
 
 const SPEC: InferredRunSpec = {

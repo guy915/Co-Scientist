@@ -10,12 +10,10 @@ from typing import Any
 
 from Bio import Entrez
 
-from mcp_server.entrez import initialize_entrez, read_entrez
-from mcp_server.entrez_rate_limit import entrez_call
+from mcp_server.entrez import entrez_call, initialize_entrez, read_entrez
 from mcp_server.literature_review import PubmedSource
-from mcp_server.pubmed_query import search_with_relaxation
-from mcp_server.text_extraction import extract_text_from_pmc_html
-from mcp_server.tools.text import clean_markup
+from mcp_server.pubmed_client import search_with_relaxation
+from mcp_server.text_extraction import clean_markup, extract_text_from_pmc_html
 
 logger = logging.getLogger(__name__)
 

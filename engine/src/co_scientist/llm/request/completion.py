@@ -21,7 +21,7 @@ from typing import Any, Final
 
 from co_scientist import prompts
 from co_scientist.config.env_vars import parse_timeout_env
-from co_scientist.llm.admission.credentials import current_api_key
+from co_scientist.llm.admission.free_policy import current_api_key
 from co_scientist.llm.profile import model_profile
 from co_scientist.llm.request.backend import (
     active_backend,

@@ -1,7 +1,4 @@
-"""Prompt builders for the planning-oriented nodes.
-
-Covers the supervisor, meta-review, and research-overview nodes.
-"""
+"""Planning, knowledge-base and research-direction prompt renderers."""
 
 from dataclasses import dataclass
 from typing import Any
@@ -18,6 +15,158 @@ from co_scientist.prompts._common import (
 )
 from co_scientist.prompts.generation_draft import format_preferences
 from co_scientist.prompts.loading import _build_prompt
+
+_NO_CORPUS = "No verified evidence corpus available."
+
+
+def get_knowledge_base_outline_prompt(
+    research_goal: str,
+    hypotheses_summary: str,
+    evidence_corpus: str = _NO_CORPUS,
+    context: PromptRunContext | None = None,
+) -> tuple[str, dict[str, Any] | None]:
+    """Get the knowledge-base outline prompt and schema.
+
+    Args:
+        research_goal: The run's research goal.
+        hypotheses_summary: Formatted summary of the top-Elo hypotheses,
+            for orientation only -- the section states what is known, not
+            what the run proposed.
+        evidence_corpus: Analyzed sources, pre-formatted.
+        context: Run-scoped prompt context (tool registry, run
+            setup/focus guidance).
+
+    Returns:
+        Tuple of (rendered prompt string, JSON schema dict or None).
+    """
+    ctx = context or PromptRunContext()
+    return _build_prompt(
+        "research_overview_knowledge_base_outline",
+        {
+            "research_goal": research_goal,
+            "hypotheses_summary": hypotheses_summary,
+            "evidence_corpus": evidence_corpus,
+        },
+        sections=PromptSections(run_guidance=_run_guidance_section(ctx)),
+        tool_registry=ctx.tool_registry,
+    )
+
+
+@dataclass(frozen=True)
+class ThemeWritingMaterial:
+    """What one theme's writing call is handed by the outline before it.
+
+    The whole outline travels with every theme, not just the theme's own
+    slice: each writing call runs without sight of what the others
+    produced, so two themes whose headings overlap would otherwise become
+    two passages saying the same thing.
+
+    Attributes:
+        title: The theme this call is responsible for.
+        sections: That theme's outlined headings and the evidence ids each
+            was assigned, pre-formatted.
+        outline: The full outline -- every theme and its headings --
+            pre-formatted, for the overlap the writer must avoid.
+    """
+
+    title: str
+    sections: str
+    outline: str
+
+
+def get_knowledge_base_theme_prompt(
+    research_goal: str,
+    material: ThemeWritingMaterial,
+    evidence_corpus: str = _NO_CORPUS,
+    context: PromptRunContext | None = None,
+) -> tuple[str, dict[str, Any] | None]:
+    """Get the prompt and schema for writing one outlined theme.
+
+    Args:
+        research_goal: The run's research goal.
+        material: The theme to write and the outline it sits in.
+        evidence_corpus: Analyzed sources, pre-formatted.
+        context: Run-scoped prompt context (tool registry, run
+            setup/focus guidance).
+
+    Returns:
+        Tuple of (rendered prompt string, JSON schema dict or None).
+    """
+    ctx = context or PromptRunContext()
+    return _build_prompt(
+        "research_overview_knowledge_base_theme",
+        {
+            "research_goal": research_goal,
+            "theme_title": material.title,
+            "theme_sections": material.sections,
+            "outline": material.outline,
+            "evidence_corpus": evidence_corpus,
+        },
+        sections=PromptSections(run_guidance=_run_guidance_section(ctx)),
+        tool_registry=ctx.tool_registry,
+    )
+
+
+_NO_CORPUS = "No verified evidence corpus available."
+
+
+@dataclass(frozen=True)
+class DirectionWritingMaterial:
+    """What one direction's writing call is handed by the draft before it.
+
+    Every direction's title travels with each call, not just this one's:
+    the six run concurrently and none sees what the others produced, so
+    two neighbouring directions would otherwise argue the same mechanism
+    twice. Same reason ``ThemeWritingMaterial`` carries the whole outline.
+
+    Attributes:
+        title: The direction this call is responsible for.
+        rationale: The importance paragraph the draft argued it with,
+            which this call develops rather than contradicts.
+        all_directions: Every direction's title, pre-formatted, for the
+            overlap the writer must avoid.
+    """
+
+    title: str
+    rationale: str
+    all_directions: str
+
+
+def get_research_overview_direction_prompt(
+    research_goal: str,
+    material: DirectionWritingMaterial,
+    hypotheses_summary: str,
+    evidence_corpus: str = _NO_CORPUS,
+    context: PromptRunContext | None = None,
+) -> tuple[str, dict[str, Any] | None]:
+    """Get the prompt and schema for developing one drafted direction.
+
+    Args:
+        research_goal: The run's research goal.
+        material: The direction to develop and the set it sits in.
+        hypotheses_summary: Formatted summary of the top-Elo hypotheses.
+        evidence_corpus: Analyzed sources, pre-formatted.
+        context: Run-scoped prompt context (tool registry, run
+            setup/focus guidance).
+
+    Returns:
+        Tuple of (rendered prompt string, JSON schema dict or None).
+    """
+    ctx = context or PromptRunContext()
+    return _build_prompt(
+        "research_overview_direction",
+        {
+            "research_goal": research_goal,
+            "direction_title": material.title,
+            "direction_rationale": material.rationale,
+            "all_directions": material.all_directions,
+            "hypotheses_summary": hypotheses_summary,
+            "evidence_corpus": evidence_corpus,
+        },
+        sections=PromptSections(run_guidance=_run_guidance_section(ctx)),
+        tool_registry=ctx.tool_registry,
+    )
+
 
 # Published meta-review-08 renders "Additional instructions:" over
 # {instructions} unconditionally, and the node that calls this builder

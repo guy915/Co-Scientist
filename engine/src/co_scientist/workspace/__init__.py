@@ -1,6 +1,11 @@
 """A run's confined working directory and the tools that act on it."""
 
-from co_scientist.workspace.checks import CheckFinding, check_paths
+from co_scientist.workspace.checks import (
+    CheckFinding,
+    Snapshot,
+    WorkspaceSnapshotter,
+    check_paths,
+)
 from co_scientist.workspace.output import (
     DEFAULT_PREVIEW_CHARS,
     MIN_SECRET_LENGTH,
@@ -27,10 +32,6 @@ from co_scientist.workspace.session import (
     CommandOutcome,
     PatchOutcome,
     WorkspaceSession,
-)
-from co_scientist.workspace.snapshot import (
-    Snapshot,
-    WorkspaceSnapshotter,
 )
 from co_scientist.workspace.tool_schemas import (
     APPLY_PATCH,

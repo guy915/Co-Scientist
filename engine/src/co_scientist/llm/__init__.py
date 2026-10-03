@@ -53,13 +53,11 @@ if TYPE_CHECKING:
         scoped_completion_budget,
         scoped_llm_call_budget,
     )
-    from co_scientist.llm.admission.credentials import (
-        current_api_key,
-        scoped_api_key,
-    )
     from co_scientist.llm.admission.free_policy import (
         campaign_free_mode,
+        current_api_key,
         enforce_free_request,
+        scoped_api_key,
         scoped_campaign_mode,
     )
     from co_scientist.llm.attempts.retry import (
@@ -68,17 +66,17 @@ if TYPE_CHECKING:
     )
     from co_scientist.llm.call import call_llm, call_llm_json
     from co_scientist.llm.profile import ModelProfile, model_profile
-    from co_scientist.llm.request.gateway_body import (
-        deepseek_thinking_extra_body,
-    )
     from co_scientist.llm.request.thinking import (
+        deepseek_thinking_extra_body,
         effective_max_tokens,
         model_reasons,
         reasoning_effort_args,
     )
     from co_scientist.llm.request.transport import complete_request
-    from co_scientist.llm.structured.lists import coerce_json_list
-    from co_scientist.llm.structured.validate import parse_tool_loop_json
+    from co_scientist.llm.structured.validate import (
+        coerce_json_list,
+        parse_tool_loop_json,
+    )
     from co_scientist.llm.telemetry import (
         ModelCallStats,
         record_call,
@@ -147,10 +145,10 @@ _EXPORTS: dict[str, str] = {
     "call_llm_json": "co_scientist.llm.call",
     "call_llm_with_tools": "co_scientist.llm.tools.loop",
     "campaign_free_mode": "co_scientist.llm.admission.free_policy",
-    "coerce_json_list": "co_scientist.llm.structured.lists",
-    "current_api_key": "co_scientist.llm.admission.credentials",
+    "coerce_json_list": "co_scientist.llm.structured.validate",
+    "current_api_key": "co_scientist.llm.admission.free_policy",
     "current_run_call_count": "co_scientist.llm.admission.call_budget",
-    "deepseek_thinking_extra_body": "co_scientist.llm.request.gateway_body",
+    "deepseek_thinking_extra_body": "co_scientist.llm.request.thinking",
     "enforce_free_request": "co_scientist.llm.admission.free_policy",
     "indexed_prompt_name": "co_scientist.llm.values",
     "model_profile": "co_scientist.llm.profile",
@@ -162,7 +160,7 @@ _EXPORTS: dict[str, str] = {
     "record_call": "co_scientist.llm.telemetry",
     "record_deterministic_fallback": "co_scientist.llm.telemetry",
     "release_run_call_budget": "co_scientist.llm.admission.call_budget",
-    "scoped_api_key": "co_scientist.llm.admission.credentials",
+    "scoped_api_key": "co_scientist.llm.admission.free_policy",
     "scoped_campaign_mode": "co_scientist.llm.admission.free_policy",
     "scoped_llm_call_budget": "co_scientist.llm.admission.call_budget",
     "scoped_telemetry": "co_scientist.llm.telemetry",
