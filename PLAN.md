@@ -4,7 +4,8 @@ Trim Co-Scientist to a lean product without losing what it does. Every decision
 below was settled with the owner on 3 October 2026, so the campaign runs
 unattended: the agent decides by these rules and reports at the end.
 
-**Status:** planned, not started. Baseline `33ec8984`.
+**Status:** planned, not started. Baseline `33ec8984`. Runs as a Codex `/goal`
+in a cloud environment (see Execution environment).
 
 ## Destination
 
@@ -43,7 +44,7 @@ Everything not listed under "What goes", including:
 
 1. **The `cosci` CLI,** entirely.
 2. **The engine's standalone library surface:** public library entry points,
-   `examples/`, and the in-process streaming graph path production never runs.
+   `examples/`, and the in-process streaming graph path, which production leaves unused.
    The engine becomes an internal package of the app.
 3. **The paper-fidelity apparatus:**
    - `docs/PARITY.md` and `evaluations/parity_check.py`
@@ -134,10 +135,10 @@ Finish each phase's exit test before starting the next.
 ### Phase 3: redundancy
 
 1. **Production reset, authorized by the owner on 3 October 2026:**
-   - Export every production run to a file outside the repo. Never commit it;
-     run outputs stay out of git.
+   - Export every production run to a file outside the repo; run outputs stay
+     out of git.
    - Verify the export's row counts against production.
-   - Only then reset the production store. Old runs need not keep loading
+   - Then reset the production store. Old runs are free to stop loading
      afterwards.
 2. **Apply the documentation policy** to all production code.
 3. **Remove over-splitting:** inline single-caller helpers where that reads
@@ -164,50 +165,70 @@ Finish each phase's exit test before starting the next.
 
 ## Rules
 
-- **Remove code, don't compress it.** Collapsing lines or reformatting to game a
-  count is forbidden.
-- **Never move content to dodge the count:** no shifting code, prompts or data
-  into uncounted file types, `vendor/`, `references/`, or out of git. A file
-  counts as a test only if no production code imports it.
-- **The ratchet only goes down:** lower the production ceiling in every PR that
-  shrinks the count, and never raise it.
+- **Shrink genuinely:** delete and rewrite. Keep formatting as the formatters
+  produce it.
+- **Count honestly:** code, prompts and data stay in counted files, in git, where
+  they live today. A file counts as a test only when no production code imports
+  it.
+- **The ratchet moves one way:** lower the production ceiling in every PR that
+  shrinks the count.
 - **One theme per PR, sized for throughput:** 2–5k lines for removals and for
-  doc and test batches, at least 500 for refactors. Open a smaller PR only when
+  doc and test batches, at least 500 for refactors. A smaller PR is right when
   it finishes a theme. Run targeted tests while iterating, and the phase's full
   bar before each merge.
-- **Invariants:** keep the operational invariants in CLAUDE.md and
+- **Merging:** merge each PR once CI is green, with
+  `gh pr merge --squash --delete-branch --admin`. The owner authorized bypassing
+  `main`'s review requirement for this campaign; this overrides the
+  branch-protection rule in AGENTS.md.
+- **Invariants:** keep the operational invariants in AGENTS.md and
   `docs/OPERATIONS.md`. An invariant that exists only for a removed feature
   retires with it; say so in that PR.
 - **Deploys:** every merge to `main` deploys production (api and mcp on Railway,
-  the frontend on Vercel). After each merge, confirm both deploys are healthy
-  using read-only status, logs and `/health`. If one isn't, ship a revert PR
-  before anything else.
-- **Git and PRs:** follow CLAUDE.md. Never amend, reset, stash, or
-  checkout/restore files. Run the app and engine pytest suites one after the
-  other, never together. Capture each gate's exit status on its own line.
-- **Subagents:** at most two Sonnet subagents at a time, on separate subtrees.
-  Brief each one on the forbidden git operations and the ratchet, and have it
-  confirm its files are on disk before reporting.
-- **Hosting configuration:** never write Railway or Vercel configuration.
-  Collect the needed changes for the final report: `DEEPSEEK_API_KEY` and any
-  variable of a removed feature.
-- **Progress:** keep the campaign's progress in the PR bodies: phase, theme,
-  lines removed, new totals.
+  the frontend on Vercel). After each merge, confirm both are healthy: the
+  GitHub deployment statuses for the merge commit (`gh api`), the api's
+  `/health` at `https://api.ai-co-scientist.com/health`, and the frontend at
+  `https://ai-co-scientist.com/`. When one is unhealthy, ship a revert PR first
+  and resume once production is healthy again.
+- **Git:** follow AGENTS.md. Keep every commit additive: make follow-up fixes in
+  new commits on the branch. Run the app and engine pytest suites one after the
+  other. Capture each gate's exit status on its own line.
+- **Delegation:** run independent subtrees in parallel with subagents when it
+  saves time: `gpt-6-luna` for exploration, `gpt-6.1-sol` for implementation,
+  each on its own subtree and branch. Give each the git rules and the ratchet,
+  and have it confirm its files are on disk before reporting.
+- **Hosting configuration stays with the owner:** collect every Railway and
+  Vercel change the campaign needs (`DEEPSEEK_API_KEY`, variables of removed
+  features) for the final report.
+- **Progress:** keep each PR body current with phase, theme, lines removed and
+  the new production, test and doc totals. After any context compaction,
+  re-read this file and the merged PR history to resume.
 
 ## Done
 
-Stop when Phase 3's exit test passes, or earlier if production stays unhealthy
-after a revert. The final report gives:
+The campaign is complete when Phase 3's exit test passes. Mark this file's
+status complete in the final PR, then report:
 
 - production, test and doc lines at the start and end of each phase
 - every removal and the reason for it
 - anything that looked removable but proved load-bearing, and why
-- the Railway and Vercel changes for the owner to make
+- the Railway and Vercel changes for the owner to apply
 
-## Before launch (owner)
+When a step depends on something outside the repository that is missing (for
+example production access for the export and reset), finish all other work
+first, then report that step's concrete blocker.
 
-- Stop any other agent trimming this repository.
-- Launch from a clean checkout of `main`.
+## Execution environment (owner, before launch)
+
+The campaign runs in a Codex cloud environment on `main`. It needs:
+
+- **Internet access:** unrestricted, or at least GitHub, Railway, Vercel, the
+  production domains and the package registries.
+- **GitHub:** a token with admin rights on `guy915/Co-Scientist`, so `gh` can
+  push, open PRs and merge with `--admin`.
+- **Railway:** a token for project `co-scientist`, so the Railway CLI can read
+  status and logs and perform the Phase 3 export and reset.
+- **Toolchain:** Python 3.12, Node.js 22.13+ and Bun 1.3.14, then `make setup`.
+- **Quiet repository:** stop any other agent trimming this repository.
 
 ## Previous campaign
 
