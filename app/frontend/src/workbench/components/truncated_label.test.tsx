@@ -111,7 +111,7 @@ async function flushNextFrame() {
 }
 
 // Fits are enqueued and run together one microtask later (see
-// truncated_label_fit), so a trigger that is itself synchronous still needs
+// truncated_label), so a trigger that is itself synchronous still needs
 // the queue drained before the label's text reflects it.
 async function flushFitBatch() {
   await act(async () => {

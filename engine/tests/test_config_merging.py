@@ -7,7 +7,7 @@ a "settings" block on the user config only) is reached through that path.
 These tests call the three pure classification helpers directly.
 """
 
-from co_scientist.config.merging import (
+from co_scientist.config.registry import (
     _both_dicts,
     _both_lists_to_extend,
     _determine_merge_strategy,

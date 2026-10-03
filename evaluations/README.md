@@ -79,6 +79,9 @@ explicitly says otherwise; machine-readable results are written under
   below use to persist a research goal through the real durable path
   (`store.create_run` -> `task_worker` -> `engine_tasks` -> engine -> drain
   -> report) and read back the resulting artifacts. Not a runner itself.
+- `_identity.py` — shared run and panel controls, policy snapshots and
+  comparison checks. Hashing and validation load without app or engine
+  dependencies; execution snapshots import those packages only when needed.
 - `scaling_budget_driver.py` (L9) — drives the SAME research goal across the
   run tiers (express/standard/extended/ultra), differing only in tier, and
   feeds `scaling_eval.scaling_curve()`. **Offline by default (the only mode
@@ -172,9 +175,8 @@ explicitly says otherwise; machine-readable results are written under
   monkeypatched transport.
 - `datasets/` — versioned, synthetic, legally shareable labeled sets.
 - `results/` — dated machine-readable result artifacts.
-- `tests/` — unit tests for the runners, plus the repo-wide source gates
-  (file length, function length, docs truth) that `make parity` runs alongside
-  the ledger check.
+- `tests/` — unit tests for the runners and documentation-truth checks that
+  `make parity` runs alongside the ledger check.
 
 ## Commands
 

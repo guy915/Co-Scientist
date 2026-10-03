@@ -10,9 +10,12 @@ import pytest
 from pydantic import TypeAdapter, ValidationError
 
 from app.api_contracts.common import JsonValue, RunEventActivity
-from app.api_contracts.generate import API_DIR, generated_files
-from app.api_contracts.registry import contracts
-from app.api_contracts.typescript import type_expression
+from app.api_contracts.generate import (
+    API_DIR,
+    contracts,
+    generated_files,
+    type_expression,
+)
 from app.main import app
 from app.store.event_activity import ACTIVITY_VALUES
 
@@ -30,9 +33,32 @@ def _tokens(source: str) -> list[str]:
 
 
 def test_frontend_wire_types_are_generated_from_backend_contracts() -> None:
-    for name, expected in generated_files().items():
+    generated = generated_files()
+    for name, expected in generated.items():
         assert _tokens((API_DIR / name).read_text()) == _tokens(expected), (
             f"Regenerate {name}: cd app && python -m app.api_contracts.generate"
+        )
+    exports = set(
+        re.findall(
+            r"export\s+type\s+\*\s+from\s+['\"](\./wire_[\w]+)['\"]",
+            (API_DIR / "runs.ts").read_text(),
+        )
+    )
+    assert exports == {f"./{name.removesuffix('.ts')}" for name in generated}
+    contract_names = {name for group in contracts().values() for name in group}
+    for path in API_DIR.glob("*.ts"):
+        if path.name.startswith("wire_") or path.name.endswith(".test.ts"):
+            continue
+        source = re.sub(r"/\*.*?\*/|//[^\n]*", "", path.read_text(), flags=re.S)
+        declarations = set(
+            re.findall(
+                r"\b(?:interface|type|class|enum)\s+([A-Za-z_$][\w$]*)",
+                source,
+            )
+        )
+        assert contract_names.isdisjoint(declarations), (
+            path.name,
+            contract_names & declarations,
         )
 
 

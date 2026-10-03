@@ -1,21 +1,25 @@
-import {useEffect, useRef, useState, type KeyboardEvent} from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type CSSProperties,
+  useLayoutEffect,
+} from 'react';
 import {
   type ByokModelCatalog,
   type FreeUsage,
   fetchByokModelCatalog,
   fetchFreeUsage,
-} from '@/api/models';
+} from '@/api/system';
 import {Icon} from '@/components/icon';
 import {
   type ByokProvider,
   type ModelTier,
   getStoredModel,
   setStoredModel,
+  BYOK_PROVIDERS,
 } from '@/lib/api_key';
-import {
-  useAnchoredMenu,
-  useCloseOnOutsidePointer,
-} from './settings_provider_select';
 
 const TIER_LABELS: Record<ModelTier, string> = {
   supervisor: 'Supervisor model',
@@ -35,7 +39,7 @@ export function modelLabel(model: string): string {
 }
 
 // One tier's chooser: the same button-plus-menu shape as ProviderSelect
-// (settings_provider_select.tsx), for the same reasons, with the options
+// (settings_model_select.tsx), for the same reasons, with the options
 // supplied by the caller.
 function ModelSelect({
   tier,
@@ -258,5 +262,243 @@ export function ModelSelectors({
       </div>
       {!hasKey && <FreeUsageNote usage={fields.freeUsage} />}
     </>
+  );
+}
+
+/** Display names for the BYOK provider choices. */
+export const PROVIDER_LABELS: Record<ByokProvider, string> = {
+  anthropic: 'Anthropic',
+  deepseek: 'DeepSeek',
+  gemini: 'Gemini',
+  openai: 'OpenAI',
+  openrouter: 'OpenRouter',
+};
+
+/**
+ * Where each provider issues API keys, and the article its name takes in the
+ * hint under the key field.
+ *
+ * The article is stored rather than derived: a leading-vowel test is right
+ * for these five names and wrong for the next one that starts with a
+ * consonant sound. The name itself is not stored -- it comes from
+ * PROVIDER_LABELS above, so renaming a provider cannot leave the link
+ * calling it something else.
+ */
+export const PROVIDER_KEY_PAGES: Record<
+  ByokProvider,
+  {url: string; article: 'a' | 'an'}
+> = {
+  anthropic: {
+    url: 'https://platform.claude.com/settings/keys',
+    article: 'an',
+  },
+  deepseek: {url: 'https://platform.deepseek.com/api_keys', article: 'a'},
+  gemini: {url: 'https://aistudio.google.com/apikey', article: 'a'},
+  openai: {url: 'https://platform.openai.com/api-keys', article: 'an'},
+  openrouter: {url: 'https://openrouter.ai/settings/keys', article: 'an'},
+};
+
+const TRIGGER_ID = 'cosci-settings-provider';
+const LABEL_ID = 'cosci-settings-provider-label';
+
+// Closes the menu on a pointerdown outside `container` (also used by the
+// model selects, settings_model_select.tsx). Registered only
+// while open, matching the shell's own popover dismissal
+// (layout_hooks.useDismissPanelOnOutsideClick).
+export function useCloseOnOutsidePointer(
+  open: boolean,
+  container: React.RefObject<HTMLDivElement | null>,
+  onClose: () => void,
+) {
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(event: PointerEvent) {
+      if (!container.current?.contains(event.target as Node)) onClose();
+    }
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+    };
+  }, [open, container, onClose]);
+}
+
+// Gap between a trigger and the menu it opens.
+const MENU_GAP_PX = 6;
+
+/**
+ * Places an open menu under its trigger with `position: fixed`, so the
+ * Settings panel's scroll box (`overflow-y: auto`) cannot clip it and the
+ * menu may overflow the panel and the dialog edges.
+ *
+ * A fixed box's containing block is the viewport unless an ancestor has a
+ * transform, and the centered dialog has one. So the hook does not assume
+ * either: it first places the menu at 0,0, reads where that lands, and
+ * subtracts that origin. Re-placed on any scroll or resize while open.
+ *
+ * @param open Whether the menu is rendered.
+ * @param anchor The wrapper holding the trigger; its box sets the position.
+ * @param align `start` opens rightward from the trigger's left edge, `end`
+ *   leftward from its right edge.
+ * @returns The menu's ref and its inline style.
+ */
+export function useAnchoredMenu(
+  open: boolean,
+  anchor: React.RefObject<HTMLDivElement | null>,
+  align: 'start' | 'end' = 'start',
+) {
+  const menu = useRef<HTMLDivElement>(null);
+  const [style, setStyle] = useState<CSSProperties>({});
+  useLayoutEffect(() => {
+    if (!open) return;
+    function place() {
+      const el = menu.current;
+      const trigger = anchor.current;
+      if (!el || !trigger) return;
+      el.style.top = '0px';
+      el.style.left = '0px';
+      const origin = el.getBoundingClientRect();
+      const box = trigger.getBoundingClientRect();
+      const left = align === 'end' ? box.right - origin.width : box.left;
+      const next = {
+        top: box.bottom + MENU_GAP_PX - origin.top,
+        left: left - origin.left,
+        minWidth: box.width,
+      };
+      el.style.top = `${next.top}px`;
+      el.style.left = `${next.left}px`;
+      setStyle(next);
+    }
+    place();
+    window.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    return () => {
+      window.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place);
+    };
+  }, [open, anchor, align]);
+  return {menuRef: menu, menuStyle: style};
+}
+
+// One row of the open menu: a real button (so Tab and Enter work without an
+// activedescendant dance), carrying a check on the current choice so the
+// selection reads without relying on the highlight alone.
+function ProviderOption({
+  option,
+  selected,
+  onSelect,
+}: {
+  option: ByokProvider;
+  selected: boolean;
+  onSelect: (option: ByokProvider) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitemradio"
+      aria-checked={selected}
+      className="ucs-provider-option"
+      onClick={() => onSelect(option)}
+    >
+      <span>{PROVIDER_LABELS[option]}</span>
+      {selected && (
+        <Icon
+          aria-hidden="true"
+          className="ucs-provider-option-check"
+          name="check"
+        />
+      )}
+    </button>
+  );
+}
+
+/**
+ * Provider chooser for the Settings dialog's Model section.
+ *
+ * A button plus an own-markup menu rather than a native `<select>`: the
+ * native control's list is drawn by the browser in its own style rather than
+ * by the workspace, and cannot carry the check mark or the row treatment the
+ * rest of the dialog's menus use.
+ *
+ * @param provider The currently chosen provider.
+ * @param onChange Called with the newly chosen provider (never with the one
+ *   already selected -- picking the current value just closes the menu).
+ */
+export function ProviderSelect({
+  provider,
+  onChange,
+}: {
+  provider: ByokProvider;
+  onChange: (provider: ByokProvider) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const container = useRef<HTMLDivElement>(null);
+  useCloseOnOutsidePointer(open, container, () => setOpen(false));
+  const {menuRef, menuStyle} = useAnchoredMenu(open, container);
+
+  function onSelect(option: ByokProvider) {
+    setOpen(false);
+    if (option !== provider) onChange(option);
+  }
+
+  // Escape closes the menu and stops there: the Settings dialog listens for
+  // Escape on the window to close itself, and dismissing both at once would
+  // throw the reader out of Settings for cancelling a dropdown.
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === 'Escape' && open) {
+      event.stopPropagation();
+      setOpen(false);
+    }
+  }
+
+  return (
+    <div className="ucs-provider-select" ref={container} onKeyDown={onKeyDown}>
+      <button
+        type="button"
+        id={TRIGGER_ID}
+        className="ucs-provider-trigger"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-labelledby={`${LABEL_ID} ${TRIGGER_ID}`}
+        onClick={() => setOpen(current => !current)}
+      >
+        <span>{PROVIDER_LABELS[provider]}</span>
+        <Icon
+          aria-hidden="true"
+          className="ucs-provider-chevron"
+          name="expand_more"
+        />
+      </button>
+      {open && (
+        <div
+          ref={menuRef}
+          style={menuStyle}
+          className="ucs-provider-menu"
+          role="menu"
+          aria-label="Provider"
+        >
+          {BYOK_PROVIDERS.map(option => (
+            <ProviderOption
+              key={option}
+              option={option}
+              selected={option === provider}
+              onSelect={onSelect}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The `<label>` that names the trigger; rendered by the Model section. */
+export function ProviderSelectLabel() {
+  return (
+    <label
+      id={LABEL_ID}
+      className="ucs-settings-field-label"
+      htmlFor={TRIGGER_ID}
+    >
+      Provider
+    </label>
   );
 }

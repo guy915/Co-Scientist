@@ -7,14 +7,6 @@ import hashlib
 import re
 from typing import Final
 
-# Every ``max_tokens`` budget -- the answer bases, the thinking floor that
-# supersedes them, the escalation budget, and the per-node scaling inputs
-# and caps -- moved to a sibling module for the same reason: each of them
-# only means what it says relative to the floor, so they read as one
-# subject and were split as one. Re-exported here so
-# ``co_scientist.constants`` stays the single import path; the tournament
-# block below explains the redundant ``X as X`` alias form and why the
-# longest names cannot fit it in 80 columns.
 from co_scientist.constants.tokens import (
     BUDGET_ESCALATION_MAX_INCREMENT as BUDGET_ESCALATION_MAX_INCREMENT,
 )
@@ -93,15 +85,6 @@ from co_scientist.constants.tokens import (
 from co_scientist.constants.tokens import (
     scaled_max_tokens as scaled_max_tokens,
 )
-
-# Everything the Elo tournament is shaped by -- seed rating, K-factor, debate
-# depth, per-hypothesis match budgets, wave width -- moved to a sibling
-# module; each of those values carries its own incident history, and together
-# they were the largest single subject in this file. Every name is re-exported
-# so ``co_scientist.constants`` stays the one import path for all of them.
-# The redundant ``X as X`` is what marks a re-export under mypy's strict
-# no-implicit-reexport; the last name below is long enough that the alias form
-# cannot fit in 80 columns, and renaming it would break every caller.
 from co_scientist.constants.tournament import (
     ELO_K_FACTOR as ELO_K_FACTOR,
 )
@@ -126,6 +109,46 @@ from co_scientist.constants.tournament import (
 from co_scientist.constants.tournament import (
     TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS as TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS,  # noqa: E501
 )
+
+# Overridable via COSCIENTIST_CACHE_TTL_SECONDS. Without an expiry, a
+# too-aggressive cache silently replays stale output forever instead of
+# exploring -- the defect caching-on-by-default risks per AGENTS.md -- so
+# entries age out even when nothing about the key changed. A value of zero
+# (or unset/negative) disables expiry, matching the "0 disables" convention
+# every other wall-clock ceiling in this codebase uses (see
+# llm.request.completion.LLM_TIMEOUT_ENV). Checked against the cache file's own
+# mtime, not a value stored in the entry, so no cache-format migration is
+# needed.
+DEFAULT_CACHE_TTL_SECONDS: Final = 7 * 24 * 60 * 60
+"""Default age, in seconds, after which a cached entry is treated as a miss."""
+
+# Bump this when a change to call_llm/call_llm_json/call_llm_with_tools
+# alters how a cached response should be interpreted without changing the
+# prompt text itself (e.g. a parsing/interpretation fix) -- mirrors
+# agents/generation/literature_review/node.py's
+# _LITERATURE_CACHE_SCHEMA_VERSION, the node-cache tier's version of the
+# same escape hatch. Every LLMCacheRequest carries it by default, so bumping
+# it invalidates the whole LLM response cache without any call site change.
+LLM_CACHE_SCHEMA_VERSION: Final = 1
+"""Schema version folded into every LLM response cache key."""
+
+# Every ``max_tokens`` budget -- the answer bases, the thinking floor that
+# supersedes them, the escalation budget, and the per-node scaling inputs
+# and caps -- moved to a sibling module for the same reason: each of them
+# only means what it says relative to the floor, so they read as one
+# subject and were split as one. Re-exported here so
+# ``co_scientist.constants`` stays the single import path; the tournament
+# block below explains the redundant ``X as X`` alias form and why the
+# longest names cannot fit it in 80 columns.
+
+# Everything the Elo tournament is shaped by -- seed rating, K-factor, debate
+# depth, per-hypothesis match budgets, wave width -- moved to a sibling
+# module; each of those values carries its own incident history, and together
+# they were the largest single subject in this file. Every name is re-exported
+# so ``co_scientist.constants`` stays the one import path for all of them.
+# The redundant ``X as X`` is what marks a re-export under mypy's strict
+# no-implicit-reexport; the last name below is long enough that the alias form
+# cannot fit in 80 columns, and renaming it would break every caller.
 
 # Literature review status markers
 # Sentinel string stored in place of a synthesis when the literature-review

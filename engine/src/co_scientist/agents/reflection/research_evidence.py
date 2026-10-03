@@ -30,8 +30,6 @@ from typing import Any, NamedTuple
 
 from co_scientist.evidence.article_support import (
     build_articles_from_metadata,
-)
-from co_scientist.evidence.research_records import (
     records_from_findings,
 )
 from co_scientist.models import Article, Hypothesis, rank_by_elo

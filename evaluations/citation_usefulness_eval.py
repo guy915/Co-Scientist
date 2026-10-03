@@ -197,7 +197,7 @@ def _recall(labelled: list[tuple[str, str, str]], label: str) -> float:
 
 def run_deterministic(dataset: dict[str, Any]) -> dict[str, Any]:
     """Score the lexical floor over the panel."""
-    from evaluations._panel_identity import capture_panel
+    from evaluations._identity import capture_panel
 
     with capture_panel(
         "citation_usefulness",
@@ -229,8 +229,8 @@ def run_llm(
     dataset: dict[str, Any], model: str | None = None
 ) -> dict[str, Any]:
     """Score a real model over the panel, one call per item."""
+    from evaluations._identity import capture_panel
     from evaluations._live_config import configure_live_environment
-    from evaluations._panel_identity import capture_panel
 
     model = configure_live_environment(model)
     with capture_panel(

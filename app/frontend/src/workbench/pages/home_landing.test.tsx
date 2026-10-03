@@ -2,8 +2,11 @@ import {fireEvent, render, screen, within} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import HomeLanding from './home_landing';
-import {INITIAL_ELO, LANDING_SECTIONS} from './home_landing_content';
-import {simulateEloHistory} from './home_landing_elo';
+import {
+  INITIAL_ELO,
+  LANDING_SECTIONS,
+  simulateEloHistory,
+} from './home_landing_content';
 
 const scrollIntoView = vi.fn();
 

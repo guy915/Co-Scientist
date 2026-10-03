@@ -129,7 +129,7 @@ def persist_arm_run(
             **overrides,
         }
     )
-    from evaluations._comparison_identity import arm_identity
+    from evaluations._identity import arm_identity
 
     config["evaluation_identity"] = arm_identity(
         goal, config, invocation.backend
@@ -161,7 +161,7 @@ def drive_arm_run(run_id: str, db_path: str) -> tuple[int, float]:
     from app import store, task_worker
     from co_scientist.offline.llm import install_offline_router
 
-    from evaluations._comparison_identity import validate_stored_arm
+    from evaluations._identity import validate_stored_arm
 
     identity = validate_stored_arm(run_id, db_path)
 

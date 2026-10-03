@@ -21,7 +21,7 @@ from co_scientist.agents.reflection import deep_verification as dv
 from co_scientist.agents.reflection import reflection as observation
 from co_scientist.agents.reflection import verification as leaf
 from co_scientist.agents.reflection.review_evidence import _ReviewEvidence
-from co_scientist.agents.reflection.verification_freshness import (
+from co_scientist.agents.reflection.verification import (
     mark_verification_issued,
     verification_fingerprint,
 )
@@ -286,7 +286,7 @@ def test_public_verification_does_not_import_graph_orchestration() -> None:
     import ast
     import inspect
 
-    from co_scientist.agents.reflection import operations
+    from co_scientist.agents.reflection import verification as operations
 
     imports = [
         node.module

@@ -1,48 +1,13 @@
-"""The exploration program behind a research-expansion cycle.
-
-``research_expansion.py`` gave the technique a distinct prompt and a
-larger tool-loop budget, which changes how the draft agent searches but
-not *what* the run has read before it drafts. That left the gap
-``GEN-TECHNIQUES-001`` names: research expansion was a meta-review
-informed generation pass rather than a broad independent exploration of
-the regions the run has not staked out.
-
-This module is that exploration, and it is the same capability the
-literature review and the deep reviews already run
-(``co_scientist.research``) under a third policy. The three differ only
-in what they are asked and how often:
-
-* the literature review researches **once per run**, seeded by the gaps
-  its own reading recorded;
-* a deep review researches **once per hypothesis**, seeded by the
-  assumptions that hypothesis failed to confirm;
-* this researches **once per expansion cycle**, seeded by nothing --
-  deliberately. Every seed the other two use is a doubt about ground the
-  run has already covered, and expansion's whole job is the ground it has
-  not. So the loop plans its own coverage from a goal that names the
-  explored territory as territory to avoid, which is one model call and
-  the only shape here that can return something the run has not seen.
-
-**Cost is one more run-level gathering per expansion cycle**, at the same
-ceilings the literature review buys: 6 threads on ``extended``, 11 on
-``ultra``, times the cycles the scheduler chooses to expand in. Quoted
-that way rather than given ceilings of its own, because a third table
-holding the same numbers is a knob nobody would turn.
-"""
+"""Research expansion, its prompt guidance, and budgeted exploration."""
 
 from __future__ import annotations
 
 import logging
 from typing import Any, NamedTuple
 
-from co_scientist.agents.generation.research_expansion import (
-    explored_hypothesis_summaries,
-    is_research_expansion,
-)
+from co_scientist.constants import truncate
 from co_scientist.evidence.article_support import (
     build_articles_from_metadata,
-)
-from co_scientist.evidence.research_records import (
     records_from_findings,
 )
 from co_scientist.progress import emit_progress
@@ -62,6 +27,124 @@ from co_scientist.research_adapter.retrieval import ResearchRun
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
+
+
+# How many of the already-explored hypotheses the expansion prompt names.
+# The pool can hold dozens by a late cycle; a bounded sample keeps the
+# section prompt-sized while still marking the explored territory.
+EXPANSION_POOL_SAMPLE_SIZE = 12
+
+
+# Per-hypothesis summary length in that coverage list.
+EXPANSION_POOL_ITEM_CHARS = 200
+
+
+# Extra tool-loop round-trips an expansion draft gets on top of the
+# count-derived budget: broad retrieval searches more, reads more.
+EXPANSION_EXTRA_DRAFT_ITERATIONS = 2
+
+
+def is_research_expansion(state: WorkflowState) -> bool:
+    """Whether a generate cycle is research expansion, not initial draft.
+
+    Args:
+        state: The workflow state the generate node was entered with.
+
+    Returns:
+        True once the run has completed at least one iteration cycle.
+    """
+    return int(state.get("current_iteration") or 0) > 0
+
+
+def explored_hypothesis_summaries(
+    state: WorkflowState,
+) -> list[str]:
+    """Bounded one-line summaries of the hypotheses explored so far.
+
+    Args:
+        state: The workflow state carrying the current pool.
+
+    Returns:
+        Up to ``EXPANSION_POOL_SAMPLE_SIZE`` truncated hypothesis texts,
+        in pool order. Empty before any hypothesis exists.
+    """
+    hypotheses = state.get("hypotheses") or []
+    summaries = [
+        truncate(str(h.text).strip(), EXPANSION_POOL_ITEM_CHARS)
+        for h in hypotheses[:EXPANSION_POOL_SAMPLE_SIZE]
+    ]
+    return [s for s in summaries if s]
+
+
+def _explored_coverage_block(summaries: list[str]) -> str:
+    """Renders the explored-territory list, or a none-explored note."""
+    if not summaries:
+        return ""
+    bullets = "".join(f"- {summary}\n" for summary in summaries)
+    return (
+        "Hypotheses already explored in this run (do NOT re-derive these"
+        " directions; expand beyond them):\n"
+        f"{bullets}\n"
+    )
+
+
+def _widened_evidence_block(state: WorkflowState) -> str:
+    """Renders the exploration's findings, when this cycle bought one.
+
+    On the deep tiers an expansion cycle first runs its own budgeted
+    exploration (``expansion_research.research_for_expansion``) and
+    leaves the result here. Absent on every other tier, where expansion
+    is the prompt and the wider tool-loop budget alone.
+
+    Args:
+        state: The workflow state, as the generate node's strategies see
+            it after the exploration has been applied.
+
+    Returns:
+        The findings block, or an empty string when nothing was
+        explored.
+    """
+    findings = str(state.get("research_expansion_findings") or "").strip()
+    return f"\n{findings}\n" if findings else ""
+
+
+def build_expansion_section(state: WorkflowState) -> str:
+    """Renders the research-expansion prompt section for a generate cycle.
+
+    Args:
+        state: The workflow state the generate node was entered with.
+
+    Returns:
+        The expansion guidance block, or an empty string for the initial
+        generation cycle (iteration 0), leaving focused-grounding
+        behavior unchanged there.
+    """
+    if not is_research_expansion(state):
+        return ""
+    logger.info(
+        "Research expansion cycle: switching generation to broad"
+        " exploratory retrieval (iteration %s)",
+        state.get("current_iteration"),
+    )
+    coverage = _explored_coverage_block(explored_hypothesis_summaries(state))
+    widened = _widened_evidence_block(state)
+    return (
+        "## Research Expansion Cycle (broad exploratory retrieval)\n\n"
+        "This is NOT the initial focused drafting pass. The goal of this"
+        " cycle is to widen the evidence base before ideation:\n"
+        "1. Run several DIVERSE searches first, before drafting anything:"
+        " adjacent subtopics, different model systems or populations,"
+        " alternative methodologies, and neighboring research areas"
+        " relevant to the goal.\n"
+        "2. Prefer sources and angles not already covered by the"
+        " literature review context above.\n"
+        "3. Only after this broader retrieval, draft hypotheses grounded"
+        " in the newly widened evidence, targeting regions this run has"
+        " not explored yet.\n\n"
+        f"{coverage}"
+        f"{widened}"
+    )
+
 
 # Findings named in the expansion prompt. The draft agent reads this
 # beside the review synthesis and its own tool results, so the section

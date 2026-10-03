@@ -1,4 +1,4 @@
-"""Research-overview node - terminal synthesis into a roadmap + NIH aims."""
+"""Research-overview prompt assembly and synthesis orchestration."""
 
 import logging
 from typing import Any, Final
@@ -21,15 +21,13 @@ from co_scientist.agents.meta_review.research_overview_degrade import (
 from co_scientist.agents.meta_review.research_overview_direction_calls import (
     DirectionWaveContext,
     develop_directions_into,
-)
-from co_scientist.agents.meta_review.research_overview_directions import (
     format_overview,
 )
 from co_scientist.agents.meta_review.research_overview_evidence import (
     _build_evidence_corpus as _build_evidence_corpus,
 )
 from co_scientist.agents.meta_review.research_overview_evidence import (
-    _format_evidence_corpus as _format_evidence_corpus,
+    _format_evidence_corpus,
 )
 from co_scientist.agents.meta_review.research_overview_knowledge_base import (
     _validate_knowledge_base,
@@ -37,12 +35,6 @@ from co_scientist.agents.meta_review.research_overview_knowledge_base import (
 )
 from co_scientist.agents.meta_review.research_overview_knowledge_base import (
     synthesize_knowledge_base as synthesize_knowledge_base,
-)
-from co_scientist.agents.meta_review.research_overview_prompt import (
-    build_interim_synthesis_prompt as _build_interim_synthesis_prompt,
-)
-from co_scientist.agents.meta_review.research_overview_prompt import (
-    build_synthesis_prompt as _build_synthesis_prompt,
 )
 from co_scientist.agents.meta_review.research_overview_review import (
     OverviewReviewContext as OverviewReviewContext,
@@ -71,16 +63,73 @@ from co_scientist.models import (
     rank_for_publication,
 )
 from co_scientist.progress import emit_progress
+from co_scientist.prompts import (
+    PromptRunContext,
+    get_research_overview_interim_prompt,
+    get_research_overview_prompt,
+)
 from co_scientist.safety import is_blocking_status
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
+
+
+def _run_prompt_context(state: WorkflowState) -> PromptRunContext:
+    """Run-scoped guidance both firings' prompts read the same way."""
+    return PromptRunContext(
+        meta_review=state.get("meta_review"),
+        tool_registry=state.get("tool_registry"),
+        run_setup_guidance=state.get("run_setup_guidance"),
+        run_focus_guidance=state.get("run_focus_guidance"),
+    )
+
+
+def build_synthesis_prompt(
+    state: WorkflowState,
+    summary: str,
+    contact_candidates: dict[str, dict[str, Any]],
+    evidence_corpus: dict[str, dict[str, Any]],
+) -> tuple[str, dict[str, Any] | None]:
+    """Builds the terminal research-overview synthesis prompt and schema.
+
+    Uses the supervisor model (strategic synthesis, not a worker task);
+    meta_review and the durable run guidance steer it toward the same
+    strategic themes used elsewhere in the workflow.
+    """
+    return get_research_overview_prompt(
+        research_goal=state["research_goal"],
+        hypotheses_summary=summary,
+        contact_candidates=_format_contact_candidates(contact_candidates),
+        evidence_corpus=_format_evidence_corpus(evidence_corpus),
+        context=_run_prompt_context(state),
+    )
+
+
+def build_interim_synthesis_prompt(
+    state: WorkflowState,
+    summary: str,
+    evidence_corpus: dict[str, dict[str, Any]],
+) -> tuple[str, dict[str, Any] | None]:
+    """Builds a periodic firing's own lean prompt and schema.
+
+    No ``contact_candidates``: an interim firing's schema never asks for
+    ``research_contacts``, so there is nothing here for that formatted
+    block to feed.
+    """
+    return get_research_overview_interim_prompt(
+        research_goal=state["research_goal"],
+        hypotheses_summary=summary,
+        evidence_corpus=_format_evidence_corpus(evidence_corpus),
+        context=_run_prompt_context(state),
+    )
+
 
 # Bounds on what the terminal synthesis prompt offers the model and accepts
 # back. The offered pools are capped so a large run's article set cannot grow
 # the prompt without limit; the acceptance caps bound the sections a reader is
 # handed.
 _UNREVIEWED_OVERVIEW: Final = {"reviewed": False, "rounds": 0}
+
 """Stamped on ``overview_review`` when this run did not fund a review, or
 the review loop failed and the drafted overview published unchanged.
 """
@@ -188,7 +237,7 @@ async def _interim_overview_result(
     ``research_overview`` stays untouched so the live UI and the
     finished report keep reading the terminal firing's own output.
     """
-    prompt, schema = _build_interim_synthesis_prompt(
+    prompt, schema = build_interim_synthesis_prompt(
         state, summary, evidence_corpus
     )
     response = await _call_research_overview_llm(
@@ -287,7 +336,7 @@ async def _synthesize_research_overview(
         "overview" and "nih_specific_aims" default to empty so consumers
         always see a well-formed research_overview shape.
     """
-    prompt, schema = _build_synthesis_prompt(
+    prompt, schema = build_synthesis_prompt(
         state, summary, contact_candidates, evidence_corpus
     )
     response = await _call_research_overview_llm(state, prompt, schema)

@@ -4,6 +4,10 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Optional
 
+from co_scientist.agents.generation.expansion_research import (
+    EXPANSION_EXTRA_DRAFT_ITERATIONS,
+    is_research_expansion,
+)
 from co_scientist.agents.generation.literature_tools.draft_prompt import (
     _gather_draft_state_context as _gather_draft_state_context,
 )
@@ -14,12 +18,8 @@ from co_scientist.agents.generation.literature_tools.draft_skills import (
     DraftSkills,
     attach_skills,
 )
-from co_scientist.agents.generation.literature_tools.draft_tools import (
+from co_scientist.agents.generation.literature_tools.draft_skills import (
     _setup_tool_provider as _setup_tool_provider,
-)
-from co_scientist.agents.generation.research_expansion import (
-    EXPANSION_EXTRA_DRAFT_ITERATIONS,
-    is_research_expansion,
 )
 from co_scientist.constants import (
     DEEP_HYPOTHESIS_MAX_TOKENS,

@@ -9,7 +9,7 @@ import {
   REPORT_DOCUMENT_CLASSES,
   REPORT_H2_CLASSES,
 } from './run_detail_document';
-import {runFailureGuidance} from './run_failure_guidance';
+import {runFailureGuidance} from './run_detail_data';
 
 // Icon and label shown per tab in the nav bar (keyed by TabName so a missing
 // entry is a compile error, not a silent blank tab). `short` is the label

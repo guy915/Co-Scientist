@@ -116,7 +116,7 @@ async def test_probe_retrieval_opts_out_of_the_relevance_pass(
         return {}, {}
 
     monkeypatch.setattr(
-        "co_scientist.evidence.collection.collect_papers",
+        "co_scientist.evidence.search.collect_papers",
         _collect,
     )
     monkeypatch.setattr(

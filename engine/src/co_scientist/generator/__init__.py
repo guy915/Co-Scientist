@@ -5,6 +5,8 @@ from co_scientist.generator.graph import CompiledWorkflow as CompiledWorkflow
 from co_scientist.generator.initial_state import (
     RunCallbacks as RunCallbacks,
 )
-from co_scientist.generator.options import GeneratorOptions as GeneratorOptions
+from co_scientist.generator.run_setup import (
+    GeneratorOptions as GeneratorOptions,
+)
 
 __all__ = ["HypothesisGenerator"]

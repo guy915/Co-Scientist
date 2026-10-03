@@ -33,7 +33,7 @@ async def test_probe_search_preserves_sources_and_excludes_retractions(
         return records, {}
 
     monkeypatch.setattr(
-        "co_scientist.evidence.collection.collect_papers",
+        "co_scientist.evidence.search.collect_papers",
         collect,
     )
     monkeypatch.setattr(

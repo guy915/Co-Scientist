@@ -31,7 +31,7 @@ from co_scientist.models import Hypothesis, has_peer_review
 # Enrichment key recording that this hypothesis has already had its one
 # budget-overriding review attempt issued. Rides in ``enrichments``, which
 # is checkpointed with the hypothesis -- the same shape as
-# ``review_recheck.RECHECK_MARKER`` / ``verification_freshness.
+# ``review_recheck.RECHECK_MARKER`` / ``verification.
 # VERIFICATION_MARKER`` -- so a resumed run does not re-open an override
 # that already fired.
 OWED_REVIEW_MARKER = "owed_review_issued"

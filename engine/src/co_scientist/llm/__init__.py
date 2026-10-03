@@ -50,10 +50,8 @@ if TYPE_CHECKING:
     from co_scientist.llm.admission.call_budget import (
         current_run_call_count,
         release_run_call_budget,
-        scoped_llm_call_budget,
-    )
-    from co_scientist.llm.admission.completion_budget import (
         scoped_completion_budget,
+        scoped_llm_call_budget,
     )
     from co_scientist.llm.admission.credentials import (
         current_api_key,
@@ -64,10 +62,10 @@ if TYPE_CHECKING:
         enforce_free_request,
         scoped_campaign_mode,
     )
-    from co_scientist.llm.attempts.backoff import (
+    from co_scientist.llm.attempts.retry import (
         provider_outage_backoff_seconds,
+        rate_limited_attempt_count,
     )
-    from co_scientist.llm.attempts.retry import rate_limited_attempt_count
     from co_scientist.llm.call import call_llm, call_llm_json
     from co_scientist.llm.profile import ModelProfile, model_profile
     from co_scientist.llm.request.gateway_body import (
@@ -138,7 +136,7 @@ __all__ = [
 _EXPORTS: dict[str, str] = {
     "effective_max_tokens": "co_scientist.llm.request.thinking",
     "complete_request": "co_scientist.llm.request.transport",
-    "scoped_completion_budget": "co_scientist.llm.admission.completion_budget",
+    "scoped_completion_budget": "co_scientist.llm.admission.call_budget",
     "DEFAULT_TOOL_LOOP_TOKEN_BUDGET": "co_scientist.llm.tools.policy",
     "CompletionSpec": "co_scientist.llm.values",
     "LLMCallOptions": "co_scientist.llm.values",
@@ -158,7 +156,7 @@ _EXPORTS: dict[str, str] = {
     "model_profile": "co_scientist.llm.profile",
     "model_reasons": "co_scientist.llm.request.thinking",
     "parse_tool_loop_json": "co_scientist.llm.structured.validate",
-    "provider_outage_backoff_seconds": "co_scientist.llm.attempts.backoff",
+    "provider_outage_backoff_seconds": "co_scientist.llm.attempts.retry",
     "rate_limited_attempt_count": "co_scientist.llm.attempts.retry",
     "reasoning_effort_args": "co_scientist.llm.request.thinking",
     "record_call": "co_scientist.llm.telemetry",

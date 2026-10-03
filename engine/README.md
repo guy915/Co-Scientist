@@ -90,7 +90,7 @@ async for node_name, state in generator.generate_hypotheses(
 | `max_iterations` | `int` | `1` | Refinement iterations after initial generation |
 | `initial_hypotheses_count` | `int` | `5` | Number of hypotheses to generate initially |
 | `evolution_max_count` | `int` | `3` | Top-k hypotheses to evolve each iteration |
-| `options` | `GeneratorOptions \| None` | `None` | Everything below; see `generator/options.py` |
+| `options` | `GeneratorOptions \| None` | `None` | Everything below; see `generator/run_setup.py` |
 
 Every knob beyond the four run-size arguments lives on `GeneratorOptions`, passed as `options=`:
 

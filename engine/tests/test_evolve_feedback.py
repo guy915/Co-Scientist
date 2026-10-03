@@ -1,4 +1,4 @@
-"""Tests for ``co_scientist.agents.evolution.evolve_feedback``.
+"""Tests for ``co_scientist.agents.evolution.evolve_context``.
 
 Covers ``_specialist_feedback_for``, the per-hypothesis evidence ledger
 (debate slices, tournament outcomes, proximity neighbors, and deep-
@@ -7,7 +7,7 @@ verification notes) threaded into each evolution prompt.
 
 import json
 
-from co_scientist.agents.evolution.evolve_feedback import (
+from co_scientist.agents.evolution.evolve_context import (
     _specialist_feedback_for,
 )
 from co_scientist.models import Hypothesis

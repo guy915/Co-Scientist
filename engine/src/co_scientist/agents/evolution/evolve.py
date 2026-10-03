@@ -6,13 +6,12 @@ import random
 from collections.abc import Coroutine
 from typing import Any
 
-from co_scientist.agents.evolution.context import (
-    EvolutionContext,
-    build_evolution_context,
-)
 from co_scientist.agents.evolution.evolution_operators import (
     EvolutionOperator,
     select_operators,
+)
+from co_scientist.agents.evolution.evolve_context import (
+    _specialist_feedback_for as _specialist_feedback_for,
 )
 from co_scientist.agents.evolution.evolve_context import (
     combination_partners as combination_partners,
@@ -25,9 +24,6 @@ from co_scientist.agents.evolution.evolve_context import (
 )
 from co_scientist.agents.evolution.evolve_context import (
     token_coverage as token_coverage,
-)
-from co_scientist.agents.evolution.evolve_feedback import (
-    _specialist_feedback_for as _specialist_feedback_for,
 )
 from co_scientist.agents.evolution.evolve_grounding import (
     enhancement_grounding_block,
@@ -53,6 +49,10 @@ from co_scientist.agents.evolution.evolve_round import (
 )
 from co_scientist.agents.evolution.evolve_round import (
     _prepare_evolution_round as _prepare_evolution_round,
+)
+from co_scientist.agents.evolution.operations import (
+    EvolutionContext,
+    build_evolution_context,
 )
 from co_scientist.constants import (
     EVOLVE_MAX_TOKENS_CAP,

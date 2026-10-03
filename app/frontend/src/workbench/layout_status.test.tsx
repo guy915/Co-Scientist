@@ -5,7 +5,10 @@ import {SystemStatusIndicator, buildSystemStatusChip} from './layout_status';
 
 const apiMock = vi.hoisted(() => ({getSystemStatus: vi.fn()}));
 
-vi.mock('@/api/system', () => apiMock);
+vi.mock('@/api/system', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/api/system')>()),
+  ...apiMock,
+}));
 
 function statusFixture(overrides: Partial<SystemStatus> = {}): SystemStatus {
   return {

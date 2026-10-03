@@ -34,9 +34,11 @@ function setConnection(connection: typeof streamMock.state.connection) {
 }
 
 // Render tests observe event refreshes immediately; data-hook tests cover timing.
-vi.mock('@/workbench/hooks/use_reset_timer', () => {
+vi.mock('@/workbench/hooks/timers', async importOriginal => {
+  const actual =
+    await importOriginal<typeof import('@/workbench/hooks/timers')>();
   const timer = {schedule: (run: () => void) => run(), cancel: () => {}};
-  return {useResetTimer: () => timer};
+  return {...actual, useResetTimer: () => timer};
 });
 
 vi.mock('@/api/runs', async importActual => {

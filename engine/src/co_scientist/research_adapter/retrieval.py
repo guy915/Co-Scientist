@@ -29,11 +29,9 @@ from typing import Any
 from co_scientist.config.registry import ToolRegistry
 from co_scientist.config.workflow_schema import WorkflowConfig
 from co_scientist.constants import corpus_slug
-from co_scientist.evidence.errors import (
-    describe_exception,
-)
 from co_scientist.evidence.retrieval_support import (
     build_content_config,
+    describe_exception,
     parse_content_result,
 )
 from co_scientist.evidence.search_query import (
@@ -48,6 +46,77 @@ from co_scientist.evidence.search_support import (
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.mcp_client.campaign import campaign_serves_tool
 from co_scientist.research import RetrievalError, SourceHit
+
+
+class ResearchRetrieval:
+    """Route search and read to the run's MCP retrieval.
+
+    Attributes:
+        sources: Every source this run may search, in workflow order.
+            This is what a caller hands to a budget.
+    """
+
+    def __init__(self, remote: McpRetrieval | None = None) -> None:
+        """Bind the run's MCP retrieval, when it has one.
+
+        Args:
+            remote: Search over the run's MCP tools, when reachable.
+        """
+        self._remote = remote
+        self.sources: tuple[str, ...] = (
+            remote.sources if remote is not None else ()
+        )
+
+    async def search(
+        self, *, query: str, source: str, limit: int
+    ) -> Sequence[SourceHit]:
+        """Search one source through the MCP port.
+
+        Args:
+            query: The query to issue.
+            source: Which source to search.
+            limit: Most results wanted.
+
+        Returns:
+            Hits in that source's own ordering.
+
+        Raises:
+            RetrievalError: No MCP retrieval is available, or the call
+                failed. The loop records either as a failed call and
+                carries on with the remaining sources.
+        """
+        if self._remote is None:
+            raise RetrievalError(source, "no search server available")
+        return await self._remote.search(
+            query=query, source=source, limit=limit
+        )
+
+    async def read(self, *, locator: str) -> str | None:
+        """Read a document through the MCP port.
+
+        Args:
+            locator: Identifier from a hit this composite returned.
+
+        Returns:
+            The text, or None when it cannot be had.
+        """
+        if self._remote is None:
+            return None
+        return await self._remote.read(locator=locator)
+
+    def record(self, locator: str) -> dict[str, Any] | None:
+        """Return the search record behind a locator, if this saw it.
+
+        Args:
+            locator: Identifier from a hit this composite returned.
+
+        Returns:
+            The record, or None for a locator this composite never saw.
+        """
+        if self._remote is None:
+            return None
+        return self._remote.record(locator)
+
 
 logger = logging.getLogger(__name__)
 

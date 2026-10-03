@@ -9,11 +9,11 @@ back to an article's fulltext when its abstract was empty, and the
 per-source truncation had grown three different values.
 """
 
-from co_scientist.agents.reflection import deep_verification as dv
 from co_scientist.agents.reflection import (
-    deep_verification_evidence,
-    review_prompt_context,
+    comprehensive_reflection as review_prompt_context,
 )
+from co_scientist.agents.reflection import deep_verification as dv
+from co_scientist.agents.reflection import deep_verification_evidence
 from tests._state import make_article, make_state
 
 

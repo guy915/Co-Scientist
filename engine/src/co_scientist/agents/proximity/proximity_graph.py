@@ -1,63 +1,4 @@
-"""Weighted proximity graph construction.
-
-The Proximity agent computes a graph over hypotheses (accounting for the
-research goal) so similar ideas can be clustered, deduplicated, and — via the
-tournament matchmaker — compared preferentially (SSR §4). The agent builds
-a *persisted weighted graph* rather than cluster labels alone: edges carry a
-similarity score, the method/model/version that produced them, the goal
-context, and an update time.
-
-Local algorithm (fidelity-audit H2, documented local choice)
-============================================================
-
-The paper's similarity step says "e.g. text embeddings" without specifying a
-method, so the similarity metric is a permitted local choice. This
-deployment's first-class algorithm is ``llm-cluster`` version 1:
-
-1. An LLM judges pairwise similarity qualitatively, emitting clusters whose
-   members carry a ``similarity_degree`` of ``high`` / ``medium`` / ``low``
-   (``PROXIMITY_SCHEMA``).
-2. :func:`build_proximity_graph` turns each cluster into pairwise edges,
-   mapping the qualitative degree to a fixed numeric weight via
-   ``_DEGREE_WEIGHT`` (high 1.0, medium 0.6, low 0.3) and keeping the
-   strongest weight per unordered pair.
-
-3. Every *other* surviving pair is measured deterministically by
-   ``proximity_similarity.pair_similarity`` -- the symmetric token-coverage
-   metric the evolution duplicate guard already uses -- so the listing's
-   ``FOR EACH pair of hypotheses`` reaches across the whole pool rather
-   than stopping at a cluster boundary. Zero extra LLM calls.
-
-Three properties of that third step are load-bearing.
-
-**A judged edge always wins.** The clustering pass is the first-class
-algorithm; the computed value only fills in the pairs it left unjudged, and
-is never merged with, averaged into, or allowed to overwrite a judgement.
-
-**Every edge names the method that produced it** (``method``:
-``PROXIMITY_METHOD`` or ``PROXIMITY_COMPUTED_METHOD``), because the two
-kinds now share one ``edges`` list and a reader that needs a *judgement*
-must be able to say so. ``is_judged_edge`` is that predicate, and it reads a
-missing ``method`` as judged: a graph checkpointed before computed edges
-existed carries only clustering edges under that key.
-
-**Only pairs at or above ``PROXIMITY_EDGE_FLOOR`` are stored.** Every pair
-is measured; a pair the measurement finds unrelated carries no information
-its absence does not already carry, and the graph rides both the run's
-SQLite checkpoint and a persisted row per edge. See the constant for the
-arithmetic.
-
-Given a fixed clustering output and pool the graph is fully deterministic:
-the same input yields the same edges, weights, and provenance metadata.
-Every
-persisted graph records its provenance — ``method``, ``version``, ``model``,
-goal, and update time — so a reader can always tell which algorithm and
-model produced it, and a future metric (embeddings included) can be
-introduced as a new method/version without silently re-labeling old edges.
-
-:func:`build_proximity_graph` is a pure function of the clustering output, so
-the edge set, weights, and determinism are testable without an LLM.
-"""
+"""Construct the proximity graph from judged and deterministic similarities."""
 
 from __future__ import annotations
 
@@ -66,9 +7,64 @@ import itertools
 from collections.abc import Mapping
 from typing import Any
 
-from co_scientist.agents.proximity.proximity_similarity import (
-    pair_similarity,
-)
+# Similarity is rounded to this many decimals before anything sees it, so the
+# admission decision (``PROXIMITY_EDGE_FLOOR``) and the persisted number are
+# the same number, and so an edge's JSON is a bounded ~5 characters rather
+# than a full float repr on every one of a large pool's pairs.
+_SIMILARITY_DECIMALS = 3
+
+
+def _tokens(text: str) -> set[str]:
+    """Return the lowercased word-token set of a text."""
+    return set(text.lower().split())
+
+
+def token_coverage(text: str, reference: str) -> float:
+    """Fraction of ``text``'s unique tokens that also appear in ``reference``.
+
+    Coverage, not Jaccard: a union denominator is dominated by the longer
+    side, so a short text perfectly contained in a long one still scores
+    near ``len(text) / len(reference)`` -- which is how both duplicate bands
+    became unreachable and every real refinement read as distinct. Dividing
+    by the derived text's own tokens measures how much of it the peer
+    already says, whatever the peer's length.
+
+    Args:
+        text: The derived text whose coverage is measured (the refinement).
+        reference: The peer text checked for containing it.
+
+    Returns:
+        Coverage score between 0 and 1; 0.0 for an empty ``text``.
+    """
+    words = _tokens(text)
+    if not words:
+        return 0.0
+    return len(words & _tokens(reference)) / len(words)
+
+
+def pair_similarity(text_a: str, text_b: str) -> float:
+    """Symmetric similarity of two hypothesis texts, in [0, 1].
+
+    The harmonic mean of the two directional ``token_coverage`` readings
+    (equivalently the Dice coefficient); see the module docstring for why
+    that symmetric form and not the minimum, the maximum, or Jaccard.
+    Verbatim-identical texts score 1.0 and texts sharing no vocabulary
+    score 0.0, whatever their lengths.
+
+    Args:
+        text_a: One hypothesis's text.
+        text_b: The other hypothesis's text.
+
+    Returns:
+        Rounded similarity in [0, 1]; 0.0 when either text has no tokens.
+    """
+    coverage_a = token_coverage(text_a, text_b)
+    coverage_b = token_coverage(text_b, text_a)
+    total = coverage_a + coverage_b
+    if total == 0.0:
+        return 0.0
+    return round(2 * coverage_a * coverage_b / total, _SIMILARITY_DECIMALS)
+
 
 # The documented local algorithm's fixed degree->weight mapping (see the
 # module docstring): the LLM judges similarity qualitatively, and these
@@ -82,12 +78,15 @@ _DEGREE_WEIGHT: dict[str, float] = {
     "low": 0.3,
 }
 
+
 # Identifies how these edges were produced, versioned so a persisted graph
 # records its provenance and can be recomputed/migrated later. A future
 # similarity metric registers as a new method/version rather than redefining
 # what "llm-cluster" version 1 means.
 PROXIMITY_METHOD = "llm-cluster"
+
 PROXIMITY_METHOD_VERSION = "1"
+
 
 # Identifies an edge this module measured rather than the model judging it.
 # Both kinds share the ``edges`` list, so each edge names its own method and
@@ -95,7 +94,9 @@ PROXIMITY_METHOD_VERSION = "1"
 # label is its own word for the same reason: it can never be read as one of
 # the qualitative bands ``_DEGREE_WEIGHT`` maps.
 PROXIMITY_COMPUTED_METHOD = "token-dice"
+
 PROXIMITY_COMPUTED_DEGREE = "computed"
+
 
 # Similarity a measured pair must reach to be stored. Every pair is measured;
 # this decides which measurements are worth a row.
@@ -117,6 +118,7 @@ PROXIMITY_COMPUTED_DEGREE = "computed"
 # is the pool where every one of those edges is a real near-duplicate
 # finding.
 PROXIMITY_EDGE_FLOOR = 0.25
+
 
 # A cluster member names its hypothesis by the positional index the prompt
 # assigned (PROXIMITY_SCHEMA), and only older responses echo the text back.

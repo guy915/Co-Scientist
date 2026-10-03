@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from co_scientist.config.content_params import resolve_content_params
+from co_scientist.config.tool_schema import resolve_content_params
 
 
 @pytest.mark.parametrize(

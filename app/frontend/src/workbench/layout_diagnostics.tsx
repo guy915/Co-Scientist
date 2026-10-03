@@ -2,7 +2,7 @@ import {useEffect, useMemo, useRef, useState} from 'react';
 import {deleteAppLogs} from '@/api/logs';
 import {copyText} from '@/lib/clipboard';
 import {joinClasses} from './classes';
-import {useResetTimer} from './hooks/use_reset_timer';
+import {useResetTimer} from './hooks/timers';
 import {DiagnosticChips} from './layout_diagnostics_chips';
 import {
   summarizeDiagnosticEntries,

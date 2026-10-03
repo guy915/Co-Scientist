@@ -70,7 +70,7 @@ def _apply_one_reflection_item(
     from co_scientist.agents.reflection.mature_reviews import (
         store_mature_review_result,
     )
-    from co_scientist.agents.reflection.observation_feedback import (
+    from co_scientist.agents.reflection.reflection import (
         apply_observation_result,
     )
     from co_scientist.agents.reflection.review_types import ReviewType

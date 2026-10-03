@@ -25,12 +25,10 @@ const apiMock = vi.hoisted(() => {
       listRuns().catch(() => []),
       listDemoRuns().catch(() => []),
     ]);
-    const {mergeByIdNewestFirst} = await import('@/lib/merge');
-    return mergeByIdNewestFirst(
-      [...owned, ...demo] as Run[],
-      run => run.id,
-      run => run.updated_at,
+    const byId = new Map(
+      ([...owned, ...demo] as Run[]).map(run => [run.id, run]),
     );
+    return [...byId.values()].sort((a, b) => b.updated_at - a.updated_at);
   });
   return {
     addInterviewTurn: vi.fn(),

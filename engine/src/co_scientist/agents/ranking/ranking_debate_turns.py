@@ -1,4 +1,4 @@
-"""Parse winners and accumulate debate turns toward a consensus."""
+"""Ranking prompt assembly, debate turns, and verdict normalization."""
 
 import dataclasses
 import hashlib
@@ -6,14 +6,103 @@ import logging
 import re
 from typing import Any, Final, NamedTuple
 
-from co_scientist.agents.ranking.ranking_prompt import (
-    _build_matchup_prompt,
-    _MatchupPromptContext,
+from co_scientist.agents.reflection.mature_reviews import (
+    mature_review_summary,
 )
 from co_scientist.llm import record_deterministic_fallback
 from co_scientist.models import Hypothesis
+from co_scientist.prompts import (
+    PromptRunContext,
+    RankingSide,
+    get_ranking_prompt,
+)
 
 logger = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass(frozen=True)
+class _MatchupPromptContext:
+    """Run-level context shared by every ranking-matchup prompt.
+
+    These are set earlier in the workflow and threaded unchanged into each
+    pairing, independent of which two hypotheses are being compared.
+    """
+
+    research_goal: str
+    supervisor_guidance: dict[str, Any] | None = None
+    meta_review: dict[str, Any] | None = None
+    tool_registry: Any | None = None
+    run_setup_guidance: str | None = None
+    run_focus_guidance: str | None = None
+    criteria: list[str] | None = None
+    preferences: str | None = None
+    # Which published prompt this matchup renders: ranking-05's
+    # simulated scientific debate for a top-ranked multi-turn matchup,
+    # ranking-04's single-shot comparison otherwise.
+    debate: bool = False
+
+
+def _review_summary(hypothesis: Hypothesis) -> dict[str, Any] | None:
+    """Extracts the latest review's scores for a matchup prompt.
+
+    Narrower than Hypothesis.review_summary(): the judge only needs the
+    numeric scores, and this is the run's highest-volume call (O(n^2) per
+    cycle), so the narrative fields are dropped to keep each prompt terse.
+
+    Args:
+        hypothesis: Hypothesis to summarize
+
+    Returns:
+        Review summary dict, or None if the hypothesis has no reviews
+    """
+    summary = hypothesis.review_summary()
+    if summary is None:
+        return None
+    return {
+        "scores": summary["scores"],
+        "overall_score": summary["overall_score"],
+    }
+
+
+def _ranking_side(hypothesis: Hypothesis) -> RankingSide:
+    """Project one idea's review and evidence into the judge's input."""
+    return RankingSide(
+        text=hypothesis.text,
+        review=_review_summary(hypothesis),
+        reflection_notes=hypothesis.reflection_notes,
+        deep_verification=hypothesis.deep_verification_summary(),
+        mature_reviews=mature_review_summary(hypothesis.enrichments),
+    )
+
+
+def _build_matchup_prompt(
+    hypothesis_a: Hypothesis,
+    hypothesis_b: Hypothesis,
+    context: _MatchupPromptContext,
+) -> tuple[str, dict[str, Any] | None, str | None, str | None]:
+    """Render the comparison prompt with each idea's actual review evidence."""
+    prompt, schema = get_ranking_prompt(
+        research_goal=context.research_goal,
+        side_a=_ranking_side(hypothesis_a),
+        side_b=_ranking_side(hypothesis_b),
+        context=PromptRunContext(
+            supervisor_guidance=context.supervisor_guidance,
+            meta_review=context.meta_review,
+            tool_registry=context.tool_registry,
+            run_setup_guidance=context.run_setup_guidance,
+            run_focus_guidance=context.run_focus_guidance,
+            preferences=context.preferences,
+            criteria=context.criteria,
+        ),
+        debate=context.debate,
+    )
+    return (
+        prompt,
+        schema,
+        hypothesis_a.reflection_notes,
+        hypothesis_b.reflection_notes,
+    )
+
 
 # The paper's tournament-debate turn envelope (SSR note 9.3): the panel
 # discussion "typically rang[es] from 3 to 5, with a maximum of 10" and
@@ -26,12 +115,17 @@ logger = logging.getLogger(__name__)
 # tournament (Elo, match budgets, wave width); this envelope belongs to
 # the debate itself.
 _RANKING_DEBATE_TYPICAL_MIN_TURNS: Final = 3
+
 """Turns a top-ranked debate is guaranteed before consensus is honoured."""
 
+
 _RANKING_DEBATE_TYPICAL_MAX_TURNS: Final = 5
+
 """Upper end of the paper's typical settlement range for a debate."""
 
+
 _RANKING_DEBATE_MAX_TURNS: Final = 10
+
 """Hard ceiling on judged turns for one multi-turn matchup."""
 
 

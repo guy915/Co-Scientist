@@ -187,7 +187,7 @@ draft).** *Confidence: high.*
 - **Our impl:** `reference_surface.css:5` `--cosci-teal:#1a6b6b` (light) / `:8,:40`
   `--cosci-green:#7fd7bf` (dark); `:26,:28` step-dot + logo = teal (light);
   `:48,:50` = green (dark); `home_surface.css:81–91` `.reference-step-number`
-  consumes `--cosci-step-dot-bg`; `lib/theme.ts:7` MD3 seed `#1A6B6B`. Applied
+  consumes `--cosci-step-dot-bg`; `workbench/theme_context.tsx:7` MD3 seed `#1A6B6B`. Applied
   cleanly across light and dark.
 - **Verifier note — factual correction folded in:** the finding's *rationale*
   originally said the footage accent is "purple". **That is wrong.** The

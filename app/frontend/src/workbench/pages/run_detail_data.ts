@@ -1,15 +1,18 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {runGoal, type RunWithSummary} from '@/api/runs';
+import {
+  runGoal,
+  type RunWithSummary,
+  getSupervisorPlan,
+  type SupervisorPlanResponse,
+} from '@/api/runs';
 import {type StreamConnectionState, useRunStream} from '@/hooks/use_run_stream';
 import {HEADER_TITLE_EVENT} from '../dom_events';
-import {runFailureGuidance} from './run_failure_guidance';
 import {
   useRunDetailCollections,
   dataKeysFromEvents,
   hasSupervisorPlanEvent,
   type RunDataKey,
 } from './run_detail_collections';
-import {useRunSupervisorPlan} from './run_detail_supervisor_plan_data';
 
 /**
  * The fetched run row plus the live transport state of its event stream.
@@ -169,4 +172,100 @@ export function useRunDetailData(id: string | undefined) {
     refreshSupervisorPlan: supervisorPlan.refresh,
     events,
   };
+}
+
+export interface SupervisorPlanLoadState {
+  response: SupervisorPlanResponse | null;
+  loading: boolean;
+  error: string | null;
+}
+
+type RunTaggedPlanState = SupervisorPlanLoadState & {
+  runId: string | undefined;
+};
+
+function isCurrentRequest(
+  shownId: string | undefined,
+  currentRequest: number,
+  id: string,
+  request: number,
+): boolean {
+  return shownId === id && currentRequest === request;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** Fetches the optional allocation ledger outside the run-detail load path. */
+function useRunSupervisorPlan(id: string | undefined) {
+  const [state, setState] = useState<RunTaggedPlanState>({
+    runId: id,
+    response: null,
+    loading: Boolean(id),
+    error: null,
+  });
+  const shownId = useRef(id);
+  const requestId = useRef(0);
+
+  const refresh = useCallback(async () => {
+    if (!id) return;
+    const request = ++requestId.current;
+    setState(current => ({...current, loading: true, error: null}));
+    try {
+      const response = await getSupervisorPlan(id);
+      if (!isCurrentRequest(shownId.current, requestId.current, id, request))
+        return;
+      setState({runId: id, response, loading: false, error: null});
+    } catch (error) {
+      if (!isCurrentRequest(shownId.current, requestId.current, id, request))
+        return;
+      setState(current => ({
+        ...current,
+        loading: false,
+        error: errorMessage(error),
+      }));
+    }
+  }, [id]);
+
+  useEffect(() => {
+    shownId.current = id;
+    requestId.current += 1;
+    setState({runId: id, response: null, loading: Boolean(id), error: null});
+    void refresh();
+  }, [id, refresh]);
+
+  const currentState: SupervisorPlanLoadState =
+    state.runId === id
+      ? state
+      : {response: null, loading: Boolean(id), error: null};
+  return {state: currentState, refresh};
+}
+
+/** User-facing next step for terminal failures with an exact known cause. */
+export function runFailureGuidance(
+  failureKind: string | null | undefined,
+): {message: string; toast: string} | null {
+  switch (failureKind) {
+    case 'llm_call_budget_exceeded':
+      return {
+        message:
+          'The run reached its configured model-call limit before it completed. Start a new run with a narrower research goal.',
+        toast: 'Run failed. See the suggested next step below.',
+      };
+    case 'llm_timeout':
+      return {
+        message:
+          'The model provider did not respond within the request timeout. Try the research again later.',
+        toast: 'Run failed. See the suggested next step below.',
+      };
+    case 'llm_timeout_unknown':
+      return {
+        message:
+          'The provider may have accepted the request; acceptance and any charge are unconfirmed. The run was not retried automatically. Restarting or resuming may repeat provider work.',
+        toast: 'Run failed. See the suggested next step below.',
+      };
+    default:
+      return null;
+  }
 }

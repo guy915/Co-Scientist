@@ -12,13 +12,13 @@ import pytest
 from co_scientist.constants.pricing import MODEL_PRICING
 from co_scientist.llm import ModelProfile, model_profile
 from co_scientist.llm.profile import (
+    FAMILIES,
     ModelPrice,
     Thinking,
     gateway_routes,
     priced_routes,
     promotional_free_route,
 )
-from co_scientist.llm.profile.families import FAMILIES
 from co_scientist.llm.profile.routes import ROUTES
 from co_scientist.llm.profile.types import Facts
 

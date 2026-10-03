@@ -1,6 +1,5 @@
 import {getStoredApiKey, getStoredApiProvider} from '@/lib/api_key';
-import {getAccessToken, getClientId} from '@/lib/client_id';
-import {makePrefixedId} from '@/lib/id';
+import {getAccessToken, getClientId, makePrefixedId} from '@/lib/client_id';
 
 const STORAGE_PREFIX = 'co_scientist_pending_run_create:';
 

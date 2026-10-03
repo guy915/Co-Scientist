@@ -1,16 +1,59 @@
-"""The tool-role message shape both tool providers answer with.
+"""Tool-role responses and decoding of raw MCP result payloads.
 
-One module rather than a helper per provider, because the shape is a
-contract with the provider API -- a tool result must carry the
-``tool_call_id`` it answers, and a turn that requested a tool call and
-never got a matching result is rejected by the provider rather than
-degraded. A local tool that raised where an MCP tool would have returned
-an error message would therefore break the conversation, not just the
-call, so both paths answer in the same shape.
+Successful and failed tool messages always carry the tool_call_id they
+answer so the provider can match each requested call to its result.
 """
 
 import json
 from typing import Any
+
+# Enough of an undecodable payload to recognize what returned it (an HTML
+# error page, a throttling notice, a stack trace) without pasting a whole
+# response body into the log.
+_PAYLOAD_EXCERPT_CHARS = 200
+
+
+def parse_mcp_result(result: Any) -> Any:
+    """Decodes a raw MCP tool result that may arrive as a JSON string.
+
+    MCP tools return either already-decoded Python data or a JSON-encoded
+    string depending on transport. This is the canonical decode step; callers
+    keep their own handling of malformed JSON.
+
+    A decode failure quotes the start of the offending payload. The bare
+    message ("Expecting value: line 1 column 1 (char 0)") says only that the
+    body was not JSON, which is the one thing already known -- it cannot
+    distinguish an upstream HTML status page from a throttling notice from
+    an empty body, and those call for different fixes.
+
+    Args:
+        result: Raw MCP tool result.
+
+    Returns:
+        The decoded object for JSON strings, otherwise the value unchanged.
+
+    Raises:
+        json.JSONDecodeError: If result is a string that is not valid JSON.
+    """
+    if isinstance(result, str):
+        try:
+            return json.loads(result)
+        except json.JSONDecodeError as exc:
+            raise json.JSONDecodeError(
+                f"{exc.msg} (payload: {_payload_excerpt(result)})",
+                exc.doc,
+                exc.pos,
+            ) from exc
+    return result
+
+
+def _payload_excerpt(payload: str) -> str:
+    """Quote the head of an undecodable payload for a diagnostic message."""
+    head = " ".join(payload.split())[:_PAYLOAD_EXCERPT_CHARS]
+    if not head:
+        return "empty"
+    suffix = "..." if len(head) < len(payload.strip()) else ""
+    return f"{head!r}{suffix}"
 
 
 def tool_result_message(

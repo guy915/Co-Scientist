@@ -178,7 +178,7 @@ def test_optional_field_hints_keys_are_real_schema_names() -> None:
     ``schemas.registry._PROMPT_SCHEMA_MAP`` is keyed by -- so this checks
     against every schema's own name instead.
     """
-    from co_scientist.schemas.registry import _PROMPT_SCHEMA_MAP
+    from co_scientist.schemas import _PROMPT_SCHEMA_MAP
 
     known_names = {schema.get("name") for schema in _PROMPT_SCHEMA_MAP.values()}
     assert set(offline_llm._OPTIONAL_FIELD_HINTS) <= known_names

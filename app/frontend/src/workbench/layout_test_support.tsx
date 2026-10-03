@@ -29,12 +29,10 @@ const apiMock = vi.hoisted(() => {
       listRuns().catch(() => []),
       listDemoRuns().catch(() => []),
     ]);
-    const {mergeByIdNewestFirst} = await import('@/lib/merge');
-    return mergeByIdNewestFirst(
-      [...owned, ...demo] as Run[],
-      run => run.id,
-      run => run.updated_at,
+    const byId = new Map(
+      ([...owned, ...demo] as Run[]).map(run => [run.id, run]),
     );
+    return [...byId.values()].sort((a, b) => b.updated_at - a.updated_at);
   });
   return {
     listDemoRuns,
@@ -61,7 +59,10 @@ vi.mock('@/api/runs', async importOriginal => ({
   ...apiMock,
 }));
 
-vi.mock('@/api/system', () => systemApiMock);
+vi.mock('@/api/system', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/api/system')>()),
+  ...systemApiMock,
+}));
 
 // Spread the real module so constants (APP_LOGS_CHANGED_EVENT) stay real
 // while the network calls are faked.

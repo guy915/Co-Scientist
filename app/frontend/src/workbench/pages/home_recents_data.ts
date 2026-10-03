@@ -1,6 +1,5 @@
 import {isActiveStatus, isCompletedStatus, type Run} from '@/api/runs';
-import {formatDurationPhrase} from '@/lib/duration';
-import {capitalizeTerm} from '@/lib/text';
+import {formatDurationPhrase, capitalizeTerm} from '@/lib/text';
 
 const HOME_RUN_DATE_FMT = new Intl.DateTimeFormat(undefined, {
   month: 'short',

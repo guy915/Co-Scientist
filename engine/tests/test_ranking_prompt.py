@@ -6,8 +6,6 @@ from co_scientist.agents.ranking.ranking_debate_turns import (
     _RANKING_DEBATE_MAX_TURNS,
     _RANKING_DEBATE_TYPICAL_MAX_TURNS,
     _RANKING_DEBATE_TYPICAL_MIN_TURNS,
-)
-from co_scientist.agents.ranking.ranking_prompt import (
     _build_matchup_prompt,
     _MatchupPromptContext,
     _review_summary,

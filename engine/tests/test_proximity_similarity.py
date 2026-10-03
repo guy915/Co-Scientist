@@ -5,7 +5,7 @@ ends of its range, and the containment case that rules out the maximum of
 the two directional coverages.
 """
 
-from co_scientist.agents.proximity.proximity_similarity import (
+from co_scientist.agents.proximity.proximity_graph import (
     pair_similarity,
     token_coverage,
 )

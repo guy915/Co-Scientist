@@ -25,8 +25,8 @@ from co_scientist.generator.initial_state import (
     RunIdentity,
     _build_initial_state,
 )
-from co_scientist.generator.options import GeneratorOptions
 from co_scientist.generator.run_setup import (
+    GeneratorOptions,
     _build_tool_registry,
     _configure_cache_dir_env,
     _resolve_dev_isolation_flag,

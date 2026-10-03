@@ -11,8 +11,13 @@ that now means something else. No read-before-write bookkeeping is
 needed because the match *is* the staleness check.
 """
 
-from co_scientist.patch.apply import ApplyResult, apply_patch
-from co_scientist.patch.model import (
+from co_scientist.patch.apply import (
+    ApplyResult,
+    SeekResult,
+    apply_patch,
+    seek_anchor,
+)
+from co_scientist.patch.parse import (
     AddFile,
     DeleteFile,
     Hunk,
@@ -21,9 +26,8 @@ from co_scientist.patch.model import (
     PatchError,
     PatchLine,
     UpdateFile,
+    parse_patch,
 )
-from co_scientist.patch.parse import parse_patch
-from co_scientist.patch.seek import SeekResult, seek_anchor
 
 __all__ = [
     "AddFile",

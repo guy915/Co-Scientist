@@ -1,7 +1,7 @@
 import {useMemo, type ReactNode} from 'react';
 import type {StreamEvent} from '@/hooks/use_run_stream';
-import {formatDurationPhrase} from '@/lib/duration';
-import {useNowTick} from '@/workbench/hooks/use_now_tick';
+import {formatDurationPhrase} from '@/lib/text';
+import {useNowTick} from '@/workbench/hooks/timers';
 import {RunExecutionProgress} from './home_recents_run_steps';
 import {windowedActivityGroups} from './run_detail_activity';
 import {ActivityLog} from './run_detail_activity_log';

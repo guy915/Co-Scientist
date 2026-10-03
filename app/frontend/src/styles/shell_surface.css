@@ -678,11 +678,11 @@
   outline-offset: 0;
 }
 
-/* Provider chooser (settings_provider_select.tsx). Full panel width, matching
+/* Provider chooser (settings_model_select.tsx). Full panel width, matching
    the API key field directly under it: the two are one stacked pair, and a
    content-width trigger beside a full-width input read as a control that had
    failed to lay out. The menu is placed under the trigger by
-   useAnchoredMenu (settings_provider_select.tsx). */
+   useAnchoredMenu (settings_model_select.tsx). */
 .ucs-provider-select {
   position: relative;
   display: grid;

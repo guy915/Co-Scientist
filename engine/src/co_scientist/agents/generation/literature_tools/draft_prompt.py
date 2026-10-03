@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple, Optional
 from co_scientist.agents.generation.assumption_feedback import (
     build_falsified_assumptions_section,
 )
-from co_scientist.agents.generation.research_expansion import (
+from co_scientist.agents.generation.expansion_research import (
     build_expansion_section,
 )
 from co_scientist.constants import corpus_slug

@@ -1,28 +1,8 @@
-"""The per-idea review block: Reviews summary, All reviews, probes.
+"""Render review summaries, per-axis findings, critiques and deep verification.
 
-Every review a run performs was already generated, paid for and
-persisted, and the Goal Report printed none of it. Google's published
-per-hypothesis documents carry roughly 3,800 words of review per idea --
-an ``Appendix:``/``All reviews:`` block per axis, an eight-part
-``Reviews summary`` above it, and a deep-verification section below --
-against zero words on our side. Nothing here calls a model: the three
-renderers read the ``detail_json`` the drain already writes
-(``engine_adapter/drain/review_detail.py``).
-
-Homed apart from ``report.markdown.hypothesis`` because that module is
-the per-entry assembly point and was already near the size ceiling;
-``report.markdown.hypothesis`` imports its names.
-
-Two conventions this file keeps:
-
-* **Read the parts, never the columns.** Three of the eight axis scores
-  have columns on ``reviews`` and one of those holds another axis's value
-  (the ``plausibility`` column carries ``scientific_soundness``), so a
-  renderer mixing the two prints one axis's score under another's name.
-* **Omit rather than print an empty heading** (R14-23). Coverage is
-  uneven by design -- the mature cascade reaches only the top slice of
-  the pool (``research_adapter/budget.py::reviewed_hypothesis_limit``),
-  so on a small tier some ideas carry a full review and some do not.
+Read axis scores from persisted review parts, whose schema matches their
+labels. Related articles come from resolved evidence, never model-written
+citations. Empty review sections are omitted.
 """
 
 from __future__ import annotations
@@ -30,13 +10,115 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from app.report.markdown.review_axes import (
-    Reference,
-    feasibility_extras,
-    impact_extras,
-    related_article_abstracts,
-    related_article_titles,
-)
+from app.report.markdown.references import _reference_label
+
+# How many cited articles one axis lists. The published exemplars print
+# two to five; the cap is what keeps a heavily-cited idea from turning
+# one axis into a bibliography.
+_MAX_RELATED_ARTICLES = 6
+
+# One abstract's printed length. Google prints a one-to-two-sentence
+# relevance note rather than the abstract in full, and the rows here hold
+# whole abstracts, so they are cut to roughly that.
+_MAX_ABSTRACT_CHARS = 400
+
+Reference = tuple[str, dict[str, Any]]
+
+
+def _abstract_excerpt(source: dict[str, Any]) -> str:
+    """The article's abstract, flattened and cut to a published-length note."""
+    text = " ".join(str(source.get("abstract") or "").split())
+    if len(text) <= _MAX_ABSTRACT_CHARS:
+        return text
+    return text[:_MAX_ABSTRACT_CHARS].rstrip() + "..."
+
+
+def _related_articles(
+    references: list[Reference], with_abstracts: bool
+) -> list[str]:
+    """The published ``Related Article Abstracts`` list for one axis."""
+    entries = references[:_MAX_RELATED_ARTICLES]
+    if not entries:
+        return []
+    label = (
+        "**Related Article Abstracts**"
+        if with_abstracts
+        else "**Related Article Abstract Titles**"
+    )
+    lines = [label, ""]
+    for key, source in entries:
+        line = f"- **[{key}]** {_reference_label(source)}"
+        if with_abstracts and (excerpt := _abstract_excerpt(source)):
+            line += f": {excerpt}"
+        lines.append(line)
+    return [*lines, ""]
+
+
+def _prose(label: str, value: Any) -> list[str]:
+    """A labeled prose paragraph, or nothing when the field is empty."""
+    text = str(value or "").strip()
+    return [f"**{label}**", "", text, ""] if text else []
+
+
+def _steps(label: str, items: Any) -> list[str]:
+    """The published numbered ``Steps to Test the Idea`` list."""
+    entries = [
+        text
+        for item in (items if isinstance(items, list) else [])
+        if (text := str(item).strip())
+    ]
+    if not entries:
+        return []
+    numbered = [f"{n}. {text}" for n, text in enumerate(entries, start=1)]
+    return [f"**{label}**", "", *numbered, ""]
+
+
+def _feasibility_extras(
+    initial: dict[str, Any], mature: dict[str, Any]
+) -> list[str]:
+    """The published Feasibility axis's own two judged parts.
+
+    Steps to Test the Idea -> Reasoning about Feasibility. With the
+    related-article list its caller attaches, that is the leanest of the
+    four published axes (3 parts) and the shape 13 of the 19 files print.
+    """
+    del initial
+    return [
+        *_steps("Steps to Test the Idea", mature.get("feasibility_steps")),
+        *_prose(
+            "Reasoning about Feasibility", mature.get("feasibility_reasoning")
+        ),
+    ]
+
+
+def _impact_extras(
+    initial: dict[str, Any], mature: dict[str, Any]
+) -> list[str]:
+    """The published Impact potential axis's own closing assessment.
+
+    Google also reprints Detailed Assumptions and Suggested Improvements
+    under this axis; both are already printed once under Correctness from
+    the single field each has here, and printing the same paragraph twice
+    in one entry reads as a rendering fault rather than as fidelity.
+    """
+    del initial
+    return _prose("Overall Impact Potential", mature.get("impact_assessment"))
+
+
+def related_article_abstracts(references: list[Reference]) -> list[str]:
+    """Correctness's ``Related Article Abstracts``, abstracts included.
+
+    The one axis that prints them in full: it is the axis whose judgment
+    is *about* whether the evidence backs the hypothesis, so the abstract
+    is the thing being weighed rather than a pointer to it.
+    """
+    return _related_articles(references, with_abstracts=True)
+
+
+def related_article_titles(references: list[Reference]) -> list[str]:
+    """The leaner ``Related Article Abstract Titles`` list (5/19 files)."""
+    return _related_articles(references, with_abstracts=False)
+
 
 # R14-17: Google's published appendix names four axes, in this order.
 # This system scores eight; the four that map carry Google's own heading
@@ -73,15 +155,7 @@ _REVIEWS_SUMMARY_SECTIONS: tuple[tuple[str, str], ...] = (
 def _latest_detail(
     reviews: list[dict[str, Any]], reviewer_agent: str
 ) -> dict[str, Any]:
-    """Return the newest row's parsed ``detail_json`` for one agent, or ``{}``.
-
-    Newest, not first: ``store.list_reviews`` orders by creation time and
-    a hypothesis can be reviewed more than once (the recurrent review, a
-    re-review after evolution), so the last matching row is the current
-    assessment. Every failure mode -- no such row, a NULL column on a run
-    predating it, unparseable JSON, JSON that is not an object -- degrades
-    to the same empty result, which the callers render as no section.
-    """
+    """Return the newest parsed review detail for one agent, or ``{}``."""
     for row in reversed(reviews):
         if row.get("reviewer_agent") != reviewer_agent:
             continue
@@ -103,12 +177,6 @@ def _mature_detail(reviews: list[dict[str, Any]]) -> dict[str, Any]:
     return _latest_detail(reviews, "recurrent_review") or _latest_detail(
         reviews, "full_review"
     )
-
-
-def _prose(label: str, value: Any) -> list[str]:
-    """A labeled prose paragraph, or nothing when the field is empty."""
-    text = str(value or "").strip()
-    return [f"**{label}**", "", text, ""] if text else []
 
 
 def _bullets(label: str, items: Any) -> list[str]:
@@ -145,15 +213,7 @@ def _assumption_lines(mature: dict[str, Any]) -> list[str]:
 def _correctness_extras(
     initial: dict[str, Any], mature: dict[str, Any]
 ) -> list[str]:
-    """Everything the published Correctness axis carries beyond its prose.
-
-    R14-17's richest axis, in the order the published exemplars print
-    it: Detailed Assumptions -> Comparison with Knowledge Base ->
-    Reasoning about Correctness -> Strength of Evidence -> Suggested
-    Improvements -> Goal Requirement Assessment -> Final Reasoning and
-    Recommendation, under the Related Article Abstracts list
-    ``_axis_section`` attaches above them.
-    """
+    """Everything the published Correctness axis carries beyond its prose."""
     return [
         *_assumption_lines(mature),
         *_prose(
@@ -189,22 +249,6 @@ def _novelty_extras(
     ]
 
 
-def _feasibility_extras(
-    initial: dict[str, Any], mature: dict[str, Any]
-) -> list[str]:
-    """The published Feasibility axis's own two judged parts (R14-17)."""
-    del initial
-    return feasibility_extras(mature)
-
-
-def _impact_extras(
-    initial: dict[str, Any], mature: dict[str, Any]
-) -> list[str]:
-    """The published Impact potential axis's own closing assessment."""
-    del initial
-    return impact_extras(mature)
-
-
 # Extra content one axis carries beyond its own prose feedback. R14-17:
 # all four of Google's named axes carry their own sub-structure; the four
 # axes this system adds beyond that rubric are feedback plus their score,
@@ -221,7 +265,7 @@ _AXIS_EXTRAS = {
 # of the 19 published files use -- the same abstract repeated under all
 # four axes would quadruple the longest block in the entry and tell a
 # reader nothing new. Sourced from the hypothesis's own citations, never
-# from the model (see ``report.markdown.review_axes``).
+# from the model (see ``report.markdown.reviews``).
 _AXIS_ARTICLES = {
     "scientific_soundness": related_article_abstracts,
     "novelty": related_article_titles,
@@ -276,20 +320,7 @@ def _render_hypothesis_reviews(
     reviews: list[dict[str, Any]],
     references: list[Reference] | None = None,
 ) -> list[str]:
-    """Render one hypothesis's ``Appendix:`` / ``All reviews:`` block (F1).
-
-    Args:
-        reviews: Every persisted review row for this hypothesis.
-        references: This hypothesis's resolvable (citation key, evidence
-            row) pairs, used for the published per-axis Related Article
-            Abstracts lists. Defaults to none, which renders the block
-            exactly as it did before those lists existed.
-
-    Returns:
-        The rendered lines, or nothing at all when this hypothesis
-        carries no structured review detail -- the common case on a small
-        tier, where the cascade reaches only the leaders.
-    """
+    """Render one hypothesis's ``Appendix:`` / ``All reviews:`` block (F1)."""
     initial = _latest_detail(reviews, "review")
     mature = _mature_detail(reviews)
     cited = list(references or [])
@@ -315,18 +346,7 @@ def _reviews_summary_section(key: str, label: str, value: Any) -> list[str]:
 
 
 def _render_reviews_summary(reviews: list[dict[str, Any]]) -> list[str]:
-    """Render the published eight-part ``Reviews summary`` block (F6, R14-14).
-
-    Filled by the full review's own call -- the block is a field on
-    ``FULL_REVIEW_SCHEMA``, not a second request -- so a hypothesis the
-    mature cascade never reached carries none, and prints none.
-
-    Args:
-        reviews: Every persisted review row for this hypothesis.
-
-    Returns:
-        The rendered lines, or nothing when no part was answered.
-    """
+    """Render the published eight-part ``Reviews summary`` block."""
     summary = _mature_detail(reviews).get("reviews_summary")
     if not isinstance(summary, dict):
         return []
@@ -373,28 +393,7 @@ def _critique_entries(summary: dict[str, Any]) -> list[str]:
 
 
 def _render_critiques_rollup(reviews: list[dict[str, Any]]) -> list[str]:
-    """Render the per-idea negative-critique rollup (REVIEW-CRITIQUES-ROLLUP).
-
-    Google's published per-hypothesis documents close on a ``Critiques``
-    section -- "Here's a summary of the negative critiques from the
-    reviews:" over a synthesized bulleted rollup (corpus R10-8, the KIRA6
-    output). It is a per-idea rollup, distinct from the run-level
-    meta-review critique (``META-CRITIQUE-APPEND-001``), and from the
-    ``All reviews`` block above it, which lists each reviewer's findings
-    verbatim rather than synthesizing them.
-
-    Like every other renderer in this file, it calls no model: the
-    synthesis was already done by the full review, which distilled the
-    pool of individual per-axis reviews into its own ``critical_flaws``
-    and ``validated_risks`` parts (``schemas/review_full``). This gathers
-    those two negative parts under the published heading and label; the
-    positive parts of the same summary stay in the Reviews summary block.
-    The negatives therefore appear twice in the entry -- once numbered in
-    the Reviews summary, once here as a dedicated rollup -- which is
-    faithful to R10-8, whose published output restates the same negatives
-    under this heading. Omitted whole when the mature cascade never
-    reached this idea and so wrote neither part.
-    """
+    """Render the per-idea negative-critique rollup."""
     summary = _mature_detail(reviews).get("reviews_summary")
     if not isinstance(summary, dict):
         return []
@@ -412,22 +411,7 @@ def _render_critiques_rollup(reviews: list[dict[str, Any]]) -> list[str]:
 
 
 def _render_deep_verification(reviews: list[dict[str, Any]]) -> list[str]:
-    """Render the deep-verification probes and verdict (F2).
-
-    The probe triple is pinned against Google's published exemplar on the
-    engine side (``test_published_artifact_shapes.py::
-    test_deep_verification_probe_matches_published_exemplar``); this is
-    the render of the same triple. The row's ``critique`` column carries
-    the same content as one indented prose blob, which markdown collapses
-    into a single paragraph -- the structured parts are read instead.
-
-    Args:
-        reviews: Every persisted review row for this hypothesis.
-
-    Returns:
-        The rendered lines, or nothing when verification never probed
-        this hypothesis.
-    """
+    """Render the deep-verification probes and verdict (F2)."""
     detail = _latest_detail(reviews, "deep_verification")
     raw = detail.get("probes")
     probes = [item for item in (raw or []) if isinstance(item, dict)]

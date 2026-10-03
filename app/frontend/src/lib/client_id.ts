@@ -1,5 +1,3 @@
-import {makePrefixedId} from './id';
-
 // localStorage key; sent as X-Client-ID to scope owned runs
 const KEY = 'co_scientist_client_id';
 const ACCESS_TOKEN_KEY = 'co_scientist_access_token';
@@ -31,4 +29,20 @@ export function setAccessToken(token: string): void {
 /** Remove the current researcher session. */
 export function clearAccessToken(): void {
   sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+}
+
+/**
+ * Generates an opaque, ephemeral id with a human-readable prefix.
+ *
+ * Prefers the platform's `crypto.randomUUID` for collision resistance and falls
+ * back to a timestamp plus random suffix where it is unavailable.
+ *
+ * @param prefix Short label prepended to the generated id (e.g. "user").
+ * @returns A prefixed id such as `user-<uuid>`.
+ */
+export function makePrefixedId(prefix: string): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }

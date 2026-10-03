@@ -55,7 +55,7 @@ supervisor → literature_review → generate → reflection → review
 - **Supervisor** builds a research plan and strategy (`agents/supervisor/supervisor.py`).
 - **Literature Review** + **Reflection** are MCP-gated (dashed in the diagram). When MCP is unavailable the graph is built *without* those two nodes and the first pass collapses to `supervisor → generate → review → …` (the dashed bypass arrow in the SVG).
 - **Comprehensive Reflection** and the pre-ranking **Safety screen** sit between Review and Ranking on every path — including the orchestrator's direct re-rank route (`workflow_topology.py::WORKFLOW_ROUTES`) — so a blocked hypothesis never reaches the tournament, evolution, or meta-review (`agents/safety/safety_screen.py`).
-- **Deep Verification** runs *before* Ranking, probing every rankable hypothesis still owed its one verification (`agents/reflection/deep_verification.py`), so no idea is ranked or bred from before its core assumptions are challenged. Once ever per idea, not once per cycle: a checkpointed `deep_verification_issued` enrichment marks the attempt when it is issued (`agents/reflection/verification_freshness.py`), so a resume cannot re-fire the wave. It is not a separate tournament round.
+- **Deep Verification** runs *before* Ranking, probing every rankable hypothesis still owed its one verification (`agents/reflection/deep_verification.py`), so no idea is ranked or bred from before its core assumptions are challenged. Once ever per idea, not once per cycle: a checkpointed `deep_verification_issued` enrichment marks the attempt when it is issued (`agents/reflection/verification.py`), so a resume cannot re-fire the wave. It is not a separate tournament round.
 
 ### Iteration cycle (runs up to `max_iterations` times)
 
@@ -144,7 +144,7 @@ All nodes are `async (state) -> dict[str, Any]`, implemented in the agent packag
 | `comprehensive_reflection` | `comprehensive_reflection.py:476` | `hypotheses`, `articles_with_reasoning` | `hypotheses` (+ deeper structured critique) | safety_screen |
 | `safety_screen` | `safety_screen.py:235` | `hypotheses` | `hypotheses` (blocked ones removed), `safety_decisions`, `held_for_review` | deep_verification |
 | `ranking` | `ranking.py:392` | `hypotheses`, `tournament_pairs`, `current_iteration` | `hypotheses` (sorted by Elo, + `win/loss_count`), `tournament_matchups` | orchestrator |
-| `deep_verification` | `deep_verification.py:324` | `hypotheses` (every rankable one still owed its single verification, selected by `verification_freshness`) | `hypotheses` (+ `deep_verification_probes`, `deep_verification_verdict`, a `deep_verification_issued` enrichment) | ranking |
+| `deep_verification` | `deep_verification.py:324` | `hypotheses` (every rankable one still owed its single verification, selected by `agents/reflection/verification.py`) | `hypotheses` (+ `deep_verification_probes`, `deep_verification_verdict`, a `deep_verification_issued` enrichment) | ranking |
 | `orchestrator` | `orchestrator.py:153` | `SchedulerStats` computed from state | `next_task`, decision + reason in the ledger | routes via `TASK_ROUTES` to generate / review / safety_screen / meta_review / proximity / research_overview |
 | `meta_review` | `meta_review.py:38` | `hypotheses` (reviews, Elo, verdicts) | `meta_review` | evolve |
 | `evolve` | `evolve.py:382` | `hypotheses`, `evolution_max_count`, `meta_review` | `hypotheses` (children appended to the pool), `evolution_details` | review (re-review) |

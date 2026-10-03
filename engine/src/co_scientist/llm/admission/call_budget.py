@@ -32,18 +32,55 @@ other (see the "No process-global asyncio primitives" root Gotcha). A
 
 from __future__ import annotations
 
-import contextlib
-import contextvars
-import dataclasses
 import logging
 import threading
 from collections import OrderedDict
 from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass, field
 
 from co_scientist.exceptions import LLMCallBudgetExceededError
-from co_scientist.llm.admission.completion_budget import (
-    current_completion_budget,
+
+
+@dataclass
+class CompletionBudget:
+    """A shared counter for one operation and its concurrent child tasks."""
+
+    ceiling: int
+    count: int = 0
+    _lock: threading.Lock = field(default_factory=threading.Lock)
+
+    def reserve(self) -> None:
+        """Refuse before dispatch when the operation has no calls left."""
+        with self._lock:
+            if self.count >= self.ceiling:
+                raise LLMCallBudgetExceededError(self.count + 1, self.ceiling)
+            self.count += 1
+
+
+_current: ContextVar[CompletionBudget | None] = ContextVar(
+    "completion_operation_budget", default=None
 )
+
+
+def current_completion_budget() -> CompletionBudget | None:
+    """Return an operation override, or None to use the research counter."""
+    return _current.get()
+
+
+@contextmanager
+def scoped_completion_budget(ceiling: int) -> Iterator[CompletionBudget]:
+    """Give one operation a separate budget, independent of any run scope."""
+    if ceiling < 1:
+        raise ValueError("completion budget must allow at least one call")
+    budget = CompletionBudget(ceiling)
+    token = _current.set(budget)
+    try:
+        yield budget
+    finally:
+        _current.reset(token)
+
 
 logger = logging.getLogger(__name__)
 
@@ -54,12 +91,12 @@ logger = logging.getLogger(__name__)
 # affects a run whose ceiling can no longer be usefully enforced anyway.
 _MAX_TRACKED_RUNS = 500
 
-_current_run: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+_current_run: ContextVar[str | None] = ContextVar(
     "llm_call_budget_run", default=None
 )
 
 
-@dataclasses.dataclass
+@dataclass
 class _RunCounter:
     """One run's counted requests and the ceiling they are checked against."""
 
@@ -73,7 +110,7 @@ _lock = threading.Lock()
 _runs: OrderedDict[str, _RunCounter] = OrderedDict()
 
 
-@contextlib.contextmanager
+@contextmanager
 def scoped_llm_call_budget(
     run_id: str | None, ceiling: int | None
 ) -> Iterator[None]:

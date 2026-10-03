@@ -25,7 +25,7 @@ with, so there is one place to read it and one place to change it:
 * the platform rate-limit park, which hands the task back to the worker
   instead of spending attempts against a cap that has not reset;
 * the wait before retrying a throttle or an outage, on separate schedules
-  (``llm.attempts.backoff``), and the process-wide throttle counter;
+  (``llm.attempts.retry``), and the process-wide throttle counter;
 * retry telemetry and log severity: a failure another attempt will answer
   is a warning, and only giving up is an error.
 
@@ -39,19 +39,16 @@ import asyncio
 import itertools
 import logging
 from collections.abc import Awaitable, Callable, Iterable
-from typing import Any, Generic, cast, overload
+from typing import Any, Final, Generic, cast, overload
 
 from litellm.exceptions import ContextWindowExceededError
 
+from co_scientist.backoff import jittered_backoff_seconds
 from co_scientist.exceptions import (
     FreeModelEligibilityError,
     LLMCallBudgetExceededError,
     LLMTimeoutError,
     short_error_text,
-)
-from co_scientist.llm.attempts.backoff import (
-    _rate_limit_backoff_seconds,
-    provider_outage_backoff_seconds,
 )
 from co_scientist.llm.attempts.contract import (
     Accepted,
@@ -74,6 +71,65 @@ from co_scientist.llm.attempts.park import (
 )
 from co_scientist.llm.request.thinking import failure_context_text
 from co_scientist.llm.telemetry import record_retry
+
+# Base seconds for the throttled-retry wait; attempt N waits roughly
+# BASE * 2^(N-1), jittered.
+_RATE_LIMIT_BACKOFF_BASE_SECONDS: Final[float] = 2.0
+
+# Base and ceiling for the outage wait. Sized against run 49a509b0 below,
+# and against the two clocks a long wait has to stay clear of: the wait is
+# an awaited sleep, so the durable task's lease heartbeat (a coroutine on
+# the same loop, waking each second) keeps renewing through it, and
+# COSCIENTIST_LLM_TIMEOUT_SECONDS bounds each litellm call rather than the
+# gaps between them. The ceiling exists so that a caller with a larger
+# attempt budget cannot double its way into an open-ended stall.
+_PROVIDER_OUTAGE_BACKOFF_BASE_SECONDS: Final[float] = 30.0
+_PROVIDER_OUTAGE_BACKOFF_MAX_SECONDS: Final[float] = 240.0
+
+
+def _rate_limit_backoff_seconds(attempt: int) -> float:
+    """Return the jittered wait before retrying a throttled attempt.
+
+    Uncapped, unlike the search-tool retry: a provider still throttling on
+    the last of a handful of attempts is asking for a longer pause, and the
+    attempt budget already bounds the total. See
+    ``backoff.jittered_backoff_seconds`` for why the wait is jittered.
+    """
+    return jittered_backoff_seconds(
+        attempt, base_seconds=_RATE_LIMIT_BACKOFF_BASE_SECONDS
+    )
+
+
+def provider_outage_backoff_seconds(attempt: int) -> float:
+    """Return the jittered wait before retrying an outage-failed attempt.
+
+    Longer than the throttled schedule because it answers a different
+    condition. A throttle clears as soon as the caller's own burst does; an
+    upstream that is down stays down on its own timetable, so a schedule
+    sized for a burst spends the whole attempt budget inside the outage.
+    Standard run 49a509b0 (2026-09-08) is the measurement: its terminal
+    ``research_overview`` call logged waits of 1.6s, 3.6s, 6.3s and 11.6s
+    -- the four the 2.0s base allows -- so all five attempts were gone in
+    roughly 25 seconds against an outage lasting minutes, and the task
+    failed, discarding a run with 146 completed tasks.
+
+    At the base and ceiling above, the four waits a five-attempt call takes
+    are drawn from [15, 30], [30, 60], [60, 120] and [120, 240] seconds:
+    between 3.75 and 7.5 minutes in total, rather than half a minute.
+
+    Args:
+        attempt: The 1-indexed attempt that just failed.
+
+    Returns:
+        Seconds to wait, jittered, never above
+        ``_PROVIDER_OUTAGE_BACKOFF_MAX_SECONDS``.
+    """
+    return jittered_backoff_seconds(
+        attempt,
+        base_seconds=_PROVIDER_OUTAGE_BACKOFF_BASE_SECONDS,
+        max_seconds=_PROVIDER_OUTAGE_BACKOFF_MAX_SECONDS,
+    )
+
 
 logger = logging.getLogger(__name__)
 
@@ -201,7 +257,7 @@ async def _wait_before_retry(error: Exception, attempt: Attempt) -> None:
     next attempt carries corrective feedback, and an answerless completion
     is answered by the escalation ladder changing the request.
 
-    The two waits are sized separately (``llm.attempts.backoff``), because a
+    The two waits are sized separately (``llm.attempts.retry``), because a
     burst clears in seconds and an outage does not: waiting out an outage
     on the throttle's schedule spends the whole attempt budget before the
     provider is back, which is how run 49a509b0 lost its report. Only the

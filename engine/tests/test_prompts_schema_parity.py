@@ -12,8 +12,8 @@ came back with an eighth key the model made up.
 import pathlib
 from typing import Any
 
+from co_scientist.schemas import _PROMPT_SCHEMA_MAP
 from co_scientist.schemas.ranking import RANKING_SCHEMA
-from co_scientist.schemas.registry import _PROMPT_SCHEMA_MAP
 
 _TEMPLATES = (
     pathlib.Path(__file__).resolve().parents[1]

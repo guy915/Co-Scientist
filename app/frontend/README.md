@@ -8,7 +8,7 @@ React + Vite + TypeScript workbench for the Co-Scientist API server.
 - Vite 7
 - TypeScript
 - Tailwind CSS v4
-- Material Design 3 theme generation in `src/lib/theme.ts`
+- Material Design 3 theme generation in `src/workbench/theme_context.tsx`
 - Bun for package management
 - gts for linting and formatting
 - Vitest + React Testing Library for unit tests

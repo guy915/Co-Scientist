@@ -314,7 +314,7 @@ def main() -> int:
     parser.add_argument("artifact", type=Path)
     args = parser.parse_args()
     payload = json.loads(args.artifact.read_text())
-    from evaluations._comparison_groups import validate_comparison
+    from evaluations._identity import validate_comparison
 
     validation = {
         "scaling": validate_comparison(

@@ -49,7 +49,7 @@ from co_scientist.skills import (
 )
 from co_scientist.tool_effects import declare_local_tool
 from co_scientist.tools.messages import tool_error_message, tool_result_message
-from co_scientist.tools.tracking import tracked_executor as track_calls
+from co_scientist.tools.provider import tracked_executor as track_calls
 from co_scientist.workspace.command_tools import (
     _handle_poll_command as _handle_poll_command,
 )
@@ -304,7 +304,7 @@ class WorkspaceToolProvider:
             label: Log prefix identifying the calling phase.
 
         Returns:
-            An (executor, counts) pair; see ``tools.tracking``.
+            An (executor, counts) pair; see ``tools.provider``.
         """
         return track_calls(self, label)
 

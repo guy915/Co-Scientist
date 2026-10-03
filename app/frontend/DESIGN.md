@@ -5,7 +5,7 @@ description: A focused multi-agent idea-generation workbench. Built on Material 
 colors:
   # Seed — the single source of truth for the MD3 palette.
   # The full palette (primary, secondary, tertiary, surface, …) is computed
-  # at runtime by applyMd3Theme() in src/lib/theme.ts.
+  # at runtime by applyMd3Theme() in src/workbench/theme_context.tsx.
   seed: "#1A6B6B"
 
   # Core MD3 roles (approximate light-mode values from the Co-Scientist green seed).
@@ -468,7 +468,7 @@ The chat home (`/`) opens exactly as before. One gray line under the composer (`
 It is the app's one **editorial surface**, modeled on Google's product and model pages (DeepMind model pages, Google Labs, NotebookLM), so it deliberately steps outside the workbench rules below the fold — and only there:
 
 - **Type:** only the app's own faces: **Google Sans** for display (the wordmark and section headings at large sizes, regular weight, near-zero tracking) and **Google Sans Text** for everything else, labels and figures included. No other family, and no glyph outside their latin subset (so no `→`), since a missing glyph falls back to a system font.
-- **Shape:** Material 3 Expressive shapes (cookie, flower, clover, sunny, gem, pill), sampled at one point count so they morph (`home_landing_shapes.ts`); cards and media at 24–48px radii; pills for every control.
+- **Shape:** Material 3 Expressive shapes (cookie, flower, clover, sunny, gem, pill), sampled at one point count so they morph (`home_landing_hooks.tsx`); cards and media at 24–48px radii; pills for every control.
 - **Color:** landing-scoped tokens (`--l-*` on `.ucs-landing`) with tonal container pairs (`--l-c-*` fill / `--l-o-*` ink) in teal, blue, green, yellow, red, redefined under `:root[data-theme='dark']`. The Google four-color set appears only as data (tier cycles).
 - **Motion:** allowed past the 300ms budget, because it is content rather than feedback: the Overview's run stages lighting in order, a sources marquee, line draw-in on the Elo chart, shape morphs on hover (agent and safety cards), and the sliding selection pill on the section rail and tier picker. The system diagram does not advance on its own: it highlights the agent you hover or tap. The tournament tree plays itself round by round while on screen (paused off screen, finished frame under reduced motion). Every one has a `prefers-reduced-motion` path that renders the settled frame.
 - **Facts:** every number is the product's own — tiers mirror `RUN_TIER_DEFAULTS` (pinned by `app/tests/test_landing_tiers.py`) and the starting Elo mirrors `INITIAL_ELO_RATING`. Simulations are labeled as simulations.

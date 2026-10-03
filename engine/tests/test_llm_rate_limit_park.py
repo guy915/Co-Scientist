@@ -33,7 +33,8 @@ from co_scientist.exceptions import (
     LLMRateLimitParkError,
     LLMThinkingOnlyError,
 )
-from co_scientist.llm.attempts import backoff, retry
+from co_scientist.llm.attempts import retry
+from co_scientist.llm.attempts import retry as backoff
 from co_scientist.llm.attempts.contract import Attempt, AttemptPlan
 from co_scientist.llm.attempts.park import platform_rate_limit_park
 

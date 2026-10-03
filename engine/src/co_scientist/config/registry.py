@@ -15,11 +15,6 @@ from typing import Any, cast
 import yaml
 
 from co_scientist.config.env_vars import parse_bool_env, substitute_env_vars
-from co_scientist.config.merging import (
-    _both_dicts,
-    _both_lists_to_extend,
-    _determine_merge_strategy,
-)
 from co_scientist.config.schema import (
     EnrichmentConfig,
     PromptsConfig,
@@ -29,6 +24,47 @@ from co_scientist.config.schema import (
     WorkflowConfig,
 )
 from co_scientist.exceptions import ConfigError
+
+
+def _both_dicts(existing: Any, value: Any) -> bool:
+    """True if both existing and value are dicts (mergeable, not replaced)."""
+    return isinstance(value, dict) and isinstance(existing, dict)
+
+
+def _both_lists_to_extend(existing: Any, value: Any, strategy: str) -> bool:
+    """True if strategy is "extend" and both existing and value are lists."""
+    return (
+        strategy == "extend"
+        and isinstance(value, list)
+        and isinstance(existing, list)
+    )
+
+
+def _determine_merge_strategy(
+    user: dict[str, Any] | None, custom: dict[str, Any] | None
+) -> str:
+    """Pick the merge_strategy declared by custom or user config settings.
+
+    The overlay that actually sets settings.merge_strategy wins: custom is
+    checked first (and used if present) so a custom config's choice
+    overrides a user config's, even though custom is merged in after.
+
+    Args:
+        user: Parsed user config dict, or None if absent.
+        custom: Parsed custom config dict, or None if absent.
+
+    Returns:
+        The declared merge_strategy, or "override" if neither config
+        declares one.
+    """
+    for overlay in (custom, user):
+        if overlay and "settings" in overlay:
+            strategy: str = overlay["settings"].get(
+                "merge_strategy", "override"
+            )
+            return strategy
+    return "override"
+
 
 logger = logging.getLogger(__name__)
 

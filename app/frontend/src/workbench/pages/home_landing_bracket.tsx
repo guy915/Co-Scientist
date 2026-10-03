@@ -1,12 +1,11 @@
+import {useEffect, useMemo, useRef, useState} from 'react';
+import {joinClasses} from '../classes';
+import {INITIAL_ELO, expectedScore} from './home_landing_content';
+import {type MotionProps, useInView} from './home_landing_hooks';
+
 // The Tournament section's tree: eight example ideas debate in pairs, round
 // by round, and each result moves both ratings by the real Elo rule. The
 // tree plays itself while it is on screen.
-
-import {useEffect, useMemo, useRef, useState} from 'react';
-import {joinClasses} from '../classes';
-import {INITIAL_ELO} from './home_landing_content';
-import {expectedScore} from './home_landing_elo';
-import {type MotionProps, useInView} from './home_landing_hooks';
 
 // Example hypotheses for a glioblastoma drug-repurposing goal, with the
 // hidden strength that decides their debates.

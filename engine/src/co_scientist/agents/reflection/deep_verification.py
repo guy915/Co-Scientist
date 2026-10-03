@@ -7,7 +7,9 @@ from typing import Any
 from co_scientist.agents.reflection.deep_verification_evidence import (
     merge_retrieved_articles as merge_retrieved_articles,
 )
-from co_scientist.agents.reflection.operations import has_valid_verification
+from co_scientist.agents.reflection.verification import (
+    DEEP_VERIFICATION_PROMPT_VERSION as DEEP_VERIFICATION_PROMPT_VERSION,
+)
 from co_scientist.agents.reflection.verification import (
     _verification_evidence_context as _verification_evidence_context,
 )
@@ -17,19 +19,17 @@ from co_scientist.agents.reflection.verification import (
 from co_scientist.agents.reflection.verification import (
     _verify_one as _verify_one,
 )
-from co_scientist.agents.reflection.verification_freshness import (
-    DEEP_VERIFICATION_PROMPT_VERSION as DEEP_VERIFICATION_PROMPT_VERSION,
-)
-from co_scientist.agents.reflection.verification_freshness import (
-    mark_verification_issued as mark_verification_issued,
-)
-from co_scientist.agents.reflection.verification_freshness import (
+from co_scientist.agents.reflection.verification import (
+    has_valid_verification,
     select_hypotheses_to_verify,
 )
-from co_scientist.agents.reflection.verification_freshness import (
+from co_scientist.agents.reflection.verification import (
+    mark_verification_issued as mark_verification_issued,
+)
+from co_scientist.agents.reflection.verification import (
     verification_fingerprint as verification_fingerprint,
 )
-from co_scientist.agents.reflection.verification_freshness import (
+from co_scientist.agents.reflection.verification import (
     verification_issued as verification_issued,
 )
 from co_scientist.constants import (
@@ -162,7 +162,7 @@ async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
 
     Blanket but incremental -- the initial pool once, then each cycle's
     new children once, so the cost is pool-sized rather than pool x
-    cycles. ``verification_freshness`` owns that rule.
+    cycles. ``verification`` owns that rule.
 
     Args:
         state: The current workflow state.
@@ -253,7 +253,7 @@ async def _run_verification_batch(
 
     # Marked before the calls go out, never after: the attempt is spent
     # when it is issued, so a hypothesis whose verification fails must
-    # not be re-offered next cycle (verification_freshness).
+    # not be re-offered next cycle (verification).
     for hypothesis in to_verify:
         mark_verification_issued(hypothesis)
 

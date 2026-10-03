@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {splitMarkdownIntoBlocks} from './markdown_split';
+import {splitMarkdownIntoBlocks} from './markdown_message_renderer';
 
 describe('splitMarkdownIntoBlocks', () => {
   it('returns nothing for empty content', () => {

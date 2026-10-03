@@ -136,7 +136,7 @@ def run_budget_curve(
         )
         for tier in tiers
     ]
-    from evaluations._comparison_groups import validate_comparison
+    from evaluations._identity import validate_comparison
 
     validation = validate_comparison(arms, kind="scaling")
     snapshots = [_arm_to_snapshot(arm) for arm in arms]

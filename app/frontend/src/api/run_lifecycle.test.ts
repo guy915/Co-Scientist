@@ -1,6 +1,4 @@
 import {describe, expect, it} from 'vitest';
-import * as lifecycle from './run_lifecycle';
-import * as runs from './runs';
 import {
   isActiveStatus,
   isCancelledStatus,
@@ -137,13 +135,5 @@ describe('runActivity', () => {
   it.each(ALL_STATUSES)('reads %s as active only while in progress', status => {
     const active = QUESTIONS.isActiveStatus.yes.includes(status);
     expect(runActivity(status)).toBe(active ? 'active' : 'inactive');
-  });
-});
-
-describe('@/api/runs facade', () => {
-  it('re-exports every lifecycle export unchanged', () => {
-    for (const [name, value] of Object.entries(lifecycle)) {
-      expect(runs[name as keyof typeof runs], name).toBe(value);
-    }
   });
 });

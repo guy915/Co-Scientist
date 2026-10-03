@@ -277,7 +277,7 @@ async def test_recurring_themes_carry_description_and_frequency(
     ``emerging_themes`` and its description/frequency were discarded --
     computed by the model, paid for in tokens, and never reaching the
     renderer. The whole nested taxonomy is now carried through (MO-2, see
-    ``agents/meta_review/meta_review_themes``): a dict's fields are
+    ``agents/meta_review/meta_review``): a dict's fields are
     coerced to strings (frequency may come back as an int under
     json_object mode), a bare-string entry -- the same schema-
     noncompliance the flattening already tolerated -- fills the rest

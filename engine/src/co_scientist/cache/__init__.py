@@ -15,8 +15,11 @@ from co_scientist.cache.llm import (
 from co_scientist.cache.nodes import NodeCache
 from co_scientist.config.env_vars import parse_timeout_env
 from co_scientist.config.registry import parse_bool_env
-from co_scientist.constants import DEFAULT_CACHE_DIR, DEFAULT_CACHE_ENABLED
-from co_scientist.constants.cache import DEFAULT_CACHE_TTL_SECONDS
+from co_scientist.constants import (
+    DEFAULT_CACHE_DIR,
+    DEFAULT_CACHE_ENABLED,
+    DEFAULT_CACHE_TTL_SECONDS,
+)
 
 logger = logging.getLogger(__name__)
 

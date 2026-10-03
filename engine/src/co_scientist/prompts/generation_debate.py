@@ -9,7 +9,7 @@ from co_scientist.prompts._common import (
     _format_meta_review_context,
     _run_guidance_section,
 )
-from co_scientist.prompts.generation_formatting import (
+from co_scientist.prompts.generation_draft import (
     _build_citation_reference_section,
     format_articles_metadata,
     format_config_generation_guidance,

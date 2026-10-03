@@ -40,7 +40,7 @@ from app.seed.overview import _curated_meta_review, _curated_research_overview
 from app.seed.review_detail import mature_review_rows
 from app.store import RunRow
 
-# Every curated source is a real PubMed record (see demo_seed_data.evidence
+# Every curated source is a real PubMed record (see demo_seed_data.supplements
 # / demo_seed_data.scenarios); the pmid rides along in the url the fixture
 # already carries rather than as a separately authored field, so the
 # run-wide bibliography section (R12-12) can show the real identifier

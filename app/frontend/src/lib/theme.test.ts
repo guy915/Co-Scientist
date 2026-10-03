@@ -1,5 +1,5 @@
 import {describe, it, expect, beforeEach} from 'vitest';
-import {applyMd3Theme} from './theme';
+import {applyMd3Theme} from '../workbench/theme_context';
 
 function cssVar(name: string): string {
   return document.documentElement.style.getPropertyValue(name);

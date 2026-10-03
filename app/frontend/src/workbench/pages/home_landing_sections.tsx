@@ -1,8 +1,4 @@
-// The landing page's content sections, top to bottom after the hero and the
-// tab rail: how it works, tournament, evidence, safety, tiers, the closing
-// call to action, and the FAQ. The overview is home_landing_overview.tsx. See home_landing.tsx for the frame.
-
-import {type ReactNode, type Ref} from 'react';
+import type {ReactNode, Ref} from 'react';
 import {Icon, type IconName} from '@/components/icon';
 import {joinClasses} from '../classes';
 import moleculeArt from '../../assets/landing/molecule.webp';
@@ -19,9 +15,17 @@ import {
 } from './home_landing_content';
 import {LandingDiagram} from './home_landing_diagram';
 import {LandingEloChart} from './home_landing_elo_chart';
-import {type MotionProps} from './home_landing_hooks';
-import {type ShapeName, shapePath, useShapeMorph} from './home_landing_shapes';
+import {
+  type MotionProps,
+  type ShapeName,
+  shapePath,
+  useShapeMorph,
+} from './home_landing_hooks';
 import {LandingTiers} from './home_landing_tiers';
+
+// The landing page's content sections, top to bottom after the hero and the
+// tab rail: how it works, tournament, evidence, safety, tiers, the closing
+// call to action, and the FAQ. The overview is home_landing_overview.tsx. See home_landing.tsx for the frame.
 
 function SectionHeading({title, lede}: {title: string; lede?: string}) {
   return (

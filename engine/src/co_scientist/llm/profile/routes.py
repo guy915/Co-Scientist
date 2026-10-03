@@ -2,7 +2,7 @@
 
 One entry per exact route, keyed by its lowercased litellm name. An entry
 states only the ``ModelProfile`` fields that are true of that route and
-overrides whatever a family in ``llm.profile.families`` says; a route with
+overrides whatever a family in ``llm.profile`` says; a route with
 no entry here is an unknown route, or a family member. Adding or retiring a
 model is one edit to this table (plus the app's configured default, which
 ``app/tests/test_config_models.py`` checks is priced here).

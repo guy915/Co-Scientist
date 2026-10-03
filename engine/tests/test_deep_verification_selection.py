@@ -8,7 +8,7 @@ is verified, and no idea is ever verified twice, across a repeated cycle,
 a restart, or any freshness signal going stale underneath it.
 
 The selection rule itself lives in
-``co_scientist.agents.reflection.verification_freshness``; the node's own
+``co_scientist.agents.reflection.verification``; the node's own
 prompt, context and probe-retrieval mechanics stay in the sibling
 ``test_deep_verification``. Every test here monkeypatches
 ``call_llm_json`` on the node module, so no LLM or network calls are made.

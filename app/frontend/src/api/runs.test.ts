@@ -259,7 +259,7 @@ it('merges owned and demo runs, de-duped and sorted newest first', async () => {
   fetchMock().mockImplementation((url: string) => {
     if (url.includes('/demo')) {
       // Demo runs are appended after owned runs, so a shared id here wins
-      // the de-dup (later entries win ties in mergeByIdNewestFirst).
+      // the de-dup (later demo entries replace owned entries).
       return Promise.resolve(
         jsonResponse({
           runs: [

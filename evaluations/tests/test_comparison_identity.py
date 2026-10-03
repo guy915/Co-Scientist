@@ -37,7 +37,7 @@ def test_persisted_arm_freezes_inputs_and_model_policy(tmp_path: Path) -> None:
     for name in (
         "llm/admission/free_policy.py",
         "llm/admission/free_catalog.py",
-        "llm/profile/families.py",
+        "llm/profile/__init__.py",
         "llm/profile/routes.py",
     ):
         assert (

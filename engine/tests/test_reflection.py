@@ -111,7 +111,7 @@ async def test_positive_observations_accumulate_on_hypothesis(
     observations are summarized and appended to the hypothesis. They land
     in reflection_notes -- the accumulated-feedback field the ranking
     prompts read -- ahead of the "Classification:" suffix that
-    agents/ranking/ranking_prompt.py parses back out, and are recorded
+    agents/ranking/ranking_debate_turns.py parses back out, and are recorded
     under enrichments["observation"].
     """
     hyp = make_hypothesis(text="alpha pathway drives growth")

@@ -19,6 +19,9 @@ import dataclasses
 import logging
 from typing import Any
 
+from co_scientist.agents.generation.literature_review.collection import (
+    _log_sample_papers as _log_sample_papers,
+)
 from co_scientist.agents.generation.literature_review.orchestration import (
     _analyze_and_synthesize as _analyze_and_synthesize,
 )
@@ -45,9 +48,6 @@ from co_scientist.agents.generation.literature_review.orchestration import (
 )
 from co_scientist.agents.generation.literature_review.orchestration import (
     _ReviewSynthesis as _ReviewSynthesis,
-)
-from co_scientist.agents.generation.literature_review.outcomes import (
-    _log_sample_papers as _log_sample_papers,
 )
 from co_scientist.agents.generation.literature_review.queries import (
     QueryPhaseResult,

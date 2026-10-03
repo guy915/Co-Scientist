@@ -18,7 +18,9 @@ from unittest.mock import AsyncMock
 import pytest
 
 from co_scientist.agents.reflection import comprehensive_reflection as cr
-from co_scientist.agents.reflection import review_prompt_context
+from co_scientist.agents.reflection import (
+    comprehensive_reflection as review_prompt_context,
+)
 from co_scientist.agents.reflection import simulation_execution as se
 from co_scientist.agents.reflection.review_types import ReviewType
 from co_scientist.generator import run_setup

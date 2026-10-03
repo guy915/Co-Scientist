@@ -7,9 +7,34 @@ from typing import Any
 from co_scientist.exceptions import ConfigError
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.tools.messages import tool_error_message
-from co_scientist.tools.tracking import tracked_executor as track_calls
 
 logger = logging.getLogger(__name__)
+
+
+def tracked_executor(
+    provider: Any, label: str
+) -> tuple[Callable[[Any], Awaitable[dict[str, Any]]], dict[str, int]]:
+    """Wraps a provider's ``execute_tool_call`` with per-name counting.
+
+    Args:
+        provider: Anything with an ``execute_tool_call`` coroutine.
+        label: Log prefix identifying the calling phase, e.g. "Draft".
+
+    Returns:
+        An (executor, counts) pair. The executor delegates to the
+        provider; counts maps tool name to call count and is updated in
+        place as the executor runs.
+    """
+    counts: dict[str, int] = {}
+
+    async def executor(tool_call: Any) -> dict[str, Any]:
+        name = tool_call.function.name
+        counts[name] = counts.get(name, 0) + 1
+        logger.info("%s: %s call #%s", label, name, counts[name])
+        result: dict[str, Any] = await provider.execute_tool_call(tool_call)
+        return result
+
+    return executor, counts
 
 
 # Thin wrapper used by the tool-calling generation nodes (draft/validate/
@@ -131,4 +156,4 @@ class MCPToolProvider:
             execute_tool_call; counts maps tool name to call count and is
             updated in place as the executor runs.
         """
-        return track_calls(self, label)
+        return tracked_executor(self, label)

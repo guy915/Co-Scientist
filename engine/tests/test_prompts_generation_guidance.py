@@ -16,7 +16,7 @@ from co_scientist.prompts import (
 from co_scientist.prompts.generation_debate import (
     _format_supervisor_guidance_for_debate,
 )
-from co_scientist.prompts.generation_formatting import (
+from co_scientist.prompts.generation_draft import (
     format_supervisor_guidance_for_generation,
 )
 

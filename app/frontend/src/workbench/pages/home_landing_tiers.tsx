@@ -1,8 +1,3 @@
-// The Tiers section's interactive pool: a segmented control picks a tier,
-// and a field of MAX_POOL dots fills in to that tier's size, colored by the
-// evolution cycle each idea could arrive in. The numbers are the product's
-// own RUN_TIER_DEFAULTS (see home_landing_content.ts).
-
 import {useRef, useState} from 'react';
 import {
   DEFAULT_TIER,
@@ -10,8 +5,16 @@ import {
   type LandingTier,
   MAX_POOL,
 } from './home_landing_content';
-import {type MotionProps, useSlidingIndicator} from './home_landing_hooks';
-import {SlidingPill} from './home_landing_slider';
+import {
+  type MotionProps,
+  useSlidingIndicator,
+  SlidingPill,
+} from './home_landing_hooks';
+
+// The Tiers section's interactive pool: a segmented control picks a tier,
+// and a field of MAX_POOL dots fills in to that tier's size, colored by the
+// evolution cycle each idea could arrive in. The numbers are the product's
+// own RUN_TIER_DEFAULTS (see home_landing_content.ts).
 
 // Seed ideas first, then each cycle's share of the remaining headroom.
 function dotGeneration(tier: LandingTier, index: number): number | null {
