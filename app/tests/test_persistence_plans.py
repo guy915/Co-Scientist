@@ -1,5 +1,3 @@
-"""Tests for persistence 2."""
-
 from __future__ import annotations
 
 import logging
@@ -18,9 +16,6 @@ from tests._drain_helpers import (
     _persist,
     _persist_and_finalize,
 )
-
-# Store tests for per-run execution metrics persistence.
-
 
 _METRICS = {
     "total_time": 12.5,
@@ -66,24 +61,16 @@ def test_metrics_upsert_replaces_previous_row(isolated_db: str) -> None:
 
 
 def test_clear_run_derived_data_removes_metrics(isolated_db: str) -> None:
-    """A resume's derived-data wipe drops metrics; re-finalize rewrites them."""
     run_id = _make_run(isolated_db)
     store.save_run_metrics(run_id, _METRICS, db_path=isolated_db)
     store.clear_run_derived_data(run_id, db_path=isolated_db)
     assert store.get_run_metrics(run_id, db_path=isolated_db) is None
 
 
-# Tests for the upgrade path against databases created by older builds.
-#
-# The rest of the suite runs against freshly created databases, where every
-# table is built from the current ``_SCHEMA`` and so already carries the
-# columns the migrations add. That shape cannot catch ordering bugs between
-# ``_SCHEMA`` and ``_run_migrations``. These tests start from an *old-shape*
-# database instead, which is what a deployed volume actually holds.
+# Fresh schemas hide migration ordering bugs; populated legacy fixtures exercise
+# the actual upgrade path.
 
 
-# The app_logs table exactly as builds before the client-isolation change
-# created it: no client_id column, and no index over it.
 _OLD_APP_LOGS = """
 CREATE TABLE app_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -100,7 +87,6 @@ CREATE INDEX idx_app_logs_run ON app_logs(run_id, id);
 
 
 def _old_shape_db(tmp_path: object) -> str:
-    """Create a database holding a pre-client-isolation app_logs table."""
     path = str(tmp_path / "old.db")  # type: ignore[operator]
     conn = sqlite3.connect(path)
     conn.executescript(_OLD_APP_LOGS)
@@ -126,32 +112,22 @@ def _indexes(path: str, table: str) -> set[str]:
 
 
 def test_connect_upgrades_an_old_app_logs_table(tmp_path: object) -> None:
-    """Opening a pre-client-isolation database migrates it instead of raising.
-
-    A schema-level index over a migration-added column would abort
-    ``executescript`` here, leaving the path uninitialized and every later
-    connect failing the same way -- i.e. the server would not start.
-    """
+    # Schema indexes cannot reference columns until legacy migration adds them.
     path = _old_shape_db(tmp_path)
 
     with db.connect(path) as conn:
         conn.execute("SELECT client_id FROM app_logs").fetchall()
 
     assert "client_id" in _columns(path, "app_logs")
-    # The index must still end up present, not merely be dropped to dodge
-    # the ordering problem.
     assert "idx_app_logs_client" in _indexes(path, "app_logs")
 
 
 def test_connect_is_idempotent_over_an_upgraded_database(
     tmp_path: object,
 ) -> None:
-    """A second process opening the same file re-runs migrations cleanly."""
     path = _old_shape_db(tmp_path)
     with db.connect(path):
         pass
-    # Drop the module-level cache so this connect redoes the init work a
-    # fresh process would, rather than skipping it.
     db._initialized.discard(path)
 
     with db.connect(path) as conn:
@@ -160,8 +136,6 @@ def test_connect_is_idempotent_over_an_upgraded_database(
     assert "idx_app_logs_client" in _indexes(path, "app_logs")
 
 
-# The interview_turns table exactly as builds before the fallback-provenance
-# change created it: no fallback column.
 _OLD_INTERVIEW_TURNS = """
 CREATE TABLE interview_turns (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -177,13 +151,8 @@ CREATE TABLE interview_turns (
 def test_connect_upgrades_old_interview_turns_table(
     tmp_path: object,
 ) -> None:
-    """Turns written before the fallback marker open unmarked, not broken.
-
-    A deployed volume holds transcripts whose turns predate the marker; the
-    upgrade must add the column and read those rows as model-driven (the
-    default), since a missing marker can only mean "written before the
-    signal existed", never "known to be scripted".
-    """
+    # Missing legacy fallback markers mean unknown pre-marker provenance, not
+    # known scripted output.
     path = str(tmp_path / "old_turns.db")  # type: ignore[operator]
     conn = sqlite3.connect(path)
     conn.executescript(_OLD_INTERVIEW_TURNS)
@@ -201,8 +170,6 @@ def test_connect_upgrades_old_interview_turns_table(
     assert [row[0] for row in rows] == [0]
 
 
-# The hypotheses table exactly as builds before the multi-parent lineage
-# change created it: no parent_ids column.
 _OLD_HYPOTHESES = """
 CREATE TABLE hypotheses (
     id TEXT PRIMARY KEY,
@@ -222,12 +189,6 @@ CREATE TABLE hypotheses (
 
 
 def test_connect_upgrades_old_hypotheses_table(tmp_path: object) -> None:
-    """Hypotheses written before multi-parent lineage open with NULL parents.
-
-    A deployed volume holds hypotheses predating the combination operator;
-    the upgrade adds the column and those rows read back as NULL parent_ids,
-    since a missing column can only mean single-parent lineage.
-    """
     path = str(tmp_path / "old_hyps.db")  # type: ignore[operator]
     conn = sqlite3.connect(path)
     conn.executescript(_OLD_HYPOTHESES)
@@ -249,13 +210,6 @@ def test_connect_upgrades_old_hypotheses_table(tmp_path: object) -> None:
 def test_connect_adds_scene_setting_columns_to_old_hypotheses(
     tmp_path: object,
 ) -> None:
-    """A pre-MO-6 hypotheses table gains introduction/recent_findings.
-
-    A deployed volume holds hypotheses written before the published
-    proposal's scene-setting sections were carried at all; those rows
-    read back with NULL in both new columns rather than failing the
-    upgrade.
-    """
     path = str(tmp_path / "old_hyps_scene.db")  # type: ignore[operator]
     conn = sqlite3.connect(path)
     conn.executescript(_OLD_HYPOTHESES)
@@ -280,12 +234,6 @@ def test_connect_adds_scene_setting_columns_to_old_hypotheses(
 def test_connect_adds_safety_and_toxicity_column_to_old_hypotheses(
     tmp_path: object,
 ) -> None:
-    """A pre-MO-10 hypotheses table gains safety_and_toxicity.
-
-    A deployed volume holds hypotheses written before the proposer's own
-    safety-and-toxicity assessment was carried at all; those rows read
-    back with NULL rather than failing the upgrade.
-    """
     path = str(tmp_path / "old_hyps_safety.db")  # type: ignore[operator]
     conn = sqlite3.connect(path)
     conn.executescript(_OLD_HYPOTHESES)
@@ -306,8 +254,6 @@ def test_connect_adds_safety_and_toxicity_column_to_old_hypotheses(
     assert [row[0] for row in rows] == [None]
 
 
-# The evidence table exactly as builds before retrieval provenance created
-# it: scoring columns present, but nothing naming the search behind a row.
 _OLD_EVIDENCE = """
 CREATE TABLE evidence (
     id TEXT PRIMARY KEY,
@@ -340,13 +286,8 @@ CREATE INDEX idx_ev_run ON evidence(run_id);
 def test_connect_upgrades_evidence_for_retrieval_provenance(
     tmp_path: object,
 ) -> None:
-    """Evidence written before provenance opens with a NULL search link.
-
-    The column is added by migration rather than by ``_SCHEMA``, whose
-    ``CREATE TABLE IF NOT EXISTS`` is a no-op against the table a deployed
-    volume already holds. Existing rows read back NULL, which is the only
-    state they could represent: nothing recorded what was asked.
-    """
+    # Legacy tables need ALTER for search links; CREATE IF NOT EXISTS does not
+    # add columns.
     path = str(tmp_path / "old_evidence.db")  # type: ignore[operator]
     conn = sqlite3.connect(path)
     conn.executescript(_OLD_EVIDENCE)
@@ -359,7 +300,6 @@ def test_connect_upgrades_evidence_for_retrieval_provenance(
 
     with db.connect(path) as conn:
         rows = conn.execute("SELECT retrieval_call_id FROM evidence").fetchall()
-        # The new table arrives on the same open, from _SCHEMA.
         conn.execute("SELECT COUNT(*) FROM retrieval_calls").fetchone()
 
     assert "retrieval_call_id" in _columns(path, "evidence")
@@ -367,13 +307,8 @@ def test_connect_upgrades_evidence_for_retrieval_provenance(
 
 
 def test_connect_upgrades_evidence_for_retraction(tmp_path: object) -> None:
-    """Evidence written before the retraction column opens with it NULL.
-
-    A row drained before this wave has no way to know whether its
-    unavailable evidence was retracted -- the column is additive, so it
-    reads back NULL, which ``store.list_evidence`` then coerces to False
-    (the same as a row that was never flagged retracted).
-    """
+    # Legacy evidence cannot establish historical retraction; additive columns
+    # initially remain unknown.
     path = str(tmp_path / "old_evidence.db")  # type: ignore[operator]
     conn = sqlite3.connect(path)
     conn.executescript(_OLD_EVIDENCE)
@@ -391,9 +326,6 @@ def test_connect_upgrades_evidence_for_retraction(tmp_path: object) -> None:
     assert [row[0] for row in rows] == [None]
 
 
-# The matches table as builds before the debate-transcript column created
-# it -- itself already the post-``tier``/``debate_turns`` shape, since both
-# of those are migration-added too.
 _OLD_MATCHES = """
 CREATE TABLE matches (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -416,14 +348,8 @@ CREATE TABLE matches (
 def test_connect_upgrades_matches_for_the_debate_transcript(
     tmp_path: object,
 ) -> None:
-    """A match judged before the transcript column keeps its row and reads NULL.
-
-    The column is additive: ``ALTER TABLE ... ADD COLUMN`` rewrites the
-    schema header, never the rows, so a deployed single-replica volume
-    upgrades without a table rebuild or a VACUUM. The pre-existing row
-    survives with its rationale intact and a NULL transcript, which is
-    the only state it could represent -- the turns were never stored.
-    """
+    # Additive transcript columns preserve existing rationale without table
+    # rebuild or VACUUM.
     path = str(tmp_path / "old_matches.db")  # type: ignore[operator]
     conn = sqlite3.connect(path)
     conn.executescript(_OLD_MATCHES)
@@ -446,15 +372,6 @@ def test_connect_upgrades_matches_for_the_debate_transcript(
     assert [tuple(row) for row in rows] == [("Idea 1 wins.", None)]
 
 
-# Tests for report persistence in ``app.store.reports``.
-#
-# Covers ``save_report``'s happy path (moved here from ``test_store.py`` to
-# keep that file under the 500-line ceiling), the disk-write failure branch,
-# the on-disk fallback used for report rows that predate the ``markdown_text``
-# column, and the read-side fallback for a row saved during the R14-11
-# two-document split window (reversed 2026-09-04).
-
-
 def _insert_legacy_report_row(
     db_path: str,
     run_id: str,
@@ -462,7 +379,6 @@ def _insert_legacy_report_row(
     markdown_path: str | None,
     markdown_text_ranking: str | None = None,
 ) -> None:
-    """Insert a report row with no ``markdown_text`` (pre-column schema)."""
     with store.connect(db_path) as conn:
         conn.execute(
             "INSERT INTO reports (id, run_id, payload_json, markdown_path, "
@@ -481,7 +397,6 @@ def _insert_legacy_report_row(
 
 
 def test_reports_round_trip_markdown_to_disk(isolated_db: str) -> None:
-    """The report round-trips through both DB text and disk."""
     run = store.create_run(
         "report rt",
         "default",
@@ -504,7 +419,6 @@ def test_save_report_logs_warning_on_disk_write_failure(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A disk write failure is logged, but the DB row is still persisted."""
     run = store.create_run(
         "disk failure goal",
         "default",
@@ -533,7 +447,6 @@ def test_save_report_logs_warning_on_disk_write_failure(
 def test_read_report_markdown_falls_back_to_disk_when_db_text_missing(
     isolated_db: str, tmp_path: pathlib.Path
 ) -> None:
-    """Rows written before markdown_text existed fall back to the disk file."""
     run = store.create_run(
         "disk fallback goal",
         "default",
@@ -555,7 +468,6 @@ def test_read_report_markdown_falls_back_to_disk_when_db_text_missing(
 def test_read_report_markdown_none_without_db_text_or_path(
     isolated_db: str,
 ) -> None:
-    """No markdown_text and no markdown_path yields None, not a crash."""
     run = store.create_run(
         "no source goal",
         "default",
@@ -571,7 +483,6 @@ def test_read_report_markdown_none_without_db_text_or_path(
 def test_get_latest_report_and_read_markdown_none_without_any_report(
     isolated_db: str,
 ) -> None:
-    """A run with no report row at all yields None from both readers."""
     run = store.create_run(
         "no report goal",
         "default",
@@ -586,7 +497,6 @@ def test_get_latest_report_and_read_markdown_none_without_any_report(
 def test_read_report_markdown_none_when_disk_file_missing(
     isolated_db: str, tmp_path: pathlib.Path
 ) -> None:
-    """A markdown_path pointing at a deleted file yields None, not a crash."""
     run = store.create_run(
         "missing file goal",
         "default",
@@ -606,7 +516,6 @@ def test_read_report_markdown_none_when_disk_file_missing(
 def test_save_report_never_writes_the_legacy_ranking_column(
     isolated_db: str,
 ) -> None:
-    """Every write since the reversal leaves markdown_text_ranking NULL."""
     run = store.create_run(
         "no ranking write goal",
         "default",
@@ -624,13 +533,8 @@ def test_save_report_never_writes_the_legacy_ranking_column(
 def test_read_report_markdown_appends_a_legacy_split_window_row(
     isolated_db: str,
 ) -> None:
-    """A row saved during the R14-11 split window keeps its full content.
-
-    Such a row's ``markdown_text`` is the overview-only half and its "Top
-    hypotheses" write-up sits only in ``markdown_text_ranking`` -- the
-    reader must not silently drop that half now that nothing else reads
-    the column.
-    """
+    # Legacy split reports carry ranking text in another column; merging must
+    # preserve both halves.
     run = store.create_run(
         "split window goal",
         "default",
@@ -655,27 +559,7 @@ def test_read_report_markdown_appends_a_legacy_split_window_row(
     assert text == "# overview half\n\n# ranking half"
 
 
-# Store round-trip, drain wiring, and migration coverage for E19.
-#
-# Covers the durable Supervisor plan/allocation-ledger store I/O
-# (``save_supervisor_plan``/``get_supervisor_plan``,
-# ``replace_supervisor_allocations``/``list_supervisor_allocations``), the
-# real drain wiring (a finalized run's checkpoint state actually reaches the
-# store), the collections endpoint, and -- per AGENTS.md's recorded trap --
-# that the new tables/index come up cleanly against a database built from a
-# schema that predates them, the way a populated production volume would be
-# migrated.
-
-
 def _plan_final_state() -> dict[str, object]:
-    """A grounded engine final state carrying a full Supervisor record.
-
-    Layers the Supervisor fields onto the shared ``_final_state_with_
-    features`` fixture rather than a minimal hand-built state: its
-    hypotheses are grounded against matching articles, so the run actually
-    clears the rank-and-publish gate and finalizes (see
-    ``test_engine_drain_safety.py`` for what happens when it does not).
-    """
     state = _final_state_with_features()
     state["supervisor_guidance"] = {
         "research_goal_analysis": {"key_areas": ["oncology"]},
@@ -724,9 +608,6 @@ def _plan_final_state() -> dict[str, object]:
         },
     ]
     return state
-
-
-# --- store round-trip --------------------------------------------------
 
 
 def test_save_and_get_plan_round_trip(isolated_db: str) -> None:
@@ -822,7 +703,6 @@ def test_replace_and_list_allocations_round_trip(isolated_db: str) -> None:
 
 
 def test_replace_allocations_clears_prior_rows(isolated_db: str) -> None:
-    """A second replace fully supersedes the first -- no accumulation."""
     run = store.create_run("sp goal", "standard", "mock", {})
     store.replace_supervisor_allocations(
         run.id,
@@ -911,16 +791,9 @@ def test_run_deletion_cascades_to_supervisor_tables(isolated_db: str) -> None:
     assert store.list_supervisor_allocations(run.id, db_path=isolated_db) == []
 
 
-# --- real drain wiring ---------------------------------------------------
-
-
 def test_finalize_persists_supervisor_plan_and_allocations(
     isolated_db: str,
 ) -> None:
-    """A real finalize drain persists the plan durably.
-
-    This must hold independent of the checkpoint blob.
-    """
     run = store.create_run("sp e2e goal", "standard", "mock", {})
     final_state = _plan_final_state()
 
@@ -955,10 +828,6 @@ def test_re_finalize_replaces_rather_than_accumulates(
     _persist_and_finalize(run, final_state, isolated_db)
     first = store.list_supervisor_allocations(run.id, db_path=isolated_db)
     assert len(first) == 3
-
-    # A resumed run's re-finalize is exercised at the persistence layer
-    # directly, the way test_store_knowledge_facts does for the same reason
-    # (finalize_report itself no-ops on an already-published run).
 
     _persist(run_id=run.id, final_state=final_state, db_path=isolated_db)
     second = store.list_supervisor_allocations(run.id, db_path=isolated_db)
@@ -1001,22 +870,9 @@ async def test_supervisor_plan_endpoint_returns_persisted_rows(
     assert result["allocations"][0]["task_type"] == "generate"
 
 
-# --- migration against an old-schema database ----------------------------
-
-
 def test_new_tables_come_up_against_a_pre_existing_database(
     isolated_db: str,
 ) -> None:
-    """Connecting to a database that predates these tables creates them.
-
-    Mirrors ``test_db_migration_on_volume.py``: builds a minimal "ancient"
-    database (just the ``runs`` table, no ``supervisor_plan``/
-    ``supervisor_allocations``) the way a populated production volume would
-    look before this change, then asserts the ordinary store connection path
-    creates both tables and the allocation-ledger index cleanly -- new
-    ``CREATE TABLE``/``CREATE INDEX ... IF NOT EXISTS`` statements, not an
-    ``ALTER`` a stale index could race.
-    """
     raw = sqlite3.connect(isolated_db)
     try:
         raw.execute(
@@ -1038,7 +894,6 @@ def test_new_tables_come_up_against_a_pre_existing_database(
     finally:
         raw.close()
 
-    # Any store call establishes the connection and runs _init_schema.
     run = store.get_run("legacy-run", db_path=isolated_db)
     assert run is not None
 
@@ -1057,7 +912,6 @@ def test_new_tables_come_up_against_a_pre_existing_database(
         }
         assert "idx_sup_alloc_run" in indexes
 
-    # And the new tables are actually writable against the migrated file.
     store.save_supervisor_plan(
         store.NewSupervisorPlan(
             run_id="legacy-run",
@@ -1072,15 +926,8 @@ def test_new_tables_come_up_against_a_pre_existing_database(
     assert plan is not None
 
 
-# Incremental Supervisor-ledger persistence at checkpoint boundaries (E19).
-#
-# ``test_store_supervisor_plan.py`` covers the finalize-time drain -- the
-# happy path where a run completes. This module covers the gap finalize alone
-# leaves open: a run that fails, is cancelled, or is safety-blocked never
-# reaches finalize, so ``store.save_checkpoint`` itself must carry the ledger
-# forward at every node-task commit boundary (see
-# ``app.store.supervisor_plan.sync_supervisor_ledger_from_checkpoint``, called
-# from ``app.store.checkpoints.save_checkpoint``).
+# Failure/cancellation can skip finalize, so checkpoint commits must persist
+# supervisor provenance too.
 
 
 def _checkpoint_state(
@@ -1091,12 +938,6 @@ def _checkpoint_state(
     decision_provenance: str | None = None,
     termination_reason: str | None = None,
 ) -> dict[str, Any]:
-    """Build a ``NewCheckpoint.state`` envelope shaped like the real one.
-
-    Mirrors ``engine_tasks/support.py``'s ``{"provider": ..., **envelope}``
-    shape, where ``envelope["state"]`` holds the plain ``WorkflowState``
-    fields (see ``co_scientist.checkpoint.serialize_workflow_state``).
-    """
     return {
         "provider": "engine",
         "version": 1,
@@ -1129,7 +970,6 @@ _GUIDANCE = {"workflow_plan": {"iterations": 2}}
 def test_save_checkpoint_persists_ledger_without_finalize(
     isolated_db: str,
 ) -> None:
-    """A checkpoint alone -- no finalize, no drain -- populates the ledger."""
     run = store.create_run("goal", "standard", "mock", {})
     assert store.get_supervisor_plan(run.id, db_path=isolated_db) is None
 
@@ -1155,11 +995,10 @@ def test_save_checkpoint_persists_ledger_without_finalize(
     plan = store.get_supervisor_plan(run.id, db_path=isolated_db)
     assert plan is not None
     assert plan["plan"] == _GUIDANCE
-    assert plan["termination_reason"] is None  # run has not ended
+    assert plan["termination_reason"] is None
 
 
 def test_ledger_grows_across_successive_checkpoints(isolated_db: str) -> None:
-    """Each later checkpoint's larger task_history extends the ledger."""
     run = store.create_run("goal", "standard", "mock", {})
 
     store.save_checkpoint(
@@ -1196,11 +1035,8 @@ def test_ledger_grows_across_successive_checkpoints(isolated_db: str) -> None:
 def test_shorter_later_checkpoint_never_shrinks_the_ledger(
     isolated_db: str,
 ) -> None:
-    """A checkpoint with less history than already stored is a no-op.
-
-    Guards against a superseded or out-of-order commit erasing what a
-    previous, further-along checkpoint had already recorded.
-    """
+    # Older out-of-order checkpoints must not erase a more complete stored
+    # ledger.
     run = store.create_run("goal", "standard", "mock", {})
     store.save_checkpoint(
         run.id,
@@ -1234,13 +1070,8 @@ def test_shorter_later_checkpoint_never_shrinks_the_ledger(
 
 
 def test_equal_length_checkpoint_is_a_no_op(isolated_db: str) -> None:
-    """A checkpoint repeating the same task_history writes nothing new.
-
-    This is the common case: item-level checkpoints (fan-out items, ranking
-    matches) carry the same task_history as the last orchestrator decision,
-    so the ledger's write frequency tracks orchestrator decisions, not
-    checkpoint count.
-    """
+    # Repeated item checkpoints carry unchanged history; ledger writes track
+    # decisions rather than every commit.
     run = store.create_run("goal", "standard", "mock", {})
     state = _checkpoint_state(
         task_history=[_task("generate")], guidance=_GUIDANCE
@@ -1269,7 +1100,6 @@ def test_equal_length_checkpoint_is_a_no_op(isolated_db: str) -> None:
 
 
 def test_no_guidance_yet_persists_nothing(isolated_db: str) -> None:
-    """A checkpoint before the Supervisor has run leaves no plan row."""
     run = store.create_run("goal", "standard", "mock", {})
     store.save_checkpoint(
         run.id,
@@ -1287,12 +1117,6 @@ def test_no_guidance_yet_persists_nothing(isolated_db: str) -> None:
 
 
 def test_legacy_checkpoint_shape_is_a_no_op(isolated_db: str) -> None:
-    """A checkpoint state without a nested WorkflowState is safely ignored.
-
-    Some checkpoint call sites (and every test in test_store_checkpoints.py)
-    pass a synthetic ``state`` dict with no ``"state"`` sub-key at all --
-    the sync must not raise on that shape.
-    """
     run = store.create_run("goal", "standard", "mock", {})
     store.save_checkpoint(
         run.id,
@@ -1309,7 +1133,6 @@ def test_legacy_checkpoint_shape_is_a_no_op(isolated_db: str) -> None:
 def test_finalize_remains_authoritative_after_incremental_writes(
     isolated_db: str,
 ) -> None:
-    """Finalize's terminal write still lands cleanly over incremental ones."""
     from tests._drain_helpers import _persist
 
     run = store.create_run("goal", "standard", "mock", {})

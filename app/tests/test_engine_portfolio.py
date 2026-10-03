@@ -1,5 +1,3 @@
-"""Tests for engine portfolio."""
-
 from __future__ import annotations
 
 from typing import Any
@@ -19,22 +17,10 @@ from tests._engine_tasks_helpers import (
     _task_state,
 )
 
-# Bounded node-task portfolio coverage (finding F4).
-#
-# Execution used to enqueue exactly one successor node task per commit,
-# reactively. These tests drive the shared commit path
-# (``app.engine_tasks.support._save_state_and_enqueue``) directly to prove
-# a commit now also chains however much of the deterministic tail
-# ``co_scientist.task_runtime.plan_portfolio`` can already resolve, that a
-# plan superseded by a real outcome (a mid-run safety halt) is cancelled
-# rather than left claimable, and that a checkpoint shaped exactly as the
-# pre-portfolio spine produced it still resumes and the run still settles.
-
 
 def _portfolio_seed_predecessor(
     run_id: str, db_path: str, task_type: str = "engine.node.generate"
 ) -> store.ScientificTask:
-    """Seed and claim a stand-in predecessor task for a portfolio commit."""
     store.enqueue_task(
         store.NewTask(
             run_id=run_id,
@@ -57,13 +43,8 @@ def _seed_resume_checkpoint(
     resume_successor: str,
     db_path: str,
 ) -> int:
-    """Seed a checkpoint shaped exactly as ``_save_node_checkpoint`` would.
-
-    ``resume_successor`` lives beside ``provider`` at the checkpoint's own
-    top level, alongside (not inside) the serialized workflow-state
-    payload -- the shape ``app.task_worker.enqueue._enqueue_resume_task``
-    reads.
-    """
+    # Resume successor belongs beside provider at checkpoint top level, not
+    # inside serialized workflow state.
     from co_scientist.checkpoint import (
         CHECKPOINT_VERSION,
         serialize_workflow_state,
@@ -90,15 +71,6 @@ def _seed_resume_checkpoint(
 async def test_commit_plans_the_resolvable_tail_behind_the_successor(
     isolated_db: str,
 ) -> None:
-    """A commit chains the deterministic hops behind its immediate successor.
-
-    Mirrors what the real generation aggregate's commit does once
-    ``mcp_available`` routes it to ``reflection``: the aggregate's own
-    commit here is standing in as ``task``, and ``reflection`` is the
-    successor it decided on. ``review`` -- ``reflection``'s own fixed,
-    non-fanning-adjacent successor -- must already be queued and chained
-    behind it, not created only once ``reflection`` itself later runs.
-    """
     run = store.create_run("Portfolio lookahead", "standard", "engine", {})
     predecessor = _portfolio_seed_predecessor(run.id, isolated_db)
     checkpoint_seq = _seed_checkpoint(
@@ -125,8 +97,6 @@ async def test_commit_plans_the_resolvable_tail_behind_the_successor(
         == f"engine.node.reflection:after:{predecessor.id}"
     )
     assert review.idempotency_key == f"engine.node.review:after:{reflection.id}"
-    # review is itself a fanning node (finding F4's stop set): the plan
-    # never guesses what comes after it.
     assert "engine.node.comprehensive_reflection" not in tasks
 
 
@@ -134,31 +104,15 @@ async def test_commit_plans_the_resolvable_tail_behind_the_successor(
 async def test_resume_from_a_pre_portfolio_checkpoint_settles_the_run(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A checkpoint shaped exactly as the old spine produced it still resumes.
-
-    The checkpoint's own shape (``stage``, ``resume_successor``) is
-    unchanged by this feature -- only how a *fresh* successor gets keyed
-    changed. This seeds the checkpoint plus a successor task exactly as
-    the pre-portfolio code would have left them (checkpoint-sequence
-    key, no ``dependencies``) and then lets that task die, the way an
-    interrupted worker's boundary would at the moment of this deploy.
-    Resume does not need to revive that exact old-keyed row -- it is not
-    findable under a key this code would ever construct -- but the run
-    must still make forward progress and settle.
-    """
+    # Legacy checkpoint-sequence tasks must still progress across edge-key
+    # changes even if recovery creates a new row.
     run = store.create_run("Pre-portfolio resume", "standard", "engine", {})
-    # `next_task_priority` is a required (non-Optional) WorkflowState field,
-    # so a round trip through a real checkpoint always restores it -- unset
-    # here, it would restore as `None` rather than being absent, which the
-    # orchestrator-priority read in `_enqueue_node_portfolio` (unrelated to
-    # this feature -- it already read the same way before it) requires a
-    # real int for.
+    # Checkpoint restore supplies next_task_priority; fixtures need an int
+    # rather than a restored None.
     state = {**_task_state(run.id), "next_task_priority": 90}
     generator = _Generator(state)
     _patch_generator(monkeypatch, generator, restore=True, screen=True)
 
-    # A real predecessor task, exactly as `_save_node_checkpoint` leaves
-    # one committing today.
     predecessor = _portfolio_seed_predecessor(
         run.id, isolated_db, task_type="engine.node.supervisor"
     )
@@ -174,9 +128,6 @@ async def test_resume_from_a_pre_portfolio_checkpoint_settles_the_run(
         resume_successor=old_successor_type,
         db_path=isolated_db,
     )
-    # The old, checkpoint-sequence-keyed successor row, already dead --
-    # exhausted its retry budget, exactly as `test_task_worker_resume.py`
-    # reproduces for the pre-existing scheme.
     dead = store.enqueue_task(
         store.NewTask(
             run_id=run.id,
@@ -215,10 +166,8 @@ async def test_resume_from_a_pre_portfolio_checkpoint_settles_the_run(
         return {"run_id": task.run_id, "status": "completed"}
 
     _patch_task_node(monkeypatch, execute)
-    # `_ENGINE_TASK_DISPATCH` binds `execute_finalize` at import time, so
-    # only patching the dict entry itself (not the module attribute)
-    # actually redirects dispatch, matching the stand-in used elsewhere in
-    # this module.
+    # Dispatch binds callables at import; patch the dispatch dictionary rather
+    # than an unrelated module name.
     monkeypatch.setitem(
         engine_tasks._ENGINE_TASK_DISPATCH,
         engine_tasks_support.FINALIZE_TASK,
@@ -231,21 +180,13 @@ async def test_resume_from_a_pre_portfolio_checkpoint_settles_the_run(
     assert settled.status == store.RunStatus.COMPLETED.value
 
 
-# Portfolio chain unwinding on terminal outcomes (finding F4).
-#
-# A commit plans several hops ahead, so any outcome that supersedes the
-# plan must unwind the whole downstream chain, not just the row one hop
-# away. A queued row left depending on a cancelled or failed predecessor
-# is never claimable and never removed, yet still reads as claimable work
-# to ``app.store.tasks_lifecycle.cohort_poll`` -- dependency-blind by design
-# -- so the run's worker cohort never concludes it is done. That is a
-# hang, and it is what these tests pin against.
+# Cancel whole downstream chains on superseded outcomes; orphan queued rows
+# prevent cohort settlement.
 
 
 def _cancel_seed_predecessor(
     run_id: str, db_path: str, task_type: str = "engine.node.generate"
 ) -> store.ScientificTask:
-    """Seed and claim a stand-in predecessor task for a portfolio commit."""
     store.enqueue_task(
         store.NewTask(
             run_id=run_id,
@@ -264,18 +205,8 @@ def _cancel_seed_predecessor(
 async def test_a_supervisor_cancel_of_a_mid_chain_row_cascades_downstream(
     isolated_db: str,
 ) -> None:
-    """The Supervisor's own cancel of a portfolio row cascades too.
-
-    ``_apply_single_queue_action``'s "cancel" is a third path that can
-    single-cancel a portfolio-chained row (alongside a diverging outcome
-    and a permanent failure, finding F4): the Supervisor may request it
-    directly as a scheduling decision, targeting any row its own
-    ``_durable_queue_snapshot`` shows it -- including one mid-chain.
-    Cancelling only that row would leave anything chained behind it
-    ``queued`` forever with a dependency that can now never reach
-    ``completed``, exactly as an uncascaded divergence or permanent
-    failure would.
-    """
+    # Supervisor cancellation must unwind dependent portfolios or impossible
+    # prerequisites strand queued work.
     run = store.create_run(
         "Supervisor cancel cascade", "standard", "engine", {}
     )
@@ -285,7 +216,6 @@ async def test_a_supervisor_cancel_of_a_mid_chain_row_cascades_downstream(
     checkpoint_seq = _seed_checkpoint(
         run.id, _task_state(run.id), db_path=isolated_db
     )
-    # Plant a two-hop chain to cancel into: evolve -> review.
     evolve = store.enqueue_task(
         store.NewTask(
             run_id=run.id,
@@ -307,7 +237,6 @@ async def test_a_supervisor_cancel_of_a_mid_chain_row_cascades_downstream(
         db_path=isolated_db,
     )
 
-    # The orchestrator's own commit asks to cancel the mid-chain row.
     orchestrator_commit = TaskCommit(predecessor, checkpoint_seq, isolated_db)
     state = {
         **_task_state(run.id),
@@ -334,16 +263,8 @@ async def test_a_supervisor_cancel_of_a_mid_chain_row_cascades_downstream(
 
 
 def _assert_no_unsatisfiable_dependency(run_id: str, db_path: str) -> None:
-    """Fail if any queued row depends on a row that can never complete.
-
-    The concrete shape of finding F4's hang regression (reported against
-    ``tests/test_system_safety_monitor.py``): a queued row whose sole
-    dependency is ``cancelled`` or ``failed`` will never be claimed and
-    is never removed, yet still reads as claimable work to
-    ``app.store.tasks_lifecycle.cohort_poll`` -- dependency-blind by design
-    -- so a run's worker cohort never concludes there is nothing left to
-    do. That is a hang, not a slow settle.
-    """
+    # Queued rows behind failed/cancelled prerequisites are never claimable but
+    # keep cohorts alive forever.
     tasks = {t.id: t for t in store.list_tasks(run_id, db_path=db_path)}
     dead = {"cancelled", "failed"}
     for task in tasks.values():
@@ -362,31 +283,14 @@ def _assert_no_unsatisfiable_dependency(run_id: str, db_path: str) -> None:
 async def test_a_diverging_outcome_cancels_the_whole_downstream_tail(
     isolated_db: str,
 ) -> None:
-    """A divergence two or more hops deep leaves no orphaned dependent.
-
-    Regression (reported against ``tests/test_system_safety_monitor.py``,
-    which hung indefinitely): cancelling only the row directly superseded
-    left anything chained *behind* that row -- two or more hops into the
-    original plan -- permanently ``queued`` with a dependency on a row
-    that would never reach ``completed``. A shallower, one-hop-deep
-    divergence (the sibling test below) cannot exercise this: there, the
-    only planned row *is* the direct dependent, so cancelling it alone
-    happened to be enough and this class of bug passed unnoticed.
-
-    Mirrors the real chain a live run plans from an orchestrator decision
-    of "meta_review" (``meta_review`` -> ``evolve`` -> ``review``, three
-    deep -- confirmed against a real offline run) with a safety halt
-    (finding J6) at the first hop.
-    """
+    # Use multi-hop divergence; single-hop fixtures cannot expose orphaned
+    # descendants.
     run = store.create_run(
         "Portfolio deep divergence", "standard", "engine", {}
     )
     predecessor = _cancel_seed_predecessor(
         run.id, isolated_db, task_type="engine.node.orchestrator"
     )
-    # meta_review is EVOLVE's prefix node *and* a periodic task of its own,
-    # so what follows it is the orchestrator's own recorded decision; the
-    # three-deep chain this test needs is the EVOLVE one.
     decided = {**_task_state(run.id), "next_task": "evolve"}
     checkpoint_seq = _seed_checkpoint(run.id, decided, db_path=isolated_db)
     commit = TaskCommit(predecessor, checkpoint_seq, isolated_db)
@@ -410,7 +314,6 @@ async def test_a_diverging_outcome_cancels_the_whole_downstream_tail(
         "this test is not exercising the transitive case"
     )
 
-    # meta_review now actually runs and halts instead of reaching evolve.
     leased_meta_review = store.claim_task(
         "worker", run_id=run.id, db_path=isolated_db
     )
@@ -441,15 +344,8 @@ async def test_a_diverging_outcome_cancels_the_whole_downstream_tail(
 async def test_a_diverging_outcome_cancels_the_superseded_plan(
     isolated_db: str,
 ) -> None:
-    """A mid-run safety halt cancels the lookahead it invalidates.
-
-    A portfolio can plan a node's successor before that node actually
-    runs. When the real outcome differs -- here, ``reflection`` itself
-    routes to finalize instead of the ``review`` it was planned to reach
-    (finding J6) -- the superseded guess must be cancelled in the same
-    commit, not left queued with a dependency the real flow will still
-    satisfy.
-    """
+    # Real outcomes invalidate planned guesses; cancel stale successors in the
+    # same checkpoint commit.
     run = store.create_run("Portfolio divergence", "standard", "engine", {})
     predecessor = _cancel_seed_predecessor(run.id, isolated_db)
     checkpoint_seq = _seed_checkpoint(
@@ -470,7 +366,6 @@ async def test_a_diverging_outcome_cancels_the_superseded_plan(
     review = tasks["engine.node.review"]
     assert review.status == "queued"
 
-    # reflection now actually runs and halts instead of reaching review.
     leased_reflection = store.claim_task(
         "worker", run_id=run.id, db_path=isolated_db
     )
@@ -493,9 +388,6 @@ async def test_a_diverging_outcome_cancels_the_superseded_plan(
     assert refreshed["engine.finalize"].dependencies == (reflection.id,)
     _assert_no_unsatisfiable_dependency(run.id, isolated_db)
 
-    # Belt and braces: even an already-claimed review row would refuse to
-    # run rather than redo work finalize has already been scheduled over
-    # (app.engine_tasks.node._check_portfolio_predecessor).
     checkpoint = store.get_latest_checkpoint(run.id, db_path=isolated_db)
     assert checkpoint is not None
     with pytest.raises(SupersededTaskError):
@@ -505,23 +397,8 @@ async def test_a_diverging_outcome_cancels_the_superseded_plan(
 def test_a_permanent_failure_cancels_the_downstream_chain(
     isolated_db: str,
 ) -> None:
-    """A task that exhausts its retry budget cancels its own chain too.
-
-    Regression (reported against ``tests/test_system_safety_monitor.py``,
-    which hung indefinitely): a task that never gets to commit a real
-    successor -- because it fails permanently instead of running to a
-    real outcome -- never reaches ``_save_state_and_enqueue``, so
-    ``_cancel_stale_planned_chain`` never runs for it either. A
-    lookahead a portfolio chained behind it stays ``queued`` forever
-    with a dependency that can now never reach ``completed``.
-
-    ``app.store.runs_views``'s "settle the run if nothing claimable
-    remains" check has exactly one chance to see this, inside
-    ``fail_task``'s own transaction; if the orphan is still queued at
-    that moment the run is never settled failed either -- left
-    non-terminal forever with no worker left to advance it, the shape
-    ``AGENTS.md`` records from a previous incident.
-    """
+    # Permanent failure must cancel dependent chains within settlement's
+    # transaction or the run stays nonterminal.
     run = store.create_run(
         "Portfolio permanent failure", "standard", "engine", {}
     )
@@ -578,23 +455,6 @@ def test_a_permanent_failure_cancels_the_downstream_chain(
     )
 
 
-# One orchestrator commit materializes a stacked pass (FIX-3).
-#
-# Listing 01's ``DecideNextSteps`` queues several tasks from one pass; our
-# precedence chain returns one. ``scheduling.policy.stack_companions`` lets
-# a pass carry the listing's two periodic companions -- system feedback,
-# then the research overview -- alongside its primary decision, riding the
-# ``supervisor_queue_actions`` that already travel inside the
-# orchestrator's own commit transaction.
-#
-# These tests drive the real commit path and assert the durable shape:
-# several node rows from one commit, chained serially so the checkpoint
-# chain cannot fork and only the head is ever claimable, each row keyed
-# exactly as the later reactive enqueue of the same edge would key it, and
-# the primary still named as the decision's ``next_task`` for everything
-# that reads it.
-
-
 _ORCHESTRATOR = "engine.node.orchestrator"
 _META_REVIEW = "engine.node.meta_review"
 _OVERVIEW = "engine.node.research_overview"
@@ -602,7 +462,6 @@ _FINALIZE = "engine.finalize"
 
 
 def _seed_orchestrator(run_id: str, db_path: str) -> store.ScientificTask:
-    """Seed and claim an orchestrator task to commit a decision from."""
     store.enqueue_task(
         store.NewTask(
             run_id=run_id,
@@ -620,7 +479,6 @@ def _seed_orchestrator(run_id: str, db_path: str) -> store.ScientificTask:
 def _stacked_state(
     run_id: str, next_task: str, *companions: str
 ) -> dict[str, object]:
-    """Workflow state as a stacked orchestrator decision commits it."""
     return {
         **_task_state(run_id),
         "next_task": next_task,
@@ -640,12 +498,8 @@ def _stacked_state(
 async def test_one_commit_queues_the_companion_and_the_primary(
     isolated_db: str,
 ) -> None:
-    """A stacked pass leaves two node rows, chained in order.
-
-    The companion runs first and the primary is anchored to it, never to
-    the orchestrator: two rows under the same predecessor would both be
-    claimable at once and fork the single-writer checkpoint chain.
-    """
+    # Chain stacked companions serially; siblings under one predecessor fork the
+    # single-writer checkpoint path.
     run = store.create_run("Stacked pass", "standard", "engine", {})
     orchestrator = _seed_orchestrator(run.id, isolated_db)
     state = _stacked_state(run.id, "reflect")
@@ -671,13 +525,8 @@ async def test_one_commit_queues_the_companion_and_the_primary(
 async def test_the_companion_row_is_keyed_for_collision(
     isolated_db: str,
 ) -> None:
-    """The stacked row and a reactive one for the same edge are one row.
-
-    ``_enqueue_after``'s ``{task_type}:after:{predecessor id}`` key is a
-    pure function of the edge, so applying the queue action and enqueueing
-    the successor resolve to the same row rather than racing as two
-    claimable duplicates.
-    """
+    # Edge-derived idempotency makes planned and reactive enqueue resolve to the
+    # same row.
     run = store.create_run("Stacked key", "standard", "engine", {})
     orchestrator = _seed_orchestrator(run.id, isolated_db)
     state = _stacked_state(run.id, "proximity")
@@ -700,7 +549,6 @@ async def test_the_companion_row_is_keyed_for_collision(
 async def test_an_unstacked_commit_queues_only_its_own_successor(
     isolated_db: str,
 ) -> None:
-    """Without a companion the orchestrator commit is exactly as it was."""
     run = store.create_run("Unstacked pass", "standard", "engine", {})
     orchestrator = _seed_orchestrator(run.id, isolated_db)
     state = {
@@ -725,15 +573,8 @@ async def test_an_unstacked_commit_queues_only_its_own_successor(
 async def test_two_companions_chain_rather_than_fork(
     isolated_db: str,
 ) -> None:
-    """Both periodic branches from one pass leave one claimable head.
-
-    Anchoring the second companion to the orchestrator as well would put
-    two rows under the same predecessor, both claimable at once against a
-    single-writer checkpoint chain. Each stacked row is anchored to the
-    one before it instead, so exactly one task is ever in flight and the
-    rate-limit park (``task_worker.outcomes._park_rate_limited_task``)
-    applies to it as it would to any single task.
-    """
+    # Only one stacked head can be claimable so checkpoint commits remain
+    # single-writer.
     run = store.create_run("Two companions", "extended", "engine", {})
     orchestrator = _seed_orchestrator(run.id, isolated_db)
     state = _stacked_state(run.id, "reflect", "meta_review", "synthesize")
@@ -756,12 +597,6 @@ async def test_two_companions_chain_rather_than_fork(
 async def test_the_companion_edge_collides_with_its_reactive_enqueue(
     isolated_db: str,
 ) -> None:
-    """The stacked row and the row meta-review's own commit makes are one.
-
-    Both derive ``{task_type}:after:{predecessor id}`` from the same
-    edge, so committing the companion for real reuses the row the
-    orchestrator's pass already planned instead of racing a duplicate.
-    """
     run = store.create_run("Companion edge", "extended", "engine", {})
     orchestrator = _seed_orchestrator(run.id, isolated_db)
     state = _stacked_state(run.id, "reflect", "meta_review", "synthesize")
@@ -802,11 +637,6 @@ async def test_the_companion_edge_collides_with_its_reactive_enqueue(
 async def test_the_terminal_decision_writes_an_overview_then_a_report(
     isolated_db: str,
 ) -> None:
-    """A stop stacks nothing and still ends overview -> report.
-
-    ``engine.finalize`` is enqueued only as the overview node's own
-    successor, so this is the edge a stacking change must not disturb.
-    """
     run = store.create_run("Terminal pass", "extended", "engine", {})
     orchestrator = _seed_orchestrator(run.id, isolated_db)
     state = {
@@ -850,12 +680,8 @@ async def test_the_terminal_decision_writes_an_overview_then_a_report(
 async def test_a_stacked_task_cannot_run_before_its_inputs(
     isolated_db: str,
 ) -> None:
-    """Only the head of a stacked chain is claimable.
-
-    Ordering exists for a reason at every hop -- the overview reads the
-    critique the feedback pass writes, and the primary reads both -- so
-    the dependency edges, not the enqueue order, are what has to hold.
-    """
+    # Dependency edges enforce data ordering, not enqueue order; overview
+    # consumes feedback before the primary.
     run = store.create_run("Stacked claim", "extended", "engine", {})
     orchestrator = _seed_orchestrator(run.id, isolated_db)
     state = _stacked_state(run.id, "reflect", "meta_review", "synthesize")

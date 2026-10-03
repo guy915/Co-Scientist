@@ -1,5 +1,3 @@
-"""Durable task fixtures."""
-
 from __future__ import annotations
 
 import asyncio
@@ -25,7 +23,6 @@ from ._llm_fake_backend import load_engine_fake
 
 
 def _task_state(run_id: str) -> dict[str, Any]:
-    """Build the minimal serializable state used by task-runtime fixtures."""
     return {
         "run_id": run_id,
         "research_goal": "Task-level science",
@@ -48,7 +45,6 @@ def _seed_checkpoint(
     stage: str = "fixture",
     db_path: str | None = None,
 ) -> int:
-    """Serialize ``state`` and commit it as an engine checkpoint, return seq."""
     from co_scientist.checkpoint import (
         CHECKPOINT_VERSION,
         serialize_workflow_state,
@@ -80,25 +76,12 @@ class _Generator:
 async def _deterministic_screen(
     _run_id: str, subject: Any, *_: Any, **__: Any
 ) -> Any:
-    """Stand in for the escalation with its deterministic verdict.
-
-    Matches ``screen_with_escalation``'s signature (run id, then the
-    ``ScreenSubject``) and returns what that wrapper returns for any run
-    these tests create: the deterministic decision, with no contextual
-    model call.
-    """
     return subject.deterministic
 
 
 class FakeEngineTaskRuntime:
-    """Test adapter for ``app.engine_tasks.runtime``.
-
-    Every slot starts as the production adapter's own, so a test replaces
-    only the collaborators it states. ``screen`` serves both the intake gate
-    and the final-report gate; the stand-ins here key on ``subject.stage``
-    when a test needs only one of them. ``production`` is kept for a test
-    that wraps or restores the real collaborator.
-    """
+    # Start from production collaborators so each test replaces only the seams
+    # it declares.
 
     def __init__(self) -> None:
         self.production = ProductionEngineTaskRuntime()
@@ -115,12 +98,6 @@ class FakeEngineTaskRuntime:
 
 
 def _install_runtime(monkeypatch: pytest.MonkeyPatch) -> FakeEngineTaskRuntime:
-    """Install the test adapter for this test, or return the one installed.
-
-    The one place a test states which collaborators a durable task runs
-    against, in place of patching each module that looks one up. Undone with
-    the test.
-    """
     installed = engine_tasks_runtime._installed
     if isinstance(installed, FakeEngineTaskRuntime):
         return installed
@@ -132,7 +109,6 @@ def _install_runtime(monkeypatch: pytest.MonkeyPatch) -> FakeEngineTaskRuntime:
 def _patch_restore_generator(
     monkeypatch: pytest.MonkeyPatch, generator: _Generator
 ) -> None:
-    """Make every restore site rebuild state with ``generator``."""
     _install_runtime(monkeypatch).generator_for_restore = lambda *_: generator
 
 
@@ -143,12 +119,6 @@ def _patch_generator(
     restore: bool = False,
     screen: bool = False,
 ) -> None:
-    """Route the executor's generator seams at ``generator``.
-
-    Installs the generator for a new run always, and optionally the restore
-    generator and the deterministic screen -- the slots the durable-executor
-    tests otherwise patch module by module.
-    """
     runtime = _install_runtime(monkeypatch)
     runtime.generator_and_opts = lambda *_: (generator, {})
     if restore:
@@ -158,14 +128,12 @@ def _patch_generator(
 
 
 def _patch_task_node(monkeypatch: pytest.MonkeyPatch, execute: Any) -> None:
-    """Replace ``task_runtime.execute_task_node`` with a fixture coroutine."""
     import co_scientist.task_runtime as runtime
 
     monkeypatch.setattr(runtime, "execute_task_node", execute)
 
 
 def _milestones(run_id: str, *, db_path: str | None = None) -> list[str]:
-    """Return the run's milestone chat-message contents in commit order."""
     return [
         message.content
         for message in store.list_messages(run_id, db_path=db_path)
@@ -176,7 +144,6 @@ def _milestones(run_id: str, *, db_path: str | None = None) -> list[str]:
 def _task_events(
     run_id: str, task: str, *, db_path: str | None = None
 ) -> list[dict[str, Any]]:
-    """Return the run's ``scientific_task`` events for one task name."""
     return [
         event
         for event in store.list_events(run_id, db_path=db_path)
@@ -185,14 +152,8 @@ def _task_events(
 
 
 def _add_fixture_review(hypothesis: Hypothesis) -> Hypothesis:
-    """Attach one agent-authored review so the hypothesis has peer review.
-
-    ``_ranking_eligible`` (app.engine_tasks.ranking) requires
-    ``has_peer_review`` alongside ``is_rankable`` (HITL-MANUAL-HYP-001's
-    RANK-retry closure), so any fixture pool calling itself "viable" and
-    ready to rank needs one, matching every real pool: nothing reaches
-    ranking on the durable path without a review first.
-    """
+    # Tournament fixtures require peer review as well as rankability, just like
+    # real admitted pools.
     hypothesis.reviews.append(
         HypothesisReview(
             review_summary="fixture review",
@@ -207,15 +168,8 @@ def _add_fixture_review(hypothesis: Hypothesis) -> Hypothesis:
 
 
 def _viable_hypotheses(count: int, played: bool = False) -> list[Hypothesis]:
-    """Build ``count`` reviewed-viable hypotheses for a tournament fixture.
-
-    Args:
-        count: How many hypotheses to build.
-        played: Give each one a match record. The tournament round count
-            owes a first match to any rankable hypothesis that has never
-            played, so a fixture exercising budget exhaustion has to say
-            that its pool already has.
-    """
+    # Budget-exhaustion fixtures must mark pools played because unmatched ideas
+    # are still owed a first match.
     text = "Mechanism {i} accelerates ATP recovery."
     hypotheses = [
         Hypothesis(text=text.format(i=i), literature_grounding=text.format(i=i))
@@ -232,18 +186,6 @@ def _viable_hypotheses(count: int, played: bool = False) -> list[Hypothesis]:
 
 @dataclass(frozen=True)
 class _RankingSeed:
-    """The shape of one seeded ranking-node fixture.
-
-    Attributes:
-        hypothesis_count: Reviewed-viable hypotheses to seed.
-        tournament_pairs: Tournament pair budget put into state.
-        idempotency_key: Key the queued ranking node task is enqueued under.
-        consumed_rounds: Matches the run has already charged against the
-            budget, as the accumulated run metric records them.
-        played: Seed the pool as having already been matched, so the
-            coverage floor is satisfied and the budget alone decides.
-    """
-
     hypothesis_count: int
     tournament_pairs: int
     idempotency_key: str
@@ -259,7 +201,6 @@ def _seed_ranking_node(
     seed: _RankingSeed,
     db_path: str,
 ) -> None:
-    """Seed a checkpoint + queued ranking node task and route the generator."""
     state = _task_state(run_id)
     state.update(
         {
@@ -286,7 +227,6 @@ def _seed_ranking_node(
 
 
 def _install_plain_fake_judge(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Patch ``judge_matchup`` with a deterministic 'A wins' verdict."""
     import co_scientist.agents.ranking.operations as ranking_module
 
     async def fake_judge(*_: Any, **kwargs: Any) -> tuple[str, dict[str, Any]]:
@@ -304,11 +244,6 @@ def _install_plain_fake_judge(monkeypatch: pytest.MonkeyPatch) -> None:
 def _install_concurrency_tracking_judge(
     monkeypatch: pytest.MonkeyPatch,
 ) -> dict[str, int]:
-    """Patch ``judge_matchup`` to record peak concurrent judging.
-
-    Returns a shared box whose ``peak`` key holds the greatest number of
-    matchups judged simultaneously.
-    """
     import co_scientist.agents.ranking.operations as ranking_module
 
     box = {"in_flight": 0, "peak": 0}
@@ -316,7 +251,7 @@ def _install_concurrency_tracking_judge(
     async def fake_judge(*_: Any, **kwargs: Any) -> tuple[str, dict[str, Any]]:
         box["in_flight"] += 1
         box["peak"] = max(box["peak"], box["in_flight"])
-        await asyncio.sleep(0)  # Yield so siblings can overlap.
+        await asyncio.sleep(0)
         box["in_flight"] -= 1
         return "a", {
             "decision_summary": "A is stronger",
@@ -331,7 +266,6 @@ def _install_concurrency_tracking_judge(
 
 
 async def _run_ranking_node(run_id: str, db_path: str) -> dict[str, Any]:
-    """Lease, execute, and commit the queued ranking node; return its result."""
     leased = store.claim_task("ranking", run_id=run_id, db_path=db_path)
     assert leased is not None
     scheduled = await engine_tasks.execute_node_task(leased, db_path=db_path)
@@ -340,7 +274,6 @@ async def _run_ranking_node(run_id: str, db_path: str) -> dict[str, Any]:
 
 
 async def _drain_ranking_matches(run_id: str, db_path: str) -> int:
-    """Lease + execute every queued match task; return the number run."""
     matches = 0
     while True:
         match = store.claim_task(
@@ -360,7 +293,6 @@ async def _drain_ranking_matches(run_id: str, db_path: str) -> int:
 
 
 def _running_ranking_events(run_id: str, db_path: str) -> list[dict[str, Any]]:
-    """Return the run's 'running'-status ranking progress events."""
     return [
         e
         for e in store.list_events(run_id, db_path=db_path)
@@ -376,7 +308,6 @@ def _run() -> str:
 def _enqueue(
     run_id: str, task_type: str, key: str, db: str, **kwargs: Any
 ) -> Any:
-    """Enqueue an empty-input task by type and idempotency key."""
     return store.enqueue_task(
         store.NewTask(
             run_id=run_id,
@@ -390,10 +321,6 @@ def _enqueue(
 
 
 def _three_control_tasks(run_id: str, db: str) -> tuple[str, str, str]:
-    """Enqueue promote/cancel/retry tasks and fail the retry one.
-
-    Returns the ``(promoted, cancelled, failed)`` task ids.
-    """
     promoted = _enqueue(
         run_id, "reflection.full", "control:promote", db, priority=1
     )
@@ -423,20 +350,6 @@ def _three_control_tasks(run_id: str, db: str) -> tuple[str, str, str]:
 def make_cancellable_executor(
     started: asyncio.Event, interrupted: asyncio.Event
 ) -> Callable[..., Awaitable[dict[str, bool]]]:
-    """Build an executor stub that records its own cancellation.
-
-    The stub matches the ``execute_engine_task`` signature. It sets
-    ``started``, then waits forever; when the surrounding task is
-    cancelled it sets ``interrupted`` and re-raises, proving the
-    cancellation reached the payload coroutine.
-
-    Args:
-        started: Set as soon as the stub begins executing.
-        interrupted: Set when the stub is cancelled.
-
-    Returns:
-        The async executor stub to patch over ``execute_engine_task``.
-    """
 
     async def _execute(
         _task: store.ScientificTask, *, db_path: str | None = None
@@ -453,13 +366,8 @@ def make_cancellable_executor(
 
 
 def _install_fake_engine_llm(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Fake the engine's LLM boundary and force literature review off."""
     load_engine_fake().install_fake_llm(monkeypatch)
-    # Hard kill switch: never probe the (possibly live) local MCP server.
     monkeypatch.setenv("FORCE_LITERATURE_REVIEW", "0")
-    # These tests exercise resume, not the safety gate; keep the app-level
-    # semantic screen offline (it makes a real provider call) so a
-    # rate-limited or degraded assessment cannot spuriously hold the run.
     from app.config import settings
 
     monkeypatch.setattr(settings, "semantic_safety_enabled", False)

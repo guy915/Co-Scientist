@@ -1,5 +1,3 @@
-"""Tests for citations."""
-
 from __future__ import annotations
 
 import gzip
@@ -28,33 +26,17 @@ from app.citations import (
     offline_resolver,
 )
 
-# Citation metadata and resolvability, judged apart from claim support.
-#
-# Covers the four facts the metadata check owns -- retraction, availability,
-# source type, and publication date -- and the property that makes it a
-# *separate* check: a source's resolvability verdict never consults whether
-# the source supports the claim citing it.
-
-
-# --- Resolvability: retraction and availability ------------------------------
+# Metadata resolvability and claim support are independent judgments.
 
 
 def test_retraction_dominates_a_reachable_source() -> None:
-    """A retracted source is unusable even though it still resolves."""
     meta = CitationMetadata(url="https://x/1", doi="10.1/a", retracted=True)
     assert assess_resolvability(meta) is Resolvability.RETRACTED
 
 
 def test_offline_resolver_accepts_a_bare_identifier_without_a_url() -> None:
-    """A DOI or PMID is an identifier; it resolves without a URL string.
-
-    The pre-convergence ``offline_resolver`` required a non-empty
-    ``meta.url``, while the drain's own metadata heuristic accepted a bare
-    DOI or PMID. Converging on the stricter of the two would have
-    reclassified every doi/pmid-only citation from available to
-    unresolvable -- a gate-decision change -- so the seam takes the
-    heuristic's rule.
-    """
+    # DOI and PMID resolve as identifiers without a URL; requiring URLs would
+    # change availability gates.
     assert (
         offline_resolver(CitationMetadata(doi="10.1/a"))
         is Resolvability.RESOLVABLE
@@ -67,7 +49,6 @@ def test_offline_resolver_accepts_a_bare_identifier_without_a_url() -> None:
 
 
 def test_resolvability_uses_the_swappable_resolver() -> None:
-    """The injected resolver decides, not the supplied metadata."""
 
     def _live_resolver(meta: CitationMetadata) -> Resolvability:
         assert meta.doi == "10.1/abc"
@@ -81,13 +62,8 @@ def test_resolvability_uses_the_swappable_resolver() -> None:
 
 
 def test_resolvability_is_independent_of_claim_support() -> None:
-    """A verbatim-supported claim citing a retracted source is still flagged.
-
-    The abstract literally contains the claim, so every support signal is
-    at its maximum -- and the metadata verdict is unmoved, because it never
-    reads the claim at all. The citation label the reader sees follows the
-    metadata verdict, not the support.
-    """
+    # Retraction metadata dominates even verbatim claim support; resolvability
+    # never consults entailment.
     claim = "Kinase X phosphorylates substrate Y in cardiac tissue."
     meta = CitationMetadata(url="https://x/1", doi="10.1/a", retracted=True)
     assert assess_resolvability(meta) is Resolvability.RETRACTED
@@ -99,9 +75,6 @@ def test_resolvability_is_independent_of_claim_support() -> None:
         available=assess_resolvability(meta) is Resolvability.RESOLVABLE,
     )
     assert classify_citation(record) is CitationState.UNAVAILABLE
-
-
-# --- Source type -------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -123,17 +96,12 @@ def test_resolvability_is_independent_of_claim_support() -> None:
 def test_source_type_from_the_retrieval_source_name(
     source: str, expected: SourceType
 ) -> None:
-    """Every source name a run can actually persist classifies."""
     assert classify_source_type(CitationMetadata(source=source)) is expected
 
 
 def test_publisher_declared_type_outranks_the_retrieval_source() -> None:
-    """A preprint indexed in PubMed is a preprint, not a journal article.
-
-    The retrieval source says ``pubmed``, which alone would read as peer
-    reviewed; PubMed's own declared publication type says otherwise and
-    must win, or the strongest available signal is the one discarded.
-    """
+    # PubMed indexes preprints too; declared publication type must outrank
+    # retrieval-source assumptions.
     meta = CitationMetadata(source="pubmed", publication_type="Preprint")
     assert classify_source_type(meta) is SourceType.PREPRINT
 
@@ -142,18 +110,13 @@ def test_publisher_declared_type_outranks_the_retrieval_source() -> None:
 
 
 def test_preprint_host_classifies_an_otherwise_unknown_source() -> None:
-    """A preprint URL is recognized when neither other signal is present."""
     meta = CitationMetadata(
         source="unknown", url="https://www.biorxiv.org/content/10.1101/1v1"
     )
     assert classify_source_type(meta) is SourceType.PREPRINT
 
 
-# --- Publication date --------------------------------------------------------
-
-
 def test_date_states_cover_missing_present_and_implausible() -> None:
-    """A date is present, absent, or outside the range a paper can hold."""
     assert (
         classify_date(CitationMetadata(year=2024), today_year=2026)
         is DateState.PRESENT
@@ -173,17 +136,13 @@ def test_date_states_cover_missing_present_and_implausible() -> None:
 
 
 def test_next_year_is_plausible_for_an_in_press_paper() -> None:
-    """An accepted paper carries its forthcoming issue's year, not today's."""
     assert (
         classify_date(CitationMetadata(year=2027), today_year=2026)
         is DateState.PRESENT
     )
 
 
-# PubMed pages can return 403 for reachable articles; resolve PMIDs through
-# NCBI ESummary so access filtering is not mistaken for missing evidence.
 def _recording_reachable(calls: list[str], *, result: bool = True) -> object:
-    """A ``_reachable`` stub that records the url it was called with."""
 
     def _stub(client: httpx.Client, url: str) -> bool:
         calls.append(url)
@@ -193,7 +152,6 @@ def _recording_reachable(calls: list[str], *, result: bool = True) -> object:
 
 
 def _recording_pmid_found(calls: list[str], *, result: bool = True) -> object:
-    """A ``_pmid_found`` stub that records the pmid it was called with."""
 
     def _stub(client: httpx.Client, pmid: str) -> bool:
         calls.append(pmid)
@@ -205,7 +163,6 @@ def _recording_pmid_found(calls: list[str], *, result: bool = True) -> object:
 def test_retracted_short_circuits_without_a_network_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A retracted article never reaches the network."""
     calls: list[str] = []
     monkeypatch.setattr(
         citation_resolver, "_reachable", _recording_reachable(calls)
@@ -228,7 +185,6 @@ def test_retracted_short_circuits_without_a_network_call(
 def test_no_identifier_is_unresolvable_without_a_network_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Nothing to dereference means unresolvable, not a network call."""
     calls: list[str] = []
     monkeypatch.setattr(
         citation_resolver, "_reachable", _recording_reachable(calls)
@@ -245,7 +201,6 @@ def test_no_identifier_is_unresolvable_without_a_network_call(
 def test_doi_is_preferred_over_pmid_and_url(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A DOI resolves through doi.org even when a PMID/URL is also present."""
     seen: list[str] = []
     monkeypatch.setattr(
         citation_resolver, "_reachable", _recording_reachable(seen)
@@ -267,7 +222,6 @@ def test_doi_is_preferred_over_pmid_and_url(
 def test_pmid_is_preferred_over_a_bare_url(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A PMID (no DOI) is looked up rather than falling through to the URL."""
     pmid_calls: list[str] = []
     url_calls: list[str] = []
     monkeypatch.setattr(
@@ -289,7 +243,6 @@ def test_pmid_is_preferred_over_a_bare_url(
 def test_bare_url_is_checked_when_no_identifier_is_present(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """With neither DOI nor PMID, the source-supplied URL is dereferenced."""
     seen: list[str] = []
     monkeypatch.setattr(
         citation_resolver, "_reachable", _recording_reachable(seen)
@@ -305,7 +258,6 @@ def test_bare_url_is_checked_when_no_identifier_is_present(
 def test_reachable_and_unreachable_land_differently(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The verdict tracks the dereference outcome, not the string's shape."""
     monkeypatch.setattr(
         citation_resolver, "_reachable", lambda client, url: True
     )
@@ -327,9 +279,6 @@ def test_reachable_and_unreachable_land_differently(
     )
 
 
-# --- _pmid_found (ESummary response parsing) --------------------------------
-
-
 class _FakeResponse:
     def __init__(self, status_code: int, payload: dict[str, Any]) -> None:
         self.status_code = status_code
@@ -340,8 +289,6 @@ class _FakeResponse:
 
 
 class _FakeEsummaryClient:
-    """A fake ``httpx.Client`` returning a fixed ESummary-shaped payload."""
-
     def __init__(self, status_code: int, payload: dict[str, Any]) -> None:
         self._status_code = status_code
         self._payload = payload
@@ -353,7 +300,6 @@ class _FakeEsummaryClient:
 
 
 def test_pmid_found_true_for_a_record_without_an_error_field() -> None:
-    """A PMID ESummary recognizes reads as found."""
     client = _FakeEsummaryClient(
         200,
         {"result": {"uids": ["23851394"], "23851394": {"uid": "23851394"}}},
@@ -368,7 +314,6 @@ def test_pmid_found_true_for_a_record_without_an_error_field() -> None:
 
 
 def test_pmid_found_false_for_an_error_record() -> None:
-    """ESummary answers 200 even for an unknown id, with an error field."""
     client = _FakeEsummaryClient(
         200,
         {
@@ -407,11 +352,7 @@ def test_pmid_found_false_on_malformed_json() -> None:
     assert citation_resolver._pmid_found(_BadJsonClient(), "1") is False  # type: ignore[arg-type]
 
 
-# --- resolve_many -------------------------------------------------------
-
-
 def test_resolve_many_preserves_input_order() -> None:
-    """Concurrent resolution returns verdicts in the same order as input."""
     results = citation_resolver.resolve_many(
         [
             CitationMetadata(url="https://a"),
@@ -429,12 +370,6 @@ def test_resolve_many_preserves_input_order() -> None:
 
 
 def test_resolve_many_routes_every_verdict_through_the_seam() -> None:
-    """The fan-out adds concurrency, never a second verdict implementation.
-
-    ``resolve_many`` used to call ``resolve_one`` directly, leaving
-    ``assess_resolvability`` and its ``Resolver`` protocol reachable only
-    from their own unit tests while production ran the parallel path.
-    """
     seen: list[CitationMetadata] = []
 
     def recording_resolver(meta: CitationMetadata) -> Resolvability:
@@ -449,7 +384,6 @@ def test_resolve_many_routes_every_verdict_through_the_seam() -> None:
 
 
 def test_live_resolver_is_the_production_resolver_implementation() -> None:
-    """``live_resolver`` satisfies the protocol by dereferencing."""
     meta = CitationMetadata(url="https://x", doi="", pmid="", retracted=True)
     assert citation_resolver.live_resolver(meta) is Resolvability.RETRACTED
 
@@ -458,13 +392,9 @@ def test_resolve_many_empty_input_makes_no_calls() -> None:
     assert citation_resolver.resolve_many([], resolver=offline_resolver) == []
 
 
-# --- offline retraction-set check (second, independent check) -----------
-
-
 def test_offline_retracted_doi_short_circuits_before_network(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A DOI in the offline set resolves RETRACTED without a network call."""
     calls: list[str] = []
     monkeypatch.setattr(
         retraction_set,
@@ -486,10 +416,6 @@ def test_offline_retracted_doi_short_circuits_before_network(
 def test_doi_absent_from_offline_set_still_resolves_normally(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A DOI absent from the offline set still resolves normally.
-
-    It falls through to the live dereference check.
-    """
     monkeypatch.setattr(
         retraction_set,
         "is_known_retracted",
@@ -509,11 +435,6 @@ def test_doi_absent_from_offline_set_still_resolves_normally(
 def test_source_flagged_retraction_never_consults_the_offline_set(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The source-flag fast path stays first.
-
-    The offline set is only ever a fallback for what the source did not
-    already catch.
-    """
 
     def _fail_if_called(doi: str) -> bool:
         raise AssertionError("offline retraction set consulted needlessly")
@@ -525,9 +446,6 @@ def test_source_flagged_retraction_never_consults_the_offline_set(
     )
 
     assert verdict is Resolvability.RETRACTED
-
-
-# Citation classifier covers all four states.
 
 
 def test_states_are_exactly_four() -> None:
@@ -578,8 +496,6 @@ def test_classify_citation(
 
 
 def test_partial_when_source_states_some_of_the_claim() -> None:
-    # Half the claim's concepts appear in the source: relevant, but not the
-    # whole assertion.
     r = CitationRecord(
         url="https://example.org/1",
         abstract="mitochondrial biogenesis rises during brown adipose "
@@ -590,14 +506,8 @@ def test_partial_when_source_states_some_of_the_claim() -> None:
     assert classify_citation(r) == "partial"
 
 
-# A real abstract runs several times the length of the claim it is cited for,
-# and it discusses background, methods and conclusions the claim never
-# mentions. Jaccard divides by the union, which that extra prose dominates,
-# so it scored a verbatim quotation at 0.18 -- under the old 0.35 "verified"
-# line -- and a relevant paraphrase at 0.078, under the old 0.10 "partial"
-# line. One production run classified all 47 of its citations "unsupported"
-# with no verified or partial among them. Coverage asks what fraction of the
-# claim the source states, which is invariant to the rest of the abstract.
+# Union overlap penalizes unrelated abstract length; claim coverage preserves
+# literal support on long sources.
 _ABSTRACT_BODY = (
     "Background: glioblastoma remains the most aggressive primary brain "
     "tumour, with median survival under fifteen months despite maximal "
@@ -624,8 +534,6 @@ _CLAIM = (
     ids=["verbatim_claim", "paraphrased_claim"],
 )
 def test_abstract_length_does_not_suppress_support(abstract: str) -> None:
-    # The regression: both of these were "unsupported" before, purely
-    # because the surrounding abstract is long.
     r = CitationRecord(
         url="https://example.org/1", abstract=abstract, claim=_CLAIM
     )
@@ -633,19 +541,12 @@ def test_abstract_length_does_not_suppress_support(abstract: str) -> None:
 
 
 def test_stating_the_claim_outscores_sharing_its_subject() -> None:
-    # A bag-of-words score cannot tell a claim's subject from its assertion,
-    # so an abstract in the same field always carries some of the claim's
-    # nouns. What must hold is the ordering: an abstract that states the
-    # claim scores strictly above one that merely shares its subject matter.
-    # Sharpening that gap further is the LLM claim assessor's job
-    # (app.claims.verifier), not this deterministic fallback's.
+    # Lexical overlap cannot distinguish subject from assertion; actual support
+    # must outrank mere topical similarity.
     subject_only = _token_overlap(_CLAIM, _ABSTRACT_BODY)
     stated = _token_overlap(_CLAIM, f"{_CLAIM}. {_ABSTRACT_BODY}")
     assert stated > subject_only
     assert subject_only < 0.60
-
-
-# Tests for the offline Retraction Watch DOI extract (retraction_set.py).
 
 
 def _write_gz(tmp_path: Path, dois: list[str]) -> Path:
@@ -656,14 +557,12 @@ def _write_gz(tmp_path: Path, dois: list[str]) -> Path:
 
 
 def test_doi_in_the_set_is_known_retracted(tmp_path: Path) -> None:
-    """A DOI present in the offline extract is reported retracted."""
     path = _write_gz(tmp_path, ["10.1000/known-bad"])
 
     assert retraction_set.is_known_retracted("10.1000/known-bad", path=path)
 
 
 def test_doi_not_in_the_set_is_not_retracted(tmp_path: Path) -> None:
-    """A DOI absent from the extract is not reported retracted."""
     path = _write_gz(tmp_path, ["10.1000/known-bad"])
 
     assert not retraction_set.is_known_retracted(
@@ -674,7 +573,6 @@ def test_doi_not_in_the_set_is_not_retracted(tmp_path: Path) -> None:
 def test_missing_data_file_degrades_to_empty_set(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A missing data file logs a warning and never raises."""
     path = tmp_path / "does-not-exist.txt.gz"
 
     with caplog.at_level("WARNING"):
@@ -685,7 +583,6 @@ def test_missing_data_file_degrades_to_empty_set(
 
 
 def test_doi_url_prefix_matches_a_bare_entry(tmp_path: Path) -> None:
-    """A https://doi.org/... input normalizes to match a bare DOI entry."""
     path = _write_gz(tmp_path, ["10.1000/known-bad"])
 
     assert retraction_set.is_known_retracted(
@@ -694,7 +591,6 @@ def test_doi_url_prefix_matches_a_bare_entry(tmp_path: Path) -> None:
 
 
 def test_the_shipped_data_file_loads_and_is_non_empty() -> None:
-    """The committed dataset is readable and not accidentally truncated."""
     doi_set = retraction_set._load_doi_set(
         retraction_set.DEFAULT_RETRACTIONS_PATH
     )

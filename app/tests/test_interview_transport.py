@@ -1,5 +1,3 @@
-"""Tests for interviews 2."""
-
 from __future__ import annotations
 
 import asyncio
@@ -30,18 +28,14 @@ from ._interviews_helpers import (
     _response,
 )
 
-# Revising a chat: editing a scientist prompt, retrying an Agent answer.
-#
-# Both rewind the transcript rather than extending it, which is the property
-# these cover -- the turns downstream of the revised one were derived from a
-# conversation that no longer exists, so they must not survive it.
+# Revised conversations invalidate every downstream turn derived from the
+# withdrawn text.
 
 
 HEADERS = {"X-Client-ID": "revision-scientist"}
 
 
 def _start(client: TestClient, challenge: str) -> dict[str, Any]:
-    """Create an interview and return its first resolved state."""
     return _interview_payload(
         client.post(
             "/api/interviews",
@@ -52,14 +46,12 @@ def _start(client: TestClient, challenge: str) -> dict[str, Any]:
 
 
 def _texts(interview: dict[str, Any]) -> list[str]:
-    """The transcript as plain strings, in order."""
     return [turn["content"] for turn in interview["turns"]]
 
 
 def test_editing_a_prompt_replaces_it_and_drops_what_followed(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The correction stands where the original did, not after it."""
     _patch_model_sequence(
         monkeypatch,
         [
@@ -88,12 +80,8 @@ def test_editing_a_prompt_replaces_it_and_drops_what_followed(
 def test_a_revision_re_derives_from_what_survives(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The model answers the rewound conversation, not the withdrawn one.
-
-    The stored five fields are a derivation of a transcript that no longer
-    exists, so carrying them into the next turn would hand the model back
-    exactly the conclusions the scientist just withdrew.
-    """
+    # Rewinding invalidates derived interview fields; carrying them forward
+    # restores withdrawn conclusions.
     completed = InterviewFields(
         focus=["Efflux-pump regulation"],
         preferences=["Clinical isolates only"],
@@ -130,7 +118,6 @@ def _capture_model_input(
     seen: list[dict[str, Any]],
     reply: dict[str, Any],
 ) -> None:
-    """Record the interview each model call is given, and answer with it."""
 
     async def _model(
         interview: dict[str, Any],
@@ -146,7 +133,6 @@ def _capture_model_input(
 def test_retrying_an_answer_discards_it_before_asking_again(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Retry replaces the rejected answer rather than appending to it."""
     _patch_model_sequence(
         monkeypatch,
         [
@@ -175,7 +161,6 @@ def test_retrying_an_answer_discards_it_before_asking_again(
 def test_revising_a_completed_interview_reopens_it(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A finished plan can be sent back for another answer."""
     completed = InterviewFields(
         focus=["Efflux-pump regulation"],
         preferences=["Clinical isolates only"],
@@ -203,7 +188,6 @@ def test_revising_a_completed_interview_reopens_it(
 
     assert retried["status"] == "active"
     assert retried["completed_at"] is None
-    # The plan the withdrawn turn derived does not outlive it.
     assert retried["fields"]["focus_area"] == []
     assert retried["fields"]["preferences"] == []
 
@@ -211,7 +195,6 @@ def test_revising_a_completed_interview_reopens_it(
 def test_a_revision_refuses_the_wrong_kind_of_turn(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Editing addresses a prompt and retrying an answer; not vice versa."""
     _patch_model_sequence(monkeypatch, [_response("A first question.")])
     with TestClient(app) as client:
         started = _start(client, "How do bacteria regain susceptibility?")
@@ -244,7 +227,6 @@ def test_a_revision_refuses_the_wrong_kind_of_turn(
 def test_a_revision_is_owner_scoped(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Another client cannot rewind a chat it does not own."""
     _patch_model_sequence(monkeypatch, [_response("A first question.")])
     with TestClient(app) as client:
         started = _start(client, "How do bacteria regain susceptibility?")
@@ -258,7 +240,6 @@ def test_a_revision_is_owner_scoped(
             == 404
         )
 
-        # And the transcript is untouched by the attempt.
         assert (
             len(
                 client.get(
@@ -269,22 +250,7 @@ def test_a_revision_is_owner_scoped(
         )
 
 
-# Tests for the interview turn's SSE transport (interviews/stream.py).
-#
-# Covers the defect where a disconnected client -- or any cancellation of
-# the coroutine iterating ``_advance_stream`` -- left the turn's model call
-# running unwatched: no persisted turn should exist after a cancel that
-# lands during the provider call, and the child task must not leak.
-
-
 class _HangingStream:
-    """A litellm-shaped stream whose first chunk never arrives.
-
-    Stands in for a provider call cancelled mid-flight: ``started`` fires
-    once the stream is actually being awaited, so the test can wait for
-    the model call to be genuinely in progress before cancelling it.
-    """
-
     def __init__(self, started: asyncio.Event) -> None:
         self._started = started
 
@@ -298,12 +264,8 @@ class _HangingStream:
 
 
 def _seed_interview(db_path: str) -> str:
-    """Create an interview carrying two consecutive scientist turns.
-
-    Mirrors what ``add_interview_turn`` leaves behind when a turn is
-    stopped: the route appends the scientist's message *before* the
-    stream opens, and a cancelled turn never appends the agent's reply.
-    """
+    # Cancelled replies leave consecutive scientist turns because their messages
+    # were persisted before streaming.
     interview = store.create_interview(
         "stop-scientist", "Restore antibiotic susceptibility", db_path=db_path
     )
@@ -357,16 +319,8 @@ async def test_cancel_mid_model_call_leaves_transcript_unchanged(
     monkeypatch: pytest.MonkeyPatch,
     reachable_provider: None,
 ) -> None:
-    """Cancelling the stream's consumer mid-call persists nothing.
-
-    Exercises the real call chain (``_call_interview_model`` ->
-    ``_stream_interview_content`` -> the patched ``litellm.acompletion`` ->
-    ``stream_chunks``), not a hand-rolled stand-in, so this is also the
-    fallback-turn trap check: ``_run_interview_turn`` only catches
-    ``HTTPException``, so if anything on this real path turned the
-    cancellation into a broader failure, the deterministic fallback would
-    author and persist a scripted turn instead of stopping cleanly.
-    """
+    # Cancellation must propagate without creating a scripted fallback turn or
+    # leaking the provider task.
     interview_id = _seed_interview(isolated_db)
     before = store.get_interview(interview_id, db_path=isolated_db)
 
@@ -382,10 +336,8 @@ async def test_cancel_mid_model_call_leaves_transcript_unchanged(
     consumer = asyncio.ensure_future(gen.__anext__())
     await asyncio.wait_for(started.wait(), timeout=5)
 
-    # Stand in for what Starlette does on a client disconnect: cancel the
-    # coroutine driving the generator, not aclose() -- a pending anext()
-    # cannot be closed concurrently, and task-cancellation is what a real
-    # disconnect actually delivers.
+    # Client disconnect cancels the iteration task; aclose cannot run alongside
+    # pending anext.
     consumer.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await consumer
@@ -407,7 +359,6 @@ async def test_closing_after_a_fragment_cancels_the_advance_task(
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Closing a partially consumed stream does not leave its task running."""
     interview_id = _seed_interview(isolated_db)
     started = asyncio.Event()
     cancelled = asyncio.Event()
@@ -443,31 +394,20 @@ async def test_closing_after_a_fragment_cancels_the_advance_task(
     assert pending == []
 
 
-# The interview turn's prose/spec wire format and its streaming splitter.
-#
-# The splitter is the piece that makes a turn streamable, so its boundary
-# behavior is pinned directly rather than through a turn: a marker arriving
-# split across deltas must never be relayed as prose and then retracted.
-
-
 _FIELDS = '{"research_challenge": "Reverse fibrosis", "completed": false}'
 
 
 def _block(body: str = _FIELDS) -> str:
-    """Return a whole spec block wrapping ``body``."""
     return f"{OPEN_MARKER}\n{body}\n{CLOSE_MARKER}"
 
 
 class _Streamed(NamedTuple):
-    """One streamed turn: what was relayed, and what it resolved to."""
-
     relayed: str
     whole: str
     fields: dict[str, Any] | None
 
 
 def _stream(deltas: list[str]) -> _Streamed:
-    """Stream every delta through a splitter and resolve the turn."""
     splitter = TurnSplitter()
     relayed = [splitter.feed(delta) for delta in deltas]
     trailing, whole, fields = splitter.finish()
@@ -485,11 +425,6 @@ def test_split_separates_prose_from_parsed_fields() -> None:
 
 
 def test_split_without_a_block_keeps_the_prose_and_reports_no_fields() -> None:
-    """A turn carrying no block is legitimate output, not an error.
-
-    The caller keeps the prose and carries the interview's previous fields
-    forward, so this must not raise and must not lose the message.
-    """
     _, prose, fields = _stream(["Which model system?"])
 
     assert prose == "Which model system?"
@@ -536,12 +471,8 @@ def test_splitter_streams_prose_and_parses_the_block() -> None:
 def test_marker_split_across_deltas_never_leaks_into_prose(
     deltas: list[str],
 ) -> None:
-    """The marker must never be relayed as prose and then retracted.
-
-    A scientist watching the stream would see the raw marker appear and
-    vanish, so any suffix that could still grow into it is held back until
-    the next delta resolves it.
-    """
+    # Buffer possible marker suffixes so raw wire markers never flash as
+    # scientist-visible prose.
     streamed = _stream(deltas)
 
     assert streamed.relayed == "Question?"
@@ -555,10 +486,8 @@ def test_marker_split_across_deltas_never_leaks_into_prose(
 
 
 def test_held_back_prose_is_flushed_when_the_turn_ends() -> None:
-    """A tail that looked like a marker but never became one is still prose.
-
-    Without the flush, a turn ending in '<' would silently lose it.
-    """
+    # Flush marker-like tails that never complete or valid prose silently
+    # disappears.
     assert _stream(["Compare A ", "< B"]).relayed == "Compare A < B"
 
 
@@ -571,7 +500,6 @@ def test_a_turn_that_is_only_a_block_relays_no_prose() -> None:
 
 
 def test_single_delta_and_fragmented_turn_agree() -> None:
-    """Chunk boundaries must leave the parsed turn unchanged."""
     text = f"**Bold** and a list:\n- one\n- two\n\n{_block()}"
     streamed = _stream(list(text))
     _, expected_prose, expected_fields = _stream([text])

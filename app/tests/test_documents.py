@@ -1,5 +1,3 @@
-"""Tests for documents."""
-
 from __future__ import annotations
 
 import hashlib
@@ -28,11 +26,6 @@ from tests._interviews_helpers import (
 )
 from tests._llm_fake_backend import install_completion_backend
 
-# Tests for permanent staged-document deletion (N3).
-#
-# Covers ``DELETE /api/documents/{id}``.
-
-
 _OWNER = {"X-Client-ID": "doc-delete-owner"}
 _OTHER = {"X-Client-ID": "someone-else"}
 
@@ -59,7 +52,6 @@ def test_owner_can_delete_their_document() -> None:
     response = client.delete(f"/api/documents/{document_id}", headers=_OWNER)
 
     assert response.status_code == 204
-    # A deleted document can no longer be resolved for the owner.
     interview = client.post(
         "/api/interviews",
         headers=_OWNER,
@@ -75,7 +67,6 @@ def test_another_client_cannot_delete_the_document() -> None:
     response = client.delete(f"/api/documents/{document_id}", headers=_OTHER)
 
     assert response.status_code == 404
-    # Still resolvable by its real owner -- nothing was deleted.
     interview = client.post(
         "/api/interviews",
         headers=_OWNER,
@@ -92,18 +83,13 @@ def test_delete_unknown_document_404s() -> None:
     assert response.status_code == 404
 
 
-# Real private-document upload, extraction, provenance, and steering tests.
-
-
 def _client_with_run(goal: str) -> tuple[TestClient, str]:
-    """Return a client plus the id of a freshly created draft run."""
     client = make_client()
     run_id = client.post("/api/runs", json={"research_goal": goal}).json()["id"]
     return client, run_id
 
 
 def test_csv_upload_preserves_table_coordinates() -> None:
-    """CSV ingestion labels its header and stable row positions."""
     from app.document_ingest import extract_document
 
     document = extract_document(
@@ -118,7 +104,6 @@ def test_csv_upload_preserves_table_coordinates() -> None:
 
 
 def test_json_upload_preserves_nested_structure() -> None:
-    """JSON ingestion validates and emits deterministic structured text."""
     from app.document_ingest import extract_document
 
     document = extract_document(
@@ -134,7 +119,6 @@ def test_json_upload_preserves_nested_structure() -> None:
 def test_pdf_ocr_includes_figures_on_text_pages(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Born-digital page prose does not suppress embedded-figure OCR."""
     from app import document_ingest
 
     class _Image:
@@ -226,7 +210,6 @@ def test_image_upload_is_ocr_extracted_with_multimodal_provenance(
 
 
 def test_pdf_bytes_declared_as_png_are_refused() -> None:
-    """A mislabeled upload is caught by its own signature, not trusted (N5)."""
     from app.document_ingest import extract_document
 
     pdf_bytes = b"%PDF-1.4\n%fake pdf body"
@@ -236,7 +219,6 @@ def test_pdf_bytes_declared_as_png_are_refused() -> None:
 
 
 def test_text_declared_as_a_mislabeled_pdf_is_refused() -> None:
-    """The check runs both directions: a binary file masquerading as text."""
     from app.document_ingest import extract_document
 
     jpeg_bytes = b"\xff\xd8\xff\xe0" + b"\x00" * 32
@@ -246,28 +228,19 @@ def test_text_declared_as_a_mislabeled_pdf_is_refused() -> None:
 
 
 def test_genuine_png_declared_as_png_is_accepted() -> None:
-    """The signature check is a mismatch guard, not a blanket refusal.
-
-    Exercises the check in isolation rather than through the full OCR
-    pipeline: the fixture bytes carry a real PNG signature but not a
-    decodable image, so going through ``extract_document`` would fail
-    downstream in OCR for a reason unrelated to what this test covers.
-    """
+    # Use PNG signature bytes without OCR so downstream decoding cannot mask the
+    # mismatch guard.
     from app.document_ingest import _verify_declared_type
 
     png_signature = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 
-    _verify_declared_type(png_signature, "image/png")  # does not raise
+    _verify_declared_type(png_signature, "image/png")
 
 
 def test_plain_text_with_no_binary_signature_is_unaffected(
     isolated_db: str,
 ) -> None:
-    """Text formats have no magic bytes.
-
-    They are judged by decodability alone, exactly as before this check
-    existed.
-    """
+    # Text has no magic bytes; decodability is its format check.
     client, run_id = _client_with_run("Plain text sanity check")
 
     response = client.post(
@@ -280,7 +253,6 @@ def test_plain_text_with_no_binary_signature_is_unaffected(
 
 
 def test_upload_endpoint_refuses_a_mislabeled_file(isolated_db: str) -> None:
-    """End-to-end: the multipart upload path rejects a mismatched MIME type."""
     client, run_id = _client_with_run("Mislabeled upload check")
     pdf_bytes = b"%PDF-1.4\n%mislabeled"
 
@@ -300,9 +272,6 @@ def test_invalid_image_is_rejected_without_persisting_evidence(
 ) -> None:
     from app import document_ingest
 
-    # Force the decode-failure path so the assertion holds regardless of
-    # whether Tesseract is installed on the runner; without a monkeypatch,
-    # a runner missing the binary raises "image OCR is unavailable" instead.
     def _raise_decode_failure(_data: bytes) -> str:
         raise ValueError("image could not be decoded or OCR failed")
 
@@ -320,9 +289,6 @@ def test_invalid_image_is_rejected_without_persisting_evidence(
     assert response.status_code == 422
     assert "OCR failed" in response.json()["detail"]
     assert store.list_evidence(run_id, db_path=isolated_db) == []
-
-
-# Tests for the private run-corpus keyword retriever (Milestone 7).
 
 
 def _corpus() -> list[CorpusDocument]:
@@ -347,7 +313,6 @@ def _corpus() -> list[CorpusDocument]:
 
 
 def test_retrieves_topically_relevant_document() -> None:
-    """A query retrieves the on-topic document above off-topic ones."""
     retriever = KeywordCorpusRetriever(_corpus())
     hits = retriever.retrieve("kinase inhibition tumor growth AML", k=2)
     assert hits
@@ -356,13 +321,11 @@ def test_retrieves_topically_relevant_document() -> None:
 
 
 def test_off_topic_query_returns_no_spurious_hits() -> None:
-    """A query with no shared terms returns nothing (not a random doc)."""
     retriever = KeywordCorpusRetriever(_corpus())
     assert retriever.retrieve("quantum chromodynamics gluon") == []
 
 
 def test_retrieval_is_deterministic() -> None:
-    """The same query returns the same ordered hits every time."""
     retriever = KeywordCorpusRetriever(_corpus())
     first = [h.document.doc_id for h in retriever.retrieve("tumor immune", k=3)]
     second = [
@@ -372,12 +335,10 @@ def test_retrieval_is_deterministic() -> None:
 
 
 def test_empty_corpus_returns_nothing() -> None:
-    """Retrieval over an empty corpus is safe and empty."""
     assert KeywordCorpusRetriever([]).retrieve("anything") == []
 
 
 def test_engine_context_sources_preserve_private_provenance() -> None:
-    """Retrieved attachments become bounded, explicitly private sources."""
     rows = [
         {
             "id": "private-1",
@@ -402,19 +363,6 @@ def test_engine_context_sources_preserve_private_provenance() -> None:
     assert len(sources[0]["data"]["excerpt"]) <= 200
 
 
-# Documents staged before a run exists: grounding, and one commit point.
-#
-# Two defects, one cause. An attachment used to be uploadable only *after*
-# the run had been created, so it could not reach the interview that scoped
-# the goal (it arrived after the plan was fixed), and it made run start a
-# three-call sequence -- create, upload, start -- whose middle step could
-# fail and leave a created, unstarted, ungrounded run behind with nothing
-# naming it.
-#
-# Staging the upload first fixes both: the interview quotes it, and creating
-# the run carries it in as part of the same call.
-
-
 _DOC_TEXT = "Tetraploid zebrafish hearts regenerate via klf2a signalling."
 _HEADERS = {"X-Client-ID": "doc-scientist"}
 
@@ -426,7 +374,6 @@ def _documents_stage(
     name: str = "lab-notes.txt",
     headers: dict[str, str] | None = None,
 ) -> Any:
-    """Upload one document to the staging endpoint and return the response."""
     return client.post(
         "/api/documents",
         headers=headers if headers is not None else _HEADERS,
@@ -436,14 +383,12 @@ def _documents_stage(
 
 
 def _stage_id(client: TestClient, **kwargs: Any) -> str:
-    """Stage one document and return its id, asserting the upload worked."""
     response = _documents_stage(client, **kwargs)
     assert response.status_code == 200, response.text
     return cast(str, response.json()["id"])
 
 
 def test_staging_rejects_an_unextractable_document() -> None:
-    """A document that cannot be read is refused before anything is stored."""
     client = make_client()
     response = client.post(
         "/api/documents",
@@ -455,7 +400,6 @@ def test_staging_rejects_an_unextractable_document() -> None:
 
 
 def test_staged_document_is_not_visible_to_another_client() -> None:
-    """Documents are owner-scoped, so another caller cannot attach one."""
     client = make_client()
     document_id = _stage_id(client)
     response = client.post(
@@ -469,11 +413,6 @@ def test_staged_document_is_not_visible_to_another_client() -> None:
 def test_attached_document_reaches_the_interview_prompt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The Agent's prompt carries the text of the document the user attached.
-
-    Asserted against the request actually sent to the provider, not against
-    the wording of the reply.
-    """
     client = make_client()
     document_id = _stage_id(client)
     created = client.post(
@@ -495,8 +434,6 @@ def test_attached_document_reaches_the_interview_prompt(
 
     install_completion_backend(monkeypatch, _fake_acompletion)
     monkeypatch.setattr(settings, "chat_model_name", "openai/gpt-4o")
-    # The suite forces offline, which refuses the request before the prompt
-    # is shaped; this case is about the prompt, and the provider is fake.
     monkeypatch.setattr(offline_guard, "remote_chat_allowed", lambda: True)
     interview = store.get_interview(str(interview_id))
     assert interview is not None
@@ -511,7 +448,6 @@ def test_attached_document_reaches_the_interview_prompt(
 
 
 def test_interview_payload_lists_its_attached_documents() -> None:
-    """The chat reports what is attached, so the UI is not claiming it alone."""
     client = make_client()
     document_id = _stage_id(client)
     streamed = client.post(
@@ -524,14 +460,11 @@ def test_interview_payload_lists_its_attached_documents() -> None:
         f"/api/interviews/{interview_id}", headers=_HEADERS
     ).json()
     assert [d["title"] for d in payload["documents"]] == ["lab-notes.txt"]
-    # The streamed turn carries the same list: a client that only ever sees
-    # frames must not have to re-fetch to learn what it attached.
     frame = _interview_payload(streamed)
     assert [d["title"] for d in frame["documents"]] == ["lab-notes.txt"]
 
 
 def test_create_run_carries_staged_documents_into_its_corpus() -> None:
-    """A run created with attachments is grounded before it is ever started."""
     client = make_client()
     document_id = _stage_id(client)
     created = client.post(
@@ -553,12 +486,8 @@ def test_create_run_carries_staged_documents_into_its_corpus() -> None:
 
 
 def test_create_run_with_an_unknown_document_creates_no_run() -> None:
-    """The failing half of the setup leaves no unstarted run behind.
-
-    This is the whole point of moving the upload ahead of creation: a
-    partial failure has to happen before anything is committed, not
-    between two writes that nothing reconciles.
-    """
+    # Stage uploads before creating runs so partial failure cannot strand an
+    # ungrounded draft.
     client = make_client()
     before = client.get("/api/runs", headers=_HEADERS).json()["runs"]
     response = client.post(
@@ -575,7 +504,6 @@ def test_create_run_with_an_unknown_document_creates_no_run() -> None:
 
 
 def test_run_created_from_a_chat_inherits_the_chat_documents() -> None:
-    """Documents attached to the chat ground the run the chat starts."""
     client = make_client()
     document_id = _stage_id(client)
     client.post(

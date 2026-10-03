@@ -1,5 +1,3 @@
-"""Tests for task worker 2."""
-
 from __future__ import annotations
 
 import json
@@ -19,8 +17,6 @@ from app.store import RunStatus, ScientificTask
 from app.store import db as store_db
 from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
 
-# Pause/resume races around a checkpoint writer and its successor.
-
 
 def _mark_leased(
     task_id: str,
@@ -30,7 +26,6 @@ def _mark_leased(
     expires_at: float,
     spend_budget: bool,
 ) -> None:
-    """Force a task into the leased state held by ``owner``."""
     extra = ", attempt=max_attempts" if spend_budget else ""
     with store.connect(db) as conn:
         conn.execute(
@@ -43,7 +38,6 @@ def _mark_leased(
 def _commit_checkpoint_successor(
     db: str, run_id: str, writer: ScientificTask, successor_type: str
 ) -> None:
-    """Atomically write a successor checkpoint and complete its writer."""
     with store.transaction(db) as conn:
         checkpoint_seq = store.save_checkpoint(
             run_id,
@@ -71,8 +65,6 @@ def _commit_checkpoint_successor(
 
 @dataclass
 class _CheckpointReadInterleaver:
-    """Pause one checkpoint read while a writer attempts its next commit."""
-
     original_get: Callable[..., dict[str, Any] | None]
     old_checkpoint: dict[str, Any]
     run_id: str
@@ -100,7 +92,6 @@ class _CheckpointReadInterleaver:
         return checkpoint
 
     def _start_commit(self, conn: sqlite3.Connection | None) -> None:
-        """Schedule the atomic checkpoint-and-successor commit."""
         self.future = self.pool.submit(
             _commit_checkpoint_successor,
             self.db,
@@ -114,7 +105,6 @@ class _CheckpointReadInterleaver:
             time.sleep(0.05)
 
     def wait_for_writer(self) -> None:
-        """Surface any racing writer failure after resume releases its lock."""
         assert self.future is not None
         self.future.result(timeout=5)
 
@@ -122,7 +112,6 @@ class _CheckpointReadInterleaver:
 def test_resume_reuses_live_checkpoint_writer_lease(
     isolated_db: str,
 ) -> None:
-    """A queued child remains the continuation while its writer is live."""
     run = store.create_run("paused live commit", "standard", "engine", {})
     successor_type = f"{engine_tasks.NODE_TASK_PREFIX}ranking"
     task = store.enqueue_task(
@@ -186,7 +175,6 @@ def test_resume_reuses_live_checkpoint_writer_lease(
 def test_resume_paused_stage_reuses_recorded_successor_not_writer(
     isolated_db: str,
 ) -> None:
-    """A paused-stage writer is a dependency, not the resumed continuation."""
     run = store.create_run("paused checkpoint", "standard", "engine", {})
     successor_type = f"{engine_tasks.NODE_TASK_PREFIX}ranking"
     writer = store.enqueue_task(
@@ -241,7 +229,6 @@ def test_resume_paused_stage_reuses_recorded_successor_not_writer(
 def test_resume_explicitly_requeues_retryable_expired_checkpoint_writer(
     isolated_db: str,
 ) -> None:
-    """Explicit resume requeues an expired writer before its queued child."""
     run = store.create_run("paused expired commit", "standard", "engine", {})
     successor_type = f"{engine_tasks.NODE_TASK_PREFIX}ranking"
     task = store.enqueue_task(
@@ -310,7 +297,6 @@ def test_resume_explicitly_requeues_retryable_expired_checkpoint_writer(
 def test_resume_revives_spent_expired_checkpoint_writer_before_child(
     isolated_db: str,
 ) -> None:
-    """Explicit resume replays a spent expired writer before its child."""
     run = store.create_run("paused spent commit", "standard", "engine", {})
     successor_type = f"{engine_tasks.NODE_TASK_PREFIX}ranking"
     writer = store.enqueue_task(
@@ -380,7 +366,6 @@ def test_resume_serializes_checkpoint_discovery_with_writer_commit(
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A writer cannot commit between checkpoint discovery and fallback."""
     run = store.create_run("resume commit race", "standard", "engine", {})
     writer = store.enqueue_task(
         store.NewTask(
@@ -449,9 +434,6 @@ def test_resume_serializes_checkpoint_discovery_with_writer_commit(
     )
 
 
-# Ambiguous LLM timeouts distinguish automatic and owner recovery.
-
-
 _BYOK_SECRET = "synthetic-timeout-encryption-secret"
 _BYOK_KEY = "sk-synthetic-ambiguous-timeout-12345"
 
@@ -460,7 +442,6 @@ _BYOK_KEY = "sk-synthetic-ambiguous-timeout-12345"
 async def test_byok_timeout_waits_for_explicit_owner_restart(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A lost BYOK response is persisted without automatic redelivery."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     monkeypatch.setattr(settings, "byok_encryption_key", _BYOK_SECRET)
     accepted: list[int] = []
@@ -509,7 +490,6 @@ async def test_byok_timeout_waits_for_explicit_owner_restart(
         )
         assert await task_worker.run_once("timeout-worker", db_path=isolated_db)
 
-    # The durable record survives reopening the owner API client.
     with make_client() as reopened:
         body = reopened.get(f"/api/runs/{run_id}").json()
         task_rows = reopened.get(f"/api/runs/{run_id}/tasks").json()["tasks"]
@@ -527,7 +507,6 @@ async def test_byok_timeout_waits_for_explicit_owner_restart(
         )
         assert accepted == [1]
 
-        # The existing owner action is the explicit acknowledgement to replay.
         assert (
             reopened.post(f"/api/runs/{run_id}/start", json={}).status_code
             == 200
@@ -541,7 +520,6 @@ async def test_byok_timeout_waits_for_explicit_owner_restart(
 async def test_expired_byok_lease_requires_owner_restart(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A worker crash cannot silently replay a persisted BYOK task."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     monkeypatch.setattr(settings, "byok_encryption_key", _BYOK_SECRET)
     accepted = ["response lost with old worker"]
@@ -611,9 +589,6 @@ async def test_expired_byok_lease_requires_owner_restart(
             db_path=isolated_db,
         )
         assert leased is not None and leased.id == target.id
-    # Model a worker that died after provider acceptance but before it wrote
-    # any task outcome. Startup reconciliation must fail the run before it
-    # can auto-resume the checkpoint or dispatch the queued sibling.
     now = store_db._now()
     monkeypatch.setattr("app.store.db.time.time", lambda: now + 2)
 
@@ -641,8 +616,6 @@ async def test_expired_byok_lease_requires_owner_restart(
         assert len(failed_events) == 1
         assert failed_events[0]["failure_kind"] == "llm_timeout_unknown"
 
-        # The persisted checkpoint remains available, but replay is an
-        # explicit owner action and the existing resume path revives it.
         assert reopened.post(f"/api/runs/{run_id}/resume").status_code == 200
         assert await task_worker.run_once("owner-retry", db_path=isolated_db)
 
@@ -653,7 +626,6 @@ async def test_expired_byok_lease_requires_owner_restart(
 async def test_expired_lease_fails_closed_after_paid_to_free_route_change(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Current free settings cannot prove an orphaned lease was free."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     paid_route = "openrouter/provider/paid-model"
     free_route = "openrouter/nex-agi/nex-n2.5-pro:free"
@@ -726,9 +698,6 @@ async def test_expired_lease_fails_closed_after_paid_to_free_route_change(
                 (target.id,),
             )
 
-    # The prior worker may have sent a paid request. A rolling deployment
-    # changes current settings before startup, but the task has no durable
-    # record of its original route or exact-zero admission result.
     monkeypatch.setattr(settings, "model_name", free_route)
     monkeypatch.setattr(
         settings,
@@ -765,7 +734,6 @@ async def test_expired_lease_fails_closed_after_paid_to_free_route_change(
         )
         assert dispatches == []
 
-        # Owner acknowledgement keeps the existing explicit recovery path.
         assert restarted.post(f"/api/runs/{run_id}/resume").status_code == 200
         assert await task_worker.run_once("owner-resume", db_path=isolated_db)
 
@@ -776,7 +744,6 @@ async def test_expired_lease_fails_closed_after_paid_to_free_route_change(
 async def test_expired_nonfree_system_route_requires_owner_recovery(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A no-BYOK run is not assumed free when its model route is paid."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     monkeypatch.setattr(settings, "model_name", "openrouter/provider/model")
     accepted: list[str] = []
@@ -820,7 +787,6 @@ async def test_expired_nonfree_system_route_requires_owner_recovery(
 async def test_exact_zero_cost_timeout_uses_bounded_delayed_retry(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Only request-time exact-zero admission may authorize auto-retry."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     accepted: list[int] = []
 

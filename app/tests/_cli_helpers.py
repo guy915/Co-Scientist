@@ -1,27 +1,5 @@
-"""Shared server fixture and HTTP helpers for the cosci CLI suites.
-
-Two kinds of helper live here. The ``cli_server`` fixture (and the HTTP
-helpers below it) back the e2e suites, which drive the CLI against a real
-uvicorn process. :func:`api_client` backs the unit suites, which drive one
-``ApiClient`` against an ``httpx.MockTransport`` with no server at all.
-
-Both CLI e2e modules (``test_cli_commands.py`` and
-``test_cli_commands_runs.py``) drive ``app.cli.main.main`` (the same entry
-point the ``cosci`` console script calls) against a real uvicorn process
-running the real engine on the deterministic offline backend with no API
-keys, so the whole suite is offline. The streaming commands (``watch``,
-``ask``) need the workflow's background task to run concurrently with the
-SSE poll loop, which a real server provides and an in-process ASGI transport
-does not; the non-streaming commands run against the same server for
-fidelity and simplicity.
-
-The ``cli_server`` fixture defined here is imported by name into each test
-module (pytest resolves fixtures from the module namespace, so each module
-gets its own FixtureDef with its own cache). The underlying uvicorn process
-is therefore a refcounted module-level singleton: the first module to need
-it spawns it, later modules reuse it, and the last finalizer terminates it —
-one server process serves the whole session.
-"""
+# Real servers permit concurrent SSE/workflow execution; fixture imports share a
+# refcounted server process.
 
 from __future__ import annotations
 
@@ -41,19 +19,12 @@ from app.cli.http import ApiClient, ApiClientOptions
 from app.cli.main import main
 from tests._client import wait_for
 
-# app/ directory (parent of tests/), used as PYTHONPATH for the subprocess.
 APP_DIR = pathlib.Path(__file__).resolve().parents[1]
 
-# Ceiling for every poll loop in the CLI suites (server boot, run progress,
-# status transitions). Offline runs finish in seconds standalone, but under
-# the full app suite CPU contention stretches the same envelope past 30s,
-# which is how these fixtures used to flake. Polling returns as soon as the
-# predicate holds, so a generous ceiling costs green runs nothing while a
-# genuine hang still fails deterministically.
+# Full-suite CPU contention stretches offline latency; generous polling bounds
+# cost successful runs nothing.
 _WAIT_BUDGET = 90.0
 
-# Provider keys the parent env might carry; stripped from the server's env so
-# the run and `ask` take the deterministic offline path rather than a paid call.
 _KEY_VARS = (
     "GEMINI_API_KEY",
     "GOOGLE_API_KEY",
@@ -66,7 +37,6 @@ _KEY_VARS = (
 
 
 def _free_port() -> int:
-    """Return an unused localhost TCP port."""
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port: int = sock.getsockname()[1]
@@ -76,26 +46,18 @@ def _free_port() -> int:
 def _offline_server_env(
     home: pathlib.Path, reports: pathlib.Path
 ) -> dict[str, str]:
-    """Build the subprocess env: offline backend, temp db, no provider keys."""
     env = {k: v for k, v in os.environ.items() if k not in _KEY_VARS}
     env.update(
         {
-            # The engine rides along explicitly: this replaces the parent's
-            # PYTHONPATH, so without it the server resolves ``co_scientist``
-            # through the venv's editable install -- the main checkout's
-            # engine, which lacks whatever this branch's app code imports.
+            # Explicit engine PYTHONPATH prevents editable installs resolving
+            # the main checkout instead of this branch.
             "PYTHONPATH": os.pathsep.join(
                 [str(APP_DIR), str(APP_DIR.parent / "engine" / "src")]
             ),
-            # Force the deterministic offline backend and disable the
-            # literature-review node so the spawned server never makes a paid
-            # call or probes a (possibly live) local MCP server.
             "COSCIENTIST_FORCE_OFFLINE": "1",
             "FORCE_LITERATURE_REVIEW": "0",
-            # Offline runs already skip contextual screening, but assert that
-            # here rather than inheriting it: the screen calls a real (never
-            # offline-routed) model, so leaving it on would make the suite's
-            # offline guarantee depend on no provider key being reachable.
+            # Disable contextual screening explicitly so hermeticity cannot
+            # depend on credentials being absent.
             "SEMANTIC_SAFETY_ENABLED": "false",
             "COSCIENTIST_DB_PATH": str(home / "coscientist.db"),
             "COSCIENTIST_REPORTS_DIR": str(reports),
@@ -107,7 +69,6 @@ def _offline_server_env(
 def _spawn_uvicorn(
     env: dict[str, str], home: pathlib.Path, port: int
 ) -> subprocess.Popen[bytes]:
-    """Launch the uvicorn subprocess bound to ``port`` from ``home``."""
     return subprocess.Popen(
         [
             sys.executable,
@@ -118,8 +79,6 @@ def _spawn_uvicorn(
             "127.0.0.1",
             "--port",
             str(port),
-            # INFO so uvicorn emits HTTP access records, which the log
-            # capture pipeline persists (asserted by the logs tests).
             "--log-level",
             "info",
         ],
@@ -133,12 +92,8 @@ def _spawn_uvicorn(
 def _spawn_server(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> tuple[str, subprocess.Popen[bytes]]:
-    """Spawn an offline-backend uvicorn server on a free port.
-
-    The server runs from an isolated cwd so neither ``load_dotenv`` nor
-    pydantic-settings find the repo ``.env`` (no provider keys leak in), with a
-    temp SQLite database and reports directory.
-    """
+    # Use an isolated cwd so local dotenv credentials cannot leak into hermetic
+    # server tests.
     home = tmp_path_factory.mktemp("cli_server_home")
     reports = home / "reports"
     reports.mkdir()
@@ -155,7 +110,6 @@ def _spawn_server(
 
 
 def _terminate(proc: subprocess.Popen[bytes]) -> None:
-    """Stop the spawned server, escalating to kill if it lingers."""
     proc.terminate()
     try:
         proc.wait(timeout=10)
@@ -169,11 +123,6 @@ _shared_server_refs = 0
 
 @pytest.fixture(scope="session")
 def cli_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
-    """Yield the shared offline-backend server's base URL.
-
-    See the module docstring: the process behind this fixture is shared
-    across every CLI test module that imports it.
-    """
     global _shared_server, _shared_server_refs
     if _shared_server is None:
         _shared_server = _spawn_server(tmp_path_factory)
@@ -188,7 +137,6 @@ def cli_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
 
 
 def _await_health(proc: subprocess.Popen[bytes], base: str) -> None:
-    """Block until the server answers /health, or fail the fixture."""
     deadline = time.time() + _WAIT_BUDGET
     while time.time() < deadline:
         if proc.poll() is not None:
@@ -202,13 +150,7 @@ def _await_health(proc: subprocess.Popen[bytes], base: str) -> None:
     raise RuntimeError("server did not become healthy in time")
 
 
-# ---------------------------------------------------------------------------
-# Helpers: invoke the CLI, and arrange/inspect state directly over HTTP.
-# ---------------------------------------------------------------------------
-
-
 def _invoke(base: str, *command: str, client_id: str | None = None) -> int:
-    """Run one CLI command against ``base`` and return its exit code."""
     argv = [*command, "--api-url", base]
     if client_id:
         argv += ["--client-id", client_id]
@@ -223,7 +165,6 @@ def _api(
     client_id: str | None = None,
     json_body: dict[str, object] | None = None,
 ) -> httpx.Response:
-    """Make a raw API call for arranging or inspecting test state."""
     headers = {"X-Client-ID": client_id} if client_id else {}
     return httpx.request(
         method, f"{base}{path}", headers=headers, json=json_body, timeout=30
@@ -231,7 +172,6 @@ def _api(
 
 
 def _create(base: str, client_id: str, **config: object) -> str:
-    """Create a run over HTTP and return its id."""
     body: dict[str, object] = {"research_goal": "CLI test: mitochondria"}
     body.update(config)
     resp = _api(base, "POST", "/api/runs", client_id=client_id, json_body=body)
@@ -240,7 +180,6 @@ def _create(base: str, client_id: str, **config: object) -> str:
 
 
 def _start(base: str, run_id: str, client_id: str) -> None:
-    """Start a run over HTTP (the endpoint requires a JSON body)."""
     resp = _api(
         base,
         "POST",
@@ -252,11 +191,8 @@ def _start(base: str, run_id: str, client_id: str) -> None:
 
 
 def _grep_logs(base: str, needle: str) -> bool:
-    """Return whether any persisted log message contains ``needle``.
-
-    Queries verbosely: these helpers verify capture, and high-volume
-    records are hidden from the default view.
-    """
+    # Read verbose logs to verify capture; default views hide high-volume
+    # records.
     response = _api(base, "GET", f"/api/logs?q={needle}&limit=200&verbose=1")
     if response.status_code != 200:
         return False
@@ -264,7 +200,6 @@ def _grep_logs(base: str, needle: str) -> bool:
 
 
 def _status(base: str, run_id: str, client_id: str) -> str:
-    """Return a run's current status over HTTP."""
     resp = _api(base, "GET", f"/api/runs/{run_id}", client_id=client_id)
     resp.raise_for_status()
     return str(resp.json()["status"])
@@ -278,7 +213,6 @@ def _wait_status(
     *,
     timeout: float = _WAIT_BUDGET,
 ) -> None:
-    """Poll until ``run_id`` reaches ``target`` status, or raise on timeout."""
     if not wait_for(
         lambda: _status(base, run_id, client_id) == target, timeout=timeout
     ):
@@ -286,34 +220,14 @@ def _wait_status(
 
 
 def _run_summary(base: str, run_id: str, client_id: str) -> dict[str, Any]:
-    """Return a run's summary block over HTTP."""
     resp = _api(base, "GET", f"/api/runs/{run_id}", client_id=client_id)
     resp.raise_for_status()
     return dict(resp.json().get("summary") or {})
 
 
-# ---------------------------------------------------------------------------
-# Serverless client: drive one ApiClient against an httpx.MockTransport.
-# ---------------------------------------------------------------------------
-
-
 def api_client(handler: object, **kwargs: object) -> ApiClient:
-    """Build an ApiClient whose requests are served by ``handler``.
-
-    ``retry_wait`` is pinned to zero. The GET retry path still makes every
-    attempt it would in production; only the real 0.5s sleep between tries
-    is dropped, which no test asserts on and which cost the unit suites a
-    second per transport-failure test.
-
-    Args:
-        handler: An ``httpx.MockTransport`` handler: takes a request and
-            returns a response (or raises an ``httpx`` transport error).
-        **kwargs: Forwarded to :class:`ApiClient` -- ``client_id`` and
-            ``logs_token``.
-
-    Returns:
-        A client bound to the stub base URL ``http://api.test``.
-    """
+    # Remove retry waits without removing attempts so transport tests keep
+    # production retry semantics.
     transport = httpx.MockTransport(handler)  # type: ignore[arg-type]
     return ApiClient(
         "http://api.test",

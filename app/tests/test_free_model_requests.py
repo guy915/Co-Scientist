@@ -1,5 +1,3 @@
-"""App completion boundaries enforce the engine's zero-cost policy."""
-
 import asyncio
 import os
 from types import SimpleNamespace
@@ -174,7 +172,6 @@ async def test_concurrent_campaign_and_standard_byok_stay_isolated(
     monkeypatch: pytest.MonkeyPatch,
     captured: list[dict[str, Any]],
 ) -> None:
-    """A campaign refusal cannot spill into a concurrent paid BYOK task."""
     monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
     credential = credentials.ByokCredential(
         "openrouter", "test-user-key", "openrouter/campaign/paid"
@@ -256,7 +253,6 @@ async def test_interview_reasoning_retry_rechecks_admission(
                     )
                 ]
             )
-            # The catalog expires between the reasoning-only reply and re-ask.
             free_catalog.install_catalog_reader(
                 free_catalog.CatalogReader(lambda: {})
             )

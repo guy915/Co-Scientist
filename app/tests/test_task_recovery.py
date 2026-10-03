@@ -1,5 +1,3 @@
-"""Tests for task queue 1."""
-
 from __future__ import annotations
 
 import concurrent.futures
@@ -23,21 +21,13 @@ from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
 from tests._client import make_client as _client
 from tests._client import make_operator_client as _operator_client
 
-# Expired engine leases on campaign runs are rescued, not failed.
-#
-# An engine lease that outlives its worker normally stops the run with
-# ``llm_timeout_unknown``: nothing durable says whether the lost request was
-# billed. A campaign run is the exception. Its policy is persisted at creation
-# and, while it holds, every provider request must pass the exact zero-price
-# gate or is refused before transport, so a lost lease cannot have spent
-# anything -- unless a caller credential rode along. Production run 34b29088
-# (2026-09-27) failed after a restart for want of this distinction.
+# Campaign requests enforce exact zero price; lost leases are retry-safe only
+# without caller credentials.
 
 
 def _campaign_run_with_expired_lease(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> tuple[str, str]:
-    """Create a running campaign run whose only engine lease has expired."""
     run = store.create_run(
         "Campaign lease loss",
         "express",
@@ -72,7 +62,6 @@ def _campaign_run_with_expired_lease(
 async def test_expired_campaign_lease_is_retried(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The lease returns to the queue and the run keeps going."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     replayed: list[str] = []
 
@@ -98,7 +87,6 @@ async def test_expired_campaign_lease_is_retried(
 async def test_expired_campaign_lease_with_byok_still_fails_closed(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A caller credential is outside the zero-price evidence."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     monkeypatch.setattr(
         settings, "byok_encryption_key", "synthetic-campaign-lease-secret"
@@ -131,36 +119,17 @@ async def test_expired_campaign_lease_with_byok_still_fails_closed(
     assert task is not None and task.status == "failed"
 
 
-# ``/health`` reflecting real durable-queue and disk conditions (L6).
-#
-# Before this, ``/health`` was store reachability plus an import lookup, so
-# a wedged run, an exhausted-retry-budget task, or a full disk all reported
-# ``healthy``. These tests cover three layers of the fix:
-#
-# - the store-level read-only probe (``app.store.tasks.queue_health_snapshot``),
-# - the diagnostics-level checks that wrap it (``check_queue``, ``check_disk``,
-#   ``derive_overall_health``, and their short-TTL cache), and
-# - the ``/health`` endpoint itself, reproducing the exact gap the F1
-#   settlement fix leaves open: a lease that expires *after* its retry
-#   budget is spent is never explicitly failed (nobody still holds it to
-#   call ``fail_task``), so it stays ``leased`` forever and
-#   ``_settle_run_out_of_work`` never sees the run as out of work.
-#
-# Throughout, a degraded condition must return HTTP 200 with
-# ``status: "degraded"`` -- never 503 -- because a failed healthcheck kills
-# the container mid-run (see AGENTS.md's healthcheck-failure-spiral
-# incident), and only true store unreachability may take the process down.
+# Queue/disk degradation returns HTTP 200 so liveness probes cannot kill
+# productive runs.
 
 
 def _health_running_run(db_path: str, goal: str = "queue health goal") -> str:
-    """Create a run and move it to RUNNING; return its id."""
     run = store.create_run(goal, "standard", "engine", {})
     store.update_run_status(run.id, store.RunStatus.RUNNING, db_path=db_path)
     return run.id
 
 
 def _health_enqueue(run_id: str, key: str, db_path: str, **kwargs: Any) -> str:
-    """Enqueue an empty-input engine task and return its id."""
     task = store.enqueue_task(
         store.NewTask(
             run_id=run_id,
@@ -175,23 +144,14 @@ def _health_enqueue(run_id: str, key: str, db_path: str, **kwargs: Any) -> str:
 
 
 def _expire_lease(task_id: str, db_path: str) -> None:
-    """Force a leased task's lease into the past without touching attempts.
-
-    Simulates the worker that held the lease crashing: nobody ever calls
-    ``fail_task``, so the row is left exactly as a dead worker would leave
-    it -- still ``leased``, attempts spent, lease timestamp in the past.
-    """
+    # Expire the lease without changing attempts to model a worker that died
+    # without failing its task.
     with store.connect(db_path) as conn:
         conn.execute(
             "UPDATE scientific_tasks SET lease_expires_at=0 WHERE id=?",
             (task_id,),
         )
         conn.commit()
-
-
-# ---------------------------------------------------------------------------
-# Store-level: app.store.tasks.queue_health_snapshot
-# ---------------------------------------------------------------------------
 
 
 def test_snapshot_empty_when_no_active_runs(isolated_db: str) -> None:
@@ -221,7 +181,6 @@ def test_active_lease_is_not_stalled(isolated_db: str) -> None:
 
 
 def test_rescuable_expired_lease_is_not_stalled(isolated_db: str) -> None:
-    """Retry budget left: the next claim rescues it automatically."""
     run_id = _health_running_run(isolated_db)
     task_id = _health_enqueue(run_id, "rescuable", isolated_db, max_attempts=3)
     leased = store.claim_task("w1", run_id=run_id, db_path=isolated_db)
@@ -235,15 +194,8 @@ def test_rescuable_expired_lease_is_not_stalled(isolated_db: str) -> None:
 
 
 def test_orphaned_exhausted_lease_leaves_run_stalled(isolated_db: str) -> None:
-    """The gap F1 leaves open: an expired, budget-spent lease never fails.
-
-    Reproduces a crashed worker exactly: the task is leased, its attempts
-    are spent, and its lease has expired, but nothing ever calls
-    ``fail_task`` on it (nobody holds it any more). The run must stay
-    ``running`` forever -- ``_settle_run_out_of_work`` still sees a
-    ``leased`` row and refuses to settle -- and the health snapshot must
-    be the one thing that notices.
-    """
+    # A dead exhausted lease has no owner to fail it; health must expose the
+    # stranded running state.
     run_id = _health_running_run(isolated_db)
     task_id = _health_enqueue(run_id, "orphaned", isolated_db, max_attempts=1)
     leased = store.claim_task("w1", run_id=run_id, db_path=isolated_db)
@@ -254,7 +206,6 @@ def test_orphaned_exhausted_lease_leaves_run_stalled(isolated_db: str) -> None:
 
     assert snapshot.stalled_run_ids == (run_id,)
     assert snapshot.rescuable_leases == 0
-    # The run genuinely never settles on its own: it is still "running".
     run = store.get_run(run_id, db_path=isolated_db)
     assert run is not None and run.status == "running"
 
@@ -273,7 +224,6 @@ def test_completed_run_is_excluded(isolated_db: str) -> None:
 def test_failed_task_counted_without_stalling_active_sibling(
     isolated_db: str,
 ) -> None:
-    """A terminally failed task is surfaced but does not itself stall."""
     run_id = _health_running_run(isolated_db)
     doomed = _health_enqueue(run_id, "doomed", isolated_db, max_attempts=1)
     _health_enqueue(run_id, "survivor", isolated_db, max_attempts=1)
@@ -286,12 +236,7 @@ def test_failed_task_counted_without_stalling_active_sibling(
     snapshot = queue_health_snapshot(db_path=isolated_db)
 
     assert snapshot.failed_tasks == 1
-    assert snapshot.stalled_run_ids == ()  # the survivor is still queued
-
-
-# ---------------------------------------------------------------------------
-# Diagnostics-level: check_queue, check_disk, derive_overall_health, cache
-# ---------------------------------------------------------------------------
+    assert snapshot.stalled_run_ids == ()
 
 
 def test_check_queue_ok_with_no_active_runs(isolated_db: str) -> None:
@@ -335,7 +280,7 @@ def test_check_disk_ok_when_space_available(tmp_path: object) -> None:
 
 
 def test_check_disk_flags_low_free_space(tmp_path: object) -> None:
-    huge_floor = 10**18  # no real volume has an exabyte free
+    huge_floor = 10**18
     result = diagnostics.check_disk(
         str(tmp_path) + "/db.sqlite", min_free_bytes=huge_floor
     )
@@ -346,7 +291,6 @@ def test_check_disk_flags_low_free_space(tmp_path: object) -> None:
 def test_derive_overall_health_degrades_never_unhealthy_on_queue_or_disk() -> (
     None
 ):
-    """A stalled run or low disk must never flip the container-killing bit."""
     status = diagnostics.derive_overall_health(
         HealthCheck(ok=True),
         HealthCheck(ok=True),
@@ -410,11 +354,6 @@ def test_queue_and_disk_health_cache_expires_after_ttl(
     assert len(calls) == 2
 
 
-# ---------------------------------------------------------------------------
-# Endpoint-level: GET /health against real conditions
-# ---------------------------------------------------------------------------
-
-
 def test_health_reports_all_four_checks() -> None:
     data = _client().get("/health").json()
     assert set(data["checks"]) == {"store", "engine", "queue", "disk"}
@@ -423,7 +362,6 @@ def test_health_reports_all_four_checks() -> None:
 def test_health_healthy_with_a_busy_but_progressing_run(
     isolated_db: str,
 ) -> None:
-    """A queued task alone must not read as unhealthy -- busy is normal."""
     run_id = _health_running_run(isolated_db)
     _health_enqueue(run_id, "queued", isolated_db)
 
@@ -436,7 +374,6 @@ def test_health_healthy_with_a_busy_but_progressing_run(
 def test_health_degrades_at_200_when_a_run_is_stalled(
     isolated_db: str,
 ) -> None:
-    """The exact scenario L6 exists for: a wedged run, surfaced at 200."""
     run_id = _health_running_run(isolated_db)
     task_id = _health_enqueue(run_id, "orphaned", isolated_db, max_attempts=1)
     leased = store.claim_task("w1", run_id=run_id, db_path=isolated_db)
@@ -445,13 +382,10 @@ def test_health_degrades_at_200_when_a_run_is_stalled(
 
     res = _client().get("/health")
 
-    assert res.status_code == 200  # must never kill the container
+    assert res.status_code == 200
     data = res.json()
     assert data["status"] == "degraded"
     assert data["checks"]["queue"]["ok"] is False
-    # The run id names internal state, so the detail text is operator-only
-    # (finding N14); an anonymous caller still learns that the queue is
-    # degraded, which is what the deploy probe and a status page need.
     operator = _operator_client().get("/health").json()
     assert run_id in (operator["checks"]["queue"]["detail"] or "")
     assert data["checks"]["queue"]["detail"] is None
@@ -464,22 +398,14 @@ def test_health_degrades_at_200_when_disk_is_low(
 
     res = _client().get("/health")
 
-    assert res.status_code == 200  # low disk degrades, never kills serving
+    assert res.status_code == 200
     data = res.json()
     assert data["status"] == "degraded"
     assert data["checks"]["disk"]["ok"] is False
 
 
-# Per-attempt failure history on the durable task queue.
-#
-# ``fail_task`` used to overwrite one ``error`` column on every retry, so
-# the previous attempt's failure was destroyed the moment the next one was
-# recorded -- indistinguishable from a run that failed identically three
-# times versus one that failed three different ways. ``attempts_json``
-# keeps a bounded record of every *failed* attempt (a successful one is
-# already captured by ``result_json``); these tests pin its shape, its
-# cap, its transactionality, and that a database built under the old
-# schema (no ``attempts_json`` column at all) still decodes.
+# Each failed attempt needs bounded history; overwriting one error loses
+# distinct failure diagnoses.
 
 
 def _history_running_run(db_path: str, goal: str = "attempts goal") -> str:
@@ -507,13 +433,8 @@ def _history_enqueue(
 def test_lease_renewal_does_not_move_recorded_start_time(
     isolated_db: str,
 ) -> None:
-    """A heartbeat renewal mid-attempt must not overwrite its start time.
-
-    ``renew_task_lease`` bumps ``updated_at`` on every heartbeat so a long
-    LLM call's lease survives, which is exactly the failure this history
-    exists to diagnose -- so the attempt's recorded start must be the
-    original claim time, not the moment of its last renewal.
-    """
+    # Heartbeats update lease timestamps, but attempt history must retain the
+    # original claim time.
     run_id = _history_running_run(isolated_db)
     task_id = _history_enqueue(run_id, "k", isolated_db, max_attempts=3)
 
@@ -532,7 +453,6 @@ def test_lease_renewal_does_not_move_recorded_start_time(
 def test_two_failures_record_distinct_attempts_in_order(
     isolated_db: str,
 ) -> None:
-    """Two successive failures both appear, in order, with distinct errors."""
     run_id = _history_running_run(isolated_db)
     task_id = _history_enqueue(run_id, "k", isolated_db, max_attempts=3)
 
@@ -556,7 +476,6 @@ def test_two_failures_record_distinct_attempts_in_order(
 
 
 def test_attempts_history_is_capped(isolated_db: str) -> None:
-    """The stored history never exceeds the bounded cap."""
     run_id = _history_running_run(isolated_db)
     over_cap = store_tasks_attempts._MAX_STORED_ATTEMPTS + 3
     task_id = _history_enqueue(
@@ -573,7 +492,6 @@ def test_attempts_history_is_capped(isolated_db: str) -> None:
     saved = store.get_task(task_id, db_path=isolated_db)
     assert saved is not None
     assert len(saved.attempts) == store_tasks_attempts._MAX_STORED_ATTEMPTS
-    # The oldest failures are dropped, the most recent kept.
     assert saved.attempts[-1]["error"] == f"failure {over_cap - 1}"
     first_kept = over_cap - store_tasks_attempts._MAX_STORED_ATTEMPTS
     assert saved.attempts[0]["error"] == f"failure {first_kept}"
@@ -582,7 +500,6 @@ def test_attempts_history_is_capped(isolated_db: str) -> None:
 def test_old_schema_task_decodes_with_empty_history(
     isolated_db: str,
 ) -> None:
-    """A task row written under the pre-``attempts_json`` schema decodes."""
     raw = sqlite3.connect(isolated_db)
     try:
         raw.executescript(
@@ -642,7 +559,6 @@ def test_old_schema_task_decodes_with_empty_history(
     finally:
         raw.close()
 
-    # Any store call establishes the connection and runs migrations.
     saved = store.get_task("legacy-task", db_path=isolated_db)
 
     assert saved is not None
@@ -661,7 +577,6 @@ def test_old_schema_task_decodes_with_empty_history(
 def test_failed_attempt_write_is_transactional_with_settlement(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A rolled-back failure leaves no attempt snapshot behind."""
     run_id = _history_running_run(isolated_db)
     task_id = _history_enqueue(run_id, "k", isolated_db, max_attempts=1)
     leased = store.claim_task("w1", run_id=run_id, db_path=isolated_db)
@@ -684,7 +599,6 @@ def test_failed_attempt_write_is_transactional_with_settlement(
 
 
 def test_tasks_endpoint_returns_attempt_history(isolated_db: str) -> None:
-    """The diagnostics endpoint surfaces a task's failed-attempt history."""
     with make_client() as client:
         created = client.post(
             "/api/runs", json={"research_goal": "attempts endpoint goal"}
@@ -707,14 +621,10 @@ def test_tasks_endpoint_returns_attempt_history(isolated_db: str) -> None:
     assert tasks_by_id[task_id]["attempts"][0]["attempt"] == 1
 
 
-# Typed provider failure kinds on the owned run API.
-
-
 @pytest.mark.asyncio
 async def test_owned_run_api_retains_typed_budget_failure_after_reopen(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A terminal budget failure keeps its kind and original error on reopen."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
 
     async def _over_budget(
@@ -767,7 +677,6 @@ async def test_owned_run_api_classifies_only_exact_terminal_failure_types(
     expected_kind: str | None,
     expected_message: str,
 ) -> None:
-    """Only exact known exception types receive provider guidance."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
 
     async def _raise_known_or_near_miss(
@@ -804,7 +713,6 @@ async def test_owned_run_api_classifies_only_exact_terminal_failure_types(
 async def test_run_failure_kind_comes_from_task_that_settles_run(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A typed task failure cannot classify a run while sibling work remains."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
 
     async def _fail_tasks(
@@ -855,7 +763,6 @@ def test_queued_cancelled_and_blocked_runs_have_no_failure_kind(
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Provider guidance only appears on a failed run."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
 
     client = make_client()
@@ -884,9 +791,6 @@ def test_queued_cancelled_and_blocked_runs_have_no_failure_kind(
     assert blocked["failure_kind"] is None
 
 
-# Durable BYOK task failures keep key material out of stored diagnostics.
-
-
 _BYOK_SECRET = "synthetic-byok-encryption-secret"
 _BYOK_KEY = "sk-synthetic-echo-redaction-67890"
 _DIAGNOSTIC = "provider diagnostic preserved"
@@ -904,7 +808,6 @@ def _redaction_parse_sse(text: str) -> list[dict[str, Any]]:
 async def test_durable_byok_failure_redacts_owned_surfaces_after_reopen(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A provider echo stays out of durable task diagnostics."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     monkeypatch.setattr(settings, "byok_encryption_key", _BYOK_SECRET)
 
@@ -935,7 +838,6 @@ async def test_durable_byok_failure_redacts_owned_surfaces_after_reopen(
             client.post(f"/api/runs/{run_id}/start", json={}).status_code == 200
         )
 
-        # An ambiguous stored-key timeout requires an explicit owner retry.
         assert await task_worker.run_once(
             "synthetic-worker", db_path=isolated_db
         )
@@ -943,8 +845,6 @@ async def test_durable_byok_failure_redacts_owned_surfaces_after_reopen(
             "synthetic-worker", db_path=isolated_db
         )
 
-    # A new API client models reopening the persisted store after the worker
-    # process has gone away; the same owner can still read its run and replay.
     with make_client() as reopened:
         run = reopened.get(f"/api/runs/{run_id}")
         tasks = reopened.get(f"/api/runs/{run_id}/tasks")
@@ -984,7 +884,6 @@ async def test_durable_byok_failure_redacts_owned_surfaces_after_reopen(
 async def test_required_auth_owner_can_reopen_redacted_failure_replay(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Signed owner reads survive reopen; another researcher gets 404."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     monkeypatch.setattr(settings, "byok_encryption_key", _BYOK_SECRET)
     monkeypatch.setattr(settings, "auth_mode", "required")
@@ -1077,20 +976,11 @@ async def test_required_auth_owner_can_reopen_redacted_failure_replay(
     assert _DIAGNOSTIC in owned_output
 
 
-# Run settlement when durable tasks exhaust their retry budget.
-#
-# A task that fails past its retry budget -- or permanently, the way an
-# unsupported task type does -- used to leave its run non-terminal forever:
-# ``fail_task`` marked the task failed and nothing transitioned the run, so
-# no error was recorded, the SSE stream never closed, and ``cosci runs
-# wait`` hung until a process restart's startup reconciliation picked the
-# run up. These tests pin the in-process settlement: the run fails
-# transactionally with its last claimable work, records the error, and the
-# event log carries the terminal ``status`` event the SSE stream closes on.
+# Settle runs transactionally when their last claimable task fails, or SSE never
+# closes.
 
 
 def _settlement_running_run(db_path: str, goal: str = "settlement goal") -> str:
-    """Create a run and move it to the RUNNING status; return its id."""
     run = store.create_run(goal, "standard", "engine", {})
     store.update_run_status(run.id, store.RunStatus.RUNNING, db_path=db_path)
     return run.id
@@ -1099,7 +989,6 @@ def _settlement_running_run(db_path: str, goal: str = "settlement goal") -> str:
 def _enqueue_engine_task(
     run_id: str, key: str, db_path: str, *, max_attempts: int = 3
 ) -> str:
-    """Enqueue one engine task by idempotency key and return its id."""
     task = store.enqueue_task(
         store.NewTask(
             run_id=run_id,
@@ -1114,7 +1003,6 @@ def _enqueue_engine_task(
 
 
 def _failed_status_events(run_id: str, db_path: str) -> list[dict[str, Any]]:
-    """Return the run's terminal ``failed`` status events."""
     return [
         event
         for event in store.list_events(run_id, db_path=db_path)
@@ -1124,7 +1012,6 @@ def _failed_status_events(run_id: str, db_path: str) -> list[dict[str, Any]]:
 
 
 def _settlement_parse_sse(text: str) -> list[dict[str, Any]]:
-    """Parse an SSE response body into its ``data:`` event dicts."""
     return [
         json.loads(line[len("data: ") :])
         for line in text.splitlines()
@@ -1132,13 +1019,7 @@ def _settlement_parse_sse(text: str) -> list[dict[str, Any]]:
     ]
 
 
-# ---------------------------------------------------------------------------
-# Store-level settlement semantics
-# ---------------------------------------------------------------------------
-
-
 def test_exhausted_retry_budget_settles_run(isolated_db: str) -> None:
-    """Failing past the budget fails the run and keeps the error."""
     run_id = _settlement_running_run(isolated_db)
     task_id = _enqueue_engine_task(
         run_id, "doomed", isolated_db, max_attempts=2
@@ -1149,7 +1030,6 @@ def test_exhausted_retry_budget_settles_run(isolated_db: str) -> None:
     assert store.fail_task(
         first.id, "w1", "provider timeout", db_path=isolated_db
     )
-    # Budget left: the task is requeued and the run keeps running.
     saved = store.get_task(task_id, db_path=isolated_db)
     assert saved is not None and saved.status == "queued"
     run = store.get_run(run_id, db_path=isolated_db)
@@ -1176,7 +1056,6 @@ def test_exhausted_retry_budget_settles_run(isolated_db: str) -> None:
 
 
 def test_permanent_failure_settles_run(isolated_db: str) -> None:
-    """A non-retryable failure settles the run on its first attempt."""
     run_id = _settlement_running_run(isolated_db)
     task_id = _enqueue_engine_task(
         run_id, "unsupported", isolated_db, max_attempts=3
@@ -1203,7 +1082,6 @@ def test_permanent_failure_settles_run(isolated_db: str) -> None:
 
 
 def test_claimable_sibling_task_blocks_settlement(isolated_db: str) -> None:
-    """A failed task with queued work left must not settle the run."""
     run_id = _settlement_running_run(isolated_db)
     doomed = _enqueue_engine_task(run_id, "doomed", isolated_db, max_attempts=1)
     _enqueue_engine_task(run_id, "survivor", isolated_db, max_attempts=1)
@@ -1220,7 +1098,6 @@ def test_claimable_sibling_task_blocks_settlement(isolated_db: str) -> None:
 
 
 def test_active_sibling_lease_blocks_settlement(isolated_db: str) -> None:
-    """A live sibling lease may still fan out work, blocking settlement."""
     run_id = _settlement_running_run(isolated_db)
     doomed = _enqueue_engine_task(run_id, "doomed", isolated_db, max_attempts=1)
     sibling = _enqueue_engine_task(
@@ -1241,7 +1118,6 @@ def test_active_sibling_lease_blocks_settlement(isolated_db: str) -> None:
 
 
 def test_task_failure_does_not_settle_inactive_run(isolated_db: str) -> None:
-    """Only queued/running/synthesizing runs settle; a draft stays draft."""
     run = store.create_run("draft goal", "standard", "engine", {})
     task_id = _enqueue_engine_task(run.id, "doomed", isolated_db)
     leased = store.claim_task("w1", run_id=run.id, db_path=isolated_db)
@@ -1259,7 +1135,6 @@ def test_task_failure_does_not_settle_inactive_run(isolated_db: str) -> None:
 def test_concurrent_final_failures_settle_exactly_once(
     isolated_db: str,
 ) -> None:
-    """Two workers failing the last tasks cannot double-emit settlement."""
     run_id = _settlement_running_run(isolated_db)
     task_a = _enqueue_engine_task(run_id, "a", isolated_db, max_attempts=1)
     task_b = _enqueue_engine_task(run_id, "b", isolated_db, max_attempts=1)
@@ -1286,7 +1161,6 @@ def test_concurrent_final_failures_settle_exactly_once(
 
 
 def test_settled_run_is_not_reprocessed_at_startup(isolated_db: str) -> None:
-    """An in-process settlement is final for the startup reconciliation."""
     run_id = _settlement_running_run(isolated_db)
     task_id = _enqueue_engine_task(
         run_id, "doomed", isolated_db, max_attempts=1
@@ -1305,16 +1179,10 @@ def test_settled_run_is_not_reprocessed_at_startup(isolated_db: str) -> None:
     assert store.list_events(run_id, db_path=isolated_db) == events_before
 
 
-# ---------------------------------------------------------------------------
-# Worker-level settlement
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_cohort_settles_run_when_budget_exhausts(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A cohort drains an always-failing task, then its run settles failed."""
     run_id = _settlement_running_run(isolated_db)
     task_id = _enqueue_engine_task(
         run_id, "doomed", isolated_db, max_attempts=2
@@ -1347,7 +1215,6 @@ async def test_cohort_settles_run_when_budget_exhausts(
 
 @pytest.mark.asyncio
 async def test_unsupported_task_type_settles_run(isolated_db: str) -> None:
-    """The one permanent failure class settles the run on first failure."""
     run_id = _settlement_running_run(isolated_db)
     store.enqueue_task(
         store.NewTask(
@@ -1368,16 +1235,10 @@ async def test_unsupported_task_type_settles_run(isolated_db: str) -> None:
     assert len(_failed_status_events(run_id, isolated_db)) == 1
 
 
-# ---------------------------------------------------------------------------
-# API and SSE surfaces
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.asyncio
 async def test_failed_run_settles_through_api_and_sse(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The settlement surfaces in the run API and closes the SSE stream."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
 
     async def _always_fail(
@@ -1395,7 +1256,6 @@ async def test_failed_run_settles_through_api_and_sse(
         started = client.post(f"/api/runs/{run_id}/start", json={})
         assert started.status_code == 200
 
-        # The bootstrap task retries three times before its budget is spent.
         for _ in range(3):
             assert await task_worker.run_once("w", db_path=isolated_db)
         assert not await task_worker.run_once("w", db_path=isolated_db)

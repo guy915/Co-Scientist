@@ -1,5 +1,3 @@
-"""Tests for diagnostics."""
-
 from __future__ import annotations
 
 import asyncio
@@ -39,11 +37,6 @@ from tests._client import make_client, make_operator_client
 from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
 
-# Unit tests for the diagnostics health checks and availability probes.
-
-
-# --- health checks -----------------------------------------------------------
-
 
 def test_check_store_ok_against_isolated_db(isolated_db: str) -> None:
     result = check_store(isolated_db)
@@ -52,7 +45,6 @@ def test_check_store_ok_against_isolated_db(isolated_db: str) -> None:
 
 
 def test_check_store_reports_failure_detail(tmp_path: object) -> None:
-    # A directory is not a valid SQLite database file path.
     result = check_store(str(tmp_path))
     assert result.ok is False
     assert result.detail
@@ -80,7 +72,6 @@ def test_derive_health_status_unhealthy_when_store_down() -> None:
 def test_derive_health_status_degraded_when_key_but_no_engine(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A configured provider key with no importable engine degrades health."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     status = derive_health_status(
         HealthCheck(ok=True), HealthCheck(ok=False, detail="missing")
@@ -89,18 +80,10 @@ def test_derive_health_status_degraded_when_key_but_no_engine(
 
 
 def test_derive_health_status_healthy_in_pure_offline_mode() -> None:
-    """No key and no engine is the normal offline mock setup, not degraded.
-
-    Keyless is the suite's own posture: ``isolated_db`` scrubs every provider
-    credential before each test.
-    """
     status = derive_health_status(
         HealthCheck(ok=True), HealthCheck(ok=False, detail="missing")
     )
     assert status == HEALTHY
-
-
-# --- probe runner ------------------------------------------------------------
 
 
 async def test_run_probe_maps_answers_to_up_and_down() -> None:
@@ -137,13 +120,9 @@ async def test_run_probe_maps_exception_to_error_state() -> None:
     assert result.error == "ValueError: bad probe"
 
 
-# --- TTL cache ---------------------------------------------------------------
-
-
 def _stub_probe_pair(
     calls: list[int],
 ) -> object:
-    """Build a fake `_probe_literature_stack` that counts its invocations."""
 
     async def _stub() -> tuple[ProbeResult, ProbeResult, ProbeResult]:
         calls.append(1)
@@ -203,15 +182,9 @@ async def test_clear_probe_cache_forces_reprobe(
     assert len(calls) == 2
 
 
-# --- engine-import failure ---------------------------------------------------
-
-
 async def test_probe_stack_reports_error_when_engine_unavailable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An unimportable engine yields probe errors, not a definitive down."""
-    # Setting the module entry to None makes `from co_scientist.mcp_client
-    # import ...` raise ImportError without touching the real installation.
     monkeypatch.setitem(sys.modules, "co_scientist.mcp_client", None)
 
     mcp, pubmed, web_search = await diagnostics._probe_literature_stack()
@@ -224,14 +197,8 @@ async def test_probe_stack_reports_error_when_engine_unavailable(
 
 
 def test_diagnostics_probe_imports() -> None:
-    """Every probe helper the stack imports exists in the engine.
-
-    The import above is wrapped in a broad except that degrades to the
-    ``error`` state, so a name the engine does not export fails all three
-    probes at once and looks exactly like an MCP server that is down --
-    which is how a misspelled helper survived unnoticed and left /status
-    reporting the whole literature stack unavailable on every deployment.
-    """
+    # Broad import fallback masks missing engine probe names as server outages;
+    # check exports explicitly.
     from co_scientist import mcp_client
 
     for name in (
@@ -245,14 +212,8 @@ def test_diagnostics_probe_imports() -> None:
 async def test_web_search_probe_asks_usability_not_registration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A registered search_web whose key is refused must read as down.
-
-    The server registers the tool whenever a provider key was set at
-    boot, so presence survives the provider revoking, unpaying or
-    exhausting that key -- and a refused search returns an empty result
-    set, which is indistinguishable from a quiet week on the web. The
-    connector card said "up" throughout.
-    """
+    # Search tools stay registered after keys are revoked or exhausted; presence
+    # is not live availability.
     from co_scientist import mcp_client
 
     async def _usable() -> bool:
@@ -275,9 +236,6 @@ async def test_web_search_probe_asks_usability_not_registration(
     assert web_search.state == PROBE_DOWN
 
 
-# Backend health + status endpoints.
-
-
 def test_health_ok() -> None:
     client = _client()
     res = client.get("/health")
@@ -288,11 +246,7 @@ def test_health_ok() -> None:
     assert data["version"] == API_VERSION
     assert data["provider"] == "engine"
     assert data["checks"]["store"]["ok"] is True
-    # Engine importability is environment-dependent; the check must be
-    # present and well-formed either way.
     assert set(data["checks"]) == {"store", "engine", "queue", "disk"}
-    # No active runs and plenty of disk in a test sandbox: both new checks
-    # pass, so the overall status is unaffected by their addition.
     assert data["checks"]["queue"]["ok"] is True
     assert data["checks"]["disk"]["ok"] is True
 
@@ -306,9 +260,6 @@ def test_health_unhealthy_when_store_unreachable(
         lambda db_path=None: HealthCheck(ok=False, detail="disk on fire"),
     )
 
-    # An operator client: check detail text is operator-only (it can carry
-    # exception text or paths), so a non-operator caller sees `ok` but not
-    # `detail` -- covered by the hides-check-detail test below.
     res = make_operator_client().get("/health")
 
     assert res.status_code == 503
@@ -321,7 +272,6 @@ def test_health_unhealthy_when_store_unreachable(
 def test_health_hides_check_detail_and_model_from_non_operators(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A non-operator caller sees `ok` but never `detail` or `model_name`."""
     monkeypatch.setattr(
         diagnostics,
         "check_store",
@@ -338,7 +288,6 @@ def test_health_hides_check_detail_and_model_from_non_operators(
 def test_health_degraded_when_key_set_but_engine_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Provider key present + engine unimportable = degraded, still 200."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     monkeypatch.setattr(
         diagnostics,
@@ -358,7 +307,6 @@ def _patch_probes(
     pubmed: ProbeResult,
     web_search: ProbeResult | None = None,
 ) -> None:
-    """Patch the uncached probe triple; the autouse fixture cleared cache."""
     resolved_web = web_search or ProbeResult(available=False, state="down")
 
     async def _stub() -> tuple[ProbeResult, ProbeResult, ProbeResult]:
@@ -372,10 +320,6 @@ def test_status_reports_offline_backend() -> None:
     res = client.get("/status")
     assert res.status_code == 200
     data = res.json()
-    # Every run is the engine provider now; the keyless test process runs
-    # the deterministic offline backend. `provider`/`llm_backend` are public
-    # (the offline-mode banner reads them); `probes` is operator-only, so
-    # it is checked via an operator client below instead.
     assert data["provider"] == "engine"
     assert data["llm_backend"] == "offline"
     assert data["probes"] is None
@@ -389,12 +333,6 @@ def test_status_reports_offline_backend_probes_to_operators() -> None:
 def test_status_requires_both_probes_for_literature_review(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """MCP up with PubMed down must not report literature review available.
-
-    `probes` detail is operator-only, so this reads it through an operator
-    client; `mcp_available`/`pubmed_available`/`literature_review_available`
-    stay public and are covered without one elsewhere in this file.
-    """
     _patch_probes(
         monkeypatch,
         ProbeResult(available=True, state="up"),
@@ -447,12 +385,6 @@ def test_status_distinguishes_probe_error_from_down(
 def test_status_supervisor_model_falls_back_to_worker(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """With SUPERVISOR_MODEL_NAME unset, /status mirrors the engine fallback.
-
-    ``supervisor_model_name`` is operator-only (unlike ``model_name``, it is
-    not read by any frontend surface), so this reads it through an operator
-    client.
-    """
     from app.config import settings
 
     monkeypatch.setattr(settings, "model_name", "worker/model")
@@ -464,7 +396,6 @@ def test_status_supervisor_model_falls_back_to_worker(
 def test_status_reports_configured_supervisor_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A configured supervisor model is surfaced distinctly from the worker."""
     from app.config import settings
 
     monkeypatch.setattr(settings, "model_name", "worker/model")
@@ -477,7 +408,6 @@ def test_status_reports_configured_supervisor_model(
 def test_status_reports_web_search_available(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A server advertising the web search tool surfaces the connector."""
     _patch_probes(
         monkeypatch,
         ProbeResult(available=True, state="up"),
@@ -495,7 +425,6 @@ def test_status_reports_web_search_available(
 def test_status_omits_web_search_connector_when_down(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """No provider key on the MCP server means no web search connector."""
     _patch_probes(
         monkeypatch,
         ProbeResult(available=True, state="up"),
@@ -509,17 +438,6 @@ def test_status_omits_web_search_connector_when_down(
     assert all(item["id"] != "web_search" for item in data["connectors"])
 
 
-# Tests for the diagnostics endpoints and lifespan startup/shutdown wiring.
-#
-# ``/health`` and the mock-mode branch of ``/status`` are already covered by
-# ``test_health.py``; this file adds the untested ``/`` and ``/config``
-# endpoints, the full ASGI lifespan (startup reconciliation + demo seeding,
-# then shutdown checkpoint) via ``TestClient`` used as a context manager, and
-# the module-level settings-to-environment bridging that runs once per import.
-
-
-# The engine's example config: a real, readable YAML for the tools_config
-# startup path (validation must pass for it and reject a nonexistent path).
 _INDRA_CONFIG = str(
     pathlib.Path(__file__).resolve().parents[2]
     / "engine"
@@ -532,7 +450,6 @@ _INDRA_CONFIG = str(
 
 
 def _seed_interrupted_engine_run(isolated_db: str) -> str:
-    """Persist a RUNNING engine run with a checkpoint (a crash's leavings)."""
     interrupted = store.create_run(
         "interrupted goal",
         "default",
@@ -557,7 +474,6 @@ def _seed_interrupted_engine_run(isolated_db: str) -> str:
 
 
 def test_root_endpoint_hides_docs_pointer_from_non_operators() -> None:
-    """A non-operator caller gets no /docs pointer -- see `is_operator`."""
     res = _client().get("/")
     assert res.status_code == 200
     assert res.json() == {
@@ -574,11 +490,8 @@ def test_root_endpoint_shows_docs_pointer_to_operators() -> None:
 
 
 def test_docs_and_openapi_are_404_for_non_operators() -> None:
-    """Swagger, ReDoc, and the raw schema are hidden from an anonymous caller.
-
-    A 404 rather than a 401/403, so a probing caller cannot distinguish
-    "no docs route" from "docs exist but you may not see them".
-    """
+    # Return 404 for private API docs so anonymous probes cannot distinguish
+    # hidden routes from absent ones.
     client = _client()
     for path in ("/docs", "/redoc", "/openapi.json"):
         assert client.get(path).status_code == 404, path
@@ -594,7 +507,6 @@ def test_docs_and_openapi_serve_for_operators() -> None:
 
 
 def test_version_is_single_sourced_across_surfaces() -> None:
-    """Root, /health, and the OpenAPI app all report the same version."""
     import app.main as main_module
 
     client = _client()
@@ -617,13 +529,8 @@ def test_config_endpoint_returns_standard_tier_defaults() -> None:
 def test_lifespan_reconciles_interrupted_runs_and_seeds_demo_data(
     isolated_db: str,
 ) -> None:
-    """Startup reconciles stuck runs and seeds demo runs; shutdown cleans up.
-
-    Constructing TestClient does not itself run the ASGI lifespan; using it
-    as a context manager does, which is what actually exercises startup and
-    shutdown. ``tools_config`` is unset by default, so this also covers
-    startup's "not set" logging fallback.
-    """
+    # TestClient only enters lifespan as a context manager; construction alone
+    # does not exercise startup.
     import app.main as main_module
 
     interrupted = store.create_run(
@@ -653,7 +560,6 @@ def test_lifespan_reconciles_interrupted_runs_and_seeds_demo_data(
 def test_lifespan_logs_configured_tools_config(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A configured, readable ``tools_config`` starts up cleanly."""
     import app.main as main_module
     from app.config import settings
 
@@ -667,12 +573,8 @@ def test_lifespan_logs_configured_tools_config(
 def test_lifespan_fails_on_unreadable_tools_config(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A configured but unreadable ``tools_config`` fails startup.
-
-    Guards the historical bug where a bad TOOLS_CONFIG was logged but never
-    forwarded, so the run silently fell back to default tools. Every run is
-    on the engine now, so the validation runs unconditionally at startup.
-    """
+    # Bad tool configuration must fail startup rather than silently selecting
+    # different tools.
     import app.main as main_module
     from app.config import settings
 
@@ -688,20 +590,11 @@ def test_lifespan_fails_on_unreadable_tools_config(
 def test_status_reports_effective_tools_config(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """/status discloses the configured tools_config to an operator caller.
-
-    See `is_operator`; every other caller sees this and the other
-    operator-only fields redacted to null, covered by
-    `test_status_redacts_operator_fields_from_non_operators` below.
-    """
     import app.main as main_module
     from app.config import settings
 
     monkeypatch.setattr(settings, "tools_config", _INDRA_CONFIG)
 
-    # A loopback client host, matching tests/_client.py's operator client:
-    # these fields are operator-only, so a default TestClient (host
-    # "testclient", not loopback) would see them redacted.
     with TestClient(main_module.app, client=("127.0.0.1", 50000)) as client:
         res = client.get("/status")
         assert res.status_code == 200
@@ -714,15 +607,8 @@ def test_status_reports_effective_tools_config(
 def test_status_redacts_operator_fields_from_non_operators(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A non-operator /status caller sees no deployment internals.
-
-    The internal MCP hostname, provider-key/BYOK/engine-importability
-    state, and the tools config are operator diagnostics with no product
-    use (nothing in the frontend reads them) -- so they come back null
-    rather than real values, while the fields the UI does read (the
-    availability booleans, `connectors`, and the offline-mode banner's
-    `provider`/`llm_backend`/`model_name`) stay populated.
-    """
+    # MCP hostnames and credential state are operator internals; public
+    # availability remains usable.
     from app.config import settings
 
     monkeypatch.setattr(settings, "tools_config", _INDRA_CONFIG)
@@ -738,7 +624,6 @@ def test_status_redacts_operator_fields_from_non_operators(
     assert body["tools_config_valid"] is None
     assert body["enabled_tools"] is None
     assert body["probes"] is None
-    # Publicly-used fields survive redaction.
     assert isinstance(body["connectors"], list)
     assert body["provider"] == "engine"
     assert "llm_backend" in body
@@ -748,11 +633,8 @@ def test_status_redacts_operator_fields_from_non_operators(
 def test_status_reports_whether_email_can_actually_be_sent(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """/status gates the completion-email opt-in on a real SMTP transport.
-
-    Without one the send task can only raise and exhaust its retries where
-    no scientist can see it, so the UI must not offer the opt-in at all.
-    """
+    # Without SMTP, opt-in only creates invisible retry-exhausted notification
+    # tasks.
     import app.main as main_module
     from app.config import settings
 
@@ -776,19 +658,11 @@ def test_status_reports_whether_email_can_actually_be_sent(
 def test_module_import_bridges_settings_and_logs_missing_mcp_url(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Module-level env bridging (gemini key, MCP URL) runs on (re)import.
-
-    Reloads ``app.main`` twice: once with settings tweaked to hit both
-    conditional branches, then again with the original settings restored so
-    later tests see a normally-configured module.
-    """
     import app.main as main_module
     from app.config import settings
 
     original_gemini_key = settings.gemini_api_key
     original_mcp_url = settings.mcp_server_url
-    # Recorded as absent so the fixture teardown deletes whatever the reload
-    # below sets, regardless of the key's value at that point.
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
 
     settings.gemini_api_key = "test-gemini-key"
@@ -810,25 +684,8 @@ def test_module_import_bridges_settings_and_logs_missing_mcp_url(
 def test_startup_prunes_checkpoints_but_never_vacuums(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Housekeeping reclaims rows; it must never take an exclusive lock.
-
-    VACUUM needs exclusive access, and SQLite makes a writer that is waiting
-    for one block every other writer behind it. This process can never grant
-    it: the log-capture thread writes a row for every record the app emits,
-    so a VACUUM waits for a quiet moment that never arrives -- and while it
-    waits, nothing else can write either. Production wedged exactly that way
-    from both sides of the lifespan, before and after serving: an idle
-    database, no writes for minutes, and every run creation returning 500
-    with "database is locked".
-
-    Pruning alone is enough. It reclaims the rows that actually grow without
-    bound, commits in small batches, and never blocks a reader. The file
-    keeps its high-water mark, which a 5 GB volume holding a 53 MB database
-    can well afford. The never-VACUUM half of the invariant now holds
-    structurally: the store ships no VACUUM helper at all (the gated
-    ``compact_database`` was removed precisely so nothing could reintroduce
-    the livelock), so this pins the pruning half.
-    """
+    # VACUUM waits for exclusive access while log writes continue; pruning must
+    # never block serving writers.
     import app.main as main_module
 
     pruned = threading.Event()
@@ -848,32 +705,20 @@ def test_startup_prunes_checkpoints_but_never_vacuums(
 def test_startup_does_not_block_on_run_recovery(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Resuming interrupted runs must not gate the server accepting traffic.
-
-    Recovery work scales with the run backlog, and it used to run before the
-    lifespan yielded -- so a container that booted with an interrupted run
-    started executing that run's provider calls while uvicorn had not yet
-    bound a port. Production deploys failed their healthcheck that way, and
-    each failure killed the container mid-run, leaving another interrupted
-    run for the next boot to choke on. Recovery belongs after startup.
-    """
+    # Run recovery after binding traffic; provider work before lifespan yield
+    # causes healthcheck restart spirals.
     import app.main as main_module
     import app.runs as runs_module
 
     resumed = threading.Event()
 
     async def slow_resume(run_ids: list[str]) -> None:
-        # Awaits rather than blocking the loop: a real resume is provider
-        # I/O, so the loop stays free and only startup's own sequencing can
-        # keep the port shut.
         resumed.set()
         await asyncio.sleep(30)
 
     async def _no_seed(db_path: str | None = None) -> None:
-        # Demo seeding drives real offline runs at startup (covered by
-        # ``test_lifespan_reconciles_interrupted_runs_and_seeds_demo_data``);
-        # stub it here so this test measures only recovery scheduling latency,
-        # not seed compute, which would otherwise dominate the startup budget.
+        # Stub demo compute so the timing assertion measures recovery scheduling
+        # rather than seed work.
         return None
 
     monkeypatch.setattr(runs_module, "resume_interrupted_runs", slow_resume)
@@ -884,25 +729,11 @@ def test_startup_does_not_block_on_run_recovery(
     with TestClient(main_module.app) as client:
         startup_seconds = time.monotonic() - started
         assert client.get("/health").status_code == 200
-    # Recovery was scheduled, not skipped.
     assert resumed.is_set()
     assert startup_seconds < 10
 
 
-# System tests driving only the public HTTP surface, with a real lifespan.
-#
-# Unlike the rest of the suite (which mostly uses ``tests._client.make_client``
-# without entering the client as a context manager, so the ASGI lifespan never
-# runs), these use ``TestClient`` as a context manager so startup
-# (interrupted-run reconciliation, demo seeding) and shutdown (WAL checkpoint)
-# actually execute, matching how the real server boots. Nothing here imports
-# ``app.store`` or any other internal module -- every assertion is made against
-# HTTP responses only, since the point is to verify the externally-visible
-# contract, not implementation details already covered elsewhere.
-
-
 def _sse_event_types(text: str) -> list[str]:
-    """Return the ``type`` of every SSE ``data:`` frame, in order."""
     types: list[str] = []
     for line in text.splitlines():
         if line.startswith("data: "):
@@ -911,7 +742,6 @@ def _sse_event_types(text: str) -> list[str]:
 
 
 def _assert_diagnostics(client: TestClient) -> None:
-    """Assert /health, /config, and /status report a healthy offline stack."""
     health = client.get("/health")
     assert health.status_code == 200
     assert health.json()["status"] == "healthy"
@@ -931,7 +761,6 @@ def _assert_diagnostics(client: TestClient) -> None:
 
 
 def _create_and_complete(client: TestClient, goal: str) -> str:
-    """Create + start an express run, returning its id once completed."""
     create = client.post(
         "/api/runs", json={"research_goal": goal, "tier": "express"}
     )
@@ -945,7 +774,6 @@ def _create_and_complete(client: TestClient, goal: str) -> str:
 
 
 def _create_and_block(client: TestClient, goal: str) -> str:
-    """Create + start a run expected to reach the blocked terminal state."""
     create = client.post(
         "/api/runs", json={"research_goal": goal, "tier": "express"}
     )
@@ -958,7 +786,6 @@ def _create_and_block(client: TestClient, goal: str) -> str:
 
 
 def _assert_terminal_events(client: TestClient, run_id: str) -> None:
-    """The event stream carries both the report and the terminal marker."""
     events = client.get(f"/api/runs/{run_id}/events")
     assert events.status_code == 200
     event_types = _sse_event_types(events.text)
@@ -967,7 +794,6 @@ def _assert_terminal_events(client: TestClient, run_id: str) -> None:
 
 
 def _assert_hypotheses_with_lineage(client: TestClient, run_id: str) -> None:
-    """Hypotheses carry positive Elo and at least one evolved child."""
     hyps_resp = client.get(f"/api/runs/{run_id}/hypotheses")
     assert hyps_resp.status_code == 200
     hyps = hyps_resp.json()["hypotheses"]
@@ -979,7 +805,6 @@ def _assert_hypotheses_with_lineage(client: TestClient, run_id: str) -> None:
 
 
 def _assert_citations_wellformed(client: TestClient, run_id: str) -> None:
-    """Literature review is off, so the citation list is empty but valid."""
     citations_resp = client.get(f"/api/runs/{run_id}/citations")
     assert citations_resp.status_code == 200
     citations = citations_resp.json()["citations"]
@@ -992,18 +817,15 @@ def _assert_citations_wellformed(client: TestClient, run_id: str) -> None:
 
 
 def _assert_safety_allowed(client: TestClient, run_id: str) -> None:
-    """The intake and final gates both allowed this benign goal."""
     safety_resp = client.get(f"/api/runs/{run_id}/safety")
     assert safety_resp.status_code == 200
     safety = safety_resp.json()["safety"]
     decisions_by_stage = {s["stage"]: s["decision"] for s in safety}
-    # The engine may also record per-hypothesis claim-gate decisions between.
     assert decisions_by_stage["intake"] == "allow"
     assert decisions_by_stage["final"] == "allow"
 
 
 def _assert_report_consistent(client: TestClient, run_id: str) -> None:
-    """The JSON report and report.md agree on goal and leaderboard."""
     report_resp = client.get(f"/api/runs/{run_id}/report")
     assert report_resp.status_code == 200
     payload = report_resp.json()["payload"]
@@ -1018,7 +840,6 @@ def _assert_report_consistent(client: TestClient, run_id: str) -> None:
 
 
 def _assert_run_listed(client: TestClient, run_id: str, status: str) -> None:
-    """The run appears in the listing with the expected status."""
     listing = client.get("/api/runs")
     assert listing.status_code == 200
     listed_status_by_id = {r["id"]: r["status"] for r in listing.json()["runs"]}
@@ -1028,13 +849,6 @@ def _assert_run_listed(client: TestClient, run_id: str, status: str) -> None:
 def test_full_user_journey_from_diagnostics_to_completed_report(
     isolated_db: str,
 ) -> None:
-    """A user checks diagnostics, runs a goal, and reads the finished report.
-
-    Covers, in one journey: /health, /config, /status, create -> start ->
-    poll/stream to completion, hypotheses with Elo + lineage, citations,
-    safety verdicts, report JSON + report.md consistency, and the run
-    showing up in the run list.
-    """
     with make_client() as client:
         _assert_diagnostics(client)
         run_id = _create_and_complete(
@@ -1052,12 +866,6 @@ def test_full_user_journey_from_diagnostics_to_completed_report(
 def test_safety_blocked_goal_surfaces_through_the_api(
     isolated_db: str,
 ) -> None:
-    """An intake-blocked goal never produces hypotheses or a report.
-
-    The blocked terminal state must surface consistently across the run
-    row, the safety endpoint, the (still-empty) hypotheses list, the
-    now-missing report endpoints, and the run listing.
-    """
     with make_client() as client:
         run_id = _create_and_block(
             client,

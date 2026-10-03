@@ -1,5 +1,3 @@
-"""Tests for run lifecycle 3."""
-
 from __future__ import annotations
 
 import asyncio
@@ -37,11 +35,8 @@ from tests._engine_tasks_helpers import (
     _task_state,
 )
 
-# Cancellation wins when it commits before an admitted resume is queued.
-
 
 def _checkpointed_run(db: str, client: Any) -> tuple[str, str]:
-    """Create a progressed run whose exact checkpoint successor is durable."""
     response = client.post(
         "/api/runs",
         json={"research_goal": "Resume/cancel ordering", "tier": "express"},
@@ -92,7 +87,6 @@ def _checkpointed_run(db: str, client: Any) -> tuple[str, str]:
 def test_cancel_wins_when_it_commits_before_resume_enqueue(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A stale resume admission cannot reverse cancellation or revive work."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     owner = make_client()
     run_id, successor_id = _checkpointed_run(isolated_db, owner)
@@ -165,7 +159,6 @@ def test_cancel_wins_when_it_commits_before_resume_enqueue(
         is None
     )
 
-    # A new, explicit request admitted after cancellation remains supported.
     later_resume = owner.post(f"/api/runs/{run_id}/resume")
     assert later_resume.status_code == 200, later_resume.text
     later_task = store.get_task(successor_id, db_path=isolated_db)
@@ -182,7 +175,6 @@ def test_cancel_wins_when_it_commits_before_resume_enqueue(
 def test_resume_transaction_commits_before_waiting_cancel(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A cancellation waiting on resume admission still wins afterward."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     owner = make_client()
     cancel_client = make_client()
@@ -265,7 +257,6 @@ def test_resume_transaction_commits_before_waiting_cancel(
 def test_lifecycle_revision_rejects_paused_cancel_resume_pause_aba(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A stale PAUSED admission cannot pass after a full status ABA cycle."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     owner = make_client()
     later_resumer = make_client()
@@ -327,7 +318,6 @@ def test_lifecycle_revision_rejects_paused_cancel_resume_pause_aba(
 def test_legacy_cleanup_waits_until_resume_status_guard(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A losing legacy resume leaves checkpoints and audit events intact."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     owner = make_client()
     created = owner.post(
@@ -403,7 +393,6 @@ def test_legacy_cleanup_waits_until_resume_status_guard(
 def test_startup_resume_skips_cancelled_run_after_admission_race(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Startup's active-status snapshot cannot requeue a later cancellation."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     owner = make_client()
     run_id, successor_id = _checkpointed_run(isolated_db, owner)
@@ -461,7 +450,6 @@ def test_startup_resume_skips_cancelled_run_after_admission_race(
 def test_adjudication_rejection_does_not_overwrite_cancel(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A rejected hold cannot write BLOCKED after cancellation commits."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     owner = make_client()
     created = owner.post(
@@ -519,9 +507,6 @@ def test_adjudication_rejection_does_not_overwrite_cancel(
     assert decision["resolution"] == "rejected"
 
 
-# Legacy resume cleanup must not erase lifecycle admission revisions.
-
-
 def _paused_legacy_run(db_path: str) -> tuple[str, int]:
     run = store.create_run(
         "Legacy resume lifecycle race",
@@ -568,7 +553,6 @@ def _paused_legacy_run(db_path: str) -> tuple[str, int]:
 def test_legacy_cleanup_preserves_lifecycle_revision_for_stale_resume(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A legacy cleanup cannot recycle the revision of an admitted pause."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     owner = make_client()
     later_resumer = make_client()
@@ -640,9 +624,6 @@ def test_legacy_cleanup_preserves_lifecycle_revision_for_stale_resume(
         if task.task_type == engine_tasks.BOOTSTRAP_TASK
     )
     assert bootstrap.status == "paused"
-
-
-# Resume the bootstrap lease when pause races its first checkpoint.
 
 
 def _started_bootstrap(
@@ -904,25 +885,11 @@ def test_paused_permanent_bootstrap_failure_is_not_resumable(
     assert task.error == "permanent budget ceiling"
 
 
-# Where a scientist's hypothesis joins a run that is already executing.
-#
-# PARITY ``HITL-MANUAL-HYP-001``. A contributed hypothesis is persisted and
-# safety-screened at POST time; these tests pin the other half -- that it
-# becomes an engine ``Hypothesis`` on the durable path (the only path
-# production runs) at one safe boundary, the orchestrator's, and from there
-# takes the same review/proximity/tournament/evolution path a generated one
-# takes, carrying its authorship through the checkpoint.
-#
-# The orchestrator is the boundary because it is the run's only scheduling
-# decision point: the pool cannot grow inside a ranking wave or between a
-# fan-out's items and its aggregate, the orchestrator's own commit puts the
-# newcomer in the checkpoint every later task restores, and an unreviewed
-# pool member forces the scheduler's review transition before the idea can
-# rank or be bred from.
+# Merge scientist ideas only at the orchestrator; growing pools inside ranking
+# or fan-out forks state.
 
 
 def _node_task(run_id: str, node: str, seq: int, db_path: str) -> Any:
-    """Enqueue and claim one durable node task for ``node``."""
     store.enqueue_task(
         store.NewTask(
             run_id=run_id,
@@ -939,7 +906,6 @@ def _node_task(run_id: str, node: str, seq: int, db_path: str) -> Any:
 
 
 def _restored_at(run_id: str, node: str, db_path: str) -> dict[str, Any]:
-    """Restore the state one durable ``node`` task starts from."""
     state = _task_state(run_id)
     seq = _seed_checkpoint(run_id, state, db_path=db_path)
     task = _node_task(run_id, node, seq, db_path)
@@ -951,7 +917,6 @@ def _restored_at(run_id: str, node: str, db_path: str) -> dict[str, Any]:
 
 
 def _seed_hypothesis(run_id: str, db_path: str) -> str:
-    """Persist a scientist hypothesis the way the endpoint does."""
     hypothesis_id = store.add_hypothesis(
         store.NewHypothesis(
             run_id=run_id,
@@ -973,7 +938,6 @@ def _seed_hypothesis(run_id: str, db_path: str) -> str:
 def _seed_review(
     run_id: str, hypothesis_id: str, verdict: str, db_path: str
 ) -> None:
-    """Persist a scientist review the way the endpoint does."""
     store.add_review(
         store.NewReview(
             run_id=run_id,
@@ -991,7 +955,6 @@ def _seed_review(
 def test_admission_happens_at_the_orchestrator_boundary(
     isolated_db: str,
 ) -> None:
-    """The Supervisor's decision point is where the pool may grow."""
     run = store.create_run("Admission", "express", "engine", {})
     hypothesis_id = _seed_hypothesis(run.id, isolated_db)
 
@@ -1002,7 +965,6 @@ def test_admission_happens_at_the_orchestrator_boundary(
 
 
 def test_a_ranking_wave_cannot_gain_a_competitor(isolated_db: str) -> None:
-    """No idea enters mid-tournament, where its Elo would mean nothing."""
     run = store.create_run("Mid-tournament", "express", "engine", {})
     _seed_hypothesis(run.id, isolated_db)
 
@@ -1014,7 +976,6 @@ def test_a_ranking_wave_cannot_gain_a_competitor(isolated_db: str) -> None:
 def test_an_admitted_idea_still_owes_the_run_a_peer_review(
     isolated_db: str,
 ) -> None:
-    """It arrives unreviewed, so the scheduler must review before ranking."""
     from co_scientist.models import has_peer_review
 
     run = store.create_run("Owes review", "express", "engine", {})
@@ -1031,7 +992,6 @@ def test_an_admitted_idea_still_owes_the_run_a_peer_review(
 def test_the_admitted_idea_enters_the_durable_review_fanout(
     isolated_db: str,
 ) -> None:
-    """One leasable review-item task per unreviewed idea, including this one."""
     run = store.create_run("Review fanout", "express", "engine", {})
     hypothesis_id = _seed_hypothesis(run.id, isolated_db)
     _seed_review(run.id, hypothesis_id, "support", isolated_db)
@@ -1057,7 +1017,6 @@ def test_the_admitted_idea_enters_the_durable_review_fanout(
 def test_an_opposing_verdict_withholds_the_idea_from_the_tournament(
     isolated_db: str,
 ) -> None:
-    """The merge re-derives the disposition, at no LLM cost."""
     run = store.create_run("Oppose", "express", "engine", {})
     hypothesis_id = _seed_hypothesis(run.id, isolated_db)
     _seed_review(run.id, hypothesis_id, "oppose", isolated_db)
@@ -1072,7 +1031,6 @@ def test_an_opposing_verdict_withholds_the_idea_from_the_tournament(
 def test_authorship_and_screen_survive_a_checkpoint_round_trip(
     isolated_db: str,
 ) -> None:
-    """Provenance rides the checkpoint, not the store row alone."""
     from co_scientist.checkpoint import (
         restore_workflow_state,
         serialize_workflow_state,
@@ -1090,7 +1048,6 @@ def test_authorship_and_screen_survive_a_checkpoint_round_trip(
     assert hypothesis.origin.value == "scientist_manual"
     assert hypothesis.enrichments["scientist_author"] == "dr-who"
     assert hypothesis.safety_status == "allow"
-    # The drain reads the mark back under the same key it was written.
     assert (
         drain_hypotheses._payload_author(hypothesis.to_dict())
         == hypothesis.enrichments[engine_tasks_inputs.SCIENTIST_AUTHOR_MARK]
@@ -1100,11 +1057,8 @@ def test_authorship_and_screen_survive_a_checkpoint_round_trip(
 def test_an_unscreened_row_does_not_suppress_the_engine_safety_screen(
     isolated_db: str,
 ) -> None:
-    """The column's 'pending' default is not a completed screen.
-
-    A non-None ``safety_status`` tells the engine's screen the hypothesis
-    is already decided, so the placeholder must not travel as one.
-    """
+    # Pending is a placeholder, not a finished screen; sending it suppresses the
+    # real safety decision.
     from co_scientist.agents.safety import (
         _screen_one_hypothesis,
     )
@@ -1132,13 +1086,6 @@ def test_an_unscreened_row_does_not_suppress_the_engine_safety_screen(
 def test_the_admitted_idea_reaches_the_tournament_and_the_gene_pool(
     isolated_db: str,
 ) -> None:
-    """It ranks, and evolution's near-duplicate guard can see it.
-
-    Both read ``state["hypotheses"]`` -- the tournament through
-    ``is_rankable``, the guard through ``sample_context_hypotheses`` over
-    the whole pool -- so being in the admitted pool is what puts a
-    contributed idea in front of them.
-    """
     from co_scientist.agents.evolution.evolve_prompt import (
         sample_context_hypotheses,
     )
@@ -1162,7 +1109,6 @@ def test_the_admitted_idea_reaches_the_tournament_and_the_gene_pool(
 def test_the_drain_reattributes_an_idea_whose_row_is_gone(
     isolated_db: str,
 ) -> None:
-    """The author rides the payload, so an insert is not an anonymous one."""
     from tests._drain_helpers import _persist
 
     run = store.create_run("Reattribute", "express", "engine", {})
@@ -1194,7 +1140,6 @@ def test_the_drain_reattributes_an_idea_whose_row_is_gone(
 def test_admitting_the_same_idea_twice_creates_one_pool_member(
     isolated_db: str,
 ) -> None:
-    """A second boundary re-merges the same rows, not a second competitor."""
     run = store.create_run("Idempotent", "express", "engine", {})
     hypothesis_id = _seed_hypothesis(run.id, isolated_db)
     _seed_review(run.id, hypothesis_id, "revise", isolated_db)
@@ -1211,11 +1156,6 @@ _LATE_CONTRIB_WORKER = "late-contrib-test"
 
 
 async def _drain_until_finalize_enqueued(run_id: str, isolated_db: str) -> None:
-    """Run tasks one at a time up to (not including) finalize.
-
-    Generous cap: each fan-out (review/verification/generation/reflection
-    items) and every ranking match is its own durable task.
-    """
     for _ in range(500):
         tasks = store.list_tasks(run_id, db_path=isolated_db)
         if any(t.task_type == "engine.finalize" for t in tasks):
@@ -1231,18 +1171,8 @@ async def _drain_until_finalize_enqueued(run_id: str, isolated_db: str) -> None:
 async def test_late_contribution_reopens_the_run_once_it_completes(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A contribution past the last orchestrator boundary self-heals.
-
-    Residual window recorded on HITL-STEERING-001/HITL-MANUAL-HYP-001: a
-    contribution POSTed while a run executes its final nodes has no
-    remaining orchestrator boundary and gets no continuation task at POST
-    time (``enqueue_scientist_continuation`` only reopens an already-
-    ``completed`` run). Closed by
-    ``engine_tasks_inputs.reopen_for_pending_scientist_input``, called
-    from ``execute_finalize`` once the report settles -- this drives the
-    real durable queue one task at a time to land a message exactly in
-    that window, rather than asserting the fix in isolation.
-    """
+    # Contributions arriving after the last orchestrator need a continuation
+    # once finalization settles.
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client = _client()
     created = client.post(
@@ -1262,15 +1192,9 @@ async def test_late_contribution_reopens_the_run_once_it_completes(
         json={"content": "also consider off-target kinase effects"},
     )
     assert posted.status_code == 200
-    # No boundary left for it to land on yet.
     assert posted.json()["continuation_task_id"] is None
     assert store.get_pending_steering(run_id, db_path=isolated_db)
 
-    # run_run_until_idle drains everything -- both the original completion
-    # and the reopened continuation cycle it triggers -- so the run lands
-    # completed again either way; the evidence of reopening is the
-    # continuation task and lifecycle event left behind along the way,
-    # and the message finally being acknowledged.
     await task_worker.run_run_until_idle(
         run_id, _LATE_CONTRIB_WORKER, db_path=isolated_db
     )
