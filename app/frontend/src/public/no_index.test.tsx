@@ -1,6 +1,6 @@
 import {describe, it, expect} from 'vitest';
 import {render, waitFor} from '@testing-library/react';
-import {NoIndex} from './no_index';
+import {NoIndex} from './page';
 
 describe('NoIndex', () => {
   // NoIndex renders nothing directly; it drives document head metadata via

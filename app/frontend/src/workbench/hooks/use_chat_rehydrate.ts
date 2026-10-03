@@ -31,7 +31,7 @@ import {
   qaMessagesToEntries,
   runStartAnnouncement,
   type RehydratedAnnouncement,
-} from './chat_session_qa_transcript';
+} from './chat_session_transcript';
 import {type useChatSession} from './use_chat_session';
 
 type ChatSession = ReturnType<typeof useChatSession>;
