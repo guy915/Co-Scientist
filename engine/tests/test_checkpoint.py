@@ -1,5 +1,3 @@
-"""Offline contracts for checkpoint."""
-
 from __future__ import annotations
 
 import types
@@ -33,7 +31,8 @@ from tests._state import make_hypothesis
 
 
 def _rich_hypotheses() -> list[Hypothesis]:
-    """A parent and its evolved child carrying reviews and match tallies."""
+    """Coverage is owed only to reviewed ideas; new entrants first owe a
+    review."""
     parent = Hypothesis(text="parent hypothesis", elo_rating=1240)
     child = Hypothesis(
         text="child hypothesis",
@@ -57,7 +56,6 @@ def _rich_hypotheses() -> list[Hypothesis]:
 
 
 def _rich_state() -> dict[str, object]:
-    """A workflow state carrying every non-trivial checkpoint field."""
     return {
         "research_goal": "Explain X",
         "model_name": "fake/model",
@@ -77,14 +75,12 @@ def _rich_state() -> dict[str, object]:
         "start_time": 1000.0,
         "run_id": "run-123",
         "messages": [{"role": "assistant", "content": "hi"}],
-        # Runtime handles that must NOT be serialized.
         "progress_callback": lambda *a: None,
         "tool_registry": object(),
     }
 
 
 def test_round_trip_preserves_serializable_state() -> None:
-    """Serialize then restore reproduces the pool, lineage, metrics, ledger."""
     state = _rich_state()
     checkpoint = serialize_workflow_state(state, last_event_seq=42)
     restored = restore_workflow_state(checkpoint)
@@ -96,7 +92,6 @@ def test_round_trip_preserves_serializable_state() -> None:
     assert restored["task_history"] == state["task_history"]
     assert restored["orchestrator_state"] == state["orchestrator_state"]
 
-    # Hypotheses and their lineage round-trip.
     hyps = restored["hypotheses"]
     assert [h.text for h in hyps] == ["parent hypothesis", "child hypothesis"]
     child = hyps[1]
@@ -106,17 +101,14 @@ def test_round_trip_preserves_serializable_state() -> None:
     assert child.win_count == 2 and child.loss_count == 1
     assert child.reviews[0].overall_score == 4.0
 
-    # Metrics round-trip.
     assert restored["metrics"].llm_calls == 17
     assert restored["metrics"].reviews_count == 4
 
 
 def test_runtime_handles_excluded_and_reinjected() -> None:
-    """The callback/registry are not serialized but are re-injected."""
     state = _rich_state()
     checkpoint = serialize_workflow_state(state, last_event_seq=1)
 
-    # Not present in the serialized envelope.
     assert "progress_callback" not in checkpoint["state"]
     assert "tool_registry" not in checkpoint["state"]
 
@@ -132,13 +124,11 @@ def test_runtime_handles_excluded_and_reinjected() -> None:
 
 
 def test_restore_sets_resume_flag() -> None:
-    """A restored state carries resume=True so the graph resumes."""
     checkpoint = serialize_workflow_state(_rich_state(), last_event_seq=1)
     assert restore_workflow_state(checkpoint)["resume"] is True
 
 
 def _freeze_time(monkeypatch: pytest.MonkeyPatch, now: float) -> None:
-    """Pin the checkpoint module's clock to a fixed timestamp."""
     monkeypatch.setattr(
         checkpoint_module, "time", types.SimpleNamespace(time=lambda: now)
     )
@@ -147,33 +137,22 @@ def _freeze_time(monkeypatch: pytest.MonkeyPatch, now: float) -> None:
 def test_restore_rebases_start_time_excluding_idle_gap(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Elapsed time after resume counts active seconds, not the paused gap.
-
-    A run checkpointed after 300 active seconds and resumed much later must
-    not immediately trip ``max_wall_clock_s``: the checkpoint stores consumed
-    time, and restore rebases ``start_time`` against the resume clock.
-    """
+    """Paused wall-clock time must not exhaust the resumed run's active-time
+    budget."""
     state = _rich_state()
     state["start_time"] = 1000.0
     _freeze_time(monkeypatch, 1300.0)
     checkpoint = serialize_workflow_state(state, last_event_seq=1)
 
-    # The envelope carries consumed active time, not the raw timestamp.
     assert "start_time" not in checkpoint["state"]
     assert checkpoint["state"]["elapsed_active_s"] == pytest.approx(300.0)
 
-    # Resume after a large real-world gap.
     _freeze_time(monkeypatch, 500_000.0)
     restored = restore_workflow_state(checkpoint)
     assert 500_000.0 - restored["start_time"] == pytest.approx(300.0)
 
 
 def test_restore_legacy_checkpoint_keeps_verbatim_start_time() -> None:
-    """A version-1 checkpoint without elapsed_active_s restores unchanged.
-
-    Older checkpoints carried ``start_time`` verbatim; the fallback preserves
-    that value so no version bump was needed for the rebasing change.
-    """
     checkpoint = serialize_workflow_state(_rich_state(), last_event_seq=1)
     del checkpoint["state"]["elapsed_active_s"]
     checkpoint["state"]["start_time"] = 1234.5
@@ -183,13 +162,11 @@ def test_restore_legacy_checkpoint_keeps_verbatim_start_time() -> None:
 
 
 def test_checkpoint_records_last_event_seq() -> None:
-    """The checkpoint carries the last durable event seq (high-water mark)."""
     checkpoint = serialize_workflow_state(_rich_state(), last_event_seq=99)
     assert checkpoint["last_event_seq"] == 99
 
 
 def test_incompatible_version_fails_closed() -> None:
-    """Restoring a mismatched-version checkpoint raises, never loads."""
     checkpoint = serialize_workflow_state(_rich_state(), last_event_seq=1)
     checkpoint["version"] = CHECKPOINT_VERSION + 1
     with pytest.raises(CheckpointSchemaError):
@@ -197,7 +174,6 @@ def test_incompatible_version_fails_closed() -> None:
 
 
 def test_checkpoint_is_json_serializable() -> None:
-    """The envelope must be JSON-serializable for durable SQLite storage."""
     import json
 
     checkpoint = serialize_workflow_state(_rich_state(), last_event_seq=1)
@@ -208,12 +184,8 @@ def test_checkpoint_is_json_serializable() -> None:
 
 
 def test_langchain_messages_round_trip_through_json() -> None:
-    """LangChain messages (added by ``add_messages``) survive JSON persistence.
-
-    At runtime the ``messages`` channel holds ``BaseMessage`` objects, which
-    are not JSON-serializable; the serializer must convert them so the app
-    store can ``json.dumps`` the envelope, and restore them on the way back.
-    """
+    """Runtime BaseMessage objects need conversion before JSON-backed
+    persistence."""
     import json
 
     from langchain_core.messages import AIMessage, HumanMessage
@@ -225,7 +197,6 @@ def test_langchain_messages_round_trip_through_json() -> None:
     ]
 
     checkpoint = serialize_workflow_state(state, last_event_seq=1)
-    # The envelope is genuinely JSON-serializable (no BaseMessage leaks).
     reloaded = json.loads(json.dumps(checkpoint))
     restored = restore_workflow_state(reloaded)
 
@@ -238,18 +209,13 @@ def test_langchain_messages_round_trip_through_json() -> None:
 
 
 def _envelope(*body: str) -> str:
-    """Wraps operation lines in the patch envelope."""
     return "\n".join(["*** Begin Patch", *body, "*** End Patch"])
 
 
 def _apply(text: str, root: Path) -> Patch:
-    """Parses and applies a patch, returning the parsed form."""
     patch = parse_patch(text)
     apply_patch(patch, root)
     return patch
-
-
-# --- parsing --------------------------------------------------------------
 
 
 def test_envelope_markers_are_required() -> None:
@@ -270,7 +236,6 @@ def test_an_unrecognized_hunk_line_is_rejected() -> None:
 
 
 def test_a_blank_line_in_a_hunk_reads_as_blank_context() -> None:
-    """A blank context line is ' ', which gets whitespace-stripped en route."""
     patch = parse_patch(
         _envelope("*** Update File: a.py", "@@", " keep", "", "-drop")
     )
@@ -295,14 +260,8 @@ def test_multiple_files_parse_into_one_envelope() -> None:
     assert patch.paths == ("new.py", "gone.py", "kept.py")
 
 
-# --- seeking --------------------------------------------------------------
-
-
 def test_repeated_blocks_resolve_in_order_not_by_best_match() -> None:
-    """The monotonic cursor.
-
-    A scoring matcher would return the same "best" occurrence twice.
-    """
+    """A scoring matcher would select the same best occurrence twice."""
     lines = ["x", "dup", "y", "dup", "z"]
     first = seek_anchor(lines, ("dup",), 0)
     assert first is not None and first.start == 1
@@ -311,7 +270,6 @@ def test_repeated_blocks_resolve_in_order_not_by_best_match() -> None:
 
 
 def test_the_ladder_prefers_an_exact_match_anywhere() -> None:
-    """Rung-major search: an exact match later beats a fuzzy one earlier."""
     lines = ["value ", "value"]
     found = seek_anchor(lines, ("value",), 0)
     assert found is not None
@@ -326,7 +284,6 @@ def test_trailing_whitespace_differences_still_match() -> None:
 
 
 def test_smart_quotes_still_match() -> None:
-    """A quote that changed shape in transit must not fail an edit."""
     found = seek_anchor(['x = "a"'], ("x = “a”",), 0)
     assert found is not None
     assert found.rung == "unicode-punctuation"
@@ -334,9 +291,6 @@ def test_smart_quotes_still_match() -> None:
 
 def test_a_missing_anchor_returns_nothing() -> None:
     assert seek_anchor(["a", "b"], ("absent",), 0) is None
-
-
-# --- applying -------------------------------------------------------------
 
 
 def test_update_replaces_the_anchored_lines(tmp_path: Path) -> None:
@@ -399,11 +353,7 @@ def test_move_renames_and_edits(tmp_path: Path) -> None:
 def test_a_stale_context_fails_rather_than_applying_elsewhere(
     tmp_path: Path,
 ) -> None:
-    """The central property.
-
-    A line-addressed editor would happily write at the numbered line,
-    which now holds something else.
-    """
+    """Line numbers alone can target unrelated content after a file changes."""
     target = tmp_path / "a.py"
     target.write_text("completely\ndifferent\ncontent\n")
 
@@ -420,12 +370,8 @@ def test_a_stale_context_fails_rather_than_applying_elsewhere(
 def test_a_failing_patch_leaves_every_file_untouched(
     tmp_path: Path,
 ) -> None:
-    """All-or-nothing across files.
-
-    The first operation is valid; the second is not. Without the
-    plan-then-commit split, the first would already be on disk and the
-    tree would be in a state nobody asked for.
-    """
+    """Plan all files before committing so a later failure cannot leave a
+    partial edit."""
     good = tmp_path / "good.py"
     good.write_text("old\n")
 
@@ -467,9 +413,6 @@ def test_hunks_apply_in_order_within_one_file(tmp_path: Path) -> None:
     assert target.read_text() == "first\nmiddle\nsecond\n"
 
 
-# --- containment ----------------------------------------------------------
-
-
 @pytest.mark.parametrize(
     "path", ["../escape.py", "sub/../../escape.py", "/etc/passwd"]
 )
@@ -479,7 +422,6 @@ def test_paths_outside_the_root_are_refused(tmp_path: Path, path: str) -> None:
 
 
 def test_a_symlinked_escape_is_refused(tmp_path: Path) -> None:
-    """Containment is checked after resolution, so a link cannot step out."""
     outside = tmp_path / "outside"
     outside.mkdir()
     root = tmp_path / "root"
@@ -490,35 +432,25 @@ def test_a_symlinked_escape_is_refused(tmp_path: Path) -> None:
         _apply(_envelope("*** Add File: link/escape.py", "+x"), root)
 
 
-# --- Empty-update guard -----------------------------------------------------
-
-
 def test_empty_bare_list_returns_existing_unchanged() -> None:
-    """An empty bare-list update is 'no change', never a wipe."""
     existing = [make_hypothesis("Foo")]
     result = deduplicate_hypotheses(existing, [])
     assert result is existing
 
 
 def test_both_empty() -> None:
-    """Both empty returns the (empty) ``existing`` object."""
     existing: list[Hypothesis] = []
     result = deduplicate_hypotheses(existing, [])
     assert result is existing
 
 
 def test_empty_append_is_noop() -> None:
-    """An empty AppendHypotheses leaves the pool unchanged."""
     existing = [make_hypothesis("Foo")]
     result = deduplicate_hypotheses(existing, AppendHypotheses([]))
     assert [h.text for h in result] == ["Foo"]
 
 
-# --- REPLACE (bare list) ----------------------------------------------------
-
-
 def test_bare_list_replaces_pool() -> None:
-    """A bare list sets the pool to exactly that list (curating nodes)."""
     existing = [make_hypothesis("A"), make_hypothesis("B")]
     new = [make_hypothesis("A2"), make_hypothesis("B2")]
     result = deduplicate_hypotheses(existing, new)
@@ -526,39 +458,30 @@ def test_bare_list_replaces_pool() -> None:
 
 
 def test_replace_drops_existing_absent_from_new() -> None:
-    """REPLACE discards existing hypotheses not present in ``new``.
-
-    This is how Proximity prunes duplicates: it returns the kept subset and
-    the pool becomes exactly that subset.
-    """
     a, b = make_hypothesis("A"), make_hypothesis("B")
     result = deduplicate_hypotheses([a, b], [a])
     assert [h.id for h in result] == [a.id]
 
 
 def test_replace_dedups_by_id_keeping_first() -> None:
-    """REPLACE removes later same-id entries, preserving order."""
     a = make_hypothesis("A", score=1.0)
     a_dup = Hypothesis(text="A rescored", id=a.id, score=2.0)
     result = deduplicate_hypotheses([], [a, a_dup])
     assert len(result) == 1
     assert result[0].id == a.id
-    assert result[0].score == 1.0  # first occurrence kept
+    assert result[0].score == 1.0
 
 
 def test_replace_preserves_ranking_order() -> None:
-    """REPLACE keeps the incoming order (ranking sets Elo-sorted order)."""
     existing = [make_hypothesis("A"), make_hypothesis("B")]
     reordered = [existing[1], existing[0]]
     result = deduplicate_hypotheses(existing, reordered)
     assert [h.id for h in result] == [existing[1].id, existing[0].id]
 
 
-# --- APPEND (AppendHypotheses) ----------------------------------------------
-
-
 def test_append_adds_new_hypotheses() -> None:
-    """APPEND extends the pool with genuinely new hypotheses."""
+    """Coverage is owed only to reviewed ideas; new entrants first owe a
+    review."""
     existing = [make_hypothesis("A"), make_hypothesis("B")]
     new = [make_hypothesis("C"), make_hypothesis("D")]
     result = deduplicate_hypotheses(existing, AppendHypotheses(new))
@@ -566,7 +489,6 @@ def test_append_adds_new_hypotheses() -> None:
 
 
 def test_append_skips_existing_id() -> None:
-    """APPEND drops an item whose id already exists in the pool."""
     a = make_hypothesis("A")
     result = deduplicate_hypotheses([a], AppendHypotheses([a]))
     assert len(result) == 1
@@ -574,16 +496,14 @@ def test_append_skips_existing_id() -> None:
 
 
 def test_append_skips_exact_text_duplicate() -> None:
-    """APPEND drops an item whose exact normalized text already exists."""
     existing = [make_hypothesis("Foo", score=1.0)]
-    incoming = [make_hypothesis(" foo ", score=2.0)]  # same normalized text
+    incoming = [make_hypothesis(" foo ", score=2.0)]
     result = deduplicate_hypotheses(existing, AppendHypotheses(incoming))
     assert len(result) == 1
-    assert result[0].score == 1.0  # existing kept, duplicate dropped
+    assert result[0].score == 1.0
 
 
 def test_append_dedups_within_batch() -> None:
-    """APPEND drops later exact-text duplicates within the same batch."""
     existing: list[Hypothesis] = []
     batch = [
         make_hypothesis("Dup", score=1.0),
@@ -594,16 +514,9 @@ def test_append_dedups_within_batch() -> None:
     assert result[0].score == 1.0
 
 
-# --- M1 invariant: evolved child coexists with its parent -------------------
-
-
 def test_evolved_child_appends_without_replacing_parent() -> None:
-    """An evolved child (distinct id + text) is appended; the parent stays.
-
-    This is the core M1 behavior: producing a child must not replace the
-    parent or resurrect a pruned hypothesis. The child has a fresh id and a
-    refined text, so APPEND adds it alongside the untouched parent.
-    """
+    """Fresh children coexist with parents and must never resurrect pruned
+    hypotheses."""
     parent = make_hypothesis("A hypothesis about kinase X")
     others = [make_hypothesis("B"), make_hypothesis("C")]
     existing = [parent, *others]
@@ -614,11 +527,9 @@ def test_evolved_child_appends_without_replacing_parent() -> None:
     )
     result = deduplicate_hypotheses(existing, AppendHypotheses([child]))
     ids = [h.id for h in result]
-    # Parent and all peers survive; child is added.
     assert parent.id in ids
     assert child.id in ids
     assert len(result) == 4
-    # Parent object is unchanged (same text).
     surviving_parent = next(h for h in result if h.id == parent.id)
     assert surviving_parent.text == "A hypothesis about kinase X"
 
@@ -626,7 +537,6 @@ def test_evolved_child_appends_without_replacing_parent() -> None:
 def _matchup(
     a_id: str, b_id: str, winner_before: int = 1200, loser_before: int = 1200
 ) -> dict[str, object]:
-    """One judged matchup detail, reduced to the fields identity uses."""
     return {
         "hypothesis_a_id": a_id,
         "hypothesis_b_id": b_id,
@@ -636,11 +546,8 @@ def _matchup(
 
 
 def test_matchups_from_later_tournaments_do_not_erase_earlier_ones() -> None:
-    """Ranking runs once per cycle and returns only what it just judged.
-
-    Under last-write-wins each tournament erased the record of the ones
-    before it, so a multi-cycle run persisted a single cycle of Elo history.
-    """
+    """Last-write-wins would erase every earlier cycle of persisted Elo
+    history."""
     from co_scientist.state import accumulate_matchups
 
     first = [_matchup("a", "b")]
@@ -652,7 +559,6 @@ def test_matchups_from_later_tournaments_do_not_erase_earlier_ones() -> None:
 
 
 def test_replaying_a_committed_tournament_does_not_double_count() -> None:
-    """A resumed ranking task must not commit its matches a second time."""
     from co_scientist.state import accumulate_matchups
 
     judged = [_matchup("a", "b"), _matchup("c", "d")]
@@ -661,7 +567,6 @@ def test_replaying_a_committed_tournament_does_not_double_count() -> None:
 
 
 def test_a_genuine_rematch_at_new_ratings_is_kept() -> None:
-    """A later cycle re-pairs against updated ratings, which is real work."""
     from co_scientist.state import accumulate_matchups
 
     first = [_matchup("a", "b", winner_before=1200, loser_before=1200)]
@@ -671,7 +576,6 @@ def test_a_genuine_rematch_at_new_ratings_is_kept() -> None:
 
 
 def test_an_empty_ranking_update_never_wipes_the_history() -> None:
-    """A tournament that judged nothing must not clear what came before."""
     from co_scientist.state import accumulate_matchups
 
     existing = [_matchup("a", "b")]
@@ -680,7 +584,8 @@ def test_an_empty_ranking_update_never_wipes_the_history() -> None:
 
 
 def test_a_replayed_task_does_not_double_its_own_ledger() -> None:
-    """Ledgers are content, not events: the same one twice is once."""
+    """Research ledgers are content, not events; replay must not multiply
+    them."""
     from co_scientist.state import accumulate_research_ledgers
 
     ledger = {"goal": "reverse fibrosis", "calls": []}
@@ -689,7 +594,6 @@ def test_a_replayed_task_does_not_double_its_own_ledger() -> None:
 
 
 def test_a_node_that_researched_nothing_keeps_what_came_before() -> None:
-    """Most nodes return no ledger; none of them may clear the list."""
     from co_scientist.state import accumulate_research_ledgers
 
     existing = [{"goal": "reverse fibrosis"}]

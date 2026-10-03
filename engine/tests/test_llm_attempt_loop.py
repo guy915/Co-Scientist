@@ -1,5 +1,3 @@
-"""Offline contracts for llm attempt loop."""
-
 from __future__ import annotations
 
 import time
@@ -57,8 +55,6 @@ from tests._llm_fake import (
 from tests._llm_fake import drive as drive
 
 __all__ = ["drive"]
-
-# --- call_llm and call_llm_json: the standard policy ------------------------
 
 
 @STANDARD
@@ -297,9 +293,6 @@ async def test_a_repeated_mandatory_reasoning_refusal_exhausts_the_attempts(
     ]
 
 
-# --- call_llm_json: what only the judge can ask for -------------------------
-
-
 async def test_a_schema_failure_retries_at_once_with_feedback_on_the_same_rung(
     drive: Driver,
 ) -> None:
@@ -329,9 +322,7 @@ async def test_a_schema_failure_on_every_attempt_raises_the_validation_error(
     assert len(run.calls) == 3
     assert run.slept == []
     assert run.logged[:3] == [("schema", "WARNING")] * 3
-    # What follows is the exhausted-retries diagnostics dump, all at ERROR.
     assert {level for _, level in run.logged[3:]} == {"ERROR"}
-    # Feedback replaces itself rather than stacking.
     assert run.prompts[2].count(SCHEMA_FEEDBACK) == 1
 
 
@@ -544,9 +535,7 @@ async def test_a_tool_turn_mandatory_reasoning_rung_sends_no_minimal_effort(
 
     assert run.error is None
     assert len(run.calls) == 2
-    # Unlike call_llm and call_llm_json, the tool turn resends the very
-    # reasoning request it sent before (no minimal-effort tier), at the
-    # raised budget.
+    # Tool recovery raises budget while retaining the same reasoning request.
     assert run.reasoning == [{"enabled": True, "effort": "high"}] * 2
     assert run.max_tokens[1] > run.max_tokens[0]
     assert run.logged == [("failed", "WARNING"), ("escalated", "WARNING")]
@@ -580,7 +569,8 @@ async def test_alternating_reasoning_failures_exhaust_the_tool_attempt_budget(
         if mandatory_first
         else [thinking_only(), mandatory]
     )
-    # A finite reproducer: the old loop reaches "fine" on attempt 21.
+    # The old loop needed 21 attempts; the finite script detects an unbounded
+    # recovery path.
     run = await drive(entry, pair * 10 + [ok(entry)])
 
     if mandatory_first:
@@ -691,11 +681,9 @@ async def test_a_tool_turn_retry_never_spans_tool_execution(
     assert run.error is None
     assert len(run.calls) == 3
     assert executed == ["c1"], "the answerless turn must not rerun the tools"
-    # The retried turn is the second one, and it resends the same transcript.
     roles = [m["role"] for m in run.calls[2]["messages"]]
     assert roles == ["user", "assistant", "tool"]
     assert run.calls[1]["messages"] == run.calls[2]["messages"]
-    # The rung resets for the next turn: it starts at the caller's budget.
     assert run.max_tokens[1] == run.max_tokens[0]
     if failure is exhausted:
         assert run.max_tokens[2] > run.max_tokens[1]
@@ -704,7 +692,6 @@ async def test_a_tool_turn_retry_never_spans_tool_execution(
 
 
 def _rejecting_judge() -> Judge[str, str]:
-    """A judge that rejects every response with feedback, then gives up."""
 
     def verdict(response: str, attempt: Attempt) -> Accepted[str] | Rejected:
         return Rejected(

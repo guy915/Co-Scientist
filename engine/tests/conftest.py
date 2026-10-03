@@ -1,5 +1,3 @@
-"""Shared pytest fixtures and import-path setup for the engine test suite."""
-
 import pathlib
 import sys
 from collections.abc import Iterator
@@ -7,8 +5,7 @@ from typing import Any, ClassVar
 
 import pytest
 
-# Ensure ``co_scientist`` is importable even when the editable install's
-# .pth file is not processed (a known venv quirk in this repo).
+# Some editable installs fail to process the .pth file; keep imports working.
 _SRC = pathlib.Path(__file__).resolve().parents[1] / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
@@ -16,16 +13,8 @@ if str(_SRC) not in sys.path:
 
 @pytest.fixture(autouse=True)
 def _no_prompt_disk_writes(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Stop nodes writing prompt debug files to disk during tests.
-
-    The LLM wrappers in ``co_scientist.llm`` save each named prompt for
-    debugging by resolving ``save_prompt_to_disk`` through the
-    ``co_scientist.prompts`` module at call time; patching it there to a
-    no-op keeps the test run from littering the working tree.
-
-    Args:
-        monkeypatch: The pytest monkeypatch fixture.
-    """
+    """Patch the call-time prompt writer so tests cannot litter the working
+    tree."""
     import co_scientist.prompts as prompts_mod
 
     def _noop(**_: Any) -> None:
@@ -38,19 +27,8 @@ def _no_prompt_disk_writes(monkeypatch: pytest.MonkeyPatch) -> None:
 def _patch_mcp_seam(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Iterator[type[Any]]:
-    """Patch the MCP transport class and reset per-test global state.
-
-    Replaces ``MultiServerMCPClient`` at its use-site with a fresh fake class
-    (so the construction counter and tool/error config never leak between
-    tests) and resets the module-global ``_global_client`` before and after
-    each test so caching tests are isolated.
-
-    Args:
-        monkeypatch: The pytest monkeypatch fixture.
-
-    Returns:
-        The per-test fake client class, for tests that configure it.
-    """
+    """Fresh fake classes and a reset global client prevent counters and
+    tools leaking between tests."""
     from langchain_core.tools import StructuredTool
 
     import co_scientist.mcp_client as mcp_session_mod
@@ -70,7 +48,7 @@ def _patch_mcp_seam(
 
 @pytest.fixture(autouse=True)
 def _free_catalog(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    """Synthetic metadata keeps mocked free-model requests hermetic."""
+    """Synthetic model metadata keeps mocked free requests hermetic."""
     from co_scientist.constants import MODEL_PRICING
     from co_scientist.llm.admission import free_policy as free_catalog
 

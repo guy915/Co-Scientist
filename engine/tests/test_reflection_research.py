@@ -1,5 +1,3 @@
-"""Offline contracts for reflection research."""
-
 from __future__ import annotations
 
 import json
@@ -44,7 +42,6 @@ from tests._state import make_hypothesis, make_state
 
 @pytest.fixture
 def scripted(monkeypatch: pytest.MonkeyPatch) -> _ScriptedModel:
-    """Route the adapter's model calls to a scripted answerer."""
     model = _ScriptedModel()
     monkeypatch.setattr("co_scientist.research_adapter.call_llm_json", model)
     return model
@@ -52,7 +49,6 @@ def scripted(monkeypatch: pytest.MonkeyPatch) -> _ScriptedModel:
 
 @pytest.fixture
 def client(monkeypatch: pytest.MonkeyPatch) -> FakeResearchClient:
-    """Serve every MCP call in this module from a scripted client."""
     fake = FakeResearchClient(
         {
             "search_alpha": _PAPERS,
@@ -73,7 +69,6 @@ def client(monkeypatch: pytest.MonkeyPatch) -> FakeResearchClient:
 def _reflection_research_evidence_state(
     tmp_path: Path, hypotheses: list[Hypothesis], *, tier: str
 ) -> Any:
-    """A run state whose tools are this suite's, at the given tier."""
     return make_state(
         research_goal="reverse fibrosis",
         model_name="offline/test",
@@ -86,7 +81,6 @@ def _reflection_research_evidence_state(
 
 
 def _viable(text: str, *, elo: int) -> Hypothesis:
-    """A hypothesis the reviews would reach, at a given standing."""
     hypothesis = make_hypothesis(text=text)
     hypothesis.review_disposition = "viable"
     hypothesis.elo_rating = elo
@@ -96,7 +90,6 @@ def _viable(text: str, *, elo: int) -> Hypothesis:
 async def test_a_tier_that_funds_no_reviews_researches_none(
     tmp_path: Path, scripted: _ScriptedModel, client: FakeResearchClient
 ) -> None:
-    """Per hypothesis, this is a multiplier on the whole run's cost."""
     hypothesis = _viable("mechanism X drives fibrosis", elo=1500)
 
     found = await research_for_review(
@@ -114,7 +107,8 @@ async def test_a_tier_that_funds_no_reviews_researches_none(
 async def test_only_the_best_ranked_hypotheses_are_researched(
     tmp_path: Path, scripted: _ScriptedModel, client: FakeResearchClient
 ) -> None:
-    """The cap is half the ceiling; without it the cost is a product."""
+    """Coverage is owed only to reviewed ideas; new entrants first owe a
+    review."""
     limit = reviewed_hypothesis_limit("extended")
     pool = [_viable(f"mechanism {n}", elo=1000 + n) for n in range(limit + 3)]
     state = _reflection_research_evidence_state(tmp_path, pool, tier="extended")
@@ -130,12 +124,8 @@ async def test_only_the_best_ranked_hypotheses_are_researched(
 def test_before_any_tournament_the_review_score_decides(
     tmp_path: Path,
 ) -> None:
-    """This node runs before ranking, so cycle one has no Elo to sort by.
-
-    Every rating is the default on the first cycle. Without a second key
-    the funded set would be an arbitrary slice of the pool -- and the
-    first cycle is where every hypothesis gets its one full review.
-    """
+    """Cycle-one Elo is uniform; review scores make the funded set meaningful
+    rather than arbitrary."""
     limit = reviewed_hypothesis_limit("extended")
     pool = []
     for n in range(limit + 3):
@@ -154,7 +144,8 @@ def test_before_any_tournament_the_review_score_decides(
 async def test_a_funded_hypothesis_researches_and_names_its_searches(
     tmp_path: Path, scripted: _ScriptedModel, client: FakeResearchClient
 ) -> None:
-    """The article-to-search link is what makes the evidence checkable."""
+    """Coverage is owed only to reviewed ideas; new entrants first owe a
+    review."""
     hypothesis = _viable("mechanism X drives fibrosis", elo=1600)
 
     found = await research_for_review(
@@ -165,7 +156,6 @@ async def test_a_funded_hypothesis_researches_and_names_its_searches(
     )
 
     assert found is not None
-    # Only the document a finding was drawn from becomes an article.
     assert [article.source_id for article in found.articles] == ["doc-a"]
     made = result_from_dict(found.ledger).calls
     assert found.articles[0].retrieval_call_id in {call.id for call in made}
@@ -174,7 +164,6 @@ async def test_a_funded_hypothesis_researches_and_names_its_searches(
 async def test_research_asks_about_the_claim_not_only_the_goal(
     tmp_path: Path, scripted: _ScriptedModel, client: FakeResearchClient
 ) -> None:
-    """A review researching the run's goal repeats the literature review."""
     hypothesis = _viable("mechanism X drives fibrosis", elo=1600)
 
     await research_for_review(
@@ -192,7 +181,6 @@ async def test_research_asks_about_the_claim_not_only_the_goal(
 async def test_the_first_questions_are_the_doubts_already_on_record(
     tmp_path: Path, scripted: _ScriptedModel, client: FakeResearchClient
 ) -> None:
-    """An unconfirmed assumption is the question the run has earned."""
     hypothesis = _viable("mechanism X drives fibrosis", elo=1600)
     hypothesis.enrichments["full"] = {
         "assumptions": [
@@ -214,16 +202,15 @@ async def test_the_first_questions_are_the_doubts_already_on_record(
     assert found is not None
     asked = [thread["question"]["text"] for thread in found.ledger["threads"]]
     assert "the receptor is expressed in humans" in asked
-    # A confirmed assumption is not a question.
     assert "fibrosis is reversible" not in asked
-    # Seeded, so no stance planning call was made.
     assert not any("perspectives to research" in p for p in scripted.prompts)
 
 
 async def test_a_hypothesis_with_no_recorded_doubts_plans_its_own(
     tmp_path: Path, scripted: _ScriptedModel, client: FakeResearchClient
 ) -> None:
-    """A first-cycle hypothesis has no prior review to seed from."""
+    """Coverage is owed only to reviewed ideas; new entrants first owe a
+    review."""
     hypothesis = _viable("mechanism X drives fibrosis", elo=1600)
 
     found = await research_for_review(
@@ -238,7 +225,6 @@ async def test_a_hypothesis_with_no_recorded_doubts_plans_its_own(
 
 
 def test_a_simulation_failure_point_is_a_doubt_too() -> None:
-    """What the mechanism was said to break on is worth researching."""
     hypothesis = make_hypothesis(text="mechanism X")
     hypothesis.enrichments["simulation"] = {
         "failure_points": ["step 3 needs a cofactor nothing supplies"]
@@ -250,7 +236,6 @@ def test_a_simulation_failure_point_is_a_doubt_too() -> None:
 
 
 def test_seed_questions_stop_at_the_first_level_breadth() -> None:
-    """More seeds than the level can fund would be declined anyway."""
     hypothesis = make_hypothesis(text="mechanism X")
     hypothesis.enrichments["full"] = {
         "assumptions": [
@@ -263,7 +248,6 @@ def test_seed_questions_stop_at_the_first_level_breadth() -> None:
 
 
 def test_the_run_can_quote_its_review_research_ceiling() -> None:
-    """Both factors are bounded, so the product is quotable up front."""
     for tier, threads in (("extended", 4), ("ultra", 5)):
         budget = review_budget_for_tier(tier, ("alpha",))
         assert budget is not None
@@ -273,13 +257,11 @@ def test_the_run_can_quote_its_review_research_ceiling() -> None:
     assert reviewed_hypothesis_limit("standard") == 0
 
 
-# A tool surface that includes run_command, so the two tests below
-# exercise the loop rather than the platform they happen to run on.
+# Offer run_command explicitly so these tests exercise the loop on every host.
 _RUNNABLE_TOOLS = [{"function": {"name": "run_command"}}]
 
 
 def _reflection_simulation_execution_state(**overrides: Any) -> Any:
-    """A workflow state with the flags this module reads set."""
     state = make_state(hypotheses=[], current_iteration=0)
     for key, value in overrides.items():
         state[key] = value  # type: ignore[literal-required]
@@ -287,8 +269,6 @@ def _reflection_simulation_execution_state(**overrides: Any) -> Any:
 
 
 class TestWhenItRuns:
-    """Three gates, all of which have to hold."""
-
     async def test_it_is_off_unless_the_caller_asked(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -307,8 +287,8 @@ class TestWhenItRuns:
     async def test_only_the_simulation_review_executes(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        # The other five reviews ask questions running code cannot
-        # settle; offering it to them would be cost without a claim.
+        # Other review modes cannot answer their questions by execution; tools
+        # would only add cost.
         called = AsyncMock(return_value="observed something")
         monkeypatch.setattr(cr, "simulation_observations", called)
         state = _reflection_simulation_execution_state(
@@ -347,13 +327,9 @@ class TestWhenItRuns:
 
 
 class TestTheOfflineBackendNeverExecutes:
-    """The second gate, which the two host gates cannot stand in for."""
-
     def test_an_offline_run_stays_mental(self) -> None:
-        # The offline responder answers completions locally and never
-        # emits a tool call, so the loop would end on its first free-text
-        # reply having run nothing -- billed turns for an observation
-        # that is only the model's prose about a program it never wrote.
+        # Offline replies emit no tool calls, so an execution loop would observe
+        # nothing.
         assert (
             run_setup._resolve_simulation_execution(
                 {"enable_simulation_execution": True}, "offline/deterministic"
@@ -377,20 +353,11 @@ class TestTheOfflineBackendNeverExecutes:
 
 
 class TestDegradation:
-    """Every failure is the review that was always here, not an error."""
-
     async def test_an_unconfinable_host_reviews_mentally(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        """The fail-closed case, and the reason this is a capability.
-
-        ``workspace_tool_schemas`` withholds ``run_command`` where no
-        backend can confine it rather than offering a tool every call
-        would refuse. A simulation that cannot run anything has nothing
-        to add, so it says so and the review proceeds unchanged -- a
-        review that errored because its optional instrument was absent
-        would be worse than the review that never had one.
-        """
+        """An unavailable optional execution instrument must degrade to
+        mental review."""
         monkeypatch.setattr(se, "workspace_tool_schemas", lambda policy: [])
         monkeypatch.setattr(
             se,
@@ -411,15 +378,8 @@ class TestDegradation:
     async def test_an_unopenable_workspace_reviews_mentally(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """The one failure outside the loop, and so outside its guard.
-
-        A full or read-only workspace root raises from ``mkdir`` before
-        any of this module's handling begins. Unguarded, the review
-        raised the disk error instead of degrading -- and on the durable
-        path a raising review spends its whole retry budget, so the
-        hypothesis ends with no simulation review at all rather than the
-        mental one this module promises.
-        """
+        """Directory creation can fail before loop guards; propagate that and
+        durable retries lose the review."""
 
         def _no_space(*_args: Any, **_kwargs: Any) -> None:
             raise OSError(28, "No space left on device")
@@ -437,9 +397,8 @@ class TestDegradation:
     async def test_a_failing_close_does_not_lose_the_observations(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        # The close runs in a `finally`, so an exception there replaces
-        # what the loop was returning -- failing a review that had
-        # already got its answer.
+        # Cleanup runs in finally; errors there would erase an already completed
+        # answer.
         session = WorkspaceSession(tmp_path)
 
         async def _wont_close() -> None:
@@ -494,9 +453,8 @@ class TestDegradation:
     async def test_an_empty_answer_is_not_an_observation(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        # A blank reply is a simulation that produced nothing, which
-        # must reach the review as "nothing ran" rather than as an empty
-        # observations block it would read as "ran, saw nothing".
+        # No observation differs from executing successfully and observing
+        # nothing.
         monkeypatch.setattr(
             se, "workspace_tool_schemas", lambda policy: _RUNNABLE_TOOLS
         )
@@ -519,19 +477,11 @@ class TestDegradation:
 
 
 class TestTheSessionsItLeaves:
-    """A hung simulation is the expected case, so nothing may outlive it."""
-
     async def test_a_command_still_running_is_ended_with_the_loop(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        """``run_command`` starts sessions, and a session outlives its call.
-
-        Model-written code that hangs is what the repair path exists for,
-        so the review's most likely leftover is exactly the one nothing
-        else ends: the ceiling is four live sessions per workspace, and a
-        review pool multiplies that by the hypotheses in flight. The loop
-        that started them closes them.
-        """
+        """Sessions outlive calls; the owning review loop must end its hung
+        commands."""
         session = WorkspaceSession(tmp_path)
         monkeypatch.setattr(
             se, "open_review_workspace", lambda *a, **k: session
@@ -556,14 +506,13 @@ class TestTheSessionsItLeaves:
             make_hypothesis(text="a"),
         )
 
-        # Asserted outside the loop: `_observe` swallows every exception,
-        # so a failure raised inside it would read as a clean pass.
+        # Assert outside the exception-swallowing loop so failures cannot
+        # resemble a pass.
         assert started and started[0]["running"] is True
         assert session.sessions._sessions == {}
 
 
 def _tool_call(**arguments: Any) -> SimpleNamespace:
-    """One run_command tool call in the shape the executor expects."""
     return SimpleNamespace(
         id="call_1",
         function=SimpleNamespace(
@@ -573,8 +522,6 @@ def _tool_call(**arguments: Any) -> SimpleNamespace:
 
 
 class TestWhatTheReviewerSees:
-    """The observations reach the prompt, and their absence is stated."""
-
     def test_observations_are_handed_to_the_reviewer(self) -> None:
         variables = cr._prompt_variables(
             _reflection_simulation_execution_state(),
@@ -620,8 +567,6 @@ class TestWhatTheReviewerSees:
 
 
 class TestProvenance:
-    """Whether a verdict was run or imagined is recorded, not inferred."""
-
     async def test_an_executed_review_is_marked_executed(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -649,9 +594,7 @@ class TestProvenance:
     async def test_a_mental_review_is_marked_not_executed(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        # The distinction the reader needs: a `breaks_down` from a run
-        # and one from imagination are different kinds of claim, and a
-        # missing flag would let the second pass for the first.
+        # Executed and imagined breakdowns are different provenance claims.
         monkeypatch.setattr(
             cr,
             "call_llm_json",
@@ -686,19 +629,11 @@ class TestProvenance:
 
 
 class TestIsolation:
-    """One workspace per hypothesis, for the reason variants get one."""
-
     def test_two_reviews_of_one_run_do_not_share_a_directory(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        """Review items fan out as separate leased tasks and run at once.
-
-        A shared directory would have two simulations each reading part
-        of the other's model, and both would then report a coherent
-        observation about the wrong hypothesis -- a failure no review
-        makes visible, which is why the isolation is structural rather
-        than a convention about who writes when.
-        """
+        """Concurrent leased reviews sharing a directory would report
+        observations of each other's models."""
         from co_scientist.workspace import run_workspace
 
         monkeypatch.setattr(run_workspace, "workspaces_root", lambda: tmp_path)
@@ -711,17 +646,8 @@ class TestIsolation:
 
 
 def test_the_simulation_loop_carries_its_own_spend_ceiling() -> None:
-    """A turn ceiling cannot bound what a growing transcript costs.
-
-    Measured on a live extended run: simulations that produced an
-    observation spent 50-130k prompt tokens, and the nine that reached the
-    14-turn ceiling -- and so produced nothing, since reaching it is what
-    failing means -- spent 190-266k, 1.81M between them and 24% of the
-    run's entire input. The ceiling here is tighter than the generic
-    backstop because a simulation's spend has actually been measured:
-    a sweep of seven budgets found nothing above 45k that any observation
-    was better for (see the constant's own comment).
-    """
+    """Measured simulations gained no observation quality above their own
+    spend ceiling."""
     from co_scientist.agents.reflection.simulation_execution import (
         MAX_SIMULATION_TURNS,
         SIMULATION_TOKEN_BUDGET,
@@ -729,15 +655,11 @@ def test_the_simulation_loop_carries_its_own_spend_ceiling() -> None:
     from co_scientist.llm import DEFAULT_TOOL_LOOP_TOKEN_BUDGET
 
     assert SIMULATION_TOKEN_BUDGET < DEFAULT_TOOL_LOOP_TOKEN_BUDGET
-    # Enough for the six-to-eight turns the useful work takes, and for
-    # some simulations to still finish rather than be harvested; below
-    # the range where more turns stopped buying a better observation.
     assert 30_000 <= SIMULATION_TOKEN_BUDGET <= 60_000
     assert MAX_SIMULATION_TURNS == 14
 
 
 def _config(*, semantic_relevance_enabled: bool) -> SearchConfig:
-    """Build a minimal SearchConfig differing only in the pass toggle."""
     return SearchConfig(
         tool_registry=None,
         workflow=None,
@@ -754,7 +676,6 @@ def _config(*, semantic_relevance_enabled: bool) -> SearchConfig:
 
 
 def _ranked() -> dict[str, dict[str, Any]]:
-    """Two candidates already ordered best-first by lexical score."""
     return {
         "best": {"title": "Best", "retrieval_score": 5.0},
         "worst": {"title": "Worst", "retrieval_score": 1.5},
@@ -764,7 +685,6 @@ def _ranked() -> dict[str, dict[str, Any]]:
 async def test_disabled_pass_costs_nothing_and_keeps_lexical_order(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Opting out skips the pass entirely rather than judging cheaply."""
     calls = 0
 
     async def _never(*args: Any, **kwargs: Any) -> dict[str, dict[str, Any]]:
@@ -780,15 +700,12 @@ async def test_disabled_pass_costs_nothing_and_keeps_lexical_order(
     )
 
     assert calls == 0
-    # Skipping re-ranks nothing and drops nothing: the caller's budget
-    # still selects the same number of papers, in lexical order.
     assert list(result.keys()) == ["best", "worst"]
 
 
 async def test_enabled_pass_still_runs_for_the_run_level_review(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The literature-review node keeps the pass it pays for once."""
     calls = 0
 
     async def _judge(
@@ -810,12 +727,8 @@ async def test_enabled_pass_still_runs_for_the_run_level_review(
 async def test_probe_retrieval_opts_out_of_the_relevance_pass(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The config probe retrieval hands to search has the pass off.
-
-    This is the seam that covers all three per-hypothesis callers at
-    once: they share ``_retrieve_probe_evidence``, so the opt-out lives
-    there rather than being repeated (and forgotten) in each agent.
-    """
+    """Shared probe retrieval opts out once instead of repeating relevance
+    policy in each agent."""
     seen: list[SearchConfig] = []
 
     async def _collect(
@@ -848,5 +761,4 @@ async def test_probe_retrieval_opts_out_of_the_relevance_pass(
 
     assert len(seen) == 1
     assert seen[0].semantic_relevance_enabled is False
-    # The read budget stays the probe's own, not the run's evidence count.
     assert seen[0].papers_to_read_count == dve._MAX_PROBE_SOURCES
