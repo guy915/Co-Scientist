@@ -4,7 +4,7 @@ Configures the root logger once at startup (``configure_logging``) with
 either the default human-readable text format or one JSON object per
 line, both on stdout. Run-id correlation and the record formatters live
 in ``app.logging_format``, and silencing LiteLLM's own noisy loggers
-lives in ``app.litellm_logging`` (both re-exported here, so this module
+lives in ``app.logging_format`` (both re-exported here, so this module
 stays the stable import surface).
 
 ``configure_log_capture`` additionally persists every record that
@@ -30,15 +30,15 @@ import sys
 import threading
 
 from app import store
-from app.litellm_logging import (
-    silence_litellm_logging as silence_litellm_logging,
-)
 from app.logging_format import RunIdFilter
 from app.logging_format import (
     _build_formatter as _build_formatter,
 )
 from app.logging_format import (
     run_log_context as run_log_context,
+)
+from app.logging_format import (
+    silence_litellm_logging as silence_litellm_logging,
 )
 
 
@@ -50,7 +50,7 @@ def _byok_redaction_filter() -> logging.Filter:
     behind a lazy import so this module never drags credentials (and its
     cryptography imports) into processes that only configure logging.
     """
-    from app.credentials_redaction import ByokRedactionFilter
+    from app.credentials import ByokRedactionFilter
 
     return ByokRedactionFilter()
 

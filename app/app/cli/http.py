@@ -134,7 +134,7 @@ class ApiClient:
     which the API refuses for any creating call (see
     ``app.auth.require_client_scope``) -- ``app.cli.main.main`` never
     passes that through unresolved, always falling back to
-    ``app.cli.identity.default_client_id`` first.
+    ``app.cli.main.default_client_id`` first.
     """
 
     def __init__(

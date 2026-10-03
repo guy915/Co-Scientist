@@ -278,7 +278,7 @@ precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
 >
 > `RESEARCH-CONTACTS-FIELDS-001` (`2c204e1d`) stays `partial` in this pass:
 > `expertise` is now pinned as the one rendered field no published exemplar
-> supports (`app/tests/test_report_contact_field_labels.py::test_expertise_is_the_one_field_no_exemplar_supports`),
+> supports (`app/tests/test_report_contact_groups.py::test_expertise_is_the_one_field_no_exemplar_supports`),
 > closing the missing-pin-test residual the row previously named, but the
 > field itself is kept rather than removed, since no exemplar positively
 > excludes it.

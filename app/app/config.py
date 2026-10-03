@@ -1,34 +1,69 @@
-"""Application configuration using pydantic-settings.
-
-The DeepSeek thinking-mode request shaping and its token/timeout floors
-live in ``app.config_thinking`` and are re-exported below, so callers and
-``test_config_thinking.py``'s imports are unaffected.
-"""
+"""Application settings and model request policy."""
 
 import os
-from typing import Literal
+from typing import Any, Literal
 
+from co_scientist.constants import (
+    THINKING_FLOOR_MAX_TOKENS as THINKING_FLOOR_MAX_TOKENS,
+)
+from co_scientist.llm import deepseek_thinking_extra_body as _thinking_body
+from co_scientist.llm import effective_max_tokens as _effective_max_tokens
+from co_scientist.llm import model_reasons as _model_reasons
+from co_scientist.llm import reasoning_effort_args as _effort_args
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.config_thinking import (
-    CONVERSATIONAL_REASONING_EFFORT as CONVERSATIONAL_REASONING_EFFORT,
-)
-from app.config_thinking import (
-    THINKING_FLOOR_TIMEOUT_SECONDS as THINKING_FLOOR_TIMEOUT_SECONDS,
-)
-from app.config_thinking import (
-    deepseek_thinking_kwargs as deepseek_thinking_kwargs,
-)
-from app.config_thinking import (
-    thinking_off_kwargs as thinking_off_kwargs,
-)
-from app.config_thinking import (
-    thinking_safe_max_tokens as thinking_safe_max_tokens,
-)
-from app.config_thinking import (
-    thinking_safe_timeout as thinking_safe_timeout,
-)
+CONVERSATIONAL_REASONING_EFFORT = "medium"
+THINKING_FLOOR_TIMEOUT_SECONDS = float(THINKING_FLOOR_MAX_TOKENS) / 75.0
+
+
+def deepseek_non_thinking_extra_body(model_name: str) -> dict[str, Any]:
+    """Return the engine-owned request body disabling a model's thinking."""
+    result: dict[str, Any] = _thinking_body(model_name, enabled=False)
+    return result
+
+
+def deepseek_thinking_kwargs(
+    model_name: str, *, effort: str | None = None
+) -> dict[str, Any]:
+    """Enable thinking and optionally override the route's reasoning tier."""
+    extra_body = _thinking_body(model_name, enabled=True)
+    if not extra_body:
+        return {}
+    kwargs: dict[str, Any] = {
+        "extra_body": extra_body,
+        **_effort_args(model_name, enabled=True),
+    }
+    if effort is not None:
+        if "reasoning_effort" in kwargs:
+            kwargs["reasoning_effort"] = effort
+        reasoning = kwargs["extra_body"].get("reasoning")
+        if isinstance(reasoning, dict) and "effort" in reasoning:
+            reasoning["effort"] = effort
+    return kwargs
+
+
+def thinking_off_kwargs(model_name: str) -> dict[str, Any]:
+    """Disable thinking on a retry after a turn returned reasoning only."""
+    extra_body = deepseek_non_thinking_extra_body(model_name)
+    return {"extra_body": extra_body} if extra_body else {}
+
+
+def thinking_safe_max_tokens(model_name: str, answer_tokens: int) -> int:
+    """Apply the engine's reasoning budget floor to an app completion."""
+    result: int = _effective_max_tokens(model_name, answer_tokens, True)
+    return result
+
+
+def thinking_safe_timeout(model_name: str, answer_seconds: float) -> float:
+    """Fund the same reasoning token floor at a conservative 75 tokens/s.
+
+    Apply this generous clock to live streams or background work; streams
+    also have their own silence timeout to detect a stalled provider.
+    """
+    if not _model_reasons(model_name):
+        return answer_seconds
+    return max(answer_seconds, THINKING_FLOOR_TIMEOUT_SECONDS)
 
 
 class Settings(BaseSettings):

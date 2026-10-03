@@ -22,11 +22,9 @@ _POLICY_FILES = (
     "llm/request/backend.py",
     "llm/request/completion.py",
     "llm/admission/free_policy.py",
-    "llm/admission/free_catalog.py",
     "llm/request/gateway_routing.py",
     "llm/request/gateway_body.py",
     "llm/request/thinking.py",
-    "llm/request/schema.py",
     "llm/attempts/escalation.py",
 )
 

@@ -297,27 +297,21 @@ ruff check .                 # lint
 mypy .                       # typecheck
 ```
 
-### Node isolation scripts
+### Focused development
 
-The `dev/` directory contains standalone scripts for running individual nodes without the full graph — useful for fast iteration on a single component. They load a `.env` from `dev/` itself (not the project root).
+Use `examples/run.py` for a standalone engine run and the existing
+`tests/` suites for isolated agent checks. For example:
 
 ```bash
-cp dev/.env.example dev/.env
-# add GEMINI_API_KEY (and MCP_SERVER_URL for lit review)
-
-python dev/run_supervisor_standalone.py
-python dev/run_generate_standalone.py
-python dev/run_lit_review_standalone.py   # requires MCP server
+pytest tests/test_coordinator.py tests/test_supervisor.py
 ```
-
-See `dev/README.md` for full details and available environment flags.
 
 ### Code style
 
 - Docstrings: capitalized, full sentences.
 - `logger.debug()` lowercase; `info` / `warning` / `error` capitalized.
 - No emojis or Unicode decoration in library code or logs.
-- `rich` only in `examples/` and `dev/`, never in core library code.
+- `rich` only in `examples/`, never in core library code.
 - Line length: 80. Formatter: `ruff format`. Linter: `ruff check`.
 
 #### Comments

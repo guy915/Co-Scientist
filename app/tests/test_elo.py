@@ -1,12 +1,10 @@
-"""Elo invariants.
-
-The actual Elo update math lives in the engine
-(``co_scientist.agents.ranking.ranking.calculate_elo_update``); this only
-covers the app-owned initial rating constant.
-"""
+"""Elo defaults and ordering agree with the engine."""
 
 from __future__ import annotations
 
+import pytest
+
+from app import elo
 from app.elo import INITIAL_ELO
 
 
@@ -43,3 +41,12 @@ def test_leaderboard_ranks_played_ideas_above_unplayed_ones() -> None:
     )
 
     assert [row["id"] for row in rows] == ["winner", "loser", "unplayed"]
+
+
+constants = pytest.importorskip("co_scientist.constants")
+
+
+def test_elo_constants_match_engine() -> None:
+    """The app's default Elo tuning mirrors the engine's constants."""
+    assert elo.INITIAL_ELO == constants.INITIAL_ELO_RATING
+    assert elo.DEFAULT_K_FACTOR == constants.ELO_K_FACTOR

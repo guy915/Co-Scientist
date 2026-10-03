@@ -20,12 +20,6 @@ from app.api_contracts.interviews import ChatSummary, Interview
 from app.auth import client_id, require_client_scope
 from app.execution_policy import resolve_execution_policy
 from app.interviews import revision as interviews_revision
-from app.interviews.documents import (
-    _attach_documents as _attach_documents,
-)
-from app.interviews.documents import (
-    _with_documents as _with_documents,
-)
 from app.interviews.model import (
     ProseSink as ProseSink,
 )
@@ -37,15 +31,6 @@ from app.interviews.model import (
 )
 from app.interviews.model import (
     _fallback_interview_response as _fallback_interview_response,
-)
-from app.interviews.models import (
-    CreateInterviewRequest as CreateInterviewRequest,
-)
-from app.interviews.models import (
-    InterviewFieldsRequest as InterviewFieldsRequest,
-)
-from app.interviews.models import (
-    InterviewTurnRequest as InterviewTurnRequest,
 )
 from app.interviews.prompts import (
     _clean_list as _clean_list,
@@ -67,6 +52,12 @@ from app.interviews.questions import (
 )
 from app.interviews.stream import (
     _interview_stream as _interview_stream,
+)
+from app.interviews.support import (
+    _attach_documents as _attach_documents,
+)
+from app.interviews.support import (
+    _with_documents as _with_documents,
 )
 from app.interviews.support import (
     owned_interview as _owned_interview,
@@ -97,6 +88,15 @@ from app.interviews.turns import (
 )
 from app.interviews.turns import (
     advance_turn as advance_turn,
+)
+from app.interviews.wire import (
+    CreateInterviewRequest as CreateInterviewRequest,
+)
+from app.interviews.wire import (
+    InterviewFieldsRequest as InterviewFieldsRequest,
+)
+from app.interviews.wire import (
+    InterviewTurnRequest as InterviewTurnRequest,
 )
 
 router = APIRouter(prefix="/api/interviews", tags=["interviews"])

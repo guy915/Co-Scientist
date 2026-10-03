@@ -29,9 +29,9 @@ from prometheus_client import (
 )
 from prometheus_client.core import GaugeMetricFamily, HistogramMetricFamily
 
+from app import API_VERSION
 from app.config import settings
 from app.store.db import connect
-from app.version import API_VERSION
 
 # Latency histogram bucket upper bounds, in seconds. A durable task is an
 # LLM-driven engine node, so the range runs from a few seconds to an hour

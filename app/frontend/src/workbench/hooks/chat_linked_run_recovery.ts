@@ -8,10 +8,7 @@ import {
   type RunTier,
 } from '@/api/runs';
 import type {InferredRunSpec} from '../run_spec';
-import {
-  attributeDisplayString,
-  criterionDisplayString,
-} from '../run_spec_display';
+import {attributeDisplayString, criterionDisplayString} from '../run_spec';
 import {type StartedSession} from '../pages/chat_timeline_started_card';
 import type {LinkedDraftRecovery} from './chat_session_types';
 

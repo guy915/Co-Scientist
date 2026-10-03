@@ -8,7 +8,7 @@ import {
   uploadRunDocument,
 } from '@/api/runs';
 import {FOCUS_OPTIONS, TIER_OPTIONS, runOptionLabel} from '../run_spec';
-import {attributeDisplayString} from '../run_spec_display';
+import {attributeDisplayString} from '../run_spec';
 import {
   REPORT_H3_CLASSES,
   ReportDocument,

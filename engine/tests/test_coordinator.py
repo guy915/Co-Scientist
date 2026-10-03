@@ -15,7 +15,7 @@ import logging
 
 import pytest
 
-from co_scientist.agents.generation.coordinator import (
+from co_scientist.agents.generation.generate import (
     generate_hypotheses,
 )
 from co_scientist.constants import LITERATURE_REVIEW_FAILED

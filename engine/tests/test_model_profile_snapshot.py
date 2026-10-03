@@ -65,8 +65,7 @@ from co_scientist.llm import (
     model_reasons,
     reasoning_effort_args,
 )
-from co_scientist.llm.admission.free_catalog import verify_model
-from co_scientist.llm.admission.free_policy import _requires_free
+from co_scientist.llm.admission.free_policy import _requires_free, verify_model
 from co_scientist.llm.request.completion import (
     CompletionShape,
     _build_completion_args,

@@ -37,7 +37,7 @@ from co_scientist.agents.meta_review import (
     research_overview_knowledge_base as kb,
 )
 from co_scientist.agents.meta_review import (
-    research_overview_knowledge_base_calls as kbc,
+    research_overview_knowledge_base as kbc,
 )
 from co_scientist.prompts import (
     get_knowledge_base_outline_prompt,

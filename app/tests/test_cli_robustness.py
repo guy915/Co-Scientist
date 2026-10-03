@@ -169,7 +169,7 @@ def _dispatch_raising(
     def handler(args: argparse.Namespace, client: Any) -> int:
         raise exc
 
-    monkeypatch.setattr(cli_main.status_cmd, "handle_status", handler)
+    monkeypatch.setattr(cli_main, "handle_status", handler)
     return cast(int, cli_main.main(["status", "--api-url", "http://x"]))
 
 
@@ -336,7 +336,7 @@ def test_broken_pipe_exits_141() -> None:
         "m = importlib.import_module('app.cli.main')\n"
         "def boom(args, client):\n"
         "    raise BrokenPipeError()\n"
-        "m.status_cmd.handle_status = boom\n"
+        "m.handle_status = boom\n"
         "sys.exit(m.main(['status', '--api-url', 'http://x']))\n"
     )
     app_dir = pathlib.Path(__file__).resolve().parents[1]

@@ -19,7 +19,7 @@ from mcp_server import (
     entrez_rate_limit,
 )
 from mcp_server.tools.lit_review import (
-    pubmed_search_with_fulltext as pubmed_tool,
+    search_pubmed as pubmed_tool,
 )
 from test_entrez_study4_recovery import (  # type: ignore[import-not-found]
     _STUDY_ID,

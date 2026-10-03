@@ -104,7 +104,7 @@ async def test_ancillary_and_conditional_charges_are_unavailable(
 async def test_retry_rechecks_expired_prices_before_counting_or_transport(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from co_scientist.llm.admission import free_catalog
+    from co_scientist.llm.admission import free_policy as free_catalog
 
     monkeypatch.setattr(free_catalog, "CATALOG_TTL_SECONDS", 0)
     catalog_reads: list[str] = []
@@ -257,7 +257,7 @@ async def test_campaign_rejects_unverified_request_shapes(
 async def test_catalog_failure_after_expiry_never_uses_stale_prices(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from co_scientist.llm.admission import free_catalog
+    from co_scientist.llm.admission import free_policy as free_catalog
 
     monkeypatch.setattr(free_catalog, "CATALOG_TTL_SECONDS", 0)
     _mock_catalog(monkeypatch, _catalog({"prompt": "0", "completion": "0"}))
@@ -294,7 +294,7 @@ async def test_unknown_promotion_needs_explicit_ancillary_prices(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from co_scientist.llm import enforce_free_request
-    from co_scientist.llm.admission import free_catalog
+    from co_scientist.llm.admission import free_policy as free_catalog
 
     monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
     data = _catalog({"prompt": "0", "completion": "0"})

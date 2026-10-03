@@ -1,7 +1,7 @@
 import {type RefObject} from 'react';
 import {Link} from 'react-router-dom';
 import {Icon, type IconName} from '@/components/icon';
-import {isModifiedClick} from '@/lib/modified_click';
+import {isModifiedClick} from '@/workbench/dom_events';
 import {
   SETTINGS_SECTIONS,
   type SettingsSection,

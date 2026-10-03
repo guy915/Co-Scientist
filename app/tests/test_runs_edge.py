@@ -13,6 +13,8 @@ from fastapi.testclient import TestClient
 
 from app import store
 from app.config import settings
+from app.runs.models import CreateRunRequest
+from tests._client import make_client
 from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
 
@@ -301,3 +303,49 @@ def test_safety_block_at_intake_short_circuits_workflow() -> None:
     assert any(
         s["decision"] == "block" and s["stage"] == "intake" for s in safety
     )
+
+
+def test_stray_audience_field_is_ignored() -> None:
+    """An old cached frontend sending the retired `audience` field must not 422.
+
+    Pydantic's default ``extra="ignore"`` drops it silently, so a stale
+    client is never broken by the field's removal.
+    """
+    req = CreateRunRequest(research_goal="goal", audience="sbi_ucd")
+
+    assert not hasattr(req, "audience")
+
+
+_TIERS = ("express", "standard", "extended", "ultra")
+
+
+def test_ceiling_is_configurable() -> None:
+    """Operators can raise or lower the ceiling without a code change."""
+    assert settings.max_concurrent_runs >= 3
+
+
+def _start(client: TestClient, headers: dict[str, str], tier: str) -> int:
+    """Create and start one run of ``tier``, returning the start status."""
+    run_id = client.post(
+        "/api/runs",
+        headers=headers,
+        json={"research_goal": f"{tier} question", "tier": tier},
+    ).json()["id"]
+    started = client.post(f"/api/runs/{run_id}/start", headers=headers, json={})
+    return int(started.status_code)
+
+
+def test_ceiling_is_one_total_across_tiers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Spreading runs across tiers does not multiply one client's allowance."""
+    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
+    monkeypatch.setattr(settings, "max_concurrent_runs", 2)
+    client = make_client()
+    headers = {"X-Client-ID": "tier-hopper"}
+
+    codes = [_start(client, headers, tier) for tier in _TIERS]
+
+    # Two slots, four attempts: the first two are admitted whatever tier
+    # they name, and the rest are refused.
+    assert codes == [200, 200, 409, 409]

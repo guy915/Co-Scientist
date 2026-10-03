@@ -1,14 +1,4 @@
-"""R14-6: research contacts render grouped by research direction.
-
-Google's published exemplar groups research_contacts under the research
-direction that surfaced them (4 groups in the corpus run), each group
-carrying one shared "Why they are best for this direction" rationale
-paragraph and two "Example Hypothesis Titles" (docs/CORPUS-EXTRACTION.md
-R14-6). MO-7 (done) only restored the flat per-contact research_direction
-tag. This pins the grouped rendering, and that a report carrying no
-research_contact_groups -- an old report, or a response that never
-populated it -- still renders MO-7's flat shape unchanged.
-"""
+"""Research contacts retain their fields and direction groups."""
 
 from app.report.markdown.overview import render_research_overview_markdown
 
@@ -162,3 +152,134 @@ def test_a_group_naming_no_matching_contact_renders_nothing() -> None:
     assert "Direction Never Tagged" not in markdown
     assert "### Direction A" not in markdown
     assert "### Ada Researcher" in markdown
+
+
+def test_justification_renders_under_its_published_label() -> None:
+    markdown = _markdown(
+        [
+            {
+                "name": "Ada Researcher",
+                "justification": "Authored the analyzed source.",
+            }
+        ]
+    )
+
+    assert "**Justification:** Authored the analyzed source." in markdown
+
+
+def test_the_evidence_citing_field_renders_under_a_fixed_name() -> None:
+    markdown = _markdown(
+        [
+            {
+                "name": "Ada Researcher",
+                "justification": "Authored the analyzed source.",
+                "source_title": "A biofilm study",
+                "source_url": "https://example.org/paper",
+            }
+        ]
+    )
+
+    assert (
+        "**Supporting article:** [A biofilm study]"
+        "(https://example.org/paper)" in markdown
+    )
+    assert "Evidence:" not in markdown
+
+
+def test_an_unsourced_contact_renders_no_supporting_article_line() -> None:
+    markdown = _markdown(
+        [{"name": "Ada Researcher", "justification": "Relevant background."}]
+    )
+
+    assert "Supporting article" not in markdown
+
+
+def test_expertise_is_the_one_field_no_exemplar_supports() -> None:
+    """RESEARCH-CONTACTS-FIELDS-001: ``expertise`` has no corpus source.
+
+    A full survey of every published research-contacts exemplar --
+    Figure A.22 (paper App. A, the narrowest: a Research Direction
+    heading, researcher name(s), one free-text relevance paragraph, no
+    ``Justification:`` label at all), the 14/19 protein-assemblies
+    hypothesis files R14-16 draws from (a per-researcher
+    ``Justification:`` plus one varying evidence field, 2-4 observable
+    fields depending on the file), and the same corpus's grouped
+    ``reports/research-overview.md`` (no per-contact ``Justification:``
+    at all -- one shared "Why they are best for this direction:"
+    rationale per group instead) -- finds no field anywhere naming a
+    researcher's area of expertise separately from that relevance/
+    justification prose. ``expertise`` is this schema's one field with
+    no exemplar behind it (``schemas/synthesis.py``'s
+    ``research_contacts[].expertise``).
+
+    It renders anyway: removing it needs a schema/prompt change in
+    ``agents/meta_review/research_overview_contacts.py``, out of this
+    row's rendering-only scope. This pins that deliberate choice so a
+    later change notices it rather than silently dropping real model
+    output, and guards against a *second* unsupported field being added
+    beside it without the same review.
+    """
+    markdown = _markdown(
+        [
+            {
+                "candidate_id": "author-1-1",
+                "name": "Ada Researcher",
+                "expertise": "Biofilm metabolism",
+                "justification": "Authored the analyzed source.",
+                "research_direction": "Direction one",
+            }
+        ]
+    )
+
+    assert "**Relevant expertise:** Biofilm metabolism" in markdown
+    # candidate_id is unrendered provenance (anti-hallucination selection
+    # against a verified candidate list), never shown to the reader.
+    assert "author-1-1" not in markdown
+    # The full labelled-field set stays exactly these four; a fifth
+    # label appearing here means a new field was added without updating
+    # this pin (and the row's residual in docs/PARITY.md).
+    for label in (
+        "Research direction:",
+        "Relevant expertise:",
+        "Justification:",
+    ):
+        assert markdown.count(label) == 1
+    assert "Supporting article:" not in markdown
+
+
+def test_a_contact_renders_its_research_direction() -> None:
+    """The linkage prints alongside the contact's expertise."""
+    markdown = _markdown(
+        [
+            {
+                "name": "Ada Researcher",
+                "expertise": "Mitochondrial base excision repair",
+                "justification": "Authored the analyzed source.",
+                "research_direction": (
+                    "Oxidative DNA Damage & Mitochondrial Base Excision"
+                    " Repair (BER) in ALS"
+                ),
+            }
+        ]
+    )
+
+    assert (
+        "**Research direction:** Oxidative DNA Damage & Mitochondrial Base"
+        " Excision Repair (BER) in ALS" in markdown
+    )
+
+
+def test_a_contact_with_no_research_direction_omits_the_line() -> None:
+    """A report persisted before this field existed still renders cleanly."""
+    markdown = _markdown(
+        [
+            {
+                "name": "Ada Researcher",
+                "expertise": "Mitochondrial base excision repair",
+                "justification": "Authored the analyzed source.",
+            }
+        ]
+    )
+
+    assert "Research direction" not in markdown
+    assert "Ada Researcher" in markdown

@@ -25,7 +25,7 @@ from fastapi.responses import JSONResponse
 # import below), so .env must be loaded into os.environ before that import.
 load_dotenv()
 
-from app import store
+from app import API_VERSION, store
 from app.account_export import router as account_export_router
 from app.auth import (
     Principal,
@@ -71,7 +71,6 @@ from app.runs import (
 )
 from app.seed import seed_demo_runs
 from app.shares import router as shares_router
-from app.version import API_VERSION
 
 # Configure logging: one stdout handler (text by default, JSON via
 # LOG_FORMAT=json) with run-id tagging; see app/logging_setup.py. Root

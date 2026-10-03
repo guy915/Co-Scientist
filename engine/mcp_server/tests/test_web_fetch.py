@@ -4,8 +4,7 @@ from typing import Any
 
 import httpx
 import pytest
-from mcp_server.tools.web.extract import extract_text_from_html
-from mcp_server.tools.web.fetch import read_url
+from mcp_server.tools.web.fetch import extract_text_from_html, read_url
 
 _PAGE = """
 <html>

@@ -112,7 +112,7 @@ async def test_recovered_campaign_blocks_paid_transport_while_byok_runs(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Persisted policy, not current identity config, controls recovery."""
-    from co_scientist.llm.admission import free_catalog
+    from co_scientist.llm.admission import free_policy as free_catalog
 
     monkeypatch.setattr(settings, "auth_secret", "campaign-test-secret")
     monkeypatch.setattr(settings, "campaign_researcher_ids", {"campaign-user"})
@@ -201,7 +201,7 @@ async def test_recovered_new_campaign_sends_zero_price_stealth_request(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from co_scientist.llm import CompletionSpec, LLMCallOptions, call_llm
-    from co_scientist.llm.admission import free_catalog
+    from co_scientist.llm.admission import free_policy as free_catalog
 
     from app.execution_policy import effective_execution_model
 

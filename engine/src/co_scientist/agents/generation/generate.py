@@ -1,40 +1,124 @@
-"""Generation node - creates initial hypotheses.
+"""Generation node and its parallel strategy dispatch.
 
-Main entry point for the LangGraph workflow. All generation logic
-has been moved to the generation/ package for better organization.
-
-The node itself is delegation plus one metrics delta, and both halves
-have a history worth keeping next to them.
-
-The coordinator does the real work -- choosing a strategy (tool-based /
-debate-with-literature / debate-only) from literature and tool-calling
-availability, running it, and returning hypotheses, transcripts,
-``hypothesis_count`` and a message. A failure inside it propagates as an
-exception rather than as a partial result.
-
-The delta carries three fields with three different merge policies.
-``hypothesis_count`` is a running total and merges with ``max()``, so
-passing the coordinator's total is correct even across iterations that
-re-invoke this node. ``llm_calls`` is additive and is the real
-completions every strategy spent this cycle -- debate turns,
-assumption-tree calls, tool-loop iterations (finding L3: generation
-reported none at all, so ``max_llm_calls`` never saw its spend).
-``skills_used`` is additive too, and is scoped here rather than returned
-through the coordinator because the invocation happens inside a
-workspace tool handler while the count is wanted at this node boundary.
-The durable path scopes its own in ``engine_tasks.fanout_generation``,
-since it runs each strategy as a separate task and never enters here.
+Public planning and finalization live in ``operations`` for both execution
+paths. This module runs graph strategies, applies expansion research and
+records their metrics; durable callers own independent leases and scheduling.
 """
 
+import asyncio
 import logging
+from collections.abc import Coroutine
 from typing import Any
 
-from co_scientist.agents.generation.coordinator import generate_hypotheses
+from co_scientist.agents.generation.assumptions import (
+    generate_with_assumptions,
+)
+from co_scientist.agents.generation.citations import ReferenceIndex
+from co_scientist.agents.generation.coordinator_strategy import (
+    GenerationCounts,
+)
+from co_scientist.agents.generation.debate import generate_with_debate
+from co_scientist.agents.generation.expansion_research import (
+    research_for_expansion,
+)
+from co_scientist.agents.generation.literature_tools import (
+    generate_with_tools,
+)
+from co_scientist.agents.generation.operations import (
+    _unpack_generation_results,
+    finalize_generation,
+    prepare_generation,
+)
 from co_scientist.models import MetricDeltas, create_metrics_update
 from co_scientist.skills import scoped_skill_usage
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
+
+
+def _build_generation_tasks(
+    state: WorkflowState,
+    counts: GenerationCounts,
+    articles_with_reasoning: str | None,
+    reference_index: ReferenceIndex,
+) -> list[tuple[str, Coroutine[Any, Any, Any]]]:
+    """Build allocated strategy calls in deterministic result order."""
+    tasks: list[tuple[str, Coroutine[Any, Any, Any]]] = []
+    if counts.tools_count > 0:
+        tasks.append(
+            (
+                "tools",
+                generate_with_tools(state, counts.tools_count, reference_index),
+            )
+        )
+    if counts.debate_with_lit_count > 0:
+        tasks.append(
+            (
+                "debate_lit",
+                generate_with_debate(
+                    state=state,
+                    count=counts.debate_with_lit_count,
+                    articles_with_reasoning=articles_with_reasoning,
+                    reference_index=reference_index,
+                ),
+            )
+        )
+    if counts.debate_only_count > 0:
+        # Degraded debates must never inherit supplied literature context.
+        tasks.append(
+            (
+                "debate_only",
+                generate_with_debate(
+                    state=state,
+                    count=counts.debate_only_count,
+                    articles_with_reasoning=None,
+                    reference_index=ReferenceIndex(text="", sources={}),
+                ),
+            )
+        )
+    if counts.assumptions_count > 0:
+        tasks.append(
+            (
+                "assumptions",
+                generate_with_assumptions(
+                    state,
+                    counts.assumptions_count,
+                    articles_with_reasoning=articles_with_reasoning,
+                    reference_index=reference_index,
+                ),
+            )
+        )
+    return tasks
+
+
+async def generate_hypotheses(state: WorkflowState) -> dict[str, Any]:
+    """Prepare, run strategies concurrently, and finalize one graph cycle."""
+    logger.info("Starting hypothesis generation")
+
+    expansion = await research_for_expansion(state)
+    if expansion is not None:
+        state = expansion.applied_to(state)
+
+    plan = await prepare_generation(state)
+
+    try:
+        tasks = _build_generation_tasks(
+            state, plan.counts, plan.literature, plan.reference_index
+        )
+        gathered = await asyncio.gather(*(task for _, task in tasks))
+        results = _unpack_generation_results(tasks, gathered)
+        result = await finalize_generation(state, plan.counts, results)
+        if expansion is not None:
+            result["articles"] = state.get("articles")
+            result["research_ledgers"] = [expansion.ledger]
+        return result
+
+    except Exception as e:
+        # Log with full context here (this is the top-level entry point),
+        # then re-raise so the caller (generate_node) treats generation
+        # failure as a hard error rather than a partial/degraded result.
+        logger.error("Generation failed: %s", e)
+        raise
 
 
 async def generate_node(state: WorkflowState) -> dict[str, Any]:

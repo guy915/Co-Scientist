@@ -112,7 +112,7 @@ def _restore_node_task_state(
     because the two failures the worker refuses to retry
     (``TASK_CONTROL_FLOW_ERRORS``) never reach the degrade decision.
     """
-    from app.engine_adapter.checkpoints import restore_workflow_state
+    from app.engine_adapter import restore_workflow_state
 
     state: dict[str, Any] = restore_workflow_state(
         checkpoint["state"], tool_registry=generator.tool_registry

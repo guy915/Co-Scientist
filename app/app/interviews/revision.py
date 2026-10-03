@@ -20,10 +20,10 @@ from fastapi.responses import StreamingResponse
 
 from app import store
 from app.interviews import support
-from app.interviews.models import InterviewTurnRequest
 from app.interviews.stream import (
     _interview_stream,
 )
+from app.interviews.wire import InterviewTurnRequest
 
 router = APIRouter()
 

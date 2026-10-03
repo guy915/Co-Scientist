@@ -9,7 +9,7 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def _free_catalog(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    from co_scientist.llm.admission import free_catalog
+    from co_scientist.llm.admission import free_policy as free_catalog
 
     monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
     with free_catalog.using_catalog_reader(free_catalog.CatalogReader()):

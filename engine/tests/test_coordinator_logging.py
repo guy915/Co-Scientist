@@ -15,8 +15,8 @@ from typing import Any
 
 import pytest
 
-from co_scientist.agents.generation import coordinator
-from co_scientist.agents.generation.coordinator import generate_hypotheses
+from co_scientist.agents.generation import generate as coordinator
+from co_scientist.agents.generation.generate import generate_hypotheses
 from tests._state import make_hypothesis, make_state
 
 _SUMMARY_RE = re.compile(r"Generated (\d+) total hypotheses \(([^)]*)\)")

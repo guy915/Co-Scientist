@@ -1,7 +1,7 @@
 import {describe, it, expect} from 'vitest';
 import {render, screen} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
-import {NotFoundPage} from './not_found_page';
+import {NotFoundPage} from './page';
 
 describe('NotFoundPage', () => {
   it('renders the 404 heading and message', () => {

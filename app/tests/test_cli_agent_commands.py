@@ -11,7 +11,7 @@ from typing import Any
 import httpx
 import pytest
 
-from app.cli import runs_cmd, runs_stream_cmd, status_cmd
+from app.cli import runs_cmd, runs_stream_cmd
 from app.cli.http import ApiClient, ApiClientOptions, CliError
 from tests._cli_helpers import api_client
 
@@ -184,7 +184,7 @@ def test_config_renders_defaults(capsys: pytest.CaptureFixture[str]) -> None:
         )
 
     args = argparse.Namespace(json=False)
-    assert status_cmd.handle_config(args, api_client(handler)) == 0
+    assert cli_main.handle_config(args, api_client(handler)) == 0
     out = capsys.readouterr().out
     assert "max_iterations" in out
     assert "3" in out
@@ -425,6 +425,6 @@ def test_parser_wires_new_commands() -> None:
             runs_cmd.handle_collection,
         ),
         (["runs", "demo"], runs_cmd.handle_demo),
-        (["config"], status_cmd.handle_config),
+        (["config"], cli_main.handle_config),
     ):
         assert parser.parse_args(command).handler is handler, command

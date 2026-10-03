@@ -15,7 +15,6 @@ from fastapi import HTTPException
 
 from app import store
 from app.interviews import model, question_repair
-from app.interviews.documents import _with_documents
 from app.interviews.model import ProseSink, ReasoningSink
 from app.interviews.prompts import (
     _essentials_ready,
@@ -23,6 +22,7 @@ from app.interviews.prompts import (
     _ready,
 )
 from app.interviews.questions import normalized_questions
+from app.interviews.support import _with_documents
 from app.llm_scope import budgeted
 
 # Preserve the interview log namespace across the lifecycle extraction.

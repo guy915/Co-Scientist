@@ -124,7 +124,7 @@ async def test_thinking_only_turn_retries_once_with_thinking_off(
     path now retries once with thinking off before that ever surfaces, and
     that the second stream's answer is what the turn resolves to.
     """
-    from app.config_thinking import CONVERSATIONAL_REASONING_EFFORT
+    from app.config import CONVERSATIONAL_REASONING_EFFORT
 
     calls: list[dict[str, Any]] = []
     streams = [

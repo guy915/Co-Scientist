@@ -394,7 +394,7 @@ def test_entailment_call_on_the_free_chain_does_not_disable_reasoning(
 
     _install(monkeypatch, _capturing_completion)
     from co_scientist.constants.pricing import MODEL_PRICING
-    from co_scientist.llm.admission import free_catalog
+    from co_scientist.llm.admission import free_policy as free_catalog
 
     catalog = {
         model.removeprefix("openrouter/"): {
