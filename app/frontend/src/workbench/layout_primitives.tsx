@@ -1,6 +1,6 @@
 import type {ReactNode, SVGProps} from 'react';
 import {Icon, type IconName} from '@/components/icon';
-import {tooltipClassNames} from './tooltip';
+import {tooltipClassNames} from './classes';
 
 const SHELL_POPOVER_CLASSES = 'ucs-popover';
 

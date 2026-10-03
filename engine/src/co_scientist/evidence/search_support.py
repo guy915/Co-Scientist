@@ -5,9 +5,14 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Optional, cast
 
+from co_scientist.constants import (
+    LITERATURE_REVIEW_PAPERS_COUNT,
+    LITERATURE_REVIEW_PAPERS_COUNT_DEV,
+)
 from co_scientist.evidence.search_fusion import (
     merge_search_results as merge_search_results,
 )
+from co_scientist.state import WorkflowState
 
 if TYPE_CHECKING:
     from co_scientist.config import (
@@ -54,6 +59,72 @@ class SearchConfig:
     # query it wants answered, so lexical ranking over those hits is what
     # the probe asked for. Off means lexical-only, never fewer results.
     semantic_relevance_enabled: bool = True
+
+
+def _primary_search_tool(
+    tool_registry: "ToolRegistry | None",
+    workflow: "WorkflowConfig | None",
+    is_multi_source: bool,
+) -> "ToolConfig | None":
+    """Resolve a single-source tool or log the multi-source configuration."""
+    if is_multi_source and workflow is not None:
+        sources = workflow.get_enabled_search_sources()
+        logger.info(
+            "Multi-source mode: %s sources configured: %s",
+            len(sources),
+            [source.tool for source in sources],
+        )
+        return None
+    if tool_registry and workflow and workflow.primary_search:
+        return tool_registry.get_tool(workflow.primary_search)
+    return None
+
+
+def search_config_for(state: WorkflowState) -> SearchConfig:
+    """Resolve this run's search tools and evidence budget from state.
+
+    Dev mode takes precedence over a per-run paper count. Multi-source
+    searches resolve each tool in Phase 2; the primary tool here is only
+    used by the single-source path, with PubMed as its no-registry fallback.
+    """
+    tool_registry = state.get("tool_registry")
+    workflow = (
+        tool_registry.get_workflow("literature_review")
+        if tool_registry
+        else None
+    )
+    is_multi_source = bool(workflow and workflow.is_multi_source())
+    tool = _primary_search_tool(tool_registry, workflow, is_multi_source)
+    source_name = extract_source_name(tool) if tool else "pubmed"
+    search_tool_name = (
+        tool.mcp_tool_name if tool else "pubmed_search_with_fulltext"
+    )
+    if tool:
+        logger.info(
+            "Single-source mode: %s (source: %s)",
+            search_tool_name,
+            source_name,
+        )
+    is_dev_mode = bool(state.get("dev_mode", False))
+    return SearchConfig(
+        tool_registry=tool_registry,
+        workflow=workflow,
+        is_multi_source=is_multi_source,
+        search_tool_name=search_tool_name,
+        search_tool_config=tool,
+        source_name=source_name,
+        papers_to_read_count=(
+            LITERATURE_REVIEW_PAPERS_COUNT_DEV
+            if is_dev_mode
+            else int(
+                state.get("literature_review_papers_count")
+                or LITERATURE_REVIEW_PAPERS_COUNT
+            )
+        ),
+        is_dev_mode=is_dev_mode,
+        research_goal=str(state.get("research_goal") or ""),
+        model_name=str(state.get("model_name") or ""),
+    )
 
 
 def _quoted_field_mapping_source(tool_config: "ToolConfig") -> str | None:

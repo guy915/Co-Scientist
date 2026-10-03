@@ -9,7 +9,7 @@ from typing import Any, cast
 import pytest
 from langchain_core.tools import ToolException
 
-from co_scientist.evidence import relevance, search, search_retry
+from co_scientist.evidence import relevance, search, search_query
 from co_scientist.evidence.relevance import _HYBRID_VERSION
 from co_scientist.evidence.search_support import SearchConfig
 from co_scientist.mcp_client import CampaignToolUnavailableError, MCPToolClient
@@ -614,7 +614,7 @@ class TestLiteratureReviewSearchRetry:
         """
         client = _FlakyClient(failures=2)
 
-        result = await search_retry._call_search_tool(
+        result = await search_query._call_search_tool(
             cast(MCPToolClient, client), "search_pubmed", {}
         )
 
@@ -628,14 +628,14 @@ class TestLiteratureReviewSearchRetry:
         The caller distinguishes "search broke" from "no results"; swallowing
         the exhausted case here would erase that difference.
         """
-        client = _FlakyClient(failures=search_retry._SEARCH_ATTEMPTS)
+        client = _FlakyClient(failures=search_query._SEARCH_ATTEMPTS)
 
         with pytest.raises(RuntimeError, match="throttling"):
-            await search_retry._call_search_tool(
+            await search_query._call_search_tool(
                 cast(MCPToolClient, client), "search_pubmed", {}
             )
 
-        assert client.calls == search_retry._SEARCH_ATTEMPTS
+        assert client.calls == search_query._SEARCH_ATTEMPTS
 
     @pytest.mark.asyncio
     async def test_backoff_grows_and_is_jittered(
@@ -647,19 +647,19 @@ class TestLiteratureReviewSearchRetry:
         A fixed schedule releases every throttled caller of a concurrent wave at
         the same moment, reproducing the burst that caused the throttling.
         """
-        client = _FlakyClient(failures=search_retry._SEARCH_ATTEMPTS - 1)
-        await search_retry._call_search_tool(
+        client = _FlakyClient(failures=search_query._SEARCH_ATTEMPTS - 1)
+        await search_query._call_search_tool(
             cast(MCPToolClient, client), "search_pubmed", {}
         )
         first = list(_no_real_sleep)
         _no_real_sleep.clear()
 
-        client2 = _FlakyClient(failures=search_retry._SEARCH_ATTEMPTS - 1)
-        await search_retry._call_search_tool(
+        client2 = _FlakyClient(failures=search_query._SEARCH_ATTEMPTS - 1)
+        await search_query._call_search_tool(
             cast(MCPToolClient, client2), "search_pubmed", {}
         )
 
-        assert len(first) == search_retry._SEARCH_ATTEMPTS - 1
+        assert len(first) == search_query._SEARCH_ATTEMPTS - 1
         assert first == sorted(first)
         assert sum(first) > 4 * 0.25  # comfortably past the old single 0.25s
         assert first != _no_real_sleep
@@ -683,7 +683,7 @@ class TestLiteratureReviewSearchRetry:
         )
 
         with pytest.raises(ToolException, match="HTTP 400"):
-            await search_retry._call_search_tool(
+            await search_query._call_search_tool(
                 cast(MCPToolClient, client), "search_openalex", {}
             )
         assert client.calls == 1
@@ -694,7 +694,7 @@ class TestLiteratureReviewSearchRetry:
     ) -> None:
         client = _FlakyClient(failures=2)
 
-        result = await search_retry._call_search_tool(
+        result = await search_query._call_search_tool(
             cast(MCPToolClient, client), "search_openalex", {}
         )
 
@@ -739,7 +739,7 @@ class TestLiteratureReviewSearchRetry:
 
         client = Client()
         with pytest.raises(ToolException, match="Retry-After=60"):
-            await search_retry._call_search_tool(
+            await search_query._call_search_tool(
                 cast(MCPToolClient, client), "search_europepmc", {}
             )
         assert client.calls == 1
@@ -764,7 +764,7 @@ class TestLiteratureReviewSearchRetry:
         client = _RefusingClient()
 
         with pytest.raises(CampaignToolUnavailableError):
-            await search_retry._call_search_tool(
+            await search_query._call_search_tool(
                 cast(MCPToolClient, client), "search_web", {}
             )
 

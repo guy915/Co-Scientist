@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import types
 from typing import Any
 
@@ -10,9 +11,13 @@ import pytest
 from app import elo, store
 from app.config import settings
 from app.elo import INITIAL_ELO
-from app.goal_restatement import clean_restatement, generate_goal_restatement
+from app.goal_text import (
+    clean_restatement,
+    clean_title,
+    generate_goal_restatement,
+    generate_run_title,
+)
 from app.text_utils import readable_experiment_summary
-from app.title_gen import clean_title, generate_run_title
 from tests._llm_fake_backend import install_completion_backend
 
 # Elo defaults and ordering agree with the engine.
@@ -103,7 +108,7 @@ async def test_reasoned_with_no_answer_retries_without_thinking(
 ) -> None:
     """A reasoned-but-empty completion is retried with thinking off.
 
-    Mirrors ``title_gen``: a completion that spends its whole reasoning
+    Mirrors ``goal_text``: a completion that spends its whole reasoning
     budget and writes nothing is not a provider failure, so it earns one
     retry with thinking disabled rather than silently omitting the paragraph.
     """
@@ -138,6 +143,37 @@ async def test_reasoned_with_no_answer_retries_without_thinking(
     assert len(calls) == 2
     assert calls[0]["extra_body"] == {"thinking": {"type": "enabled"}}
     assert calls[1]["extra_body"] == {"thinking": {"type": "disabled"}}
+
+
+async def test_goal_text_retries_keep_separate_operation_budgets(
+    monkeypatch: pytest.MonkeyPatch,
+    reachable_provider: None,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Retries share one operation cap; the next operation starts fresh."""
+
+    async def reasoning_only(**_kwargs: Any) -> Any:
+        return types.SimpleNamespace(
+            choices=[
+                types.SimpleNamespace(message=types.SimpleNamespace(content=""))
+            ],
+            usage=types.SimpleNamespace(
+                completion_tokens_details=types.SimpleNamespace(
+                    reasoning_tokens=900
+                )
+            ),
+        )
+
+    fake = install_completion_backend(monkeypatch, reasoning_only)
+    monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-v4-pro")
+    monkeypatch.setattr(settings, "app_llm_max_calls", 1)
+    with caplog.at_level(logging.INFO, logger="app.llm_scope"):
+        assert await generate_run_title("Map the feedback loop.") is None
+        assert await generate_goal_restatement("Map the feedback loop.") is None
+
+    assert len(fake.requests) == 2
+    assert "surface=title calls=1" in caplog.text
+    assert "surface=goal_restatement calls=1" in caplog.text
 
 
 # Tests for app.text_utils.readable_experiment_summary (R14-20).

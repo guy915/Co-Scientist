@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import re
 from collections.abc import AsyncGenerator, AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any
@@ -22,6 +21,7 @@ from app.config import (
 from app.execution_policy import scoped_execution_policy
 from app.llm_scope import budgeted_stream, stream_chunks
 from app.qa.manifest import QaRunContext as QaRunContext
+from app.qa.manifest import _tokenize
 from app.qa.manifest import build_evidence_manifest as build_evidence_manifest
 from app.qa.manifest import build_system_prompt as build_system_prompt
 from app.sse import sse_frame as sse_frame
@@ -246,14 +246,6 @@ class QaAnswerInputs:
     system_prompt: str
     manifest: list[dict[str, Any]]
     ideas: list[dict[str, Any]] = field(default_factory=list)
-
-
-_WORD_RE = re.compile(r"[a-z0-9]+")
-
-
-def _tokenize(text: str) -> frozenset[str]:
-    """Split text into lowercase word tokens, dropping short noise words."""
-    return frozenset(t for t in _WORD_RE.findall(text.lower()) if len(t) > 3)
 
 
 def _question_ranked_hypotheses(

@@ -10,7 +10,7 @@ Orchestrates a multi-phase literature review process:
 
 The phase-sequence helpers live in the sibling ``outcomes`` and
 ``orchestration`` modules; shared search configuration belongs to
-``evidence.run_config``. This module owns the top-level orchestrator and its
+``evidence.search_support``. This module owns the top-level orchestrator and its
 cache/availability gates. Tests patch collaborators in the module that calls
 them.
 """
@@ -63,11 +63,11 @@ from co_scientist.evidence.article_support import (
     make_failure_result,
     make_success_result,
 )
-from co_scientist.evidence.run_config import (
-    search_config_for as search_config_for,
-)
 from co_scientist.evidence.search_support import (
     SearchConfig,
+)
+from co_scientist.evidence.search_support import (
+    search_config_for as search_config_for,
 )
 from co_scientist.mcp_client import (
     MCPToolClient,

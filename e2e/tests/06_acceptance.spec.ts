@@ -42,6 +42,32 @@ test('home renders at the required mobile viewport', async ({page}) => {
   });
 });
 
+for (const theme of ['light', 'dark']) {
+  test(`settings anchors the worker menu in ${theme} mode`, async ({page}) => {
+    await page.setViewportSize(DESKTOP_VIEWPORT);
+    await page.addInitScript(mode => localStorage.setItem('cosci-theme', mode), theme);
+    await page.route('**/api/byok-models', route => route.fulfill({
+      json: {providers: {deepseek: ['deepseek/verification-model']}},
+    }));
+    await page.goto('/');
+    await page.getByRole('button', {name: 'Settings', exact: true}).click();
+    await page.getByRole('menuitem', {name: 'Model', exact: true}).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+
+    const trigger = page.locator('#cosci-settings-worker-model');
+    await trigger.click();
+    const menu = page.getByRole('menu', {name: 'Worker model', exact: true});
+    await expect(menu).toBeVisible();
+    await expect.poll(async () => {
+      const anchor = await trigger.boundingBox();
+      const bounds = await menu.boundingBox();
+      return anchor && bounds
+        ? Math.abs(bounds.x + bounds.width - anchor.x - anchor.width)
+        : Infinity;
+    }).toBeLessThan(1);
+  });
+}
+
 test('Goal Report renders at the desktop viewport', async ({page, api}) => {
   const id = await createCompletedRun(api, {
     research_goal: 'Visual acceptance goal report',

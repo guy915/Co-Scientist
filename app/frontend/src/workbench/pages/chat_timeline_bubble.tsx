@@ -21,7 +21,7 @@ import {
 } from './chat_timeline_message_actions';
 import {ThoughtsDisclosure} from './chat_timeline_thoughts';
 import {Icon} from '@/components/icon';
-import {tooltipClassNames} from '../tooltip';
+import {tooltipClassNames} from '../classes';
 
 const CHAT_BUBBLE_USER_ROW_CLASSES =
   'reference-bubble-row user group/user relative flex flex-col items-end justify-end gap-[0.35rem]';

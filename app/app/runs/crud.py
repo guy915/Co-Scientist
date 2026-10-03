@@ -27,7 +27,11 @@ from app.execution_policy import (
     resolve_execution_policy,
     scoped_execution_policy,
 )
-from app.goal_restatement import generate_goal_restatement
+from app.goal_text import (
+    clean_title,
+    generate_goal_restatement,
+    generate_run_title,
+)
 from app.runs.models import (
     CreateRunRequest,
     RenameRunRequest,
@@ -35,7 +39,6 @@ from app.runs.models import (
 )
 from app.runs.support import _run_or_404
 from app.store import RunRow, RunStatus
-from app.title_gen import clean_title, generate_run_title
 
 
 def _reject_campaign_byok(

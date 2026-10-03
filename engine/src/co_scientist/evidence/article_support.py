@@ -17,11 +17,11 @@ from co_scientist.models import Article, phase_message
 from co_scientist.research import Finding, ResearchResult
 
 if TYPE_CHECKING:
-    from co_scientist.research_adapter import ResearchRetrieval
+    from co_scientist.research_adapter import McpRetrieval
 
 
 def records_from_findings(
-    result: ResearchResult, retrieval: ResearchRetrieval
+    result: ResearchResult, retrieval: McpRetrieval
 ) -> dict[str, dict[str, Any]]:
     """Turn the papers that produced findings into review-shaped records.
 

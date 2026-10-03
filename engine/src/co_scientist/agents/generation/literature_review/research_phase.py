@@ -36,7 +36,6 @@ from co_scientist.research import (
 from co_scientist.research_adapter import (
     LlmResearchModel,
     McpRetrieval,
-    ResearchRetrieval,
     ResearchRun,
     budget_for_tier,
 )
@@ -127,7 +126,7 @@ async def run_research_phase(
 
 def _prepare(
     state: WorkflowState, config: SearchConfig, mcp_client: MCPToolClient
-) -> tuple[ResearchRetrieval, ResearchBudget] | None:
+) -> tuple[McpRetrieval, ResearchBudget] | None:
     """Resolve what this run may search and how much of it it may buy.
 
     Returns:
@@ -138,16 +137,14 @@ def _prepare(
     tier = str(state.get("research_tier") or "")
     if not tier or config.workflow is None or config.tool_registry is None:
         return None
-    retrieval = ResearchRetrieval(
-        McpRetrieval(
-            mcp_client,
-            config.tool_registry,
-            config.workflow,
-            ResearchRun(
-                run_id=str(state.get("run_id") or ""),
-                research_goal=config.research_goal,
-            ),
-        )
+    retrieval = McpRetrieval(
+        mcp_client,
+        config.tool_registry,
+        config.workflow,
+        ResearchRun(
+            run_id=str(state.get("run_id") or ""),
+            research_goal=config.research_goal,
+        ),
     )
     budget = budget_for_tier(tier, retrieval.sources)
     return None if budget is None else (retrieval, budget)

@@ -7,7 +7,7 @@ import {
   type AppLogsPayload,
 } from '@/api/logs';
 import {copyText} from '@/lib/clipboard';
-import {joinClasses} from './classes';
+import {joinClasses, tooltipClassNames} from './classes';
 import {useResetTimer} from './hooks/timers';
 import {
   summarizeDiagnosticEntries,
@@ -33,7 +33,6 @@ import {
   type HeaderControlProps,
 } from './layout_primitives';
 import {Icon, type IconName} from '@/components/icon';
-import {tooltipClassNames} from './tooltip';
 import {useLocation} from 'react-router-dom';
 import {DIAGNOSTIC_EVENT} from './dom_events';
 

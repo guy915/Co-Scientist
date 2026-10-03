@@ -9,8 +9,11 @@ import {
   type RefObject,
 } from 'react';
 import {Icon, type IconName} from '@/components/icon';
-import {joinClasses, COMPOSER_SOURCE_ICON_CLASSES} from '../classes';
-import {tooltipClassNames} from '../tooltip';
+import {
+  joinClasses,
+  COMPOSER_SOURCE_ICON_CLASSES,
+  tooltipClassNames,
+} from '../classes';
 import type {Connector, SystemStatus} from '@/api/system';
 import {useSystemStatus} from '../hooks/system_status_context';
 

@@ -10,6 +10,27 @@ export function joinClasses(
   return classes.filter(Boolean).join(' ');
 }
 
+/** Class recipe for the CSS tooltip rendered from an anchor's data-tooltip. */
+export function tooltipClassNames({
+  className,
+  placement,
+  wrap,
+  alignStart,
+}: {
+  className?: string;
+  placement: 'top' | 'right' | 'bottom' | 'left';
+  wrap?: boolean;
+  alignStart?: boolean;
+}): string {
+  return joinClasses(
+    className,
+    'ucs-tooltip-anchor',
+    `ucs-tooltip-${placement}`,
+    wrap ? 'ucs-tooltip-wrap' : 'ucs-tooltip-nowrap',
+    alignStart && 'ucs-tooltip-align-start',
+  );
+}
+
 // Recipes shared by multiple chat components. Local styles live with their view.
 export const COMPOSER_SOURCE_ICON_CLASSES = 'text-xl';
 export const SETUP_SECONDARY_BUTTON_CLASSES =

@@ -12,7 +12,7 @@ import {
   HEADER_CONTROL_ICON_CLASSES,
   headerControlButtonClasses,
 } from './layout_primitives';
-import {tooltipClassNames} from './tooltip';
+import {tooltipClassNames} from './classes';
 
 /**
  * How long the armed "Confirm stop" state stands before reverting.

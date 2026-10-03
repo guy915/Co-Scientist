@@ -15,7 +15,10 @@ export interface StreamEvent {
 
 /** A permanent auth/not-found rejection disconnects without retrying. */
 export type StreamConnectionState =
-  'connecting' | 'open' | 'reconnecting' | 'disconnected';
+  | 'connecting'
+  | 'open'
+  | 'reconnecting'
+  | 'disconnected';
 
 export interface UseRunStreamResult {
   events: StreamEvent[];

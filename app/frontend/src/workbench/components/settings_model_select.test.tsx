@@ -2,7 +2,8 @@ import {render, screen, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import {getStoredModel, setStoredApiProvider} from '@/lib/client_id';
-import {ModelSection} from './settings_dialog';
+import {ThemeProvider} from '../theme_context';
+import {ModelSection, SettingsDialog} from './settings_dialog';
 
 const CATALOG = {
   deepseek: ['deepseek/deepseek-v4-flash', 'deepseek/deepseek-v4-pro'],
@@ -92,3 +93,42 @@ it('resets model choices when the provider changes', () => {
   setStoredApiProvider('openai');
   expect(getStoredModel('worker')).toBe('');
 });
+
+it.each(['Provider', 'Supervisor model', 'Worker model'])(
+  '%s dismisses its menu without closing the settings dialog',
+  async name => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(
+      <ThemeProvider>
+        <SettingsDialog
+          section="model"
+          onSectionChange={vi.fn()}
+          onClose={onClose}
+        />
+      </ThemeProvider>,
+    );
+    await screen.findAllByText('deepseek-v4-flash');
+    const chooser = screen.getByRole('button', {name});
+
+    await user.click(chooser);
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('menu', {name})).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+
+    await user.click(chooser);
+    const selected = within(screen.getByRole('menu', {name})).getByRole(
+      'menuitemradio',
+      {checked: true},
+    );
+    await user.click(selected);
+    expect(screen.queryByRole('menu', {name})).not.toBeInTheDocument();
+    expect(getStoredModel('worker')).toBe('');
+    expect(getStoredModel('supervisor')).toBe('');
+
+    await user.click(chooser);
+    await user.click(screen.getByLabelText('DeepSeek API key'));
+    expect(screen.queryByRole('menu', {name})).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  },
+);

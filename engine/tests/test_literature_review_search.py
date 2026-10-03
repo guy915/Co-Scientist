@@ -8,7 +8,7 @@ from typing import Any, cast
 import pytest
 
 from co_scientist.config import SearchSourceConfig, ToolRegistry, WorkflowConfig
-from co_scientist.evidence import search, search_query, search_retry
+from co_scientist.evidence import search, search_query
 from co_scientist.evidence.relevance import _HYBRID_VERSION
 from co_scientist.evidence.search_fusion import select_within_budget
 from co_scientist.evidence.search_support import SearchConfig
@@ -641,7 +641,7 @@ class TestLiteratureReviewSearchMultiSource:
         assert errors == ["pubmed: ConnectionError: boom"]
         # Read from the constant: the retry budget is tuned against upstream
         # behavior, and a hardcoded copy here turns tuning it into a test break.
-        assert len(client.calls) == search_retry._SEARCH_ATTEMPTS
+        assert len(client.calls) == search_query._SEARCH_ATTEMPTS
 
     async def test_search_single_source_missing_tool_config_returns_empty(
         self,

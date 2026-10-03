@@ -23,11 +23,10 @@ from co_scientist.evidence.retrieval_support import (
 )
 from co_scientist.evidence.search_query import (
     _build_query_tool_params,
-)
-from co_scientist.evidence.search_retry import (
     _call_search_tool,
 )
 from co_scientist.evidence.search_support import (
+    SearchConfig,
     normalize_search_response,
 )
 from co_scientist.llm import CompletionSpec, LLMCallOptions, call_llm_json
@@ -249,76 +248,6 @@ def _strings(raw: object) -> list[str]:
     ]
 
 
-class ResearchRetrieval:
-    """Route search and read to the run's MCP retrieval.
-
-    Attributes:
-        sources: Every source this run may search, in workflow order.
-            This is what a caller hands to a budget.
-    """
-
-    def __init__(self, remote: McpRetrieval | None = None) -> None:
-        """Bind the run's MCP retrieval, when it has one.
-
-        Args:
-            remote: Search over the run's MCP tools, when reachable.
-        """
-        self._remote = remote
-        self.sources: tuple[str, ...] = (
-            remote.sources if remote is not None else ()
-        )
-
-    async def search(
-        self, *, query: str, source: str, limit: int
-    ) -> Sequence[SourceHit]:
-        """Search one source through the MCP port.
-
-        Args:
-            query: The query to issue.
-            source: Which source to search.
-            limit: Most results wanted.
-
-        Returns:
-            Hits in that source's own ordering.
-
-        Raises:
-            RetrievalError: No MCP retrieval is available, or the call
-                failed. The loop records either as a failed call and
-                carries on with the remaining sources.
-        """
-        if self._remote is None:
-            raise RetrievalError(source, "no search server available")
-        return await self._remote.search(
-            query=query, source=source, limit=limit
-        )
-
-    async def read(self, *, locator: str) -> str | None:
-        """Read a document through the MCP port.
-
-        Args:
-            locator: Identifier from a hit this composite returned.
-
-        Returns:
-            The text, or None when it cannot be had.
-        """
-        if self._remote is None:
-            return None
-        return await self._remote.read(locator=locator)
-
-    def record(self, locator: str) -> dict[str, Any] | None:
-        """Return the search record behind a locator, if this saw it.
-
-        Args:
-            locator: Identifier from a hit this composite returned.
-
-        Returns:
-            The record, or None for a locator this composite never saw.
-        """
-        if self._remote is None:
-            return None
-        return self._remote.record(locator)
-
-
 # Metadata fields worth carrying onto a hit. The raw record is kept
 # separately for the full-text fetch; what travels with the hit is only
 # what a later reader or a stored provenance row can use, since
@@ -396,6 +325,32 @@ class McpRetrieval:
             source.tool
             for source in workflow.get_enabled_search_sources()
             if _campaign_admits(registry, source.tool)
+        )
+
+    @classmethod
+    async def open_for(cls, config: SearchConfig, run_id: str) -> McpRetrieval:
+        """Open retrieval after the caller has checked its research gates.
+
+        Args:
+            config: Resolved search configuration with a registry/workflow.
+            run_id: The run whose retrieval provenance is recorded.
+
+        Returns:
+            Retrieval over the run's enabled MCP sources.
+
+        Raises:
+            ValueError: The configuration has no registry or workflow.
+        """
+        from co_scientist.mcp_client import get_mcp_client
+
+        if config.tool_registry is None or config.workflow is None:
+            raise ValueError("Research requires a tool registry and workflow")
+        client = await get_mcp_client(tool_registry=config.tool_registry)
+        return cls(
+            client,
+            config.tool_registry,
+            config.workflow,
+            ResearchRun(run_id=run_id, research_goal=config.research_goal),
         )
 
     async def search(
@@ -692,7 +647,6 @@ def reviewed_hypothesis_limit(tier: str) -> int:
 __all__ = [
     "LlmResearchModel",
     "McpRetrieval",
-    "ResearchRetrieval",
     "budget_for_tier",
     "tier_researches",
 ]

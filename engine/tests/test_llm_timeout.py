@@ -23,7 +23,7 @@ from litellm.exceptions import Timeout as LiteLLMTimeout
 
 from co_scientist import backoff as _backoff_backoff
 from co_scientist import llm
-from co_scientist.evidence import search_retry
+from co_scientist.evidence import search_query
 from co_scientist.exceptions import (
     LLMRateLimitParkError,
     LLMThinkingOnlyError,
@@ -888,7 +888,7 @@ def test_callers_keep_their_own_base_and_cap() -> None:
     The search path waits fractions of a second and saturates at 8s; the LLM
     path starts at 2s and is deliberately uncapped.
     """
-    assert search_retry._search_retry_delay(1) <= 0.5
+    assert search_query._search_retry_delay(1) <= 0.5
     assert llm_backoff._rate_limit_backoff_seconds(1) >= 1.0
-    assert search_retry._search_retry_delay(12) <= 8.0
+    assert search_query._search_retry_delay(12) <= 8.0
     assert llm_backoff._rate_limit_backoff_seconds(12) > 8.0
