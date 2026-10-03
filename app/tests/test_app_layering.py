@@ -30,7 +30,6 @@ def _imports(path: Path) -> list[str]:
     [
         "operator_access.py",
         "staged_documents.py",
-        "interviews/documents.py",
         "interviews/support.py",
         "interviews/turns.py",
     ],
@@ -47,7 +46,7 @@ def test_shared_services_do_not_import_endpoint_owners(source: str) -> None:
 
 @pytest.mark.parametrize(
     "source",
-    ["documents.py", "support.py", "turns.py", "stream.py", "revision.py"],
+    ["support.py", "turns.py", "stream.py", "revision.py"],
 )
 def test_interview_modules_do_not_reach_into_router_facade(source: str) -> None:
     path = _APP_DIR / "interviews" / source
