@@ -21,6 +21,7 @@ from co_scientist.agents.generation.expansion_research import (
 from co_scientist.agents.generation.literature_tools.draft import (
     _compute_draft_iteration_budget,
 )
+from co_scientist.agents.reflection.review_evidence import research_for_review
 from co_scientist.constants import get_draft_max_iterations
 from co_scientist.generator.run_setup import _resolve_research_tier
 from co_scientist.mcp_client import MCPToolClient
@@ -132,7 +133,7 @@ async def test_a_broken_source_is_a_retrieval_error_naming_it(
 ) -> None:
     """An unreachable source has to reach the ledger as that source."""
     monkeypatch.setattr(
-        "co_scientist.evidence.search_retry._search_retry_delay",
+        "co_scientist.evidence.search_query._search_retry_delay",
         lambda attempt: 0.0,
     )
     client = FakeResearchClient(
@@ -573,6 +574,29 @@ async def test_a_tier_that_funds_no_research_explores_nothing(
     state = make_state(current_iteration=1, research_tier="standard")
 
     assert await research_for_expansion(state) is None
+
+
+@pytest.mark.parametrize("consumer", ["expansion", "review"])
+async def test_unavailable_mcp_stops_research_before_client_acquisition(
+    consumer: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def unavailable(**kwargs: Any) -> MCPToolClient:
+        pytest.fail("Research must not open an unavailable MCP client")
+
+    monkeypatch.setattr("co_scientist.mcp_client.get_mcp_client", unavailable)
+    hypothesis = make_hypothesis(text="TGF-beta drives fibrosis")
+    state = make_state(
+        current_iteration=1,
+        research_tier="extended",
+        mcp_available=False,
+        hypotheses=[hypothesis],
+    )
+    found = (
+        await research_for_expansion(state)
+        if consumer == "expansion"
+        else await research_for_review(state, hypothesis)
+    )
+    assert found is None
 
 
 def test_the_expansion_goal_names_the_explored_ground_to_avoid() -> None:

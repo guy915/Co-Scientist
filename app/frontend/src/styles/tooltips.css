@@ -23,7 +23,7 @@
 }
 
 /* Canonical tooltip system. New tooltip affordances must use data-tooltip
-   plus these ucs-tooltip-* modifiers (via tooltipClassNames in tooltip.ts).
+   plus these ucs-tooltip-* modifiers (via tooltipClassNames in classes.ts).
 
    Cascade note: this file is unlayered author CSS imported last, so it wins
    over Tailwind's @layer utilities (e.g. an overflow-hidden utility on the

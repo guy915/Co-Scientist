@@ -326,7 +326,7 @@ def test_no_bare_heading_when_the_field_is_blank() -> None:
 # bare-name ``emerging_themes`` fallback of a demo/seed report.
 
 
-def _themes_markdown(meta_review: dict[str, object]) -> str:
+def _meta_review_markdown(meta_review: dict[str, object]) -> str:
     """Render a minimal report carrying only the given meta-review."""
     hypothesis: dict[str, object] = {
         "id": "h1",
@@ -345,7 +345,7 @@ def _themes_markdown(meta_review: dict[str, object]) -> str:
 
 def test_a_structured_theme_renders_its_description_and_frequency() -> None:
     """A recurring_themes entry prints its description and frequency."""
-    markdown = _themes_markdown(
+    markdown = _meta_review_markdown(
         {
             "recurring_themes": [
                 {
@@ -373,7 +373,7 @@ def test_a_bare_theme_name_falls_back_to_a_plain_bullet() -> None:
     ``recurring_themes`` existed -- ``emerging_themes`` alone must not
     regress to a missing section.
     """
-    markdown = _themes_markdown(
+    markdown = _meta_review_markdown(
         {"emerging_themes": ["Time-resolved state measurements"]}
     )
 
@@ -389,7 +389,7 @@ def test_an_entry_with_no_theme_name_is_skipped() -> None:
     empty name reaching ``f"**{name}**: {description}"`` and rendering the
     doubled-asterisk ``****:`` that produces.
     """
-    markdown = _themes_markdown(
+    markdown = _meta_review_markdown(
         {
             "recurring_themes": [
                 {"theme": "", "description": "orphaned text", "frequency": ""}
@@ -409,7 +409,7 @@ def test_a_theme_renders_its_sub_themes_and_their_points() -> None:
     must show that as a heading, a bullet, and a sub-bullet rather than
     running them together.
     """
-    markdown = _themes_markdown(
+    markdown = _meta_review_markdown(
         {
             "recurring_themes": [
                 {
@@ -443,7 +443,7 @@ def test_a_flat_theme_from_an_older_checkpoint_still_renders() -> None:
     ``meta_review`` is checkpointed state, so the flat three-field entry
     outlives the schema change; it renders as a theme with no sub-list.
     """
-    markdown = _themes_markdown(
+    markdown = _meta_review_markdown(
         {
             "recurring_themes": [
                 {
@@ -461,7 +461,7 @@ def test_a_flat_theme_from_an_older_checkpoint_still_renders() -> None:
 
 def test_a_sub_theme_with_no_points_renders_as_a_plain_bullet() -> None:
     """Two of the published themes carry points with no sub-points at all."""
-    markdown = _themes_markdown(
+    markdown = _meta_review_markdown(
         {
             "recurring_themes": [
                 {
@@ -489,7 +489,7 @@ def test_a_sub_theme_with_no_points_renders_as_a_plain_bullet() -> None:
 
 def test_a_bare_string_sub_theme_still_renders() -> None:
     """json_object mode enforces nothing, so a sub-theme may be a string."""
-    markdown = _themes_markdown(
+    markdown = _meta_review_markdown(
         {
             "recurring_themes": [
                 {
@@ -588,26 +588,9 @@ def test_a_json_string_open_question_is_flattened() -> None:
 # actually carries.
 
 
-def _roadmap_markdown(meta_review: dict[str, object]) -> str:
-    """Render a minimal report carrying only the given meta-review."""
-    hypothesis: dict[str, object] = {
-        "id": "h1",
-        "title": "NHE1 coupling",
-        "statement": "NHE1 couples to the RSK axis in HFpEF.",
-    }
-    return report_markdown.render_report_markdown(
-        report_markdown.ReportMarkdownInputs(
-            research_goal="Explain the cardiac benefit.",
-            provider="engine",
-            top_hypotheses=[hypothesis],
-            meta_review=meta_review,
-        )
-    )
-
-
 def test_the_section_is_named_recommendation_and_strategic_roadmap() -> None:
     """The heading matches the published section title, not the old label."""
-    markdown = _roadmap_markdown(
+    markdown = _meta_review_markdown(
         {
             "strategic_recommendations": [
                 {
@@ -625,7 +608,7 @@ def test_the_section_is_named_recommendation_and_strategic_roadmap() -> None:
 
 def test_the_first_recommendation_is_distinguished_as_primary() -> None:
     """The lead entry is labelled primary, not folded into the roadmap list."""
-    markdown = _roadmap_markdown(
+    markdown = _meta_review_markdown(
         {
             "strategic_recommendations": [
                 {
@@ -644,7 +627,7 @@ def test_the_first_recommendation_is_distinguished_as_primary() -> None:
 
 def test_remaining_recommendations_render_as_a_numbered_roadmap() -> None:
     """Every recommendation after the first is a numbered roadmap step."""
-    markdown = _roadmap_markdown(
+    markdown = _meta_review_markdown(
         {
             "strategic_recommendations": [
                 {
@@ -666,7 +649,7 @@ def test_remaining_recommendations_render_as_a_numbered_roadmap() -> None:
 
 def test_a_single_recommendation_has_no_roadmap_steps() -> None:
     """One recommendation renders only the primary line, no numbering."""
-    markdown = _roadmap_markdown(
+    markdown = _meta_review_markdown(
         {"strategic_recommendations": ["Only one recommendation."]}
     )
 
@@ -679,14 +662,14 @@ def test_a_single_recommendation_has_no_roadmap_steps() -> None:
 
 def test_no_recommendations_renders_no_section() -> None:
     """An empty list emits no heading at all."""
-    markdown = _roadmap_markdown({"summary": "Nothing to recommend yet."})
+    markdown = _meta_review_markdown({"summary": "Nothing to recommend yet."})
 
     assert "Recommendation and strategic roadmap" not in markdown
 
 
 def test_time_estimate_renders_as_a_parenthetical_suffix() -> None:
     """R14-8: a step's timeline appends after its recommendation text."""
-    markdown = _roadmap_markdown(
+    markdown = _meta_review_markdown(
         {
             "strategic_recommendations": [
                 {
@@ -706,7 +689,7 @@ def test_time_estimate_renders_as_a_parenthetical_suffix() -> None:
 
 def test_phase_label_prefixes_the_step() -> None:
     """R14-8: a lettered sub-phase prefixes the step's own text."""
-    markdown = _roadmap_markdown(
+    markdown = _meta_review_markdown(
         {
             "strategic_recommendations": [
                 {"recommendation": "Lead step."},
@@ -726,7 +709,7 @@ def test_phase_label_prefixes_the_step() -> None:
 
 def test_recommended_idea_renders_its_own_line() -> None:
     """R14-8: the named-idea selection, identified by number, not text."""
-    markdown = _roadmap_markdown(
+    markdown = _meta_review_markdown(
         {
             "strategic_recommendations": [
                 {
@@ -746,7 +729,7 @@ def test_recommended_idea_renders_its_own_line() -> None:
 
 def test_a_report_with_none_of_the_new_fields_is_unaffected() -> None:
     """A report persisted before R14-8 renders exactly as it did."""
-    markdown = _roadmap_markdown(
+    markdown = _meta_review_markdown(
         {
             "strategic_recommendations": [
                 {
@@ -881,28 +864,11 @@ def test_distinct_from_the_user_authored_attributes_list() -> None:
 # that were never judged.
 
 
-def _connections_markdown(meta_review: dict[str, object]) -> str:
-    """Render a minimal report carrying only the given meta-review."""
-    hypothesis: dict[str, object] = {
-        "id": "h1",
-        "title": "NHE1 coupling",
-        "statement": "NHE1 couples to the RSK axis in HFpEF.",
-    }
-    return report_markdown.render_report_markdown(
-        report_markdown.ReportMarkdownInputs(
-            research_goal="Explain the cardiac benefit.",
-            provider="engine",
-            top_hypotheses=[hypothesis],
-            meta_review=meta_review,
-        )
-    )
-
-
 def test_a_connection_renders_its_related_hypotheses_type_and_opportunity() -> (
     None
 ):
     """A structured connection entry prints all three of its real fields."""
-    markdown = _connections_markdown(
+    markdown = _meta_review_markdown(
         {
             "potential_connections": [
                 {
@@ -929,7 +895,7 @@ def test_a_connection_renders_its_related_hypotheses_type_and_opportunity() -> (
 
 def test_no_connections_renders_no_section() -> None:
     """An empty or absent potential_connections list emits no heading."""
-    markdown = _connections_markdown(
+    markdown = _meta_review_markdown(
         {"summary": "A synthesis with no cross-links."}
     )
 
@@ -938,7 +904,7 @@ def test_no_connections_renders_no_section() -> None:
 
 def test_a_malformed_connection_entry_is_skipped_not_stringified() -> None:
     """A non-dict entry never leaks a raw Python repr into the report."""
-    markdown = _connections_markdown({"potential_connections": ["not a dict"]})
+    markdown = _meta_review_markdown({"potential_connections": ["not a dict"]})
 
     assert "not a dict" not in markdown
 

@@ -20,8 +20,6 @@ from co_scientist.research import (
 from co_scientist.research_adapter import (
     LlmResearchModel,
     McpRetrieval,
-    ResearchRetrieval,
-    ResearchRun,
     budget_for_tier,
 )
 from co_scientist.state import WorkflowState
@@ -236,7 +234,7 @@ async def research_for_expansion(
 
 async def _explore(
     state: WorkflowState,
-    retrieval: ResearchRetrieval,
+    retrieval: McpRetrieval,
     budget: ResearchBudget,
 ) -> ResearchResult:
     """Run the loop with no seeds, so it plans its own coverage.
@@ -263,7 +261,7 @@ async def _explore(
 
 async def _prepare(
     state: WorkflowState,
-) -> tuple[ResearchRetrieval, ResearchBudget] | None:
+) -> tuple[McpRetrieval, ResearchBudget] | None:
     """Resolve what this cycle may search, and whether it may at all.
 
     Every gate is checked before a client is opened, so a cycle that
@@ -272,7 +270,7 @@ async def _prepare(
     Returns:
         The retrieval port and its budget, or None.
     """
-    from co_scientist.evidence.run_config import (
+    from co_scientist.evidence.search_support import (
         search_config_for,
     )
 
@@ -284,28 +282,11 @@ async def _prepare(
     config = search_config_for(state)
     if config.workflow is None or config.tool_registry is None:
         return None
-    retrieval = ResearchRetrieval(await _remote_for(state, config))
+    retrieval = await McpRetrieval.open_for(
+        config, str(state.get("run_id") or "")
+    )
     budget = budget_for_tier(tier, retrieval.sources)
     return None if budget is None else (retrieval, budget)
-
-
-async def _remote_for(state: WorkflowState, config: Any) -> McpRetrieval:
-    """Open the MCP half of retrieval.
-
-    Only called once the caller has confirmed ``mcp_available``.
-    """
-    from co_scientist.mcp_client import get_mcp_client
-
-    client = await get_mcp_client(tool_registry=config.tool_registry)
-    return McpRetrieval(
-        client,
-        config.tool_registry,
-        config.workflow,
-        ResearchRun(
-            run_id=str(state.get("run_id") or ""),
-            research_goal=config.research_goal,
-        ),
-    )
 
 
 def _expansion_goal(state: WorkflowState) -> str:

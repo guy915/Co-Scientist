@@ -8,7 +8,7 @@ import {
 } from './components/settings_dialog';
 import type {ShellPanel} from './layout';
 import {NAV_ICON_CLASSES, ShellPopover} from './layout_primitives';
-import {tooltipClassNames} from './tooltip';
+import {tooltipClassNames} from './classes';
 import type {ChatSummary} from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
 import {TruncatedLabel} from './components/truncated_label';

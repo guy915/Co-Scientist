@@ -8,10 +8,8 @@ artifacts a snapshot/record is built from. This module owns that shared
 plumbing so the two drivers differ only in which config overrides they set
 and how they shape the result.
 
-The pattern (env-before-app-import, temp DB, ``resolved_run_config`` ->
-``create_run`` -> ``enqueue_run_workflow`` -> ``run_run_worker_pool`` -> read
-from store) is copied from ``golden_run.py``'s precedent, which drives one
-live INDRA acceptance check rather than a controlled multi-arm sweep.
+The local INDRA acceptance runner (``golden_run.py``) also shares the queue
+drain and terminal-state checks, without the controlled-comparison identity.
 """
 
 from __future__ import annotations
@@ -158,7 +156,6 @@ def drive_arm_run(run_id: str, db_path: str) -> tuple[int, float]:
     in-process streaming path and stays 0.0 on the durable path these
     drivers use.
     """
-    from app import store, task_worker
     from co_scientist.offline.llm import install_offline_router
 
     from evaluations._identity import validate_stored_arm
@@ -172,17 +169,31 @@ def drive_arm_run(run_id: str, db_path: str) -> tuple[int, float]:
     # comment) -- install unconditionally rather than gate it on this
     # arm's backend.
     install_offline_router()
+    result = drain_run(run_id, db_path, worker_prefix="eval-driver")
+    validate_stored_arm(run_id, db_path, identity)
+    return result
+
+
+def drain_run(
+    run_id: str, db_path: str, *, worker_prefix: str
+) -> tuple[int, float]:
+    """Enqueue and drain a durable run; return event count and elapsed seconds.
+
+    The cohort returns when no ready task or live lease remains. Callers
+    must check the persisted terminal status: a failed run also drains.
+    """
+    from app import store, task_worker
+
     task_worker.enqueue_run_workflow(run_id, db_path=db_path)
     start = time.monotonic()
     asyncio.run(
         task_worker.run_run_worker_pool(
             run_id,
-            f"eval-driver:{run_id[:8]}",
+            f"{worker_prefix}:{run_id[:8]}",
             policy=task_worker.WorkerPolicy(db_path=db_path),
         )
     )
     elapsed = time.monotonic() - start
-    validate_stored_arm(run_id, db_path, identity)
     return len(store.list_events(run_id, db_path=db_path)), elapsed
 
 

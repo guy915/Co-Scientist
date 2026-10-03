@@ -40,8 +40,6 @@ from co_scientist.research import (
 from co_scientist.research_adapter import (
     LlmResearchModel,
     McpRetrieval,
-    ResearchRetrieval,
-    ResearchRun,
     review_budget_for_tier,
     reviewed_hypothesis_limit,
 )
@@ -124,7 +122,7 @@ async def research_for_review(
 
 async def _prepare(
     state: WorkflowState, hypothesis: Hypothesis
-) -> tuple[ResearchRetrieval, ResearchBudget] | None:
+) -> tuple[McpRetrieval, ResearchBudget] | None:
     """Resolve what this hypothesis may search, and whether it may at all.
 
     Returns:
@@ -144,28 +142,11 @@ async def _prepare(
     config = _probe_search_config(state)
     if config.workflow is None or config.tool_registry is None:
         return None
-    retrieval = ResearchRetrieval(await _remote_for(state, config))
+    retrieval = await McpRetrieval.open_for(
+        config, str(state.get("run_id") or "")
+    )
     budget = review_budget_for_tier(tier, retrieval.sources)
     return None if budget is None else (retrieval, budget)
-
-
-async def _remote_for(state: WorkflowState, config: Any) -> McpRetrieval:
-    """Open the MCP half of retrieval.
-
-    Only called once the caller has confirmed ``mcp_available``.
-    """
-    from co_scientist.mcp_client import get_mcp_client
-
-    client = await get_mcp_client(tool_registry=config.tool_registry)
-    return McpRetrieval(
-        client,
-        config.tool_registry,
-        config.workflow,
-        ResearchRun(
-            run_id=str(state.get("run_id") or ""),
-            research_goal=config.research_goal,
-        ),
-    )
 
 
 def _researched_hypothesis_ids(state: WorkflowState, tier: str) -> set[str]:

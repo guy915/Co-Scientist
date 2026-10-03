@@ -12,6 +12,7 @@ import {
   SETUP_ACTIONS_CLASSES,
   SETUP_PRIMARY_BUTTON_CLASSES,
   SETUP_SECONDARY_BUTTON_CLASSES,
+  tooltipClassNames,
 } from '../classes';
 import {
   type InferredRunSpec,
@@ -22,7 +23,6 @@ import {
   runOptionLabel,
   isValidCompletionEmail,
 } from '../run_spec';
-import {tooltipClassNames} from '../tooltip';
 import {AssistantMessage, MessageAttachment} from './chat_timeline_bubble';
 import {responseActions} from './chat_timeline_message_actions';
 import {

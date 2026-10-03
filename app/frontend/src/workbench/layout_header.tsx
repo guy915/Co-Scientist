@@ -13,7 +13,7 @@ import {CancelRunControl} from './layout_cancel_run';
 import {DiagnosticsControl} from './layout_diagnostics';
 import type {ShellPanel} from './layout';
 import {SessionSwitch, type SessionSwitchData} from './layout_session_switch';
-import {tooltipClassNames} from './tooltip';
+import {tooltipClassNames} from './classes';
 import type {SystemStatus} from '@/api/system';
 import {useSystemStatus} from './hooks/system_status_context';
 

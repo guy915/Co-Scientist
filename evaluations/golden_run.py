@@ -39,7 +39,6 @@ Run:
 
 from __future__ import annotations
 
-import asyncio
 import datetime
 import os
 import pathlib
@@ -47,6 +46,7 @@ import sys
 import tempfile
 from typing import Any
 
+from evaluations import _run_driver
 from evaluations._artifacts import write_dated_artifact
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -59,11 +59,6 @@ _INDRA_CONFIG = (
     / "examples"
     / "indra_cancer.yaml"
 )
-# The viewer backend is imported as a plain package from the repo root, the
-# same way the offline evals reach it (see citation_eval). The engine is a
-# real installed dependency and needs no path help.
-sys.path.insert(0, str(_ROOT / "app"))
-
 # Smallest tier the durable path can execute; see the module docstring.
 _TIER = "express"
 # Raised above the express baseline (4): evidence is what the two cited
@@ -178,28 +173,6 @@ def _persist_run(db_path: str) -> str:
     return str(run.id)
 
 
-def _drive_run(run_id: str, db_path: str) -> int:
-    """Drain the run's durable task chain, returning its persisted event count.
-
-    The same two steps ``POST /{id}/start`` performs: enqueue the run's
-    ``engine.bootstrap`` task, then run a bounded worker cohort over the
-    queue. The cohort returns once no ready task and no live lease remain --
-    i.e. once the run has reached a terminal state -- so no polling is
-    needed. It runs on its own event loop, as every cohort does.
-    """
-    from app import store, task_worker
-
-    task_worker.enqueue_run_workflow(run_id, db_path=db_path)
-    asyncio.run(
-        task_worker.run_run_worker_pool(
-            run_id,
-            f"golden-run:{run_id[:8]}",
-            policy=task_worker.WorkerPolicy(db_path=db_path),
-        )
-    )
-    return len(store.list_events(run_id, db_path=db_path))
-
-
 def _collect(run_id: str, db_path: str) -> dict[str, Any]:
     """Read the persisted artifacts the acceptance is asserted against."""
     from app import store
@@ -257,25 +230,6 @@ def _support_passages(
     return spans
 
 
-def _run_reached_real_completion(
-    collected: dict[str, Any],
-) -> tuple[bool, bool]:
-    """Return (completed, ran_on_the_real_backend) for the persisted run row.
-
-    The durable cohort returns when the queue drains, which a *failed* run
-    also does; and a keyless environment would answer every LLM call from the
-    deterministic offline backend. Neither was expressible on the streaming
-    path, and both would otherwise pass the evidence checks below.
-    """
-    from app import store
-
-    run = collected["run"]
-    if run is None:
-        return False, False
-    completed = run.status == store.RunStatus.COMPLETED.value
-    return completed, not store.run_used_offline(run)
-
-
 def _assess(
     collected: dict[str, Any], tool_calls: dict[str, int]
 ) -> dict[str, Any]:
@@ -285,7 +239,9 @@ def _assess(
     indra_calls = {t: c for t, c in tool_calls.items() if t in _INDRA_TOOLS}
     spans = _support_passages(collected["claim_edges"])
     nonempty_spans = [s for s in spans if str(s.get("quote") or "").strip()]
-    completed, real_backend = _run_reached_real_completion(collected)
+    completed, real_backend = _run_driver.run_completion_status(
+        collected["run"]
+    )
 
     checks = {
         "run_completed": completed,
@@ -409,7 +365,9 @@ def run() -> dict[str, Any]:
     engine_adapter.validate_tools_config(settings.tools_config)
 
     run_id = _persist_run(db_path)
-    events = _drive_run(run_id, db_path)
+    events, _elapsed = _run_driver.drain_run(
+        run_id, db_path, worker_prefix="golden-run"
+    )
     collected = _collect(run_id, db_path)
     assessment = _assess(collected, tool_calls)
     return _build_report(run_id, events, collected, assessment)

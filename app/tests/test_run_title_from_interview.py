@@ -1,7 +1,7 @@
 """The title a completed interview hands the run it seeds.
 
 Two paths meet on ``runs.title``: the interview names the session from the
-whole conversation, and ``title_gen`` names it from the goal alone. The
+whole conversation, and ``goal_text`` names it from the goal alone. The
 interview's name wins where it has one, so these cases pin which path runs
 -- generation used to fire unconditionally and overwrite the better title
 with the worse one.

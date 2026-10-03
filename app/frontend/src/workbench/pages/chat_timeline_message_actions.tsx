@@ -1,6 +1,6 @@
 import {Icon, type IconName} from '@/components/icon';
 import {copyText} from '@/lib/clipboard';
-import {tooltipClassNames} from '../tooltip';
+import {tooltipClassNames} from '../classes';
 
 /**
  * One icon-button entry in a {@link MessageActionRow} (e.g.

@@ -342,7 +342,7 @@ def _probe_search_config(state: WorkflowState) -> "SearchConfig":
     cycle, in each of its three callers. See
     ``SearchConfig.semantic_relevance_enabled``.
     """
-    from co_scientist.evidence.run_config import (
+    from co_scientist.evidence.search_support import (
         search_config_for,
     )
 

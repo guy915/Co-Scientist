@@ -10,10 +10,9 @@ import pytest
 import app.qa as qa_stream
 from app import (
     credentials,
-    goal_restatement,
+    goal_text,
     run_start_announcement,
     store,
-    title_gen,
 )
 from app.config import settings
 from app.execution_policy import scoped_execution_policy
@@ -49,10 +48,12 @@ async def _stream_call(kind: str, model: str) -> Any:
 
 async def _invoke(kind: str, model: str) -> Any:
     if kind == "title":
-        return await title_gen._request_title_completion("Public research")
+        return await goal_text._request_completion(
+            "Public research", goal_text._TITLE
+        )
     if kind == "restatement":
-        return await goal_restatement._request_restatement_completion(
-            "Public research"
+        return await goal_text._request_completion(
+            "Public research", goal_text._RESTATEMENT
         )
     if kind == "probe":
         return await credentials.validate_byok_credential(

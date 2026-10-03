@@ -228,14 +228,6 @@ def _run_selected_assessor(
     return run(dataset_path=dataset_path), "deterministic"
 
 
-def _write_artifact(
-    report: dict[str, Any], panel: str, challenge: bool, tag: str
-) -> pathlib.Path:
-    """Write the dated result artifact and return its path."""
-    suffix = f"-{panel}" if challenge else ""
-    return write_dated_artifact(report, f"citation-entailment{suffix}-{tag}")
-
-
 def main() -> int:
     """Run the eval, write a dated artifact, and print a summary.
 
@@ -249,7 +241,8 @@ def main() -> int:
     panel = "challenge" if challenge else "v1"
 
     report, tag = _run_selected_assessor(dataset_path)
-    out = _write_artifact(report, panel, challenge, tag)
+    suffix = f"-{panel}" if challenge else ""
+    out = write_dated_artifact(report, f"citation-entailment{suffix}-{tag}")
 
     m = report["metrics"]
     print(

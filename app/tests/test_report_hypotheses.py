@@ -79,7 +79,7 @@ def test_an_empty_pool_maps_to_nothing() -> None:
 # accepted on read, per the renderer's own fallback).
 
 
-def _comparison_markdown(meta_review: dict[str, object]) -> str:
+def _meta_review_markdown(meta_review: dict[str, object]) -> str:
     """Render a minimal report carrying only the given meta-review."""
     hypothesis: dict[str, object] = {
         "id": "h1",
@@ -98,7 +98,7 @@ def _comparison_markdown(meta_review: dict[str, object]) -> str:
 
 def test_a_populated_comparison_renders_summary_and_idea_columns() -> None:
     """The legacy fixed-field shape: a run's meta-review predating axes."""
-    markdown = _comparison_markdown(
+    markdown = _meta_review_markdown(
         {
             "candidate_comparison": {
                 "thematic_summary": (
@@ -134,7 +134,7 @@ def test_a_populated_comparison_renders_summary_and_idea_columns() -> None:
 
 def test_comparison_a_populated_comparison_renders_domain_aware_axes() -> None:
     """The current shape: per-run axes, rated positionally per idea."""
-    markdown = _comparison_markdown(
+    markdown = _meta_review_markdown(
         {
             "candidate_comparison": {
                 "thematic_summary": (
@@ -167,7 +167,7 @@ def test_an_idea_with_more_values_than_axes_pairs_up_to_the_shorter_side() -> (
     None
 ):
     """A positional mismatch degrades gracefully instead of misassigning."""
-    markdown = _comparison_markdown(
+    markdown = _meta_review_markdown(
         {
             "candidate_comparison": {
                 "axes": ["Off-target risk"],
@@ -187,7 +187,7 @@ def test_an_idea_with_more_values_than_axes_pairs_up_to_the_shorter_side() -> (
 
 def test_no_candidate_comparison_renders_no_section() -> None:
     """An empty or absent candidate_comparison emits no heading."""
-    markdown = _comparison_markdown(
+    markdown = _meta_review_markdown(
         {"summary": "A synthesis with no comparison."}
     )
 
@@ -196,7 +196,7 @@ def test_no_candidate_comparison_renders_no_section() -> None:
 
 def test_a_malformed_idea_entry_is_skipped_not_stringified() -> None:
     """A non-dict entry never leaks a raw Python repr into the report."""
-    markdown = _comparison_markdown(
+    markdown = _meta_review_markdown(
         {"candidate_comparison": {"ideas": ["not a dict"]}}
     )
 
@@ -205,7 +205,7 @@ def test_a_malformed_idea_entry_is_skipped_not_stringified() -> None:
 
 def test_an_idea_with_no_label_is_skipped() -> None:
     """A row missing its 'idea' label carries nothing to anchor it to."""
-    markdown = _comparison_markdown(
+    markdown = _meta_review_markdown(
         {
             "candidate_comparison": {
                 "ideas": [{"distinguishing_attribute": "orphaned"}]
@@ -516,26 +516,9 @@ def test_a_contact_with_no_research_direction_omits_the_line() -> None:
 # ``test_no_existing_solutions_comparison_renders_no_section``.
 
 
-def _solutions_markdown(meta_review: dict[str, object]) -> str:
-    """Render a minimal report carrying only the given meta-review."""
-    hypothesis: dict[str, object] = {
-        "id": "h1",
-        "title": "NHE1 coupling",
-        "statement": "NHE1 couples to the RSK axis in HFpEF.",
-    }
-    return report_markdown.render_report_markdown(
-        report_markdown.ReportMarkdownInputs(
-            research_goal="Explain the cardiac benefit.",
-            provider="engine",
-            top_hypotheses=[hypothesis],
-            meta_review=meta_review,
-        )
-    )
-
-
 def test_a_populated_comparison_renders_summary_and_row_columns() -> None:
     """The legacy fixed-field shape: a run's meta-review predating axes."""
-    markdown = _solutions_markdown(
+    markdown = _meta_review_markdown(
         {
             "existing_solutions_comparison": {
                 "summary": (
@@ -567,7 +550,7 @@ def test_a_populated_comparison_renders_summary_and_row_columns() -> None:
 
 def test_solutions_a_populated_comparison_renders_domain_aware_axes() -> None:
     """The current shape: per-run axes, rated positionally per row."""
-    markdown = _solutions_markdown(
+    markdown = _meta_review_markdown(
         {
             "existing_solutions_comparison": {
                 "summary": (
@@ -599,7 +582,7 @@ def test_solutions_a_populated_comparison_renders_domain_aware_axes() -> None:
 
 def test_no_existing_solutions_comparison_renders_no_section() -> None:
     """An empty or absent existing_solutions_comparison emits no heading."""
-    markdown = _solutions_markdown(
+    markdown = _meta_review_markdown(
         {"summary": "A synthesis with no comparison."}
     )
 
@@ -608,7 +591,7 @@ def test_no_existing_solutions_comparison_renders_no_section() -> None:
 
 def test_a_malformed_row_entry_is_skipped_not_stringified() -> None:
     """A non-dict entry never leaks a raw Python repr into the report."""
-    markdown = _solutions_markdown(
+    markdown = _meta_review_markdown(
         {"existing_solutions_comparison": {"rows": ["not a dict"]}}
     )
 
@@ -617,7 +600,7 @@ def test_a_malformed_row_entry_is_skipped_not_stringified() -> None:
 
 def test_a_row_with_no_method_is_skipped() -> None:
     """A row missing its 'method' label carries nothing to anchor it to."""
-    markdown = _solutions_markdown(
+    markdown = _meta_review_markdown(
         {"existing_solutions_comparison": {"rows": [{"approach": "orphaned"}]}}
     )
 

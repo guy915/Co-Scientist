@@ -833,7 +833,7 @@ async def test_probe_retrieval_opts_out_of_the_relevance_pass(
         _collect,
     )
     monkeypatch.setattr(
-        "co_scientist.evidence.run_config.search_config_for",
+        "co_scientist.evidence.search_support.search_config_for",
         lambda state: _config(semantic_relevance_enabled=True),
     )
 

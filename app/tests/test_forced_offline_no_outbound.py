@@ -28,11 +28,10 @@ import pytest
 
 from app import (
     credentials,
-    goal_restatement,
+    goal_text,
     qa,
     run_start_announcement,
     store,
-    title_gen,
 )
 from tests._client import make_client
 
@@ -116,7 +115,7 @@ async def test_run_titling_makes_no_outbound_request(
     attempts: list[dict[str, Any]],
 ) -> None:
     """Titling condenses the goal, so it must not send it either."""
-    assert await title_gen.generate_run_title(_GOAL) is None
+    assert await goal_text.generate_run_title(_GOAL) is None
     assert attempts == []
 
 
@@ -139,7 +138,7 @@ async def test_byok_still_reaches_its_own_key(
         credentials.scoped_byok(credential),
         pytest.raises(AssertionError),
     ):
-        await title_gen._request_title_completion(_GOAL)
+        await goal_text._request_completion(_GOAL, goal_text._TITLE)
     assert len(attempts) == 1
     assert attempts[0]["api_key"] == "sk-scientist-own"
 
@@ -170,7 +169,7 @@ def test_qa_dispatch_stays_on_the_offline_answer(
 async def test_restatement_makes_no_outbound_request(
     attempts: list[dict[str, Any]],
 ) -> None:
-    assert await goal_restatement.generate_goal_restatement(_GOAL) is None
+    assert await goal_text.generate_goal_restatement(_GOAL) is None
     assert attempts == []
 
 

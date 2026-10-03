@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -198,6 +199,34 @@ asyncio.run(check())
 
 
 # Golden run admission.
+
+
+@pytest.mark.parametrize(
+    ("status", "backend", "accepted"),
+    [
+        ("completed", "real", True),
+        ("completed", "offline", False),
+        ("failed", "real", False),
+        (None, "real", False),
+    ],
+)
+def test_golden_acceptance_requires_persisted_real_completion(
+    status: str | None, backend: str, accepted: bool
+) -> None:
+    from evaluations.golden_run import _assess
+
+    artifact: dict[str, object] = {
+        "run": SimpleNamespace(status=status, llm_backend=backend)
+        if status
+        else None,
+        "evidence": [{"source": "pubmed"}],
+        "claim_edges": [{"supporting": [{"quote": "Located passage"}]}],
+        "matches": [],
+        "hypotheses": [],
+        "report": {},
+    }
+    assessment = _assess(artifact, {"query_gene_disease_network": 1})
+    assert assessment["passed"] is accepted
 
 
 def test_golden_run_rejects_unqualified_indra_before_execution(

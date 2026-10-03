@@ -21,7 +21,7 @@ from co_scientist.config import (
     WorkflowConfig,
 )
 from co_scientist.constants import LITERATURE_REVIEW_FAILED
-from co_scientist.evidence import run_config
+from co_scientist.evidence import search_support
 from co_scientist.evidence.retrieval_support import ContentToolConfig
 from co_scientist.mcp_client import MCPToolClient
 from tests._mcp import FakeToolResultsClient, make_tool_results_client
@@ -870,7 +870,7 @@ def test_get_search_config_multi_source_logs_sources_and_defaults_pubmed() -> (
     registry = _StubRegistry(workflow)
     state = make_state(tool_registry=cast(ToolRegistry, registry))
 
-    config = run_config.search_config_for(state)
+    config = search_support.search_config_for(state)
 
     assert config.is_multi_source is True
     assert config.search_tool_name == "pubmed_search_with_fulltext"
@@ -887,7 +887,7 @@ def test_get_search_config_single_source_resolves_configured_tool() -> None:
     registry = _StubRegistry(workflow, {"pubmed_primary": tool_config})
     state = make_state(tool_registry=cast(ToolRegistry, registry))
 
-    config = run_config.search_config_for(state)
+    config = search_support.search_config_for(state)
 
     assert config.is_multi_source is False
     assert config.search_tool_name == "pubmed_ft"

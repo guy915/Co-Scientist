@@ -197,46 +197,39 @@ def _recall(labelled: list[tuple[str, str, str]], label: str) -> float:
 
 def run_deterministic(dataset: dict[str, Any]) -> dict[str, Any]:
     """Score the lexical floor over the panel."""
-    from evaluations._identity import capture_panel
-
-    with capture_panel(
-        "citation_usefulness",
-        dataset,
-        "deterministic_coverage",
-        live=False,
-    ) as evidence:
-        labelled = [
-            (
-                str(item["id"]),
-                str(item["label"]),
-                deterministic_label(str(item["question"]), str(item["span"])),
-            )
-            for item in dataset["items"]
-        ]
-    return {
-        **evidence,
-        "judge": "deterministic_coverage",
-        "panel": dataset["name"],
-        "metrics": score(labelled),
-        "items": [
-            {"id": i, "expected": want, "predicted": got}
-            for i, want, got in labelled
-        ],
-    }
+    return _run(dataset, "deterministic_coverage", live=False)
 
 
 def run_llm(
     dataset: dict[str, Any], model: str | None = None
 ) -> dict[str, Any]:
     """Score a real model over the panel, one call per item."""
-    from evaluations._identity import capture_panel
     from evaluations._live_config import configure_live_environment
 
-    model = configure_live_environment(model)
+    return _run(dataset, configure_live_environment(model), live=True)
+
+
+def _run(dataset: dict[str, Any], model: str, *, live: bool) -> dict[str, Any]:
+    """Capture either judge's controls and assemble the same report schema."""
+    from evaluations._identity import capture_panel
+
     with capture_panel(
-        "citation_usefulness", dataset, model, live=True
+        "citation_usefulness", dataset, model, live=live
     ) as evidence:
-        labelled = asyncio.run(_judge_all(dataset, model))
+        labelled = (
+            asyncio.run(_judge_all(dataset, model))
+            if live
+            else [
+                (
+                    str(item["id"]),
+                    str(item["label"]),
+                    deterministic_label(
+                        str(item["question"]), str(item["span"])
+                    ),
+                )
+                for item in dataset["items"]
+            ]
+        )
     return {
         **evidence,
         "judge": model,

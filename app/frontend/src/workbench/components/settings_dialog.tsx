@@ -104,48 +104,8 @@ function SettingsDialogHeader({
   );
 }
 
-// Active section panel, switching over `section`. `theme` and `apiKeyField`
-// forward the two hooks' return values as-is (see useTheme, useApiKeyField).
-function SettingsPanel({
-  section,
-  theme,
-  apiKeyField,
-}: {
-  section: SettingsSection;
-  theme: {mode: Mode; setMode: (mode: Mode) => void};
-  apiKeyField: ReturnType<typeof useApiKeyField>;
-}) {
-  return (
-    <div className="ucs-settings-dialog-panel">
-      {section === 'appearance' && (
-        <AppearanceSection mode={theme.mode} setMode={theme.setMode} />
-      )}
-      {section === 'model' && (
-        <ModelSection
-          apiKey={apiKeyField.apiKey}
-          onApiKeyChange={apiKeyField.onApiKeyChange}
-          provider={apiKeyField.provider}
-          onProviderChange={apiKeyField.onProviderChange}
-          onSave={apiKeyField.onSave}
-        />
-      )}
-    </div>
-  );
-}
-
-// The dialog's translucent backdrop; a click on it closes the dialog.
-function SettingsDialogScrim({onClose}: {onClose: () => void}) {
-  return (
-    <div
-      className="ucs-settings-dialog-scrim"
-      aria-hidden="true"
-      onClick={onClose}
-    />
-  );
-}
-
 /**
- * Centered Settings dialog with a section rail (Appearance, Model, Help),
+ * Centered Settings dialog with a section rail (Appearance, Model),
  * matching the reference product's settings window.
  *
  * @param props The active section and the change/close callbacks.
@@ -156,71 +116,6 @@ interface SettingsDialogProps {
   onClose: () => void;
 }
 
-// The dialog window itself: header, section rail, active section panel, and
-// the save-confirmation toast. Split out of SettingsDialog so the component
-// itself stays the thin open/close/focus wiring documented there.
-interface SettingsDialogWindowProps {
-  dialogRef: RefObject<HTMLDivElement | null>;
-  closeRef: RefObject<HTMLButtonElement | null>;
-  section: SettingsSection;
-  onSectionChange: (section: SettingsSection) => void;
-  onClose: () => void;
-  theme: {mode: Mode; setMode: (mode: Mode) => void};
-  apiKeyField: ReturnType<typeof useApiKeyField>;
-}
-
-// The dialog body: section rail plus the active section panel.
-function SettingsDialogBody({
-  section,
-  onSectionChange,
-  theme,
-  apiKeyField,
-}: {
-  section: SettingsSection;
-  onSectionChange: (section: SettingsSection) => void;
-  theme: {mode: Mode; setMode: (mode: Mode) => void};
-  apiKeyField: ReturnType<typeof useApiKeyField>;
-}) {
-  return (
-    <div className="ucs-settings-dialog-body">
-      <SettingsNav section={section} onSectionChange={onSectionChange} />
-      <SettingsPanel
-        section={section}
-        theme={theme}
-        apiKeyField={apiKeyField}
-      />
-    </div>
-  );
-}
-
-function SettingsDialogWindow({
-  dialogRef,
-  closeRef,
-  section,
-  onSectionChange,
-  onClose,
-  theme,
-  apiKeyField,
-}: SettingsDialogWindowProps) {
-  return (
-    <div
-      ref={dialogRef}
-      className="ucs-settings-dialog"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Settings"
-    >
-      <SettingsDialogHeader onClose={onClose} closeRef={closeRef} />
-      <SettingsDialogBody
-        section={section}
-        onSectionChange={onSectionChange}
-        theme={theme}
-        apiKeyField={apiKeyField}
-      />
-    </div>
-  );
-}
-
 export function SettingsDialog({
   section,
   onSectionChange,
@@ -228,7 +123,6 @@ export function SettingsDialog({
 }: SettingsDialogProps) {
   const theme = useTheme();
   const closeRef = useRef<HTMLButtonElement>(null);
-  const dialogRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const apiKeyField = useApiKeyField();
 
@@ -245,16 +139,28 @@ export function SettingsDialog({
 
   return (
     <div className="ucs-settings-dialog-root" ref={rootRef}>
-      <SettingsDialogScrim onClose={onClose} />
-      <SettingsDialogWindow
-        dialogRef={dialogRef}
-        closeRef={closeRef}
-        section={section}
-        onSectionChange={onSectionChange}
-        onClose={onClose}
-        theme={theme}
-        apiKeyField={apiKeyField}
+      <div
+        className="ucs-settings-dialog-scrim"
+        aria-hidden="true"
+        onClick={onClose}
       />
+      <div
+        className="ucs-settings-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Settings"
+      >
+        <SettingsDialogHeader onClose={onClose} closeRef={closeRef} />
+        <div className="ucs-settings-dialog-body">
+          <SettingsNav section={section} onSectionChange={onSectionChange} />
+          <div className="ucs-settings-dialog-panel">
+            {section === 'appearance' && (
+              <AppearanceSection mode={theme.mode} setMode={theme.setMode} />
+            )}
+            {section === 'model' && <ModelSection {...apiKeyField} />}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -451,9 +357,8 @@ export function modelLabel(model: string): string {
   return slash < 0 ? model : model.slice(slash + 1);
 }
 
-// One tier's chooser: the same button-plus-menu shape as ProviderSelect
-// (settings_model_select.tsx), for the same reasons, with the options
-// supplied by the caller.
+// Both model tiers use the same menu as the provider chooser; the worker
+// menu opens leftward so it stays over the dialog.
 function ModelSelect({
   tier,
   value,
@@ -467,26 +372,8 @@ function ModelSelect({
   disabled: boolean;
   onChange: (model: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const container = useRef<HTMLDivElement>(null);
-  useCloseOnOutsidePointer(open, container, () => setOpen(false));
-  // The right-hand (worker) select opens leftward, back over the dialog.
-  const {menuRef, menuStyle} = useAnchoredMenu(
-    open,
-    container,
-    tier === 'worker' ? 'end' : 'start',
-  );
   const triggerId = `cosci-settings-${tier}-model`;
   const labelId = `${triggerId}-label`;
-
-  // Escape closes only the menu, not the dialog (see ProviderSelect).
-  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key === 'Escape' && open) {
-      event.stopPropagation();
-      setOpen(false);
-    }
-  }
-
   return (
     <div className="ucs-settings-model-field">
       <label
@@ -496,61 +383,17 @@ function ModelSelect({
       >
         {TIER_LABELS[tier]}
       </label>
-      <div
-        className="ucs-provider-select"
-        ref={container}
-        onKeyDown={onKeyDown}
-      >
-        <button
-          type="button"
-          id={triggerId}
-          className="ucs-provider-trigger"
-          aria-haspopup="menu"
-          aria-expanded={open}
-          aria-labelledby={`${labelId} ${triggerId}`}
-          disabled={disabled}
-          onClick={() => setOpen(current => !current)}
-        >
-          <span>{modelLabel(value)}</span>
-          <Icon
-            aria-hidden="true"
-            className="ucs-provider-chevron"
-            name="expand_more"
-          />
-        </button>
-        {open && !disabled && (
-          <div
-            ref={menuRef}
-            style={menuStyle}
-            className="ucs-provider-menu"
-            role="menu"
-            aria-label={TIER_LABELS[tier]}
-          >
-            {options.map(option => (
-              <button
-                key={option}
-                type="button"
-                role="menuitemradio"
-                aria-checked={option === value}
-                className="ucs-provider-option"
-                onClick={() => {
-                  setOpen(false);
-                  if (option !== value) onChange(option);
-                }}
-              >
-                <span>{modelLabel(option)}</span>
-                {option === value && (
-                  <Icon
-                    aria-hidden="true"
-                    className="ucs-provider-option-check"
-                    name="check"
-                  />
-                )}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      <SettingsSelect
+        value={value}
+        options={options}
+        optionLabel={modelLabel}
+        name={TIER_LABELS[tier]}
+        triggerId={triggerId}
+        labelId={labelId}
+        disabled={disabled}
+        align={tier === 'worker' ? 'end' : 'start'}
+        onChange={onChange}
+      />
     </div>
   );
 }
@@ -714,10 +557,7 @@ export const PROVIDER_KEY_PAGES: Record<
 const TRIGGER_ID = 'cosci-settings-provider';
 const LABEL_ID = 'cosci-settings-provider-label';
 
-// Closes the menu on a pointerdown outside `container` (also used by the
-// model selects, settings_model_select.tsx). Registered only
-// while open, matching the shell's own popover dismissal
-// (layout_hooks.useDismissPanelOnOutsideClick).
+// Closes a chooser on outside pointerdown, with a listener only while open.
 export function useCloseOnOutsidePointer(
   open: boolean,
   container: React.RefObject<HTMLDivElement | null>,
@@ -769,8 +609,9 @@ export function useAnchoredMenu(
       if (!el || !trigger) return;
       el.style.top = '0px';
       el.style.left = '0px';
-      const origin = el.getBoundingClientRect();
       const box = trigger.getBoundingClientRect();
+      el.style.minWidth = `${box.width}px`;
+      const origin = el.getBoundingClientRect();
       const left = align === 'end' ? box.right - origin.width : box.left;
       const next = {
         top: box.bottom + MENU_GAP_PX - origin.top,
@@ -792,70 +633,35 @@ export function useAnchoredMenu(
   return {menuRef: menu, menuStyle: style};
 }
 
-// One row of the open menu: a real button (so Tab and Enter work without an
-// activedescendant dance), carrying a check on the current choice so the
-// selection reads without relying on the highlight alone.
-function ProviderOption({
-  option,
-  selected,
-  onSelect,
-}: {
-  option: ByokProvider;
-  selected: boolean;
-  onSelect: (option: ByokProvider) => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="menuitemradio"
-      aria-checked={selected}
-      className="ucs-provider-option"
-      onClick={() => onSelect(option)}
-    >
-      <span>{PROVIDER_LABELS[option]}</span>
-      {selected && (
-        <Icon
-          aria-hidden="true"
-          className="ucs-provider-option-check"
-          name="check"
-        />
-      )}
-    </button>
-  );
-}
-
-/**
- * Provider chooser for the Settings dialog's Model section.
- *
- * A button plus an own-markup menu rather than a native `<select>`: the
- * native control's list is drawn by the browser in its own style rather than
- * by the workspace, and cannot carry the check mark or the row treatment the
- * rest of the dialog's menus use.
- *
- * @param provider The currently chosen provider.
- * @param onChange Called with the newly chosen provider (never with the one
- *   already selected -- picking the current value just closes the menu).
- */
-export function ProviderSelect({
-  provider,
+// Shared provider/model chooser. Real menu buttons preserve Tab and Enter
+// behavior; selecting the current value only dismisses the menu.
+function SettingsSelect<T extends string>({
+  value,
+  options,
+  optionLabel,
+  name,
+  triggerId,
+  labelId,
+  disabled = false,
+  align = 'start',
   onChange,
 }: {
-  provider: ByokProvider;
-  onChange: (provider: ByokProvider) => void;
+  value: T;
+  options: readonly T[];
+  optionLabel: (option: T) => string;
+  name: string;
+  triggerId: string;
+  labelId: string;
+  disabled?: boolean;
+  align?: 'start' | 'end';
+  onChange: (option: T) => void;
 }) {
   const [open, setOpen] = useState(false);
   const container = useRef<HTMLDivElement>(null);
   useCloseOnOutsidePointer(open, container, () => setOpen(false));
-  const {menuRef, menuStyle} = useAnchoredMenu(open, container);
+  const {menuRef, menuStyle} = useAnchoredMenu(open, container, align);
 
-  function onSelect(option: ByokProvider) {
-    setOpen(false);
-    if (option !== provider) onChange(option);
-  }
-
-  // Escape closes the menu and stops there: the Settings dialog listens for
-  // Escape on the window to close itself, and dismissing both at once would
-  // throw the reader out of Settings for cancelling a dropdown.
+  // Escape dismisses the menu before the dialog's window listener sees it.
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === 'Escape' && open) {
       event.stopPropagation();
@@ -867,39 +673,75 @@ export function ProviderSelect({
     <div className="ucs-provider-select" ref={container} onKeyDown={onKeyDown}>
       <button
         type="button"
-        id={TRIGGER_ID}
+        id={triggerId}
         className="ucs-provider-trigger"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-labelledby={`${LABEL_ID} ${TRIGGER_ID}`}
+        aria-labelledby={`${labelId} ${triggerId}`}
+        disabled={disabled}
         onClick={() => setOpen(current => !current)}
       >
-        <span>{PROVIDER_LABELS[provider]}</span>
+        <span>{optionLabel(value)}</span>
         <Icon
           aria-hidden="true"
           className="ucs-provider-chevron"
           name="expand_more"
         />
       </button>
-      {open && (
+      {open && !disabled && (
         <div
           ref={menuRef}
           style={menuStyle}
           className="ucs-provider-menu"
           role="menu"
-          aria-label="Provider"
+          aria-label={name}
         >
-          {BYOK_PROVIDERS.map(option => (
-            <ProviderOption
+          {options.map(option => (
+            <button
               key={option}
-              option={option}
-              selected={option === provider}
-              onSelect={onSelect}
-            />
+              type="button"
+              role="menuitemradio"
+              aria-checked={option === value}
+              className="ucs-provider-option"
+              onClick={() => {
+                setOpen(false);
+                if (option !== value) onChange(option);
+              }}
+            >
+              <span>{optionLabel(option)}</span>
+              {option === value && (
+                <Icon
+                  aria-hidden="true"
+                  className="ucs-provider-option-check"
+                  name="check"
+                />
+              )}
+            </button>
           ))}
         </div>
       )}
     </div>
+  );
+}
+
+/** Provider chooser for the Settings dialog's Model section. */
+export function ProviderSelect({
+  provider,
+  onChange,
+}: {
+  provider: ByokProvider;
+  onChange: (provider: ByokProvider) => void;
+}) {
+  return (
+    <SettingsSelect
+      value={provider}
+      options={BYOK_PROVIDERS}
+      optionLabel={option => PROVIDER_LABELS[option]}
+      name="Provider"
+      triggerId={TRIGGER_ID}
+      labelId={LABEL_ID}
+      onChange={onChange}
+    />
   );
 }
 
