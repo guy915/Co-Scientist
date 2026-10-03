@@ -1,10 +1,10 @@
 # Evaluations
 
-Reproducible evaluation harness for the parity work. Everything here runs **offline** (no LLM, no network) unless a runner
+Reproducible evaluation harness for research experiments. Everything here runs **offline** (no LLM, no network) unless a runner
 explicitly says otherwise; machine-readable results are written under
 `results/`. Historical receipts are retained in the
 [pinned results tree](https://github.com/guy915/Co-Scientist/tree/7c2878aeb071a962cb713e9c271cd88e1635ca5f/evaluations/results);
-the baseline used by the parity gate remains local.
+the offline baseline remains local.
 
 ## Layout
 
@@ -14,8 +14,6 @@ the baseline used by the parity gate remains local.
   engine's prompt templates, and whatever the runner knows about the model,
   seed, and cost of its own measurement) automatically, so a result found
   later carries what produced it rather than depending on memory.
-- `parity_check.py` — the parity-ledger CI gate (fails if a `verified` row in
-  `docs/PARITY.md` cites no test/eval evidence).
 - `citation_eval.py` — claim/entailment metrics over
   `datasets/citation_entailment_v1.json` (precision/recall per label,
   contradiction recall, abstention). `--challenge` scores the larger
@@ -177,14 +175,13 @@ the baseline used by the parity gate remains local.
   monkeypatched transport.
 - `datasets/` — versioned, synthetic, legally shareable labeled sets.
 - `results/` — dated machine-readable result artifacts.
-- `tests/` — unit tests for the runners and documentation-truth checks that
-  `make parity` runs alongside the ledger check.
+- `tests/` — unit tests for the runners, architecture and source-size checks that
+  `make test-evaluations` runs.
 
 ## Commands
 
 ```bash
 # From the repo root, using the shared venv python:
-python -m evaluations.parity_check          # ledger gate
 python -m evaluations.smoke                 # offline smoke (safety + citation)
 python -m evaluations.citation_eval         # writes results/citation-entailment-deterministic-<date>.json
 python -m evaluations.citation_eval --challenge --llm  # adversarial panel, semantic assessor, enforces gates
@@ -203,7 +200,7 @@ python -m evaluations.mcp_live_smoke        # LIVE, non-mutating; not in CI
 python -m pytest evaluations/tests -q       # harness unit tests
 
 # Or via make:
-make parity        # parity gate + harness tests
+make test-evaluations # harness tests
 make eval-smoke    # offline smoke suite
 ```
 

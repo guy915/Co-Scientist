@@ -19,7 +19,7 @@ make docker-build
 ```
 
 The first validation command runs format/lint, strict types, backend and
-frontend unit suites, parity evidence checks, offline evaluation smoke,
+frontend unit suites, evaluation harness tests, offline evaluation smoke,
 the production frontend build, isolated development browser tests, and a
 separate built-asset check with required authentication. The second builds
 both production images without pushing or deploying. CI performs these

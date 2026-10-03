@@ -518,13 +518,6 @@ def test_full_review_schema_shape() -> None:
 
 
 def test_full_review_assumption_carries_published_reasoning() -> None:
-    """Each assumption carries the published free-text reasoning (MO-9).
-
-    docs/CORPUS-EXTRACTION.md, validated-outputs/kira6-detailed-output-
-    validated.md -- 220 lines, sha256 b5a22b590874, "Reasoning about
-    assumptions" -- prints a paragraph beside every assumption; the schema
-    used to carry only the closed `support` enum.
-    """
     schema = schema_for(ReviewType.FULL)
     assert schema is not None
     assumption = schema["schema"]["properties"]["assumptions"]["items"]

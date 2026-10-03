@@ -114,20 +114,8 @@ PROXIMITY_SCHEMA: dict[str, Any] = {
 }
 
 
-# The one vocabulary for "does the evidence back this assumption",
-# shared by deep verification's sub_assumptions[].status and full
-# review's assumptions[].support -- the same judgement asked twice, by
-# two different reflection nodes. A single source keeps them from
-# drifting into two enums that disagree again; change it here to change
-# both schemas (and their prompt templates -- see
-# test_prompts_schema_parity.py, which pins every enum value to be named
-# in its own prompt's prose).
-#
-# R12-15/MO-4: Google's own published prose ("Plausible:", etc.) is a
-# *display* decision, not a stored-value one -- mature_reviews.py's
-# `assumptions_likely_false` filter matches the literal enum string, so
-# only `drain/reviews.py::_ASSUMPTION_SUPPORT_LABELS` translates it
-# (docs/PARITY.md REVIEW-ASSUMPTION-WORDING-001).
+# Deep and full reviews share support values; ranking filters match them.
+# Translate display labels only when rendering, without changing stored values.
 ASSUMPTION_SUPPORT_VALUES: tuple[str, ...] = (
     "supported",
     "uncertain",

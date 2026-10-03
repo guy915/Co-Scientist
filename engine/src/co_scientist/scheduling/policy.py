@@ -1,25 +1,5 @@
-"""Deterministic Supervisor scheduling policy.
-
-:func:`decide_next_task` is a pure function of :class:`SchedulerStats` and a
-:class:`Budget`. Given the observable state at a loop point, it returns the
-next :class:`SupervisorDecision` — which task to run (or to terminate, and
-why). The policy is deterministic and order-independent so the required
-scheduling states can be tested in isolation.
-
-An LLM Supervisor may *recommend* a next task; :func:`validate_decision` is the
-gate that enforces the allowed transitions and budget on any recommendation
-before the graph acts on it — the code decides, the model only advises.
-
-Where Google does not publish a predicate (the exact convergence test, the
-minimum match coverage), the value here is a documented clone default; see the
-``*_DEFAULT`` constants and the ``CLONE`` rows in ``docs/PARITY.md``.
-
-The individual predicates live in :mod:`co_scientist.scheduling.policy`
-and the decision validation in
-:mod:`co_scientist.scheduling.policy`; both are re-exported here so
-this module remains the single import surface for the policy. What stays here
-is :func:`_ordered_checks` — the precedence itself, which is the feature.
-"""
+"""The model can recommend tasks; deterministic checks enforce budget and
+transition constraints; check order defines their precedence."""
 
 from __future__ import annotations
 

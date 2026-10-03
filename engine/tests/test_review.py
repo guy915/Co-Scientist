@@ -434,14 +434,6 @@ def test_score_fields_are_bounded_to_the_rubric_range() -> None:
 
 
 def test_novelty_review_schema_carries_the_published_two_lists() -> None:
-    """Both review schemas carry Google's published novelty-review lists.
-
-    The published exemplar (docs/CORPUS-EXTRACTION.md,
-    reviews/als-reflection-reviews.md -- 106 lines, sha256 2f486c549886,
-    Figure A.11) prints a complete novelty review as two named lists,
-    "Aspects already explored:" and "Novel Aspects:" -- no schema field
-    distinguished them before this (MO-3).
-    """
     batch_items = REVIEW_BATCH_SCHEMA["schema"]["properties"]["reviews"][
         "items"
     ]

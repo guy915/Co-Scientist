@@ -69,10 +69,7 @@ jobs:
         if: github.event_name == 'pull_request'
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
-          # app depends on the engine (editable install), so engine changes
-          # re-run the app suite. evaluations is nearly global because the
-          # parity ledger cites evidence files across engine/, app/, and the
-          # frontend, and the checker fails if any cited file disappears.
+          # App imports the engine; the size ratchet counts source across the tree.
           filters: |
             engine:
               - 'engine/**'
@@ -100,11 +97,7 @@ jobs:
               - '**/*.ts'
               - '**/*.tsx'
               - '**/*.css'
-              # docs/** (not just docs/PARITY.md): the parity checker's own
-              # evidence citations can point at any test/eval file across the
-              # tree, and a docs edit is exactly how a citation goes stale
-              # (a row rewritten to cite a path that does not exist), so any
-              # docs change gets the one job that would catch it.
+              - '**/*.md'
               - '.github/actions/**'
               - '.ruff.toml'
               - 'evaluations/**'
@@ -278,7 +271,7 @@ jobs:
         run: python -m pytest -q
 
   evaluations:
-    name: Evaluations (parity + offline smoke)
+    name: Evaluations (tests + offline smoke)
     needs: changes
     if: needs.changes.outputs.evaluations == 'true'
     runs-on: ubuntu-latest
@@ -288,9 +281,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up backend
         uses: ./.github/actions/setup-backend
-      - name: Parity ledger gate
-        run: python -m evaluations.parity_check
-      - name: Parity checker unit tests
+      - name: Evaluation harness tests
         run: python -m pytest evaluations/tests -q
       - name: Offline evaluation smoke suite
         run: python -m evaluations.smoke

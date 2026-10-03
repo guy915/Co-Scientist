@@ -25,20 +25,6 @@ from tests._drain_helpers import (
     _persist_and_finalize,
 )
 
-# R12-18: the drain hands the Supervisor's evaluation criteria to the report.
-#
-# The Supervisor already synthesizes ``workflow_plan.review_phase.
-# critical_criteria`` -- goal-specific criteria reviewers should emphasize,
-# mirroring the published MASH plan's "Evaluation Criteria" section
-# (``docs/CORPUS-EXTRACTION.md``, MASH body, ``## **2. Evaluation
-# Criteria**``) -- and ``prompts/review.py`` already injects it into every
-# reviewer prompt as "Critical Criteria to Emphasize". But the drain never
-# handed it to the report path, so the markdown renderer had nothing to
-# read. This pins that the drain now reads the same
-# ``supervisor_guidance.workflow_plan.review_phase.critical_criteria`` slice
-# into ``report_inputs``, and that an old-shaped or absent
-# ``supervisor_guidance`` degrades to an empty list rather than an error.
-
 
 def test_drain_result_carries_critical_criteria(isolated_db: str) -> None:
     """The drain hands the Supervisor's synthesized criteria to the report."""
@@ -480,19 +466,6 @@ def test_review_axes_match_the_engine_score_criteria() -> None:
 
     assert _REVIEW_AXES == _SCORE_CRITERIA
     assert [axis for axis, _ in _AXIS_SECTIONS] == list(_SCORE_CRITERIA)
-
-
-# R12-17: the drain hands the Supervisor's attributes to the report.
-#
-# The Supervisor already synthesizes ``config_synthesis.attributes`` -- up to
-# three named 1-5 rating scales, mirroring the published MASH plan's
-# ``Attributes`` section (``docs/CORPUS-EXTRACTION.md`` R12-17) -- and
-# ``drain/final_state.py`` already persists them into the
-# ``supervisor_plan`` table. But the drain never handed them to the report
-# path, so the markdown renderer had nothing to read. This pins that the
-# drain now reads the same ``supervisor_guidance.config_synthesis.attributes``
-# slice into ``report_inputs``, and that an old-shaped or absent
-# ``supervisor_guidance`` degrades to an empty list rather than an error.
 
 
 def test_drain_result_carries_stratification_attributes(

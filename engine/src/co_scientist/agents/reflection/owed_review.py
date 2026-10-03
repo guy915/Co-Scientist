@@ -1,28 +1,5 @@
-"""One forced review pass for a hypothesis the budget would drop unreviewed.
-
-``_check_review_backlog`` (``scheduling.policy_checks``) already forces a
-REFLECT whenever ``unreviewed_count > 0``, but it sits below
-``_budget_termination``. A hypothesis admitted -- by generation,
-evolution, or a scientist's own contribution -- on the same cycle that
-also exhausts the run's budget therefore has no peer review at all, and
-the next decision terminates on that same exhausted budget before review
-ever runs: it reaches the final pool and the report unreviewed
-(``docs/PARITY.md``, HITL-MANUAL-HYP-001).
-
-This module decides which unreviewed ideas get that one overriding pass
-(``scheduling.policy_checks._check_owed_review``). It selects them; it
-does not review them itself -- the actual call still goes through the
-ordinary review path (``review.review_node`` / the durable review
-fan-out), so the verdict and every downstream consumer are unchanged.
-
-**Bounded the same way ``review_recheck`` bounds a blocked idea's one
-recheck, and for the same reason:** a hypothesis whose review keeps
-failing is exactly the population that would otherwise re-arm a bare
-"unreviewed" trigger forever. Once per hypothesis for the whole run,
-marked on a checkpointed enrichment *before* the review's outcome is
-known -- so a failed attempt still spends it -- plus a run-wide ceiling
-on top, identical in shape to ``review_recheck.MAX_RECHECKS_PER_RUN``.
-"""
+"""Budget exhaustion must not leave admitted hypotheses unreviewed. Mark each
+forced attempt before execution, with per-hypothesis and run-wide bounds."""
 
 from collections.abc import Iterable
 

@@ -376,12 +376,8 @@ CREATE TABLE IF NOT EXISTS reports (
     -- full markdown (the single Goal Report document) stored in DB for
     -- durability across restarts.
     markdown_text TEXT,
-    -- Legacy from the R14-11 two-document split, reversed 2026-09-04
-    -- (docs/PARITY.md's REPORT-DOCUMENT-SPLIT-001 row). Never written by
-    -- any code path after the reversal -- kept nullable rather than
-    -- dropped because a forward migration cannot be un-run against the
-    -- production SQLite volume. A row from the split window has its
-    -- second document here; store/reports.py's read path still checks it.
+    -- Historical rows can contain a second document; forward migrations
+    -- must preserve its fallback read until the production store is reset.
     markdown_text_ranking TEXT,
     created_at REAL NOT NULL,
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE

@@ -54,31 +54,8 @@ def test_an_empty_pool_maps_to_nothing() -> None:
     assert _hypothesis_title_by_id([]) == {}
 
 
-# R12-9: candidate ideas render as a cross-idea comparison section.
-#
-# The MASH Goal Report carries two same-titled ``Comparison of Candidate
-# Ideas`` sections (``docs/CORPUS-EXTRACTION.md`` R12-9): a thematic prose
-# comparison (section 5, three subsections grouping ideas by mechanism and
-# arguing which is best supported) and a structured per-idea table (section
-# 6). The two sections are the same comparison in two forms, not a
-# duplication error.
-#
-# Our renderer folds both forms into one ``### Comparison of candidate
-# ideas`` section -- a thematic summary paragraph plus one block per idea --
-# rather than two duplicate headings, and renders each idea's columns as
-# bold-label bullets rather than a markdown table, matching every other
-# meta-review section's convention (``_render_connection``, and
-# ``report.markdown.meta_review._render_sub_theme``)
-# instead of the published table markup.
-#
-# The table's own columns follow the run's own subject matter (``axes``,
-# chosen per run) rather than a fixed vocabulary -- see
-# ``test_a_populated_comparison_renders_domain_aware_axes`` below.
-# ``test_a_populated_comparison_renders_summary_and_idea_columns`` pins the
-# older fixed-field shape a run's meta-review carried before that (still
-# accepted on read, per the renderer's own fallback).
-
-
+# Thematic prose and per-idea comparisons share a heading intentionally;
+# domain-specific axes vary with each run rather than a fixed vocabulary.
 def _meta_review_markdown(meta_review: dict[str, object]) -> str:
     """Render a minimal report carrying only the given meta-review."""
     hypothesis: dict[str, object] = {
@@ -451,9 +428,6 @@ def test_expertise_is_the_one_field_no_exemplar_supports() -> None:
     # candidate_id is unrendered provenance (anti-hallucination selection
     # against a verified candidate list), never shown to the reader.
     assert "author-1-1" not in markdown
-    # The full labelled-field set stays exactly these four; a fifth
-    # label appearing here means a new field was added without updating
-    # this pin (and the row's residual in docs/PARITY.md).
     for label in (
         "Research direction:",
         "Relevant expertise:",
@@ -499,21 +473,6 @@ def test_a_contact_with_no_research_direction_omits_the_line() -> None:
 
     assert "Research direction" not in markdown
     assert "Ada Researcher" in markdown
-
-
-# R12-9: candidate ideas render against a comparison to existing solutions.
-#
-# The MASH Goal Report's ``7 Comparison to Existing Solutions``
-# (``docs/CORPUS-EXTRACTION.md`` R12-9) frames current standard-of-care
-# practice against the run's proposed approaches. The table's columns follow
-# the run's own subject matter (``axes``, chosen per run) rather than a fixed
-# vocabulary -- see ``test_a_populated_comparison_renders_domain_aware_axes``
-# below. ``test_a_populated_comparison_renders_summary_and_row_columns`` pins
-# the older fixed-field shape a run's meta-review carried before that (still
-# accepted on read, per the renderer's own fallback). This whole section is
-# also expected to render nothing for a goal with no standard-of-care
-# landscape to compare against -- see
-# ``test_no_existing_solutions_comparison_renders_no_section``.
 
 
 def test_a_populated_comparison_renders_summary_and_row_columns() -> None:

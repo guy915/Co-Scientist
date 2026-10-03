@@ -389,15 +389,6 @@ async def test_a_cleared_hold_is_audited_as_an_allow_not_a_block(
     )
 
 
-# Tests for evidence identity/availability persistence (fidelity-audit G12).
-#
-# Covers what the drain now writes onto each evidence row beyond title/
-# abstract: canonical DOI/PMID identity, the exact stored passage a claim
-# span indexes, a retrieval timestamp distinct from the insert stamp, and an
-# ``available`` flag derived from a real (if offline-stubbed) resolution
-# rather than a bare "is the URL string non-empty" check.
-
-
 def _final_state_with_article(article: dict[str, Any]) -> dict[str, Any]:
     return {
         "hypotheses": [],

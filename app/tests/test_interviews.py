@@ -1126,15 +1126,6 @@ def test_byok_turn_is_not_marked(
     assert _flags(_interview_payload(created), "agent") == [False]
 
 
-# Lab-constraints elicitation and threading (fidelity-audit K5).
-#
-# The goal interview gains a ``lab_constraints`` structured field elicited
-# alongside the existing fields ("none" is a valid answer), persisted on the
-# interview, and threaded through run creation into the engine opts. The
-# scripted offline fallback completes without eliciting the field, and an
-# empty field leaves the engine prompts unchanged.
-
-
 _HEADERS = {"X-Client-ID": "lab-constraints-scientist"}
 
 

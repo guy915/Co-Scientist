@@ -337,14 +337,6 @@ def test_matchup_prompt_is_unchanged_before_the_cascade_runs() -> None:
 
 
 def test_matchup_prompt_frames_the_judge_as_a_panel() -> None:
-    """The published ranking-05 "panel of domain experts" framing renders.
-
-    Google's ranking-05 opens "simulating a panel of domain experts
-    engaged in a structured discussion" (docs/CORPUS-EXTRACTION.md:1210)
-    -- and that is ranking-05's opening, not ranking-04's. It belongs to
-    the multi-turn debate prompt only; a single-shot comparison renders
-    ranking-04, which names one expert evaluator.
-    """
     prompt, _, _, _ = _build_matchup_prompt(
         make_hypothesis(text="idea A"),
         make_hypothesis(text="idea B"),
