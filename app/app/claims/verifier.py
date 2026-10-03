@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from copy import deepcopy
 from typing import Any
 
@@ -42,6 +43,73 @@ from app.claims.gate import EntailmentLabel, SupportSpan
 
 logger = logging.getLogger(__name__)
 
+
+@dataclasses.dataclass(frozen=True)
+class _EntailmentRequest:
+    prompt: Callable[[], str]
+    json_schema: dict[str, Any]
+    max_tokens: int
+    prompt_name: str
+
+
+async def _call_claim_json_async(
+    model: str, request: _EntailmentRequest, *, max_attempts: int = 3
+) -> dict[str, Any]:
+    """Judge claims with shared credential, retry, and thinking policies.
+
+    Request thinking off for classification. The engine still funds mandatory
+    reasoning and escalates its token budget; three attempts leave a re-ask
+    for schema/parse failures. Opposition checks keep their two-attempt budget.
+    """
+    import app.credentials as credentials
+
+    resolved_model, api_key = credentials.byok_model_and_key(model)
+    spec = CompletionSpec(
+        model_name=resolved_model,
+        api_key=api_key,
+        max_tokens=request.max_tokens,
+        temperature=0,
+        json_schema=request.json_schema,
+    )
+    result: dict[str, Any] = await call_llm_json(
+        request.prompt(),
+        spec,
+        max_attempts=max_attempts,
+        options=LLMCallOptions(
+            prompt_name=request.prompt_name, enable_thinking=False
+        ),
+    )
+    return result
+
+
+def _call_claim_json(
+    model: str, request: _EntailmentRequest
+) -> dict[str, Any] | None:
+    """Bridge an assessor thread to the shared engine completion seam.
+
+    Provider/parse failures fall back deterministically. Call-budget exhaustion
+    must terminate the run, and platform rate limits must park its task; neither
+    may silently downgrade grounding. The bridge carries the caller's policy
+    and credential context onto its independent event loop.
+    """
+    try:
+        return run_coroutine_sync(
+            lambda: _call_claim_json_async(model, request)
+        )
+    except (LLMCallBudgetExceededError, LLMRateLimitParkError):
+        raise
+    except Exception as exc:
+        batch = request.prompt_name == "claim_verifier_batch"
+        logger.warning(
+            "LLM %s assessor failed (%s); falling back to deterministic "
+            "assessor%s",
+            "batch claim" if batch else "claim",
+            exc,
+            " for this hypothesis's claims" if batch else "",
+        )
+        return None
+
+
 _SCHEMA = obj(
     {
         "verdicts": {
@@ -77,28 +145,19 @@ _PROMPT = (
 
 
 async def _verify(model: str, pairs: list[dict[str, Any]]) -> dict[str, Any]:
-    import app.credentials as credentials
-
-    resolved_model, api_key = credentials.byok_model_and_key(model)
     # Empty backfilled arrays must fail inside the JSON retry boundary.
     schema = deepcopy(_SCHEMA)
     schema["properties"]["verdicts"]["minItems"] = len(pairs)
-    result: dict[str, Any] = await call_llm_json(
-        _PROMPT + json.dumps(pairs, ensure_ascii=False),
-        CompletionSpec(
-            model_name=resolved_model,
-            api_key=api_key,
-            max_tokens=6000,
-            temperature=0,
-            json_schema=schema,
+    return await _call_claim_json_async(
+        model,
+        _EntailmentRequest(
+            lambda: _PROMPT + json.dumps(pairs, ensure_ascii=False),
+            schema,
+            6000,
+            "claim_opposition",
         ),
         max_attempts=2,
-        options=LLMCallOptions(
-            prompt_name="claim_opposition", enable_thinking=False
-        ),
     )
-
-    return result
 
 
 def _eligible_spans(
@@ -265,46 +324,52 @@ def _apply_confirmations(
     )
 
 
+_ENTAILMENT_RULES = (
+    "A passage SUPPORTS only if it entails the claim. PARTIAL requires "
+    "evidence within the scope asserted by the claim that establishes only "
+    "part of its result, mechanism, or effect magnitude. When the stated "
+    "population, model, intervention or dose, outcome, and observation time "
+    "match, evidence establishing the claimed direction but leaving its "
+    "asserted extent unreported is PARTIAL. Unreported extent is not a "
+    "contradiction; measured extent is contradictory only when it entails "
+    "the claim's negation. An established component of a compound claim can "
+    "be PARTIAL when that component's own defining conditions match. An "
+    "untested component is not a contradicted one. Partial support is not a "
+    "substitute for testing a claim-defining condition. Evidence is "
+    "INSUFFICIENT if it substitutes or leaves untested an explicitly "
+    "required population or model, intervention or dose, outcome or "
+    "endpoint, or observation time. An adjacent mechanism, surrogate "
+    "endpoint, or different experimental context cannot supply that missing "
+    "condition. A narrower setting may provide PARTIAL support only when it "
+    "remains within the claim's stated scope; do not invent scope "
+    "restrictions absent from the claim. Mere topic overlap is INSUFFICIENT. "
+    "It CONTRADICTS only if it entails the claim's negation: the passage "
+    "must be about the same molecule, target, or population as the claim AND "
+    "must assert the opposite of what the claim asserts about it. A passage "
+    "about a different molecule, target, or population is never a "
+    "contradiction, however similar the topic -- apply the same scope rule "
+    "for INSUFFICIENT or PARTIAL. A passage that states or agrees with the "
+    "claim is not a contradiction either, even if it also discusses caveats "
+    "or other mechanisms. When in doubt between CONTRADICTS and "
+    "INSUFFICIENT, choose INSUFFICIENT. Otherwise the claim is INSUFFICIENT. "
+    "For a supports, partial, or contradicts verdict you MUST cite the exact "
+    "VERBATIM quote (copied character-for-character from the passage) that "
+    "justifies it, together with the bracketed number shown before that "
+    "passage "
+)
+
 _SYSTEM_PROMPT = (
-    "You are a strict natural-language-inference judge for scientific claims. "
-    "Given a CLAIM and numbered EVIDENCE passages, decide whether the evidence "
-    "SUPPORTS, PARTIALLY supports, CONTRADICTS, or is INSUFFICIENT for the "
-    "claim. Rules: judge only from the passages, never outside knowledge. A "
-    "passage SUPPORTS only if it entails the claim. PARTIAL requires evidence "
-    "within the scope asserted by the claim that establishes only part of "
-    "its result, mechanism, or effect magnitude. "
-    "When the stated population, model, intervention or dose, outcome, and "
-    "observation time match, evidence establishing the claimed direction "
-    "but leaving its asserted extent unreported is PARTIAL. Unreported "
-    "extent is not a contradiction; measured extent is contradictory only "
-    "when it entails the claim's negation. "
-    "An established component "
-    "of a compound claim can be PARTIAL when that component's own defining "
-    "conditions match. An untested component is not a contradicted one. "
-    "Partial support is not a substitute for "
-    "testing a claim-defining condition. Evidence is INSUFFICIENT if it "
-    "substitutes or leaves untested an explicitly required population or "
-    "model, intervention or dose, outcome or endpoint, or observation time. "
-    "An adjacent mechanism, surrogate endpoint, or different experimental "
-    "context cannot supply that missing condition. A narrower setting may "
-    "provide PARTIAL support only when it remains within the claim's stated "
-    "scope; do not invent scope restrictions absent from the claim. Mere "
-    "topic overlap is INSUFFICIENT. It CONTRADICTS only "
-    "if it entails the claim's negation: the passage must be about the same "
-    "molecule, target, or population as the claim AND must assert the "
-    "opposite of what the claim asserts about it. A passage about a different "
-    "molecule, target, or population is never a contradiction, however "
-    "similar the topic -- apply the same scope rule for INSUFFICIENT or "
-    "PARTIAL. A passage that states or agrees with the claim is "
-    "not a contradiction either, even if it also discusses caveats or other "
-    "mechanisms. When in doubt between CONTRADICTS and INSUFFICIENT, choose "
-    "INSUFFICIENT. Otherwise the claim is INSUFFICIENT. For a supports, "
-    "partial, or contradicts verdict you MUST cite the exact VERBATIM quote "
-    "(copied character-for-character from the passage) that justifies it, "
-    "together with the bracketed number shown before that passage (e.g. 3) "
-    '-- not its contents; put a partial verdict\'s quote in "supporting". '
-    "Do not paraphrase quotes. Respond with a single JSON object and "
-    "nothing else."
+    "You are a strict natural-language-inference judge for scientific "
+    "claims. Given a CLAIM and numbered EVIDENCE passages, decide whether "
+    "the evidence SUPPORTS, PARTIALLY supports, CONTRADICTS, or is "
+    "INSUFFICIENT for the claim. Rules: judge only from the passages, never "
+    "outside knowledge. "
+    + _ENTAILMENT_RULES
+    + (
+        "(e.g. 3) -- not its contents; put a partial verdict's quote in "
+        '"supporting". Do not paraphrase quotes. Respond with a single JSON '
+        "object and nothing else."
+    )
 )
 
 # A ceiling, not a reservation: the verdict JSON is short, and the generous
@@ -449,100 +514,6 @@ def _entailment_prompt(claim: str, passages: Sequence[EvidencePassage]) -> str:
     )
 
 
-async def _call_llm_entailment_async(
-    model: str, claim: str, passages: Sequence[EvidencePassage]
-) -> dict[str, Any]:
-    """Await one entailment judgement through the engine's LLM seam.
-
-    A scoped bring-your-own-key credential overrides the model and the
-    deployment credential, exactly as the direct-litellm call this
-    replaces did.
-
-    Thinking is *requested* off from the first attempt: judging a claim
-    against a handful of evidence passages is a classification task, not
-    one that benefits from a chain of thought, and a free reasoning model
-    given room to think took it -- a production run measured 21054
-    reasoning tokens against an 18000-token budget and answered nothing
-    (run b82f9162, 2026-09-06). What actually reaches the wire is the
-    engine's decision, not this flag's: the deployed free chain's models
-    reject a disabled-reasoning request outright ("Reasoning is mandatory
-    for this endpoint and cannot be disabled" -- the same run's recovered
-    finalize, every batched call failing identically on both attempts), so
-    ``co_scientist.llm.request.thinking`` sends the smallest reasoning tier the
-    gateway exposes instead of a bare disable for a model declared unable
-    to honour one, and funds that with the thinking-token floor exactly as
-    it would a normal thinking call -- see
-    ``ModelProfile.reasoning_can_disable`` and
-    ``effective_thinking_enabled``. ``max_attempts=3`` (not the historical
-    2) keeps a plain re-ask available for a schema or parse failure now
-    that no rung of the escalation ladder needs to spend an attempt
-    turning thinking off -- it already is requested off; whether the wire
-    actually goes out that way is the model's call, not this one's.
-    """
-    import app.credentials as credentials
-
-    resolved_model, api_key = credentials.byok_model_and_key(model)
-    spec = CompletionSpec(
-        model_name=resolved_model,
-        max_tokens=_MAX_TOKENS,
-        temperature=0,
-        json_schema=_ENTAILMENT_DRAFT_SCHEMA,
-        api_key=api_key,
-    )
-    result: dict[str, Any] = await call_llm_json(
-        _entailment_prompt(claim, passages),
-        spec,
-        max_attempts=3,
-        options=LLMCallOptions(
-            prompt_name="claim_verifier", enable_thinking=False
-        ),
-    )
-    return result
-
-
-def _call_llm_entailment(
-    model: str,
-    claim: str,
-    passages: Sequence[EvidencePassage],
-) -> dict[str, Any] | None:
-    """Call the LLM entailment judge and return its parsed reply, or None.
-
-    Returns None (and logs a warning) on any provider/parse failure, so the
-    caller can fall back to the deterministic assessor. Runs on whatever
-    thread the (synchronous) ``Assessor`` protocol is invoked from --
-    typically one of ``claims.grounding_assess``'s pool workers -- and
-    bridges to the engine's async ``call_llm_json`` via
-    ``run_coroutine_sync``.
-
-    A run's LLM-call budget being exhausted is not a provider failure to
-    swallow: falling back silently would hide the exact blindness the
-    engine seam exists to close (the ceiling could not see these calls
-    before this module routed through it). It is left to propagate and
-    terminate the run, like any other engine call over budget.
-
-    A platform-wide rate-limit cap is the same shape for the opposite
-    reason: falling back to the deterministic assessor here would answer
-    every claim for the rest of this task against a cap that has not
-    reset, silently downgrading a run's evidence grounding instead of
-    parking the task until the cap does reset (see
-    ``co_scientist.exceptions.LLMRateLimitParkError`` and
-    ``task_worker.outcomes._park_rate_limited_task``).
-    """
-    try:
-        return run_coroutine_sync(
-            lambda: _call_llm_entailment_async(model, claim, passages)
-        )
-    except (LLMCallBudgetExceededError, LLMRateLimitParkError):
-        raise
-    except Exception as exc:
-        logger.warning(
-            "LLM claim assessor failed (%s); falling back to "
-            "deterministic assessor",
-            exc,
-        )
-        return None
-
-
 def make_llm_assessor(model: str) -> tuple[Assessor, str]:
     """Build a synchronous LLM entailment assessor and its provenance id.
 
@@ -564,7 +535,15 @@ def make_llm_assessor(model: str) -> tuple[Assessor, str]:
                 label=EntailmentLabel.INSUFFICIENT,
                 verification_method="no_evidence",
             )
-        data = _call_llm_entailment(model, claim, passages)
+        data = _call_claim_json(
+            model,
+            _EntailmentRequest(
+                lambda: _entailment_prompt(claim, passages),
+                _ENTAILMENT_DRAFT_SCHEMA,
+                _MAX_TOKENS,
+                "claim_verifier",
+            ),
+        )
         if data is None:
             record_deterministic_fallback(model, "claim_single")
             return deterministic_assessor(claim, passages)
@@ -585,54 +564,29 @@ def make_llm_assessor(model: str) -> tuple[Assessor, str]:
 
 
 _BATCH_SYSTEM_PROMPT = (
-    "You are a strict natural-language-inference judge for scientific claims. "
-    "Given numbered EVIDENCE passages and a numbered list of CLAIMS, decide "
-    "for EACH claim whether the evidence SUPPORTS, PARTIALLY supports, "
-    "CONTRADICTS, or is INSUFFICIENT for it. Rules: judge each claim only "
-    "from the passages, never outside knowledge, and independently of every "
-    "other claim. A passage SUPPORTS only if it entails the claim. PARTIAL "
-    "requires evidence within the scope asserted by the claim that "
-    "establishes only part of its result, mechanism, or effect magnitude. "
-    "When the stated population, model, intervention or dose, outcome, and "
-    "observation time match, evidence establishing the claimed direction "
-    "but leaving its asserted extent unreported is PARTIAL. Unreported "
-    "extent is not a contradiction; measured extent is contradictory only "
-    "when it entails the claim's negation. "
-    "An established component of a compound claim can be PARTIAL when that "
-    "component's own defining conditions match. An untested component is not "
-    "a contradicted one. Partial support is not a substitute for testing a "
-    "claim-defining condition. Evidence "
-    "is INSUFFICIENT if it substitutes or leaves untested an explicitly "
-    "required population or model, intervention or dose, outcome or "
-    "endpoint, or observation time. An adjacent mechanism, surrogate "
-    "endpoint, or different experimental context cannot supply that missing "
-    "condition. A narrower setting may provide PARTIAL support only when "
-    "it remains within the claim's stated scope; do not invent scope "
-    "restrictions absent from the claim. Mere topic overlap is INSUFFICIENT. "
-    "It CONTRADICTS only if it entails the claim's negation: the passage must "
-    "be about the same molecule, target, or population as the claim AND "
-    "must assert the opposite of what the claim asserts about it. A passage "
-    "about a different molecule, target, or population is never a "
-    "contradiction, however similar the topic -- apply the same scope rule "
-    "for INSUFFICIENT or PARTIAL. A passage that states or "
-    "agrees with the claim is not a contradiction either, even if it also "
-    "discusses caveats or other mechanisms. When in doubt between "
-    "CONTRADICTS and INSUFFICIENT, choose INSUFFICIENT. Otherwise the claim "
-    "is INSUFFICIENT. For a supports, partial, or contradicts verdict you "
-    "MUST cite the exact VERBATIM quote (copied character-for-character "
-    "from the passage) that justifies it, together with the bracketed "
-    "number shown before that passage in EVIDENCE (e.g. 3) -- not its "
-    "contents, and not the claim's own number below; put a partial "
-    'verdict\'s quote in "supporting". Keep each '
-    "quote SHORT -- at most 200 characters. Use the shortest self-contained "
-    "verbatim span that justifies the verdict. Retain the explicitly named "
-    "subject (molecule, intervention, target, or population) and any "
-    "conditions needed to interpret the finding. Never cite a pronoun-only "
-    "or otherwise context-dependent fragment. If no self-contained span "
-    "fits within 200 characters, choose INSUFFICIENT. Do not paraphrase "
-    "quotes. Respond with a single JSON object holding one verdict per "
-    "claim, each carrying the claim's own number as its index -- never the "
-    "claim's text -- and nothing else."
+    "You are a strict natural-language-inference judge for scientific "
+    "claims. Given numbered EVIDENCE passages and a numbered list of CLAIMS, "
+    "decide for EACH claim whether the evidence SUPPORTS, PARTIALLY "
+    "supports, CONTRADICTS, or is INSUFFICIENT for it. Rules: judge each "
+    "claim only from the passages, never outside knowledge, and "
+    "independently of every other claim. "
+    + _ENTAILMENT_RULES
+    + (
+        "in EVIDENCE (e.g. 3) -- not its contents, and not the claim's own "
+        'number below; put a partial verdict\'s quote in "supporting". '
+        "Keep each quote SHORT -- at most 200 characters. Use the shortest "
+        "self-contained "
+        "verbatim span that justifies the verdict. Retain the explicitly named "
+        "subject (molecule, intervention, target, or population) and any "
+        "conditions needed to interpret the finding. Never cite a pronoun-only "
+        "or otherwise context-dependent fragment. If no self-contained "
+        "span fits "
+        "within 200 characters, choose INSUFFICIENT. Do not paraphrase quotes. "
+        "Respond with a single JSON object holding one verdict per claim, each "
+        "carrying the claim's own number as its index -- never the claim's "
+        "text "
+        "-- and nothing else."
+    )
 )
 
 # A ceiling, not a reservation, sized for a full batch of claims (up to
@@ -735,82 +689,6 @@ def _parse_batch_drafts(
     return drafts
 
 
-async def _call_llm_batch_entailment_async(
-    model: str, claims: Sequence[str], passages: Sequence[EvidencePassage]
-) -> dict[str, Any]:
-    """Await one batched entailment judgement through the engine's LLM seam.
-
-    Thinking is *requested* off from the first attempt: a production ultra
-    run (b82f9162, 2026-09-06) burned its whole budget on a free reasoning
-    model reasoning about a batch of ~17 claims -- 21054 reasoning tokens
-    against an 18000-token budget, then 26332 against a raised 24000 on
-    the retry -- and answered nothing either time, so every claim in the
-    batch fell back to the deterministic assessor. Judging claims against
-    evidence chunks is classification, not a task a chain of thought
-    earns its keep on. What actually reaches the wire is the engine's
-    decision, not this flag's: the deployed free chain's models reject a
-    disabled-reasoning request outright ("Reasoning is mandatory for this
-    endpoint and cannot be disabled" -- the same run's recovered finalize,
-    every batched call failing identically on both attempts), so
-    ``co_scientist.llm.request.thinking`` sends the smallest reasoning tier the
-    gateway exposes instead, funded by the same thinking-token floor a
-    normal thinking call gets -- see ``ModelProfile.reasoning_can_disable``
-    and ``effective_thinking_enabled``. ``max_attempts=3`` (not the
-    historical 2) keeps a plain re-ask available for a schema or parse
-    failure now that no rung of the escalation ladder needs to spend an
-    attempt turning thinking off -- it already is requested off; whether
-    the wire actually goes out that way is the model's call, not this
-    one's.
-    """
-    import app.credentials as credentials
-
-    resolved_model, api_key = credentials.byok_model_and_key(model)
-    spec = CompletionSpec(
-        model_name=resolved_model,
-        max_tokens=_BATCH_MAX_TOKENS,
-        temperature=0,
-        json_schema=_BATCH_DRAFT_SCHEMA,
-        api_key=api_key,
-    )
-    result: dict[str, Any] = await call_llm_json(
-        _batch_entailment_prompt(claims, passages),
-        spec,
-        max_attempts=3,
-        options=LLMCallOptions(
-            prompt_name="claim_verifier_batch", enable_thinking=False
-        ),
-    )
-    return result
-
-
-def _call_llm_batch_entailment(
-    model: str,
-    claims: Sequence[str],
-    passages: Sequence[EvidencePassage],
-) -> dict[str, Any] | None:
-    """Call the batch entailment judge and return its parsed reply, or None.
-
-    Same failure contract as ``claims.verifier._call_llm_entailment``: a
-    run's LLM-call budget being exhausted, or a platform-wide rate-limit
-    park, propagates rather than falling back (see that function's
-    docstring for why); any other provider/parse failure returns None so
-    every claim in this batch falls back to the deterministic assessor.
-    """
-    try:
-        return run_coroutine_sync(
-            lambda: _call_llm_batch_entailment_async(model, claims, passages)
-        )
-    except (LLMCallBudgetExceededError, LLMRateLimitParkError):
-        raise
-    except Exception as exc:
-        logger.warning(
-            "LLM batch claim assessor failed (%s); falling back to "
-            "deterministic assessor for this hypothesis's claims",
-            exc,
-        )
-        return None
-
-
 def make_llm_batch_assessor(
     model: str, *, call_counter: list[int] | None = None
 ) -> tuple[BatchAssessor, str]:
@@ -842,7 +720,15 @@ def make_llm_batch_assessor(
             return []
         if call_counter is not None:
             call_counter[0] += 1
-        data = _call_llm_batch_entailment(model, claims, passages)
+        data = _call_claim_json(
+            model,
+            _EntailmentRequest(
+                lambda: _batch_entailment_prompt(claims, passages),
+                _BATCH_DRAFT_SCHEMA,
+                _BATCH_MAX_TOKENS,
+                "claim_verifier_batch",
+            ),
+        )
         if data is None:
             return [None] * len(claims)
         return guard_contradictions(

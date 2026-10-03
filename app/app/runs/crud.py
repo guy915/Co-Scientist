@@ -565,6 +565,40 @@ def _persist_new_run(  # noqa: PLR0913 -- retain the route module's patch seam.
     )
 
 
+async def _generate_run_text(
+    run_id: str,
+    goal: str,
+    byok: credentials.ByokCredential | None,
+    execution_policy: str | None,
+    *,
+    restatement: bool = False,
+) -> str | None:
+    """Generate detached text under the run's policy and credential scope."""
+    run: store.RunRow | None = None
+    if execution_policy is None:
+        run = store.get_run(run_id)
+        if run is None:
+            return None
+        execution_policy = run.execution_policy
+    elif execution_policy == CAMPAIGN:
+        run = store.get_run(run_id)
+    campaign_model = (
+        campaign_model_for_config(run.config)
+        if run is not None and execution_policy == CAMPAIGN
+        else None
+    )
+    with (
+        scoped_execution_policy(
+            execution_policy, campaign_model_name=campaign_model
+        ),
+        credentials.scoped_byok(byok),
+    ):
+        generate = (
+            generate_goal_restatement if restatement else generate_run_title
+        )
+        return await generate(goal)
+
+
 async def _populate_run_title(
     run_id: str,
     goal: str,
@@ -588,26 +622,7 @@ async def _populate_run_title(
         byok: The run's credential, when it was created with one.
         execution_policy: Policy captured when the run was created.
     """
-    run: store.RunRow | None = None
-    if execution_policy is None:
-        run = store.get_run(run_id)
-        if run is None:
-            return
-        execution_policy = run.execution_policy
-    elif execution_policy == CAMPAIGN:
-        run = store.get_run(run_id)
-    campaign_model = (
-        campaign_model_for_config(run.config)
-        if run is not None and execution_policy == CAMPAIGN
-        else None
-    )
-    with (
-        scoped_execution_policy(
-            execution_policy, campaign_model_name=campaign_model
-        ),
-        credentials.scoped_byok(byok),
-    ):
-        title = await generate_run_title(goal)
+    title = await _generate_run_text(run_id, goal, byok, execution_policy)
     if title:
         store.set_run_title(run_id, title)
 
@@ -636,26 +651,9 @@ async def _populate_goal_restatement(
         byok: The run's credential, when it was created with one.
         execution_policy: Policy captured when the run was created.
     """
-    run: store.RunRow | None = None
-    if execution_policy is None:
-        run = store.get_run(run_id)
-        if run is None:
-            return
-        execution_policy = run.execution_policy
-    elif execution_policy == CAMPAIGN:
-        run = store.get_run(run_id)
-    campaign_model = (
-        campaign_model_for_config(run.config)
-        if run is not None and execution_policy == CAMPAIGN
-        else None
+    restatement = await _generate_run_text(
+        run_id, goal, byok, execution_policy, restatement=True
     )
-    with (
-        scoped_execution_policy(
-            execution_policy, campaign_model_name=campaign_model
-        ),
-        credentials.scoped_byok(byok),
-    ):
-        restatement = await generate_goal_restatement(goal)
     if restatement:
         store.set_run_goal_restatement(run_id, restatement)
 

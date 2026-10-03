@@ -37,19 +37,6 @@ from app.staged_documents import (
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 
 
-async def _extract_upload(
-    file: UploadFile,
-) -> document_ingest.ExtractedDocument:
-    """Read and extract one upload, raising 422 on an invalid document."""
-    data = await file.read(document_ingest.MAX_UPLOAD_BYTES + 1)
-    try:
-        return document_ingest.extract_document(
-            data, file.content_type or "application/octet-stream"
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-
 @router.post("")
 async def stage_document(
     request: Request,
@@ -76,7 +63,7 @@ async def stage_document(
         raise HTTPException(
             status_code=422, detail="consent is required to index a document"
         )
-    extracted = await _extract_upload(file)
+    extracted = await document_ingest.extract_upload(file)
     title = (file.filename or "Uploaded document").strip()
     document_id = store.add_staged_document(
         store.NewStagedDocument(

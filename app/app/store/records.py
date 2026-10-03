@@ -11,7 +11,7 @@ import json
 import sqlite3
 import uuid
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from typing import Any
 
 from app.citations import CitationState
@@ -105,43 +105,16 @@ def add_evidence(
         The identifier assigned to the new evidence row.
     """
     ev_id = str(uuid.uuid4())
-    with _use_conn(conn, db_path) as conn:
-        conn.execute(
-            "INSERT INTO evidence (id, run_id, title, source, url, "
-            "authors_json, year, abstract, available, retracted, source_type, "
-            "mime_type, sha256, byte_size, document_version, extraction_tool, "
-            "doi, pmid, passage_text, retrieved_at, retrieval_score, "
-            "retrieval_rationale, retriever_version, retrieval_call_id, "
-            "created_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (
-                ev_id,
-                evidence.run_id,
-                evidence.title,
-                evidence.source,
-                evidence.url,
-                json.dumps(list(evidence.authors or [])),
-                evidence.year,
-                evidence.abstract,
-                1 if evidence.available else 0,
-                1 if evidence.retracted else 0,
-                evidence.source_type or None,
-                evidence.mime_type,
-                evidence.sha256,
-                evidence.byte_size,
-                evidence.document_version,
-                evidence.extraction_tool,
-                evidence.doi,
-                evidence.pmid,
-                _evidence_passage_text(evidence),
-                evidence.retrieved_at,
-                evidence.retrieval_score,
-                evidence.retrieval_rationale,
-                evidence.retriever_version,
-                evidence.retrieval_call_id,
-                _now(),
-            ),
-        )
+    values = _record_columns(evidence, {"authors": "authors_json"})
+    values.update(
+        id=ev_id,
+        authors_json=json.dumps(list(evidence.authors or [])),
+        available=1 if evidence.available else 0,
+        retracted=1 if evidence.retracted else 0,
+        source_type=evidence.source_type or None,
+        passage_text=_evidence_passage_text(evidence),
+    )
+    _insert_record("evidence", values, db_path, conn)
     return ev_id
 
 
@@ -201,20 +174,9 @@ def add_citation(
         db_path: Optional override for the SQLite database path.
         conn: Optional open connection to reuse (e.g. from ``transaction``).
     """
-    with _use_conn(conn, db_path) as conn:
-        conn.execute(
-            "INSERT INTO citations (run_id, hypothesis_id, evidence_id, "
-            "claim, state, created_at) "
-            "VALUES (?,?,?,?,?,?)",
-            (
-                citation.run_id,
-                citation.hypothesis_id,
-                citation.evidence_id,
-                citation.claim,
-                citation.state.value,
-                _now(),
-            ),
-        )
+    values = _record_columns(citation)
+    values["state"] = citation.state.value
+    _insert_record("citations", values, db_path, conn)
 
 
 def list_citations(
@@ -266,24 +228,18 @@ def add_claim_evidence(
         db_path: Optional override for the SQLite database path.
         conn: Optional open connection to reuse (e.g. from ``transaction``).
     """
-    with _use_conn(conn, db_path) as conn:
-        conn.execute(
-            "INSERT INTO claim_evidence (run_id, hypothesis_id, claim, label, "
-            "claim_role, supporting_json, contradicting_json, assessor, "
-            "created_at, verification_method) VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (
-                edge.run_id,
-                edge.hypothesis_id,
-                edge.claim,
-                edge.label,
-                edge.claim_role,
-                json.dumps(list(edge.supporting)),
-                json.dumps(list(edge.contradicting)),
-                edge.assessor,
-                _now(),
-                edge.verification_method,
-            ),
-        )
+    values = _record_columns(
+        edge,
+        {
+            "supporting": "supporting_json",
+            "contradicting": "contradicting_json",
+        },
+    )
+    values.update(
+        supporting_json=json.dumps(list(edge.supporting)),
+        contradicting_json=json.dumps(list(edge.contradicting)),
+    )
+    _insert_record("claim_evidence", values, db_path, conn)
 
 
 def list_claim_evidence(
@@ -347,28 +303,7 @@ def add_review(
         db_path: Optional override for the SQLite database path.
         conn: Optional open connection to reuse (e.g. from ``transaction``).
     """
-    with _use_conn(conn, db_path) as conn:
-        conn.execute(
-            "INSERT INTO reviews (run_id, hypothesis_id, "
-            "reviewer_agent, summary, critique, "
-            "novelty, plausibility, testability, overall, author, verdict, "
-            "detail_json, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (
-                review.run_id,
-                review.hypothesis_id,
-                review.reviewer_agent,
-                review.summary,
-                review.critique,
-                review.novelty,
-                review.plausibility,
-                review.testability,
-                review.overall,
-                review.author,
-                review.verdict,
-                review.detail_json,
-                _now(),
-            ),
-        )
+    _insert_record("reviews", _record_columns(review), db_path, conn)
 
 
 def list_reviews(
@@ -437,29 +372,15 @@ def add_match(
         db_path: Optional override for the SQLite database path.
         conn: Optional open connection to reuse (e.g. from ``transaction``).
     """
-    with _use_conn(conn, db_path) as conn:
-        conn.execute(
-            "INSERT INTO matches (run_id, iteration, winner_id, loser_id, "
-            "winner_elo_before, winner_elo_after, loser_elo_before, "
-            "loser_elo_after, rationale, tier, debate_turns, "
-            "debate_transcript, created_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (
-                match.run_id,
-                match.iteration,
-                match.winner_id,
-                match.loser_id,
-                match.winner_before,
-                match.winner_after,
-                match.loser_before,
-                match.loser_after,
-                match.rationale,
-                match.tier,
-                match.debate_turns,
-                match.debate_transcript,
-                _now(),
-            ),
-        )
+    values = _record_columns(
+        match,
+        {
+            f"{side}_{boundary}": f"{side}_elo_{boundary}"
+            for side in ("winner", "loser")
+            for boundary in ("before", "after")
+        },
+    )
+    _insert_record("matches", values, db_path, conn)
 
 
 def list_matches(
@@ -507,26 +428,7 @@ def add_proximity_edge(
         conn: Optional open connection to reuse (e.g. from ``transaction``).
         db_path: Optional override for the SQLite database path.
     """
-    with _use_conn(conn, db_path) as active:
-        active.execute(
-            "INSERT INTO proximity_edges (run_id, source_hypothesis_id, "
-            "target_hypothesis_id, similarity, degree, cluster_id, method, "
-            "version, model, updated_at, created_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            (
-                edge.run_id,
-                edge.source_hypothesis_id,
-                edge.target_hypothesis_id,
-                edge.similarity,
-                edge.degree,
-                edge.cluster_id,
-                edge.method,
-                edge.version,
-                edge.model,
-                edge.updated_at,
-                _now(),
-            ),
-        )
+    _insert_record("proximity_edges", _record_columns(edge), db_path, conn)
 
 
 def list_proximity_edges(
@@ -574,25 +476,54 @@ def add_safety_decision(
         db_path: Optional override for the SQLite database path.
         conn: Optional open connection to reuse (e.g. from ``transaction``).
     """
-    with _use_conn(conn, db_path) as conn:
-        conn.execute(
-            "INSERT INTO safety_decisions (run_id, stage, decision, reason, "
-            "matches_json, category, policy_version, risk_domains_json, "
-            "requires_review, assessor, created_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            (
-                decision.run_id,
-                decision.stage,
-                decision.decision,
-                decision.reason,
-                json.dumps(decision.matches),
-                decision.category,
-                decision.policy_version,
-                json.dumps(decision.risk_domains or []),
-                1 if decision.requires_review else 0,
-                decision.assessor,
-                _now(),
-            ),
+    values = _record_columns(
+        decision,
+        {"matches": "matches_json", "risk_domains": "risk_domains_json"},
+    )
+    values.update(
+        matches_json=json.dumps(decision.matches),
+        risk_domains_json=json.dumps(decision.risk_domains or []),
+        requires_review=1 if decision.requires_review else 0,
+    )
+    _insert_record("safety_decisions", values, db_path, conn)
+
+
+_NewRecord = (
+    NewEvidence
+    | NewCitation
+    | NewClaimEvidence
+    | NewReview
+    | NewMatch
+    | NewProximityEdge
+    | NewSafetyDecision
+)
+
+
+def _record_columns(
+    record: _NewRecord, aliases: dict[str, str] | None = None
+) -> dict[str, Any]:
+    """Read the declared row fields without copying iterable payloads."""
+    aliases = aliases or {}
+    return {
+        aliases.get(field.name, field.name): getattr(record, field.name)
+        for field in fields(record)
+    }
+
+
+def _insert_record(
+    table: str,
+    values: dict[str, Any],
+    db_path: str | None,
+    conn: sqlite3.Connection | None,
+) -> None:
+    """Insert an internally declared row on the caller's transaction."""
+    with _use_conn(conn, db_path) as active:
+        values["created_at"] = _now()
+        columns = ", ".join(values)
+        placeholders = ",".join("?" for _ in values)
+        active.execute(
+            f"INSERT INTO {table} ({columns}) VALUES ({placeholders})",
+            tuple(values.values()),
         )
 
 

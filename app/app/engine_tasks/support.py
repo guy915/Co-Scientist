@@ -704,6 +704,8 @@ def _save_exact_checkpoint(
     envelope: dict[str, Any],
     expected_checkpoint_seq: int,
     conn: sqlite3.Connection,
+    *,
+    changed_message: str = "checkpoint changed during scientific task",
 ) -> int:
     """Commit one checkpoint for a non-node scientific task."""
     from co_scientist.checkpoint import CHECKPOINT_VERSION
@@ -711,7 +713,7 @@ def _save_exact_checkpoint(
     latest = store.get_latest_checkpoint(task.run_id, conn=conn)
     latest_seq = int(latest["seq"]) if latest else 0
     if latest_seq != expected_checkpoint_seq:
-        raise RuntimeError("checkpoint changed during scientific task")
+        raise RuntimeError(changed_message)
     return store.save_checkpoint(
         task.run_id,
         store.NewCheckpoint(

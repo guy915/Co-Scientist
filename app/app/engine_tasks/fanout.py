@@ -15,7 +15,6 @@ from app.engine_tasks.fanout_aggregates import (
     _enqueue_aggregate_task,
 )
 from app.engine_tasks.support import (
-    _CHECKPOINT_PROVIDER,
     GENERATION_AGGREGATE_TASK,
     GENERATION_STRATEGY_TASK,
     MATURE_REFLECTION_AGGREGATE_TASK,
@@ -25,6 +24,7 @@ from app.engine_tasks.support import (
     VERIFICATION_AGGREGATE_TASK,
     VERIFICATION_ITEM_TASK,
     _restore_item_checkpoint,
+    _save_exact_checkpoint,
     assert_task_commit_allowed,
 )
 from app.store import ScientificTask
@@ -211,31 +211,6 @@ def _generation_task_specs(
     ]
 
 
-def _save_generation_plan_checkpoint(
-    task: ScientificTask,
-    checkpoint_seq: int,
-    envelope: dict[str, Any],
-    conn: sqlite3.Connection,
-) -> int:
-    """Commit the generation plan checkpoint inside the caller's transaction."""
-    from co_scientist.checkpoint import CHECKPOINT_VERSION
-
-    latest = store.get_latest_checkpoint(task.run_id, conn=conn)
-    latest_seq = int(latest["seq"]) if latest else 0
-    if latest_seq != checkpoint_seq:
-        raise RuntimeError("checkpoint changed during generation planning")
-    return store.save_checkpoint(
-        task.run_id,
-        store.NewCheckpoint(
-            stage=f"engine_task:{task.id}",
-            schema_version=CHECKPOINT_VERSION,
-            last_event_seq=envelope["last_event_seq"],
-            state={"provider": _CHECKPOINT_PROVIDER, **envelope},
-        ),
-        conn=conn,
-    )
-
-
 def _enqueue_generation_strategy_tasks(
     task: ScientificTask,
     planned_seq: int,
@@ -344,8 +319,12 @@ def _commit_generation_fanout(
     """
     with store.transaction(db_path) as conn:
         assert_task_commit_allowed(task, conn)
-        planned_seq = _save_generation_plan_checkpoint(
-            task, checkpoint_seq, envelope, conn
+        planned_seq = _save_exact_checkpoint(
+            task,
+            envelope,
+            checkpoint_seq,
+            conn,
+            changed_message="checkpoint changed during generation planning",
         )
         items = _enqueue_generation_strategy_tasks(
             task,
