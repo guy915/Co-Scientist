@@ -29,7 +29,7 @@ MARKER = object()
 
 
 class _RestoredError(Exception):
-    """Raised by the restore spy so a handler stops right after restoring."""
+    pass
 
 
 class _MarkedGenerator(_Generator):

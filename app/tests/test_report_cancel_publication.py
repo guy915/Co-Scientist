@@ -28,7 +28,7 @@ _EMAIL = "scientist@example.org"
 
 
 class _WorkerProcessCrashError(RuntimeError):
-    """Test signal for a crash after report commit and before task ack."""
+    pass
 
 
 def _publication_event_counts(events: list[dict[str, Any]]) -> dict[str, int]:
