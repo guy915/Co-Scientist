@@ -521,24 +521,6 @@ def seed_licence_notices(root: pathlib.Path) -> int:
     return written
 
 
-def notified_sources() -> tuple[str, ...]:
-    """Returns the skills whose terms a seeded workspace has notified.
-
-    Exposed so the surface that actually reaches a human -- the run's
-    report -- can attribute the sources a run could have used, rather
-    than the obligation ending at a file in a directory that is deleted.
-    """
-    return tuple(
-        skill.name
-        for skill in available_skills()
-        if _TARGET.search(
-            (skill.directory / "SKILL.md").read_text(
-                encoding="utf-8", errors="ignore"
-            )
-        )
-    )
-
-
 class SkillUsage:
     """Mutable skill-name-to-invocation-count tally for one node."""
 
@@ -620,24 +602,6 @@ def skill_environment() -> dict[str, str]:
     return resolved
 
 
-def is_skill_invocation(argv: list[str]) -> bool:
-    """Reports whether an argv runs a vendored skill script.
-
-    Both halves are required, and neither is sufficient. The interpreter
-    alone would match a model-written program handed to the same
-    interpreter; a path under the skills directory alone would match a
-    command that merely reads one.
-
-    Args:
-        argv: The command as the model asked for it.
-
-    Returns:
-        True when the first element is the skills interpreter and some
-        later element resolves inside the skills directory.
-    """
-    return invoked_skill(argv) is not None
-
-
 def invoked_skill(argv: list[str]) -> str | None:
     """Names the skill an argv runs a script of, or None.
 
@@ -684,8 +648,6 @@ __all__ = [
     "available_skills",
     "catalogue_section",
     "invoked_skill",
-    "is_skill_invocation",
-    "notified_sources",
     "read_skill_document",
     "record_skill_use",
     "scoped_skill_usage",
