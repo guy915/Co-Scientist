@@ -109,14 +109,7 @@ def _render_evaluation_criteria_markdown(
 
 
 def _render_review_summary_question(question: Any) -> str:
-    """Render one reviewer question bullet, or "" when unusable.
-
-    Mirrors the published Review Summary's bolded-name-plus-question
-    format (docs/CORPUS-EXTRACTION.md, line 2929): ``{name, question}``,
-    the name bolded when present. A malformed question entry (missing
-    text, or not an object -- ``questions`` has no legacy bare-string
-    shape to fall back to, unlike the criteria themselves) renders "".
-    """
+    """Questions have no legacy bare-string shape, unlike criteria."""
     if not isinstance(question, dict):
         return ""
     name = str(question.get("name") or "").strip()
@@ -428,24 +421,11 @@ class ReportMarkdownInputs:
     # The run's persisted requirements/attributes/criteria (and goal),
     # rendered as "Research Goal Details" -- see run_modes.setup_config.
     setup: dict[str, Any] | None = None
-    # The Supervisor's synthesized 1-5 stratification attributes
-    # (config_synthesis.attributes), rendered as "Stratification
-    # Attributes". A different, LLM-synthesized field from
-    # setup["attributes"] above -- same English word, two differently-
-    # shaped published sections (docs/CORPUS-EXTRACTION.md R12-17); do not
-    # conflate them under one heading.
+    # Synthesized stratification axes differ from the scientist's setup
+    # attributes; combining them would lose their distinct meanings.
     attributes: list[dict[str, Any]] | None = None
-    # The Supervisor's synthesized per-goal evaluation criteria
-    # (workflow_plan.review_phase.critical_criteria), rendered as both
-    # "Evaluation Criteria" (bolded-name-plus-prose, R12-18/R12-23b) and
-    # "Review Summary" (numbered, with each criterion's named reviewer
-    # questions -- R12-23). A different, LLM-synthesized field from
-    # setup["criteria"] above -- same English word, differently-shaped
-    # published sections (docs/CORPUS-EXTRACTION.md R12-18, R12-23); do
-    # not conflate them under one heading. Each entry is the legacy bare
-    # criterion-name string, the R12-23 {name, questions} object, or the
-    # richer R12-23b {name, description, questions} object; both
-    # renderers in report/markdown/process.py handle every shape.
+    # Synthesized reviewer guidance differs from the scientist's setup criteria.
+    # Legacy names and richer description/question objects must remain readable.
     critical_criteria: list[Any] | None = None
     # Epoch seconds this report was built, rendered as the provenance and
     # research-purposes-only caution line. None omits that line entirely
