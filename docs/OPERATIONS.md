@@ -44,6 +44,12 @@ App-side claim assessors bypass the engine router, so they must enforce offline
 mode even when a credential is present. A past leak billed one call per claim
 group while tests appeared offline; silent provider-error fallback hid it.
 
+## Title validation
+
+JSON-object downgrades do not enforce schema length bounds, so validate titles
+again before persistence. Mechanistic titles with gene/receptor names can exceed
+100 characters; the 120-character cap accommodates that domain vocabulary.
+
 ## Gotchas
 
 Each of these was a production outage or a silent data-correctness failure. The comments in the code record the incident; do not re-litigate them from first principles.
