@@ -180,16 +180,8 @@ LITERATURE_PAPER_ANALYSIS_SCHEMA: dict[str, Any] = {
     ),
 }
 
-# Literature review semantic relevance schema (batched)
-# Imported directly by
-# evidence/relevance.py, the model-judged half
-# of the hybrid retrieval scorer (fidelity-audit G5): one call judges a
-# whole batch of candidates at once (see the module docstring in
-# relevance.py for the per-candidate-call incident this replaced), so
-# each judgment names the candidate it belongs to by the positional
-# index the prompt assigned it -- never by echoing the candidate's title
-# or abstract back, which would scale output with the batch size (the
-# structured-output pitfall AGENTS.md records).
+# Candidate indices avoid echoing abstracts, which scales structured output
+# with the batch size.
 LITERATURE_RELEVANCE_BATCH_SCHEMA: dict[str, Any] = {
     "name": "literature_relevance_batch",
     "strict": False,

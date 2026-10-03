@@ -315,7 +315,8 @@ opts = {"enable_literature_review_node": True}
 ### MCP Server Setup
 
 
-See [MCP Integration](CONFIGURATION.md) documentation.
+See [Deployment](../../docs/DEPLOYMENT.md) for MCP hosting and
+[`config/tools.yaml`](../src/co_scientist/config/tools.yaml) for tool wiring.
 
 
 ### Examples
