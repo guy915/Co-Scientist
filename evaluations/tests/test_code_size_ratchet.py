@@ -1,5 +1,3 @@
-"""Ratchets git-tracked first-party production source lines downward."""
-
 import subprocess
 from pathlib import Path
 
@@ -7,7 +5,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 # Starting count at be6105ab. Lower with each reduction; never raise.
-CODE_SIZE_CEILING = 161_285
+CODE_SIZE_CEILING = 161_283
 SOURCE_SUFFIXES = {".py", ".ts", ".tsx", ".css"}
 EXCLUDED_DIRECTORIES = {
     "vendor",
@@ -29,19 +27,34 @@ def _is_production_source(path: Path) -> bool:
     )
 
 
-def _production_line_count(repo: Path) -> int:
+def _line_counts(repo: Path) -> dict[str, int]:
     tracked = subprocess.check_output(["git", "ls-files", "-z"], cwd=repo)
-    total = 0
+    totals = dict.fromkeys(("production", "test", "doc"), 0)
     for name in tracked.decode().split("\0"):
         path = Path(name)
-        if name and _is_production_source(path):
-            with (repo / path).open("rb") as source:
-                total += sum(1 for _ in source)
-    return total
+        if (
+            not name
+            or {"vendor", "references"}.intersection(path.parts)
+            or (repo / path).is_symlink()
+        ):
+            continue
+        if path.suffix in SOURCE_SUFFIXES:
+            category = "production" if _is_production_source(path) else "test"
+        elif path.suffix == ".md" and not path.is_relative_to(
+            "engine/src/co_scientist/prompts/templates"
+        ):
+            category = "doc"
+        else:
+            continue
+        with (repo / path).open("rb") as source:
+            totals[category] += sum(1 for _ in source)
+    return totals
 
 
 def test_code_size_ratchet() -> None:
-    count = _production_line_count(REPO_ROOT)
+    totals = _line_counts(REPO_ROOT)
+    print("; ".join(f"{key}: {value:,} lines" for key, value in totals.items()))
+    count = totals["production"]
     assert count <= CODE_SIZE_CEILING, (
         f"Production code size: {count:,} lines; "
         f"ceiling: {CODE_SIZE_CEILING:,}. Remove code and lower the ceiling "
@@ -89,4 +102,23 @@ def test_counts_only_tracked_sources_and_unterminated_lines(
         cwd=tmp_path,
         check=True,
     )
-    assert _production_line_count(tmp_path) == 8
+    assert _line_counts(tmp_path) == {"production": 8, "test": 1, "doc": 0}
+
+
+def test_doc_counts_exclude_runtime_templates_vendor_and_symlinks(
+    tmp_path: Path,
+) -> None:
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    for name in (
+        "README.md",
+        "engine/src/co_scientist/tools/README.md",
+        "engine/src/co_scientist/prompts/templates/review.md",
+        "vendor/README.md",
+        "references/README.md",
+    ):
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("first\nsecond", encoding="utf-8")
+    (tmp_path / "CLAUDE.md").symlink_to("README.md")
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    assert _line_counts(tmp_path) == {"production": 0, "test": 0, "doc": 4}

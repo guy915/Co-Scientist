@@ -322,7 +322,7 @@ def _pubmed_cache_dir() -> Path:
     return cache_dir
 
 
-async def pubmed_search_with_fulltext(  # noqa: PLR0913
+async def pubmed_search_with_fulltext(
     query: str,
     slug: str,
     max_papers: int = 10,

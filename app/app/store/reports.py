@@ -103,7 +103,7 @@ def write_report_markdown(markdown_path: str, markdown: str) -> None:
         )
 
 
-def save_report(  # noqa: PLR0913
+def save_report(
     run_id: str,
     payload: dict[str, Any],
     markdown: str,

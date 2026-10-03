@@ -303,7 +303,7 @@ async def query_clinical_trials(
         return tool_error(str(exc), query_meta)
 
 
-async def run_enrichment_analysis(  # noqa: PLR0913
+async def run_enrichment_analysis(
     gene_list: list[str],
     analysis_type: str = "discrete",
     alpha: float = 0.05,
@@ -455,7 +455,7 @@ async def query_causal_subnetwork(
         return tool_error(str(exc), query_meta)
 
 
-async def query_mechanistic_statements(  # noqa: PLR0913
+async def query_mechanistic_statements(
     agent: str | None = None,
     other_agent: str | None = None,
     relation_types: list[str] | None = None,

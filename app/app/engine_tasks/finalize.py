@@ -204,7 +204,7 @@ def _restore_finalize_checkpoint(
     return checkpoint, restore_checkpoint_state(task, checkpoint, db_path)
 
 
-async def _publish_finalize_report(  # noqa: PLR0913
+async def _publish_finalize_report(
     run: store.RunRow,
     task: ScientificTask,
     drained: Any,
