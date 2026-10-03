@@ -2,7 +2,7 @@
 
 Addresses N4 (no retention/cascade policy): a run's own tables never need
 a retention rule of their own -- they cascade away with the run (see
-``app.store.runs_delete``) -- but a run row itself and a pre-run staged
+``app.store.runs``) -- but a run row itself and a pre-run staged
 document each have an unbounded lifetime today. This module gives each a
 bounded one.
 

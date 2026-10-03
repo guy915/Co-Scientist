@@ -13,7 +13,8 @@ from typing import Any
 
 import pytest
 
-from app import logs_api, logs_rate_limit, notifications
+import app.logs_api as logs_rate_limit
+from app import logs_api, notifications
 from app.config import settings
 from tests._client import make_client
 

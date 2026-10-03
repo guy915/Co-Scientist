@@ -9,7 +9,7 @@
 // headers the panel reads as empty in any deployment the browser does not
 // reach over loopback, and submitted records are stored ownerless and can
 // never be read back.
-import {clientHeaders, fetchJson, jsonRequest} from './runs_http';
+import {clientHeaders, fetchJson, jsonRequest} from './runs';
 
 /** One persisted backend log record. */
 export interface AppLogRecord {

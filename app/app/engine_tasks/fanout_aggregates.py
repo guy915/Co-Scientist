@@ -13,13 +13,14 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app import store
-from app.engine_tasks.context import TaskCommit
-from app.engine_tasks.emit import NodeCompletion, _emit_node_completion
-from app.engine_tasks.metrics import merge_usage_snapshots
 from app.engine_tasks.support import (
+    NodeCompletion,
+    TaskCommit,
+    _emit_node_completion,
     _require_item_task,
     _save_state_and_enqueue,
     leased_state,
+    merge_usage_snapshots,
 )
 from app.store import ScientificTask
 
@@ -67,13 +68,13 @@ def _apply_one_reflection_item(
     current_iteration: int,
 ) -> None:
     """Apply one completed mature-reflection item to its hypothesis."""
-    from co_scientist.agents.reflection.mature_reviews import (
-        store_mature_review_result,
-    )
     from co_scientist.agents.reflection.reflection import (
         apply_observation_result,
     )
-    from co_scientist.agents.reflection.review_types import ReviewType
+    from co_scientist.agents.reflection.review_gate import (
+        ReviewType,
+        store_mature_review_result,
+    )
 
     if mode is ReviewType.OBSERVATION:
         # The shared engine seam, so confirmed strengths reach the
@@ -89,9 +90,7 @@ def _apply_one_reflection_item(
 
 def _mark_recheck_item(by_id: dict[str, Any], item: Any) -> None:
     """Record a blocked idea's one recheck, whatever the item did."""
-    from co_scientist.agents.reflection.review_recheck import (
-        mark_recheck_issued,
-    )
+    from co_scientist.agents.reflection.review_gate import mark_recheck_issued
 
     if not item.inputs.get("recheck"):
         return
@@ -107,7 +106,7 @@ def _apply_mature_reflection_items(
     db_path: str | None,
 ) -> _AppliedItems:
     """Apply each completed mature-reflection item to its hypothesis."""
-    from co_scientist.agents.reflection.review_types import ReviewType
+    from co_scientist.agents.reflection.review_gate import ReviewType
 
     successful = 0
     failed = 0

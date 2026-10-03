@@ -1,25 +1,34 @@
-"""Tests for the pure JSON helpers in ``co_scientist.llm.structured.validate``.
+"""Offline contracts for llm."""
 
-These tests lock in the *current* behavior of the network-free helpers:
-``attempt_json_repair`` (the JSON-repair logic), ``validate_json_schema``,
-and ``get_fallback_response``. None of them touch litellm or the network, so
-the tests run deterministically with no mocking. They assert the ACTUAL
-behavior observed in the code, including a couple of quirks (an empty object
-is returned as-is; some inputs the task brief expected to be "repaired" are
-in fact not handled by this function; and an empty/whitespace input under
-major repairs crashes).
-"""
+from __future__ import annotations
 
-from typing import Any
+import asyncio
+import importlib
+import json
+import subprocess
+import sys
+from collections.abc import AsyncIterator
+from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
 from jsonschema.exceptions import ValidationError
 
-from co_scientist.llm.structured.repair import attempt_json_repair
+import co_scientist.llm as llm
+from co_scientist.llm import (
+    complete_request,
+    indexed_prompt_name,
+    scoped_telemetry,
+)
 from co_scientist.llm.structured.validate import (
+    attempt_json_repair,
     get_fallback_response,
     validate_json_schema,
 )
+from co_scientist.mcp_client import MCPToolClient
+from co_scientist.tools.provider import MCPToolProvider
+from tests._llm_fake import install_fake_backend
+from tests._mcp import make_tool_call
 
 # --- attempt_json_repair: clean parses (no repair) -------------------------
 
@@ -377,3 +386,314 @@ def test_fallback_returns_independent_copy() -> None:
     first["reviews"].append("dirty")
     second = get_fallback_response({"name": "hypothesis_batch_review"})
     assert second == {"reviews": []}
+
+
+def test_every_exported_name_resolves_to_a_defining_module() -> None:
+    """``__all__`` and the lazy table agree, and each name really loads."""
+    assert sorted(llm.__all__) == sorted(llm._EXPORTS)
+    for name, module in llm._EXPORTS.items():
+        assert module.startswith("co_scientist.llm."), name
+        defined_in = importlib.import_module(module)
+        assert getattr(llm, name) is getattr(defined_in, name), name
+
+
+def test_the_interface_keeps_litellm_as_the_patch_seam() -> None:
+    """Tests patch ``co_scientist.llm.litellm.acompletion`` by string path."""
+    import litellm
+
+    assert llm.litellm is litellm
+
+
+def test_a_name_outside_the_interface_is_an_attribute_error() -> None:
+    """Internals stay importable only from where they are defined."""
+    with pytest.raises(AttributeError, match="_call_llm_single_attempt"):
+        getattr(llm, "_call_llm_single_attempt")  # noqa: B009
+
+
+def test_importing_a_foundation_module_first_does_not_cycle() -> None:
+    """``cache`` reads ``llm`` names while ``llm`` itself imports ``cache``.
+
+    Run in a fresh interpreter because the cycle only exists on a cold
+    import: an interface that imported its entry points eagerly would find
+    ``co_scientist.cache`` half-initialised and fail here.
+    """
+    result = subprocess.run(
+        [sys.executable, "-c", "import co_scientist.cache"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+# --- indexed_prompt_name -----------------------------------------------------
+
+
+def test_indexed_prompt_name_appends_index_when_given() -> None:
+    """A given index is appended to the stem with an underscore."""
+    assert indexed_prompt_name("evolve", 3) == "evolve_3"
+
+
+def test_indexed_prompt_name_appends_zero_index() -> None:
+    """Index 0 is still appended -- the check is "is not None", not truthy."""
+    assert indexed_prompt_name("ranking_matchup", 0) == "ranking_matchup_0"
+
+
+def test_indexed_prompt_name_bare_stem_when_index_is_none() -> None:
+    """A None index yields the bare stem, with no trailing underscore."""
+    assert indexed_prompt_name("review_individual", None) == "review_individual"
+
+
+class FakeMCPClient:
+    """Minimal stand-in for ``MCPToolClient`` used by the provider.
+
+    Records the whitelist passed to ``get_tools`` and the tool calls routed to
+    ``execute_tool_call`` so tests can assert routing without a real MCP server.
+    """
+
+    def __init__(self, tools: dict[str, Any] | None = None) -> None:
+        """Initialize the fake with an optional name -> tool-object mapping."""
+        self._tools = tools or {}
+        self.get_tools_calls: list[list[str] | None] = []
+        self.executed: list[Any] = []
+
+    def get_tools(
+        self,
+        whitelist: list[str] | None = None,
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        """Return filtered (tools_dict, openai_tools) like the real client."""
+        self.get_tools_calls.append(whitelist)
+        if whitelist is None:
+            selected = dict(self._tools)
+        else:
+            selected = {
+                name: obj
+                for name, obj in self._tools.items()
+                if name in whitelist
+            }
+        openai_tools = [
+            {
+                "type": "function",
+                "function": {"name": name},
+            }
+            for name in selected
+        ]
+        return selected, openai_tools
+
+    async def execute_tool_call(self, tool_call: Any) -> dict[str, Any]:
+        """Record the call and return a sentinel MCP tool-response message."""
+        self.executed.append(tool_call)
+        return {
+            "role": "tool",
+            "name": tool_call.function.name,
+            "tool_call_id": tool_call.id,
+            "content": "mcp-result",
+        }
+
+
+class FailingMCPClient(FakeMCPClient):
+    """Fake MCP client whose executor always raises."""
+
+    async def execute_tool_call(self, tool_call: Any) -> dict[str, Any]:
+        """Raise to simulate a tool execution failure."""
+        raise RuntimeError(f"server unavailable for {tool_call.function.name}")
+
+
+def _make_provider(fake: FakeMCPClient) -> MCPToolProvider:
+    """Build a provider around a fake client typed as MCPToolClient."""
+    return MCPToolProvider(mcp_client=cast(MCPToolClient, fake))
+
+
+# --- get_tools: whitelisting ------------------------------------------------
+
+
+def test_get_tools_whitelist_filters_to_named_tool() -> None:
+    """A whitelist returns only the named tool in dict and schemas."""
+    fake = FakeMCPClient(tools={"pubmed_search": object(), "other": object()})
+    provider = _make_provider(fake)
+    tools_dict, openai_tools = provider.get_tools(
+        mcp_whitelist=["pubmed_search"]
+    )
+
+    assert set(tools_dict.keys()) == {"pubmed_search"}
+    schema_names = {t["function"]["name"] for t in openai_tools}
+    assert schema_names == {"pubmed_search"}
+
+
+def test_get_tools_no_whitelist_yields_all_tools() -> None:
+    """Omitting the whitelist (None) exposes every tool the client offers."""
+    fake = FakeMCPClient(tools={"pubmed_search": object(), "other": object()})
+    provider = _make_provider(fake)
+    tools_dict, openai_tools = provider.get_tools()
+
+    assert set(tools_dict.keys()) == {"pubmed_search", "other"}
+    schema_names = {t["function"]["name"] for t in openai_tools}
+    assert schema_names == {"pubmed_search", "other"}
+    assert fake.get_tools_calls == [None]
+
+
+def test_get_tools_empty_whitelist_adds_no_tools() -> None:
+    """An empty whitelist still calls the client but filters everything out."""
+    fake = FakeMCPClient(tools={"pubmed_search": object()})
+    provider = _make_provider(fake)
+    tools_dict, _ = provider.get_tools(mcp_whitelist=[])
+
+    assert fake.get_tools_calls == [[]]
+    assert tools_dict == {}
+
+
+def test_get_tools_whitelist_forwarded_to_client() -> None:
+    """The whitelist is forwarded verbatim to the MCP client."""
+    fake = FakeMCPClient(tools={"pubmed_search": object(), "other": object()})
+    provider = _make_provider(fake)
+    provider.get_tools(mcp_whitelist=["pubmed_search"])
+
+    assert fake.get_tools_calls == [["pubmed_search"]]
+
+
+# --- execute_tool_call ------------------------------------------------------
+
+
+async def test_execute_delegates_known_tool_to_client() -> None:
+    """A known tool call is delegated to the MCP client's executor."""
+    fake = FakeMCPClient(tools={"pubmed_search": object()})
+    provider = _make_provider(fake)
+    provider.get_tools(mcp_whitelist=["pubmed_search"])
+
+    tool_call = make_tool_call(
+        "pubmed_search", json.dumps({"query": "cancer"}), call_id="call-mcp"
+    )
+    result = await provider.execute_tool_call(tool_call)
+
+    assert fake.executed == [tool_call]
+    assert result["name"] == "pubmed_search"
+    assert result["tool_call_id"] == "call-mcp"
+    assert result["content"] == "mcp-result"
+
+
+async def test_execute_unknown_tool_returns_error_response() -> None:
+    """An unlisted tool name yields an error tool-response, not a raise."""
+    provider = _make_provider(FakeMCPClient())
+    # No get_tools call, so no tool names are tracked.
+    tool_call = make_tool_call("nope_tool", "{}", call_id="call-x")
+    result = await provider.execute_tool_call(tool_call)
+
+    assert result["role"] == "tool"
+    assert result["name"] == "nope_tool"
+    assert result["tool_call_id"] == "call-x"
+    payload = json.loads(result["content"])
+    assert payload["error"] == "unknown tool: nope_tool"
+
+
+async def test_execute_client_failure_returns_error_response() -> None:
+    """An exception from the MCP client surfaces as an error response."""
+    fake = FailingMCPClient(tools={"pubmed_search": object()})
+    provider = _make_provider(fake)
+    provider.get_tools(mcp_whitelist=["pubmed_search"])
+
+    tool_call = make_tool_call("pubmed_search", "{}")
+    result = await provider.execute_tool_call(tool_call)
+
+    payload = json.loads(result["content"])
+    assert "tool execution failed" in payload["error"]
+    assert "server unavailable" in payload["error"]
+
+
+async def test_execute_known_tool_without_client_errors() -> None:
+    """A tracked tool with no client surfaces a ConfigError response."""
+    fake = FakeMCPClient(tools={"pubmed_search": object()})
+    provider = _make_provider(fake)
+    provider.get_tools(mcp_whitelist=["pubmed_search"])
+    # Drop the client after names are tracked to force the None branch.
+    provider.mcp_client = None
+
+    tool_call = make_tool_call("pubmed_search", "{}")
+    result = await provider.execute_tool_call(tool_call)
+
+    payload = json.loads(result["content"])
+    assert "tool execution failed" in payload["error"]
+    assert "MCP client not configured" in payload["error"]
+
+
+# --- tracked_executor -------------------------------------------------------
+
+
+async def test_tracked_executor_counts_calls_per_tool() -> None:
+    """The tracked executor counts calls per tool name as it delegates."""
+    fake = FakeMCPClient(tools={"pubmed_search": object()})
+    provider = _make_provider(fake)
+    provider.get_tools(mcp_whitelist=["pubmed_search"])
+    executor, counts = provider.tracked_executor("Draft")
+
+    await executor(make_tool_call("pubmed_search", "{}"))
+    await executor(make_tool_call("pubmed_search", "{}"))
+
+    assert counts == {"pubmed_search": 2}
+    assert len(fake.executed) == 2
+
+
+async def test_usage_is_recorded_once_after_the_stream_finishes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    final = SimpleNamespace(
+        model="gpt-4o-mini",
+        choices=[],
+        usage=SimpleNamespace(prompt_tokens=10, completion_tokens=3),
+    )
+
+    async def chunks() -> AsyncIterator[Any]:
+        yield SimpleNamespace(choices=[], usage=None)
+        yield final
+
+    async def provider(**kwargs: Any) -> Any:
+        return chunks()
+
+    install_fake_backend(monkeypatch, provider)
+    with scoped_telemetry("app_stream") as telemetry:
+        response = await complete_request(
+            {"model": "gpt-4o-mini", "stream": True},
+            "gpt-4o-mini",
+            byok=False,
+            timeout_seconds=1,
+        )
+        assert telemetry.snapshot() == {}
+    assert len([chunk async for chunk in response]) == 2
+    await response.aclose()
+    usage = telemetry.snapshot()["app_stream::gpt-4o-mini"]
+    assert usage["calls"] == 1
+    assert usage["prompt_tokens"] == 10
+    assert usage["completion_tokens"] == 3
+    assert usage["reported_usage_calls"] == 1
+    assert usage["errors"] == {}
+
+
+async def test_partial_stream_close_records_unknown_usage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    closed = asyncio.Event()
+
+    async def chunks() -> AsyncIterator[Any]:
+        try:
+            yield "reasoning"
+            await asyncio.sleep(3600)
+        finally:
+            closed.set()
+
+    async def provider(**kwargs: Any) -> Any:
+        return chunks()
+
+    install_fake_backend(monkeypatch, provider)
+    with scoped_telemetry("cancelled") as telemetry:
+        response = await complete_request(
+            {"model": "gpt-4o-mini", "stream": True},
+            "gpt-4o-mini",
+            byok=False,
+            timeout_seconds=1,
+        )
+        assert await anext(response) == "reasoning"
+        await response.aclose()
+    assert closed.is_set()
+    usage = telemetry.snapshot()["cancelled::gpt-4o-mini"]
+    assert usage["calls"] == 1
+    assert usage["reported_usage_calls"] == 0
+    assert usage["errors"] == {"CancelledError": 1}

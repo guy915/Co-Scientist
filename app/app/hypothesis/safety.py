@@ -1,9 +1,4 @@
-"""Application adapter for the engine-canonical hypothesis safety policy.
-
-The engine owns the versioned classifier used before tournaments. The app uses
-the same implementation for manual admission, persistence, and publication so
-there is one policy definition rather than two regex copies that can drift.
-"""
+"""Application adapter for the engine-canonical hypothesis safety policy."""
 
 from __future__ import annotations
 
@@ -25,12 +20,107 @@ from co_scientist.safety import (
 from app.async_bridge import propagate_context
 from app.litellm_shutdown import run_in_scoped_loop
 
+logger = logging.getLogger(__name__)
+
+_STAGE = "hypothesis"
+
+_CLEARED_REASON = (
+    "matched a sensitive category term, and a contextual assessment read "
+    "the surrounding text as descriptive rather than operational"
+)
+
+
+def is_resolvable_hold(review: SafetyReview) -> bool:
+    """Return whether this verdict is a Tier B hold this module may resolve.
+
+    The single gate that keeps Tier A out. ``needs_context`` is set only
+    by ``co_scientist.safety._resolve_context_hit``, the Tier B resolver;
+    a Tier A verdict never carries it, so no combination of model output
+    can route one here.
+
+    Args:
+        review: The deterministic verdict to test.
+
+    Returns:
+        True only for an UNCERTAIN, needs-context (Tier B) verdict.
+    """
+    return bool(review.needs_context) and (
+        review.outcome == SafetyOutcome.UNCERTAIN
+    )
+
+
+def _cleared(review: SafetyReview) -> SafetyReview:
+    """Build the allow that a clean contextual assessment produces."""
+    return SafetyReview(
+        SafetyOutcome.ALLOW,
+        _CLEARED_REASON,
+        review.matches,
+        POLICY_VERSION,
+        True,
+    )
+
+
+def _raised(
+    review: SafetyReview, reason: str, matches: tuple[str, ...]
+) -> SafetyReview:
+    """Build the prohibition that an adverse contextual assessment produces."""
+    return SafetyReview(
+        SafetyOutcome.PROHIBITED,
+        reason,
+        matches or review.matches,
+        POLICY_VERSION,
+        True,
+    )
+
+
+async def resolve_hold(
+    review: SafetyReview,
+    text: str,
+    *,
+    run_id: str,
+    db_path: str | None = None,
+) -> SafetyReview:
+    """Answer a Tier B hold with a contextual assessment, in either direction.
+
+    Fails closed at every step: anything other than an affirmative,
+    successfully-parsed clean assessment returns ``review`` untouched.
+
+    Args:
+        review: The deterministic Tier B hold to resolve.
+        text: The hypothesis text the hold was computed from.
+        run_id: Run the hypothesis belongs to, for offline/approval gating.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        An ALLOW, a PROHIBITED, or ``review`` unchanged when the
+        assessment did not run or did not resolve the question.
+    """
+    if not is_resolvable_hold(review):
+        return review
+    import app.safety as app_safety
+
+    decision = await app_safety.assess_hold_contextually(
+        run_id, text, _STAGE, db_path=db_path
+    )
+    if decision is None:
+        return review
+    if decision.decision == "block":
+        return _raised(review, decision.reason, tuple(decision.matches))
+    if decision.decision == "allow":
+        logger.info(
+            "Contextual assessment cleared a held hypothesis in run %s "
+            "(category term %s).",
+            run_id,
+            ", ".join(review.matches) or "unrecorded",
+        )
+        return _cleared(review)
+    return review
+
+
 # Compatibility names retained for existing API/store callers. They are aliases
 # of the canonical engine types, not parallel policy implementations.
 HypothesisSafetyOutcome: TypeAlias = SafetyOutcome
 HypothesisSafetyReview: TypeAlias = SafetyReview
-
-logger = logging.getLogger(__name__)
 
 
 def redact_fields(fields: dict[str, str]) -> dict[str, str]:
@@ -56,7 +146,7 @@ async def escalate_review(
     certain verdict never carries that flag and is refused here, which is
     the property that keeps this from becoming the bypass an earlier
     version of the policy shipped -- see
-    ``app.hypothesis.safety_resolve``, which owns the resolution and the
+    ``app.hypothesis.safety``, which owns the resolution and the
     reasoning. Every other review passes through unchanged if called
     anyway.
 
@@ -96,7 +186,7 @@ async def escalate_review(
     """
     if not review.needs_context or review.outcome != SafetyOutcome.UNCERTAIN:
         return review
-    from app.hypothesis.safety_resolve import resolve_hold
+    pass
 
     return await resolve_hold(review, text, run_id=run_id, db_path=db_path)
 
@@ -142,7 +232,7 @@ class EscalatedVerdict:
 # verdicts ever reach here -- the common case is zero or a handful per run,
 # never the whole pool, since a clean allow and a Tier A certain block both
 # skip escalation entirely (see ``_held_for_escalation`` in
-# ``app.hypothesis.screening``).
+# ``app.hypothesis``).
 _ESCALATION_CONCURRENCY = 8
 
 
@@ -157,7 +247,7 @@ def _escalate_one_on_worker_thread(
     (AGENTS.md: "No process-global asyncio primitives"), and it closes
     litellm's logging worker with it (see ``app.litellm_shutdown``).
     Mirrors how
-    ``app.claims.grounding_assess`` drives its own LLM assessor from a
+    ``app.claims.grounding`` drives its own LLM assessor from a
     synchronous ``ThreadPoolExecutor.map`` call, for the same reason: the
     engine drain that calls this is itself synchronous.
     """

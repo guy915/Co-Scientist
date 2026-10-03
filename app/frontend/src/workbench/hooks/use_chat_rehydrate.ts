@@ -1,6 +1,11 @@
-import {useCallback, useEffect, useRef, useState} from 'react';
-import type {Interview} from '@/api/runs';
 import {
+  recoverySpecForRun,
+  type LinkedRunTarget,
+  type PendingRunCreatePayload,
+} from '../run_spec';
+import {useCallback, useEffect, useRef, useState} from 'react';
+import {
+  type Interview,
   getRun,
   getInterview,
   getRunMessages,
@@ -12,27 +17,17 @@ import {
 } from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
 import {type InferredRunSpec} from '../run_spec';
-import {type StartedSession} from '../pages/chat_timeline_started_card';
+import type {StartedSession} from '../pages/chat_timeline_run_spec_card';
 import {useChatHistoryContext} from './chat_history_context';
 import {useRunHistoryContext} from './run_history_context';
-import {applyInterview} from './chat_session_transcript';
-import {readPendingCreateIntent} from './chat_session_create_intent';
-import {type LinkedDraftRecovery} from './chat_session_types';
 import {
-  type LinkedRun,
-  type LinkedRunTarget,
-  type PendingRunCreatePayload,
-  currentLinkedRun,
-  recoverySpecForRun,
-  recoveryStatus,
-  recoverySummary,
-} from './chat_linked_run_recovery';
-import {
+  applyInterview,
   qaMessagesToEntries,
   runStartAnnouncement,
   type RehydratedAnnouncement,
 } from './chat_session_transcript';
-import {type useChatSession} from './use_chat_session';
+import {readPendingCreateIntent} from './chat_session_start_run';
+import type {LinkedDraftRecovery, useChatSession} from './use_chat_session';
 
 type ChatSession = ReturnType<typeof useChatSession>;
 
@@ -490,4 +485,74 @@ async function loadQaHistory(
     // most, so a Q&A fetch failure leaves it showing without its later
     // exchanges rather than failing the whole reopen.
   }
+}
+
+export type LinkedRun =
+  | {chatId: string; runId: string; phase: 'loading'}
+  | {chatId: string; runId: string; phase: 'error'}
+  | {
+      chatId: string;
+      runId: string;
+      phase: 'ready';
+      run: Run;
+      recoverySpec?: InferredRunSpec;
+    };
+
+export function recoveryStatus(
+  linkedRun: LinkedRun | null,
+): LinkedDraftRecovery['status'] {
+  if (!linkedRun) return undefined;
+  if (linkedRun.phase === 'loading') return 'checking';
+  if (linkedRun.phase === 'error') return 'error';
+  if (isCancelledStatus(linkedRun.run.status)) return 'cancelled';
+  return undefined;
+}
+
+function recoverySpec(
+  linkedRun: LinkedRun | null,
+): InferredRunSpec | undefined {
+  if (!linkedRun) return undefined;
+  if (linkedRun.phase !== 'ready') return undefined;
+  return isDraftStatus(linkedRun.run.status)
+    ? linkedRun.recoverySpec
+    : undefined;
+}
+
+export function recoverySummary(
+  linkedRun: LinkedRun | null,
+): Pick<LinkedDraftRecovery, 'canContinueLinkedDraft' | 'spec'> {
+  const spec = recoverySpec(linkedRun);
+  return {canContinueLinkedDraft: Boolean(spec), spec};
+}
+
+function matchesLinkedRun(
+  linkedRun: LinkedRun | null,
+  chatId: string | undefined,
+  runId: string | null,
+): linkedRun is LinkedRun {
+  return Boolean(
+    runId &&
+    linkedRun &&
+    linkedRun.chatId === chatId &&
+    linkedRun.runId === runId,
+  );
+}
+
+function isCurrentSessionRun(
+  startedSession: StartedSession | null,
+  runId: string | null,
+): boolean {
+  return startedSession?.id === runId;
+}
+
+export function currentLinkedRun(
+  chatId: string | undefined,
+  runId: string | null,
+  linkedRun: LinkedRun | null,
+  startedSession: StartedSession | null,
+): LinkedRun | null {
+  if (!runId) return null;
+  if (isCurrentSessionRun(startedSession, runId)) return null;
+  if (matchesLinkedRun(linkedRun, chatId, runId)) return linkedRun;
+  return {chatId: chatId ?? '', runId, phase: 'loading'};
 }

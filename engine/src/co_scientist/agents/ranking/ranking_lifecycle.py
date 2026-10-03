@@ -3,7 +3,7 @@
 import logging
 from typing import Any, NamedTuple
 
-from co_scientist.agents.ranking.ranking_results import (
+from co_scientist.agents.ranking.ranking_debate import (
     _build_ranking_delta,
 )
 from co_scientist.constants import (

@@ -1,7 +1,7 @@
 import {fireEvent, render, screen} from '@testing-library/react';
 import {expect, test, vi} from 'vitest';
 import {makeSpec} from '@/test_fixtures';
-import {CompletionNotification} from './chat_timeline_run_spec_notification';
+import {CompletionNotification} from './chat_timeline_run_spec_card';
 
 const statusState = vi.hoisted(() => ({
   status: {email_notifications_available: true},

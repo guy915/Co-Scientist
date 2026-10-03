@@ -1,16 +1,334 @@
-"""Tests for the MCP tool-response parser.
+"""Offline contracts for parsers."""
 
-These tests lock in the *current* behavior of the pure parsing helpers in
-``co_scientist.tools.response_parser`` - response decoding, path navigation,
-expression evaluation, transform application, and Article mapping - as a
-regression net for upcoming refactors. The parser performs no LLM or network
-calls, so the tests run deterministically with no mocking.
-"""
+from __future__ import annotations
 
+import json
+import logging
+from types import SimpleNamespace
 from typing import Any
 
+import pytest
+
 from co_scientist.config.schema import ResponseFormat, ToolConfig
+from co_scientist.exceptions import (
+    LLMBudgetExhaustedError,
+    LLMThinkingOnlyError,
+)
+from co_scientist.llm import coerce_json_list, parse_tool_loop_json
+from co_scientist.llm.request.response import (
+    TokenUsage,
+    _extract_completion_content,
+    extract_token_usage,
+)
+from co_scientist.llm.structured.validate import _try_minor_repairs
 from co_scientist.tools.response_parser import ResponseParser
+
+_JUDGEMENT = (
+    '{\n  "comparison": "Hypothesis B commits to a negative control.\n\n'
+    'better idea: 2",\n  "confidence_level": "High"\n}'
+)
+
+
+def test_a_raw_newline_inside_a_string_is_not_valid_json() -> None:
+    """The premise: this is a parse error, not a strict-mode preference.
+
+    Pinned so the fixture cannot quietly stop exercising the defect -- an
+    escaped newline would make every assertion below pass for the wrong
+    reason.
+    """
+    try:
+        json.loads(_JUDGEMENT)
+    except json.JSONDecodeError as exc:
+        assert "control character" in str(exc)
+    else:  # pragma: no cover - the fixture would no longer test anything
+        raise AssertionError("fixture is valid JSON; it tests nothing")
+
+
+def test_prose_with_a_line_break_survives_repair() -> None:
+    """The field is recovered whole, newline and all.
+
+    The newline is content the model meant to write, so it has to arrive in
+    the value rather than being stripped: this text is read back by a human
+    in a report, and by the ranking node as a verdict.
+    """
+    repaired = _try_minor_repairs(_JUDGEMENT)
+
+    assert repaired is not None
+    assert repaired["confidence_level"] == "High"
+    assert "\n\nbetter idea: 2" in repaired["comparison"]
+
+
+def test_a_tab_inside_a_string_survives_too() -> None:
+    """Newline is the common case, not the only illegal character."""
+    repaired = _try_minor_repairs('{"a": "one\ttwo"}')
+
+    assert repaired is not None
+    assert repaired["a"] == "one\ttwo"
+
+
+def test_repair_still_refuses_genuinely_broken_json() -> None:
+    """Loosening one rule must not make the ladder accept anything.
+
+    A truncated object is the failure the *major* strategies exist to
+    handle, on the final attempt only, because it means something was lost.
+    Admitting it here would spend that distinction.
+    """
+    assert _try_minor_repairs('{"a": "unterminated') is None
+
+
+# -----------------------------------------------------------------------------
+# parse_tool_loop_json -- the real, schema-less call site
+# -----------------------------------------------------------------------------
+
+
+def test_parse_tool_loop_json_single_dict_becomes_one_item(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A single draft object, not wrapped in a list, becomes one-item list.
+
+    This is the tool-based drafting phase's real final response shape when
+    a model asked for a list of one plausibly writes the single object
+    directly (see ``agents/generation/literature_tools/draft.py``, whose
+    prompt asks for a "drafts" array of objects).
+    """
+    caplog.set_level(logging.WARNING)
+    single_draft = (
+        '{"drafts": {"hypothesis": "h", "explanation": "e", '
+        '"gap_reasoning": "g", "literature_sources": "[C1]", '
+        '"experiment": "x"}}'
+    )
+
+    result = parse_tool_loop_json(single_draft, "drafts", "Draft phase")
+
+    assert result == [
+        {
+            "hypothesis": "h",
+            "explanation": "e",
+            "gap_reasoning": "g",
+            "literature_sources": "[C1]",
+            "experiment": "x",
+        }
+    ]
+    assert "Draft phase" in caplog.text
+
+
+# -----------------------------------------------------------------------------
+# coerce_json_list -- element="dict"
+# -----------------------------------------------------------------------------
+
+
+def test_coerce_json_list_passes_a_well_typed_list_through() -> None:
+    """A list of dicts already in the right shape is returned unchanged."""
+    items = [{"a": 1}, {"a": 2}]
+    assert coerce_json_list(items, element="dict", site="s") == items
+
+
+def test_coerce_json_list_wraps_a_single_dict() -> None:
+    """A bare dict, the single element wanted, becomes a one-item list."""
+    assert coerce_json_list({"a": 1}, element="dict", site="s") == [{"a": 1}]
+
+
+def test_coerce_json_list_drops_wrong_typed_elements() -> None:
+    """A list mixing dicts with a stray string drops the string."""
+    result = coerce_json_list(
+        [{"a": 1}, "not a dict", {"a": 2}], element="dict", site="s"
+    )
+    assert result == [{"a": 1}, {"a": 2}]
+
+
+def test_coerce_json_list_finds_the_list_under_a_plausible_key() -> None:
+    """A dict wrapping the list under one of the caller's known keys."""
+    value = {"items": [{"a": 1}]}
+    result = coerce_json_list(value, keys=("items",), element="dict", site="s")
+    assert result == [{"a": 1}]
+
+
+def test_coerce_json_list_none_is_empty() -> None:
+    """A missing value coerces to an empty list, not an error."""
+    assert coerce_json_list(None, element="dict", site="s") == []
+
+
+def test_coerce_json_list_scalar_that_cannot_be_a_dict_is_empty() -> None:
+    """A bare string where dict elements were wanted yields no elements."""
+    assert coerce_json_list("just a string", element="dict", site="s") == []
+
+
+# -----------------------------------------------------------------------------
+# coerce_json_list -- element="str"
+# -----------------------------------------------------------------------------
+
+
+def test_coerce_json_list_str_wraps_a_bare_string() -> None:
+    """A bare string where a list of strings was wanted is one element."""
+    assert coerce_json_list("single query", element="str", site="s") == [
+        "single query"
+    ]
+
+
+def test_coerce_json_list_str_blank_string_is_empty() -> None:
+    """A blank string is dropped, not kept as an empty element."""
+    assert coerce_json_list("   ", element="str", site="s") == []
+
+
+def test_coerce_json_list_str_strips_and_drops_blank_elements() -> None:
+    """String elements are stripped; blank ones are dropped."""
+    result = coerce_json_list([" a ", "", "b"], element="str", site="s")
+    assert result == ["a", "b"]
+
+
+# -----------------------------------------------------------------------------
+# Coercion warning
+# -----------------------------------------------------------------------------
+
+
+def test_coerce_json_list_warns_with_the_site_when_coerced(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A shape that needed coercion logs a warning naming the call site."""
+    caplog.set_level(logging.WARNING)
+    coerce_json_list({"a": 1}, element="dict", site="draft phase")
+    assert "draft phase" in caplog.text
+
+
+def test_coerce_json_list_no_warning_for_an_already_valid_list(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A list already in the right shape needs no warning."""
+    caplog.set_level(logging.WARNING)
+    coerce_json_list([{"a": 1}], element="dict", site="draft phase")
+    assert caplog.text == ""
+
+
+def test_coerce_json_list_no_warning_for_a_genuinely_empty_list(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """None (a genuinely absent value) needs no warning either."""
+    caplog.set_level(logging.WARNING)
+    coerce_json_list(None, element="dict", site="draft phase")
+    assert caplog.text == ""
+
+
+# -----------------------------------------------------------------------------
+# Overload contract -- runtime evidence for what the type overloads promise
+# -----------------------------------------------------------------------------
+
+
+def test_coerce_json_list_str_element_returns_only_str_instances() -> None:
+    """element="str" really yields str instances, not the mixed input types.
+
+    The three @overload stubs on coerce_json_list promise list[str] for
+    element="str" and list[dict[str, Any]] for element="dict"; mypy checks
+    the promise against the declared return types, not against what the
+    function actually does at runtime. This pins the runtime side: a
+    mixed-type input still comes back as nothing but the promised type.
+    """
+    result = coerce_json_list(
+        ["a query", 42, None, {"nested": "dict"}, "another query"],
+        element="str",
+        site="s",
+    )
+    assert result == ["a query", "another query"]
+    assert all(isinstance(item, str) for item in result)
+
+
+def test_coerce_json_list_dict_element_returns_only_dict_instances() -> None:
+    """element="dict" really yields dict instances, not mixed input types."""
+    result = coerce_json_list(
+        [{"a": 1}, "a string", 42, None, {"b": 2}],
+        element="dict",
+        site="s",
+    )
+    assert result == [{"a": 1}, {"b": 2}]
+    assert all(isinstance(item, dict) for item in result)
+
+
+def test_extract_token_usage_reads_all_fields() -> None:
+    """Reads prompt, completion, and reasoning tokens off a full response."""
+    response = SimpleNamespace(
+        usage=SimpleNamespace(
+            prompt_tokens=120,
+            completion_tokens=45,
+            completion_tokens_details=SimpleNamespace(reasoning_tokens=30),
+        )
+    )
+    assert extract_token_usage(response) == TokenUsage(120, 45, 30)
+
+
+def test_extract_token_usage_defaults_missing_usage_to_zero() -> None:
+    """A response with no ``usage`` attribute at all reads as all-zero.
+
+    This is exactly the offline backend's response shape (see
+    ``offline.llm._build_response``), so telemetry never raises on it.
+    """
+    response = SimpleNamespace(choices=[])
+    assert extract_token_usage(response) == TokenUsage(0, 0, 0)
+
+
+def test_extract_token_usage_defaults_missing_reasoning_to_zero() -> None:
+    """A provider that omits reasoning tokens reads as zero, not None."""
+    response = SimpleNamespace(
+        usage=SimpleNamespace(prompt_tokens=10, completion_tokens=5)
+    )
+    assert extract_token_usage(response) == TokenUsage(10, 5, 0)
+
+
+# --- classifying an empty completion (_extract_completion_content) ---------
+
+
+def _empty_response(
+    finish_reason: str | None, reasoning_tokens: int
+) -> SimpleNamespace:
+    """A response with no content, at a given finish reason/reasoning spend."""
+    message = SimpleNamespace(content=None)
+    choice = SimpleNamespace(message=message, finish_reason=finish_reason)
+    usage = SimpleNamespace(
+        prompt_tokens=100,
+        completion_tokens=reasoning_tokens,
+        completion_tokens_details=SimpleNamespace(
+            reasoning_tokens=reasoning_tokens
+        ),
+    )
+    return SimpleNamespace(choices=[choice], usage=usage)
+
+
+def test_finish_reason_error_is_a_plain_retryable_failure() -> None:
+    """A mid-stream provider error is not a thinking-only response.
+
+    OpenRouter reports an upstream failure mid-stream as
+    ``finish_reason="error"``, which production hit repeatedly (reasoning
+    tokens spent, no answer). The model did not choose to stop -- the
+    provider errored -- so this must not disable thinking for every later
+    attempt; it is answered by a plain retry instead.
+    """
+    response = _empty_response("error", reasoning_tokens=519)
+
+    with pytest.raises(ValueError) as caught:
+        _extract_completion_content(response, "openrouter/z-ai/glm-5.3-flash")
+
+    assert type(caught.value) is ValueError
+    assert "error" in str(caught.value).lower()
+
+
+def test_finish_reason_stop_with_reasoning_still_classifies_thinking_only() -> (
+    None
+):
+    """The genuine case is untouched: a normal stop with no answer.
+
+    Pins that narrowing the classification to exclude provider errors did
+    not also narrow out the case it exists for.
+    """
+    response = _empty_response("stop", reasoning_tokens=1149)
+
+    with pytest.raises(LLMThinkingOnlyError):
+        _extract_completion_content(response, "openrouter/z-ai/glm-5.3-flash")
+
+
+def test_finish_reason_length_still_classifies_budget_exhausted() -> None:
+    """``finish_reason="length"`` is checked, and wins, before "error" is."""
+    response = _empty_response("length", reasoning_tokens=18000)
+
+    with pytest.raises(LLMBudgetExhaustedError):
+        _extract_completion_content(response, "openrouter/z-ai/glm-5.3-flash")
 
 
 def _parser(

@@ -14,26 +14,30 @@ from collections.abc import Awaitable, Callable
 from typing import Any, cast
 
 from co_scientist.cache import LLMCacheRequest
-from co_scientist.llm.admission.credentials import scoped_api_key
-from co_scientist.llm.attempts.contract import (
-    Attempt,
-    AttemptPlan,
-    Judge,
-    Rejected,
-)
+from co_scientist.llm.admission.free_policy import scoped_api_key
 from co_scientist.llm.attempts.escalation import (
     BudgetEscalation,
     _JsonCallSpec,
     escalated_max_tokens,
     escalated_spec,
 )
-from co_scientist.llm.attempts.json_attempt import JsonJudge
-from co_scientist.llm.attempts.retry import run_attempts
-from co_scientist.llm.attempts.single import _call_llm_single_attempt
+from co_scientist.llm.attempts.json_attempt import (
+    JsonJudge,
+    _call_llm_single_attempt,
+)
+from co_scientist.llm.attempts.retry import (
+    Attempt,
+    AttemptPlan,
+    Judge,
+    Rejected,
+    run_attempts,
+)
 from co_scientist.llm.precall import _prepare_llm_call
-from co_scientist.llm.request.gateway_body import scoped_minimal_reasoning
-from co_scientist.llm.structured.errors import _handle_json_retries_exhausted
-from co_scientist.llm.structured.repair import extract_response_json
+from co_scientist.llm.request.thinking import scoped_minimal_reasoning
+from co_scientist.llm.structured.validate import (
+    _handle_json_retries_exhausted,
+    extract_response_json,
+)
 from co_scientist.llm.values import CompletionSpec, LLMCallOptions
 
 logger = logging.getLogger(__name__)

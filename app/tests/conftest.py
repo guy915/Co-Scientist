@@ -73,7 +73,7 @@ def _offline_router() -> None:
 @pytest.fixture(autouse=True)
 def _free_catalog(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     """Synthetic metadata keeps mocked free-model requests hermetic."""
-    from co_scientist.constants.pricing import MODEL_PRICING
+    from co_scientist.constants import MODEL_PRICING
     from co_scientist.llm.admission import free_policy as free_catalog
 
     catalog = {

@@ -17,8 +17,7 @@ from typing import Any
 import pytest
 
 from app.claims import EntailmentLabel, EvidencePassage, assess_claims_batch
-from app.claims.verifier import make_llm_assessor
-from app.claims.verifier_batch import make_llm_batch_assessor
+from app.claims.verifier import make_llm_assessor, make_llm_batch_assessor
 
 from ._llm_fake_backend import install_completion_backend
 
@@ -480,7 +479,7 @@ def test_batch_out_of_range_passage_number_is_dropped_and_logged(
     batch_assessor, assessor_id = make_llm_batch_assessor(
         "deepseek/deepseek-chat"
     )
-    with caplog.at_level(logging.WARNING, logger="app.claims.span"):
+    with caplog.at_level(logging.WARNING, logger="app.claims"):
         results = assess_claims_batch(
             ["Kinase X inhibition reduces tumor growth."],
             [_PASSAGE],

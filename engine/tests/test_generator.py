@@ -1,13 +1,13 @@
-"""Tests for the HypothesisGenerator public entry point.
+"""Offline contracts for generator."""
 
-These cover the parts that are deterministic without a full LLM run:
-constructor configuration and env side effects, LangGraph compilation
-(node sets for the literature-review and simplified flows), and the
-``prepare_task_state`` helper that builds the initial ``WorkflowState``.
-The two MCP-availability probes are stubbed so the helper runs offline.
-"""
+from __future__ import annotations
+
+import inspect
+from collections.abc import AsyncIterator, Sequence
+from typing import Any, cast
 
 import pytest
+from langgraph.graph import StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
 from co_scientist.constants import (
@@ -15,10 +15,18 @@ from co_scientist.constants import (
     DEFAULT_INITIAL_HYPOTHESES_COUNT,
     DEFAULT_MAX_ITERATIONS,
 )
-from co_scientist.generator import (
-    GeneratorOptions,
-    HypothesisGenerator,
+from co_scientist.generator import GeneratorOptions, HypothesisGenerator
+from co_scientist.generator.graph import (
+    _add_workflow_edges,
+    _add_workflow_nodes,
+    _resume_router,
 )
+from co_scientist.models import ExecutionMetrics
+from co_scientist.scheduling import ALLOWED_LOOP_TASKS, TaskType
+from co_scientist.state import WorkflowState
+from co_scientist.workflow_topology import TASK_ROUTES, route_next_task
+from tests._mcp import stub_mcp_availability
+from tests._state import make_hypothesis, make_state
 
 # Node set the graph compiles with literature review enabled. ``__start__`` is
 # LangGraph's implicit entry node; ``END`` does not appear as a node key.
@@ -290,3 +298,378 @@ def test_graph_includes_research_overview_node_and_terminates_through_it() -> (
     gen = HypothesisGenerator(model_name="test/model")
     graph = gen._build_graph(enable_literature_review_node=False)
     assert "research_overview" in graph.nodes
+
+
+_NO_LIT_REVIEW: dict[str, Any] = {"enable_literature_review_node": False}
+
+
+class _FakeCompiledGraph:
+    """Stub compiled workflow graph for exercising the generator's run paths.
+
+    Supports both ``ainvoke`` (non-streaming) and ``astream`` (streaming)
+    with canned responses, plus optional errors to exercise the generator's
+    exception-propagation branches.
+    """
+
+    def __init__(
+        self,
+        *,
+        final_state: WorkflowState | None = None,
+        invoke_error: Exception | None = None,
+        chunks: Sequence[dict[str, dict[str, Any]]] = (),
+        stream_error: Exception | None = None,
+    ) -> None:
+        """Configures the stub's canned ``ainvoke``/``astream`` behavior.
+
+        Args:
+            final_state: The state ``ainvoke`` returns, when not erroring.
+            invoke_error: If set, ``ainvoke`` raises this instead of
+                returning ``final_state``.
+            chunks: The sequence of ``{node_name: node_state}`` dicts that
+                ``astream`` yields, in order.
+            stream_error: If set, raised after all ``chunks`` are yielded.
+        """
+        self._final_state = final_state
+        self._invoke_error = invoke_error
+        self._chunks = chunks
+        self._stream_error = stream_error
+
+    async def ainvoke(
+        self, state: WorkflowState, config: dict[str, int]
+    ) -> WorkflowState:
+        """Returns the configured final state, or raises ``invoke_error``."""
+        if self._invoke_error is not None:
+            raise self._invoke_error
+        assert self._final_state is not None
+        return self._final_state
+
+    async def astream(
+        self, state: WorkflowState, config: dict[str, int]
+    ) -> AsyncIterator[dict[str, dict[str, Any]]]:
+        """Yields the configured chunks, then raises ``stream_error`` if set."""
+        for chunk in self._chunks:
+            yield chunk
+        if self._stream_error is not None:
+            raise self._stream_error
+
+
+def _install_fake_graph(
+    gen: HypothesisGenerator, graph: _FakeCompiledGraph
+) -> None:
+    """Pre-installs a fake compiled graph so ``_ensure_graph_built`` no-ops.
+
+    Args:
+        gen: The generator under test.
+        graph: The fake graph to install in place of a real compiled one.
+    """
+    gen._graph = cast(Any, graph)
+
+
+# --- generate_hypotheses(stream=False) --------------------------------------
+
+
+async def test_stream_false_returns_coroutine_that_resolves_to_result() -> None:
+    """stream=False returns an awaitable resolving to the shaped result."""
+    gen = HypothesisGenerator()
+    final_state = make_state(
+        hypotheses=[make_hypothesis("Final hypothesis")],
+        metrics=ExecutionMetrics(hypothesis_count=1, llm_calls=3),
+        meta_review={"summary": "done"},
+    )
+    _install_fake_graph(gen, _FakeCompiledGraph(final_state=final_state))
+
+    coro = gen.generate_hypotheses("goal", opts=_NO_LIT_REVIEW, stream=False)
+    assert inspect.iscoroutine(coro)
+
+    result = await coro
+    assert len(result["hypotheses"]) == 1
+    assert result["hypotheses"][0]["text"] == "Final hypothesis"
+    assert result["meta_review"] == {"summary": "done"}
+    assert result["metrics"]["llm_calls"] == 3
+    assert result["execution_time"] >= 0.0
+
+
+async def test_non_streaming_propagates_graph_errors() -> None:
+    """A graph.ainvoke failure propagates unchanged to the caller."""
+    gen = HypothesisGenerator()
+    boom = RuntimeError("ainvoke exploded")
+    _install_fake_graph(gen, _FakeCompiledGraph(invoke_error=boom))
+
+    with pytest.raises(RuntimeError, match="ainvoke exploded"):
+        await gen.generate_hypotheses("goal", opts=_NO_LIT_REVIEW, stream=False)
+
+
+# --- generate_hypotheses(stream=True) ---------------------------------------
+
+
+async def test_stream_true_returns_async_iterator_yielding_each_node() -> None:
+    """stream=True returns an async iterator of (node_name, state) tuples."""
+    gen = HypothesisGenerator()
+    chunks: list[dict[str, dict[str, Any]]] = [
+        {"supervisor": {"supervisor_guidance": {"plan": "p1"}}},
+        {
+            "generate": {
+                "hypotheses": [make_hypothesis("streamed h")],
+                "metrics": ExecutionMetrics(llm_calls=1),
+            }
+        },
+    ]
+    _install_fake_graph(gen, _FakeCompiledGraph(chunks=chunks))
+
+    result = gen.generate_hypotheses("goal", opts=_NO_LIT_REVIEW, stream=True)
+    assert not inspect.iscoroutine(result)
+    assert hasattr(result, "__anext__")
+
+    seen: list[tuple[str, dict[str, Any]]] = []
+    async for node_name, state_dict in result:
+        seen.append((node_name, state_dict))
+
+    assert [name for name, _ in seen] == ["supervisor", "generate"]
+    # After the second chunk, cumulative state reflects both updates.
+    _, final_payload = seen[-1]
+    assert final_payload["research_plan"] == {"plan": "p1"}
+    assert final_payload["hypotheses"][0]["text"] == "streamed h"
+    assert final_payload["metrics"]["llm_calls"] == 1
+
+
+async def test_streaming_propagates_errors_raised_mid_stream() -> None:
+    """A graph.astream failure after some chunks still propagates."""
+    gen = HypothesisGenerator()
+    boom = RuntimeError("astream exploded")
+    chunks: list[dict[str, dict[str, Any]]] = [
+        {"supervisor": {"supervisor_guidance": {"plan": "p1"}}}
+    ]
+    _install_fake_graph(
+        gen, _FakeCompiledGraph(chunks=chunks, stream_error=boom)
+    )
+
+    seen: list[tuple[str, dict[str, Any]]] = []
+    with pytest.raises(RuntimeError, match="astream exploded"):
+        async for node_name, state_dict in gen.generate_hypotheses(
+            "goal", opts=_NO_LIT_REVIEW, stream=True
+        ):
+            seen.append((node_name, state_dict))
+
+    assert len(seen) == 1
+
+
+def _inbound_edges(
+    enable_literature_review_node: bool,
+) -> dict[str, set[tuple[str, bool]]]:
+    """Map each node to its inbound ``(source, conditional)`` edges.
+
+    Compiles the real workflow topology for the given flow shape and reads
+    the edge set back, so the assertions below pin the graph as wired rather
+    than the routing functions in isolation.
+    """
+    workflow = StateGraph(WorkflowState)
+    _add_workflow_nodes(workflow, enable_literature_review_node)
+    _add_workflow_edges(workflow, enable_literature_review_node)
+    graph = workflow.compile().get_graph()
+    inbound: dict[str, set[tuple[str, bool]]] = {}
+    for edge in graph.edges:
+        inbound.setdefault(edge.target, set()).add(
+            (edge.source, edge.conditional)
+        )
+    return inbound
+
+
+def test_task_routes_reconcile_with_allowed_loop_tasks() -> None:
+    """The routing table and the scheduler's dispatchable set stay in sync.
+
+    ``scheduling.policy.ALLOWED_LOOP_TASKS`` and
+    ``workflow_topology.TASK_ROUTES`` each carry a "keep in sync" comment
+    pointing at the other; this pins the invariant programmatically: the
+    routing table's keys are exactly the task values the scheduler may
+    dispatch at the loop point.
+    """
+    assert {task.value for task in ALLOWED_LOOP_TASKS} == set(TASK_ROUTES)
+
+
+def test_routes_each_task_type_to_its_node() -> None:
+    """Every task the orchestrator can emit maps to a real entry node."""
+    for task in ALLOWED_LOOP_TASKS:
+        state = make_state(next_task=task.value)
+        assert route_next_task(state) == TASK_ROUTES[task.value]
+
+
+def test_evolve_routes_through_meta_review() -> None:
+    """EVOLVE enters at meta_review so the critique feeds evolve."""
+    state = make_state(next_task=TaskType.EVOLVE.value)
+    assert route_next_task(state) == "meta_review"
+
+
+def test_terminate_routes_to_research_overview() -> None:
+    """TERMINATE routes to the terminal synthesis node."""
+    state = make_state(next_task=TaskType.TERMINATE.value)
+    assert route_next_task(state) == "research_overview"
+
+
+def test_missing_next_task_falls_back_to_synthesis() -> None:
+    """A missing decision never dead-ends; it routes to synthesis."""
+    state = make_state(next_task=None)
+    assert route_next_task(state) == "research_overview"
+
+
+def test_unknown_next_task_falls_back_to_synthesis() -> None:
+    """An unrecognized next_task value routes to synthesis, not a crash."""
+    state = make_state(next_task="bogus")
+    assert route_next_task(state) == "research_overview"
+
+
+# --- SUP-SPLIT-001: plan synthesized once at entry, decisions every cycle ---
+# The published supervisor listing (corpus MA-4, `01-supervisor.md`) parses the
+# goal into a ResearchPlan and SAVEs it exactly once, before the main WHILE
+# loop; neither ManageFollowUpTasks nor DecideNextSteps ever revisits it.
+# DecideNextSteps is the per-idle-pass decision point (run a tournament batch,
+# evolve if stalled, periodic meta-review/overview) against that fixed plan.
+# Our topology mirrors that pair: `supervisor` is the entry-only planner and
+# `orchestrator` is the loop point. These tests pin that behaviour so the row
+# stays honest.
+
+
+@pytest.mark.parametrize("enable_literature_review_node", [True, False])
+def test_supervisor_plan_is_synthesized_once_never_revisited(
+    enable_literature_review_node: bool,
+) -> None:
+    """The supervisor is reachable only at entry, so its plan is built once.
+
+    Its sole inbound edge is the entry conditional from START; no node loops
+    back to it, so the plan it synthesizes is never re-synthesized mid-run --
+    matching `StartCoScientist`, which parses the plan before the main loop.
+    """
+    inbound = _inbound_edges(enable_literature_review_node)
+    assert inbound["supervisor"] == {("__start__", True)}
+
+
+@pytest.mark.parametrize("enable_literature_review_node", [True, False])
+def test_orchestrator_is_the_per_cycle_loop_point(
+    enable_literature_review_node: bool,
+) -> None:
+    """The orchestrator is re-entered every cycle to decide the next step.
+
+    It is fed by the ranking and proximity nodes each pass (and by START on a
+    resumed run), which is the `DecideNextSteps` decision point -- run against
+    the fixed plan, never re-planning it.
+    """
+    inbound_sources = {
+        source
+        for source, _ in _inbound_edges(enable_literature_review_node)[
+            "orchestrator"
+        ]
+    }
+    assert {"__start__", "ranking", "proximity"} <= inbound_sources
+
+
+def test_fresh_run_enters_supervisor_resume_bypasses_it() -> None:
+    """A fresh run plans; a resumed run re-enters at the orchestrator.
+
+    On resume the plan is restored from the checkpoint rather than rebuilt,
+    so the entry router routes around the supervisor entirely -- the plan
+    survives a checkpoint without a second synthesis.
+    """
+    assert _resume_router(make_state()) == "supervisor"
+    assert _resume_router(make_state(resume=True)) == "orchestrator"
+
+
+def _nodes(generator: HypothesisGenerator) -> set[str]:
+    """Return the node names of the generator's currently compiled graph."""
+    assert generator._graph is not None
+    return set(generator._graph.nodes)
+
+
+async def test_disabling_literature_review_rebuilds_the_graph(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Turning the node off must drop it, not reuse the first topology."""
+    stub_mcp_availability(monkeypatch, available=True)
+    generator = HypothesisGenerator()
+
+    await generator.prepare_task_state("goal one")
+    assert "literature_review" in _nodes(generator)
+
+    await generator.prepare_task_state(
+        "goal two", opts={"enable_literature_review_node": False}
+    )
+    assert "literature_review" not in _nodes(generator)
+    assert "reflection" not in _nodes(generator)
+
+
+async def test_enabling_literature_review_rebuilds_the_graph(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Turning the node on must add it back to the executed graph."""
+    stub_mcp_availability(monkeypatch, available=True)
+    generator = HypothesisGenerator()
+
+    await generator.prepare_task_state(
+        "goal one", opts={"enable_literature_review_node": False}
+    )
+    assert "literature_review" not in _nodes(generator)
+
+    await generator.prepare_task_state("goal two")
+    assert "literature_review" in _nodes(generator)
+
+
+async def test_unchanged_configuration_keeps_the_compiled_graph(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Compilation is not free, so an unchanged setting must not recompile."""
+    stub_mcp_availability(monkeypatch, available=True)
+    generator = HypothesisGenerator()
+
+    await generator.prepare_task_state("goal one")
+    first = generator._graph
+    await generator.prepare_task_state("goal two")
+    assert generator._graph is first
+
+
+async def test_availability_is_probed_once_per_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The probe is cached, but a registry change invalidates that cache.
+
+    The cached answer decides the graph shape, so it may not outlive the
+    tool configuration it was measured against.
+    """
+    probes: list[Any] = []
+
+    async def _probe(**kwargs: Any) -> bool:
+        probes.append(kwargs.get("tool_registry"))
+        return True
+
+    from co_scientist import mcp_client
+
+    monkeypatch.setattr(mcp_client, "check_mcp_available", _probe)
+    monkeypatch.setattr(mcp_client, "check_literature_source_available", _probe)
+
+    generator = HypothesisGenerator()
+    await generator.prepare_task_state("goal one")
+    await generator.prepare_task_state("goal two")
+    assert len(probes) == 2, "one concurrent probe pair, cached afterward"
+
+    generator.reload_tool_registry(tools_config=None, disable_tools=["pubmed"])
+    await generator.prepare_task_state("goal three")
+    assert len(probes) == 4, "a registry change must re-probe"
+
+
+async def test_reloading_the_registry_invalidates_the_graph(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A reloaded registry reaches the state every node reads it from."""
+    stub_mcp_availability(monkeypatch, available=True)
+    generator = HypothesisGenerator()
+    state = await generator.prepare_task_state("goal one")
+    first_registry = state["tool_registry"]
+
+    generator.reload_tool_registry(tools_config=None, disable_tools=["pubmed"])
+    state = await generator.prepare_task_state("goal two")
+
+    reloaded = generator._tool_registry
+    assert reloaded is not None
+    # Read the reloaded registry before the identity checks below: comparing
+    # it with `is` against an untyped state value re-widens it to optional
+    # under mypy 2.x, and the read then reads as a possible None.
+    assert "pubmed" not in reloaded.get_enabled_tools()
+    assert state["tool_registry"] is not first_registry
+    assert state["tool_registry"] is reloaded

@@ -18,7 +18,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.interviews import model as interviews_model
-from app.interviews.wire import CLOSE_MARKER, OPEN_MARKER
+from app.interviews.model import CLOSE_MARKER, OPEN_MARKER
 
 
 @dataclasses.dataclass(frozen=True)

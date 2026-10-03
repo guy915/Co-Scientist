@@ -131,8 +131,7 @@ remain explicit opt-in operations.
 | `docs/` | [Documentation index](docs/README.md), architecture, operations, and launch guidance |
 | `.github/` | CI, nightly checks, dependency updates, and review template |
 | `vendor/` | Unmodified third-party science skills; provenance in [NOTICE](NOTICE) |
-| `references/` | External-source assessments and retained evaluation evidence |
-| `PLAN.md` | Completed external-reference campaign record, retained for evidence links |
+| `PLAN.md` | Completed external-source campaign conclusions and immutable evidence links |
 
 Start with [architecture](docs/ARCHITECTURE.md),
 [the product walkthrough](docs/EXPLAINER.md), and

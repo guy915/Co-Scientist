@@ -93,8 +93,10 @@ def _blocked(text: str, *, permissive_assessor: bool) -> bool:
     arm cannot clear anything the shipped code would refuse to put to an
     assessor; only the assessor's answer is assumed.
     """
-    from app.hypothesis.safety import review_hypothesis_safety
-    from app.hypothesis.safety_resolve import is_resolvable_hold
+    from app.hypothesis.safety import (
+        is_resolvable_hold,
+        review_hypothesis_safety,
+    )
 
     review = review_hypothesis_safety(text)
     if permissive_assessor and is_resolvable_hold(review):

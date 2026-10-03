@@ -1,7 +1,7 @@
 import {act, fireEvent, screen, waitFor} from '@testing-library/react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import {COPY_LIMIT} from './layout_diagnostics_data';
-import {EXPORT_LOGS_MARKER} from './layout_diagnostics_export';
+import {EXPORT_LOGS_MARKER} from './layout_diagnostics_data';
 import {
   installLayoutMocks,
   logsApiMock,

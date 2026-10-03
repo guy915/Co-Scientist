@@ -17,8 +17,12 @@ from typing import Any
 
 import pytest
 
-from app.claims import EntailmentLabel, EvidencePassage, assess_claim
-from app.claims.span import _locate_all
+from app.claims import (
+    EntailmentLabel,
+    EvidencePassage,
+    _locate_all,
+    assess_claim,
+)
 from app.claims.verifier import make_llm_assessor
 
 from ._llm_fake_backend import install_completion_backend
@@ -111,7 +115,7 @@ def test_out_of_range_passage_number_is_dropped_and_logged(
         ),
     )
     assessor, assessor_id = make_llm_assessor("deepseek/deepseek-chat")
-    with caplog.at_level(logging.WARNING, logger="app.claims.span"):
+    with caplog.at_level(logging.WARNING, logger="app.claims"):
         result = assess_claim(
             "Kinase X inhibition reduces tumor growth.",
             [_PASSAGE],

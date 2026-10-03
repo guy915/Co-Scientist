@@ -1,7 +1,7 @@
 """The idea search tool, and the one tool round the Q&A stream allows.
 
-Covers ``app.qa.ideas`` (matching, rendering, and reassembling streamed
-tool-call fragments) and ``app.qa.stream``'s loop: a model that answers
+Covers ``app.qa.manifest`` (matching, rendering, and reassembling streamed
+tool-call fragments) and ``app.qa``'s loop: a model that answers
 straight away costs one round, a model that asks for idea text gets it, and
 a model that does both keeps the answer it already started.
 """
@@ -14,8 +14,8 @@ from typing import Any
 
 import pytest
 
+import app.qa.manifest as qa_ideas
 from app import qa
-from app.qa import ideas as qa_ideas
 from tests._llm_fake_backend import install_completion_backend
 
 

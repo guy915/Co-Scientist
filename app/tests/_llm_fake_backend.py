@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import importlib.util
 import pathlib
+import sys
 from collections.abc import Callable
 from typing import Any
 
@@ -42,6 +43,7 @@ def load_engine_fake() -> Any:
     )
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 

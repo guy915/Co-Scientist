@@ -24,7 +24,7 @@ const httpMock = vi.hoisted(() => {
   return {fetchJson: vi.fn(), clientHeaders, jsonRequest};
 });
 
-vi.mock('./runs_http', () => httpMock);
+vi.mock('./runs', () => httpMock);
 
 const listener = vi.fn();
 

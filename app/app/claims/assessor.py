@@ -1,16 +1,4 @@
-"""Deterministic claim retrieval and the offline entailment assessor.
-
-Split out of :mod:`app.claims` to keep that module within the size budget.
-This half holds the offline signal layer -- concept tokenization, lexical
-retrieval, the contradiction lexicon, and the deterministic assessor that
-stands in for an NLI/LLM model so the pipeline and its tests run offline.
-:mod:`app.claims` re-exports every public name here, so callers keep importing
-from ``app.claims`` exactly as before.
-
-The thresholds below are clone choices, not published Google parameters (SSR
-§12), and they govern the *deterministic fallback only* -- the real assessor
-(``app/claims/verifier.py``) decides support and partial support from meaning.
-"""
+"""Deterministic claim retrieval and the offline entailment assessor."""
 
 from __future__ import annotations
 
@@ -20,7 +8,91 @@ import re
 from collections.abc import Callable, Sequence
 
 from app.claims.gate import EntailmentLabel
-from app.claims.retrieval_stopwords import RETRIEVAL_STOPWORDS
+
+RETRIEVAL_STOPWORDS = frozenset(
+    {
+        "a",
+        "all",
+        "am",
+        "an",
+        "and",
+        "any",
+        "are",
+        "as",
+        "at",
+        "be",
+        "been",
+        "but",
+        "by",
+        "can",
+        "did",
+        "do",
+        "for",
+        "few",
+        "from",
+        "had",
+        "has",
+        "have",
+        "he",
+        "her",
+        "him",
+        "his",
+        "how",
+        "i",
+        "if",
+        "in",
+        "into",
+        "is",
+        "it",
+        "its",
+        "may",
+        "no",
+        "nor",
+        "not",
+        "of",
+        "off",
+        "on",
+        "or",
+        "our",
+        "out",
+        "own",
+        "per",
+        "she",
+        "so",
+        "than",
+        "that",
+        "the",
+        "their",
+        "them",
+        "then",
+        "there",
+        "these",
+        "they",
+        "this",
+        "those",
+        "to",
+        "too",
+        "up",
+        "us",
+        "via",
+        "was",
+        "we",
+        "were",
+        "what",
+        "when",
+        "where",
+        "which",
+        "while",
+        "who",
+        "whom",
+        "why",
+        "will",
+        "with",
+        "yet",
+        "you",
+        "your",
+    }
+)
 
 # --- Evidence passages ------------------------------------------------------
 

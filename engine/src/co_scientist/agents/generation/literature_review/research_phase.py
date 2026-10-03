@@ -37,9 +37,9 @@ from co_scientist.research_adapter import (
     LlmResearchModel,
     McpRetrieval,
     ResearchRetrieval,
+    ResearchRun,
     budget_for_tier,
 )
-from co_scientist.research_adapter.retrieval import ResearchRun
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)

@@ -22,7 +22,7 @@ from app.api_contracts.reports import Report
 from app.auth import require_bearer_principal
 from app.logs_api import RunLogQuery, logs_payload
 from app.report import unverified_hypothesis_ids
-from app.runs.lifecycle_adjudication import adjudicate_safety
+from app.runs.lifecycle import adjudicate_safety
 from app.runs.support import _require_run, _run_or_404
 
 router = APIRouter()
@@ -176,7 +176,7 @@ async def get_claim_evidence(run_id: str) -> dict[str, Any]:
     """Return the run's claim-level entailment graph (Milestone 5).
 
     Each edge is one atomic claim of a hypothesis with its assessed label
-    (an ``EntailmentLabel`` value; ``app.claims.verdict`` says what each
+    (an ``EntailmentLabel`` value; ``app.claims.gate`` says what each
     means) and the exact supporting/contradicting passages that drove the
     verdict.
     """

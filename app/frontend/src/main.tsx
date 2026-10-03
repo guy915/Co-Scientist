@@ -5,7 +5,11 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import {BrowserRouter} from 'react-router-dom';
 import './index.css'; // Tailwind layers + --color-th-* theme bridge variables
-import './styles/surfaces.css'; // app-specific global styles
+import './styles/tokens.css';
+import './styles/shell_surface.css';
+import './styles/home_surface.css';
+import './styles/home_landing.css';
+import './styles/tooltips.css';
 import {
   installUiErrorLogging,
   installUiInteractionLogging,

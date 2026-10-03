@@ -1,8 +1,4 @@
-"""Tournament-match and proximity-edge persistence for the drain.
-
-Matchup side resolution by engine hypothesis id, match-row persistence,
-and weighted proximity-graph edges.
-"""
+"""Tournament-match and proximity-edge persistence for the drain."""
 
 from __future__ import annotations
 
@@ -11,14 +7,57 @@ import logging
 import sqlite3
 from typing import Any
 
-from co_scientist.agents.ranking.ranking_debate_turns import (
+from co_scientist.agents.ranking.ranking_debate import (
     debate_transcript_document,
 )
+from co_scientist.research import result_from_dict
 
-from app import store
+import app.research_provenance as research_provenance
+import app.store as store
 from app.elo import INITIAL_ELO
 
 logger = logging.getLogger(__name__)
+
+
+def _persist_retrieval_calls(
+    run_id: str,
+    final_state: dict[str, Any],
+    conn: sqlite3.Connection,
+) -> int:
+    """Write this run's searches, if it made any.
+
+    Args:
+        run_id: The run being drained.
+        final_state: The engine's accumulated final state.
+        conn: Open connection of the caller's transaction.
+
+    Returns:
+        How many rows were inserted -- fewer than the ledgers hold
+        whenever a resumed run re-offered searches it already paid for,
+        or whenever two researchers issued the same search, which the
+        content-addressed id makes one row rather than two.
+    """
+    ledgers = final_state.get("research_ledgers")
+    if not isinstance(ledgers, list):
+        return 0
+    rows = [
+        row
+        for ledger in ledgers
+        if isinstance(ledger, dict) and ledger
+        for row in research_provenance.retrieval_call_rows(
+            run_id, result_from_dict(ledger)
+        )
+    ]
+    if not rows:
+        return 0
+    written = store.add_retrieval_calls(rows, conn=conn)
+    logger.info(
+        "Recorded %s of %s research searches for run %s",
+        written,
+        len(rows),
+        run_id,
+    )
+    return written
 
 
 def _debate_transcript_json(m: dict[str, Any]) -> str | None:

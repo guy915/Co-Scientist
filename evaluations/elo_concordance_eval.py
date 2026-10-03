@@ -14,7 +14,7 @@ correctness at the research frontier.
 
 For each item, every distinct pair of candidates is judged once by an
 injectable comparator, and the SAME Elo update math the production
-tournament uses (``co_scientist.agents.ranking.ranking_elo.
+tournament uses (``co_scientist.agents.ranking.ranking_debate.
 calculate_elo_update``) updates both ratings after each verdict. The
 default comparator (used in CI and by the committed test) is a
 deterministic stub that never calls a model. ``--llm`` wires the engine's
@@ -211,7 +211,7 @@ def _run_item_tournament(
             shuffle is deterministic per item (seed = hash of item id) so a
             re-run reproduces the same matchups.
     """
-    from co_scientist.agents.ranking.ranking_elo import calculate_elo_update
+    from co_scientist.agents.ranking.ranking_debate import calculate_elo_update
     from co_scientist.constants import ELO_K_FACTOR
 
     shuffled = list(candidates)

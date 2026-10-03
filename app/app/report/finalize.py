@@ -32,7 +32,7 @@ from app.safety import (
     screen_final,
 )
 from app.store import RunStatus
-from app.store.tasks_model import ScientificTask
+from app.store.models import ScientificTask
 
 logger = logging.getLogger(__name__)
 

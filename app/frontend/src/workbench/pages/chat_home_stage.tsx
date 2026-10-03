@@ -1,15 +1,26 @@
-import {type FormEvent, useState} from 'react';
-import type {Run} from '@/api/runs';
+import {type FormEvent, useState, Fragment, useEffect} from 'react';
+import {
+  type Run,
+  isActiveStatus,
+  isCompletedStatus,
+  type ChatSummary,
+} from '@/api/runs';
 import {joinClasses} from '../classes';
-import {useIsMobile} from '../hooks/use_is_mobile';
-import {Composer} from './chat_composer';
-import type {ConnectorToggleProps} from './chat_composer_connectors';
+import {useIsMobile} from '../hooks/dom';
+import {Composer, type ConnectorToggleProps} from './chat_composer';
 import {useChatHistoryContext} from '../hooks/chat_history_context';
-import {HomeRecentsPanel} from './home_recents';
-import {GoogleLabsIcon} from '../components/google_labs_icon';
+import {GoogleLabsIcon} from '../layout_primitives';
 import {Icon, type IconName} from '@/components/icon';
 import {smoothScrollToSection} from '@/lib/smooth_scroll';
 import {TruncatedLabel} from '../components/truncated_label';
+import {Link} from 'react-router-dom';
+import {
+  firstSentenceClause,
+  formatDurationPhrase,
+  capitalizeTerm,
+} from '@/lib/text';
+import {useNowTick} from '@/workbench/hooks/timers';
+import {preferredSessionSide} from '../layout_session_switch';
 
 /** Inputs for the home composer and its recent runs. */
 export interface HomeStageProps {
@@ -407,3 +418,389 @@ export const SESSION_STEPS: readonly {
       'directions rise to the top.',
   },
 ];
+
+interface HomeRecentsPanelProps {
+  runs: Run[];
+  showAll: boolean;
+  onToggleShowAll: () => void;
+  chats?: readonly ChatSummary[];
+}
+
+export function HomeRecentsPanel({
+  runs,
+  showAll,
+  onToggleShowAll,
+  chats = [],
+}: HomeRecentsPanelProps) {
+  const visibleRuns = showAll ? runs : runs.slice(0, 4);
+  const empty = visibleRuns.length === 0;
+  return (
+    <aside
+      className={`reference-recents reference-recents-panel${empty ? ' reference-recents--empty' : ''}`}
+      aria-label="Recent runs"
+    >
+      <div className="reference-recents-heading">
+        <Icon
+          aria-hidden="true"
+          className="reference-recents-heading-icon"
+          name="history"
+        />
+        <h2 className="reference-recents-heading-title">Recents</h2>
+      </div>
+      <ol
+        className={`reference-recents-list${empty ? ' reference-recents-list--empty' : ''}`}
+      >
+        {empty ? (
+          <li className="reference-recents-empty-item">
+            <div className="reference-recents-empty-state">
+              <GoogleLabsIcon
+                aria-hidden="true"
+                className="reference-recents-empty-icon"
+              />
+              <strong className="reference-recents-empty-copy">
+                You have not started any sessions yet.
+              </strong>
+            </div>
+          </li>
+        ) : (
+          visibleRuns.map(run => (
+            <RecentRunCard key={run.id} run={run} chats={chats} />
+          ))
+        )}
+        {runs.length > 4 && (
+          <li className="reference-load-more-item">
+            <button
+              type="button"
+              className="reference-load-more"
+              onClick={onToggleShowAll}
+            >
+              {showAll ? 'Show less' : 'Show more'}
+              <Icon
+                aria-hidden="true"
+                name={showAll ? 'expand_less' : 'expand_more'}
+              />
+            </button>
+          </li>
+        )}
+      </ol>
+    </aside>
+  );
+}
+
+function RecentCardMeta({run}: {run: Run}) {
+  const nowSeconds = useNowTick(1000);
+  return (
+    <span className="reference-recent-meta">
+      <span className="reference-recent-meta-chip">
+        {formatHomeRunDate(run.updated_at)}
+      </span>
+      <span className="reference-recent-meta-chip">
+        {formatHomeRunTimeChip(run, nowSeconds)}
+      </span>
+    </span>
+  );
+}
+
+function RecentRunCard({
+  run,
+  chats,
+}: {
+  run: Run;
+  chats: readonly ChatSummary[];
+}) {
+  // Resolve the remembered Chat/Results side from the current chat list.
+  const chat =
+    preferredSessionSide(run.id) === 'chat'
+      ? chats.find(entry => entry.run_id === run.id)
+      : undefined;
+  const active = isActiveStatus(run.status);
+  return (
+    <li>
+      <Link
+        to={chat ? `/chats/${chat.id}` : `/runs/${run.id}/details`}
+        className={`reference-recent-card${active ? ' is-active-run' : ''}`}
+        title={run.research_goal}
+      >
+        <RecentCardMeta run={run} />
+        <TruncatedLabel
+          className="reference-recent-title"
+          text={
+            run.title ||
+            firstSentenceClause(run.research_goal) ||
+            'Untitled session'
+          }
+          lines={2}
+        />
+        <TruncatedLabel
+          className="reference-recent-description"
+          text={run.research_goal}
+          lines={3}
+        />
+        {active ? (
+          <RunStepFlow run={run} />
+        ) : (
+          isCompletedStatus(run.status) && <RecentRunResults run={run} />
+        )}
+      </Link>
+    </li>
+  );
+}
+
+function RecentRunResults({run}: {run: Run}) {
+  const topIdeas = run.top_hypotheses ?? [];
+  const topScore = run.top_elo ?? null;
+  return (
+    <>
+      <span className="reference-recent-chips">
+        <span className="reference-recent-chip">
+          <Icon
+            aria-hidden="true"
+            className="reference-recent-chip-icon"
+            name="emoji_events"
+          />
+          Winning ideas
+        </span>
+        {topScore !== null && (
+          <span className="reference-recent-chip">
+            <Icon
+              aria-hidden="true"
+              className="reference-recent-chip-icon"
+              name="stars"
+            />
+            Top score: {topScore}
+          </span>
+        )}
+      </span>
+      {topIdeas.length > 0 && (
+        <ol className="reference-winner-list">
+          {topIdeas.map((idea, index) => (
+            <li key={idea} className="reference-winner-list-item">
+              <span>{index + 1}.</span>
+              <TruncatedLabel
+                className="reference-winner-list-text"
+                text={idea}
+                lines={2}
+              />
+            </li>
+          ))}
+        </ol>
+      )}
+    </>
+  );
+}
+
+const HOME_RUN_DATE_FMT = new Intl.DateTimeFormat(undefined, {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+});
+
+export function formatHomeRunDate(timestamp: number): string {
+  return HOME_RUN_DATE_FMT.format(new Date(timestamp * 1000));
+}
+
+export function formatHomeRunTimeChip(run: Run, nowSeconds: number): string {
+  if (isCompletedStatus(run.status)) {
+    const endTime = run.completed_at ?? run.updated_at;
+    const duration = endTime ? endTime - run.created_at : -1;
+    return `Total time: ${duration < 0 ? capitalizeTerm(run.status) : formatDurationPhrase(duration, {subMinute: true})}`;
+  }
+  if (isActiveStatus(run.status)) {
+    return `Time elapsed: ${formatDurationPhrase(Math.max(0, nowSeconds - run.created_at), {subMinute: true})}`;
+  }
+  return `Status: ${capitalizeTerm(run.status)}`;
+}
+
+// Both leased tasks and stage events name the same work. Routing between
+// agents has no phase; after tournament, the remaining work stays at step 4.
+const TASK_PHASE: Record<string, number | null> = {
+  bootstrap: 1,
+  supervisor: 1,
+  orchestrator: null,
+  generate: 2,
+  generation: 2,
+  literature_review: 2,
+  reflection: 3,
+  comprehensive_reflection: 3,
+  review: 3,
+  verification: 3,
+  deep_verification: 3,
+  safety_screen: 3,
+  ranking: 4,
+  proximity: 4,
+  evolve: 4,
+  meta_review: 4,
+  research_overview: 4,
+  finalize: 4,
+};
+
+const STAGE_TYPES = new Set([
+  'supervisor.plan',
+  'literature_review',
+  'generate',
+  'reflection',
+  'proximity',
+  'ranking',
+  'evolve',
+  'meta_review',
+  'deep_verification',
+  'research_overview',
+]);
+
+/** The current 1–4 phase, or null between tasks; later cycles may go backward. */
+export function homeRunStepIndex(run: Run): number | null {
+  if (run.status === 'queued') return 1;
+  if (run.status === 'synthesizing') return 4;
+  const task = run.execution_progress?.active_task;
+  if (task) {
+    const [, first = '', second = ''] = task.split('.');
+    const phase =
+      TASK_PHASE[first === 'node' || first === 'fanout' ? second : first] ??
+      null;
+    if (phase !== null) return phase;
+  }
+  const stage = run.latest_stage;
+  if (!stage || !STAGE_TYPES.has(stage)) return null;
+  return TASK_PHASE[stage === 'supervisor.plan' ? 'supervisor' : stage] ?? null;
+}
+
+// The four phases of a live run, each with the glyph it shows in the flow.
+// A run's real unit of work is mapped onto one of these by homeRunStepIndex.
+const RUN_STEPS: {icon: IconName; label: string}[] = [
+  {icon: 'summarize', label: 'Exploring focus areas'},
+  {icon: 'rate_review', label: 'Generating hypotheses'},
+  {icon: 'reviews', label: 'Reviewing hypotheses'},
+  {icon: 'chess', label: 'Playing tournament'},
+];
+
+/**
+ * Renders the live flow for an active run: an "In Progress" row carrying the
+ * spinner, then the phases up to the one the run is currently in.
+ *
+ * The phase comes from the run's own reported progress, so the flow tracks
+ * real work rather than a timer. It shows the *latest* reported phase, not
+ * the furthest one ever reached: a run genuinely returns to earlier phases
+ * (every new work cycle re-enters generation/review, and proximity follows
+ * the tournament), and retaining the furthest phase masked those backward
+ * steps instead of reporting them. Rows appearing and disappearing as the
+ * phase moves is the honest signal.
+ *
+ * @param run The active run to show progress for.
+ */
+export function RunStepFlow({run}: {run: Run}) {
+  const phase = homeRunStepIndex(run);
+  // A run reports no phase while routing between agents and in the gaps
+  // between leased tasks. Hold the last phase actually observed so those gaps
+  // read as the work continuing, rather than snapping back to the first step.
+  // A *reported* phase replaces it outright — see the docstring for why the
+  // flow no longer retains the furthest phase seen.
+  const [currentPhase, setCurrentPhase] = useState(phase ?? 1);
+  useEffect(() => {
+    if (phase === null) return;
+    setCurrentPhase(phase);
+  }, [phase]);
+  const revealed = RUN_STEPS.slice(0, currentPhase);
+
+  return (
+    <div className="reference-run-steps">
+      <div className="reference-run-step-list">
+        <div className="reference-run-step">
+          <span
+            aria-hidden="true"
+            className="reference-run-step-spinner reference-run-step-glyph"
+          />
+          <span className="reference-run-step-label">In Progress</span>
+        </div>
+        <div aria-hidden="true" className="reference-run-step-delimiter" />
+        {revealed.map((step, index) => (
+          <Fragment key={step.label}>
+            <RunStepItem icon={step.icon} label={step.label} />
+            {index < revealed.length - 1 && (
+              <div
+                aria-hidden="true"
+                className="reference-run-step-delimiter"
+              />
+            )}
+          </Fragment>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// One phase's glyph and label. A row's presence is the whole signal: the flow
+// only lists phases the run has entered, and its single spinner lives in the
+// In Progress row. There is deliberately no per-row done/current marker (the
+// .reference-run-step-done check style is kept for a future one).
+function RunStepItem({icon, label}: {icon: IconName; label: string}) {
+  return (
+    <div className="reference-run-step">
+      <Icon
+        aria-hidden="true"
+        className="reference-run-step-icon"
+        name={icon}
+      />
+      <span className="reference-run-step-label">{label}</span>
+    </div>
+  );
+}
+
+// The active-task label: the humanized durable-task-lease signal
+// (`execution_progress.active_task`) when one is present, else the
+// humanized stage-event signal (`latest_stage`) when that is present
+// instead, else a neutral placeholder while neither signal has arrived yet.
+function activeTaskLabel(run: Run): string {
+  const activeTask = run.execution_progress?.active_task;
+  if (activeTask) return humanizeTask(activeTask);
+  if (run.latest_stage) return humanizeTask(run.latest_stage);
+  return 'Waiting for Supervisor allocation';
+}
+
+// Committed-task counts for the "N of M complete" line, only while the
+// Supervisor's progress is determinate.
+function committedTaskCounts(run: Run): {
+  completed: number;
+  total: number;
+  queued: number;
+} | null {
+  const progress = run.execution_progress;
+  if (!progress?.determinate) return null;
+  return {
+    completed: progress.completed_tasks,
+    total: progress.total_tasks,
+    queued: progress.queued_tasks,
+  };
+}
+
+/**
+ * Renders truthful task-queue progress for a live run: what it is working on
+ * now, and how much of the Supervisor's committed task budget is done. Both
+ * are stated in words -- a bar was removed because its fraction is only known
+ * once the budget is committed, so most of a run it read as motion without
+ * information.
+ */
+export function RunExecutionProgress({run}: {run: Run}) {
+  const activeTask = activeTaskLabel(run);
+  const counts = committedTaskCounts(run);
+
+  return (
+    <section className="mt-4" aria-label="Run execution progress">
+      <strong className="block text-xs font-medium text-cosci-fg">
+        {activeTask}
+      </strong>
+      {counts ? (
+        <p className="mt-2 text-xs text-cosci-muted">
+          {counts.completed} of {counts.total} committed tasks complete ·{' '}
+          {counts.queued} queued
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+function humanizeTask(value: string): string {
+  return value
+    .replaceAll('.', ' ')
+    .replaceAll('_', ' ')
+    .replace(/\b\w/g, letter => letter.toUpperCase());
+}

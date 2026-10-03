@@ -26,7 +26,7 @@ import {
   SETUP_ACTIONS_CLASSES,
   SETUP_PRIMARY_BUTTON_CLASSES,
   SETUP_SECONDARY_BUTTON_CLASSES,
-} from './chat_classes';
+} from '../classes';
 const SPEC_EDIT_INPUT_CLASSES =
   'w-full rounded-[0.65rem] border border-cosci-composer-border bg-cosci-composer-bg px-[0.85rem] py-[0.6rem] text-base text-cosci-composer-text outline-none focus-visible:border-cosci-fg';
 const SPEC_EDIT_FIELD_CLASSES = 'grid gap-[0.5rem]';
@@ -173,8 +173,7 @@ interface SpecFieldsFormProps {
 }
 
 // The goal textarea, the two editable lists, and the title input -- the
-// part of the form that edits values. Split from the Save/Cancel row below
-// (SpecFieldsFormActions) to keep both under the repo's line cap.
+// part of the form that edits values.
 function SpecFieldsFormFields({
   values,
   onChange,

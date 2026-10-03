@@ -15,7 +15,7 @@ import {
   OPTION_MARKER_CLASSES,
   OPTION_MARKER_SELECTED_CLASSES,
   SETUP_SECONDARY_BUTTON_CLASSES,
-} from './chat_classes';
+} from '../classes';
 const QUESTION_OPTION_ROW_CLASSES =
   'relative grid min-h-[3.2rem] grid-cols-[1.6rem_minmax(0,1fr)] items-center gap-x-[0.8rem] rounded-[0.65rem] border border-transparent bg-cosci-option-bg px-[0.95rem] py-[0.7rem] text-cosci-fg hover:bg-cosci-option-hover-bg has-[:focus-visible]:border-cosci-option-hover-border has-[:focus-visible]:bg-cosci-option-hover-bg';
 

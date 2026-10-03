@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.citations import CitationState
-from app.claims.verdict import DEFAULT_CLAIM_ROLE
+from app.claims.gate import DEFAULT_CLAIM_ROLE
 from app.store.db import _list_by_run, _now, _use_conn, connect
 
 # ---------------------------------------------------------------------------
@@ -232,7 +232,7 @@ class NewClaimEvidence:
 
     ``label`` is the entailment verdict (an ``EntailmentLabel`` value) and
     ``claim_role`` marks a categorical finding versus a visibly speculative
-    proposal (a ``ClaimRole`` value); ``app.claims.verdict`` says what each
+    proposal (a ``ClaimRole`` value); ``app.claims.gate`` says what each
     means to a reader. ``supporting``/``contradicting`` are
     the spans for/against the claim -- JSON-serializable provenance
     objects (``{evidence_id, quote, start, end, source, url}``; legacy

@@ -12,12 +12,12 @@ from co_scientist.agents.ranking.operations import (
     prepare_ranking_prompt_context,
 )
 from co_scientist.agents.ranking.ranking_debate import (
-    judge_matchup as judge_matchup,
-)
-from co_scientist.agents.ranking.ranking_elo import (
     calculate_elo_update as calculate_elo_update,
 )
-from co_scientist.agents.ranking.ranking_elo import (
+from co_scientist.agents.ranking.ranking_debate import (
+    judge_matchup as judge_matchup,
+)
+from co_scientist.agents.ranking.ranking_debate import (
     match_tier as match_tier,
 )
 from co_scientist.agents.ranking.ranking_lifecycle import (

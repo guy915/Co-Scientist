@@ -1,7 +1,7 @@
 import {render, screen, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
-import {getStoredModel, setStoredApiProvider} from '@/lib/api_key';
+import {getStoredModel, setStoredApiProvider} from '@/lib/client_id';
 import {ModelSection} from './settings_dialog';
 
 const CATALOG = {

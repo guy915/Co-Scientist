@@ -1,18 +1,4 @@
-"""Store I/O for retrieval provenance.
-
-The ``retrieval_calls`` table (schema in ``schema.py``):
-one row per query, against one source, serving one question. See
-``app.research_provenance`` for how a research run's in-memory ledger
-becomes these rows.
-
-Writes are idempotent on ``(run_id, id)`` because a call's id is derived
-from its content -- a resumed run re-issuing the same searches must
-recognize the ones it already paid for rather than duplicating them, and
-``INSERT OR IGNORE`` is what makes replaying a partial ledger safe.
-
-Every helper accepts ``db_path`` (override for the SQLite database path)
-and ``conn`` (an open connection to reuse, e.g. from ``transaction``).
-"""
+"""Store I/O for retrieval provenance."""
 
 from __future__ import annotations
 
@@ -22,7 +8,58 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.store.db import _list_by_run, _now, _use_conn
+from app.store.db import _list_by_run, _now, _use_conn, connect
+
+
+def save_run_metrics(
+    run_id: str,
+    metrics: dict[str, Any],
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> None:
+    """Persist (or replace) a run's execution metrics.
+
+    Args:
+        run_id: Identifier of the run the metrics belong to.
+        metrics: ExecutionMetrics-shaped dict serialized to JSON.
+        db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse (e.g. from ``transaction``).
+    """
+    now = _now()
+    with _use_conn(conn, db_path) as conn:
+        conn.execute(
+            "INSERT INTO run_metrics (run_id, metrics_json, created_at, "
+            "updated_at) VALUES (?,?,?,?) "
+            "ON CONFLICT(run_id) DO UPDATE SET "
+            "metrics_json=excluded.metrics_json, "
+            "updated_at=excluded.updated_at",
+            (run_id, json.dumps(metrics), now, now),
+        )
+
+
+def get_run_metrics(
+    run_id: str,
+    db_path: str | None = None,
+) -> dict[str, Any] | None:
+    """Return a run's persisted execution metrics, or None if absent.
+
+    Args:
+        run_id: Identifier of the run whose metrics to read.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        The ExecutionMetrics-shaped dict, or None when the run has not
+        finalized (or does not exist).
+    """
+    with connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT metrics_json FROM run_metrics WHERE run_id=?",
+            (run_id,),
+        ).fetchone()
+    if row is None:
+        return None
+    metrics: dict[str, Any] = json.loads(row["metrics_json"])
+    return metrics
 
 
 @dataclass(frozen=True)

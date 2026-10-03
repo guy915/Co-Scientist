@@ -28,7 +28,7 @@ import {
   useTabNavigation,
 } from './run_detail_shell';
 import {RunSpecificationsView} from './run_detail_specifications';
-import {SupervisorAllocationLedger} from './run_detail_supervisor_plan';
+import {SupervisorAllocationLedger} from './run_detail_specifications';
 import {TABS, normalizeTab, type TabName} from '../run_tabs';
 
 // max-[700px]:overflow-x-auto (not overflow-hidden): the ancestor .ucs-page

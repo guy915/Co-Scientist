@@ -1,30 +1,11 @@
-"""Run literature-review collection, enrichment, analysis, and synthesis."""
+"""Literature-review collection, content retrieval and phase orchestration."""
 
 import asyncio
+import dataclasses
 import logging
 from dataclasses import dataclass
 from typing import Any, NamedTuple, cast
 
-from co_scientist.agents.generation.literature_review.collection import (
-    _collect_papers_with_diagnostics as _collect_papers_with_diagnostics,
-)
-from co_scientist.agents.generation.literature_review.collection import (
-    _CollectionResult as _CollectionResult,
-)
-from co_scientist.agents.generation.literature_review.collection import (
-    _enrich_collected_papers as _enrich_collected_papers,
-)
-from co_scientist.agents.generation.literature_review.collection import (
-    _handle_no_fulltext_available,
-    _handle_no_papers_found,
-)
-from co_scientist.agents.generation.literature_review.collection import (
-    _log_collection_summary as _log_collection_summary,
-)
-from co_scientist.agents.generation.literature_review.content import (
-    _phase2_4_discover_pdf_links,
-    _phase2_5_fetch_content,
-)
 from co_scientist.agents.generation.literature_review.enrichment import (
     _format_kg_section_with_keys,
     _phase2_6_fetch_context_enrichment,
@@ -38,8 +19,20 @@ from co_scientist.constants import (
     LITERATURE_REVIEW_FAILED,
 )
 from co_scientist.evidence.article_support import (
+    _has_fulltext,
     build_articles_from_metadata,
+    count_papers_with_fulltext,
     get_papers_with_content,
+    make_failure_result,
+)
+from co_scientist.evidence.retrieval_support import (
+    ContentToolConfig,
+    build_content_config,
+    build_pdf_discovery_config,
+    get_papers_needing_content,
+    get_papers_needing_pdf_discovery,
+    parse_content_result,
+    parse_pdf_discovery_result,
 )
 from co_scientist.evidence.search_support import (
     SearchConfig,
@@ -50,6 +43,547 @@ from co_scientist.progress import emit_progress
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
+
+
+async def _emit_search_errors_diagnostic(
+    state: WorkflowState,
+    queries: list[str],
+    search_errors: list[str],
+) -> None:
+    """Log and report progress when every Phase 2 search call errored."""
+    logger.error(
+        "Literature review found no papers: %s of %s search call(s) "
+        "errored: %s",
+        len(search_errors),
+        len(queries),
+        "; ".join(search_errors[:5]),
+    )
+    await emit_progress(
+        state,
+        "literature_review_error",
+        "Literature search failed (no papers retrieved)",
+        0.2,
+        queries_count=len(queries),
+        search_errors_count=len(search_errors),
+        search_error_sample=search_errors[:5],
+    )
+
+
+async def _emit_empty_results_diagnostic(
+    state: WorkflowState,
+    queries: list[str],
+) -> None:
+    """Log and report progress when Phase 2 search cleanly found nothing."""
+    logger.warning(
+        "Literature review found no papers: all %s query/queries "
+        "returned zero results (no errors)",
+        len(queries),
+    )
+    await emit_progress(
+        state,
+        "literature_review_empty",
+        "Literature search returned no results",
+        0.2,
+        queries_count=len(queries),
+        search_errors_count=0,
+    )
+
+
+async def _emit_empty_search_diagnostics(
+    state: WorkflowState,
+    queries: list[str],
+    search_errors: list[str],
+) -> None:
+    """Log and report progress when Phase 2 collected zero papers.
+
+    Distinguishes a genuinely empty search from one where every call
+    errored: both otherwise surface as zero articles with no trace of the
+    cause.
+    """
+    if search_errors:
+        await _emit_search_errors_diagnostic(state, queries, search_errors)
+    else:
+        await _emit_empty_results_diagnostic(state, queries)
+
+
+async def _handle_no_papers_found(
+    state: WorkflowState,
+    queries: list[str],
+) -> dict[str, Any]:
+    """Build the failure result when Phase 2 collected zero papers."""
+    logger.warning("No papers collected")
+    await emit_progress(
+        state,
+        "literature_review_complete",
+        "Literature review completed (no papers found)",
+        0.2,
+    )
+    return make_failure_result("no papers found", queries=queries)
+
+
+async def _handle_no_fulltext_available(
+    state: WorkflowState,
+    all_paper_metadata: dict[str, dict[str, Any]],
+    queries: list[str],
+    source_name: str,
+) -> dict[str, Any]:
+    """Build the failure result when no collected paper has usable content.
+
+    Papers were found but none have any usable content (fulltext or
+    abstract fallback) for Phase 3 analysis. The collected metadata remains
+    visible as articles, explicitly marked unused in analysis.
+    """
+    logger.error(
+        "No papers have fulltext or abstracts available - cannot analyze"
+    )
+    n = len(all_paper_metadata)
+    await emit_progress(
+        state,
+        "literature_review_complete",
+        f"Literature review failed ({n} papers found but none have fulltexts)",
+        0.2,
+    )
+    articles = build_articles_from_metadata(all_paper_metadata, source_name)
+    return make_failure_result(
+        f"{n} papers found but none have fulltexts for analysis",
+        queries=queries,
+        articles=articles,
+    )
+
+
+def _log_sample_papers(all_paper_metadata: dict[str, dict[str, Any]]) -> None:
+    """Debug-log a small sample of collected papers before Phase 3 analysis."""
+    for paper_id, meta in list(all_paper_metadata.items())[:3]:
+        has_ft = _has_fulltext(meta)
+        logger.debug(
+            "Paper %s: title='%s...' has_fulltext=%s",
+            paper_id,
+            meta.get("title", "")[:60],
+            has_ft,
+        )
+
+
+@dataclasses.dataclass
+class _CollectionResult:
+    """Bundled output of Phases 2 through 2.6 for the orchestrator.
+
+    Attributes:
+        all_paper_metadata: Collected paper metadata keyed by paper ID.
+        paper_source_map: Maps paper ID to the source name it came from.
+        search_errors: Error strings from any failed search calls.
+        background_context: Context-enrichment text for Phase 4 synthesis.
+        context_enrichment_sources: Raw KG source dicts for citation keys.
+    """
+
+    all_paper_metadata: dict[str, dict[str, Any]]
+    paper_source_map: dict[str, str]
+    search_errors: list[str]
+    background_context: str
+    context_enrichment_sources: list[dict[str, Any]]
+
+
+def _merge_private_sources(
+    state: WorkflowState,
+    background_context: str,
+    context_enrichment_sources: list[dict[str, Any]],
+) -> tuple[str, list[dict[str, Any]]]:
+    """Prepends any per-run private-corpus sources ahead of fetched ones."""
+    private_sources = state.get("context_enrichment_sources") or []
+    if not private_sources:
+        return background_context, context_enrichment_sources
+
+    context_enrichment_sources = [
+        *private_sources,
+        *context_enrichment_sources,
+    ]
+    private_context = "\n\n".join(
+        str(item.get("display") or "") for item in private_sources
+    )
+    background_context = "\n\n".join(
+        part for part in (private_context, background_context) if part
+    )
+    return background_context, context_enrichment_sources
+
+
+def _log_collection_summary(
+    all_paper_metadata: dict[str, dict[str, Any]],
+) -> None:
+    """Logs the fulltext / no-fulltext paper counts collected this run."""
+    with_fulltext, without_fulltext = count_papers_with_fulltext(
+        all_paper_metadata
+    )
+    # One line, both halves. A paper without a fulltext is the ordinary case
+    # -- most of the literature is paywalled and the review works from the
+    # abstract -- so it was raised as a warning on essentially every run, and
+    # a condition that is always true carries no information. The count is
+    # kept because the ratio is worth reading; it just is not a problem.
+    logger.info(
+        "Collected %s papers (%s with fulltext, %s abstract only)",
+        len(all_paper_metadata),
+        with_fulltext,
+        without_fulltext,
+    )
+
+
+async def _collect_papers_with_diagnostics(
+    queries: list[str],
+    state: WorkflowState,
+    config: SearchConfig,
+    mcp_client: MCPToolClient,
+) -> tuple[dict[str, dict[str, Any]], dict[str, str], list[str]]:
+    """Runs Phase 2 collection and emits diagnostics if it found nothing."""
+    # Resolve the shared operation at call time, including installed patches.
+    from co_scientist.evidence.search import (
+        collect_papers,
+    )
+
+    search_errors: list[str] = []
+    all_paper_metadata, paper_source_map = await collect_papers(
+        queries, state, config, mcp_client, search_errors
+    )
+    if not all_paper_metadata:
+        await _emit_empty_search_diagnostics(state, queries, search_errors)
+    return all_paper_metadata, paper_source_map, search_errors
+
+
+async def _enrich_collected_papers(
+    all_paper_metadata: dict[str, dict[str, Any]],
+    paper_source_map: dict[str, str],
+    config: SearchConfig,
+    mcp_client: MCPToolClient,
+    state: WorkflowState,
+) -> tuple[str, list[dict[str, Any]]]:
+    """Phases 2.4-2.6: discover PDFs, fetch content/enrichment, and merge.
+
+    Mutates all_paper_metadata in place via Phases 2.4/2.5 (a no-op when no
+    relevant tool is configured for any source).
+
+    Returns:
+        (background_context, context_enrichment_sources) ready for
+        synthesis, with any per-run private-corpus sources merged in.
+    """
+    (
+        background_context,
+        context_enrichment_sources,
+    ) = await _fetch_content_and_enrichment(
+        all_paper_metadata, paper_source_map, config, mcp_client, state
+    )
+    return _merge_private_sources(
+        state, background_context, context_enrichment_sources
+    )
+
+
+async def _discover_pdf_link(
+    paper_id: str,
+    metadata: dict[str, Any],
+    tool_name: str,
+    url_field: str,
+    mcp_client: MCPToolClient,
+) -> tuple[str, str | None]:
+    """Discover PDF link for a single paper."""
+    landing_url = metadata.get(url_field)
+    if not landing_url:
+        return (paper_id, None)
+
+    try:
+        logger.debug("Discovering PDF links for %s: %s", paper_id, landing_url)
+        result = await mcp_client.call_tool(tool_name, url=landing_url)
+        pdf_url = parse_pdf_discovery_result(result)
+        if pdf_url:
+            logger.debug("Found PDF link for %s: %s", paper_id, pdf_url)
+        return (paper_id, pdf_url)
+    except Exception as e:
+        # Failure just leaves this paper without a pdf_url; Phase 2.5 will
+        # then have nothing to fetch content from for it, and it may still
+        # be usable for analysis via its abstract.
+        logger.warning("Failed to discover PDF links for %s: %s", paper_id, e)
+        return (paper_id, None)
+
+
+def _apply_metadata_field(
+    all_paper_metadata: dict[str, dict[str, Any]],
+    results: list[tuple[str, str | None]],
+    field: str,
+) -> int:
+    """Write per-paper results back into a metadata field, in place.
+
+    Shared by Phase 2.4 (``pdf_url``) and Phase 2.5 (``fulltext``): a result is
+    applied only when it is non-empty and its paper is still present.
+
+    Returns:
+        The number of papers updated with a non-empty value.
+    """
+    updated_count = 0
+    for paper_id, value in results:
+        if value and paper_id in all_paper_metadata:
+            all_paper_metadata[paper_id][field] = value
+            updated_count += 1
+    return updated_count
+
+
+async def _run_pdf_discovery(
+    papers_needing_discovery: list[tuple[str, dict[str, Any], str, str]],
+    mcp_client: MCPToolClient,
+    all_paper_metadata: dict[str, dict[str, Any]],
+) -> int:
+    """Discovers PDF links for the given papers in parallel and applies them.
+
+    Mutates all_paper_metadata in place so Phase 2.5 and later phases see
+    the newly discovered pdf_url values.
+
+    Args:
+        papers_needing_discovery: (paper_id, metadata, tool_name, url_field)
+            tuples for papers eligible for PDF discovery.
+        mcp_client: Client used to call each source's discovery tool.
+        all_paper_metadata: Collected paper metadata keyed by paper id.
+
+    Returns:
+        The number of papers updated with a newly discovered pdf_url.
+    """
+    tasks = [
+        _discover_pdf_link(pid, meta, tool_name, url_field, mcp_client)
+        for pid, meta, tool_name, url_field in papers_needing_discovery
+    ]
+    results = await asyncio.gather(*tasks)
+    return _apply_metadata_field(all_paper_metadata, results, "pdf_url")
+
+
+async def _run_and_log_pdf_discovery(
+    papers_needing_discovery: list[tuple[str, dict[str, Any], str, str]],
+    mcp_client: MCPToolClient,
+    all_paper_metadata: dict[str, dict[str, Any]],
+) -> None:
+    """Runs PDF discovery for the given papers and logs the outcome."""
+    logger.info(
+        "Phase 2.4: discovering PDF links for %s papers",
+        len(papers_needing_discovery),
+    )
+
+    discovered_count = await _run_pdf_discovery(
+        papers_needing_discovery, mcp_client, all_paper_metadata
+    )
+
+    logger.info(
+        "PDF discovery complete: %s/%s papers",
+        discovered_count,
+        len(papers_needing_discovery),
+    )
+
+
+async def _phase2_4_discover_pdf_links(
+    all_paper_metadata: dict[str, dict[str, Any]],
+    paper_source_map: dict[str, str],
+    config: SearchConfig,
+    mcp_client: MCPToolClient,
+) -> None:
+    """Phase 2.4: Discover PDF links for papers with landing pages."""
+    # This phase is entirely optional: if no source/workflow config wires up
+    # a pdf_discovery_tool, build_pdf_discovery_config returns an empty
+    # mapping and this function is a no-op (many sources return fulltext
+    # directly and never need PDF discovery at all).
+    pdf_discovery_config = build_pdf_discovery_config(
+        config.workflow,
+        config.tool_registry,
+        config.is_multi_source,
+    )
+
+    if not pdf_discovery_config:
+        return
+
+    # Filters to only papers that lack a pdf_url already but do have a
+    # landing-page URL and a discovery tool configured for their source.
+    papers_needing_discovery = get_papers_needing_pdf_discovery(
+        all_paper_metadata,
+        paper_source_map,
+        pdf_discovery_config,
+    )
+
+    if not papers_needing_discovery:
+        return
+
+    await _run_and_log_pdf_discovery(
+        papers_needing_discovery, mcp_client, all_paper_metadata
+    )
+
+
+def _prepare_content_call_args(
+    paper_id: str,
+    content_url: str,
+    content_cfg: "ContentToolConfig",
+    runtime_context: dict[str, Any],
+) -> dict[str, Any]:
+    """Resolves per-tool content params and builds the MCP tool-call args.
+
+    content_cfg's raw YAML params may contain placeholders (e.g. referencing
+    the research goal) that resolve_content_params fills in from
+    runtime_context before the tool call.
+    """
+    # Imported locally to avoid a module-level import cycle between
+    # config.schema and the nodes package.
+    from co_scientist.config.schema import (
+        resolve_content_params,
+    )
+
+    resolved_params = resolve_content_params(
+        content_cfg.content_params, runtime_context
+    )
+    tool_args = {"url": content_url, **resolved_params}
+
+    logger.debug(
+        "Fetching content for %s via %s: %s",
+        paper_id,
+        content_cfg.mcp_tool_name,
+        content_url,
+    )
+    if resolved_params:
+        logger.debug("  with params: %s", list(resolved_params.keys()))
+
+    return tool_args
+
+
+async def _fetch_paper_content(
+    paper_id: str,
+    metadata: dict[str, Any],
+    content_cfg: "ContentToolConfig",
+    mcp_client: MCPToolClient,
+    runtime_context: dict[str, Any],
+) -> tuple[str, str | None]:
+    """Fetch content for a single paper."""
+    content_url = metadata.get(content_cfg.url_field)
+    if not content_url:
+        return (paper_id, None)
+
+    try:
+        tool_args = _prepare_content_call_args(
+            paper_id, content_url, content_cfg, runtime_context
+        )
+        result = await mcp_client.call_tool(
+            content_cfg.mcp_tool_name, **tool_args
+        )
+        content = parse_content_result(result)
+        if content:
+            logger.debug(
+                "Retrieved %s chars for paper %s", len(content), paper_id
+            )
+        return (paper_id, content)
+    except Exception as e:
+        # Leaves the paper without fulltext; it may still be analyzable via
+        # its abstract (see get_papers_with_content in the helpers module).
+        logger.warning("Failed to fetch content for %s: %s", paper_id, e)
+        return (paper_id, None)
+
+
+def _build_content_runtime_context(state: "WorkflowState") -> dict[str, Any]:
+    """Builds the runtime context used to resolve per-tool content params.
+
+    Args:
+        state: Current workflow state.
+
+    Returns:
+        Runtime context dict consumed by resolve_content_params.
+    """
+    return {
+        "research_goal": state.get("research_goal", ""),
+        # Could be extracted from hypothesis categories later.
+        "focus_areas": [],
+    }
+
+
+async def _run_content_fetch(
+    papers_needing_content: list[
+        tuple[str, dict[str, Any], "ContentToolConfig"]
+    ],
+    mcp_client: MCPToolClient,
+    runtime_context: dict[str, Any],
+    all_paper_metadata: dict[str, dict[str, Any]],
+) -> int:
+    """Fetches content for the given papers in parallel and applies it.
+
+    Mutates all_paper_metadata in place so Phase 3 analysis picks up the
+    newly fetched fulltext.
+
+    Args:
+        papers_needing_content: (paper_id, metadata, content_cfg) tuples for
+            papers eligible for content retrieval.
+        mcp_client: Client used to call each source's content tool.
+        runtime_context: Context for resolving per-tool content params.
+        all_paper_metadata: Collected paper metadata keyed by paper id.
+
+    Returns:
+        The number of papers updated with newly fetched fulltext.
+    """
+    tasks = [
+        _fetch_paper_content(
+            pid, meta, content_cfg, mcp_client, runtime_context
+        )
+        for pid, meta, content_cfg in papers_needing_content
+    ]
+    results = await asyncio.gather(*tasks)
+    return _apply_metadata_field(all_paper_metadata, results, "fulltext")
+
+
+async def _run_and_log_content_fetch(
+    papers_needing_content: list[
+        tuple[str, dict[str, Any], "ContentToolConfig"]
+    ],
+    mcp_client: MCPToolClient,
+    runtime_context: dict[str, Any],
+    all_paper_metadata: dict[str, dict[str, Any]],
+) -> None:
+    """Runs content fetch for the given papers and logs the outcome."""
+    logger.info(
+        "Phase 2.5: fetching content for %s papers", len(papers_needing_content)
+    )
+
+    fetched_count = await _run_content_fetch(
+        papers_needing_content, mcp_client, runtime_context, all_paper_metadata
+    )
+
+    logger.info(
+        "Content retrieval complete: %s/%s papers",
+        fetched_count,
+        len(papers_needing_content),
+    )
+
+
+async def _phase2_5_fetch_content(
+    all_paper_metadata: dict[str, dict[str, Any]],
+    paper_source_map: dict[str, str],
+    config: SearchConfig,
+    mcp_client: MCPToolClient,
+    state: "WorkflowState",
+) -> None:
+    """Phase 2.5: Fetch content for papers with pdf_url but no fulltext."""
+    # Also entirely optional/config-driven: no configured content_tool means
+    # this is a no-op, same pattern as Phase 2.4's PDF discovery.
+    content_config = build_content_config(
+        config.workflow,
+        config.tool_registry,
+        config.is_multi_source,
+    )
+
+    if not content_config:
+        return
+
+    logger.info(
+        "Content retrieval configured for %s source(s)", len(content_config)
+    )
+
+    # Only papers still missing fulltext but with a URL suitable for the
+    # configured content tool (typically the pdf_url found in Phase 2.4).
+    papers_needing_content = get_papers_needing_content(
+        all_paper_metadata,
+        paper_source_map,
+        content_config,
+    )
+
+    if not papers_needing_content:
+        return
+
+    runtime_context = _build_content_runtime_context(state)
+    await _run_and_log_content_fetch(
+        papers_needing_content, mcp_client, runtime_context, all_paper_metadata
+    )
 
 
 def _count_used_papers(articles: list[Article]) -> int:

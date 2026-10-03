@@ -1,7 +1,18 @@
-import {type RunFocus, type RunTier} from '@/api/runs';
+import type {RunFocus, RunTier} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {conciseTitle} from '@/lib/text';
-import {joinClasses} from '../classes';
+import {
+  joinClasses,
+  OPTION_GROUP_CLASSES,
+  OPTION_GROUP_LEGEND_CLASSES,
+  OPTION_INPUT_CLASSES,
+  OPTION_LABEL_CLASSES,
+  OPTION_MARKER_CLASSES,
+  OPTION_MARKER_SELECTED_CLASSES,
+  SETUP_ACTIONS_CLASSES,
+  SETUP_PRIMARY_BUTTON_CLASSES,
+  SETUP_SECONDARY_BUTTON_CLASSES,
+} from '../classes';
 import {
   type InferredRunSpec,
   FOCUS_OPTIONS,
@@ -9,6 +20,7 @@ import {
   availableTierOptions,
   isCompletionEmailValid,
   runOptionLabel,
+  isValidCompletionEmail,
 } from '../run_spec';
 import {tooltipClassNames} from '../tooltip';
 import {AssistantMessage, MessageAttachment} from './chat_timeline_bubble';
@@ -19,18 +31,9 @@ import {
   SpecFieldsSection,
   useSpecFieldsEditor,
 } from './chat_timeline_run_spec_editor';
-import {CompletionNotification} from './chat_timeline_run_spec_notification';
-import {
-  OPTION_GROUP_CLASSES,
-  OPTION_GROUP_LEGEND_CLASSES,
-  OPTION_INPUT_CLASSES,
-  OPTION_LABEL_CLASSES,
-  OPTION_MARKER_CLASSES,
-  OPTION_MARKER_SELECTED_CLASSES,
-  SETUP_ACTIONS_CLASSES,
-  SETUP_PRIMARY_BUTTON_CLASSES,
-  SETUP_SECONDARY_BUTTON_CLASSES,
-} from './chat_classes';
+import {useSystemStatus} from '../hooks/system_status_context';
+import {Link} from 'react-router-dom';
+import {TruncatedLabel} from '../components/truncated_label';
 
 // Props for RunSpecCard, named at module level per the destructured prop
 // signature otherwise pushing the component past the line cap.
@@ -54,7 +57,7 @@ interface RunSpecCardProps {
   /**
    * Timeline item id to tag this card's row with, so the auto-scroll can
    * bring the card's own top edge into view when it arrives (see
-   * chat_workspace_scroll.ts). Omitted by the confirmed card, which is a
+   * chat_workspace.tsx). Omitted by the confirmed card, which is a
    * re-render of a card already on screen rather than a new arrival.
    */
   anchorId?: string;
@@ -534,4 +537,286 @@ function RecoveryLookupStatus({
     );
   }
   return null;
+}
+
+const EMAIL_ROW_CLASSES = 'mt-3 grid gap-1 text-sm';
+
+const EMAIL_LABEL_CLASSES = 'text-cosci-fg';
+
+const EMAIL_INPUT_CLASSES =
+  'w-full rounded-xl border border-cosci-border bg-transparent p-3';
+
+/**
+ * The completion-email opt-in.
+ *
+ * There is no separate checkbox: the address field is always present, and
+ * notification is simply whichever way a valid address makes it -- typing
+ * one on turns it on, clearing or breaking it turns it off. Gated on the
+ * server actually having an SMTP transport (`/status`'s
+ * `email_notifications_available`): with none configured the durable send
+ * task can only raise, exhaust its retries, and fail somewhere the scientist
+ * never looks, so an editable field would promise a message that is never
+ * coming. Unavailable, the row states that plainly rather than disappearing
+ * -- the feature exists, this deployment just cannot send.
+ */
+export function CompletionNotification({
+  spec,
+  disabled,
+  onChange,
+}: {
+  spec: InferredRunSpec;
+  disabled: boolean;
+  onChange: (enabled: boolean, email: string) => void;
+}) {
+  const {status} = useSystemStatus();
+  const available = status?.email_notifications_available ?? false;
+  return (
+    <fieldset className={OPTION_GROUP_CLASSES}>
+      <legend className={OPTION_GROUP_LEGEND_CLASSES}>Notification</legend>
+      <NotificationEmail
+        spec={spec}
+        disabled={disabled}
+        available={available}
+        onChange={onChange}
+      />
+      <UnavailableNote available={available} />
+    </fieldset>
+  );
+}
+
+// Says why the field is inert, so an unconfigured server reads as a
+// deployment fact rather than a control that ignores keystrokes.
+function UnavailableNote({available}: {available: boolean}) {
+  if (available) return null;
+  return (
+    <p className="text-xs text-cosci-muted">
+      Email delivery is not configured on this server.
+    </p>
+  );
+}
+
+// The address the Goal Report notice goes to. Always on screen -- entering
+// a valid one is the opt-in, an invalid or blank one is a silent opt-out,
+// and neither state is announced as an error.
+function NotificationEmail({
+  spec,
+  disabled,
+  available,
+  onChange,
+}: {
+  spec: InferredRunSpec;
+  disabled: boolean;
+  available: boolean;
+  onChange: (enabled: boolean, email: string) => void;
+}) {
+  return (
+    <label className={EMAIL_ROW_CLASSES}>
+      <span className={EMAIL_LABEL_CLASSES}>
+        Email me when the Goal Report is ready
+      </span>
+      <input
+        type="email"
+        disabled={disabled || !available}
+        placeholder="you@example.com — leave blank for no email"
+        className={EMAIL_INPUT_CLASSES}
+        value={spec.completionEmail || ''}
+        onChange={event => {
+          const email = event.currentTarget.value;
+          onChange(isValidCompletionEmail(email), email);
+        }}
+      />
+    </label>
+  );
+}
+
+const STARTED_NEXT_BUTTON_CLASSES =
+  'min-h-[2.6rem] cursor-pointer rounded-full border border-cosci-btn-outline-border bg-transparent px-[1.2rem] font-semibold text-cosci-btn-outline-fg hover:bg-cosci-btn-outline-hover-bg focus-visible:bg-cosci-btn-outline-hover-bg';
+
+/** A run that has been started, as shown by the timeline's terminal card. */
+export interface StartedSession {
+  id: string;
+  title: string;
+  at: number;
+  /**
+   * The Agent's reply to the scientist's start request, shown as the card's
+   * lead-in so a started run reads as one response rather than a card under
+   * a canned notice. Written by the model and streamed in as it arrives
+   * (see chat_session_start_run.ts), which is why it grows from empty.
+   */
+  intro?: string;
+  /** The chain of thought behind that reply, disclosed inside the turn like
+   * any other reply's. */
+  reasoning?: string;
+  /**
+   * True while the reply is still being written. It is what tells an empty
+   * `intro` that is still filling from one that never will, so the standby
+   * copy below does not flash in front of the model's own first sentence.
+   */
+  announcing?: boolean;
+}
+
+/**
+ * What the card says when no reply was written for it: a run started before
+ * this exchange existed and reopened since, a provider that could not be
+ * reached, or a turn the scientist stopped.
+ *
+ * The wording the card carried unconditionally until the Agent started
+ * answering for itself. It is the same substance the model is asked for
+ * (run under way; open it whenever, first ideas take a few minutes), because
+ * the run did start in every one of those cases and the scientist needs the
+ * same two facts about it.
+ */
+export const STARTED_SESSION_STANDBY_COPY =
+  'Your session has been started and Co-Scientist has started research!' +
+  '\n\n' +
+  'You can view and interact with your session at any time, but note that ' +
+  'it might take a few minutes for the first ideas to be ready to view.';
+
+// The lead-in text to render: the Agent's own reply, the standby copy once
+// it is settled that there will not be one, and nothing at all while the
+// reply is still on its way.
+function introCopy(session: StartedSession): string {
+  const written = session.intro?.trim();
+  if (written) return written;
+  return session.announcing ? '' : STARTED_SESSION_STANDBY_COPY;
+}
+
+/**
+ * Renders the terminal timeline turn shown once a research run has actually
+ * been started: the Agent's own confirmation as an ordinary assistant reply,
+ * carrying the session link card and "what next" actions (open details, or
+ * start a new topic) as its inline attachment.
+ *
+ * @param session The started session (id, title, start timestamp) to display.
+ * @param href Route of the run's detail page. A URL rather than an open
+ *   handler so both affordances below can be real links, which a middle- or
+ *   cmd-click opens in a new browser tab.
+ * @param onNewTopic Handler to reset the workspace and start a fresh topic.
+ *
+ * Carries copy/download but no retry: this card reports a run the server has
+ * already started, so there is no response here to regenerate. The control
+ * used to re-sort the card to the current time, which from a click looked
+ * exactly like nothing happening.
+ */
+export function StartedSessionCard({
+  session,
+  href,
+  onNewTopic,
+}: {
+  session: StartedSession;
+  href: string;
+  onNewTopic: () => void;
+}) {
+  const intro = introCopy(session);
+  const responseText = formatStartedSessionResponse(session, intro);
+
+  return (
+    <AssistantMessage
+      content={intro}
+      reasoning={session.reasoning}
+      live={session.announcing}
+      ariaLabel="Started research session"
+      attachment={
+        // Withheld until the reply is written. The turn reads as an answer
+        // that hands over the session, so the session block belongs after
+        // the answer, not in front of a reply that has not started arriving
+        // -- and it grew under the reader's eyes while the text streamed in
+        // above it. A run reopened from history has no announcement to wait
+        // for (`announcing` is unset) and shows it straight away.
+        session.announcing ? undefined : (
+          <MessageAttachment>
+            <SessionLinkCard session={session} href={href} />
+            <SessionNextActions href={href} onNewTopic={onNewTopic} />
+          </MessageAttachment>
+        )
+      }
+      actions={responseActions(
+        null,
+        responseText,
+        'co-scientist-session-started.md',
+      )}
+    />
+  );
+}
+
+// The clickable card linking to the started session's detail page: title
+// (truncated) plus a "Research session" byline and an "Open" affordance.
+function SessionLinkCard({
+  session,
+  href,
+}: {
+  session: StartedSession;
+  href: string;
+}) {
+  return (
+    <Link
+      to={href}
+      className={`${'reference-started-session-card grid min-h-[5.3rem] cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-[1.2rem] rounded-2xl border-0 p-[1rem_1rem_1rem_1.35rem] text-left text-white'} no-underline`}
+    >
+      <span className="block min-w-0">
+        <strong className="block min-w-0 text-[1.18rem] leading-[1.25]">
+          <TruncatedLabel
+            className="block min-w-0 overflow-hidden whitespace-nowrap"
+            text={session.title}
+          />
+        </strong>
+        <small className="mt-[0.3rem] block text-[0.9rem] text-white/80">
+          Research session
+        </small>
+      </span>
+      <span className="reference-started-open min-w-[5.4rem] rounded-full border border-white/75 px-[1.25rem] py-[0.65rem] text-center font-semibold text-white/90 hover:bg-white/12 focus-visible:bg-white/12">
+        Open
+      </span>
+    </Link>
+  );
+}
+
+// The "what next" block under a started session: view the session details,
+// or start a fresh topic. The first is a navigation, so it is a link wearing
+// the pill-button styling rather than a button.
+function SessionNextActions({
+  href,
+  onNewTopic,
+}: {
+  href: string;
+  onNewTopic: () => void;
+}) {
+  return (
+    <div className="reference-started-next flex flex-wrap items-center gap-[0.55rem]">
+      <p className="basis-full m-0 mb-[0.1rem] text-[0.95rem] font-semibold text-cosci-muted">
+        What would you like to do next?
+      </p>
+      <Link
+        to={href}
+        className={`${STARTED_NEXT_BUTTON_CLASSES} inline-flex items-center no-underline`}
+      >
+        View session details
+      </Link>
+      <button
+        type="button"
+        className={STARTED_NEXT_BUTTON_CLASSES}
+        onClick={onNewTopic}
+      >
+        Start a new research goal session on a new topic
+      </button>
+    </div>
+  );
+}
+
+// Renders the started-session card's content as a Markdown document, used
+// for the card's copy/download actions (see responseActions). Carries the
+// reply actually on screen -- the Agent's own, or the standby copy -- rather
+// than a second wording of it that would drift from what was read.
+function formatStartedSessionResponse(
+  session: StartedSession,
+  intro: string,
+): string {
+  return [
+    `# ${session.title}`,
+    '',
+    intro || STARTED_SESSION_STANDBY_COPY,
+    '',
+    '* **Type:** Research session',
+    '* **Action:** Open the session details when you want to inspect progress.',
+  ].join('\n');
 }

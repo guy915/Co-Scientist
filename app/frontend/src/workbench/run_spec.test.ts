@@ -1,6 +1,6 @@
 import {afterEach, describe, expect, it} from 'vitest';
 import type {Interview} from '@/api/runs';
-import {setStoredApiKey} from '@/lib/api_key';
+import {setStoredApiKey} from '@/lib/client_id';
 import {
   applyEditedInterviewFields,
   availableTierOptions,

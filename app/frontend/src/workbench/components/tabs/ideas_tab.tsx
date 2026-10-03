@@ -14,7 +14,7 @@ import {
   sortByEloDesc,
 } from '@/lib/hypotheses';
 import {Icon} from '@/components/icon';
-import {useIsMobile} from '../../hooks/use_is_mobile';
+import {useIsMobile} from '../../hooks/dom';
 import {TruncatedLabel} from '../truncated_label';
 import {
   DETAIL_PANE_ID,

@@ -1,16 +1,10 @@
-"""Commands that outlive the tool call that started them.
-
-The property under test throughout is that **"still running" is a
-successful answer**. A bounded command has one move at its deadline --
-kill it, report a timeout, and discard both the work and the output it
-had already written -- and that move is wrong for every command worth
-running at a terminal.
-"""
+"""Offline contracts for workspace sessions."""
 
 from __future__ import annotations
 
 import asyncio
 import json
+import shutil
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -18,16 +12,38 @@ from typing import Any
 
 import pytest
 
-from co_scientist.workspace.command_session import (
+from co_scientist.sandbox import (
+    HARNESS_METADATA_NAME,
+    METADATA_NAMES,
+    PROTECTED_METADATA_NAMES,
+    sandbox_backend,
+)
+from co_scientist.sandbox.policy import SandboxKind, SandboxPolicy
+from co_scientist.sandbox.runner import ExecRequest, run_sandboxed
+from co_scientist.workspace import (
+    LIST_FILES,
+    MIN_SECRET_LENGTH,
+    READ_FILE,
+    SPILL_DIRECTORY,
+    OutputRecorder,
+    SecretRegistrationError,
+    SecretRegistry,
+    WorkspaceSession,
+    WorkspaceToolProvider,
+)
+from co_scientist.workspace import RUN_COMMAND as _WORKSPACE_OUTPUT_RUN_COMMAND
+from co_scientist.workspace.checks import WorkspaceSnapshotter
+from co_scientist.workspace.session import (
     MAX_SESSION_OUTPUT_BYTES,
     SessionRegistry,
 )
-from co_scientist.workspace.session import WorkspaceSession
-from co_scientist.workspace.tool_schemas import POLL_COMMAND, RUN_COMMAND
-from co_scientist.workspace.tools import WorkspaceToolProvider
+from co_scientist.workspace.tool_schemas import POLL_COMMAND
+from co_scientist.workspace.tool_schemas import (
+    RUN_COMMAND as _WORKSPACE_SESSIONS_RUN_COMMAND,
+)
 
 
-def _call(name: str, arguments: Any) -> SimpleNamespace:
+def _workspace_sessions_call(name: str, arguments: Any) -> SimpleNamespace:
     return SimpleNamespace(
         id=f"call_{name}",
         function=SimpleNamespace(name=name, arguments=json.dumps(arguments)),
@@ -37,7 +53,9 @@ def _call(name: str, arguments: Any) -> SimpleNamespace:
 async def _execute(
     provider: WorkspaceToolProvider, name: str, **arguments: Any
 ) -> dict[str, Any]:
-    message = await provider.execute_tool_call(_call(name, arguments))
+    message = await provider.execute_tool_call(
+        _workspace_sessions_call(name, arguments)
+    )
     parsed: dict[str, Any] = json.loads(message["content"])
     return parsed
 
@@ -87,7 +105,7 @@ class TestStillRunningIsAnAnswer:
     ) -> None:
         payload = await _execute(
             provider,
-            RUN_COMMAND,
+            _WORKSPACE_SESSIONS_RUN_COMMAND,
             argv=["bash", "-c", "echo early; sleep 30"],
             yield_seconds=0.4,
         )
@@ -105,7 +123,9 @@ class TestStillRunningIsAnAnswer:
         self, provider: WorkspaceToolProvider
     ) -> None:
         payload = await _execute(
-            provider, RUN_COMMAND, argv=["bash", "-lc", "echo hi"]
+            provider,
+            _WORKSPACE_SESSIONS_RUN_COMMAND,
+            argv=["bash", "-lc", "echo hi"],
         )
         assert payload["running"] is False
         assert payload["exit_code"] == 0
@@ -116,7 +136,7 @@ class TestStillRunningIsAnAnswer:
     ) -> None:
         started = await _execute(
             provider,
-            RUN_COMMAND,
+            _WORKSPACE_SESSIONS_RUN_COMMAND,
             argv=["bash", "-lc", "sleep 0.3; echo done; exit 7"],
             yield_seconds=0.05,
         )
@@ -142,7 +162,7 @@ class TestStillRunningIsAnAnswer:
         # window this test used to assert against directly.
         started = await _execute(
             provider,
-            RUN_COMMAND,
+            _WORKSPACE_SESSIONS_RUN_COMMAND,
             argv=["bash", "-c", "echo first; read line; echo second"],
             yield_seconds=0.1,
         )
@@ -163,7 +183,9 @@ class TestStillRunningIsAnAnswer:
         self, provider: WorkspaceToolProvider
     ) -> None:
         started = await _execute(
-            provider, RUN_COMMAND, argv=["bash", "-lc", "echo whole"]
+            provider,
+            _WORKSPACE_SESSIONS_RUN_COMMAND,
+            argv=["bash", "-lc", "echo whole"],
         )
         polled = await _execute(
             provider, POLL_COMMAND, session_id=started["session_id"]
@@ -177,7 +199,7 @@ class TestDrivingIt:
     ) -> None:
         started = await _execute(
             provider,
-            RUN_COMMAND,
+            _WORKSPACE_SESSIONS_RUN_COMMAND,
             argv=["bash", "-lc", "read line; echo got:$line"],
             yield_seconds=0.05,
         )
@@ -194,7 +216,7 @@ class TestDrivingIt:
     async def test_kill_ends_it(self, provider: WorkspaceToolProvider) -> None:
         started = await _execute(
             provider,
-            RUN_COMMAND,
+            _WORKSPACE_SESSIONS_RUN_COMMAND,
             argv=["bash", "-lc", "sleep 60"],
             yield_seconds=0.05,
         )
@@ -219,7 +241,7 @@ class TestDrivingIt:
         """
         started = await _execute(
             provider,
-            RUN_COMMAND,
+            _WORKSPACE_SESSIONS_RUN_COMMAND,
             argv=["bash", "-lc", "read line; echo got:$line"],
             yield_seconds=0.05,
         )
@@ -335,7 +357,7 @@ class TestAnInterruptedCommand:
         provider = WorkspaceToolProvider(WorkspaceSession(tmp_path))
         started = await _execute(
             provider,
-            RUN_COMMAND,
+            _WORKSPACE_SESSIONS_RUN_COMMAND,
             argv=["bash", "-lc", "sleep 60"],
             yield_seconds=0.05,
         )
@@ -376,7 +398,7 @@ class TestAnInterruptedCommand:
         provider = WorkspaceToolProvider(WorkspaceSession(tmp_path))
         started = await _execute(
             provider,
-            RUN_COMMAND,
+            _WORKSPACE_SESSIONS_RUN_COMMAND,
             argv=["bash", "-lc", "sleep 60"],
             yield_seconds=0.05,
         )
@@ -385,3 +407,432 @@ class TestAnInterruptedCommand:
             provider, POLL_COMMAND, session_id=started["session_id"]
         )
         assert "restart" in json.dumps(payload)
+
+
+_requires_git = pytest.mark.skipif(
+    shutil.which("git") is None, reason="git is not installed"
+)
+_TRUSTED = SandboxPolicy(kind=SandboxKind.DANGER_FULL_ACCESS)
+
+
+async def _git(cwd: Path, *args: str) -> str:
+    """Runs git in a directory and returns its stdout."""
+    result = await run_sandboxed(
+        ExecRequest(
+            argv=["git", *args],
+            policy=_TRUSTED,
+            cwd=cwd,
+            timeout_seconds=60,
+        )
+    )
+    return result.stdout
+
+
+def _snapshotter(tmp_path: Path) -> WorkspaceSnapshotter:
+    """Builds a snapshotter over a fresh workspace."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    return WorkspaceSnapshotter(workspace, tmp_path / "shadow")
+
+
+@_requires_git
+@pytest.mark.asyncio
+async def test_a_snapshot_returns_a_tree_hash(tmp_path: Path) -> None:
+    snapshotter = _snapshotter(tmp_path)
+    (snapshotter.workspace / "a.txt").write_text("content\n")
+
+    snapshot = await snapshotter.take()
+
+    assert snapshot is not None
+    assert len(snapshot.tree) == 40
+
+
+@_requires_git
+@pytest.mark.asyncio
+async def test_identical_content_yields_the_same_hash(
+    tmp_path: Path,
+) -> None:
+    """Content-addressed, so provenance is comparable across runs."""
+    snapshotter = _snapshotter(tmp_path)
+    (snapshotter.workspace / "a.txt").write_text("content\n")
+
+    first = await snapshotter.take()
+    second = await snapshotter.take()
+
+    assert first is not None and second is not None
+    assert first.tree == second.tree
+
+
+@_requires_git
+@pytest.mark.asyncio
+async def test_changed_content_yields_a_different_hash(
+    tmp_path: Path,
+) -> None:
+    snapshotter = _snapshotter(tmp_path)
+    target = snapshotter.workspace / "a.txt"
+    target.write_text("before\n")
+    first = await snapshotter.take()
+
+    target.write_text("after\n")
+    second = await snapshotter.take()
+
+    assert first is not None and second is not None
+    assert first.tree != second.tree
+
+
+@_requires_git
+@pytest.mark.asyncio
+async def test_the_workspace_git_history_is_untouched(
+    tmp_path: Path,
+) -> None:
+    """The central property.
+
+    A run may snapshot a repository its user is also working in, so
+    nothing may appear in that repository's log, refs, or index.
+    """
+    snapshotter = _snapshotter(tmp_path)
+    workspace = snapshotter.workspace
+    await _git(workspace, "init", "--quiet")
+    await _git(workspace, "config", "user.email", "t@example.com")
+    await _git(workspace, "config", "user.name", "t")
+    (workspace / "a.txt").write_text("tracked\n")
+    await _git(workspace, "add", "a.txt")
+    await _git(workspace, "commit", "--quiet", "-m", "initial")
+
+    log_before = await _git(workspace, "log", "--oneline")
+    status_before = await _git(workspace, "status", "--porcelain")
+
+    (workspace / "scratch.txt").write_text("agent output\n")
+    snapshot = await snapshotter.take()
+
+    assert snapshot is not None
+    assert await _git(workspace, "log", "--oneline") == log_before
+    # The untracked file is still untracked: the shadow `add` staged it
+    # in the shadow index, not the workspace's.
+    assert await _git(workspace, "status", "--porcelain") != status_before
+    assert "scratch.txt" in await _git(workspace, "status", "--porcelain")
+
+
+@_requires_git
+@pytest.mark.asyncio
+async def test_diffing_two_snapshots(tmp_path: Path) -> None:
+    snapshotter = _snapshotter(tmp_path)
+    target = snapshotter.workspace / "a.txt"
+    target.write_text("before\n")
+    first = await snapshotter.take()
+    target.write_text("after\n")
+    second = await snapshotter.take()
+
+    assert first is not None and second is not None
+    diff = await snapshotter.diff(first, second)
+
+    assert diff is not None
+    assert "-before" in diff
+    assert "+after" in diff
+
+
+_requires_sandbox = pytest.mark.skipif(
+    sandbox_backend() is None, reason="no sandbox backend on this platform"
+)
+
+_SECRET = "sk-live-9f3c2b71aa4d8e60"
+
+
+def _workspace_output_call(name: str, arguments: Any = "{}") -> SimpleNamespace:
+    """Builds a litellm-shaped tool call."""
+    return SimpleNamespace(
+        id=f"call_{name}",
+        function=SimpleNamespace(name=name, arguments=arguments),
+    )
+
+
+def _registry(**secrets: str) -> SecretRegistry:
+    """Builds a registry from name/value pairs."""
+    registry = SecretRegistry()
+    for name, value in secrets.items():
+        registry.register(name, value)
+    return registry
+
+
+def _content(message: dict[str, Any]) -> dict[str, Any]:
+    """Parses a tool-role message's JSON content."""
+    parsed: dict[str, Any] = json.loads(message["content"])
+    return parsed
+
+
+def _run(provider: WorkspaceToolProvider, argv: list[str]) -> dict[str, Any]:
+    """Runs a command through the tool surface and returns its payload."""
+    return _content(
+        asyncio.run(
+            provider.execute_tool_call(
+                _workspace_output_call(
+                    _WORKSPACE_OUTPUT_RUN_COMMAND, json.dumps({"argv": argv})
+                )
+            )
+        )
+    )
+
+
+# --- registration ---------------------------------------------------------
+
+
+def test_a_short_value_is_refused_rather_than_masked() -> None:
+    """Masking "abc" everywhere corrupts output that merely contains it."""
+    with pytest.raises(SecretRegistrationError, match="cannot be masked"):
+        _registry(TOKEN="a" * (MIN_SECRET_LENGTH - 1))
+
+
+def test_environment_scan_finds_credential_shaped_names() -> None:
+    registry = SecretRegistry()
+    found = registry.register_environment(
+        {
+            "ANTHROPIC_API_KEY": _SECRET,
+            "GITHUB_TOKEN": "ghp_0123456789abcdef",
+            "PATH": "/usr/bin",
+        }
+    )
+    assert set(found) == {"ANTHROPIC_API_KEY", "GITHUB_TOKEN"}
+
+
+def test_environment_scan_skips_a_short_value_without_raising() -> None:
+    """One odd variable must not stop the rest being protected."""
+    registry = SecretRegistry()
+    found = registry.register_environment(
+        {"SHORT_KEY": "abc", "REAL_KEY": _SECRET}
+    )
+    assert found == ("REAL_KEY",)
+
+
+def test_a_secret_containing_another_is_masked_as_itself() -> None:
+    """Shortest-first would replace the inner value and strand the rest."""
+    registry = _registry(INNER=_SECRET, OUTER=f"{_SECRET}-extended-suffix")
+    assert registry.redact(f"{_SECRET}-extended-suffix") == "[redacted:OUTER]"
+
+
+# --- the inline path, which is the one that was missed --------------------
+
+
+@_requires_sandbox
+def test_a_command_printing_a_secret_does_not_print_it(tmp_path: Path) -> None:
+    """The gap being closed: stdout reaches the transcript untouched.
+
+    Scrubbing stored artifacts and leaving the command's own output alone
+    means one ``env`` publishes every injected credential.
+    """
+    echo = shutil.which("echo")
+    if echo is None:  # pragma: no cover - environment-dependent
+        pytest.skip("echo is not installed")
+    provider = WorkspaceToolProvider(
+        WorkspaceSession(tmp_path), secrets=_registry(API_KEY=_SECRET)
+    )
+
+    payload = _run(provider, [echo, _SECRET])
+
+    assert _SECRET not in json.dumps(payload)
+    assert "[redacted:API_KEY]" in payload["stdout"]
+
+
+def test_reading_a_file_does_not_route_around_redaction(
+    tmp_path: Path,
+) -> None:
+    """Otherwise ``cmd > f`` then read_file is the way past the other path."""
+    (tmp_path / "captured.txt").write_text(f"key={_SECRET}\n")
+    provider = WorkspaceToolProvider(
+        WorkspaceSession(tmp_path), secrets=_registry(API_KEY=_SECRET)
+    )
+
+    payload = _content(
+        asyncio.run(
+            provider.execute_tool_call(
+                _workspace_output_call(
+                    READ_FILE, json.dumps({"path": "captured.txt"})
+                )
+            )
+        )
+    )
+
+    assert _SECRET not in payload["content"]
+
+
+def test_output_is_dropped_whole_when_a_value_survives(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The guard behind the redactor, triggered by breaking the redactor.
+
+    Its condition is a bug in ``redact``, so it cannot be reached with
+    real inputs -- and a defence that is never exercised is a defence
+    nobody knows is wired up.
+    """
+    monkeypatch.setattr(SecretRegistry, "redact", lambda self, text: text)
+    recorder = OutputRecorder(tmp_path, _registry(API_KEY=_SECRET))
+
+    bounded = recorder.record("stdout", f"leaked {_SECRET}")
+
+    assert _SECRET not in bounded.text
+    assert "API_KEY" in bounded.text
+    assert bounded.truncated
+
+
+# --- spillover ------------------------------------------------------------
+
+
+def test_a_long_stream_keeps_both_ends(tmp_path: Path) -> None:
+    """A head-only truncation discards the half that holds the verdict."""
+    recorder = OutputRecorder(tmp_path, preview_chars=200)
+    text = f"START{'x' * 5000}END"
+
+    bounded = recorder.record("stdout", text)
+
+    assert bounded.text.startswith("START")
+    assert bounded.text.endswith("END")
+    assert bounded.truncated
+
+
+def test_spilled_output_is_readable_back_through_the_tools(
+    tmp_path: Path,
+) -> None:
+    """The pointer is only useful if read_file can actually follow it."""
+    session = WorkspaceSession(tmp_path)
+    provider = WorkspaceToolProvider(session)
+    recorder = OutputRecorder(session.root, preview_chars=100)
+    text = f"START{'x' * 5000}END"
+
+    pointer = recorder.record("stdout", text).pointer
+    assert pointer is not None
+
+    payload = _content(
+        asyncio.run(
+            provider.execute_tool_call(
+                _workspace_output_call(
+                    READ_FILE, json.dumps({"path": pointer.path})
+                )
+            )
+        )
+    )
+    assert payload["content"] == text
+
+
+def test_spilled_output_is_redacted_before_it_is_written(
+    tmp_path: Path,
+) -> None:
+    """Redacting before persisting: the spill file is a persistence."""
+    recorder = OutputRecorder(
+        tmp_path, _registry(API_KEY=_SECRET), preview_chars=100
+    )
+
+    pointer = recorder.record("stdout", f"{_SECRET}{'x' * 5000}").pointer
+
+    assert pointer is not None
+    assert _SECRET not in (tmp_path / pointer.path).read_text()
+
+
+def test_a_failed_spill_costs_the_middle_not_the_command(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A full disk must not turn a finished command into an error."""
+
+    def _explode(*args: Any, **kwargs: Any) -> None:
+        raise OSError("no space left on device")
+
+    monkeypatch.setattr(Path, "mkdir", _explode)
+    recorder = OutputRecorder(tmp_path, preview_chars=100)
+
+    bounded = recorder.record("stdout", "x" * 5000)
+
+    assert bounded.pointer is None
+    assert bounded.truncated
+    assert bounded.text
+
+
+# --- the metadata directory ----------------------------------------------
+
+
+def test_the_spill_directory_is_harness_scratch_not_a_guarantee() -> None:
+    """Which tuple it is in decides whether landlock can run at all.
+
+    Everything in PROTECTED_METADATA_NAMES makes a workspace policy
+    inexpressible under landlock, whose rules can only add access. This
+    directory always exists, so listing it there refused every command
+    on the platform production runs -- and the protection it bought was
+    never what made the spill safe (see _is_inside_workspace).
+    """
+    assert SPILL_DIRECTORY.split("/")[0] == HARNESS_METADATA_NAME
+    assert HARNESS_METADATA_NAME not in PROTECTED_METADATA_NAMES
+    assert HARNESS_METADATA_NAME in METADATA_NAMES
+
+
+def test_listing_files_omits_harness_metadata(tmp_path: Path) -> None:
+    """Its own transcript is not one of the workspace's inputs."""
+    session = WorkspaceSession(tmp_path)
+    (tmp_path / "analysis.py").write_text("pass")
+    OutputRecorder(session.root, preview_chars=50).record("stdout", "y" * 500)
+
+    payload = _content(
+        asyncio.run(
+            WorkspaceToolProvider(session).execute_tool_call(
+                _workspace_output_call(LIST_FILES)
+            )
+        )
+    )
+    assert payload["files"] == ["analysis.py"]
+
+
+def test_a_symlinked_metadata_directory_does_not_redirect_the_spill(
+    tmp_path: Path,
+) -> None:
+    """The escape a fresh Linux workspace allowed until sessions made it.
+
+    bwrap's --ro-bind-try skips a path that does not exist, so on a fresh
+    workspace .cosci was ordinary writable space and the first confined
+    command could replace it with a symlink. The spill then ran in *this*
+    process, outside the sandbox, and wrote command-influenced bytes into
+    a command-chosen directory. macOS never showed it: seatbelt's deny
+    rule matches the path whether or not it exists.
+    """
+    root = tmp_path / "workspace"
+    root.mkdir()
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    (root / SPILL_DIRECTORY.split("/")[0]).symlink_to(outside)
+
+    bounded = OutputRecorder(root, preview_chars=50).record(
+        "stdout", "x" * 5000
+    )
+
+    assert bounded.pointer is None
+    # Not even a directory: creating one and then declining to write
+    # still lets a command make the host mkdir wherever it likes.
+    assert list(outside.rglob("*")) == []
+
+
+def test_a_session_creates_the_metadata_directory_up_front(
+    tmp_path: Path,
+) -> None:
+    """What makes the read-only bind bind at all, from command one."""
+    session = WorkspaceSession(tmp_path)
+    assert (session.root / SPILL_DIRECTORY).is_dir()
+
+
+def test_a_truncated_read_hands_back_a_way_to_the_rest(
+    tmp_path: Path,
+) -> None:
+    """Otherwise the preview's own advice is a dead end.
+
+    "Read the full output with read_file" is what the preview says, and
+    re-reading the same path returns the same preview forever.
+    """
+    session = WorkspaceSession(tmp_path)
+    (tmp_path / "big.txt").write_text("y" * 40_000)
+
+    payload = _content(
+        asyncio.run(
+            WorkspaceToolProvider(session).execute_tool_call(
+                _workspace_output_call(
+                    READ_FILE, json.dumps({"path": "big.txt"})
+                )
+            )
+        )
+    )
+
+    assert payload["truncated"] is True
+    assert payload["full_output"].startswith(SPILL_DIRECTORY)

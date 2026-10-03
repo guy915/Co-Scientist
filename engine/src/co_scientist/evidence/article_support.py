@@ -1,9 +1,4 @@
-"""Article assembly and result-building helpers for the literature review.
-
-Builds ``Article`` objects from collected paper metadata (including year and
-URL derivation), classifies which papers have usable fulltext/content for
-analysis, and constructs the node's success/failure result dicts.
-"""
+"""Article construction, retrieval-content parsing and provenance metadata."""
 
 from __future__ import annotations
 

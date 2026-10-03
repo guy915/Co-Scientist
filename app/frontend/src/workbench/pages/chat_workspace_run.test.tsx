@@ -6,7 +6,7 @@ import {
   installChatWorkspaceMocks,
   renderWorkspace,
 } from './chat_workspace_test_helpers';
-import {STARTED_SESSION_STANDBY_COPY} from './chat_timeline_started_card';
+import {STARTED_SESSION_STANDBY_COPY} from './chat_timeline_run_spec_card';
 
 beforeEach(() => {
   installChatWorkspaceMocks();

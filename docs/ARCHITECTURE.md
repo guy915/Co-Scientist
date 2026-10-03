@@ -83,7 +83,7 @@ Every run executes through the durable task queue, and the same event-log table 
 
 Events 1-2 come from the HTTP layer. Events 3-5 come from the worker: `safety.intake` is the `engine.bootstrap` task's first act (`engine_tasks/inputs.py::_screen_bootstrap_intake`, which is also where the run flips to `running`), then one `scientific_task` per node commit. Events 6-11 come from the terminal `engine.finalize` task (`report.finalize.finalize_report`), which is why the citation audit lands *after* `research_overview` rather than before it. There is no `status (running)` event — the transition into `running` is a `runs` row update, not an event.
 
-Every graph node reports under the single `scientific_task` type, carrying the node it completed in `payload.task` and the node it scheduled next in `payload.successor` (`engine_tasks/emit.py::_emit_node_completion`). The engine's named stage vocabulary (`supervisor.plan`, `literature_review`, `generate`, `ranking`, …) survives only as milestone *chat messages* appended to `messages` by `engine_adapter.events.append_node_milestone`; no `run_events` row carries those types. The frontend's active-run view reads the node out of `payload.task` for exactly that reason (`run_detail_active.tsx::activityPhase`).
+Every graph node reports under the single `scientific_task` type, carrying the node it completed in `payload.task` and the node it scheduled next in `payload.successor` (`engine_tasks/support.py::_emit_node_completion`). The engine's named stage vocabulary (`supervisor.plan`, `literature_review`, `generate`, `ranking`, …) survives only as milestone *chat messages* appended to `messages` by `engine_adapter.events.append_node_milestone`; no `run_events` row carries those types. The frontend's active-run view reads the node out of `payload.task` for exactly that reason (`run_detail_active.tsx::activityPhase`).
 
 Which nodes appear, and how often, is the orchestrator's decision rather than a fixed script: `review → comprehensive_reflection → safety_screen → deep_verification → ranking → orchestrator` recurs once per cycle, `meta_review → evolve` precedes a re-review, `proximity` runs only when the pool grew since the previous pass, and `literature_review`/`reflection` are absent entirely when no MCP server is reachable (they are excluded from the graph, not skipped at runtime).
 
@@ -186,7 +186,7 @@ Generation and Reflection call the same `collect_papers` operation; Reflection
 keeps its small probe budget and disables the semantic relevance model pass.
 Agent-specific query planning, synthesis and failure presentation remain in
 `agents/`. The evidence package never imports an agent, enforced by
-`engine/tests/test_evidence_layering.py`.
+`engine/tests/test_literature_review_retrieval.py`.
 
 Evidence consumers import helpers from their defining modules:
 `search_support`, `search_budget`, `retrieval_support` and `article_support`.
@@ -202,7 +202,7 @@ where it is consumed, without pass-through payload objects or single-use
 style facades. Private helpers are imported from their defining modules.
 
 The durable task dispatcher lives in `engine_tasks/__init__.py`; bootstrap
-lives in `inputs.py`, specialist execution and state overlays in `node.py`,
+lives in `final_state.py`, specialist execution and state overlays in `node.py`,
 and final draining/publication in `finalize.py`. All paths retain the shared
 lease and checkpoint commit guards. Line-count ceilings are retired in favor
 of cohesive modules, with behavior, type, and layer boundaries checked in CI.
@@ -246,9 +246,9 @@ citation sources while limiting prompt state to the selected parent, goal,
 preferences and lab constraints. The app retains action authorization, sibling
 duplicate validation, safety, replay accounting and the one-child commit.
 
-`app/tests/test_engine_operation_boundaries.py` enforces that app production
+`app/tests/test_architecture.py` enforces that app production
 modules import public engine symbols and the engine does not import the app.
-The [operation-boundary plan](superpowers/plans/2026-10-02-engine-operation-boundaries.md)
+The [operation-boundary plan](https://github.com/guy915/Co-Scientist/blob/7c2878aeb071a962cb713e9c271cd88e1635ca5f/docs/superpowers/plans/2026-10-02-engine-operation-boundaries.md)
 records the interfaces and characterized execution adaptations.
 
 ## HTTP, storage and frontend ownership

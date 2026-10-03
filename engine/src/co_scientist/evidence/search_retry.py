@@ -11,8 +11,7 @@ from co_scientist.backoff import jittered_backoff_seconds
 from co_scientist.evidence.retrieval_support import (
     describe_exception,
 )
-from co_scientist.mcp_client import MCPToolClient
-from co_scientist.mcp_client.campaign import CampaignToolUnavailableError
+from co_scientist.mcp_client import CampaignToolUnavailableError, MCPToolClient
 from co_scientist.tools.response_parser import parse_mcp_result
 
 logger = logging.getLogger(__name__)

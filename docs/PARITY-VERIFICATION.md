@@ -258,7 +258,7 @@ precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
 >   ever queued, applied or not, so it survives the node after the ack
 >   instead of going quiet, and a contribution posted with no remaining
 >   orchestrator boundary self-heals once the run settles.
-> - `CKPT-FAILINJECT-001` (`app/tests/test_resume_double_cycle.py`) — the
+> - `CKPT-FAILINJECT-001` (`app/tests/test_run_resume.py`) — the
 >   app-level two-consecutive-resume-cycle test this row's residual named as
 >   missing since the mock-workflow deletion now exists, driving the durable
 >   task queue one task at a time over the real HTTP endpoints and confirming
@@ -278,7 +278,7 @@ precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
 >
 > `RESEARCH-CONTACTS-FIELDS-001` (`2c204e1d`) stays `partial` in this pass:
 > `expertise` is now pinned as the one rendered field no published exemplar
-> supports (`app/tests/test_report_contact_groups.py::test_expertise_is_the_one_field_no_exemplar_supports`),
+> supports (`app/tests/test_report_hypotheses.py::test_expertise_is_the_one_field_no_exemplar_supports`),
 > closing the missing-pin-test residual the row previously named, but the
 > field itself is kept rather than removed, since no exemplar positively
 > excludes it.
@@ -391,7 +391,7 @@ Mock success never substitutes for real-provider verification.
 
 A **real-engine run through the live LangGraph path** was executed with the
 DeepSeek chat model (`DEEPSEEK_API_KEY` present in `.env`). Evidence:
-`evaluations/results/real_engine_baseline.json`.
+[evaluations/results/real_engine_baseline.json](https://github.com/guy915/Co-Scientist/blob/7c2878aeb071a962cb713e9c271cd88e1635ca5f/evaluations/results/real_engine_baseline.json).
 
 - `provider="engine"`, `status="completed"`, model `deepseek/deepseek-chat`.
 - Observed node sequence across two adaptive iterations: supervisor → generate
@@ -407,12 +407,12 @@ DeepSeek chat model (`DEEPSEEK_API_KEY` present in `.env`). Evidence:
 Two engine parity behaviors were additionally confirmed with direct real
 DeepSeek calls (reused for a fast, cheap real-output check):
 
-- **Output criteria** (`output_criteria_real_review.json`): a real review emits
+- **Output criteria** ([output_criteria_real_review.json](https://github.com/guy915/Co-Scientist/blob/7c2878aeb071a962cb713e9c271cd88e1635ca5f/evaluations/results/output_criteria_real_review.json)): a real review emits
   all five default criteria as integer scores (relevance, plausibility,
   novelty, testability, safety).
-- **Review types** (`reflect_types_real_review.json`): the new `full_review`
+- **Review types** ([reflect_types_real_review.json](https://github.com/guy915/Co-Scientist/blob/7c2878aeb071a962cb713e9c271cd88e1635ca5f/evaluations/results/reflect_types_real_review.json)): the new `full_review`
   and `simulation_review` types emit valid structured output.
-- **Generation techniques** (`gen_techniques_real.json`): the new
+- **Generation techniques** ([gen_techniques_real.json](https://github.com/guy915/Co-Scientist/blob/7c2878aeb071a962cb713e9c271cd88e1635ca5f/evaluations/results/gen_techniques_real.json)): the new
   iterative-assumptions technique emits hypothesis drafts.
 
 MCP literature tools were **unavailable** for these runs (see 3b), so

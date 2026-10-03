@@ -7,17 +7,16 @@ import type {
   ReportPayload,
   ResearchOverview,
   RunWithSummary,
+  AgentInsights,
+  RecommendedDirection,
 } from '@/api/runs';
-import {formatDurationPhrase, readableText} from '@/lib/text';
-import {sortByEloDesc} from '@/lib/hypotheses';
 import {
-  AgentInsightsSection,
-  DegradedSectionNotice,
-  META_REVIEW_SCHEMA,
-  RESEARCH_OVERVIEW_SCHEMA,
-  RetrievalDegradationNotice,
-  sectionDegraded,
-} from './run_detail_insights';
+  formatDurationPhrase,
+  readableText,
+  isRecord,
+  readableTextList,
+} from '@/lib/text';
+import {sortByEloDesc} from '@/lib/hypotheses';
 import {
   REPORT_H3_CLASSES,
   REPORT_H4_CLASSES,
@@ -26,10 +25,8 @@ import {
   REPORT_SECTION_LIST_ITEM_CLASSES,
   REPORT_SECTION_LIST_META_CLASSES,
   ReportDocument,
-} from './run_detail_document';
-import {SpecificAimsSection} from './run_detail_overview_aims';
+} from './run_detail_shell';
 import {RunOutcomesReport} from '../components/tabs/hypothesis_outcomes';
-import {ResearchDirectionsSection} from './run_detail_overview_directions';
 
 const STAT_GRID_CLASSES = 'grid grid-cols-4 gap-3 max-[900px]:grid-cols-2';
 
@@ -434,4 +431,535 @@ function runDurationPhrase(run: RunWithSummary | null): string {
   const seconds = pair.completedAt - pair.createdAt;
   if (!Number.isFinite(seconds) || seconds <= 0) return '';
   return formatDurationPhrase(seconds);
+}
+
+// The "Specific aims" section of the research overview.
+
+// Renders nothing until the report has specific aims.
+export function SpecificAimsSection({
+  overview,
+}: {
+  overview: ResearchOverview | undefined;
+}) {
+  const specificAims = overview?.nih_specific_aims;
+  if (!specificAims?.aims?.length) return null;
+  return (
+    <section className={REPORT_SECTION_CLASSES}>
+      <h3 className={REPORT_H3_CLASSES}>Specific aims</h3>
+      {AIMS_PREAMBLE_FIELDS.map(([key, heading]) => (
+        <LabeledBlock
+          key={key}
+          heading={heading}
+          text={readableText(specificAims[key])}
+        />
+      ))}
+      {specificAims.aims.map((aim, index) => (
+        <SpecificAim key={index} aim={aim} number={index + 1} />
+      ))}
+      {AIMS_CLOSING_FIELDS.map(([key, heading]) => (
+        <LabeledBlock
+          key={key}
+          heading={heading}
+          text={readableText(specificAims[key])}
+        />
+      ))}
+    </section>
+  );
+}
+
+// The page blocks Google's published Specific Aims exemplars print, plus
+// the introduction/impact pair reports stored before that vocabulary
+// landed still carry. The legacy introduction keeps its unheaded
+// paragraph so an old report reads exactly as it did.
+const AIMS_PREAMBLE_FIELDS = [
+  ['introduction', ''],
+  ['disease_description', 'Disease description'],
+  ['unmet_need', 'Unmet need'],
+  ['proposed_solution', 'Proposed solution'],
+] as const;
+const AIMS_CLOSING_FIELDS = [
+  ['pilot_evaluation', 'Pilot evaluation'],
+  ['impact', ''],
+] as const;
+// Per-aim body fields, each labelled; new spelling first, same order and
+// labels as report/markdown/overview.py's _AIM_BODY_FIELDS. Only one
+// spelling of each pair is ever present, so the whole list renders in
+// order.
+//
+// F4/OVERVIEW-AIMS-VOCABULARY-001: the heading is now the aim's number
+// (matching every published exemplar), and the goal moves into this
+// list as a labelled body field rather than standing in for the
+// heading text. Section heading ("Specific aims", h3) and per-aim
+// heading ("Specific Aims N", h4) share the phrase but not the heading
+// role, so a heading-role-scoped selector (used by the e2e spec and the
+// section test below) still finds exactly one of each rather than a
+// strict-mode collision.
+const AIM_BODY_FIELDS = [
+  ['overarching_goal', 'Overarching goal'],
+  ['aim', 'Aim'],
+  ['hypothesis', 'Hypothesis'],
+  ['reasoning', 'Reasoning'],
+  ['rationale', 'Rationale'],
+  ['approach', 'Approach'],
+] as const;
+
+// One headed block of the aims page, or a bare paragraph when the field
+// predates the headings; renders nothing when the field is empty.
+function LabeledBlock({heading, text}: {heading: string; text: string}) {
+  if (!text) return null;
+  if (!heading) return <p>{text}</p>;
+  return (
+    <div>
+      <h4 className={REPORT_H4_CLASSES}>{heading}</h4>
+      <p>{text}</p>
+    </div>
+  );
+}
+
+// One specific-aim entry, coercing each field so a malformed (object or
+// JSON-string) value renders as readable text rather than raw JSON.
+//
+// F4/OVERVIEW-AIMS-VOCABULARY-001: every published exemplar heads an aim
+// by its number ("Specific Aims N") and prints its overarching goal as a
+// labelled body field beneath it, not as the heading text -- mirroring
+// report/markdown/overview.py's _render_nih_aim exactly.
+function SpecificAim({aim, number}: {aim: unknown; number: number}) {
+  const record = isRecord(aim) ? aim : {};
+  return (
+    <div>
+      <h4 className={REPORT_H4_CLASSES}>Specific Aims {number}</h4>
+      {AIM_BODY_FIELDS.map(([key, label]) => {
+        const text = readableText(record[key]);
+        if (!text) return null;
+        return (
+          <p key={key}>
+            <strong>{label}: </strong>
+            {text}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+// The "Research directions" section of the research overview.
+
+interface SubTopicEntry {
+  title: string;
+  why: string;
+  what: string;
+  // F7: the exemplar's own "Example idea" block, between the topic's
+  // reasoning and its questions. Empty on a sub-topic from a report
+  // persisted before it existed.
+  exampleIdea: string;
+  questions: string[];
+}
+
+interface DirectionEntry {
+  title: string;
+  importance: string;
+  // MO-12: the "what is already known" slot ALS's exemplar names "Recent
+  // Findings". Absent on a direction from a report persisted before it
+  // existed.
+  recentFindings: string;
+  experiments: string[];
+  // MO-1: the nested sub-topic layer both exemplars develop "what to
+  // research" as. Absent on a direction from a report persisted before it
+  // existed.
+  subTopics: SubTopicEntry[];
+}
+
+// Coerce one raw sub-topic into readable fields, tolerating the same
+// json_object-mode malformations toDirectionEntry guards against.
+function toSubTopicEntry(raw: unknown): SubTopicEntry {
+  const record = isRecord(raw) ? raw : {};
+  return {
+    title: readableText(record.title),
+    why: readableText(record.why),
+    what: readableText(record.what),
+    exampleIdea: readableText(record.example_idea),
+    questions: readableTextList(record.specific_questions),
+  };
+}
+
+// Normalize a direction's sub-topics into renderable entries, dropping any
+// that carry no content after coercion.
+function subTopicEntries(raw: unknown): SubTopicEntry[] {
+  const list = Array.isArray(raw) ? raw : [];
+  return list
+    .map(toSubTopicEntry)
+    .filter(
+      e => e.title || e.why || e.what || e.exampleIdea || e.questions.length,
+    );
+}
+
+// Coerce one raw research-direction into readable fields, tolerating the
+// json_object-mode malformations (a string field arriving as an object, or as
+// serialized JSON) that would otherwise render as raw JSON.
+function toDirectionEntry(raw: unknown): DirectionEntry {
+  const record = isRecord(raw) ? raw : {};
+  return {
+    title: readableText(record.title),
+    importance: readableText(record.importance),
+    recentFindings: readableText(record.recent_findings),
+    experiments: readableTextList(record.suggested_experiments),
+    subTopics: subTopicEntries(record.sub_topics),
+  };
+}
+
+// Normalize the overview's research directions into renderable entries,
+// dropping any that carry no content after coercion.
+function directionEntries(
+  overview: ResearchOverview | undefined,
+): DirectionEntry[] {
+  const raw = overview?.overview?.research_directions as unknown;
+  const list = Array.isArray(raw) ? raw : [];
+  return list
+    .map(toDirectionEntry)
+    .filter(
+      e =>
+        e.title ||
+        e.importance ||
+        e.recentFindings ||
+        e.experiments.length ||
+        e.subTopics.length,
+    );
+}
+
+// MO-12: both published exemplars front-load a named preview list ahead of
+// the full per-direction detail that follows (report.markdown.overview's
+// _render_directions_preview). Titles only, no new content -- naming each
+// direction rather than repeating its prose avoids duplicating the
+// paragraphs the full detail below already carries.
+//
+// A "preview" of a single named direction duplicates it rather than
+// orienting the reader, so the gate matches the markdown renderer's own:
+// fewer than two named directions renders nothing here.
+function DirectionsPreview({directions}: {directions: DirectionEntry[]}) {
+  const titles = directions.map(d => d.title).filter(Boolean);
+  if (titles.length < 2) return null;
+  return (
+    <>
+      <p>We will be focusing on these research directions:</p>
+      <ul className={REPORT_LIST_CLASSES}>
+        {titles.map((title, i) => (
+          <li key={`${title}-${i}`}>{title}</li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+// A sub-topic's labelled prose blocks, in the order the published
+// exemplar prints them: the topic's reasoning, what it covers, then one
+// worked example, ahead of its specific questions.
+const SUB_TOPIC_BODY_FIELDS = [
+  ['why', 'Why'],
+  ['what', 'What'],
+  ['exampleIdea', 'Example idea'],
+] as const;
+
+// One labelled sub-topic line, or nothing when the field is empty.
+function SubTopicLine({label, text}: {label: string; text: string}) {
+  if (!text) return null;
+  return (
+    <p>
+      <strong>{label}: </strong>
+      {text}
+    </p>
+  );
+}
+
+// One named sub-topic entry, or nothing when coercion left it empty.
+function SubTopicItem({subTopic}: {subTopic: SubTopicEntry}) {
+  return (
+    <div>
+      {subTopic.title ? (
+        <p>
+          <strong>{subTopic.title}</strong>
+        </p>
+      ) : null}
+      {SUB_TOPIC_BODY_FIELDS.map(([key, label]) => (
+        <SubTopicLine key={key} label={label} text={subTopic[key]} />
+      ))}
+      {subTopic.questions.length ? (
+        <ul className={REPORT_LIST_CLASSES}>
+          {subTopic.questions.map((question, i) => (
+            <li key={`${question}-${i}`}>{question}</li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+// "Research directions" section of the research-overview report; renders
+// nothing until the report has research directions.
+export function ResearchDirectionsSection({
+  overview,
+}: {
+  overview: ResearchOverview | undefined;
+}) {
+  const directions = directionEntries(overview);
+  if (!directions.length) return null;
+  return (
+    <section className={REPORT_SECTION_CLASSES}>
+      <h3 className={REPORT_H3_CLASSES}>Research directions</h3>
+      <DirectionsPreview directions={directions} />
+      {directions.map((direction, index) => (
+        <div key={direction.title || index}>
+          <h4 className={REPORT_H4_CLASSES}>{direction.title}</h4>
+          {direction.importance ? <p>{direction.importance}</p> : null}
+          {direction.recentFindings ? (
+            <p>
+              <strong>Recent findings: </strong>
+              {direction.recentFindings}
+            </p>
+          ) : null}
+          {direction.experiments.length ? (
+            <ul className={REPORT_LIST_CLASSES}>
+              {direction.experiments.map((experiment, i) => (
+                <li key={`${experiment}-${i}`}>{experiment}</li>
+              ))}
+            </ul>
+          ) : null}
+          {direction.subTopics.map((subTopic, i) => (
+            <SubTopicItem key={subTopic.title || i} subTopic={subTopic} />
+          ))}
+        </div>
+      ))}
+    </section>
+  );
+}
+
+// Run-wide Agent Insights in the research overview.
+
+// Quiet one-liner for a report section the engine could not generate after
+// repeated attempts (its LLM output degraded to a placeholder fallback, L7).
+// Exported so the overview tab's other degraded sections render the same
+// notice; token classes only, matching the document's muted copy.
+export const DEGRADED_SECTION_NOTICE_CLASSES =
+  'text-[0.86rem] italic text-cosci-muted';
+
+export const DEGRADED_SECTION_NOTICE_TEXT =
+  'This section could not be generated after repeated attempts.';
+
+// Engine node/schema names whose output feeds the overview tab's sections,
+// used to match the report's degraded_sections list (L7).
+export const META_REVIEW_SCHEMA = 'meta_review';
+export const RESEARCH_OVERVIEW_SCHEMA = 'research_overview';
+
+/** The shared L7 notice: a section the engine could not generate. */
+export function DegradedSectionNotice() {
+  return (
+    <p className={DEGRADED_SECTION_NOTICE_CLASSES}>
+      {DEGRADED_SECTION_NOTICE_TEXT}
+    </p>
+  );
+}
+
+// What each lost capability is called where a reader can recognize it.
+// Anything the engine names that this map does not know is dropped rather
+// than printed raw: an unexplained engine identifier in a report reads as
+// a bug, and the sentence is still true without it.
+const LOST_CAPABILITY_LABELS: Record<string, string> = {
+  literature_review: 'the literature review',
+  observation_review: 'observation reviews',
+  deep_research: 'follow-up research',
+  review_evidence: 'evidence for the deep reviews',
+  verification_probes: 'verification probes',
+  evolution_grounding: 'grounding for evolved ideas',
+};
+
+// The strongest source left, worst first.
+const FLOOR_LABELS: Record<string, string> = {
+  none: 'Nothing else was available to search.',
+  run_attachments:
+    'Only the documents attached to this run were available to search.',
+};
+
+/**
+ * A run-level notice: this run could reach no literature source.
+ *
+ * Worth its own notice rather than a per-section one. A run that cannot
+ * retrieve still completes and still writes an ordinary-looking report --
+ * the ideas in it were simply never checked against a paper, and no part
+ * of the output says so.
+ *
+ * @param report The run's persisted report, when one exists yet.
+ * @returns The notice, or null on a run that retrieved normally.
+ */
+export function RetrievalDegradationNotice({report}: {report: Report | null}) {
+  const degradation = report?.payload.retrieval_degradation;
+  if (!degradation) return null;
+  return (
+    <p className={DEGRADED_SECTION_NOTICE_CLASSES}>
+      {retrievalDegradationText(degradation)}
+    </p>
+  );
+}
+
+// The notice's sentence, built apart from the component so neither the
+// label lookups nor the empty cases live inside the render.
+function retrievalDegradationText(degradation: {
+  lost: string[];
+  floor: string;
+}): string {
+  const lost = (degradation.lost ?? [])
+    .map(name => LOST_CAPABILITY_LABELS[name])
+    .filter(label => !!label);
+  const without = lost.length
+    ? `, so it ran without ${joinReadable(lost)}`
+    : '';
+  const floor = FLOOR_LABELS[degradation.floor] ?? '';
+  return `No literature source was reachable during this run${without}. ${floor}`.trim();
+}
+
+// "a, b and c" -- the report is prose, and a bare comma list reads as a
+// dump of field names.
+function joinReadable(items: string[]): string {
+  if (items.length < 2) return items[0] ?? '';
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
+/**
+ * Whether the run's report names `schema` among its degraded sections.
+ *
+ * @param report The run's persisted report, when one exists yet.
+ * @param schema The engine node/schema name a section renders from.
+ * @returns True when that section degraded to a fallback for this run.
+ */
+export function sectionDegraded(
+  report: Report | null,
+  schema: string,
+): boolean {
+  return (report?.payload.degraded_sections ?? []).includes(schema);
+}
+
+// An empty insights payload, so a degraded run with no insights object still
+// renders the section (heading + notice) without optional chaining below.
+const EMPTY_INSIGHTS: Required<AgentInsights> = {
+  key_findings: [],
+  uncertainties: [],
+  contradictions: [],
+  recommended_directions: [],
+  next_experiments: [],
+};
+
+// One plain insight list. Blank entries are dropped so a list of empty strings
+// cannot render a heading with nothing beneath it.
+function InsightList({title, values}: {title: string; values: string[]}) {
+  const items = (values ?? [])
+    .map(value => readableText(value).trim())
+    .filter(value => value.length > 0);
+  if (!items.length) return null;
+  return (
+    <div>
+      <h4 className={REPORT_H4_CLASSES}>{title}</h4>
+      <ul className={REPORT_LIST_CLASSES}>
+        {items.map(item => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// Split one recommendation into its display fields. A persisted report from
+// before recommendations kept their structure holds a single flattened string,
+// which stays readable as the recommendation itself.
+function toRecommendation(raw: RecommendedDirection | string) {
+  if (typeof raw === 'string') {
+    return {
+      focusArea: '',
+      recommendation: readableText(raw).trim(),
+      justification: '',
+    };
+  }
+  return {
+    focusArea: readableText(raw?.focus_area).trim(),
+    recommendation: readableText(raw?.recommendation).trim(),
+    justification: readableText(raw?.justification).trim(),
+  };
+}
+
+// Strategic recommendations keep their three fields apart: the focus area
+// labels the entry, the recommendation is the advice, and the justification is
+// the reasoning behind it -- flattening them into one line reads as raw data.
+function RecommendedDirections({
+  directions,
+}: {
+  directions: (RecommendedDirection | string)[];
+}) {
+  const entries = (directions ?? [])
+    .map(toRecommendation)
+    .filter(entry => entry.recommendation || entry.focusArea);
+  if (!entries.length) return null;
+  return (
+    <div>
+      <h4 className={REPORT_H4_CLASSES}>Recommended directions</h4>
+      {entries.map(entry => (
+        <div key={entry.focusArea + entry.recommendation} className="mt-3">
+          {entry.focusArea ? (
+            <p className="font-medium">{entry.focusArea}</p>
+          ) : null}
+          <p>{entry.recommendation}</p>
+          {entry.justification ? (
+            <p className="text-cosci-muted">{entry.justification}</p>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The run-wide Agent Insights block: findings and uncertainty without leaking
+ * private reasoning traces.
+ *
+ * `degraded` marks a run whose meta-review synthesis fell back to a
+ * placeholder after repeated parse failures (L7): the meta-review-derived
+ * lists (uncertainties, recommended directions) are then blank, so the
+ * section says it degraded instead of presenting silence as normal.
+ */
+export function AgentInsightsSection({
+  insights,
+  degraded = false,
+}: {
+  insights: AgentInsights | undefined;
+  degraded?: boolean;
+}) {
+  if (!insights && !degraded) return null;
+  return (
+    <AgentInsightsBody
+      content={completeInsights(insights ?? EMPTY_INSIGHTS)}
+      degraded={degraded}
+    />
+  );
+}
+
+// Saved reports can carry an empty insights object; normalize once.
+function completeInsights(content: AgentInsights): Required<AgentInsights> {
+  return {...EMPTY_INSIGHTS, ...content};
+}
+
+// The section body over a guaranteed-present insights payload.
+function AgentInsightsBody({
+  content,
+  degraded,
+}: {
+  content: Required<AgentInsights>;
+  degraded: boolean;
+}) {
+  return (
+    <section className={REPORT_SECTION_CLASSES}>
+      <h3 className={REPORT_H3_CLASSES}>Agent Insights</h3>
+      {degraded ? <DegradedSectionNotice /> : null}
+      <InsightList title="Key findings" values={content.key_findings} />
+      <InsightList title="Uncertainties" values={content.uncertainties} />
+      <InsightList title="Contradictions" values={content.contradictions} />
+      <RecommendedDirections directions={content.recommended_directions} />
+      <InsightList title="Next experiments" values={content.next_experiments} />
+    </section>
+  );
 }

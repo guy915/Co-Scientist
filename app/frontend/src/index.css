@@ -68,7 +68,187 @@
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
-@import './theme_tokens.css';
+@theme {
+  /* MD3 color bridge — actual values set at runtime by applyMd3Theme() in
+     theme.ts */
+  --color-th-bg: var(--md-sys-color-background, hsl(0 0% 100%));
+  --color-th-fg: var(--md-sys-color-on-background, hsl(0 0% 3.9%));
+  --color-th-card: var(--md-sys-color-surface, hsl(0 0% 100%));
+  --color-th-card-fg: var(--md-sys-color-on-surface, hsl(0 0% 3.9%));
+  --color-th-popover: var(--md-sys-color-surface, hsl(0 0% 100%));
+  --color-th-popover-fg: var(--md-sys-color-on-surface, hsl(0 0% 3.9%));
+  --color-th-primary: var(--md-sys-color-primary, hsl(0 0% 9%));
+  --color-th-primary-fg: var(--md-sys-color-on-primary, hsl(0 0% 98%));
+  --color-th-secondary: var(
+    --md-sys-color-secondary-container,
+    hsl(0 0% 96.1%)
+  );
+  --color-th-secondary-fg: var(
+    --md-sys-color-on-secondary-container,
+    hsl(0 0% 9%)
+  );
+  --color-th-muted: var(--md-sys-color-surface-variant, hsl(0 0% 96.1%));
+  --color-th-muted-fg: var(--md-sys-color-on-surface-variant, hsl(0 0% 45.1%));
+  --color-th-accent: var(--md-sys-color-tertiary-container, hsl(0 0% 96.1%));
+  --color-th-accent-fg: var(--md-sys-color-on-tertiary-container, hsl(0 0% 9%));
+  --color-th-destructive: var(--md-sys-color-error, hsl(0 84.2% 60.2%));
+  --color-th-destructive-fg: var(--md-sys-color-on-error, hsl(0 0% 98%));
+  --color-th-border: var(--md-sys-color-outline-variant, hsl(0 0% 89.8%));
+  --color-th-input: var(--md-sys-color-outline, hsl(0 0% 89.8%));
+  --color-th-ring: var(--md-sys-color-primary, hsl(0 0% 3.9%));
+  /* No MD3 equivalent — keep hardcoded */
+  --color-th-success: hsl(142 71% 45%);
+  --color-th-success-fg: hsl(0 0% 100%);
+  --color-th-success-container: var(
+    --md-sys-color-secondary-container,
+    hsl(138 38% 93%)
+  );
+  --color-th-on-success-container: var(
+    --md-sys-color-on-secondary-container,
+    hsl(138 45% 20%)
+  );
+  --color-th-warning: hsl(38 92% 50%);
+  --color-th-warning-fg: hsl(0 0% 100%);
+  --color-th-warning-container: hsl(38 92% 92%);
+  --color-th-on-warning-container: hsl(38 92% 16%);
+  --color-th-destructive-container: var(
+    --md-sys-color-error-container,
+    hsl(0 84.2% 95.3%)
+  );
+  --color-th-destructive-on-container: var(
+    --md-sys-color-on-error-container,
+    hsl(0 84.2% 20%)
+  );
+  --color-th-info: hsl(199 89% 48%);
+  --color-th-info-fg: hsl(0 0% 100%);
+  --color-th-link: hsl(221 83% 53%);
+  --color-th-link-hover: hsl(221 83% 43%);
+
+  /* Gemini product palette as named utilities (e.g. text-cosci-fg,
+     bg-cosci-panel). Each mirrors a --cosci-* token from tokens.css
+     so the shell/home avoid arbitrary [var(--cosci-*)] classes and match the
+     th-* utility convention. Values stay themed via the referenced token. */
+  --color-cosci-fg: var(--cosci-text);
+  --color-cosci-bg: var(--cosci-bg);
+  --color-cosci-border: var(--cosci-border);
+  --color-cosci-muted: var(--cosci-muted);
+  --color-cosci-panel: var(--cosci-panel);
+  --color-cosci-hover: var(--cosci-hover);
+  --color-cosci-blue: var(--cosci-blue);
+  --color-cosci-blue-strong: var(--cosci-blue-strong);
+  --color-cosci-teal-dark: var(--cosci-teal-dark);
+  --color-cosci-teal-bg: var(--cosci-teal-bg);
+  --color-cosci-composer-bg: var(--cosci-composer-bg);
+  --color-cosci-composer-border: var(--cosci-composer-border);
+  --color-cosci-composer-label: var(--cosci-composer-label);
+  --color-cosci-composer-text: var(--cosci-composer-text);
+  --color-cosci-composer-submit: var(--cosci-composer-submit);
+  --color-cosci-composer-submit-disabled: var(--cosci-composer-submit-disabled);
+  --color-cosci-source-button: var(--cosci-source-button);
+  --color-cosci-source-button-hover: var(--cosci-source-button-hover);
+  --color-cosci-icon-button-hover-bg: var(--cosci-icon-button-hover-bg);
+  --color-cosci-menu-bg: var(--cosci-menu-bg);
+  --color-cosci-menu-border: var(--cosci-menu-border);
+  --color-cosci-menu-divider: var(--cosci-menu-divider);
+  --color-cosci-menu-icon: var(--cosci-menu-icon);
+  --color-cosci-menu-text: var(--cosci-menu-text);
+
+  /* Semantic component tokens (tokens.css) as named utilities.
+     Every token referenced from a component className gets a mirror here —
+     arbitrary [var(--cosci-*)] classes are not allowed (see DESIGN.md). */
+  --color-cosci-danger-bg: var(--cosci-danger-bg);
+  --color-cosci-danger-border: var(--cosci-danger-border);
+  --color-cosci-danger-fg: var(--cosci-danger-fg);
+  --color-cosci-attach-bg: var(--cosci-attach-bg);
+  --color-cosci-attach-fg: var(--cosci-attach-fg);
+  --color-cosci-attach-meta: var(--cosci-attach-meta);
+  --color-cosci-attach-badge: var(--cosci-attach-badge);
+  --color-cosci-toast-bg: var(--cosci-toast-bg);
+  --color-cosci-toast-fg: var(--cosci-toast-fg);
+  --color-cosci-toast-action: var(--cosci-toast-action);
+  --color-cosci-surface-raised: var(--cosci-surface-raised);
+  --color-cosci-user-bubble-bg: var(--cosci-user-bubble-bg);
+  --color-cosci-user-bubble-hover: var(--cosci-user-bubble-hover);
+  --color-cosci-setup-doc-bg: var(--cosci-setup-doc-bg);
+  --color-cosci-option-bg: var(--cosci-option-bg);
+  --color-cosci-option-hover-bg: var(--cosci-option-hover-bg);
+  --color-cosci-option-hover-border: var(--cosci-option-hover-border);
+  --color-cosci-option-marker: var(--cosci-option-marker);
+  --color-cosci-option-marker-on: var(--cosci-option-marker-on);
+  --color-cosci-btn-primary-bg: var(--cosci-btn-primary-bg);
+  --color-cosci-btn-primary-fg: var(--cosci-btn-primary-fg);
+  --color-cosci-btn-primary-hover: var(--cosci-btn-primary-hover);
+  --color-cosci-btn-outline-border: var(--cosci-btn-outline-border);
+  --color-cosci-btn-outline-fg: var(--cosci-btn-outline-fg);
+  --color-cosci-btn-outline-hover-bg: var(--cosci-btn-outline-hover-bg);
+  --color-cosci-btn-secondary-border: var(--cosci-btn-secondary-border);
+  --color-cosci-btn-secondary-fg: var(--cosci-btn-secondary-fg);
+  --color-cosci-btn-secondary-hover-bg: var(--cosci-btn-secondary-hover-bg);
+  --color-cosci-btn-disabled-border: var(--cosci-btn-disabled-border);
+  --color-cosci-btn-disabled-bg: var(--cosci-btn-disabled-bg);
+  --color-cosci-btn-disabled-fg: var(--cosci-btn-disabled-fg);
+  --color-cosci-toggle-on-track: var(--cosci-toggle-on-track);
+  --color-cosci-toggle-on-knob: var(--cosci-toggle-on-knob);
+  --color-cosci-toggle-off-track: var(--cosci-toggle-off-track);
+  --color-cosci-toggle-off-knob: var(--cosci-toggle-off-knob);
+  --color-cosci-logs-accent-bg: var(--cosci-logs-accent-bg);
+  --color-cosci-logs-accent-fg: var(--cosci-logs-accent-fg);
+  --color-cosci-recent-meta-bg: var(--cosci-recent-meta-bg);
+  --color-cosci-shell-icon: var(--cosci-shell-icon);
+  --color-cosci-menu-row-hover: var(--cosci-menu-row-hover);
+  --color-cosci-logs-accent-hover: var(--cosci-logs-accent-hover);
+  --color-cosci-logs-count-bg: var(--cosci-logs-count-bg);
+  --color-cosci-logs-action-border: var(--cosci-logs-action-border);
+  --color-cosci-logs-action-bg: var(--cosci-logs-action-bg);
+  --color-cosci-logs-action-fg: var(--cosci-logs-action-fg);
+  --color-cosci-logs-action-hover: var(--cosci-logs-action-hover);
+  --color-cosci-logs-surface: var(--cosci-logs-surface);
+  --color-cosci-logs-border: var(--cosci-logs-border);
+  --color-cosci-logs-heading: var(--cosci-logs-heading);
+  --color-cosci-logs-meta: var(--cosci-logs-meta);
+  --color-cosci-logs-panel-bg: var(--cosci-logs-panel-bg);
+  --color-cosci-logs-panel-fg: var(--cosci-logs-panel-fg);
+  --color-cosci-logs-code-fg: var(--cosci-logs-code-fg);
+  --color-cosci-logs-danger-bg: var(--cosci-logs-danger-bg);
+  --color-cosci-logs-danger-fg: var(--cosci-logs-danger-fg);
+  --color-cosci-logs-warn-bg: var(--cosci-logs-warn-bg);
+  --color-cosci-logs-warn-fg: var(--cosci-logs-warn-fg);
+  --color-cosci-reference-open-border: var(--cosci-reference-open-border);
+  --color-cosci-reference-open-fg: var(--cosci-reference-open-fg);
+  --color-cosci-reference-open-hover-bg: var(--cosci-reference-open-hover-bg);
+  --color-cosci-reference-open-hover-border: var(
+    --cosci-reference-open-hover-border
+  );
+
+  /* Ideas-surface tokens (tokens.css) as named utilities. */
+  --color-cosci-idea-list-border: var(--cosci-idea-list-border);
+  --color-cosci-idea-row-border: var(--cosci-idea-row-border);
+  --color-cosci-idea-row-bg: var(--cosci-idea-row-bg);
+  --color-cosci-idea-row-text: var(--cosci-idea-row-text);
+  --color-cosci-idea-row-hover-border: var(--cosci-idea-row-hover-border);
+  --color-cosci-idea-row-hover-bg: var(--cosci-idea-row-hover-bg);
+  --color-cosci-idea-row-selected-border: var(--cosci-idea-row-selected-border);
+  --color-cosci-idea-row-selected-bg: var(--cosci-idea-row-selected-bg);
+  --color-cosci-idea-row-selected-hover-bg: var(
+    --cosci-idea-row-selected-hover-bg
+  );
+  --color-cosci-idea-chip-bg: var(--cosci-idea-chip-bg);
+  --color-cosci-idea-chip-text: var(--cosci-idea-chip-text);
+  --color-cosci-idea-title-text: var(--cosci-idea-title-text);
+  --color-cosci-idea-preview-text: var(--cosci-idea-preview-text);
+  --color-cosci-idea-breadcrumb-bg: var(--cosci-idea-breadcrumb-bg);
+  --color-cosci-idea-breadcrumb-text: var(--cosci-idea-breadcrumb-text);
+  --color-cosci-idea-detail-text: var(--cosci-idea-detail-text);
+
+  /* Typefaces: font-gsans = display face (greeting, doc headings, wordmark);
+     font-gsans-text = UI/body face (the :root default — utility exists for
+     opting descendants back in under a display-font parent). */
+  --font-gsans: 'Google Sans', system-ui, sans-serif;
+  --font-gsans-text:
+    'Google Sans Text', 'Google Sans', 'Roboto', system-ui, sans-serif;
+
+  --radius: 0.5rem;
+}
 
 /* MD3 dark tokens are set by applyMd3Theme(true) at runtime */
 :root[data-theme='dark'] {

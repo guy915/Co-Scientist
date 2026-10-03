@@ -1,4 +1,4 @@
-import {clientHeaders, fetchField, fetchJson} from './runs_http';
+import {clientHeaders, fetchField, fetchJson} from './runs';
 
 // System diagnostics API client. Mirrors the /status endpoint in app/main.py.
 

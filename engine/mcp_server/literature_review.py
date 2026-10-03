@@ -9,7 +9,7 @@ from typing import Any, cast
 
 from Bio import Entrez
 
-from mcp_server.entrez_rate_limit import (
+from mcp_server.entrez import (
     entrez_call,
     pilot_trace_context,
     record_pilot_fetch_error,

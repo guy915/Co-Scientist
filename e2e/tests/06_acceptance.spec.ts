@@ -1,0 +1,253 @@
+import {DESKTOP_VIEWPORT, MOBILE_VIEWPORT, captureViewport, createCompletedRun, expect, test} from '../support/fixtures';
+import {type Page} from '@playwright/test';
+
+test.describe('visual acceptance', () => {
+// Each test sizes the page from one shared Viewport and hands that same
+// object to captureViewport, which asserts no horizontal overflow at its
+// width before taking the shot — so the sized width and the asserted width
+// are one value, not two that can drift.
+
+test('home renders at the required desktop viewport', async ({page}) => {
+  await page.setViewportSize(DESKTOP_VIEWPORT);
+  await page.goto('/');
+
+  await expect(
+    page.getByRole('heading', {
+      name: 'What breakthrough should we make today?',
+    }),
+  ).toBeVisible();
+  await expect(page.locator('.reference-home-main')).toHaveCSS('opacity', '1');
+  // The workbench header surfaces the Logs popover; it is part of the
+  // faithful render.
+  await expect(page.getByRole('button', {name: /Logs/i})).toBeVisible();
+  await captureViewport(page, {
+    ...DESKTOP_VIEWPORT,
+    name: 'faithful-home-desktop-2026-07-13.png',
+  });
+});
+
+test('home renders at the required mobile viewport', async ({page}) => {
+  await page.setViewportSize(MOBILE_VIEWPORT);
+  await page.goto('/');
+
+  await expect(
+    page.getByRole('heading', {
+      name: 'What breakthrough should we make today?',
+    }),
+  ).toBeVisible();
+  await expect(page.locator('.reference-home-main')).toHaveCSS('opacity', '1');
+  await captureViewport(page, {
+    ...MOBILE_VIEWPORT,
+    name: 'faithful-home-mobile-2026-07-13.png',
+  });
+});
+
+test('Goal Report renders at the desktop viewport', async ({page, api}) => {
+  const id = await createCompletedRun(api, {
+    research_goal: 'Visual acceptance goal report',
+    tier: 'standard',
+  });
+  await page.setViewportSize(DESKTOP_VIEWPORT);
+  await page.goto(`/runs/${id}/ideas`);
+
+  // The completed Goal Report's Ideas surface renders the Elo-ranked list.
+  await expect(
+    page.getByRole('list', {name: /ranked hypothesis list/i}),
+  ).toBeVisible();
+  await captureViewport(page, {
+    ...DESKTOP_VIEWPORT,
+    name: 'faithful-goal-report-desktop-2026-07-13.png',
+  });
+});
+
+test('Goal Report remains reachable at the required mobile viewport', async ({
+  page,
+  api,
+}) => {
+  const id = await createCompletedRun(api, {
+    research_goal: 'Mobile visual acceptance goal report',
+    tier: 'standard',
+  });
+  await page.setViewportSize(MOBILE_VIEWPORT);
+  await page.goto(`/runs/${id}/ideas`);
+
+  // The completed Goal Report's Ideas surface renders the Elo-ranked list.
+  await expect(
+    page.getByRole('list', {name: /ranked hypothesis list/i}),
+  ).toBeVisible();
+  await captureViewport(page, {
+    ...MOBILE_VIEWPORT,
+    name: 'faithful-goal-report-mobile-2026-07-13.png',
+  });
+});
+});
+
+test.describe('reference audit', () => {
+test('completed research keeps its decisions and match history inspectable', async ({
+  page,
+  api,
+}) => {
+  const id = await createCompletedRun(api, {
+    research_goal: 'Offline audit of a public enzyme-stability hypothesis',
+    tier: 'standard',
+  });
+
+  await page.route('**/api/runs/*/supervisor-plan', async route => {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    await route.continue();
+  });
+  await page.goto(`/runs/${id}/specifications`);
+  const ledger = page.locator('details[aria-label="Supervisor allocation ledger"]');
+  await expect(ledger).toBeVisible();
+  await ledger.locator('summary').click();
+  await expect(ledger.getByRole('status')).toContainText('Loading');
+  await expect(ledger.getByText(/Decision 1/)).toBeVisible();
+
+  await page.unroute('**/api/runs/*/supervisor-plan');
+  await page.reload();
+  await ledger.locator('summary').click();
+  await expect(ledger.getByText(/Decision 1/)).toBeVisible();
+
+  await page.route('**/api/runs/*/supervisor-plan', route => route.abort());
+  await page.reload();
+  await ledger.locator('summary').click();
+  await expect(ledger.getByRole('alert')).toContainText(
+    'Could not load the allocation ledger',
+  );
+  await expect(
+    page.getByRole('heading', {name: /run specifications/i}),
+  ).toBeVisible();
+  await page.unroute('**/api/runs/*/supervisor-plan');
+  await page.reload();
+  await ledger.locator('summary').click();
+  await expect(ledger.getByText(/Decision 1/)).toBeVisible();
+
+  await page.getByRole('link', {name: 'All Ideas', exact: true}).click();
+  await expect(page.getByRole('heading', {name: 'Match history'})).toBeVisible();
+  await expect(page.getByText('Elo change:', {exact: true}).first()).toBeVisible();
+});
+});
+
+test.describe('failure guidance', () => {
+const RECORDED_ERROR = 'engine task exhausted its provider-call budget';
+const BUDGET_GUIDANCE =
+  'The run reached its configured model-call limit before it completed. Start a new run with a narrower research goal.';
+
+async function routeRunFailure(
+  page: Page,
+  id: string,
+  status: 'failed' | 'blocked',
+  failureKind: string,
+  error: string,
+): Promise<void> {
+  await page.route(`**/api/runs/${id}`, async route => {
+    if (route.request().method() !== 'GET') return route.continue();
+    const response = await route.fetch();
+    const run = (await response.json()) as Record<string, unknown>;
+    await route.fulfill({
+      response,
+      json: {...run, status, failure_kind: failureKind, error},
+    });
+  });
+}
+
+test('shows owned-run failure guidance with the recorded error after reload', async ({
+  page,
+  api,
+}) => {
+  const {id} = await api.createRun({
+    research_goal: 'Offline browser test for call-budget failure guidance',
+    tier: 'express',
+  });
+  await routeRunFailure(
+    page,
+    id,
+    'failed',
+    'llm_call_budget_exceeded',
+    RECORDED_ERROR,
+  );
+
+  await page.goto(`/runs/${id}/details`);
+
+  const guidance = page.getByRole('region', {name: 'Suggested next step'});
+  await expect(guidance).toBeVisible();
+  await expect(guidance).toContainText(BUDGET_GUIDANCE);
+  await expect(page.getByText('Recorded error')).toBeVisible();
+  await expect(page.getByText(RECORDED_ERROR, {exact: true})).toBeVisible();
+
+  await page.reload();
+  await expect(guidance).toBeVisible();
+  await expect(guidance).toContainText(BUDGET_GUIDANCE);
+  await expect(page.getByText(RECORDED_ERROR, {exact: true})).toBeVisible();
+});
+
+test('shows actionable guidance for the exact provider-timeout kind', async ({
+  page,
+  api,
+}) => {
+  const {id} = await api.createRun({
+    research_goal: 'Offline browser test for provider-timeout guidance',
+    tier: 'express',
+  });
+  await routeRunFailure(
+    page,
+    id,
+    'failed',
+    'llm_timeout',
+    'Provider request timed out after 180 seconds',
+  );
+
+  await page.goto(`/runs/${id}/details`);
+
+  const guidance = page.getByRole('region', {name: 'Suggested next step'});
+  await expect(guidance).toBeVisible();
+  await expect(guidance).toContainText(
+    'The model provider did not respond within the request timeout. Try the research again later.',
+  );
+  await expect(
+    page.getByText('Provider request timed out after 180 seconds', {
+      exact: true,
+    }),
+  ).toBeVisible();
+});
+
+test('keeps blocked and unknown failures generic', async ({page, api}) => {
+  const blocked = await api.createRun({
+    research_goal: 'Offline browser test for blocked failure guidance',
+    tier: 'express',
+  });
+  await routeRunFailure(
+    page,
+    blocked.id,
+    'blocked',
+    'llm_timeout',
+    'Safety review is required',
+  );
+
+  await page.goto(`/runs/${blocked.id}/details`);
+  await expect(page.getByRole('heading', {name: 'Run blocked'})).toBeVisible();
+  await expect(
+    page.getByRole('region', {name: 'Suggested next step'}),
+  ).toHaveCount(0);
+  await expect(page.getByText('Safety review is required')).toBeVisible();
+
+  const unknown = await api.createRun({
+    research_goal: 'Offline browser test for unknown failure guidance',
+    tier: 'express',
+  });
+  await routeRunFailure(
+    page,
+    unknown.id,
+    'failed',
+    'llm_timeoutish',
+    'Unclassified task error',
+  );
+
+  await page.goto(`/runs/${unknown.id}/details`);
+  await expect(page.getByRole('heading', {name: 'Run failed'})).toBeVisible();
+  await expect(
+    page.getByRole('region', {name: 'Suggested next step'}),
+  ).toHaveCount(0);
+  await expect(page.getByText('Unclassified task error')).toBeVisible();
+});
+});

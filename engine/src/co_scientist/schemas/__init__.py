@@ -16,34 +16,26 @@ from co_scientist.schemas.generation import (
     HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA,
     HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA,
 )
-from co_scientist.schemas.knowledge_base import (
-    KNOWLEDGE_BASE_OUTLINE_SCHEMA,
-    KNOWLEDGE_BASE_THEME_SCHEMA,
-)
 from co_scientist.schemas.literature import (
     LITERATURE_PAPER_ANALYSIS_SCHEMA,
     LITERATURE_QUERY_SCHEMA,
     LITERATURE_RELEVANCE_BATCH_SCHEMA,
-)
-from co_scientist.schemas.planning import (
-    META_REVIEW_SCHEMA,
-    SUPERVISOR_SCHEMA,
-)
-from co_scientist.schemas.ranking import (
-    PROXIMITY_SCHEMA,
-    RANKING_COMPARISON_CRITERIA,
-    RANKING_SCHEMA,
-)
-from co_scientist.schemas.research import (
     RESEARCH_COMPRESS_SCHEMA,
     RESEARCH_EXTRACT_SCHEMA,
     RESEARCH_QUERY_SCHEMA,
     RESEARCH_QUESTIONS_SCHEMA,
     RESEARCH_STANCES_SCHEMA,
 )
+from co_scientist.schemas.planning import (
+    META_REVIEW_SCHEMA,
+    SUPERVISOR_SCHEMA,
+)
 from co_scientist.schemas.review import (
     DEEP_VERIFICATION_SCHEMA,
     FULL_REVIEW_SCHEMA,
+    PROXIMITY_SCHEMA,
+    RANKING_COMPARISON_CRITERIA,
+    RANKING_SCHEMA,
     REFLECTION_SCHEMA,
     REVIEW_BATCH_SCHEMA,
     REVIEW_SCHEMA,
@@ -51,6 +43,8 @@ from co_scientist.schemas.review import (
 )
 from co_scientist.schemas.synthesis import (
     EVOLUTION_SCHEMA,
+    KNOWLEDGE_BASE_OUTLINE_SCHEMA,
+    KNOWLEDGE_BASE_THEME_SCHEMA,
     RESEARCH_OVERVIEW_DIRECTION_SCHEMA,
     RESEARCH_OVERVIEW_INTERIM_SCHEMA,
     RESEARCH_OVERVIEW_REVIEW_SCHEMA,

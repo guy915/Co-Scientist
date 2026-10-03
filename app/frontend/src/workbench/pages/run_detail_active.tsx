@@ -2,14 +2,14 @@ import {useMemo, type ReactNode} from 'react';
 import type {StreamEvent} from '@/hooks/use_run_stream';
 import {formatDurationPhrase} from '@/lib/text';
 import {useNowTick} from '@/workbench/hooks/timers';
-import {RunExecutionProgress} from './home_recents_run_steps';
-import {windowedActivityGroups} from './run_detail_activity';
+import {RunExecutionProgress} from './chat_home_stage';
+import {windowedActivityGroups} from './run_detail_activity_log';
 import {ActivityLog} from './run_detail_activity_log';
 import {type RunWithStreamState} from './run_detail_data';
 import {
   SupervisorAllocationLedger,
   type AllocationLedgerState,
-} from './run_detail_supervisor_plan';
+} from './run_detail_specifications';
 
 // Cards shown in the activity log, not raw events -- see the comment on
 // the useMemo below for why the window moved to that unit.

@@ -19,7 +19,7 @@ from typing import Any
 
 import httpx
 
-from mcp_server.tools.text import clean_markup
+from mcp_server.text_extraction import clean_markup
 
 logger = logging.getLogger(__name__)
 

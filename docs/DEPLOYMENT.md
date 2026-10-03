@@ -58,7 +58,7 @@ request-scoped campaign policy, then read back its presence without exposing it.
 When set, every MCP call but the plain `/` status route must carry the secret in
 an `X-MCP-Shared-Secret` header or the server returns 401
 (`engine/mcp_server/auth_middleware.py`); the engine client supplies that header
-(`mcp_client/helpers.py::_resolve_server_configs`). Left unset, the check is a
+(`mcp_client/__init__.py::_resolve_server_configs`). Left unset, the check is a
 no-op. The CORS wildcard is gone regardless; MCP is server-to-server only.
 
 The desired default for the next release is exact

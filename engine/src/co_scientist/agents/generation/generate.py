@@ -14,9 +14,6 @@ from co_scientist.agents.generation.assumptions import (
     generate_with_assumptions,
 )
 from co_scientist.agents.generation.citations import ReferenceIndex
-from co_scientist.agents.generation.coordinator_strategy import (
-    GenerationCounts,
-)
 from co_scientist.agents.generation.debate import generate_with_debate
 from co_scientist.agents.generation.expansion_research import (
     research_for_expansion,
@@ -25,6 +22,7 @@ from co_scientist.agents.generation.literature_tools import (
     generate_with_tools,
 )
 from co_scientist.agents.generation.operations import (
+    GenerationCounts,
     _unpack_generation_results,
     finalize_generation,
     prepare_generation,

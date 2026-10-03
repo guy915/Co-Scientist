@@ -1,7 +1,0 @@
-2026-09-19 20:34:52 - mcp_server.tool_logging - INFO - tool check_pubmed_available() -> False in 0ms
-2026-09-19 20:34:54 - httpx - INFO - HTTP Request: GET https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=EXT_ID%3A22745249+AND+SRC%3AMED&format=json&pageSize=1&resultType=core&sort= "HTTP/1.1 200 "
-2026-09-19 20:34:54 - mcp_server.tool_logging - INFO - tool search_europepmc(max_results=1, query='EXT_ID:22745249 AND SRC:MED') -> 3 items in 1591ms
-2026-09-19 20:34:55 - mcp_server.tool_logging - INFO - tool search_pubmed(max_papers=1, query='22745249[uid]') -> 2 items, 1487 chars in 921ms
-2026-09-19 20:34:56 - httpx - INFO - HTTP Request: GET https://api.openalex.org/works?search=A+programmable+dual-RNA-guided+DNA+endonuclease+in+adaptive+bacterial+immunity&per_page=1&cursor=%2A&filter=is_retracted%3Afalse "HTTP/1.1 200 OK"
-2026-09-19 20:34:56 - mcp_server.tool_logging - INFO - tool search_openalex(max_papers=1, query='A programmable dual-RNA-guided DNA endonuclease in adaptive bacterial immunity', recency_years=0, run_id=None) -> 1 item in 1172ms
-2026-09-19 20:37:32 - mcp_server.tool_logging - INFO - tool check_pubmed_available() -> True in 495ms

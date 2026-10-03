@@ -53,6 +53,7 @@ from fastapi import (
 )
 from fastapi.responses import JSONResponse, StreamingResponse
 
+import app.runs.crud as runs_deletion
 from app import store
 from app.api_contracts.responses import RunsResponse
 from app.api_contracts.runs import Run, RunWithSummary
@@ -60,7 +61,6 @@ from app.runs import chat as runs_chat
 from app.runs import collections as runs_collections
 from app.runs import contrib as runs_contrib
 from app.runs import crud as runs_crud
-from app.runs import deletion as runs_deletion
 from app.runs import lifecycle as runs_lifecycle
 from app.runs.events import _event_stream
 from app.runs.lifecycle import (

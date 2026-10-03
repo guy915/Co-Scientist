@@ -15,12 +15,12 @@ import logging
 from typing import Any
 
 from app import store
-from app.claims.verdict import is_categorical_contradiction, is_supporting
+from app.claims.gate import is_categorical_contradiction, is_supporting
+from app.hypothesis import record_hypothesis_block
 from app.hypothesis.safety import (
     is_blocking_status,
     review_hypothesis_safety,
 )
-from app.hypothesis.screening import record_hypothesis_block
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ def _supported_hypothesis_ids(edges: list[dict[str, Any]]) -> set[str]:
     """Ids of hypotheses with at least one evidence-supported claim edge.
 
     The one definition of "supported" the report uses
-    (:func:`app.claims.verdict.is_supporting`): a ``partial`` (near-miss)
+    (:func:`app.claims.gate.is_supporting`): a ``partial`` (near-miss)
     verdict counts alongside ``supports``, since it still means relevant,
     consistent evidence was found. Shared by
     :func:`unverified_hypothesis_ids` and :func:`_verified_hypothesis_count`

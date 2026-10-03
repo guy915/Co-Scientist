@@ -38,11 +38,6 @@ from co_scientist.prompts.generation_validation import (
     get_hypothesis_novelty_analysis_prompt,
     get_validation_synthesis_prompt_with_tools,
 )
-from co_scientist.prompts.knowledge_base import (
-    ThemeWritingMaterial,
-    get_knowledge_base_outline_prompt,
-    get_knowledge_base_theme_prompt,
-)
 from co_scientist.prompts.literature import (
     LiteratureQueryInputs,
     get_hypothesis_query_generation_prompt,
@@ -59,10 +54,15 @@ from co_scientist.prompts.loading import (
     substitute_variables,
 )
 from co_scientist.prompts.planning import (
+    DirectionWritingMaterial,
     OverviewReviewMaterial,
     OverviewRevisionRequest,
     SupervisorPromptInputs,
+    ThemeWritingMaterial,
+    get_knowledge_base_outline_prompt,
+    get_knowledge_base_theme_prompt,
     get_meta_review_prompt,
+    get_research_overview_direction_prompt,
     get_research_overview_interim_prompt,
     get_research_overview_prompt,
     get_research_overview_review_prompt,
@@ -73,10 +73,6 @@ from co_scientist.prompts.ranking import (
     RankingSide,
     get_proximity_prompt,
     get_ranking_prompt,
-)
-from co_scientist.prompts.research_directions import (
-    DirectionWritingMaterial,
-    get_research_overview_direction_prompt,
 )
 from co_scientist.prompts.review import (
     get_deep_verification_prompt,

@@ -11,14 +11,10 @@ from typing import Any, NamedTuple
 from co_scientist.agents.reflection.deep_verification import (
     merge_retrieved_articles,
 )
-from co_scientist.agents.reflection.evidence_context import (
+from co_scientist.agents.reflection.deep_verification_evidence import (
     EvidenceCaps,
     build_evidence_context,
     showable_articles,
-)
-from co_scientist.agents.reflection.mature_reviews import (
-    reviews_needed,
-    store_mature_review_result,
 )
 from co_scientist.agents.reflection.reflection import (
     apply_observation_result,
@@ -29,14 +25,14 @@ from co_scientist.agents.reflection.review_evidence import (
     _review_evidence_for,
     _ReviewEvidence,
 )
-from co_scientist.agents.reflection.review_recheck import (
+from co_scientist.agents.reflection.review_gate import (
     RECHECK_REVIEW_TYPE,
-    mark_recheck_issued,
-    recheck_targets,
-)
-from co_scientist.agents.reflection.review_types import (
     ReviewType,
+    mark_recheck_issued,
     prompt_name_for,
+    recheck_targets,
+    reviews_needed,
+    store_mature_review_result,
 )
 from co_scientist.agents.reflection.simulation_execution import (
     simulation_observations,

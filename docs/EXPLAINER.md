@@ -55,7 +55,7 @@ supervisor → literature_review → generate → reflection → review
 - **Supervisor** builds a research plan and strategy (`agents/supervisor/supervisor.py`).
 - **Literature Review** + **Reflection** are MCP-gated (dashed in the diagram). When MCP is unavailable the graph is built *without* those two nodes and the first pass collapses to `supervisor → generate → review → …` (the dashed bypass arrow in the SVG).
 - **Comprehensive Reflection** and the pre-ranking **Safety screen** sit between Review and Ranking on every path — including the orchestrator's direct re-rank route (`workflow_topology.py::WORKFLOW_ROUTES`) — so a blocked hypothesis never reaches the tournament, evolution, or meta-review (`agents/safety/safety_screen.py`).
-- **Deep Verification** runs *before* Ranking, probing every rankable hypothesis still owed its one verification (`agents/reflection/deep_verification.py`), so no idea is ranked or bred from before its core assumptions are challenged. Once ever per idea, not once per cycle: a checkpointed `deep_verification_issued` enrichment marks the attempt when it is issued (`agents/reflection/verification.py`), so a resume cannot re-fire the wave. It is not a separate tournament round.
+- **Deep Verification** runs *before* Ranking, probing every rankable hypothesis still owed its one verification (`agents/reflection/deep_verification.py`), so no idea is ranked or bred from before its core assumptions are challenged. Once ever per idea, not once per cycle: a checkpointed `deep_verification_issued` enrichment marks the attempt when it is issued (`agents/reflection/deep_verification.py`), so a resume cannot re-fire the wave. It is not a separate tournament round.
 
 ### Iteration cycle (runs up to `max_iterations` times)
 
@@ -120,8 +120,8 @@ State is a `TypedDict` (`state/__init__.py:45`) flowing through every node. Each
 
 | Field(s) | Reducer | Why |
 | --- | --- | --- |
-| `hypotheses` | `deduplicate_hypotheses` (`state/reducers.py:212`, re-exported from `state/__init__.py`) | Nine nodes write here, through explicit ops rather than a text heuristic (the old ">50% overlap ⇒ replacement" guess was removed). `AppendHypotheses(items)` adds items to the pool, dropping id/exact-text collisions — used by Generation and Evolution so an evolved child can never replace its parent. A bare `list[Hypothesis]` (or an explicit `ReplaceHypotheses`, which `safety_screen` uses) **replaces** the pool with exactly that list, deduped by id — used by the curating nodes (review, reflection, comprehensive_reflection, safety_screen, ranking, deep_verification, proximity), which already return the full or intentionally pruned pool. An empty bare list means "no change", never a wipe. Near-duplicate collapsing is the Proximity agent's job, not the reducer's. |
-| `tournament_matchups` | `accumulate_matchups` (`state/reducers.py:59`) | The ranking node returns only the matchups it just judged, so last-write-wins erased every earlier cycle's tournament. Matchups accumulate, deduped on `(pair, pre-match ratings)` so a replayed ranking task cannot double-count while a genuine later rematch is kept. |
+| `hypotheses` | `deduplicate_hypotheses` (`state/__init__.py:212`, re-exported from `state/__init__.py`) | Nine nodes write here, through explicit ops rather than a text heuristic (the old ">50% overlap ⇒ replacement" guess was removed). `AppendHypotheses(items)` adds items to the pool, dropping id/exact-text collisions — used by Generation and Evolution so an evolved child can never replace its parent. A bare `list[Hypothesis]` (or an explicit `ReplaceHypotheses`, which `safety_screen` uses) **replaces** the pool with exactly that list, deduped by id — used by the curating nodes (review, reflection, comprehensive_reflection, safety_screen, ranking, deep_verification, proximity), which already return the full or intentionally pruned pool. An empty bare list means "no change", never a wipe. Near-duplicate collapsing is the Proximity agent's job, not the reducer's. |
+| `tournament_matchups` | `accumulate_matchups` (`state/__init__.py:59`) | The ranking node returns only the matchups it just judged, so last-write-wins erased every earlier cycle's tournament. Matchups accumulate, deduped on `(pair, pre-match ratings)` so a replayed ranking task cannot double-count while a genuine later rematch is kept. |
 | `metrics` | `merge_metrics` (`models/metrics.py:152`) | Every node emits only deltas via `create_metrics_update()` (`models/metrics.py:214`, re-exported from `models/__init__.py`). The reducer builds a fresh `ExecutionMetrics` (never mutates inputs): `hypothesis_count = max` (it is a running total, not a delta), count deltas additively merged, `phase_times` and `model_usage` dict-merged, `total_time` taken from the new value when it measured one (`> 0`) and otherwise carried forward. |
 | `messages` | `add_messages` (LangGraph) | Phase messages append rather than overwrite. |
 | all others | (overwrite) | `supervisor_guidance`, `articles_with_reasoning`, `meta_review`, `research_overview`, `removed_duplicates`, `evolution_details`, `current_iteration`, etc. |
@@ -140,24 +140,24 @@ All nodes are `async (state) -> dict[str, Any]`, implemented in the agent packag
 | `literature_review` | `literature_review/node.py:367` | `research_goal`, `tool_registry`, `literature_review_papers_count` | `articles_with_reasoning`, `articles`, `context_enrichment_sources`, `literature_review_queries` | generate |
 | `generate` | `generate.py:17` | `supervisor_guidance`, `articles_with_reasoning`, `enable_tool_calling_generation` | `hypotheses`, `debate_transcripts` | reflection (or review) |
 | `reflection` | `reflection.py:207` | `articles_with_reasoning`, `hypotheses` | `hypotheses` (+ `reflection_notes`, INDRA `enrichments`) | review |
-| `review` | `review.py:278` | `hypotheses`, `research_goal`, `supervisor_guidance` | `hypotheses` (+ `reviews`, `score`) | comprehensive_reflection |
+| `review` | `__init__.py:278` | `hypotheses`, `research_goal`, `supervisor_guidance` | `hypotheses` (+ `reviews`, `score`) | comprehensive_reflection |
 | `comprehensive_reflection` | `comprehensive_reflection.py:476` | `hypotheses`, `articles_with_reasoning` | `hypotheses` (+ deeper structured critique) | safety_screen |
 | `safety_screen` | `safety_screen.py:235` | `hypotheses` | `hypotheses` (blocked ones removed), `safety_decisions`, `held_for_review` | deep_verification |
-| `ranking` | `ranking.py:392` | `hypotheses`, `tournament_pairs`, `current_iteration` | `hypotheses` (sorted by Elo, + `win/loss_count`), `tournament_matchups` | orchestrator |
-| `deep_verification` | `deep_verification.py:324` | `hypotheses` (every rankable one still owed its single verification, selected by `agents/reflection/verification.py`) | `hypotheses` (+ `deep_verification_probes`, `deep_verification_verdict`, a `deep_verification_issued` enrichment) | ranking |
+| `ranking` | `review.py:392` | `hypotheses`, `tournament_pairs`, `current_iteration` | `hypotheses` (sorted by Elo, + `win/loss_count`), `tournament_matchups` | orchestrator |
+| `deep_verification` | `deep_verification.py:324` | `hypotheses` (every rankable one still owed its single verification, selected by `agents/reflection/deep_verification.py`) | `hypotheses` (+ `deep_verification_probes`, `deep_verification_verdict`, a `deep_verification_issued` enrichment) | ranking |
 | `orchestrator` | `orchestrator.py:153` | `SchedulerStats` computed from state | `next_task`, decision + reason in the ledger | routes via `TASK_ROUTES` to generate / review / safety_screen / meta_review / proximity / research_overview |
-| `meta_review` | `meta_review.py:38` | `hypotheses` (reviews, Elo, verdicts) | `meta_review` | evolve |
+| `meta_review` | `overview.py:38` | `hypotheses` (reviews, Elo, verdicts) | `meta_review` | evolve |
 | `evolve` | `evolve.py:382` | `hypotheses`, `evolution_max_count`, `meta_review` | `hypotheses` (children appended to the pool), `evolution_details` | review (re-review) |
 | `proximity` | `proximity.py:365` | `hypotheses`, `current_iteration` | `hypotheses` (deduped), `removed_duplicates` (accumulated), `proximity_graph` | orchestrator |
 | `research_overview` | `research_overview.py:53` | `hypotheses` (top-10 by Elo), `meta_review` | `research_overview` ({overview, nih_specific_aims} at the terminal firing; a lean `interim_overview` on a periodic one) | END (terminal firing) or orchestrator (periodic firing, extended/ultra — `_route_after_research_overview`) |
 
-Helper-only files (not graph nodes): the `agents/generation/literature_review/` subpackage's support modules (e.g. `helpers.py` — `node.py` in the same subpackage is the actual graph node), `agents/reflection/reflection_helpers.py`, and the rest of the `agents/generation/` subpackage.
+Helper-only files (not graph nodes): the `agents/generation/literature_review/` subpackage's support modules (e.g. `__init__.py` — `node.py` in the same subpackage is the actual graph node), `agents/reflection/reflection_helpers.py`, and the rest of the `agents/generation/` subpackage.
 
 ---
 
 ## 7. Generation in depth
 
-`generate` is a thin wrapper (`generate.py:17`) delegating to `agents/generation/coordinator.py::generate_hypotheses` (line 409). The coordinator picks a generation strategy based on MCP and tool-calling availability (`coordinator_strategy.py::_classify_generation_strategy`, lines 53-89):
+`generate` is a thin wrapper (`generate.py:17`) delegating to `agents/generation/coordinator.py::generate_hypotheses` (line 409). The coordinator picks a generation strategy based on MCP and tool-calling availability (`operations.py::_classify_generation_strategy`, lines 53-89):
 
 ```mermaid
 flowchart LR
@@ -170,7 +170,7 @@ flowchart LR
   MIX --> PAR["run strategies in parallel"]
   DEB --> PAR
   DEG --> PAR
-  PAR --> RI["build ReferenceIndex<br/>(citations.py::build_reference_index)"]
+  PAR --> RI["build ReferenceIndex<br/>(reviews.py::build_reference_index)"]
   RI --> ENR["_enrich_hypotheses<br/>YAML-driven (coordinator_enrichment.py:152)"]
   ENR --> OUT["hypotheses + debate_transcripts"]
 
@@ -191,11 +191,11 @@ flowchart LR
   DEG -.-> Debate
 ```
 
-- **Debate** (`debate.py::generate_with_debate`, line 414) runs `count` parallel multi-turn debates, each yielding one hypothesis. Diversity angles (`_DEBATE_DIVERSITY_ANGLES`, defined in the sibling `debate_support.py`) seed each parallel debate. Generation calls use `use_cache=False` (`debate.py:98,238`) to preserve diversity.
+- **Debate** (`debate.py::generate_with_debate`, line 414) runs `count` parallel multi-turn debates, each yielding one hypothesis. Diversity angles (`_DEBATE_DIVERSITY_ANGLES`, defined in the sibling `debate.py`) seed each parallel debate. Generation calls use `use_cache=False` (`debate.py:98,238`) to preserve diversity.
 - **Tool-based** (`agents/generation/literature_tools/`) is two-phase: **draft** (`draft.py::draft_hypotheses`, line 384) — an agent reads pre-curated papers via MCP tools and drafts hypotheses using `call_llm_with_tools` with a dynamic iteration budget (`constants/__init__.py::get_draft_max_iterations`, `min(5+count*2,30)`); **validate** (`validate.py::_run_validate_novelty_stage`) — per-hypothesis novelty analysis searches papers, then a synthesis agent in batches of `VALIDATION_SYNTHESIS_BATCH_SIZE=3` decides approve/refine/pivot. Failed batches retry individually with accumulated context (`validate.py::_run_synthesis_stage_batches`).
-- **Citations** are domain-agnostic: `ReferenceIndex` (`citations.py:24`) is built from papers (`used_in_analysis=True`) **then** knowledge-graph enrichment sources, assigning sequential `[C1]`, `[C2]`, … keys in one namespace (`citations.py::build_reference_index`). The LLM emits `[Cn]` in `literature_grounding`; `resolve_citation_keys` (`citations.py:213`) maps them back to source metadata.
-- **Degraded mode** (`operations.py::_apply_degraded_mode_fallback`) stamps `literature_grounding` with an explicit "No literature review available" warning to prevent hallucinated citations; the MCP/lit-review availability check that decides degraded mode is `coordinator_strategy.py::_check_literature_availability`.
-- **Parallelism** is bounded by `MAX_CONCURRENT_LLM_CALLS=5` (`constants/__init__.py:174`). Review, reflection, and evolve all parallelize under it. Ranking is the exception: its fan-out is the tournament's whole shape, so it carries its own `RANKING_WAVE_SIZE=12` bound (`constants/tournament.py`), narrowing to `RANKING_WAVE_MIN_SIZE=3` under provider throttling.
+- **Citations** are domain-agnostic: `ReferenceIndex` (`reviews.py:24`) is built from papers (`used_in_analysis=True`) **then** knowledge-graph enrichment sources, assigning sequential `[C1]`, `[C2]`, … keys in one namespace (`reviews.py::build_reference_index`). The LLM emits `[Cn]` in `literature_grounding`; `resolve_citation_keys` (`reviews.py:213`) maps them back to source metadata.
+- **Degraded mode** (`operations.py::_apply_degraded_mode_fallback`) stamps `literature_grounding` with an explicit "No literature review available" warning to prevent hallucinated citations; the MCP/lit-review availability check that decides degraded mode is `operations.py::_check_literature_availability`.
+- **Parallelism** is bounded by `MAX_CONCURRENT_LLM_CALLS=5` (`constants/__init__.py:174`). Review, reflection, and evolve all parallelize under it. Ranking is the exception: its fan-out is the tournament's whole shape, so it carries its own `RANKING_WAVE_SIZE=12` bound (`constants/__init__.py`), narrowing to `RANKING_WAVE_MIN_SIZE=3` under provider throttling.
 
 ---
 
@@ -225,9 +225,9 @@ flowchart TD
 - **Detection** is lazy and cached per instance: `HypothesisGenerator._check_cached_availability` calls `check_mcp_available()` / `check_literature_source_available()` (`generator/core.py`) and stores the result in state as `mcp_available`/`pubmed_available` (`generator/initial_state.py`).
 - **Conditional graph**: if MCP is unavailable, the graph is built *without* `literature_review`/`reflection` (`generator/graph.py`, `enable_literature_review_node`).
 - **Tool-calling generation** requires MCP + lit review. When `enable_tool_calling_generation=True`, the generate node's `generate_with_tools` path gives the LLM direct MCP tool access via `MCPToolProvider` for the draft + validate phases.
-- **Fallbacks**: query generation falls back MCP → LLM → research-goal (`literature_review/queries.py::_phase1_generate_queries`). If no papers/fulltext, the node returns a `LITERATURE_REVIEW_FAILED` marker; `generate` detects it (`coordinator_strategy.py::_check_literature_availability`) and switches to degraded debate-only mode. Individual tool-call failures are caught and logged without aborting.
+- **Fallbacks**: query generation falls back MCP → LLM → research-goal (`literature_review/queries.py::_phase1_generate_queries`). If no papers/fulltext, the node returns a `LITERATURE_REVIEW_FAILED` marker; `generate` detects it (`operations.py::_check_literature_availability`) and switches to degraded debate-only mode. Individual tool-call failures are caught and logged without aborting.
 - **Context enrichment (KG)**: `literature_review/enrichment.py` calls `context_enrichment_tools` (e.g. INDRA CoGex) per extracted entity in parallel, appends results to the synthesis with `[C*]` keys aligned to the reference index.
-- **Domain configs** in `config/examples/` override `prompts`, `tools`, `workflows`, `servers`, and `enrichments` — making the engine domain-agnostic: `indra_cancer.yaml`, `indra_alzheimers.yaml`, `cybersecurity_hydra.yaml` (arXiv + Google Scholar + NVD CVE enrichment), multi-source academic configs, etc.
+- **Domain configs** override `prompts`, `tools`, `workflows`, `servers`, and `enrichments`. The maintained examples in `config/examples/` are `indra_cancer.yaml` and `indra_hfpef.yaml`; custom YAML files support other domains.
 
 The reference MCP server (`engine/mcp_server/`) is a separately installable FastMCP package. Run with `uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888`. **Requires Python 3.12** (the engine itself is 3.10+) — install into a 3.12 venv or hit cryptic solver errors.
 
@@ -278,7 +278,7 @@ Canonical event timeline (see "Pipeline events" in [`docs/ARCHITECTURE.md`](ARCH
 
 Events 1-2 are written by the HTTP layer; 3-5 by the worker (`safety.intake` is
 the `engine.bootstrap` task's first act, then one `scientific_task` per node
-commit — `engine_tasks/emit.py::_emit_node_completion`); and 6-11 by the
+commit — `engine_tasks/support.py::_emit_node_completion`); and 6-11 by the
 terminal `engine.finalize` task — so the citation audit follows
 `research_overview` rather than preceding it, and there is no
 `status (running)` event at all. The
@@ -311,14 +311,14 @@ Key endpoints (full list in `AGENTS.md`): `POST /api/runs` (create draft), `POST
 
 ## 11. Fidelity & constants
 
-The implementation-defined values (see [`docs/FIDELITY.md`](FIDELITY.md) for the full invariant catalogue). Most live in `engine/src/co_scientist/constants/__init__.py`; the Elo/tournament values below live in the sibling `constants/tournament.py` and are re-exported from `constants/__init__.py`.
+The implementation-defined values (see [`docs/FIDELITY.md`](FIDELITY.md) for the full invariant catalogue). Most live in `engine/src/co_scientist/constants/__init__.py`; the Elo/tournament values below live in the sibling `constants/__init__.py` and are re-exported from `constants/__init__.py`.
 
 Cited by file rather than by line: a line number is a promise this table has repeatedly failed to keep as the module evolved.
 
 | Constant | Value | Where |
 | --- | --- | --- |
-| `INITIAL_ELO_RATING` | `1200` | `constants/tournament.py` |
-| `ELO_K_FACTOR` | `24` | `constants/tournament.py` |
+| `INITIAL_ELO_RATING` | `1200` | `constants/__init__.py` |
+| `ELO_K_FACTOR` | `24` | `constants/__init__.py` |
 | `COMPARATIVE_BATCH_THRESHOLD` | `5` (≤5 → comparative batch; >5 → parallel individual) | `constants/__init__.py` |
 | `MAX_CONCURRENT_LLM_CALLS` | `5` | `constants/__init__.py` |
 | `DEFAULT_MAX_ITERATIONS` | `1` | `constants/__init__.py` |
@@ -331,7 +331,7 @@ Cited by file rather than by line: a line number is a promise this table has rep
 | `get_draft_max_iterations` | `min(5 + count*2, 30)` | `constants/__init__.py` |
 | `get_validate_max_iterations` | `min(count*10, 50)` | `constants/__init__.py` |
 
-Temperatures: `LOW=0.3`, `MEDIUM=0.5`, `HIGH=0.7` (`constants/__init__.py`). Token budgets: `DEFAULT_MAX_TOKENS=4000`, `EXTENDED=8000`, `LONG=10000`, `THINKING=18000` (`constants/tokens.py`, re-exported from `constants/__init__.py`).
+Temperatures: `LOW=0.3`, `MEDIUM=0.5`, `HIGH=0.7` (`constants/__init__.py`). Token budgets: `DEFAULT_MAX_TOKENS=4000`, `EXTENDED=8000`, `LONG=10000`, `THINKING=18000` (`constants/__init__.py`, re-exported from `constants/__init__.py`).
 
 ---
 
@@ -344,7 +344,7 @@ Temperatures: `LOW=0.3`, `MEDIUM=0.5`, `HIGH=0.7` (`constants/__init__.py`). Tok
 | State definition + its reducers | `engine/src/co_scientist/state/__init__.py` (`deduplicate_hypotheses` and `accumulate_matchups` here; `merge_metrics` in the sibling `models/metrics.py`) |
 | Data models (`Hypothesis`, `ExecutionMetrics`, `Article`) | `engine/src/co_scientist/models/` |
 | LLM dispatch, JSON repair, tool-calling loop | `engine/src/co_scientist/llm/` |
-| Generation coordinator (3-condition strategy) | `engine/src/co_scientist/agents/generation/coordinator_strategy.py` |
+| Generation coordinator (3-condition strategy) | `engine/src/co_scientist/agents/generation/operations.py` |
 | Tool-based draft → validate | `engine/src/co_scientist/agents/generation/literature_tools/` |
 | Citation index + key resolution | `engine/src/co_scientist/agents/generation/citations.py` |
 | YAML tool/domain config | `engine/src/co_scientist/config/` + `config/examples/` |

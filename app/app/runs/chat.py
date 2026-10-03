@@ -15,6 +15,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
+import app.qa.manifest as qa_run_state
 from app import (
     credentials,
     engine_adapter,
@@ -26,7 +27,6 @@ from app import (
 from app.api_contracts.responses import MessagesResponse
 from app.api_contracts.runs import RunMessage
 from app.execution_policy import CAMPAIGN, campaign_model_for_config
-from app.qa import run_state as qa_run_state
 from app.runs.models import (
     AskRequest,
     SendMessageRequest,

@@ -1,15 +1,13 @@
-import {useCallback, useState} from 'react';
+import {useCallback, useState, type ReactNode} from 'react';
 import {Link, useParams, useSearchParams} from 'react-router-dom';
 import {isCancelledStatus, type TerminalNonCompletedStatus} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {TruncatedLabel} from '../components/truncated_label';
-import {useIsMobile} from '../hooks/use_is_mobile';
+import {useIsMobile} from '../hooks/dom';
 import {tabPath, type TabName} from '../run_tabs';
-import {
-  REPORT_DOCUMENT_CLASSES,
-  REPORT_H2_CLASSES,
-} from './run_detail_document';
 import {runFailureGuidance} from './run_detail_data';
+import {capitalizeTerm} from '@/lib/text';
+import {joinClasses} from '../classes';
 
 // Icon and label shown per tab in the nav bar (keyed by TabName so a missing
 // entry is a compile error, not a silent blank tab). `short` is the label
@@ -438,5 +436,81 @@ export function RunDetailSkeleton() {
       <div className="wb-skeleton h-12 w-full" />
       <div className="wb-skeleton h-48 w-full" />
     </div>
+  );
+}
+
+// Shared Tailwind class-name constants and layout primitives for the
+// document-style report content ("details"/"learning"/"overview" tabs in
+// run_detail.tsx, plus run_detail_learning.tsx). Centralizing the classes
+// here keeps heading sizes, spacing, and list styling consistent across
+// those views.
+
+export const REPORT_DOCUMENT_CLASSES =
+  'cosci-report-document mx-auto mt-9 mb-24 w-[min(100%_-_3rem,58rem)] ' +
+  'text-base leading-[1.5] max-[700px]:mt-5 max-[700px]:mb-12 ' +
+  'max-[700px]:w-[min(100%_-_1.2rem,100%)] max-[700px]:max-w-none';
+
+export const REPORT_H2_CLASSES =
+  'font-gsans mt-9 mb-6 text-[2rem] leading-10 font-normal tracking-normal ' +
+  'max-[700px]:mt-6 max-[700px]:mb-4 ' +
+  'max-[700px]:text-[clamp(1.5rem,6.8vw,2rem)] max-[700px]:leading-[1.2]';
+
+export const REPORT_H3_CLASSES =
+  'font-gsans mt-[1.4rem] mb-3 text-[1.75rem] leading-9 font-normal ' +
+  'max-[700px]:text-[clamp(1.35rem,6.5vw,1.75rem)] max-[700px]:leading-[1.2]';
+
+export const REPORT_H4_CLASSES = 'mt-4 mb-[0.35rem] text-base font-medium';
+
+export const REPORT_LIST_CLASSES = 'mt-[0.45rem] mb-0 pl-[1.35rem]';
+
+export const REPORT_SECTION_CLASSES = 'cosci-overview-section mt-8';
+
+export const REPORT_SECTION_LIST_ITEM_CLASSES =
+  'my-[0.6rem] grid gap-[0.15rem]';
+
+export const REPORT_SECTION_LIST_META_CLASSES =
+  'text-[0.88rem] text-cosci-muted';
+
+/**
+ * Wraps a report-style tab's content in the shared article layout, rendering
+ * an H2 title above the caller-supplied body.
+ *
+ * @param props The document title, body content, and an optional extra
+ *   className appended to the base document classes.
+ */
+export function ReportDocument({
+  title,
+  children,
+  className,
+}: {
+  title: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <article className={joinClasses(REPORT_DOCUMENT_CLASSES, className)}>
+      <h2 className={REPORT_H2_CLASSES}>{title}</h2>
+      {children}
+    </article>
+  );
+}
+
+/**
+ * Renders a labeled bullet list within a report document, or nothing when
+ * there are no values (e.g. a run with no captured requirements yet).
+ *
+ * @param props The list's heading text and the string values to render.
+ */
+export function ReportList({title, values}: {title: string; values: string[]}) {
+  if (!values.length) return null;
+  return (
+    <section className="cosci-report-list">
+      <h4 className={REPORT_H4_CLASSES}>{title}:</h4>
+      <ul className={REPORT_LIST_CLASSES}>
+        {values.map(value => (
+          <li key={value}>{capitalizeTerm(value)}</li>
+        ))}
+      </ul>
+    </section>
   );
 }

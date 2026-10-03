@@ -1,35 +1,4 @@
-"""The loop: ask, search, read, ask better, stop.
-
-One entry point, :func:`conduct_research`. It sequences the two ports
-into levels that narrow as they descend, and returns everything that
-happened rather than only what it concluded.
-
-**Follow-ups are pooled per level, not recursed per finding.** The
-published implementations this borrows from recurse inside the result
-loop, so their thread count multiplies with every level and the real
-ceiling is whatever the model asked for. Here, every thread at a level
-contributes its follow-up questions to one pool, the pool is clamped to
-the next level's breadth, and that becomes the next level. Total threads
-are then the sum of the per-level breadths -- a number
-``ResearchBudget.max_threads`` can quote before anything is spent.
-
-**Clamping answers, it does not truncate.** A question the budget will
-not fund comes back as a declined thread carrying the reason and the
-breadth that would have accepted it. Nothing is dropped silently, which
-is the same discipline as returning a score for a crashing variant
-rather than raising: the caller has to be able to see what did not
-happen.
-
-**An empty level ends the descent.** If no thread at a level found
-anything, the next level's questions would be generated from nothing --
-which is exactly the state an unreachable search service produces, and
-exactly when spending the rest of the budget is worst. That stop is a
-recorded outcome on the result, not a log line.
-
-Failures are contained at the thread and at the call. A source that
-raises is a failed call beside its succeeding siblings; a model that
-raises fails one thread and leaves the rest of the level running.
-"""
+"""Budgeted research descent and admission over scientific questions."""
 
 from __future__ import annotations
 
@@ -37,17 +6,19 @@ import asyncio
 import logging
 import time
 from collections.abc import Sequence
+from dataclasses import replace
 from typing import Union
 
-from co_scientist.research.admission import (
-    admit_within_budget,
-    bind_findings,
-)
 from co_scientist.research.artifacts import (
     CallStatus,
+    Document,
+    ExtractedFinding,
     Finding,
     Question,
+    ResearchBudget,
+    ResearchModelPort,
     ResearchResult,
+    RetrievalPort,
     SearchCall,
     SourceHit,
     StopReason,
@@ -55,14 +26,154 @@ from co_scientist.research.artifacts import (
     ThreadStatus,
     dedupe_findings,
 )
-from co_scientist.research.budget import ResearchBudget
-from co_scientist.research.ports import (
-    Document,
-    ResearchModelPort,
-    RetrievalPort,
-)
 
 logger = logging.getLogger(__name__)
+
+
+def bind_findings(
+    extracted: Sequence[ExtractedFinding],
+    question: str,
+    calls: Sequence[SearchCall],
+) -> tuple[Finding, ...]:
+    """Bind each extracted claim to the question and call behind it.
+
+    A finding that cannot be traced to the call that surfaced its
+    document keeps an empty ``call_id`` rather than being dropped: the
+    claim and its span are the evidence, and the call is provenance.
+
+    Args:
+        extracted: What the model drew from the documents.
+        question: The question the thread was answering.
+        calls: The thread's calls, for locating each document's origin.
+
+    Returns:
+        Findings carrying their question, span and originating call.
+    """
+    call_by_locator = {
+        hit.locator: call.id for call in calls for hit in call.hits
+    }
+    return tuple(
+        Finding(
+            text=item.text,
+            question=question,
+            locator=item.locator,
+            span=item.span,
+            call_id=call_by_locator.get(item.locator, ""),
+        )
+        for item in extracted
+    )
+
+
+def _claim_locators(
+    calls: Sequence[SearchCall],
+) -> list[tuple[SearchCall, list[SourceHit]]]:
+    """Pair each call with the hits no earlier call already returned.
+
+    Deduplication happens once, before either fill, so a paper both a
+    reserved source and an unreserved one returned is seated once and
+    counted against whichever came first -- the same collapse-onto-the-
+    first-source rule as before reservations existed.
+
+    Args:
+        calls: This question's calls, in the order they were issued.
+
+    Returns:
+        One entry per call, hits in the source's own ranking.
+    """
+    seen: set[str] = set()
+    paired = []
+    for call in calls:
+        hits = [hit for hit in call.hits if hit.locator not in seen]
+        seen.update(hit.locator for hit in hits)
+        paired.append((call, hits))
+    return paired
+
+
+def _fill_reserved(
+    paired: Sequence[tuple[SearchCall, list[SourceHit]]],
+    budget: ResearchBudget,
+) -> list[SourceHit]:
+    """Seat the hits a source's reservation guarantees a place.
+
+    Reservations are filled best-first from within their own source,
+    never padded when the source returned fewer hits than it reserved,
+    and cannot push the question past ``hits_per_question``.
+
+    Args:
+        paired: Calls with their deduplicated hits.
+        budget: The level's ceilings, carrying ``reserved_slots``.
+
+    Returns:
+        The reserved hits, in call order.
+    """
+    quotas = dict(budget.reserved_slots)
+    if not quotas:
+        return []
+    taken: list[SourceHit] = []
+    for call, hits in paired:
+        room = budget.hits_per_question - len(taken)
+        places = min(quotas.get(call.source, 0), room)
+        if places > 0:
+            taken.extend(hits[:places])
+    return taken
+
+
+def admit_within_budget(
+    calls: Sequence[SearchCall], budget: ResearchBudget
+) -> tuple[list[SourceHit], list[SearchCall]]:
+    """Choose which results get read, and record which did not.
+
+    Sources are drawn in configured order and results in their own
+    ranking, so the ordering a replay has to reproduce is the ordering
+    the sources gave. A locator returned by two sources collapses onto
+    the first one that returned it.
+
+    The one departure from that order is a source holding
+    ``reserved_slots``: it is seated first, up to its reservation. That
+    exists because preference order is a proxy for quality that one
+    source cannot compete on -- the group's own papers are searched last
+    and the indexed literature fills every place before they are reached,
+    so without a reservation a corpus that answers the question well is
+    never read at all.
+
+    Args:
+        calls: This question's calls, one per source.
+        budget: The level's ceilings.
+
+    Returns:
+        The admitted hits, and the calls updated with what each of them
+        contributed and what was refused.
+    """
+    paired = _claim_locators(calls)
+    admitted = _fill_reserved(paired, budget)
+    admitted_locators = {hit.locator for hit in admitted}
+
+    for _call, hits in paired:
+        for hit in hits:
+            if hit.locator in admitted_locators:
+                continue
+            if len(admitted) < budget.hits_per_question:
+                admitted.append(hit)
+                admitted_locators.add(hit.locator)
+
+    recorded = [
+        replace(
+            call,
+            admitted=tuple(
+                hit.locator
+                for hit in call.hits
+                if hit.locator in admitted_locators
+            ),
+            dropped=tuple(
+                hit.locator
+                for hit in call.hits
+                if hit.locator not in admitted_locators
+            ),
+        )
+        for call in calls
+    ]
+    return admitted, recorded
+
 
 # Stance recorded for questions the caller supplied itself. A caller that
 # already knows what to ask -- a review probing one assumption, say --

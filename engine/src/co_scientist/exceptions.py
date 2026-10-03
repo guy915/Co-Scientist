@@ -97,7 +97,7 @@ class LLMThinkingOnlyError(CoScientistError, ValueError):
 # Raised by llm.admission.call_budget.record_provider_request once a run's
 # counted provider requests exceed its configured max_llm_calls ceiling (see
 # app.run_modes.RUN_TIER_DEFAULTS and
-# co_scientist.scheduling.policy_budget._llm_call_budget_check, which terminates
+# co_scientist.scheduling.policy._llm_call_budget_check, which terminates
 # a run between tasks from the same count). That check only runs between the
 # supervisor's scheduling decisions, so a task that fires hundreds of calls
 # inside one node was never interrupted by it; this is the enforcement point

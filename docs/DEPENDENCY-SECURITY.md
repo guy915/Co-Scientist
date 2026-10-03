@@ -55,7 +55,7 @@ patched versions first. A new advisory must receive its own assessment.
 The audit does not inspect operating-system packages in a built container.
 Container builds and a review of the actual deployed image remain separate
 release checks. See [LAUNCH.md](LAUNCH.md) and
-[PUBLICATION-REVIEW.md](PUBLICATION-REVIEW.md).
+[PUBLICATION-REVIEW.md](https://github.com/guy915/Co-Scientist/blob/7c2878aeb071a962cb713e9c271cd88e1635ca5f/docs/PUBLICATION-REVIEW.md).
 
 ## 2 October 2026 refresh
 
@@ -64,7 +64,7 @@ completed; the audit target returned nonzero because Python advisories remain,
 not because scanning failed. Package versions and distinct counts match the
 previous record: 23 LiteLLM IDs, two FastMCP IDs and one DiskCache ID. The
 skills, frontend and browser-harness closures reported no advisory matches.
-The [dated snapshot](decisions/2026-10-02-dependency-audit.json) records the
+The [dated snapshot](https://github.com/guy915/Co-Scientist/blob/7c2878aeb071a962cb713e9c271cd88e1635ca5f/docs/decisions/2026-10-02-dependency-audit.json) records the
 current IDs, detector-listed fixes and the hashes of the audited locks; the
 previous prose record does not establish an exact historical ID-set match.
 

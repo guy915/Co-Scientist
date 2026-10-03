@@ -15,7 +15,7 @@ reconstructs the paper's published behavior, the product surface is its own — 
 a difference counts as a defect only where the local choice is worse. FINDINGS.md
 keeps the full record either way; PLAN.md carries only the defects.
 
-Evidence screenshots: [`docs/assets/fidelity-audit-2026-07-20/`](../assets/fidelity-audit-2026-07-20/)
+Evidence screenshots: [`docs/assets/fidelity-audit-2026-07-20/`](https://github.com/guy915/Co-Scientist/tree/7c2878aeb071a962cb713e9c271cd88e1635ca5f/docs/assets/fidelity-audit-2026-07-20)
 — 15 captures at desktop 16:9, desktop 2:1, and mobile 1:2.
 
 ## Where this came from

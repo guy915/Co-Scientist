@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 
+import app.qa as qa_stream
 from app import (
     credentials,
     goal_restatement,
@@ -17,7 +18,6 @@ from app import (
 from app.config import settings
 from app.execution_policy import scoped_execution_policy
 from app.interviews import model as interviews_model
-from app.qa import stream as qa_stream
 from tests._llm_fake_backend import install_completion_backend
 
 MODEL = "openrouter/campaign/chat:free"

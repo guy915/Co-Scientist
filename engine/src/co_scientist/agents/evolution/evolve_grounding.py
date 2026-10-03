@@ -15,11 +15,9 @@ call -- tools degrade to an empty result rather than fail the refinement.
 import logging
 
 from co_scientist.agents.reflection.deep_verification_evidence import (
-    _retrieve_probe_evidence,
-)
-from co_scientist.agents.reflection.evidence_context import (
     RETRIEVED_LABEL,
     EvidenceCaps,
+    _retrieve_probe_evidence,
     build_evidence_context,
 )
 from co_scientist.constants import (
