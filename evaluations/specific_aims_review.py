@@ -1,40 +1,6 @@
-"""Blinded export/import for Google's Specific Aims pilot rubric.
+"""The fifteen-axis pilot measures agreement, not scientific quality.
 
-``towards-an-ai-co-scientist.md`` Appendix A.5.2 (Nature SI Section 4.3
-carries the same rubric) defines a fifteen-axis evaluation rubric across two
-domains -- "Significance and innovation" (5 axes) and "Rigor and
-feasibility" (10 axes) -- applied by oncologist experts to AI co-scientist
-generated NIH "Specific Aims" proposals. Two of the paper's three worked
-examples (lapatinib, selinexor) carry a filled-in rating for every axis; the
-third (givosiran) does not (see ``evaluations/datasets/
-specific_aims_rubric_v1.json``, which carries the rubric, its provenance,
-and the two rated exemplars as fixtures).
-
-This is a DIFFERENT instrument from ``evaluations.expert_review.RATING_AXES``
-(alignment, plausibility, novelty, testability, safety, impact) -- the
-system's own six-axis quality score. Two independent facts keep the two
-instruments apart, both load-bearing:
-
-1. This rubric's scale is an AGREEMENT scale (Strongly Disagree .. Strongly
-   Agree), not a quality score. It shares no scale with ``RATING_AXES``'
-   1-5 quality ints, nor with the paper's own 1-5 co-scientist review score
-   (``docs/PARITY.md`` ``EVAL-REVIEW-SCALE-001``), nor with this repo's 1-10
-   review score. If any of these ever get merged, all become meaningless.
-2. Fifteen axes across two domains, not six. Never rename, alias, or
-   "unify" this rubric's axes with ``RATING_AXES``'.
-
-The rubric is also, by the paper's own account, a PILOT framework -- built
-by oncologists at a US institute, inspired by NIH Specific Aims grant-review
-criteria, deliberately LLM-specific, and explicitly not validated ("would
-require considerable further research ... including assessment of validity
-and reliability"). Never present it as a general-purpose scientific rubric.
-
-Blinding follows ``expert_review.build_blinded_export``'s contract: the
-export strips run/provider/Elo so a rater cannot infer the source system,
-and reuses its opaque ``item_id``/``ExpertReviewValidationError`` so a
-consumer of both instruments shares one identity scheme and one failure
-mode. No ratings are fabricated here -- this module only defines and
-validates the round-trip.
+Keep its axes and scale separate from expert and engine review scores.
 """
 
 from __future__ import annotations

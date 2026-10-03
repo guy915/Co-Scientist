@@ -28,10 +28,7 @@ its evidence and hypothesis lineage, and share a final report.
 
 This is an independent implementation inspired by Google's published
 AI Co-Scientist research. It is not affiliated with or endorsed by Google.
-The [parity ledger](docs/PARITY.md) records implemented requirements,
-deliberate differences, and evaluation gaps; the [fidelity audit](docs/fidelity-audit/FINDINGS.md)
-provides the supporting analysis. Passing implementation tests does not
-establish scientific validity, expert agreement, or wet-lab results.
+Passing implementation tests does not establish scientific validity, expert agreement, or wet-lab results.
 Generated hypotheses need researcher review and experimental validation.
 
 ## Features
@@ -113,7 +110,7 @@ make audit-deps     # online advisory review; requires uv
 ```
 
 Individual checks: `make lint`, `make typecheck`, `make test-app`,
-`make test-engine`, `make test-mcp`, `make test-frontend`, `make parity`,
+`make test-engine`, `make test-mcp`, `make test-frontend`, `make test-evaluations`,
 `make eval-smoke`, `make build`, `make e2e`, and `make e2e-production`.
 The browser suite uses an
 isolated database and offline model responses. Provider-backed evaluations
@@ -125,7 +122,7 @@ remain explicit opt-in operations.
 | --- | --- |
 | `app/` | FastAPI API, SQLite store, operator CLI, and React workbench |
 | `engine/` | LangGraph hypothesis-generation engine and reference MCP server |
-| `evaluations/` | Offline evaluation tools, parity checker, and release gate |
+| `evaluations/` | Offline evaluation tools and release gate |
 | `e2e/` | Playwright browser tests |
 | `requirements/` | Hash-pinned Python runtime dependencies for production images |
 | `docs/` | [Documentation index](docs/README.md), architecture, operations, and launch guidance |

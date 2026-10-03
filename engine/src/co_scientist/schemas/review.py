@@ -123,11 +123,8 @@ PROXIMITY_SCHEMA: dict[str, Any] = {
 # test_prompts_schema_parity.py, which pins every enum value to be named
 # in its own prompt's prose).
 #
-# R12-15/MO-4: Google's own published prose ("Plausible:", etc.) is a
-# *display* decision, not a stored-value one -- mature_reviews.py's
-# `assumptions_likely_false` filter matches the literal enum string, so
-# only `drain/reviews.py::_ASSUMPTION_SUPPORT_LABELS` translates it
-# (docs/PARITY.md REVIEW-ASSUMPTION-WORDING-001).
+# Stored support values drive ranking filters; translate display labels only
+# when rendering, so cosmetic wording cannot change those filters.
 ASSUMPTION_SUPPORT_VALUES: tuple[str, ...] = (
     "supported",
     "uncertain",

@@ -841,15 +841,8 @@ def test_build_assessor_selects_by_mode(monkeypatch: Any) -> None:
 def test_offline_never_builds_the_assessor_that_calls_a_provider(
     monkeypatch: Any,
 ) -> None:
-    """Mode says "llm", the process is offline, and nothing is billed.
+    # A credential previously let this app-side path bypass offline mode.
 
-    ``claim_assessor`` defaults to ``"llm"`` and this call site never passed
-    through the engine's offline router, so a run the whole system believed
-    was offline still sent one real provider call per claim group against
-    whatever credential was in the environment -- 177 of them in a single
-    offline ``make parity`` run. A credential is deliberately present here,
-    since its presence is exactly what made the leak spend money.
-    """
     monkeypatch.setenv("COSCIENTIST_FORCE_OFFLINE", "1")
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-would-have-been-billed")
 

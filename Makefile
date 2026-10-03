@@ -1,4 +1,4 @@
-.PHONY: help setup start dev-api dev-ui dev-all dev-mcp preflight ensure-deps open-when-ready test test-app test-engine test-mcp test-sandbox-linux test-all test-frontend check check-tools docker-build audit-deps parity eval-smoke e2e e2e-production lint typecheck build clean stop reset-db
+.PHONY: help setup start dev-api dev-ui dev-all dev-mcp preflight ensure-deps open-when-ready test test-app test-engine test-mcp test-sandbox-linux test-all test-frontend check check-tools docker-build audit-deps test-evaluations eval-smoke e2e e2e-production lint typecheck build clean stop reset-db
 
 ROOT := $(CURDIR)
 ENGINE := $(ROOT)/engine
@@ -30,14 +30,14 @@ help:
 	@echo "  make test-app     Run viewer backend pytest suite"
 	@echo "  make test-engine  Run engine pytest suite"
 	@echo "  make test-mcp     Run reference MCP server pytest + mypy (needs Python 3.12)"
-	@echo "  make test-all     Run backend + frontend suites and the parity gate"
+	@echo "  make test-all     Run backend, frontend and evaluation suites"
 	@echo "  make check        Run lint, types, all suites, eval smoke, build, and browser tests"
 	@echo "  make docker-build Build both production images (never deploys)"
 	@echo "  make audit-deps   Audit dependency locks online (see docs/DEPENDENCY-SECURITY.md)"
 	@echo "  make test-frontend Run frontend unit tests"
 	@echo "  make e2e          Run the browser end-to-end suite (headless, isolated stack)"
 	@echo "  make e2e-production Test built frontend assets with required researcher authentication"
-	@echo "  make parity       Check the docs/PARITY.md evidence gate + its tests"
+	@echo "  make test-evaluations Run evaluation harness tests"
 	@echo "  make eval-smoke   Run the offline evaluation smoke suite (no LLM, no network)"
 	@echo "  make lint         Lint backend (ruff) + frontend (gts)"
 	@echo "  make typecheck    Typecheck backend (mypy: app, engine, evaluations)"
@@ -252,7 +252,7 @@ test-all:
 	@$(MAKE) test-engine
 	@$(MAKE) test-app
 	@$(MAKE) test-mcp
-	@$(MAKE) parity
+	@$(MAKE) test-evaluations
 	@$(MAKE) test-frontend
 
 # Browser-level end-to-end suite (Playwright). Self-contained: it installs the
@@ -279,12 +279,7 @@ e2e: check-tools
 e2e-production:
 	@COSCI_E2E_PRODUCTION=1 $(MAKE) e2e
 
-# Parity ledger gate: fail if any `verified` row in docs/PARITY.md cites no
-# test/eval evidence or cites evidence files that do not exist on disk, plus
-# the checker's own unit tests. See docs/PARITY.md and
-# evaluations/parity_check.py.
-parity:
-	@cd "$(ROOT)" && "$(PY)" -m evaluations.parity_check
+test-evaluations:
 	@cd "$(ROOT)" && "$(PY)" -m pytest evaluations/tests -q
 
 # Offline evaluation smoke suite (no LLM, no network): safety + citation evals

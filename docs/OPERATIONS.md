@@ -38,6 +38,12 @@ bound: it counts turns after each provider response, not the recovery attempts
 inside a turn. The attempt boundary remains below tool execution so recovery
 never reruns tools from an earlier completed turn.
 
+## Offline provider isolation
+
+App-side claim assessors bypass the engine router, so they must enforce offline
+mode even when a credential is present. A past leak billed one call per claim
+group while tests appeared offline; silent provider-error fallback hid it.
+
 ## Gotchas
 
 Each of these was a production outage or a silent data-correctness failure. The comments in the code record the incident; do not re-litigate them from first principles.

@@ -381,7 +381,7 @@ def _initial_review_detail(rv: dict[str, Any]) -> dict[str, Any]:
 # the reader, so it keeps its own honest label instead of a borrowed,
 # mismatched one -- "Implausible", read alongside "Plausible" as its
 # direct opposite. The published vocabulary simply carries no negative
-# verdict to mirror here; see `docs/PARITY.md` REVIEW-ASSUMPTION-WORDING-001.
+# verdict to mirror here.
 #
 # The stored enum (`review.py`'s ASSUMPTION_SUPPORT_VALUES) is unchanged --
 # `mature_reviews._project_full_review` keys its `assumptions_likely_false`

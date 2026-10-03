@@ -8,23 +8,21 @@ This is a research/reference workspace organized around replicating Google's AI 
 
 - `app/` — FastAPI + React workbench viewer
 - `engine/` — LangGraph-based multi-agent hypothesis-generation engine
-- `evaluations/` — offline evaluation harness (`parity_check.py`, `citation_eval.py`, `safety_eval.py`, `metrics.py`, `golden_run.py`, `scaling_eval.py` + `scaling_budget_driver.py`, `ablation_driver.py`, `elo_concordance_eval.py`, `release_gate.py`, `smoke.py`, plus `datasets/`, `results/`, `tests/` and its own `pyproject.toml`; see `evaluations/README.md`)
+- `evaluations/` — offline evaluation harness (`citation_eval.py`, `safety_eval.py`, `metrics.py`, `golden_run.py`, `scaling_eval.py` + `scaling_budget_driver.py`, `ablation_driver.py`, `elo_concordance_eval.py`, `release_gate.py`, `smoke.py`, plus `datasets/`, `results/`, `tests/` and its own `pyproject.toml`; see `evaluations/README.md`)
 - `e2e/` — Playwright browser end-to-end suite (`tests/*.spec.ts`, `support/` fixtures)
 - External-source dossiers, experiment protocols and release evidence are archived at [immutable revision `7c2878ae`](https://github.com/guy915/Co-Scientist/tree/7c2878aeb071a962cb713e9c271cd88e1635ca5f/references/external); the completed campaign's conclusions and evidence index are preserved at [`PLAN.md` @ 33ec8984](https://github.com/guy915/Co-Scientist/blob/33ec8984c6f9292a6653cc6a661d32210f55c688/PLAN.md). The earlier Google reference tree was drained into `docs/CORPUS-EXTRACTION.md`: its eight prompts, seven pseudocode listings, eighteen outputs and architecture prose remain byte-exact in the appendices, which the fidelity tests read. Cited product-video frames remain under `docs/assets/live-footage/`; the raw videos were never tracked. Historical source material remains available in git.
 - `vendor/` — third-party code shipped as-is, pinned to an upstream revision and never reformatted (a root `.ruff.toml` excludes it, after a repo-root format sweep once silently rewrote 63 vendored files). `science-skills/` is Google DeepMind's Science Skills bundle; the api image copies it and points `COSCIENTIST_SKILLS_DIR` at it. Provenance and revision: the root `NOTICE`.
-- `docs/` — live project docs; `docs/README.md` indexes them (`ARCHITECTURE.md`, `CI.md`, `DEPLOYMENT.md`, `EXPLAINER.md`, `FIDELITY.md`, `PARITY.md`, `RUNNING-LOCALLY.md`, `UI-FIDELITY.md`), plus the parity snapshot and primary-source frames/diagrams; completed ADRs, plans and dated screenshots are linked to immutable Git history from the docs index
+- `docs/` — live project docs; `docs/README.md` indexes them (`ARCHITECTURE.md`, `CI.md`, `DEPLOYMENT.md`, `EXPLAINER.md`, `FIDELITY.md`, `RUNNING-LOCALLY.md`, `UI-FIDELITY.md`), plus primary-source frames/diagrams; completed ADRs, plans and dated screenshots are linked to immutable Git history from the docs index
 - `.github/` — GitHub Actions. `ci.yml` runs as presubmit (on `pull_request`, with `dorny/paths-filter` job-level path filters, superseded runs cancelled) and as postsubmit (on push to `main`: every job, never cancelled); `nightly.yml` re-runs the whole pipeline on cron via `workflow_call`. Every CI command is hermetic — no network, no API keys, no retries — so a test needing a provider key must be skipped or offline. Rationale in `docs/CI.md`.
 - `.remember/` — session handoff notes (`remember.md` is the live handoff file; also `now.md`, `recent.md`, daily logs, `logs/`, `tmp/`)
 - `PLAN.md` — the active lean campaign: what stays, what goes, documentation policy, phases and rules; use `docs/LAUNCH.md` for launch work.
-- `Makefile` — root-level build orchestration (`setup`, `start`, `dev-api`, `dev-ui`, `dev-mcp`, `test`, `test-app`, `test-engine`, `test-mcp`, `test-all`, `test-frontend`, `check`, `docker-build`, `e2e`, `parity`, `eval-smoke`, `lint`, `typecheck`, `build`, `clean`, `stop`, `reset-db`)
+- `Makefile` — root-level build orchestration (`setup`, `start`, `dev-api`, `dev-ui`, `dev-mcp`, `test`, `test-app`, `test-engine`, `test-mcp`, `test-all`, `test-frontend`, `check`, `docker-build`, `e2e`, `test-evaluations`, `eval-smoke`, `lint`, `typecheck`, `build`, `clean`, `stop`, `reset-db`)
 - `CLAUDE.md` — symlink to this file (same pairing in `app/` and `engine/`)
 - `README.md` — project overview, features, installation, and usage
 
-**Root Makefile targets**: `setup`, `start`, `stop`, `dev-api`, `dev-ui`, `dev-mcp`, `dev-all`, `test`, `test-app`, `test-engine`, `test-mcp`, `test-all`, `test-frontend`, `check`, `docker-build`, `e2e`, `parity`, `eval-smoke`, `lint`, `typecheck`, `build`, `clean`, `reset-db`. **`make start` is the single entry point** — installs missing deps, frees ports 8008/5173/8888, runs MCP + API + UI together, opens the browser. There is no `make dev`. Note the asymmetries: `make test-all` is engine + app + mcp_server pytest, frontend Vitest **plus the `parity` gate**, so editing `docs/PARITY.md` or deleting a test it cites fails the suite; `make lint` also covers `evaluations/`; `make typecheck` covers `app/`, the engine, and `evaluations/` (the mcp_server's strict mypy runs inside `make test-mcp` instead, from the dedicated 3.12 venv at `.venv-mcp`).
+**Root Makefile targets**: `setup`, `start`, `stop`, `dev-api`, `dev-ui`, `dev-mcp`, `dev-all`, `test`, `test-app`, `test-engine`, `test-mcp`, `test-all`, `test-frontend`, `check`, `docker-build`, `e2e`, `test-evaluations`, `eval-smoke`, `lint`, `typecheck`, `build`, `clean`, `reset-db`. **`make start` is the single entry point** — installs missing deps, frees ports 8008/5173/8888, runs MCP + API + UI together, opens the browser. There is no `make dev`. Note the asymmetries: `make test-all` is engine + app + mcp_server pytest, frontend Vitest **plus the evaluation harness tests**; `make lint` also covers `evaluations/`; `make typecheck` covers `app/`, the engine, and `evaluations/` (the mcp_server's strict mypy runs inside `make test-mcp` instead, from the dedicated 3.12 venv at `.venv-mcp`).
 
 `make e2e` installs its own deps and Chromium, then launches an isolated stack (FastAPI on 8108, Vite on 5273 — deliberately off the `make start` ports) against a fresh per-invocation SQLite store, headless and pinned to the deterministic offline backend, so it needs no API key. Requires `make setup` first.
-
-`docs/PARITY.md` is machine-checked: a `verified` row must cite at least one backticked test/eval reference that resolves on disk, and a literal `|` inside a cell breaks the column count.
 
 Each project is also independently installable and runnable.
 
@@ -65,14 +63,14 @@ Read the relevant entries before editing their implementation. In particular:
 ## Working in this repo
 
 - The `engine/` and `app/` directories are vendored as plain directories (not submodules). `co-scientist-engine` is not published to PyPI; it's installed editable from the local checkout (`pip install -e ../engine`, which `make setup` and the Dockerfiles do). Where the app is installed with `--no-deps` (make setup, CI, the compose dev image), its runtime deps come from the single-source list `app/requirements-app.txt` — keep it in sync with `app/pyproject.toml`.
-- Both the app (`app/`) and the engine (`engine/`) have committed pytest suites under `tests/`. `mypy .` is strict-clean for each, tests included (both exclude their `dev/` scripts; the engine also excludes the separate `mcp_server` package). `mcp_server/` is its own project with its own `tests/` — run `pytest` *and* `mypy .` from `engine/mcp_server/`. `evaluations/` likewise has its own suite, reached via `make parity`.
+- Both the app (`app/`) and the engine (`engine/`) have committed pytest suites under `tests/`. `mypy .` is strict-clean for each, tests included (both exclude their `dev/` scripts; the engine also excludes the separate `mcp_server` package). `mcp_server/` is its own project with its own `tests/` — run `pytest` *and* `mypy .` from `engine/mcp_server/`. `evaluations/` likewise has its own suite, reached via `make test-evaluations`.
 - When invoked from this workspace, `.remember/remember.md` is the session-handoff file — read/update it per the `remember` skill instructions.
 
 ## Required environment
 
 Use Python 3.12, Node.js 22.13+ and Bun 1.3.14 for the full application.
 The standalone engine supports Python 3.10+. Run `make setup` first.
-`make check` covers lint, types, backend/frontend suites, parity, evaluation
+`make check` covers lint, types, backend/frontend suites, evaluation
 smoke, the production frontend build, and isolated browser tests.
 `make e2e-production` separately serves built assets with required researcher
 authentication and checks login, report reloads, and ownership isolation.

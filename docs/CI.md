@@ -145,8 +145,8 @@ the MCP server runs on 3.12 (its own floor — the package requires >=3.12).
 - **Path filtering is a crude approximation of affected-target selection.**
   Google computes the affected set from the Bazel build graph; we declare
   the dependency edges by hand as path globs (`app` depends on `engine`;
-  `evaluations` depends on nearly everything because the parity ledger cites
-  evidence files across `engine/`, `app/`, and the frontend). Filtering happens at the
+  `evaluations` depends on nearly everything because the production size ratchet counts
+  source files across the repository). Filtering happens at the
   job level rather than `on.paths` so skipped jobs still report a `skipped`
   conclusion, which branch protection counts as passing — workflow-level
   `paths:` would leave required checks pending forever. Every path in the
@@ -203,7 +203,7 @@ for repository and deployment prerequisites.
 ## Maintenance notes
 
 - Every command CI runs is also runnable locally (`make lint`,
-  `make typecheck`, `make test-engine`, `make test-app`, `make parity`,
+  `make typecheck`, `make test-engine`, `make test-app`, `make test-evaluations`,
   `make eval-smoke`, `bun run lint|test|build`); the test/lint jobs encode
   the same commands directly rather than shelling to make, so a Makefile
   refactor can't silently change those gates. Two jobs deliberately invoke
@@ -222,7 +222,7 @@ for repository and deployment prerequisites.
 
 `make check` runs the complete local offline validation, including frontend
 unit tests and the isolated browser suite. `make test-all` includes engine,
-app, MCP and frontend tests plus parity. `make docker-build` builds both
+app, MCP and frontend tests plus the evaluation harness. `make docker-build` builds both
 production images separately. Production Python runtime closures are
 hash-pinned under `requirements/`; review and regenerate their locks with
 runtime metadata changes. Development/test extras still use package metadata.

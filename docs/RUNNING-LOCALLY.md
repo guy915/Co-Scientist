@@ -73,11 +73,11 @@ availability is determined by reachability, not the presence of an email.
 ## Validate changes
 
 ```bash
-make check         # lint, types, suites, parity, smoke, build, browser tests
+make check         # lint, types, suites, evaluations, smoke, build, browser tests
 make docker-build  # production image builds; no deployment
 ```
 
-`make test-all` includes backend and frontend unit tests and the parity gate.
+`make test-all` includes backend and frontend unit tests and the evaluation harness tests.
 `make e2e` runs Playwright with a fresh temporary SQLite store, offline model
 responses, API port 8108, and UI port 5273. `make e2e-production` builds the
 frontend and serves its bundled assets with required researcher authentication.
