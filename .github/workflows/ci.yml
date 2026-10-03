@@ -94,6 +94,12 @@ jobs:
               - 'app/frontend/**'
               - '.github/workflows/ci.yml'
             evaluations:
+              # The production-size ratchet counts all tracked source files,
+              # including first-party scripts outside the package trees.
+              - '**/*.py'
+              - '**/*.ts'
+              - '**/*.tsx'
+              - '**/*.css'
               # docs/** (not just docs/PARITY.md): the parity checker's own
               # evidence citations can point at any test/eval file across the
               # tree, and a docs edit is exactly how a citation goes stale
