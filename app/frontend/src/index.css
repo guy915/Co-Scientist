@@ -153,9 +153,7 @@
   --color-cosci-menu-icon: var(--cosci-muted);
   --color-cosci-menu-text: var(--cosci-text);
 
-  /* Semantic component tokens (tokens.css) as named utilities.
-     Every token referenced from a component className gets a mirror here —
-     arbitrary [var(--cosci-*)] classes are not allowed (see DESIGN.md). */
+  /* Named utilities keep component colors on the shared theme bridge. */
   --color-cosci-danger-bg: var(--cosci-danger-bg);
   --color-cosci-danger-border: var(--cosci-danger-border);
   --color-cosci-danger-fg: var(--cosci-danger-fg);
@@ -286,9 +284,8 @@
   font-family:
     'Google Sans Text', 'Google Sans', 'Roboto', system-ui, sans-serif;
 
-  /* MD3 elevation levels (light). Reserved for overlays that float above the
-     page — menus, popovers, dialogs, toasts. Cards, inputs, and tables stay
-     flat and rely on tonal layers + outline-variant borders (see DESIGN.md). */
+  /* Elevation belongs to floating overlays; cards, inputs, and tables use
+     tonal layers and outline-variant borders. */
   --md-elevation-1:
     0 1px 2px 0 rgb(0 0 0 / 30%), 0 1px 3px 1px rgb(0 0 0 / 15%);
   --md-elevation-2:
