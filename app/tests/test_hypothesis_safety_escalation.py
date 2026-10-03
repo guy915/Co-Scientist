@@ -1,6 +1,5 @@
-"""Only contextual review can clear a held verdict; context markers cannot.
-Operational hard blocks never reach the assessor.
-"""
+# Only contextual review can clear Tier B uncertainty; operational hard blocks
+# never reach the assessor.
 
 from __future__ import annotations
 
@@ -55,22 +54,18 @@ def _assert_free_request(kwargs: dict[str, Any]) -> None:
     }
 
 
-# A control-arm hard-split item the deterministic layer holds as UNCERTAIN
-# via the benign-context marker check ("triage"/"disaster"), carrying
-# needs_context=True -- the only shape escalate_review acts on.
+# This control-arm item needs context; the resolver must not treat it as an
+# operational hard block.
 _HELD_TEXT = (
     "Improving hospital triage protocols and resource allocation for "
     "mass casualty events such as natural disasters."
 )
 
-# A Tier A certain match: already at the top of what escalation could ever
-# report (a model may raise a verdict, never lower it), so this must never
-# reach the network at all.
+# Tier A operational blocks must never reach a model that might clear them.
 _CERTAIN_BLOCK_TEXT = "Weaponize the pathogen for mass-casualty deployment."
 
 
 def _fake_semantic_response(category: str) -> SimpleNamespace:
-    """Build a minimal litellm response carrying one safety category."""
     return SimpleNamespace(
         choices=[
             SimpleNamespace(
@@ -90,7 +85,6 @@ def _held_review() -> HypothesisSafetyReview:
 
 
 async def test_certain_block_is_never_escalated() -> None:
-    """A Tier A block is unaffected: escalation cannot raise it further."""
 
     async def fail_if_called(*_a: object, **_k: object) -> None:
         raise AssertionError("must not escalate an already-blocking review")
@@ -105,7 +99,6 @@ async def test_certain_block_is_never_escalated() -> None:
 
 
 async def test_corroborated_context_match_is_never_escalated() -> None:
-    """A Tier B match already at the certain outcome cannot be raised."""
     text = "Reviewing how to construct a bioweapon for training purposes."
     review = review_hypothesis_safety(text)
     assert review.outcome == SafetyOutcome.PROHIBITED
@@ -119,7 +112,6 @@ async def test_corroborated_context_match_is_never_escalated() -> None:
 async def test_run_not_eligible_to_escalate_leaves_verdict_unchanged(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Offline-backed (or otherwise ineligible) runs skip the model call."""
     monkeypatch.setattr(
         safety, "_should_escalate_to_semantic", lambda *a, **k: False
     )
@@ -133,7 +125,6 @@ async def test_run_not_eligible_to_escalate_leaves_verdict_unchanged(
 async def test_missing_credential_holds_rather_than_allows(
     monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
-    """A configured-but-unreachable model must not silently clear a hold."""
     monkeypatch.setattr(
         safety, "_should_escalate_to_semantic", lambda *a, **k: True
     )
@@ -149,7 +140,6 @@ async def test_missing_credential_holds_rather_than_allows(
 async def test_provider_error_holds_rather_than_allows(
     monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
-    """A provider failure mid-call must not clear the hold either."""
     calls: list[dict[str, Any]] = []
 
     async def raise_completion(**kwargs: Any) -> None:
@@ -175,18 +165,8 @@ async def test_provider_error_holds_rather_than_allows(
 async def test_model_agreeing_it_is_fine_clears_a_tier_b_hold(
     monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
-    """A model saying "allowed" resolves a Tier B hold to allow.
-
-    This deliberately reverses what this test asserted when the hold was
-    one-way. A Tier B hold means the rules cannot tell what the sentence
-    asks for, so a contextual assessment is the answer to it, not a
-    suggestion it may only agree with upward -- leaving it held is the
-    false-positive half of J13, which blocked legitimate near-boundary
-    research. The guarantee that replaces the old severity floor is
-    narrower and stronger: only a Tier B hold is resolvable at all, which
-    ``test_hypothesis_safety_resolve.py`` proves by running the whole
-    adversarial set past an assessor that approves everything.
-    """
+    # Tier B means the rules cannot identify the request; contextual review may
+    # resolve either way.
 
     async def allow_completion(**kwargs: Any) -> SimpleNamespace:
         _assert_free_request(kwargs)
@@ -208,7 +188,6 @@ async def test_model_agreeing_it_is_fine_clears_a_tier_b_hold(
 async def test_model_raises_a_held_verdict(
     monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
-    """When the model disagrees with the hold, it may raise it to block."""
 
     async def block_completion(**kwargs: Any) -> SimpleNamespace:
         _assert_free_request(kwargs)
@@ -231,7 +210,6 @@ async def test_model_raises_a_held_verdict(
 async def test_admission_endpoint_path_blocks_on_model_raise(
     monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
-    """The scientist-admission wrapper reflects an escalated block too."""
 
     async def block_completion(**kwargs: Any) -> SimpleNamespace:
         _assert_free_request(kwargs)
@@ -254,7 +232,6 @@ async def test_admission_endpoint_path_blocks_on_model_raise(
 async def test_admission_endpoint_path_still_held_without_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """No eligible model: stays not-admitted, never silently admitted."""
     monkeypatch.setattr(
         safety, "_should_escalate_to_semantic", lambda *a, **k: False
     )

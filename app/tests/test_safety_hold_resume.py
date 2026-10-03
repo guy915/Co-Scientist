@@ -1,17 +1,5 @@
-"""An approved safety hold must leave the run claimable work again.
-
-Finding F2: the task that observed an intake or final hold *succeeded* --
-it had recorded the decision and paused the run, which is not a failure --
-so the run kept no claimable successor. Approving the hold then re-enqueued
-the same ``{task_type}:{checkpoint_seq}`` (or the constant bootstrap key)
-against a row already marked succeeded, ``ON CONFLICT DO NOTHING`` created
-nothing, and the run announced a resume it never performed.
-
-These tests drive the real durable path -- the offline-backed engine, the
-worker cohort ``/start`` uses, and the adjudication endpoint the UI calls --
-through a hold at each gate, and assert the run reaches a published report
-once a reviewer approves.
-"""
+# Succeeded tasks cannot be re-enqueued under existing idempotency keys; holds
+# must park claimable work.
 
 from __future__ import annotations
 
@@ -32,7 +20,6 @@ HEADERS = {"X-Client-ID": CLIENT_ID}
 
 
 def _held_decision(stage: str) -> SafetyDecision:
-    """Return the hold a contextual screen returns for uncertain content."""
     return SafetyDecision(
         stage=stage,
         decision="hold",
@@ -45,14 +32,8 @@ def _held_decision(stage: str) -> SafetyDecision:
 
 
 def hold_until_approved(stage: str) -> Any:
-    """Build a ``screen_with_escalation`` stand-in holding one stage once.
-
-    Mirrors the real contract rather than bypassing it: the deterministic
-    policy never returns ``hold`` (only the contextual model's ``uncertain``
-    does), and ``screen_with_escalation`` skips escalation for a stage a
-    reviewer already approved, returning the deterministic verdict. So the
-    stage under test holds until it is approved and allows afterwards.
-    """
+    # Reviewer approval bypasses escalation, so this stub must hold only until
+    # that stage is approved.
 
     async def _screen(
         run_id: str,
@@ -72,7 +53,6 @@ def hold_until_approved(stage: str) -> Any:
 
 
 def start_offline_run(db_path: str) -> Any:
-    """Persist and enqueue an offline-backed express run on the engine path."""
     run = store.create_run(
         "Explain how protein X folds under crowding.",
         "express",
@@ -87,7 +67,6 @@ def start_offline_run(db_path: str) -> Any:
 
 
 def drain(run_id: str, db_path: str, worker: str = "hold-e2e") -> None:
-    """Drive the run's worker cohort until nothing claimable remains."""
     asyncio.run(
         task_worker.run_run_worker_pool(
             run_id,
@@ -98,7 +77,6 @@ def drain(run_id: str, db_path: str, worker: str = "hold-e2e") -> None:
 
 
 def held_decision_id(run_id: str, stage: str, db_path: str) -> int:
-    """Return the id of the run's unresolved hold at ``stage``."""
     held = [
         row
         for row in store.list_safety_decisions(run_id, db_path=db_path)
@@ -111,7 +89,6 @@ def held_decision_id(run_id: str, stage: str, db_path: str) -> int:
 
 
 def claimable_engine_tasks(run_id: str, db_path: str) -> list[str]:
-    """Return the run's engine tasks a worker could still reach."""
     return [
         task.task_type
         for task in store.list_tasks(run_id, db_path=db_path)
@@ -121,7 +98,6 @@ def claimable_engine_tasks(run_id: str, db_path: str) -> list[str]:
 
 
 def approve(client: TestClient, run_id: str, decision_id: int) -> None:
-    """Approve one held decision through the endpoint the reviewer uses."""
     response = client.post(
         f"/api/runs/{run_id}/safety/{decision_id}/adjudicate",
         headers=HEADERS,
@@ -132,13 +108,8 @@ def approve(client: TestClient, run_id: str, decision_id: int) -> None:
 
 @pytest.fixture()
 def held_run(monkeypatch: pytest.MonkeyPatch) -> TestClient:
-    """Keep the safety screen and the resume launcher off other threads.
-
-    The contextual screen is stubbed per test, so the real one must not
-    also fire; and the embedded worker is disabled so each test drains the
-    cohort itself instead of racing a detached one (production splits the
-    same way when the worker runs as its own service).
-    """
+    # Disable detached workers to avoid racing the cohort this test drains
+    # directly.
     from app.config import settings
 
     monkeypatch.setattr(settings, "semantic_safety_enabled", False)
@@ -149,15 +120,14 @@ def held_run(monkeypatch: pytest.MonkeyPatch) -> TestClient:
 def test_intake_hold_keeps_claimable_work_and_resumes(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch, held_run: TestClient
 ) -> None:
-    """An intake hold parks the bootstrap; approval runs it to a report."""
     _install_runtime(monkeypatch).screen = hold_until_approved("intake")
     run = start_offline_run(isolated_db)
     drain(run.id, isolated_db)
 
     paused = store.get_run(run.id, db_path=isolated_db)
     assert paused is not None and paused.status == RunStatus.PAUSED.value
-    # A hold is a waiting state, not the end of the run: the boundary it
-    # stopped at must still be on the queue for a reviewer to release.
+    # A hold is waiting work; its boundary must remain queued for reviewer
+    # release.
     assert claimable_engine_tasks(run.id, isolated_db) == ["engine.bootstrap"]
 
     approve(held_run, run.id, held_decision_id(run.id, "intake", isolated_db))
@@ -172,7 +142,6 @@ def test_intake_hold_keeps_claimable_work_and_resumes(
 def test_final_hold_keeps_claimable_work_and_resumes(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch, held_run: TestClient
 ) -> None:
-    """A final-report hold parks finalization until a reviewer approves it."""
     _install_runtime(monkeypatch).screen = hold_until_approved("final")
     run = start_offline_run(isolated_db)
     drain(run.id, isolated_db)
@@ -194,13 +163,8 @@ def test_final_hold_keeps_claimable_work_and_resumes(
 def test_parked_task_is_released_with_a_fresh_budget(
     isolated_db: str,
 ) -> None:
-    """Parking makes a leased task waiting work, not dead or finished work.
-
-    The two properties the hold path depends on: ``resume_run_tasks``
-    reaches a parked row (a succeeded one it can never reach), and the
-    released task can still be claimed, because waiting for a reviewer
-    does not spend the retry budget.
-    """
+    # Waiting for a reviewer must preserve claimable work without spending its
+    # retry budget.
     run = store.create_run(
         "goal",
         "express",
@@ -223,7 +187,6 @@ def test_parked_task_is_released_with_a_fresh_budget(
     assert store.park_task(leased.id, "w1", "held", db_path=isolated_db)
     parked = store.get_task(leased.id, db_path=isolated_db)
     assert parked is not None and parked.status == "paused"
-    # A worker must not be able to pick it back up before it is released.
     assert store.claim_task("w2", run_id=run.id, db_path=isolated_db) is None
 
     assert store.resume_run_tasks(run.id, db_path=isolated_db) == 1
@@ -235,7 +198,6 @@ def test_parked_task_is_released_with_a_fresh_budget(
 def test_rejected_final_hold_blocks_the_run(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch, held_run: TestClient
 ) -> None:
-    """Rejecting a held report blocks the run instead of releasing it."""
     _install_runtime(monkeypatch).screen = hold_until_approved("final")
     run = start_offline_run(isolated_db)
     drain(run.id, isolated_db)

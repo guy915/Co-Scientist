@@ -1,16 +1,3 @@
-"""Tests for the LLM (NLI) entailment assessor (app/claims/verifier.py).
-
-The assessor is exercised end-to-end against a real provider by the golden run;
-here the engine's completion backend is faked so the prompt/parse/guard
-behavior is proven offline: a valid verdict with a real quote yields a located
-support span, a hallucinated quote is downgraded, and any provider/parse
-failure falls back to the deterministic assessor rather than breaking
-grounding. The unfounded-CONTRADICTS guard (subject overlap +
-negation-marker check) moved to ``test_claim_verifier_contradiction.py``
-when this file passed the module-size budget, and the cite-by-passage-number
-tests to ``test_claim_verifier_citations.py`` for the same reason.
-"""
-
 from __future__ import annotations
 
 import types
@@ -26,15 +13,8 @@ from ._llm_fake_backend import install_completion_backend
 
 @pytest.fixture(autouse=True)
 def _disable_llm_response_cache() -> Any:
-    """Force every call in this file to miss the engine's response cache.
-
-    ``claims.verifier`` now routes through ``call_llm_json`` with caching
-    on (by design -- see its module docstring), and several tests here
-    reuse the exact same claim/passage pair with a *different* faked
-    reply to prove a different code path. Without this, the second such
-    test would silently replay the first test's cached response instead
-    of calling the fake at all.
-    """
+    # Repeated claims use different fake replies; cache isolation prevents
+    # replaying an earlier test verdict.
     from co_scientist.cache import scoped_cache_override
 
     with scoped_cache_override(False):
@@ -42,7 +22,6 @@ def _disable_llm_response_cache() -> Any:
 
 
 def _fake_completion(content: str) -> Any:
-    """Return a fake provider answer yielding ``content``."""
 
     async def _completion(**_kwargs: Any) -> Any:
         message = types.SimpleNamespace(content=content)
@@ -53,12 +32,6 @@ def _fake_completion(content: str) -> Any:
 
 
 def _install(monkeypatch: pytest.MonkeyPatch, completion: Any) -> None:
-    """Install the fake completion backend.
-
-    ``app.claims.verifier`` routes through ``co_scientist.llm.call_llm_json``
-    now (see the module docstring), so the boundary to fake is the
-    engine's own -- the completion backend every engine LLM test installs.
-    """
     install_completion_backend(monkeypatch, completion)
 
 
@@ -78,7 +51,6 @@ def test_assessor_id_names_the_model() -> None:
 def test_valid_supports_verdict_locates_span(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A supports verdict citing a real quote yields a located support span."""
     _install(
         monkeypatch,
         _fake_completion(
@@ -108,7 +80,6 @@ def test_valid_supports_verdict_locates_span(
 def test_partial_verdict_locates_span(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A partial verdict citing a real quote yields a located support span."""
     _install(
         monkeypatch,
         _fake_completion(
@@ -132,7 +103,6 @@ def test_partial_verdict_locates_span(
 def test_hallucinated_quote_downgraded(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A supports verdict whose quote is absent becomes insufficient."""
     _install(
         monkeypatch,
         _fake_completion(
@@ -155,13 +125,7 @@ def test_hallucinated_quote_downgraded(
 def test_supporting_as_single_object_not_wrapped_in_list_still_locates_span(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A "supporting" object, not wrapped in a list, still yields a span.
-
-    ``json_object`` mode (no schema enforcement) lets a model plausibly
-    write the single supporting citation directly rather than wrapping it
-    in a one-element array; the entailment call must recover it rather
-    than silently treating the claim as having no supporting evidence.
-    """
+    # json_object mode permits a single citation object instead of an array.
     _install(
         monkeypatch,
         _fake_completion(
@@ -186,14 +150,12 @@ def test_supporting_as_single_object_not_wrapped_in_list_still_locates_span(
 def test_provider_error_falls_back_to_deterministic(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A raising provider falls back to the deterministic assessor."""
 
     async def _raising(**_kwargs: Any) -> Any:
         raise RuntimeError("provider down")
 
     _install(monkeypatch, _raising)
     assessor, assessor_id = make_llm_assessor("deepseek/deepseek-chat")
-    # The deterministic fallback still finds strong topical support here.
     result = assess_claim(
         "Kinase X inhibition reduces tumor growth in AML.",
         [_PASSAGE],
@@ -202,13 +164,12 @@ def test_provider_error_falls_back_to_deterministic(
     )
     assert result.label is EntailmentLabel.SUPPORTS
     assert result.verification_method == "deterministic_lexical"
-    assert result.supporting_passages  # deterministic located a span
+    assert result.supporting_passages
 
 
 def test_malformed_json_falls_back_to_deterministic(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Unparseable model output falls back rather than trusting a bad parse."""
     _install(monkeypatch, _fake_completion("not json at all"))
     assessor, assessor_id = make_llm_assessor("deepseek/deepseek-chat")
     result = assess_claim(
@@ -217,14 +178,12 @@ def test_malformed_json_falls_back_to_deterministic(
         assessor=assessor,
         assessor_id=assessor_id,
     )
-    # Falls back; deterministic finds support for this overlapping pair.
     assert result.label is EntailmentLabel.SUPPORTS
 
 
 def test_no_passages_is_insufficient_without_calling_llm(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """With no candidate passages the assessor short-circuits."""
 
     async def _should_not_be_called(**_kwargs: Any) -> Any:
         raise AssertionError("the provider must not be called")
@@ -237,13 +196,8 @@ def test_no_passages_is_insufficient_without_calling_llm(
 
 
 def test_prompt_renders_evidence_before_the_claim() -> None:
-    """Evidence precedes the claim so recurring passages form a stable prefix.
-
-    Regression for the production ordering (claim first) that defeated the
-    response cache: two calls sharing every retrieved passage but citing a
-    different claim shared no cacheable prefix, since the varying part came
-    first.
-    """
+    # Put recurring evidence before changing claims so provider caching sees a
+    # stable prefix.
     prompt = _entailment_prompt(
         "Kinase X inhibition reduces tumor growth.", [_PASSAGE]
     )
@@ -251,14 +205,7 @@ def test_prompt_renders_evidence_before_the_claim() -> None:
 
 
 def test_prompt_size_is_bounded_by_the_retrieved_passages() -> None:
-    """Rendered evidence never exceeds the retrieval budget's own bound.
-
-    Regression for whole-article "passages": five 40k-char articles used to
-    mean a ~200k-char prompt. With chunking, retrieval hands the prompt at
-    most ``top_k`` chunks, each near ``CHUNK_MAX_CHARS`` (plus the small
-    overlap), so the evidence block is bounded by ``k * (max + overlap)``
-    regardless of how long the source articles are.
-    """
+    # Chunk-based retrieval bounds prompts independently of full article length.
     from app.claims.assessor import _DEFAULT_RETRIEVAL_TOP_K
     from app.evidence_chunking import (
         CHUNK_MAX_CHARS,
@@ -281,15 +228,14 @@ def test_prompt_size_is_bounded_by_the_retrieved_passages() -> None:
                 url=f"https://example.org/{i}",
             )
         )
-    assert len(passages) > _DEFAULT_RETRIEVAL_TOP_K  # retrieval must narrow
+    assert len(passages) > _DEFAULT_RETRIEVAL_TOP_K
 
     from app.claims import retrieve_passages
 
     retrieved = retrieve_passages(claim, passages)
     rendered = "\n\n".join(p.text for p in retrieved)
-    # +1 per chunk for the overlap prefix's joining space (see
-    # CHUNK_OVERLAP_CHARS); the "\n\n".join separators are additional and
-    # deliberately excluded -- this bounds the evidence text itself.
+    # Exclude separator bytes from this bound; each overlap prefix contributes
+    # one joining space.
     per_chunk_bound = CHUNK_MAX_CHARS + CHUNK_OVERLAP_CHARS + 1
     bound = _DEFAULT_RETRIEVAL_TOP_K * per_chunk_bound
     assert len(rendered) <= bound
@@ -298,13 +244,6 @@ def test_prompt_size_is_bounded_by_the_retrieved_passages() -> None:
 def test_call_reaches_the_engine_completion_boundary_with_the_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The assessor's call is sent to the resolved model via the engine seam.
-
-    Thinking/reasoning-argument shaping is the engine's own responsibility
-    now (``co_scientist.llm.request.thinking``, exercised by the engine's own
-    tests) -- this only pins that this module's call reaches that seam at
-    all, with the model this assessor was built for.
-    """
     seen: dict[str, Any] = {}
 
     async def _capturing_completion(**kwargs: Any) -> Any:
@@ -327,13 +266,8 @@ def test_call_reaches_the_engine_completion_boundary_with_the_model(
 def test_entailment_call_disables_thinking(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The entailment call carries thinking disabled from the first attempt.
-
-    A production run (b82f9162, 2026-09-06) spent an 18000-token budget
-    entirely on reasoning and answered nothing -- judging a claim against
-    a handful of passages is classification, not a task a chain of
-    thought earns its keep on (root AGENTS.md gotcha).
-    """
+    # Entailment is classification; unrestricted reasoning can consume the
+    # entire answer budget.
     seen: dict[str, Any] = {}
 
     async def _capturing_completion(**kwargs: Any) -> Any:
@@ -356,25 +290,9 @@ def test_entailment_call_disables_thinking(
 def test_entailment_call_on_the_free_chain_does_not_disable_reasoning(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The deployed free-chain primary never receives a bare disable.
-
-    Production run b82f9162 (2026-09-06 04:39:30 UTC): every batched
-    entailment call against ``openrouter/minimax/minimax-m3:free``
-    (``app.config``'s default model on every tier) failed on both
-    attempts with ``"Reasoning is mandatory for this endpoint and cannot
-    be disabled"``, because ``enable_thinking=False`` reached the wire as
-    a literal ``reasoning: {"enabled": False}``. The engine now redirects
-    that to the smallest reasoning tier the gateway exposes for a model
-    declared unable to honour a disable (``ModelProfile
-    .reasoning_can_disable``) -- and bounds it in the request itself.
-    Funding the redirect instead was tried and lost: production measured
-    ~20-21k reasoning tokens against the 18000-token floor (run 323ff72c,
-    2026-09-06 06:57 UTC) and then 24547 against the 24000-token floor
-    raised to answer that (run 6760ce63), each raise met by a
-    proportionally longer chain of thought. Entailment is a
-    classification judgement, so the wire now carries a cap on the
-    reasoning and the ordinary thinking floor on the budget.
-    """
+    # Models with mandatory reasoning need the smallest supported capped tier
+    # rather than a literal disable.
+    # Raising output floors only funds longer reasoning without an answer.
     from co_scientist.constants import (
         MINIMAL_REASONING_MAX_TOKENS,
         THINKING_FLOOR_MAX_TOKENS,
@@ -426,13 +344,7 @@ def test_entailment_call_on_the_free_chain_does_not_disable_reasoning(
 def test_entailment_answerless_first_attempt_still_yields_a_real_verdict(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A parse failure on attempt 1 still yields a real verdict, not a fallback.
-
-    With thinking disabled from the first attempt, ``max_attempts=3``
-    keeps a plain re-ask available for a schema/parse failure -- the
-    escalation ladder's own top rung (turning thinking off) is moot here
-    since it already is off.
-    """
+    # Thinking already starts disabled; retain plain re-asks for parse failures.
     calls = {"n": 0}
 
     async def _flaky_completion(**_kwargs: Any) -> Any:

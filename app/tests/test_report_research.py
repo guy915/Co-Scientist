@@ -1,5 +1,3 @@
-"""Tests for report research."""
-
 from typing import Any
 
 from app.report import markdown as report_markdown
@@ -10,7 +8,6 @@ def _criteria_markdown(
     critical_criteria: list[Any] | None,
     setup: dict[str, object] | None = None,
 ) -> str:
-    """Render a minimal report carrying only the given critical criteria."""
     hypothesis: dict[str, object] = {
         "id": "h1",
         "title": "NHE1 coupling",
@@ -28,7 +25,6 @@ def _criteria_markdown(
 
 
 def test_criteria_render_as_a_bullet_list() -> None:
-    """Each synthesized criterion prints as its own bullet."""
     markdown = _criteria_markdown(
         [
             "Kinetic Feasibility and Experimental Readouts",
@@ -42,25 +38,19 @@ def test_criteria_render_as_a_bullet_list() -> None:
 
 
 def test_no_critical_criteria_renders_no_section() -> None:
-    """An absent criteria list emits no heading, not an empty one."""
     assert "Evaluation Criteria" not in _criteria_markdown(None)
     assert "Evaluation Criteria" not in _criteria_markdown([])
 
 
 def test_all_blank_criteria_render_no_section() -> None:
-    """Entries that are blank strings contribute nothing renderable."""
     markdown = _criteria_markdown(["", "   "])
 
     assert "Evaluation Criteria" not in markdown
 
 
 def test_criteria_render_from_the_structured_shape() -> None:
-    """R12-23: the flat list still renders names from the richer shape.
-
-    critical_criteria may carry {name, questions} entries; this section
-    only extracts the name -- the questions belong to the separate
-    'Review Summary' section.
-    """
+    # Reviewer questions belong to Review Summary rather than the flat
+    # evaluation-criteria list.
     markdown = _criteria_markdown(
         [
             {
@@ -79,7 +69,6 @@ def test_criteria_render_from_the_structured_shape() -> None:
 
 
 def test_malformed_criteria_render_no_section() -> None:
-    """A field that is not a list at all degrades to nothing, not a crash."""
     markdown = _criteria_markdown("not a list")  # type: ignore[arg-type]
 
     assert "Evaluation Criteria" not in markdown
@@ -108,12 +97,6 @@ def test_criteria_render_with_description() -> None:
 
 
 def test_criteria_without_description_falls_back_to_bullet() -> None:
-    """A {name, questions} entry with no description degrades to a bullet.
-
-    Covers both a legacy pre-R12-23b dict and a live run whose answer
-    omitted description under the json_object downgrade -- degrade,
-    never drop, never crash.
-    """
     markdown = _criteria_markdown(
         [
             {
@@ -129,7 +112,6 @@ def test_criteria_without_description_falls_back_to_bullet() -> None:
 
 
 def test_blank_description_falls_back_to_bullet() -> None:
-    """A whitespace-only description is treated as absent, not rendered."""
     markdown = _criteria_markdown(
         [{"name": "Safety and Therapeutic Viability", "description": "   "}]
     )
@@ -139,7 +121,6 @@ def test_blank_description_falls_back_to_bullet() -> None:
 
 
 def test_mixed_shapes_each_render_in_their_own_form() -> None:
-    """A run mixing the description shape with legacy entries renders both."""
     markdown = _criteria_markdown(
         [
             {
@@ -160,7 +141,6 @@ def test_mixed_shapes_each_render_in_their_own_form() -> None:
 
 
 def test_non_str_non_dict_entries_are_skipped_alongside_valid_ones() -> None:
-    """An int/None/list entry contributes nothing; valid ones still render."""
     markdown = _criteria_markdown(
         [
             42,
@@ -174,12 +154,8 @@ def test_non_str_non_dict_entries_are_skipped_alongside_valid_ones() -> None:
 
 
 def test_distinct_from_the_user_authored_criteria_list() -> None:
-    """The synthesized section never replaces the user-authored list.
-
-    It coexists with the user-authored "Criteria" bullet list rendered
-    under "Research Goal Details" -- same English word, two different
-    published sections, see the module docstring's vocabulary warning.
-    """
+    # Synthesized reviewer criteria and scientist-authored criteria are distinct
+    # inputs.
     markdown = _criteria_markdown(
         ["Mechanistic Novelty and Rigor in Fibrosis Reversal"],
         setup={"criteria": ["should be testable within two years"]},
@@ -191,23 +167,9 @@ def test_distinct_from_the_user_authored_criteria_list() -> None:
     assert "should be testable within two years" in markdown
 
 
-# R14-27: the report's own "Main Research Directions" section.
-#
-# Google's published ranking report carries a narrative synthesis distinct
-# from any itemized directions array -- two prose paragraphs weaving the
-# run's directions together (``.../ai-guided-discovery-of-atypical-protein-
-# assemblies/reports/top-ranking-hypotheses.md:24-28``), sitting immediately
-# before Candidate Ideas -- this repo's Top hypotheses section. This pins
-# that ``meta_review.main_research_directions`` renders there, in that
-# position, and skips cleanly (no bare heading) when absent -- a legacy run
-# persisted before this field existed, or a provider that omits it under
-# json_object mode.
-
-
 def _render_main_directions_report(
     meta_review: dict[str, object] | None,
 ) -> str:
-    """Render a minimal report carrying only the given meta_review."""
     hypothesis: dict[str, object] = {
         "id": "h1",
         "title": "NHE1 coupling",
@@ -225,7 +187,6 @@ def _render_main_directions_report(
 
 
 def test_renders_the_two_paragraph_narrative() -> None:
-    """The heading and both authored paragraphs appear verbatim."""
     markdown = _render_main_directions_report(
         {
             "main_research_directions": (
@@ -250,7 +211,6 @@ def test_renders_the_two_paragraph_narrative() -> None:
 
 
 def test_sits_immediately_before_top_hypotheses() -> None:
-    """Matches the published "before Candidate Ideas" placement."""
     markdown = _render_main_directions_report(
         {"main_research_directions": "First paragraph.\n\nSecond paragraph."}
     )
@@ -261,7 +221,6 @@ def test_sits_immediately_before_top_hypotheses() -> None:
 
 
 def test_no_bare_heading_when_the_field_is_absent() -> None:
-    """A legacy meta_review with no field at all renders no heading."""
     markdown = _render_main_directions_report(
         {"summary": "some other synthesis"}
     )
@@ -270,14 +229,12 @@ def test_no_bare_heading_when_the_field_is_absent() -> None:
 
 
 def test_no_bare_heading_when_meta_review_is_none() -> None:
-    """No meta_review at all (a run with no synthesis) renders no heading."""
     markdown = _render_main_directions_report(None)
 
     assert "Main Research Directions" not in markdown
 
 
 def test_no_bare_heading_when_the_field_is_blank() -> None:
-    """An explicitly empty string degrades to nothing, not an empty heading."""
     markdown = _render_main_directions_report(
         {"main_research_directions": "   "}
     )
@@ -285,26 +242,7 @@ def test_no_bare_heading_when_the_field_is_blank() -> None:
     assert "Main Research Directions" not in markdown
 
 
-# MO-2: the "Emerging themes" section renders the full theme taxonomy.
-#
-# Google's published meta-review critique
-# (``meta-review-critiques/als-meta-review-critique.md``) organizes the
-# recurring critiques as five themes, three levels deep: a theme, the named
-# critique points under it, and the guidance sub-points under several of
-# those. Our schema flattened all of that to ``{theme, description,
-# frequency}``; both halves of that loss are now closed -- ``meta_review.py``
-# used to drop ``description``/``frequency`` before the state dict reached
-# the app (so the section printed bare theme names for fields the model was
-# paid to compute), and the schema itself carried no nesting to render.
-#
-# These pin the three levels of real markdown hierarchy, and the three input
-# shapes that must all render: the nested taxonomy, the flat entry a run
-# checkpointed before ``sub_themes`` existed still carries, and the
-# bare-name ``emerging_themes`` fallback of a demo/seed report.
-
-
 def _meta_review_markdown(meta_review: dict[str, object]) -> str:
-    """Render a minimal report carrying only the given meta-review."""
     hypothesis: dict[str, object] = {
         "id": "h1",
         "title": "NHE1 coupling",
@@ -321,7 +259,6 @@ def _meta_review_markdown(meta_review: dict[str, object]) -> str:
 
 
 def test_a_structured_theme_renders_its_description_and_frequency() -> None:
-    """A recurring_themes entry prints its description and frequency."""
     markdown = _meta_review_markdown(
         {
             "recurring_themes": [
@@ -344,12 +281,6 @@ def test_a_structured_theme_renders_its_description_and_frequency() -> None:
 
 
 def test_a_bare_theme_name_falls_back_to_a_plain_bullet() -> None:
-    """A report with only the flattened list still renders, bare-named.
-
-    Covers demo/seed reports and any report persisted before
-    ``recurring_themes`` existed -- ``emerging_themes`` alone must not
-    regress to a missing section.
-    """
     markdown = _meta_review_markdown(
         {"emerging_themes": ["Time-resolved state measurements"]}
     )
@@ -359,13 +290,8 @@ def test_a_bare_theme_name_falls_back_to_a_plain_bullet() -> None:
 
 
 def test_an_entry_with_no_theme_name_is_skipped() -> None:
-    """A malformed entry with an empty theme does not render a bare '****:'.
-
-    ``**:`` alone is too loose a check -- R14-13's per-hypothesis disclaimer
-    ("**About**: ...") legitimately contains it. The bug this guards is an
-    empty name reaching ``f"**{name}**: {description}"`` and rendering the
-    doubled-asterisk ``****:`` that produces.
-    """
+    # The disclosure legitimately contains **:; only the empty-name ****: form
+    # exposes this bug.
     markdown = _meta_review_markdown(
         {
             "recurring_themes": [
@@ -379,13 +305,6 @@ def test_an_entry_with_no_theme_name_is_skipped() -> None:
 
 
 def test_a_theme_renders_its_sub_themes_and_their_points() -> None:
-    """MO-2: three real levels of hierarchy, not a flattened dump.
-
-    The published critique nests a named critique point under each theme
-    and guidance sub-points under several of those points; the renderer
-    must show that as a heading, a bullet, and a sub-bullet rather than
-    running them together.
-    """
     markdown = _meta_review_markdown(
         {
             "recurring_themes": [
@@ -415,11 +334,7 @@ def test_a_theme_renders_its_sub_themes_and_their_points() -> None:
 
 
 def test_a_flat_theme_from_an_older_checkpoint_still_renders() -> None:
-    """A resumed run persisted before sub-themes existed must not crash.
-
-    ``meta_review`` is checkpointed state, so the flat three-field entry
-    outlives the schema change; it renders as a theme with no sub-list.
-    """
+    # Checkpointed flat themes survive schema changes and must remain readable.
     markdown = _meta_review_markdown(
         {
             "recurring_themes": [
@@ -437,7 +352,6 @@ def test_a_flat_theme_from_an_older_checkpoint_still_renders() -> None:
 
 
 def test_a_sub_theme_with_no_points_renders_as_a_plain_bullet() -> None:
-    """Two of the published themes carry points with no sub-points at all."""
     markdown = _meta_review_markdown(
         {
             "recurring_themes": [
@@ -465,7 +379,6 @@ def test_a_sub_theme_with_no_points_renders_as_a_plain_bullet() -> None:
 
 
 def test_a_bare_string_sub_theme_still_renders() -> None:
-    """json_object mode enforces nothing, so a sub-theme may be a string."""
     markdown = _meta_review_markdown(
         {
             "recurring_themes": [
@@ -481,12 +394,10 @@ def test_a_bare_string_sub_theme_still_renders() -> None:
 
 
 def _questions_markdown(payload: dict[str, object]) -> str:
-    """Render the overview payload to a single markdown string."""
     return "\n".join(render_research_overview_markdown(payload))
 
 
 def test_open_questions_render_as_a_numbered_list() -> None:
-    """Each open question numbers from 1, matching the published list."""
     markdown = _questions_markdown(
         {
             "open_questions": [
@@ -504,7 +415,6 @@ def test_open_questions_render_as_a_numbered_list() -> None:
 def test_clear_and_unexpected_patterns_render_as_labelled_bullet_lists() -> (
     None
 ):
-    """Both pattern lists render under their own published-name headings."""
     markdown = _questions_markdown(
         {
             "clear_patterns": ["Lipid handling recurs across every idea."],
@@ -521,7 +431,6 @@ def test_clear_and_unexpected_patterns_render_as_labelled_bullet_lists() -> (
 
 
 def test_no_open_questions_or_patterns_renders_no_section() -> None:
-    """Absent/empty fields emit no heading -- ours, not Google's convention."""
     markdown = _questions_markdown({"overview": {"summary": "S"}})
 
     assert "Open questions" not in markdown
@@ -530,7 +439,6 @@ def test_no_open_questions_or_patterns_renders_no_section() -> None:
 
 
 def test_a_json_string_open_question_is_flattened() -> None:
-    """Matches this module's established json_object-downgrade coercion."""
     markdown = _questions_markdown(
         {"open_questions": ['{"question": "What drives X?"}']}
     )
@@ -540,7 +448,6 @@ def test_a_json_string_open_question_is_flattened() -> None:
 
 
 def test_the_section_is_named_recommendation_and_strategic_roadmap() -> None:
-    """The heading matches the published section title, not the old label."""
     markdown = _meta_review_markdown(
         {
             "strategic_recommendations": [
@@ -558,7 +465,6 @@ def test_the_section_is_named_recommendation_and_strategic_roadmap() -> None:
 
 
 def test_the_first_recommendation_is_distinguished_as_primary() -> None:
-    """The lead entry is labelled primary, not folded into the roadmap list."""
     markdown = _meta_review_markdown(
         {
             "strategic_recommendations": [
@@ -577,7 +483,6 @@ def test_the_first_recommendation_is_distinguished_as_primary() -> None:
 
 
 def test_remaining_recommendations_render_as_a_numbered_roadmap() -> None:
-    """Every recommendation after the first is a numbered roadmap step."""
     markdown = _meta_review_markdown(
         {
             "strategic_recommendations": [
@@ -599,7 +504,6 @@ def test_remaining_recommendations_render_as_a_numbered_roadmap() -> None:
 
 
 def test_a_single_recommendation_has_no_roadmap_steps() -> None:
-    """One recommendation renders only the primary line, no numbering."""
     markdown = _meta_review_markdown(
         {"strategic_recommendations": ["Only one recommendation."]}
     )
@@ -612,14 +516,12 @@ def test_a_single_recommendation_has_no_roadmap_steps() -> None:
 
 
 def test_no_recommendations_renders_no_section() -> None:
-    """An empty list emits no heading at all."""
     markdown = _meta_review_markdown({"summary": "Nothing to recommend yet."})
 
     assert "Recommendation and strategic roadmap" not in markdown
 
 
 def test_time_estimate_renders_as_a_parenthetical_suffix() -> None:
-    """R14-8: a step's timeline appends after its recommendation text."""
     markdown = _meta_review_markdown(
         {
             "strategic_recommendations": [
@@ -639,7 +541,6 @@ def test_time_estimate_renders_as_a_parenthetical_suffix() -> None:
 
 
 def test_phase_label_prefixes_the_step() -> None:
-    """R14-8: a lettered sub-phase prefixes the step's own text."""
     markdown = _meta_review_markdown(
         {
             "strategic_recommendations": [
@@ -659,7 +560,6 @@ def test_phase_label_prefixes_the_step() -> None:
 
 
 def test_recommended_idea_renders_its_own_line() -> None:
-    """R14-8: the named-idea selection, identified by number, not text."""
     markdown = _meta_review_markdown(
         {
             "strategic_recommendations": [
@@ -679,7 +579,6 @@ def test_recommended_idea_renders_its_own_line() -> None:
 
 
 def test_a_report_with_none_of_the_new_fields_is_unaffected() -> None:
-    """A report persisted before R14-8 renders exactly as it did."""
     markdown = _meta_review_markdown(
         {
             "strategic_recommendations": [
@@ -701,7 +600,6 @@ def _attributes_markdown(
     attributes: list[dict[str, object]] | None,
     setup: dict[str, object] | None = None,
 ) -> str:
-    """Render a minimal report carrying only the given attributes."""
     hypothesis: dict[str, object] = {
         "id": "h1",
         "title": "NHE1 coupling",
@@ -719,7 +617,6 @@ def _attributes_markdown(
 
 
 def test_attributes_render_as_named_rating_scales() -> None:
-    """Each synthesized attribute prints its name and 1-5 rubric."""
     markdown = _attributes_markdown(
         [
             {
@@ -749,13 +646,11 @@ def test_attributes_render_as_named_rating_scales() -> None:
 
 
 def test_no_attributes_renders_no_section() -> None:
-    """An absent attributes list emits no heading, not an empty one."""
     assert "Stratification Attributes" not in _attributes_markdown(None)
     assert "Stratification Attributes" not in _attributes_markdown([])
 
 
 def test_an_attribute_with_no_name_is_skipped() -> None:
-    """A malformed attribute with no name contributes nothing renderable."""
     markdown = _attributes_markdown([{"rubric": "orphaned rubric text"}])
 
     assert "orphaned rubric text" not in markdown
@@ -763,13 +658,8 @@ def test_an_attribute_with_no_name_is_skipped() -> None:
 
 
 def test_distinct_from_the_user_authored_attributes_list() -> None:
-    """The synthesized section never replaces the user-authored list.
-
-    It coexists with the user-authored "Attributes" bullet list rendered
-    under "Research Goal Details"
-    -- same English word, two different published sections, see the
-    module docstring's vocabulary warning.
-    """
+    # Synthesized stratification attributes and scientist-authored attributes
+    # are distinct inputs.
     markdown = _attributes_markdown(
         [{"name": "Human Relevance", "rubric": "1-5 scale rubric text."}],
         setup={"attributes": ["Should be testable in human tissue"]},
@@ -784,7 +674,6 @@ def test_distinct_from_the_user_authored_attributes_list() -> None:
 def test_a_connection_renders_its_related_hypotheses_type_and_opportunity() -> (
     None
 ):
-    """A structured connection entry prints all three of its real fields."""
     markdown = _meta_review_markdown(
         {
             "potential_connections": [
@@ -811,7 +700,6 @@ def test_a_connection_renders_its_related_hypotheses_type_and_opportunity() -> (
 
 
 def test_no_connections_renders_no_section() -> None:
-    """An empty or absent potential_connections list emits no heading."""
     markdown = _meta_review_markdown(
         {"summary": "A synthesis with no cross-links."}
     )
@@ -820,21 +708,18 @@ def test_no_connections_renders_no_section() -> None:
 
 
 def test_a_malformed_connection_entry_is_skipped_not_stringified() -> None:
-    """A non-dict entry never leaks a raw Python repr into the report."""
     markdown = _meta_review_markdown({"potential_connections": ["not a dict"]})
 
     assert "not a dict" not in markdown
 
 
 def _render_unexpected_directions(payload: dict[str, object]) -> str:
-    """Render the overview payload to a single markdown string."""
     return "\n".join(render_research_overview_markdown(payload))
 
 
 def test_unexpected_directions_render_as_bolded_name_plus_prose_bullets() -> (
     None
 ):
-    """Each entry renders its title bolded, followed by its prose."""
     markdown = _render_unexpected_directions(
         {
             "overview": {
@@ -865,7 +750,6 @@ def test_unexpected_directions_render_as_bolded_name_plus_prose_bullets() -> (
 
 
 def test_section_sits_adjacent_to_the_directions_content() -> None:
-    """The block renders inside 'Research Overview', after the directions."""
     markdown = _render_unexpected_directions(
         {
             "overview": {
@@ -884,12 +768,10 @@ def test_section_sits_adjacent_to_the_directions_content() -> None:
     open_questions_index = markdown.find("## Open questions")
 
     assert overview_index < directions_index < unexpected_index
-    # Still inside the Research Overview section, not the next one.
     assert open_questions_index == -1 or unexpected_index < open_questions_index
 
 
 def test_no_unexpected_directions_renders_no_heading() -> None:
-    """Absent/empty field emits no heading -- legacy runs must not regress."""
     markdown = _render_unexpected_directions(
         {"overview": {"summary": "S", "research_directions": []}}
     )
@@ -898,7 +780,6 @@ def test_no_unexpected_directions_renders_no_heading() -> None:
 
 
 def test_an_entry_with_no_description_still_renders_its_title() -> None:
-    """Degrade, never drop -- a bare title bullet with no colon."""
     markdown = _render_unexpected_directions(
         {
             "overview": {"summary": "S", "research_directions": []},
@@ -911,7 +792,6 @@ def test_an_entry_with_no_description_still_renders_its_title() -> None:
 
 
 def test_a_json_string_description_is_flattened() -> None:
-    """Matches this module's established json_object-downgrade coercion."""
     markdown = _render_unexpected_directions(
         {
             "overview": {"summary": "S", "research_directions": []},

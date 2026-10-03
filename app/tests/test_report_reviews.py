@@ -1,5 +1,3 @@
-"""Tests for report reviews."""
-
 from __future__ import annotations
 
 import asyncio
@@ -31,7 +29,6 @@ from tests._drain_helpers import (
 
 
 def _row(agent: str, detail: dict[str, Any], **extra: Any) -> dict[str, Any]:
-    """One persisted review row carrying structured detail."""
     return {
         "hypothesis_id": "h1",
         "reviewer_agent": agent,
@@ -41,7 +38,6 @@ def _row(agent: str, detail: dict[str, Any], **extra: Any) -> dict[str, Any]:
 
 
 def _summary_row() -> dict[str, Any]:
-    """A full review carrying every part of the eight-part summary."""
     return _row(
         "full_review",
         {
@@ -57,25 +53,6 @@ def _summary_row() -> dict[str, Any]:
             }
         },
     )
-
-
-# The report renders the reviews and probes a run already paid for.
-#
-# Every review in the cascade ran, was persisted, and reached the report
-# payload -- and the report printed none of it. Published per-hypothesis
-# documents carry roughly 3,800 words of review per idea across an
-# ``Appendix:``/``All reviews:`` block and a ``Reviews summary``, plus a
-# deep-verification section; ours carried zero words of all three.
-#
-# These pin the published section vocabulary and the omit-when-empty
-# convention (R14-23) for the three blocks:
-#
-# * ``#### Reviews summary`` -- the eight numbered published parts;
-# * ``#### Appendix:`` / ``All reviews:`` -- per-axis feedback, the
-#   novelty review's two named lists, Detailed Assumptions, and each
-#   axis's own closing ``Answer: N`` line;
-# * ``#### Deep verification`` -- the ``Question:``/``Answer:``/
-#   ``Reasoning:`` probe triple and the verdict.
 
 
 def _initial_row() -> dict[str, Any]:
@@ -132,7 +109,6 @@ def _full_row() -> dict[str, Any]:
 
 
 def _references() -> list[tuple[str, dict[str, Any]]]:
-    """One hypothesis's resolvable citation index, as the entry builds it."""
     return [
         (
             "C1",
@@ -146,19 +122,7 @@ def _references() -> list[tuple[str, dict[str, Any]]]:
     ]
 
 
-# ---------------------------------------------------------------------------
-# Per-axis sub-structure (R14-17)
-# ---------------------------------------------------------------------------
-
-
 def test_each_published_axis_carries_its_own_sub_structure() -> None:
-    """R14-17: four axes, four different fixed shapes, not one template.
-
-    Correctness is the richest (Comparison with Knowledge Base and Goal
-    Requirement Assessment were the two published parts nothing here had
-    a field for); Feasibility is the leanest at three; Impact potential
-    closes on its own assessment.
-    """
     text = "\n".join(_render_hypothesis_reviews([_initial_row(), _full_row()]))
 
     assert "**Comparison with Knowledge Base**" in text
@@ -170,7 +134,6 @@ def test_each_published_axis_carries_its_own_sub_structure() -> None:
 
 
 def test_correctness_sub_parts_render_in_the_published_order() -> None:
-    """The published Correctness axis's own eight-part order."""
     text = "\n".join(
         _render_hypothesis_reviews([_initial_row(), _full_row()], _references())
     )
@@ -191,14 +154,8 @@ def test_correctness_sub_parts_render_in_the_published_order() -> None:
 def test_related_article_abstracts_come_from_the_citations_not_the_model() -> (
     None
 ):
-    """The one published sub-part a schema must never ask a model for.
-
-    It is a literal echo of the articles the review prompt supplied, and
-    an echoing schema scales its response with its input and truncates
-    identically on every retry. The renderer joins it back from the same
-    citation index the entry's References section prints from, so it
-    costs nothing and cannot be hallucinated.
-    """
+    # Echoing supplied abstracts in model schemas scales replies with input and
+    # causes repeat truncation.
     text = "\n".join(
         _render_hypothesis_reviews([_initial_row(), _full_row()], _references())
     )
@@ -208,11 +165,8 @@ def test_related_article_abstracts_come_from_the_citations_not_the_model() -> (
 
 
 def test_only_correctness_prints_the_abstracts_in_full() -> None:
-    """The leaner axes print titles, as 5 of the 19 published files do.
-
-    The same abstract repeated under all four axes would quadruple the
-    longest block in the entry and tell a reader nothing new.
-    """
+    # Repeating the same abstract under all axes quadruples the longest block
+    # without new information.
     text = "\n".join(
         _render_hypothesis_reviews([_initial_row(), _full_row()], _references())
     )
@@ -223,12 +177,6 @@ def test_only_correctness_prints_the_abstracts_in_full() -> None:
 
 
 def test_an_old_shaped_review_renders_exactly_what_it_always_did() -> None:
-    """A resumed run's review predates every field added here.
-
-    None of the new sub-parts has a value, so none prints a heading --
-    the omit-rather-than-empty convention (R14-23) applied to a shape
-    change rather than to an unanswered field.
-    """
     old_row = _row(
         "full_review",
         {
@@ -252,13 +200,7 @@ def test_an_old_shaped_review_renders_exactly_what_it_always_did() -> None:
     assert "**Reasoning about Correctness**" in text
 
 
-# ---------------------------------------------------------------------------
-# All reviews (F1)
-# ---------------------------------------------------------------------------
-
-
 def test_all_reviews_uses_the_published_axis_headings() -> None:
-    """Google's four named axes lead, in the published order."""
     text = "\n".join(_render_hypothesis_reviews([_initial_row()]))
 
     assert "#### Appendix:" in text
@@ -273,13 +215,8 @@ def test_all_reviews_uses_the_published_axis_headings() -> None:
 
 
 def test_all_reviews_closes_each_axis_with_its_own_answer_line() -> None:
-    """The published per-axis review ends on a bolded ``Answer: N``.
-
-    The score reaches the renderer only through ``detail_json``: three of
-    the eight have columns, and the ``plausibility`` column holds
-    ``scientific_soundness``, so reading the columns would print one
-    axis's score under another axis's name.
-    """
+    # Axis scores live in detail_json; legacy columns map scientific_soundness
+    # to plausibility.
     lines = _render_hypothesis_reviews([_initial_row()])
 
     assert "**Answer: 8**" in lines
@@ -292,7 +229,6 @@ def test_all_reviews_closes_each_axis_with_its_own_answer_line() -> None:
 
 
 def test_all_reviews_renders_the_novelty_two_named_lists() -> None:
-    """MO-3: the published novelty review is exactly these two lists."""
     lines = _render_hypothesis_reviews([_initial_row()])
 
     already = lines.index("Aspects already explored:")
@@ -303,7 +239,6 @@ def test_all_reviews_renders_the_novelty_two_named_lists() -> None:
 
 
 def test_all_reviews_renders_detailed_assumptions_under_correctness() -> None:
-    """MO-9: each assumption's support verdict and its reasoning paragraph."""
     lines = _render_hypothesis_reviews([_initial_row(), _full_row()])
 
     assert "**Detailed Assumptions**" in lines
@@ -319,7 +254,6 @@ def test_all_reviews_renders_detailed_assumptions_under_correctness() -> None:
 
 
 def test_all_reviews_renders_the_full_reviews_own_prose() -> None:
-    """The full review's four prose fields, under their published axes."""
     lines = _render_hypothesis_reviews([_initial_row(), _full_row()])
 
     assert "The logic holds throughout." in lines
@@ -328,7 +262,6 @@ def test_all_reviews_renders_the_full_reviews_own_prose() -> None:
 
 
 def test_all_reviews_renders_the_constructive_feedback() -> None:
-    """The initial review's actionable suggestions, published as their own."""
     lines = _render_hypothesis_reviews([_initial_row()])
 
     assert "**Suggested Improvements**" in lines
@@ -336,12 +269,8 @@ def test_all_reviews_renders_the_constructive_feedback() -> None:
 
 
 def test_all_reviews_prefers_the_latest_row_of_each_agent() -> None:
-    """A re-reviewed hypothesis carries several rows, oldest first.
-
-    ``store.list_reviews`` orders by creation time, so the last matching
-    row is the current assessment; taking the first would pin a report to
-    a superseded review for the rest of the run.
-    """
+    # Reviews arrive oldest first; choosing the first would publish a superseded
+    # assessment.
     stale = _row("review", {"scores": {"novelty": 1}})
     fresh = _row("review", {"scores": {"novelty": 9}})
 
@@ -352,24 +281,16 @@ def test_all_reviews_prefers_the_latest_row_of_each_agent() -> None:
 
 
 def test_all_reviews_renders_nothing_without_reviews() -> None:
-    """R14-23: omit the heading too, never an empty section."""
     assert _render_hypothesis_reviews([]) == []
 
 
 def test_all_reviews_renders_nothing_for_rows_with_no_detail() -> None:
-    """A run drained before this column carries prose only."""
     rows = [{"hypothesis_id": "h1", "reviewer_agent": "review"}]
 
     assert _render_hypothesis_reviews(rows) == []
 
 
-# ---------------------------------------------------------------------------
-# Reviews summary (F6)
-# ---------------------------------------------------------------------------
-
-
 def test_reviews_summary_renders_the_published_eight_parts_in_order() -> None:
-    """R14-14: the numbered headings every published file prints."""
     lines = _render_reviews_summary([_summary_row()])
 
     assert lines[0] == "#### Reviews summary"
@@ -387,7 +308,6 @@ def test_reviews_summary_renders_the_published_eight_parts_in_order() -> None:
 
 
 def test_reviews_summary_renders_prose_and_bullets_by_part() -> None:
-    """Six parts are bulleted in the published exemplars; two are prose."""
     lines = _render_reviews_summary([_summary_row()])
 
     assert "The index is well conceived." in lines
@@ -396,7 +316,6 @@ def test_reviews_summary_renders_prose_and_bullets_by_part() -> None:
 
 
 def test_reviews_summary_omits_the_parts_a_review_left_empty() -> None:
-    """A part with nothing to say prints no heading of its own."""
     lines = _render_reviews_summary(
         [_row("full_review", {"reviews_summary": {"conclusion": "Test it."}})]
     )
@@ -408,14 +327,8 @@ def test_reviews_summary_omits_the_parts_a_review_left_empty() -> None:
 
 
 def test_reviews_summary_renders_nothing_when_absent() -> None:
-    """The block is optional on the schema, so most rows carry none."""
     assert _render_reviews_summary([_full_row()]) == []
     assert _render_reviews_summary([]) == []
-
-
-# ---------------------------------------------------------------------------
-# Deep verification (F2)
-# ---------------------------------------------------------------------------
 
 
 def _probe_row() -> dict[str, Any]:
@@ -442,7 +355,6 @@ def _probe_row() -> dict[str, Any]:
 
 
 def test_deep_verification_renders_the_published_probe_triple() -> None:
-    """R14-15's exact labels, each on its own line."""
     lines = _render_deep_verification([_probe_row()])
 
     assert lines[0] == "#### Deep verification"
@@ -453,7 +365,6 @@ def test_deep_verification_renders_the_published_probe_triple() -> None:
 
 
 def test_deep_verification_numbers_probes_and_marks_fundamentals() -> None:
-    """A probe of a fundamental assumption is a different fact from one not."""
     lines = _render_deep_verification([_probe_row()])
 
     assert "**Probe 1 (fundamental assumption)**" in lines
@@ -461,32 +372,17 @@ def test_deep_verification_numbers_probes_and_marks_fundamentals() -> None:
 
 
 def test_deep_verification_omits_a_probes_empty_parts() -> None:
-    """A probe that answered without reasoning prints no Reasoning label."""
     lines = _render_deep_verification([_probe_row()])
 
     assert not [line for line in lines if line == "Reasoning: "]
 
 
 def test_deep_verification_renders_nothing_without_a_probe_row() -> None:
-    """R14-23 again: no probes, no heading."""
     assert _render_deep_verification([_initial_row()]) == []
     assert _render_deep_verification([]) == []
 
 
-# The per-idea negative-critique rollup (REVIEW-CRITIQUES-ROLLUP-001).
-#
-# Google's published per-hypothesis documents close on a ``Critiques``
-# section -- "Here's a summary of the negative critiques from the
-# reviews:" over a synthesized bulleted rollup (corpus R10-8, the KIRA6
-# output). It is a per-idea rollup, distinct from the run-level meta-review
-# critique and from the verbatim ``All reviews`` block above it. Nothing
-# here calls a model: the synthesis was already done by the full review,
-# whose ``critical_flaws`` and ``validated_risks`` parts this gathers under
-# the published heading.
-
-
 def test_critiques_rollup_renders_the_published_heading_and_label() -> None:
-    """R10-8: the per-idea negative-critique section and its lead line."""
     lines = _render_critiques_rollup([_summary_row()])
 
     assert lines[0] == "#### Critiques"
@@ -496,12 +392,6 @@ def test_critiques_rollup_renders_the_published_heading_and_label() -> None:
 
 
 def test_critiques_rollup_gathers_the_two_negative_summary_parts() -> None:
-    """It rolls up critical flaws and validated risks, and nothing else.
-
-    The other six parts are the idea's positives, verdict and
-    feasibility; they stay in the Reviews summary block, not this
-    negative-only rollup.
-    """
     lines = _render_critiques_rollup([_summary_row()])
 
     assert "- The pore benchmark is wrong." in lines
@@ -511,7 +401,6 @@ def test_critiques_rollup_gathers_the_two_negative_summary_parts() -> None:
 
 
 def test_critiques_rollup_handles_a_string_valued_part() -> None:
-    """A downgraded json_object model may answer a list part as one string."""
     lines = _render_critiques_rollup(
         [
             _row(
@@ -525,7 +414,6 @@ def test_critiques_rollup_handles_a_string_valued_part() -> None:
 
 
 def test_critiques_rollup_prefers_the_latest_full_review() -> None:
-    """A recurrent review supersedes the earlier full review's summary."""
     stale = _row(
         "full_review",
         {"reviews_summary": {"critical_flaws": ["Stale flaw."]}},
@@ -541,12 +429,6 @@ def test_critiques_rollup_prefers_the_latest_full_review() -> None:
 
 
 def test_critiques_rollup_renders_nothing_when_absent() -> None:
-    """Omitted whole when the mature cascade never reached the idea.
-
-    No ``reviews_summary`` at all, and a summary present but carrying
-    neither negative part, both render nothing rather than an empty
-    heading (R14-23).
-    """
     assert _render_critiques_rollup([]) == []
     assert (
         _render_critiques_rollup(
@@ -558,7 +440,6 @@ def test_critiques_rollup_renders_nothing_when_absent() -> None:
 
 
 def _summary_markdown(critical_criteria: list[Any] | None) -> str:
-    """Render a minimal report carrying only the given critical criteria."""
     hypothesis: dict[str, object] = {
         "id": "h1",
         "title": "NHE1 coupling",
@@ -575,7 +456,6 @@ def _summary_markdown(critical_criteria: list[Any] | None) -> str:
 
 
 def test_renders_from_the_structured_shape() -> None:
-    """Each criterion is a numbered heading with its named questions below."""
     markdown = _summary_markdown(
         [
             {
@@ -623,7 +503,6 @@ def test_renders_from_the_structured_shape() -> None:
 
 
 def test_renders_from_the_legacy_string_list() -> None:
-    """A pre-R12-23 bare-string list still renders, minus the questions."""
     markdown = _summary_markdown(
         [
             "Kinetic Feasibility and Experimental Readouts",
@@ -637,13 +516,11 @@ def test_renders_from_the_legacy_string_list() -> None:
 
 
 def test_absent_criteria_renders_no_section() -> None:
-    """No critical_criteria means no heading and no body."""
     assert "Review Summary" not in _summary_markdown(None)
     assert "Review Summary" not in _summary_markdown([])
 
 
 def test_malformed_criteria_render_no_section() -> None:
-    """A field of the wrong type degrades to nothing rather than raising."""
     assert "Review Summary" not in _summary_markdown("not a list")  # type: ignore[arg-type]
     assert "Review Summary" not in _summary_markdown(
         [42, None, {"questions": []}]
@@ -652,7 +529,6 @@ def test_malformed_criteria_render_no_section() -> None:
 
 
 def test_malformed_entries_are_skipped_alongside_valid_ones() -> None:
-    """A mixed list keeps the well-formed criteria, drops the rest."""
     markdown = _summary_markdown(
         [
             {"name": "Valid Criterion", "questions": [{"question": "Q1?"}]},
@@ -668,7 +544,6 @@ def test_malformed_entries_are_skipped_alongside_valid_ones() -> None:
 
 
 def test_malformed_question_entries_are_skipped() -> None:
-    """A criterion's own malformed question entries render no bullet."""
     markdown = _summary_markdown(
         [
             {
@@ -687,17 +562,7 @@ def test_malformed_question_entries_are_skipped() -> None:
     assert "not a question object" not in markdown
 
 
-# The report payload carries every persisted review row to the reader (E1).
-#
-# The mature Reflection cascade's full/simulation/recurrent reviews used to
-# stop at the engine's enrichments: the drain persisted only the initial
-# and deep-verification rows, and the report payload carried no reviews at
-# all. These tests pin the drain's distinctly labeled rows and the
-# payload's ``reviews`` field.
-
-
 def _final_state_with_mature_enrichments() -> dict[str, Any]:
-    """A features state whose first hypothesis also carries mature reviews."""
     state = _final_state_with_features()
     state["hypotheses"][0]["enrichments"] = {
         "full": {"verdict": "sound", "justification": "holds together"},
@@ -709,7 +574,6 @@ def _final_state_with_mature_enrichments() -> dict[str, Any]:
 def test_report_payload_carries_every_persisted_review(
     isolated_db: str,
 ) -> None:
-    """Deep and mature reviews all reach the persisted report payload."""
     run = store.create_run("review goal", "standard", "engine", {})
 
     _persist_and_finalize(
@@ -721,19 +585,12 @@ def test_report_payload_carries_every_persisted_review(
     agents = sorted(
         row["reviewer_agent"] for row in report["payload"]["reviews"]
     )
-    # The features fixture carries deep-verification probes; the
-    # enrichments above add the mature cascade's distinctly labeled rows.
     assert "deep_verification" in agents
     assert "full_review" in agents
     assert "simulation_review" in agents
 
 
 def test_report_payload_reviews_default_empty(isolated_db: str) -> None:
-    """A run whose ideas carry no review rows still bears the field, empty.
-
-    The lineage fixture has hypotheses (so the empty-leaderboard block
-    does not fire) but no reviews and no probes, so no review rows exist.
-    """
     run = store.create_run("no review goal", "standard", "engine", {})
 
     _persist_and_finalize(run, _final_state_with_lineage(), isolated_db)
@@ -744,7 +601,6 @@ def test_report_payload_reviews_default_empty(isolated_db: str) -> None:
 
 
 def test_mature_review_rows_are_distinctly_labeled(isolated_db: str) -> None:
-    """Each mature review persists under its own reviewer_agent."""
     run = store.create_run("labeled goal", "standard", "engine", {})
 
     _persist(
@@ -765,26 +621,13 @@ def test_mature_review_rows_are_distinctly_labeled(isolated_db: str) -> None:
     }
 
 
-# F3: the tournament's debate transcripts render in the report.
-#
-# Google publishes a whole match as a turn-by-turn exchange closing on one
-# ``Better idea: <n>`` line (``outputs/ranking-tournament/
-# als-tournament-debate.md``, 412 words). Ours judged the same multi-turn
-# debate and kept only the closing rationale, so the tournament reached the
-# reader asserted rather than argued. The turns are now persisted on the
-# match row (``matches.debate_transcript``) and rendered here.
-#
-# The section is deliberately bounded -- see the caps in
-# ``report.markdown.process`` -- because a run judges every pairing while
-# Google publishes one exemplar, and an uncapped transcript dump would be a
-# larger document than the report it sits in.
+# Unbounded transcripts for every pairing can exceed the report they accompany.
 
 
 _TITLES = {"h1": "SGLT2 inhibition in fibroblasts", "h2": "NHE1 screening"}
 
 
 def _transcript(verdict: str, turns: list[tuple[int, str, str]]) -> str:
-    """A stored transcript document, as ``drain.matches`` writes it."""
     return json.dumps(
         {
             "verdict": verdict,
@@ -797,7 +640,6 @@ def _transcript(verdict: str, turns: list[tuple[int, str, str]]) -> str:
 
 
 def _match(**overrides: Any) -> dict[str, Any]:
-    """One match row, defaulting to a two-turn debate the winner won."""
     row: dict[str, Any] = {
         "winner_id": "h1",
         "loser_id": "h2",
@@ -816,7 +658,6 @@ def _match(**overrides: Any) -> dict[str, Any]:
 
 
 def _debate_markdown(matches: list[dict[str, Any]] | None) -> str:
-    """Render a minimal report carrying only the given matches."""
     return report_markdown.render_report_markdown(
         report_markdown.ReportMarkdownInputs(
             research_goal="Explain the cardiac benefit.",
@@ -829,7 +670,6 @@ def _debate_markdown(matches: list[dict[str, Any]] | None) -> str:
 
 
 def test_a_stored_debate_renders_turns_and_one_closing_verdict() -> None:
-    """The published shape: numbered ideas, each turn, one verdict line."""
     markdown = _debate_markdown([_match()])
 
     assert "## Tournament debates" in markdown
@@ -843,18 +683,13 @@ def test_a_stored_debate_renders_turns_and_one_closing_verdict() -> None:
     assert "**Turn 2 (favors idea 1):** The counter-argument does not" in (
         markdown
     )
-    # Published artifact (Figure A.17, paper line 1122) prints it capitalized.
     assert "Better idea: 1" in markdown
     assert markdown.count("Better idea:") == 1
 
 
 def test_idea_numbering_follows_the_verdict_not_the_winner() -> None:
-    """Verdict "2" means the winner is idea 2, so the loser leads.
-
-    The number is the judge's own canonical presentation order, not the
-    outcome -- printing the winner first regardless would make every
-    published verdict line read "Better idea: 1".
-    """
+    # Verdict numbers follow the judge's presentation order, not winner-first
+    # order.
     markdown = _debate_markdown(
         [
             _match(
@@ -877,7 +712,6 @@ def test_idea_numbering_follows_the_verdict_not_the_winner() -> None:
 
 
 def test_a_match_with_no_stored_transcript_renders_as_it_did() -> None:
-    """A legacy row (NULL transcript) produces no section at all."""
     markdown = _debate_markdown([_match(debate_transcript=None)])
 
     assert "## Tournament debates" not in markdown
@@ -885,17 +719,13 @@ def test_a_match_with_no_stored_transcript_renders_as_it_did() -> None:
 
 
 def test_no_matches_at_all_render_nothing() -> None:
-    """A run that never reached the tournament omits the heading (R14-23)."""
     assert "## Tournament debates" not in _debate_markdown(None)
     assert "## Tournament debates" not in _debate_markdown([])
 
 
 def test_a_single_turn_comparison_is_not_a_debate() -> None:
-    """One turn is the single-turn comparison, not the published exchange.
-
-    Rendering it would fill a capped section with matches that have no
-    exchange to show, crowding out the multi-turn debates that do.
-    """
+    # Single-turn matches would crowd multi-turn debates out of the capped
+    # transcript section.
     markdown = _debate_markdown(
         [
             _match(
@@ -911,20 +741,14 @@ def test_a_single_turn_comparison_is_not_a_debate() -> None:
 
 
 def test_a_match_whose_idea_left_the_report_is_not_rendered() -> None:
-    """A withheld idea's debate quotes it at length -- so it is skipped.
-
-    ``hypothesis_title_by_id`` names the published pool; a duplicate,
-    rejected, or safety-blocked idea is absent from it, and its transcript
-    argues both sides in full. Rendering it would republish text the
-    content gates withheld.
-    """
+    # Transcripts quote both ideas in full; including withheld participants
+    # republishes gated content.
     markdown = _debate_markdown([_match(loser_id="h-withheld")])
 
     assert "## Tournament debates" not in markdown
 
 
 def test_the_section_caps_how_many_debates_it_renders() -> None:
-    """Only the deepest debates render, up to the cap."""
     matches = [
         _match(
             debate_turns=2 + index,
@@ -942,13 +766,11 @@ def test_the_section_caps_how_many_debates_it_renders() -> None:
     markdown = _debate_markdown(matches)
 
     assert markdown.count("### Debate ") == 5
-    # Deepest first: the 8th match budgeted the most turns.
     assert "Debate 7 turn 1." in markdown
     assert "Debate 0 turn 1." not in markdown
 
 
 def test_a_pathologically_long_turn_is_truncated() -> None:
-    """One turn's argument is capped, with the cut marked."""
     markdown = _debate_markdown(
         [
             _match(
@@ -968,7 +790,6 @@ def test_a_pathologically_long_turn_is_truncated() -> None:
 
 
 def test_only_the_first_turns_of_a_very_long_debate_render() -> None:
-    """A debate at the engine's ten-turn ceiling renders its opening turns."""
     markdown = _debate_markdown(
         [
             _match(
@@ -991,7 +812,6 @@ def test_only_the_first_turns_of_a_very_long_debate_render() -> None:
 def _ordered_transcript(
     verdict: str, turns: list[tuple[int, str, str, str]]
 ) -> str:
-    """A stored transcript whose turns also record their own numbering."""
     return json.dumps(
         {
             "verdict": verdict,
@@ -1004,15 +824,8 @@ def _ordered_transcript(
 
 
 def test_a_swapped_turn_names_the_numbering_its_own_text_uses() -> None:
-    """The production symptom: two turns that read as contradicting.
-
-    Turns alternate which idea is presented first, so a swapped turn's
-    prose calls idea 2 "Hypothesis 1". Rendered without that fact the
-    section shows one judge asserting "Hypothesis 1 is superior" and
-    "Hypothesis 2 is superior" while both turns favour the same idea
-    (production run f8db4d04, debate 2). Each turn header now names the
-    numbering that turn's own text uses.
-    """
+    # Turn order swaps hypothesis numbers; headers must explain the numbering
+    # used by each argument.
     markdown = _debate_markdown(
         [
             _match(
@@ -1038,7 +851,6 @@ def test_a_swapped_turn_names_the_numbering_its_own_text_uses() -> None:
 
 
 def test_a_turn_without_a_recorded_order_renders_as_it_did() -> None:
-    """A row written before the order was recorded keeps its old header."""
     markdown = _debate_markdown([_match()])
 
     assert "**Turn 1 (favors idea 1):** Idea 1 names" in markdown
@@ -1071,14 +883,8 @@ def test_uncertain_renders_as_the_published_careful_investigation_label() -> (
 def test_likely_false_renders_as_implausible_not_the_published_unknown() -> (
     None
 ):
-    """A genuine negative verdict must not read as merely "Unknown".
-
-    Google's "Unknown:" marks an assumption nothing has tested yet
-    ("limited safety data exists... unknown and needs experiments to
-    verify"), not one the evidence contradicts -- reusing that word for
-    `likely_false` ("the evidence points against it",
-    full_review.md/deep_verification.md) would understate the verdict.
-    """
+    # Unknown means untested, whereas likely_false means evidence points against
+    # the assumption.
     line = _assumption_line(
         {
             "assumption": "The drug is non-toxic at the proposed dose.",
@@ -1141,16 +947,6 @@ def test_the_full_review_critique_carries_the_published_labels() -> None:
     assert "Assumption (Implausible): C" in critique
 
 
-# The mature cascade's structured display detail (R14-22 / R14-15).
-#
-# ``_review_detail_json`` is what lets the markdown renderer show the
-# simulation review's numbered failure points and the full review's
-# Go/No-Go framing without re-parsing the flattened ``critique`` text.
-# These tests cover the populated, empty, and malformed (json_object
-# downgrade) shapes for both review kinds, plus that the drain actually
-# persists the column end to end.
-
-
 def test_simulation_detail_renders_points_and_decisive_step() -> None:
     points = ["Off-target editing risk.", "Delivery inefficiency."]
     review = {
@@ -1165,20 +961,16 @@ def test_simulation_detail_renders_points_and_decisive_step() -> None:
 
 
 def test_simulation_detail_empty_when_mechanism_holds() -> None:
-    """A ``holds`` verdict legitimately names no failure point."""
     review = {"failure_points": [], "decisive_step": "", "verdict": "holds"}
     assert _simulation_detail(review) == {}
 
 
 def test_simulation_detail_degrades_on_malformed_shapes() -> None:
-    """json_object downgrade: wrong types never crash the drain."""
     review = {
         "failure_points": "not a list",
         "decisive_step": 42,
     }
     detail = _simulation_detail(review)
-    # A non-list failure_points is dropped entirely rather than iterated
-    # character by character.
     assert "failure_points" not in detail
     assert detail["decisive_step"] == "42"
 
@@ -1226,15 +1018,12 @@ def test_review_detail_json_dispatches_by_key() -> None:
 def test_review_detail_json_none_when_nothing_structured() -> None:
     assert _review_detail_json("simulation", {"verdict": "holds"}) is None
     assert _review_detail_json("full", {"verdict": "sound"}) is None
-    # Every other reviewer key (deep verification, initial review) carries
-    # no structured detail at all.
     assert _review_detail_json("deep_verification", {"anything": "x"}) is None
 
 
 def test_drain_persists_detail_json_on_the_review_row(
     isolated_db: str,
 ) -> None:
-    """The column survives the real drain path, not just the unit helper."""
     state = _final_state_with_features()
     state["hypotheses"][0]["enrichments"] = {
         "full": {
@@ -1260,13 +1049,6 @@ def test_drain_persists_detail_json_on_the_review_row(
         "failure_points": ["Substrate saturation."],
         "decisive_step": "Step 4.",
     }
-    # Deep verification (a different reviewer_agent on the same drain)
-    # now carries structured detail of its own: its probes reached the
-    # reader only as one indented prose blob in ``critique``, which
-    # markdown collapses into a single paragraph, so the published
-    # ``Question:``/``Answer:``/``Reasoning:`` triple had no source. This
-    # assertion used to pin the absence of the column here; it pins the
-    # probe parts instead.
     dv = [
         r
         for r in store.list_reviews(run.id, db_path=isolated_db)
@@ -1281,18 +1063,9 @@ def test_drain_persists_detail_json_on_the_review_row(
         "fundamental",
     }
 
-    # The whole point of persisting detail_json: the Goal Report markdown
-    # -- built fresh from the DB, not the fixture -- actually shows it.
-    # This is the one test that drives drain -> store -> markdown end to
-    # end; the renderer's own unit tests stop at hand-built review dicts,
-    # and a rename of either side's hardcoded reviewer_agent string
-    # ("simulation_review"/"full_review") would render nothing and pass
-    # every other test in this file.
-    # A plain sync test (see the module note above on why): the rest of
-    # this test drives ``_persist_and_finalize``'s own internal
-    # ``asyncio.run``, so this call gets the same wrapper rather than
-    # making the whole test async and nesting one event loop inside
-    # another.
+    # This drives drain/store/render end to end; helper-only tests miss
+    # mismatched reviewer keys.
+    # Keep it synchronous because persistence uses asyncio.run internally.
     _payload, markdown = asyncio.run(_build_report(run, isolated_db))
     assert "#### Simulation review" in markdown
     assert "**Verdict:** Go" in markdown

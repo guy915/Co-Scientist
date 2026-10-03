@@ -1,5 +1,3 @@
-"""Tests for claim grounding 2."""
-
 from __future__ import annotations
 
 import logging
@@ -28,33 +26,15 @@ from app.evidence_chunking import (
     parent_evidence_id,
 )
 
-# The deterministic assessor may only contradict with a negating quote.
-#
-# Regression fixtures are real production data: standard run e47a3ba1
-# (2026-09-08) persisted 11 ``contradicts`` claim-evidence edges out of 101,
-# every one of them stamped ``llm:openrouter/minimax/minimax-m3:free`` and
-# *none* of them produced by the LLM judge -- the entailment call failed (or
-# came back unparseable) and both entry points fall back to
-# ``deterministic_assessor`` while keeping the ``llm:`` provenance, so the
-# founded-contradiction guard in ``claim_verifier`` never saw them.
-#
-# The deterministic assessor tested the contradiction marker against the whole
-# passage and then cited ``_best_sentence`` -- the sentence stating the most of
-# the claim, i.e. the one *least* likely to be the negation. Measured over
-# those 11 edges: zero cited quotes contained any
-# ``claims.assessor._CONTRADICTION_MARKERS`` entry, and 10 of 11 also fell
-# below the 0.25 subject-coverage bar (max 0.30).
-#
-# The three claim/quote pairs below are verbatim from that run.
+# Verbatim production pairs exposed whole-passage negation paired with unrelated
+# or confirming quotes.
 
-# Fixtures are verbatim production text: the Greek letters in the protein
-# names below are part of the data and must not be transliterated.
+# Greek letters are verbatim source data and must not be transliterated.
 # ruff: noqa: RUF001
 
 
-# A negation elsewhere in the same abstract -- routine reporting boilerplate,
-# and what used to make the whole passage read as contradicting whatever
-# sentence was cited from it.
+# Negation in abstract boilerplate must not contradict an unrelated cited
+# sentence.
 _UNRELATED_NEGATION = "Body weight did not differ between groups."
 
 
@@ -76,13 +56,10 @@ def _carries_a_marker(quote: str) -> bool:
     return any(marker in lowered for marker in _CONTRADICTION_MARKERS)
 
 
-# --- e47a3ba1, edge 3: a confirmatory quote labelled a contradiction --------
-
 _REDUCTION_CLAIM = (
     "Together, these actions reduce collagen synthesis and α-SMA "
     "expression, attenuating the fibrotic phenotype."
 )
-# Verbatim from the run: it states the claim's own direction.
 _REDUCTION_QUOTE = (
     "Treatment with LGK-974 significantly reduced both α-SMA and "
     "collagen type I expression, whereas ETC-159 selectively decreased "
@@ -101,8 +78,6 @@ def test_confirmatory_quote_is_not_a_contradiction() -> None:
     assert _REDUCTION_QUOTE not in _quotes(result.contradicting_passages)
 
 
-# --- e47a3ba1, edge 1: a quote about a different drug entirely --------------
-
 _METFORMIN_CLAIM = (
     "Metformin activates AMPK in human cardiac fibroblasts, leading to "
     "inhibitory phosphorylation of Smad3 (Ser203/207) and suppression of "
@@ -118,11 +93,8 @@ _PIRFENIDONE_QUOTE = (
 
 
 def test_off_drug_quote_is_not_a_contradiction() -> None:
-    # The abstract is padded with the on-topic sentences a real one carries,
-    # so the passage clears the contradiction branch's own
-    # ``support_threshold / 2`` bar (0.571 coverage, against 0.048 for the
-    # cited sentences alone). Without that the old whole-passage marker
-    # test never fired here and the fixture would pass either way.
+    # On-topic padding makes the old whole-passage contradiction branch fire;
+    # otherwise both paths pass.
     passage = _passage(
         "Pirfenidone attenuates lung fibrotic fibroblast responses to "
         "transforming growth factor-β1.",
@@ -137,8 +109,6 @@ def test_off_drug_quote_is_not_a_contradiction() -> None:
     assert result.label is not EntailmentLabel.CONTRADICTS
     assert _PIRFENIDONE_QUOTE not in _quotes(result.contradicting_passages)
 
-
-# --- e47a3ba1, edge 2: a quote about a different stimulus -------------------
 
 _AMPK_CLAIM = (
     "Metformin enters cardiac fibroblasts and activates AMPK via LKB1."
@@ -160,8 +130,6 @@ def test_off_stimulus_quote_is_not_a_contradiction() -> None:
     assert _GLUCOSE_QUOTE not in _quotes(result.contradicting_passages)
 
 
-# --- A real opposing quote must still be believed ---------------------------
-
 _ON_SUBJECT_NEGATION = (
     "Metformin did not reduce collagen I expression in human cardiac "
     "fibroblasts."
@@ -169,7 +137,6 @@ _ON_SUBJECT_NEGATION = (
 
 
 def test_on_subject_negation_still_contradicts() -> None:
-    """The genuine case: the negation is about the claim's own subject."""
     claim = (
         "Metformin reduces collagen I expression in human cardiac fibroblasts."
     )
@@ -184,13 +151,8 @@ def test_on_subject_negation_still_contradicts() -> None:
 
 
 def test_cited_contradiction_quote_carries_the_negation() -> None:
-    """The quote shown to a reader is the sentence that actually negates.
-
-    The passage's *best-matching* sentence restates the claim; only the
-    later sentence negates it. Citing the former (which is what the
-    whole-passage marker test used to do) shows a reader a quote that
-    reads as agreement under a CONTRADICTS verdict.
-    """
+    # The best-matching sentence may confirm the claim while another negates it;
+    # cite the actual opposing quote.
     claim = (
         "Metformin reduces collagen I expression in human cardiac fibroblasts."
     )
@@ -208,13 +170,8 @@ def test_cited_contradiction_quote_carries_the_negation() -> None:
 def test_llm_assessor_fallback_cannot_yield_an_unfounded_contradiction(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The production path of run e47a3ba1, end to end.
-
-    ``make_llm_assessor`` falls back to the deterministic assessor on any
-    provider/parse failure while keeping its ``llm:<model>`` provenance,
-    which is why the run's edges looked like LLM verdicts. That fallback
-    draft must be founded too.
-    """
+    # Provider failures retain llm provenance on deterministic fallbacks; those
+    # verdicts need grounding guards too.
     from app.claims import verifier as claim_verifier
 
     monkeypatch.setattr(
@@ -235,7 +192,6 @@ def test_llm_assessor_fallback_cannot_yield_an_unfounded_contradiction(
 def test_prompt_render_failure_keeps_deterministic_fallback(
     monkeypatch: pytest.MonkeyPatch, batch: bool
 ) -> None:
-    """Prompt construction remains within both assessors' fallback boundary."""
     from app.claims import verifier
 
     rendered: list[bool] = []
@@ -272,14 +228,8 @@ def test_prompt_render_failure_keeps_deterministic_fallback(
 
 
 def test_batch_fallback_cannot_yield_an_unfounded_contradiction() -> None:
-    """The route run e47a3ba1 actually took: the batched assessor.
-
-    Its provider failures are what the run logged
-    (``app.claims.verifier``); a batch that returns no usable draft
-    for a claim falls that claim back to the deterministic assessor
-    (``claims.batch._fallback_assessment``), again under the batch's own
-    ``llm:<model>`` provenance.
-    """
+    # Per-claim fallback in a batch retains the batch assessor id even though
+    # the method is deterministic.
     passage = _passage(
         "Wnt inhibition and the fibrotic phenotype in cardiac fibroblasts.",
         _REDUCTION_QUOTE,
@@ -296,26 +246,10 @@ def test_batch_fallback_cannot_yield_an_unfounded_contradiction() -> None:
     assert _REDUCTION_QUOTE not in _quotes(result.contradicting_passages)
 
 
-# Publication gating over assessed claims (M5).
-#
-# The gate half of ``app.claims``, split out of ``test_claims.py`` when that
-# file passed the module-size budget; the entailment, retrieval, provenance
-# and resolvability halves stay there.
-#
-# What the gate decides: a hypothesis whose *categorical* claims the evidence
-# contradicts is withheld, one whose merely-insufficient claims are labeled
-# speculation is not, and a contradicted proposal publishes carrying the
-# contradiction rather than disappearing.
-
-
-# --- Publication gate -------------------------------------------------------
-
-
 _CONTRADICTED_CLAIM = "Kinase X inhibition reduces AML tumor growth."
 
 
 def _contradicted_assessments() -> list[ClaimAssessment]:
-    """One claim the evidence flatly contradicts."""
     return [
         assess_claim(
             _CONTRADICTED_CLAIM,
@@ -327,18 +261,12 @@ def _contradicted_assessments() -> list[ClaimAssessment]:
 
 
 def test_gate_blocks_contradicted_hypothesis() -> None:
-    """A contradicted fundamental claim blocks publication."""
     assessments = _contradicted_assessments()
     result = publication_gate(assessments)
     assert result.decision is GateDecision.BLOCK
     assert result.contradicted_claims
-    # The rank-and-publish config (the pre-ranking call site) loosens support
-    # requirements but must still withhold a contradicted idea: contradiction
-    # of a categorical claim is a hard block independent of
-    # allow_speculative/require_supported_claim. allow_speculative is a
-    # blanket "treat every insufficient claim as speculation" switch, so
-    # letting it soften contradictions too would delete contradiction
-    # blocking from the pre-ranking gate, which passes it True.
+    # Speculation permission must never soften categorical contradiction
+    # blocking.
     loosened = publication_gate(
         assessments, allow_speculative=True, require_supported_claim=False
     )
@@ -346,23 +274,14 @@ def test_gate_blocks_contradicted_hypothesis() -> None:
 
 
 def test_gate_allows_a_contradicted_claim_the_idea_only_proposes() -> None:
-    """Contradicting a proposal is a verdict on it, not grounds to hide it.
-
-    Only a claim the hypothesis asserts as established fact -- its
-    literature grounding and mechanism -- blocks when the evidence goes
-    against it. The statement and expected effect are the idea itself:
-    evidence pointing the other way is exactly the finding the reader came
-    for, so the idea publishes carrying the contradiction rather than
-    disappearing from the report.
-    """
+    # Only contradicted established facts block; contrary findings about
+    # proposals must remain publishable.
     assessments = _contradicted_assessments()
     result = publication_gate(
         assessments,
         explicitly_speculative_claims={_CONTRADICTED_CLAIM},
     )
     assert result.decision is GateDecision.ALLOW
-    # Still named on the result: the gate lets it through, it does not
-    # pretend the contradiction is absent.
     assert result.contradicted_claims == (_CONTRADICTED_CLAIM,)
     assert "contradicted" in result.reason
 
@@ -370,7 +289,6 @@ def test_gate_allows_a_contradicted_claim_the_idea_only_proposes() -> None:
 def test_gate_blocks_a_categorical_contradiction_beside_a_speculative_one() -> (
     None
 ):
-    """One contradicted categorical claim blocks whatever else is proposed."""
     grounding = "Kinase X inhibition reduces AML relapse rates."
     assessments = [
         *_contradicted_assessments(),
@@ -389,13 +307,10 @@ def test_gate_blocks_a_categorical_contradiction_beside_a_speculative_one() -> (
         explicitly_speculative_claims={_CONTRADICTED_CLAIM},
     )
     assert result.decision is GateDecision.BLOCK
-    # The block names the categorical claim it is actually about, not the
-    # proposal the gate just decided to tolerate.
     assert result.failed_claims == (grounding,)
 
 
 def test_gate_blocks_unsupported_unless_speculative_allowed() -> None:
-    """Unsupported claims block by default but pass as labeled speculation."""
     assessments = [
         assess_claim(
             "Kinase X inhibition reduces AML tumor growth.",
@@ -407,12 +322,11 @@ def test_gate_blocks_unsupported_unless_speculative_allowed() -> None:
     assert publication_gate(assessments).decision is GateDecision.BLOCK
     allowed = publication_gate(assessments, allow_speculative=True)
     assert allowed.decision is GateDecision.ALLOW
-    assert allowed.unsupported_claims  # surfaced as speculative
+    assert allowed.unsupported_claims
     assert allowed.speculative_claims == allowed.unsupported_claims
 
 
 def test_gate_allows_only_explicitly_speculative_insufficient_claims() -> None:
-    """A proposed mechanism can remain open while background stays strict."""
     proposed = assess_claim(
         "We hypothesize kinase X may alter neuronal recovery.",
         as_passages(["An unrelated passage about photosynthesis."]),
@@ -445,7 +359,6 @@ def test_gate_allows_only_explicitly_speculative_insufficient_claims() -> None:
 
 
 def test_gate_allows_supported_hypothesis() -> None:
-    """A hypothesis whose claims are supported publishes."""
     assessments = [
         assess_claim(
             "Kinase X inhibition reduces AML tumor growth.",
@@ -459,12 +372,8 @@ def test_gate_allows_supported_hypothesis() -> None:
 
 
 def test_gate_counts_partial_as_a_supported_claim() -> None:
-    """A partial (near-miss) claim satisfies the require-supported-claim gate.
-
-    Partial evidence is relevant and consistent, so it does not leave the
-    hypothesis wholly unsupported -- the gate must not block it even when a
-    supported claim is required.
-    """
+    # Partial support is relevant and consistent, so it satisfies the
+    # minimum-support gate.
     partial = assess_claim(
         "Inhibiting kinase X reduces tumor growth in AML cells.",
         as_passages(
@@ -480,12 +389,10 @@ def test_gate_counts_partial_as_a_supported_claim() -> None:
 
 
 def test_gate_blocks_hypothesis_with_no_claims() -> None:
-    """A hypothesis with no assessable claims cannot publish."""
     assert publication_gate([]).decision is GateDecision.BLOCK
 
 
 def test_revision_is_reassessed() -> None:
-    """Re-assessing a revised claim against new evidence updates the verdict."""
     claim = "Kinase X inhibition reduces AML tumor growth."
     contradicted = assess_claim(
         claim,
@@ -506,30 +413,8 @@ def test_revision_is_reassessed() -> None:
     assert supported.label is EntailmentLabel.SUPPORTS
 
 
-# Locating an assessor's cited quote back to the passage it came from.
-#
-# Production run bc77950f (2026-09-07/08, extended, free models) published
-# 11 of 13 hypotheses "unverified": 156 of its 170 claim-evidence edges came
-# back ``insufficient`` and 8 of 13 hypotheses drew *zero* supported claims,
-# all-or-nothing per hypothesis -- and one hypothesis is one batched judging
-# call. The judge was not starved of evidence and was not silent: its
-# grounding calls carried 7137 prompt tokens each against the comparable
-# standard run's 6988, and answered with 3658 completion tokens against
-# 3572. Same prompt, same evidence volume, same answer volume, an eighth of
-# the usable verdicts -- the difference being which model answered (the free
-# chain fell through to a second rung for every one of bc77950f's 13
-# grounding calls).
-#
-# That is the signature of citations being *discarded* rather than never
-# made: a verdict whose cited spans cannot be located is downgraded to
-# INSUFFICIENT, and the resolution step required the assessor to echo a
-# 36-character ``evidence_id`` back exactly -- the very "schemas must not
-# echo input back" anti-pattern ``claims.batch`` documents for claim text
-# but not for the evidence id. These tests pin the resolution being
-# tolerant of how a model actually cites (the prompt's own passage number
-# or an id stripped of its chunk suffix)
-# while keeping the anti-hallucination guarantee that the quote itself must
-# be verbatim in the cited evidence that was actually shown.
+# Accept passage numbers and legacy ids while requiring verbatim quotes in
+# evidence actually shown.
 
 
 _PASSAGES = (
@@ -558,12 +443,8 @@ _CLAIM = "Fasudil reduces collagen I expression in cardiac fibroblasts."
 
 
 def test_citation_by_passage_number_resolves() -> None:
-    """A cited "1" is the passage number the prompt itself printed.
-
-    ``claims.verifier._render_passages`` renders every passage as
-    ``[1] evidence_id=<uuid>``, so a model citing the bracketed number it
-    was shown is citing the passage correctly, not hallucinating.
-    """
+    # Bracketed passage numbers are valid citations because they are exactly
+    # what the prompt shows.
     spans = _locate_all(
         (("1", "reduce Col I expression and the myofibroblast proportion"),),
         _PASSAGES,
@@ -649,7 +530,6 @@ def test_internal_numeric_parent_id_resolves_later_chunk() -> None:
 
 
 def test_citation_dropping_the_chunk_suffix_resolves() -> None:
-    """An id cited without its ``#<chunk>`` suffix still names its passage."""
     spans = _locate_all(
         (
             (
@@ -716,7 +596,6 @@ def test_batch_unknown_key_cannot_borrow_another_shown_passage() -> None:
 
 
 def test_quote_in_no_shown_passage_is_still_dropped() -> None:
-    """The anti-hallucination guarantee is unchanged: no quote, no span."""
     assert (
         _locate_all(
             ((_PASSAGES[0].evidence_id, "olaparib cures cardiac fibrosis"),),
@@ -729,11 +608,8 @@ def test_quote_in_no_shown_passage_is_still_dropped() -> None:
 def test_dropped_citations_are_logged(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A discarded citation is reported, not lost silently.
-
-    The run this module documents could not be diagnosed from its own
-    artifacts precisely because this loss left no trace.
-    """
+    # Discarded citations need diagnostics or insufficient verdicts become
+    # impossible to explain.
     with caplog.at_level(logging.WARNING, logger="app.claims"):
         _locate_all(
             (
@@ -747,7 +623,6 @@ def test_dropped_citations_are_logged(
 
 
 def test_batched_verdict_citing_by_number_keeps_its_label() -> None:
-    """End to end: a by-number citation is not downgraded to insufficient."""
 
     def _by_number_assessor(
         claims: Sequence[str], passages: Sequence[EvidencePassage]
@@ -774,7 +649,6 @@ def test_batched_verdict_citing_by_number_keeps_its_label() -> None:
 
 
 def test_single_claim_verdict_citing_by_number_keeps_its_label() -> None:
-    """The per-claim path resolves citations exactly as the batched one."""
 
     def _by_number_assessor(
         claim: str, passages: Sequence[EvidencePassage]
@@ -797,22 +671,13 @@ def test_single_claim_verdict_citing_by_number_keeps_its_label() -> None:
     )
 
 
-# Tests for chunking long evidence into passage-sized units.
-#
-# Regression coverage for the incident this module exists to close: a
-# production run (44e848fb) fed each claim-verification call whole articles
-# -- title + abstract + up to 200k chars of full text -- as a single
-# "passage". ~600 gate calls averaged 34-46k prompt tokens for ~250 tokens of
-# answer (28M of the run's 29M total tokens), with a 6.9% cache hit rate
-# because the claim (which changes every call) preceded the evidence (which
-# recurs across calls), so the recurring papers never formed a stable
-# prefix.
+# Whole-article grounding multiplies prompt cost; recurring evidence must
+# precede variable claims for caching.
 
 
 def test_long_body_yields_multiple_chunks_under_the_size_limit() -> None:
-    """A 40k-char article body is split into several bounded chunks."""
     paragraph = "Kinase X inhibition reduces tumor growth. " * 40
-    body = "\n\n".join([paragraph] * 25)  # ~43k chars
+    body = "\n\n".join([paragraph] * 25)
     assert len(body) > 40_000
 
     passages = chunk_evidence_passage(
@@ -824,15 +689,13 @@ def test_long_body_yields_multiple_chunks_under_the_size_limit() -> None:
     )
 
     assert len(passages) > 1
-    # A chunk's true ceiling includes the overlap prefix plus the joining
-    # space between it and the chunk's own text (see CHUNK_OVERLAP_CHARS).
+    # Chunk ceilings include the overlap prefix and its joining space.
     bound = CHUNK_MAX_CHARS + CHUNK_OVERLAP_CHARS + 1
     for passage in passages:
         assert len(passage.text) <= bound
 
 
 def test_chunks_carry_provenance_back_to_the_parent_article() -> None:
-    """Every chunk's evidence_id resolves back to the parent article id."""
     body = ("Alpha sentence one. Beta sentence two.\n\n") * 200
     passages = chunk_evidence_passage(
         "pmid-42",
@@ -849,7 +712,6 @@ def test_chunks_carry_provenance_back_to_the_parent_article() -> None:
 
 
 def test_abstract_only_article_is_unchanged() -> None:
-    """No body text -> exactly one passage under the article's bare id."""
     passages = chunk_evidence_passage(
         "pmid-7",
         head_text="Title. A short abstract about kinase inhibition.",
@@ -866,7 +728,6 @@ def test_abstract_only_article_is_unchanged() -> None:
 
 
 def test_parent_evidence_id_is_a_no_op_on_an_unchunked_id() -> None:
-    """A bare article/evidence id (no chunk suffix) passes through unchanged."""
     assert parent_evidence_id("pmid-7") == "pmid-7"
     assert parent_evidence_id("private-document-with-a-hash#tag") == (
         "private-document-with-a-hash#tag"
@@ -874,7 +735,6 @@ def test_parent_evidence_id_is_a_no_op_on_an_unchunked_id() -> None:
 
 
 def test_a_deep_supporting_sentence_survives_chunking() -> None:
-    """A sentence buried deep in a long article still lands in some chunk."""
     filler = "Unrelated background discussion sentence number filler. "
     needle = "Kinase X inhibition reduces tumor growth in AML cell lines."
     body = (filler * 400) + needle + (" " + filler * 400)
