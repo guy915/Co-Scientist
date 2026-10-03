@@ -1,5 +1,3 @@
-"""Tests for task queue 2."""
-
 from __future__ import annotations
 
 import os
@@ -14,20 +12,7 @@ from app import store
 from app.store import RunStatus
 from tests._engine_tasks_helpers import _enqueue, _run, _three_control_tasks
 
-# Behavior tests for the durable scientific task queue.
-
-
-# `_parallel_scripts` spawns real Python subprocesses (each importing the
-# full app package -- FastAPI, pydantic, litellm, ...) to exercise
-# cross-process lease contention, which is the whole point: these tests
-# would not catch a real multi-process bug against in-process threads or
-# asyncio tasks sharing one interpreter's GIL-serialized view of the world.
-# But that means the timeout below competes for CPU with everything else on
-# the machine, not just with the lease semantics under test -- a fixed,
-# tight bound turns "the machine is busy" into a false red exactly the way
-# N23 flagged. Generous by default (a subprocess that hangs because lease
-# recovery is actually broken still gets caught well inside a minute);
-# override for a slower CI runner via env rather than editing the test.
+# Lease contention needs real processes; allow for shared CPU contention.
 _SUBPROCESS_TIMEOUT_SECONDS = float(
     os.getenv("COSCIENTIST_TEST_SUBPROCESS_TIMEOUT_SECONDS", "60")
 )
@@ -50,7 +35,6 @@ print("TRUE" if completed else "FALSE")
 
 
 def _parallel_scripts(script: str, arguments: list[list[str]]) -> list[str]:
-    """Run isolated Python workers concurrently and return their outputs."""
     workers = [
         subprocess.Popen(
             [sys.executable, "-c", script, *args],
@@ -69,7 +53,6 @@ def _parallel_scripts(script: str, arguments: list[list[str]]) -> list[str]:
 
 
 def test_enqueue_is_idempotent(isolated_db: str) -> None:
-    """Duplicate Supervisor delivery resolves to one durable task."""
     run_id = _run()
     first = store.enqueue_task(
         store.NewTask(
@@ -95,7 +78,6 @@ def test_enqueue_is_idempotent(isolated_db: str) -> None:
 
 
 def test_claim_respects_priority_and_dependencies(isolated_db: str) -> None:
-    """Workers lease only ready tasks and prefer Supervisor priority."""
     run_id = _run()
     prerequisite = store.enqueue_task(
         store.NewTask(
@@ -130,7 +112,6 @@ def test_claim_respects_priority_and_dependencies(isolated_db: str) -> None:
 
 
 def test_completion_is_exactly_once(isolated_db: str) -> None:
-    """A stale or duplicate delivery cannot commit a second result."""
     run_id = _run()
     task = store.enqueue_task(
         store.NewTask(
@@ -156,7 +137,6 @@ def test_completion_is_exactly_once(isolated_db: str) -> None:
 def test_multi_process_claim_has_single_lease_winner(
     isolated_db: str,
 ) -> None:
-    """Independent worker processes cannot lease the same queued task."""
     run_id = _run()
     task = store.enqueue_task(
         store.NewTask(
@@ -183,7 +163,6 @@ def test_multi_process_claim_has_single_lease_winner(
 def test_multi_process_duplicate_completion_commits_one_effect(
     isolated_db: str,
 ) -> None:
-    """Concurrent duplicate acknowledgements commit exactly one result."""
     run_id = _run()
     task = store.enqueue_task(
         store.NewTask(
@@ -217,7 +196,6 @@ def test_multi_process_duplicate_completion_commits_one_effect(
 def test_crashed_process_lease_is_redelivered_after_restart(
     isolated_db: str,
 ) -> None:
-    """A process exit before acknowledgement is recovered by a new worker."""
     run_id = _run()
     task = store.enqueue_task(
         store.NewTask(
@@ -255,7 +233,6 @@ def test_crashed_process_lease_is_redelivered_after_restart(
 
 
 def test_expired_lease_is_recovered(isolated_db: str) -> None:
-    """A worker crash releases its task through lease expiry."""
     run_id = _run()
     store.enqueue_task(
         store.NewTask(
@@ -281,7 +258,6 @@ def test_expired_lease_is_recovered(isolated_db: str) -> None:
 def test_owned_lease_can_be_renewed_without_redelivery(
     isolated_db: str,
 ) -> None:
-    """A heartbeat extension prevents another worker from reclaiming work."""
     run_id = _run()
     queued = store.enqueue_task(
         store.NewTask(
@@ -309,7 +285,6 @@ def test_owned_lease_can_be_renewed_without_redelivery(
 
 
 def test_failure_retries_then_stops(isolated_db: str) -> None:
-    """Transient failures retry only up to the task's declared limit."""
     run_id = _run()
     store.enqueue_task(
         store.NewTask(
@@ -339,7 +314,6 @@ def test_failure_retries_then_stops(isolated_db: str) -> None:
 def test_task_progress_is_monotonic_and_budget_derived(
     isolated_db: str,
 ) -> None:
-    """Progress uses committed task rows and advances only on terminal work."""
     run_id = _run()
     first = _enqueue(
         run_id, "retrieval.pubmed", "progress:retrieval", isolated_db
@@ -372,7 +346,6 @@ def test_task_progress_is_monotonic_and_budget_derived(
 def test_monolithic_workflow_lease_is_honestly_indeterminate(
     isolated_db: str,
 ) -> None:
-    """A process wrapper is not misrepresented as a scientific task budget."""
     run_id = _run()
     store.enqueue_task(
         store.NewTask(
@@ -396,7 +369,6 @@ def test_monolithic_workflow_lease_is_honestly_indeterminate(
 def test_dynamic_engine_plan_stays_indeterminate_as_tasks_expand(
     isolated_db: str,
 ) -> None:
-    """A model-expanded task denominator never produces regressing percent."""
     run_id = _run()
     store.enqueue_task(
         store.NewTask(
@@ -413,17 +385,9 @@ def test_dynamic_engine_plan_stays_indeterminate_as_tasks_expand(
     assert progress["total_tasks"] == 1
 
 
-# Run-level control over queued work: cancel, pause/resume, Supervisor.
-#
-# Split out of ``test_task_queue.py``; the enqueue/claim/complete/lease
-# behaviors live there, and these cover the operations that act on a whole
-# run's queue at once.
-
-
 def test_cancel_run_tasks_revokes_queued_leased_and_paused_work(
     isolated_db: str,
 ) -> None:
-    """Cancellation revokes every task state that is safe to restart."""
     run_id = _run()
     first = store.enqueue_task(
         store.NewTask(
@@ -467,7 +431,6 @@ def test_cancel_run_tasks_revokes_queued_leased_and_paused_work(
 def test_pause_and_resume_make_queued_tasks_non_claimable(
     isolated_db: str,
 ) -> None:
-    """Paused work stays durable but leaves the global claimable queue."""
     run_id = _run()
     task = store.enqueue_task(
         store.NewTask(
@@ -502,7 +465,6 @@ def test_pause_and_resume_make_queued_tasks_non_claimable(
 def test_paused_run_ignores_late_queue_rows_and_cohort_work(
     isolated_db: str, task_type: str
 ) -> None:
-    """A leased task may fan out after pause, but its run stays idle."""
     run_id = _run()
     predecessor = store.enqueue_task(
         store.NewTask(
@@ -539,9 +501,6 @@ def test_paused_run_ignores_late_queue_rows_and_cohort_work(
         store.pause_run_tasks(run_id, conn=conn)
         store.update_run_status(run_id, RunStatus.PAUSED, conn=conn)
 
-    # This is the successor a still-running predecessor inserts after the
-    # pause transaction. The dependency is complete, so only run status can
-    # keep a normal claim from taking it.
     store.enqueue_task(
         store.NewTask(
             run_id=run_id,
@@ -585,7 +544,6 @@ def test_paused_run_ignores_late_queue_rows_and_cohort_work(
 def test_claim_rechecks_pause_after_advisory_probe(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The write-side claim fence closes a pause racing the read probe."""
     run_id = _run()
     task = _enqueue(run_id, "engine.node.generate", "pause:racing", isolated_db)
     advisory_probe = task_store._has_claimable_task
@@ -610,7 +568,6 @@ def test_claim_rechecks_pause_after_advisory_probe(
 def test_paused_cohort_does_not_wait_for_expired_retryable_engine_lease(
     isolated_db: str,
 ) -> None:
-    """A lease hidden from claim must not keep a paused cohort polling."""
     run_id = _run()
     task = _enqueue(
         run_id, "engine.node.generate", "pause:expired", isolated_db
@@ -636,7 +593,6 @@ def test_paused_cohort_does_not_wait_for_expired_retryable_engine_lease(
 def test_supervisor_can_reprioritize_cancel_and_retry_individual_tasks(
     isolated_db: str,
 ) -> None:
-    """Queue controls mutate only tasks in compatible lifecycle states."""
     run_id = _run()
     promoted_id, cancelled_id, failed_id = _three_control_tasks(
         run_id, isolated_db

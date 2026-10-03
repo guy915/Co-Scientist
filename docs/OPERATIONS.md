@@ -161,3 +161,22 @@ Price the served model while retaining its gateway prefix: unprefixed names can
 turn paid calls into apparent zero-cost usage. Lower layers log failures at
 debug; the retry boundary emits one reader-facing record per attempt with the
 actual sent budget and call identity.
+
+## Tool transcript recovery
+
+Age tool results before deduplication: an aged note must not erase a newly
+retrieved body. Keep positional call/result pairing and prior reasoning while
+eliding superseded writes; later patches do not supersede earlier relative edits.
+Interrupted commands may already have side effects, so aborted output must not
+claim the command never ran.
+
+Workspace spill writes run outside confinement and must resist symlinked or
+missing metadata paths; bubblewrap skips absent `--ro-bind-try` paths. Redact
+stdout before model transcripts and drop the output if a secret still survives.
+
+## Settlement and structured answers
+
+Use the same match-debt quantity to size, open and close a settlement episode.
+Do not refill while debt persists; bound the episode by distinct pairs.
+Place the answer-deliverable instruction before an injected response schema;
+placing the same instruction afterward did not prevent empty thinking replies.

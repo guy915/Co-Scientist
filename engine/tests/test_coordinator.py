@@ -1,5 +1,3 @@
-"""Offline contracts for coordinator."""
-
 from __future__ import annotations
 
 import asyncio
@@ -39,12 +37,6 @@ from tests._state import (
 async def test_condition_a_splits_tools_debate_and_assumptions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Literature + tool-calling reserves assumptions, then splits the rest.
-
-    Of a batch of 4, one hypothesis is reserved for the iterative-assumptions
-    technique and the remaining three are split between the tool-driven and
-    debate-with-literature paths.
-    """
     tools = _ToolsRecorder([make_hypothesis(text="t1")], llm_calls=3)
     debate = _DebateRecorder(
         [make_hypothesis(text="d1"), make_hypothesis(text="d2")],
@@ -65,27 +57,21 @@ async def test_condition_a_splits_tools_debate_and_assumptions(
     )
     result = await generate_hypotheses(state)
 
-    # 4 -> 1 assumptions + a 1/2 split of the remaining 3.
     assert assumptions.called and assumptions.count == 1
     assert tools.called and tools.count == 1
     assert debate.called and debate.count == 2
-    # Both literature-aware paths receive the lit-review context, not None.
     assert debate.articles_with_reasoning == "some papers and reasoning"
     assert assumptions.articles_with_reasoning == "some papers and reasoning"
-    # Assembly order: tools, then debate, then assumptions.
-    # generate returns an AppendHypotheses op (children appended to the pool).
     texts = [h.text for h in result["hypotheses"].items]
     assert texts == ["t1", "d1", "d2", "a1"]
     assert result["hypothesis_count"] == 4
     assert len(result["debate_transcripts"]) == 2
-    # Real LLM calls summed across every strategy that ran (finding L3).
     assert result["llm_call_count"] == 3 + 9 + 2
 
 
 async def test_condition_a_single_count_collapses_to_tools_only(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """With total_count=1, condition (a) allocates all to tools (no debate)."""
     tools = _ToolsRecorder([make_hypothesis(text="t1")])
     debate = _DebateRecorder([], [])
     _install(monkeypatch, tools, debate)
@@ -100,7 +86,6 @@ async def test_condition_a_single_count_collapses_to_tools_only(
     result = await generate_hypotheses(state)
 
     assert tools.called and tools.count == 1
-    # debate_with_lit_count collapses to 0, so debate is never invoked.
     assert not debate.called
     assert result["hypothesis_count"] == 1
     assert result["debate_transcripts"] == []
@@ -109,7 +94,6 @@ async def test_condition_a_single_count_collapses_to_tools_only(
 async def test_condition_c_debate_with_lit_only(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Literature present but tool-calling off routes all to debate-with-lit."""
     tools = _ToolsRecorder([make_hypothesis(text="should-not-appear")])
     debate = _DebateRecorder(
         [
@@ -141,9 +125,7 @@ async def test_condition_c_debate_with_lit_only(
 async def test_condition_b_degraded_mode_applies_fallback_grounding(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """No literature routes to debate-only with the fallback grounding note."""
     tools = _ToolsRecorder([])
-    # Debate-only hypotheses arrive without literature_grounding.
     debate = _DebateRecorder(
         [
             make_hypothesis(text="d1", literature_grounding=None),
@@ -156,7 +138,7 @@ async def test_condition_b_degraded_mode_applies_fallback_grounding(
     state = make_state(
         supervisor_guidance={"focus": "x"},
         initial_hypotheses_count=2,
-        mcp_available=False,  # no MCP -> has_literature False -> degraded
+        mcp_available=False,
         articles_with_reasoning="ignored because mcp unavailable",
         enable_tool_calling_generation=True,
     )
@@ -164,9 +146,7 @@ async def test_condition_b_degraded_mode_applies_fallback_grounding(
 
     assert not tools.called
     assert debate.called and debate.count == 2
-    # Debate-only path passes None for literature context.
     assert debate.articles_with_reasoning is None
-    # Degraded-mode fallback overwrites grounding on every hypothesis.
     for hyp in result["hypotheses"].items:
         assert hyp.literature_grounding is not None
         assert hyp.literature_grounding.startswith(
@@ -179,12 +159,8 @@ async def test_condition_b_degraded_mode_applies_fallback_grounding(
 async def test_condition_b_degraded_mode_logs_a_single_warning(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """The degraded case used to log a four-record decorative banner.
-
-    ``"=" * 80`` above and below two message lines. A durable,
-    user-visible log panel renders every WARNING record verbatim, so this
-    collapses to exactly one record carrying the same information.
-    """
+    """User-visible diagnostics render each warning; decorative banners
+    multiply records."""
     tools = _ToolsRecorder([])
     debate = _DebateRecorder([make_hypothesis(text="d1")], [])
     _install(monkeypatch, tools, debate)
@@ -192,7 +168,7 @@ async def test_condition_b_degraded_mode_logs_a_single_warning(
     state = make_state(
         supervisor_guidance={"focus": "x"},
         initial_hypotheses_count=1,
-        mcp_available=False,  # no MCP -> has_literature False -> degraded
+        mcp_available=False,
         articles_with_reasoning=None,
         enable_tool_calling_generation=True,
     )
@@ -207,7 +183,6 @@ async def test_condition_b_degraded_mode_logs_a_single_warning(
 async def test_failed_lit_review_marker_is_degraded(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The LITERATURE_REVIEW_FAILED sentinel is treated as no literature."""
     tools = _ToolsRecorder([])
     debate = _DebateRecorder([make_hypothesis(text="d1")], [])
     _install(monkeypatch, tools, debate)
@@ -221,7 +196,6 @@ async def test_failed_lit_review_marker_is_degraded(
     )
     result = await generate_hypotheses(state)
 
-    # Sentinel -> has_literature False -> degraded debate-only path.
     assert not tools.called
     assert debate.called and debate.articles_with_reasoning is None
     assert result["hypothesis_count"] == 1
@@ -230,20 +204,14 @@ async def test_failed_lit_review_marker_is_degraded(
 async def test_no_lit_path_invokes_assumptions_technique(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The LLM-only path uses the iterative-assumptions technique too (SSR §4).
-
-    With enough hypotheses to split, a no-literature run reserves a slice for
-    the assumptions technique, so a hypothesis flowing through a real run
-    actually carries ``GenerationMethod.ASSUMPTIONS`` (not just registered).
-    """
     from co_scientist.models import GenerationMethod
     from tests._llm_fake import install_fake_llm
 
     install_fake_llm(monkeypatch)
     state = make_state(
         supervisor_guidance={"focus": "x"},
-        initial_hypotheses_count=8,  # >= 4 -> reserve a slice for assumptions
-        mcp_available=False,  # no literature -> the no_lit path
+        initial_hypotheses_count=8,
+        mcp_available=False,
         enable_tool_calling_generation=True,
         model_name="fake-model",
     )
@@ -252,20 +220,12 @@ async def test_no_lit_path_invokes_assumptions_technique(
 
     methods = {h.generation_method for h in result["hypotheses"].items}
     assert GenerationMethod.ASSUMPTIONS in methods
-    assert GenerationMethod.DEBATE in methods  # debate still runs the rest
+    assert GenerationMethod.DEBATE in methods
 
 
 async def test_lit_and_tools_reserves_assumptions_slice(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Literature + tool-calling reserves a slice for assumptions (E07).
-
-    Assumptions is a first-class SSR §4 technique, not a degraded-mode-only
-    fallback: with enough hypotheses to split, the literature-and-tools
-    strategy runs assumptions alongside tools and debate, and passes the
-    live literature context (articles + reference index) through so the
-    assumptions prompt can ground its claims in real citations.
-    """
     tools = _ToolsRecorder([make_hypothesis(text="t1")])
     debate = _DebateRecorder([make_hypothesis(text="d1")], [])
     assumptions = _AssumptionsRecorder([make_hypothesis(text="a1")])
@@ -273,7 +233,7 @@ async def test_lit_and_tools_reserves_assumptions_slice(
 
     state = make_state(
         supervisor_guidance={"focus": "x"},
-        initial_hypotheses_count=8,  # >= 4 -> reserve a slice for assumptions
+        initial_hypotheses_count=8,
         mcp_available=True,
         articles_with_reasoning="some papers and reasoning",
         enable_tool_calling_generation=True,
@@ -282,12 +242,10 @@ async def test_lit_and_tools_reserves_assumptions_slice(
 
     assert assumptions.called and assumptions.count is not None
     assert assumptions.count > 0
-    # The remaining count is split between tools and debate.
     assert tools.called and debate.called
     assert (assumptions.count or 0) + (tools.count or 0) + (
         debate.count or 0
     ) == 8
-    # Literature context reaches the assumptions technique in lit mode.
     assert assumptions.articles_with_reasoning == "some papers and reasoning"
     assert assumptions.reference_index is not None
     assert "a1" in [h.text for h in result["hypotheses"].items]
@@ -296,7 +254,6 @@ async def test_lit_and_tools_reserves_assumptions_slice(
 async def test_lit_only_reserves_assumptions_slice(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Literature without tool-calling still reserves an assumptions slice."""
     tools = _ToolsRecorder([])
     debate = _DebateRecorder([make_hypothesis(text="d1")], [])
     assumptions = _AssumptionsRecorder([make_hypothesis(text="a1")])
@@ -322,7 +279,6 @@ async def test_lit_only_reserves_assumptions_slice(
 async def test_dev_isolation_routes_all_to_tools(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Dev isolation mode sends every hypothesis to tools, skipping debate."""
     tools = _ToolsRecorder(
         [
             make_hypothesis(text="t1"),
@@ -350,8 +306,6 @@ async def test_dev_isolation_routes_all_to_tools(
 
 
 async def test_missing_supervisor_guidance_raises() -> None:
-    """Falsy supervisor_guidance raises GenerationError before any strategy."""
-    # make_state() defaults supervisor_guidance to {} (falsy).
     with pytest.raises(GenerationError):
         await generate_hypotheses(make_state())
 
@@ -359,7 +313,6 @@ async def test_missing_supervisor_guidance_raises() -> None:
 async def test_result_dict_shape_and_message_format(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The result dict carries expected keys and 'Generated N ...' message."""
     tools = _ToolsRecorder([make_hypothesis(text="t1")])
     debate = _DebateRecorder(
         [make_hypothesis(text="d1")], [{"hypothesis_text": "d1"}]
@@ -390,7 +343,6 @@ async def test_result_dict_shape_and_message_format(
 async def test_later_generation_is_disclosed_as_research_expansion(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Later Supervisor cycles expose research expansion and base provenance."""
     tools = _ToolsRecorder([])
     hypothesis = make_hypothesis(text="underexplored branch")
     hypothesis.generation_method = GenerationMethod.DEBATE
@@ -415,7 +367,6 @@ async def test_later_generation_is_disclosed_as_research_expansion(
 async def test_progress_callback_emits_start_and_complete(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A progress_callback receives start and complete generation events."""
     tools = _ToolsRecorder([])
     debate = _DebateRecorder(
         [make_hypothesis(text="d1")], [{"hypothesis_text": "d1"}]
@@ -442,13 +393,7 @@ async def test_progress_callback_emits_start_and_complete(
     assert events[1][1]["hypotheses_count"] == 1
 
 
-# -----------------------------------------------------------------------------
-# _enrich_one_hypothesis
-# -----------------------------------------------------------------------------
-
-
 async def test_enrich_one_hypothesis_unwraps_results_path() -> None:
-    """A configured results_path unwraps a nested list from a dict result."""
     hyp = make_hypothesis(text="h1", explanation="the explanation")
     enrichment = EnrichmentConfig(
         tool="cve_lookup",
@@ -475,7 +420,6 @@ async def test_enrich_one_hypothesis_unwraps_results_path() -> None:
 async def test_enrich_one_hypothesis_without_results_path_uses_raw_parsed() -> (
     None
 ):
-    """No results_path stores the parsed response as-is."""
     hyp = make_hypothesis(text="h1")
     enrichment = EnrichmentConfig(tool="cve_lookup", max_results=3)
     tool_config = ToolConfig(server="s", mcp_tool_name="nvd_search")
@@ -492,7 +436,6 @@ async def test_enrich_one_hypothesis_without_results_path_uses_raw_parsed() -> (
 
 
 async def test_enrich_one_hypothesis_defaults_input_to_text() -> None:
-    """input_field falling back to 'text' queries with hyp.text."""
     hyp = make_hypothesis(text="fallback text")
     enrichment = EnrichmentConfig(tool="cve_lookup")
     tool_config = ToolConfig(server="s", mcp_tool_name="nvd_search")
@@ -510,7 +453,6 @@ async def test_enrich_one_hypothesis_defaults_input_to_text() -> None:
 
 
 async def test_enrich_one_hypothesis_records_error_on_failure() -> None:
-    """A failing tool call stores an error payload instead of raising."""
     hyp = make_hypothesis(text="h1")
     enrichment = EnrichmentConfig(tool="cve_lookup")
     tool_config = ToolConfig(server="s", mcp_tool_name="nvd_search")
@@ -526,26 +468,17 @@ async def test_enrich_one_hypothesis_records_error_on_failure() -> None:
     assert hyp.enrichments["cves"] == {"error": "mcp down"}
 
 
-# -----------------------------------------------------------------------------
-# _run_one_enrichment
-# -----------------------------------------------------------------------------
-
-
 class _ToolLookupRegistry:
-    """Minimal registry stand-in exposing only get_tool."""
-
     def __init__(self, tool: ToolConfig | None) -> None:
         self._tool = tool
 
     def get_tool(self, _tool_id: str) -> ToolConfig | None:
-        """Return the configured tool, or None to model a missing one."""
         return self._tool
 
 
 async def test_run_one_enrichment_missing_tool_is_noop(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """An enrichment whose tool is unresolvable in the registry is skipped."""
     caplog.set_level("WARNING")
     hyps = [make_hypothesis(text="h1")]
 
@@ -562,11 +495,9 @@ async def test_run_one_enrichment_missing_tool_is_noop(
 
 
 async def test_run_one_enrichment_fans_out_per_hypothesis() -> None:
-    """A resolved tool runs once per hypothesis, keyed by output_key."""
     tool_config = ToolConfig(server="s", mcp_tool_name="nvd_search")
     mcp_client = FakeCallToolClient({"ok": True})
     hyps = [make_hypothesis(text="h1"), make_hypothesis(text="h2")]
-    # output_key left blank -> falls back to the tool id.
     enrichment = EnrichmentConfig(tool="cve_lookup")
 
     await _run_one_enrichment(
@@ -585,24 +516,15 @@ async def test_run_one_enrichment_fans_out_per_hypothesis() -> None:
     assert hyps[1].enrichments["cve_lookup"] == {"ok": True}
 
 
-# -----------------------------------------------------------------------------
-# _enrich_hypotheses
-# -----------------------------------------------------------------------------
-
-
 class _EnrichmentRegistry:
-    """Minimal registry stand-in exposing only get_enrichment_configs."""
-
     def __init__(self, configs: list[EnrichmentConfig]) -> None:
         self._configs = configs
 
     def get_enrichment_configs(self) -> list[EnrichmentConfig]:
-        """Return the configured enrichment configs."""
         return self._configs
 
 
 async def test_enrich_hypotheses_no_registry_is_noop() -> None:
-    """No tool_registry on state short-circuits before touching MCP."""
     hyps = [make_hypothesis(text="h1")]
     state = make_state(tool_registry=None)
 
@@ -612,7 +534,6 @@ async def test_enrich_hypotheses_no_registry_is_noop() -> None:
 
 
 async def test_enrich_hypotheses_no_configs_is_noop() -> None:
-    """A registry with no enrichment configs short-circuits before MCP."""
     hyps = [make_hypothesis(text="h1")]
     state = make_state(tool_registry=_EnrichmentRegistry([]))
 
@@ -624,7 +545,6 @@ async def test_enrich_hypotheses_no_configs_is_noop() -> None:
 async def test_enrich_hypotheses_runs_each_configured_enrichment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Each enabled enrichment config drives one _run_one_enrichment call."""
     recorded: list[tuple[str, Any]] = []
 
     async def fake_run_one_enrichment(
@@ -671,7 +591,6 @@ def _stub_leaf_strategies(
     debate: list[str],
     assumptions: list[str],
 ) -> None:
-    """Patch the three leaf strategies to return fixed hypothesis texts."""
 
     async def fake_tools(*_args: Any, **_kwargs: Any) -> Any:
         return [make_hypothesis(text=t) for t in tools], 0
@@ -690,7 +609,6 @@ def _stub_leaf_strategies(
 
 
 def _summary_record(caplog: pytest.LogCaptureFixture) -> str:
-    """Return the single rendered generation-summary log message."""
     messages = [
         record.getMessage()
         for record in caplog.records
@@ -701,7 +619,6 @@ def _summary_record(caplog: pytest.LogCaptureFixture) -> str:
 
 
 def _parse_summary(message: str) -> tuple[int, list[int]]:
-    """Split a summary line into its total and its breakdown numbers."""
     match = _SUMMARY_RE.search(message)
     assert match is not None, message
     total = int(match.group(1))
@@ -712,12 +629,6 @@ def _parse_summary(message: str) -> tuple[int, list[int]]:
 async def test_summary_breakdown_sums_to_total_with_assumptions(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """The breakdown accounts for the assumptions slice, not just the total.
-
-    A batch of 8 under condition (a) allocates 2 to the iterative-assumptions
-    technique, so a breakdown naming only tools/debate-with-lit/debate-only
-    falls short of the total printed beside it.
-    """
     _stub_leaf_strategies(
         monkeypatch,
         tools=["t1", "t2", "t3"],
@@ -726,7 +637,7 @@ async def test_summary_breakdown_sums_to_total_with_assumptions(
     )
     state = make_state(
         supervisor_guidance={"focus": "x"},
-        initial_hypotheses_count=8,  # >= 4 -> a nonzero assumptions slice
+        initial_hypotheses_count=8,
         mcp_available=True,
         articles_with_reasoning="some papers and reasoning",
         enable_tool_calling_generation=True,
@@ -735,8 +646,8 @@ async def test_summary_breakdown_sums_to_total_with_assumptions(
     with caplog.at_level(logging.INFO):
         result = await generate_hypotheses(state)
 
-    # The fixture must actually exercise the assumptions bucket, or the
-    # sum below holds whether or not the breakdown names it.
+    # A nonzero assumptions slice makes missing breakdown attribution
+    # observable.
     assert result["hypothesis_count"] == 8
     total, parts = _parse_summary(_summary_record(caplog))
     assert total == 8
@@ -746,7 +657,6 @@ async def test_summary_breakdown_sums_to_total_with_assumptions(
 async def test_summary_breakdown_sums_to_total_without_assumptions(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A batch too small to split (< 4) still balances, with a zero slice."""
     _stub_leaf_strategies(
         monkeypatch, tools=["t1"], debate=["d1", "d2"], assumptions=[]
     )
@@ -769,7 +679,6 @@ async def test_summary_breakdown_sums_to_total_without_assumptions(
 async def test_assumptions_bucket_methods_are_logged(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Every populated bucket gets a generation_methods debug line."""
     _stub_leaf_strategies(
         monkeypatch,
         tools=["t1", "t2", "t3"],
@@ -866,7 +775,6 @@ async def test_plan_allocations_keep_the_existing_mix(
     assert tuple(plan.counts.strategy_counts.values()) == expected_counts
     assert plan.counts.is_degraded_mode is degraded
     assert sum(expected_counts) == state["initial_hypotheses_count"]
-    # The counts still serialize to the durable aggregate's existing shape.
     assert set(dataclasses.asdict(plan.counts)) == {
         "tools_count",
         "debate_with_lit_count",

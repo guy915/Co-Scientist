@@ -1,5 +1,3 @@
-"""Offline contracts for campaign context."""
-
 from __future__ import annotations
 
 import asyncio
@@ -124,7 +122,6 @@ async def test_campaign_scope_survives_copied_context_bridge(
 async def test_campaign_scope_rejects_paid_byok_before_transport(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Campaign and ordinary BYOK tasks keep their admission policies apart."""
     from co_scientist.llm.admission import free_policy
 
     monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
@@ -268,8 +265,6 @@ async def test_qualified_calls_recheck_policy_and_hide_unqualified_tools(
 @pytest.mark.parametrize(
     ("deployment", "expected_additions"),
     [
-        # M10 added citation edges; M11 then added GWAS. These are the only
-        # two deployment manifests in the supported forward rollout.
         ("m10", {"get_opencitations_citation_edges"}),
         (
             "m11",
@@ -278,7 +273,6 @@ async def test_qualified_calls_recheck_policy_and_hide_unqualified_tools(
                 "search_gwas_catalog_associations",
             },
         ),
-        # Explicit rollback target before the M10 citation-tool addition.
         ("pre_citation_rollback", set()),
     ],
 )
@@ -322,7 +316,7 @@ async def test_client_accepts_real_deployment_manifests_during_rollout(
         assert tool_text[name] in str(await client.call_tool(name))
 
     if deployment == "m10":
-        # An M10-bound client must tolerate the server advancing to M11.
+        # An older bound client must tolerate an advancing server manifest.
         qualified["campaign_policy"]["tools"] = sorted(current_tools)
         assert "public evidence" in str(await client.call_tool("search_pubmed"))
 
@@ -334,7 +328,6 @@ async def test_client_accepts_real_deployment_manifests_during_rollout(
 async def test_client_rejects_gwas_manifest_without_m10_citation_tool(
     qualified: dict[str, Any], _patch_mcp_seam: Any
 ) -> None:
-    """A GWAS-only addition cannot come from either actual deployment step."""
     tools = set(qualified["campaign_policy"]["tools"])
     tools.remove("get_opencitations_citation_edges")
     qualified["campaign_policy"]["tools"] = sorted(tools)

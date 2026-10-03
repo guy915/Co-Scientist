@@ -1,5 +1,3 @@
-"""Offline contracts for llm completion."""
-
 from __future__ import annotations
 
 import ast
@@ -43,14 +41,12 @@ async def _answers_ok(**_kwargs: Any) -> str:
 
 
 def test_the_default_backend_is_litellm_until_one_is_installed() -> None:
-    """Nothing installed means litellm, and the registry says so."""
     assert isinstance(backend.active_backend(), backend.LitellmBackend)
 
 
 def test_install_returns_what_it_replaced_and_none_restores_the_default() -> (
     None
 ):
-    """``install_backend`` hands back the previous override for restoring."""
     first = FakeBackend(_answers_ok)
     second = FakeBackend(_answers_ok)
 
@@ -67,7 +63,6 @@ def test_install_returns_what_it_replaced_and_none_restores_the_default() -> (
 
 
 def test_using_backend_restores_even_when_the_block_raises() -> None:
-    """A scoped install never outlives its ``with`` block."""
     fake = FakeBackend(_answers_ok)
 
     with pytest.raises(RuntimeError), backend.using_backend(fake):
@@ -80,7 +75,6 @@ def test_using_backend_restores_even_when_the_block_raises() -> None:
 async def test_an_installed_backend_answers_and_records_every_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The completion await goes to the backend, kwargs and all."""
     fake = install_fake_backend(monkeypatch, _answers_ok)
     args = {"model": _MODEL, "messages": [{"role": "user", "content": "hi"}]}
 
@@ -93,7 +87,6 @@ async def test_an_installed_backend_answers_and_records_every_request(
 async def test_a_backend_that_raises_surfaces_through_the_completion_await(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A backend's failure is not swallowed by the await around it."""
 
     async def refuses(**_kwargs: Any) -> Any:
         raise ConnectionError("provider down")
@@ -109,7 +102,6 @@ async def test_a_backend_that_raises_surfaces_through_the_completion_await(
 def test_the_capability_answer_comes_from_the_installed_backend(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A fake that says no steers the request onto the json_object shim."""
     install_fake_backend(
         monkeypatch, _answers_ok, supports_json_schema=lambda _model: False
     )
@@ -123,7 +115,6 @@ def test_the_capability_answer_comes_from_the_installed_backend(
 
 
 def test_a_fake_without_a_capability_answer_uses_the_real_default() -> None:
-    """The fake only overrides the capability when the test says to."""
     fake = FakeBackend(_answers_ok)
 
     assert fake.supports_json_schema(_MODEL) is (
@@ -143,7 +134,6 @@ _LLM_COMPLETION_ROUTING_SCHEMA: dict[str, Any] = {
 
 
 def _echo_model(label: str) -> Any:
-    """Builds a provider stub that answers with its own label and records."""
     calls: list[dict[str, Any]] = []
 
     async def stub(**kwargs: Any) -> str:
@@ -164,7 +154,6 @@ def _args(model: str) -> dict[str, Any]:
 async def test_with_nothing_installed_the_live_litellm_attribute_answers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The attribute is read per call, so a later patch wins over an earlier."""
     first = _echo_model("first")
     second = _echo_model("second")
 
@@ -185,7 +174,6 @@ async def test_with_nothing_installed_the_live_litellm_attribute_answers(
 async def test_the_offline_router_answers_offline_models_and_passes_the_rest(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """``offline/`` goes local; any other model reaches the prior answerer."""
     isolate_offline_router(monkeypatch)
     real = _echo_model("real provider")
     monkeypatch.setattr("co_scientist.llm.litellm.acompletion", real)
@@ -207,7 +195,6 @@ async def test_the_offline_router_answers_offline_models_and_passes_the_rest(
 async def test_installing_the_router_twice_still_passes_through_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A repeat install must not chain a second router over the first."""
     isolate_offline_router(monkeypatch)
     real = _echo_model("real provider")
     monkeypatch.setattr("co_scientist.llm.litellm.acompletion", real)
@@ -221,13 +208,12 @@ async def test_installing_the_router_twice_still_passes_through_once(
     assert len(real.calls) == 1
 
 
-# The default answer, bound at import before any router could replace the
-# ``completion`` attribute; the only handle that still has ``cache_clear``.
+# Validation holds the default capability answer bound before router
+# installation.
 _default_capability = _supports_json_schema_response_format
 
 
 def _registry_says_no_native_schema(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Makes litellm's capability registry reject json_schema everywhere."""
     monkeypatch.setattr(
         "co_scientist.llm.litellm.supports_response_schema",
         lambda **_kwargs: False,
@@ -246,7 +232,6 @@ def _response_format_for(model: str) -> str:
 def test_the_capability_answer_steers_the_format_a_call_is_built_with(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Offline models get native json_schema only once the router is in."""
     isolate_offline_router(monkeypatch)
     _registry_says_no_native_schema(monkeypatch)
     model = offline_llm.DEFAULT_OFFLINE_MODEL
@@ -263,12 +248,8 @@ def test_the_capability_answer_steers_the_format_a_call_is_built_with(
 def test_the_validation_shim_keeps_the_default_answer_not_the_routers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An invented field is still pruned for an offline model after install.
-
-    ``json_attempt`` bound the default capability answer at import, so the
-    repair shim treats an offline model as one without native schema
-    enforcement even while the call itself was built with one.
-    """
+    """Validation binds the default capability answer before router
+    installation; request shaping stays live."""
     isolate_offline_router(monkeypatch)
     _registry_says_no_native_schema(monkeypatch)
     model = offline_llm.DEFAULT_OFFLINE_MODEL
@@ -292,7 +273,6 @@ ORDINARY = ValueError("provider returned unparseable JSON")
 
 
 def _stub_review_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Give ``_run_review`` inert evidence so only its LLM call can fail."""
 
     async def _evidence(*_: object, **__: object) -> _ReviewEvidence:
         return _ReviewEvidence([], [], [], None)
@@ -308,7 +288,8 @@ def _stub_review_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
 async def test_a_control_flow_error_escapes_a_mature_review(
     monkeypatch: pytest.MonkeyPatch, error: Exception
 ) -> None:
-    """The exact hole that killed eleven items in run bc77950f."""
+    """Batch fallback buys per-item retries; swallowing a spent cap
+    multiplies doomed requests."""
     _stub_review_inputs(monkeypatch)
     monkeypatch.setattr(cr, "call_llm_json", AsyncMock(side_effect=error))
     hypothesis = make_hypothesis(text="a mechanism")
@@ -322,7 +303,6 @@ async def test_a_control_flow_error_escapes_a_mature_review(
 async def test_an_ordinary_failure_still_degrades_a_mature_review(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """One unparseable answer must not cost the pass its other reviews."""
     _stub_review_inputs(monkeypatch)
     monkeypatch.setattr(cr, "call_llm_json", AsyncMock(side_effect=ORDINARY))
     hypothesis = make_hypothesis(text="a mechanism")
@@ -338,7 +318,8 @@ async def test_an_ordinary_failure_still_degrades_a_mature_review(
 async def test_a_control_flow_error_escapes_an_observation_reflection(
     monkeypatch: pytest.MonkeyPatch, error: Exception
 ) -> None:
-    """The observation mode reaches the same fan-out item executor."""
+    """Batch fallback buys per-item retries; swallowing a spent cap
+    multiplies doomed requests."""
     monkeypatch.setattr(
         refl, "_call_reflection_llm", AsyncMock(side_effect=error)
     )
@@ -359,7 +340,6 @@ async def test_a_control_flow_error_escapes_an_observation_reflection(
 async def test_an_ordinary_failure_still_degrades_an_observation_reflection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A per-hypothesis failure stays isolated to that hypothesis."""
     monkeypatch.setattr(
         refl, "_call_reflection_llm", AsyncMock(side_effect=ORDINARY)
     )
@@ -383,7 +363,8 @@ async def test_an_ordinary_failure_still_degrades_an_observation_reflection(
 async def test_a_control_flow_error_escapes_deep_verification(
     monkeypatch: pytest.MonkeyPatch, error: Exception
 ) -> None:
-    """Verification's per-hypothesis isolation is not a park's business."""
+    """Batch fallback buys per-item retries; swallowing a spent cap
+    multiplies doomed requests."""
     monkeypatch.setattr(dv, "_verify_with_probes", AsyncMock(side_effect=error))
     context = dv._VerificationContext(
         research_goal="g",
@@ -404,7 +385,6 @@ async def test_a_control_flow_error_escapes_deep_verification(
 async def test_an_ordinary_failure_still_degrades_deep_verification(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A broken verification stays an explicit ``unverified`` verdict."""
     monkeypatch.setattr(
         dv, "_verify_with_probes", AsyncMock(side_effect=ORDINARY)
     )
@@ -430,7 +410,8 @@ async def test_an_ordinary_failure_still_degrades_deep_verification(
 async def test_a_control_flow_error_escapes_the_initial_review_gather(
     monkeypatch: pytest.MonkeyPatch, error: Exception
 ) -> None:
-    """``gather(return_exceptions=True)`` swallows a park like a handler."""
+    """Batch fallback buys per-item retries; swallowing a spent cap
+    multiplies doomed requests."""
     monkeypatch.setattr(
         rv, "review_single_hypothesis", AsyncMock(side_effect=error)
     )
@@ -445,7 +426,6 @@ async def test_a_control_flow_error_escapes_the_initial_review_gather(
 async def test_an_ordinary_failure_still_degrades_one_initial_review(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Audit E15's per-hypothesis isolation is unchanged."""
     monkeypatch.setattr(
         rv, "review_single_hypothesis", AsyncMock(side_effect=ORDINARY)
     )
@@ -456,13 +436,8 @@ async def test_an_ordinary_failure_still_degrades_one_initial_review(
     ) == [None, None]
 
 
-# --- The sweep, pinned structurally -----------------------------------
-#
-# The behavioural tests above cover the reflection cascade. The same shape
-# recurs wherever an agent wraps an LLM call in a fallback, so the guard
-# below fails the build for any *new* one rather than waiting for the next
-# run to lose its items to it. Syntactic by design: it reads the source,
-# so it sees a handler that no test happens to drive.
+# Structural guards cover new fallback handlers that behavior tests may not
+# drive.
 
 _AGENTS_DIR = (
     pathlib.Path(__file__).resolve().parents[1] / "src/co_scientist/agents"
@@ -472,7 +447,6 @@ _GUARD = "TASK_CONTROL_FLOW_ERRORS"
 
 
 def _calls_an_llm(node: ast.AST) -> bool:
-    """True when this subtree invokes one of the engine's LLM seams."""
     return any(
         isinstance(child, ast.Call)
         and isinstance(child.func, ast.Name)
@@ -482,16 +456,11 @@ def _calls_an_llm(node: ast.AST) -> bool:
 
 
 def _catches_bare_exception(handler: ast.ExceptHandler) -> bool:
-    """True when this handler catches ``Exception`` itself."""
     return isinstance(handler.type, ast.Name) and handler.type.id == "Exception"
 
 
 def _unguarded_handlers(node: ast.Try) -> list[int]:
-    """Bare handlers on this ``try`` that no guard clause precedes.
-
-    Order matters, not presence: a re-raise written *below* the broad
-    handler never runs, so the guard has to have been seen already.
-    """
+    """A re-raise after a broad handler cannot run; guard order matters."""
     offenders = []
     guarded = False
     for handler in node.handlers:
@@ -503,7 +472,6 @@ def _unguarded_handlers(node: ast.Try) -> list[int]:
 
 
 def _unguarded_llm_fallbacks(tree: ast.AST) -> list[int]:
-    """Line numbers of bare handlers over an LLM call with no guard first."""
     return [
         line
         for node in ast.walk(tree)
@@ -513,7 +481,6 @@ def _unguarded_llm_fallbacks(tree: ast.AST) -> list[int]:
 
 
 def test_no_agent_degrades_an_llm_call_over_a_control_flow_error() -> None:
-    """Every bare fallback around an LLM call re-raises the two first."""
     unguarded: dict[str, list[int]] = {}
     for path in sorted(_AGENTS_DIR.rglob("*.py")):
         offenders = _unguarded_llm_fallbacks(
@@ -529,13 +496,11 @@ def test_no_agent_degrades_an_llm_call_over_a_control_flow_error() -> None:
 
 
 def test_the_guard_would_notice_an_unprotected_fallback() -> None:
-    """The structural check fails on the shape it exists to catch."""
     source = "try:\n    await call_llm_json(p)\nexcept Exception:\n    pass\n"
     assert _unguarded_llm_fallbacks(ast.parse(source)) == [3]
 
 
 def test_the_guard_accepts_a_re_raise_placed_first() -> None:
-    """A narrow re-raise before the fallback is what the rule asks for."""
     source = (
         "try:\n"
         "    await call_llm_json(p)\n"
@@ -551,12 +516,8 @@ def test_the_guard_accepts_a_re_raise_placed_first() -> None:
 def test_a_control_flow_error_escapes_the_synthesis_batch_gather(
     error: Exception,
 ) -> None:
-    """The one gather whose fallback is *more* calls, not fewer.
-
-    A batch routed into ``failed_batches`` is answered by retrying its
-    hypotheses one at a time -- against the very cap that refused the
-    batch, so degrading here multiplies the doomed requests.
-    """
+    """Batch fallback buys per-item retries; swallowing a spent cap
+    multiplies doomed requests."""
     import co_scientist.agents.generation.literature_tools.validate as vs
 
     with pytest.raises(type(error)):
@@ -564,7 +525,6 @@ def test_a_control_flow_error_escapes_the_synthesis_batch_gather(
 
 
 def test_an_ordinary_batch_failure_is_still_retried_individually() -> None:
-    """Per-batch isolation is unchanged for an ordinary failure."""
     import co_scientist.agents.generation.literature_tools.validate as vs
 
     batches = [[{"a": 1}], [{"b": 2}]]

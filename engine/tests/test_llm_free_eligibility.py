@@ -1,5 +1,3 @@
-"""Offline contracts for llm free eligibility."""
-
 from __future__ import annotations
 
 import json
@@ -239,7 +237,6 @@ class TestLlmFreeEligibility:
                     == "ok"
                 )
         assert len(requests) == int(not campaign)
-        # The bypass ends with the explicit/scoped credential.
         with pytest.raises(RuntimeError, match="zero-cost"):
             await call_llm(
                 "probe",
@@ -755,11 +752,9 @@ async def test_explicit_paid_byok_keeps_its_priced_route(
 async def test_litellm_serializes_zero_ceiling_into_openrouter_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The installed SDK must preserve the cap, not merely accept kwargs."""
     requests: list[httpx.Request] = []
-    # Request serialization does not need a production tokenizer. Build a
-    # tiny byte tokenizer so an empty tiktoken cache never fetches a BPE
-    # file from the network before the mocked HTTP transport is reached.
+    # A byte tokenizer prevents an empty local BPE cache from fetching before
+    # the mocked transport.
     tokenizer = tiktoken.Encoding(
         name="test-byte-tokenizer",
         pat_str="(?s).",
@@ -817,7 +812,6 @@ class TestFreeCatalog:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """A failed refresh withholds stale prices and permits the next read."""
         monkeypatch.setattr(free_catalog, "CATALOG_TTL_SECONDS", 0)
         payload = _catalog({"prompt": "0", "completion": "0"})
         _mock_catalog(monkeypatch, payload)
@@ -847,7 +841,6 @@ class TestFreeCatalog:
         assert len(reads) == 1
 
     def test_injected_reader_is_shared_by_worker_threads(self) -> None:
-        """All cohort threads see the installed source and share its cache."""
         from concurrent.futures import ThreadPoolExecutor
 
         reads: list[int] = []

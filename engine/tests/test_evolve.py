@@ -155,7 +155,6 @@ def _stub_llm_from_prompt(
 async def test_evolution_produces_evolved_hypotheses(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Tournament entrants require completed review stamps."""
     original = make_hypothesis(
         text="quercetin inhibits aldolase activity",
         explanation="old explanation",
@@ -352,7 +351,6 @@ async def test_evolution_breeds_nothing_when_no_idea_is_rankable(
 async def test_empty_hypotheses_returns_no_children(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Tournament entrants require completed review stamps."""
 
     async def never(**_: Any) -> dict[str, Any]:
         raise AssertionError("call_llm_json must not run with no hypotheses")
@@ -422,7 +420,6 @@ def test_sample_up_to_is_reproducible_under_its_seed() -> None:
 
 
 def test_sample_context_hypotheses_large_pool_caps_at_max_context() -> None:
-    """Tournament entrants require completed review stamps."""
     exclude = make_hypothesis(text="the hypothesis being evolved")
     others = [
         make_hypothesis(text=f"other hypothesis {i}", elo_rating=2000 - i)
@@ -444,7 +441,6 @@ def test_sample_context_hypotheses_large_pool_caps_at_max_context() -> None:
 
 
 def test_sample_context_hypotheses_seeded_draws_are_reproducible() -> None:
-    """Tournament entrants require completed review stamps."""
     exclude = make_hypothesis(text="excluded")
     others = [
         make_hypothesis(text=f"other {i}", elo_rating=100 - i)
@@ -462,7 +458,6 @@ def test_sample_context_hypotheses_seeded_draws_are_reproducible() -> None:
 
 
 def test_sample_context_hypotheses_small_pool_returns_all() -> None:
-    """Tournament entrants require completed review stamps."""
     exclude = make_hypothesis(text="excluded")
     others = [make_hypothesis(text=f"other {i}") for i in range(3)]
     result = sample_context_hypotheses(

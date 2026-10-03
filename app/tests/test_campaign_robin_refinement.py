@@ -1,5 +1,3 @@
-"""Campaign model selection survives Robin's durable refinement boundary."""
-
 from __future__ import annotations
 
 import asyncio

@@ -1,5 +1,3 @@
-"""Offline contracts for research adapter."""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -62,7 +60,6 @@ from tests._state import make_hypothesis, make_state
 
 
 def _retrieval(tmp_path: Path, client: Any) -> McpRetrieval:
-    """Retrieval bound to that registry's literature-review workflow."""
     registry = research_registry(tmp_path)
     workflow = research_workflow(registry)
     return McpRetrieval(
@@ -79,13 +76,9 @@ _HITS = {
 }
 
 
-# --- Retrieval --------------------------------------------------------------
-
-
 async def test_search_keeps_the_source_ordering_it_was_given(
     tmp_path: Path,
 ) -> None:
-    """Rank is the source's, not ours -- a replay has to reproduce it."""
     retrieval = _retrieval(
         tmp_path, FakeResearchClient({"search_alpha": _HITS})
     )
@@ -102,7 +95,6 @@ async def test_search_keeps_the_source_ordering_it_was_given(
 async def test_search_takes_no_more_hits_than_it_was_asked_for(
     tmp_path: Path,
 ) -> None:
-    """The evidence budget is the loop's, and the port must honour it."""
     retrieval = _retrieval(
         tmp_path, FakeResearchClient({"search_alpha": _HITS})
     )
@@ -115,11 +107,6 @@ async def test_search_takes_no_more_hits_than_it_was_asked_for(
 async def test_an_unconfigured_source_is_a_retrieval_error(
     tmp_path: Path,
 ) -> None:
-    """Naming a source the run does not have is a failed call, not a crash.
-
-    The loop searches every source in its budget; one that has been
-    disabled or renamed must cost that source's call and nothing more.
-    """
     retrieval = _retrieval(tmp_path, FakeResearchClient({}))
 
     with pytest.raises(RetrievalError) as caught:
@@ -131,7 +118,6 @@ async def test_an_unconfigured_source_is_a_retrieval_error(
 async def test_a_broken_source_is_a_retrieval_error_naming_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """An unreachable source has to reach the ledger as that source."""
     monkeypatch.setattr(
         "co_scientist.evidence.search_query._search_retry_delay",
         lambda attempt: 0.0,
@@ -151,14 +137,12 @@ async def test_a_broken_source_is_a_retrieval_error_naming_it(
 async def test_only_enabled_sources_are_offered_to_the_caller(
     tmp_path: Path,
 ) -> None:
-    """The registry has already reconciled what is on; do not re-filter."""
     retrieval = _retrieval(tmp_path, FakeResearchClient({}))
 
     assert retrieval.sources == ("alpha",)
 
 
 async def test_reading_a_hit_fetches_its_full_text(tmp_path: Path) -> None:
-    """A locator alone carries no URL, so the search record has to."""
     client = FakeResearchClient(
         {"search_alpha": _HITS, "read_pdf": {"content": "the whole paper"}}
     )
@@ -174,7 +158,6 @@ async def test_reading_a_hit_fetches_its_full_text(tmp_path: Path) -> None:
 async def test_a_hit_with_no_url_reads_as_nothing_not_as_an_error(
     tmp_path: Path,
 ) -> None:
-    """Unreadable is a normal answer: the loop falls back to the snippet."""
     client = FakeResearchClient(
         {"search_alpha": _HITS, "read_pdf": {"content": "x"}}
     )
@@ -188,7 +171,6 @@ async def test_a_hit_with_no_url_reads_as_nothing_not_as_an_error(
 async def test_a_failed_read_does_not_lose_the_document(
     tmp_path: Path,
 ) -> None:
-    """The document still has its snippet; a raised error would drop it."""
     client = FakeResearchClient(
         {"search_alpha": _HITS, "read_pdf": RuntimeError("timeout")}
     )
@@ -198,12 +180,7 @@ async def test_a_failed_read_does_not_lose_the_document(
     assert await retrieval.read(locator="doc-a") is None
 
 
-# --- Model ------------------------------------------------------------------
-
-
 class _FakeLlm:
-    """Stands in for call_llm_json, recording what each call was sent."""
-
     def __init__(self, *answers: dict[str, Any]) -> None:
         self.answers = list(answers)
         self.prompts: list[str] = []
@@ -220,14 +197,12 @@ class _FakeLlm:
 def _model(
     monkeypatch: pytest.MonkeyPatch, *answers: dict[str, Any]
 ) -> tuple[LlmResearchModel, _FakeLlm]:
-    """A research model whose LLM calls are scripted."""
     fake = _FakeLlm(*answers)
     monkeypatch.setattr("co_scientist.research_adapter.call_llm_json", fake)
     return LlmResearchModel("offline/test", run_id="run-1"), fake
 
 
 def _document(locator: str, text: str = "body") -> Document:
-    """One admitted document, as the loop hands it to the extractor."""
     return Document(
         hit=SourceHit(
             locator=locator, title=f"T {locator}", snippet="s", rank=0
@@ -240,7 +215,6 @@ def _document(locator: str, text: str = "body") -> Document:
 async def test_stances_and_questions_stay_inside_their_limit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A model that over-answers must not widen the level it was funding."""
     model, _ = _model(
         monkeypatch,
         {"stances": ["mechanism", "counter-evidence", "prior art", "extra"]},
@@ -259,7 +233,6 @@ async def test_stances_and_questions_stay_inside_their_limit(
 async def test_a_query_the_model_would_not_write_falls_back_to_the_question(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A missing query is a worse search, never a dropped thread."""
     model, _ = _model(monkeypatch, {})
 
     assert await model.to_query(question="What drives fibrosis?") == (
@@ -270,12 +243,8 @@ async def test_a_query_the_model_would_not_write_falls_back_to_the_question(
 async def test_findings_are_bound_by_index_not_by_echoed_text(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Output length must track what was found, not what was read.
-
-    A schema that names documents by title makes the reply scale with the
-    pool, which truncates identically on every retry. The prompt numbers
-    the documents and the schema answers with the number.
-    """
+    """Echoed document titles scale output with the pool and truncate
+    identical retries."""
     model, fake = _model(
         monkeypatch,
         {
@@ -299,12 +268,8 @@ async def test_findings_are_bound_by_index_not_by_echoed_text(
 async def test_extraction_prompt_strips_citation_markers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A read document's own citations do not reach the extraction prompt.
-
-    Left in, the extraction model can copy one into a reported finding --
-    a real-looking reference attached to a claim the cited source never
-    made.
-    """
+    """Copied document citations can misattribute generated findings to real
+    sources."""
     model, fake = _model(monkeypatch, {"findings": [], "follow_ups": []})
     original = "This confirms prior work (Smith et al. 2019) [12]."
     documents = [_document("doc-a", text=original)]
@@ -319,7 +284,6 @@ async def test_extraction_prompt_strips_citation_markers(
 async def test_a_finding_that_names_no_real_document_is_dropped(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A plausible wrong source is worse than one fewer finding."""
     model, _ = _model(
         monkeypatch,
         {
@@ -341,7 +305,6 @@ async def test_a_finding_that_names_no_real_document_is_dropped(
 async def test_nothing_to_read_or_summarize_costs_no_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A thread whose searches came back empty must not pay for a model."""
     model, fake = _model(monkeypatch)
 
     assert await model.extract(question="q", documents=[]) == (
@@ -354,12 +317,8 @@ async def test_nothing_to_read_or_summarize_costs_no_call(
 async def test_every_call_sets_its_own_token_budget(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """These are thinking calls; an unset budget takes the provider's.
-
-    Reading several documents is the one call here that writes a long
-    answer, so it is funded above the rest rather than all five sharing
-    one number.
-    """
+    """Unset budgets use provider defaults; document extraction needs a
+    larger answer allowance."""
     model, fake = _model(
         monkeypatch, {"query": "fibrosis mechanism"}, {"findings": []}
     )
@@ -371,18 +330,13 @@ async def test_every_call_sets_its_own_token_budget(
     assert fake.specs[1].max_tokens > fake.specs[0].max_tokens
 
 
-# --- Budget -----------------------------------------------------------------
-
-
 def test_only_the_deep_tiers_buy_research() -> None:
-    """Switching this on everywhere multiplies an express run's cost."""
     assert budget_for_tier("express", ["alpha"]) is None
     assert budget_for_tier("standard", ["alpha"]) is None
     assert budget_for_tier("unknown-tier", ["alpha"]) is None
 
 
 def test_a_tier_states_its_thread_count_before_spending_anything() -> None:
-    """The whole point of the arithmetic budget is a quotable ceiling."""
     extended = budget_for_tier("extended", ["alpha"])
     ultra = budget_for_tier("ultra", ["alpha", "beta"])
 
@@ -393,45 +347,28 @@ def test_a_tier_states_its_thread_count_before_spending_anything() -> None:
 
 
 def test_a_run_with_no_search_source_researches_nothing() -> None:
-    """No source is a configuration state, not a budget to raise on."""
     assert budget_for_tier("ultra", []) is None
 
 
-# --- The gate the run passes through ----------------------------------------
-
-
 def test_a_run_that_names_no_tier_researches_nothing() -> None:
-    """Silence is not a request; a caller has to ask by name."""
     assert _resolve_research_tier({}, True) == ""
     assert _resolve_research_tier({"research_tier": ""}, True) == ""
 
 
 def test_research_is_refused_where_there_is_nothing_to_search() -> None:
-    """The loop's whole shape is search, read, search again.
-
-    Without MCP the run has no reachable source at all -- so this is
-    refused up front rather than discovered one empty call at a time.
-    Note what is *not* a refusal: the literature review node being off.
-    Research has a second owner in the deep reviews, which resolve the
-    run's sources from its tool registry
-    themselves.
-    """
+    """Without MCP there is no reachable source; literature-node disable
+    alone is not a refusal."""
     assert _resolve_research_tier({"research_tier": "ultra"}, False) == ""
 
 
 def test_the_offline_backend_still_researches() -> None:
-    """Unlike the tool loops, these are ordinary schema-shaped calls.
-
-    The offline responder answers them deterministically, so an offline
-    run exercises the whole path rather than skipping it -- which is what
-    makes this testable without a provider key.
-    """
+    """Ordinary schema-shaped research calls are supported by the
+    deterministic offline backend."""
     assert _resolve_research_tier({"research_tier": "ultra"}, True) == "ultra"
 
 
 @pytest.fixture
 def expansion_model(monkeypatch: pytest.MonkeyPatch) -> _ScriptedModel:
-    """Route the adapter's model calls to the shared scripted answerer."""
     model = _ScriptedModel()
     monkeypatch.setattr("co_scientist.research_adapter.call_llm_json", model)
     return model
@@ -439,7 +376,6 @@ def expansion_model(monkeypatch: pytest.MonkeyPatch) -> _ScriptedModel:
 
 @pytest.fixture
 def expansion_client(monkeypatch: pytest.MonkeyPatch) -> FakeResearchClient:
-    """Serve this module's MCP calls from a scripted client."""
     fake = FakeResearchClient(
         {
             "search_alpha": _PAPERS,
@@ -458,24 +394,20 @@ def expansion_client(monkeypatch: pytest.MonkeyPatch) -> FakeResearchClient:
 
 
 def test_initial_generation_cycle_is_not_expansion() -> None:
-    """Iteration 0 is initial drafting, not research expansion."""
     assert not is_research_expansion(make_state(current_iteration=0))
     assert not is_research_expansion(make_state())
 
 
 def test_later_generate_cycles_are_expansion() -> None:
-    """Any generate cycle after a completed iteration is expansion."""
     assert is_research_expansion(make_state(current_iteration=1))
     assert is_research_expansion(make_state(current_iteration=3))
 
 
 def test_expansion_section_absent_on_initial_cycle() -> None:
-    """The initial cycle keeps its focused-grounding prompt unchanged."""
     assert build_expansion_section(make_state(current_iteration=0)) == ""
 
 
 def test_expansion_section_switches_to_broad_retrieval() -> None:
-    """Expansion cycles instruct diverse retrieval before ideation."""
     state = make_state(current_iteration=2)
     section = build_expansion_section(state)
     assert "Research Expansion Cycle" in section
@@ -484,7 +416,6 @@ def test_expansion_section_switches_to_broad_retrieval() -> None:
 
 
 def test_expansion_section_names_the_explored_pool_bounded() -> None:
-    """Coverage lists explored hypotheses, capped and truncated."""
     long_text = "explored direction " + "x" * 500
     hypotheses = [make_hypothesis(text=f"hyp {i}") for i in range(20)]
     hypotheses.append(make_hypothesis(text=long_text))
@@ -496,13 +427,11 @@ def test_expansion_section_names_the_explored_pool_bounded() -> None:
 
     section = build_expansion_section(state)
     assert "hyp 0" in section
-    # The capped sample never reaches hypothesis 15.
     assert "hyp 15" not in section
     assert "do NOT re-derive" in section
 
 
 def test_expansion_section_with_empty_pool_omits_coverage() -> None:
-    """Expansion before any hypothesis exists still switches behavior."""
     state = make_state(current_iteration=1, hypotheses=[])
     section = build_expansion_section(state)
     assert "Research Expansion Cycle" in section
@@ -510,7 +439,6 @@ def test_expansion_section_with_empty_pool_omits_coverage() -> None:
 
 
 def test_draft_prompt_renders_expansion_section() -> None:
-    """The draft-with-tools prompt splices the expansion section in."""
     section = build_expansion_section(make_state(current_iteration=1))
     prompt, _ = get_draft_prompt_with_tools(
         DraftPromptRequest(
@@ -524,7 +452,6 @@ def test_draft_prompt_renders_expansion_section() -> None:
 
 
 def test_draft_prompt_without_sections_is_unchanged() -> None:
-    """No sections passed means no expansion/falsified text in the prompt."""
     prompt, _ = get_draft_prompt_with_tools(
         DraftPromptRequest(
             research_goal="repurpose a kinase inhibitor",
@@ -537,7 +464,6 @@ def test_draft_prompt_without_sections_is_unchanged() -> None:
 
 
 def test_draft_prompt_renders_falsified_assumptions_section() -> None:
-    """The K9 avoid-or-rework block also reaches the draft prompt."""
     prompt, _ = get_draft_prompt_with_tools(
         DraftPromptRequest(
             research_goal="repurpose a kinase inhibitor",
@@ -553,7 +479,6 @@ def test_draft_prompt_renders_falsified_assumptions_section() -> None:
 
 
 def test_expansion_draft_budget_gets_extra_retrieval_rounds() -> None:
-    """Broad retrieval gets more tool-loop iterations than focused drafting."""
     base = _compute_draft_iteration_budget(3)
     expanded = _compute_draft_iteration_budget(3, is_expansion=True)
     assert base == get_draft_max_iterations(3)
@@ -561,7 +486,6 @@ def test_expansion_draft_budget_gets_extra_retrieval_rounds() -> None:
 
 
 async def test_the_initial_cycle_buys_no_exploration(tmp_path: Path) -> None:
-    """Iteration 0 is the literature review's ground, already researched."""
     state = make_state(current_iteration=0, research_tier="extended")
 
     assert await research_for_expansion(state) is None
@@ -570,7 +494,6 @@ async def test_the_initial_cycle_buys_no_exploration(tmp_path: Path) -> None:
 async def test_a_tier_that_funds_no_research_explores_nothing(
     tmp_path: Path,
 ) -> None:
-    """Expansion is a prompt on the shallow tiers, not a second gathering."""
     state = make_state(current_iteration=1, research_tier="standard")
 
     assert await research_for_expansion(state) is None
@@ -600,7 +523,6 @@ async def test_unavailable_mcp_stops_research_before_client_acquisition(
 
 
 def test_the_expansion_goal_names_the_explored_ground_to_avoid() -> None:
-    """The pool is the boundary to plan around, not a question to ask."""
     state = make_state(
         current_iteration=1,
         research_goal="why does fibrosis progress?",
@@ -621,7 +543,6 @@ def test_the_expansion_goal_is_the_bare_goal_before_any_hypothesis() -> None:
 
 
 def test_findings_reach_the_generation_prompt() -> None:
-    """A finding that lives only in the ledger was recorded, not used."""
     explored = ExpansionResearch(
         section="- collagen crosslinking is under-studied [PMID:1]\n",
         articles=[],
@@ -635,7 +556,6 @@ def test_findings_reach_the_generation_prompt() -> None:
 
 
 def test_the_prompt_carries_no_evidence_block_when_nothing_explored() -> None:
-    """The shallow tiers keep the prompt-and-tool-budget behaviour alone."""
     section = build_expansion_section(make_state(current_iteration=1))
 
     assert "Research Expansion Cycle" in section
@@ -647,11 +567,6 @@ async def test_an_expansion_cycle_explores_and_grounds_the_next_draft(
     expansion_model: _ScriptedModel,
     expansion_client: FakeResearchClient,
 ) -> None:
-    """A later cycle drafts against evidence the first cycle never had.
-
-    The whole point of the technique: the gathering below is one the
-    initial generation pass does not run.
-    """
     state = make_state(
         current_iteration=1,
         research_goal="reverse fibrosis",
@@ -669,8 +584,6 @@ async def test_an_expansion_cycle_explores_and_grounds_the_next_draft(
     assert "Blockade reduced fibrosis in humans" in explored.section
     assert explored.articles
     assert explored.ledger["findings"]
-    # The already-explored hypothesis is the boundary the planning call
-    # was given, which is what makes this expansion and not a repeat.
     assert "TGF-beta drives it" in expansion_model.prompts[0]
     assert "Blockade reduced fibrosis in humans" in build_expansion_section(
         explored.applied_to(state)
@@ -678,7 +591,6 @@ async def test_an_expansion_cycle_explores_and_grounds_the_next_draft(
 
 
 def test_explored_articles_are_merged_before_the_citation_namespace() -> None:
-    """A paper this cycle found and no strategy can cite was not delivered."""
     existing = object()
     found = object()
     state = ExpansionResearch("s", [found], {}).applied_to(
@@ -689,7 +601,6 @@ def test_explored_articles_are_merged_before_the_citation_namespace() -> None:
 
 
 def _result() -> ResearchResult:
-    """A result carrying one of everything worth losing."""
     call = SearchCall(
         question="What drives fibrosis?",
         query="fibrosis mechanism",
@@ -750,7 +661,6 @@ def _result() -> ResearchResult:
 
 
 def test_a_result_survives_the_trip_through_plain_data() -> None:
-    """Everything the caller reads back has to come back."""
     original = _result()
 
     restored = result_from_dict(result_to_dict(original))
@@ -759,7 +669,6 @@ def test_a_result_survives_the_trip_through_plain_data() -> None:
 
 
 def test_ids_are_re_derived_rather_than_stored() -> None:
-    """A stored id could disagree with what its fields hash to."""
     original = _result()
 
     payload = result_to_dict(original)
@@ -772,7 +681,6 @@ def test_ids_are_re_derived_rather_than_stored() -> None:
 
 
 def test_the_source_ranking_comes_back_intact() -> None:
-    """A replay reproduces what the source returned, not just the winners."""
     restored = result_from_dict(result_to_dict(_result()))
 
     hits = restored.calls[0].hits
@@ -784,7 +692,6 @@ def test_the_source_ranking_comes_back_intact() -> None:
 
 
 def test_a_payload_from_an_older_build_still_loads() -> None:
-    """Missing keys take their default; unknown ones are ignored."""
     payload: dict[str, Any] = {
         "goal": "reverse fibrosis",
         "calls": [
@@ -812,7 +719,6 @@ _RESERVED = "reserved_source"
 
 
 def _call(source: str, *locators: str) -> SearchCall:
-    """One completed call returning the given locators, best first."""
     return SearchCall(
         question="what is known?",
         query="known",
@@ -823,7 +729,6 @@ def _call(source: str, *locators: str) -> SearchCall:
 
 
 def _budget(reserved: tuple[tuple[str, int], ...]) -> ResearchBudget:
-    """A three-document budget over the network source and the reserved one."""
     return ResearchBudget(
         hits_per_question=3,
         sources=(_NETWORK, _RESERVED),
@@ -832,7 +737,6 @@ def _budget(reserved: tuple[tuple[str, int], ...]) -> ResearchBudget:
 
 
 def test_without_a_reservation_the_first_source_takes_everything() -> None:
-    """The behaviour a reservation exists to change."""
     calls = [
         _call(_NETWORK, "n1", "n2", "n3", "n4"),
         _call(_RESERVED, "c1"),
@@ -851,15 +755,12 @@ def test_a_reservation_seats_the_reserved_source_ahead_of_the_network() -> None:
 
     admitted, recorded = admit_within_budget(calls, _budget(((_RESERVED, 1),)))
 
-    # One place, and one only: the reservation is so the source is always
-    # consulted, not so it displaces the rest of the read.
     assert [hit.locator for hit in admitted] == ["c1", "n1", "n2"]
     assert recorded[1].admitted == ("c1",)
     assert recorded[1].dropped == ("c2",)
 
 
 def test_a_reservation_is_never_padded_when_the_source_is_empty() -> None:
-    """An unfilled reservation returns its place, it does not hold it."""
     calls = [
         _call(_NETWORK, "n1", "n2", "n3", "n4"),
         _call(_RESERVED),
@@ -871,11 +772,8 @@ def test_a_reservation_is_never_padded_when_the_source_is_empty() -> None:
 
 
 def test_a_paper_both_sources_returned_is_seated_once() -> None:
-    """A locator two sources returned is seated once, not twice.
-
-    Deduplication runs before either fill, so a shared paper cannot be
-    seated by the reservation and again by rank.
-    """
+    """Dedup before reservations and ranked filling prevents seating a shared
+    paper twice."""
     calls = [
         _call(_NETWORK, "shared", "n1", "n2"),
         _call(_RESERVED, "shared", "c1"),
@@ -887,7 +785,6 @@ def test_a_paper_both_sources_returned_is_seated_once() -> None:
 
 
 def test_a_reservation_cannot_claim_every_document() -> None:
-    """Reserving the whole read leaves source order deciding nothing."""
     with pytest.raises(ValueError, match="claim all"):
         ResearchBudget(
             hits_per_question=2,
@@ -897,7 +794,6 @@ def test_a_reservation_cannot_claim_every_document() -> None:
 
 
 def test_a_reservation_for_an_unsearched_source_is_refused() -> None:
-    """Otherwise the typo is silent: it simply never seats anything."""
     with pytest.raises(ValueError, match="unsearched"):
         ResearchBudget(sources=(_NETWORK,), reserved_slots=(("nope", 1),))
 
@@ -909,7 +805,6 @@ def test_a_reservation_for_an_unsearched_source_is_refused() -> None:
 def test_every_researching_budget_reserves_nothing_by_default(
     tier: str, resolve: object
 ) -> None:
-    """No shipped source reserves a place, so the ceiling reserves none."""
     budget = resolve(tier, (_NETWORK, _RESERVED))  # type: ignore[operator]
 
     assert budget is not None
@@ -917,7 +812,6 @@ def test_every_researching_budget_reserves_nothing_by_default(
 
 
 def test_the_descent_carries_a_reservation_down() -> None:
-    """A level that lost the reservation would drop the source again."""
     budget = ResearchBudget(
         depth=3,
         hits_per_question=3,

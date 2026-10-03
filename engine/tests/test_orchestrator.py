@@ -1,5 +1,3 @@
-"""Offline contracts for orchestrator."""
-
 from __future__ import annotations
 
 import asyncio
@@ -41,12 +39,8 @@ from tests._state import make_hypothesis, make_review, make_state
 
 
 def _hyp(hyp_id: str, wins: int = 0, losses: int = 0) -> Hypothesis:
-    """A minimal rankable hypothesis with the given match tally.
-
-    Peer-reviewed, because the coverage floor is owed only to ideas the
-    run has reviewed (``ranking_lifecycle._coverage_floor``): an
-    unreviewed idea is owed a review, not matches.
-    """
+    """Coverage is owed only to reviewed ideas; new entrants first owe a
+    review."""
     return Hypothesis(
         id=hyp_id,
         text=f"statement {hyp_id}",
@@ -57,21 +51,13 @@ def _hyp(hyp_id: str, wins: int = 0, losses: int = 0) -> Hypothesis:
 
 
 def _pool(unmatched: int, covered: int = 0) -> list[Hypothesis]:
-    """A rankable pool: `unmatched` ideas that never played, `covered` that did.
-
-    A covered idea carries two matches, which is
-    ``TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS``, so it owes the tournament
-    nothing and every owed slot in the pool belongs to an unmatched idea.
-    """
     return [_hyp(f"u{i}") for i in range(unmatched)] + [
         _hyp(f"c{i}", wins=1, losses=1) for i in range(covered)
     ]
 
 
 def test_rankable_coverage_counts_never_matched_hypotheses() -> None:
-    # A healthy average hides individual zeros: two ideas at two matches
-    # each averages 1.33 across three, passing a 1.0 average gate while one
-    # idea has never played.
+    # Average coverage can hide individual ideas that have never played.
     rankable, avg, unmatched = _rankable_coverage(
         [_hyp("a", wins=2), _hyp("b", losses=2), _hyp("c")]
     )
@@ -82,8 +68,8 @@ def test_rankable_coverage_counts_never_matched_hypotheses() -> None:
 
 
 def test_rankable_coverage_ignores_unrankable_hypotheses() -> None:
-    # An evidence-gate-rejected idea can never accrue matches, so counting
-    # it as unmatched would demand tournament rounds that cannot help it.
+    # Evidence-blocked ideas cannot settle match debt and must not hold coverage
+    # open.
     blocked = _hyp("blocked")
     blocked.review_disposition = "evidence_blocked"
 
@@ -94,12 +80,6 @@ def test_rankable_coverage_ignores_unrankable_hypotheses() -> None:
 
 
 def _settlement_stats(**overrides: object) -> SchedulerStats:
-    """Stats for a pool mid-settlement, with overridable allowance state.
-
-    Matches ``_pool(4, 2)``: four ideas that never played, owing two matches
-    each among six rankable, which is four rounds at two owed slots settled
-    per pairing.
-    """
     base: dict[str, object] = {
         "pool_size": 6,
         "rankable_count": 6,
@@ -114,17 +94,8 @@ _RANK = SupervisorDecision(next_task=TaskType.RANK, reason="settle")
 
 
 def test_allowance_is_the_tournament_coverage_floor() -> None:
-    """One count of what the pool owes, not two that agree at the extremes.
-
-    The allowance and ``ranking_lifecycle._coverage_floor`` answer the same
-    question -- how many rounds the pool's owed matches could still use -- so
-    they are one implementation. A near-copy that counted ideas with no match
-    at all agreed with the floor on an untouched pool and on a fully covered
-    one, and disagreed everywhere in between: ten ideas sitting at one match
-    each owe a second match apiece, which is five rounds to the tournament and
-    read as zero to the orchestrator, ending settlement while the tournament's
-    own floor was still asking for rounds.
-    """
+    """Half-covered pools owe rounds even when their zero-match count is
+    zero."""
     untouched = _pool(10)
     partially = [_hyp(f"h{i}", wins=1) for i in range(10)]
     covered = _pool(0, 10)
@@ -135,9 +106,6 @@ def test_allowance_is_the_tournament_coverage_floor() -> None:
 
 
 def test_first_settlement_initialises_and_spends_one_round() -> None:
-    # Four ideas that never played owe two matches each: eight slots, which
-    # is four rounds at two slots settled per pairing. The first firing
-    # spends one of them.
     book = _next_bookkeeping(
         _init_bookkeeping([]), _settlement_stats(), _RANK, _pool(4, 2)
     )
@@ -147,11 +115,6 @@ def test_first_settlement_initialises_and_spends_one_round() -> None:
 
 
 def test_allowance_is_bounded_by_distinct_pairs() -> None:
-    # Two rankable ideas owe four match slots between them, which is two
-    # rounds' worth, but they admit exactly one distinct pairing. The
-    # allowance takes min(half-slots, max_pairs), so the cap applies: without
-    # the max_pairs term the initial allowance would be 2 and this would read
-    # 1 after the first firing.
     stats = _settlement_stats(
         pool_size=2,
         rankable_count=2,
@@ -165,9 +128,7 @@ def test_allowance_is_bounded_by_distinct_pairs() -> None:
 
 
 def test_allowance_decrements_and_never_refills() -> None:
-    # New hypotheses arriving mid-settlement must not hand the run more
-    # rounds: a refillable counter would not bound anything. The pool here
-    # owes far more than the allowance already carries.
+    # New arrivals cannot refill an allowance without removing its bound.
     book = {
         "settlement_allowance": 3,
         "owed_at_last_settlement": 2,
@@ -193,8 +154,6 @@ def test_allowance_floors_at_zero() -> None:
 
 
 def test_non_settlement_rank_leaves_the_allowance_alone() -> None:
-    # A ranking round requested for ordinary calibration, with nothing owed,
-    # must not consume settlement budget.
     book = _init_bookkeeping([])
 
     updated = _next_bookkeeping(
@@ -208,7 +167,6 @@ def test_non_settlement_rank_leaves_the_allowance_alone() -> None:
 
 
 def _loop_stats(book: dict[str, object], **overrides: object) -> SchedulerStats:
-    """Stats for one decision, with the allowance read out of bookkeeping."""
     base: dict[str, object] = {
         "pool_size": 6,
         "reviewed_count": 6,
@@ -221,15 +179,8 @@ def _loop_stats(book: dict[str, object], **overrides: object) -> SchedulerStats:
 
 
 def test_pool_at_one_match_each_opens_a_settlement_episode() -> None:
-    """The trigger has to see everything the size it opens is measured on.
-
-    Ten rankable ideas at one match apiece each owe the tournament a second
-    match -- five rounds by the same coverage floor that sizes the episode --
-    while not one of them reads as unmatched. A trigger on the zero-match
-    count opened no episode at all in this state, so the corrected size never
-    got to apply: the tournament ended under-covered while the scheduler
-    reported coverage settled and stopped on the budget instead.
-    """
+    """A zero-match trigger misses pools where every idea still owes its
+    second match."""
     budget = Budget(max_iterations=5, max_llm_calls=10)
     pool = [_hyp(f"h{i}", wins=1) for i in range(10)]
     stats = _loop_stats(
@@ -245,21 +196,14 @@ def test_pool_at_one_match_each_opens_a_settlement_episode() -> None:
     decision = decide_next_task(stats, budget)
 
     assert decision.next_task is TaskType.RANK
-    # The episode opens sized from the floor and is charged for this round,
-    # which is what makes the widened trigger terminate.
     book = _next_bookkeeping(_init_bookkeeping([]), stats, decision, pool)
     assert book["settlement_allowance"] == 4
     assert book["owed_at_last_settlement"] == 5
 
 
 def test_under_covered_pool_does_not_rearm_the_allowance() -> None:
-    """Episode close and trigger read one quantity, or nothing bounds them.
-
-    The pool below still owes rounds but has no unmatched idea. Closing the
-    episode on the zero-match count here would return the allowance to None
-    while the check kept firing, so every cycle would re-size a fresh episode
-    and the settlement loop would never end.
-    """
+    """Closing an episode before all debt clears would rearm its allowance
+    indefinitely."""
     pool = [_hyp(f"h{i}", wins=1) for i in range(10)]
     book = {"settlement_allowance": 2, "owed_at_last_settlement": 5}
     stats = _settlement_stats(
@@ -277,12 +221,6 @@ def test_under_covered_pool_does_not_rearm_the_allowance() -> None:
 
 
 def test_late_backlog_settles_after_an_early_episode_cleared() -> None:
-    # The motivating production shape. An early cycle carries one unmatched
-    # idea and ranks it; the backlog then reaches zero. A later wave leaves
-    # 13 ideas unmatched at an exhausted budget. A run-scoped allowance was
-    # sized (and spent) on the early episode, so unless it re-arms once the
-    # backlog clears, the late wave never settles and the run ends exactly
-    # as it did before the check existed.
     budget = Budget(max_iterations=5, max_llm_calls=10)
     book = _init_bookkeeping([])
 
@@ -314,9 +252,6 @@ def test_late_backlog_settles_after_an_early_episode_cleared() -> None:
 
 
 def test_cleared_backlog_rearms_the_allowance() -> None:
-    # The episode boundary itself: once nothing is owed, both the allowance
-    # and the stall reference return to their unarmed state so a future
-    # backlog is sized from what it actually owes.
     book = {
         "settlement_allowance": 0,
         "owed_at_last_settlement": 2,
@@ -334,10 +269,7 @@ def test_cleared_backlog_rearms_the_allowance() -> None:
 
 
 def test_ordinary_ranking_does_not_charge_the_allowance() -> None:
-    # A RANK the owed-coverage check did not ask for must not spend
-    # settlement budget. Here the stall guard has the check suppressed, so
-    # this round came from the average-coverage gate instead. Inferring
-    # intent from "RANK while anything is unmatched" charged it anyway.
+    # Only rounds requested by the settlement check can consume its allowance.
     stats = _settlement_stats(
         unmatched_rankable_count=2,
         owed_coverage_rounds=2,
@@ -353,8 +285,6 @@ def test_ordinary_ranking_does_not_charge_the_allowance() -> None:
 
 
 def test_stall_guard_does_not_compare_across_episodes() -> None:
-    # A larger later backlog is not a stall: 13 owed after an episode that
-    # recorded 2 must still settle rather than read as "no progress".
     book = {
         "settlement_allowance": None,
         "owed_at_last_settlement": 2,
@@ -381,21 +311,8 @@ def test_stall_guard_does_not_compare_across_episodes() -> None:
 
 
 def test_settlement_terminates_while_the_backlog_still_shrinks() -> None:
-    # The load-bearing case. The backlog falls by one every round, so the
-    # stall guard never fires and cannot be what stops this -- only the
-    # allowance can.
-    #
-    # A two-idea pool is what makes the allowance bind, and deliberately so.
-    # The allowance is the pool's coverage floor, and a round that settles
-    # anything retires at least as much owed coverage as the round costs, so
-    # on a larger pool a settlement that keeps making progress finishes before
-    # the allowance does -- which is the point of sizing it from the floor.
-    # The distinct-pairs cap is the remaining way it can run out first: these
-    # two ideas owe four match slots but admit a single pairing, so they are
-    # granted one round against a backlog of two.
-    #
-    # The loop cap is a test failsafe, not the mechanism under test: 50 is
-    # far above the largest allowance this pool could be granted.
+    # Two ideas admit one pair; the distinct-pair cap makes the allowance bind
+    # before debt clears.
     budget = Budget(max_iterations=5, max_llm_calls=10)
     book = _init_bookkeeping([])
     backlog = 2
@@ -424,14 +341,11 @@ def test_settlement_terminates_while_the_backlog_still_shrinks() -> None:
     assert decision is not None
     assert decision.terminate
     assert decision.termination_reason is TerminationReason.BUDGET
-    # Stopped on the allowance (1 round), with work still outstanding.
     assert rounds == 1
     assert backlog > 0
 
 
 def test_settlement_terminates_when_ranking_never_helps() -> None:
-    # The stall guard's own case: a round that changes nothing must not be
-    # repeated. Terminates faster than the allowance alone would.
     budget = Budget(max_iterations=5, max_llm_calls=10)
     book = _init_bookkeeping([])
     decision = None
@@ -459,10 +373,8 @@ def test_settlement_terminates_when_ranking_never_helps() -> None:
 
 
 def test_settlement_allowance_is_monotonically_decreasing() -> None:
-    # The termination proof rests on this and nothing else: the counter
-    # never increases, on any path, whatever the pool does. The pool here
-    # shrinks, grows, and doubles between rounds; only the first round sizes
-    # the allowance, and no later one may add to it.
+    # The allowance never increases after opening, regardless of changing pool
+    # size.
     book = _init_bookkeeping([])
     seen: list[int] = []
 
@@ -510,9 +422,6 @@ def test_the_override_marks_the_hypothesis_owed_this_cycle() -> None:
 
 
 def test_an_ordinary_backlog_reflect_on_a_healthy_run_marks_nothing() -> None:
-    # _check_owed_review is gated on the budget already being exhausted, so
-    # a run with room to spare must not spend the override -- it would
-    # exhaust the run-wide cap on cycles that never needed it.
     hypothesis = make_hypothesis()
     stats = _owed_stats(owed_review_count=0)
 
@@ -523,11 +432,8 @@ def test_an_ordinary_backlog_reflect_on_a_healthy_run_marks_nothing() -> None:
 
 
 def test_marking_does_not_depend_on_which_task_actually_executes() -> None:
-    # A consulted planner on the queue-adjudication path may return a task
-    # other than REFLECT even though this check supplied the forced
-    # baseline (supervisor_decision._needs_queue_adjudication). Marking
-    # fires on the check itself, not on the executed decision, so that
-    # diversion cannot leave the override neither spent nor bounded.
+    # A consulted planner can divert the forced task; spend the override when
+    # the check fires.
     hypothesis = make_hypothesis()
     stats = _owed_stats()
 
@@ -539,7 +445,6 @@ def test_marking_does_not_depend_on_which_task_actually_executes() -> None:
 
 
 def test_orchestrator_forces_review_before_budget_can_terminate() -> None:
-    """A budget-exhausting admission still gets scheduled for review."""
     hypothesis = make_hypothesis("newcomer")
     state = make_state(
         hypotheses=[hypothesis],
@@ -560,7 +465,6 @@ def test_orchestrator_forces_review_before_budget_can_terminate() -> None:
 def test_orchestrator_does_not_touch_hypotheses_on_an_unrelated_decision() -> (
     None
 ):
-    """No spurious ``hypotheses`` delta when the override never fires."""
     hyps = [make_hypothesis(f"h{i}", elo_rating=1200) for i in range(4)]
     state = make_state(hypotheses=hyps, current_iteration=0)
 
@@ -570,8 +474,7 @@ def test_orchestrator_does_not_touch_hypotheses_on_an_unrelated_decision() -> (
 
 
 def test_a_failed_review_does_not_re_arm_the_override_next_cycle() -> None:
-    """The whole point: budget terminates even if the review never lands."""
-    hypothesis = make_hypothesis()  # never reviewed
+    hypothesis = make_hypothesis()
     pool: list[Hypothesis] = [hypothesis]
     stats = SchedulerStats(
         pool_size=1,
@@ -586,7 +489,6 @@ def test_a_failed_review_does_not_re_arm_the_override_next_cycle() -> None:
     assert marked == pool
     assert owed_review_issued(hypothesis)
 
-    # The forced review ran and failed: still no peer review.
     next_stats = SchedulerStats(
         pool_size=1,
         unreviewed_count=1,
@@ -612,7 +514,6 @@ def test_a_successful_review_also_terminates_cleanly_next_cycle() -> None:
     assert decision.next_task is TaskType.REFLECT
     _owed_review_override_marks(stats, _EXHAUSTED_BUDGET, pool)
 
-    # The forced review succeeded this time.
     hypothesis.reviews.append(make_review())
 
     next_stats = SchedulerStats(
@@ -630,7 +531,6 @@ def test_a_successful_review_also_terminates_cleanly_next_cycle() -> None:
 def test_the_override_never_fires_against_an_exhausted_llm_call_budget() -> (
     None
 ):
-    """The seam boundary this refusal exists for (see policy_budget)."""
     hypothesis = make_hypothesis()
     exhausted_llm_budget = Budget(max_iterations=5, max_llm_calls=10)
     stats = _owed_stats(tasks_run=0, llm_calls=10)
@@ -647,8 +547,6 @@ def test_the_override_never_fires_against_an_exhausted_llm_call_budget() -> (
 
 
 def _state_with_steering(pending: bool) -> WorkflowState:
-    # A healthy, reviewed pool so nothing else forces the decision; only the
-    # steering flag should change what the orchestrator schedules.
     hyps = [make_hypothesis(f"h{i}", elo_rating=1200) for i in range(4)]
     return make_state(
         hypotheses=hyps,
@@ -660,14 +558,11 @@ def _state_with_steering(pending: bool) -> WorkflowState:
 def test_pending_steering_schedules_generate_and_clears_flag() -> None:
     delta = asyncio.run(orchestrator_node(_state_with_steering(True)))
     assert delta["next_task"] == TaskType.GENERATE.value
-    # The flag is cleared so the loop does not re-trigger on the same steering.
     assert delta["pending_steering"] is False
 
 
 def test_no_steering_does_not_force_generate_for_steering() -> None:
     delta = asyncio.run(orchestrator_node(_state_with_steering(False)))
-    # A healthy reviewed pool without steering does not schedule the
-    # steering-driven generate; the reason never mentions steering.
     assert "steering" not in str(delta["messages"]).lower()
     assert delta["pending_steering"] is False
 
@@ -675,7 +570,6 @@ def test_no_steering_does_not_force_generate_for_steering() -> None:
 def test_activity_uses_live_facts_not_planner_assertions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A hallucinated planner rationale cannot become the activity summary."""
 
     async def _hallucinated_decision(
         *_args: object, **_kwargs: object
@@ -734,11 +628,10 @@ def test_marking_removes_a_hypothesis_from_the_owed_set() -> None:
 
 
 def test_marking_is_permanent_even_if_the_hypothesis_stays_unreviewed() -> None:
-    # The whole point: a review that failed must not re-arm the check.
     hypothesis = _unreviewed()
     mark_owed_review_issued(hypothesis)
 
-    assert not hypothesis.reviews  # the forced review never landed
+    assert not hypothesis.reviews
     assert owed_review_count([hypothesis]) == 0
 
 
@@ -752,9 +645,8 @@ def test_the_marker_survives_a_checkpoint_round_trip() -> None:
 
 
 def test_an_unreviewed_but_already_archived_duplicate_is_not_owed() -> None:
-    # Proximity's archive marker can land on an idea before it is ever
-    # peer-reviewed; reviewing an idea already excluded from the report
-    # buys nothing.
+    # Proximity can archive unreviewed ideas; a forced review of an archived
+    # idea buys nothing.
     hypothesis = _unreviewed()
     hypothesis.review_disposition = "duplicate"
 

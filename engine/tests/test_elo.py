@@ -569,7 +569,6 @@ def test_minimum_coverage_reached_no_starvation() -> None:
 
 
 def test_newer_hypotheses_are_prioritized() -> None:
-    """Tournament entrants require completed review stamps."""
     candidates = _cands(
         ("veteran", 1200, 20, None),
         ("newA", 1200, 0, None),

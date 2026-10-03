@@ -1,5 +1,3 @@
-"""Cancellation racing the durable finalize task's report publication."""
-
 from __future__ import annotations
 
 import os
@@ -30,11 +28,10 @@ _EMAIL = "scientist@example.org"
 
 
 class _WorkerProcessCrashError(RuntimeError):
-    """Test signal for a crash after report commit and before task ack."""
+    pass
 
 
 def _publication_event_counts(events: list[dict[str, Any]]) -> dict[str, int]:
-    """Count report and terminal events around the cancellation boundary."""
     event_types = Counter(event["type"] for event in events)
     terminal_statuses = Counter(
         event["payload"].get("status")
@@ -54,7 +51,6 @@ def _seed_owned_finalize(
     *,
     claim: bool = True,
 ) -> tuple[Any, str, Any, str]:
-    """Create an owner-scoped active run and enqueue its finalize task."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     monkeypatch.setattr(settings, "smtp_host", "smtp.example.org")
     monkeypatch.setattr(settings, "smtp_from_email", "noreply@example.org")
@@ -123,7 +119,6 @@ def _seed_owned_finalize(
 def _install_report_stubs(
     hypothesis_id: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Supply fixed report content and an allowing final safety verdict."""
     built = report_build._BuiltReport(
         payload={
             "research_goal": "Study cancellation at report publication",
@@ -162,7 +157,6 @@ def _install_cancel_before_publication(
     run_id: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> list[dict[str, Any]]:
-    """Cancel after final safety commits and before report publication."""
     gate_readiness_and_publish = report_finalize._gate_readiness_and_publish
     cancel_responses: list[dict[str, Any]] = []
 
@@ -188,7 +182,6 @@ def _publication_snapshot(
     cancel_responses: list[dict[str, Any]],
     isolated_db: str,
 ) -> dict[str, Any]:
-    """Observe API, store, share and restart outcomes after the race."""
     share = owner.post(f"/api/runs/{run_id}/shares", headers=_OWNER)
     public = owner.get(
         f"/api/shared/{share.json().get('token', 'no-issued-share-token')}"
@@ -241,7 +234,6 @@ def _publication_snapshot(
 async def test_cancel_after_final_safety_withholds_report_publication(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A stale claimed finalize task cannot publish after the owner cancels."""
     owner, run_id, task, hypothesis_id = _seed_owned_finalize(
         isolated_db, monkeypatch
     )
@@ -250,8 +242,6 @@ async def test_cancel_after_final_safety_withholds_report_publication(
         owner, run_id, monkeypatch
     )
 
-    # execute_finalize checked status before safety. The revoked row must make
-    # this stale body stop before it saves a report or any related side effect.
     with pytest.raises(task_worker._LeaseLostError):
         await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
@@ -282,7 +272,6 @@ async def test_cancel_after_final_safety_withholds_report_publication(
 async def test_normal_finalize_publishes_and_survives_restart(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A normal leased finalize publishes in order and rejects late cancel."""
     owner, run_id, _task, hypothesis_id = _seed_owned_finalize(
         isolated_db, monkeypatch, claim=False
     )
@@ -346,7 +335,6 @@ async def test_normal_finalize_publishes_and_survives_restart(
 async def test_restart_does_not_strand_finalize_lease_after_report_commit(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A crash before worker ack cannot strand a leased task with a report."""
     owner, run_id, _task, hypothesis_id = _seed_owned_finalize(
         isolated_db, monkeypatch, claim=False
     )

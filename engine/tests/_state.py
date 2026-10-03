@@ -1,5 +1,3 @@
-"""Shared test fixtures for state."""
-
 from __future__ import annotations
 
 from typing import Any, cast
@@ -24,47 +22,20 @@ from co_scientist.state import WorkflowState
 
 
 def make_article(title: str = "An article", **overrides: Any) -> Article:
-    """Build an Article with the given title and field overrides.
-
-    Args:
-        title: The article title.
-        **overrides: Any Article dataclass fields to override (e.g. ``authors``,
-            ``year``, ``source_id``, ``content``).
-
-    Returns:
-        An Article instance.
-    """
     fields: dict[str, Any] = {"title": title}
     fields.update(overrides)
     return Article(**fields)
 
 
 def make_hypothesis(text: str = "a hypothesis", **overrides: Any) -> Hypothesis:
-    """Build a Hypothesis with the given text and field overrides.
-
-    Args:
-        text: The hypothesis text.
-        **overrides: Any Hypothesis dataclass fields to override (e.g.
-            ``elo_rating``, ``score``, ``reviews``).
-
-    Returns:
-        A Hypothesis instance.
-    """
+    """Coverage is owed only to reviewed ideas; new entrants first owe a
+    review."""
     fields: dict[str, Any] = {"text": text}
     fields.update(overrides)
     return Hypothesis(**fields)
 
 
 def make_review(**overrides: Any) -> HypothesisReview:
-    """Build a HypothesisReview with all six required fields populated.
-
-    Args:
-        **overrides: Any HypothesisReview fields to override (e.g.
-            ``review_summary``, ``scores``, ``overall_score``).
-
-    Returns:
-        A HypothesisReview instance.
-    """
     fields: dict[str, Any] = {
         "review_summary": "a solid review",
         "scores": {"novelty": 8, "relevance": 7},
@@ -78,7 +49,6 @@ def make_review(**overrides: Any) -> HypothesisReview:
 
 
 def _run_and_pool_defaults() -> dict[str, Any]:
-    """Run configuration plus the hypothesis-pool / bookkeeping channels."""
     return {
         "research_goal": "test research goal",
         "model_name": "test-model",
@@ -105,7 +75,6 @@ def _run_and_pool_defaults() -> dict[str, Any]:
 
 
 def _input_and_literature_defaults() -> dict[str, Any]:
-    """Scientist inputs, literature channels, and runtime feature flags."""
     return {
         "preferences": None,
         "attributes": None,
@@ -131,15 +100,6 @@ def _input_and_literature_defaults() -> dict[str, Any]:
 
 
 def make_state(**overrides: Any) -> WorkflowState:
-    """Build a complete WorkflowState with inert defaults.
-
-    Args:
-        **overrides: WorkflowState keys to override (e.g. ``hypotheses``,
-            ``model_name``, ``current_iteration``).
-
-    Returns:
-        A WorkflowState with every key populated; overrides applied last.
-    """
     base: dict[str, Any] = {
         **_run_and_pool_defaults(),
         **_input_and_literature_defaults(),
@@ -149,8 +109,6 @@ def make_state(**overrides: Any) -> WorkflowState:
 
 
 class _ToolsRecorder:
-    """Records calls to the stubbed ``generate_with_tools`` leaf strategy."""
-
     def __init__(
         self, hypotheses: list[Hypothesis], llm_calls: int = 0
     ) -> None:
@@ -168,8 +126,6 @@ class _ToolsRecorder:
 
 
 class _DebateRecorder:
-    """Records calls to the stubbed ``generate_with_debate`` leaf strategy."""
-
     def __init__(
         self,
         hypotheses: list[Hypothesis],
@@ -198,8 +154,6 @@ class _DebateRecorder:
 
 
 class _AssumptionsRecorder:
-    """Records calls to the stubbed ``generate_with_assumptions`` leaf."""
-
     def __init__(
         self, hypotheses: list[Hypothesis], llm_calls: int = 0
     ) -> None:
@@ -230,7 +184,6 @@ def _install(
     debate: _DebateRecorder,
     assumptions: _AssumptionsRecorder | None = None,
 ) -> None:
-    """Patch the leaf strategies on the coordinator's namespace."""
     monkeypatch.setattr(coordinator, "generate_with_tools", tools)
     monkeypatch.setattr(coordinator, "generate_with_debate", debate)
     monkeypatch.setattr(
@@ -240,12 +193,10 @@ def _install(
     )
 
 
-# A generous budget so budget ceilings never fire unless a test sets them.
 BUDGET = Budget(max_iterations=5, max_llm_calls=1000, max_tasks=100)
 
 
 def healthy_stats(**overrides: object) -> SchedulerStats:
-    """A mid-run pool with no backlog, adequate coverage, room to iterate."""
     base: dict[str, object] = {
         "pool_size": 6,
         "reviewed_count": 6,
@@ -262,15 +213,6 @@ def healthy_stats(**overrides: object) -> SchedulerStats:
 async def collect_stream_events(
     gen: HypothesisGenerator, goal: str
 ) -> list[tuple[str, dict[str, Any]]]:
-    """Consume the streaming API into a list of (node_name, state) tuples.
-
-    Args:
-        gen: The generator whose streaming run is consumed.
-        goal: The research goal to run with.
-
-    Returns:
-        One ``(node_name, cumulative_state_dict)`` tuple per yielded event.
-    """
     events: list[tuple[str, dict[str, Any]]] = []
     async for node_name, state_dict in gen.generate_hypotheses(
         goal,
@@ -281,18 +223,10 @@ async def collect_stream_events(
     return events
 
 
-# Marks a node the compiled graph does not register at all (the
-# literature-review nodes in the simplified flow); distinct from ``None``,
-# which is the end of the run.
 ABSENT = "<absent>"
 
 
 def build_graph(literature_review: bool) -> StateGraph[Any, Any, Any, Any]:
-    """The workflow graph, wired and compiled, in one flow shape.
-
-    Returned as the builder: its ``edges`` and ``branches`` are the wiring
-    that was declared, and compiling it proves LangGraph accepts that wiring.
-    """
     workflow = StateGraph(WorkflowState)
     _add_workflow_nodes(workflow, literature_review)
     _add_workflow_edges(workflow, literature_review)
@@ -303,16 +237,6 @@ def build_graph(literature_review: bool) -> StateGraph[Any, Any, Any, Any]:
 def graph_successor(
     graph: StateGraph[Any, Any, Any, Any], node: str, state: WorkflowState
 ) -> str | None:
-    """What the compiled graph runs after ``node`` in ``state``.
-
-    Returns:
-        The successor's name, ``None`` where the graph ends, or ``ABSENT``
-        when the graph has no such node.
-
-    Raises:
-        AssertionError: If the node has anything but exactly one outgoing
-            edge (one fixed edge, or one conditional branch).
-    """
     if node not in graph.nodes and node != START:
         return ABSENT
     fixed = [target for source, target in graph.edges if source == node]
@@ -334,15 +258,6 @@ def _stacked(*companions: str) -> list[dict[str, Any]]:
 
 
 def decision_states() -> list[WorkflowState]:
-    """States covering every branch a resolver route reads.
-
-    No decision, each task the orchestrator can record, an unknown task, and
-    the passes that stack the periodic companions ahead of a primary. Only
-    stackings the scheduler can produce (``scheduling.policy.stack_companions``)
-    appear: LangGraph rejects a resolver value outside its path map, and the
-    unproducible ones (meta-review stacked ahead of EVOLVE, an overview
-    stacked onto its own SYNTHESIZE or onto TERMINATE) are exactly those.
-    """
     meta, overview = TaskType.META_REVIEW.value, TaskType.SYNTHESIZE.value
     decisions: list[dict[str, Any]] = [{}, {"next_task": None}]
     decisions += [{"next_task": task.value} for task in TaskType]

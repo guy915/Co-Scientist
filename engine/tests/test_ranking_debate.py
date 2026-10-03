@@ -49,7 +49,6 @@ def test_lower_ranked_matchup_uses_single_turn() -> None:
 
 
 async def test_judge_semaphore_admits_a_whole_wave() -> None:
-    """A narrower semaphore serializes a durable wave into batches."""
     from co_scientist.constants import RANKING_WAVE_SIZE
 
     semaphore = ranking_debate._get_ranking_semaphore()
@@ -67,7 +66,6 @@ async def test_judge_semaphore_admits_a_whole_wave() -> None:
 def test_wave_narrows_once_the_provider_throttles(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Calls beyond provider capacity add backoff, not throughput."""
     from co_scientist.constants import RANKING_WAVE_MIN_SIZE, RANKING_WAVE_SIZE
     from co_scientist.llm.attempts import retry
 
@@ -196,7 +194,6 @@ def test_followup_turns_pose_clarifying_questions() -> None:
 
 
 def test_a_prior_turn_judged_the_other_way_round_says_so() -> None:
-    """Quoted prose numbers hypotheses in its original presentation order."""
     entry = {
         "turn": 1,
         "winner": "a",
@@ -301,7 +298,6 @@ async def test_contested_debate_extends_past_the_typical_range(
 ) -> None:
     alpha = make_hypothesis(text="alpha")
     beta = make_hypothesis(text="beta")
-    # Raw "a" every turn votes alternately a/b/a/b under the swap.
     calls = _stub_fixed_winners(monkeypatch, ["a"] * 10)
     ctx = _DebateContext(alpha, beta, "goal", "fake/model")
 
@@ -366,7 +362,6 @@ async def test_single_turn_debate_runs_one_call(
 async def test_single_turn_alternates_presentation_order_across_matchups(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Alternating the starting order avoids systematic judge position bias."""
     a = make_hypothesis(text="alpha")
     b = make_hypothesis(text="beta")
 
@@ -407,7 +402,6 @@ def test_document_carries_every_turn_and_one_closing_verdict() -> None:
 
 
 def test_each_turn_records_which_idea_it_presented_first() -> None:
-    """Turn prose uses its presentation order; renderers need that numbering."""
     transcript = [
         _entry(1, "a", "Idea 1 is better grounded."),
         _entry(2, "a", "The mechanism holds up."),

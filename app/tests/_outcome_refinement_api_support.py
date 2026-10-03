@@ -1,5 +1,3 @@
-"""Shared setup for outcome API and refinement contract tests."""
-
 from __future__ import annotations
 
 from typing import Any
@@ -9,7 +7,6 @@ from co_scientist.models import Hypothesis
 
 from app import auth, store
 
-# Frozen public case from the external Robin outcome-refinement contract.
 MESELSON_STAHL_PARENT_TEXT = (
     "DNA replication in E. coli is semiconservative: after replication, "
     "each daughter duplex retains one parental DNA subunit."
@@ -47,7 +44,6 @@ MESELSON_STAHL_OUTCOME_FIELDS: dict[str, Any] = {
 def _add_meselson_stahl_fixture(
     run_id: str, db_path: str
 ) -> tuple[str, dict[str, Any], list[str]]:
-    """Persist the contract's parent and ordered source metadata."""
     parent_id = store.add_hypothesis(
         store.NewHypothesis(
             run_id=run_id,

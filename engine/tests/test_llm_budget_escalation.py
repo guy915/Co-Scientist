@@ -858,7 +858,6 @@ def test_the_draft_budget_never_reaches_its_own_cap() -> None:
 
 
 def test_deep_hypothesis_budget_is_a_base_below_the_floor() -> None:
-    """Tournament entrants require completed review stamps."""
     assert constants.EXTENDED_MAX_TOKENS < constants.DEEP_HYPOTHESIS_MAX_TOKENS
     assert constants.DEEP_HYPOTHESIS_MAX_TOKENS < THINKING_FLOOR_MAX_TOKENS
 

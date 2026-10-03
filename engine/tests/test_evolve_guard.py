@@ -1,5 +1,3 @@
-"""Offline contracts for evolve guard."""
-
 from __future__ import annotations
 
 import json
@@ -47,7 +45,6 @@ def _observation(
     proximity_graph: dict[str, Any] | None = None,
     combination_partner: Hypothesis | None = None,
 ) -> tuple[Hypothesis | None, dict[str, Any] | None]:
-    """Apply one canned refinement through the acceptance guard."""
     partners: tuple[Hypothesis, ...] = ()
     if combination_partner is not None:
         partners = (combination_partner,)
@@ -74,12 +71,6 @@ def _observation(
 
 
 def test_guard_rejects_on_weight_one_proximity_edge() -> None:
-    """A weight-1.0 parent-neighbor edge rejects even disjoint wording.
-
-    The persisted graph's LLM-judged similarity outranks the lexical
-    estimate: the refinement of a parent the proximity pass already judged
-    highly similar to a peer converges on that peer.
-    """
     parent = make_hypothesis(text="parent mechanism about kinase signaling")
     peer = make_hypothesis(text="a disjoint wording entirely")
     graph = {
@@ -94,7 +85,6 @@ def test_guard_rejects_on_weight_one_proximity_edge() -> None:
 
 
 def test_guard_accepts_below_threshold_proximity_edge() -> None:
-    """Medium/low proximity edges (dedup survivors) do not reject."""
     parent = make_hypothesis(text="parent mechanism about kinase signaling")
     peer = make_hypothesis(text="a disjoint wording entirely")
     graph = {
@@ -109,7 +99,6 @@ def test_guard_accepts_below_threshold_proximity_edge() -> None:
 
 
 def test_guard_coverage_fallback_rejects_near_verbatim_child() -> None:
-    """Without a graph, near-total token coverage still rejects."""
     parent = make_hypothesis(text="parent mechanism about kinase signaling")
     peer_text = "rapamycin suppresses mtor signaling downstream of the kinase"
     peer = make_hypothesis(text=peer_text)
@@ -122,12 +111,8 @@ def test_guard_coverage_fallback_rejects_near_verbatim_child() -> None:
 
 
 def test_guard_coverage_is_not_dominated_by_a_short_peer() -> None:
-    """A refinement expanding a short peer is not its duplicate.
-
-    Union-based Jaccard penalized exactly this asymmetry; coverage divides
-    by the child's own tokens, so a long refinement that merely contains a
-    short peer's wording passes.
-    """
+    """Coverage uses the child's tokens; union-based similarity penalizes
+    short-peer containment."""
     parent = make_hypothesis(text="parent mechanism about kinase signaling")
     peer = make_hypothesis(text="rapamycin suppresses mtor")
     long_child = (
@@ -142,18 +127,13 @@ def test_guard_coverage_is_not_dominated_by_a_short_peer() -> None:
 
 
 def test_guard_exempts_resolved_combination_partners() -> None:
-    """A faithful merge may resemble the partners it combined.
-
-    The rejection set is every idea the refinement was NOT deliberately
-    merging; holding the merge to stay distinct from its own parents would
-    reject combination's intended output.
-    """
+    """A faithful combination must resemble its designated partners."""
     parent = make_hypothesis(text="parent mechanism about kinase signaling")
     partner = make_hypothesis(text="partner mechanism about proteolysis")
     outsider = make_hypothesis(text="an unrelated third idea altogether")
 
     child, detail = _observation(
-        partner.text,  # verbatim partner text: the harshest possible merge
+        partner.text,
         parent,
         [partner, outsider],
         combination_partner=partner,
@@ -164,7 +144,6 @@ def test_guard_exempts_resolved_combination_partners() -> None:
 
 
 def test_combination_records_every_parent() -> None:
-    """A combination child keeps parent_id primary and parent_ids all."""
     parent = make_hypothesis(text="parent mechanism about kinase signaling")
     partner = make_hypothesis(
         text="partner mechanism about proteolysis",
@@ -198,7 +177,6 @@ def test_combination_records_every_parent() -> None:
 
 
 def test_combination_invalid_indices_degrade_to_single_parent() -> None:
-    """Unresolvable partner indices mint a single-parent child, not none."""
     parent = make_hypothesis(text="parent mechanism about kinase signaling")
     partner = make_hypothesis(text="partner mechanism about proteolysis")
 
@@ -227,7 +205,6 @@ def test_combination_invalid_indices_degrade_to_single_parent() -> None:
 async def test_partner_selection_flows_from_ranked_pool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Combination tasks offer the top-ranked peers as partners, whole."""
     observed_prompt = ""
 
     async def fake_llm(*, prompt: str, **_: Any) -> dict[str, Any]:
@@ -268,13 +245,9 @@ async def test_partner_selection_flows_from_ranked_pool(
     assert detail["operator"] == "combination"
 
 
-# --- enhancement grounding (E6) ----------------------------------------------
-
-
 async def test_enhancement_grounding_falls_back_to_run_articles(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Without MCP the enhancement prompt carries the run's own articles."""
     observed_prompt = ""
 
     async def fake_llm(*, prompt: str, **_: Any) -> dict[str, Any]:
@@ -305,7 +278,6 @@ async def test_enhancement_grounding_falls_back_to_run_articles(
 async def test_enhancement_grounding_placeholder_without_any_evidence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """No MCP and no run articles renders an explicit no-evidence note."""
     observed_prompt = ""
 
     async def fake_llm(*, prompt: str, **_: Any) -> dict[str, Any]:
@@ -334,7 +306,6 @@ async def test_enhancement_grounding_placeholder_without_any_evidence(
 async def test_enhancement_grounding_retrieves_when_mcp_is_up(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """With MCP up the operator performs a live, parent-targeted retrieval."""
     from co_scientist.agents.evolution import evolve_grounding
 
     observed_prompt = ""
@@ -381,7 +352,6 @@ async def test_enhancement_grounding_retrieves_when_mcp_is_up(
 async def test_non_enhancement_operators_perform_no_retrieval(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Live grounding is the enhancement brief; others never search."""
     from co_scientist.agents.evolution import evolve_grounding
 
     async def never_called(*_: Any, **__: Any) -> Any:
@@ -417,7 +387,6 @@ async def test_non_enhancement_operators_perform_no_retrieval(
 
 
 def test_grounding_metrics_extra_counts_only_live_enhancements() -> None:
-    """Query-generation calls are metered only when the MCP server is up."""
     from co_scientist.agents.evolution.evolve_grounding import (
         grounding_metrics_extra,
     )
@@ -431,18 +400,9 @@ def test_grounding_metrics_extra_counts_only_live_enhancements() -> None:
     )
 
 
-# --- falsified-assumption feedback (audit K9, evolution half) ----------------
-
-
 async def test_evolution_prompt_splices_falsified_assumptions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A weakened hypothesis's falsified assumptions reach the refinement.
-
-    Audit K9: deep verification already found a non-fundamental assumption
-    wrong; evolution must not rebuild on that broken ground, so the prompt
-    carries the run's verified-wrong assumption block.
-    """
     observed_prompt = ""
 
     async def fake_llm(*, prompt: str, **_: Any) -> dict[str, Any]:
@@ -485,7 +445,6 @@ async def test_evolution_prompt_splices_falsified_assumptions(
 async def test_evolution_prompt_omits_falsified_block_when_none(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """With no falsified assumption yet, the block renders nothing."""
     observed_prompt = ""
 
     async def fake_llm(*, prompt: str, **_: Any) -> dict[str, Any]:
@@ -532,7 +491,7 @@ async def test_outcome_refinement_compares_child_text_to_peer(
     }
 
     async def fake_response(*args: Any, **kwargs: Any) -> dict[str, str]:
-        assert args[1] == []  # Siblings reach validation, never prompt peers.
+        assert args[1] == []
         return {"hypothesis": child_text}
 
     monkeypatch.setattr(evolve, "_evolve_llm_response", fake_response)
@@ -620,7 +579,6 @@ def test_recorded_outcome_cannot_close_its_data_boundary() -> None:
     )
 
 
-# The parent's own sections, all naming the molecule the parent proposes.
 _PARENT_SECTIONS: dict[str, Any] = {
     "introduction": "Metabolic disease remains a major cause of morbidity.",
     "recent_findings": "Aldolase inhibitors have shown early promise [C1].",
@@ -632,8 +590,6 @@ _PARENT_SECTIONS: dict[str, Any] = {
     ),
 }
 
-# The same four sections as an evolution response would carry them, each
-# describing the child's own molecule rather than the parent's.
 _CHILD_SECTIONS: dict[str, Any] = {
     "introduction": "Growth signaling drives proliferative disease.",
     "recent_findings": "Kinase inhibitors reshaped the field [C2].",
@@ -647,7 +603,6 @@ _CHILD_SECTIONS: dict[str, Any] = {
 
 
 def _evolved_parent() -> Any:
-    """The parent every test here evolves, with all four sections set."""
     return make_hypothesis(
         text="quercetin inhibits aldolase activity",
         citation_map={"C1": {"type": "paper", "title": "Aldolase"}},
@@ -656,7 +611,6 @@ def _evolved_parent() -> Any:
 
 
 def _prompt_context(**overrides: Any) -> EvolutionContext:
-    """A minimal evolution context for the prompt-render assertions."""
     return EvolutionContext(
         model_name="test-model",
         meta_review={},
@@ -669,7 +623,6 @@ def _prompt_context(**overrides: Any) -> EvolutionContext:
 async def test_child_sections_come_from_the_evolution_response(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A response's own sections reach the child, replacing the parent's."""
     original = _evolved_parent()
     state = make_state(hypotheses=[original], evolution_max_count=1)
     stub_call_llm_json(
@@ -689,13 +642,8 @@ async def test_child_sections_come_from_the_evolution_response(
 async def test_child_never_inherits_the_parent_sections(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The production shape: a response that omits them yields none.
-
-    An empty section publishes nothing; the parent's section publishes a
-    mechanism and a safety profile for a molecule the child does not
-    propose, and the claim gate then reports its categorical claims as
-    unsupported because no retrieval can ever support them.
-    """
+    """Parent sections can describe a molecule the child does not propose and
+    falsely fail grounding."""
     original = _evolved_parent()
     state = make_state(hypotheses=[original], evolution_max_count=1)
     stub_call_llm_json(monkeypatch, evolve, _RAPAMYCIN_RESPONSE)
@@ -711,7 +659,6 @@ async def test_child_never_inherits_the_parent_sections(
 async def test_blank_sections_do_not_become_the_parents(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The json_object downgrade backfills "" for a missing required key."""
     original = _evolved_parent()
     state = make_state(hypotheses=[original], evolution_max_count=1)
     blanks = dict.fromkeys(_CHILD_SECTIONS, "   ")
@@ -726,12 +673,8 @@ async def test_blank_sections_do_not_become_the_parents(
 async def test_child_citation_map_resolves_its_own_keys(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The child's map resolves the keys the child cites, not the parent's.
-
-    The parent's map is keyed to the grounding paragraph the parent wrote,
-    so carrying it forward beside a rewritten paragraph leaves the child
-    citing [C2] while its map explains [C1].
-    """
+    """Rewritten grounding needs its own keys; the parent's map explains a
+    different paragraph."""
     original = _evolved_parent()
     state = make_state(
         hypotheses=[original],
@@ -754,13 +697,6 @@ async def test_child_citation_map_resolves_its_own_keys(
 async def test_offline_backend_produces_a_populated_child(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The deterministic offline backend fills the four new sections.
-
-    The schema filler answers every declared field, so an offline run's
-    child is well-formed rather than a hypothesis with an empty mechanism
-    -- and, since the sections are now the response's, distinct from its
-    parent's.
-    """
     isolate_offline_router(monkeypatch)
     disable_llm_cache(monkeypatch)
     install_offline_router()
@@ -791,14 +727,8 @@ async def test_offline_backend_produces_a_populated_child(
 def test_evolution_prompt_carries_the_citation_reference_list(
     operator: EvolutionOperator,
 ) -> None:
-    """Every evolution template shows the [C*] keys its answer may cite.
-
-    The refinement is now asked for its own ``literature_grounding``, and
-    that field's instruction is to cite only the supplied bracketed keys.
-    Without the list in the prompt a child either disclaims its grounding
-    or invents keys that resolve to nothing, so all three templates carry
-    the slot -- not just the one that renders evolution.md.
-    """
+    """Without supplied reference keys, a child can invent unresolvable
+    citations."""
     prompt, _ = _build_evolution_prompt(
         make_hypothesis(text="the parent hypothesis"),
         ["a peer hypothesis"],
@@ -818,7 +748,6 @@ def test_evolution_prompt_carries_the_citation_reference_list(
 
 
 def test_evolution_prompt_omits_citations_without_a_reference_index() -> None:
-    """A run with no analyzed sources sees no citation instructions."""
     prompt, _ = _build_evolution_prompt(
         make_hypothesis(text="the parent hypothesis"),
         [],
@@ -836,8 +765,7 @@ _PARENTS = (
     "charlie enzyme catalyzes lipid breakdown",
 )
 
-# Disjoint vocabulary per parent so neither the unchanged guard nor the
-# near-duplicate guard rejects the child for reasons unrelated to this test.
+# Disjoint vocabulary avoids unrelated unchanged and near-duplicate guards.
 _EVOLVED = {
     _PARENTS[0]: "hotel peptide blocks vesicle fusion irreversibly",
     _PARENTS[1]: "india cofactor rescues folding intermediates rapidly",
@@ -848,11 +776,6 @@ _DOOMED = _PARENTS[1]
 
 
 def _stub_one_failing_evolution(monkeypatch: pytest.MonkeyPatch) -> list[str]:
-    """Patch ``call_llm_json`` so exactly one parent's call raises.
-
-    Returns the list every completed call appends its parent's text to, so a
-    test can tell an isolated failure from a cancelled sibling.
-    """
     attempted: list[str] = []
 
     async def fake(*, prompt: str, **_: Any) -> dict[str, Any]:
@@ -875,7 +798,6 @@ def _stub_one_failing_evolution(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 async def test_one_failed_parent_leaves_its_siblings_evolved(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A raising refinement costs its own parent, not the whole round."""
     hypotheses = [make_hypothesis(text=text) for text in _PARENTS]
     state = make_state(hypotheses=hypotheses, evolution_max_count=3)
     attempted = _stub_one_failing_evolution(monkeypatch)
@@ -888,12 +810,10 @@ async def test_one_failed_parent_leaves_its_siblings_evolved(
     assert evolved_texts == sorted(
         text for original, text in _EVOLVED.items() if original != _DOOMED
     )
-    # The failed parent contributes no detail, and no detail is lost.
     assert len(result["evolution_details"]) == 2
 
 
 def _state() -> WorkflowState:
-    """Include unrelated signals alongside retained guidance and sources."""
     return make_state(
         hypotheses=[
             make_hypothesis(text="Selected parent mechanism", elo_rating=900),

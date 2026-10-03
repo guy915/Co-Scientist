@@ -253,13 +253,6 @@ _NO_LIT_REVIEW: dict[str, Any] = {"enable_literature_review_node": False}
 
 
 class _FakeCompiledGraph:
-    """Stub compiled workflow graph for exercising the generator's run paths.
-
-    Supports both ``ainvoke`` (non-streaming) and ``astream`` (streaming)
-    with canned responses, plus optional errors to exercise the generator's
-    exception-propagation branches.
-    """
-
     def __init__(
         self,
         *,
@@ -268,16 +261,6 @@ class _FakeCompiledGraph:
         chunks: Sequence[dict[str, dict[str, Any]]] = (),
         stream_error: Exception | None = None,
     ) -> None:
-        """Configures the stub's canned ``ainvoke``/``astream`` behavior.
-
-        Args:
-            final_state: The state ``ainvoke`` returns, when not erroring.
-            invoke_error: If set, ``ainvoke`` raises this instead of
-                returning ``final_state``.
-            chunks: The sequence of ``{node_name: node_state}`` dicts that
-                ``astream`` yields, in order.
-            stream_error: If set, raised after all ``chunks`` are yielded.
-        """
         self._final_state = final_state
         self._invoke_error = invoke_error
         self._chunks = chunks
@@ -286,7 +269,6 @@ class _FakeCompiledGraph:
     async def ainvoke(
         self, state: WorkflowState, config: dict[str, int]
     ) -> WorkflowState:
-        """Returns the configured final state, or raises ``invoke_error``."""
         if self._invoke_error is not None:
             raise self._invoke_error
         assert self._final_state is not None
@@ -295,7 +277,6 @@ class _FakeCompiledGraph:
     async def astream(
         self, state: WorkflowState, config: dict[str, int]
     ) -> AsyncIterator[dict[str, dict[str, Any]]]:
-        """Yields the configured chunks, then raises ``stream_error`` if set."""
         for chunk in self._chunks:
             yield chunk
         if self._stream_error is not None:

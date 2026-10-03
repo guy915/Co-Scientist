@@ -1,5 +1,3 @@
-"""Tests for run text."""
-
 from __future__ import annotations
 
 import logging
@@ -20,21 +18,13 @@ from app.goal_text import (
 from app.text_utils import readable_experiment_summary
 from tests._llm_fake_backend import install_completion_backend
 
-# Elo defaults and ordering agree with the engine.
-
 
 def test_initial_elo_is_1200() -> None:
     assert INITIAL_ELO == 1200
 
 
 def test_leaderboard_ranks_played_ideas_above_unplayed_ones() -> None:
-    """Never having competed must not outrank having competed and lost.
-
-    Every hypothesis starts at INITIAL_ELO, so a pure Elo sort promotes the
-    ideas the tournament never reached. A production run led its standings
-    with six unplayed ideas at 1200 and put the genuine runner-up, which had
-    actually lost a match at 1136, beneath all of them.
-    """
+    # An unplayed initial Elo must not outrank a played loser.
     from app.elo import live_leaderboard
 
     rows = live_leaderboard(
@@ -62,12 +52,8 @@ constants = pytest.importorskip("co_scientist.constants")
 
 
 def test_elo_constants_match_engine() -> None:
-    """The app's default Elo tuning mirrors the engine's constants."""
     assert elo.INITIAL_ELO == constants.INITIAL_ELO_RATING
     assert elo.DEFAULT_K_FACTOR == constants.ELO_K_FACTOR
-
-
-# Tests for narrative goal-restatement generation (GOAL-RESTATEMENT-001).
 
 
 @pytest.mark.parametrize(
@@ -79,20 +65,17 @@ def test_elo_constants_match_engine() -> None:
     ],
 )
 def test_clean_restatement_normalizes(raw: str, expected: str) -> None:
-    """Whitespace is collapsed to one paragraph and wrapping quotes stripped."""
     assert clean_restatement(raw) == expected
 
 
 @pytest.mark.parametrize("raw", ["", "   ", "x" * 801])
 def test_clean_restatement_rejects_empty_or_overlong(raw: str) -> None:
-    """An empty or essay-length reply is discarded, so the report omits it."""
     assert clean_restatement(raw) is None
 
 
 async def test_generation_failure_returns_none(
     monkeypatch: pytest.MonkeyPatch, reachable_provider: None
 ) -> None:
-    """Any provider failure yields None so the report simply omits it."""
 
     async def _boom(**_kwargs: Any) -> Any:
         raise RuntimeError("provider down")
@@ -106,12 +89,7 @@ async def test_generation_failure_returns_none(
 async def test_reasoned_with_no_answer_retries_without_thinking(
     monkeypatch: pytest.MonkeyPatch, reachable_provider: None
 ) -> None:
-    """A reasoned-but-empty completion is retried with thinking off.
-
-    Mirrors ``goal_text``: a completion that spends its whole reasoning
-    budget and writes nothing is not a provider failure, so it earns one
-    retry with thinking disabled rather than silently omitting the paragraph.
-    """
+    # A reasoning-only reply needs a retry with thinking disabled.
     calls: list[dict[str, Any]] = []
 
     def _thinking_only() -> Any:
@@ -150,7 +128,6 @@ async def test_goal_text_retries_keep_separate_operation_budgets(
     reachable_provider: None,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Retries share one operation cap; the next operation starts fresh."""
 
     async def reasoning_only(**_kwargs: Any) -> Any:
         return types.SimpleNamespace(
@@ -174,9 +151,6 @@ async def test_goal_text_retries_keep_separate_operation_budgets(
     assert len(fake.requests) == 2
     assert "surface=title calls=1" in caplog.text
     assert "surface=goal_restatement calls=1" in caplog.text
-
-
-# Tests for app.text_utils.readable_experiment_summary (R14-20).
 
 
 def test_collapses_numbered_steps_and_bolded_criteria_to_one_line() -> None:
@@ -208,14 +182,10 @@ def test_whitespace_only_returns_empty() -> None:
 
 
 def test_leaves_bold_text_other_than_go_no_go_markers_untouched() -> None:
-    """Only the two known Go/No-Go markers are unbolded, nothing else."""
     text = "1. Use the **primary** readout.\n**Go:** it clears threshold."
     assert readable_experiment_summary(text) == (
         "Use the **primary** readout. Go: it clears threshold."
     )
-
-
-# Tests for run session-title generation and persistence.
 
 
 @pytest.mark.parametrize(
@@ -250,7 +220,6 @@ def test_set_run_title_persists_and_serializes(isolated_db: str) -> None:
         {},
         store.RunCreateOptions(client_id="c1", db_path=isolated_db),
     )
-    # Created without a title; the API shape carries it as None.
     assert run.title is None
     assert run.to_dict()["title"] is None
 
@@ -263,7 +232,6 @@ def test_set_run_title_persists_and_serializes(isolated_db: str) -> None:
 
 
 def test_set_run_title_missing_run_is_noop(isolated_db: str) -> None:
-    # No row for this id: the update touches nothing and does not raise.
     store.set_run_title("does-not-exist", "Ghost Title", isolated_db)
     assert store.get_run("does-not-exist", db_path=isolated_db) is None
 
@@ -271,16 +239,7 @@ def test_set_run_title_missing_run_is_noop(isolated_db: str) -> None:
 async def test_title_call_thinks_and_its_budget_assumes_that(
     monkeypatch: pytest.MonkeyPatch, reachable_provider: None
 ) -> None:
-    """Titling thinks like every app call site now, its budget assumes that.
-
-    These two facts are one decision. Reasoning tokens come out of the same
-    ``max_tokens`` and are emitted first, so a thinking title call sent with
-    the answer-sized budget alone would spend the whole thing on its chain
-    of thought and return empty content -- which surfaces only as runs that
-    are silently untitled, never as an error, because ``generate_run_title``
-    swallows every failure. Asserting both together means a future edit
-    cannot flip one without the other.
-    """
+    # Reasoning consumes the output budget and can leave an untitled answer.
     from app.config import THINKING_FLOOR_MAX_TOKENS
 
     seen: dict[str, Any] = {}
@@ -300,19 +259,13 @@ async def test_title_call_thinks_and_its_budget_assumes_that(
     assert title == "Ferroptosis In Glioma"
     assert seen["extra_body"] == {"thinking": {"type": "enabled"}}
     assert seen["reasoning_effort"] == "high"
-    # The budget lifted to the reasoning floor, since 24 alone would be
-    # spent entirely on the chain of thought.
     assert seen["max_tokens"] == THINKING_FLOOR_MAX_TOKENS
 
 
 async def test_title_call_timeout_is_lifted_for_a_thinking_model(
     monkeypatch: pytest.MonkeyPatch, reachable_provider: None
 ) -> None:
-    """The token budget and the deadline are one setting in two places.
-
-    A thinking call funded to reason for up to four minutes must not still
-    be abandoned at the old 15s answer-only deadline.
-    """
+    # The deadline must fund the configured token budget.
     import asyncio
 
     from app.config import THINKING_FLOOR_TIMEOUT_SECONDS
@@ -342,14 +295,7 @@ async def test_title_call_timeout_is_lifted_for_a_thinking_model(
 async def test_title_call_reasoned_with_no_answer_retries_without_thinking(
     monkeypatch: pytest.MonkeyPatch, reachable_provider: None
 ) -> None:
-    """A completion that reasoned and wrote nothing is retried, not lost.
-
-    A non-streaming completion can end normally having spent its whole
-    reasoning budget and answered with nothing at all -- the same shape
-    the engine's ``LLMThinkingOnlyError`` names for its own call sites.
-    Titling used to read this as "no usable title" and fall back to the
-    goal-clause title silently; it now gets one retry with thinking off.
-    """
+    # Retry empty reasoned titles rather than treating them as valid output.
     calls: list[dict[str, Any]] = []
 
     def _thinking_only_response() -> Any:

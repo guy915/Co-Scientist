@@ -1,5 +1,3 @@
-"""BYOK worker/supervisor model choice: headers, storage, engine wiring."""
-
 from __future__ import annotations
 
 from typing import Any

@@ -1,5 +1,3 @@
-"""Tests for architecture."""
-
 from __future__ import annotations
 
 import ast
@@ -23,9 +21,6 @@ from app.api_contracts.generate import (
 )
 from app.main import app
 from app.store.events import ACTIVITY_VALUES
-
-# Shared policies and interview services must sit below HTTP routers.
-
 
 _APP_DIR = Path(__file__).resolve().parents[1] / "app"
 _INTERVIEW_MODULES = {
@@ -80,9 +75,6 @@ def test_interview_modules_do_not_reach_into_router_facade(source: str) -> None:
             assert all(
                 alias.name != "app.interviews" for alias in node.names
             ), path
-
-
-# App adapters consume public engine operations without reverse edges.
 
 
 _ROOT = Path(__file__).resolve().parents[2]
@@ -162,29 +154,16 @@ def test_shared_operations_do_not_import_graph_coordinators(
     assert forbidden.isdisjoint(modules), (owner, forbidden & modules)
 
 
-# Guard the manual sync between pyproject.toml and requirements-app.txt.
-#
-# requirements-app.txt mirrors ``[project] dependencies`` in app/pyproject.toml
-# for the installers that use ``pip install -e app --no-deps`` (make setup, the
-# CI setup-backend action, docker/Dockerfile.api). Two deltas are deliberate and
-# documented in the requirements file's header:
-#
-# - uvicorn carries the ``[standard]`` extra there (watchfiles for --reload),
-#   while pyproject stays on plain uvicorn;
-# - the co-scientist-engine pin is omitted (installed editable from ../engine).
-#
-# Anything else is drift.
+# requirements.txt deliberately adds uvicorn[standard] and omits the editable
+# engine dependency.
 
 
-# Imported dynamically: mypy checks against python_version 3.10, where the
-# 3.11+ tomllib module does not exist; the test itself runs on 3.11+.
 tomllib = import_module("tomllib")
 
 APP_DIR = Path(__file__).resolve().parents[1]
 
 
 def _normalize(requirement: str) -> str:
-    """Canonicalize a requirement string for comparison."""
     return requirement.replace(" ", "").lower()
 
 
@@ -201,7 +180,6 @@ def _requirements_lines() -> list[str]:
 
 
 def _expected_requirements() -> list[str]:
-    """Pyproject dependencies with the two documented deltas applied."""
     expected = []
     for dep in _pyproject_dependencies():
         if dep.startswith("co-scientist-engine"):
@@ -216,11 +194,7 @@ def test_requirements_app_matches_pyproject() -> None:
     assert sorted(_requirements_lines()) == sorted(_expected_requirements())
 
 
-# Pin existing JSON reads before adding response validation.
-
-
 def _legacy_run(isolated_db: str) -> str:
-    """Persist the minimal saved-report shape supported by existing reads."""
     run = store.create_run(
         "Study feedback",
         "standard",
@@ -238,7 +212,6 @@ def _legacy_run(isolated_db: str) -> str:
 
 
 def _read(client: TestClient, path: str) -> Any:
-    """Read an owner-facing JSON response with the existing client identity."""
     response = client.get(path, headers={"X-Client-ID": "contract-owner"})
     assert response.status_code == 200, response.text
     return response.json()
@@ -282,7 +255,6 @@ def test_old_report_and_public_projection_keep_their_exact_shapes(
 def test_curated_reports_validate_all_nonempty_collection_shapes(
     isolated_db: str,
 ) -> None:
-    """Real seeded rows exercise nested models as well as empty envelopes."""
     with TestClient(app) as client:
         demos = client.get("/api/runs/demo")
         assert demos.status_code == 200
@@ -304,14 +276,9 @@ def test_curated_reports_validate_all_nonempty_collection_shapes(
                     assert response.json()[name]
 
 
-# Backend schemas, served endpoints and frontend types stay aligned.
-
-
 def _tokens(source: str) -> list[str]:
-    """Compare syntax while tolerating prettier's quotes and whitespace."""
     source = re.sub(r"//[^\n]*", "", source)
     source = re.sub(r",\s*}", "}", source)
-    # Prettier adds a leading union bar to both aliases and property types.
     source = re.sub(r"([=:])\s*\|", r"\1", source)
     tokens = re.findall(r""""[^"\n]*"|'[^'\n]*'|[\w$]+|[^\s]""", source)
     return [

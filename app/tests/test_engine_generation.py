@@ -1,5 +1,3 @@
-"""Tests for engine fanout 2."""
-
 import asyncio
 import dataclasses
 from typing import Any
@@ -43,15 +41,6 @@ from tests._engine_tasks_helpers import (
     _task_state,
 )
 
-# Generation-strategy and mature-reflection fan-out tests.
-#
-# A shared plan fanned into independently leased specialist tasks and one
-# aggregate.
-
-
-# Records every generate_with_debate call the strategy executor makes, so
-# the E14 diversity wiring (index + batch total per durable task) can be
-# asserted end to end.
 _debate_calls: list[dict[str, Any]] = []
 
 
@@ -85,7 +74,6 @@ async def _fake_assumptions(
 async def _advance_generation_node(
     run_id: str, monkeypatch: pytest.MonkeyPatch, db_path: str
 ) -> None:
-    """Seed a generate node that plans 7 strategy tasks, then fan it out."""
     state = _task_state(run_id)
     state.update(
         {
@@ -123,12 +111,8 @@ async def _advance_generation_node(
 def _assert_debate_fanout_carries_the_batch_shape(
     strategies: list[Any],
 ) -> None:
-    """Each debate task knows its position and the whole batch (E14).
-
-    Without the batch total every per-debate task would angle its debate
-    as debate 1 of 1 and the parallel debates would collapse onto one
-    diversity angle (finding E14).
-    """
+    # Debate needs batch size or parallel angles all identify as the first
+    # angle.
     debate_tasks = [
         item
         for item in strategies
@@ -151,7 +135,6 @@ def _assert_debate_fanout_carries_the_batch_shape(
 async def _run_generation_strategies_and_aggregate(
     run_id: str, db_path: str
 ) -> None:
-    """Lease the seven strategy tasks and commit one aggregate."""
     strategies = [
         store.claim_task(f"strategy-{index}", run_id=run_id, db_path=db_path)
         for index in range(7)
@@ -173,17 +156,12 @@ async def _run_generation_strategies_and_aggregate(
             if item is not None
         ]
     )
-    # Every debate task handed the engine its own position in the batch
-    # and the batch's full size, so each debate gets a distinct angle.
     debate_tasks = [
         item
         for item in strategies
         if item is not None
         and str(item.inputs["strategy"]).startswith("debate")
     ]
-    # This degraded-mode scenario plans a single debate family, so the
-    # batch below is unambiguous; a lit/no-lit split would assert per
-    # family instead.
     assert len({str(item.inputs["strategy"]) for item in debate_tasks}) == 1
     assert len(_debate_calls) == len(debate_tasks)
     batch_size = len(debate_tasks)
@@ -214,7 +192,6 @@ async def _run_generation_strategies_and_aggregate(
 
 
 def _assert_generation_committed(run_id: str, db_path: str) -> None:
-    """Pin the mixed-method commit, milestone, and review successor."""
     from co_scientist.checkpoint import restore_workflow_state
 
     checkpoint = store.get_latest_checkpoint(run_id, db_path=db_path)
@@ -224,11 +201,7 @@ def _assert_generation_committed(run_id: str, db_path: str) -> None:
         hypothesis.generation_method for hypothesis in restored["hypotheses"]
     }
     assert methods == {GenerationMethod.DEBATE, GenerationMethod.ASSUMPTIONS}
-    # Every strategy item reported real llm_calls (finding L3); the
-    # aggregate must fold them into the committed metrics instead of
-    # discarding them the way it did before the fix. Each fake strategy
-    # reports one call per hypothesis it produced, so this sums to the
-    # same 8 hypotheses_generated asserted above.
+    # Aggregate folding must retain real usage.
     assert restored["metrics"].llm_calls == 8
     assert _milestones(run_id, db_path=db_path) == [
         "3 hypotheses generated (initial)"
@@ -245,7 +218,6 @@ def _assert_generation_committed(run_id: str, db_path: str) -> None:
 async def test_generation_strategies_are_independently_leased_and_aggregated(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Debate and assumptions generation share a plan but execute separately."""
     run = store.create_run("Task-level science", "standard", "engine", {})
     await _advance_generation_node(run.id, monkeypatch, isolated_db)
     await _run_generation_strategies_and_aggregate(run.id, isolated_db)
@@ -256,7 +228,6 @@ async def test_generation_strategies_are_independently_leased_and_aggregated(
 async def test_generation_fanout_created_during_pause_waits_for_resume(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A leased generation planner may finish, but its wave waits for resume."""
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     original_dispatch = engine_tasks_node._dispatch_node_fanout
 
@@ -336,8 +307,6 @@ async def _fake_mature_review(
                 abstract="Targeted review evidence.",
             ).to_dict()
         ]
-    # A review that researched nothing, which is every review on a tier
-    # that does not fund it.
     return ReviewRun(review_type, result, None)
 
 
@@ -354,7 +323,6 @@ async def _fake_observation(
 async def _advance_mature_reflection_node(
     run_id: str, monkeypatch: pytest.MonkeyPatch, db_path: str
 ) -> None:
-    """Seed a mixed fresh/mature comprehensive_reflection node; fan it out."""
     state = _task_state(run_id)
     fresh = Hypothesis(text="fresh")
     fresh.review_disposition = "viable"
@@ -399,7 +367,6 @@ async def _advance_mature_reflection_node(
 async def _run_mature_reflection_items_and_aggregate(
     run_id: str, db_path: str
 ) -> None:
-    """Lease the four review-mode tasks and commit one aggregate."""
     items = [
         store.claim_task(f"mode-{index}", run_id=run_id, db_path=db_path)
         for index in range(4)
@@ -436,7 +403,6 @@ async def _run_mature_reflection_items_and_aggregate(
 
 
 def _assert_mature_reflection_committed(run_id: str, db_path: str) -> None:
-    """Pin per-hypothesis enrichments, evidence, and safety_screen successor."""
     from co_scientist.checkpoint import restore_workflow_state
 
     checkpoint = store.get_latest_checkpoint(run_id, db_path=db_path)
@@ -453,8 +419,6 @@ def _assert_mature_reflection_committed(run_id: str, db_path: str) -> None:
     assert (
         successor.task_type == f"{engine_tasks.NODE_TASK_PREFIX}safety_screen"
     )
-    # The mature-reflection fan-out aggregate now emits its own
-    # scientific_task completion, matching the other four aggregates.
     reflection_events = _task_events(
         run_id, "comprehensive_reflection", db_path=db_path
     )
@@ -466,14 +430,10 @@ def _assert_mature_reflection_committed(run_id: str, db_path: str) -> None:
 async def test_mature_reflection_modes_are_independent_durable_tasks(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Observation, full, simulation, and recurrent modes lease separately."""
     run = store.create_run("Task-level science", "standard", "engine", {})
     await _advance_mature_reflection_node(run.id, monkeypatch, isolated_db)
     await _run_mature_reflection_items_and_aggregate(run.id, isolated_db)
     _assert_mature_reflection_committed(run.id, isolated_db)
-
-
-# Graph and durable generation share a plan without changing task policy.
 
 
 def _hypotheses(strategy: str, count: int, start: int = 0) -> list[Hypothesis]:
@@ -555,8 +515,6 @@ def _install_strategies(
     monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[_Strategies, list[str]]:
     strategies = _Strategies()
-    # Graph binds callables in its orchestrator; durable tasks resolve the
-    # defining strategy modules. Patching both drives the actual callers.
     for module in (coordinator, literature_tools):
         monkeypatch.setattr(module, "generate_with_tools", strategies.tools)
     for module in (coordinator, debate):
@@ -699,7 +657,7 @@ async def test_graph_and_durable_contracts_keep_the_same_results(
         and "base_generation_method" in hyp.enrichments
         for hyp in graph_hypotheses
     )
-    assert expansion_calls == [run.id]  # graph-only research remains graph-only
+    assert expansion_calls == [run.id]
 
     graph_assumptions = next(
         call for call in graph_calls if call["strategy"] == "assumptions"
@@ -764,8 +722,6 @@ async def test_durable_aggregate_preserves_successes_after_a_strategy_fails(
             result = await fanout.execute_generation_strategy(
                 leased, db_path=isolated_db
             )
-            # Persisted successful-item snapshots sum across independent
-            # tasks. A failed item's unreported spend remains excluded.
             result["skills_used"] = {"pubmed": 1}
             result["model_usage"] = {
                 "generate:fixture": {"calls": 1, "prompt_tokens": 10}

@@ -1,5 +1,3 @@
-"""Tests for authentication."""
-
 from __future__ import annotations
 
 import io
@@ -15,9 +13,6 @@ from app.config import Settings, settings
 from app.operator_access import is_operator
 from tests._client import make_client, wait_for
 
-# Tests for the account-level data export (N11): GET /api/account/export.
-
-
 _OWNER = {"X-Client-ID": "export-owner"}
 _OTHER = {"X-Client-ID": "someone-else"}
 
@@ -25,12 +20,7 @@ _OTHER = {"X-Client-ID": "someone-else"}
 def _wait_owned_status(
     client: TestClient, run_id: str, status: str, *, timeout: float = 30.0
 ) -> bool:
-    """Poll ``GET /api/runs/{id}`` as ``_OWNER`` until it reaches ``status``.
-
-    ``tests._client.wait_for_status`` only polls under the client's own
-    default identity, so it cannot see a run created under a different,
-    explicit ``X-Client-ID`` like this suite's.
-    """
+    # Poll with the explicit owner identity.
 
     def _reached() -> bool:
         response = client.get(f"/api/runs/{run_id}", headers=_OWNER)
@@ -71,7 +61,7 @@ def test_export_includes_a_run_its_report_and_a_document(
     assert run_id in run_ids
     exported_run = next(r for r in payload["runs"] if r["id"] == run_id)
     assert exported_run["status"] == "completed"
-    assert exported_run["report_markdown"]  # a genuine finalized report
+    assert exported_run["report_markdown"]
     titles = [doc["title"] for doc in payload["documents"]]
     assert "mine.txt" in titles
     document = next(d for d in payload["documents"] if d["title"] == "mine.txt")
@@ -90,11 +80,7 @@ def test_export_is_scoped_to_the_caller() -> None:
     assert other_export.json()["runs"] == []
 
 
-# Researcher invite exchange, signed sessions, and ownership isolation.
-
-
 def _configure_auth(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Enable required auth with two isolated researcher invites."""
     monkeypatch.setattr(settings, "auth_mode", "required")
     monkeypatch.setattr(settings, "auth_secret", "test-signing-secret")
     monkeypatch.setattr(
@@ -107,7 +93,6 @@ def _configure_auth(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_signed_session_rejects_tampering_and_expiry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Session authenticity and expiration are both enforced."""
     _configure_auth(monkeypatch)
     token = auth.create_session_token("researcher-a", now=100)
     assert auth.verify_session_token(token, now=101).subject == "researcher-a"
@@ -122,7 +107,6 @@ def test_required_auth_exchanges_invite_and_isolates_runs(
     monkeypatch: pytest.MonkeyPatch,
     isolated_db: str,
 ) -> None:
-    """Only a verified owner can create and retrieve its private run."""
     _configure_auth(monkeypatch)
     app = _configure_allowlisted_cors(monkeypatch)
     client = TestClient(app, headers={"X-Client-ID": "pytest-default-client"})
@@ -176,7 +160,6 @@ def test_required_auth_exchanges_invite_and_isolates_runs(
 def test_invalid_invite_is_rejected(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Unconfigured access codes never mint a session."""
     _configure_auth(monkeypatch)
     response = make_client().post(
         "/api/auth/exchange", json={"access_code": "wrong"}
@@ -206,7 +189,6 @@ def test_invalid_bearer_returns_401_json(
 def _configure_allowlisted_cors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> FastAPI:
-    """Give the live app a deterministic production-style CORS allowlist."""
     from fastapi.middleware.cors import CORSMiddleware
 
     from app.main import app
@@ -227,7 +209,6 @@ def _configure_allowlisted_cors(
 def test_allowed_origin_can_read_auth_denial(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Required-auth 401 responses keep the allowed browser origin."""
     _configure_auth(monkeypatch)
     app = _configure_allowlisted_cors(monkeypatch)
     client = TestClient(app, raise_server_exceptions=False)
@@ -248,7 +229,6 @@ def test_allowed_origin_can_read_auth_denial(
 def test_allowed_origin_can_read_ownership_denial(
     monkeypatch: pytest.MonkeyPatch, isolated_db: str
 ) -> None:
-    """A non-owner still gets a browser-readable 404, never a 403."""
     monkeypatch.setattr(settings, "auth_mode", "compatibility")
     app = _configure_allowlisted_cors(monkeypatch)
     client = TestClient(app, raise_server_exceptions=False)
@@ -291,7 +271,6 @@ def test_allowed_origin_can_read_ownership_denial(
 def test_run_ownership_allows_cors_preflight(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A browser can preflight an owner-authenticated lifecycle mutation."""
     app = _configure_allowlisted_cors(monkeypatch)
     client = TestClient(app, headers={"X-Client-ID": "pytest-default-client"})
     created = client.post(
@@ -320,20 +299,8 @@ def test_run_ownership_allows_cors_preflight(
 
 
 def test_wildcard_cors_never_reflects_a_credentialed_origin() -> None:
-    """Deployments with no ALLOWED_ORIGINS must serve a real wildcard.
-
-    Exercises the exact ``CORSMiddleware`` configuration ``app.main``
-    builds from an unset ``ALLOWED_ORIGINS``, on a throwaway app rather
-    than the live ``app.main.app`` -- that instance's CORS config is fixed
-    at import time from *this test process's own* environment, which may
-    itself have ``ALLOWED_ORIGINS`` set (e.g. a developer's local ``.env``),
-    so asserting against it would not reliably exercise the fallback.
-    Before this fix, ``allow_credentials`` was unconditionally True, and
-    Starlette's ``CORSMiddleware`` reflects the requesting origin as an
-    explicit allow whenever credentials are on -- so a wildcard origin list
-    was not actually a wildcard: it granted a credentialed cross-origin
-    allow to literally any origin that asked, including this one.
-    """
+    # Credentialed CORS reflects allowed origins; isolate the app because
+    # environment configuration is fixed at import.
     from fastapi import FastAPI
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.testclient import TestClient as FastAPITestClient
@@ -367,7 +334,6 @@ def test_wildcard_cors_never_reflects_a_credentialed_origin() -> None:
 
 
 def test_cors_config_wildcard_is_never_credentialed() -> None:
-    """The unset-env fallback is a real wildcard, not a reflected origin."""
     from app.main import _resolve_cors_config
 
     origins, allow_credentials = _resolve_cors_config("")
@@ -377,7 +343,6 @@ def test_cors_config_wildcard_is_never_credentialed() -> None:
 
 
 def test_cors_config_explicit_allowlist_is_credentialed() -> None:
-    """A configured allowlist (e.g. production) keeps credentialed CORS."""
     from app.main import _resolve_cors_config
 
     origins, allow_credentials = _resolve_cors_config(
@@ -391,29 +356,14 @@ def test_cors_config_explicit_allowlist_is_credentialed() -> None:
     assert allow_credentials is True
 
 
-# ---------------------------------------------------------------------------
-# An identity-less compatibility caller (no X-Client-ID header at all) must
-# get no private scope: it cannot create a run, list one, or read one --
-# including a run some other identity-less caller happened to create,
-# which is exactly the pool every such caller used to share.
-# ---------------------------------------------------------------------------
-
-
 def _headerless_client() -> TestClient:
-    """A TestClient sending no default identity header at all.
-
-    Unlike ``tests._client.make_client``, which now carries a default
-    ``X-Client-ID`` so the rest of the suite keeps working under the new
-    rule this file tests -- these tests need a caller with genuinely no
-    identity.
-    """
+    # Identityless clients must not acquire a default identity header.
     from app.main import app
 
     return TestClient(app)
 
 
 def test_headerless_caller_cannot_create_a_run(isolated_db: str) -> None:
-    """No X-Client-ID at all is refused, not silently pooled as ''."""
     response = _headerless_client().post(
         "/api/runs", json={"research_goal": "Anonymous goal"}
     )
@@ -423,16 +373,7 @@ def test_headerless_caller_cannot_create_a_run(isolated_db: str) -> None:
 
 
 def test_headerless_callers_no_longer_share_a_run(isolated_db: str) -> None:
-    """Two callers who both send no header must not see the same run.
-
-    Before this fix, both resolved to the same empty-string subject: the
-    second caller's ``GET`` and its run listing both reached the first
-    caller's run. Since creation is now refused for an empty subject (see
-    the sibling test), this proves the read side independently: a run
-    persisted directly with an empty ``client_id`` -- the shape every
-    pre-fix headerless run was created with -- is unreachable to anyone,
-    not just to a different caller.
-    """
+    # Legacy empty-string identities must remain unreachable to every caller.
     legacy = store.create_run(
         "Pre-fix headerless goal",
         "express",
@@ -447,7 +388,6 @@ def test_headerless_callers_no_longer_share_a_run(isolated_db: str) -> None:
 
 
 def test_headerless_caller_cannot_stage_a_document(isolated_db: str) -> None:
-    """The same identity-less refusal applies to staged documents."""
     response = _headerless_client().post(
         "/api/documents",
         files={"file": ("notes.txt", b"private notes", "text/plain")},
@@ -460,7 +400,6 @@ def test_headerless_caller_cannot_stage_a_document(isolated_db: str) -> None:
 def test_headerless_caller_cannot_create_an_interview(
     isolated_db: str,
 ) -> None:
-    """The same identity-less refusal applies to interviews."""
     response = _headerless_client().post(
         "/api/interviews", json={"research_challenge": "Anonymous challenge"}
     )
@@ -469,19 +408,11 @@ def test_headerless_caller_cannot_create_an_interview(
 
 
 def test_headerless_caller_cannot_export_an_account(isolated_db: str) -> None:
-    """The data export refuses rather than exporting the shared pool.
-
-    An empty export would read as "you have no data" rather than "you did
-    not say who you are", so this is the one read that refuses instead of
-    returning nothing.
-    """
+    # Anonymous exports must fail rather than imply a misleading empty dataset.
     response = _headerless_client().get("/api/account/export")
 
     assert response.status_code == 400
     assert "X-Client-ID" in response.json()["detail"]
-
-
-# Authentication configuration and caller-controlled headers fail closed.
 
 
 @pytest.mark.parametrize("mode", ["requried", "disabled", ""])
@@ -554,9 +485,6 @@ def test_host_cannot_hide_another_researchers_run(
     assert created.status_code == 200
     response = client.get(f"/api/runs/{created.json()['id']}", headers=stranger)
     assert response.status_code == 404
-
-
-# Shared operator access policy and its request trust boundary.
 
 
 @pytest.mark.parametrize(

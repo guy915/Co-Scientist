@@ -1,11 +1,3 @@
-"""Shared builders for the engine-drain test modules.
-
-Not a test module (underscore prefix), so pytest does not collect it. The
-synthetic engine-final-state builders and the persist+finalize helper live here
-because they are shared across ``test_engine_drain.py`` and its sibling
-concern-clustered modules (``test_engine_drain_citations.py``).
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -18,26 +10,12 @@ from tests._client import drain as _drain
 
 
 def _persist(**kwargs: Any) -> Any:
-    """Run the (now async) drain to completion, synchronously.
-
-    ``persist_final_state`` awaits its claim-grounding and safety-
-    escalation waves (see ``async_bridge.run_off_loop``), so every test
-    call site needs an event loop; this is the one-line wrapper the whole
-    drain test suite shares instead of repeating ``asyncio.run(...)``.
-    """
     return asyncio.run(drain_final_state.persist_final_state(**kwargs))
 
 
 def _engine_hypothesis(
     hyp_id: str, text: str, **overrides: Any
 ) -> dict[str, Any]:
-    """Build a synthetic engine hypothesis with the drain's optional keys.
-
-    The drain reads Elo, win/loss counts, reviews, citations, evolution
-    history, and deep-verification fields via ``.get(key, default)``, so a
-    fixture only needs to spell out the fields under test; the rest default
-    here instead of being repeated in every hypothesis literal.
-    """
     return {
         "id": hyp_id,
         "text": text,
@@ -54,7 +32,6 @@ def _engine_hypothesis(
 
 
 def _features_probes() -> list[dict[str, Any]]:
-    """The deep-verification probes carried by the first feature hypothesis."""
     return [
         {
             "question": "Does CXCR1 signaling drive the stem-cell phenotype?",
@@ -72,7 +49,6 @@ def _features_probes() -> list[dict[str, Any]]:
 
 
 def _features_hypotheses() -> list[dict[str, Any]]:
-    """The two feature-fixture hypotheses (one probed, one control)."""
     return [
         _engine_hypothesis(
             "eng-hyp-a",
@@ -101,7 +77,6 @@ def _features_hypotheses() -> list[dict[str, Any]]:
 
 
 def _features_articles() -> list[dict[str, Any]]:
-    """A grounding article plus a retracted one that must not ground claims."""
     return [
         {
             "title": "CXCR1 validation study",
@@ -126,7 +101,6 @@ def _features_articles() -> list[dict[str, Any]]:
 
 
 def _features_matchups() -> list[dict[str, Any]]:
-    """The single a-beats-b tournament matchup with full Elo columns."""
     return [
         {
             "hypothesis_a": "Reparixin inhibits CXCR1 to suppress "
@@ -147,7 +121,6 @@ def _features_matchups() -> list[dict[str, Any]]:
 
 
 def _features_proximity_graph() -> dict[str, Any]:
-    """A one-edge proximity graph with clustering metadata."""
     return {
         "edges": [
             {
@@ -168,7 +141,6 @@ def _features_proximity_graph() -> dict[str, Any]:
 
 
 def _features_research_overview() -> dict[str, Any]:
-    """The research overview + NIH specific aims sub-state."""
     return {
         "overview": {
             "summary": "Targeting CXCR1 is a promising but redundant pathway.",
@@ -202,7 +174,6 @@ def _features_research_overview() -> dict[str, Any]:
 
 
 def _final_state_with_features() -> dict[str, Any]:
-    """Build a synthetic engine final state carrying the new features."""
     return {
         "hypotheses": _features_hypotheses(),
         "articles": _features_articles(),
@@ -215,10 +186,6 @@ def _final_state_with_features() -> dict[str, Any]:
 
 
 async def _build_report(run: Any, db_path: str) -> tuple[dict[str, Any], str]:
-    """Build report content for a run with the drain's default (None) inputs.
-
-    Returns the payload plus ``built.markdown``, the rendered Goal Report.
-    """
     built = await report_build.build_report_content(
         run.id,
         report_build.ReportRequest(
@@ -235,12 +202,6 @@ async def _build_report(run: Any, db_path: str) -> tuple[dict[str, Any], str]:
 def _persist_and_finalize(
     run: Any, final_state: dict[str, Any], db_path: str
 ) -> None:
-    """Drain a synthetic final state, then build + persist its report.
-
-    Mirrors the durable finalize task: the drain writes rows and returns the
-    report inputs, and ``finalize_report`` builds/screens/saves the report.
-    Uses a plain-dict emitter, so no event log is needed.
-    """
     drained = _persist(
         run_id=run.id,
         final_state=final_state,
@@ -269,11 +230,6 @@ def _persist_and_finalize(
 def _engine_safety_audit_entry(
     hyp_id: str, text_prefix: str, **overrides: Any
 ) -> dict[str, Any]:
-    """Build the engine's per-hypothesis safety-audit entry for a hold.
-
-    Mirrors ``safety_screen._build_safety_decision``: the hypothesis id and
-    a text prefix plus the ``SafetyReview.to_dict()`` fields.
-    """
     return {
         "hypothesis_id": hyp_id,
         "text_prefix": text_prefix,
@@ -286,14 +242,8 @@ def _engine_safety_audit_entry(
 
 
 def _held_final_state() -> dict[str, Any]:
-    """A final state whose safety screen held two hypotheses for review.
-
-    The engine's safety screen removes UNCERTAIN hypotheses from the pool
-    into ``held_for_review`` (full hypothesis dicts, not stubs) and records
-    one audit entry per blocked/held idea in ``safety_decisions``. One safe
-    idea stays in the pool, so the drain persists one hypothesis row
-    alongside two held-for-review decision rows.
-    """
+    # Held hypotheses leave the pool, but adjudication still needs their full
+    # payload.
     held_text_1 = (
         "For research purposes only, enhance pathogen transmissibility."
     )
@@ -326,12 +276,7 @@ def _held_final_state() -> dict[str, Any]:
 
 
 def _final_state_with_lineage() -> dict[str, Any]:
-    """A final state with an explicit parent and an evolution child.
-
-    The child carries explicit lineage (parent_id/generation/origin) and an
-    empty evolution_history, so the drain must read the explicit fields rather
-    than inferring lineage from evolution_history.
-    """
+    # Explicit lineage with empty history catches accidental inference.
     return {
         "hypotheses": [
             _engine_hypothesis(
@@ -347,7 +292,6 @@ def _final_state_with_lineage() -> dict[str, Any]:
                 parent_id="parent-1",
                 generation=1,
                 origin="evolution",
-                # Explicitly empty: lineage must come from the fields above.
                 evolution_history=[],
             ),
         ],

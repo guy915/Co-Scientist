@@ -1,5 +1,3 @@
-"""Offline contracts for reflection operations."""
-
 from __future__ import annotations
 
 import asyncio
@@ -49,21 +47,14 @@ from tests._state import make_article, make_hypothesis, make_review, make_state
 
 
 class _FakeRegistry:
-    """Minimal duck-typed ToolRegistry stand-in listing one KG tool.
-
-    ``get_tool`` answers with a knowledge-graph-typed config because that
-    declaration is what makes a tool reachable from this path: entity
-    queries are sent with INDRA's own arguments, which a literature tool
-    rejects outright.
-    """
+    """Knowledge-graph source typing is required because literature tools
+    reject INDRA arguments."""
 
     def get_tools_for_workflow(self, workflow_name: str) -> list[str]:
-        """Return a single configured tool id for any workflow name."""
         del workflow_name
         return ["indra_relations"]
 
     def get_tool(self, tool_id: str) -> ToolConfig:
-        """Resolve the configured tool id to its knowledge-graph config."""
         del tool_id
         return ToolConfig(
             server="default_pubmed",
@@ -72,24 +63,15 @@ class _FakeRegistry:
         )
 
     def get_mcp_tool_names(self, tool_ids: list[str]) -> list[str]:
-        """Resolve the configured tool id to its MCP server tool name."""
         del tool_ids
         return ["get_relations"]
 
 
 def _fake_registry() -> ToolRegistry:
-    """Build a fake registry typed as ToolRegistry for the helper signatures."""
     return cast(ToolRegistry, _FakeRegistry())
 
 
 class _FakeMcpClient:
-    """Fake MCP client for ``_fetch_evidence_result``/``fetch_indra_evidence``.
-
-    ``has_tool`` reports availability from a fixed set of names; ``call_tool``
-    dispatches per-entity via ``responses``, where a value of ``None`` means
-    "raise instead of returning" (simulating a failed per-entity query).
-    """
-
     def __init__(
         self,
         available_tools: set[str],
@@ -99,11 +81,9 @@ class _FakeMcpClient:
         self._responses = responses or {}
 
     def has_tool(self, name: str) -> bool:
-        """Report whether ``name`` is available on this fake server."""
         return name in self._available_tools
 
     async def call_tool(self, _tool_name: str, **kwargs: Any) -> Any:
-        """Return (or raise) the canned response for the queried entity."""
         entity = kwargs["agent"]
         if entity not in self._responses:
             return {"statements": []}
@@ -122,11 +102,7 @@ _ACTIVATION_STATEMENT = {
 }
 
 
-# --- _pick_available_tool ---------------------------------------------------
-
-
 def test_pick_available_tool_returns_first_match() -> None:
-    """The first mcp_name present on the client is returned."""
     client = _FakeMcpClient(available_tools={"get_relations"})
     assert (
         _pick_available_tool(client, ["get_complexes", "get_relations"])
@@ -135,16 +111,11 @@ def test_pick_available_tool_returns_first_match() -> None:
 
 
 def test_pick_available_tool_none_available_returns_empty_string() -> None:
-    """No candidate tool present on the server yields an empty string."""
     client = _FakeMcpClient(available_tools=set())
     assert _pick_available_tool(client, ["get_relations"]) == ""
 
 
-# --- _fetch_evidence_result ---------------------------------------------
-
-
 async def test_fetch_evidence_result_no_tool_available_returns_none() -> None:
-    """With no candidate tool on the server, the result is None."""
     client = _FakeMcpClient(available_tools=set())
     result = await _fetch_evidence_result(
         client, ["get_relations"], ["KRAS", "TREM2"], max_statements=5
@@ -153,7 +124,6 @@ async def test_fetch_evidence_result_no_tool_available_returns_none() -> None:
 
 
 async def test_fetch_evidence_result_no_statements_returns_none() -> None:
-    """A tool that resolves but yields no statements for any entity is None."""
     client = _FakeMcpClient(
         available_tools={"get_relations"},
         responses={"KRAS": {"statements": []}, "TREM2": {"statements": []}},
@@ -165,16 +135,10 @@ async def test_fetch_evidence_result_no_statements_returns_none() -> None:
 
 
 async def test_fetch_evidence_result_one_entity_fails_other_succeeds() -> None:
-    """A per-entity query failure does not block a sibling entity's result.
-
-    KRAS's query raises (exercising the per-entity exception-swallow path)
-    while TREM2's query succeeds, so the pooled statement list is non-empty
-    and the formatted result is built from it.
-    """
     client = _FakeMcpClient(
         available_tools={"get_relations"},
         responses={
-            "KRAS": None,  # Simulated failure.
+            "KRAS": None,
             "TREM2": json.dumps({"statements": [_ACTIVATION_STATEMENT]}),
         },
     )
@@ -187,11 +151,7 @@ async def test_fetch_evidence_result_one_entity_fails_other_succeeds() -> None:
     assert result["enrichment_items"][0]["relationship"] == "KRAS → BRAF"
 
 
-# --- fetch_indra_evidence: past the tool_registry=None short-circuit -------
-
-
 async def test_fetch_indra_evidence_no_entities_returns_empty() -> None:
-    """A configured registry but entity-free hypothesis text yields empty."""
     result = await fetch_indra_evidence(
         "the quick brown fox jumps over the lazy dog",
         tool_registry=_fake_registry(),
@@ -202,7 +162,6 @@ async def test_fetch_indra_evidence_no_entities_returns_empty() -> None:
 async def test_fetch_indra_evidence_returns_client_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A successful MCP round-trip returns the formatted evidence result."""
     fake_client = _FakeMcpClient(
         available_tools={"get_relations"},
         responses={
@@ -228,7 +187,6 @@ async def test_fetch_indra_evidence_returns_client_result(
 async def test_fetch_indra_evidence_swallows_client_construction_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A failure obtaining the MCP client degrades to the empty result."""
 
     async def raising_get_mcp_client(**_: Any) -> Any:
         raise RuntimeError("connection refused")
@@ -244,12 +202,8 @@ async def test_fetch_indra_evidence_swallows_client_construction_error(
     assert result == {"prompt_text": "", "enrichment_items": []}
 
 
-# --- _format_evidence ---------------------------------------------------
-
-
 def test_format_evidence_renders_header_and_valid_statement_lines() -> None:
-    """Renderable statements follow a header naming the queried entities."""
-    malformed = {"type": "Unknown"}  # Neither subj/obj nor members.
+    malformed = {"type": "Unknown"}
     text = _format_evidence(
         [_ACTIVATION_STATEMENT, malformed], ["KRAS", "BRAF"]
     )
@@ -258,41 +212,27 @@ def test_format_evidence_renders_header_and_valid_statement_lines() -> None:
         "(queried for: KRAS, BRAF):"
     )
     assert "KRAS --[Activation]--> BRAF" in text
-    # The malformed statement contributes no line.
     assert text.count("\n") == 1
 
 
 def test_format_evidence_no_renderable_statements_returns_empty() -> None:
-    """No renderable statements yields "" rather than a bare header."""
     assert _format_evidence([{"type": "Unknown"}], ["KRAS"]) == ""
     assert _format_evidence([], ["KRAS"]) == ""
 
 
-# --- _agent_name --------------------------------------------------------
-
-
 def test_agent_name_extracts_dict_name() -> None:
-    """A dict-shaped agent's name field is returned."""
     assert _agent_name({"subj": {"name": "KRAS"}}, "subj") == "KRAS"
 
 
 def test_agent_name_non_dict_agent_returns_empty_string() -> None:
-    """A non-dict agent value (malformed statement) falls back to ""."""
     assert _agent_name({"subj": "KRAS"}, "subj") == ""
 
 
 def test_agent_name_missing_role_returns_empty_string() -> None:
-    """A statement missing the requested role key falls back to ""."""
     assert _agent_name({}, "obj") == ""
 
 
 def test_verification_context_excludes_retracted_evidence() -> None:
-    """A retracted paper never reaches the deep-verification gate.
-
-    The review cascade already refuses retracted evidence, so a paper the
-    reviews would not read must not be what the gate that exists to
-    challenge a hypothesis's evidence weighs it against.
-    """
     state = make_state(
         articles=[
             make_article(
@@ -317,7 +257,6 @@ def test_verification_context_excludes_retracted_evidence() -> None:
 
 
 def test_review_context_excludes_retracted_evidence() -> None:
-    """The review cascade refuses retracted evidence too."""
     state = make_state(
         articles=[
             make_article(
@@ -333,12 +272,8 @@ def test_review_context_excludes_retracted_evidence() -> None:
 
 
 def test_probe_context_excludes_retracted_evidence() -> None:
-    """Targeted probe evidence is filtered by the formatter, not only above.
-
-    Retrieval already drops retracted papers, but the rule belongs
-    wherever evidence is handed to a model so a future caller cannot
-    reintroduce one by formatting its own list.
-    """
+    """Retraction checks belong at formatting boundaries too, not only
+    retrieval."""
     retracted = make_article(
         "Retracted probe hit",
         abstract="Withdrawn mechanistic claim.",
@@ -352,12 +287,6 @@ def test_probe_context_excludes_retracted_evidence() -> None:
 
 
 def test_verification_context_falls_back_to_article_fulltext() -> None:
-    """An abstract-less source contributes its fulltext, not nothing.
-
-    Retrieval marks an article analyzed on either field, so an abstract-less
-    one with real fulltext used to be an empty section in the verification
-    prompt while contributing its text to every other reflection prompt.
-    """
     state = make_state(
         articles=[
             make_article(
@@ -375,7 +304,6 @@ def test_verification_context_falls_back_to_article_fulltext() -> None:
 
 
 def test_review_context_falls_back_to_article_fulltext() -> None:
-    """The review cascade reads fulltext when the abstract is empty."""
     state = make_state(
         articles=[
             make_article(
@@ -393,7 +321,6 @@ def test_review_context_falls_back_to_article_fulltext() -> None:
 
 
 def test_one_source_truncates_the_same_way_on_every_path() -> None:
-    """A source's excerpt does not depend on which prompt is asking."""
     abstract = "mechanism " * 500
     state = make_state(
         articles=[
@@ -409,7 +336,6 @@ def test_one_source_truncates_the_same_way_on_every_path() -> None:
 
 
 def test_private_sources_get_a_wider_slice_than_public_ones() -> None:
-    """Private, scientist-supplied context is quoted at greater length."""
     display = "private finding " * 300
     state = make_state(context_enrichment_sources=[{"display": display}])
 
@@ -421,12 +347,8 @@ def test_private_sources_get_a_wider_slice_than_public_ones() -> None:
 
 
 def test_public_article_citation_markers_are_stripped() -> None:
-    """A source's own citations do not reach either reflection prompt.
-
-    Left in, a review or verification model can copy one into its own
-    prose -- a real-looking reference attached to a claim the cited
-    source never made.
-    """
+    """Copied source citations can misattribute generated claims to real
+    papers."""
     abstract = "This confirms prior work (Smith et al. 2019) [12]."
     state = make_state(
         articles=[
@@ -445,11 +367,8 @@ def test_public_article_citation_markers_are_stripped() -> None:
 
 
 def test_private_source_citation_markers_are_kept() -> None:
-    """A scientist-supplied source's own citations are not contamination.
-
-    Unlike a retrieved paper's markers, these are the scientist's
-    intentional content, not text a model could mistake for its own.
-    """
+    """Scientist-supplied markers are intentional input rather than retrieved
+    contamination."""
     display = "See our finding (Doe et al. 2020) for the full protocol."
     state = make_state(context_enrichment_sources=[{"display": display}])
 
@@ -459,7 +378,6 @@ def test_private_source_citation_markers_are_kept() -> None:
 
 
 def test_building_context_leaves_the_article_abstract_unchanged() -> None:
-    """Stripping is for the prompt copy only, never for storage."""
     original = "This confirms prior work (Smith et al. 2019) [12]."
     article = make_article(
         "Cited paper", abstract=original, used_in_analysis=True

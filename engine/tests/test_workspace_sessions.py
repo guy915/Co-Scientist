@@ -1,5 +1,3 @@
-"""Offline contracts for workspace sessions."""
-
 from __future__ import annotations
 
 import asyncio
@@ -64,17 +62,8 @@ async def _wait_for_output(
     *,
     timeout: float = 5.0,
 ) -> dict[str, Any]:
-    """Polls a session until ``needle`` shows up in a read's stdout.
-
-    The pump that fills a session's stdout is a background task racing
-    whatever bounded wait a caller asks for; a loaded host -- or, on
-    Linux, the landlock backend's own re-exec of a fresh interpreter
-    before the child even starts -- can outlast a short yield window
-    before anything has been written. That race is exactly what "still
-    running" exists to tolerate, so it is resolved the way a real
-    caller would: poll again, bounded by a total deadline rather than a
-    fixed sleep.
-    """
+    """A loaded host or sandbox re-exec can outlast a yield window; bounded
+    polling resolves that race."""
     deadline = time.monotonic() + timeout
     while needle not in payload["stdout"]:
         if time.monotonic() >= deadline:
@@ -108,12 +97,10 @@ class TestStillRunningIsAnAnswer:
         )
         assert payload["running"] is True
         assert payload["session_id"]
-        # And the output it had already produced is here, which the
-        # bounded path discards entirely on its timeout.
         payload = await _wait_for_output(provider, payload, "early")
         assert "early" in payload["stdout"]
-        # The command outlives the call that started it on purpose; end
-        # it explicitly rather than leaking a "sleep 30" past this test.
+        # End the deliberately surviving command rather than leaking it past the
+        # test.
         await provider.session.sessions.close()
 
     async def test_a_fast_command_finishes_in_one_call(
@@ -151,12 +138,8 @@ class TestStillRunningIsAnAnswer:
     async def test_the_cursor_does_not_repeat_output(
         self, provider: WorkspaceToolProvider
     ) -> None:
-        # Without this a chatty command re-sends its whole log on every
-        # poll, and the transcript grows quadratically in what it says.
-        # "second" is gated behind a read so it cannot exist until the
-        # cursor has already advanced past "first" -- an unbounded
-        # producer would let the two lines race the same short yield
-        # window this test used to assert against directly.
+        # Cursor advancement prevents quadratic replay; gating the second line
+        # removes yield races.
         started = await _execute(
             provider,
             _WORKSPACE_SESSIONS_RUN_COMMAND,
@@ -228,14 +211,8 @@ class TestDrivingIt:
     async def test_input_to_a_finished_command_is_refused_legibly(
         self, provider: WorkspaceToolProvider
     ) -> None:
-        """One poll too late is the model's mistake, not the harness's.
-
-        These calls run under the loop's effect-batched gather, so an
-        exception that is not a tool input error is reported as a
-        harness fault and logged as one. The model can act on this: the
-        command is over, and polling again without input still returns
-        everything it printed.
-        """
+        """Invalid model input is a tool error, not an exception that fails
+        sibling calls."""
         started = await _execute(
             provider,
             _WORKSPACE_SESSIONS_RUN_COMMAND,
@@ -257,7 +234,6 @@ class TestDrivingIt:
         )
         assert "not accepting input" in json.dumps(late)
         assert "tool execution failed" not in json.dumps(late)
-        # And the output is still there for a plain poll.
         again = await _execute(
             provider, POLL_COMMAND, session_id=started["session_id"]
         )
@@ -266,16 +242,12 @@ class TestDrivingIt:
     async def test_an_unknown_session_says_why(
         self, provider: WorkspaceToolProvider
     ) -> None:
-        # The message names the real cause, because the common way to
-        # reach it is a worker restart rather than a typo.
         payload = await _execute(provider, POLL_COMMAND, session_id="nope")
         assert "restart" in json.dumps(payload)
 
 
 class TestBounds:
     async def test_output_is_capped_and_says_so(self, tmp_path: Path) -> None:
-        # A command printing forever must not be a memory leak wearing a
-        # session id.
         registry = SessionRegistry()
         session_ws = WorkspaceSession(tmp_path)
         session = await registry.start(
@@ -297,8 +269,6 @@ class TestBounds:
     async def test_closing_the_registry_ends_a_live_command(
         self, tmp_path: Path
     ) -> None:
-        # Otherwise a workspace that goes away leaves an orphan holding
-        # a sandbox open.
         session_ws = WorkspaceSession(tmp_path)
         registry = SessionRegistry()
         session = await registry.start(
@@ -314,8 +284,6 @@ class TestBounds:
     async def test_too_many_live_commands_is_refused(
         self, tmp_path: Path
     ) -> None:
-        # Refused rather than queued: a caller told "started" for
-        # something that has not started cannot poll it.
         session_ws = WorkspaceSession(tmp_path)
         registry = SessionRegistry()
         for _ in range(4):
@@ -334,14 +302,8 @@ class TestBounds:
 
 
 class TestAnInterruptedCommand:
-    """The two halves together, against a command that really was cut.
-
-    A session belongs to the process that started it, so a worker that
-    dies takes it with it. What matters is not that this is avoidable
-    -- surviving a restart needs a supervisor outside the worker -- but
-    that the loss reaches the model as an explicit aborted result
-    instead of a conversation the provider refuses.
-    """
+    """Worker restarts lose sessions; the model needs explicit aborts, not
+    unmatched calls."""
 
     async def test_the_resumed_transcript_says_the_call_was_aborted(
         self, tmp_path: Path
@@ -360,9 +322,6 @@ class TestAnInterruptedCommand:
         )
         assert started["running"] is True
 
-        # The turn as it stands when the worker dies here: the model's
-        # request is recorded, the poll that would have answered it is
-        # not.
         interrupted = [
             {
                 "role": "assistant",
@@ -390,8 +349,6 @@ class TestAnInterruptedCommand:
     async def test_polling_a_session_the_restart_ended_is_legible(
         self, tmp_path: Path
     ) -> None:
-        # And if the model does poll it anyway, the refusal names the
-        # cause rather than reading as a bad session id.
         provider = WorkspaceToolProvider(WorkspaceSession(tmp_path))
         started = await _execute(
             provider,
@@ -414,7 +371,6 @@ _SECRET = "sk-live-9f3c2b71aa4d8e60"
 
 
 def _workspace_output_call(name: str, arguments: Any = "{}") -> SimpleNamespace:
-    """Builds a litellm-shaped tool call."""
     return SimpleNamespace(
         id=f"call_{name}",
         function=SimpleNamespace(name=name, arguments=arguments),
@@ -422,7 +378,6 @@ def _workspace_output_call(name: str, arguments: Any = "{}") -> SimpleNamespace:
 
 
 def _registry(**secrets: str) -> SecretRegistry:
-    """Builds a registry from name/value pairs."""
     registry = SecretRegistry()
     for name, value in secrets.items():
         registry.register(name, value)
@@ -430,13 +385,11 @@ def _registry(**secrets: str) -> SecretRegistry:
 
 
 def _content(message: dict[str, Any]) -> dict[str, Any]:
-    """Parses a tool-role message's JSON content."""
     parsed: dict[str, Any] = json.loads(message["content"])
     return parsed
 
 
 def _run(provider: WorkspaceToolProvider, argv: list[str]) -> dict[str, Any]:
-    """Runs a command through the tool surface and returns its payload."""
     return _content(
         asyncio.run(
             provider.execute_tool_call(
@@ -448,11 +401,7 @@ def _run(provider: WorkspaceToolProvider, argv: list[str]) -> dict[str, Any]:
     )
 
 
-# --- registration ---------------------------------------------------------
-
-
 def test_a_short_value_is_refused_rather_than_masked() -> None:
-    """Masking "abc" everywhere corrupts output that merely contains it."""
     with pytest.raises(SecretRegistrationError, match="cannot be masked"):
         _registry(TOKEN="a" * (MIN_SECRET_LENGTH - 1))
 
@@ -470,7 +419,6 @@ def test_environment_scan_finds_credential_shaped_names() -> None:
 
 
 def test_environment_scan_skips_a_short_value_without_raising() -> None:
-    """One odd variable must not stop the rest being protected."""
     registry = SecretRegistry()
     found = registry.register_environment(
         {"SHORT_KEY": "abc", "REAL_KEY": _SECRET}
@@ -479,21 +427,14 @@ def test_environment_scan_skips_a_short_value_without_raising() -> None:
 
 
 def test_a_secret_containing_another_is_masked_as_itself() -> None:
-    """Shortest-first would replace the inner value and strand the rest."""
     registry = _registry(INNER=_SECRET, OUTER=f"{_SECRET}-extended-suffix")
     assert registry.redact(f"{_SECRET}-extended-suffix") == "[redacted:OUTER]"
 
 
-# --- the inline path, which is the one that was missed --------------------
-
-
 @_requires_sandbox
 def test_a_command_printing_a_secret_does_not_print_it(tmp_path: Path) -> None:
-    """The gap being closed: stdout reaches the transcript untouched.
-
-    Scrubbing stored artifacts and leaving the command's own output alone
-    means one ``env`` publishes every injected credential.
-    """
+    """Command stdout enters the transcript directly and must redact injected
+    credentials."""
     echo = shutil.which("echo")
     if echo is None:  # pragma: no cover - environment-dependent
         pytest.skip("echo is not installed")
@@ -510,7 +451,6 @@ def test_a_command_printing_a_secret_does_not_print_it(tmp_path: Path) -> None:
 def test_reading_a_file_does_not_route_around_redaction(
     tmp_path: Path,
 ) -> None:
-    """Otherwise ``cmd > f`` then read_file is the way past the other path."""
     (tmp_path / "captured.txt").write_text(f"key={_SECRET}\n")
     provider = WorkspaceToolProvider(
         WorkspaceSession(tmp_path), secrets=_registry(API_KEY=_SECRET)
@@ -532,12 +472,8 @@ def test_reading_a_file_does_not_route_around_redaction(
 def test_output_is_dropped_whole_when_a_value_survives(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """The guard behind the redactor, triggered by breaking the redactor.
-
-    Its condition is a bug in ``redact``, so it cannot be reached with
-    real inputs -- and a defence that is never exercised is a defence
-    nobody knows is wired up.
-    """
+    """Fault injection proves the fail-closed guard still works if redaction
+    fails."""
     monkeypatch.setattr(SecretRegistry, "redact", lambda self, text: text)
     recorder = OutputRecorder(tmp_path, _registry(API_KEY=_SECRET))
 
@@ -548,11 +484,7 @@ def test_output_is_dropped_whole_when_a_value_survives(
     assert bounded.truncated
 
 
-# --- spillover ------------------------------------------------------------
-
-
 def test_a_long_stream_keeps_both_ends(tmp_path: Path) -> None:
-    """A head-only truncation discards the half that holds the verdict."""
     recorder = OutputRecorder(tmp_path, preview_chars=200)
     text = f"START{'x' * 5000}END"
 
@@ -566,7 +498,6 @@ def test_a_long_stream_keeps_both_ends(tmp_path: Path) -> None:
 def test_spilled_output_is_readable_back_through_the_tools(
     tmp_path: Path,
 ) -> None:
-    """The pointer is only useful if read_file can actually follow it."""
     session = WorkspaceSession(tmp_path)
     provider = WorkspaceToolProvider(session)
     recorder = OutputRecorder(session.root, preview_chars=100)
@@ -590,7 +521,6 @@ def test_spilled_output_is_readable_back_through_the_tools(
 def test_spilled_output_is_redacted_before_it_is_written(
     tmp_path: Path,
 ) -> None:
-    """Redacting before persisting: the spill file is a persistence."""
     recorder = OutputRecorder(
         tmp_path, _registry(API_KEY=_SECRET), preview_chars=100
     )
@@ -604,7 +534,6 @@ def test_spilled_output_is_redacted_before_it_is_written(
 def test_a_failed_spill_costs_the_middle_not_the_command(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """A full disk must not turn a finished command into an error."""
 
     def _explode(*args: Any, **kwargs: Any) -> None:
         raise OSError("no space left on device")
@@ -619,25 +548,15 @@ def test_a_failed_spill_costs_the_middle_not_the_command(
     assert bounded.text
 
 
-# --- the metadata directory ----------------------------------------------
-
-
 def test_the_spill_directory_is_harness_scratch_not_a_guarantee() -> None:
-    """Which tuple it is in decides whether landlock can run at all.
-
-    Everything in PROTECTED_METADATA_NAMES makes a workspace policy
-    inexpressible under landlock, whose rules can only add access. This
-    directory always exists, so listing it there refused every command
-    on the platform production runs -- and the protection it bought was
-    never what made the spill safe (see _is_inside_workspace).
-    """
+    """Landlock only adds access; protecting scratch would make every
+    workspace inexpressible."""
     assert SPILL_DIRECTORY.split("/")[0] == HARNESS_METADATA_NAME
     assert HARNESS_METADATA_NAME not in PROTECTED_METADATA_NAMES
     assert HARNESS_METADATA_NAME in METADATA_NAMES
 
 
 def test_listing_files_omits_harness_metadata(tmp_path: Path) -> None:
-    """Its own transcript is not one of the workspace's inputs."""
     session = WorkspaceSession(tmp_path)
     (tmp_path / "analysis.py").write_text("pass")
     OutputRecorder(session.root, preview_chars=50).record("stdout", "y" * 500)
@@ -655,15 +574,8 @@ def test_listing_files_omits_harness_metadata(tmp_path: Path) -> None:
 def test_a_symlinked_metadata_directory_does_not_redirect_the_spill(
     tmp_path: Path,
 ) -> None:
-    """The escape a fresh Linux workspace allowed until sessions made it.
-
-    bwrap's --ro-bind-try skips a path that does not exist, so on a fresh
-    workspace .cosci was ordinary writable space and the first confined
-    command could replace it with a symlink. The spill then ran in *this*
-    process, outside the sandbox, and wrote command-influenced bytes into
-    a command-chosen directory. macOS never showed it: seatbelt's deny
-    rule matches the path whether or not it exists.
-    """
+    """Bubblewrap skips absent read-only bind paths; host-side spills must
+    resist later symlinks."""
     root = tmp_path / "workspace"
     root.mkdir()
     outside = tmp_path / "elsewhere"
@@ -675,15 +587,13 @@ def test_a_symlinked_metadata_directory_does_not_redirect_the_spill(
     )
 
     assert bounded.pointer is None
-    # Not even a directory: creating one and then declining to write
-    # still lets a command make the host mkdir wherever it likes.
+    # Even mkdir would let command-chosen paths cause a host-side write.
     assert list(outside.rglob("*")) == []
 
 
 def test_a_session_creates_the_metadata_directory_up_front(
     tmp_path: Path,
 ) -> None:
-    """What makes the read-only bind bind at all, from command one."""
     session = WorkspaceSession(tmp_path)
     assert (session.root / SPILL_DIRECTORY).is_dir()
 
@@ -691,11 +601,6 @@ def test_a_session_creates_the_metadata_directory_up_front(
 def test_a_truncated_read_hands_back_a_way_to_the_rest(
     tmp_path: Path,
 ) -> None:
-    """Otherwise the preview's own advice is a dead end.
-
-    "Read the full output with read_file" is what the preview says, and
-    re-reading the same path returns the same preview forever.
-    """
     session = WorkspaceSession(tmp_path)
     (tmp_path / "big.txt").write_text("y" * 40_000)
 

@@ -55,7 +55,6 @@ def _other_text_pos(prompt: str, winner_text: str) -> int:
 
 
 async def test_fewer_than_two_hypotheses_skips_tournament() -> None:
-    """Tournament entrants require completed review stamps."""
     only = make_hypothesis(text="lone hypothesis TXT")
     state = make_state(hypotheses=[only])
     result = await ranking_node(state)
@@ -88,7 +87,6 @@ async def test_skipped_tournament_names_the_pool_and_the_gates(
 
 
 async def test_empty_hypotheses_skips_tournament() -> None:
-    """Tournament entrants require completed review stamps."""
     state = make_state(hypotheses=[])
     result = await ranking_node(state)
     assert result["hypotheses"] == []
@@ -98,7 +96,6 @@ async def test_empty_hypotheses_skips_tournament() -> None:
 async def test_evidence_blocked_hypothesis_cannot_enter_tournament(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Tournament entrants require completed review stamps."""
     winner = make_hypothesis(text="supported winner TXT alpha")
     loser = make_hypothesis(text="supported loser TXT beta")
     blocked = make_hypothesis(text="ungrounded idea TXT gamma")
@@ -148,7 +145,6 @@ async def test_deterministic_winner_updates_elo_and_counts(
 async def test_matchups_carry_hypothesis_ids(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Tournament entrants require completed review stamps."""
     winner = make_hypothesis(text="winner pathway TXT alpha")
     loser = make_hypothesis(text="loser pathway TXT beta")
     state = make_state(hypotheses=[winner, loser])
@@ -293,7 +289,6 @@ def _record_matchup_prompts(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 async def test_a_rejected_hypothesis_cannot_enter_tournament(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Tournament entrants require completed review stamps."""
     non_novel = make_hypothesis(
         text="already established mechanism",
         review_disposition="non_novel",
@@ -390,7 +385,6 @@ def test_budget_scales_with_a_pool_the_tier_number_cannot_cover() -> None:
 
 
 def test_budget_is_not_refunded_when_dedup_removes_hypotheses() -> None:
-    """Tournament entrants require completed review stamps."""
     from co_scientist.agents.ranking.ranking_lifecycle import (
         consumed_tournament_rounds,
     )
@@ -558,7 +552,6 @@ def test_entry_sets_the_published_rating() -> None:
 
 
 def test_entry_is_idempotent_for_a_rated_hypothesis() -> None:
-    """Tournament entrants require completed review stamps."""
     hypothesis = Hypothesis(text="An idea.", elo_rating=1350)
     assert add_to_tournament(hypothesis) is False
     assert hypothesis.elo_rating == 1350

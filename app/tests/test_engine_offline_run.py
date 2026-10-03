@@ -1,17 +1,3 @@
-"""End-to-end proof of the offline-backed real-engine path.
-
-This suite drives an offline-backed run through the durable node executor (the
-surface ``/start`` uses) whose generator is built against the deterministic
-offline router (the REAL ``HypothesisGenerator``, not a fake stub) and proves
-it completes with a persisted report, records ``llm_backend == "offline"``, and
-never reaches a real provider -- every LLM call is answered by
-``offline_acompletion``.
-
-The recording-stub / router-isolation pattern mirrors the engine's own
-``tests/test_offline_llm.py`` end-to-end test, re-homed on the app's durable
-run path.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -29,15 +15,8 @@ from ._llm_fake_backend import load_engine_fake
 
 @pytest.fixture(autouse=True)
 def _isolate_offline_router(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Reset the router's install bookkeeping so each test installs fresh.
-
-    ``install_offline_router`` installs a backend process-wide (not through
-    ``monkeypatch``), so recording the installed backend registers it for
-    automatic restoration at teardown, and clearing the idempotency flag
-    guarantees this test's ``install_offline_router`` routes over the
-    recording backend installed below rather than no-opping over a prior
-    install.
-    """
+    # Offline backend registration is process-global; restore it and clear
+    # idempotency state.
     monkeypatch.setattr(backend, "_installed", backend._installed)
     monkeypatch.setattr(offline_llm, "_installed", False)
 
@@ -45,13 +24,8 @@ def _isolate_offline_router(monkeypatch: pytest.MonkeyPatch) -> None:
 def _install_recording_router(
     monkeypatch: pytest.MonkeyPatch,
 ) -> list[dict[str, Any]]:
-    """Install the offline router over a call-recording fake backend.
-
-    Returns the list every escaped call is appended to; it stays empty when
-    nothing bypasses the offline router. A leak is still answered offline so
-    it cannot break the run -- recording turns it into an assertion failure
-    rather than a silent real request.
-    """
+    # Record escaped provider calls while answering offline so leaks cannot make
+    # paid calls.
     escaped_calls: list[dict[str, Any]] = []
 
     async def _recording_backend(**kwargs: Any) -> Any:
@@ -64,11 +38,6 @@ def _install_recording_router(
 
 
 def _persist_offline_run(isolated_db: str) -> tuple[Any, dict[str, Any]]:
-    """Persist an offline-backed express run; return the run and its config.
-
-    It carries the default mock provider but is driven on the engine below;
-    the engine path keys the generator's model on the ``llm_backend`` column.
-    """
     config: dict[str, Any] = {
         "tier": "express",
         "enable_literature_review": False,
@@ -88,8 +57,7 @@ def _persist_offline_run(isolated_db: str) -> tuple[Any, dict[str, Any]]:
 def _drive_offline_engine(
     run: Any, config: dict[str, Any], isolated_db: str
 ) -> list[dict[str, Any]]:
-    """Drive the persisted run through the durable path; return its events."""
-    _ = config  # the run row already carries the resolved config
+    _ = config
     task_worker.enqueue_run_workflow(run.id, db_path=isolated_db)
     asyncio.run(
         task_worker.run_run_worker_pool(
@@ -104,14 +72,6 @@ def _drive_offline_engine(
 def test_offline_engine_run_completes_without_a_real_call(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A force-engine, offline-backed run finishes offline with a report.
-
-    Records every call the router passes through to the backend it wraps
-    so "the run completed" becomes proof that zero calls
-    escaped the offline router.
-    """
-    # The engine event vocabulary is not under test here; keep the app-level
-    # semantic screen offline so its real provider call cannot flake the run.
     from app.config import settings
 
     monkeypatch.setattr(settings, "semantic_safety_enabled", False)
@@ -124,7 +84,6 @@ def test_offline_engine_run_completes_without_a_real_call(
         f"router: {escaped_calls[0].get('model')!r}"
     )
 
-    # The run finished on the engine and published a report.
     types_emitted = [e["type"] for e in events]
     assert "report" in types_emitted
     final = store.get_run(run.id, db_path=isolated_db)
@@ -133,6 +92,5 @@ def test_offline_engine_run_completes_without_a_real_call(
     assert final.llm_backend == "offline"
     assert store.get_latest_report(run.id, db_path=isolated_db) is not None
 
-    # The offline generator produced real (deterministic) hypotheses.
     hyps = store.list_hypotheses(run.id, db_path=isolated_db)
     assert hyps

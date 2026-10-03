@@ -1,5 +1,3 @@
-"""Free usage: keyless runs are express-only and capped per day."""
-
 from __future__ import annotations
 
 from typing import Any
@@ -21,7 +19,6 @@ _CLIENT = {"X-Client-ID": "free-usage-scientist"}
 def real_backend(
     monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
-    """Make a keyless run real-backed, i.e. free usage."""
     fake_process_mode.online()
 
     async def _no_title(goal: str) -> None:

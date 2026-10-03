@@ -1,5 +1,3 @@
-"""Tests for llm transport."""
-
 from __future__ import annotations
 
 import asyncio
@@ -41,16 +39,12 @@ from app.llm_scope import (
 )
 from tests._llm_fake_backend import install_completion_backend
 
-# Tests for the sync/async context-propagation bridge (app/async_bridge.py).
-
-
 _probe: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "test_async_bridge_probe", default=None
 )
 
 
 def test_propagate_context_carries_value_into_a_new_thread() -> None:
-    """A ContextVar set on the submitting thread reaches the pool worker."""
     token = _probe.set("scoped-value")
     try:
 
@@ -66,7 +60,6 @@ def test_propagate_context_carries_value_into_a_new_thread() -> None:
 
 
 def test_run_coroutine_sync_carries_value_onto_the_bridge_loop() -> None:
-    """A ContextVar set on the calling thread reaches the bridge coroutine."""
     token = _probe.set("bridge-value")
     try:
 
@@ -81,7 +74,6 @@ def test_run_coroutine_sync_carries_value_onto_the_bridge_loop() -> None:
 
 
 def test_run_coroutine_sync_runs_many_calls_concurrently() -> None:
-    """Several blocked calls resolve together, not one loop teardown apiece."""
     import time
 
     async def _slow() -> float:
@@ -99,7 +91,6 @@ def test_run_coroutine_sync_runs_many_calls_concurrently() -> None:
 
 
 def test_propagate_context_restores_a_reused_worker_thread() -> None:
-    """A campaign job must not contaminate the pool's next standard job."""
     with ThreadPoolExecutor(max_workers=1) as pool:
         with scoped_campaign_mode(True):
             assert (
@@ -110,7 +101,6 @@ def test_propagate_context_restores_a_reused_worker_thread() -> None:
 
 
 def test_run_coroutine_sync_restores_the_shared_bridge_loop() -> None:
-    """The persistent bridge loop is standard again after campaign work."""
 
     async def read_campaign_mode() -> bool:
         return bool(campaign_free_mode())
@@ -120,36 +110,22 @@ def test_run_coroutine_sync_restores_the_shared_bridge_loop() -> None:
     assert run_coroutine_sync(read_campaign_mode) is False
 
 
-# A scoped loop must not leave litellm's logging worker task behind.
-#
-# The worker's ``_worker_loop`` task is created on whichever loop first makes
-# a completion call and never stopped, so every short-lived loop in this
-# process (a run cohort, a ThreadPoolExecutor escalation) used to close over
-# a pending task that later logged ``Task was destroyed but it is pending!``
-# at ERROR against an unrelated run. These tests pin both halves of the fix:
-# the loop that owns the worker stops it, and a loop that does not own it
-# leaves it alone.
+# Tear down logging workers on their owning event loop.
 
 
 async def _noop() -> None:
-    """Stand in for the best-effort callbacks litellm actually queues."""
     return None
 
 
 def test_scoped_loop_stops_a_worker_it_started() -> None:
     run_in_scoped_loop(_start_worker_on_running_loop())
 
-    # Nothing pending survives the loop, so no task is left to be garbage
-    # collected into an ERROR record later.
     assert GLOBAL_LOGGING_WORKER._worker_task is None
 
 
 def test_scoped_loop_leaves_a_worker_bound_elsewhere_alone() -> None:
     other_loop = asyncio.new_event_loop()
     try:
-        # Bind the worker to a loop this process keeps running: cancelling
-        # its task from another loop is the cross-loop trap the guard exists
-        # to avoid.
         other_loop.run_until_complete(
             _start_worker_on_running_loop(),
         )
@@ -166,14 +142,9 @@ def test_scoped_loop_leaves_a_worker_bound_elsewhere_alone() -> None:
 
 
 async def _start_worker_on_running_loop() -> None:
-    """Start the global worker on whichever loop is currently running."""
     GLOBAL_LOGGING_WORKER.start()
-    # Let the worker task reach its first await so it is genuinely pending.
     await asyncio.sleep(0)
     assert GLOBAL_LOGGING_WORKER._worker_task is not None
-
-
-# App calls use the installed provider, with independent accounting.
 
 
 async def test_app_call_uses_the_installed_backend(
@@ -289,9 +260,6 @@ async def test_nested_app_helpers_share_the_operation_budget(
     assert len(fake.requests) == 1
 
 
-# Budgeted streams preserve context, backpressure and cancellation.
-
-
 async def test_stream_context_does_not_leak_or_prefetch_across_yields() -> None:
     steps: list[int] = []
 
@@ -382,18 +350,10 @@ async def test_abandoned_cyclic_stream_closes_without_destroying_its_producer(
         loop.set_exception_handler(previous_handler)
 
 
-# Tests for the streaming deadlines in ``app.llm_scope``.
-#
-# The distinction under test is the whole point of the module: a stream that
-# is slow overall but never silent is healthy, and a total-duration deadline
-# cannot tell it apart from a provider that has stopped answering. On a
-# thinking model the slow-but-alive case is the normal one, so the tests pin
-# both directions -- long streams survive, silent ones do not.
+# Silence timeout and total request duration are independent limits.
 
 
 class _FakeStream:
-    """Async iterable yielding each chunk after a scripted delay."""
-
     def __init__(self, script: list[tuple[float, str]]) -> None:
         self._script = list(script)
 
@@ -413,7 +373,6 @@ async def _drain(stream: _FakeStream, **kwargs: float) -> list[str]:
 
 
 async def test_yields_every_chunk_in_order() -> None:
-    """The happy path is a transparent pass-through."""
     stream = _FakeStream([(0.0, "a"), (0.0, "b"), (0.0, "c")])
 
     chunks = await _drain(stream, stall_seconds=1.0, total_seconds=10.0)
@@ -422,12 +381,7 @@ async def test_yields_every_chunk_in_order() -> None:
 
 
 async def test_a_long_but_talkative_stream_survives() -> None:
-    """Many chunks, each well within the stall gap, are not cut off.
-
-    This is the reasoning model's normal shape: the chain of thought arrives
-    as a long run of small deltas. A total-duration deadline tight enough to
-    catch a hung provider would kill exactly this.
-    """
+    # Healthy reasoning deltas reset silence timeouts before content arrives.
     stream = _FakeStream([(0.02, str(i)) for i in range(20)])
 
     chunks = await _drain(stream, stall_seconds=1.0, total_seconds=10.0)
@@ -436,7 +390,6 @@ async def test_a_long_but_talkative_stream_survives() -> None:
 
 
 async def test_silence_longer_than_the_stall_gap_fails() -> None:
-    """A provider that goes quiet mid-stream is the failure worth catching."""
     stream = _FakeStream([(0.0, "a"), (5.0, "b")])
 
     with pytest.raises(asyncio.TimeoutError):
@@ -444,7 +397,6 @@ async def test_silence_longer_than_the_stall_gap_fails() -> None:
 
 
 async def test_the_total_ceiling_still_backstops_a_dribbling_stream() -> None:
-    """Chunks that never stall but never end are bounded by the total."""
     stream = _FakeStream([(0.02, str(i)) for i in range(1_000)])
 
     with pytest.raises(asyncio.TimeoutError):
@@ -452,7 +404,6 @@ async def test_the_total_ceiling_still_backstops_a_dribbling_stream() -> None:
 
 
 async def test_an_empty_stream_ends_cleanly() -> None:
-    """Exhaustion is not a timeout, however tight the deadlines are."""
     assert (
         await _drain(_FakeStream([]), stall_seconds=0.01, total_seconds=0.01)
         == []

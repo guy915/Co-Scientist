@@ -451,7 +451,7 @@ class TestLiteratureReviewSearchMultiSource:
     ) -> None:
 
         async def no_delay(_: float) -> None:
-            """Skip the production retry delay in this deterministic test."""
+            pass
 
         monkeypatch.setattr(
             "co_scientist.evidence.search.asyncio.sleep",
@@ -483,7 +483,7 @@ class TestLiteratureReviewSearchMultiSource:
     ) -> None:
 
         async def no_delay(_: float) -> None:
-            """Skip the production backoff in this deterministic test."""
+            pass
 
         monkeypatch.setattr(
             "co_scientist.evidence.search.asyncio.sleep",
