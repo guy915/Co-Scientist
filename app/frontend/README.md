@@ -14,10 +14,9 @@ React + Vite + TypeScript workbench for the Co-Scientist API server.
 - Vitest + React Testing Library for unit tests
 
 The frozen closure is audited through root `make audit-deps`. See
-[dependency security](../../docs/DEPENDENCY-SECURITY.md) for the legacy GTS
-temporary-file override and the update procedure.
+[requirements](../../requirements/README.md) for dependency update procedures.
 
-Read `DESIGN.md` before visual changes. It is the source of truth for theme tokens, typography, spacing, radii, and component conventions.
+Follow the design invariants in [app/AGENTS.md](../AGENTS.md) before visual changes.
 
 ## Commands
 
@@ -60,7 +59,7 @@ and prerendering default to `dist/`.
 | `src/api/runs.ts` | Product REST operations and streaming message helpers |
 | `src/hooks/` | Shared app-level hooks (e.g. `use_run_stream.ts`) |
 | `src/components/` | Shared primitives (error boundary, icon) |
-| `src/index.css`, `src/styles/` | Token bridge + Tailwind layers (`index.css`); surface sheets aggregated by `styles/surfaces.css` |
+| `src/index.css`, `src/styles/` | Token bridge + Tailwind layers (`index.css`); surface sheets imported in order by `main.tsx` |
 | `src/public/` | 404 page and no-index metadata |
 
 ## Routing

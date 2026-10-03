@@ -5,7 +5,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 # Starting count at be6105ab. Lower with each reduction; never raise.
-CODE_SIZE_CEILING = 160_326
+CODE_SIZE_CEILING = 160_118
 SOURCE_SUFFIXES = {".py", ".ts", ".tsx", ".css"}
 EXCLUDED_DIRECTORIES = {
     "vendor",

@@ -1,16 +1,5 @@
-"""Tests for the per-hypothesis contextual escalation seam (FINDINGS.md J13).
-
-``hypothesis.safety.escalate_review`` gives a contextual model a chance to
-raise a Tier B verdict the deterministic layer held as UNCERTAIN. It never
-touches a clean allow -- the deterministic layer does not produce one for a
-Tier B match at all (an earlier version of this design did, and it was a
-bypass the coordinator caught and this file now pins against: a category
-match cleared by a benign marker plus an unlisted operational verb must
-never reach ALLOW). These tests cover: only a held UNCERTAIN review is ever
-escalated (a certain block or an already-blocking-but-uncorroborated Tier B
-match never even attempts a network call), fails closed on anything that
-stops the model from running, and the model may either raise a held verdict
-to a certain block or clear it after contextual review.
+"""Only contextual review can clear a held verdict; context markers cannot.
+Operational hard blocks never reach the assessor.
 """
 
 from __future__ import annotations

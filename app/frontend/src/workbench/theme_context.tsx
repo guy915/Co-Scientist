@@ -151,9 +151,8 @@ export function useTheme(): ThemeContextValue {
   return ctx;
 }
 
-// The single MD3 source color for the whole app (a teal). Every
-// --md-sys-color-* token is derived from it at runtime, so palette changes
-// happen here, never by hardcoding token values (see frontend/DESIGN.md).
+// Derive MD3 roles from one seed so palette changes cannot leave individual
+// component colors behind.
 const SEED = '#1A6B6B';
 
 // themeFromSourceColor expands the seed into full MD3 tonal palettes with

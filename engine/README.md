@@ -237,7 +237,8 @@ generator = HypothesisGenerator(
 )
 ```
 
-See `docs/CONFIGURATION.md` for the full schema.
+See `src/co_scientist/config/schema.py` for the schema and
+`src/co_scientist/config/tools.yaml` for the shipped configuration.
 
 ## Caching
 
@@ -398,5 +399,6 @@ src/co_scientist/
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md) — agents, workflow, state and generation modes
-- [Configuration](docs/CONFIGURATION.md) — parameters, tool schemas, MCP, web search and domain overlays
-- [Development](docs/DEVELOPMENT.md) — adding nodes, debugging, tests and logging
+- [Running locally](../docs/RUNNING-LOCALLY.md) — setup and checks
+- [Operations](../docs/OPERATIONS.md) — operational invariants
+- [Engine guide](AGENTS.md) — implementation map and conventions

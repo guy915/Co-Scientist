@@ -43,23 +43,8 @@ class TaskStatus(str, enum.Enum):
 
 
 class TerminationReason(str, enum.Enum):
-    """Why the workflow stopped.
-
-    ``BUDGET``/``WALL_CLOCK``/``MAX_TASKS`` are hard resource limits;
-    ``MAX_IDEAS``/``MAX_MATCHES_PER_IDEA`` are the paper's own named
-    termination predicates (Supervisor §4: ``MaxIdeas``,
-    ``MaxMatchesPerIdea``); ``COMPLETED`` is the satisfied iteration budget;
-    ``CONVERGED`` is the clone-defined stability predicate; ``SAFETY`` is a
-    safety block (Milestone 6 hook).
-
-    There is deliberately no ``CANCELLED`` member: the durable executor
-    (``app/app/engine_tasks/node.py``) enforces cancellation by never
-    dispatching another node once a run is marked cancelled, so a
-    graph-internal predicate for it would be a second, weaker enforcement
-    point rather than a real signal -- no writer anywhere in this codebase
-    ever set the ``cancel_requested`` state key the old predicate read, so
-    it could never fire on a real run. See ``docs/fidelity-audit`` (F12).
-    """
+    """Cancellation belongs to the durable executor, which halts dispatch.
+    A graph predicate would be a second, weaker enforcement point."""
 
     BUDGET = "budget"
     WALL_CLOCK = "wall_clock"

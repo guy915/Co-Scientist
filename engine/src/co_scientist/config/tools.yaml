@@ -27,26 +27,6 @@ servers:
 # `write` and runs alone, deliberately, so that a tool which spawns a process
 # can never race its siblings just because someone forgot to describe it.
 #
-# Deliberately omitted: the reference MCP server also registers 8 INDRA CoGex
-# knowledge-graph tools -- query_gene_disease_network, query_gene_codependents,
-# query_drug_info, query_clinical_trials, query_pathways, query_causal_subnetwork,
-# query_mechanistic_statements, run_enrichment_analysis -- that this default
-# config does not declare, so they are unreachable by default. Enabling one
-# means declaring it here with a matching mcp_tool_name (and adding it to the
-# relevant workflow / draft_generation whitelist); config/examples/indra_hfpef.yaml
-# is a complete worked example that wires all eight in.
-#
-# Deliberately omitted (fidelity-audit G13): specialized structure-prediction
-# retrieval -- AlphaFold and similar protein-structure models -- is not
-# integrated. Google's public evidence that Co-Scientist consults such models
-# is qualitative only, and the evidence-boundary register's rule is that
-# undisclosed retrieval providers must not be invented; adding one here would
-# take on an external scientific dependency for fidelity evidence that cannot
-# be verified. This comment is the documented extension point: should a
-# deployment want structure retrieval, register the tool on the MCP server,
-# declare it under search_tools with a matching mcp_tool_name, and add it to
-# the literature_review/validation workflow search_sources below -- no engine
-# change is needed.
 tools:
   search_tools:
     # PubMed metadata search (used in draft phase)
@@ -305,10 +285,7 @@ tools:
         and it is invisible to a peer-reviewed-only search. Everything it
         returns is unreviewed, and a hypothesis resting on one must say so.
 
-    # The composer's own connector menu (see docs/UI-FIDELITY.md D4)
-    # offers ArXiv and BioRxiv as separate toggles from PubMed; these two
-    # sources back them. Both are free and keyless, so neither needs a
-    # provider-key gate the way search_web does.
+    # Both preprint sources are keyless and need no provider-key gate.
     arxiv_search:
       server: "default_pubmed"
       mcp_tool_name: "search_arxiv"

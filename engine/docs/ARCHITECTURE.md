@@ -98,7 +98,8 @@ The workflow consists of specialized nodes that handle different aspects of hypo
        └──── [terminate] ────► RESEARCH OVERVIEW ────► END
 ```
 
-A rendered (mermaid) version of the same graph, plus the exact orchestrator routing table (`TASK_ROUTES`), is in [`docs/EXPLAINER.md`](../../docs/EXPLAINER.md) §4.
+The orchestrator routing table is `TASK_ROUTES` in
+`src/co_scientist/workflow_topology.py`.
 
 ### Dynamic orchestration
 
@@ -315,7 +316,8 @@ opts = {"enable_literature_review_node": True}
 ### MCP Server Setup
 
 
-See [MCP Integration](CONFIGURATION.md) documentation.
+See [Deployment](../../docs/DEPLOYMENT.md) for MCP hosting and
+[`config/tools.yaml`](../src/co_scientist/config/tools.yaml) for tool wiring.
 
 
 ### Examples

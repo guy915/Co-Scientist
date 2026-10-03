@@ -284,8 +284,7 @@ not something this offline harness claims. What it does claim is a bound in
 each direction, which is what a reader needs to judge the trade.
 
 The remaining hard-split false negatives are genuine paraphrase with no
-literal trigger token, which neither layer closes today. See `J13` in
-`docs/fidelity-audit/FINDINGS.md` for the finding this measured.
+literal trigger token, which neither layer closes today.
 
 ## External gaps (not reproducible here)
 

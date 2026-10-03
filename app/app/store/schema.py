@@ -490,18 +490,8 @@ CREATE INDEX IF NOT EXISTS idx_outcome_refinement_pending
 CREATE INDEX IF NOT EXISTS idx_outcome_refinement_pending_global
     ON outcome_refinement_actions(status, created_at, action_id);
 
--- Durable, structured facts and contradictions (audit G14). claim_evidence
--- above is the only structured claim table, but its `claim` column is free
--- text and its `label` a bare supports/contradicts/insufficient tag --
--- nothing normalized or queryable as a "fact" or a "contradiction" on its
--- own. One row here is derived per settled (supports/contradicts)
--- claim_evidence edge when a run's report is finalized (`insufficient`
--- edges assert nothing either way and are not carried over); `entities_json`
--- names the biomedical entities the statement mentions, so the knowledge
--- base is queryable by entity, not only by hypothesis. Scoped per-run like
--- every other run-scoped table: FINDINGS.md records per-run context memory
--- as the faithful model and cross-run "Ideation Memory" as invented by the
--- reference corpus, so this table never mixes rows across runs.
+-- Knowledge facts remain scoped per run; insufficient edges assert nothing
+-- and cannot become settled facts.
 CREATE TABLE IF NOT EXISTS knowledge_facts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id TEXT NOT NULL,

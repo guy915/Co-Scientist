@@ -37,6 +37,9 @@ Use the offline unit suites to exercise individual agents. The maintained runnab
 | Proximity (dedup) | `agents/proximity/proximity.py` |
 | Safety screen (cross-cutting) | `agents/safety.py` |
 
+Node keys persist in task types (`engine.node.<key>`), checkpoints and
+idempotency keys. Never rename them without a migration for persisted runs.
+
 **Generation planning and finalization have a public operation boundary.**
 `co_scientist.agents.generation` exports `GenerationPlan`, `GenerationCounts`,
 `GenerationResults`, `prepare_generation` and `finalize_generation`; their
@@ -263,7 +266,7 @@ Retrying lives in exactly one place, `llm/attempts/retry.py::run_attempts`: run 
 
 **A run that reaches no source now says so.** "Falls back to LLM-only" is four silent branches, not one: both paths route around `literature_review` and `reflection` (`workflow_topology`), `run_setup._resolve_research_tier` resolves to no research, and the deep reviews' probes and evolution's grounding each refuse themselves on `mcp_available`. All four are correct, and none of them is visible — the run publishes ideas, reviews and a tournament that look exactly like a healthy run's, with nothing saying they were never checked against a paper. `retrieval_degradation.py` turns that into a fact the run carries: set at setup and again if the server is lost mid-node, drained into the report payload, and carried on every node event after it so a watcher sees it live. The only thing that survives an MCP outage is a run's own attached documents, searched in-process (`run_attachments`); without those the floor is `none`.
 
-The engine can also search and read the open web. `web_search` (MCP `search_web`) is a default `literature_review` search source alongside PubMed/OpenAlex, weighted lower (`papers_per_query: 2` against their 4) with `read_url` as its content tool; its results carry `source: "web"` so web evidence stays distinguishable downstream. It is deliberately absent from `validation` and `reflection`, which are direct-call paths. The agentic path — the model deciding when to search and what to open — lives in `draft_generation` and is active only when a caller passes `enable_tool_calling_generation=True`; the tools being available is a precondition, never on its own a request. The app opts in **by tier**, not by user toggle: `engine_adapter/opts.py::_apply_capability_opts` asks for it on `extended` and `ultra` only. Each tool call is an LLM round-trip that re-sends every prior result, so one hypothesis costs ~9 calls on prompts growing past 12k tokens, per cycle — measured as the largest single line in an express run's token budget during the window this was default-on. See `engine/docs/CONFIGURATION.md`.
+The engine can also search and read the open web. `web_search` (MCP `search_web`) is a default `literature_review` search source alongside PubMed/OpenAlex, weighted lower (`papers_per_query: 2` against their 4) with `read_url` as its content tool; its results carry `source: "web"` so web evidence stays distinguishable downstream. It is deliberately absent from `validation` and `reflection`, which are direct-call paths. The agentic path — the model deciding when to search and what to open — lives in `draft_generation` and is active only when a caller passes `enable_tool_calling_generation=True`; the tools being available is a precondition, never on its own a request. The app opts in **by tier**, not by user toggle: `engine_adapter/opts.py::_apply_capability_opts` asks for it on `extended` and `ultra` only. Each tool call is an LLM round-trip that re-sends every prior result, so one hypothesis costs ~9 calls on prompts growing past 12k tokens, per cycle — measured as the largest single line in an express run's token budget during the window this was default-on. See `engine/docs/ARCHITECTURE.md` and `src/co_scientist/config/tools.yaml`.
 
 **The drafting pass can query databases, not just read papers.**
 `vendor/science-skills/` is Google DeepMind's Science Skills bundle -- 38
@@ -424,14 +427,15 @@ engine did before skills existed. Provenance and upstream revision: the
 
 Caching (`cache/`) is on by default and controlled by `COSCIENTIST_CACHE_ENABLED` / `COSCIENTIST_CACHE_DIR` env vars.
 
-Engine-specific docs live in `engine/docs/`: `ARCHITECTURE.md`,
-`CONFIGURATION.md` and `DEVELOPMENT.md`.
+Engine architecture lives in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Use [`../docs/RUNNING-LOCALLY.md`](../docs/RUNNING-LOCALLY.md) for setup and
+[`../docs/OPERATIONS.md`](../docs/OPERATIONS.md) for operational invariants.
 
 **Reference MCP server** lives in `mcp_server/` as a separately installable package. Install with `pip install -e mcp_server/` and run with `uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888`. **Requires Python 3.12** (engine itself is 3.10+) — install into a 3.12 venv or you'll hit cryptic solver errors. Registered tool families (see `mcp_server/server.py`): PubMed search + full-text retrieval, OpenAlex search, ChEMBL/UniProt lookups, INDRA CoGex queries, and web search/fetch.
 
-**Style conventions** (from the repo-root `CONTRIBUTING.md`, enforced informally):
-- Code follows the Google Python Style Guide: ruff (formatter + linter, 80 columns, config in `pyproject.toml`), Google-format docstrings (`Args:`/`Returns:`/`Raises:`).
-- Docstrings capitalized, full sentences.
+**Style conventions:**
+- Ruff formats and lints Python at 80 columns; config is in `pyproject.toml`.
+- Apply `PLAN.md`'s hidden-reasons documentation policy; docstrings are optional.
 - `logger.debug()` lowercase; `info`/`warning`/`error` capitalized.
 - No emojis or unicode decoration in code or logs.
 - Rich library only in `examples/` and `dev/`, never in core library code.

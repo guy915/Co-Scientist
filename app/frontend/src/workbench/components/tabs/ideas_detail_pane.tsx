@@ -38,9 +38,6 @@ const IDEA_DETAIL_PANE_CLASSES =
   'pt-[1.45rem] pb-14 max-[1023px]:flex-none ' +
   'max-[1023px]:overflow-y-visible max-[700px]:px-4';
 
-// `text-th-muted-fg` is the named alias of --md-sys-color-on-surface-variant
-// (see index.css); DESIGN.md keeps arbitrary token references out of
-// component class strings.
 const IDEA_DETAIL_EMPTY_CLASSES =
   `${IDEA_DETAIL_PANE_CLASSES} empty place-items-center text-center ` +
   'text-th-muted-fg';

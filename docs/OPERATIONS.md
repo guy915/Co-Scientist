@@ -71,3 +71,31 @@ Each of these was a production outage or a silent data-correctness failure. The 
 - **A tool's `parameter_mapping` is written in its *caller's* vocabulary, and an unmapped name is passed through, not dropped.** Two canonical vocabularies reach `ToolConfig.map_parameters`: the search paths send `query/slug/max_papers/recency_years/run_id` (`evidence/search_query.py`, `literature_tools/validate_search.py`) and context enrichment sends `entity_name/limit` (`literature_review/enrichment.py`). A mapping written for the wrong one does not degrade quietly — every unmapped canonical name arrives at the MCP tool under its own spelling, the server's pydantic validation rejects the whole call, and the client then fails to JSON-decode that error body, so the log says `JSONDecodeError: Extra data` and `_call_search_tool` retries a permanently doomed call four times. `europepmc_search` and `preprint_search` shipped with the enrichment vocabulary while both are called from the search paths: Europe PMC returned nothing to any run from the day it was added (`3438c33c`, 2026-08-23) until this was fixed, and a run's log carried ~44 retry warnings for it. Two neighbours of the same shape: a tool that takes an id rather than a query must not be `category: "search"`, or the validation path resolves to it and hands it a query; and a tool list that mixes kinds must be filtered by what the *caller* can actually send, which is why `reflection_helpers.get_kg_tools_for_workflow` selects on `source_type: knowledge_graph` rather than on list position — it was calling PubMed with INDRA's `agent=` argument on every hypothesis, swallowed at debug level. `tests/test_tool_param_contract.py` is the guard: it parses the real signatures out of `engine/mcp_server` and drives every wired (canonical dict x configured tool list) pair through them, because nothing else binds the two packages.
 - **Under the json_object downgrade, reshape the answer to the schema — in both directions.** A model without server-side schema enforcement omits required fields *and* invents extra ones, and every object node in `schemas/builders.obj` is closed (`additionalProperties: False`), so one invented key fails the whole response. Feeding the validation error back does not help: a production `research_overview` call answered with the same three invented sections (`knowledge_base`, `nih_specific_aims`, `research_contacts`) on all five attempts — five full paid calls on a large prompt, fourteen minutes, then the empty fallback. `llm.structured.validate.reshape_json_output` removes undeclared closed-object keys, fills required fields and caps oversized arrays and strings in one traversal. It runs under the downgrade condition (`llm.attempts.json_attempt._backfill_and_validate`), keyed on `_supports_json_schema_response_format`, so where the provider does enforce the schema an extra field stays a real validation failure. The reshaper also trims what the provider over-produces: over-long `maxItems` arrays and `maxLength` strings (cut at a word boundary near the limit where one exists) — added after production run b82f9162 failed generation/validation calls on a hypothesis `title` a handful of characters over its cap, on a free gateway model whose 100-requests/day cap made every such retry cost 1% of the day's budget.
 - **Two independent wall-clock ceilings on outbound calls**, and they expire differently. `COSCIENTIST_LLM_TIMEOUT_SECONDS` (default 600s) bounds `litellm.acompletion` only; MCP tool calls are bounded by `COSCIENTIST_MCP_TOOL_TIMEOUT_SECONDS` (default 300s). Set either to `0` to disable. The two MCP call sites diverge deliberately: `call_tool` raises `MCPToolTimeoutError` (callers degrade per-source), while `execute_tool_call` returns the timeout as the tool's *result*, because it runs under an `asyncio.gather` without `return_exceptions` where raising would kill every sibling call.
+
+## Durable node names
+
+Graph node keys persist in task types, checkpoints and idempotency keys.
+Renaming a node requires a migration even when its implementation is unchanged.
+
+## Contextual safety review
+
+Danger nouns alone do not establish operational intent. Deterministic context
+matches cannot clear themselves: only a contextual assessor can clear a held
+verdict or strengthen it to a block. Operational hard blocks bypass that assessor;
+unavailable or ambiguous review remains held.
+
+## Advisory reachability
+
+Online audits retain every finding from all five locks. Historical findings in
+LiteLLM proxy routes, FastMCP Windows/OAuth paths and pickle-backed DiskCache
+were outside the deployed execution paths, not permanent waivers. Reassess
+reachability when exposing those paths or changing the entry point, host OS or
+storage topology; upgrade and validate deliberately rather than suppressing them.
+
+## Credential boundaries
+
+Internet-facing APIs require signed researcher identity; caller-selected client
+IDs are development identity only. Keep MCP private with matching shared secrets.
+BYOK encryption uses a separate key: rotation requires migrating or removing the
+affected stored credentials. Keep database sidecars, caches and outputs out of
+commits and image build contexts.

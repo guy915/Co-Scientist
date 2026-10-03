@@ -33,7 +33,7 @@ help:
 	@echo "  make test-all     Run backend, frontend and evaluation suites"
 	@echo "  make check        Run lint, types, all suites, eval smoke, build, and browser tests"
 	@echo "  make docker-build Build both production images (never deploys)"
-	@echo "  make audit-deps   Audit dependency locks online (see docs/DEPENDENCY-SECURITY.md)"
+	@echo "  make audit-deps   Audit dependency locks online (see requirements/README.md)"
 	@echo "  make test-frontend Run frontend unit tests"
 	@echo "  make e2e          Run the browser end-to-end suite (headless, isolated stack)"
 	@echo "  make e2e-production Test built frontend assets with required researcher authentication"
@@ -348,7 +348,7 @@ docker-build:
 # Online advisory data is separate from offline implementation checks. Keep
 # every finding visible and finish all audits even when an earlier one fails.
 audit-deps: check-tools
-	@command -v uv >/dev/null 2>&1 || { echo "uv is required; see docs/DEPENDENCY-SECURITY.md"; exit 1; }
+	@command -v uv >/dev/null 2>&1 || { echo "uv is required; see requirements/README.md"; exit 1; }
 	@status=0; \
 	for lock in api mcp skills; do \
 		uv tool run --from pip-audit==2.10.1 pip-audit \

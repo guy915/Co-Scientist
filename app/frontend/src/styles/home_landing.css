@@ -1,10 +1,5 @@
-/* Landing page under the chat home (workbench/pages/home_landing.tsx).
-
-   This is the app's one editorial surface, so it follows Google's product
-   landing pages rather than the workbench's data-surface rules: large Google
-   Sans display type, Material 3 Expressive shapes, 24-48px media radii.
-   Every face is the app's own Google Sans or Google Sans Text.
-   The chat home above it is unchanged. See DESIGN.md > Landing page. */
+/* The landing surface uses editorial typography and expressive media radii
+   rather than the workbench data-surface conventions. */
 
 /* While the landing page is mounted, the home page scrolls: the stage keeps
    exactly one screen, and the landing page follows it. The conversation

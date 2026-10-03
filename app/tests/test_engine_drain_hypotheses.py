@@ -126,13 +126,6 @@ def test_drain_escalates_and_raises_a_held_verdict(
     monkeypatch: pytest.MonkeyPatch,
     fake_process_mode: FakeProcessMode,
 ) -> None:
-    """The bulk drain path now raises a held UNCERTAIN too (FINDINGS.md J14).
-
-    Not just the scientist-admission path. This is the test that fails on
-    the unpatched tree: without wiring escalation into the drain, ``held-1``
-    settles at ``uncertain`` no matter what the model would have said.
-    """
-
     async def block_completion(**_: object) -> SimpleNamespace:
         return _fake_semantic_response("prohibited")
 

@@ -35,12 +35,12 @@ Dependabot proposes Actions and Bun updates for review. Python runtime
 updates require the documented lock regeneration and validation.
 
 Run `make audit-deps` separately for current online advisory data. Review
-[dependency security](DEPENDENCY-SECURITY.md), including remaining findings
-and the conditions that change their reachability.
+[dependency guidance](../requirements/README.md) and the reachability lesson
+in [operations](OPERATIONS.md); do not suppress detector findings.
 
 ## Hosting configuration
 
-Read [DEPLOYMENT.md](DEPLOYMENT.md) and [SECURITY.md](../SECURITY.md) before
+Read [DEPLOYMENT.md](DEPLOYMENT.md) and [OPERATIONS.md](OPERATIONS.md) before
 changing a service. Confirm these settings on the intended release:
 
 | Concern | Required configuration |

@@ -12,7 +12,7 @@ This is a research/reference workspace organized around replicating Google's AI 
 - `e2e/` — Playwright browser end-to-end suite (`tests/*.spec.ts`, `support/` fixtures)
 - Historical research dossiers, experiments and the completed external-reference campaign are preserved at [immutable revision `33ec8984`](https://github.com/guy915/Co-Scientist/tree/33ec8984c6f9292a6653cc6a661d32210f55c688). Historical source material remains available in git.
 - `vendor/` — third-party code shipped as-is, pinned to an upstream revision and never reformatted (a root `.ruff.toml` excludes it, after a repo-root format sweep once silently rewrote 63 vendored files). `science-skills/` is Google DeepMind's Science Skills bundle; the api image copies it and points `COSCIENTIST_SKILLS_DIR` at it. Provenance and revision: the root `NOTICE`.
-- `docs/` — live project docs; `docs/README.md` indexes them (`ARCHITECTURE.md`, `CI.md`, `DEPLOYMENT.md`, `EXPLAINER.md`, `FIDELITY.md`, `RUNNING-LOCALLY.md`, `UI-FIDELITY.md`), plus primary-source frames/diagrams; completed ADRs, plans and dated screenshots are linked to immutable Git history from the docs index
+- `docs/` — live project docs; `docs/README.md` indexes them (`ARCHITECTURE.md`, `CI.md`, `DEPLOYMENT.md`, `OPERATIONS.md`, `RUNNING-LOCALLY.md`, `LAUNCH.md`); retired guides, audits and screenshots remain in immutable Git history
 - `.github/` — GitHub Actions. `ci.yml` runs as presubmit (on `pull_request`, with `dorny/paths-filter` job-level path filters, superseded runs cancelled) and as postsubmit (on push to `main`: every job, never cancelled); `nightly.yml` re-runs the whole pipeline on cron via `workflow_call`. Every CI command is hermetic — no network, no API keys, no retries — so a test needing a provider key must be skipped or offline. Rationale in `docs/CI.md`.
 - `.remember/` — session handoff notes (`remember.md` is the live handoff file; also `now.md`, `recent.md`, daily logs, `logs/`, `tmp/`)
 - `PLAN.md` — the active lean campaign: what stays, what goes, documentation policy, phases and rules; use `docs/LAUNCH.md` for launch work.
@@ -52,6 +52,7 @@ Read the relevant entries before editing their implementation. In particular:
 - Never hold a SQLite write lock over network I/O or write on every poll tick.
 - Keep startup cheap; recovery executes outside the port-binding critical path.
 - Preserve durable task idempotency, leases, retry budgets, and explicit recovery.
+- Node keys persist in task types, checkpoints and idempotency keys; rename them only with a migration.
 - No asyncio primitive may be shared between the worker cohorts' event loops.
 - Preserve bounded provider calls, token/reasoning budget escalation, and spend caps.
 - Evidence gates must distinguish missing, unsupported, contradictory, and unsafe
@@ -101,9 +102,9 @@ metadata; see [requirements/README.md](requirements/README.md). Never reformat
 vendored sources or edit generated lock hashes by hand.
 
 `make audit-deps` is a separate online advisory check, requiring uv. It retains
-all detector findings; [docs/DEPENDENCY-SECURITY.md](docs/DEPENDENCY-SECURITY.md)
-records the scoped reachability review. Reassess that review before mounting
-LiteLLM proxy routes or adding FastMCP OAuth or a disk-backed key/value store.
+all detector findings; see [dependency guidance](requirements/README.md).
+Reassess reachability before mounting LiteLLM proxy routes or adding FastMCP
+OAuth or a disk-backed key/value store; see [operations](docs/OPERATIONS.md).
 
 ## Trust boundaries
 
@@ -112,6 +113,10 @@ LiteLLM proxy routes or adding FastMCP OAuth or a disk-backed key/value store.
 - Keep `.env`, `.env.local`, `app/.env`, `engine/mcp_server/.env`, credentials, MCP shared secrets, `coscientist.db`, and run outputs out of commits and external sharing.
 - Read-only `railway status` / `railway logs` and local read-only SQLite queries are routine. Confirm before `railway up`, `deploy`, `redeploy`, `variables` writes, `run`, `down`, service deletion, or environment deletion.
 - Local services are API `:8008`, UI `:5173`, and reference MCP `:8888`; use only the documented localhost and production domains.
+
+Contributions use Apache 2.0. Preserve third-party notices and vendored sources;
+keep package LICENSE/NOTICE copies synchronized with the root copies.
+Use `Any` only for truly dynamic JSON, not known interfaces.
 
 ## Git hygiene
 
