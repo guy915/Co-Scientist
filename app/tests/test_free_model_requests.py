@@ -65,7 +65,7 @@ async def _invoke(kind: str, model: str) -> Any:
 def captured(
     monkeypatch: pytest.MonkeyPatch, reachable_provider: None
 ) -> list[dict[str, Any]]:
-    from co_scientist.llm.admission import free_catalog
+    from co_scientist.llm.admission import free_policy as free_catalog
 
     free_catalog.install_catalog_reader(
         free_catalog.CatalogReader(
@@ -238,7 +238,7 @@ async def test_interview_reasoning_retry_rechecks_admission(
     monkeypatch: pytest.MonkeyPatch, captured: list[dict[str, Any]]
 ) -> None:
     from co_scientist.exceptions import FreeModelEligibilityError
-    from co_scientist.llm.admission import free_catalog
+    from co_scientist.llm.admission import free_policy as free_catalog
 
     monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
 

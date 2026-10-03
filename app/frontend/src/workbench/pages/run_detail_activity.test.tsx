@@ -14,7 +14,10 @@ const streamMock = vi.hoisted(() => ({
   state: {
     events: [] as {seq: number; type: string; payload: object}[],
     connection: 'open' as
-      'connecting' | 'open' | 'reconnecting' | 'disconnected',
+      | 'connecting'
+      | 'open'
+      | 'reconnecting'
+      | 'disconnected',
   },
 }));
 vi.mock('@/hooks/use_run_stream', () => ({

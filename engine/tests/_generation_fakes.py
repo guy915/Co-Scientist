@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from co_scientist.agents.generation import coordinator
+from co_scientist.agents.generation import generate as coordinator
 from co_scientist.models import Hypothesis
 
 

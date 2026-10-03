@@ -18,7 +18,7 @@ from co_scientist.checkpoint import (
 )
 
 from app import store
-from app.engine_adapter.checkpoints import is_engine_checkpoint
+from app.engine_adapter import is_engine_checkpoint
 from app.engine_tasks.support import OUTCOME_REFINEMENT_TASK
 from app.store import DEMO_CLIENT_ID, NewOutcomeRefinementAction
 

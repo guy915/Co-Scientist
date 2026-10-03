@@ -20,7 +20,7 @@ from mcp_server.pubmed_client import (
     _extract_abstract,
     _extract_publication_types,
 )
-from mcp_server.tools.lit_review import pubmed_search_with_fulltext as tool
+from mcp_server.tools.lit_review import search_pubmed as tool
 
 
 class _CannedEntrezHandle:

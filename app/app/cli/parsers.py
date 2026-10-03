@@ -86,7 +86,7 @@ def _common_parser() -> argparse.ArgumentParser:
         help=(
             "X-Client-ID header scoping run listings (env "
             "COSCIENTIST_CLIENT_ID); defaults to a persistent id generated "
-            "once per machine (see app.cli.identity)"
+            "once per machine (see app.cli.main)"
         ),
     )
     common.add_argument(

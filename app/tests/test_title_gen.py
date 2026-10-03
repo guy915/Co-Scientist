@@ -76,7 +76,7 @@ async def test_title_call_thinks_and_its_budget_assumes_that(
     swallows every failure. Asserting both together means a future edit
     cannot flip one without the other.
     """
-    from app.config_thinking import THINKING_FLOOR_MAX_TOKENS
+    from app.config import THINKING_FLOOR_MAX_TOKENS
 
     seen: dict[str, Any] = {}
 

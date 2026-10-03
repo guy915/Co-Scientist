@@ -443,7 +443,8 @@ def install_offline_router() -> None:
     untouched to the backend that was installed at the time. Its capability
     answer says an offline model takes a native json_schema response format,
     so schema'd offline calls take that branch in
-    ``co_scientist.llm.request.schema._apply_response_format`` rather than the
+    ``co_scientist.llm.request.completion._apply_response_format`` rather than
+    the
     json_object provider-capability shim.
     """
     global _installed

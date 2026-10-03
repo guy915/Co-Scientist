@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from Bio import Entrez
 from mcp_server import entrez_rate_limit
-from mcp_server.tools.lit_review import pubmed_search_with_fulltext as tool
+from mcp_server.tools.lit_review import search_pubmed as tool
 from test_pubmed_pilot_trace import (  # type: ignore[import-not-found]
     _CannedEntrezHandle,
     _fixture_trace_reader,

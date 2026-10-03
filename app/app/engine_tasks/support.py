@@ -397,7 +397,7 @@ def restore_checkpoint_state(
     is built per call and dropped: nothing it creates outlives the calling
     cohort's event loop, and steering is not consumed.
     """
-    from app.engine_adapter.checkpoints import restore_workflow_state
+    from app.engine_adapter import restore_workflow_state
 
     generator = engine_tasks_runtime.active().generator_for_restore(
         task, db_path

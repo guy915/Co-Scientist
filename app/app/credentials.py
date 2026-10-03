@@ -23,7 +23,7 @@ referrers). This module owns the whole life of that key:
   own run's credential.
 
 The plaintext key is never logged (see
-``credentials_redaction.ByokRedactionFilter``), never
+``ByokRedactionFilter``), never
 returned by any endpoint, and never placed in checkpointed state.
 """
 
@@ -468,3 +468,40 @@ def byok_model_and_key(model: str) -> tuple[str, str | None]:
     if credential is None:
         return model, None
     return credential.model, credential.api_key
+
+
+def _redact_log_details(record: logging.LogRecord) -> None:
+    """Redact formatted traceback and stack text on a log record."""
+    if record.exc_info:
+        record.exc_text = logging.Formatter().formatException(record.exc_info)
+    for field in ("exc_text", "stack_info"):
+        value = getattr(record, field)
+        if value:
+            setattr(record, field, redact_byok_text(value))
+
+
+class ByokRedactionFilter(logging.Filter):
+    """Scrubs a scoped BYOK key out of any record that carries it.
+
+    Defense in depth: no code path logs the key deliberately, but a
+    provider error message could embed it, and records from libraries
+    are not ours to control. Attached to both the stdout handler and the
+    persistent capture pipeline (see ``logging_setup``); when no
+    credential is scoped the filter is a cheap no-op.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Redact the scoped key from the record, keeping the record."""
+        if current_byok() is None:
+            return True
+        try:
+            message = record.getMessage()
+            redacted = redact_byok_text(message)
+            if redacted != message:
+                record.msg = redacted
+                record.args = None
+            _redact_log_details(record)
+        except Exception:
+            # Redaction must never break logging itself.
+            return True
+        return True

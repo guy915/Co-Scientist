@@ -20,10 +20,9 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from app import store
+from app import API_VERSION, store
 from app.run_modes import DEFAULT_RUN_TIER, RUN_TIER_DEFAULTS
 from app.store import DEMO_CLIENT_ID
-from app.version import API_VERSION
 from tests._client import make_client as _client
 from tests._client import make_operator_client
 

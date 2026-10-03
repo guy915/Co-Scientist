@@ -7,8 +7,8 @@ import json
 import logging
 
 from app.credentials import ByokCredential, scoped_byok
-from app.litellm_logging import _LITELLM_LOGGER_NAMES
 from app.logging_format import (
+    _LITELLM_LOGGER_NAMES,
     TEXT_FORMAT,
     JsonFormatter,
     RunIdFilter,

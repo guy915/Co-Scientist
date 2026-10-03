@@ -92,7 +92,7 @@ import litellm
 from evaluations._run_driver import configure_environment
 configure_environment("/tmp/eval.db", "/tmp/eval-cache", live=True)
 from app.config import settings
-from co_scientist.llm.admission import free_catalog
+from co_scientist.llm.admission import free_policy as free_catalog
 from co_scientist.llm import call_llm, CompletionSpec
 from co_scientist.exceptions import FreeModelEligibilityError
 

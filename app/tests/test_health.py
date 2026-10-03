@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from app import diagnostics
+from app import API_VERSION, diagnostics
 from app.diagnostics import HealthCheck, ProbeResult
-from app.version import API_VERSION
 from tests._client import make_client as _client
 from tests._client import make_operator_client
 

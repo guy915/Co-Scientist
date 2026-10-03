@@ -14,7 +14,6 @@ import {tooltipClassNames} from '../tooltip';
 import {AssistantMessage, MessageAttachment} from './chat_timeline_bubble';
 import {responseActions} from './chat_timeline_message_actions';
 import {planLeadIn} from './chat_timeline_plan_prose';
-import {RecoveryLookupStatus} from './chat_timeline_recovery_status';
 import {
   type SpecFieldsEditor,
   SpecFieldsSection,
@@ -491,4 +490,48 @@ function RunOptionGroup({
       </div>
     </fieldset>
   );
+}
+
+type LookupStatus = 'checking' | 'error' | 'cancelled' | undefined;
+
+function RecoveryLookupStatus({
+  status,
+  onRetry,
+}: {
+  status: LookupStatus;
+  onRetry?: () => void;
+}) {
+  if (status === 'checking') {
+    return (
+      <p role="status" aria-live="polite" className="text-sm text-cosci-muted">
+        Checking saved research session status…
+      </p>
+    );
+  }
+  if (status === 'error') {
+    return (
+      <div
+        role="alert"
+        className="text-sm"
+        style={{color: 'var(--md-sys-color-error)'}}
+      >
+        <p>Could not verify the saved run status.</p>
+        <button
+          type="button"
+          className={SETUP_SECONDARY_BUTTON_CLASSES}
+          onClick={onRetry}
+        >
+          Retry status check
+        </button>
+      </div>
+    );
+  }
+  if (status === 'cancelled') {
+    return (
+      <p role="status" className="text-sm text-cosci-muted">
+        The linked research session was cancelled.
+      </p>
+    );
+  }
+  return null;
 }

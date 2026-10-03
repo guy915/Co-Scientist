@@ -16,7 +16,7 @@ from typing import Any
 
 import pytest
 
-from co_scientist.agents.generation.coordinator import (
+from co_scientist.agents.generation.generate import (
     generate_hypotheses,
 )
 from co_scientist.exceptions import GenerationError

@@ -7,10 +7,17 @@ isolated per-test database.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from types import SimpleNamespace
 from typing import Any
 
-from app import store
+import pytest
+
+from app import qa, store
+from app.config import CONVERSATIONAL_REASONING_EFFORT, settings
 from app.qa import QaRunContext, build_evidence_manifest, build_system_prompt
+from tests._client import drain as _drain
+from tests._llm_fake_backend import install_completion_backend
 
 
 def _evidence(eid: str, **over: Any) -> dict[str, Any]:
@@ -209,3 +216,33 @@ def test_message_without_meta_is_none(isolated_db: str) -> None:
     )
     msgs = store.list_messages(run_id, db_path=isolated_db)
     assert msgs[0].meta is None
+
+
+def test_stream_llm_deltas_requests_the_conversational_reasoning_tier(
+    monkeypatch: pytest.MonkeyPatch, reachable_provider: None
+) -> None:
+    """The interview and chat turns think at a lower tier than the science."""
+    seen: dict[str, Any] = {}
+
+    async def _capturing_acompletion(**kwargs: Any) -> Any:
+        seen.update(kwargs)
+
+        async def _chunks() -> AsyncIterator[Any]:
+            delta = SimpleNamespace(content="hi", reasoning_content=None)
+            yield SimpleNamespace(choices=[SimpleNamespace(delta=delta)])
+
+        return _chunks()
+
+    install_completion_backend(
+        monkeypatch,
+        (SimpleNamespace(acompletion=_capturing_acompletion)).acompletion,
+    )
+    monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-chat")
+
+    _drain(
+        qa.stream_llm_deltas(
+            settings.effective_chat_model, "sys prompt", "q?", []
+        )
+    )
+
+    assert seen["reasoning_effort"] == CONVERSATIONAL_REASONING_EFFORT

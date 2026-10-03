@@ -39,7 +39,7 @@ def _install_replies(
 
 
 def _mock_zero_price_promotion(monkeypatch: pytest.MonkeyPatch) -> None:
-    from co_scientist.llm.admission import free_catalog
+    from co_scientist.llm.admission import free_policy as free_catalog
 
     free_catalog.install_catalog_reader(
         free_catalog.CatalogReader(

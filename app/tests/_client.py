@@ -17,7 +17,7 @@ _T = TypeVar("_T")
 # The identity every test client carries unless a request overrides
 # X-Client-ID itself. Real callers always carry *some* persistent identity
 # (the browser's localStorage id, the CLI's stored id -- see
-# app.cli.identity); a compatibility caller sending no header at all gets
+# app.cli.main); a compatibility caller sending no header at all gets
 # no private scope (app.auth.require_client_scope), so a bare TestClient()
 # must mint one too, or the overwhelming majority of this suite -- which
 # creates a run with no header and reads it back the same way -- would 400

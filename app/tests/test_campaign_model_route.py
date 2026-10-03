@@ -21,7 +21,7 @@ from app import (
 )
 from app.claims import grounding as claim_grounding
 from app.config import settings
-from app.engine_adapter.checkpoints import restore_workflow_state
+from app.engine_adapter import restore_workflow_state
 from app.engine_adapter.drain import claim_grounding as drain_claim_grounding
 from app.engine_adapter.opts import build_generator
 from app.engine_tasks import gate as engine_tasks_gate

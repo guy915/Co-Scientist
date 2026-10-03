@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from co_scientist.exceptions import FreeModelEligibilityError
-from co_scientist.llm.admission import free_catalog
+from co_scientist.llm.admission import free_policy as free_catalog
 from tests._llm_free_fakes import _catalog, _mock_catalog
 from tests._llm_free_fakes import _free_catalog as _free_catalog
 

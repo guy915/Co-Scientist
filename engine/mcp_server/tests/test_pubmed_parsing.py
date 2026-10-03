@@ -10,7 +10,7 @@ monkeypatched with canned data.
 from typing import Any
 
 import pytest
-from mcp_server.tools.lit_review import pubmed_parsing
+from mcp_server.tools.lit_review import search_pubmed as pubmed_parsing
 
 
 def _canned(article: dict[str, Any]) -> dict[str, Any]:
@@ -31,11 +31,11 @@ def entrez(monkeypatch: pytest.MonkeyPatch) -> Any:
 
     def _install(article: dict[str, Any]) -> None:
         monkeypatch.setattr(
-            "mcp_server.tools.lit_review.pubmed_parsing.entrez_call",
+            "mcp_server.tools.lit_review.search_pubmed.entrez_call",
             lambda *_a, **_k: None,
         )
         monkeypatch.setattr(
-            "mcp_server.tools.lit_review.pubmed_parsing.read_entrez",
+            "mcp_server.tools.lit_review.search_pubmed.read_entrez",
             lambda _handle: _canned(article),
         )
 

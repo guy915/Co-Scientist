@@ -24,7 +24,7 @@ async def test_durable_auxiliary_admission_with_stored_credential(
     auxiliary: str,
     mode: str,
 ) -> None:
-    from co_scientist.llm.admission import free_catalog
+    from co_scientist.llm.admission import free_policy as free_catalog
 
     from app.claims import verifier as claim_verifier
     from app.claims import verifier_batch as claim_verifier_batch

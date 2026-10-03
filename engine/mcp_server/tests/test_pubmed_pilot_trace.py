@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 from Bio import Entrez
 from mcp_server import entrez_rate_limit, pubmed_client
-from mcp_server.tools.lit_review import pubmed_search_with_fulltext as tool
+from mcp_server.tools.lit_review import search_pubmed as tool
 
 _DEFAULT_ENTREZ_MAX_TRIES = Entrez.max_tries
 _DEFAULT_ENTREZ_SLEEP_BETWEEN_TRIES = Entrez.sleep_between_tries

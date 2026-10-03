@@ -2,7 +2,7 @@ import {type RefObject} from 'react';
 import {Link} from 'react-router-dom';
 import {type RunStatus} from '@/api/runs';
 import {Icon} from '@/components/icon';
-import {isModifiedClick} from '@/lib/modified_click';
+import {isModifiedClick} from '@/workbench/dom_events';
 import {GoogleLabsIcon} from './components/google_labs_icon';
 import {TruncatedLabel} from './components/truncated_label';
 import {CancelRunControl} from './layout_cancel_run';

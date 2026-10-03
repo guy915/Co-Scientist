@@ -1,11 +1,12 @@
-"""Font-size/weight/case heading ranking, on plain style records.
+"""PDF heading recovery from font styles, numbering and bookmark matches."""
 
-No pypdf import here -- ``rank_heading_styles`` takes plain ``LineStyle``
-records, kept separate from the pypdf-driven visitor pass that produces
-them from a real page (see ``test_document_ingest_pdf.py``).
-"""
-
-from app.pdf import LineStyle, rank_heading_styles
+from app.pdf import (
+    LineStyle,
+    _pool_bookmark_levels,
+    infer_numbering_levels,
+    rank_heading_styles,
+    raw_bookmark_matches,
+)
 
 
 def test_larger_size_ranks_above_smaller_size() -> None:
@@ -78,3 +79,106 @@ def test_a_line_at_or_below_body_size_is_not_a_heading_candidate() -> None:
     levels = rank_heading_styles(styles, body_size=10.0)
 
     assert set(levels) == {0}
+
+
+def test_exact_title_match_takes_the_bookmark_depth() -> None:
+    outline = [("Introduction", 1), ("Background", 2), ("Methods", 1)]
+    lines = ["Introduction", "Some prose.", "Background", "Methods"]
+
+    levels = raw_bookmark_matches(outline, lines)
+
+    assert levels[0] == levels[3]
+    assert levels[0] < levels[2]
+
+
+def test_numbering_marker_on_the_page_is_ignored_when_matching() -> None:
+    """A bookmark titled "Background" still matches "1.1 Background"."""
+    outline = [("Background", 1)]
+    lines = ["1.1 Background"]
+
+    levels = raw_bookmark_matches(outline, lines)
+
+    assert levels == {0: 1}
+
+
+def test_unmatched_bookmark_contributes_nothing() -> None:
+    outline = [("Nonexistent Section", 1)]
+    lines = ["Introduction", "Methods"]
+
+    levels = raw_bookmark_matches(outline, lines)
+
+    assert levels == {}
+
+
+def test_raw_bookmark_depths_compress_to_contiguous_levels() -> None:
+    """A document whose shallowest bookmark is depth 2 still starts at 1."""
+    outline = [("Chapter One", 2), ("Overview", 3)]
+    lines = ["Chapter One", "Overview"]
+
+    levels = _pool_bookmark_levels(
+        [(title, depth, 0) for title, depth in outline], [lines]
+    )
+
+    assert levels == {(0, 0): 1, (0, 1): 2}
+
+
+def test_dotted_decimal_depth_maps_directly_to_level() -> None:
+    """1. / 1.1 / 1.1.1 form three nested levels, in that order."""
+    lines = ["1. Introduction", "1.1 Background", "1.1.1 Prior work"]
+
+    levels = infer_numbering_levels(lines)
+
+    assert levels == {0: 1, 1: 2, 2: 3}
+
+
+def test_part_keyword_outranks_arabic_numbering() -> None:
+    """PART I sits above a plain arabic section in the family order."""
+    lines = ["PART I", "1. Scope", "PART II", "2. Definitions"]
+
+    levels = infer_numbering_levels(lines)
+
+    assert levels[0] == levels[2] == 1
+    assert levels[1] == levels[3] == 2
+
+
+def test_alpha_and_roman_parenthetical_markers_rank_below_arabic() -> None:
+    """(a) and (i) sit deeper than a leading arabic section marker.
+
+    A second Roman marker ("(ii)") is unambiguous, which is what tips the
+    single-letter "(i)" into the Roman family rather than the alpha one
+    "(a)" already established -- ambiguity resolution reads the whole
+    document's markers, not just one line at a time.
+    """
+    lines = [
+        "1. Scope",
+        "(a) First clause",
+        "(i) Sub-clause",
+        "(ii) Another sub-clause",
+    ]
+
+    levels = infer_numbering_levels(lines)
+
+    assert levels[0] < levels[1] < levels[2] == levels[3]
+
+
+def test_ambiguous_single_letter_resolves_by_document_context() -> None:
+    """A lone 'II.' reads as Roman when unambiguous Roman siblings exist."""
+    lines = ["I. First part", "II. Second part", "III. Third part"]
+
+    levels = infer_numbering_levels(lines)
+
+    # All three are the same family/depth, so they compress to one level.
+    assert levels == {0: 1, 1: 1, 2: 1}
+
+
+def test_lines_without_a_recognizable_marker_are_absent() -> None:
+    """A plain sentence carries no numbering signal at all."""
+    lines = ["1. Introduction", "This is ordinary prose, not a heading."]
+
+    levels = infer_numbering_levels(lines)
+
+    assert levels == {0: 1}
+
+
+def test_empty_and_blank_lines_are_ignored() -> None:
+    assert infer_numbering_levels(["", "   ", "1. Scope"]) == {2: 1}

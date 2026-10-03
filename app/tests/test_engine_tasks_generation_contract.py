@@ -6,10 +6,12 @@ from typing import Any
 import pytest
 from co_scientist.agents.generation import (
     assumptions,
-    coordinator,
     debate,
     literature_tools,
     prepare_generation,
+)
+from co_scientist.agents.generation import (
+    generate as coordinator,
 )
 from co_scientist.checkpoint import restore_workflow_state
 from co_scientist.models import Article, GenerationMethod, Hypothesis

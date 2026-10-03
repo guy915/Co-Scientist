@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app import (
+    API_VERSION,
     diagnostics,
     engine_adapter,
     ops_metrics,
@@ -24,7 +25,6 @@ from app.run_modes import (
     DEFAULT_RUN_TIER,
     RUN_TIER_DEFAULTS,
 )
-from app.version import API_VERSION
 
 router = APIRouter()
 

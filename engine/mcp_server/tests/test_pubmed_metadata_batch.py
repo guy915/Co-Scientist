@@ -13,7 +13,7 @@ from mcp_server import entrez_rate_limit
 from mcp_server import pubmed_metadata_batch as batch
 from mcp_server.pubmed_client import _EntrezClient
 from mcp_server.pubmed_storage import metadata_no_link_sidecar
-from mcp_server.tools.lit_review import pubmed_search_with_fulltext as tool
+from mcp_server.tools.lit_review import search_pubmed as tool
 
 _PUBLIC_METADATA_FIELDS = {
     "date_revised",

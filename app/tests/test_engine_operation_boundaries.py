@@ -54,7 +54,7 @@ def test_engine_does_not_depend_on_app() -> None:
 @pytest.mark.parametrize(
     ("owner", "coordinators"),
     [
-        ("generation/operations.py", {"generation.coordinator"}),
+        ("generation/operations.py", {"generation.generate"}),
         ("ranking/operations.py", {"ranking.ranking"}),
         (
             "reflection/verification.py",

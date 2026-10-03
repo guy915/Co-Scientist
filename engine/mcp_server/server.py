@@ -71,11 +71,9 @@ from mcp_server.tools.lit_review.openalex_search import search_openalex
 from mcp_server.tools.lit_review.opencitations import (
     get_opencitations_citation_edges,
 )
-from mcp_server.tools.lit_review.pubmed_search_with_fulltext import (
-    pubmed_search_with_fulltext,
-)
 from mcp_server.tools.lit_review.search_pubmed import (
     check_pubmed_available,
+    pubmed_search_with_fulltext,
     search_pubmed,
 )
 from mcp_server.tools.systems_biology import (

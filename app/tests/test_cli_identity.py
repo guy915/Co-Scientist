@@ -1,4 +1,4 @@
-"""The CLI's persistent per-machine default client id (app.cli.identity)."""
+"""The CLI's persistent per-machine default client id (app.cli.main)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ from typing import Any
 
 import pytest
 
-from app.cli import identity
 from app.cli.parsers import _common_parser
 
 # app.cli's __init__ re-exports the `main` function under the same name as
@@ -24,8 +23,8 @@ def test_default_client_id_is_generated_and_persisted(
     """A fresh config directory gets one id, read back on every later call."""
     monkeypatch.setenv("COSCIENTIST_CLI_CONFIG_DIR", str(tmp_path))
 
-    first = identity.default_client_id()
-    second = identity.default_client_id()
+    first = cli_main.default_client_id()
+    second = cli_main.default_client_id()
 
     assert first == second
     assert (tmp_path / "client_id").read_text().strip() == first
@@ -38,7 +37,7 @@ def test_default_client_id_respects_xdg_config_home(
     monkeypatch.delenv("COSCIENTIST_CLI_CONFIG_DIR", raising=False)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
 
-    generated = identity.default_client_id()
+    generated = cli_main.default_client_id()
 
     assert (tmp_path / "co-scientist" / "client_id").read_text().strip() == (
         generated
@@ -96,7 +95,7 @@ def test_main_uses_the_persisted_id_when_none_is_given(
     """``cosci`` with no --client-id/env still sends a stable identity."""
     monkeypatch.delenv("COSCIENTIST_CLIENT_ID", raising=False)
     monkeypatch.setenv("COSCIENTIST_CLI_CONFIG_DIR", str(tmp_path))
-    persisted = identity.default_client_id()
+    persisted = cli_main.default_client_id()
 
     assert cli_main.main(["status"]) == 0
     assert _RecordingApiClient.last_client_id == persisted

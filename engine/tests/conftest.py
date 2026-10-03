@@ -78,7 +78,7 @@ def _patch_mcp_seam(
 def _free_catalog(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     """Synthetic metadata keeps mocked free-model requests hermetic."""
     from co_scientist.constants.pricing import MODEL_PRICING
-    from co_scientist.llm.admission import free_catalog
+    from co_scientist.llm.admission import free_policy as free_catalog
 
     catalog = {
         model.removeprefix("openrouter/"): {
