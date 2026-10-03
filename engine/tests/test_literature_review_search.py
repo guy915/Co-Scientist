@@ -1,5 +1,3 @@
-"""Offline contracts for literature review search."""
-
 from __future__ import annotations
 
 import asyncio
@@ -28,18 +26,12 @@ from tests._state import make_state
 
 
 def _ranked(*ids: str) -> dict[str, dict[str, Any]]:
-    """Papers in ranked (best-first) order, as merge_search_results returns."""
     return {paper_id: {"title": paper_id} for paper_id in ids}
 
 
 def _ranked_retracted(
     ids: tuple[str, ...], retracted: set[str]
 ) -> dict[str, dict[str, Any]]:
-    """Ranked papers, marking each id in ``retracted`` as retracted.
-
-    Mirrors what a source's own metadata carries -- ``is_retracted`` is the
-    flat shape OpenAlex reports; the multi-shape detector covers the rest.
-    """
     return {
         paper_id: {"title": paper_id, "is_retracted": paper_id in retracted}
         for paper_id in ids
@@ -47,7 +39,6 @@ def _ranked_retracted(
 
 
 def test_selection_is_pure_score_when_nothing_is_reserved() -> None:
-    """Sources that reserve nothing keep the previous truncation exactly."""
     ranked = _ranked("A", "B", "C", "D")
     source_map = {"A": "pubmed", "B": "pubmed", "C": "corpus", "D": "corpus"}
     sources = [
@@ -58,13 +49,8 @@ def test_selection_is_pure_score_when_nothing_is_reserved() -> None:
 
 
 def test_reserved_slots_rescue_a_source_that_score_would_truncate() -> None:
-    """The defect this fixes: a source ranked last never survived the cap.
-
-    Corpus papers have no citation count and no publication year, so they
-    sort below every indexed paper; with a budget of 2 they were always cut
-    despite matching the question. Reserving keeps them without reordering
-    the rest.
-    """
+    """Metadata-poor corpus papers sort below indexed papers despite matching
+    the question."""
     ranked = _ranked("pm1", "pm2", "oa1", "c1", "c2", "c3")
     source_map = {
         "pm1": "pubmed",
@@ -80,12 +66,10 @@ def test_reserved_slots_rescue_a_source_that_score_would_truncate() -> None:
         SearchSourceConfig(tool="openalex"),
     ]
     selected = select_within_budget(ranked, source_map, sources, 4)
-    # Two corpus papers are guaranteed; the rest go to the best by score.
     assert selected == ["c1", "c2", "pm1", "pm2"]
 
 
 def test_reserved_slots_are_not_padded_when_the_source_returns_fewer() -> None:
-    """A reservation is a ceiling, not a quota to fill with nothing."""
     ranked = _ranked("pm1", "pm2", "pm3", "c1")
     source_map = {
         "pm1": "pubmed",
@@ -102,7 +86,6 @@ def test_reserved_slots_are_not_padded_when_the_source_returns_fewer() -> None:
 
 
 def test_reserved_slots_never_exceed_the_evidence_budget() -> None:
-    """The budget is the hard ceiling; reserving cannot enlarge the review."""
     ranked = _ranked("c1", "c2", "c3", "pm1")
     source_map = {
         "c1": "corpus",
@@ -120,13 +103,8 @@ def test_reserved_slots_never_exceed_the_evidence_budget() -> None:
 
 
 def test_retracted_candidates_never_fill_a_reserved_slot() -> None:
-    """A reserved source whose top candidates are retracted is not seated.
-
-    The defect this fixes: ``_fill_reserved_slots`` took a source's
-    best-ranked N candidates with no retraction check, so a reserved source
-    could seat a retracted paper solely because it out-ranked the source's
-    own other candidates.
-    """
+    """A low score sorts a retracted source last but does not exclude it from
+    an underfilled pool."""
     ranked = _ranked_retracted(("c1", "c2", "c3"), retracted={"c1", "c2"})
     source_map = {"c1": "corpus", "c2": "corpus", "c3": "corpus"}
     sources = [SearchSourceConfig(tool="corpus", reserved_slots=2)]
@@ -139,13 +117,8 @@ def test_retracted_candidates_never_fill_a_reserved_slot() -> None:
 
 
 def test_retracted_candidates_never_fill_an_underfilled_budget() -> None:
-    """A budget the ranked pool can't fill still excludes retracted papers.
-
-    The defect this fixes: ``_fill_remaining_by_score`` appended every
-    remaining ranked id until the budget filled, and the retraction penalty
-    only sorts a paper last -- it does not exclude it -- so an underfilled
-    budget still admitted the retracted tail.
-    """
+    """A low score sorts a retracted source last but does not exclude it from
+    an underfilled pool."""
     ranked = _ranked_retracted(("pm1", "pm2"), retracted={"pm2"})
     source_map = {"pm1": "pubmed", "pm2": "pubmed"}
     sources = [SearchSourceConfig(tool="pubmed")]
@@ -156,13 +129,8 @@ def test_retracted_candidates_never_fill_an_underfilled_budget() -> None:
 
 
 def test_a_reservation_short_on_non_retracted_papers_is_not_padded() -> None:
-    """Excluding a source's retracted papers is not backfilled from elsewhere.
-
-    ``reserved_slots`` is a ceiling on a source's own candidates, never a
-    quota padded with another source's papers -- that property must hold
-    for retracted exclusion exactly as it already holds for a source simply
-    returning fewer papers than it reserved.
-    """
+    """Reservations bound one source's candidates, never a quota filled from
+    other sources."""
     ranked = _ranked_retracted(("c1", "c2", "pm1"), retracted={"c2"})
     source_map = {"c1": "corpus", "c2": "corpus", "pm1": "pubmed"}
     sources = [
@@ -176,15 +144,6 @@ def test_a_reservation_short_on_non_retracted_papers_is_not_padded() -> None:
 
 
 def test_the_shipped_sources_reserve_no_slots() -> None:
-    """The bundled literature-review sources all compete on score alone.
-
-    The paper corpus was the only source that ever reserved slots (so its
-    passages were not truncated away); now that the corpus reaches a run as an
-    injected catalog rather than a search source, no bundled source reserves
-    anything. `reserved_slots` remains a general capability of
-    `SearchSourceConfig` (exercised by the tests above), just unused by the
-    shipped config.
-    """
     from co_scientist.config import ToolRegistry
 
     registry = ToolRegistry(skip_user_config=True)
@@ -206,13 +165,6 @@ def test_the_shipped_sources_reserve_no_slots() -> None:
 
 
 def test_enabled_search_sources_track_disabled_tools() -> None:
-    """A per-run disabled tool stops being searched.
-
-    The app's connector toggles map to disable_tools; the registry
-    reconciles source flags with tool flags at load time, and the search
-    phase trusts ``get_enabled_search_sources()`` -- so the disabled
-    source must already be gone here.
-    """
     from co_scientist.config.registry import ToolRegistry
 
     registry = ToolRegistry(disabled_tools=["web_search"])
@@ -225,7 +177,6 @@ def test_enabled_search_sources_track_disabled_tools() -> None:
 
 
 def test_enabled_search_sources_keep_enabled_tools() -> None:
-    """Nothing disabled means every configured source is searched."""
     from co_scientist.config.registry import ToolRegistry
 
     registry = ToolRegistry()
@@ -237,24 +188,10 @@ def test_enabled_search_sources_keep_enabled_tools() -> None:
 
 
 class _BarrierMCPClient:
-    """Fake client that blocks until a set number of calls are in flight.
-
-    Lets a test assert real overlap rather than infer it from timing: if the
-    queries were awaited one at a time, the first would wait forever for
-    siblings that have not been issued, and the test would hang rather than
-    pass by accident on a fast machine.
-    """
+    """A barrier proves overlap without timing assumptions. Python 3.10
+    lacks asyncio.Barrier, so this fixture implements its own."""
 
     def __init__(self, parties: int, response: Any) -> None:
-        """Arm a barrier for ``parties`` concurrent calls.
-
-        Hand-rolled rather than ``asyncio.Barrier``: the engine supports
-        Python 3.10, where that class does not exist.
-
-        Args:
-            parties: How many calls must arrive before any may proceed.
-            response: Payload every call returns once released.
-        """
         self._parties = parties
         self._released = asyncio.Event()
         self.response = response
@@ -263,7 +200,6 @@ class _BarrierMCPClient:
         self._in_flight = 0
 
     async def call_tool(self, tool_name: str, **kwargs: Any) -> Any:
-        """Record the call, wait for its siblings, then respond."""
         self.calls.append((tool_name, kwargs))
         self._in_flight += 1
         self.max_in_flight = max(self.max_in_flight, self._in_flight)
@@ -275,11 +211,6 @@ class _BarrierMCPClient:
 
 
 async def test_queries_for_one_source_run_concurrently() -> None:
-    """A source's queries overlap instead of costing their sum.
-
-    The barrier only releases once all three calls are in flight, so this
-    test cannot pass if the queries are awaited sequentially.
-    """
     tool_config = make_tool_config(mcp_tool_name="search_pubmed")
     registry = make_tool_lookup_registry({"pubmed_ft": tool_config})
     client = _BarrierMCPClient(parties=3, response={"P1": {"title": "T1"}})
@@ -301,14 +232,12 @@ async def test_queries_for_one_source_run_concurrently() -> None:
 
 
 async def test_sources_still_overlap_with_concurrent_queries() -> None:
-    """Cross-source parallelism survives the within-source change."""
     registry = make_tool_lookup_registry(
         {
             "src_a": make_tool_config(mcp_tool_name="search_a"),
             "src_b": make_tool_config(mcp_tool_name="search_b"),
         }
     )
-    # Two sources x two queries must all be in flight together.
     client = _BarrierMCPClient(parties=4, response={"P1": {"title": "T1"}})
     workflow = make_two_source_workflow(2)
 
@@ -327,20 +256,14 @@ async def test_sources_still_overlap_with_concurrent_queries() -> None:
 
 
 class _PerQueryMCPClient:
-    """Fake client that answers by query text rather than by call order.
-
-    Concurrent queries interleave their calls and retries, so a fake that
-    pops a flat response list no longer maps outcomes to the query that
-    asked for them.
-    """
+    """Concurrent calls and retries cannot map outcomes from one flat
+    response queue."""
 
     def __init__(self, outcomes: dict[str, Any]) -> None:
-        """Map each query string to the response or exception it gets."""
         self._outcomes = outcomes
         self.calls: list[tuple[str, dict[str, Any]]] = []
 
     async def call_tool(self, tool_name: str, **kwargs: Any) -> Any:
-        """Return or raise the outcome registered for this call's query."""
         self.calls.append((tool_name, kwargs))
         outcome = self._outcomes[str(kwargs["query"])]
         if isinstance(outcome, Exception):
@@ -349,10 +272,8 @@ class _PerQueryMCPClient:
 
 
 async def test_one_failed_query_does_not_discard_its_siblings() -> None:
-    """A broken query is isolated; the rest of the source still lands."""
     tool_config = make_tool_config(mcp_tool_name="search_pubmed")
     registry = make_tool_lookup_registry({"pubmed_ft": tool_config})
-    # The middle query fails every attempt; the others succeed.
     client = _PerQueryMCPClient(
         {
             "q1": {"P1": {"title": "First"}},
@@ -374,16 +295,10 @@ async def test_one_failed_query_does_not_discard_its_siblings() -> None:
 
 
 async def test_duplicate_papers_keep_the_last_query_s_metadata() -> None:
-    """Merging follows query order, not completion order.
-
-    Concurrency must not make selection depend on which index answered
-    first: the same paper seen by several queries has to resolve the same
-    way every run.
-    """
+    """Merge order follows queries, so completion timing cannot change
+    selected metadata."""
     tool_config = make_tool_config(mcp_tool_name="search_pubmed")
     registry = make_tool_lookup_registry({"pubmed_ft": tool_config})
-    # The later query answers first, but must still win the merge, exactly
-    # as it did when the loop awaited them in order.
     client = _OutOfOrderMCPClient(
         [
             {"P1": {"title": "From q1"}},
@@ -402,21 +317,13 @@ async def test_duplicate_papers_keep_the_last_query_s_metadata() -> None:
 
 
 class _OutOfOrderMCPClient:
-    """Fake client that answers later calls before earlier ones.
-
-    Forces the merge to depend on query order rather than on the order the
-    sources happened to reply in.
-    """
-
     def __init__(self, responses: list[Any]) -> None:
-        """Queue one response per call, answered in reverse arrival order."""
         self._responses = list(responses)
         self._gate = asyncio.Event()
         self._index = 0
         self.calls: list[tuple[str, dict[str, Any]]] = []
 
     async def call_tool(self, tool_name: str, **kwargs: Any) -> Any:
-        """Hold the first call until the last has been issued."""
         self.calls.append((tool_name, kwargs))
         index = self._index
         self._index += 1
@@ -434,53 +341,16 @@ def _isolate_offline_router(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 class _SequencedMCPClient:
-    """Fake MCP client that returns queued responses in call order.
-
-    Used where different calls (e.g. one per query) must yield distinct
-    payloads, unlike ``FakeCallToolClient``'s single fixed response.
-    """
-
     def __init__(self, responses: list[Any]) -> None:
-        """Store the ordered responses successive ``call_tool`` calls return.
-
-        Args:
-            responses: One response per expected call, consumed in order.
-        """
         self._responses = list(responses)
         self.calls: list[tuple[str, dict[str, Any]]] = []
 
     async def call_tool(self, tool_name: str, **kwargs: Any) -> Any:
-        """Record the call and return or raise the next queued outcome."""
         self.calls.append((tool_name, kwargs))
         outcome = self._responses.pop(0)
         if isinstance(outcome, Exception):
             raise outcome
         return outcome
-
-
-# =============================================================================
-# _build_query_tool_params
-# =============================================================================
-
-
-# =============================================================================
-# _tag_source_name
-# =============================================================================
-
-
-# =============================================================================
-# _search_source_for_query
-# =============================================================================
-
-
-# =============================================================================
-# _search_single_source
-# =============================================================================
-
-
-# =============================================================================
-# _search_all_sources / _phase2_collect_papers_multi_source
-# =============================================================================
 
 
 def _multi_source_config(
@@ -491,7 +361,6 @@ def _multi_source_config(
     papers_to_read_count: int,
     search_tool_name: str = "unused",
 ) -> SearchConfig:
-    """A multi-source SearchConfig over the given registry and workflow."""
     return SearchConfig(
         tool_registry=cast(ToolRegistry, registry),
         workflow=workflow,
@@ -511,7 +380,6 @@ async def _collect_multi_source(
     client: Any,
     errors: list[str],
 ) -> tuple[dict[str, Any], dict[str, str]]:
-    """Run multi-source phase 2 collection with the shared ``"slug"`` slug."""
     return await search._phase2_collect_papers_multi_source(
         queries,
         config,
@@ -524,7 +392,6 @@ class TestLiteratureReviewSearchMultiSource:
     def test_build_query_tool_params_with_tool_config_maps_parameters(
         self,
     ) -> None:
-        """A tool config maps canonical params and drops null-mapped entries."""
         tool_config = make_tool_config(
             parameter_mapping={"query": "q", "recency_years": None}
         )
@@ -582,7 +449,6 @@ class TestLiteratureReviewSearchMultiSource:
         self,
         monkeypatch: Any,
     ) -> None:
-        """A transient non-JSON response is retried before losing the source."""
 
         async def no_delay(_: float) -> None:
             """Skip the production retry delay in this deterministic test."""
@@ -619,8 +485,6 @@ class TestLiteratureReviewSearchMultiSource:
         async def no_delay(_: float) -> None:
             """Skip the production backoff in this deterministic test."""
 
-        # This test is about the outcome of exhausting the retry budget, not
-        # about how long exhausting it takes.
         monkeypatch.setattr(
             "co_scientist.evidence.search.asyncio.sleep",
             no_delay,
@@ -639,14 +503,11 @@ class TestLiteratureReviewSearchMultiSource:
 
         assert result == {}
         assert errors == ["pubmed: ConnectionError: boom"]
-        # Read from the constant: the retry budget is tuned against upstream
-        # behavior, and a hardcoded copy here turns tuning it into a test break.
         assert len(client.calls) == search_query._SEARCH_ATTEMPTS
 
     async def test_search_single_source_missing_tool_config_returns_empty(
         self,
     ) -> None:
-        """An unresolvable source tool logs and returns an empty result set."""
         registry = make_tool_lookup_registry({})
         client = FakeCallToolClient()
         source = SearchSourceConfig(tool="missing_tool")
@@ -662,7 +523,6 @@ class TestLiteratureReviewSearchMultiSource:
         assert client.calls == []
 
     async def test_search_single_source_collects_across_queries(self) -> None:
-        """Every query for a resolved source is searched and merged together."""
         tool_config = make_tool_config(mcp_tool_name="search_pubmed")
         registry = make_tool_lookup_registry({"pubmed_ft": tool_config})
         client = FakeCallToolClient(response={"P1": {"title": "T1"}})
@@ -677,22 +537,13 @@ class TestLiteratureReviewSearchMultiSource:
 
         assert tool_id == "pubmed_ft"
         assert results["P1"]["title"] == "T1"
-        # extract_source_name falls back to ToolConfig.source_type by default.
         assert results["P1"]["_source_name"] == "academic"
         assert len(client.calls) == 2
 
     async def test_phase2_collect_papers_multi_source_merges_and_dedupes(
         self,
     ) -> None:
-        """Multi-source phase 2 collects from all sources and dedupes by title.
-
-        One of the two configured sources has no resolvable tool config (hitting
-        ``_search_single_source``'s not-found branch); the other returns two
-        queries' worth of papers sharing a title, which ``merge_search_results``
-        collapses to a single entry.
-        """
         tool_a = make_tool_config(mcp_tool_name="search_a")
-        # src_b is unresolvable.
         registry = make_tool_lookup_registry({"src_a": tool_a})
         config = _multi_source_config(
             registry,
@@ -751,12 +602,6 @@ class TestLiteratureReviewSearchMultiSource:
         assert set(metadata) == set(source_map)
 
     async def test_multi_source_hybrid_scores_when_goal_is_set(self) -> None:
-        """A configured research goal runs the semantic pass before budgeting.
-
-        Every selected paper carries a normalized hybrid score and its
-        provenance, and reserved-slot selection still runs unmodified on top
-        of the re-ranked pool.
-        """
         tool_a = make_tool_config(mcp_tool_name="search_a")
         tool_b = make_tool_config(mcp_tool_name="search_b")
         registry = make_tool_lookup_registry({"src_a": tool_a, "src_b": tool_b})
@@ -834,12 +679,8 @@ class TestLiteratureReviewSearchMultiSource:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """A source the campaign MCP policy refuses is never called.
-
-        The registry is built before the campaign scope is known, so web search
-        stays enabled there; every call to it was refused, retried four times,
-        and logged at ERROR on each literature pass.
-        """
+        """The registry predates campaign scope; refused sources must be
+        filtered before spending retries."""
         monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
         registry = make_tool_lookup_registry(
             {

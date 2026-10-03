@@ -1,5 +1,3 @@
-"""Offline contracts for supervisor."""
-
 from __future__ import annotations
 
 import json
@@ -24,7 +22,6 @@ from tests._state import make_state
 async def test_guidance_carries_response_subobjects(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Each response sub-object is copied verbatim into supervisor_guidance."""
     response = {
         "research_goal_analysis": {
             "summary": "study alpha pathway",
@@ -47,7 +44,6 @@ async def test_guidance_carries_response_subobjects(
     result = await supervisor_node(make_state())
 
     guidance = result["supervisor_guidance"]
-    # Every response sub-object is carried into guidance verbatim.
     for key in (
         "research_goal_analysis",
         "workflow_plan",
@@ -57,7 +53,6 @@ async def test_guidance_carries_response_subobjects(
         "output_preparation",
     ):
         assert guidance[key] == response[key]
-    # Metrics update is always emitted (one LLM call this node).
     assert result["metrics"] is not None
     assert result["metrics"].llm_calls == 1
 
@@ -65,7 +60,6 @@ async def test_guidance_carries_response_subobjects(
 async def test_missing_response_fields_default_to_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An empty response yields guidance with empty defaults, not a crash."""
     stub_call_llm_json(monkeypatch, supervisor, {})
 
     result = await supervisor_node(make_state())
@@ -82,12 +76,6 @@ async def test_missing_response_fields_default_to_empty(
 async def test_list_research_goal_analysis_does_not_crash(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A list research_goal_analysis falls back to empty key_areas safely.
-
-    The node only reads ``key_areas`` when the analysis is a dict; a list must
-    pass through the logging guard without raising and still be carried in the
-    guidance unchanged.
-    """
     analysis = ["area one", "area two"]
     stub_call_llm_json(
         monkeypatch, supervisor, {"research_goal_analysis": analysis}
@@ -97,14 +85,12 @@ async def test_list_research_goal_analysis_does_not_crash(
 
     guidance = result["supervisor_guidance"]
     assert guidance["research_goal_analysis"] == analysis
-    # key_areas falls back to empty, so the message metadata reports zero.
     assert result["messages"][0]["metadata"]["key_areas"] == 0
 
 
 async def test_key_areas_feed_message_metadata(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Present key_areas are counted into the emitted message metadata."""
     stub_call_llm_json(
         monkeypatch,
         supervisor,
@@ -142,7 +128,6 @@ def _supervisor_decision_state() -> WorkflowState:
 async def test_model_selects_productive_task(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A valid model allocation controls the next productive task."""
 
     async def _allocation(**_kwargs: Any) -> dict[str, Any]:
         return {
@@ -178,7 +163,6 @@ async def test_model_selects_productive_task(
 async def test_hard_budget_stop_bypasses_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A model cannot schedule work after a hard compute limit."""
 
     async def _unexpected(**_kwargs: Any) -> dict[str, str]:
         raise AssertionError("model must not be called")
@@ -204,7 +188,6 @@ async def test_hard_budget_stop_bypasses_model(
 async def test_iteration_budget_blocks_model_directed_pool_growth(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A model cannot evolve again while terminal review work remains."""
 
     async def _allocation(**_kwargs: Any) -> dict[str, str]:
         return {
@@ -228,8 +211,6 @@ async def test_iteration_budget_blocks_model_directed_pool_growth(
         _supervisor_decision_state(), stats, Budget(max_iterations=2)
     )
 
-    # The backlog is a required transition, so this is now settled before
-    # the model is asked rather than by overruling its answer.
     assert decision.next_task is TaskType.REFLECT
     assert provenance == "required-transition"
 
@@ -238,16 +219,11 @@ async def test_iteration_budget_blocks_model_directed_pool_growth(
 async def test_provider_failure_records_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Provider failure remains recoverable and auditable."""
 
     async def _failed(**_kwargs: Any) -> dict[str, str]:
         raise RuntimeError("provider unavailable")
 
     monkeypatch.setattr(supervisor_decision, "call_llm_json", _failed)
-    # Open choice: no required transition fires, so the model is consulted
-    # and its failure is what the fallback has to absorb. Default stats are a
-    # yield tie with no measured leaderboard stagnation, so the deterministic
-    # fallback generates.
     stats = SchedulerStats(pool_size=4, reviewed_count=4, iteration=1)
     (
         decision,
@@ -264,7 +240,6 @@ async def test_provider_failure_records_fallback(
 async def test_scientist_steering_reprioritizes_generation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """User feedback preempts the planning call, not just its answer."""
 
     async def _unexpected(**_kwargs: Any) -> dict[str, str]:
         raise AssertionError("model must not be called")
@@ -296,7 +271,6 @@ async def test_scientist_steering_reprioritizes_generation(
 async def test_review_backlog_skips_the_planning_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An unreviewed backlog is forced work, so it costs no model call."""
 
     async def _unexpected(**_kwargs: Any) -> dict[str, str]:
         raise AssertionError("model must not be called")
@@ -322,7 +296,6 @@ async def test_review_backlog_skips_the_planning_call(
 async def test_small_pool_skips_the_planning_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A pool too small to rank leaves nothing for a model to decide."""
 
     async def _unexpected(**_kwargs: Any) -> dict[str, str]:
         raise AssertionError("model must not be called")
@@ -346,7 +319,6 @@ async def test_small_pool_skips_the_planning_call(
 async def test_proximity_refresh_skips_the_planning_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A grown pool must re-cluster before anything else is worth choosing."""
 
     async def _unexpected(**_kwargs: Any) -> dict[str, str]:
         raise AssertionError("model must not be called")
@@ -378,11 +350,8 @@ async def test_proximity_refresh_skips_the_planning_call(
 async def test_failed_durable_task_still_consults_the_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A failed task is revived only by a model queue action, so ask.
-
-    The forced transition is still returned, but skipping the call would
-    strand the failed row: nothing automatic requeues it.
-    """
+    """Only model queue actions revive failed rows; skipping allocation
+    strands them."""
     calls: list[str] = []
 
     async def _allocation(**_kwargs: Any) -> dict[str, Any]:
@@ -431,13 +400,8 @@ async def test_failed_durable_task_still_consults_the_model(
 async def test_corrected_allocation_still_delivers_the_queue_action(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Correcting the next task must not discard the failed row's revival.
-
-    An unrankable pool invites the model to keep asking for RANK, so the rank
-    correction fires on every round with these stats. The action is the failed
-    row's only route back, so dropping it stranded it for as long as the pool
-    stayed unrankable rather than for one loop point.
-    """
+    """Repeated rank correction must not discard the failed row's only
+    revival path."""
     retry = {"action": "retry", "task_id": "task-9", "reason": "Transient."}
 
     async def _allocation(**_kwargs: Any) -> dict[str, Any]:
@@ -469,7 +433,6 @@ async def test_corrected_allocation_still_delivers_the_queue_action(
 async def test_allocation_runs_on_the_worker_model_with_thinking(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Allocation reasons, on the worker model, uncached."""
     seen: dict[str, Any] = {}
 
     async def _allocation(**kwargs: Any) -> dict[str, str]:
@@ -488,8 +451,8 @@ async def test_allocation_runs_on_the_worker_model_with_thinking(
     assert seen["spec"].model_name == state["model_name"]
     assert seen["spec"].model_name != state["supervisor_model_name"]
     assert seen["options"].enable_thinking is True
-    # Allocation must never be served from cache: it is a decision about
-    # live state, and identical prompts recur across loop points.
+    # Identical live-state prompts recur; allocation must never replay from
+    # cache.
     assert seen["options"].use_cache is False
 
 
@@ -497,7 +460,6 @@ async def test_allocation_runs_on_the_worker_model_with_thinking(
 async def test_repeated_maintenance_cannot_stall_iteration_budget(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The model cannot repeat a no-progress reflection loop indefinitely."""
 
     async def _allocation(**_kwargs: Any) -> dict[str, str]:
         return {
@@ -533,11 +495,6 @@ async def test_repeated_maintenance_cannot_stall_iteration_budget(
         state, stats, Budget(max_iterations=2)
     )
 
-    # A yield tie with no measured leaderboard stagnation (rank_stable_cycles
-    # defaults to 0) falls back to GENERATE; the invariant under test is that
-    # the model's repeated "reflect" is overruled, not the specific baseline
-    # task, so this only needs to match whatever the deterministic policy
-    # picks for these stats.
     assert decision.next_task is TaskType.GENERATE
     assert provenance == "hard-invariant"
 
@@ -550,7 +507,6 @@ _RETRY = {
 
 
 def _supervisor_decision_guards_state() -> WorkflowState:
-    """A state whose durable queue holds one failed row to revive."""
     return make_state(
         research_goal="Find a testable mechanism.",
         supervisor_model_name="test/model",
@@ -572,7 +528,6 @@ def _supervisor_decision_guards_state() -> WorkflowState:
 
 
 def _allocating(task: str) -> Any:
-    """Build a planner stub asking for ``task`` plus the failed row's retry."""
 
     async def _allocation(**_kwargs: Any) -> dict[str, Any]:
         return {
@@ -588,13 +543,8 @@ def _allocating(task: str) -> Any:
 async def test_post_budget_growth_guard_still_delivers_the_queue_action(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The terminal drain must not strand the revival it just asked for.
-
-    ``stats.iteration`` never decreases, so this guard's condition holds for
-    every remaining loop point. Discarding the action here therefore discarded
-    it for the rest of the run: measured over the real loop, 60 of 60 planning
-    calls in the drain carried a revival and none of them landed.
-    """
+    """A terminal-drain guard holds forever; dropping revival there strands
+    the row permanently."""
     monkeypatch.setattr(
         supervisor_decision, "call_llm_json", _allocating("generate")
     )
@@ -610,7 +560,6 @@ async def test_post_budget_growth_guard_still_delivers_the_queue_action(
         _supervisor_decision_guards_state(), stats, Budget(max_iterations=2)
     )
 
-    # The guard still owns the next task: growth is refused.
     assert decision.next_task is not TaskType.GENERATE
     assert provenance == "hard-invariant"
     assert decision.queue_actions == (_RETRY,)
@@ -620,7 +569,6 @@ async def test_post_budget_growth_guard_still_delivers_the_queue_action(
 async def test_non_progress_guard_still_delivers_the_queue_action(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Refusing a repeated pass must not also refuse the queue action."""
     monkeypatch.setattr(
         supervisor_decision, "call_llm_json", _allocating("proximity")
     )
@@ -656,7 +604,6 @@ async def test_non_progress_guard_still_delivers_the_queue_action(
 async def test_guard_without_queue_actions_returns_the_baseline_itself(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An empty proposal leaves the baseline decision untouched."""
     monkeypatch.setattr(
         supervisor_decision, "call_llm_json", _allocating("generate")
     )
@@ -682,11 +629,6 @@ async def test_guard_without_queue_actions_returns_the_baseline_itself(
 
 
 def test_hard_stop_yields_to_owed_coverage_but_not_to_safety() -> None:
-    """_hard_stop defers budget stops when coverage remains, but not safety.
-
-    _hard_stop runs after required_transition, so without this the RANK the
-    policy just chose is overridden and the feature never reaches a run.
-    """
     from co_scientist.agents.supervisor.supervisor_decision import _hard_stop
     from co_scientist.scheduling import (
         Budget,
@@ -722,12 +664,8 @@ def test_hard_stop_yields_to_owed_coverage_but_not_to_safety() -> None:
 
 
 def test_hard_stop_deferral_reads_the_allowance_not_the_baseline() -> None:
-    """The deferral is bounded by the allowance on any baseline task.
-
-    _needs_queue_adjudication can route past the forced decision, and the
-    model may then answer with a task other than RANK -- which charges
-    nothing, so a baseline-derived deferral had no bound on that path.
-    """
+    """A model can choose a non-rank task; the allowance must bound deferral
+    on that path."""
     from co_scientist.agents.supervisor.supervisor_decision import _hard_stop
     from co_scientist.scheduling import (
         Budget,
@@ -770,13 +708,6 @@ def test_hard_stop_deferral_reads_the_allowance_not_the_baseline() -> None:
 
 
 def test_hard_stop_defers_for_an_under_covered_pool() -> None:
-    """The deferral reads the same owed-rounds figure the scheduler does.
-
-    _hard_stop runs before required_transition, so a pool that owes rounds
-    without holding a single unmatched idea -- every idea at one match of the
-    two -- was stopped here on the budget before the settlement round the
-    scheduler was about to force could ever run.
-    """
     from co_scientist.agents.supervisor.supervisor_decision import _hard_stop
     from co_scientist.scheduling import (
         Budget,
@@ -799,13 +730,6 @@ def test_hard_stop_defers_for_an_under_covered_pool() -> None:
 
 
 def test_hard_stop_enforces_max_ideas_ahead_of_the_model() -> None:
-    """The MaxIdeas ceiling (F11) is a code-enforced stop, mirroring policy.
-
-    ``_hard_stop_checks`` must carry the same predicate as
-    ``policy_checks._max_ideas_check``: without it a model consulted for the
-    open generate/evolve choice could keep growing a pool this run's own
-    configured ceiling says is full.
-    """
     from co_scientist.agents.supervisor.supervisor_decision import _hard_stop
     from co_scientist.scheduling import (
         Budget,
@@ -824,13 +748,11 @@ def test_hard_stop_enforces_max_ideas_ahead_of_the_model() -> None:
     assert stop is not None
     assert stop.termination_reason is TerminationReason.MAX_IDEAS
 
-    # An unreviewed backlog still owed at the ceiling is not stopped here.
     with_backlog = SchedulerStats(pool_size=10, unreviewed_count=2)
     assert _hard_stop(with_backlog, budget, baseline) is None
 
 
 def test_hard_stop_enforces_max_matches_per_idea_ahead_of_the_model() -> None:
-    """The MaxMatchesPerIdea ceiling (F11) is a code-enforced stop."""
     from co_scientist.agents.supervisor.supervisor_decision import _hard_stop
     from co_scientist.scheduling import (
         Budget,
@@ -851,11 +773,6 @@ def test_hard_stop_enforces_max_matches_per_idea_ahead_of_the_model() -> None:
 
 
 def test_stale_cancelled_flag_is_not_a_hard_stop() -> None:
-    """A stray ``cancelled=True`` on stats is no longer code-enforced.
-
-    ``SchedulerStats.cancelled`` is retained (the orchestrator still
-    constructs it), but nothing in the scheduling policy reads it (F12).
-    """
     from co_scientist.agents.supervisor.supervisor_decision import _hard_stop
     from co_scientist.scheduling import (
         Budget,
@@ -871,22 +788,11 @@ def test_stale_cancelled_flag_is_not_a_hard_stop() -> None:
     assert _hard_stop(stats, budget, baseline) is None
 
 
-# A model whose profile states json_schema=False (DeepSeek), i.e. the
-# production shape: the json_schema response format is unavailable, so
-# whatever holds has to hold in-process.
+# This model lacks native schema support; these constraints must hold locally.
 _JSON_OBJECT_MODEL = "deepseek/deepseek-v4-flash"
 
 
 def _allocation_text(**queue_action: Any) -> str:
-    """Serialize a well-formed allocation carrying one queue action.
-
-    Args:
-        **queue_action: Fields to add to (or override on) the single
-            ``reprioritize`` action, e.g. ``priority=999``.
-
-    Returns:
-        The raw JSON response text a model attempt would return.
-    """
     return json.dumps(
         {
             "next_task": "evolve",
@@ -908,18 +814,6 @@ async def _allocate(
     raw_response: str,
     model: str = _JSON_OBJECT_MODEL,
 ) -> tuple[SupervisorDecision, str, list[str]]:
-    """Run one allocation over the real call_llm_json parse/validate loop.
-
-    Args:
-        monkeypatch: Fixture used to install the raw-response seam.
-        raw_response: The text every attempt's LLM call returns.
-        model: Model name, which decides whether the json_object
-            provider-capability shim applies.
-
-    Returns:
-        The decision, its provenance, and the prompt sent on each attempt
-        (so a caller can assert on the retry count and its feedback).
-    """
     prompts: list[str] = []
 
     async def _fake_call(
@@ -952,11 +846,6 @@ async def _allocate(
 async def test_in_range_queue_action_priority_reaches_the_decision(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A schema-conforming queue action survives validation intact.
-
-    The control for the two rejection tests below: without it they could
-    both pass because the seam never delivered a usable response at all.
-    """
     decision, provenance, prompts = await _allocate(
         monkeypatch, _allocation_text(priority=88)
     )
@@ -971,12 +860,6 @@ async def test_in_range_queue_action_priority_reaches_the_decision(
 async def test_out_of_range_queue_action_priority_is_rejected(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A priority past the declared maximum never reaches the decision.
-
-    Not clamped: rejected. The retry hands the model the validation error,
-    and a model that keeps violating loses the allocation to the
-    deterministic scheduler rather than having its value quietly bounded.
-    """
     decision, provenance, prompts = await _allocate(
         monkeypatch, _allocation_text(priority=999)
     )
@@ -992,11 +875,6 @@ async def test_out_of_range_queue_action_priority_is_rejected(
 async def test_non_integer_queue_action_priority_is_rejected(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A non-integer priority never reaches the decision either.
-
-    The declared type is as load-bearing as the bounds: this is the value
-    that would otherwise be handed to a downstream ``int()``.
-    """
     decision, provenance, _ = await _allocate(
         monkeypatch, _allocation_text(priority="urgent")
     )
@@ -1009,12 +887,8 @@ async def test_non_integer_queue_action_priority_is_rejected(
 async def test_null_queue_action_priority_is_accepted(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Null stays legal: the bounds constrain numbers, not the union.
-
-    ``["integer", "null"]`` with ``minimum``/``maximum`` alongside is easy
-    to misread as bounding null out. It does not, and must not -- null is
-    how a cancel/retry action declines to set a priority at all.
-    """
+    """Null means no priority override; numeric bounds cannot remove that
+    union member."""
     decision, provenance, prompts = await _allocate(
         monkeypatch, _allocation_text(priority=None)
     )
@@ -1028,12 +902,8 @@ async def test_null_queue_action_priority_is_accepted(
 async def test_integral_float_priority_is_normalized_to_an_int(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The surviving live effect of the top-level clamp.
-
-    JSON Schema's "integer" admits a float with no fractional part, so
-    ``55.0`` validates. The clamp's ``int()`` is what makes the value that
-    leaves the engine a real int.
-    """
+    """JSON Schema admits integral floats; downstream priority must still be
+    a Python int."""
     body = json.loads(_allocation_text(priority=88))
     body["priority"] = 55.0
     decision, provenance, _ = await _allocate(monkeypatch, json.dumps(body))
@@ -1047,15 +917,8 @@ async def test_integral_float_priority_is_normalized_to_an_int(
 async def test_missing_next_task_is_backfilled_on_json_object_providers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The one constraint in this schema that production does not enforce.
-
-    ``required`` is relaxed at the top level by the json_object shim: a
-    reply with no ``next_task`` at all is completed with the enum's first
-    value and recorded as provenance "model" -- a decision the model never
-    made -- without so much as a retry. Asserted against the enum source
-    rather than the literal, because the substituted value silently
-    follows whatever ``_PRODUCTIVE_TASKS`` lists first.
-    """
+    """JSON-object backfill uses the first enum, potentially attributing a
+    decision never made."""
     first_of_enum = supervisor_decision._PRODUCTIVE_TASKS[0]
     decision, provenance, prompts = await _allocate(
         monkeypatch, json.dumps({"reason": "No next_task field at all."})
@@ -1070,13 +933,8 @@ async def test_missing_next_task_is_backfilled_on_json_object_providers(
 async def test_queue_action_required_fields_are_not_backfilled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The backfill's reach stops at the array, bounding the gap above.
-
-    ``reshape_json_output`` returns at a non-dict, so it never
-    descends into ``queue_actions`` items. A queue action missing
-    ``task_id`` is therefore rejected even on the provider whose top-level
-    required fields get filled in for it.
-    """
+    """Backfill stops at non-dicts and cannot fill required fields inside
+    queue-action arrays."""
     body = {
         "next_task": "evolve",
         "reason": "Improve mature leaders.",

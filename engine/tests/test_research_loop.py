@@ -1,5 +1,3 @@
-"""Offline contracts for research loop."""
-
 from __future__ import annotations
 
 import ast
@@ -43,7 +41,7 @@ def test_breadth_halves_on_descent_and_stops_at_the_floor() -> None:
 
     fourth = third.descend()
     assert fourth is not None
-    # Floored rather than halved to 1: a one-question level is a lookup.
+    # A one-question level is a lookup; breadth retains its floor.
     assert (fourth.depth, fourth.breadth) == (1, 2)
     assert fourth.descend() is None
 
@@ -51,8 +49,7 @@ def test_breadth_halves_on_descent_and_stops_at_the_floor() -> None:
 def test_max_threads_is_quotable_before_anything_is_spent() -> None:
     budget = ResearchBudget(depth=3, breadth=8, sources=("pubmed",))
 
-    # 8 + 4 + 2, summed rather than multiplied: follow-ups are pooled per
-    # level, so the bound is linear in depth.
+    # Follow-ups are pooled per level, so the depth bound is additive.
     assert budget.max_threads() == 14
 
 
@@ -90,12 +87,8 @@ async def test_first_level_is_planned_one_question_per_stance() -> None:
 
 
 async def test_a_finding_is_identified_by_the_question_that_found_it() -> None:
-    """The same span under two questions is two findings, not one.
-
-    This is the identity decision that cannot be revised once rows
-    exist: a locator alone does not identify evidence, because the
-    reason it was fetched is part of what it is.
-    """
+    """A locator alone cannot identify evidence: its research question is
+    part of its identity."""
     model = FakeModel(stances=("mechanism", "prior art"))
     retrieval = FakeRetrieval({"pubmed": _hits("doc-a")})
 
@@ -110,8 +103,6 @@ async def test_a_finding_is_identified_by_the_question_that_found_it() -> None:
     assert len(findings) == 2
     assert {f.locator for f in findings} == {"doc-a"}
     assert {f.span for f in findings} == {"span from doc-a"}
-    # Same document, same span, different question -- and so different
-    # evidence, with different ids.
     assert findings[0].id != findings[1].id
 
 
@@ -138,12 +129,10 @@ async def test_follow_ups_become_the_next_level() -> None:
     assert [t.question.text for t in second_level] == [
         "which cell type drives it?"
     ]
-    # The descent is a tree: the follow-up remembers what raised it.
     assert second_level[0].question.parent_id is not None
 
 
 async def test_descent_stops_when_a_whole_level_finds_nothing() -> None:
-    """An unreachable search service looks exactly like this."""
     question = "what does mechanism say about fibrosis?"
     model = FakeModel(
         stances=("mechanism",),
@@ -161,7 +150,6 @@ async def test_descent_stops_when_a_whole_level_finds_nothing() -> None:
 
     assert result.stop_reason is StopReason.NO_RESULTS
     assert result.levels_run == 1
-    # The follow-up existed and was deliberately not researched.
     assert model.extracted == [question]
 
 
@@ -179,11 +167,8 @@ async def test_overflow_questions_are_declined_not_dropped() -> None:
 
     declined = result.declined()
     assert [t.question.text for t in declined] == ["q3", "q4"]
-    # Told what to ask for, not merely that it asked for too much.
     assert all(t.retry_breadth == 4 for t in declined)
     assert all(t.note for t in declined)
-    # Recorded at the level that refused them, so a question declined at
-    # the first level stays distinguishable from one declined deeper.
     assert all(t.depth == 1 for t in declined)
     assert model.extracted == ["q1", "q2"]
 
@@ -211,13 +196,8 @@ async def test_one_unreachable_source_does_not_veto_the_others() -> None:
 
 
 async def test_results_the_budget_refused_are_recorded_as_refused() -> None:
-    """Each source may answer in full; the evidence budget is global.
-
-    Two sources returning two results each against a two-document
-    budget means half of what came back is never read -- and which half
-    has to stay on the record, since a replay has to reproduce the
-    choice and not just its outcome.
-    """
+    """Replay needs the record of seen-but-unread results, not only accepted
+    evidence."""
     model = FakeModel()
     retrieval = FakeRetrieval(
         {
@@ -242,7 +222,6 @@ async def test_results_the_budget_refused_are_recorded_as_refused() -> None:
     by_source = {call.source: call for call in result.calls}
     assert by_source["pubmed"].admitted == ("doc-a", "doc-b")
     assert by_source["pubmed"].dropped == ()
-    # Seen and not read is a different fact from never seen.
     assert by_source["corpus"].admitted == ()
     assert by_source["corpus"].dropped == ("doc-c", "doc-d")
 
@@ -282,18 +261,14 @@ async def test_an_unfetchable_document_falls_back_to_its_snippet() -> None:
 
     assert [d.full_text for d in model.documents_seen] == [False]
     assert model.documents_seen[0].text == "snippet doc-a"
-    # Still evidence, at snippet depth, rather than silently narrowed
-    # reading.
     assert len(result.findings) == 1
 
 
 async def test_the_loop_never_opens_more_threads_than_it_may() -> None:
-    """However many follow-ups the model raises, the bound holds."""
     model = FakeModel(
         stances=("mechanism", "prior art", "contradictions", "methods"),
         follow_ups_by_question={},
     )
-    # Every question raises four follow-ups, whatever it was.
     model.follow_ups_by_question = _Everything(
         ["f1", "f2", "f3", "f4", "f5", "f6"]
     )
@@ -309,18 +284,12 @@ async def test_the_loop_never_opens_more_threads_than_it_may() -> None:
     ]
     assert len(started) <= budget.max_threads()
     assert result.levels_run == 3
-    # 4 + 2 + 2 under the floor.
     assert len(started) == 8
 
 
 def test_the_package_depends_on_nothing_in_this_repo_but_itself() -> None:
-    """The capability stays assignable only while it stays standalone.
-
-    An agent takes this by supplying two adapters; the moment the package
-    reaches back into a caller's module the assignment stops being an
-    adapter and becomes a rewrite. That is a one-line regression to make
-    and an invisible one to notice, so it is pinned here.
-    """
+    """Adapters cease to be interchangeable if the capability imports its
+    caller."""
     package = pathlib.Path(conduct_research.__module__.replace(".", "/"))
     root = pathlib.Path(__file__).parents[1] / "src" / package.parent
     borrowed: set[str] = set()
@@ -342,32 +311,22 @@ def test_the_package_depends_on_nothing_in_this_repo_but_itself() -> None:
 
 
 class _Everything(dict):  # type: ignore[type-arg]
-    """A dict answering a fresh batch of follow-ups for every key.
-
-    Fresh rather than identical because the loop refuses a follow-up it
-    has already researched: a model repeating one question verbatim
-    forever would end the descent, which is a different behaviour from
-    the one under test here.
-    """
+    """Fresh questions avoid exercising repeated-question termination instead
+    of depth bounds."""
 
     def __init__(self, value: list[str]) -> None:
-        """Store the batch shape and start the run of answers."""
         super().__init__()
         self._value = value
         self._asked = 0
 
     def get(self, key: object, default: object = None) -> list[str]:
-        """Return the next batch, distinct from every earlier one."""
         self._asked += 1
         return [f"{text}-{self._asked}" for text in self._value]
 
 
 async def test_a_question_already_researched_is_not_researched_again() -> None:
-    """A level's reading routinely re-raises an earlier level's question.
-
-    Re-answering it spends a thread out of a small budget on something
-    already on record, and makes the descent look deeper than it was.
-    """
+    """Repeated questions spend scarce threads and falsely inflate research
+    depth."""
     model = FakeModel(
         stances=("mechanism",),
         follow_ups_by_question={
@@ -421,7 +380,6 @@ def test_missing_value_with_no_fallback_is_none() -> None:
 
 
 def test_plain_string_passes_through_unchanged() -> None:
-    """A model that ignored the structure (old free-text shape) survives."""
     assert (
         format_experiment_plan("  a free-text paragraph.  ")
         == "a free-text paragraph."
@@ -478,7 +436,6 @@ def test_step_text_is_length_capped() -> None:
     long_step = "x" * (_EXPERIMENT_STEP_CHARS + 100)
     text = format_experiment_plan({"steps": [long_step]})
     assert text is not None
-    # "1. " prefix plus the capped ("..."-suffixed) step text.
     assert len(text) == 3 + _EXPERIMENT_STEP_CHARS + len("...")
     assert text.endswith("...")
 
@@ -495,38 +452,20 @@ def test_criterion_text_is_length_capped() -> None:
 
 @pytest.mark.parametrize("bad_field", [123, {"nested": "dict"}, ["a", "b"]])
 def test_criteria_of_the_wrong_type_never_crash(bad_field: object) -> None:
-    format_experiment_plan({"go_criterion": bad_field})  # must not raise
+    format_experiment_plan({"go_criterion": bad_field})
 
 
 def test_offline_schema_filler_satisfies_the_experiment_field() -> None:
-    """The offline schema filler must be able to satisfy this field.
-
-    _fill_schema fills every array with exactly one item by default;
-    the schema was briefly given a minItems: 2 alongside maxItems, and
-    an offline-backed run failed schema validation on every generation
-    call as a result. maxItems alone (enforced server-side wherever a
-    provider honors it, and again defensively by format_experiment_plan)
-    is the only bound this field carries.
-    """
+    """The offline array filler emits one item; a larger minimum rejects
+    every generated plan."""
     filled = _fill_schema(GENERATION_SCHEMA["schema"], lambda field: "x")
     validate_json_schema(
         {"hypotheses": [filled["hypotheses"][0]]}, GENERATION_SCHEMA
-    )  # must not raise
-
-
-# --- No-gate guarantee -------------------------------------------------
+    )
 
 
 def test_hypothesis_has_no_go_criterion_fields() -> None:
-    """The criteria cannot be gated on because they don't exist as fields.
-
-    R14-20's Go/No-Go criteria are an experiment *design* detail, not a
-    review verdict (never confuse with REVIEW_SCHEMA's
-    go_no_go_recommendation, R14-15). format_experiment_plan collapses
-    both criteria into Hypothesis.experiment's plain-string prose before
-    anything else ever sees them -- there is no structured field left
-    for a gate, ranker, or scorer to read.
-    """
+    """Experiment Go/No-Go criteria are design prose, not review verdicts."""
     field_names = {f.name for f in dataclasses.fields(Hypothesis)}
     assert "go_criterion" not in field_names
     assert "no_go_criterion" not in field_names
@@ -534,12 +473,7 @@ def test_hypothesis_has_no_go_criterion_fields() -> None:
 
 
 def test_extreme_no_go_criterion_does_not_change_the_hypothesis_shape() -> None:
-    """A dramatic No-Go verdict inside the plan is inert prose, not a signal.
-
-    Nothing reads inside the rendered string looking for "No-Go" -- it is
-    plain text on Hypothesis.experiment, the same field a free-text
-    paragraph always occupied.
-    """
+    """No reader may treat experiment-plan prose as a gating signal."""
     hypothesis = Hypothesis(
         text="idea",
         experiment=format_experiment_plan(
@@ -555,26 +489,14 @@ def test_extreme_no_go_criterion_does_not_change_the_hypothesis_shape() -> None:
     assert "No-Go" in (hypothesis.experiment or "")
 
 
-# Every production module that may read a raw LLM "experiment" response
-# dict, outside the two call sites that funnel it through
-# format_experiment_plan (agents/generation/citations.py,
-# agents/evolution/evolve_results.py) and the schema/formatter definitions
-# themselves. A future caller that reaches into go_criterion/
-# no_go_criterion directly -- to filter, rank, or score -- would show up
-# here.
+# This list covers raw experiment readers outside schema and formatting
+# boundaries.
 _ALLOWED_READERS = {
     "schemas/generation.py",
 }
 
 
 def test_no_production_module_reads_the_raw_criteria_keys() -> None:
-    """Static guarantee: only the schema + formatter ever name these keys.
-
-    Grepping for the literal key names (rather than reasoning about call
-    graphs) is the same style test_tool_param_contract.py uses to pin a
-    cross-package contract -- cheap, and it catches a future caller that
-    reaches past format_experiment_plan by accident.
-    """
     src_root = Path(__file__).resolve().parents[1] / "src" / "co_scientist"
     pattern = re.compile(r"go_criterion|no_go_criterion")
     offenders = []
