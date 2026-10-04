@@ -1,5 +1,3 @@
-"""Execute one specialist node, restoring and committing its durable state."""
-
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -43,10 +41,8 @@ _SYNC_FANOUT_HANDLERS: dict[str, Callable[..., dict[str, Any]]] = {
 def _check_node_task_checkpoint(
     task: ScientificTask, checkpoint: dict[str, Any], current_seq: int
 ) -> dict[str, Any] | None:
-    """Return replay when committed; reject work behind another checkpoint.
-
-    Portfolio rows validate against their named predecessor because a
-    lookahead row cannot know its checkpoint sequence at enqueue time.
+    """Portfolio lookahead names its predecessor because its future
+    checkpoint sequence is not known when queued.
     """
     if checkpoint["stage"] == f"engine_task:{task.id}":
         return {"checkpoint_seq": current_seq, "replayed": True}
@@ -64,7 +60,9 @@ def _check_node_task_checkpoint(
 def _check_portfolio_predecessor(
     task: ScientificTask, checkpoint: dict[str, Any]
 ) -> None:
-    """Confirm the predecessor committed this task as its successor."""
+    """A portfolio row can execute only when its predecessor committed it as
+    the actual successor.
+    """
     predecessor_id = task.dependencies[0]
     resume_successor = checkpoint.get("state", {}).get("resume_successor")
     stage = checkpoint["stage"]
@@ -84,33 +82,9 @@ def _restore_node_task_state(
     opts: dict[str, Any],
     db_path: str | None,
 ) -> dict[str, Any]:
-    """Restore workflow state and re-apply durable per-boundary overlays.
-
-    Re-delivers durable scientist steering/private sources at every safe
-    task boundary. ``build_engine_opts`` only *reads* the message queue;
-    the ids it read ride the commit target and are retired inside the
-    transaction that commits this state's successor checkpoint, so a worker
-    lost mid-node leaves the steer claimable rather than acknowledged.
-
-    ``pending_steering`` is set on ``state`` only at the orchestrator: it
-    is the sole node whose scheduling stats read that flag
-    (``orchestrator_stats._build_scheduler_stats``), so setting it on
-    every other node's restored state would do nothing but pretend a
-    later commit consumed something it never acted on -- the actual
-    consumption gate lives beside this one, in ``_task_commit``.
-
-    ``durable_retries_remain`` is the other overlay, and it is what lets a
-    node whose synthesis is optional tell a recoverable failure from a
-    final one (``co_scientist.agents.node_degradation``): a provider error
-    with a retry behind it propagates so the worker re-runs the node,
-    while the same error on the last attempt degrades the node rather than
-    failing the task -- which, at the terminal node, settles the run and
-    loses the report. The formula mirrors
-    ``app.task_worker.outcomes._is_terminal_failure``, which mirrors
-    ``app.store.tasks_lifecycle._persist_failed_attempt``'s own
-    retry-left test; it assumes the failure is retryable, which holds
-    because the two failures the worker refuses to retry
-    (``TASK_CONTROL_FLOW_ERRORS``) never reach the degrade decision.
+    """Only orchestration consumes steering; retryable synthesis failures
+    propagate until the final attempt degrades to preserve report
+    publication.
     """
     from app.engine_adapter import restore_workflow_state
 
@@ -142,10 +116,8 @@ def _prepare_node_task(
     current_seq: int,
     db_path: str | None,
 ) -> tuple[dict[str, Any], TaskCommit, str]:
-    """Restore this node's state and build its commit target.
-
-    Only the orchestrator's own commit may acknowledge steering: it is
-    the run's one scheduling decision point (see ``_task_commit``).
+    """Only the orchestrator's own scheduling commit may acknowledge
+    steering.
     """
     generator, opts = engine_tasks_runtime.active().generator_and_opts(
         task, db_path
@@ -173,14 +145,6 @@ async def _dispatch_node_fanout(
     current_seq: int,
     db_path: str | None,
 ) -> dict[str, Any] | None:
-    """Fan a specialist node out into durable per-item tasks, if it fans out.
-
-    Returns the fan-out scheduling result for node types that do, else
-    ``None`` so the caller executes the node inline as usual (also the
-    outcome for ``ranking`` when too few hypotheses remain to schedule a
-    tournament -- it still runs the gate, but falls through to inline
-    execution rather than fanning out).
-    """
     if node_name == "generate":
         return await _enqueue_generation_fanout(
             task, state, current_seq, db_path=db_path
@@ -203,17 +167,8 @@ async def _commit_node_result(
     committed: dict[str, Any],
     successor: str | None,
 ) -> dict[str, Any]:
-    """Commit a specialist node's result, honoring a pause requested mid-run.
-
-    Args:
-        commit: The leased task, its expected checkpoint seq, and db path.
-        run: The task's run row, re-read after the node ran.
-        node_name: Engine node whose result is being committed.
-        committed: Workflow state the node produced.
-        successor: Node to schedule next, or ``None`` to finalize.
-
-    Returns:
-        The task result: the committed checkpoint plus successor or pause.
+    """Pause requested during provider work is decided under the same
+    transaction as the result checkpoint.
     """
     task, db_path = commit.task, commit.db_path
     if node_name == "ranking" and successor == "orchestrator":
@@ -253,7 +208,6 @@ async def _commit_node_result(
 def _require_active_run(
     task: ScientificTask, db_path: str | None, *, stage: str
 ) -> store.RunRow:
-    """Return the task's run, or raise if deleted/cancelled (shared guard)."""
     run = store.get_run(task.run_id, db_path=db_path)
     if run is None or run.status == RunStatus.CANCELLED.value:
         raise RuntimeError(f"run cancelled {stage}")
@@ -263,7 +217,6 @@ def _require_active_run(
 async def execute_node_task(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
-    """Execute and commit exactly one engine specialist node."""
     from co_scientist.task_runtime import execute_task_node
 
     checkpoint, current_seq = _latest_task_checkpoint(task, db_path)

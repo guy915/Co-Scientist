@@ -1,5 +1,3 @@
-"""Engine setup, backend selection, diagnostics and checkpoint restoration."""
-
 from __future__ import annotations
 
 import os
@@ -19,9 +17,8 @@ from app.engine_adapter.tools import (
 )
 from app.process_mode import offline_mode as offline_mode
 
-# Editable-install .pth files aren't always processed in Python 3.12 venvs.
-# Inject the sibling engine src into sys.path at import time so that
-# durable tasks can import co_scientist directly.
+# Some Python 3.12 venvs omit editable-install .pth processing; durable tasks
+# still need the sibling engine source.
 _engine_src = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "..", "..", "..", "engine", "src")
 )
@@ -29,9 +26,8 @@ if os.path.isdir(_engine_src) and _engine_src not in sys.path:
     sys.path.insert(0, _engine_src)
 
 
-# Checks importability via find_spec rather than a real import, so this can
-# be probed cheaply and repeatedly without triggering the engine's own
-# import-time side effects (e.g. LangGraph module setup).
+# find_spec avoids engine import side effects on repeatedly polled availability
+# probes.
 def _engine_importable() -> bool:
     try:
         import importlib.util
@@ -42,19 +38,8 @@ def _engine_importable() -> bool:
 
 
 def select_provider() -> str:
-    """Return the workflow provider, always ``"engine"``.
-
-    The mock provider has been retired: every run -- keyless or configured --
-    executes on the real engine graph, with keyless/forced runs pinned to the
-    deterministic offline LLM backend (see ``offline_mode``). The engine is
-    therefore a hard runtime dependency; this raises ``RuntimeError`` when the
-    ``co_scientist`` package is not importable rather than silently falling
-    back to a mock that no longer exists.
-
-    Raises:
-        RuntimeError: When the ``co_scientist`` engine package cannot be
-            imported. Called at startup (the lifespan hook), so an unusable
-            deployment fails loudly there instead of at the first run.
+    """The engine is a hard dependency; fail at startup rather than silently
+    changing scientific behavior.
     """
     if not _engine_importable():
         raise RuntimeError(
@@ -65,14 +50,8 @@ def select_provider() -> str:
 
 
 def resolve_offline_backend(cfg: dict[str, Any]) -> bool:
-    """Return whether this run's engine execution should be offline-backed.
-
-    The resolved config's ``llm_backend`` key wins when a caller pinned it
-    explicitly ("offline" or "real"); a bring-your-own-key run is always
-    real-backed (its own validated key must not be shadowed by the
-    deterministic router just because the deployment itself is keyless);
-    otherwise falls back to the process-level ``offline_mode()`` predicate,
-    matching prior behavior for any run that does not set the override.
+    """Explicit backend choices win; validated BYOK credentials must never
+    be shadowed by the offline router.
     """
     backend = cfg.get("llm_backend")
     if backend == "offline":
@@ -87,20 +66,14 @@ def resolve_offline_backend(cfg: dict[str, Any]) -> bool:
 def sync_engine_llm_backend(
     run_id: str, cfg: dict[str, Any], db_path: str | None
 ) -> None:
-    """Persist the resolved offline/real backend for an engine run.
-
-    Written at the durable bootstrap, before the engine is dispatched, so
-    every later reader (``run_used_offline``, used by generator
-    construction, report finalization, and hypothesis badging) reflects the
-    resolved config's override rather than whatever was derived when the run
-    row was created.
+    """Persist backend provenance before dispatch so later readers agree
+    with the actual execution route.
     """
     backend = "offline" if resolve_offline_backend(cfg) else "real"
     store.set_run_llm_backend(run_id, backend, db_path=db_path)
 
 
 def system_status() -> dict[str, Any]:
-    """Return provider/engine diagnostic info for the /status route."""
     has_key = any_provider_credential()
     engine = _engine_importable()
     provider = select_provider()
@@ -108,30 +81,21 @@ def system_status() -> dict[str, Any]:
         "provider": provider,
         "llm_backend": "offline" if offline_mode() else "real",
         "has_provider_key": has_key,
-        # Whether this deployment accepts bring-your-own-key runs (the
-        # encryption secret is configured). A boolean only: no credential
-        # material is ever reported.
+        # Expose credential capability only, never credential material.
         "byok_enabled": byok_enabled(),
         "engine_importable": engine,
         "model_name": settings.model_name,
-        # The generator falls back to model_name when supervisor_model_name is
-        # unset; effective_supervisor_model mirrors that so /status reports the
-        # model actually used for planning/meta-review.
+        # Diagnostics mirror the generator's actual supervisor-model fallback.
         "supervisor_model_name": settings.effective_supervisor_model,
         "mcp_server_url": settings.mcp_server_url,
-        # Effective tools config so the UI/ops can see whether a real run will
-        # use the configured domain tools (e.g. INDRA) or the engine defaults.
         **tools_config_report(settings.tools_config),
     }
 
 
-# Provider tag written on an engine checkpoint's envelope so the resume path
-# can recognize a serialized WorkflowState (rather than re-running from goal).
 ENGINE_CHECKPOINT_PROVIDER = "engine"
 
 
 def is_engine_checkpoint(checkpoint: dict[str, Any] | None) -> bool:
-    """Whether a stored checkpoint carries a serialized engine WorkflowState."""
     if not checkpoint:
         return False
     state = checkpoint.get("state")
@@ -144,7 +108,7 @@ def is_engine_checkpoint(checkpoint: dict[str, Any] | None) -> bool:
 def restore_workflow_state(
     serialized: dict[str, Any], *, tool_registry: Any = None
 ) -> dict[str, Any]:
-    """Restore state and reapply a campaign route across task recovery."""
+    """Campaign routing survives checkpoint restoration and recovery."""
     from co_scientist.checkpoint import (
         restore_workflow_state as restore_engine_state,
     )

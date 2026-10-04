@@ -1,5 +1,3 @@
-"""Review persistence for the final-state drain."""
-
 from __future__ import annotations
 
 import json
@@ -13,22 +11,11 @@ from app.citations import CitationRecord, classify_citation
 from app.claims.assessor import SENTENCE_SPLIT
 from app.report import format_deep_verification_critique
 
-# Bracketed citation groups inside a grounding sentence: "[C1]", "[C1, C3]".
 _BRACKET_GROUP = re.compile(r"\[([^\[\]]+)\]")
 
 
 @dataclass(frozen=True)
 class _CitationSink:
-    """The drain's citation lookups, mutated in place as rows are written.
-
-    Attributes:
-        ev_id_by_title: Evidence id per source title; a citation may add its
-            own source on the fly.
-        abstract_by_title: Abstract per retrieved source title, used to
-            classify a citation against the paper it cites.
-        citation_summary: Running per-state citation counts.
-    """
-
     ev_id_by_title: dict[str, str]
     abstract_by_title: dict[str, str]
     citation_summary: dict[str, int]
@@ -36,15 +23,6 @@ class _CitationSink:
 
 @dataclass(frozen=True)
 class _CitationTarget:
-    """The hypothesis row a citation attaches to, inside one transaction.
-
-    Attributes:
-        run_id: Run the citation belongs to.
-        hyp_id: Persisted hypothesis row the citation attaches to.
-        grounding: Claim text the citation is matched against.
-        conn: Open connection of the caller's transaction.
-    """
-
     run_id: str
     hyp_id: str
     grounding: str
@@ -58,20 +36,6 @@ def _ensure_citation_evidence_id(
     ev_id_by_title: dict[str, str],
     conn: sqlite3.Connection,
 ) -> str:
-    """Return the evidence id for a cited source, adding it on the fly.
-
-    Mutates `ev_id_by_title` in place when a new evidence row is added.
-
-    Args:
-        run_id: Run the cited source belongs to.
-        cite_title: Title the source is keyed by.
-        cite_info: The engine's raw citation entry.
-        ev_id_by_title: Evidence id per source title, updated in place.
-        conn: Open connection of the caller's transaction.
-
-    Returns:
-        The evidence id for the cited source.
-    """
     cite_ev_id = ev_id_by_title.get(cite_title)
     if cite_ev_id is None:
         cite_ev_id = store.add_evidence(
@@ -92,43 +56,19 @@ def _ensure_citation_evidence_id(
 
 
 def _hypothesis_grounding_text(h: dict[str, Any]) -> str:
-    """Return the literature-grounding text used as a citation's claim basis.
-
-    Falls back to the hypothesis's own statement text, then to empty, when no
-    dedicated grounding text was generated.
-    """
     return str(h.get("literature_grounding") or h.get("text") or "")
 
 
 def _claim_cited_by(grounding: str, cite_key: str) -> str:
-    """The part of a grounding paragraph that actually cites ``cite_key``.
-
-    A grounding is a synthesis spanning every source the hypothesis rests on,
-    and each source backs one or two of its sentences. ``_token_overlap``
-    measures coverage over the *claim's* vocabulary, so handing a single
-    paper's abstract the whole paragraph divides its real overlap by every
-    other source's words as well -- which puts the upper states out of reach
-    however well the paper supports what it was cited for. On one live run
-    the best of 27 citations scored 0.23 against a 0.30 "partial" line, and
-    the audit reported 0 verified, 0 partial, 33 unsupported: the same
-    unreachable-upper-states failure the coverage metric was introduced to
-    fix, arriving through the claim side instead of the metric.
-
-    Args:
-        grounding: The hypothesis's whole literature-grounding text.
-        cite_key: The engine's key for one citation (e.g. ``C1``).
-
-    Returns:
-        The grounding sentences carrying a ``[C1]``-style marker for this
-        key, or the whole grounding when the key is not marked inline (a
-        knowledge-graph source, or a payload that never inlined markers).
+    """A source supports its cited sentences, not every claim in a multi-
+    source paragraph; whole-paragraph overlap dilutes genuine support.
     """
     marker = f"[{cite_key}]"
     cited = [
         sentence
         for sentence in SENTENCE_SPLIT.split(grounding)
-        # A sentence may list several keys ("[C1, C3]"), so match the key
-        # inside a bracket group rather than only a lone marker.
+        # Citation keys can share one bracket group rather than appearing as
+        # lone markers.
         if marker in sentence
         or any(
             cite_key == part.strip()
@@ -140,17 +80,14 @@ def _claim_cited_by(grounding: str, cite_key: str) -> str:
 
 
 def _citation_map(h: dict[str, Any]) -> dict[str, Any]:
-    """Return a hypothesis's raw engine citation map, defaulting to empty."""
     return h.get("citation_map") or {}
 
 
 def _citation_url(cite_info: dict[str, Any]) -> str:
-    """Return a citation's URL, defaulting to empty (an unavailable source)."""
     return cite_info.get("url") or ""
 
 
 def _citation_available(cite_info: dict[str, Any], cite_url: str) -> bool:
-    """Return whether a cited source counts as available (not retracted)."""
     return (
         bool(cite_url)
         and not bool(cite_info.get("is_retracted"))
@@ -164,29 +101,8 @@ def _persist_one_citation(
     cite_info: dict[str, Any],
     sink: _CitationSink,
 ) -> None:
-    """Persist one hypothesis citation row, classifying and tallying it.
-
-    Routes the citation through the shared classifier rather than hardcoding
-    a state, so the four-state citation UI reflects real runs. The target's
-    grounding is the claim the citation supports; it is matched against the
-    cited paper's abstract (when the source was retrieved), and a source
-    with no resolvable URL (e.g. a knowledge-graph statement) falls out as
-    "unavailable".
-
-    Mutates the sink's `ev_id_by_title` (a citation may add evidence for its
-    source on the fly) and `citation_summary` (running citation-state
-    counts) in place.
-
-    Args:
-        target: The hypothesis row, its claim text, and the transaction.
-        cite_key: The engine's key for this citation.
-        cite_info: The engine's raw citation entry.
-        sink: The drain's citation lookups, updated in place.
-    """
-    # "title" is a paper's own field; a non-paper source (knowledge-graph
-    # statement, CVE entry, ...) carries no title at all, only "display"
-    # (see citations._enrichment_reference_entries) -- falling straight to
-    # cite_key would persist an evidence row literally titled "C3".
+    # Non-paper sources carry display labels rather than titles; citation keys
+    # are not source names.
     cite_title = cite_info.get("title") or cite_info.get("display") or cite_key
     cite_url = _citation_url(cite_info)
     cite_ev_id = _ensure_citation_evidence_id(
@@ -225,20 +141,6 @@ def _persist_engine_citations(
     sink: _CitationSink,
     conn: sqlite3.Connection,
 ) -> None:
-    """Persist a hypothesis's citations, classifying each via the shared path.
-
-    Mutates the sink's `ev_id_by_title` (a citation may add evidence for its
-    source on the fly) and `citation_summary` (running citation-state
-    counts) in place; see `_persist_one_citation` for the per-citation
-    classification rules.
-
-    Args:
-        run_id: Run the hypothesis belongs to.
-        hyp_id: Persisted hypothesis row the citations attach to.
-        h: The engine's raw hypothesis payload.
-        sink: The drain's citation lookups, updated in place.
-        conn: Open connection of the caller's transaction.
-    """
     target = _CitationTarget(
         run_id, hyp_id, _hypothesis_grounding_text(h), conn
     )
@@ -246,46 +148,27 @@ def _persist_engine_citations(
         _persist_one_citation(target, cite_key, cite_info, sink)
 
 
-# Bounds for detail_json (R14-22/R14-15): generous enough for genuine
-# reader content, tight enough that a malformed json_object-downgrade
-# response (an over-long string, a runaway array) cannot inflate the row.
+# Bound malformed schema-less responses without clipping genuine structured
+# review content excessively.
 _MAX_DETAIL_ITEMS = 10
 _MAX_DETAIL_CHARS = 500
 _MAX_SHORT_CHARS = 200
-# Reviewer prose (per-axis feedback, the full review's own paragraphs, one
-# probe's answer) is the reader-facing body of the report's review block,
-# so it needs room a bulleted finding does not: the published per-axis
-# sections run to several hundred words each.
+# Reader-facing reviewer prose needs more room than a bulleted finding.
 _MAX_PROSE_CHARS = 4000
-# The review rubric's own 1-10 band (engine schemas/review.py's
-# REVIEW_SCORE_MINIMUM/MAXIMUM). A score outside it did not come from the
-# rubric, and printing it as "Answer: 47" would read as a real judgement.
+# Scores outside the rubric's 1-10 band cannot be presented as genuine
+# judgments.
 _MIN_AXIS_SCORE = 1
 _MAX_AXIS_SCORE = 10
 
 
 def _clip_detail(value: Any, limit: int) -> str:
-    """Coerce one possibly-malformed field to a bounded, flat string."""
     text = " ".join(str(value or "").split())
     return text[:limit].rstrip()
 
 
-# The eight review axes, in the published Correctness -> Novelty ->
-# Feasibility -> Impact-potential order the engine's own _SCORE_CRITERIA
-# declares. Named here rather than imported so the app keeps reading a
-# drained row without importing an engine schema module at runtime; a
-# copied list drifts, so ``tests/test_drain_reviews_detail.py::
-# test_review_axes_match_the_engine_score_criteria`` asserts this tuple
-# against the engine's own, the way the engine already pins the offline
-# backend's copy (``test_offline_llm.py::
-# test_review_score_fields_matches_the_schema_criteria``).
-#
-# Only three of the eight ever reached a column, and one of those under
-# another axis's name (the ``plausibility`` column holds
-# ``scientific_soundness``). The report's per-axis "Answer: N" line
-# therefore had no source for five of them, so all eight travel in
-# ``detail_json`` and the renderer reads only from there -- never from the
-# columns, whose names do not mean what they say.
+# The app's axis copy avoids engine imports on read; tests pin it to the engine
+# rubric. All axes use detail_json, since legacy score columns have different
+# meanings.
 _REVIEW_AXES: tuple[str, ...] = (
     "scientific_soundness",
     "plausibility",
@@ -299,11 +182,8 @@ _REVIEW_AXES: tuple[str, ...] = (
 
 
 def _axis_scores(raw: Any) -> dict[str, int]:
-    """Keep the declared axes whose score is a usable 1-10 integer.
-
-    Everything else is dropped rather than coerced: production's
-    json_object downgrade does not enforce the schema, so an invented axis
-    name or a "high" where an integer belongs is an ordinary answer here.
+    """Schema-less responses can invent axes or mistype scores; malformed
+    values are discarded rather than coerced.
     """
     if not isinstance(raw, dict):
         return {}
@@ -318,7 +198,6 @@ def _axis_scores(raw: Any) -> dict[str, int]:
 
 
 def _axis_feedback(raw: Any) -> dict[str, str]:
-    """Bounded per-axis prose feedback, for the axes that carry any."""
     if not isinstance(raw, dict):
         return {}
     feedback = {}
@@ -330,7 +209,6 @@ def _axis_feedback(raw: Any) -> dict[str, str]:
 
 
 def _bounded_list(raw: Any) -> list[str]:
-    """Bounded, non-empty entries of one novelty-review list."""
     items = raw if isinstance(raw, list) else []
     return [
         text
@@ -340,12 +218,8 @@ def _bounded_list(raw: Any) -> list[str]:
 
 
 def _initial_review_detail(rv: dict[str, Any]) -> dict[str, Any]:
-    """The initial review's structured display detail for the report.
-
-    Beside, not instead of, the row's ``critique`` prose: the workbench
-    reads the prose and the report reads the parts, and re-deriving the
-    parts by parsing the prose back apart is exactly the fragility this
-    avoids.
+    """Structured review parts remain beside workbench prose; reparsing
+    flattened critique would lose their meaning.
     """
     detail: dict[str, Any] = {}
     for key, value in (
@@ -363,8 +237,8 @@ def _initial_review_detail(rv: dict[str, Any]) -> dict[str, Any]:
     return detail
 
 
-# Display labels must distinguish negative evidence from uncertainty. Keep
-# stored values unchanged because ranking filters match their literal strings.
+# Display labels distinguish negative evidence from uncertainty; stored literals
+# remain ranking-filter inputs.
 _ASSUMPTION_SUPPORT_LABELS: dict[str, str] = {
     "supported": "Plausible",
     "uncertain": "Plausible, but requires careful investigation",
@@ -373,13 +247,7 @@ _ASSUMPTION_SUPPORT_LABELS: dict[str, str] = {
 
 
 def _simulation_detail(review: dict[str, Any]) -> dict[str, Any]:
-    """Bounded failure_points/decisive_step for the markdown renderer.
-
-    Google's published shape numbers and bolds these (R14-22); nothing
-    here or downstream parses or gates on them. ``failure_points`` may
-    legitimately be empty -- a ``holds`` verdict names no failure point --
-    which the caller renders as no section at all.
-    """
+    """Failure points are display-only and may be empty for a holds verdict."""
     raw_points = review.get("failure_points")
     points = [
         clipped
@@ -398,12 +266,8 @@ def _simulation_detail(review: dict[str, Any]) -> dict[str, Any]:
 
 
 def _verdict_detail(review: dict[str, Any]) -> dict[str, Any]:
-    """Bounded Go/No-Go framing for the full/recurrent review (R14-15).
-
-    Display only, rendered verbatim: neither this function nor its
-    caller nor the markdown renderer treats either field as a decision --
-    the review-disposition gate reads only ``verdict``/``justification``
-    (``mature_reviews.apply_mature_review_disposition``), never this.
+    """Go/No-Go display fields are not disposition inputs; gates read the
+    engine's verdict and justification.
     """
     go_no_go = _clip_detail(
         review.get("go_no_go_recommendation"), _MAX_SHORT_CHARS
@@ -419,11 +283,6 @@ def _verdict_detail(review: dict[str, Any]) -> dict[str, Any]:
     return detail
 
 
-# R14-14: the published "Reviews summary" block's eight parts, in the
-# order every populated published file prints them. Six are bulleted
-# lists there and two are prose, which is how the schema declares them
-# (engine schemas/review.py REVIEWS_SUMMARY_PARTS) and how they are
-# copied here.
 _REVIEWS_SUMMARY_PROSE: tuple[str, ...] = ("executive_verdict", "conclusion")
 _REVIEWS_SUMMARY_LISTS: tuple[str, ...] = (
     "critical_flaws",
@@ -436,11 +295,8 @@ _REVIEWS_SUMMARY_LISTS: tuple[str, ...] = (
 
 
 def _reviews_summary_detail(raw: Any) -> dict[str, Any]:
-    """Bounded eight-part Reviews summary, part by part (R14-14).
-
-    Optional on the schema (``full_review.md``'s numbered instructions do
-    not name it), so an absent or malformed block is an ordinary answer
-    and yields no key at all rather than an empty scaffold.
+    """Absent or malformed optional summaries mean no structured detail, not
+    an empty scaffold.
     """
     if not isinstance(raw, dict):
         return {}
@@ -460,14 +316,8 @@ def _reviews_summary_detail(raw: Any) -> dict[str, Any]:
 
 
 def _assumption_detail(item: Any) -> dict[str, str] | None:
-    """One full-review assumption as parts, or None when it names nothing.
-
-    The same content ``_assumption_line`` bakes into the row's critique
-    prose, kept structured so the report can render the published
-    "Detailed Assumptions" list instead of re-splitting a sentence. The
-    support verdict carries its reader-facing label (R12-15/MO-4) here
-    too, for the one reason the prose does: the enum name is not what
-    Google prints.
+    """Structured assumptions avoid splitting flattened critique back into
+    semantic parts.
     """
     if not isinstance(item, dict):
         return None
@@ -483,12 +333,6 @@ def _assumption_detail(item: Any) -> dict[str, str] | None:
     }
 
 
-# The full review's prose fields, in the order the report's per-axis
-# appendix reads them. The first four are the review's own paragraphs;
-# the last four are the published per-axis sub-parts (R14-17) that had no
-# field here until the axis sub-structure was built, and they arrive from
-# the same full-review call as the rest, so they cost no extra request
-# and need no plumbing of their own.
 _MATURE_PROSE_FIELDS: tuple[str, ...] = (
     "correctness",
     "quality_and_novelty",
@@ -502,7 +346,6 @@ _MATURE_PROSE_FIELDS: tuple[str, ...] = (
 
 
 def _mature_prose_fields(review: dict[str, Any]) -> dict[str, str]:
-    """The full review's non-empty prose fields, each bounded."""
     return {
         name: text
         for name in _MATURE_PROSE_FIELDS
@@ -511,13 +354,8 @@ def _mature_prose_fields(review: dict[str, Any]) -> dict[str, str]:
 
 
 def _mature_review_detail(review: dict[str, Any]) -> dict[str, Any]:
-    """The full/recurrent review's structured display detail.
-
-    Supersedes the Go/No-Go-only ``_verdict_detail``: the prose fields and
-    the per-assumption reasoning were already generated and persisted, but
-    only as one flat ``critique`` string, which no renderer can take apart
-    again. Every field here is display-only -- the disposition gate reads
-    ``verdict``/``justification`` off the engine result, never this row.
+    """Structured review detail is display-only; disposition uses the
+    original engine verdict and justification.
     """
     detail: dict[str, Any] = _verdict_detail(review)
     detail.update(_mature_prose_fields(review))
@@ -539,14 +377,8 @@ def _mature_review_detail(review: dict[str, Any]) -> dict[str, Any]:
 def _deep_verification_detail(
     probes: list[dict[str, Any]], verdict: Any
 ) -> dict[str, Any]:
-    """Deep verification's probes as parts, for the report (R14-15).
-
-    ``format_deep_verification_critique`` renders the same content into
-    the row's ``critique``, but two-space-indented under a probe header --
-    a shape markdown collapses into one paragraph. The report reads these
-    parts instead and prints the published ``Question:``/``Answer:``/
-    ``Reasoning:`` triple; the prose column is left exactly as it was for
-    the workbench, which already reads it.
+    """Structured probes avoid Markdown collapsing indented
+    question/answer/reasoning prose into one paragraph.
     """
     entries: list[dict[str, Any]] = []
     for probe in probes[:_MAX_DETAIL_ITEMS]:
@@ -574,23 +406,13 @@ def _deep_verification_detail(
 
 
 def _detail_json(detail: dict[str, Any]) -> str | None:
-    """Serialize one row's display detail, or None when it has none.
-
-    None rather than ``"{}"``: an empty JSON object in the column reads
-    as "this review had structured detail and it was empty", which is a
-    different fact from "this review type carries none".
+    """Null means no structured detail; an empty object would claim the
+    detail existed but was empty.
     """
     return json.dumps(detail) if detail else None
 
 
 def _review_detail_json(key: str, review: dict[str, Any]) -> str | None:
-    """Return one mature review's structured display detail, or None.
-
-    Simulation carries its failure points and decisive step; full and
-    recurrent carry the Go/No-Go framing, the review's own prose, its
-    assumptions, and the eight-part Reviews summary. Every other key
-    carries none.
-    """
     if key == "simulation":
         detail = _simulation_detail(review)
     elif key in ("full", "recurrent"):
@@ -601,24 +423,19 @@ def _review_detail_json(key: str, review: dict[str, Any]) -> str | None:
 
 
 def _score_or_none(value: Any) -> float | None:
-    """Coerce a raw engine score to a float, treating 0/falsy as unset."""
     return float(value or 0) or None
 
 
-# Reviewer label for a scientist-authored review, matching the row
-# `runs.contrib.add_human_review` writes. Kept apart from the engine's
-# "review" agent so a human review never reaches a reader as an anonymous
-# agent one.
+# Scientist reviews retain distinct authorship rather than appearing as
+# anonymous agent reviews.
 _SCIENTIST_REVIEWER = "scientist"
 
 
 def _scientist_review_row_survives(
     source_id: str, conn: sqlite3.Connection
 ) -> bool:
-    """Return whether the review's own stored row is still there.
-
-    An unparseable id cannot name a row, so it reads as gone and the review
-    is restored -- losing a human review is the worse of the two failures.
+    """When an ID cannot name a surviving row, restoring the review is safer
+    than losing scientist input.
     """
     if not source_id.isdigit():
         return False
@@ -628,20 +445,8 @@ def _scientist_review_row_survives(
 def _persist_scientist_review(
     run_id: str, hyp_id: str, rv: dict[str, Any], conn: sqlite3.Connection
 ) -> bool:
-    """Restore a merged scientist review, or report that it needs no row.
-
-    A scientist review reaches the drain because the merge carried it into
-    engine state (``engine_tasks.inputs._scientist_hypothesis_review``),
-    which is also where its author and verdict ride. Its own row usually
-    survived the run's resets untouched -- scientist rows are deliberately
-    retained -- so the drain must not write a second, differently-attributed
-    copy of it. The one case that does need a row back is a review of an
-    *agent* hypothesis: deleting that hypothesis for the replay cascades the
-    human review away with it, and only engine state still holds it.
-
-    Returns:
-        Whether this review was handled here, so the generic per-review
-        insert must skip it.
+    """Avoid duplicating surviving human reviews; restore those removed by a
+    replayed agent-hypothesis cascade from checkpointed provenance.
     """
     feedback = rv.get("detailed_feedback") or {}
     source_id = str(feedback.get("scientist_review_id") or "")
@@ -686,7 +491,6 @@ def _novelty_review_lines(rv: dict[str, Any]) -> list[str]:
 def _persist_engine_review_rows(
     run_id: str, hyp_id: str, h: dict[str, Any], conn: sqlite3.Connection
 ) -> None:
-    """Persist a hypothesis's per-review rows from the engine's reviews list."""
     for rv in h.get("reviews") or []:
         if _persist_scientist_review(run_id, hyp_id, rv, conn):
             continue
@@ -720,7 +524,6 @@ def _persist_deep_verification_review(
     h: dict[str, Any],
     conn: sqlite3.Connection,
 ) -> None:
-    """Persist deep-verification probes as a dedicated review row, if any."""
     probes = h.get("deep_verification_probes") or []
     if not probes:
         return
@@ -744,9 +547,6 @@ def _persist_deep_verification_review(
     )
 
 
-# Enrichment key -> persisted reviewer_agent for the mature Reflection
-# cascade's reviews (audit E1). Distinct agents keep the results apart in
-# the UI instead of collapsing them under a single "Full review" row.
 _MATURE_REVIEW_AGENTS: tuple[tuple[str, str, str], ...] = (
     ("full", "full_review", "Full review verdict"),
     ("simulation", "simulation_review", "Simulation review verdict"),
@@ -755,10 +555,8 @@ _MATURE_REVIEW_AGENTS: tuple[tuple[str, str, str], ...] = (
 
 
 def _format_mature_critique(key: str, review: dict[str, Any]) -> str:
-    """Render one mature review result as the persisted critique text.
-
-    Reads only the schema's content fields, so the retrieval bookkeeping
-    the engine stores alongside each result never reaches the row.
+    """Only schema content reaches prose; retrieval bookkeeping remains
+    internal.
     """
     lines: list[str] = []
     if key == "simulation":
@@ -769,7 +567,6 @@ def _format_mature_critique(key: str, review: dict[str, Any]) -> str:
 
 
 def _labeled_lines(pairs: tuple[tuple[str, Any], ...]) -> list[str]:
-    """Render the non-empty members of (label, value) pairs as lines."""
     lines = []
     for label, value in pairs:
         text = str(value or "").strip()
@@ -779,23 +576,8 @@ def _labeled_lines(pairs: tuple[tuple[str, Any], ...]) -> list[str]:
 
 
 def _assumption_line(item: dict[str, Any]) -> str | None:
-    """Render one full-review assumption entry, or None when empty.
-
-    ``reasoning`` (MO-9) is the published free-text paragraph explaining the
-    support verdict; appended when present so a hypothesis reviewed through
-    full review alone still carries it, the way deep verification's
-    ``sub_assumptions[].verification`` always has.
-
-    This line is baked into the review's persisted ``critique`` text at
-    drain time (``_format_mature_critique``, below), not recomputed on
-    read -- so a run drained before this label mapping existed keeps
-    reading "Assumption (supported): ..." forever; only a newly drained
-    run picks up the published wording. Deep verification's own
-    ``sub_assumptions[].status`` is a separate field this function never
-    sees -- it is not rendered to a reader anywhere in this codebase (only
-    its sibling ``probes``/``verdict`` are, via
-    ``format_deep_verification_critique``), so this change does not touch
-    it.
+    """Rendered critique is persisted at drain time, so historical label
+    wording stays unchanged on read.
     """
     assumption = str(item.get("assumption") or "").strip()
     if not assumption:
@@ -810,7 +592,6 @@ def _assumption_line(item: dict[str, Any]) -> str | None:
 
 
 def _append_full_critique(lines: list[str], review: dict[str, Any]) -> None:
-    """Render the full/recurrent review's content fields."""
     lines += _labeled_lines(
         (
             ("Correctness", review.get("correctness")),
@@ -825,7 +606,6 @@ def _append_full_critique(lines: list[str], review: dict[str, Any]) -> None:
 
 
 def _simulation_step_line(index: int, item: dict[str, Any]) -> str | None:
-    """Render one simulation step entry, or None when empty."""
     step = str(item.get("step") or "").strip()
     if not step:
         return None
@@ -834,7 +614,6 @@ def _simulation_step_line(index: int, item: dict[str, Any]) -> str | None:
 
 
 def _simulation_step_lines(review: dict[str, Any]) -> list[str]:
-    """Render the simulation review's numbered steps."""
     lines = []
     for index, item in enumerate(review.get("steps") or [], start=1):
         if isinstance(item, dict) and (
@@ -845,7 +624,6 @@ def _simulation_step_lines(review: dict[str, Any]) -> list[str]:
 
 
 def _failure_point_lines(review: dict[str, Any]) -> list[str]:
-    """Render the simulation review's failure points."""
     lines = []
     for point in review.get("failure_points") or []:
         text = str(point).strip()
@@ -857,7 +635,6 @@ def _failure_point_lines(review: dict[str, Any]) -> list[str]:
 def _append_simulation_critique(
     lines: list[str], review: dict[str, Any]
 ) -> None:
-    """Render the simulation review's content fields."""
     model = str(review.get("model") or "").strip()
     if model:
         lines.append(f"Simulated model: {model}")
@@ -877,13 +654,6 @@ def _persist_mature_review_rows(
     h: dict[str, Any],
     conn: sqlite3.Connection,
 ) -> None:
-    """Persist the mature cascade's reviews as distinctly-labeled rows.
-
-    The full, simulation, and recurrent reviews used to stop at the
-    engine's enrichments (audit E1): the report reader never saw them.
-    Each result present at drain time becomes its own review row under a
-    distinct reviewer_agent, with the verdict as the row's summary.
-    """
     enrichments = h.get("enrichments") or {}
     for key, reviewer_agent, verdict_label in _MATURE_REVIEW_AGENTS:
         review = enrichments.get(key)
@@ -909,7 +679,6 @@ def _persist_engine_reviews(
     h: dict[str, Any],
     conn: sqlite3.Connection,
 ) -> None:
-    """Persist every review row one drained hypothesis carries."""
     _persist_engine_review_rows(run_id, hyp_id, h, conn)
     _persist_deep_verification_review(run_id, hyp_id, h, conn)
     _persist_mature_review_rows(run_id, hyp_id, h, conn)

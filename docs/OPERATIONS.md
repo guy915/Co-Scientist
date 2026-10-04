@@ -229,3 +229,25 @@ constraints; fallback completion must collect a preferences answer first.
 
 Hypothesis-stage adjudication concerns an already-excluded idea and leaves the
 whole-run lifecycle untouched. Intake/final decisions govern the run's hold.
+
+## Checkpoint successors and terminal synthesis
+
+Persist each checkpoint's exact resume successor; recovery rebuilds the same
+predecessor-based idempotency key. Bootstrap must reach supervisor guidance before
+orchestration; defaulting to the orchestrator can resume an unplanned run.
+
+Only exhausted durable retries may degrade optional terminal synthesis to an
+empty section, allowing finalization to publish completed work. Budget, parking
+and cancellation control-flow errors still propagate to the worker.
+
+Batch tournament progress to expose liveness without flooding the bounded
+event feed with per-match events.
+
+Bound both per-source content and total corpus size: neither cap substitutes
+for the other. The 130-source cap targets about 52,000 evidence tokens;
+adding full texts requires selecting passages rather than lifting those caps.
+
+Fit synthesis to the provider clock as well as its output allowance: an observed
+42,000-token request at 27–37 tokens/second could not fit a 600-second deadline.
+Outline once and write bounded parts, preserving successful siblings and grounded
+draft fallbacks when a part fails.

@@ -1,5 +1,3 @@
-"""Durable fan-out scheduling for review, verification, and reflection."""
-
 from __future__ import annotations
 
 import dataclasses
@@ -33,7 +31,6 @@ from app.store import ScientificTask
 def _hypothesis_for_item(
     task: ScientificTask, state: dict[str, Any]
 ) -> tuple[str, Any]:
-    """Resolve the item task's target hypothesis from restored state."""
     hypothesis_id = str(task.inputs["hypothesis_id"])
     hypothesis = next(
         (item for item in state["hypotheses"] if item.id == hypothesis_id),
@@ -49,7 +46,6 @@ def _hypothesis_for_item(
 async def execute_review_item(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
-    """Review one hypothesis without mutating the shared workflow checkpoint."""
     from co_scientist.agents.reflection.review import (
         ReviewContext,
         review_single_hypothesis,
@@ -78,7 +74,6 @@ async def execute_review_item(
 async def execute_verification_item(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
-    """Deep-verify one hypothesis without mutating the workflow checkpoint."""
     from co_scientist.agents.reflection import verify_hypothesis
     from co_scientist.llm import scoped_telemetry
 
@@ -101,7 +96,6 @@ async def execute_verification_item(
 async def _run_observation_reflection(
     state: dict[str, Any], hypothesis: Any
 ) -> Any:
-    """Run the observation-mode reflection against retrieved literature."""
     from co_scientist.agents.reflection import observe_hypothesis
 
     if not state.get("articles_with_reasoning"):
@@ -112,7 +106,6 @@ async def _run_observation_reflection(
 async def execute_mature_reflection_item(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
-    """Execute one disclosed mature Reflection mode for one hypothesis."""
     from co_scientist.agents.reflection import ReviewType, review_hypothesis
     from co_scientist.llm import scoped_telemetry
 
@@ -133,10 +126,8 @@ async def execute_mature_reflection_item(
         "hypothesis_id": hypothesis_id,
         "review_mode": mode.value,
         "review": result,
-        # Beside the review rather than inside it: the aggregate hands
-        # this to the run's state, while the review goes to the
-        # hypothesis. A ledger stamped on the review would ride into
-        # every later checkpoint through enrichments.
+        # Retrieval ledgers attach to run state, not review enrichments that
+        # would recarry them through every checkpoint.
         "research_ledger": ledger,
         "model_usage": telemetry.snapshot(),
         "checkpoint_seq": expected_seq,
@@ -145,32 +136,12 @@ async def execute_mature_reflection_item(
 
 @dataclass(frozen=True)
 class _StrategyInputs:
-    """Read-only generation inputs every strategy task is scheduled with.
-
-    Attributes:
-        literature: Retrieved articles with reasoning, for lit-backed debate.
-        reference_index: The run's citation reference index.
-    """
-
     literature: Any
     reference_index: Any
 
 
 @dataclass(frozen=True)
 class _GenerationPlan:
-    """The fan-out's shape, decided before any durable row is written.
-
-    Attributes:
-        task_specs: (strategy, count, index, total) spec per durable
-            strategy task. Debate strategies get one task per hypothesis,
-            so index is the debate's position and total the family's whole
-            batch size (the diversity-angle denominator, finding E14);
-            other strategies run as one task where index is 0 and total
-            equals count.
-        inputs: Literature and reference index every strategy task reads.
-        aggregate_spec: Spec for the aggregate that folds the strategies in.
-    """
-
     task_specs: list[tuple[str, int, int, int]]
     inputs: _StrategyInputs
     aggregate_spec: _AggregateSpec
@@ -179,24 +150,9 @@ class _GenerationPlan:
 def _generation_task_specs(
     strategy_counts: dict[str, int],
 ) -> list[tuple[str, int, int, int]]:
-    """Return (strategy, count, index, total) specs per durable task.
-
-    Debate strategies get one task per hypothesis so debates run
-    independently; every other strategy gets a single task producing its
-    whole count. ``total`` carries the strategy's whole batch size to
-    every task: the engine assigns each debate a diversity angle from its
-    index modulo the batch, and a per-debate task that only knew its own
-    count of 1 could never diverge from its siblings (finding E14).
-
-    Splitting the non-debate strategies per hypothesis was tried and
-    reverted. It looked like it should help -- uniform items let the worker
-    cohort fill instead of waiting on one oversized task -- but a measured
-    production express run spent 145s per generate cycle against a 137s
-    baseline, so it bought no wall time. It is not cost-neutral either: the
-    tools drafting call emits its whole count in one response, so N tasks
-    means N drafting calls where there was one, and N concurrent writers
-    against the single SQLite writer where there were fewer. Re-measure the
-    strategy's internal draft/validate loops before trying this again.
+    """Each debate carries its index and whole batch size for diversity;
+    splitting batched drafting would multiply calls and writer
+    contention.
     """
     debate_strategies = {"debate_lit", "debate_only"}
     return [
@@ -218,18 +174,6 @@ def _enqueue_generation_strategy_tasks(
     inputs: _StrategyInputs,
     conn: sqlite3.Connection,
 ) -> list[ScientificTask]:
-    """Enqueue one durable task per planned generation strategy.
-
-    Args:
-        task: The generation node task scheduling the fan-out.
-        planned_seq: Checkpoint sequence the plan committed at.
-        task_specs: (strategy, count, index, total) spec per durable task.
-        inputs: Literature and reference index every strategy reads.
-        conn: Open connection of the caller's transaction.
-
-    Returns:
-        The enqueued per-strategy tasks, in spec order.
-    """
     return [
         store.enqueue_task(
             store.NewTask(
@@ -240,10 +184,8 @@ def _enqueue_generation_strategy_tasks(
                     "strategy": strategy,
                     "count": count,
                     "strategy_index": index,
-                    # The strategy's whole batch size, so a per-debate
-                    # task can angle its debate against the full sibling
-                    # set (finding E14). Tasks enqueued before this input
-                    # existed simply run without a diversity angle.
+                    # Whole batch size gives each debate its sibling-relative
+                    # diversity angle; legacy inputs omit the angle.
                     "debate_total": total,
                     "literature": inputs.literature,
                     "reference_text": inputs.reference_index.text,
@@ -265,7 +207,6 @@ def _enqueue_generation_strategy_tasks(
 
 
 def _generation_aggregate_spec(counts: Any) -> _AggregateSpec:
-    """Return the generation family's aggregate spec, carrying its counts."""
     return _AggregateSpec(
         task_type=GENERATION_AGGREGATE_TASK,
         priority=81,
@@ -275,17 +216,8 @@ def _generation_aggregate_spec(counts: Any) -> _AggregateSpec:
 
 
 async def _plan_generation_fanout(state: dict[str, Any]) -> _GenerationPlan:
-    """Prepare the generation inputs and decide the fan-out's shape.
-
-    Runs entirely before the transaction, so the provider work the
-    preparation does never happens while the SQLite write lock is held.
-
-    Args:
-        state: Workflow state the generation node was entered with.
-
-    Returns:
-        The per-strategy task specs, their shared inputs, and the
-        aggregate spec carrying the planned counts.
+    """Provider preparation completes before any plan transaction acquires
+    SQLite's writer.
     """
     from co_scientist.agents.generation import prepare_generation
 
@@ -304,18 +236,8 @@ def _commit_generation_fanout(
     plan: _GenerationPlan,
     db_path: str | None,
 ) -> tuple[int, list[ScientificTask], ScientificTask]:
-    """Write the plan checkpoint and every fan-out row in one transaction.
-
-    Args:
-        task: The generation node task scheduling the fan-out.
-        checkpoint_seq: Checkpoint sequence the plan was built against.
-        envelope: Serialized workflow state to checkpoint.
-        plan: The fan-out shape from ``_plan_generation_fanout``.
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        The committed checkpoint sequence, the per-strategy tasks in spec
-        order, and the aggregate task.
+    """Planning checkpoint and all fan-out rows commit together, leaving no
+    partially scheduled wave.
     """
     with store.transaction(db_path) as conn:
         assert_task_commit_allowed(task, conn)
@@ -350,7 +272,6 @@ async def _enqueue_generation_fanout(
     *,
     db_path: str | None,
 ) -> dict[str, Any]:
-    """Commit generation planning and enqueue each enabled strategy."""
     from co_scientist.checkpoint import serialize_workflow_state
 
     plan = await _plan_generation_fanout(state)
@@ -371,16 +292,6 @@ async def _enqueue_generation_fanout(
 
 @dataclass(frozen=True)
 class _StrategyRunInputs:
-    """Per-task inputs one generation strategy executes against.
-
-    Attributes:
-        reference_index: The run's citation reference index.
-        literature: Retrieved literature synthesis, debate_lit only.
-        debate_index: This task's position in the strategy's parallel
-            debate batch (finding E14); None predates the wiring.
-        debate_total: The debate batch's whole size; see debate_index.
-    """
-
     reference_index: Any
     literature: Any
     debate_index: int | None = None
@@ -393,11 +304,8 @@ async def _run_debate_strategy(
     count: int,
     inputs: _StrategyRunInputs,
 ) -> tuple[list[Any], list[dict[str, Any]], int]:
-    """Run one debate strategy task and return its hypotheses/transcripts.
-
-    The task carries its position and batch size within the strategy's
-    parallel debates (finding E14), which the engine turns into a
-    distinct diversity angle per task.
+    """Parallel debates need their sibling index and whole batch size to
+    select distinct diversity angles.
     """
     from co_scientist.agents.generation.citations import ReferenceIndex
     from co_scientist.agents.generation.debate import (
@@ -416,10 +324,8 @@ async def _run_debate_strategy(
         batch_position = DebateBatchPosition(
             inputs.debate_index, inputs.debate_total
         )
-    # The app's mypy config skips following co_scientist imports, so the
-    # engine's declared return type arrives here as Any; restate it on the
-    # binding rather than passing an unchecked value on (mirrors
-    # _checkpoint_and_advance's next_task_type cast in the sibling module).
+    # Unfollowed engine imports arrive as Any; assert the declared return type
+    # at this boundary.
     result: tuple[
         list[Any], list[dict[str, Any]], int
     ] = await generate_with_debate(
@@ -438,14 +344,6 @@ async def _run_generation_strategy(
     count: int,
     inputs: _StrategyRunInputs,
 ) -> tuple[list[Any], list[dict[str, Any]], int]:
-    """Execute one generation strategy and return its hypotheses/transcripts.
-
-    Every branch returns ``(hypotheses, transcripts, llm_calls)``:
-    ``llm_calls`` is the real LLM completions the strategy spent (finding
-    L3), and every leaf strategy function already reports it -- only the
-    non-debate branches have no transcripts, so they pair their
-    ``(hypotheses, llm_calls)`` return with an empty transcript list here.
-    """
     from co_scientist.agents.generation.assumptions import (
         generate_with_assumptions,
     )
@@ -461,10 +359,8 @@ async def _run_generation_strategy(
     if strategy in {"debate_lit", "debate_only"}:
         return await _run_debate_strategy(state, strategy, count, inputs)
     if strategy == "assumptions":
-        # Preserve the durable path's existing assumptions contract: it
-        # omits the plan's literature and reference index. The graph
-        # coordinator supplies both. Sharing dispatch would change its
-        # grounding; planning/finalization can be shared independently.
+        # Durable assumptions generation omits plan literature and references;
+        # sharing coordinator dispatch would alter grounding.
         hypotheses, llm_calls = await generate_with_assumptions(state, count)
         return hypotheses, [], llm_calls
     raise ValueError(f"unsupported generation strategy: {strategy}")
@@ -473,15 +369,8 @@ async def _run_generation_strategy(
 async def execute_generation_strategy(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
-    """Execute one generation strategy against a read-only plan checkpoint.
-
-    A debate task is one debate of the strategy's parallel batch; the
-    batch total defaults to the pre-E14 shape (a lone debate with no
-    siblings to diverge from) when the input predates the wiring.
-
-    ``skills_used`` is which third-party data sources this strategy's
-    science-skill commands reached, so the report can attribute them;
-    see ``co_scientist.skills``. Empty without skills installed.
+    """Legacy debate inputs lack sibling angles; actual science-skill source
+    usage travels to the report for attribution.
     """
     from co_scientist.agents.generation.citations import ReferenceIndex
     from co_scientist.llm import scoped_telemetry
@@ -525,7 +414,6 @@ def _enqueue_review_item_tasks(
     checkpoint_seq: int,
     conn: sqlite3.Connection,
 ) -> list[ScientificTask]:
-    """Enqueue one review-item task per unreviewed hypothesis."""
     return [
         store.enqueue_task(
             store.NewTask(
@@ -562,18 +450,8 @@ def _create_fanout_tasks(
     spec: _AggregateSpec,
     db_path: str | None,
 ) -> tuple[list[ScientificTask], ScientificTask]:
-    """Enqueue a family's item tasks and its aggregate in one transaction.
-
-    Args:
-        enqueue_items: Enqueues the family's per-item tasks on the open
-            connection and returns them in order.
-        task: The node task scheduling the fan-out.
-        checkpoint_seq: Checkpoint sequence the fan-out is planned at.
-        spec: The aggregate's per-family task type, priority, and key.
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        A tuple of (item tasks, aggregate task).
+    """Item tasks and their aggregate commit together so no partial family
+    can be observed.
     """
     with store.transaction(db_path) as conn:
         assert_task_commit_allowed(task, conn)
@@ -591,23 +469,9 @@ def _enqueue_review_fanout(
     *,
     db_path: str | None,
 ) -> dict[str, Any]:
-    """Materialize one independently leasable task per unreviewed hypothesis.
-
-    **This is the canonical mirror of the published review chaining
-    (FIX-9).** ``02-generation.md`` L24-26 and ``01-supervisor.md`` L34-38
-    create one ``Reflection / ReviewHypothesis`` task per new hypothesis
-    and add each to the global task queue; ``03-reflection.md`` L12 then
-    fetches that hypothesis by id. This function is that step: one queue
-    row per hypothesis, keyed and leased independently, which is also what
-    production runs.
-
-    The LangGraph engine's ``review_node`` reviews the whole batch behind
-    one synchronous barrier instead. That divergence is deliberate and
-    reference-only: for a pool of five it is a single comparative call
-    against five, on a path with no production cost pressure to justify
-    the 5x. Neither side is drifting -- the decision is that the durable
-    path owns the mirror, so changes to per-hypothesis chaining belong
-    here, not there.
+    """Durable production review leases one task per hypothesis; the
+    internal review node deliberately retains its comparative batch
+    behavior.
     """
     from co_scientist.models import has_peer_review
 
@@ -637,7 +501,6 @@ def _enqueue_verification_item_tasks(
     checkpoint_seq: int,
     conn: sqlite3.Connection,
 ) -> list[ScientificTask]:
-    """Enqueue one deep-verification task per selected hypothesis."""
     return [
         store.enqueue_task(
             store.NewTask(
@@ -675,7 +538,6 @@ def _enqueue_verification_fanout(
     *,
     db_path: str | None,
 ) -> dict[str, Any]:
-    """Materialize one leasable deep-verification task per idea."""
     from co_scientist.agents.reflection import select_hypotheses_to_verify
 
     selected = select_hypotheses_to_verify(
@@ -699,15 +561,8 @@ def _enqueue_verification_fanout(
 
 
 def _maturity_specs(hypothesis: Any, iteration: int) -> list[tuple[str, str]]:
-    """Return full/simulation/recurrent specs by enrichment maturity.
-
-    Delegates to the engine's rule rather than restating it. This was a
-    second copy, and a copy of a scheduling rule is a copy that will one
-    day disagree: both copies carried the same defect (re-issuing a
-    simulation review that had already succeeded, whenever the full
-    review had not), and fixing it in one place would have left the
-    durable path -- the one production actually runs -- still paying for
-    it.
+    """The engine owns maturity scheduling so durable and internal paths
+    cannot disagree or repay completed reviews.
     """
     from co_scientist.agents.reflection.review_gate import reviews_needed
 
@@ -718,17 +573,6 @@ def _maturity_specs(hypothesis: Any, iteration: int) -> list[tuple[str, str]]:
 
 
 class _ReflectionSpec(NamedTuple):
-    """One reflection item this fan-out will materialize.
-
-    Attributes:
-        hypothesis_id: The hypothesis the review runs against.
-        review_mode: The ``ReviewType`` value to issue.
-        recheck: Whether this is a blocked idea's one recheck for the run
-            rather than part of the mature cascade. Carried into the
-            item's inputs so the aggregate can record the attempt even
-            when the item never completed.
-    """
-
     hypothesis_id: str
     review_mode: str
     recheck: bool = False
@@ -737,7 +581,6 @@ class _ReflectionSpec(NamedTuple):
 def _viable_specs(
     hypothesis: Any, iteration: int, literature: Any
 ) -> list[_ReflectionSpec]:
-    """Return the cascade specs due for one viable hypothesis."""
     specs: list[_ReflectionSpec] = []
     if literature and not hypothesis.reflection_notes:
         specs.append(_ReflectionSpec(hypothesis.id, "observation"))
@@ -748,14 +591,8 @@ def _viable_specs(
 
 
 def _recheck_specs(state: dict[str, Any]) -> list[_ReflectionSpec]:
-    """Return the one recurrent review each blocked idea is still owed.
-
-    The cascade above selects on ``viable``, so nothing in it can ever
-    reach an idea the initial review gate blocked -- which leaves the
-    derived disposition (FIX-4) with no later verdict to derive from. The
-    engine owns both bounds (once per hypothesis for the whole run, and a
-    run-wide ceiling), read off the pool so they survive a checkpoint
-    round trip and a resume.
+    """Initially blocked ideas still receive their bounded recheck;
+    checkpointed issuance survives recovery.
     """
     from co_scientist.agents.reflection.review_gate import (
         RECHECK_REVIEW_TYPE,
@@ -769,7 +606,6 @@ def _recheck_specs(state: dict[str, Any]) -> list[_ReflectionSpec]:
 
 
 def _mature_reflection_specs(state: dict[str, Any]) -> list[_ReflectionSpec]:
-    """Return the reflection specs due: the cascade, then the rechecks."""
     iteration = int(state.get("current_iteration", 0))
     literature = state.get("articles_with_reasoning")
     specs: list[_ReflectionSpec] = []
@@ -785,7 +621,6 @@ def _enqueue_mature_reflection_item_tasks(
     checkpoint_seq: int,
     conn: sqlite3.Connection,
 ) -> list[ScientificTask]:
-    """Enqueue one durable task per maturity-appropriate reflection spec."""
     return [
         store.enqueue_task(
             store.NewTask(
@@ -825,7 +660,6 @@ def _enqueue_mature_reflection_fanout(
     *,
     db_path: str | None,
 ) -> dict[str, Any]:
-    """Schedule maturity-appropriate Reflection modes as durable tasks."""
     specs = _mature_reflection_specs(state)
     items, aggregate = _create_fanout_tasks(
         partial(

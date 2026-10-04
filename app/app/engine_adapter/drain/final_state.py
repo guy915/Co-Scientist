@@ -1,5 +1,3 @@
-"""Final-state drain orchestrator: persist an engine run's results."""
-
 from __future__ import annotations
 
 import functools
@@ -48,10 +46,8 @@ logger = logging.getLogger(__name__)
 
 
 class FinalStateInputs(NamedTuple):
-    """Precomputed persistence inputs derived from an engine final state.
-
-    ``final_state`` itself rides along for the consumers that read keys not
-    precomputed here (the held-for-review persistence).
+    """Raw final state remains available for persistence facts not
+    represented in precomputed inputs.
     """
 
     hyps_parents_first: list[dict[str, Any]]
@@ -63,13 +59,8 @@ class FinalStateInputs(NamedTuple):
 
 
 def degraded_sections(final_state: dict[str, Any]) -> list[str]:
-    """Return the engine nodes whose output degraded to a fallback.
-
-    The engine records every enhancement node served a placeholder
-    fallback instead of parseable LLM output
-    (``co_scientist.progress.record_schema_degradation``); the report
-    carries the list so a section left blank by a degradation can say so
-    instead of showing silence.
+    """Blank output caused by schema fallback must be disclosed rather than
+    silently appearing complete.
     """
     return [str(name) for name in final_state.get("degraded_nodes") or []]
 
@@ -77,28 +68,16 @@ def degraded_sections(final_state: dict[str, Any]) -> list[str]:
 def retrieval_degradation(
     final_state: dict[str, Any],
 ) -> dict[str, Any] | None:
-    """Return what the run could not search, when it could not search.
-
-    A different fact from ``degraded_sections``: that one explains a
-    section left blank by output the model could not produce, while this
-    one names retrieval the run never attempted. Nothing in the report's
-    prose can reveal it, which is exactly why it has to be carried.
+    """Unattempted source retrieval is a different fact from synthesis
+    degradation and cannot be inferred from report prose.
     """
     degradation = final_state.get("retrieval_degradation")
     return degradation if isinstance(degradation, dict) else None
 
 
 def skills_used(final_state: dict[str, Any]) -> dict[str, int]:
-    """Return the science skills the run invoked, by name and count.
-
-    Carried because the skills query third-party databases whose terms
-    are separate from the bundle's licence, and most of those sources
-    require that the user be notified of them. The harness writes that
-    notice into the workspace the skill runs in, which is deleted; the
-    report is the only surface that reaches a person, and it can only
-    name the sources the run actually used if the run counted them.
-    Empty on every run that invoked no skill, which is every run without
-    ``COSCIENTIST_SKILLS_DIR``.
+    """Third-party source terms require attribution; transient workspaces
+    disappear, so the report carries actual source usage.
     """
     metrics = final_state.get("metrics")
     used = getattr(metrics, "skills_used", None)
@@ -112,17 +91,8 @@ def skills_used(final_state: dict[str, Any]) -> dict[str, int]:
 def stratification_attributes(
     final_state: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    """Return the Supervisor's synthesized 1-5 stratification attributes.
-
-    A read of guidance the Supervisor already synthesizes and
-    ``drain/final_state.py`` already persists into the
-    ``supervisor_plan`` table (``supervisor_guidance.config_synthesis.
-    attributes``, up to three ``{name, rubric}`` axes) and
-    ``prompts/review.py`` already injects into every reviewer prompt --
-    not a new computation, just handing an existing one to the report
-    (R12-17). Display only: the report never uses this to gate, filter,
-    rank, or disqualify a hypothesis. Degrades to an empty list, never an
-    error, on an old checkpoint predating this field or a malformed one.
+    """Supervisor guidance is display-only and never gates, ranks or
+    disqualifies hypotheses; older checkpoints may omit it.
     """
     guidance = final_state.get("supervisor_guidance")
     config = (
@@ -135,9 +105,8 @@ def stratification_attributes(
 
 
 def critical_criteria(final_state: dict[str, Any]) -> list[Any]:
-    """Display-only guidance must never gate, rank, or disqualify hypotheses.
-
-    Older checkpoints may carry bare criterion names instead of objects.
+    """Display-only guidance never gates or ranks hypotheses; legacy
+    checkpoints may contain bare criterion names.
     """
     guidance = final_state.get("supervisor_guidance")
     plan = guidance.get("workflow_plan") if isinstance(guidance, dict) else None
@@ -155,13 +124,8 @@ def critical_criteria(final_state: dict[str, Any]) -> list[Any]:
 def grounding_counts(
     grounding_result: Any, grounding_candidates: list[dict[str, Any]]
 ) -> dict[str, int]:
-    """Tally the pre-ranking evidence gate's outcome for the report.
-
-    "assessed", not "grounded": ``reason_by_id`` carries a gate reason for
-    every hypothesis put through the gate, blocked ones included, so
-    publishing it as "grounded" made a run where both candidates were
-    blocked read "grounded=2 blocked=2" -- four hypotheses' worth of
-    outcome for two hypotheses, with the blocked ones counted twice.
+    """Assessed counts include blocked hypotheses; calling them grounded
+    would double-count failed outcomes.
     """
     assessed = len(grounding_result.reason_by_id)
     return {
@@ -175,7 +139,6 @@ def grounding_counts(
 
 
 def safety_counts(screening_result: Any) -> dict[str, int]:
-    """Tally the per-hypothesis safety screen's outcome for the report."""
     return {
         "screened": screening_result.screened_count,
         "blocked": screening_result.blocked_count,
@@ -190,31 +153,8 @@ async def _assess_claims(
     passages: list[EvidencePassage],
     gate_records: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> tuple[Any, dict[str, dict[str, Any]]]:
-    """Assess each hypothesis claim against retrieved evidence passages.
-
-    Claims the pre-ranking gate already assessed against the same evidence
-    are reused rather than re-derived. The gate assesses a strict superset
-    of these claims (it reads the hypothesis's experiment field too) with
-    the same roles on the overlap, and a claim's verdict depends only on
-    itself and the passages it retrieves -- so a per-claim match is enough
-    to carry the verdict across.
-
-    The wave itself runs off this coroutine's event loop
-    (``async_bridge.run_off_loop``), the same way the pre-ranking gate
-    (``engine_tasks.gate._assess_gate_claims``) runs its own wave -- see
-    the module docstring. ``scoped_telemetry("claim_grounding")``
-    attributes this pass's LLM calls in the run's metrics separately from
-    the pre-ranking gate's own ``"claim_gate"`` phase.
-
-    Args:
-        grounding_candidates: Persisted hypotheses not already rejected.
-        passages: The run's evidence passages.
-        gate_records: Per store-id, the hypothesis's stored ``claim_gate``
-            enrichment; omitted means assess everything.
-
-    Returns:
-        A tuple of (per hypothesis id its ``(assessment, role)`` pairs in
-        claim order, this pass's LLM telemetry snapshot).
+    """Reuse requires matching per-claim evidence inputs; provider work
+    stays off-loop so the finalize lease keeps renewing.
     """
     from co_scientist.llm import scoped_telemetry
 
@@ -243,11 +183,8 @@ def _gate_records_by_store_id(
     inputs: FinalStateInputs,
     store_id_by_engine_id: Mapping[str, str],
 ) -> dict[str, Mapping[str, Any]]:
-    """Map each persisted hypothesis to the gate verdict recorded for it.
-
-    The gate's verdicts live on the engine hypothesis's enrichments, but
-    the drain assesses the persisted rows, so the two have to be joined by
-    the engine-to-store id map the persistence pass just built.
+    """Gate enrichments use engine IDs; persisted assessment rows join
+    through the drain's engine-to-store map.
     """
     records: dict[str, Mapping[str, Any]] = {}
     for hypothesis in inputs.hyps_parents_first:
@@ -262,7 +199,6 @@ def _gate_records_by_store_id(
 def _reusable_by_hypothesis(
     gate_records: Mapping[str, Mapping[str, Any]],
 ) -> dict[str, dict[str, Any]]:
-    """Index every hypothesis's reusable gate verdicts by fingerprint."""
     from app.claims.grounding import reusable_assessments
 
     indexed = {
@@ -275,7 +211,6 @@ def _reusable_by_hypothesis(
 def fold_grounding_telemetry(
     final_state: dict[str, Any], usage: dict[str, dict[str, Any]]
 ) -> None:
-    """Fold the finalize grounding pass's LLM telemetry into final metrics."""
     if not usage:
         return
     from co_scientist.models import MetricDeltas
@@ -294,28 +229,20 @@ def fold_grounding_telemetry(
     final_state["metrics"] = merged.to_dict()
 
 
-# How much of a held hypothesis's statement its decision row carries: enough
-# for a reviewer to recognize the idea, not so much the audit trail reprints
-# it. Matches the text-prefix width of the engine's own audit entries.
+# Retain enough held hypothesis text for human identification, bounded like
+# engine audit entries.
 _HELD_TEXT_PREFIX_CHARS = 120
 
 
 def _final_state_list(
     final_state: dict[str, Any], key: str
 ) -> list[dict[str, Any]]:
-    """Return a list-valued key from the engine's final state, or empty."""
     return final_state.get(key) or []
 
 
 def _engine_audit_by_hypothesis_id(
     final_state: dict[str, Any],
 ) -> dict[str, Mapping[str, Any]]:
-    """Index the engine's per-hypothesis safety audit entries by id.
-
-    The safety screen records one ``safety_decisions`` entry per blocked or
-    held hypothesis; the drain joins a held hypothesis to its entry for the
-    screen's rationale, matches, and policy version.
-    """
     return {
         str(item.get("hypothesis_id")): item
         for item in _final_state_list(final_state, "safety_decisions")
@@ -329,12 +256,8 @@ def _held_decision_reason(
     text: str,
     audit: Mapping[str, Any],
 ) -> str:
-    """Build the audit reason for one held hypothesis.
-
-    Follows the shape of the other hypothesis-stage rows (``hypothesis
-    <id>: <outcome> (<rationale>)``), appending a prefix of the held idea's
-    text: the engine keeps held hypotheses out of the pool, so no hypothesis
-    row is persisted for one and its decision row is the only copy of it.
+    """Held hypotheses have no persisted pool row, so the decision retains
+    enough text for human identification.
     """
     engine_reason = str(audit.get("reason") or "") or (
         "the safety screen held this hypothesis for manual review"
@@ -351,17 +274,6 @@ def _held_decision(
     entry: Mapping[str, Any],
     audit_by_id: Mapping[str, Mapping[str, Any]],
 ) -> store.NewSafetyDecision | None:
-    """Build one held-for-review decision row from a held entry.
-
-    Args:
-        run_id: Run the drained final state belongs to.
-        entry: One ``held_for_review`` entry (a hypothesis dict).
-        audit_by_id: Engine audit entries keyed by hypothesis id.
-
-    Returns:
-        The decision to record, or None when the entry carries neither an
-        id nor text and so cannot be identified for review.
-    """
     hyp_id = str(entry.get("id") or "")
     text = str(entry.get("text") or "")
     if not hyp_id and not text:
@@ -390,13 +302,6 @@ def _persist_held_for_review(
     final_state: dict[str, Any],
     conn: sqlite3.Connection,
 ) -> None:
-    """Persist a reviewable decision row for each held hypothesis.
-
-    Args:
-        run_id: Run the drained final state belongs to.
-        final_state: The engine's final state (held entries are plain dicts).
-        conn: Open connection of the caller's transaction.
-    """
     held = _final_state_list(final_state, "held_for_review")
     if not held:
         return
@@ -418,13 +323,6 @@ def _persist_held_for_review(
 
 
 class DrainResult(NamedTuple):
-    """What one drained final state hands the report path and stage events.
-
-    ``report_inputs`` is spread verbatim into ``finalize_report``; the two
-    count dicts are emitted by the caller as the post-drain
-    ``safety.hypothesis`` and ``citation.grounding`` stage events.
-    """
-
     report_inputs: dict[str, Any]
     safety_counts: dict[str, int]
     grounding_counts: dict[str, int]
@@ -433,16 +331,8 @@ class DrainResult(NamedTuple):
 def _screen_and_collect_grounding_inputs(
     run_id: str, conn: sqlite3.Connection
 ) -> tuple[Any, list[EvidencePassage], list[dict[str, Any]]]:
-    """Run the per-hypothesis safety screen and gather claim-grounding inputs.
-
-    The engine ran its tournament internally, so the safety screen enforces
-    the guarantee at the app boundary. Deterministic only -- see
-    ``persist_final_state`` for the model-escalation phase a held UNCERTAIN
-    still gets, later and lock-free.
-
-    Returns:
-        A tuple of (screening result, evidence passages, grounding
-        candidates -- persisted hypotheses not already rejected).
+    """The app boundary repeats deterministic safety admission before lock-
+    free model escalation.
     """
     from app.report.gates import EXCLUDED_HYPOTHESIS_STATUSES
 
@@ -464,7 +354,6 @@ def _build_drain_result(
     grounding_result: Any,
     grounding_candidates: list[dict[str, Any]],
 ) -> DrainResult:
-    """Assemble the `DrainResult` from a completed drain's tallies."""
     return DrainResult(
         report_inputs={
             "citation_summary": citation_summary,
@@ -486,13 +375,8 @@ def _build_drain_result(
 def _prepare_final_state_inputs(
     final_state: dict[str, Any],
 ) -> FinalStateInputs:
-    """Derive the drain's persistence inputs from an engine final state.
-
-    Hypotheses are ordered parents-first so the ``parent_id`` foreign key
-    resolves during insertion. ``persisted_engine_ids`` is every engine id
-    being persisted, so a child's parent_id is only kept when the parent is
-    also stored (see ``_resolve_persisted_parent_id``); the walrus narrows
-    the element type to str (dropping the None from an id-less row).
+    """Parents insert before children; references survive only when the
+    corresponding parent is also persisted.
     """
     hyps = _hypotheses_with_proximity_archive(
         final_state.get("hypotheses") or [],
@@ -517,27 +401,8 @@ async def _persist_evidence_hypotheses_and_screen(
     store_id_by_engine_id: dict[str, str],
     db_path: str | None,
 ) -> tuple[Any, list[EvidencePassage], list[dict[str, Any]]]:
-    """Run the drain's first transaction: evidence, hypotheses, screening.
-
-    Batches this half of the drain into one transaction: a real run writes
-    dozens of rows here, and per-call connections would fsync each one
-    individually. Mutates `citation_summary` and `store_id_by_engine_id` in
-    place.
-
-    Evidence availability is resolved before the transaction opens:
-    dereferencing a DOI/PMID is network I/O, and this function must never
-    hold the write lock across it (see AGENTS.md). It also must not block
-    the caller's event loop while it runs -- a run retrieving dozens of
-    articles can spend tens of seconds across ``citations.resolver``'s
-    bounded concurrency and per-request timeout, and the durable finalize
-    task's lease heartbeat renews on this same loop (see
-    ``_assess_claims`` for the incident this pattern already fixed for the
-    claim-grounding wave) -- so the resolve runs off it via
-    ``async_bridge.run_off_loop``.
-
-    Returns:
-        The (screening result, evidence passages, grounding candidates)
-        tuple `_screen_and_collect_grounding_inputs` produces.
+    """Citation resolution happens before the transaction and off-loop;
+    network latency must not hold the writer or expire the lease.
     """
     from app.async_bridge import run_off_loop
 
@@ -557,8 +422,8 @@ async def _persist_evidence_hypotheses_and_screen(
         persisted_engine_ids=inputs.persisted_engine_ids,
     )
     with store.transaction(db_path) as conn:
-        # Before the evidence, so a row that names the search which found
-        # it never points at a call that is not there yet.
+        # Persist search calls before evidence rows that reference their
+        # provenance.
         _persist_retrieval_calls(run_id, inputs.final_state, conn)
         _persist_evidence_and_hypotheses(
             run_id,
@@ -580,7 +445,6 @@ def _persist_grounding_matches_proximity_txn(
     store_id_by_engine_id: dict[str, str],
     db_path: str | None,
 ) -> Any:
-    """Run the drain's 2nd transaction: grounding, matches, and escalation."""
     assessed, escalated = provider_outputs
     with store.transaction(db_path) as conn:
         grounding_result = persist_grounding(run_id, assessed, conn=conn)
@@ -600,20 +464,8 @@ async def persist_final_state(
     final_state: dict[str, Any],
     db_path: str | None = None,
 ) -> DrainResult:
-    """Drain an engine final state into the store.
-
-    Writes evidence, hypotheses (with reviews, deep-verification reviews,
-    and citations), and tournament matches; the report is built separately
-    by ``finalize_report``, which consumes the returned inputs. Claim
-    assessment and safety escalation both run between transactions,
-    holding no connection, and both run off
-    the caller's event loop (``async_bridge.run_off_loop``) rather than
-    directly on it, so a durable finalize task's lease heartbeat keeps
-    renewing while either provider wave runs (see ``_assess_claims``).
-
-    Returns:
-        A :class:`DrainResult`: the ``finalize_report`` kwargs plus the
-        screen/grounding tallies emitted as post-drain stage events.
+    """Provider assessment and safety escalation run between transactions
+    and off-loop, preserving both writer availability and lease renewal.
     """
     inputs = _prepare_final_state_inputs(final_state)
     citation_summary = empty_citation_summary()
@@ -631,8 +483,8 @@ async def persist_final_state(
         _gate_records_by_store_id(inputs, store_id_by_engine_id),
     )
     fold_grounding_telemetry(final_state, grounding_usage)
-    # Safety escalation is synchronous provider work. Run it between the
-    # transactions and off this loop so the finalize lease keeps renewing.
+    # Escalate between transactions and off-loop so the finalize lease keeps
+    # renewing.
     from app.async_bridge import run_off_loop
 
     escalated = await run_off_loop(
@@ -658,7 +510,6 @@ async def persist_final_state(
 def _persist_supervisor_plan(
     run_id: str, final_state: dict[str, Any], conn: sqlite3.Connection
 ) -> None:
-    """Persist the Supervisor's plan and per-cycle allocation ledger."""
     store.save_supervisor_plan(
         store.NewSupervisorPlan(
             run_id=run_id,

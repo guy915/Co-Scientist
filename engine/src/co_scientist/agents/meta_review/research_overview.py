@@ -1,5 +1,3 @@
-"""Final and interim research overview synthesis with bounded degradation."""
-
 from __future__ import annotations
 
 import logging
@@ -77,8 +75,6 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
-# The node's key in ``llm.structured.validate._ENHANCEMENT_NODE_FALLBACKS``, and
-# the label the report reads back as a degraded section.
 _OVERVIEW_SCHEMA = "research_overview"
 
 _LOST = (
@@ -88,21 +84,8 @@ _LOST = (
 
 
 def is_interim_firing(state: WorkflowState) -> bool:
-    """Whether this is a periodic firing rather than the terminal one.
-
-    The scheduler's own recorded decision is what tells them apart, the
-    same value the graph and the durable route table both read: SYNTHESIZE
-    returns to the loop point (FIX-6), TERMINATE ends the run.
-
-    Read from ``next_task`` alone this is wrong for the periodic branch's
-    *stacked* form (``scheduling.policy.stack_companions``), where the
-    primary keeps that field and the overview rides the pass's queue
-    actions. A stacked firing read as terminal would buy the accuracy
-    review and the knowledge-base calls, emit the run's 95% progress
-    marker from the middle of a cycle, and publish a ``research_overview``
-    the finished report would then carry -- so the queue actions are part
-    of the question, exactly as they are for the routers.
-    """
+    """Stacked companion firings keep another primary in next_task; read
+    queue actions too or an interim pass buys and publishes terminal work."""
     if str(state.get("next_task") or "") == TaskType.SYNTHESIZE.value:
         return True
     actions = state.get("supervisor_queue_actions") or []
@@ -113,16 +96,6 @@ async def synthesize_or_degrade(
     state: WorkflowState,
     synthesize: Callable[[], Awaitable[dict[str, Any]]],
 ) -> dict[str, Any]:
-    """Run the overview synthesis, degrading it if the provider fails.
-
-    Args:
-        state: The node's workflow state.
-        synthesize: The node's own synthesis, called once.
-
-    Returns:
-        The synthesis result, or the empty overview the report renders
-        without.
-    """
     if is_interim_firing(state):
         return await _interim_or_degrade(state, synthesize)
     return await run_or_degrade(
@@ -138,17 +111,8 @@ async def _interim_or_degrade(
     state: WorkflowState,
     synthesize: Callable[[], Awaitable[dict[str, Any]]],
 ) -> dict[str, Any]:
-    """Draft the interim overview, or leave the next cycle without one.
-
-    Deliberately records no degradation: ``degraded_nodes`` names a blank
-    section of the finished report, and this firing writes no document --
-    the terminal firing still can, so labelling the section here would
-    mark an overview that came out fine.
-
-    It shares the task's retry budget with the terminal firing, so it
-    spends it the same way (``node_degradation.durable_retries_remain``):
-    a retry declined here is one the run does not get back.
-    """
+    """Interim output is not a report section, so do not mark degradation;
+    declined retries still spend the shared task attempt budget."""
     try:
         return await synthesize()
     except TASK_CONTROL_FLOW_ERRORS:
@@ -165,14 +129,8 @@ async def _interim_or_degrade(
 
 
 def _degraded_overview_result() -> dict[str, Any]:
-    """The state delta a failed terminal synthesis publishes instead.
-
-    The same empty ``research_overview`` the node already returns when the
-    publication gates withhold every hypothesis, so the report renderer
-    needs no new branch. No metrics delta: the requests that failed were
-    already counted by ``llm.admission.call_budget.record_provider_request``,
-    and this produced no overview to attribute a successful call to.
-    """
+    """Failed provider requests were already billed; an empty reportable
+    section must not attribute another successful synthesis call."""
     return {
         "research_overview": {},
         "messages": phase_message(
@@ -183,10 +141,8 @@ def _degraded_overview_result() -> dict[str, Any]:
     }
 
 
-# The two caps above are the single source both ends of the edge read:
-# an interim firing's own schema (RESEARCH_OVERVIEW_INTERIM_SCHEMA) bounds
-# the ask to exactly what this module renders, so the model is never
-# asked to write a title or question this block then discards.
+# Share caps with the interim schema so the model is not asked to produce titles
+# or questions that this renderer would discard.
 
 _HEADER: Final = (
     "## Interim research overview (this run's own synthesis so far)\n\n"
@@ -198,15 +154,6 @@ _HEADER: Final = (
 
 
 def build_interim_overview(response: dict[str, Any]) -> str:
-    """Render a drafted overview response as the block generation reads.
-
-    Args:
-        response: The raw research-overview synthesis response.
-
-    Returns:
-        The formatted block, or an empty string when the response carries
-        neither a direction nor an open question.
-    """
     overview = response.get("overview")
     directions = (
         overview.get("research_directions")
@@ -219,7 +166,6 @@ def build_interim_overview(response: dict[str, Any]) -> str:
 
 
 def _titled_lines(raw: Any, header: str, limit: int) -> list[str]:
-    """Render up to ``limit`` titled entries as one bulleted block."""
     if not isinstance(raw, list):
         return []
     bullets = [
@@ -231,7 +177,6 @@ def _titled_lines(raw: Any, header: str, limit: int) -> list[str]:
 
 
 def _question_lines(raw: Any) -> list[str]:
-    """Render up to ``_MAX_QUESTIONS`` open questions as a bulleted block."""
     if not isinstance(raw, list):
         return []
     bullets = [
@@ -243,20 +188,10 @@ def _question_lines(raw: Any) -> list[str]:
 
 
 def format_interim_overview(state: WorkflowState) -> str:
-    """Return the interim overview block, or "" before the first firing.
-
-    Args:
-        state: The workflow state the generate node was entered with.
-
-    Returns:
-        The block written by the most recent periodic firing, or an empty
-        string when this run has not had one.
-    """
     return str(state.get("interim_overview") or "").strip()
 
 
 def _run_prompt_context(state: WorkflowState) -> PromptRunContext:
-    """Run-scoped guidance both firings' prompts read the same way."""
     return PromptRunContext(
         meta_review=state.get("meta_review"),
         tool_registry=state.get("tool_registry"),
@@ -271,12 +206,8 @@ def build_synthesis_prompt(
     contact_candidates: dict[str, dict[str, Any]],
     evidence_corpus: dict[str, dict[str, Any]],
 ) -> tuple[str, dict[str, Any] | None]:
-    """Builds the terminal research-overview synthesis prompt and schema.
-
-    Uses the supervisor model (strategic synthesis, not a worker task);
-    meta_review and the durable run guidance steer it toward the same
-    strategic themes used elsewhere in the workflow.
-    """
+    """Strategic synthesis uses the supervisor model and the run's shared
+    guidance."""
     return get_research_overview_prompt(
         research_goal=state["research_goal"],
         hypotheses_summary=summary,
@@ -291,12 +222,8 @@ def build_interim_synthesis_prompt(
     summary: str,
     evidence_corpus: dict[str, dict[str, Any]],
 ) -> tuple[str, dict[str, Any] | None]:
-    """Builds a periodic firing's own lean prompt and schema.
-
-    No ``contact_candidates``: an interim firing's schema never asks for
-    ``research_contacts``, so there is nothing here for that formatted
-    block to feed.
-    """
+    """Interim schema asks for no contacts, so candidate context would buy no
+    output."""
     return get_research_overview_interim_prompt(
         research_goal=state["research_goal"],
         hypotheses_summary=summary,
@@ -305,15 +232,7 @@ def build_interim_synthesis_prompt(
     )
 
 
-# Bounds on what the terminal synthesis prompt offers the model and accepts
-# back. The offered pools are capped so a large run's article set cannot grow
-# the prompt without limit; the acceptance caps bound the sections a reader is
-# handed.
 _UNREVIEWED_OVERVIEW: Final = {"reviewed": False, "rounds": 0}
-
-"""Stamped on ``overview_review`` when this run did not fund a review, or
-the review loop failed and the drafted overview published unchanged.
-"""
 
 
 async def _emit_and_synthesize_overview(
@@ -323,12 +242,8 @@ async def _emit_and_synthesize_overview(
     evidence_corpus: dict[str, dict[str, Any]],
     hypothesis_by_index: dict[int, str],
 ) -> dict[str, Any]:
-    """Runs interim or full overview synthesis with its progress emissions.
-
-    Before the progress emission: those percentages describe the run's
-    terminal synthesis, and a mid-run firing announcing 95% would drive
-    the reader's progress bar to the end and back again.
-    """
+    """Terminal progress percentages on an interim pass would drive progress
+    to the end and backwards again."""
     if _is_interim_firing(state):
         return await _interim_overview_result(state, summary, evidence_corpus)
 
@@ -354,25 +269,11 @@ async def _emit_and_synthesize_overview(
 
 
 async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
-    """Synthesize the top-k hypotheses into an overview + NIH Specific Aims.
-
-    Only hypotheses the publication gates release are offered to the model:
-    the pool is filtered before the LLM call, because prose synthesized
-    from a blocked idea cannot be unlabeled afterwards.
-
-    Args:
-        state: The current workflow state.
-
-    Returns:
-        A state delta carrying the research overview, metrics, and a message.
-    """
+    """Filter before synthesis: prose derived from withheld ideas cannot be
+    unlabeled after the model has used them."""
     hypotheses = state.get("hypotheses", [])
     publishable = _publishable_hypotheses(hypotheses)
     if not publishable:
-        # Nothing survived to this terminal node (e.g. an earlier failure
-        # or all hypotheses were pruned), or the publication gates
-        # withheld every remaining hypothesis; skip the LLM call rather
-        # than synthesizing an overview from an empty or excluded pool.
         if hypotheses:
             logger.warning(
                 "Research overview skipped: publication gates withheld all "
@@ -386,11 +287,8 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
     contact_candidates = _build_contact_candidates(articles)
     evidence_corpus = _build_evidence_corpus(articles)
 
-    # A provider that cannot be reached at this terminal node used to
-    # take the whole run's output with it: the task spent its durable
-    # attempts, the run settled `failed`, and `engine.finalize` -- only
-    # ever enqueued as this node's `None` successor -- never existed, so
-    # nothing wrote the report the other 146 tasks had earned.
+    # Terminal task failure prevents finalization and report publication;
+    # degrade the synthesis instead of losing completed scientific work.
     return await synthesize_or_degrade(
         state,
         lambda: _emit_and_synthesize_overview(
@@ -408,16 +306,8 @@ async def _interim_overview_result(
     summary: str,
     evidence_corpus: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
-    """Draft an overview for the next generate cycle, and publish nothing.
-
-    One call, on its own lean schema: neither the accuracy-review loop
-    nor the deep knowledge-base synthesis is bought here, and unlike the
-    terminal call this one is never asked for the NIH Specific Aims page,
-    the contacts, or the knowledge base either -- only the direction
-    titles and open questions ``build_interim_overview`` renders.
-    ``research_overview`` stays untouched so the live UI and the
-    finished report keep reading the terminal firing's own output.
-    """
+    """The lean periodic call leaves terminal report/UI output untouched and
+    buys neither accuracy review nor deep knowledge-base work."""
     prompt, schema = build_interim_synthesis_prompt(
         state, summary, evidence_corpus
     )
@@ -438,19 +328,6 @@ async def _interim_overview_result(
 def _publishable_hypotheses(
     hypotheses: list[Hypothesis],
 ) -> list[Hypothesis]:
-    """Filter to the hypotheses the final report would publish.
-
-    Mirrors the report's exclusions on engine-side state: the tournament's
-    rankability test (``Hypothesis.is_rankable``) plus the blocking safety
-    outcomes. Ideas needing revision publish, as do undermined ones
-    (demoted, not withheld); duplicates are pruned upstream.
-
-    Args:
-        hypotheses: The hypothesis pool at the terminal node.
-
-    Returns:
-        The publishable hypotheses, in pool order.
-    """
     return [
         h
         for h in hypotheses
@@ -461,25 +338,8 @@ def _publishable_hypotheses(
 def _summarize_top_hypotheses(
     hypotheses: list[Hypothesis],
 ) -> tuple[str, dict[int, str]]:
-    """Ranks hypotheses for publication and formats the top-k summary.
-
-    Re-ranks defensively (does not assume the incoming list is already
-    sorted) and keeps only the strongest ``RESEARCH_OVERVIEW_TOP_K``
-    hypotheses so the synthesis prompt stays a bounded size.
-    ``rank_for_publication``, not plain Elo: an undermined idea publishes
-    but must not headline the synthesis, and its Elo -- won before the
-    verdict doubting it -- is what would put it there.
-
-    Args:
-        hypotheses: The publishable hypothesis pool.
-
-    Returns:
-        A tuple of (newline-joined, numbered summary of the top-k
-        hypotheses; a 1-based index -> hypothesis id map, the same
-        numbering the summary text uses, for resolving a research-
-        contact-group's ``example_hypothesis_indices`` (R14-6) back to a
-        real hypothesis without letting the model echo invented text).
-    """
+    """Use publication ordering: undermined ideas may publish, but their old
+    high Elo must not put them ahead of sound ideas in synthesis."""
     ranked = rank_for_publication(hypotheses)
     top = ranked[:RESEARCH_OVERVIEW_TOP_K]
     summary = "\n".join(
@@ -496,27 +356,8 @@ async def _synthesize_research_overview(
     evidence_corpus: dict[str, dict[str, Any]],
     hypothesis_by_index: dict[int, str],
 ) -> tuple[dict[str, Any], int]:
-    """Builds the research-overview prompt, calls the LLM, and formats it.
-
-    When this run funds it, the raw response is checked for
-    scientific accuracy against its own material before validation
-    formats it -- a revision replaces the whole raw response, so
-    grounding validation must run once, last, on whatever the review
-    loop settles on.
-
-    Args:
-        state: Current workflow state.
-        summary: Top-k hypotheses summary from _summarize_top_hypotheses.
-        contact_candidates: Verified authors keyed by a stable candidate id.
-        evidence_corpus: Analyzed sources keyed by a stable evidence id.
-        hypothesis_by_index: Same 1-based numbering as ``summary``, for
-            resolving research-contact-group example hypotheses.
-
-    Returns:
-        Tuple of (the formatted research_overview dict, LLM calls spent).
-        "overview" and "nih_specific_aims" default to empty so consumers
-        always see a well-formed research_overview shape.
-    """
+    """Accuracy revision replaces the raw draft; validate grounding once,
+    last, on the version that will actually publish."""
     prompt, schema = build_synthesis_prompt(
         state, summary, contact_candidates, evidence_corpus
     )
@@ -548,15 +389,8 @@ async def _deepen_knowledge_base(
     evidence_corpus: dict[str, dict[str, Any]],
     formatted: dict[str, Any],
 ) -> int:
-    """Replace the flat knowledge base with the deep synthesis (F8).
-
-    Only where the run's declared ceiling funds the extra call, and only
-    when it comes back with grounded sections: the overview call's own
-    topics are already in ``formatted`` and stand wherever this does not.
-
-    Returns:
-        LLM calls spent, which is 0 wherever the call was not made.
-    """
+    """Unfunded or ungrounded deep output must leave the draft's flat topics
+    intact."""
     if not knowledge_base_is_funded(state):
         return 0
     topics, calls = await synthesize_knowledge_base(
@@ -577,20 +411,8 @@ async def _maybe_review_overview(
     evidence_corpus: dict[str, dict[str, Any]],
     response: dict[str, Any],
 ) -> tuple[dict[str, Any], dict[str, Any], int]:
-    """Runs the accuracy review/revise cycle when this run funds it.
-
-    Skipped entirely where the run never requested it (the fast tiers,
-    and the offline backend regardless of request -- both settled
-    upstream in run_setup, so this only reads the resolved flag).
-    Degrades to the original draft on any failure: a report that fails
-    to publish is worse than one carrying a noted weakness, the same
-    principle ``_validate_knowledge_base`` follows for a malformed
-    citation.
-
-    Returns:
-        Tuple of (final raw response, review metadata, LLM calls spent
-        reviewing -- 0 when skipped or degraded).
-    """
+    """Failed optional review must not lose the report; publish the original
+    draft with its review metadata rather than fail finalization."""
     if not state.get("enable_overview_review"):
         return response, dict(_UNREVIEWED_OVERVIEW), 0
     context = OverviewReviewContext(
@@ -619,14 +441,8 @@ async def _call_research_overview_llm(
     schema: dict[str, Any] | None,
     max_tokens: int = RESEARCH_OVERVIEW_MAX_TOKENS,
 ) -> dict[str, Any]:
-    """Calls the supervisor model to synthesize the research overview.
-
-    Budgeted above the thinking floor: the multi-paragraph strategy
-    document and the chain of thought must share one allowance.
-    ``max_tokens`` defaults to the terminal document's own ceiling; the
-    interim caller passes its own, much smaller one, since its schema
-    asks for a handful of titles and questions rather than ten sections.
-    """
+    """Thinking and the strategic document share the allowance; the interim
+    schema needs its smaller budget rather than the full terminal ceiling."""
     return await call_llm_json(
         prompt=prompt,
         spec=CompletionSpec(
@@ -644,7 +460,6 @@ def _format_research_overview_response(
     evidence_corpus: dict[str, dict[str, Any]],
     hypothesis_by_index: dict[int, str],
 ) -> dict[str, Any]:
-    """Formats and validates the raw LLM response into the overview shape."""
     return {
         "overview": format_overview(response.get("overview", {})),
         "nih_specific_aims": response.get("nih_specific_aims", {}),
@@ -669,22 +484,7 @@ def _format_research_overview_response(
 def _build_research_overview_result(
     research_overview: dict[str, Any], llm_calls: int = 1
 ) -> dict[str, Any]:
-    """Assembles the research_overview_node return dict.
-
-    Args:
-        research_overview: Assembled research_overview dict.
-        llm_calls: LLM calls this node spent -- the synthesis call plus
-            any accuracy-review/revise rounds.
-
-    Returns:
-        Dict with updated state fields (research_overview, metrics,
-        messages).
-    """
-    # Only the delta is passed here; merge_metrics (models/metrics.py) adds it
-    # to the existing cumulative totals in state.
     metrics = create_metrics_update(deltas=MetricDeltas(llm_calls=llm_calls))
-    # research_overview has no reducer annotation in the state package, so this
-    # is a plain overwrite -- appropriate since this node runs once, terminally.
     return {
         "research_overview": research_overview,
         "metrics": metrics,

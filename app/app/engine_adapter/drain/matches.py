@@ -1,5 +1,3 @@
-"""Tournament-match and proximity-edge persistence for the drain."""
-
 from __future__ import annotations
 
 import json
@@ -23,18 +21,8 @@ def _persist_retrieval_calls(
     final_state: dict[str, Any],
     conn: sqlite3.Connection,
 ) -> int:
-    """Write this run's searches, if it made any.
-
-    Args:
-        run_id: The run being drained.
-        final_state: The engine's accumulated final state.
-        conn: Open connection of the caller's transaction.
-
-    Returns:
-        How many rows were inserted -- fewer than the ledgers hold
-        whenever a resumed run re-offered searches it already paid for,
-        or whenever two researchers issued the same search, which the
-        content-addressed id makes one row rather than two.
+    """Content-addressed IDs deduplicate resumed searches and identical
+    searches from different researchers.
     """
     ledgers = final_state.get("research_ledgers")
     if not isinstance(ledgers, list):
@@ -58,21 +46,14 @@ def _persist_retrieval_calls(
 
 
 def _debate_transcript_json(m: dict[str, Any]) -> str | None:
-    """Serialize a matchup's debate turns for its match row, or None.
-
-    The judge returns every turn of the simulated debate; this is the
-    boundary that used to keep only the closing rationale. Stored in the
-    published exemplar's shape (see
-    ``ranking_debate_turns.debate_transcript_document``) rather than as
-    the loop's own bookkeeping, so the row holds what a reader is shown
-    and nothing else. A matchup with no recorded turns stores NULL, which
-    is how every match judged before this column reads.
+    """Missing historical transcripts remain null rather than being
+    reconstructed from closing rationale.
     """
     turns = m.get("debate_transcript") or []
     if not turns:
         return None
-    # A matchup dict from before the judge recorded the verdict number
-    # still names its winner, and the canonical side "a" is idea 1.
+    # Historical matchups may lack verdict numbers; canonical side a still
+    # identifies idea 1.
     verdict = str(
         m.get("debate_verdict") or ("2" if m.get("winner") == "b" else "1")
     )
@@ -83,7 +64,6 @@ def _debate_transcript_json(m: dict[str, Any]) -> str | None:
 def _matchup_loser_engine_id(
     m: dict[str, Any], a_engine_id: str | None, winner_engine_id: str | None
 ) -> str | None:
-    """Return the losing side's engine id: whichever side didn't win."""
     b_engine_id = m.get("hypothesis_b_id")
     return b_engine_id if winner_engine_id == a_engine_id else a_engine_id
 
@@ -92,12 +72,8 @@ def _resolve_match_sides(
     m: dict[str, Any],
     store_id_by_engine_id: dict[str, str],
 ) -> tuple[str, str] | None:
-    """Resolve a matchup's winner/loser store ids, or None if unresolved.
-
-    Matchups may legitimately reference hypotheses that are absent from the
-    final set (e.g. proximity pruned a duplicate after it competed), so an
-    unresolved id is expected rather than an error — logged and skipped by
-    the caller.
+    """Proximity pruning may remove a former tournament participant;
+    unresolved match sides are expected and skipped.
     """
     a_engine_id = m.get("hypothesis_a_id")
     winner_engine_id = m.get("winner_id")
@@ -105,8 +81,7 @@ def _resolve_match_sides(
 
     winner_id = store_id_by_engine_id.get(winner_engine_id or "")
     loser_id = store_id_by_engine_id.get(loser_engine_id or "")
-    # Inlined (rather than routed through a predicate helper) so mypy's
-    # flow-sensitive narrowing sees both ids as non-None below.
+    # Inline checks preserve mypy's flow-sensitive narrowing of both IDs.
     if not winner_id or not loser_id:
         logger.warning(
             "skipping matchup: unresolved hypothesis id "
@@ -125,7 +100,6 @@ def _persist_engine_matches(
     store_id_by_engine_id: dict[str, str],
     conn: sqlite3.Connection,
 ) -> None:
-    """Persist tournament matches, resolving each side by engine id."""
     for m in matchups:
         sides = _resolve_match_sides(m, store_id_by_engine_id)
         if sides is None:
@@ -134,15 +108,8 @@ def _persist_engine_matches(
         store.add_match(
             store.NewMatch(
                 run_id=run_id,
-                # The cycle the matchup was judged in, stamped on the
-                # detail by the engine's ``_build_matchup_detail``. A
-                # literal 0 here (what this used to be) reads back as a
-                # whole run's Elo history happening in one cycle: the
-                # matchups of every cycle are accumulated in state and
-                # drained together, so this row is the only record of
-                # when a match happened. Absent on checkpoints written
-                # before the field existed, which a resume can still
-                # drain.
+                # Match rows retain authoring-cycle provenance; accumulated Elo
+                # history must not collapse into cycle zero.
                 iteration=int(m.get("iteration", 0)),
                 winner_id=winner_id,
                 loser_id=loser_id,
@@ -165,14 +132,8 @@ def _persist_engine_proximity(
     store_id_by_engine_id: dict[str, str],
     conn: sqlite3.Connection,
 ) -> None:
-    """Persist weighted graph edges after resolving engine hypothesis ids.
-
-    Each edge names the method that produced it -- the clustering call or the
-    deterministic pairwise measurement that fills in the pairs it left
-    unjudged -- so the row records the edge's own provenance rather than the
-    graph's headline method. A graph checkpointed before the two kinds shared
-    one list carries no per-edge method; those are all clustering edges, and
-    the meta's method is the right value for them.
+    """Each edge keeps its own measurement provenance; legacy checkpoints
+    fall back to the graph-level clustering method.
     """
     meta = graph.get("meta") or {}
     for edge in graph.get("edges") or []:

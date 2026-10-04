@@ -1,5 +1,3 @@
-"""Shared plumbing for the durable engine-task modules."""
-
 from __future__ import annotations
 
 import sqlite3
@@ -22,26 +20,8 @@ from app.store import ScientificTask
 
 @dataclass(frozen=True)
 class TaskCommit:
-    """One durable task's commit target.
-
-    Every commit helper needs the same three values -- the leased task, the
-    checkpoint sequence it was scheduled against, and the optional database
-    override -- so they travel together rather than being re-declared on
-    each signature.
-
-    Attributes:
-        task: The leased scientific task being committed.
-        current_seq: Checkpoint sequence the task was scheduled against.
-        db_path: Optional override for the SQLite database path.
-        steering_ids: Steering messages this commit acknowledges. Only the
-            orchestrator's own node commit ever carries these (see
-            ``_task_commit``'s ``consume_steering``): the orchestrator is
-            the run's one scheduling decision point, and every other node
-            merely restarts from a checkpoint that never held the pending
-            flag, so a task other than the orchestrator's has nothing of
-            its own to acknowledge. Acknowledged inside the checkpoint
-            transaction, never before it, so a crash mid-task leaves the
-            steer claimable rather than applied to nothing.
+    """Only orchestrator commits acknowledge steering, atomically with the
+    checkpoint that applied it.
     """
 
     task: ScientificTask
@@ -52,14 +32,8 @@ class TaskCommit:
 
 @dataclass(frozen=True)
 class ExactSuccessor:
-    """The non-node task an exact-checkpoint commit enqueues next.
-
-    Attributes:
-        task_type: Durable task type to enqueue.
-        inputs: Scheduling inputs, merged with the committed checkpoint seq.
-        idempotency_key: Key template formatted with ``checkpoint_seq``; its
-            ``{task_type}:{checkpoint_seq}`` shape is what makes redelivery
-            a no-op, so it is never derived from anything else.
+    """Successor idempotency uses task type and committed checkpoint
+    sequence, making redelivery a no-op.
     """
 
     task_type: str
@@ -75,19 +49,8 @@ def _task_commit(
     *,
     consume_steering: bool = False,
 ) -> TaskCommit:
-    """Bind a task's commit target to the steering its opts folded in.
-
-    ``consume_steering`` must be explicit at every call site (default
-    False, so a caller that forgets it simply defers the steer rather than
-    acknowledging it out from under the orchestrator -- the safe
-    direction). Only the orchestrator's own node commit passes True: it is
-    the run's one scheduling decision point (``SchedulerStats.
-    pending_steering`` is read nowhere else), so acknowledging anywhere
-    else retires a steer before the decision it was meant to influence
-    ever runs. Bootstrap opts also carry the flag (any steering queued
-    before the run started) but no longer consume it here either -- it
-    stays pending until the run's first orchestrator cycle, the same
-    boundary a message queued mid-run waits for.
+    """Steering consumption defaults false; only the orchestrator's
+    scheduling decision may retire pending input.
     """
     if not consume_steering:
         return TaskCommit(task, current_seq, db_path, ())
@@ -100,19 +63,8 @@ def _task_commit(
 def _ack_consumed_steering(
     commit: TaskCommit, conn: sqlite3.Connection, state: dict[str, Any]
 ) -> None:
-    """Retire the steering this commit's state carries, in its transaction.
-
-    Called from inside every checkpoint transaction rather than where the
-    guidance was read: the acknowledgement and the state that honors it
-    have to land or roll back together, or a worker lost between them
-    retires a steer the run never acted on.
-
-    ``state["next_task"]`` -- present once the orchestrator has actually
-    decided, absent (or stale, from before this cycle) if the run was
-    paused ahead of that decision -- rides along as the "how it changed
-    the plan" record on the message row. No-op when nothing is being
-    acknowledged (``commit.steering_ids`` empty), so a caller with nothing
-    fresh to report never overwrites anything.
+    """Acknowledgement and the state honoring steering commit or roll back
+    together.
     """
     store.mark_steering_applied(
         list(commit.steering_ids), conn=conn, decision=state.get("next_task")
@@ -120,25 +72,6 @@ def _ack_consumed_steering(
 
 
 def _performance_assessment(state: dict[str, Any]) -> dict[str, Any] | None:
-    """Return the Supervisor's per-agent performance assessment, if any.
-
-    Written once, during planning, into
-    ``state["supervisor_guidance"]["performance_assessment"]``;
-    ``supervisor_guidance`` carries no reducer (see
-    ``task_runtime.channel_reducers``) so it is last-write-wins and no
-    later node touches it, meaning it stays present in state for the rest
-    of the run once planning has committed. Finding F5: this was computed
-    and never read by anything -- persisting it here makes it inspectable
-    (via the same metrics row and endpoint) without building the
-    weighted-sampling allocator that would consume it, which is Stage 11
-    and explicitly out of scope.
-
-    Args:
-        state: The workflow state at a commit boundary.
-
-    Returns:
-        The assessment dict, or None when planning has not produced one.
-    """
     guidance = state.get("supervisor_guidance")
     if not isinstance(guidance, dict):
         return None
@@ -147,7 +80,6 @@ def _performance_assessment(state: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _plain_metrics(state: dict[str, Any]) -> dict[str, Any]:
-    """Return ``state["metrics"]`` as a plain dict, or ``{}`` if absent."""
     metrics = state.get("metrics")
     if metrics is None:
         return {}
@@ -157,25 +89,8 @@ def _plain_metrics(state: dict[str, Any]) -> dict[str, Any]:
 
 
 def _metrics_snapshot(state: dict[str, Any]) -> dict[str, Any]:
-    """Return the run's accumulated metrics as a plain JSON-safe dict.
-
-    At a node-commit boundary ``state["metrics"]`` is the engine's live
-    ``ExecutionMetrics`` object -- ``apply_task_update`` has already
-    merged this node's delta into the running total (finding L3's
-    ``llm_calls`` deltas included) -- so ``to_dict()`` is the same
-    conversion ``checkpoint.serialize_workflow_state`` uses. Absent or
-    already-plain metrics degrade to ``{}``/a shallow copy rather than
-    raising, since a metrics write must never be why a node commit fails.
-
-    Also folds in the Supervisor's ``performance_assessment`` (finding
-    F5) once planning has produced one, so both land in the run's single
-    metrics row rather than needing a second persisted artifact.
-
-    Args:
-        state: The workflow state at a commit boundary.
-
-    Returns:
-        A JSON-safe dict of the run's accumulated metrics.
+    """Malformed or absent metrics must not fail a scientific checkpoint
+    commit.
     """
     snapshot = _plain_metrics(state)
     assessment = _performance_assessment(state)
@@ -187,17 +102,6 @@ def _metrics_snapshot(state: dict[str, Any]) -> dict[str, Any]:
 def merge_usage_snapshots(
     snapshots: Sequence[Mapping[str, Any]],
 ) -> dict[str, dict[str, Any]]:
-    """Fold per-item ``llm.telemetry`` snapshots into one usage dict.
-
-    Args:
-        snapshots: One ``TelemetryAccumulator.snapshot()`` per fan-out item
-            or ranking wave, in any order; empty snapshots are skipped.
-
-    Returns:
-        The combined per-(phase, model) usage, additive across snapshots --
-        the same rule ``models.metrics.merge_metrics`` applies to a node's
-        own ``model_usage`` delta.
-    """
     from co_scientist.models import (
         ExecutionMetrics,
         create_metrics_update,
@@ -211,30 +115,20 @@ def merge_usage_snapshots(
         merged = merge_metrics(
             merged, create_metrics_update(model_usage=dict(snapshot))
         )
-    # The app's mypy config skips following ``co_scientist`` imports, so
-    # ``merged.model_usage`` arrives here as ``Any``; restate the engine's
-    # declared field type on the return rather than passing it on unchecked.
+    # Unfollowed engine imports arrive as Any; assert the declared telemetry
+    # field type at this boundary.
     usage: dict[str, dict[str, Any]] = merged.model_usage
     return usage
 
 
 @dataclass(frozen=True)
 class NodeCompletion:
-    """One durable node commit's reportable facts.
-
-    Attributes:
-        node_name: Engine node whose result was committed.
-        successor: Node the commit scheduled next, or ``None`` at the end.
-        checkpoint_seq: Checkpoint sequence the commit produced.
-    """
-
     node_name: str
     successor: str | None
     checkpoint_seq: int
 
 
 def _plain_final_state(state: dict[str, Any]) -> dict[str, Any]:
-    """Convert restored typed state into the app drain's persisted shape."""
     metrics = state.get("metrics")
     return {
         **state,
@@ -250,24 +144,8 @@ def _emit_node_milestone(
     state: dict[str, Any],
     db_path: str | None,
 ) -> None:
-    """Append the milestone chat message for one completed node.
-
-    Reuses ``events.py``'s canonical vocabulary and its
-    ``append_node_milestone`` helper (the single home for the milestone
-    message's shape) rather than carrying a second copy of the milestone
-    strings. A no-op for node types with no milestone builder (e.g.
-    ``review``, ``orchestrator``, ``safety_screen``,
-    ``comprehensive_reflection``) -- checked before the state conversion
-    below so those completions pay no extra cost.
-
-    Callers place this immediately after the node's checkpoint commit (the
-    same call site as the ``scientific_task`` event, where one exists), which
-    is only reached once per real checkpoint advance -- a redelivered or
-    replayed task returns earlier, at the function's existing idempotency
-    guard, so a retried task never emits a duplicate milestone.
-    A crash between the checkpoint commit and this call loses that node's
-    milestone rather than duplicating it, the same failure mode the existing
-    ``scientific_task`` emit already has.
+    """Events follow checkpoint replay guards; a crash may miss an event but
+    redelivery must never duplicate it.
     """
     from app.engine_adapter.events import (
         _MILESTONE_BUILDERS,
@@ -291,30 +169,8 @@ async def _emit_node_completion(
     committed: dict[str, Any],
     db_path: str | None,
 ) -> None:
-    """Emit the milestone and ``scientific_task`` event for one node.
-
-    Pairs the two side-effects every node commit carries: a milestone chat
-    message (a no-op for node types without one) and the ``scientific_task``
-    completion event the frontend's live-activity feed (``ACTIVITY_META``)
-    and mid-run refetch logic key on.
-
-    Before this, the five fan-out aggregate completions (``generate``,
-    ``review``, ``comprehensive_reflection``, ``deep_verification``,
-    ``ranking`` -- the node types where the durable path's actual scientific
-    work happens) emitted no event of any kind, leaving the live-activity feed
-    blind to exactly the nodes doing the substantive work. Only the generic
-    ``execute_node_task`` completion path emitted ``scientific_task``.
-
-    Callers place this immediately after the node's checkpoint commit,
-    downstream of that function's existing checkpoint-replay/supersession
-    guard, so a redelivered or replayed task never double-emits either side
-    effect (same reasoning as ``_emit_node_milestone``).
-
-    Args:
-        run_id: Run the committed node belongs to.
-        completion: The node, its successor, and the committed checkpoint.
-        committed: Workflow state the node's commit wrote.
-        db_path: Optional override for the SQLite database path.
+    """Post-commit events pass replay guards; missing an event on crash is
+    safer than duplicate effects on redelivery.
     """
     _emit_node_milestone(run_id, completion.node_name, committed, db_path)
     emit = make_emitter(run_id, db_path=db_path)
@@ -336,7 +192,6 @@ def _save_paused_checkpoint(
     envelope: dict[str, Any],
     conn: sqlite3.Connection,
 ) -> int:
-    """Save paused state inside the task's already-open commit transaction."""
     from co_scientist.checkpoint import CHECKPOINT_VERSION
 
     pass
@@ -372,7 +227,6 @@ def _save_paused_if_requested(
     envelope: dict[str, Any],
     conn: sqlite3.Connection,
 ) -> tuple[int, None] | None:
-    """Persist the result as paused state when the run is already paused."""
     task = commit.task
     run = conn.execute(
         "SELECT status FROM runs WHERE id=?", (task.run_id,)
@@ -393,10 +247,8 @@ def _save_paused_state(
     state: dict[str, Any],
     resume_successor: str,
 ) -> int:
-    """Checkpoint an in-flight task without making successor work claimable.
-
-    A pause commits the guidance-carrying state as durably as a successor
-    commit does, so it retires the same steering in the same transaction.
+    """Paused checkpoints still acknowledge applied steering atomically,
+    without making successors claimable.
     """
     from co_scientist.checkpoint import serialize_workflow_state
 
@@ -422,7 +274,6 @@ def _save_paused_state_if_requested(
     state: dict[str, Any],
     resume_successor: str,
 ) -> int | None:
-    """Serialize outside the lock, then atomically check pause and save."""
     from co_scientist.checkpoint import serialize_workflow_state
 
     pass
@@ -443,17 +294,6 @@ def _pause_node_task_if_requested(
     node_name: str,
     state: dict[str, Any],
 ) -> dict[str, Any] | None:
-    """Checkpoint and pause a node task the operator paused mid-flight.
-
-    Args:
-        commit: The leased task, its expected checkpoint seq, and db path.
-        run: The task's run row, read for a mid-flight pause.
-        node_name: Engine node the paused task was about to run.
-        state: Workflow state to checkpoint at the pause point.
-
-    Returns:
-        The pause result to return, or ``None`` if the run is not paused.
-    """
     if run.status != store.RunStatus.PAUSED.value:
         return None
     checkpoint_seq = _save_paused_state(commit, state, commit.task.task_type)
@@ -464,12 +304,6 @@ def _pause_node_task_if_requested(
     }
 
 
-# Every durable task type in the engine-workflow family shares this
-# prefix (bootstrap, node dispatch, finalize, fan-out, ranking) as
-# opposed to unrelated task types like "notification.email". Callers
-# that only need "does this run still have engine work" (the run
-# lifecycle router, the standalone worker) match against this rather
-# than the fine-grained task types below.
 ENGINE_TASK_PREFIX = "engine."
 _CHECKPOINT_PROVIDER = "engine"
 BOOTSTRAP_TASK = "engine.bootstrap"
@@ -481,12 +315,8 @@ VERIFICATION_ITEM_TASK = "engine.fanout.verification.item"
 VERIFICATION_AGGREGATE_TASK = "engine.fanout.verification.aggregate"
 RANKING_MATCH_TASK = "engine.ranking.match"
 RANKING_FINALIZE_TASK = "engine.ranking.finalize"
-# Emit tournament progress every Nth match rather than once per match. A match
-# is its own durable task taking roughly a minute, so a full tournament runs
-# for tens of minutes; without this it committed real work the whole time and
-# emitted nothing, leaving the live-activity feed showing a healthy run as
-# frozen. Per-match events would fix the silence but flood the feed, which
-# renders only the newest handful of events and would lose every other phase.
+# Batch tournament progress to show liveness without per-match events crowding
+# other stages out of the bounded feed.
 RANKING_PROGRESS_EVERY = 5
 GENERATION_STRATEGY_TASK = "engine.fanout.generation.strategy"
 GENERATION_AGGREGATE_TASK = "engine.fanout.generation.aggregate"
@@ -496,24 +326,16 @@ OUTCOME_REFINEMENT_TASK = "engine.outcome.refinement"
 
 
 class SupersededTaskError(RuntimeError):
-    """Signals that a newer checkpoint made a leased task obsolete."""
+    """A newer checkpoint makes the leased task obsolete."""
 
 
 class SafetyHoldError(RuntimeError):
-    """Signals that a safety gate held the run pending human adjudication.
-
-    Neither a failure nor a completion. The gate did its job, so retrying
-    the task cannot change the outcome -- only a reviewer can -- but the
-    boundary's work is not done either, and recording it as succeeded is
-    what left an approved hold with nothing to claim (a succeeded row is
-    never revived, and its idempotency key cannot change while the run
-    makes no progress). The worker parks the task instead; approving the
-    hold releases it through the ordinary resume path.
+    """Held work is neither success nor failure; park the task so human
+    approval can release the same boundary.
     """
 
 
 def _require_run(task: ScientificTask, db_path: str | None) -> store.RunRow:
-    """Return the task's run or raise if it has been deleted."""
     run = store.get_run(task.run_id, db_path=db_path)
     if run is None:
         raise RuntimeError(f"run {task.run_id} no longer exists")
@@ -523,7 +345,6 @@ def _require_run(task: ScientificTask, db_path: str | None) -> store.RunRow:
 def _require_item_task(
     item_id: Any, db_path: str | None, *, kind: str
 ) -> ScientificTask:
-    """Return a fan-out item task or raise if it has vanished mid-flight."""
     item = store.get_task(str(item_id), db_path=db_path)
     if item is None:
         raise RuntimeError(f"{kind} {item_id} disappeared")
@@ -531,7 +352,6 @@ def _require_item_task(
 
 
 def _successor_task_type(successor: str | None) -> str:
-    """Map a node successor to its durable task type (finalize when None)."""
     if successor is None:
         return FINALIZE_TASK
     return f"{NODE_TASK_PREFIX}{successor}"
@@ -540,7 +360,9 @@ def _successor_task_type(successor: str | None) -> str:
 def assert_task_commit_allowed(
     task: ScientificTask, conn: sqlite3.Connection
 ) -> None:
-    """Require the task's lease and run to remain live inside its commit."""
+    """Lease and run liveness are checked inside the transaction that
+    commits scientific effects.
+    """
     row = conn.execute(
         "SELECT task.status AS task_status, task.lease_owner AS lease_owner, "
         "task.attempt AS attempt, "
@@ -559,9 +381,8 @@ def assert_task_commit_allowed(
         or row["attempt"] != task.attempt
         or row["run_status"] in terminal
     ):
-        # Import lazily to keep the shared support module below the worker
-        # outcome module in the import graph. BEGIN IMMEDIATE makes this
-        # read indivisible with the checkpoint and successor writes below.
+        # Import below worker outcomes to avoid cycles; BEGIN IMMEDIATE fences
+        # lease reads with checkpoint and successor writes.
         from app.task_worker.outcomes import _LeaseLostError
 
         raise _LeaseLostError(
@@ -589,7 +410,6 @@ def _generator_and_opts(
 
 
 def _generator_for_restore(task: ScientificTask, db_path: str | None) -> Any:
-    """Build a registry-compatible generator without consuming steering."""
     from co_scientist.generator.core import HypothesisGenerator
 
     from app.credentials import get_run_credential
@@ -610,19 +430,8 @@ def _save_node_checkpoint(
     expected_checkpoint_seq: int,
     conn: sqlite3.Connection,
 ) -> int:
-    """Commit one node's checkpoint inside the caller's transaction.
-
-    ``resume_successor`` names the task that this checkpoint's committed
-    state feeds into next, so a crash-resume re-enqueues the right node
-    rather than the orchestrator default in
-    ``task_worker.enqueue_run_workflow``. Its own resume-side enqueue
-    derives the same predecessor-anchored idempotency key
-    (``app.engine_tasks.portfolio``) from this checkpoint's ``stage``, so
-    resume resolves to the exact already-queued task instead of creating
-    a second one. Without it, a run interrupted right after bootstrap
-    resumed at the orchestrator with no supervisor_guidance in state and
-    failed in generation. The cooperative-pause path
-    (``_save_paused_state``) already records this; this closes that gap.
+    """Persist the exact resume successor; bootstrap recovery must not enter
+    orchestration before supervisor guidance exists.
     """
     from co_scientist.checkpoint import CHECKPOINT_VERSION
 
@@ -655,22 +464,8 @@ def _save_state_and_enqueue(
     *,
     pause_if_requested: bool = False,
 ) -> tuple[int, str | None]:
-    """Atomically checkpoint one node effect and enqueue its successor.
-
-    Also persists the run's accumulated metrics snapshot in the same
-    transaction (finding L14): every node-level, ranking-chain, and
-    fan-out-aggregate commit routes through this one function, so a
-    single hook here gives a running run's ``GET /api/runs/{id}/metrics``
-    live numbers without a second transaction or a poll-driven write.
-
-    The successor enqueue (``app.engine_tasks.portfolio``) also chains
-    however much further of the deterministic node run
-    ``co_scientist.task_runtime.plan_portfolio`` can already resolve from
-    ``state`` (finding F4): a bounded portfolio rather than one task at a
-    time, without changing that this transaction still advances the
-    checkpoint chain by exactly one commit. Node commits set
-    ``pause_if_requested`` to choose a paused checkpoint under this same
-    transaction when the API pause has already committed.
+    """Checkpoint, successor and metrics commit together with one checkpoint
+    advance; pause is decided under that same lock.
     """
     from co_scientist.checkpoint import serialize_workflow_state
 
@@ -707,7 +502,6 @@ def _save_exact_checkpoint(
     *,
     changed_message: str = "checkpoint changed during scientific task",
 ) -> int:
-    """Commit one checkpoint for a non-node scientific task."""
     from co_scientist.checkpoint import CHECKPOINT_VERSION
 
     latest = store.get_latest_checkpoint(task.run_id, conn=conn)
@@ -732,7 +526,6 @@ def _enqueue_exact_successor(
     checkpoint_seq: int,
     conn: sqlite3.Connection,
 ) -> ScientificTask:
-    """Enqueue a non-node scientific task at an exact checkpoint sequence."""
     inputs = {**successor.inputs, "checkpoint_seq": checkpoint_seq}
     return store.enqueue_task(
         store.NewTask(
@@ -755,15 +548,8 @@ def _save_state_and_enqueue_exact(
     state: dict[str, Any],
     successor: ExactSuccessor,
 ) -> tuple[int, str]:
-    """Checkpoint one effect and enqueue a non-node scientific task.
-
-    Args:
-        commit: The leased task, its expected checkpoint seq, and db path.
-        state: Workflow state to serialize into the checkpoint.
-        successor: The non-node task to enqueue against the new checkpoint.
-
-    Returns:
-        A tuple of (committed checkpoint sequence, successor task id).
+    """Non-node effect checkpoints and their exact successor enqueue commit
+    atomically.
     """
     from co_scientist.checkpoint import serialize_workflow_state
 
@@ -800,17 +586,8 @@ def _replay_or_supersede(
     *,
     label: str,
 ) -> tuple[dict[str, Any] | None, dict[str, Any], int]:
-    """Guard a leased task against replay or a superseding checkpoint.
-
-    Shared by every scientific-task executor that expects to run against an
-    exact checkpoint sequence (ranking match/finalize, and the review,
-    generation, mature-reflection, and verification aggregates). Returns a
-    ``(replay_result, checkpoint, current_seq)`` tuple: if ``replay_result``
-    is not ``None``, the caller must return it immediately -- this task
-    already committed the checkpoint now on record. Otherwise
-    ``checkpoint``/``current_seq`` are the task's own checkpoint to restore
-    state from. Raises ``SupersededTaskError`` when a different task
-    advanced the checkpoint first.
+    """Replay returns before duplicate effects; otherwise execution requires
+    the leased checkpoint to remain current.
     """
     checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
     expected_seq = int(task.inputs["checkpoint_seq"])
@@ -831,11 +608,8 @@ def _replay_or_supersede(
 def restore_checkpoint_state(
     task: ScientificTask, checkpoint: dict[str, Any], db_path: str | None
 ) -> dict[str, Any]:
-    """Rebuild the workflow state ``checkpoint`` holds for a leased task.
-
-    The generator exists only to hand its tool registry to the restore, so it
-    is built per call and dropped: nothing it creates outlives the calling
-    cohort's event loop, and steering is not consumed.
+    """Restore builds and drops its registry-compatible generator within the
+    cohort's own event loop, without consuming steering.
     """
     from app.engine_adapter import restore_workflow_state
 
@@ -850,12 +624,8 @@ def restore_checkpoint_state(
 def leased_state(
     task: ScientificTask, db_path: str | None, *, label: str
 ) -> tuple[dict[str, Any] | None, dict[str, Any], int]:
-    """Guard a leased task against replay or supersession, then restore state.
-
-    Returns ``(replay_result, state, current_seq)``. When ``replay_result`` is
-    not ``None`` the caller returns it at once and ``state`` is empty: this
-    task already committed the checkpoint now on record. Raises
-    ``SupersededTaskError`` exactly as ``_replay_or_supersede`` does.
+    """A replay result returns immediately before restoring or repeating
+    scientific work.
     """
     replay, checkpoint, current_seq = _replay_or_supersede(
         task, db_path, label=label
@@ -872,21 +642,8 @@ def leased_state(
 def _restore_item_checkpoint(
     task: ScientificTask, db_path: str | None, *, superseded: str
 ) -> tuple[dict[str, Any], int]:
-    """Restore the read-only workflow state a fan-out item task runs against.
-
-    Rejects a task whose leased checkpoint a newer one has already replaced,
-    then rebuilds the immutable state from the current checkpoint.
-
-    Args:
-        task: The leased fan-out item task.
-        db_path: Optional override for the SQLite database path.
-        superseded: Item label for the ``SupersededTaskError`` message.
-
-    Returns:
-        The restored workflow state dict and the leased checkpoint sequence.
-
-    Raises:
-        SupersededTaskError: When the leased checkpoint was superseded.
+    """Items restore immutable plan state only while their leased checkpoint
+    remains current.
     """
     checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
     expected_seq = int(task.inputs["checkpoint_seq"])

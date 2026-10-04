@@ -1,12 +1,3 @@
-"""Pre-ranking evidence gate for durable engine runs.
-
-Extracts every pending hypothesis's atomic claims, assesses them against
-the run's evidence passages in one bounded wave, and quarantines
-contradicted ideas (``evidence_blocked``) before a decisive Elo
-tournament. Split from ``app.engine_tasks``, which re-exports the names
-callers use.
-"""
-
 from __future__ import annotations
 
 import dataclasses
@@ -24,13 +15,6 @@ logger = logging.getLogger(__name__)
 
 @dataclasses.dataclass(frozen=True)
 class _GatePlan:
-    """One hypothesis's extracted claims awaiting assessment.
-
-    Built before any provider call so the whole run's claims can be assessed
-    in a single wave, then paired back up with its hypothesis to apply the
-    publication gate.
-    """
-
     hypothesis: Any
     claims: tuple[str, ...]
     roles: Mapping[str, str]
@@ -39,34 +23,15 @@ class _GatePlan:
     prior_disposition: str
 
 
-# In production a hypothesis carries 7-25 atomic claims and a run reaches
-# this gate with dozens, and awaiting them one at a time made this node the
-# longest serial stretch of an express run (21-23% of wall clock). The wave
-# runs off this coroutine's event loop (``async_bridge.run_off_loop``)
-# rather than on it, and rather than the default ``asyncio.to_thread``
-# executor: that executor is shared process-wide and the durable worker
-# cohort parks long-lived calls there for a whole run, so a wave of claims
-# would contend with the workers themselves.
+# Use a dedicated off-loop bridge: the process-wide thread executor already
+# carries long-lived worker cohorts.
 async def _assess_gate_claims(
     plans: Sequence[_GatePlan],
     passages: Sequence[Any],
     spec: Any,
 ) -> list[list[Any]]:
-    """Assess every pending hypothesis's claims in one bounded wave.
-
-    The wave policy itself (flatten, bounded pool, regroup in order) is
-    ``claims.grounding.assess_claim_groups``, shared with the drain's
-    grounding pass so the two claim-assessment paths cannot drift.
-
-    Args:
-        plans: The hypotheses whose claims need assessing, in state order.
-        passages: Candidate evidence passages every claim is assessed
-            against.
-        spec: Which assessor to run (and its batch-capable counterpart, if
-            any) plus the provenance id recorded on each assessment.
-
-    Returns:
-        Per plan, its claim assessments in the plan's own claim order.
+    """Gate and drain share one bounded assessment policy, preserving claim
+    ordering and provenance.
     """
     from app.async_bridge import run_off_loop
     from app.claims.grounding import assess_claim_groups
@@ -78,19 +43,13 @@ async def _assess_gate_claims(
         spec,
     )
     if settings.claim_assessor != "llm":
-        # The deterministic assessor makes no call to overlap.
         return call(parallel=False)
     return await run_off_loop(call)
 
 
 def _build_evidence_passages(state: dict[str, Any]) -> list[Any]:
-    """Build the run's evidence passages from retrieved and private sources.
-
-    Each article's fetched full text (``article.content``, up to
-    ``PROMPT_PAPER_MAX_CHARS``) is chunked to passage size rather than
-    kept as one whole-article passage -- see ``app.evidence_chunking`` for
-    why. The title + abstract stays one chunk; only the full text, when
-    present, is split into several.
+    """Full text is chunked for passage-specific grounding; title and
+    abstract retain their single evidence span.
     """
     from app.claims import EvidencePassage
     from app.evidence_chunking import chunk_evidence_passage
@@ -109,11 +68,8 @@ def _build_evidence_passages(state: dict[str, Any]) -> list[Any]:
                 url=str(article.url or ""),
             )
         )
-    # The scientist's private corpus is admissible evidence: a hypothesis's
-    # claims may be grounded in the uploaded documents, not only in retrieved
-    # literature. Including these passages lets scientist-provided evidence
-    # release an otherwise-unsupported idea, matching the disclosed
-    # private-repository behavior. Additive (empty when nothing was uploaded).
+    # Scientist-uploaded private sources are admissible grounding evidence
+    # alongside retrieved literature.
     for source in state.get("context_enrichment_sources") or []:
         data = source.get("data") or {}
         text = str(source.get("display") or data.get("excerpt") or "").strip()
@@ -134,7 +90,6 @@ def _build_evidence_passages(state: dict[str, Any]) -> list[Any]:
 def _harvest_hypothesis_claims(
     hypothesis: Any,
 ) -> tuple[list[str], dict[str, str]]:
-    """Extract one hypothesis's atomic claims in stable order, with roles."""
     from app.claims import extract_atomic_claims
 
     claim_roles: dict[str, str] = {}
@@ -150,7 +105,8 @@ def _harvest_hypothesis_claims(
                 ordered_claims.append(claim)
                 claim_roles[claim] = role
             elif not is_speculative(role):
-                # The strict role wins when one sentence appears under both.
+                # The strict role wins when a sentence occurs under both claim
+                # roles.
                 claim_roles[claim] = role
     return ordered_claims, claim_roles
 
@@ -161,19 +117,8 @@ def _per_claim_fingerprints(
     claim_roles: Mapping[str, str],
     passages: Sequence[Any],
 ) -> dict[str, str]:
-    """Fingerprint each claim against only the evidence it retrieves.
-
-    Scoped per claim rather than over the whole pool. ``assess_claim``
-    shows the assessor only the top-k passages it retrieves for that claim,
-    so the rest of the pool cannot change the verdict -- but hashing all of
-    it meant any new article anywhere invalidated every hypothesis's cached
-    gate decision, and a run that keeps retrieving evidence never reused
-    one.
-
-    Computed once per hypothesis and reused for both the whole-hypothesis
-    digest and the per-claim records the drain matches against: each digest
-    costs its own retrieval pass over the pool, so deriving one level from
-    the other rather than recomputing matters at a few hundred claims.
+    """Only evidence shown to a claim can invalidate its cached verdict;
+    reuse the same digests at both cache levels.
     """
     from app.claims.grounding import ClaimRecord, claim_fingerprint
 
@@ -186,22 +131,8 @@ def _per_claim_fingerprints(
 
 
 def _permanently_unrankable(hypothesis: Any) -> bool:
-    """Return whether review already excluded this idea for good.
-
-    ``Hypothesis.is_rankable`` is false for two different reasons, and only
-    one of them is this gate's to revisit. ``evidence_blocked`` is this
-    gate's *own* verdict -- an idea it blocked can still change (or the
-    retrieved evidence can), so it must stay reassessable, and the
-    fingerprint cache above already skips it cheaply once nothing has.
-    Every other blocking disposition (``inaccurate``, ``non_novel``,
-    ``inaccurate_and_non_novel``, ``unsafe``) was decided once and for all
-    by the initial review gate (``agents/reflection/review.py::
-    _apply_initial_review_gate``), which never reverses it -- so a wave of
-    provider calls over those claims buys nothing. A hypothesis currently
-    ``evidence_blocked`` whose *underlying* disposition was one of these
-    (recorded as ``prior_review_disposition`` the first time this gate
-    blocked it) is still permanently unrankable: the block just happens to
-    read ``evidence_blocked`` on top of it.
+    """Evidence blocks remain reassessable; irreversible initial-review
+    exclusions, including covered prior dispositions, do not.
     """
     if hypothesis.is_rankable():
         return False
@@ -219,12 +150,6 @@ def _plan_hypothesis_gate(
     passages: Sequence[Any],
     assessor_id: str,
 ) -> _GatePlan | None:
-    """Extract one hypothesis's claims, or apply its cached verdict.
-
-    Returns ``None`` when an unchanged proposal/evidence snapshot lets the
-    hypothesis reuse its already-audited decision (applied here directly)
-    instead of spending compute reassessing claims nothing changed about.
-    """
     from app.claims import GateDecision
 
     gate_history = hypothesis.enrichments.get("claim_gate") or {}
@@ -265,7 +190,6 @@ def _record_gate_enrichment(
     gate: Any,
     assessor_id: str,
 ) -> None:
-    """Record one hypothesis's audited claim-gate verdict for reuse/audit."""
     plan_roles = plan.roles
     hypothesis.enrichments["claim_gate"] = {
         "decision": gate.decision.value,
@@ -277,9 +201,8 @@ def _record_gate_enrichment(
             {
                 "claim": assessment.claim,
                 "role": plan_roles[assessment.claim],
-                # Per claim, not just per hypothesis: the drain assesses a
-                # subset of these claims against a later evidence pool, and
-                # reuses each verdict whose own inputs still match.
+                # Drain reuses individual claims against a later evidence pool
+                # only when their own input fingerprints match.
                 "fingerprint": plan.claim_fingerprints[assessment.claim],
                 "label": assessment.label.value,
                 "verification_method": assessment.verification_method,
@@ -300,14 +223,8 @@ def _apply_gate_verdict(
     assessments: list[Any],
     assessor_id: str,
 ) -> None:
-    """Apply one hypothesis's publication-gate verdict to its state.
-
-    Rank-and-publish policy: only contradicted (or unsafe) ideas are
-    withheld from the tournament here. Ungrounded/speculative ideas stay
-    rankable -- allow_speculative treats insufficient claims as speculative
-    and require_supported_claim=False drops the "needs a supported claim"
-    block -- so every non-contradicted idea earns an Elo score and can be
-    published (badged unverified) instead of blocking the whole run.
+    """Missing support does not withhold speculative proposals;
+    contradictions still block ranking and publication.
     """
     from app.claims import GateDecision, publication_gate
 
@@ -334,8 +251,6 @@ def _apply_gate_verdict(
 
 @dataclasses.dataclass(frozen=True)
 class _GateWave:
-    """One pass's plans, paired with the counts its log line reports."""
-
     plans: list[_GatePlan]
     considered: int
     skipped_unrankable: int
@@ -345,11 +260,8 @@ class _GateWave:
 def _build_gate_wave(
     hypotheses: Sequence[Any], passages: Sequence[Any], assessor_id: str
 ) -> _GateWave:
-    """Plan every hypothesis without a single provider call.
-
-    A permanently unrankable idea (initial review already barred it) is
-    skipped before even the fingerprint check -- it can never reach the
-    tournament, so nothing here would change its fate.
+    """Irreversibly excluded ideas are skipped before retrieval or provider
+    work that cannot change their fate.
     """
     plans: list[_GatePlan] = []
     skipped_unrankable = 0
@@ -369,15 +281,8 @@ def _build_gate_wave(
 
 
 def _log_gate_wave(wave: _GateWave, entailment_calls: int) -> None:
-    """Log one INFO line summarizing a gate pass's counts.
-
-    ``entailment_calls`` is the number of actual provider calls the pass
-    spent, not ``claims_assessed`` -- under the batch path one call judges
-    a whole hypothesis's claims (see ``app.claims.assess_claims_batch``),
-    so the two diverge exactly to show the batching win: a production
-    ultra run measured 218 claims assessed across 13 hypotheses one claim
-    at a time; batched, the same pass costs 13 calls (or up to 26 if a
-    hypothesis's claim count forces a split).
+    """Claims assessed and physical provider calls differ under batching;
+    telemetry must not substitute one for the other.
     """
     claims_assessed = sum(len(plan.claims) for plan in wave.plans)
     logger.info(
@@ -394,7 +299,6 @@ def _log_gate_wave(wave: _GateWave, entailment_calls: int) -> None:
 
 
 async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
-    """Quarantine ungrounded ideas before a decisive Elo tournament."""
     from co_scientist.llm import scoped_telemetry
 
     from app.claims.grounding import (
@@ -429,16 +333,6 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
 def _fold_gate_telemetry(
     state: dict[str, Any], usage: Mapping[str, Mapping[str, Any]]
 ) -> None:
-    """Fold this gate pass's LLM telemetry into the run's live metrics.
-
-    Entailment calls now run through the engine's ``call_llm_json`` seam
-    (``app.claims.verifier``), so ``scoped_telemetry("claim_gate")`` above
-    already captured their tokens/cost/call count -- this replaces the old
-    call-count-only charge (``_charge_entailment_calls``), which existed
-    only because those calls used to bypass the engine's telemetry
-    entirely. A no-op when the pass made no calls (a fully-reused or
-    fully-skipped pass), so it never manufactures a metrics key.
-    """
     if not usage:
         return
     from co_scientist.models import MetricDeltas, create_metrics_update

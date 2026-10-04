@@ -1,5 +1,3 @@
-"""Dispatch leased engine tasks with run-scoped credentials and call budgets."""
-
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
@@ -84,7 +82,6 @@ _ENGINE_TASK_DISPATCH: dict[str, Callable[..., Awaitable[dict[str, Any]]]] = {
 async def _dispatch_engine_task(
     task: ScientificTask, *, db_path: str | None
 ) -> dict[str, Any]:
-    """Route one engine task to its handler by task type."""
     handler = _ENGINE_TASK_DISPATCH.get(task.task_type)
     if handler is not None:
         return await handler(task, db_path=db_path)
@@ -96,17 +93,8 @@ async def _dispatch_engine_task(
 async def execute_engine_task(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
-    """Dispatch one leased engine task without executing unrelated nodes.
-
-    A bring-your-own-key run's credential is scoped around the whole task
-    -- into the app context (the app's own LLM calls) and the engine
-    context (every agent completion) -- so it overrides the deployment
-    credential for this task only, without touching any shared state.
-
-    The run's LLM-call ceiling is scoped the same way, into the engine's
-    ``llm.admission.call_budget`` context: every completion this task makes,
-    however many retries or tool-loop turns deep, is counted against the
-    run without any of that machinery needing to know the run id.
+    """Credential and call-budget scopes cover the whole task, including
+    nested retries, without mutating shared process state.
     """
     from co_scientist.llm import scoped_api_key, scoped_llm_call_budget
 
@@ -119,8 +107,8 @@ async def execute_engine_task(
     if run.execution_policy == CAMPAIGN:
         campaign_model = campaign_model_for_config(run.config)
         if campaign_model is not None:
-            # New campaign runs use their persisted server route even if an
-            # older credential record was attached to the run.
+            # Persisted campaign routes win over older attached credential
+            # records.
             credential = None
     else:
         campaign_model = None

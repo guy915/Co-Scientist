@@ -1,5 +1,3 @@
-"""Durable tournament execution: sequential ranking-match waves."""
-
 from __future__ import annotations
 
 import asyncio
@@ -31,19 +29,13 @@ from app.store.runs_views import _ACTIVE_RUN_STATUSES
 
 logger = logging.getLogger(__name__)
 
-# Re-exported so ``app.engine_tasks.RANKING_WAVE_SIZE`` keeps resolving. The
-# engine owns the number: it also sizes the judge semaphore, and the two
-# must agree or the wave serializes inside the task.
+# The engine owns wave width and judge semaphore size; mismatches silently
+# serialize work.
 
 
 def _wave_size() -> int:
-    """Return the width the next wave should use.
-
-    Read from the engine rather than declared here so the wave and the
-    judge semaphore that bounds it cannot drift apart. A semaphore narrower
-    than the wave silently serializes it into batches, which looks like a
-    wide wave that is inexplicably slow; the engine owns both numbers and
-    steps them down together when the provider throttles.
+    """The engine owns both wave width and judge semaphore size so
+    throttling cannot silently serialize an oversized wave.
     """
     from co_scientist.agents.ranking.ranking_debate import (
         effective_ranking_wave_size,
@@ -54,14 +46,6 @@ def _wave_size() -> int:
 
 @dataclass(frozen=True)
 class _WavePlan:
-    """The matchups one ranking task judges and where they sit in a round.
-
-    Attributes:
-        wave: Distinct matchups this task judges concurrently.
-        index: Round index the wave starts at.
-        rounds: Total matchups budgeted for the tournament.
-    """
-
     wave: list[Any]
     index: int
     rounds: int
@@ -69,20 +53,6 @@ class _WavePlan:
 
 @dataclass(frozen=True)
 class _WaveResult:
-    """What judging one wave contributed to the running tournament totals.
-
-    Attributes:
-        details: Every matchup detail committed so far this task.
-        total_calls: Cumulative LLM calls the tournament has spent.
-        next_index: Round index the next task resumes at.
-        last_pair: Hypothesis ids of the wave's final matchup (rematch guard).
-        model_usage: Per-(phase, model) telemetry folded from every wave
-            judged so far this tournament (finding L3's cost-accounting
-            counterpart), carried through the sequential match chain since
-            only the finalize task's checkpoint commits it (see
-            ``_commit_ranking_match`` in ``app.engine_tasks.ranking``).
-    """
-
     details: list[dict[str, Any]]
     total_calls: int
     next_index: int
@@ -92,27 +62,19 @@ class _WaveResult:
 
 @dataclass(frozen=True)
 class _JudgedWave:
-    """Surviving verdicts in wave order, carrying budgeted debate depths."""
-
     pairs: list[Any]
     judgements: list[RankingJudgement]
 
 
 @dataclass(frozen=True)
 class _WaveJudgeContext:
-    """One shared scientific context and a wave's matchup numbering base."""
-
     context: RankingJudgingContext
     index: int
 
 
 def _judged_pairs(state: dict[str, Any]) -> set[frozenset[str]]:
-    """Every matchup this tournament has already judged.
-
-    Read from the committed ``pending_ranking_matchups`` rather than carried
-    in task inputs, so it survives a resume and needs no schema change: the
-    details are the durable record of what was judged. A wave that only knew
-    the previous pair would re-offer everything before it.
+    """Committed matchup history survives resume; retaining only the last
+    pair would re-offer earlier comparisons.
     """
     judged: set[frozenset[str]] = set()
     for detail in state.get("pending_ranking_matchups") or []:
@@ -130,21 +92,8 @@ def _ranking_wave(
     rounds: int,
     wave_size: int,
 ) -> list[Any]:
-    """Return the distinct matchups this task should judge concurrently.
-
-    Skips the pair the previous wave ended on (the existing rematch guard) and
-    never repeats a pair inside one wave, since every pairing in a wave is
-    drawn from the same Elo snapshot and would otherwise be judged twice.
-    Never runs past the round budget.
-
-    Returns empty when the tournament has no comparison left to make, which
-    ends it. This used to fall back to judging ``candidates[0]`` again on the
-    grounds that a repeat still made progress. It does not: re-judging one
-    pair moves the winner's rating without testing it against anything new.
-    A pool with two rankable ideas has exactly one comparison, and every
-    production run spent its whole tournament replaying it -- six matches,
-    one pair, the winner reported at 1259 as though it had beaten six
-    opponents.
+    """Repeated pairs inflate Elo without testing new opponents; exhaustion
+    ends the tournament instead of rejudging a fallback pair.
     """
     remaining = max(0, rounds - index)
     wave: list[Any] = []
@@ -167,31 +116,8 @@ def _prepare_ranking_wave(
     index: int,
     rounds: int,
 ) -> _WavePlan:
-    """Build this task's wave of distinct matchups to judge concurrently.
-
-    Enough pairings are drawn to fill a wave, plus one for the rematch guard
-    to skip. A short wave is not lost work, it is another sequential durable
-    task: the ultra run spent about two hours across 178 of them.
-
-    A matchup is a multi-turn scientific debate of real model work (up to
-    ten judged turns, settled early on consensus), so
-    one-per-task ran a 128-match round at a concurrency of one -- about 94
-    minutes of wall clock for ~20 minutes of work. Judging a wave instead
-    draws every pairing in it from the same Elo snapshot, which is the cost
-    of the parallelism: adaptation happens at wave boundaries rather than
-    after every single match. At the current width a standard tier's
-    12-match pass is one wave and an ultra tier's 32 is three, so the
-    snapshot a matchup is judged against is at most one pass stale.
-
-    Args:
-        task: The leased ranking-match task.
-        state: Restored workflow state for this tournament.
-        eligible: Hypotheses eligible for a matchup.
-        index: Round index this wave starts at.
-        rounds: Total matchups budgeted for the tournament.
-
-    Returns:
-        The wave to judge, with the round position it occupies.
+    """Concurrent matches share one Elo snapshot; rating adaptation
+    deliberately occurs at wave boundaries.
     """
     from co_scientist.agents.ranking import build_tournament_pairings
 
@@ -218,7 +144,6 @@ async def _judge_one_matchup(
     offset: int,
     judge_context: _WaveJudgeContext,
 ) -> RankingJudgement:
-    """Judge one pair against the shared wave snapshot."""
     from co_scientist.agents.ranking import judge_ranking_matchup
 
     result: RankingJudgement = await judge_ranking_matchup(
@@ -231,25 +156,8 @@ def _surviving_judgements(
     wave: list[Any],
     judged: list[Any],
 ) -> _JudgedWave:
-    """Drop the matchups whose judge raised, keeping their siblings.
-
-    A judge failure is per-matchup -- a throttled call, a malformed verdict
-    after every retry -- and the wave's other comparisons are finished and
-    paid for. Letting one exception out of the gather cancelled them all,
-    failed the wave task, and spent one of its three attempts re-judging
-    work that had already succeeded.
-
-    Neither control-flow error is per-matchup, and neither costs an
-    attempt, so both leave through the gather rather than being dropped
-    with the ordinary failures: a park returns the row to ``queued`` with
-    its attempt *undone*, and a spent call budget ends the run. Dropping
-    them re-runs the rest of the wave against a cap that has not reset --
-    the same trade the mature reviews lost eleven items to in run
-    bc77950f.
-
-    Raises:
-        LLMRateLimitParkError: A platform cap the worker must park on.
-        LLMCallBudgetExceededError: The run's spend ceiling is exhausted.
+    """Ordinary judge failures isolate one matchup; rate-limit parking and
+    exhausted budgets remain task control flow, never missing verdicts.
     """
     for result in judged:
         if isinstance(result, TASK_CONTROL_FLOW_ERRORS):
@@ -274,29 +182,13 @@ async def _judge_wave_matchups(
     state: dict[str, Any],
     eligible: list[Any],
 ) -> _JudgedWave:
-    """Judge one wave of matchups concurrently against a shared Elo snapshot.
-
-    The engine's ranking semaphore bounds the real fan-out; gather only
-    offers it more than one call to bound. Per-matchup failures are
-    isolated (see ``_surviving_judgements``) rather than raised, so the
-    return is the *surviving* subset, not the whole wave.
-
-    Args:
-        plan: The wave to judge and its position in the round.
-        state: Restored workflow state for this tournament.
-        eligible: Hypotheses eligible for a matchup (the Elo snapshot).
-
-    Returns:
-        The matchups that produced a verdict, with their judgements and
-        debate depths, in wave order.
-    """
     from co_scientist.agents.ranking import (
         prepare_ranking_judging_context,
         prepare_ranking_prompt_context,
     )
 
-    # Durable judging intentionally omits preferences and snapshots the
-    # guidance and O(pool size) median once for the entire checkpointed wave.
+    # Durable judging deliberately omits preferences and shares one checkpointed
+    # guidance/median snapshot across the wave.
     prompt = prepare_ranking_prompt_context(state)
     context = prepare_ranking_judging_context(prompt, eligible)
     judge_context = _WaveJudgeContext(context, plan.index)
@@ -315,10 +207,8 @@ def _apply_wave_elo(
     judged: list[RankingJudgement],
     state: dict[str, Any],
 ) -> tuple[list[dict[str, Any]], int, list[str]]:
-    """Apply verdicts in wave order, charging actual debate calls.
-
-    Judging may finish in any order, but a shared hypothesis must start
-    each Elo commit at the rating its previous matchup left it at.
+    """Apply verdicts in wave order so shared hypotheses start each rating
+    update where their previous matchup left them.
     """
     from co_scientist.agents.ranking import apply_ranking_matchup
     from co_scientist.constants import ELO_K_FACTOR
@@ -344,17 +234,6 @@ async def _advance_ranking_wave(
     eligible: list[Any],
     carried: _WaveResult,
 ) -> _WaveResult:
-    """Judge a wave (if any) and fold its results into the running totals.
-
-    Args:
-        plan: The wave to judge and its position in the round.
-        state: Restored workflow state for this tournament.
-        eligible: Hypotheses eligible for a matchup (the Elo snapshot).
-        carried: Details and LLM calls the tournament already accumulated.
-
-    Returns:
-        The updated running totals; an empty wave jumps to the round end.
-    """
     if not plan.wave:
         return _WaveResult(
             carried.details,
@@ -368,9 +247,8 @@ async def _advance_ranking_wave(
     new_details, calls_delta, last_pair = _apply_wave_elo(
         survived.pairs, survived.judgements, state
     )
-    # The round index advances by the whole wave, not by what survived: a
-    # dropped matchup consumed its slot in the budget, and rewinding the
-    # index would re-offer the same pairing to the next task forever.
+    # Failed matchups spend their budget slot; rewinding would re-offer the same
+    # pair indefinitely.
     return _WaveResult(
         details=carried.details + new_details,
         total_calls=carried.total_calls + calls_delta,
@@ -383,28 +261,8 @@ async def _advance_ranking_wave(
 
 
 def _ranking_eligible(state: dict[str, Any]) -> list[Any]:
-    """Return hypotheses eligible for a tournament under engine policy.
-
-    Ideas the pre-ranking evidence gate quarantined (``evidence_blocked``) are
-    excluded alongside deep-verification-undermined and review-rejected ideas,
-    so an unsupported or contradicted claim never influences the decisive Elo
-    tournament even though the report gate would later drop it. The predicate
-    lives on ``Hypothesis.is_rankable`` so the durable path and the engine
-    scheduler's coverage accounting stay in sync (a mismatch loops the
-    orchestrator on ranking).
-
-    Also requires ``has_peer_review``, mirroring the coverage floor's own
-    filter (``ranking_lifecycle._coverage_floor``). In the ordinary cycle
-    this changes nothing: the scheduler's unreviewed-backlog check forces a
-    review before RANK is ever scheduled, so nothing unreviewed reaches
-    here. It matters for a scientist hypothesis admitted on the very cycle
-    the orchestrator retries a *failed* RANK (``policy_checks._check_retry``
-    sits above the review-backlog check), which would otherwise hand a
-    newcomer holding no peer review real tournament matches -- passing no
-    gate at all (HITL-MANUAL-HYP-001). Safe against the sync warning above:
-    the backlog check still counts an unreviewed idea via
-    ``has_peer_review`` regardless of this filter, so it is caught and
-    reviewed once the (bounded) retry window closes.
+    """Engine admission and peer-review predicates stay authoritative,
+    including newcomers admitted before a retried ranking task.
     """
     from co_scientist.models import has_peer_review
 
@@ -416,28 +274,15 @@ def _ranking_eligible(state: dict[str, Any]) -> list[Any]:
 
 
 def _ranking_chain_skipped(state: dict[str, Any], eligible: list[Any]) -> bool:
-    """Report whether this cycle must not schedule a tournament at all.
-
-    Args:
-        state: Workflow state the tournament would be scheduled from.
-        eligible: Hypotheses allowed into the tournament this cycle.
-
-    Returns:
-        True when there is nothing to judge, or no round budget left.
-    """
     from co_scientist.agents.ranking import remaining_ranking_rounds
 
     if len(eligible) < 2:
         return True
-    # The app's mypy config skips following ``co_scientist`` imports, so the
-    # engine's declared ``-> int`` arrives here as ``Any``. Restate it on the
-    # binding rather than returning an unchecked comparison.
+    # Unfollowed engine imports arrive as Any; assert the declared integer type
+    # at this boundary.
     rounds_left: int = remaining_ranking_rounds(state, state["hypotheses"])
-    # tournament_pairs is a whole-run budget and the scheduler asks for
-    # ranking once per cycle, so this is the common case late in a run.
-    # Scheduling anyway would not merely waste a task: the tournament
-    # clears pending_ranking_matchups on entry, so an empty one overwrites
-    # the matches the run already judged.
+    # An empty tournament resets pending matches; skip exhausted whole-run
+    # budgets to retain already judged history.
     return rounds_left < 1
 
 
@@ -448,18 +293,6 @@ def _enqueue_first_ranking_match(
     rounds: int,
     db_path: str | None,
 ) -> tuple[int, str]:
-    """Checkpoint the prepared tournament and enqueue its first match.
-
-    Args:
-        task: The ranking node task scheduling the chain.
-        state: Workflow state carrying the prepared tournament.
-        checkpoint_seq: Checkpoint sequence the chain was prepared against.
-        rounds: Number of matches the tournament will judge.
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        The committed checkpoint sequence and the first match task's id.
-    """
     return _save_state_and_enqueue_exact(
         TaskCommit(task, checkpoint_seq, db_path),
         state,
@@ -484,7 +317,6 @@ async def _schedule_ranking_chain(
     *,
     db_path: str | None,
 ) -> dict[str, Any] | None:
-    """Prepare a tournament and schedule its first sequential match task."""
     from co_scientist.agents.ranking import prepare_ranking_round
 
     eligible = _ranking_eligible(state)
@@ -510,7 +342,6 @@ def _ranking_match_successor(
     last_pair: list[str],
     model_usage: dict[str, dict[str, Any]],
 ) -> tuple[str, dict[str, Any]]:
-    """Return the next ranking task type and its scheduling inputs."""
     if next_index < rounds:
         return RANKING_MATCH_TASK, {
             "round_index": next_index,
@@ -532,25 +363,8 @@ async def _emit_ranking_wave_progress(
     next_index: int,
     committed_seq: int,
 ) -> None:
-    """Emit a tournament-progress milestone when a wave crosses a cadence.
-
-    Placed after the checkpoint commit, downstream of the caller's
-    replay/supersession guard, so a redelivered match never re-announces
-    progress. The final match is left to the finalizer's own "completed"
-    event rather than reported twice.
-
-    Reported per cadence boundary the wave *crossed*, not when the index
-    happens to land on one. A wave advances the index by a variable stride,
-    so an exact-multiple test silently skips boundaries it steps over -- it
-    only ever worked because the stride and the cadence happened to line up.
-    The message names the boundary rather than the index, so the feed reads
-    as an even cadence whatever the stride.
-
-    Args:
-        commit: The leased task, its expected checkpoint seq, and db path.
-        plan: The wave just judged and its position in the round.
-        next_index: Round index the next task resumes at.
-        committed_seq: Checkpoint sequence the wave's commit produced.
+    """Emit only after commit and replay guards; cadence crossings, not
+    exact multiples, cover variable wave strides.
     """
     rounds = plan.rounds
     milestone = (next_index // RANKING_PROGRESS_EVERY) * RANKING_PROGRESS_EVERY
@@ -582,17 +396,6 @@ async def _commit_ranking_match(
     plan: _WavePlan,
     result: _WaveResult,
 ) -> dict[str, Any]:
-    """Checkpoint the wave's result, schedule its successor, and report.
-
-    Args:
-        commit: The leased task, its expected checkpoint seq, and db path.
-        state: Workflow state carrying the wave's committed matchups.
-        plan: The wave just judged and its position in the round.
-        result: The tournament totals after folding the wave in.
-
-    Returns:
-        The task result: committed checkpoint, successor, and match tally.
-    """
     next_index = result.next_index
     successor_type, successor_inputs = _ranking_match_successor(
         next_index,
@@ -626,7 +429,6 @@ async def _commit_ranking_match(
 async def execute_ranking_match(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
-    """Judge and commit exactly one Elo matchup before scheduling another."""
     replay, state, current_seq = leased_state(
         task, db_path, label="ranking match"
     )
@@ -659,17 +461,13 @@ async def _commit_ranking_finalize(
     committed: dict[str, Any],
     update: dict[str, Any],
 ) -> dict[str, Any]:
-    """Checkpoint the finalized tournament and report matches committed.
-
-    The successor comes from the engine's route table for the same reason
-    the fan-out aggregates' does (see ``_checkpoint_and_advance``): this is
-    the only path production runs, so a literal here would survive a graph
-    re-route that ``engine/tests/test_task_runtime.py`` reported as applied.
+    """Finalized successors come from the engine route table, avoiding a
+    durable path that ignores routing changes.
     """
     from co_scientist.task_runtime import next_task_type
 
-    # ``co_scientist`` is unfollowed by the app's mypy, so this arrives as
-    # ``Any``; restate the engine's declared type on the binding.
+    # Unfollowed engine imports arrive as Any; assert the declared type at this
+    # boundary.
     successor: str | None = next_task_type("ranking", committed)
     if successor == "orchestrator" and _consume_outcome_refinement_gate(
         commit.task.run_id, committed, db_path=commit.db_path
@@ -694,7 +492,6 @@ async def _commit_ranking_finalize(
 def _consume_outcome_refinement_gate(
     run_id: str, state: dict[str, Any], *, db_path: str | None
 ) -> bool:
-    """End the targeted child's ordinary gate cycle before pool evolution."""
     for hypothesis in state.get("hypotheses", []):
         provenance = hypothesis.enrichments.get("outcome_refinement")
         if not isinstance(provenance, dict):
@@ -724,12 +521,8 @@ def _consume_outcome_refinement_gate(
 def _fold_ranking_telemetry(
     update: dict[str, Any], model_usage: dict[str, dict[str, Any]]
 ) -> None:
-    """Fold the tournament's accumulated telemetry into its metrics delta.
-
-    The per-match wave telemetry never reaches a checkpoint until here (see
-    ``_WaveResult.model_usage``'s docstring): every intervening match commit
-    uses ``_save_state_and_enqueue_exact``, which persists no metrics
-    snapshot, so this is the sole point that folds it in.
+    """Wave telemetry accumulates across match checkpoints and folds into
+    scientific metrics once at tournament finalization.
     """
     from co_scientist.models import create_metrics_update, merge_metrics
 
@@ -743,7 +536,6 @@ def _fold_ranking_telemetry(
 async def execute_ranking_finalize(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
-    """Finalize a sequential durable tournament and return to orchestration."""
     from co_scientist.agents.ranking import finalize_ranking
     from co_scientist.task_runtime import apply_task_update
 
