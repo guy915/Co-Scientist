@@ -147,7 +147,7 @@ def _locate_all(
         else:
             spans.append(span)
     if dropped:
-        logger.warning(
+        logger.info(
             "%d cited span(s) could not be located in their cited source "
             "among %d shown passage(s); verdict unproven",
             dropped,

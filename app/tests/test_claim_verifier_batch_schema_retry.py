@@ -75,7 +75,7 @@ _PASSAGE = EvidencePassage(
 )
 
 
-def test_pruned_typo_retries_and_uses_valid_reply(
+def test_pruned_typo_uses_existing_evidence_fallback_without_retry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _mock_zero_price_promotion(monkeypatch)
@@ -99,15 +99,15 @@ def test_pruned_typo_retries_and_uses_valid_reply(
         assessor_id=assessor_id,
     )
 
-    assert len(requests) == 2
+    assert len(requests) == 1
     assert results[0].label is EntailmentLabel.SUPPORTS
-    assert results[0].verification_method == "model_primary"
+    assert results[0].verification_method == "deterministic_lexical"
     for request in requests:
         _assert_zero_price_stealth_route(request)
 
 
 @pytest.mark.parametrize("reply", ['{"verdests": []}', '{"verdicts": []}'])
-def test_empty_batch_retries_three_times_then_falls_back(
+def test_empty_batch_uses_existing_evidence_fallback_without_retry(
     monkeypatch: pytest.MonkeyPatch, reply: str
 ) -> None:
     _mock_zero_price_promotion(monkeypatch)
@@ -123,7 +123,7 @@ def test_empty_batch_retries_three_times_then_falls_back(
         assessor_id=assessor_id,
     )
 
-    assert len(requests) == 3
+    assert len(requests) == 1
     assert results[0].label is EntailmentLabel.SUPPORTS
     assert results[0].verification_method == "deterministic_lexical"
     for request in requests:

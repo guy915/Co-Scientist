@@ -109,6 +109,14 @@ def _apply_mature_reflection_items(
         _mark_recheck_item(by_id, item)
         if item.status != "completed" or not item.result:
             failed += 1
+            hypothesis = by_id.get(str(item.inputs.get("hypothesis_id") or ""))
+            if hypothesis is not None:
+                _apply_one_reflection_item(
+                    hypothesis,
+                    ReviewType(str(item.inputs["review_mode"])),
+                    {"verdict": "unreviewed", "justification": item.error},
+                    current_iteration,
+                )
             continue
         hypothesis = by_id[str(item.result["hypothesis_id"])]
         mode = ReviewType(str(item.result["review_mode"]))

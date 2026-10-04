@@ -836,3 +836,96 @@ async def test_exact_zero_cost_timeout_uses_bounded_delayed_retry(
     completed = tasks.get_task(task.id, db_path=isolated_db)
     assert completed is not None and completed.status == "completed"
     assert accepted == [1, 1]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("expired", [False, True])
+@pytest.mark.parametrize(
+    "family,kind",
+    [
+        ("review", "item"),
+        ("reflection", "item"),
+        ("verification", "item"),
+        ("generation", "strategy"),
+    ],
+)
+async def test_unknown_fanout_outcome_preserves_siblings_and_aggregate(
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+    expired: bool,
+    family: str,
+    kind: str,
+) -> None:
+    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
+    calls: list[str] = []
+
+    async def dispatch(
+        task: ScientificTask, *, db_path: str | None = None
+    ) -> dict[str, Any]:
+        calls.append(task.id)
+        if task.id == item.id:
+            raise LLMTimeoutError("acceptance unknown")
+        return {"continued": True}
+
+    monkeypatch.setattr(engine_tasks, "_dispatch_engine_task", dispatch)
+    with make_client() as client:
+        run_id = client.post(
+            "/api/runs", json={"research_goal": "isolated reflection"}
+        ).json()["id"]
+        runs.update_run_status(run_id, RunStatus.RUNNING, db_path=isolated_db)
+        item = tasks.enqueue_task(
+            NewTask(
+                run_id=run_id,
+                task_type=f"engine.fanout.{family}.{kind}",
+                inputs={},
+                idempotency_key="item",
+            ),
+            db_path=isolated_db,
+        )
+        sibling = tasks.enqueue_task(
+            NewTask(
+                run_id=run_id,
+                task_type=f"engine.fanout.{family}.{kind}",
+                inputs={},
+                idempotency_key="sibling",
+            ),
+            db_path=isolated_db,
+        )
+        aggregate = tasks.enqueue_task(
+            NewTask(
+                run_id=run_id,
+                task_type=f"engine.fanout.{family}.aggregate",
+                inputs={},
+                idempotency_key="aggregate",
+                dependencies=(item.id, sibling.id),
+                provenance={"allow_failed_dependencies": True},
+            ),
+            db_path=isolated_db,
+        )
+        if expired:
+            _mark_leased(
+                item.id,
+                isolated_db,
+                owner="dead-worker",
+                expires_at=time.time() - 1,
+                spend_budget=False,
+            )
+        else:
+            assert await task_worker.run_once(
+                "worker", run_id=run_id, db_path=isolated_db
+            )
+        assert await task_worker.run_once(
+            "worker", run_id=run_id, db_path=isolated_db
+        )
+        assert await task_worker.run_once(
+            "worker", run_id=run_id, db_path=isolated_db
+        )
+        succeeded = tasks.get_task(sibling.id, db_path=isolated_db)
+        assert succeeded is not None and succeeded.status == "completed"
+        failed = tasks.get_task(item.id, db_path=isolated_db)
+        assert failed is not None and failed.status == "failed"
+        assert len(failed.attempts) == 1
+        finished = tasks.get_task(aggregate.id, db_path=isolated_db)
+        assert finished is not None and finished.status == "completed"
+        assert client.get(f"/api/runs/{run_id}").json()["status"] == "running"
+        assert calls.count(item.id) == (0 if expired else 1)

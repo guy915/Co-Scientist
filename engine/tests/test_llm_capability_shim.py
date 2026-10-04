@@ -620,3 +620,51 @@ def test_prune_noop_for_non_dict_inputs() -> None:
         ["not", "a", "dict"], _LLM_CAPABILITY_PRUNE_CLOSED_SCHEMA
     )
     reshape_json_output({"a": 1}, "not a schema")
+
+
+@pytest.mark.parametrize("envelope", [{"hypotheses": ["one"]}, {"items": []}])
+def test_downgraded_nested_array_envelope_is_unwrapped(
+    envelope: dict[str, Any],
+) -> None:
+    schema = {
+        "type": "object",
+        "properties": {
+            "hypotheses": {"type": "array", "items": {"type": "string"}}
+        },
+    }
+    result = {"hypotheses": envelope}
+    reshape_json_output(result, schema)
+    assert result["hypotheses"] == next(iter(envelope.values()))
+
+
+def test_ambiguous_array_envelope_still_fails_validation() -> None:
+    schema = {"type": "object", "properties": {"hypotheses": {"type": "array"}}}
+    result: dict[str, Any] = {"hypotheses": {"a": [], "b": []}}
+    reshape_json_output(result, schema)
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(result, schema)
+
+
+@pytest.mark.asyncio
+async def test_wrapped_array_succeeds_without_a_second_provider_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _disable_cache(monkeypatch)
+    _patch_registry(monkeypatch, supported=False)
+    captured = _capture_acompletion(
+        monkeypatch, [_completion('{"hypotheses": {"hypotheses": ["one"]}}')]
+    )
+    result = await call_llm_json(
+        "generate",
+        CompletionSpec(
+            model_name="test-model",
+            json_schema={
+                "type": "object",
+                "properties": {
+                    "hypotheses": {"type": "array", "items": {"type": "string"}}
+                },
+            },
+        ),
+    )
+    assert result == {"hypotheses": ["one"]}
+    assert len(captured) == 1

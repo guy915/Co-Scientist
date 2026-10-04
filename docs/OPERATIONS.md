@@ -166,7 +166,10 @@ ceiling to incorporate the input before marking it applied.
 
 Propagate budget and rate-park exception types through gathered work so the
 worker can terminate or park it correctly. Permanent failure or plan divergence
-cancels dependent portfolio tasks in one transaction. Lost campaign leases may
+cancels dependent portfolio tasks in one transaction. An unknown provider outcome
+permanently fails a fanout item without replaying it or cancelling siblings;
+aggregates admit failed items and preserve an explicit unreviewed verdict.
+Unknown outcomes on coordinator tasks still stop the run. Lost campaign leases may
 retry only under the persisted zero-price policy, without caller keys.
 
 Verification issuance markers survive failed attempts and checkpoint restore;

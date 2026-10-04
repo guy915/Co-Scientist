@@ -610,7 +610,7 @@ def test_dropped_citations_are_logged(
 ) -> None:
     # Discarded citations need diagnostics or insufficient verdicts become
     # impossible to explain.
-    with caplog.at_level(logging.WARNING, logger="app.claims"):
+    with caplog.at_level(logging.INFO, logger="app.claims"):
         _locate_all(
             (
                 (_PASSAGES[0].evidence_id, "quote that is nowhere"),
