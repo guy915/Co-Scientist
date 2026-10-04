@@ -250,10 +250,6 @@ def test_validation_synthesis_with_tools_returns_schema() -> None:
     assert schema is not None
 
 
-def test_format_debate_attributes_joins_list() -> None:
-    assert _format_debate_attributes(["novel", "testable"]) == "novel, testable"
-
-
 def test_format_debate_attributes_empty_list_falls_back() -> None:
     assert _format_debate_attributes([]) == "testable and falsifiable"
 

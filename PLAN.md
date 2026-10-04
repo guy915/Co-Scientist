@@ -4,8 +4,8 @@ Trim Co-Scientist to a lean product without losing what it does. Every decision
 below was settled with the owner on 3 October 2026, so the campaign runs
 unattended: the agent decides by these rules and reports at the end.
 
-**Status:** Phase 1 in progress. Baseline `33ec8984`. Runs as a Codex `/goal`
-in a cloud environment (see Execution environment).
+**Status:** Phase 2 in progress; Phase 1 complete. Baseline `33ec8984`.
+Runs as a `/goal` in a cloud environment (see Execution environment).
 
 ## Destination
 
