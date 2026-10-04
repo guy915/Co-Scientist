@@ -1,13 +1,3 @@
-"""Goal Report finalization: build, final safety gate, publish, emit.
-
-Runs after a run's drain: builds the report (``report.build``), screens it
-with the final safety gate, then persists it and emits the report/completed
-events, or blocks the run and records why. The package interface -- among
-it ``finalize_report`` -- is declared in ``app.report``; completion-email
-scheduling lives in ``notifications``. Run-event emission (``make_emitter``
-and the event stubs) lives in ``run_events``, outside the report package.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -45,20 +35,6 @@ async def finalize_report(
     resumed: bool = False,
     task: ScientificTask | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
-    """Build, screen, persist, and emit a run's final report.
-
-    Args:
-        run_id: Identifier of the run being finalized.
-        req: The drained report inputs; see :class:`ReportRequest`.
-        emit: The run's event emitter.
-        resumed: When true, a report already published for this run makes
-            this a no-op rather than a duplicate finalize.
-        task: The durable finalize task, when publication must verify its
-            current lease in the same transaction as the report writes.
-
-    Yields:
-        Event dicts to forward on the workflow's event stream.
-    """
     logger.info(
         "Finalizing report for run %s (provider=%s).", run_id, req.provider
     )
@@ -84,9 +60,8 @@ async def _gate_readiness_and_publish(
     built: _BuiltReport,
     task: ScientificTask | None,
 ) -> AsyncIterator[dict[str, Any]]:
-    """Block an empty leaderboard, or publish the report otherwise."""
-    # Unsupported ideas publish as Unverified; an empty leaderboard means
-    # every idea was withheld by the release gate, for real and offline runs.
+    # Unsupported ideas publish as Unverified; an empty leaderboard means every
+    # generated idea was withheld.
     if not built.payload.get("leaderboard"):
         async for event in _block_for_empty_leaderboard(
             run_id, built, emit, db_path=req.db_path, task=task
@@ -110,12 +85,6 @@ async def _build_and_gate_report(
     emit: EmitFn,
     task: ScientificTask | None,
 ) -> tuple[_BuiltReport, bool, list[dict[str, Any]]]:
-    """Build the report content and run it through the final safety gate.
-
-    Returns:
-        A tuple of (built report, blocked, safety-gate events to yield in
-        order before checking ``blocked``).
-    """
     built = await build_report_content(run_id, req)
     final = await _screen_final_report(
         run_id, built.markdown, req.provider, db_path=req.db_path
@@ -140,21 +109,8 @@ async def _build_and_gate_report(
 def _redacted_report(
     built: _BuiltReport, decision: SafetyDecision
 ) -> _BuiltReport:
-    """Apply a redact decision to every persisted form of the report.
-
-    The payload and the markdown document are renderings of the same
-    content, and both are saved and emitted, so scrubbing one would leave
-    the original readable through the other -- through ``/report``, the
-    ``report`` event, the run's event log, and the public share built from
-    the same row.
-
-    Args:
-        built: The report as built, before publication.
-        decision: The final-stage decision naming the spans to remove.
-
-    Returns:
-        The report with every matched span replaced in the payload and
-        the markdown document.
+    """Redact both payload and markdown: each is independently readable through
+    reports, events and public shares.
     """
     matches = list(decision.matches)
     logger.warning(
@@ -165,16 +121,13 @@ def _redacted_report(
     return _BuiltReport(
         payload=redact_payload_text(built.payload, matches),
         markdown=redact_matched_spans(built.markdown, matches),
-        # Facts are derived from claim text already persisted (unredacted)
-        # in claim_evidence and reachable via /claim-evidence regardless, so
-        # redacting the report's prose does not need to also redact these.
+        # Claim facts are already public and unredacted via claim-evidence.
         facts=built.facts,
         exclusion_tally=built.exclusion_tally,
     )
 
 
 def _report_already_published(run_id: str, *, db_path: str | None) -> bool:
-    """Return whether a report is already saved for this run."""
     if store.get_latest_report(run_id, db_path=db_path) is None:
         return False
     logger.info(
@@ -191,9 +144,6 @@ async def _screen_final_report(
     *,
     db_path: str | None,
 ) -> SafetyDecision:
-    """Run the final safety screen (with escalation) over the report."""
-    # Function-local, for the cycle explained in the publish function below:
-    # importing any ``app.engine_tasks`` submodule loads the package first.
     from app.engine_tasks import runtime as engine_tasks_runtime
 
     return await engine_tasks_runtime.active().screen(
@@ -211,10 +161,11 @@ def _commit_leased_report_publication(
     task: ScientificTask,
     db_path: str | None,
 ) -> tuple[dict[str, str], int, dict[str, Any], int, dict[str, Any]]:
-    """Atomically publish report state after validating the finalize lease."""
-    # Function-local: engine_tasks.support imports engine_adapter, whose drain
-    # imports ``app.report`` (format_deep_verification_critique), so a
-    # top-level import is a cycle whichever module loads first.
+    """Validate the finalize lease in the same transaction as publication
+    writes.
+    """
+    # Keep imports local: engine task support closes a cycle through
+    # engine_adapter and app.report.
     from app.engine_tasks.support import assert_task_commit_allowed
 
     with store.transaction(db_path) as conn:
@@ -255,15 +206,13 @@ async def _publish_report(
     db_path: str | None,
     task: ScientificTask | None,
 ) -> AsyncIterator[dict[str, Any]]:
-    """Save the report, emit it, mark the run completed, and notify."""
     payload = built.payload
     if task is None:
         saved = store.save_report(
             run_id, payload, built.markdown, db_path=db_path
         )
-        # Only reached once the report is actually publishing (not blocked or
-        # held), so a run whose report never publishes leaves no knowledge-base
-        # rows behind either.
+        # Write knowledge facts only on publication, never for blocked or held
+        # reports.
         store.replace_knowledge_facts(run_id, built.facts, db_path=db_path)
         yield await emit("report", {**payload, "report_id": saved["id"]})
         store.update_run_status(run_id, RunStatus.COMPLETED, db_path=db_path)
@@ -277,8 +226,8 @@ async def _publish_report(
                 run_id, research_goal, built, task, db_path
             )
         )
-        # The transaction already wrote these events; yield their regular SSE
-        # stubs without calling the persisting emitter a second time.
+        # The transaction already persisted events; emit stubs without writing
+        # them twice.
         yield {"seq": report_seq, "type": "report", "payload": report_payload}
         yield {"seq": status_seq, "type": "status", "payload": status_payload}
     logger.info(
@@ -294,7 +243,6 @@ async def _block_for_empty_leaderboard(
     db_path: str | None,
     task: ScientificTask | None,
 ) -> AsyncIterator[dict[str, Any]]:
-    """Record the empty-leaderboard block, mark the run blocked, and emit it."""
     reason = _empty_leaderboard_reason(
         built.payload["idea_count"], built.exclusion_tally
     )
@@ -328,8 +276,9 @@ def _commit_empty_leaderboard_block(
     task: ScientificTask,
     db_path: str | None,
 ) -> int:
-    """Atomically persist a readiness block while the finalize lease is live."""
-    # Function-local, for the cycle explained in the publish function above.
+    """Validate the finalize lease in the same transaction as readiness-block
+    writes.
+    """
     from app.engine_tasks.support import assert_task_commit_allowed
 
     payload = {"status": "blocked", "reason": decision.reason}

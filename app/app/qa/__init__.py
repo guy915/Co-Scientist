@@ -1,5 +1,3 @@
-"""Grounded Q&A over a run: evidence manifest, prompt assembly, streaming."""
-
 from __future__ import annotations
 
 import logging
@@ -28,11 +26,10 @@ from app.sse import sse_frame as sse_frame
 
 logger = logging.getLogger(__name__)
 
-# A grounded answer cites passages and stays short; the ceiling is here so
-# the reasoning is funded from its own headroom rather than the answer's.
+# Fund reasoning from separate headroom rather than the short answer budget.
 _ANSWER_MAX_TOKENS = 4_000
-# The answer streams into the chat as it is written, so silence is the only
-# thing that distinguishes a dead provider from a thorough one.
+# Bound provider silence, not total streaming duration, so thorough answers
+# remain possible.
 _QA_STALL_SECONDS = 45.0
 _QA_TOTAL_SECONDS = THINKING_FLOOR_TIMEOUT_SECONDS + 60.0
 
@@ -43,24 +40,18 @@ def _completion_request(
     messages: list[dict[str, Any]],
     tools: list[dict[str, Any]] | None,
 ) -> dict[str, Any]:
-    """Build the streaming completion request both rounds are made with.
-
-    One shape for both: a tool round that forgot the token floor or the
-    deadline fails exactly the way the first round would have, only later
-    and with the tool result already paid for.
+    """Both rounds need the same reasoning headroom and deadline; tool results
+    must not consume those protections.
     """
     request: dict[str, Any] = {
         "model": model,
         "messages": messages,
-        # Sending no budget takes the provider's default, which thinking can
-        # exhaust before the first answer delta -- the stream then ends
-        # clean and empty and the scientist gets a blank reply, not an error.
+        # Without an explicit budget, thinking can exhaust the provider default
+        # and return a clean but empty stream.
         "max_tokens": thinking_safe_max_tokens(model, _ANSWER_MAX_TOKENS),
         "timeout": _QA_TOTAL_SECONDS,
         "stream": True,
         "api_key": api_key,
-        # Post-run chat is a scoping conversation, not the science; see
-        # CONVERSATIONAL_REASONING_EFFORT.
         **deepseek_thinking_kwargs(
             model, effort=CONVERSATIONAL_REASONING_EFFORT
         ),
@@ -74,21 +65,6 @@ async def _stream_completion(
     request: dict[str, Any],
     tool_calls: dict[int, dict[str, Any]],
 ) -> AsyncGenerator[tuple[str, str], None]:
-    """Stream one completion, yielding ``(kind, fragment)`` pairs.
-
-    ``kind`` is ``"reasoning"`` for a chain-of-thought delta and ``"chunk"``
-    for prose, mirroring ``run_start_announcement._stream_model_fragments``
-    -- the request already asks for thinking (see ``_completion_request``),
-    so this is the read side of that request rather than a new spend.
-
-    Args:
-        request: The completion request (see ``_completion_request``).
-        tool_calls: Sink the response's tool-call fragments accumulate into,
-            keyed by their index in the response.
-
-    Yields:
-        Non-empty ``(kind, fragment)`` pairs, in the order they arrive.
-    """
     import app.llm_request as llm_request
 
     response = await llm_request.acompletion(**request)
@@ -112,12 +88,8 @@ async def _stream_completion(
 def _resolved_calls(
     tool_calls: dict[int, dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Return the accumulated tool calls that are actually callable.
-
-    A call is only usable once its name has arrived; a provider that opened
-    a tool call and then changed its mind leaves a nameless fragment behind.
-    Missing ids are filled in by index, because the tool result must name
-    the call it answers and not every provider sends one.
+    """Providers may leave nameless fragments or omit call ids; a tool result
+    still must identify its requesting call.
     """
     resolved = []
     for index, call in sorted(tool_calls.items()):
@@ -130,7 +102,6 @@ def _resolved_calls(
 def _tool_result_messages(
     calls: list[dict[str, Any]], ideas: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
-    """Execute each tool call and render its result as a ``tool`` message."""
     return [
         {
             "role": "tool",
@@ -149,39 +120,14 @@ async def stream_llm_deltas(
     question: str,
     ideas: list[dict[str, Any]],
 ) -> AsyncGenerator[tuple[str, str], None]:
-    """Stream the answer, letting the model look up idea bodies once first.
-
-    The prompt carries an index of the run's ideas but not their text (see
-    ``qa.run_state.render_idea_index``), so the first round is offered the
-    ``search_ideas`` tool. A model that answers straight away costs exactly
-    what it did before; only a model that asks for ideas pays for a second
-    round, which is offered no tools and therefore has to answer.
-
-    Deltas already yielded are what closes the loop: a model that wrote part
-    of an answer *and then* asked for a tool has its request ignored, since
-    the scientist is reading that answer and a second one would be appended
-    to the middle of it. Only prose counts as "wrote part of an answer" --
-    reasoning alone (a model still thinking, not yet writing) does not skip
-    the tool round.
-
-    Args:
-        model: The chat model to complete with.
-        system_prompt: The assembled grounding prompt.
-        question: The scientist's question.
-        ideas: The run's ideas, which the tool searches.
-
-    Yields:
-        Non-empty ``(kind, fragment)`` pairs of the final answer -- see
-        ``_stream_completion``.
+    """Allow one lookup round only before prose starts; reasoning alone does not
+    close that round. Starting a second answer after emitted prose would
+    splice replies together.
     """
-    # The endpoint already routes an offline process to the deterministic
-    # grounded answer, so this never fires from there. It is here so the
-    # invariant belongs to the call that makes the request rather than to
-    # one caller that remembers to check -- any later caller of
-    # stream_answer inherits it.
+    # Enforce offline isolation at the request seam so future callers inherit
+    # it.
     offline_guard.require_remote_chat("Q&A")
-    # A scoped bring-your-own-key credential overrides both the model and
-    # the deployment credential for this call.
+    # Scoped BYOK overrides both deployment model and credential.
     model, api_key = credentials.byok_model_and_key(model)
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_prompt},
@@ -211,36 +157,14 @@ async def stream_llm_deltas(
 
 @dataclass(frozen=True)
 class QaQuestion:
-    """The persisted question one streamed answer replies to.
-
-    Groups the pair so ``stream_answer`` stays at the argument ceiling.
-
-    Attributes:
-        text: The scientist's question.
-        message_id: Message id of the persisted question row, echoed on
-            the answer's ``done`` frame and stored with the answer.
-    """
-
     text: str
     message_id: int
 
 
 @dataclass(frozen=True)
 class QaAnswerInputs:
-    """Everything one streamed answer is grounded in.
-
-    Bundled rather than passed one by one: the prompt, the manifest the
-    answer cites against and the ideas its tool searches are three views of
-    the same gathered context (see ``runs.chat._gather_qa_context``), and
-    they are only ever assembled together.
-
-    Attributes:
-        system_prompt: The assembled grounding prompt.
-        manifest: The numbered evidence manifest, emitted to the client
-            first and stored with the answer.
-        ideas: The run's ideas, which the ``search_ideas`` tool searches.
-            Empty offers the model no tool, which is what a run with no
-            ideas yet should do.
+    """Prompt, citation manifest and searched ideas are views of the same
+    gathered context.
     """
 
     system_prompt: str
@@ -251,18 +175,8 @@ class QaAnswerInputs:
 def _question_ranked_hypotheses(
     question: str, hypotheses: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
-    """Reorder hypotheses so ones matching the question's terms lead.
-
-    A hypothesis whose title shares vocabulary with the question is
-    surfaced first, so the offline answer actually responds to what was
-    asked rather than always reciting the top-Elo summary. When nothing
-    matches (including an empty question), the stable sort's index
-    tiebreak reproduces the input's own order -- the prior, question-blind
-    behavior -- exactly.
-
-    Returns:
-        ``hypotheses`` reordered by (question-term overlap desc, original
-        index asc).
+    """With no question match, stable tie-breaking preserves the original
+    ranking.
     """
     q_tokens = _tokenize(question)
     if not q_tokens:
@@ -280,14 +194,7 @@ def _question_ranked_hypotheses(
 def _question_relevant_review(
     question: str, reviews: list[dict[str, Any]]
 ) -> dict[str, Any] | None:
-    """Pick the review whose note best matches the question's terms.
-
-    Ties -- including no review matching at all, or an empty question --
-    fall back to the latest review, the prior unconditional behavior.
-
-    Returns:
-        The best-matching review, or None if there are no reviews.
-    """
+    """With no question match, preserve the latest-review fallback."""
     if not reviews:
         return None
     q_tokens = _tokenize(question)
@@ -301,24 +208,12 @@ def _question_relevant_review(
 def _offline_hypothesis_lines(
     hypotheses: list[dict[str, Any]], has_sources: bool
 ) -> list[str]:
-    """Render the top hypotheses as numbered lines for the offline answer.
-
-    Args:
-        hypotheses: Hypothesis rows, already ordered by Elo descending.
-        has_sources: Whether a non-empty evidence manifest accompanies the
-            answer, in which case the leading hypothesis cites it as ``[1]``.
-
-    Returns:
-        One formatted line per included hypothesis (top five at most).
-    """
     lines: list[str] = []
     for rank, hyp in enumerate(hypotheses[:5], start=1):
         title = hyp.get("title") or "Untitled hypothesis"
         elo = hyp.get("elo_rating")
         wins = hyp.get("win_count")
         record = f" (Elo {elo}, {wins} wins)" if elo is not None else ""
-        # Attach a citation marker to the leading hypothesis when the run has
-        # sources, so the UI resolves it against the manifest frame.
         citation = " [1]" if has_sources and rank == 1 else ""
         lines.append(f"{rank}. {title}{record}{citation}")
     return lines
@@ -331,19 +226,8 @@ def build_offline_answer(
     manifest: list[dict[str, Any]],
     question: str,
 ) -> str:
-    """Compose a deterministic, grounded Q&A answer without a language model.
-
-    Used for the keyless demo posture: instead of returning an API-key error,
-    the run's own persisted artifacts (top hypotheses, the most relevant
-    reviewer note, and the numbered evidence manifest) are synthesized into a
-    plain grounded summary. The synthesis stays a deterministic function of
-    the run state -- it never invents a claim the state does not contain --
-    but the question's own vocabulary steers which hypotheses and review lead
-    the answer, so it responds to what was asked instead of always reciting
-    the same top-Elo summary regardless of the question.
-
-    Returns:
-        The grounded answer text.
+    """Offline synthesis must remain deterministic and never invent claims
+    absent from persisted state.
     """
     parts: list[str] = [
         "Answering from this run's own artifacts (offline mode, no "
@@ -369,7 +253,6 @@ def _offline_hypothesis_summary(
     manifest: list[dict[str, Any]],
     question_matched: bool,
 ) -> list[str]:
-    """Render the hypothesis-summary lines of the offline answer."""
     if not hypotheses:
         return [
             "No hypotheses have been generated for this run yet, so there "
@@ -386,7 +269,6 @@ def _offline_hypothesis_summary(
 
 
 def _offline_review_note(review: dict[str, Any] | None) -> list[str]:
-    """Render the most relevant reviewer-note line, or nothing when absent."""
     if review is None:
         return []
     summary = (review.get("summary") or "").strip()
@@ -394,7 +276,6 @@ def _offline_review_note(review: dict[str, Any] | None) -> list[str]:
 
 
 def _offline_manifest_note(manifest: list[dict[str, Any]]) -> list[str]:
-    """Render the grounding-source-count line, or nothing when empty."""
     if not manifest:
         return []
     top = manifest[0]
@@ -410,29 +291,8 @@ async def _framed_answer(
     manifest: list[dict[str, Any]],
     deltas: AsyncIterator[tuple[str, str]],
 ) -> AsyncGenerator[str, None]:
-    """Frame an answer's deltas as SSE and persist the assembled text.
-
-    The single framing of a Q&A answer, shared by the model-backed and the
-    offline paths so the workbench chat renders both identically: the cited
-    sources first (so the UI can resolve ``[n]`` markers while the answer is
-    still arriving), then one ``reasoning``/``chunk`` frame per delta (see
-    ``qa.stream.stream_llm_deltas``), then ``done``. The persisted text and
-    reasoning are the exact concatenation of the emitted frames of each
-    kind, written before ``done`` so a reload right after completion shows
-    the exchange -- reasoning included, matching what
-    ``run_start_announcement.stream_announcement`` already does for the
-    session card.
-
-    Args:
-        run_id: The run being asked about.
-        question_id: Message id of the persisted question, echoed on ``done``.
-        manifest: The evidence manifest, emitted first and stored with the
-            answer.
-        deltas: The answer's ``(kind, fragment)`` pairs, in the order they
-            should stream.
-
-    Yields:
-        SSE ``data:`` frames.
+    """Emit sources before prose so live citations resolve; persist the exact
+    emitted transcript before done for immediate reloads.
     """
     if manifest:
         yield sse_frame({"type": "sources", "sources": manifest})
@@ -446,11 +306,7 @@ async def _framed_answer(
 
 
 async def _offline_deltas(answer: str) -> AsyncIterator[tuple[str, str]]:
-    """Yield a pre-composed answer line by line, so the UI sees a stream.
-
-    The offline answer is synthesized text, never a model's reasoning, so
-    every line is a ``"chunk"``.
-    """
+    """Offline synthesized prose is not model reasoning."""
     for line in answer.splitlines(keepends=True):
         yield "chunk", line
 
@@ -461,17 +317,6 @@ async def stream_offline_answer(
     answer: str,
     manifest: list[dict[str, Any]],
 ) -> AsyncGenerator[str, None]:
-    """Stream a deterministic offline answer as SSE frames and persist it.
-
-    Args:
-        run_id: The run being asked about.
-        question_id: Message id of the persisted question, echoed on ``done``.
-        answer: The pre-composed grounded answer text.
-        manifest: The evidence manifest, stored with the answer.
-
-    Yields:
-        SSE ``data:`` frames.
-    """
     async for frame in _framed_answer(
         run_id, question_id, manifest, _offline_deltas(answer)
     ):
@@ -481,11 +326,8 @@ async def stream_offline_answer(
 def _citation_meta(
     manifest: list[dict[str, Any]], reasoning: str
 ) -> dict[str, Any] | None:
-    """Build the persisted-message meta dict carrying sources and reasoning.
-
-    Mirrors ``run_start_announcement._persist_announcement``: either field
-    rides in ``meta`` only when non-empty, so a reload shows exactly what
-    the live turn showed, no more.
+    """Persist only nonempty sources/reasoning so reloads show exactly what the
+    live turn showed.
     """
     meta: dict[str, Any] = {}
     if manifest:
@@ -501,11 +343,6 @@ def _persist_qa_answer(
     reasoning: list[str],
     manifest: list[dict[str, Any]],
 ) -> None:
-    """Persist the accumulated answer text, with its manifest and reasoning.
-
-    Persisted before the caller signals `done`, so a reload right after
-    completion still shows the exchange -- the chain of thought included.
-    """
     answer = "".join(full)
     store.append_message(
         store.NewMessage(
@@ -519,11 +356,8 @@ def _persist_qa_answer(
 
 
 def _handle_qa_stream_error(run_id: str, exc: Exception) -> str:
-    """Log a Q&A stream failure, persist a fallback message, and return it.
-
-    Any failure (missing key, provider error, mid-stream drop) ends the
-    stream with a persisted fallback so the chat history stays consistent
-    with what the user saw.
+    """Persist the emitted fallback on stream failures so chat history matches
+    what the user saw.
     """
     logger.error("Q&A stream error for run %s: %s", run_id, exc)
     fallback = (
@@ -547,26 +381,8 @@ async def stream_answer(
     execution_policy: str | None = None,
     campaign_model_name: str | None = None,
 ) -> AsyncGenerator[str, None]:
-    """Stream the LLM answer as SSE frames and persist the exchange.
-
-    Emits the cited-source manifest first (so the UI can resolve ``[n]``
-    references as the answer streams), then ``reasoning``/``chunk`` frames
-    as the model writes them, then a ``done`` frame. On any error, persists
-    and emits a fallback message. A bring-your-own-key credential is scoped
-    around the whole stream so the answer is generated (and billed) on the
-    run's own key.
-
-    Args:
-        run_id: The run being asked about.
-        question: The scientist's question and its persisted message id.
-        inputs: The prompt, evidence manifest and ideas the answer is
-            grounded in.
-        byok: Optional credential the answer is generated on.
-        execution_policy: Policy captured when the run was authorized.
-        campaign_model_name: Persisted model selected for campaign execution.
-
-    Yields:
-        SSE ``data:`` frames.
+    """Scope BYOK through the whole stream so generation and billing use the
+    run's authorized credential.
     """
     if execution_policy is None:
         run = store.get_run(run_id)
