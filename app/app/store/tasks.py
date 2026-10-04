@@ -1,23 +1,3 @@
-"""Durable scientific task queue with leases and idempotent completion.
-
-The row <-> dataclass mapping (``ScientificTask``, ``_decode``) lives in
-``app.store.models``, split out so ``app.store.tasks_lifecycle`` can
-decode a task row without importing back from this module. The
-lease-outcome writes for a completed or renewed task, and the bounded
-failed-attempt history bookkeeping, live in ``app.store.tasks_lifecycle``.
-``fail_task`` itself stays here: it also calls
-``_settle_run_for_failed_task``, and a test monkeypatches that name on
-this module to verify the whole write is transactional, which only holds
-while the call site resolving it lives here too.
-
-The control-plane lifecycle operations (Supervisor reprioritize/cancel/
-retry, run-scoped cancel/pause/resume, and terminally-dead task revival)
-live in ``app.store.tasks_lifecycle``, and the read-only cohort liveness
-probes live in ``app.store.tasks_lifecycle``. Ambiguous provider outcomes and
-expired-lease recovery live in ``app.store.tasks_lifecycle``. The names from
-those sibling modules that callers use are re-exported here.
-"""
-
 from __future__ import annotations
 
 import dataclasses
@@ -79,7 +59,6 @@ _stop_run_after_unknown_provider_outcome = (
 
 
 def _insert_task_row(conn: sqlite3.Connection, values: tuple[Any, ...]) -> None:
-    """Insert a task row, ignoring duplicate idempotency-key delivery."""
     conn.execute(
         "INSERT INTO scientific_tasks (id, run_id, task_type, status, "
         "priority, inputs_json, dependencies_json, provenance_json, "
@@ -93,7 +72,6 @@ def _insert_task_row(conn: sqlite3.Connection, values: tuple[Any, ...]) -> None:
 def _fetch_task_by_idempotency_key(
     conn: sqlite3.Connection, run_id: str, idempotency_key: str
 ) -> sqlite3.Row | None:
-    """Return the (possibly pre-existing) task row for this idempotency key."""
     row: sqlite3.Row | None = conn.execute(
         "SELECT * FROM scientific_tasks WHERE run_id=? AND idempotency_key=?",
         (run_id, idempotency_key),
@@ -103,15 +81,6 @@ def _fetch_task_by_idempotency_key(
 
 @dataclasses.dataclass(frozen=True)
 class NewTask:
-    """One durable task to enqueue, mirroring the scientific_tasks row.
-
-    ``idempotency_key`` is unique per run and makes duplicate delivery a
-    no-op. ``priority`` orders the queue, ``dependencies`` names the task
-    ids that must finish first, ``provenance`` records who enqueued it,
-    ``budget`` caps its resource use, and ``max_attempts`` is its retry
-    budget.
-    """
-
     run_id: str
     task_type: str
     inputs: Mapping[str, Any]
@@ -126,7 +95,6 @@ class NewTask:
 def _task_row_values(
     task_id: str, task: NewTask, now: float
 ) -> tuple[Any, ...]:
-    """Build the bound values tuple for a new task row."""
     return (
         task_id,
         task.run_id,
@@ -150,20 +118,6 @@ def enqueue_task(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> ScientificTask:
-    """Enqueue a task once and return the existing row on duplicate delivery.
-
-    Args:
-        task: The task to enqueue (see :class:`NewTask`).
-        db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to reuse.
-
-    Returns:
-        The enqueued task, or the pre-existing row on duplicate delivery.
-
-    Raises:
-        ValueError: If the idempotency key is blank or max_attempts < 1.
-        RuntimeError: If the row could not be read back after insert.
-    """
     if not task.idempotency_key.strip():
         raise ValueError("idempotency_key must not be empty")
     if task.max_attempts < 1:
@@ -185,7 +139,6 @@ def list_tasks(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[ScientificTask]:
-    """List a run's tasks in creation order."""
     with _use_conn(conn, db_path) as active:
         rows = active.execute(
             "SELECT * FROM scientific_tasks WHERE run_id=? "
@@ -198,7 +151,6 @@ def list_tasks(
 def list_active_engine_task_run_ids(
     db_path: str | None = None,
 ) -> list[str]:
-    """Return non-terminal runs whose durable engine work needs a worker."""
     with connect(db_path) as conn:
         rows = conn.execute(
             "SELECT DISTINCT t.run_id FROM scientific_tasks t "
@@ -211,20 +163,12 @@ def list_active_engine_task_run_ids(
     return [str(row["run_id"]) for row in rows]
 
 
-# Nothing enqueues the legacy "run.workflow" task type any more, but rows of
-# that type may still exist in production databases created before the
-# node-level durable executor. Such a lease is only a process boundary, not a
-# disclosed scientific work budget, so it is excluded from every part of the
-# rollup to keep progress determinate for any run that still carries one.
+# Legacy workflow leases disclose no scientific work budget; exclude those
+# retained rows from determinate progress.
 _LEGACY_TASK_TYPE = "run.workflow"
 
-# One aggregate rather than decoding every task row: a fan-out item's
-# inputs_json alone is kilobytes, and none of the four JSON columns a task
-# carries contributes to these five scalars. This is read once per run on
-# every run-list response and again on every run-detail poll, so the decode
-# was paid over and over for numbers SQLite can count in place. The engine
-# prefix is compared with substr rather than LIKE, matching
-# ``has_task_of_type``: LIKE would treat "_" as a wildcard.
+# Aggregate scalars in SQL without decoding kilobyte task payloads; literal
+# substr prefixes avoid LIKE underscore wildcards.
 _PROGRESS_QUERY = (
     "SELECT COUNT(*) AS total,"
     " COALESCE(SUM(status IN ('completed','failed','cancelled')), 0)"
@@ -244,7 +188,6 @@ def task_progress(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> dict[str, Any]:
-    """Summarize monotonic execution progress from committed durable tasks."""
     with _use_conn(conn, db_path) as active:
         row = active.execute(
             _PROGRESS_QUERY,
@@ -252,8 +195,8 @@ def task_progress(
         ).fetchone()
     total = int(row["total"])
     completed = int(row["completed"])
-    # A model-expanded plan has no honest denominator, so it reports neither
-    # a fraction nor determinacy however many tasks have committed.
+    # Model-expanded plans have no honest denominator and must not report
+    # determinate fractional progress.
     determinate = total > 0 and not row["dynamic_plan"]
     return {
         "determinate": determinate,
@@ -271,7 +214,6 @@ def get_task(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> ScientificTask | None:
-    """Return one task by identifier, or None when it does not exist."""
     with _use_conn(conn, db_path) as active:
         row = active.execute(
             "SELECT * FROM scientific_tasks WHERE id=?", (task_id,)
@@ -282,7 +224,6 @@ def get_task(
 def _dependencies_complete(
     conn: sqlite3.Connection, task: ScientificTask
 ) -> bool:
-    """Return whether every declared dependency completed successfully."""
     if not task.dependencies:
         return True
     placeholders = ",".join("?" for _ in task.dependencies)
@@ -301,13 +242,10 @@ def _dependencies_complete(
 
 
 def _rescue_expired_leases(conn: sqlite3.Connection, now: float) -> None:
-    """Fail ambiguous engine leases before rescuing other expired work."""
     _fail_ambiguous_expired_leases(conn, now)
 
-    # Engine leases have no durable request-time admission receipt, so they
-    # fail closed regardless of the current route configuration -- except on
-    # a campaign run, whose persisted policy is that receipt (see
-    # tasks_recovery._PROVABLY_FREE_RUN); those fall through to this rescue.
+    # Without durable request-time admission receipts, expired engine leases
+    # fail closed; persisted free-campaign policy is the exception.
     conn.execute(
         "UPDATE scientific_tasks SET status='queued', lease_owner=NULL, "
         "lease_expires_at=NULL, updated_at=? "
@@ -320,11 +258,8 @@ def _rescue_expired_leases(conn: sqlite3.Connection, now: float) -> None:
 def _queued_tasks_query(
     run_id: str | None, now: float
 ) -> tuple[str, list[Any]]:
-    """Build the ready-task query ordered by priority then age.
-
-    Excludes a row parked with a future ``available_at`` (see
-    ``tasks_lifecycle.park_task_for_rate_limit``) -- it is ``queued`` so
-    the run reads as making progress, but not yet due.
+    """Future-due rows stay queued to represent progress, but must not be
+    leased before their not-before instant.
     """
     query = (
         "SELECT * FROM scientific_tasks WHERE status='queued'"
@@ -346,7 +281,6 @@ def _try_lease_task(
     now: float,
     lease_seconds: float,
 ) -> ScientificTask | None:
-    """Attempt to lease one ready task to worker_id; return it on success."""
     if not _dependencies_complete(conn, task):
         return None
     expires = now + lease_seconds
@@ -372,14 +306,12 @@ def claim_task(
     run_id: str | None = None,
     db_path: str | None = None,
 ) -> ScientificTask | None:
-    """Atomically lease the highest-priority ready task to one worker."""
     if lease_seconds <= 0:
         raise ValueError("lease_seconds must be positive")
     if not _has_claimable_task(run_id, db_path):
         return None
     with transaction(db_path) as conn:
         now = _now()
-        # Expired leases become ready again unless their retry budget is spent.
         _rescue_expired_leases(conn, now)
         query, params = _queued_tasks_query(run_id, now)
         for row in conn.execute(query, params).fetchall():
@@ -401,13 +333,8 @@ def fail_task(
     stop_run: bool = False,
     db_path: str | None = None,
 ) -> bool:
-    """Record failure and requeue when the bounded retry budget permits.
-
-    A failure that spends the task's last attempt (or is permanent) also
-    settles the run when nothing claimable remains: the run transitions
-    to failed and its terminal status event is appended inside this same
-    transaction, so a run can never be left running with no work that
-    could ever advance it (the SSE stream closes on that event).
+    """Terminal task failure and run settlement share one transaction, so
+    the stream cannot remain open with no recoverable work.
     """
     failure = error if isinstance(error, TaskFailure) else TaskFailure(error)
     from app.credentials import redact_byok_text

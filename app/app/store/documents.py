@@ -1,16 +1,3 @@
-"""Client-scoped documents staged before an interview or a run exists.
-
-A scientist attaches a paper in the composer, which is *before* there is
-any run to attach it to. Storing the extraction here, keyed to the caller's
-identity, is what lets the same upload ground the interview that scopes the
-goal and then be carried into the run at creation time -- instead of being
-uploaded after the run already exists, which is both too late to inform the
-plan and a second write that can fail on its own.
-
-Rows are never returned across owners: every read takes the client id and
-filters on it.
-"""
-
 from __future__ import annotations
 
 import sqlite3
@@ -20,17 +7,13 @@ from typing import Any
 
 from app.store.db import _now, _use_conn, connect
 
-# How much of one document's text is quoted into the interview prompt. The
-# interview is a short chat, not the run: it needs enough to know what the
-# scientist attached and to ask better questions about it, not the whole
-# paper (which the run's own corpus retrieval serves).
+# Interview excerpts need enough scope for planning; full-text corpus retrieval
+# belongs to the research run.
 INTERVIEW_EXCERPT_CHARS = 4_000
 
 
 @dataclass(frozen=True)
 class NewStagedDocument:
-    """One extracted upload to stage against a client identity."""
-
     client_id: str
     title: str
     text: str
@@ -43,7 +26,6 @@ class NewStagedDocument:
 def add_staged_document(
     document: NewStagedDocument, *, db_path: str | None = None
 ) -> str:
-    """Persist one staged document and return its id."""
     document_id = str(uuid.uuid4())
     with connect(db_path) as conn:
         conn.execute(
@@ -66,7 +48,6 @@ def add_staged_document(
 
 
 def _rows_to_documents(rows: list[sqlite3.Row]) -> list[dict[str, Any]]:
-    """Decode staged-document rows into plain dicts."""
     return [dict(row) for row in rows]
 
 
@@ -77,20 +58,8 @@ def get_staged_documents(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
-    """Return the caller's own documents among ``document_ids``.
-
-    A document belonging to another client is simply absent from the
-    result, so callers detect it as a missing id rather than a refusal that
-    confirms it exists.
-
-    Args:
-        document_ids: Ids to resolve, in the caller's order.
-        client_id: Owning identity; rows are never returned across owners.
-        db_path: Optional database override.
-        conn: Optional open connection to reuse.
-
-    Returns:
-        The resolved rows, ordered to match ``document_ids``.
+    """Unknown and other-owner IDs are indistinguishable to avoid leaking
+    document existence.
     """
     if not document_ids:
         return []
@@ -112,11 +81,6 @@ def attach_documents_to_interview(
     *,
     db_path: str | None = None,
 ) -> int:
-    """Link the caller's staged documents to one interview.
-
-    Returns:
-        How many rows were linked.
-    """
     if not document_ids:
         return 0
     placeholders = ",".join("?" for _ in document_ids)
@@ -136,7 +100,6 @@ def list_interview_documents(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
-    """Return every document attached to one interview, oldest first."""
     with _use_conn(conn, db_path) as active:
         rows = active.execute(
             "SELECT * FROM staged_documents WHERE interview_id=? "
@@ -152,7 +115,6 @@ def merge_run_setup_documents(
     *,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
-    """Merge request and interview attachments, retaining staged order."""
     from_chat = (
         list_interview_documents(interview_id, conn=conn)
         if interview_id is not None
@@ -171,7 +133,6 @@ def index_staged_documents_for_run(
     *,
     conn: sqlite3.Connection | None = None,
 ) -> None:
-    """Copy verified staged documents into a run's evidence corpus."""
     from app.store.records import NewEvidence, add_evidence
 
     for document in staged:
@@ -197,11 +158,8 @@ def index_staged_documents_for_run(
 def interview_document_excerpts(
     interview_id: str, *, db_path: str | None = None
 ) -> list[dict[str, str]]:
-    """Return title/excerpt pairs for one interview's attached documents.
-
-    The excerpt is capped (``INTERVIEW_EXCERPT_CHARS``) and truncation is
-    marked, so the Agent can tell a short document from a clipped one and
-    does not answer as though it read the whole thing.
+    """Mark clipped excerpts so the model never mistakes a truncated
+    attachment for its complete text.
     """
     documents = list_interview_documents(interview_id, db_path=db_path)
     excerpts = []
@@ -220,11 +178,6 @@ def list_staged_documents_for_client(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
-    """Return every document the caller has staged, newest first.
-
-    Used by the account-level data export (N11): a scientist's own upload
-    is part of their data whether or not it was ever carried into a run.
-    """
     with _use_conn(conn, db_path) as active:
         rows = active.execute(
             "SELECT * FROM staged_documents WHERE client_id=? "
@@ -237,20 +190,6 @@ def list_staged_documents_for_client(
 def delete_staged_document(
     document_id: str, client_id: str, *, db_path: str | None = None
 ) -> bool:
-    """Delete one staged document the caller owns.
-
-    A document belonging to another client is left untouched and the call
-    reports no deletion, matching ``get_staged_documents``' owner-scoping.
-
-    Args:
-        document_id: Id of the document to delete.
-        client_id: Owning identity; a mismatched row is not deleted.
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        True if a row was deleted, False if unknown or owned by another
-        client.
-    """
     with connect(db_path) as conn:
         cur = conn.execute(
             "DELETE FROM staged_documents WHERE id=? AND client_id=?",
@@ -262,18 +201,8 @@ def delete_staged_document(
 def delete_staged_documents_older_than(
     cutoff: float, *, db_path: str | None = None
 ) -> int:
-    """Delete every staged document created before ``cutoff``.
-
-    Used by the retention sweep (``app.retention``). Age is judged by
-    creation time, not last use, since a staged document is never updated
-    after its extraction is stored.
-
-    Args:
-        cutoff: Unix timestamp; older rows are deleted.
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        How many rows were deleted.
+    """Age is measured from creation; staged rows have no last-use
+    timestamp.
     """
     with connect(db_path) as conn:
         cur = conn.execute(
@@ -289,7 +218,6 @@ def mark_documents_used_by_run(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
-    """Record which run carried these staged documents into its corpus."""
     if not document_ids:
         return
     placeholders = ",".join("?" for _ in document_ids)

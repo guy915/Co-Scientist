@@ -1,11 +1,3 @@
-"""SQLite DDL for the app store.
-
-The complete CREATE TABLE/INDEX script executed by ``app.store.db`` on
-first connection. Pure data: behavioral code (connections, migrations)
-stays in ``db.py``. Inline comments document each table's role and the
-compatibility notes behind non-obvious column choices.
-"""
-
 SCHEMA = """
 -- Primary lifecycle record for a single hypothesis-generation run.
 CREATE TABLE IF NOT EXISTS runs (

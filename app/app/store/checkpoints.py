@@ -1,13 +1,3 @@
-"""Durable workflow-checkpoint persistence (Milestone 4).
-
-Stores versioned checkpoint envelopes so an interrupted run can resume from its
-last committed boundary rather than failing or restarting. One row per saved
-checkpoint; :func:`get_latest_checkpoint` returns the newest by per-run
-sequence. The envelope shape and its schema version are owned by the engine
-(``co_scientist.checkpoint``); this module only persists and retrieves it
-transactionally.
-"""
-
 from __future__ import annotations
 
 import json
@@ -21,15 +11,6 @@ from app.store.supervisor_plan import sync_supervisor_ledger_from_checkpoint
 
 @dataclass(frozen=True)
 class NewCheckpoint:
-    """One checkpoint envelope to persist for a run.
-
-    ``stage`` is the provider's boundary label (e.g. ``"post_ranking"``),
-    ``schema_version`` the version of the envelope shape, and
-    ``last_event_seq`` the last durable event sequence at this boundary
-    (a resumed run assigns new event seqs strictly above it). ``state``
-    is the JSON-serializable envelope itself.
-    """
-
     stage: str
     schema_version: int
     last_event_seq: int
@@ -39,9 +20,8 @@ class NewCheckpoint:
 def _insert_checkpoint_row(
     conn: sqlite3.Connection, run_id: str, checkpoint: NewCheckpoint
 ) -> int:
-    """Insert one checkpoint row and return its assigned per-run sequence."""
-    # Assign the next per-run seq and insert in a single statement (the
-    # same idiom as run_events' _append_event).
+    # Allocate the sequence and insert in one SQL statement; concurrent
+    # checkpoint writers must not choose the same sequence.
     row = conn.execute(
         "INSERT INTO checkpoints (run_id, seq, stage, schema_version, "
         "last_event_seq, state_json, created_at) VALUES (?, "
@@ -63,20 +43,8 @@ def _insert_checkpoint_row(
 def _prune_older_checkpoints(
     conn: sqlite3.Connection, run_id: str, seq: int
 ) -> None:
-    """Delete a run's checkpoints older than the given sequence.
-
-    get_latest_checkpoint is the only reader in the codebase, so any row
-    below the newest seq is already unreachable -- nothing can load it
-    again. Each envelope is a whole WorkflowState snapshot (hypotheses,
-    reviews, literature, injected run context), so keeping the
-    history cost hundreds of kilobytes per boundary crossed: in production
-    it grew this table to 380 MB, 97% of the database, and filled the
-    volume until every write failed with "database or disk is full".
-    Pruning here keeps the table proportional to the number of runs rather
-    than to the number of boundaries they cross. The newest row is always
-    retained, so seq stays monotonic (it is assigned as MAX(seq) + 1) and
-    resume, has_checkpoint, and the bootstrap's expected-seq assertions are
-    all unaffected.
+    """Only the newest checkpoint is resumable; retaining its sequence
+    preserves monotonic ordering while bounding storage per run.
     """
     conn.execute(
         "DELETE FROM checkpoints WHERE run_id=? AND seq<?", (run_id, seq)
@@ -90,25 +58,11 @@ def save_checkpoint(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> int:
-    """Persist one checkpoint for a run and return its per-run sequence.
-
-    Args:
-        run_id: Identifier of the run being checkpointed.
-        checkpoint: The envelope to persist (see :class:`NewCheckpoint`).
-        db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to reuse.
-
-    Returns:
-        The newly assigned per-run checkpoint sequence number.
-    """
     with _use_conn(conn, db_path) as conn:
         seq = _insert_checkpoint_row(conn, run_id, checkpoint)
         _prune_older_checkpoints(conn, run_id, seq)
-        # Durable-ledger hook (audit E19): every checkpoint -- not only the
-        # final one -- carries whatever Supervisor plan/allocations the run
-        # has accumulated so far, so a run that never reaches finalize
-        # still leaves a record behind. See
-        # ``supervisor_plan.sync_supervisor_ledger_from_checkpoint``.
+        # Checkpoint commits preserve scheduling audit even when failure,
+        # cancellation or safety prevents finalization.
         sync_supervisor_ledger_from_checkpoint(run_id, checkpoint.state, conn)
     return seq
 
@@ -118,12 +72,6 @@ def get_latest_checkpoint(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> dict[str, Any] | None:
-    """Return the newest checkpoint for a run, or None if it has none.
-
-    Returns:
-        A dict with ``seq``, ``stage``, ``schema_version``, ``last_event_seq``,
-        and ``state`` (the deserialized envelope), or None.
-    """
     with _use_conn(conn, db_path) as conn:
         row = conn.execute(
             "SELECT seq, stage, schema_version, last_event_seq, state_json "
@@ -146,7 +94,6 @@ def has_checkpoint(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> bool:
-    """Return whether a run has any saved checkpoint (i.e. is resumable)."""
     with _use_conn(conn, db_path) as conn:
         row = conn.execute(
             "SELECT 1 FROM checkpoints WHERE run_id=? LIMIT 1",
@@ -155,45 +102,14 @@ def has_checkpoint(
     return row is not None
 
 
-# The sweep exists to relieve a full volume, so it has to run *on* a full
-# volume -- where every write, however small, can fail with SQLITE_FULL. Two
-# things follow, and neither is about the size of the DELETE itself: dropping
-# rows costs little journal space, since freed overflow pages go onto the
-# freelist rather than being rewritten.
-#
-# First, the sweep needs headroom before it can write at all, so it folds the
-# write-ahead log into the database and truncates it up front. A checkpoint
-# rewrites pages at offsets the file already owns, so it does not need free
-# space to succeed, and it hands back however many megabytes the WAL was
-# holding.
-#
-# Second, progress has to be durable in pieces. A single statement across the
-# whole history is all-or-nothing: one SQLITE_FULL and the work is rolled back,
-# which is exactly how the first version of this sweep achieved nothing on the
-# database it was written for. Committing a few rows at a time means whatever
-# succeeded stays done and each fold returns more space to the next batch, so
-# even a volume with almost nothing free converges over a few restarts.
+# On a full volume, prune in small committed batches before new writes; a large
+# delete can exhaust WAL/rollback headroom.
 _PRUNE_BATCH_ROWS = 4
 
 
 def prune_superseded_checkpoints(db_path: str | None = None) -> int:
-    """Delete every checkpoint that a newer one for the same run supersedes.
-
-    ``save_checkpoint`` now prunes as it writes, so this only has work to do
-    on a database written before that: it applies the same rule retroactively.
-    Each run keeps its newest checkpoint and loses the rest, which is exactly
-    the set ``get_latest_checkpoint`` could never return. Runs stay resumable.
-
-    Reclaims the write-ahead log first and then deletes in small committed
-    batches, so it still makes progress on a volume with almost no free space
-    -- see ``_PRUNE_BATCH_ROWS``. Safe to call on every startup: it is
-    idempotent and a no-op once the history is gone.
-
-    Args:
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        The number of superseded checkpoint rows deleted.
+    """Small commits reclaim legacy history even when a full volume lacks
+    room for one large delete and its rollback journal.
     """
     superseded = (
         "SELECT stale.rowid FROM checkpoints AS stale WHERE stale.seq < ("
@@ -202,7 +118,6 @@ def prune_superseded_checkpoints(db_path: str | None = None) -> int:
     )
     delete = f"DELETE FROM checkpoints WHERE rowid IN ({superseded})"
 
-    # Buy headroom before attempting the first write.
     checkpoint_wal(db_path)
 
     total = 0
@@ -222,19 +137,8 @@ def clear_checkpoints(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
-    """Delete all of a run's saved checkpoints.
-
-    Used when a run is re-bootstrapped from scratch rather than resumed from
-    a saved boundary (see ``runs._launch_resume``'s legacy-checkpoint
-    fallback): the durable bootstrap task asserts it starts from an empty
-    checkpoint history (``expected_checkpoint_seq=0``), so a stale envelope
-    checkpoint left behind by ``clear_run_derived_data`` (which deliberately
-    keeps checkpoints for the true-resume path) must be removed first.
-
-    Args:
-        run_id: Identifier of the run whose checkpoints to delete.
-        db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to reuse.
+    """Rebootstrap expects sequence zero; true engine resume instead retains
+    its latest checkpoint.
     """
     with _use_conn(conn, db_path) as conn:
         conn.execute("DELETE FROM checkpoints WHERE run_id=?", (run_id,))

@@ -1,25 +1,3 @@
-"""SQLite-backed persistence for runs, hypotheses, evidence, and reports.
-
-Design choices:
-
-- Pure stdlib `sqlite3` so the app picks up no new runtime deps.
-- WAL mode + per-thread connections via a context manager.
-- The event log is append-only and is the canonical timeline reopened on
-  refresh / restart.
-- Hypotheses are append-only: `evolve` writes new rows with `parent_id` set;
-  no row is ever mutated in place. Updates that *are* allowed (Elo, status,
-  scores) live in `hypothesis_state`, keyed by hypothesis id, leaving the
-  original row untouched.
-- Reports persist structured JSON and full rendered Markdown in SQLite.
-
-The package is split by concern: ``db`` (connections, schema, migrations),
-``models`` (row dataclasses and enums), ``runs`` (run CRUD and lifecycle),
-``events`` (append-only event log), ``hypotheses``, ``records`` (evidence,
-citations, reviews, matches, safety), ``reports``, and ``messages``. This
-module re-exports the public API so callers keep using ``from app import
-store`` / ``from app.store import ...`` unchanged.
-"""
-
 from __future__ import annotations
 
 from app.store.checkpoints import (
