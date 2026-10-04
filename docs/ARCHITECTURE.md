@@ -196,8 +196,8 @@ orchestrators expose only the collaborators they actually use.
 ## Code organization
 
 Modules group related behavior. The generator prepares state and tool
-capabilities; durable tasks own execution. PubMed retrieval uses one source class instead of
-a mixin chain. Report construction and frontend components shape their data
+capabilities; durable tasks own execution. PubMed retrieval uses one source
+class instead of a mixin chain. Report construction and frontend components shape their data
 where it is consumed, without pass-through payload objects or single-use
 style facades. Private helpers are imported from their defining modules.
 
@@ -212,11 +212,12 @@ of cohesive modules, with behavior, type, and layer boundaries checked in CI.
 `co_scientist.agents.generation` exposes `GenerationPlan`, `GenerationCounts`,
 `GenerationResults`, `prepare_generation` and `finalize_generation`.
 `operations.py` owns input validation, allocation, citation context, result
-assembly, enrichment and lineage. The engine node coordinates parallel strategies; `app.engine_tasks` owns durable scheduling, leases, retry keys,
+assembly, enrichment and lineage. The generation agent coordinates parallel
+strategies; `app.engine_tasks` owns durable scheduling, leases, retry keys,
 partial-failure isolation and checkpoint commits. Finalization may perform
 network work and runs before the store transaction.
 
-The interface preserves existing execution differences: engine-node generation
+The interface preserves existing execution differences: the generation agent
 performs expansion research and grounds assumptions with literature; durable
 generation retains its current assumptions inputs and per-strategy tasks.
 Changing those differences requires an explicit grounding and spending policy.
@@ -225,18 +226,19 @@ Changing those differences requires an explicit grounding and spending policy.
 
 The Ranking package exposes preparation, remaining-round budgets, deterministic
 pairing, immutable prompt/judging contexts, one-match judging and Elo application,
-and finalization. The engine node commits each result before selecting its next pair.
+and finalization. The ranking agent commits each result before selecting its
+next pair.
 The durable adapter selects a wave from checkpoint pool order, judges it against
 one median snapshot and commits surviving outcomes in wave order. Both meter
-reported debate turns with budgeted depth as fallback. Engine-node prompts retain
+reported debate turns with budgeted depth as fallback. Agent prompts retain
 preferences; durable prompts retain their existing criteria-only adaptation.
 
 Reflection exports initial-review gates, verification selection and one-item
 verification/observation/mature-review operations. The engine assembles evidence
 and private contexts; the app persists markers, reviews and separate research
 ledgers. Ordinary item failures preserve siblings; platform-cap and call-budget
-exceptions reach the worker. Engine-node verification bounds stored details and marks
-issuance before calls; durable aggregation retains raw results, marks issuance
+exceptions reach the worker. Agent verification bounds stored details and
+marks issuance before calls; durable aggregation retains raw results, marks issuance
 on aggregation and meters successful valid items.
 
 Evolution owns the public `EvolutionContext`, round-context assembly and the
