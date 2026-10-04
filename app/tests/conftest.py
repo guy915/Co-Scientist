@@ -70,9 +70,6 @@ def _apply_offline_env(
 ) -> None:
     monkeypatch.setenv("COSCIENTIST_DB_PATH", db_path)
     monkeypatch.setenv("COSCIENTIST_REPORTS_DIR", reports_dir)
-    # In-process CLI defaults must write identity under tmp_path, never the real
-    # user home.
-    monkeypatch.setenv("COSCIENTIST_CLI_CONFIG_DIR", db_path + "-cli-config")
     for key in _PROVIDER_KEYS:
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("COSCIENTIST_FORCE_OFFLINE", "1")

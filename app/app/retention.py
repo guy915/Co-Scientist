@@ -1,28 +1,6 @@
-"""Time-based retention sweep for terminal runs and staged documents.
+"""Read windows without Settings so detached maintenance stays independent.
 
-Addresses N4 (no retention/cascade policy): a run's own tables never need
-a retention rule of their own -- they cascade away with the run (see
-``app.store.runs``) -- but a run row itself and a pre-run staged
-document each have an unbounded lifetime today. This module gives each a
-bounded one.
-
-Deliberately reads its windows straight from the environment rather than
-``app.config.settings`` (which is not this agent's file to extend), the
-same precedent ``app.store.db.default_db_path`` already sets for
-``COSCIENTIST_DB_PATH`` -- this also keeps the sweep runnable as detached
-operator tooling (a cron job, ``python -m app.retention``, the CLI)
-independent of the API process's settings import.
-
-Each sweep issues one short DELETE per row rather than one long
-transaction spanning every expired row: the SQLite gotchas in AGENTS.md
-apply here too -- a sweep is exactly the kind of periodic write that must
-never hold the write lock across unrelated work or run on a hot poll tick.
-
-Not wired to a scheduler here (see the module's own file-ownership note in
-the defect report): ``app/app/main.py`` is a sibling's file, so invoking
-this on a timer from the app's lifespan is a hand-off, not something this
-module does itself. ``python -m app.retention`` is the standalone entry
-point for a cron job or a Railway scheduled service in the meantime.
+Short per-row deletes avoid holding SQLite's write lock across a sweep.
 """
 
 from __future__ import annotations

@@ -1,7 +1,4 @@
-// Ships frontend failures and user interactions into the persisted
-// app-wide log so a UI crash or a button press is visible from the Logs
-// panel, `cosci logs`, and /api/logs — the same places backend records
-// land — instead of only in a browser console nobody is watching.
+// Persist browser failures alongside backend records so diagnostics survive reloads.
 import {postAppLogs, type ClientLogRecord} from '@/api/logs';
 
 // Ships records and swallows any failure. Every write from this module is
