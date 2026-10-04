@@ -4,7 +4,7 @@ import asyncio
 import logging
 from typing import Any
 
-from app import store, task_worker
+from app import task_worker
 from app.async_bridge import run_in_scoped_loop
 from app.demo_seed_data import DEMO_SCENARIOS, DEMO_SEED_VERSION
 from app.run_modes import resolved_run_config, setup_config
@@ -14,7 +14,11 @@ from app.seed.scenario import (
 from app.seed.scenario import (
     _seed_curated_scenario as _seed_curated_scenario,
 )
-from app.store import DEMO_CLIENT_ID, RunRow
+from app.store import reports as store
+from app.store import runs
+from app.store import runs_views as views
+from app.store.models import DEMO_CLIENT_ID, RunRow
+from app.store.runs import RunCreateOptions
 
 logger = logging.getLogger(__name__)
 
@@ -55,12 +59,12 @@ def _ensure_demo_run_row(
     if run is not None:
         return run
     scenario = DEMO_SCENARIOS.get(goal)
-    return store.create_run(
+    return runs.create_run(
         goal,
         _DEMO_TIER,
         "engine",
         config,
-        store.RunCreateOptions(
+        RunCreateOptions(
             client_id=DEMO_CLIENT_ID,
             title=scenario.title if scenario else None,
             llm_backend="offline",
@@ -110,7 +114,7 @@ async def _seed_demo_run(
     if scenario is not None:
         # Reconstructed legacy demo rows need the same setup fields as newly
         # created ones.
-        store.set_run_config(run.id, config, db_path=db_path)
+        runs.set_run_config(run.id, config, db_path=db_path)
         await _seed_curated_scenario(run, scenario, db_path)
         logger.info("Seeded curated demo run %s (%.60s…)", run.id[:8], goal)
         return
@@ -156,7 +160,7 @@ async def seed_demo_runs(db_path: str | None = None) -> None:
 
     install_offline_router()
 
-    existing = store.list_runs(client_id=DEMO_CLIENT_ID, db_path=db_path)
+    existing = views.list_runs(client_id=DEMO_CLIENT_ID, db_path=db_path)
     existing_by_goal = {run.research_goal: run for run in existing}
 
     for goal in _DEMO_GOALS:

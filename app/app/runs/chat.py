@@ -13,7 +13,6 @@ from app import (
     engine_tasks,
     qa,
     run_start_announcement,
-    store,
 )
 from app.api_contracts import MessagesResponse
 from app.api_contracts.runs import RunMessage
@@ -24,6 +23,11 @@ from app.runs.models import (
     StartAnnouncementRequest,
 )
 from app.runs.support import _require_run, _run_or_404
+from app.store import db, records
+from app.store import hypotheses as store_hypotheses
+from app.store import messages as store
+from app.store.messages import NewMessage
+from app.store.models import MessageRow, RunRow
 
 router = APIRouter()
 
@@ -36,7 +40,7 @@ async def send_message(run_id: str, req: SendMessageRequest) -> dict[str, Any]:
     # worker
     # cannot lose the message.
     msg = store.append_message(
-        store.NewMessage(
+        NewMessage(
             run_id=run_id, sender="user", content=req.content, kind="steering"
         )
     )
@@ -56,15 +60,15 @@ async def list_messages(run_id: str) -> dict[str, Any]:
     return {"messages": [m.to_dict() for m in msgs]}
 
 
-def _gather_qa_context(run: store.RunRow) -> qa.QaRunContext:
+def _gather_qa_context(run: RunRow) -> qa.QaRunContext:
     """Q&A reads must not acquire SQLite's single writer."""
-    with store.connect() as conn:
-        hypotheses = store.list_hypotheses(run.id, conn=conn)
-        reviews = store.list_reviews(run.id, conn=conn)
-        matches = store.list_matches(run.id, conn=conn)
+    with db.connect() as conn:
+        hypotheses = store_hypotheses.list_hypotheses(run.id, conn=conn)
+        reviews = records.list_reviews(run.id, conn=conn)
+        matches = records.list_matches(run.id, conn=conn)
         history = store.list_messages(run.id, conn=conn)[:-1]
-        evidence = store.list_evidence(run.id, conn=conn)
-        citations = store.list_citations(run.id, conn=conn)
+        evidence = records.list_evidence(run.id, conn=conn)
+        citations = records.list_citations(run.id, conn=conn)
         progress = qa_run_state.gather_run_progress(
             run,
             reviews,
@@ -94,7 +98,7 @@ def _gather_qa_context(run: store.RunRow) -> qa.QaRunContext:
 
 def _offline_qa_response(
     run_id: str,
-    question_msg: store.MessageRow,
+    question_msg: MessageRow,
     context: qa.QaRunContext,
 ) -> StreamingResponse:
     answer = qa.build_offline_answer(
@@ -122,7 +126,7 @@ def _request_byok(
 
 
 def _resolve_qa_byok(
-    run: store.RunRow, request: Request
+    run: RunRow, request: Request
 ) -> credentials.ByokCredential | None:
     """Persisted run credentials take precedence so billing remains
     consistent across sessions.
@@ -137,19 +141,17 @@ def _resolve_qa_byok(
     return credential
 
 
-def _persist_question(run_id: str, content: str) -> store.MessageRow:
+def _persist_question(run_id: str, content: str) -> MessageRow:
     """The question remains durable even if the response stream fails."""
     return store.append_message(
-        store.NewMessage(
-            run_id=run_id, sender="user", content=content, kind="qa"
-        )
+        NewMessage(run_id=run_id, sender="user", content=content, kind="qa")
     )
 
 
 def _live_qa_response(
     req: AskRequest,
-    run: store.RunRow,
-    question_msg: store.MessageRow,
+    run: RunRow,
+    question_msg: MessageRow,
     context: qa.QaRunContext,
     byok: credentials.ByokCredential | None,
 ) -> StreamingResponse:

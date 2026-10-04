@@ -15,7 +15,7 @@ from co_scientist.models import (
 )
 
 import app.engine_tasks.fanout as engine_tasks_fanout_generation
-from app import engine_tasks, safety, store, task_worker
+from app import engine_tasks, safety, task_worker
 from app.config import settings
 from app.engine_tasks import inputs as engine_tasks_inputs
 from app.engine_tasks import node as engine_tasks_node
@@ -24,6 +24,18 @@ from app.engine_tasks import support as engine_tasks_support
 from app.engine_tasks.fanout import _GenerationPlan, _StrategyInputs
 from app.engine_tasks.fanout_aggregates import _AggregateSpec
 from app.engine_tasks.support import ExactSuccessor, TaskCommit
+from app.store import checkpoints, db, records, runs
+from app.store import events as store_events
+from app.store import hypotheses as store_hypotheses
+from app.store import retrieval_calls as retrieval
+from app.store import tasks as store
+from app.store import tasks_lifecycle as lifecycle
+from app.store.hypotheses import NewHypothesis
+from app.store.models import RunRow
+from app.store.models import RunStatus as StoreRunStatus
+from app.store.records import NewReview, NewSafetyDecision
+from app.store.runs import RunCreateOptions
+from app.store.tasks import NewTask
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _add_fixture_review,
@@ -66,7 +78,7 @@ def _start_bootstrap(db_path: str) -> tuple[Any, str, Any]:
 def _resume_after_paused_snapshot(
     monkeypatch: pytest.MonkeyPatch, client: Any, run_id: str
 ) -> list[bool]:
-    get_run = store.get_run
+    get_run = runs.get_run
     resumed: list[bool] = []
 
     def interleaved_get(
@@ -84,7 +96,7 @@ def _resume_after_paused_snapshot(
             assert response.status_code == 200
         return run
 
-    monkeypatch.setattr(store, "get_run", interleaved_get)
+    monkeypatch.setattr(runs, "get_run", interleaved_get)
     return resumed
 
 
@@ -96,7 +108,7 @@ def _enqueue_bootstrap_successor(
     conn: Any,
 ) -> Any:
     return store.enqueue_task(
-        store.NewTask(
+        NewTask(
             run_id=task.run_id,
             task_type=successor_type,
             inputs={"checkpoint_seq": 1},
@@ -137,9 +149,9 @@ async def test_bootstrap_rechecks_pause_after_resume_before_commit(
 
     assert resumed == [True]
     assert result.get("status") != "paused"
-    run = store.get_run(run_id, db_path=isolated_db)
+    run = runs.get_run(run_id, db_path=isolated_db)
     assert run is not None and run.status == "queued"
-    checkpoint = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert (
         checkpoint is not None
         and checkpoint["stage"] == f"engine_task:{task.id}"
@@ -149,7 +161,7 @@ async def test_bootstrap_rechecks_pause_after_resume_before_commit(
     assert len(tasks) == 2
     assert sum(item.task_type == "engine.bootstrap" for item in tasks) == 1
     assert any(item.task_type == "engine.node.supervisor" for item in tasks)
-    assert store.complete_task(
+    assert lifecycle.complete_task(
         task.id, "bootstrap-worker", result, db_path=isolated_db
     )
     claim = store.claim_task(
@@ -185,10 +197,10 @@ async def test_bootstrap_pause_without_resume_commits_paused_checkpoint(
     result = await engine_tasks.execute_bootstrap(task, db_path=isolated_db)
 
     assert result["status"] == "paused"
-    checkpoint = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert checkpoint is not None
     assert checkpoint["stage"] == f"engine_task_paused:{task.id}"
-    run = store.get_run(run_id, db_path=isolated_db)
+    run = runs.get_run(run_id, db_path=isolated_db)
     assert run is not None and run.status == "paused"
     assert len(store.list_tasks(run_id, db_path=isolated_db)) == 1
 
@@ -198,8 +210,8 @@ def test_resume_keeps_intake_safety_artifacts_for_leased_bootstrap(
 ) -> None:
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client, run_id, _task = _start_bootstrap(isolated_db)
-    store.add_safety_decision(
-        store.NewSafetyDecision(
+    records.add_safety_decision(
+        NewSafetyDecision(
             run_id=run_id,
             stage="intake",
             decision="allow",
@@ -208,7 +220,7 @@ def test_resume_keeps_intake_safety_artifacts_for_leased_bootstrap(
         ),
         db_path=isolated_db,
     )
-    store.append_event(
+    store_events.append_event(
         run_id,
         "safety",
         {"event": "intake_decision_persisted"},
@@ -219,19 +231,19 @@ def test_resume_keeps_intake_safety_artifacts_for_leased_bootstrap(
     resumed = client.post(f"/api/runs/{run_id}/resume")
 
     assert resumed.status_code == 200
-    decisions = store.list_safety_decisions(run_id, db_path=isolated_db)
+    decisions = records.list_safety_decisions(run_id, db_path=isolated_db)
     assert [decision["reason"] for decision in decisions] == [
         "intake screen completed"
     ]
     assert any(
         event["type"] == "lifecycle"
         and event["payload"].get("event") == "pause_requested"
-        for event in store.list_events(run_id, db_path=isolated_db)
+        for event in store_events.list_events(run_id, db_path=isolated_db)
     )
     assert any(
         event["type"] == "safety"
         and event["payload"].get("event") == "intake_decision_persisted"
-        for event in store.list_events(run_id, db_path=isolated_db)
+        for event in store_events.list_events(run_id, db_path=isolated_db)
     )
 
 
@@ -263,7 +275,9 @@ async def _advance_to_supervisor(
     generator = _Generator(_task_state(run_id))
     _patch_generator(monkeypatch, generator, screen=True)
     result = await engine_tasks.execute_bootstrap(leased, db_path=db_path)
-    assert store.complete_task(bootstrap.id, "worker", result, db_path=db_path)
+    assert lifecycle.complete_task(
+        bootstrap.id, "worker", result, db_path=db_path
+    )
     supervisor = store.claim_task("worker", run_id=run_id, db_path=db_path)
     assert supervisor is not None
     return supervisor
@@ -272,9 +286,9 @@ async def _advance_to_supervisor(
 def test_scientist_inputs_merge_into_engine_state_once(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("Scientist loop", "standard", "engine", {})
-    hypothesis_id = store.add_hypothesis(
-        store.NewHypothesis(
+    run = runs.create_run("Scientist loop", "standard", "engine", {})
+    hypothesis_id = store_hypotheses.add_hypothesis(
+        NewHypothesis(
             run_id=run.id,
             title="Scientist idea",
             statement="A scientist-proposed mechanism",
@@ -283,8 +297,8 @@ def test_scientist_inputs_merge_into_engine_state_once(
         ),
         db_path=isolated_db,
     )
-    store.add_review(
-        store.NewReview(
+    records.add_review(
+        NewReview(
             run_id=run.id,
             hypothesis_id=hypothesis_id,
             reviewer_agent="scientist",
@@ -307,15 +321,15 @@ def test_scientist_inputs_merge_into_engine_state_once(
 
 
 def test_scientist_input_reopens_completed_engine_run(isolated_db: str) -> None:
-    run = store.create_run("Continuation", "standard", "engine", {})
+    run = runs.create_run("Continuation", "standard", "engine", {})
     checkpoint_seq = _seed_checkpoint(
         run.id,
         _task_state(run.id),
         stage="engine_task:final",
         db_path=isolated_db,
     )
-    store.update_run_status(
-        run.id, store.RunStatus.COMPLETED, db_path=isolated_db
+    runs.update_run_status(
+        run.id, StoreRunStatus.COMPLETED, db_path=isolated_db
     )
 
     task = engine_tasks.enqueue_scientist_continuation(
@@ -326,7 +340,7 @@ def test_scientist_input_reopens_completed_engine_run(isolated_db: str) -> None:
     assert task.task_type == "engine.node.orchestrator"
     assert task.inputs["checkpoint_seq"] == checkpoint_seq
     assert task.priority == 100
-    reopened = store.get_run(run.id, db_path=isolated_db)
+    reopened = runs.get_run(run.id, db_path=isolated_db)
     assert reopened is not None and reopened.status == "queued"
 
 
@@ -334,7 +348,7 @@ def test_scientist_input_reopens_completed_engine_run(isolated_db: str) -> None:
 async def test_bootstrap_commits_state_and_enqueues_supervisor(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("Task-level science", "standard", "engine", {})
+    run = runs.create_run("Task-level science", "standard", "engine", {})
     bootstrap = engine_tasks.enqueue_bootstrap(run.id, db_path=isolated_db)
     leased = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
     assert leased is not None and leased.id == bootstrap.id
@@ -342,9 +356,11 @@ async def test_bootstrap_commits_state_and_enqueues_supervisor(
     _patch_generator(monkeypatch, generator, screen=True)
 
     result = await engine_tasks.execute_bootstrap(leased, db_path=isolated_db)
-    assert store.complete_task(leased.id, "worker", result, db_path=isolated_db)
+    assert lifecycle.complete_task(
+        leased.id, "worker", result, db_path=isolated_db
+    )
 
-    checkpoint = store.get_latest_checkpoint(run.id, db_path=isolated_db)
+    checkpoint = checkpoints.get_latest_checkpoint(run.id, db_path=isolated_db)
     assert checkpoint is not None and checkpoint["seq"] == 1
     tasks = store.list_tasks(run.id, db_path=isolated_db)
     assert [task.task_type for task in tasks] == [
@@ -365,12 +381,12 @@ async def test_bootstrap_never_escalates_an_offline_backed_run(
 ) -> None:
     # Offline bootstrap must not ask a contextual model whose uncertain verdict
     # could pause deterministic runs.
-    run = store.create_run(
+    run = runs.create_run(
         "Task-level science",
         "standard",
         "engine",
         {},
-        store.RunCreateOptions(llm_backend="offline", db_path=isolated_db),
+        RunCreateOptions(llm_backend="offline", db_path=isolated_db),
     )
     engine_tasks.enqueue_bootstrap(run.id, db_path=isolated_db)
     leased = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
@@ -382,7 +398,7 @@ async def test_bootstrap_never_escalates_an_offline_backed_run(
 
     assert result.get("status") != "withheld"
     assert "checkpoint_seq" in result
-    refreshed = store.get_run(run.id, db_path=isolated_db)
+    refreshed = runs.get_run(run.id, db_path=isolated_db)
     assert refreshed is not None and refreshed.status != "paused"
 
 
@@ -390,7 +406,7 @@ async def test_bootstrap_never_escalates_an_offline_backed_run(
 async def test_node_task_commits_once_and_schedules_successor(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("Task-level science", "standard", "engine", {})
+    run = runs.create_run("Task-level science", "standard", "engine", {})
     supervisor = await _advance_to_supervisor(run.id, monkeypatch, isolated_db)
 
     async def execute(
@@ -403,10 +419,10 @@ async def test_node_task_commits_once_and_schedules_successor(
     committed = await engine_tasks.execute_node_task(
         supervisor, db_path=isolated_db
     )
-    assert store.complete_task(
+    assert lifecycle.complete_task(
         supervisor.id, "worker", committed, db_path=isolated_db
     )
-    checkpoint = store.get_latest_checkpoint(run.id, db_path=isolated_db)
+    checkpoint = checkpoints.get_latest_checkpoint(run.id, db_path=isolated_db)
     assert checkpoint is not None and checkpoint["seq"] == 2
     assert [
         task.task_type for task in store.list_tasks(run.id, db_path=isolated_db)
@@ -447,7 +463,7 @@ def _seed_ranking_state(run_id: str, db_path: str) -> tuple[Any, _Generator]:
     )
     checkpoint_seq = _seed_checkpoint(run_id, state)
     node = store.enqueue_task(
-        store.NewTask(
+        NewTask(
             run_id=run_id,
             task_type=f"{engine_tasks.NODE_TASK_PREFIX}ranking",
             inputs={"checkpoint_seq": checkpoint_seq},
@@ -490,7 +506,7 @@ async def _drain_ranking_matches(
             )
             assert replay["replayed"] is True
         committed = int(result["matches_committed"])
-        assert store.complete_task(
+        assert lifecycle.complete_task(
             match.id, f"match-{index}", result, db_path=db_path
         )
         index += 1
@@ -507,13 +523,13 @@ async def _finalize_and_assert_ranking(
     result = await engine_tasks_ranking.execute_ranking_finalize(
         finalizer, db_path=db_path
     )
-    assert store.complete_task(
+    assert lifecycle.complete_task(
         finalizer.id,
         finalizer.lease_owner or "finalizer",
         result,
         db_path=db_path,
     )
-    checkpoint = store.get_latest_checkpoint(run_id, db_path=db_path)
+    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=db_path)
     assert checkpoint is not None
     restored = restore_workflow_state(checkpoint["state"])
     assert len(restored["tournament_matchups"]) == 3
@@ -535,7 +551,7 @@ async def _finalize_and_assert_ranking(
 async def test_ranking_matches_are_separate_sequential_checkpointed_tasks(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("Task-level science", "standard", "engine", {})
+    run = runs.create_run("Task-level science", "standard", "engine", {})
     node, generator = _seed_ranking_state(run.id, isolated_db)
     _patch_ranking_judge(monkeypatch, generator)
     leased = store.claim_task("ranking", run_id=run.id, db_path=isolated_db)
@@ -543,7 +559,7 @@ async def test_ranking_matches_are_separate_sequential_checkpointed_tasks(
     scheduled = await engine_tasks.execute_node_task(
         leased, db_path=isolated_db
     )
-    assert store.complete_task(
+    assert lifecycle.complete_task(
         leased.id, "ranking", scheduled, db_path=isolated_db
     )
 
@@ -565,24 +581,24 @@ async def test_inflight_pause_checkpoints_exact_successor(
 ) -> None:
     # Bootstrap already planned a successor; pause must not add another, and
     # resume reuses that row.
-    run = store.create_run("Task-level science", "standard", "engine", {})
+    run = runs.create_run("Task-level science", "standard", "engine", {})
     supervisor = await _advance_to_supervisor(run.id, monkeypatch, isolated_db)
     before_pause = store.list_tasks(run.id, db_path=isolated_db)
 
     async def execute(
         _name: str, state: dict[str, Any]
     ) -> tuple[dict[str, Any], str]:
-        store.update_run_status(run.id, store.RunStatus.PAUSED)
+        runs.update_run_status(run.id, StoreRunStatus.PAUSED)
         return state, "generate"
 
     _patch_task_node(monkeypatch, execute)
     paused = await engine_tasks.execute_node_task(
         supervisor, db_path=isolated_db
     )
-    assert store.complete_task(
+    assert lifecycle.complete_task(
         supervisor.id, "worker", paused, db_path=isolated_db
     )
-    checkpoint = store.get_latest_checkpoint(run.id, db_path=isolated_db)
+    checkpoint = checkpoints.get_latest_checkpoint(run.id, db_path=isolated_db)
     assert checkpoint is not None
     assert checkpoint["state"]["resume_successor"] == "engine.node.generate"
     assert len(store.list_tasks(run.id, db_path=isolated_db)) == len(
@@ -597,7 +613,7 @@ async def test_inflight_pause_checkpoints_exact_successor(
 
 
 def _cancel_after_second_run_read(run_id: str, client: Any) -> Any:
-    real_get_run = store.get_run
+    real_get_run = runs.get_run
     run_reads = 0
 
     def cancel_after_read(
@@ -633,9 +649,9 @@ async def test_cancel_after_bootstrap_read_cannot_be_overwritten(
     task = store.claim_task("bootstrap-worker", run_id=run_id)
     assert task is not None
 
-    real_get_run = store.get_run
+    real_get_run = runs.get_run
     monkeypatch.setattr(
-        store, "get_run", _cancel_after_second_run_read(run_id, client)
+        runs, "get_run", _cancel_after_second_run_read(run_id, client)
     )
     prepared: list[bool] = []
 
@@ -723,7 +739,7 @@ async def test_cancel_during_bootstrap_safety_gate_keeps_cancelled_status(
     assert cancelled.status_code == 200
     cancel_seq = next(
         event["seq"]
-        for event in store.list_events(run_id, db_path=isolated_db)
+        for event in store_events.list_events(run_id, db_path=isolated_db)
         if event["type"] == "status"
         and event["payload"].get("status") == "cancelled"
     )
@@ -732,14 +748,14 @@ async def test_cancel_during_bootstrap_safety_gate_keeps_cancelled_status(
     with pytest.raises(task_worker._LeaseLostError):
         await bootstrap
 
-    run = store.get_run(run_id, db_path=isolated_db)
+    run = runs.get_run(run_id, db_path=isolated_db)
     assert run is not None and run.status == "cancelled"
     assert [
         item
-        for item in store.list_safety_decisions(run_id, db_path=isolated_db)
+        for item in records.list_safety_decisions(run_id, db_path=isolated_db)
         if item["stage"] == "intake"
     ] == []
-    events = store.list_events(run_id, db_path=isolated_db)
+    events = store_events.list_events(run_id, db_path=isolated_db)
     assert not any(event["type"] == "safety.intake" for event in events)
     assert not any(
         event["type"] == "status"
@@ -782,7 +798,7 @@ async def test_stale_bootstrap_lease_cannot_apply_intake_stop(
         engine_tasks.execute_bootstrap(original, db_path=isolated_db)
     )
     await asyncio.wait_for(screening_started.wait(), timeout=5)
-    with store.transaction(isolated_db) as conn:
+    with db.transaction(isolated_db) as conn:
         conn.execute(
             "UPDATE scientific_tasks SET lease_expires_at=0 WHERE id=?",
             (original.id,),
@@ -800,14 +816,14 @@ async def test_stale_bootstrap_lease_cannot_apply_intake_stop(
     with pytest.raises(task_worker._LeaseLostError):
         await bootstrap
 
-    run = store.get_run(run_id, db_path=isolated_db)
+    run = runs.get_run(run_id, db_path=isolated_db)
     assert run is not None and run.status == "queued"
     assert [
         item
-        for item in store.list_safety_decisions(run_id, db_path=isolated_db)
+        for item in records.list_safety_decisions(run_id, db_path=isolated_db)
         if item["stage"] == "intake"
     ] == []
-    events = store.list_events(run_id, db_path=isolated_db)
+    events = store_events.list_events(run_id, db_path=isolated_db)
     assert not any(event["type"] == "safety.intake" for event in events)
     assert not any(
         event["type"] == "status"
@@ -821,7 +837,7 @@ async def test_replaced_bootstrap_lease_cannot_prepare_paused_run(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from app.config import settings
-    from app.store import RunStatus
+    from app.store.models import RunStatus
 
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client = make_client()
@@ -832,7 +848,7 @@ async def test_replaced_bootstrap_lease_cannot_prepare_paused_run(
     assert client.post(f"/api/runs/{run_id}/start", json={}).status_code == 200
     original = store.claim_task("old-paused-worker", run_id=run_id)
     assert original is not None
-    with store.transaction(isolated_db) as conn:
+    with db.transaction(isolated_db) as conn:
         conn.execute(
             "UPDATE scientific_tasks SET lease_expires_at=0 WHERE id=?",
             (original.id,),
@@ -844,7 +860,7 @@ async def test_replaced_bootstrap_lease_cannot_prepare_paused_run(
     replacement = store.claim_task("old-paused-worker", run_id=run_id)
     assert replacement is not None
     assert replacement.attempt == original.attempt + 1
-    store.update_run_status(run_id, RunStatus.PAUSED, db_path=isolated_db)
+    runs.update_run_status(run_id, RunStatus.PAUSED, db_path=isolated_db)
     prepared: list[bool] = []
     synced: list[bool] = []
 
@@ -873,7 +889,7 @@ async def test_replaced_bootstrap_lease_cannot_prepare_paused_run(
     assert prepared == []
     assert synced == []
     assert (
-        store.mark_bootstrap_running(
+        runs.mark_bootstrap_running(
             run_id,
             replacement.id,
             replacement.lease_owner,
@@ -899,7 +915,7 @@ def _owned_running_run(db_path: str) -> tuple[Any, str]:
     )
     assert created.status_code == 200, created.text
     run_id = str(created.json()["id"])
-    store.update_run_status(run_id, store.RunStatus.RUNNING, db_path=db_path)
+    runs.update_run_status(run_id, StoreRunStatus.RUNNING, db_path=db_path)
     return client, run_id
 
 
@@ -910,7 +926,7 @@ def _leased_task(
         run_id, _task_state(run_id), db_path=db_path
     )
     queued = store.enqueue_task(
-        store.NewTask(
+        NewTask(
             run_id=run_id,
             task_type=task_type,
             inputs={"checkpoint_seq": checkpoint_seq},
@@ -958,7 +974,7 @@ async def test_cancel_completed_after_node_status_check_blocks_commit(
 
     async def cancel_then_commit(
         commit: TaskCommit,
-        run: store.RunRow,
+        run: RunRow,
         node_name: str,
         committed: dict[str, Any],
         successor: str | None,
@@ -977,14 +993,14 @@ async def test_cancel_completed_after_node_status_check_blocks_commit(
     with pytest.raises(task_worker._LeaseLostError):
         await engine_tasks.execute_node_task(task, db_path=isolated_db)
 
-    latest = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+    latest = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert latest is not None and latest["seq"] == checkpoint_seq
     assert [
         row.id for row in store.list_tasks(run_id, db_path=isolated_db)
     ] == [task.id]
     cancelled_task = store.get_task(task.id, db_path=isolated_db)
     assert cancelled_task is not None and cancelled_task.status == "cancelled"
-    cancelled_run = store.get_run(run_id, db_path=isolated_db)
+    cancelled_run = runs.get_run(run_id, db_path=isolated_db)
     assert cancelled_run is not None and cancelled_run.status == "cancelled"
 
 
@@ -1023,7 +1039,7 @@ async def test_pause_after_node_status_refresh_keeps_successor_unclaimable(
 
     async def pause_then_commit(
         commit: TaskCommit,
-        run: store.RunRow,
+        run: RunRow,
         node_name: str,
         committed: dict[str, Any],
         successor: str | None,
@@ -1044,14 +1060,14 @@ async def test_pause_after_node_status_refresh_keeps_successor_unclaimable(
     saved_tasks = store.list_tasks(run_id, db_path=isolated_db)
     assert not any(row.status == "queued" for row in saved_tasks), result
     assert result["status"] == "paused"
-    assert store.complete_task(
+    assert lifecycle.complete_task(
         task.id, "cancel-race-worker", result, db_path=isolated_db
     )
-    latest = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+    latest = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert latest is not None and latest["seq"] == checkpoint_seq + 1
     assert latest["stage"] == f"engine_task_paused:{task.id}"
     assert latest["state"]["resume_successor"] == "engine.node.generate"
-    metrics = store.get_run_metrics(run_id, db_path=isolated_db)
+    metrics = retrieval.get_run_metrics(run_id, db_path=isolated_db)
     assert metrics is not None
     assert metrics["llm_calls"] == 7
     assert metrics["hypothesis_count"] == 3
@@ -1110,8 +1126,8 @@ def test_pause_api_serializes_queued_revocation_with_node_commit(
         finally:
             commit_finished.set()
 
-    original_pause_tasks = store.pause_run_tasks
-    original_transaction = store.transaction
+    original_pause_tasks = lifecycle.pause_run_tasks
+    original_transaction = db.transaction
     commit_thread: Thread | None = None
 
     @contextmanager
@@ -1136,8 +1152,8 @@ def test_pause_api_serializes_queued_revocation_with_node_commit(
         assert not commit_finished.wait(0.2), "commit escaped pause transaction"
         return changed
 
-    monkeypatch.setattr(store, "pause_run_tasks", pause_tasks_then_race)
-    monkeypatch.setattr(store, "transaction", signal_commit_transaction)
+    monkeypatch.setattr(lifecycle, "pause_run_tasks", pause_tasks_then_race)
+    monkeypatch.setattr(db, "transaction", signal_commit_transaction)
     response = client.post(f"/api/runs/{run_id}/pause", headers=_OWNER)
     assert response.status_code == 200, response.text
     assert response.json()["status"] == "paused"
@@ -1146,7 +1162,7 @@ def test_pause_api_serializes_queued_revocation_with_node_commit(
     assert not commit_thread.is_alive()
     assert not commit_errors
     assert commit_result == [(checkpoint_seq + 1, None)]
-    checkpoint = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert checkpoint is not None
     assert checkpoint["stage"] == f"engine_task_paused:{task.id}"
     assert not any(
@@ -1197,7 +1213,7 @@ async def test_cancel_before_review_fanout_transaction_blocks_enqueue(
         row.task_type for row in store.list_tasks(run_id, db_path=isolated_db)
     ]
     assert task_types == [task.task_type]
-    latest = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+    latest = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert latest is not None and latest["seq"] == checkpoint_seq
 
 
@@ -1208,8 +1224,8 @@ def test_terminal_run_cannot_commit_an_exact_successor(
     task, checkpoint_seq = _leased_task(
         run_id, "engine.ranking.match", "terminal-exact-task", isolated_db
     )
-    store.update_run_status(
-        run_id, store.RunStatus.COMPLETED, db_path=isolated_db
+    runs.update_run_status(
+        run_id, StoreRunStatus.COMPLETED, db_path=isolated_db
     )
 
     with pytest.raises(task_worker._LeaseLostError):
@@ -1223,7 +1239,7 @@ def test_terminal_run_cannot_commit_an_exact_successor(
             ),
         )
 
-    latest = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+    latest = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert latest is not None and latest["seq"] == checkpoint_seq
     assert [
         row.id for row in store.list_tasks(run_id, db_path=isolated_db)
@@ -1242,7 +1258,7 @@ def test_old_same_owner_attempt_cannot_commit_after_re_lease(
     assert stale_task.attempt == 1
     assert stale_task.lease_owner == "cancel-race-worker"
 
-    with store.transaction(isolated_db) as conn:
+    with db.transaction(isolated_db) as conn:
         conn.execute(
             "UPDATE scientific_tasks SET lease_expires_at=0 WHERE id=?",
             (stale_task.id,),
@@ -1259,12 +1275,12 @@ def test_old_same_owner_attempt_cannot_commit_after_re_lease(
     failed = store.get_task(stale_task.id, db_path=isolated_db)
     assert failed is not None and failed.status == "failed"
     assert "may have accepted" in (failed.error or "")
-    assert store.retry_task(
+    assert lifecycle.retry_task(
         stale_task.id,
         reason="owner authorized replay after ambiguous lease expiry",
         db_path=isolated_db,
     )
-    store.update_run_status(run_id, store.RunStatus.QUEUED, db_path=isolated_db)
+    runs.update_run_status(run_id, StoreRunStatus.QUEUED, db_path=isolated_db)
     current_task = store.claim_task(
         "cancel-race-worker",
         lease_seconds=60,
@@ -1282,7 +1298,7 @@ def test_old_same_owner_attempt_cannot_commit_after_re_lease(
             "generate",
         )
 
-    latest = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+    latest = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert latest is not None and latest["seq"] == checkpoint_seq
     persisted_task = store.get_task(stale_task.id, db_path=isolated_db)
     assert persisted_task is not None and persisted_task.attempt == 2
@@ -1314,7 +1330,9 @@ def test_cancelled_generation_planner_cannot_enqueue_fanout(
         ),
     )
     envelope = {
-        "last_event_seq": store.latest_event_seq(run_id, db_path=isolated_db),
+        "last_event_seq": store_events.latest_event_seq(
+            run_id, db_path=isolated_db
+        ),
         "state": {},
     }
 
@@ -1323,7 +1341,7 @@ def test_cancelled_generation_planner_cannot_enqueue_fanout(
             task, checkpoint_seq, envelope, plan, isolated_db
         )
 
-    latest = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+    latest = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert latest is not None and latest["seq"] == checkpoint_seq
     assert [
         row.id for row in store.list_tasks(run_id, db_path=isolated_db)

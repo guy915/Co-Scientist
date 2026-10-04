@@ -9,7 +9,6 @@ from typing import Any, NamedTuple
 from co_scientist.models import Hypothesis
 
 import app.citations as citation_resolver
-import app.store as store
 from app.citations import (
     CitationMetadata,
     Resolvability,
@@ -25,6 +24,10 @@ from app.engine_adapter.drain.reviews import (
     _persist_engine_citations,
     _persist_engine_reviews,
 )
+from app.store import hypotheses as store
+from app.store import records
+from app.store.hypotheses import HypothesisStateChanges, NewHypothesis
+from app.store.records import NewEvidence
 from app.text_utils import first_sentence
 
 logger = logging.getLogger(__name__)
@@ -161,8 +164,8 @@ def _persist_engine_evidence(
     abstract_by_title = citations.abstract_by_title
     for art, res in zip(articles, resolved, strict=True):
         url, authors, abstract = _article_coalesced_fields(art)
-        ev_id = store.add_evidence(
-            store.NewEvidence(
+        ev_id = records.add_evidence(
+            NewEvidence(
                 run_id=run_id,
                 title=art.get("title", "Untitled"),
                 source=art.get("source", "engine"),
@@ -303,7 +306,7 @@ def _persist_hypothesis_state(
 ) -> None:
     store.update_hypothesis_state(
         hyp_id,
-        store.HypothesisStateChanges(
+        HypothesisStateChanges(
             elo_rating=int(h.get("elo_rating", INITIAL_ELO)),
             win_delta=int(h.get("win_count", 0)),
             loss_delta=int(h.get("loss_count", 0)),
@@ -363,7 +366,7 @@ def _persist_engine_hypothesis_row(
         identity, parent_id, persisted_engine_ids
     )
     hyp_id = store.add_hypothesis(
-        store.NewHypothesis(
+        NewHypothesis(
             run_id=run_id,
             title=identity.title,
             statement=identity.text,

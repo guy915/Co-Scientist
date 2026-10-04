@@ -4,7 +4,6 @@ import time
 from collections.abc import Iterator
 from typing import Any
 
-from app import store
 from app.engine_adapter.drain import persist_final_state
 from app.engine_tasks import runtime as engine_tasks_runtime
 from app.engine_tasks.inputs import reopen_for_pending_scientist_input
@@ -25,17 +24,20 @@ from app.report import ReportRequest, finalize_report
 from app.run_events import make_emitter
 from app.run_modes import normalize_run_tier
 from app.safety import SafetyDecision, apply_safety_gate
-from app.store import RunStatus, ScientificTask
+from app.store import db, events, reports, runs
+from app.store import retrieval_calls as retrieval
+from app.store import runs_views as views
+from app.store.models import RunRow, RunStatus, ScientificTask
 
 
 def _finalize_replay_or_none(
-    run: store.RunRow, *, db_path: str | None
+    run: RunRow, *, db_path: str | None
 ) -> dict[str, Any] | None:
     if run.status == RunStatus.CANCELLED.value:
         raise RuntimeError("run cancelled before finalization")
     already_published = (
         run.status == RunStatus.COMPLETED.value
-        and store.get_latest_report(run.id, db_path=db_path) is not None
+        and reports.get_latest_report(run.id, db_path=db_path) is not None
     )
     if already_published:
         return {"run_id": run.id, "status": "completed", "replayed": True}
@@ -45,11 +47,11 @@ def _finalize_replay_or_none(
 def _settle_finalize_outcome(
     run_id: str, db_path: str | None
 ) -> dict[str, Any]:
-    run = store.get_run(run_id, db_path=db_path)
+    run = runs.get_run(run_id, db_path=db_path)
     status = run.status if run else "missing"
     if (
         status == RunStatus.PAUSED.value
-        and store.get_latest_report(run_id, db_path=db_path) is None
+        and reports.get_latest_report(run_id, db_path=db_path) is None
     ):
         raise SafetyHoldError("report finalization held for review")
     return {"run_id": run_id, "status": status}
@@ -58,7 +60,7 @@ def _settle_finalize_outcome(
 def _pause_finalize_if_requested(
     commit: TaskCommit, state: dict[str, Any]
 ) -> dict[str, Any] | None:
-    run = store.get_run(commit.task.run_id, db_path=commit.db_path)
+    run = runs.get_run(commit.task.run_id, db_path=commit.db_path)
     if run is None or run.status != RunStatus.PAUSED.value:
         return None
     checkpoint_seq = _save_paused_state_if_requested(
@@ -79,14 +81,14 @@ def _commit_finalize_drain(
 
     task, db_path = commit.task, commit.db_path
     envelope = serialize_workflow_state(state, last_event_seq=0)
-    with store.transaction(db_path) as conn:
+    with db.transaction(db_path) as conn:
         assert_task_commit_allowed(task, conn)
         status = conn.execute(
             "SELECT status FROM runs WHERE id=?", (task.run_id,)
         ).fetchone()["status"]
         if status == RunStatus.PAUSED.value:
-            store.clear_publication_artifacts(task.run_id, conn=conn)
-            envelope["last_event_seq"] = store.latest_event_seq(
+            views.clear_publication_artifacts(task.run_id, conn=conn)
+            envelope["last_event_seq"] = events.latest_event_seq(
                 task.run_id, conn=conn
             )
             checkpoint_seq = _save_paused_checkpoint(
@@ -96,12 +98,12 @@ def _commit_finalize_drain(
                 envelope,
                 conn,
             )
-            store.save_run_metrics(task.run_id, metrics, conn=conn)
+            retrieval.save_run_metrics(task.run_id, metrics, conn=conn)
             return {"checkpoint_seq": checkpoint_seq, "status": "paused"}
-        store.save_run_metrics(task.run_id, metrics, conn=conn)
-        store.update_run_status(task.run_id, RunStatus.SYNTHESIZING, conn=conn)
+        retrieval.save_run_metrics(task.run_id, metrics, conn=conn)
+        runs.update_run_status(task.run_id, RunStatus.SYNTHESIZING, conn=conn)
         for event_type, payload in _finalize_stage_events(drained):
-            store.append_event(task.run_id, event_type, payload, conn=conn)
+            events.append_event(task.run_id, event_type, payload, conn=conn)
     return None
 
 
@@ -139,7 +141,7 @@ def _monitor_halt_decision(state: dict[str, Any]) -> SafetyDecision:
 
 
 async def _halt_finalize_if_blocked(
-    run: store.RunRow,
+    run: RunRow,
     state: dict[str, Any],
     task: ScientificTask,
     db_path: str | None,
@@ -159,12 +161,12 @@ async def _halt_finalize_if_blocked(
 
 
 async def _drain_and_persist_final_state(
-    run: store.RunRow,
+    run: RunRow,
     state: dict[str, Any],
     db_path: str | None,
 ) -> tuple[Any, float, dict[str, Any]]:
     final_state = _plain_final_state(state)
-    store.clear_publication_artifacts(run.id, db_path=db_path)
+    views.clear_publication_artifacts(run.id, db_path=db_path)
     drained = await persist_final_state(
         run_id=run.id, final_state=final_state, db_path=db_path
     )
@@ -181,7 +183,7 @@ def _restore_finalize_checkpoint(
 
 
 async def _publish_finalize_report(
-    run: store.RunRow,
+    run: RunRow,
     task: ScientificTask,
     drained: Any,
     execution_time: float,

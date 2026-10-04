@@ -11,7 +11,7 @@ from co_scientist.safety import (
 )
 from fastapi.testclient import TestClient
 
-from app import process_mode, safety, store
+from app import process_mode, safety
 from app.hypothesis import (
     ScreeningResult,
     hypothesis_text,
@@ -45,6 +45,11 @@ from app.safety.types import (
     redact_matched_spans,
     redact_payload_text,
 )
+from app.store import events as store_events
+from app.store import hypotheses as store
+from app.store import records, reports, runs
+from app.store.hypotheses import NewHypothesis
+from app.store.runs import RunCreateOptions
 from tests._client import make_client
 from tests._client import wait_for_status as _wait_status
 from tests._process_mode_helpers import FakeProcessMode
@@ -149,7 +154,7 @@ def test_review_serializes_for_audit() -> None:
 
 
 def test_screen_persists_status_and_blocks_unsafe(isolated_db: str) -> None:
-    run = store.create_run("safety goal", "standard", "mock", {})
+    run = runs.create_run("safety goal", "standard", "mock", {})
     safe_id = _add(
         run.id,
         "Safe",
@@ -178,14 +183,14 @@ def test_screen_persists_status_and_blocks_unsafe(isolated_db: str) -> None:
     assert by_id[safe_id]["safety_status"] == "allow"
     assert by_id[unsafe_id]["safety_status"] == "prohibited"
 
-    decisions = store.list_safety_decisions(run.id, db_path=isolated_db)
+    decisions = records.list_safety_decisions(run.id, db_path=isolated_db)
     blocks = [d for d in decisions if d["stage"] == "hypothesis"]
     assert len(blocks) == 1
     assert unsafe_id in blocks[0]["reason"]
 
 
 def test_screen_flags_mechanism_not_just_statement(isolated_db: str) -> None:
-    run = store.create_run("safety goal", "standard", "mock", {})
+    run = runs.create_run("safety goal", "standard", "mock", {})
     hyp_id = _add(
         run.id,
         "Benign headline",
@@ -206,9 +211,9 @@ def test_screen_redacts_detail_fields_of_redact_outcome(
 ) -> None:
     from app.hypothesis.safety import REDACTED_PLACEHOLDER
 
-    run = store.create_run("safety goal", "standard", "mock", {})
+    run = runs.create_run("safety goal", "standard", "mock", {})
     hyp_id = store.add_hypothesis(
-        store.NewHypothesis(
+        NewHypothesis(
             run_id=run.id,
             title="Sensitive detail",
             statement="A therapeutic approach for a viral disease.",
@@ -232,7 +237,7 @@ def test_screen_redacts_detail_fields_of_redact_outcome(
 
     assert payloads[0]["mechanism"] == REDACTED_PLACEHOLDER
 
-    decisions = store.list_safety_decisions(run.id, db_path=isolated_db)
+    decisions = records.list_safety_decisions(run.id, db_path=isolated_db)
     redactions = [d for d in decisions if d["decision"] == "redact"]
     assert len(redactions) == 1
     assert hyp_id in redactions[0]["reason"]
@@ -243,9 +248,9 @@ def test_rescreen_does_not_downgrade_a_redacted_hypothesis(
 ) -> None:
     # Re-screening wiped content must retain REDACT; an empty field is not
     # evidence of a safe original.
-    run = store.create_run("safety goal", "standard", "mock", {})
+    run = runs.create_run("safety goal", "standard", "mock", {})
     store.add_hypothesis(
-        store.NewHypothesis(
+        NewHypothesis(
             run_id=run.id,
             title="Sensitive detail",
             statement="A therapeutic approach.",
@@ -267,7 +272,7 @@ def test_rescreen_does_not_downgrade_a_redacted_hypothesis(
     row = store.get_hypothesis(hyp_id, db_path=isolated_db)
     assert row is not None and row["safety_status"] == "redact"
 
-    decisions = store.list_safety_decisions(run.id, db_path=isolated_db)
+    decisions = records.list_safety_decisions(run.id, db_path=isolated_db)
     assert len([d for d in decisions if d["decision"] == "redact"]) == 1
 
 
@@ -494,12 +499,12 @@ def test_unredactable_redaction_holds_for_review() -> None:
 
 
 def _seed_dual_use_run(db_path: str) -> Any:
-    return store.create_run(
+    return runs.create_run(
         _DUAL_USE_GOAL,
         "express",
         "engine",
         {"tier": "express"},
-        store.RunCreateOptions(
+        RunCreateOptions(
             client_id="redaction-test",
             llm_backend="offline",
             db_path=db_path,
@@ -512,7 +517,7 @@ async def test_final_redaction_scrubs_report_markdown_and_payload(
 ) -> None:
     run = _seed_dual_use_run(isolated_db)
     store.add_hypothesis(
-        store.NewHypothesis(
+        NewHypothesis(
             run_id=run.id,
             title="A benign restatement",
             statement="Metabolic flux rises under the tested condition.",
@@ -534,9 +539,9 @@ async def test_final_redaction_scrubs_report_markdown_and_payload(
         )
     ]
 
-    decisions = store.list_safety_decisions(run.id, db_path=isolated_db)
+    decisions = records.list_safety_decisions(run.id, db_path=isolated_db)
     assert any(d["decision"] == "redact" for d in decisions)
-    saved = store.get_latest_report(run.id, db_path=isolated_db)
+    saved = reports.get_latest_report(run.id, db_path=isolated_db)
     assert saved is not None
     assert "dual-use" not in saved["markdown_text"].lower()
     assert _REDACTION_REDACTED_PLACEHOLDER in saved["markdown_text"]
@@ -547,7 +552,7 @@ async def test_final_redaction_scrubs_report_markdown_and_payload(
     assert "dual-use" not in repr(content).lower()
     replayed = [
         e
-        for e in store.list_events(run.id, db_path=isolated_db)
+        for e in store_events.list_events(run.id, db_path=isolated_db)
         if not e["type"].startswith("safety.")
     ]
     assert replayed

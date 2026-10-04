@@ -7,8 +7,9 @@ import sqlite3
 from email.message import EmailMessage
 from typing import Any
 
-from app import store
 from app.config import settings
+from app.store import runs, tasks
+from app.store.tasks import NewTask
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +71,7 @@ def _enqueue_completion_notification(
     db_path: str | None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
-    run = store.get_run(run_id, db_path=db_path, conn=conn)
+    run = runs.get_run(run_id, db_path=db_path, conn=conn)
     notification = (
         run.config.get("completion_notification") if run else {}
     ) or {}
@@ -84,8 +85,8 @@ def _enqueue_completion_notification(
             run_id,
         )
         return
-    store.enqueue_task(
-        store.NewTask(
+    tasks.enqueue_task(
+        NewTask(
             run_id=run_id,
             task_type="notification.email",
             inputs={

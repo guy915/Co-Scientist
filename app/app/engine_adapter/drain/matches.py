@@ -10,8 +10,10 @@ from co_scientist.agents.ranking.ranking_debate import (
 )
 from co_scientist.research import result_from_dict
 
-import app.store as store
 from app.elo import INITIAL_ELO
+from app.store import records as store
+from app.store import retrieval_calls as retrieval
+from app.store.records import NewMatch, NewProximityEdge
 
 logger = logging.getLogger(__name__)
 
@@ -31,11 +33,13 @@ def _persist_retrieval_calls(
         row
         for ledger in ledgers
         if isinstance(ledger, dict) and ledger
-        for row in store.retrieval_call_rows(run_id, result_from_dict(ledger))
+        for row in retrieval.retrieval_call_rows(
+            run_id, result_from_dict(ledger)
+        )
     ]
     if not rows:
         return 0
-    written = store.add_retrieval_calls(rows, conn=conn)
+    written = retrieval.add_retrieval_calls(rows, conn=conn)
     logger.info(
         "Recorded %s of %s research searches for run %s",
         written,
@@ -106,7 +110,7 @@ def _persist_engine_matches(
             continue
         winner_id, loser_id = sides
         store.add_match(
-            store.NewMatch(
+            NewMatch(
                 run_id=run_id,
                 # Match rows retain authoring-cycle provenance; accumulated Elo
                 # history must not collapse into cycle zero.
@@ -142,7 +146,7 @@ def _persist_engine_proximity(
         if not source or not target:
             continue
         store.add_proximity_edge(
-            store.NewProximityEdge(
+            NewProximityEdge(
                 run_id=run_id,
                 source_hypothesis_id=source,
                 target_hypothesis_id=target,

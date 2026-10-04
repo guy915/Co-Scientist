@@ -14,12 +14,14 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from app import engine_tasks, store
+from app import engine_tasks
 from app.async_bridge import run_in_scoped_loop
 from app.config import settings
 from app.logging_setup import run_log_context
 from app.notifications import deliver_completion_notification
-from app.store import ScientificTask
+from app.store import tasks
+from app.store import tasks_lifecycle as store
+from app.store.models import ScientificTask
 from app.task_worker.enqueue import (
     enqueue_run_workflow as enqueue_run_workflow,
 )
@@ -168,7 +170,7 @@ async def run_once(
     db_path: str | None = None,
     lease_seconds: float = 300.0,
 ) -> bool:
-    task = store.claim_task(
+    task = tasks.claim_task(
         worker_id,
         lease_seconds=lease_seconds,
         run_id=run_id,

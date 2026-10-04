@@ -11,7 +11,7 @@ import pytest
 from co_scientist.generator.core import HypothesisGenerator
 
 import app.engine_adapter as provider
-from app import process_mode, store
+from app import process_mode
 from app.config import (
     PROVIDER_CREDENTIAL_ENV,
     any_provider_credential,
@@ -36,6 +36,8 @@ from app.run_modes import (
     resolved_run_config,
     setup_config,
 )
+from app.store import messages as store
+from app.store import runs
 
 
 @pytest.mark.parametrize(
@@ -281,7 +283,7 @@ def test_engine_adapter_emits_canonical_event_types(isolated_db: str) -> None:
 def test_engine_adapter_generates_canonical_milestones(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("Milestone goal", "standard", "engine", {})
+    run = runs.create_run("Milestone goal", "standard", "engine", {})
     for node_type, payload in _payloads_by_type().items():
         append_node_milestone(run.id, node_type, payload, db_path=isolated_db)
 

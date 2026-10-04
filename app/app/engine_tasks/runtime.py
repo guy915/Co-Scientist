@@ -6,10 +6,9 @@ from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
-    from app import store
     from app.safety import ScreenSubject
     from app.safety.types import SafetyDecision
-    from app.store import ScientificTask
+    from app.store.models import RunRow, ScientificTask
 
 __all__ = [
     "EngineTaskRuntime",
@@ -43,7 +42,7 @@ class EngineTaskRuntime(Protocol):
 
     async def drain_final_state(
         self,
-        run: store.RunRow,
+        run: RunRow,
         state: dict[str, Any],
         db_path: str | None,
     ) -> tuple[Any, float, dict[str, Any]]: ...
@@ -84,7 +83,7 @@ class ProductionEngineTaskRuntime:
 
     async def drain_final_state(
         self,
-        run: store.RunRow,
+        run: RunRow,
         state: dict[str, Any],
         db_path: str | None,
     ) -> tuple[Any, float, dict[str, Any]]:

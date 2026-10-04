@@ -3,8 +3,10 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
-import app.store as store
-from app.store import ScientificTask
+from app.store import db, tasks
+from app.store import tasks_lifecycle as lifecycle
+from app.store.models import ScientificTask
+from app.store.tasks import NewTask
 
 
 def _cascade_cancel_downstream(
@@ -30,15 +32,15 @@ def _apply_single_queue_action(
     reason = str(action.get("reason") or "Supervisor queue update")
     kind = action.get("action")
     if kind == "cancel":
-        if store.cancel_task(task_id, reason=reason, conn=conn):
+        if lifecycle.cancel_task(task_id, reason=reason, conn=conn):
             _cascade_cancel_downstream(task_id, candidates, conn)
         return
     if kind == "retry":
-        store.retry_task(task_id, reason=reason, conn=conn)
+        lifecycle.retry_task(task_id, reason=reason, conn=conn)
         return
     priority = action.get("priority")
     if kind == "reprioritize" and priority is not None:
-        store.reprioritize_task(
+        lifecycle.reprioritize_task(
             task_id, int(priority), reason=reason, conn=conn
         )
 
@@ -48,7 +50,7 @@ def _apply_supervisor_queue_actions(
     actions: list[dict[str, Any]],
     conn: sqlite3.Connection,
 ) -> None:
-    candidates = store.list_tasks(run_id, conn=conn)
+    candidates = tasks.list_tasks(run_id, conn=conn)
     known_ids = {task.id for task in candidates}
     for action in actions[:8]:
         task_id = str(action.get("task_id") or "")
@@ -99,7 +101,7 @@ def _durable_queue_snapshot(
             "dependencies": list(task.dependencies),
             "error": task.error,
         }
-        for task in store.list_tasks(run_id, db_path=db_path)[-100:]
+        for task in tasks.list_tasks(run_id, db_path=db_path)[-100:]
         if task.status in {"queued", "leased", "paused", "failed"}
     ]
 
@@ -113,13 +115,13 @@ def _enqueue_after(
     """Idempotency derives from task type and predecessor identity so
     planned and reactive enqueue resolve to the same edge.
     """
-    return store.enqueue_task(
-        store.NewTask(
+    return tasks.enqueue_task(
+        NewTask(
             run_id=predecessor.run_id,
             task_type=task_type,
             inputs={},
             idempotency_key=f"{task_type}:after:{predecessor.id}",
-            priority=store.clamp_task_priority(priority),
+            priority=lifecycle.clamp_task_priority(priority),
             dependencies=(predecessor.id,),
             provenance={"scheduled_by": predecessor.task_type},
         ),
@@ -161,7 +163,7 @@ def _cancel_dependents(
             candidate, poisoned_ids, protect_type, node_prefix
         ):
             continue
-        store.cancel_task(
+        lifecycle.cancel_task(
             candidate.id,
             reason="portfolio plan superseded by the real successor",
             conn=conn,
@@ -196,7 +198,7 @@ def _cancel_stale_planned_chain(
     """
     from app.engine_tasks.support import NODE_TASK_PREFIX
 
-    candidates = store.list_tasks(task.run_id, conn=conn)
+    candidates = tasks.list_tasks(task.run_id, conn=conn)
     _cancel_downstream(candidates, {task.id}, keep_type, NODE_TASK_PREFIX, conn)
 
 
@@ -208,8 +210,8 @@ def cancel_downstream_portfolio_chain(
     """
     from app.engine_tasks.support import NODE_TASK_PREFIX
 
-    with store.transaction(db_path) as conn:
-        candidates = store.list_tasks(task.run_id, conn=conn)
+    with db.transaction(db_path) as conn:
+        candidates = tasks.list_tasks(task.run_id, conn=conn)
         _cancel_downstream(candidates, {task.id}, None, NODE_TASK_PREFIX, conn)
 
 

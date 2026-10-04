@@ -7,8 +7,10 @@ import re
 from collections.abc import Iterator
 from typing import Any
 
-import app.store as store
 from app.citations import STATE_RANK
+from app.store import events as store
+from app.store import reports, tasks
+from app.store.models import TERMINAL_STATUSES, RunRow
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +25,7 @@ _MAX_INDEXED_IDEAS = 40
 _META_REVIEW_AGENT = "meta_review"
 _MAX_CONCLUSIONS = 5
 
-_TERMINAL = store.TERMINAL_STATUSES
+_TERMINAL = TERMINAL_STATUSES
 
 
 @dataclasses.dataclass(frozen=True)
@@ -92,7 +94,7 @@ def _conclusions(reviews: list[dict[str, Any]]) -> list[str]:
 
 
 def gather_run_progress(
-    run: store.RunRow,
+    run: RunRow,
     reviews: list[dict[str, Any]],
     counts: dict[str, int],
     conn: Any,
@@ -100,7 +102,7 @@ def gather_run_progress(
 ) -> RunProgress:
     started_at = store.run_execution_started_at(run.id, conn=conn)
     finished_at = run.completed_at if run.status in _TERMINAL else None
-    progress = store.task_progress(run.id, conn=conn)
+    progress = tasks.task_progress(run.id, conn=conn)
     events = store.recent_events(run.id, _EVENT_WINDOW, conn=conn)
     return RunProgress(
         status=run.status,
@@ -186,7 +188,7 @@ def gather_report_facts(run_id: str) -> ReportFacts | None:
     """Fetch the full report payload only after publication, avoiding that read
     on every question.
     """
-    latest = store.get_latest_report(run_id)
+    latest = reports.get_latest_report(run_id)
     payload = latest.get("payload") if latest else None
     return build_report_facts(payload) if isinstance(payload, dict) else None
 

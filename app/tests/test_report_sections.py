@@ -6,12 +6,16 @@ from typing import Any
 
 import pytest
 
-from app import store
 from app.report import build as report_build
 from app.report import content as report_content
 from app.report import gates as report_gates
 from app.report import markdown as report_markdown
 from app.report.markdown.hypothesis import _HYPOTHESIS_DISCLAIMER
+from app.store import hypotheses, runs
+from app.store import retrieval_calls as retrieval
+from app.store.hypotheses import HypothesisStateChanges
+from app.store.retrieval_calls import NewRetrievalCall
+from app.store.runs import RunCreateOptions
 from tests._drain_helpers import _build_report
 from tests._store_helpers import _add
 
@@ -538,21 +542,21 @@ async def test_report_body_opens_with_the_same_idea_as_the_standings(
 ) -> None:
     # Markdown and leaderboard must apply the same demotion for fundamentally
     # undermined ideas.
-    run = store.create_run("ordering goal", "standard", "engine", {})
+    run = runs.create_run("ordering goal", "standard", "engine", {})
     doubted = _add(run.id, "Doubted idea", "A doubted proposal.", isolated_db)
     sound = _add(run.id, "Sound idea", "A sound proposal.", isolated_db)
-    store.update_hypothesis_state(
+    hypotheses.update_hypothesis_state(
         doubted,
-        store.HypothesisStateChanges(
+        HypothesisStateChanges(
             elo_rating=1300,
             win_delta=3,
             verification_verdict="undermined",
         ),
         db_path=isolated_db,
     )
-    store.update_hypothesis_state(
+    hypotheses.update_hypothesis_state(
         sound,
-        store.HypothesisStateChanges(elo_rating=1100, win_delta=1),
+        HypothesisStateChanges(elo_rating=1100, win_delta=1),
         db_path=isolated_db,
     )
 
@@ -780,10 +784,10 @@ def test_survives_alongside_the_skills_used_notice() -> None:
 async def test_a_built_report_pulls_its_own_runs_retrieval_calls(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("cardiac goal", "standard", "engine", {})
-    store.add_retrieval_calls(
+    run = runs.create_run("cardiac goal", "standard", "engine", {})
+    retrieval.add_retrieval_calls(
         [
-            store.NewRetrievalCall(
+            NewRetrievalCall(
                 run_id=run.id,
                 id="c1",
                 question="What drives fibrosis?",
@@ -954,20 +958,20 @@ def test_restatement_absent_leaves_the_section_unchanged() -> None:
 def test_set_run_goal_restatement_persists_and_reads_back(
     isolated_db: str,
 ) -> None:
-    run = store.create_run(
+    run = runs.create_run(
         "Map the feedback loop.",
         "standard",
         "engine",
         {},
-        store.RunCreateOptions(client_id="c1", db_path=isolated_db),
+        RunCreateOptions(client_id="c1", db_path=isolated_db),
     )
     assert run.goal_restatement is None
 
-    store.set_run_goal_restatement(
+    runs.set_run_goal_restatement(
         run.id, "A narrative restatement.", db_path=isolated_db
     )
 
-    reloaded = store.get_run(run.id, db_path=isolated_db)
+    reloaded = runs.get_run(run.id, db_path=isolated_db)
     assert reloaded is not None
     assert reloaded.goal_restatement == "A narrative restatement."
 
@@ -975,29 +979,29 @@ def test_set_run_goal_restatement_persists_and_reads_back(
 def test_set_run_goal_restatement_missing_run_is_noop(
     isolated_db: str,
 ) -> None:
-    store.set_run_goal_restatement("no-such-run", "orphan", db_path=isolated_db)
-    assert store.get_run("no-such-run", db_path=isolated_db) is None
+    runs.set_run_goal_restatement("no-such-run", "orphan", db_path=isolated_db)
+    assert runs.get_run("no-such-run", db_path=isolated_db) is None
 
 
 def test_redact_run_goal_clears_the_restatement(isolated_db: str) -> None:
     # Redaction must clear the pre-screen restatement too, or it republishes the
     # goal in different words.
-    run = store.create_run(
+    run = runs.create_run(
         "Synthesize a controlled pathogen.",
         "standard",
         "engine",
         {},
-        store.RunCreateOptions(client_id="c1", db_path=isolated_db),
+        RunCreateOptions(client_id="c1", db_path=isolated_db),
     )
-    store.set_run_goal_restatement(
+    runs.set_run_goal_restatement(
         run.id, "A paraphrase of the goal.", db_path=isolated_db
     )
 
-    store.redact_run_goal(
+    runs.redact_run_goal(
         run.id, "[redacted]", "[redacted]", db_path=isolated_db
     )
 
-    reloaded = store.get_run(run.id, db_path=isolated_db)
+    reloaded = runs.get_run(run.id, db_path=isolated_db)
     assert reloaded is not None
     assert reloaded.goal_restatement is None
 

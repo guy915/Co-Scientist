@@ -4,7 +4,6 @@ import os
 import sys
 from typing import Any, cast
 
-from app import store
 from app.config import any_provider_credential, byok_enabled, settings
 from app.engine_adapter.tools import (
     connectors_report as connectors_report,
@@ -16,6 +15,7 @@ from app.engine_adapter.tools import (
     validate_tools_config as validate_tools_config,
 )
 from app.process_mode import offline_mode as offline_mode
+from app.store import runs
 
 # Some Python 3.12 venvs omit editable-install .pth processing; durable tasks
 # still need the sibling engine source.
@@ -70,7 +70,7 @@ def sync_engine_llm_backend(
     with the actual execution route.
     """
     backend = "offline" if resolve_offline_backend(cfg) else "real"
-    store.set_run_llm_backend(run_id, backend, db_path=db_path)
+    runs.set_run_llm_backend(run_id, backend, db_path=db_path)
 
 
 def system_status() -> dict[str, Any]:

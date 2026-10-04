@@ -9,12 +9,13 @@ from typing import Annotated, Any
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-import app.store as store
 from app.auth import client_id
 from app.config import settings
 from app.logging_setup import level_to_number
 from app.notifications import deliver_email, email_notifications_configured
 from app.operator_access import is_operator
+from app.store import db, logs
+from app.store.logs import LogFilters, NewLogRecord
 
 logger = logging.getLogger(__name__)
 
@@ -182,19 +183,19 @@ class RunLogQuery(BaseModel):
 
 def _query_logs_payload(
     conn: sqlite3.Connection,
-    filters: store.LogFilters,
+    filters: LogFilters,
     limit: int,
 ) -> dict[str, Any]:
-    rows = store.list_logs(filters=filters, limit=limit, conn=conn)
+    rows = logs.list_logs(filters=filters, limit=limit, conn=conn)
     # Count the full matching set so bounded display windows do not understate
     # totals.
-    total = store.count_logs(
+    total = logs.count_logs(
         filters=dataclasses.replace(filters, after_id=0), conn=conn
     )
     # Count rows after the session anchor; subtracting snapshots breaks when
     # retention or scoped clears remove older rows.
-    session_total = store.count_logs(filters=filters, conn=conn)
-    last_id = store.latest_log_id(conn=conn)
+    session_total = logs.count_logs(filters=filters, conn=conn)
+    last_id = logs.latest_log_id(conn=conn)
     return {
         "logs": rows,
         "last_id": last_id,
@@ -206,7 +207,7 @@ def _query_logs_payload(
 def logs_payload(
     query: LogQuery, *, scope_client_id: str | None = None
 ) -> dict[str, Any]:
-    filters = store.LogFilters(
+    filters = LogFilters(
         after_id=query.after_id,
         min_levelno=_min_levelno(query.min_level),
         run_id=query.run_id,
@@ -215,7 +216,7 @@ def logs_payload(
         scope_client_id=scope_client_id,
     )
     # Share one connection across the continuously polled response's queries.
-    with store.connect() as conn:
+    with db.connect() as conn:
         return _query_logs_payload(conn, filters, query.limit)
 
 
@@ -248,7 +249,7 @@ async def post_logs(batch: ClientLogBatch, request: Request) -> dict[str, Any]:
     _check_ingest_rate(request)
     # Batch ingestion acquires SQLite's writer once, not once per submitted
     # record.
-    with store.transaction() as conn:
+    with db.transaction() as conn:
         for record in batch.records:
             levelno = level_to_number(record.level) or logging.INFO
             logger_name = _sanitize(
@@ -256,8 +257,8 @@ async def post_logs(batch: ClientLogBatch, request: Request) -> dict[str, Any]:
                 if record.logger.startswith("ui")
                 else f"ui.{record.logger}"
             )
-            store.append_log(
-                store.NewLogRecord(
+            logs.append_log(
+                NewLogRecord(
                     level=logging.getLevelName(levelno),
                     levelno=levelno,
                     logger_name=logger_name,
@@ -269,7 +270,7 @@ async def post_logs(batch: ClientLogBatch, request: Request) -> dict[str, Any]:
                 ),
                 conn=conn,
             )
-        last_id = store.latest_log_id(conn=conn)
+        last_id = logs.latest_log_id(conn=conn)
     return {"added": len(batch.records), "last_id": last_id}
 
 
@@ -348,7 +349,7 @@ async def delete_logs(request: Request) -> dict[str, Any]:
     Remote callers may only clear their own records, which leaves the
     shared id sequence alone.
     """
-    return {"deleted": store.clear_logs(scope_client_id=_scope_for(request))}
+    return {"deleted": logs.clear_logs(scope_client_id=_scope_for(request))}
 
 
 @router.get("/api/logs")

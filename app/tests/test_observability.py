@@ -8,7 +8,6 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app import store
 from app.credentials import ByokCredential, scoped_byok
 from app.logging_setup import (
     _LITELLM_LOGGER_NAMES,
@@ -20,6 +19,8 @@ from app.logging_setup import (
     current_run_id,
     run_log_context,
 )
+from app.store import logs
+from app.store.logs import LogFilters
 from tests._client import append_log_row, make_client, make_operator_client
 from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
@@ -521,16 +522,16 @@ def test_records_are_scoped_to_the_owning_client(isolated_db: str) -> None:
     _security_seed(isolated_db, "bob ui record", client_id="bob")
     _security_seed(isolated_db, "server startup record")
 
-    rows = store.list_logs(
-        filters=store.LogFilters(scope_client_id="alice"), db_path=isolated_db
+    rows = logs.list_logs(
+        filters=LogFilters(scope_client_id="alice"), db_path=isolated_db
     )
     messages = [r["message"] for r in rows]
     assert "alice run record" in messages
     assert "alice ui record" in messages
     assert "bob ui record" not in messages
     assert "server startup record" not in messages
-    assert store.count_logs(
-        filters=store.LogFilters(scope_client_id="alice"), db_path=isolated_db
+    assert logs.count_logs(
+        filters=LogFilters(scope_client_id="alice"), db_path=isolated_db
     ) == len(rows)
     assert all("bob" not in m for m in messages)
 
@@ -538,15 +539,15 @@ def test_records_are_scoped_to_the_owning_client(isolated_db: str) -> None:
 def test_unscoped_read_still_sees_everything(isolated_db: str) -> None:
     _security_seed(isolated_db, "alice ui record", client_id="alice")
     _security_seed(isolated_db, "server startup record")
-    assert store.count_logs(db_path=isolated_db) == 2
+    assert logs.count_logs(db_path=isolated_db) == 2
 
 
 def test_clear_can_be_scoped_to_one_client(isolated_db: str) -> None:
     _security_seed(isolated_db, "alice ui record", client_id="alice")
     _security_seed(isolated_db, "bob ui record", client_id="bob")
-    deleted = store.clear_logs(scope_client_id="alice", db_path=isolated_db)
+    deleted = logs.clear_logs(scope_client_id="alice", db_path=isolated_db)
     assert deleted == 1
-    remaining = [r["message"] for r in store.list_logs(db_path=isolated_db)]
+    remaining = [r["message"] for r in logs.list_logs(db_path=isolated_db)]
     assert remaining == ["bob ui record"]
 
 
@@ -605,7 +606,7 @@ def test_remote_delete_only_clears_the_callers_records(
         "DELETE", "/api/logs", headers={"X-Client-ID": "alice"}
     )
     assert response.json()["deleted"] == 1
-    remaining = [r["message"] for r in store.list_logs(db_path=isolated_db)]
+    remaining = [r["message"] for r in logs.list_logs(db_path=isolated_db)]
     assert remaining == ["bob ui record", "server internals"]
 
 
@@ -618,13 +619,13 @@ def test_ingested_records_are_stamped_with_the_caller(
         json={"records": [{"message": "alice clicked"}]},
         headers={"X-Client-ID": "alice"},
     )
-    rows = store.list_logs(
-        filters=store.LogFilters(scope_client_id="alice"), db_path=isolated_db
+    rows = logs.list_logs(
+        filters=LogFilters(scope_client_id="alice"), db_path=isolated_db
     )
     assert [r["message"] for r in rows] == ["alice clicked"]
     assert (
-        store.list_logs(
-            filters=store.LogFilters(scope_client_id="bob"), db_path=isolated_db
+        logs.list_logs(
+            filters=LogFilters(scope_client_id="bob"), db_path=isolated_db
         )
         == []
     )
@@ -644,8 +645,8 @@ def test_ingestion_strips_control_characters(isolated_db: str) -> None:
         },
         headers={"X-Client-ID": "alice"},
     )
-    row = store.list_logs(
-        filters=store.LogFilters(scope_client_id="alice"), db_path=isolated_db
+    row = logs.list_logs(
+        filters=LogFilters(scope_client_id="alice"), db_path=isolated_db
     )[0]
     assert "\n" not in row["message"]
     assert "\t" not in row["message"]

@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import Any
 
 import app.engine_tasks.runtime as engine_tasks_runtime
-import app.store as store
 from app.engine_adapter.opts import (
     CONSUMED_STEERING_IDS_OPT,
     build_engine_opts,
@@ -15,7 +14,17 @@ from app.engine_adapter.opts import (
 from app.engine_tasks.portfolio import _enqueue_node_portfolio
 from app.run_events import make_emitter
 from app.run_modes import resolved_run_config
-from app.store import ScientificTask
+from app.store import checkpoints as store
+from app.store import db, events, messages, runs, tasks
+from app.store import retrieval_calls as retrieval
+from app.store.checkpoints import NewCheckpoint
+from app.store.models import (
+    TERMINAL_STATUSES,
+    RunRow,
+    RunStatus,
+    ScientificTask,
+)
+from app.store.tasks import NewTask
 
 
 @dataclass(frozen=True)
@@ -66,7 +75,7 @@ def _ack_consumed_steering(
     """Acknowledgement and the state honoring steering commit or roll back
     together.
     """
-    store.mark_steering_applied(
+    messages.mark_steering_applied(
         list(commit.steering_ids), conn=conn, decision=state.get("next_task")
     )
 
@@ -203,10 +212,10 @@ def _save_paused_checkpoint(
     if latest_seq != commit.current_seq:
         raise RuntimeError("checkpoint changed while pausing task")
     _ack_consumed_steering(commit, conn, state)
-    store.save_run_metrics(task.run_id, _metrics_snapshot(state), conn=conn)
+    retrieval.save_run_metrics(task.run_id, _metrics_snapshot(state), conn=conn)
     return store.save_checkpoint(
         task.run_id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage=f"engine_task_paused:{task.id}",
             schema_version=CHECKPOINT_VERSION,
             last_event_seq=envelope["last_event_seq"],
@@ -231,9 +240,9 @@ def _save_paused_if_requested(
     run = conn.execute(
         "SELECT status FROM runs WHERE id=?", (task.run_id,)
     ).fetchone()
-    if run is None or run["status"] != store.RunStatus.PAUSED.value:
+    if run is None or run["status"] != RunStatus.PAUSED.value:
         return None
-    envelope["last_event_seq"] = store.latest_event_seq(task.run_id, conn=conn)
+    envelope["last_event_seq"] = events.latest_event_seq(task.run_id, conn=conn)
     return (
         _save_paused_checkpoint(
             commit, state, resume_successor, envelope, conn
@@ -257,11 +266,11 @@ def _save_paused_state(
     task, db_path = commit.task, commit.db_path
     envelope = serialize_workflow_state(
         state,
-        last_event_seq=store.latest_event_seq(task.run_id, db_path=db_path),
+        last_event_seq=events.latest_event_seq(task.run_id, db_path=db_path),
     )
-    with store.transaction(db_path) as conn:
+    with db.transaction(db_path) as conn:
         assert_task_commit_allowed(task, conn)
-        envelope["last_event_seq"] = store.latest_event_seq(
+        envelope["last_event_seq"] = events.latest_event_seq(
             task.run_id, conn=conn
         )
         return _save_paused_checkpoint(
@@ -280,7 +289,7 @@ def _save_paused_state_if_requested(
 
     task, db_path = commit.task, commit.db_path
     envelope = serialize_workflow_state(state, last_event_seq=0)
-    with store.transaction(db_path) as conn:
+    with db.transaction(db_path) as conn:
         assert_task_commit_allowed(task, conn)
         paused = _save_paused_if_requested(
             commit, state, resume_successor, envelope, conn
@@ -290,11 +299,11 @@ def _save_paused_state_if_requested(
 
 def _pause_node_task_if_requested(
     commit: TaskCommit,
-    run: store.RunRow,
+    run: RunRow,
     node_name: str,
     state: dict[str, Any],
 ) -> dict[str, Any] | None:
-    if run.status != store.RunStatus.PAUSED.value:
+    if run.status != RunStatus.PAUSED.value:
         return None
     checkpoint_seq = _save_paused_state(commit, state, commit.task.task_type)
     return {
@@ -335,8 +344,8 @@ class SafetyHoldError(RuntimeError):
     """
 
 
-def _require_run(task: ScientificTask, db_path: str | None) -> store.RunRow:
-    run = store.get_run(task.run_id, db_path=db_path)
+def _require_run(task: ScientificTask, db_path: str | None) -> RunRow:
+    run = runs.get_run(task.run_id, db_path=db_path)
     if run is None:
         raise RuntimeError(f"run {task.run_id} no longer exists")
     return run
@@ -345,7 +354,7 @@ def _require_run(task: ScientificTask, db_path: str | None) -> store.RunRow:
 def _require_item_task(
     item_id: Any, db_path: str | None, *, kind: str
 ) -> ScientificTask:
-    item = store.get_task(str(item_id), db_path=db_path)
+    item = tasks.get_task(str(item_id), db_path=db_path)
     if item is None:
         raise RuntimeError(f"{kind} {item_id} disappeared")
     return item
@@ -371,7 +380,7 @@ def assert_task_commit_allowed(
         "WHERE task.id=? AND task.run_id=?",
         (task.id, task.run_id),
     ).fetchone()
-    terminal = {status.value for status in store.TERMINAL_STATUSES}
+    terminal = {status.value for status in TERMINAL_STATUSES}
     if (
         task.status != "leased"
         or task.lease_owner is None
@@ -403,7 +412,7 @@ def _generator_and_opts(
     generator = build_generator(
         HypothesisGenerator,
         cfg,
-        offline=store.run_used_offline(run),
+        offline=runs.run_used_offline(run),
         byok=get_run_credential(task.run_id, db_path=db_path),
     )
     return generator, build_engine_opts(cfg, run.id, db_path)
@@ -418,7 +427,7 @@ def _generator_for_restore(task: ScientificTask, db_path: str | None) -> Any:
     return build_generator(
         HypothesisGenerator,
         resolved_run_config(run.config),
-        offline=store.run_used_offline(run),
+        offline=runs.run_used_offline(run),
         byok=get_run_credential(task.run_id, db_path=db_path),
     )
 
@@ -443,7 +452,7 @@ def _save_node_checkpoint(
         )
     return store.save_checkpoint(
         task.run_id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage=f"engine_task:{task.id}",
             schema_version=CHECKPOINT_VERSION,
             last_event_seq=envelope["last_event_seq"],
@@ -472,10 +481,10 @@ def _save_state_and_enqueue(
     task, db_path = commit.task, commit.db_path
     envelope = serialize_workflow_state(
         state,
-        last_event_seq=store.latest_event_seq(task.run_id, db_path=db_path),
+        last_event_seq=events.latest_event_seq(task.run_id, db_path=db_path),
     )
     successor_type = _successor_task_type(successor)
-    with store.transaction(db_path) as conn:
+    with db.transaction(db_path) as conn:
         assert_task_commit_allowed(task, conn)
         if pause_if_requested:
             paused = _save_paused_if_requested(
@@ -490,7 +499,9 @@ def _save_state_and_enqueue(
             task, state, successor, successor_type, conn
         )
         _ack_consumed_steering(commit, conn, state)
-        store.save_run_metrics(task.run_id, _metrics_snapshot(state), conn=conn)
+        retrieval.save_run_metrics(
+            task.run_id, _metrics_snapshot(state), conn=conn
+        )
     return checkpoint_seq, successor_task.id
 
 
@@ -510,7 +521,7 @@ def _save_exact_checkpoint(
         raise RuntimeError(changed_message)
     return store.save_checkpoint(
         task.run_id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage=f"engine_task:{task.id}",
             schema_version=CHECKPOINT_VERSION,
             last_event_seq=envelope["last_event_seq"],
@@ -527,8 +538,8 @@ def _enqueue_exact_successor(
     conn: sqlite3.Connection,
 ) -> ScientificTask:
     inputs = {**successor.inputs, "checkpoint_seq": checkpoint_seq}
-    return store.enqueue_task(
-        store.NewTask(
+    return tasks.enqueue_task(
+        NewTask(
             run_id=task.run_id,
             task_type=successor.task_type,
             inputs=inputs,
@@ -556,11 +567,11 @@ def _save_state_and_enqueue_exact(
     task = commit.task
     envelope = serialize_workflow_state(
         state,
-        last_event_seq=store.latest_event_seq(
+        last_event_seq=events.latest_event_seq(
             task.run_id, db_path=commit.db_path
         ),
     )
-    with store.transaction(commit.db_path) as conn:
+    with db.transaction(commit.db_path) as conn:
         assert_task_commit_allowed(task, conn)
         checkpoint_seq = _save_exact_checkpoint(
             task, envelope, commit.current_seq, conn

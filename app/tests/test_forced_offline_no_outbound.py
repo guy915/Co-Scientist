@@ -7,13 +7,9 @@ from typing import Any
 
 import pytest
 
-from app import (
-    credentials,
-    goal_text,
-    qa,
-    run_start_announcement,
-    store,
-)
+from app import credentials, goal_text, qa, run_start_announcement
+from app.store import messages as store
+from app.store import runs
 from tests._client import make_client
 
 from ._interviews_helpers import _interview_payload
@@ -138,7 +134,7 @@ async def test_announcement_makes_no_outbound_request(
 
     with pytest.raises(OfflineModeError):
         async for _ in run_start_announcement._stream_model_fragments(
-            store.create_run(_GOAL, "express", "engine", {})
+            runs.create_run(_GOAL, "express", "engine", {})
         ):
             pass
     assert attempts == []

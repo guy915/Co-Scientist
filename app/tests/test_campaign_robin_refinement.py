@@ -7,9 +7,10 @@ import pytest
 from co_scientist.agents import evolution
 from co_scientist.models import Hypothesis, HypothesisOrigin
 
-from app import store, task_worker
+from app import task_worker
 from app.config import settings
-from app.store import RunStatus
+from app.store import runs, tasks
+from app.store.models import RunStatus, ScientificTask
 from tests._client import make_client
 from tests._outcome_refinement_api_support import (
     MESELSON_STAHL_PARENT_TEXT,
@@ -27,7 +28,7 @@ def _disable_embedded_provider_worker(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
 
 
-def _campaign_refinement_task(db_path: str) -> tuple[Any, store.ScientificTask]:
+def _campaign_refinement_task(db_path: str) -> tuple[Any, ScientificTask]:
     owner = "refinement-owner"
     client = make_client()
     run_id = _new_run(client, owner)
@@ -41,7 +42,7 @@ def _campaign_refinement_task(db_path: str) -> tuple[Any, store.ScientificTask]:
         origin=HypothesisOrigin.GENERATION,
     )
     _save_engine_checkpoint(run_id, parent, db_path)
-    store.update_run_status(run_id, RunStatus.COMPLETED, db_path=db_path)
+    runs.update_run_status(run_id, RunStatus.COMPLETED, db_path=db_path)
     headers = {
         **_signed_headers(owner),
         "Idempotency-Key": "campaign-robin",
@@ -59,7 +60,7 @@ def _campaign_refinement_task(db_path: str) -> tuple[Any, store.ScientificTask]:
     )
     assert response.status_code == 202
 
-    task = store.claim_task("campaign-robin", run_id=run_id, db_path=db_path)
+    task = tasks.claim_task("campaign-robin", run_id=run_id, db_path=db_path)
     assert task is not None
     assert task.task_type == "engine.outcome.refinement"
     return client, task
@@ -72,7 +73,7 @@ def test_campaign_robin_refinement_uses_persisted_model(
         settings, "campaign_researcher_ids", {"refinement-owner"}
     )
     client, task = _campaign_refinement_task(isolated_db)
-    run = store.get_run(task.run_id, db_path=isolated_db)
+    run = runs.get_run(task.run_id, db_path=isolated_db)
     assert run is not None
     assert run.execution_policy == "campaign"
     assert run.config["campaign_model_name"] == (

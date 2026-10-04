@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from typing import Any, NamedTuple
 
-import app.store as store
 from app.demo_seed_data import (
     _SCENARIO_KEYS,
     DemoEvidence,
@@ -11,6 +10,7 @@ from app.demo_seed_data import (
     DemoScenario,
     scenario_key,
 )
+from app.store.records import NewReview
 
 # ruff: noqa: E501
 
@@ -174,12 +174,12 @@ def simulation_review_count(scenario_key: str) -> int:
 
 def mature_review_rows(
     run_id: str, hypothesis_id: str, scenario_key: str, index: int
-) -> list[store.NewReview]:
-    rows: list[store.NewReview] = []
+) -> list[NewReview]:
+    rows: list[NewReview] = []
     if index < full_review_count(scenario_key):
         summary, critique, detail = full_review_row(scenario_key, index)
         rows.append(
-            store.NewReview(
+            NewReview(
                 run_id=run_id,
                 hypothesis_id=hypothesis_id,
                 reviewer_agent="full_review",
@@ -191,7 +191,7 @@ def mature_review_rows(
     if index < simulation_review_count(scenario_key):
         summary, critique, detail = simulation_review_row(scenario_key, index)
         rows.append(
-            store.NewReview(
+            NewReview(
                 run_id=run_id,
                 hypothesis_id=hypothesis_id,
                 reviewer_agent="simulation_review",

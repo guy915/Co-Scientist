@@ -32,7 +32,6 @@ from app import (
     qa,
     run_start_announcement,
     safety,
-    store,
     task_worker,
 )
 from app.claims import grounding as claim_grounding
@@ -61,7 +60,11 @@ from app.runs import contrib as runs_contrib
 from app.runs import crud as runs_crud
 from app.runs.crud import _ResolvedRunSettings
 from app.runs.models import CreateRunRequest, HumanHypothesisRequest
-from app.store import RunCreateOptions, ScientificTask
+from app.store import db, interviews, runs, tasks
+from app.store import runs_views as views
+from app.store.models import RunRow, ScientificTask
+from app.store.runs import RunCreateOptions
+from app.store.tasks import NewTask
 from tests._client import make_client
 from tests._interviews_helpers import (
     InterviewFields,
@@ -395,7 +398,7 @@ async def test_recovery_restores_saved_campaign_model_and_leaves_standard_state(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     saved_model = "openrouter/stealth/space-bunny-alpha"
-    campaign = store.create_run(
+    campaign = runs.create_run(
         "Campaign goal",
         "standard",
         "engine",
@@ -407,7 +410,7 @@ async def test_recovery_restores_saved_campaign_model_and_leaves_standard_state(
             db_path=isolated_db,
         ),
     )
-    standard = store.create_run(
+    standard = runs.create_run(
         "Standard goal",
         "standard",
         "engine",
@@ -464,7 +467,7 @@ async def test_legacy_campaign_recovery_keeps_checkpoint_route_and_byok(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(settings, "byok_encryption_key", "test-encryption-key")
-    run = store.create_run(
+    run = runs.create_run(
         "Legacy campaign goal",
         "standard",
         "engine",
@@ -557,8 +560,8 @@ async def _no_background_model(*_args: Any, **_kwargs: Any) -> None:
 
 
 def _expire_claimed_task(run_id: str, db_path: str) -> str:
-    task = store.enqueue_task(
-        store.NewTask(
+    task = tasks.enqueue_task(
+        NewTask(
             run_id=run_id,
             task_type="engine.node.generate",
             inputs={},
@@ -566,9 +569,9 @@ def _expire_claimed_task(run_id: str, db_path: str) -> str:
         ),
         db_path=db_path,
     )
-    claimed = store.claim_task(f"dead-{run_id}", run_id=run_id, db_path=db_path)
+    claimed = tasks.claim_task(f"dead-{run_id}", run_id=run_id, db_path=db_path)
     assert claimed is not None
-    with store.connect(db_path) as conn:
+    with db.connect(db_path) as conn:
         conn.execute(
             "UPDATE scientific_tasks SET lease_expires_at=0 WHERE id=?",
             (task.id,),
@@ -578,7 +581,7 @@ def _expire_claimed_task(run_id: str, db_path: str) -> str:
 
 def _dispatch_spy(outcomes: dict[str, str]) -> Any:
     async def dispatch(
-        task: store.ScientificTask, *, db_path: str | None = None
+        task: ScientificTask, *, db_path: str | None = None
     ) -> dict[str, Any]:
         credential = credentials.current_byok()
         if credential is None:
@@ -605,7 +608,7 @@ def _dispatch_spy(outcomes: dict[str, str]) -> Any:
 
 
 def _assert_completed(task_id: str, expected: str, db_path: str) -> None:
-    saved = store.get_task(task_id, db_path=db_path)
+    saved = tasks.get_task(task_id, db_path=db_path)
     assert saved is not None
     assert saved.status == "completed"
     assert saved.attempt == 2
@@ -640,7 +643,7 @@ async def test_recovered_campaign_blocks_paid_transport_while_byok_runs(
     assert campaign_response.status_code == 200, campaign_response.text
     campaign_id = campaign_response.json()["id"]
     assert campaign_response.json()["execution_policy"] == "campaign"
-    campaign_run = store.get_run(campaign_id, db_path=isolated_db)
+    campaign_run = runs.get_run(campaign_id, db_path=isolated_db)
     assert campaign_run is not None
     assert campaign_run.config["campaign_model_name"] == (
         "openrouter/stealth/space-bunny-alpha"
@@ -736,7 +739,7 @@ async def test_recovered_new_campaign_sends_zero_price_stealth_request(
     )
     assert response.status_code == 200, response.text
     run_id = response.json()["id"]
-    run = store.get_run(run_id, db_path=isolated_db)
+    run = runs.get_run(run_id, db_path=isolated_db)
     assert run is not None
     assert run.config["campaign_model_name"] == (
         "openrouter/stealth/space-bunny-alpha"
@@ -744,7 +747,7 @@ async def test_recovered_new_campaign_sends_zero_price_stealth_request(
     task_id = _expire_claimed_task(run_id, isolated_db)
 
     async def dispatch(
-        task: store.ScientificTask, *, db_path: str | None = None
+        task: ScientificTask, *, db_path: str | None = None
     ) -> dict[str, Any]:
         model = effective_execution_model("configured/worker-role")
         assert model == "openrouter/stealth/space-bunny-alpha"
@@ -795,26 +798,26 @@ def test_campaign_researcher_setting_normalizes_and_rejects_empty_ids() -> None:
 
 
 def test_legacy_rows_migrate_to_standard_policy(isolated_db: str) -> None:
-    run = store.create_run(
+    run = runs.create_run(
         "Legacy run",
         "standard",
         "mock",
         {},
-        store.RunCreateOptions(client_id="legacy", db_path=isolated_db),
+        RunCreateOptions(client_id="legacy", db_path=isolated_db),
     )
-    interview = store.create_interview(
+    interview = interviews.create_interview(
         "legacy", "Legacy interview", db_path=isolated_db
     )
 
     from app.store.db import _run_migrations
 
-    with store.connect(isolated_db) as conn:
+    with db.connect(isolated_db) as conn:
         conn.execute("ALTER TABLE runs DROP COLUMN execution_policy")
         conn.execute("ALTER TABLE interviews DROP COLUMN execution_policy")
         _run_migrations(conn)
 
-    migrated_run = store.get_run(run.id, db_path=isolated_db)
-    migrated_interview = store.get_interview(
+    migrated_run = runs.get_run(run.id, db_path=isolated_db)
+    migrated_interview = interviews.get_interview(
         interview["id"], db_path=isolated_db
     )
     assert migrated_run is not None
@@ -841,7 +844,7 @@ def test_campaign_interview_survives_restart_and_cannot_downgrade_linked_run(
     interview = _interview_payload(created)
     assert interview["execution_policy"] == "campaign"
 
-    store.update_interview(
+    interviews.update_interview(
         interview["id"],
         {
             **interview["fields"],
@@ -871,7 +874,7 @@ def test_campaign_interview_survives_restart_and_cannot_downgrade_linked_run(
     )
     assert run.status_code == 200
     assert run.json()["execution_policy"] == "campaign"
-    stored_run = store.get_run(run.json()["id"])
+    stored_run = runs.get_run(run.json()["id"])
     assert stored_run is not None
     assert stored_run.execution_policy == "campaign"
 
@@ -938,7 +941,7 @@ async def test_campaign_run_rejects_byok_before_transport(
     )
     assert interview_response.status_code == 400
     assert "campaign" in interview_response.json()["detail"].lower()
-    assert store.list_interviews("researcher-a") == []
+    assert interviews.list_interviews("researcher-a") == []
 
     response = make_client().post(
         "/api/runs",
@@ -949,16 +952,16 @@ async def test_campaign_run_rejects_byok_before_transport(
     assert response.status_code == 400
     assert "campaign" in response.json()["detail"].lower()
     assert called is False
-    assert store.list_runs(client_id="researcher-a") == []
+    assert views.list_runs(client_id="researcher-a") == []
 
 
-def _run(policy: str, *, owner: str = "owner") -> store.RunRow:
-    return store.create_run(
+def _run(policy: str, *, owner: str = "owner") -> RunRow:
+    return runs.create_run(
         f"{policy} research",
         "standard",
         "engine",
         {},
-        store.RunCreateOptions(
+        RunCreateOptions(
             client_id=owner,
             execution_policy=policy,
             llm_backend="real",
@@ -966,8 +969,8 @@ def _run(policy: str, *, owner: str = "owner") -> store.RunRow:
     )
 
 
-def _scope_task(run_id: str) -> store.ScientificTask:
-    return store.ScientificTask(
+def _scope_task(run_id: str) -> ScientificTask:
+    return ScientificTask(
         id=f"task-{run_id}",
         run_id=run_id,
         task_type="engine.node.generate",
@@ -1021,7 +1024,7 @@ def test_persisted_campaign_rejects_late_byok_before_streaming() -> None:
 async def test_interview_stream_loads_its_persisted_policy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    interview = store.create_interview(
+    interview = interviews.create_interview(
         "owner", "Campaign interview", execution_policy="campaign"
     )
     seen: list[bool] = []
@@ -1030,7 +1033,7 @@ async def test_interview_stream_loads_its_persisted_policy(
         interview_id: str, _reasoning: Any = None, _prose: Any = None
     ) -> dict[str, Any]:
         seen.append(campaign_free_mode())
-        saved = store.get_interview(interview_id)
+        saved = interviews.get_interview(interview_id)
         assert saved is not None
         return saved
 
@@ -1095,7 +1098,7 @@ async def test_detached_run_generators_keep_trusted_policy_after_deletion(
 
     monkeypatch.setattr(runs_crud, "generate_run_title", title)
     monkeypatch.setattr(runs_crud, "generate_goal_restatement", restatement)
-    store.delete_run(campaign.id)
+    runs.delete_run(campaign.id)
 
     await runs_crud._populate_run_title(
         campaign.id,
@@ -1123,7 +1126,7 @@ async def test_run_streams_use_policy_captured_at_response_construction(
         yield ("chunk", "answer")
 
     async def fragments(
-        _run_row: store.RunRow, *, thinking_enabled: bool = True
+        _run_row: RunRow, *, thinking_enabled: bool = True
     ) -> AsyncIterator[tuple[str, str]]:
         seen.append(("announcement", campaign_free_mode()))
         yield ("chunk", "started")
@@ -1157,7 +1160,7 @@ async def test_run_streams_use_policy_captured_at_response_construction(
 async def test_interview_stream_keeps_trusted_policy_after_deletion(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    interview = store.create_interview(
+    interview = interviews.create_interview(
         "owner", "Campaign interview", execution_policy="campaign"
     )
     seen: list[bool] = []
@@ -1172,7 +1175,7 @@ async def test_interview_stream_keeps_trusted_policy_after_deletion(
     interview_stream = interviews_stream._advance_stream(
         str(interview["id"]), execution_policy="campaign"
     )
-    store.delete_interview(str(interview["id"]))
+    interviews.delete_interview(str(interview["id"]))
 
     async for _ in interview_stream:
         pass
@@ -1199,7 +1202,7 @@ async def test_qa_stream_keeps_trusted_policy_after_deletion(
         qa.QaAnswerInputs("system", []),
         execution_policy=campaign.execution_policy,
     )
-    store.delete_run(campaign.id)
+    runs.delete_run(campaign.id)
 
     async for _ in answer_stream:
         pass
@@ -1215,7 +1218,7 @@ async def test_announcement_keeps_trusted_policy_after_deletion(
     seen: list[bool] = []
 
     async def fragments(
-        _run_row: store.RunRow, *, thinking_enabled: bool = True
+        _run_row: RunRow, *, thinking_enabled: bool = True
     ) -> AsyncIterator[tuple[str, str]]:
         seen.append(campaign_free_mode())
         yield ("chunk", "started")
@@ -1231,7 +1234,7 @@ async def test_announcement_keeps_trusted_policy_after_deletion(
     announcement_stream = run_start_announcement.stream_announcement(
         campaign, 1
     )
-    store.delete_run(campaign.id)
+    runs.delete_run(campaign.id)
 
     async for _ in announcement_stream:
         pass
@@ -1248,7 +1251,7 @@ async def test_durable_dispatch_reloads_policy_for_recovery_and_resets(
     seen: dict[str, bool] = {}
 
     async def dispatch(
-        task: store.ScientificTask, *, db_path: str | None = None
+        task: ScientificTask, *, db_path: str | None = None
     ) -> dict[str, Any]:
         seen[task.run_id] = campaign_free_mode()
         return {"ok": True}
@@ -1268,14 +1271,14 @@ async def test_durable_dispatch_aborts_when_run_was_deleted(
     dispatched = False
 
     async def dispatch(
-        _task_row: store.ScientificTask, *, db_path: str | None = None
+        _task_row: ScientificTask, *, db_path: str | None = None
     ) -> dict[str, Any]:
         nonlocal dispatched
         dispatched = True
         return {"ok": True}
 
     monkeypatch.setattr(engine_tasks, "_dispatch_engine_task", dispatch)
-    store.delete_run(campaign.id)
+    runs.delete_run(campaign.id)
 
     with pytest.raises(LookupError, match="run not found for task dispatch"):
         await engine_tasks.execute_engine_task(_scope_task(campaign.id))

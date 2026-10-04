@@ -9,13 +9,23 @@ import pytest
 from co_scientist.exceptions import LLMCallBudgetExceededError, LLMTimeoutError
 
 import app.store.tasks_lifecycle as store_tasks_attempts
-from app import credentials, diagnostics, engine_tasks, store, task_worker
+from app import credentials, diagnostics, engine_tasks, task_worker
 from app.config import settings
 from app.diagnostics import HealthCheck
+from app.store import db, runs
 from app.store import db as store_db
+from app.store import events as store_events
+from app.store import runs_views as views
+from app.store import tasks as store
 from app.store import tasks as store_tasks
-from app.store.models import UNKNOWN_PROVIDER_OUTCOME_ERROR
-from app.store.tasks import queue_health_snapshot
+from app.store import tasks_lifecycle as lifecycle
+from app.store.models import (
+    UNKNOWN_PROVIDER_OUTCOME_ERROR,
+    RunStatus,
+    ScientificTask,
+)
+from app.store.runs import RunCreateOptions
+from app.store.tasks import NewTask, queue_health_snapshot
 from app.store.tasks_lifecycle import QueueHealthSnapshot
 from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
 from tests._client import make_client as _client
@@ -28,20 +38,18 @@ from tests._client import make_operator_client as _operator_client
 def _campaign_run_with_expired_lease(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> tuple[str, str]:
-    run = store.create_run(
+    run = runs.create_run(
         "Campaign lease loss",
         "express",
         "engine",
         {},
-        store.RunCreateOptions(
+        RunCreateOptions(
             client_id=DEFAULT_TEST_CLIENT_ID, execution_policy="campaign"
         ),
     )
-    store.update_run_status(
-        run.id, store.RunStatus.RUNNING, db_path=isolated_db
-    )
+    runs.update_run_status(run.id, RunStatus.RUNNING, db_path=isolated_db)
     task = store.enqueue_task(
-        store.NewTask(
+        NewTask(
             run_id=run.id,
             task_type="engine.fanout.verification.item",
             inputs={},
@@ -66,7 +74,7 @@ async def test_expired_campaign_lease_is_retried(
     replayed: list[str] = []
 
     async def _replay(
-        task: store.ScientificTask, *, db_path: str | None = None
+        task: ScientificTask, *, db_path: str | None = None
     ) -> dict[str, Any]:
         replayed.append(task.task_type)
         return {"replayed": True}
@@ -79,8 +87,8 @@ async def test_expired_campaign_lease_is_retried(
     assert replayed == ["engine.fanout.verification.item"]
     task = store.get_task(task_id, db_path=isolated_db)
     assert task is not None and task.status == "completed"
-    run = store.get_run(run_id, db_path=isolated_db)
-    assert run is not None and run.status != store.RunStatus.FAILED
+    run = runs.get_run(run_id, db_path=isolated_db)
+    assert run is not None and run.status != RunStatus.FAILED
 
 
 @pytest.mark.asyncio
@@ -94,7 +102,7 @@ async def test_expired_campaign_lease_with_byok_still_fails_closed(
     replayed: list[str] = []
 
     async def _must_not_call(
-        task: store.ScientificTask, *, db_path: str | None = None
+        task: ScientificTask, *, db_path: str | None = None
     ) -> dict[str, Any]:
         replayed.append(task.task_type)
         return {}
@@ -124,14 +132,14 @@ async def test_expired_campaign_lease_with_byok_still_fails_closed(
 
 
 def _health_running_run(db_path: str, goal: str = "queue health goal") -> str:
-    run = store.create_run(goal, "standard", "engine", {})
-    store.update_run_status(run.id, store.RunStatus.RUNNING, db_path=db_path)
+    run = runs.create_run(goal, "standard", "engine", {})
+    runs.update_run_status(run.id, RunStatus.RUNNING, db_path=db_path)
     return run.id
 
 
 def _health_enqueue(run_id: str, key: str, db_path: str, **kwargs: Any) -> str:
     task = store.enqueue_task(
-        store.NewTask(
+        NewTask(
             run_id=run_id,
             task_type="engine.node.ranking",
             inputs={},
@@ -146,7 +154,7 @@ def _health_enqueue(run_id: str, key: str, db_path: str, **kwargs: Any) -> str:
 def _expire_lease(task_id: str, db_path: str) -> None:
     # Expire the lease without changing attempts to model a worker that died
     # without failing its task.
-    with store.connect(db_path) as conn:
+    with db.connect(db_path) as conn:
         conn.execute(
             "UPDATE scientific_tasks SET lease_expires_at=0 WHERE id=?",
             (task_id,),
@@ -206,15 +214,13 @@ def test_orphaned_exhausted_lease_leaves_run_stalled(isolated_db: str) -> None:
 
     assert snapshot.stalled_run_ids == (run_id,)
     assert snapshot.rescuable_leases == 0
-    run = store.get_run(run_id, db_path=isolated_db)
+    run = runs.get_run(run_id, db_path=isolated_db)
     assert run is not None and run.status == "running"
 
 
 def test_completed_run_is_excluded(isolated_db: str) -> None:
-    run = store.create_run("done goal", "standard", "engine", {})
-    store.update_run_status(
-        run.id, store.RunStatus.COMPLETED, db_path=isolated_db
-    )
+    run = runs.create_run("done goal", "standard", "engine", {})
+    runs.update_run_status(run.id, RunStatus.COMPLETED, db_path=isolated_db)
 
     snapshot = queue_health_snapshot(db_path=isolated_db)
 
@@ -409,8 +415,8 @@ def test_health_degrades_at_200_when_disk_is_low(
 
 
 def _history_running_run(db_path: str, goal: str = "attempts goal") -> str:
-    run = store.create_run(goal, "standard", "engine", {})
-    store.update_run_status(run.id, store.RunStatus.RUNNING, db_path=db_path)
+    run = runs.create_run(goal, "standard", "engine", {})
+    runs.update_run_status(run.id, RunStatus.RUNNING, db_path=db_path)
     return run.id
 
 
@@ -418,7 +424,7 @@ def _history_enqueue(
     run_id: str, key: str, db_path: str, *, max_attempts: int = 3
 ) -> str:
     task = store.enqueue_task(
-        store.NewTask(
+        NewTask(
             run_id=run_id,
             task_type="engine.node.ranking",
             inputs={},
@@ -442,7 +448,9 @@ def test_lease_renewal_does_not_move_recorded_start_time(
     assert leased is not None
     claim_time = leased.updated_at
 
-    assert store.renew_task_lease(leased.id, "w1", 60.0, db_path=isolated_db)
+    assert lifecycle.renew_task_lease(
+        leased.id, "w1", 60.0, db_path=isolated_db
+    )
     assert store.fail_task(leased.id, "w1", "timed out", db_path=isolated_db)
 
     saved = store.get_task(task_id, db_path=isolated_db)
@@ -604,9 +612,7 @@ def test_tasks_endpoint_returns_attempt_history(isolated_db: str) -> None:
             "/api/runs", json={"research_goal": "attempts endpoint goal"}
         )
         run_id = created.json()["id"]
-        store.update_run_status(
-            run_id, store.RunStatus.RUNNING, db_path=isolated_db
-        )
+        runs.update_run_status(run_id, RunStatus.RUNNING, db_path=isolated_db)
         task_id = _history_enqueue(run_id, "k", isolated_db, max_attempts=3)
         leased = store.claim_task("w1", run_id=run_id, db_path=isolated_db)
         assert leased is not None
@@ -628,7 +634,7 @@ async def test_owned_run_api_retains_typed_budget_failure_after_reopen(
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
 
     async def _over_budget(
-        _task: store.ScientificTask, *, db_path: str | None = None
+        _task: ScientificTask, *, db_path: str | None = None
     ) -> dict[str, Any]:
         raise LLMCallBudgetExceededError(count=251, ceiling=250)
 
@@ -680,7 +686,7 @@ async def test_owned_run_api_classifies_only_exact_terminal_failure_types(
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
 
     async def _raise_known_or_near_miss(
-        _task: store.ScientificTask, *, db_path: str | None = None
+        _task: ScientificTask, *, db_path: str | None = None
     ) -> dict[str, Any]:
         raise error
 
@@ -716,7 +722,7 @@ async def test_run_failure_kind_comes_from_task_that_settles_run(
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
 
     async def _fail_tasks(
-        task: store.ScientificTask, *, db_path: str | None = None
+        task: ScientificTask, *, db_path: str | None = None
     ) -> dict[str, Any]:
         if task.task_type == "engine.bootstrap":
             raise LLMCallBudgetExceededError(count=251, ceiling=250)
@@ -733,7 +739,7 @@ async def test_run_failure_kind_comes_from_task_that_settles_run(
             client.post(f"/api/runs/{run_id}/start", json={}).status_code == 200
         )
         store.enqueue_task(
-            store.NewTask(
+            NewTask(
                 run_id=run_id,
                 task_type="engine.node.generate",
                 inputs={},
@@ -783,9 +789,7 @@ def test_queued_cancelled_and_blocked_runs_have_no_failure_kind(
     blocked_id = client.post(
         "/api/runs", json={"research_goal": "blocked run"}
     ).json()["id"]
-    store.update_run_status(
-        blocked_id, store.RunStatus.BLOCKED, db_path=isolated_db
-    )
+    runs.update_run_status(blocked_id, RunStatus.BLOCKED, db_path=isolated_db)
     blocked = client.get(f"/api/runs/{blocked_id}").json()
     assert blocked["status"] == "blocked"
     assert blocked["failure_kind"] is None
@@ -812,7 +816,7 @@ async def test_durable_byok_failure_redacts_owned_surfaces_after_reopen(
     monkeypatch.setattr(settings, "byok_encryption_key", _BYOK_SECRET)
 
     async def _echo_key(
-        _task: store.ScientificTask, *, db_path: str | None = None
+        _task: ScientificTask, *, db_path: str | None = None
     ) -> dict[str, Any]:
         raise LLMTimeoutError(f"provider echoed {_BYOK_KEY}; {_DIAGNOSTIC}")
 
@@ -895,7 +899,7 @@ async def test_required_auth_owner_can_reopen_redacted_failure_replay(
     )
 
     async def _echo_key(
-        _task: store.ScientificTask, *, db_path: str | None = None
+        _task: ScientificTask, *, db_path: str | None = None
     ) -> dict[str, Any]:
         raise LLMTimeoutError(f"provider echoed {_BYOK_KEY}; {_DIAGNOSTIC}")
 
@@ -981,8 +985,8 @@ async def test_required_auth_owner_can_reopen_redacted_failure_replay(
 
 
 def _settlement_running_run(db_path: str, goal: str = "settlement goal") -> str:
-    run = store.create_run(goal, "standard", "engine", {})
-    store.update_run_status(run.id, store.RunStatus.RUNNING, db_path=db_path)
+    run = runs.create_run(goal, "standard", "engine", {})
+    runs.update_run_status(run.id, RunStatus.RUNNING, db_path=db_path)
     return run.id
 
 
@@ -990,7 +994,7 @@ def _enqueue_engine_task(
     run_id: str, key: str, db_path: str, *, max_attempts: int = 3
 ) -> str:
     task = store.enqueue_task(
-        store.NewTask(
+        NewTask(
             run_id=run_id,
             task_type="engine.node.ranking",
             inputs={},
@@ -1005,7 +1009,7 @@ def _enqueue_engine_task(
 def _failed_status_events(run_id: str, db_path: str) -> list[dict[str, Any]]:
     return [
         event
-        for event in store.list_events(run_id, db_path=db_path)
+        for event in store_events.list_events(run_id, db_path=db_path)
         if event["type"] == "status"
         and (event.get("payload") or {}).get("status") == "failed"
     ]
@@ -1032,7 +1036,7 @@ def test_exhausted_retry_budget_settles_run(isolated_db: str) -> None:
     )
     saved = store.get_task(task_id, db_path=isolated_db)
     assert saved is not None and saved.status == "queued"
-    run = store.get_run(run_id, db_path=isolated_db)
+    run = runs.get_run(run_id, db_path=isolated_db)
     assert run is not None and run.status == "running"
 
     second = store.claim_task("w2", run_id=run_id, db_path=isolated_db)
@@ -1043,7 +1047,7 @@ def test_exhausted_retry_budget_settles_run(isolated_db: str) -> None:
 
     saved = store.get_task(task_id, db_path=isolated_db)
     assert saved is not None and saved.status == "failed"
-    run = store.get_run(run_id, db_path=isolated_db)
+    run = runs.get_run(run_id, db_path=isolated_db)
     assert run is not None
     assert run.status == "failed"
     assert run.error is not None
@@ -1073,7 +1077,7 @@ def test_permanent_failure_settles_run(isolated_db: str) -> None:
 
     saved = store.get_task(task_id, db_path=isolated_db)
     assert saved is not None and saved.status == "failed"
-    run = store.get_run(run_id, db_path=isolated_db)
+    run = runs.get_run(run_id, db_path=isolated_db)
     assert run is not None
     assert run.status == "failed"
     assert run.error is not None
@@ -1092,7 +1096,7 @@ def test_claimable_sibling_task_blocks_settlement(isolated_db: str) -> None:
         leased.id, "w1", "boom", retryable=False, db_path=isolated_db
     )
 
-    run = store.get_run(run_id, db_path=isolated_db)
+    run = runs.get_run(run_id, db_path=isolated_db)
     assert run is not None and run.status == "running"
     assert _failed_status_events(run_id, isolated_db) == []
 
@@ -1112,13 +1116,13 @@ def test_active_sibling_lease_blocks_settlement(isolated_db: str) -> None:
         leased_doomed.id, "w1", "boom", retryable=False, db_path=isolated_db
     )
 
-    run = store.get_run(run_id, db_path=isolated_db)
+    run = runs.get_run(run_id, db_path=isolated_db)
     assert run is not None and run.status == "running"
     assert _failed_status_events(run_id, isolated_db) == []
 
 
 def test_task_failure_does_not_settle_inactive_run(isolated_db: str) -> None:
-    run = store.create_run("draft goal", "standard", "engine", {})
+    run = runs.create_run("draft goal", "standard", "engine", {})
     task_id = _enqueue_engine_task(run.id, "doomed", isolated_db)
     leased = store.claim_task("w1", run_id=run.id, db_path=isolated_db)
     assert leased is not None and leased.id == task_id
@@ -1127,7 +1131,7 @@ def test_task_failure_does_not_settle_inactive_run(isolated_db: str) -> None:
         leased.id, "w1", "boom", retryable=False, db_path=isolated_db
     )
 
-    saved = store.get_run(run.id, db_path=isolated_db)
+    saved = runs.get_run(run.id, db_path=isolated_db)
     assert saved is not None and saved.status == "draft"
     assert _failed_status_events(run.id, isolated_db) == []
 
@@ -1155,7 +1159,7 @@ def test_concurrent_final_failures_settle_exactly_once(
         ]
         assert all(future.result() for future in outcomes)
 
-    run = store.get_run(run_id, db_path=isolated_db)
+    run = runs.get_run(run_id, db_path=isolated_db)
     assert run is not None and run.status == "failed"
     assert len(_failed_status_events(run_id, isolated_db)) == 1
 
@@ -1170,13 +1174,15 @@ def test_settled_run_is_not_reprocessed_at_startup(isolated_db: str) -> None:
     assert store.fail_task(
         leased.id, "w1", "boom", retryable=False, db_path=isolated_db
     )
-    events_before = store.list_events(run_id, db_path=isolated_db)
+    events_before = store_events.list_events(run_id, db_path=isolated_db)
 
-    reconciled = store.reconcile_interrupted_runs(db_path=isolated_db)
+    reconciled = views.reconcile_interrupted_runs(db_path=isolated_db)
 
     assert run_id not in reconciled["failed"]
     assert run_id not in reconciled["resumable"]
-    assert store.list_events(run_id, db_path=isolated_db) == events_before
+    assert (
+        store_events.list_events(run_id, db_path=isolated_db) == events_before
+    )
 
 
 @pytest.mark.asyncio
@@ -1189,7 +1195,7 @@ async def test_cohort_settles_run_when_budget_exhausts(
     )
 
     async def _always_fail(
-        _task: store.ScientificTask, *, db_path: str | None = None
+        _task: ScientificTask, *, db_path: str | None = None
     ) -> dict[str, Any]:
         raise RuntimeError("provider exploded")
 
@@ -1206,7 +1212,7 @@ async def test_cohort_settles_run_when_budget_exhausts(
     assert saved is not None
     assert saved.status == "failed"
     assert saved.attempt == saved.max_attempts
-    run = store.get_run(run_id, db_path=isolated_db)
+    run = runs.get_run(run_id, db_path=isolated_db)
     assert run is not None
     assert run.status == "failed"
     assert "provider exploded" in (run.error or "")
@@ -1217,7 +1223,7 @@ async def test_cohort_settles_run_when_budget_exhausts(
 async def test_unsupported_task_type_settles_run(isolated_db: str) -> None:
     run_id = _settlement_running_run(isolated_db)
     store.enqueue_task(
-        store.NewTask(
+        NewTask(
             run_id=run_id,
             task_type="unknown.task",
             inputs={},
@@ -1228,7 +1234,7 @@ async def test_unsupported_task_type_settles_run(isolated_db: str) -> None:
 
     assert await task_worker.run_once("w1", db_path=isolated_db)
 
-    run = store.get_run(run_id, db_path=isolated_db)
+    run = runs.get_run(run_id, db_path=isolated_db)
     assert run is not None
     assert run.status == "failed"
     assert "unsupported task type" in (run.error or "")
@@ -1242,7 +1248,7 @@ async def test_failed_run_settles_through_api_and_sse(
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
 
     async def _always_fail(
-        _task: store.ScientificTask, *, db_path: str | None = None
+        _task: ScientificTask, *, db_path: str | None = None
     ) -> dict[str, Any]:
         raise RuntimeError("provider exploded")
 

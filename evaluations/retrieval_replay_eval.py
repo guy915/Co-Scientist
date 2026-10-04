@@ -53,9 +53,10 @@ _SYNTHETIC_GOAL = "replay reproducibility fixture"
 
 def score_run(run_id: str, db_path: str | None = None) -> dict[str, Any]:
     """No research calls means unscored, not a replayability failure."""
-    from app import store
+    from app.store import records as store
+    from app.store import retrieval_calls as retrieval
 
-    calls = store.list_retrieval_calls(run_id, db_path=db_path)
+    calls = retrieval.list_retrieval_calls(run_id, db_path=db_path)
     evidence = store.list_evidence(run_id, db_path=db_path)
     known = {str(call["id"]) for call in calls}
     pointed = [
@@ -107,9 +108,11 @@ def score_synthetic(db_path: str) -> dict[str, Any]:
     """Exercise the real drain writer so mapping regressions fail without a
     provider.
     """
-    from app import store
+    from app.store import records, runs
+    from app.store import retrieval_calls as store
+    from app.store.records import NewEvidence
 
-    run = store.create_run(_SYNTHETIC_GOAL, "extended", "engine", {})
+    run = runs.create_run(_SYNTHETIC_GOAL, "extended", "engine", {})
     result = _synthetic_result()
     store.add_retrieval_calls(
         store.retrieval_call_rows(run.id, result),
@@ -117,8 +120,8 @@ def score_synthetic(db_path: str) -> dict[str, Any]:
     )
     for finding in result.findings:
         call = next(c for c in result.calls if c.id == finding.call_id)
-        store.add_evidence(
-            store.NewEvidence(
+        records.add_evidence(
+            NewEvidence(
                 run_id=run.id,
                 title=f"paper {finding.locator}",
                 source=call.source,

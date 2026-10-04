@@ -5,7 +5,6 @@ from typing import Any
 
 import pytest
 
-from app import store
 from app.engine_adapter.drain import final_state as drain_final_state
 from app.engine_adapter.drain.final_state import fold_grounding_telemetry
 from app.engine_adapter.drain.reviews import (
@@ -15,6 +14,10 @@ from app.engine_adapter.drain.reviews import (
 )
 from app.report import build as report_build
 from app.report import finalize as report_finalize
+from app.store import db, records, reports, runs
+from app.store import hypotheses as store_hypotheses
+from app.store.hypotheses import NewHypothesis
+from app.store.records import NewClaimEvidence
 from tests._client import drain as _drain
 from tests._drain_helpers import (
     _build_report,
@@ -28,7 +31,7 @@ from tests._drain_helpers import (
 
 
 def test_drain_result_carries_critical_criteria(isolated_db: str) -> None:
-    run = store.create_run("criteria goal", "standard", "engine", {})
+    run = runs.create_run("criteria goal", "standard", "engine", {})
     state = _final_state_with_features()
     state["supervisor_guidance"] = {
         "workflow_plan": {
@@ -54,7 +57,7 @@ def test_drain_result_defaults_to_no_guidance(
     isolated_db: str,
     key: str,
 ) -> None:
-    run = store.create_run("no guidance goal", "standard", "engine", {})
+    run = runs.create_run("no guidance goal", "standard", "engine", {})
 
     drained = _persist(
         run_id=run.id,
@@ -70,7 +73,7 @@ def test_drain_result_carries_structured_critical_criteria(
 ) -> None:
     # Structured criterion objects are valid guidance; string-only filtering
     # silently discards them.
-    run = store.create_run("structured criteria goal", "standard", "engine", {})
+    run = runs.create_run("structured criteria goal", "standard", "engine", {})
     state = _final_state_with_features()
     state["supervisor_guidance"] = {
         "workflow_plan": {
@@ -108,7 +111,7 @@ def test_drain_result_carries_structured_critical_criteria(
 def test_drain_result_drops_non_str_non_dict_criteria_entries(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("mixed criteria goal", "standard", "engine", {})
+    run = runs.create_run("mixed criteria goal", "standard", "engine", {})
     state = _final_state_with_features()
     state["supervisor_guidance"] = {
         "workflow_plan": {
@@ -133,7 +136,7 @@ def test_drain_result_drops_non_str_non_dict_criteria_entries(
 
 
 def test_drain_result_ignores_malformed_review_phase(isolated_db: str) -> None:
-    run = store.create_run("malformed goal", "standard", "engine", {})
+    run = runs.create_run("malformed goal", "standard", "engine", {})
     state = _final_state_with_features()
     state["supervisor_guidance"] = {
         "workflow_plan": {"review_phase": "not a dict"}
@@ -335,7 +338,8 @@ def test_deep_verification_detail_is_empty_without_probes() -> None:
 
 
 def test_persisted_rows_carry_the_detail_json(isolated_db: str) -> None:
-    from app import store
+    from app.store import records as store
+    from app.store import runs as store_runs
     from tests._drain_helpers import _engine_hypothesis, _persist
 
     hypothesis = _engine_hypothesis(
@@ -359,7 +363,7 @@ def test_persisted_rows_carry_the_detail_json(isolated_db: str) -> None:
             "reviews_summary": {"conclusion": "Worth testing."},
         }
     }
-    run = store.create_run("detail goal", "standard", "engine", {})
+    run = store_runs.create_run("detail goal", "standard", "engine", {})
     _persist(
         run_id=run.id,
         final_state={
@@ -400,7 +404,7 @@ def test_review_axes_match_the_engine_score_criteria() -> None:
 def test_drain_result_carries_stratification_attributes(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("attributes goal", "standard", "engine", {})
+    run = runs.create_run("attributes goal", "standard", "engine", {})
     state = _final_state_with_features()
     state["supervisor_guidance"] = {
         "config_synthesis": {
@@ -433,7 +437,7 @@ def test_drain_result_carries_stratification_attributes(
 def test_drain_result_ignores_malformed_config_synthesis(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("malformed goal", "standard", "engine", {})
+    run = runs.create_run("malformed goal", "standard", "engine", {})
     state = _final_state_with_features()
     state["supervisor_guidance"] = {"config_synthesis": "not a dict"}
 
@@ -481,8 +485,8 @@ def test_a_grounding_pass_that_made_no_calls_charges_nothing() -> None:
 
 
 def _assert_features_proximity_edge(run_id: str, db_path: str) -> None:
-    edges = store.list_proximity_edges(run_id, db_path=db_path)
-    hypotheses = store.list_hypotheses(run_id, db_path=db_path)
+    edges = records.list_proximity_edges(run_id, db_path=db_path)
+    hypotheses = store_hypotheses.list_hypotheses(run_id, db_path=db_path)
     hypothesis_ids = {hypothesis["id"] for hypothesis in hypotheses}
     assert len(edges) == 1
     edge = edges[0]
@@ -499,8 +503,8 @@ def _assert_features_proximity_edge(run_id: str, db_path: str) -> None:
 
 
 def _seed_safe_and_unsafe(run: Any, db_path: str) -> tuple[str, str]:
-    safe_id = store.add_hypothesis(
-        store.NewHypothesis(
+    safe_id = store_hypotheses.add_hypothesis(
+        NewHypothesis(
             run_id=run.id,
             title="Safe idea",
             statement=(
@@ -509,8 +513,8 @@ def _seed_safe_and_unsafe(run: Any, db_path: str) -> tuple[str, str]:
         ),
         db_path=db_path,
     )
-    unsafe_id = store.add_hypothesis(
-        store.NewHypothesis(
+    unsafe_id = store_hypotheses.add_hypothesis(
+        NewHypothesis(
             run_id=run.id,
             title="Unsafe idea",
             statement=(
@@ -519,8 +523,8 @@ def _seed_safe_and_unsafe(run: Any, db_path: str) -> tuple[str, str]:
         ),
         db_path=db_path,
     )
-    store.add_claim_evidence(
-        store.NewClaimEvidence(
+    records.add_claim_evidence(
+        NewClaimEvidence(
             run_id=run.id,
             hypothesis_id=safe_id,
             claim="Inhibiting kinase X reduces AML tumor growth via apoptosis.",
@@ -532,8 +536,8 @@ def _seed_safe_and_unsafe(run: Any, db_path: str) -> tuple[str, str]:
         ),
         db_path=db_path,
     )
-    store.add_claim_evidence(
-        store.NewClaimEvidence(
+    records.add_claim_evidence(
+        NewClaimEvidence(
             run_id=run.id,
             hypothesis_id=unsafe_id,
             claim=(
@@ -579,10 +583,10 @@ def _archived_parent_state() -> dict[str, Any]:
 
 
 def test_persist_writes_research_overview_into_report(isolated_db: str) -> None:
-    run = store.create_run("CSC goal", "standard", "engine", {})
+    run = runs.create_run("CSC goal", "standard", "engine", {})
     _persist_and_finalize(run, _final_state_with_features(), isolated_db)
 
-    report = store.get_latest_report(run.id, db_path=isolated_db)
+    report = reports.get_latest_report(run.id, db_path=isolated_db)
     assert report is not None
     overview = report["payload"].get("research_overview")
     assert overview is not None
@@ -598,7 +602,7 @@ def test_persist_writes_research_overview_into_report(isolated_db: str) -> None:
     assert "Aim 1: Quantify CXCR1 dependence." in markdown
     assert "Could yield a combination therapy for TNBC." in markdown
 
-    evidence = store.list_evidence(run.id, db_path=isolated_db)
+    evidence = records.list_evidence(run.id, db_path=isolated_db)
     retracted = next(
         item for item in evidence if item["title"] == "Retracted CXCR1 report"
     )
@@ -610,14 +614,14 @@ def test_persist_writes_research_overview_into_report(isolated_db: str) -> None:
 def test_drain_persists_explicit_lineage(isolated_db: str) -> None:
     # Lineage is explicit and append-only; do not infer it from evolution
     # history.
-    run = store.create_run("kinase goal", "standard", "engine", {})
+    run = runs.create_run("kinase goal", "standard", "engine", {})
     _persist(
         run_id=run.id,
         final_state=_final_state_with_lineage(),
         db_path=isolated_db,
     )
 
-    hyps = store.list_hypotheses(run.id, db_path=isolated_db)
+    hyps = store_hypotheses.list_hypotheses(run.id, db_path=isolated_db)
     by_id = {h["id"]: h for h in hyps}
     assert set(by_id) == {"parent-1", "child-1"}
 
@@ -638,10 +642,10 @@ def test_drain_drops_orphaned_parent_reference(isolated_db: str) -> None:
     state["hypotheses"] = [
         h for h in state["hypotheses"] if h["id"] != "parent-1"
     ]
-    run = store.create_run("kinase goal", "standard", "engine", {})
+    run = runs.create_run("kinase goal", "standard", "engine", {})
     _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
-    hyps = store.list_hypotheses(run.id, db_path=isolated_db)
+    hyps = store_hypotheses.list_hypotheses(run.id, db_path=isolated_db)
     assert len(hyps) == 1
     assert hyps[0]["id"] == "child-1"
     assert hyps[0]["parent_id"] is None
@@ -654,17 +658,19 @@ def test_drain_preserves_proximity_pruned_parent_as_a_duplicate(
     # Duplicates were folded into peers without judgment; rejection would
     # misrepresent their science.
     state = _archived_parent_state()
-    run = store.create_run("kinase archive goal", "standard", "engine", {})
+    run = runs.create_run("kinase archive goal", "standard", "engine", {})
 
     _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
     by_id = {
         hypothesis["id"]: hypothesis
-        for hypothesis in store.list_hypotheses(run.id, db_path=isolated_db)
+        for hypothesis in store_hypotheses.list_hypotheses(
+            run.id, db_path=isolated_db
+        )
     }
     assert by_id["parent-1"]["status"] == "duplicate"
     assert by_id["child-1"]["parent_id"] == "parent-1"
-    [match] = store.list_matches(run.id, db_path=isolated_db)
+    [match] = records.list_matches(run.id, db_path=isolated_db)
     assert match["winner_id"] == "child-1"
     assert match["loser_id"] == "parent-1"
 
@@ -674,13 +680,15 @@ def test_drain_persists_evidence_quarantine_as_rejected(
 ) -> None:
     state = _final_state_with_lineage()
     state["hypotheses"][0]["review_disposition"] = "evidence_blocked"
-    run = store.create_run("grounded archive goal", "standard", "engine", {})
+    run = runs.create_run("grounded archive goal", "standard", "engine", {})
 
     _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
     by_id = {
         hypothesis["id"]: hypothesis
-        for hypothesis in store.list_hypotheses(run.id, db_path=isolated_db)
+        for hypothesis in store_hypotheses.list_hypotheses(
+            run.id, db_path=isolated_db
+        )
     }
     assert by_id["parent-1"]["status"] == "rejected"
     assert by_id["child-1"]["status"] == "active"
@@ -693,13 +701,15 @@ def test_drain_publishes_an_undermined_idea_but_records_the_verdict(
     # them from sound ideas.
     state = _final_state_with_lineage()
     state["hypotheses"][0]["deep_verification_verdict"] = "undermined"
-    run = store.create_run("undermined archive goal", "standard", "engine", {})
+    run = runs.create_run("undermined archive goal", "standard", "engine", {})
 
     _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
     by_id = {
         hypothesis["id"]: hypothesis
-        for hypothesis in store.list_hypotheses(run.id, db_path=isolated_db)
+        for hypothesis in store_hypotheses.list_hypotheses(
+            run.id, db_path=isolated_db
+        )
     }
     assert by_id["parent-1"]["status"] == "active"
     assert by_id["parent-1"]["verification_verdict"] == "undermined"
@@ -710,7 +720,7 @@ def test_drain_publishes_an_undermined_idea_but_records_the_verdict(
 async def test_unsafe_hypothesis_excluded_from_synthesis(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("safety goal", "standard", "engine", {})
+    run = runs.create_run("safety goal", "standard", "engine", {})
     safe_id, _unsafe_id = _seed_safe_and_unsafe(run, isolated_db)
 
     payload, markdown = await _build_report(run, isolated_db)
@@ -720,7 +730,7 @@ async def test_unsafe_hypothesis_excluded_from_synthesis(
     assert leaderboard_ids == {safe_id}
     assert "Weaponize" not in markdown
 
-    decisions = store.list_safety_decisions(run.id, db_path=isolated_db)
+    decisions = records.list_safety_decisions(run.id, db_path=isolated_db)
     assert any(
         d["stage"] == "hypothesis" and d["decision"] == "block"
         for d in decisions
@@ -728,7 +738,7 @@ async def test_unsafe_hypothesis_excluded_from_synthesis(
 
 
 def test_resumed_finalize_does_not_double_publish(isolated_db: str) -> None:
-    run = store.create_run("CSC goal", "standard", "engine", {})
+    run = runs.create_run("CSC goal", "standard", "engine", {})
     drained = _persist(
         run_id=run.id,
         final_state=_final_state_with_features(),
@@ -757,7 +767,7 @@ def test_resumed_finalize_does_not_double_publish(isolated_db: str) -> None:
 
     assert any(e["type"] == "report" for e in first)
     assert second == []
-    with store.connect(isolated_db) as conn:
+    with db.connect(isolated_db) as conn:
         count = conn.execute(
             "SELECT COUNT(*) FROM reports WHERE run_id=?", (run.id,)
         ).fetchone()[0]
@@ -765,14 +775,14 @@ def test_resumed_finalize_does_not_double_publish(isolated_db: str) -> None:
 
 
 def test_persist_passes_engine_ids_through_to_store(isolated_db: str) -> None:
-    run = store.create_run("CSC goal", "standard", "engine", {})
+    run = runs.create_run("CSC goal", "standard", "engine", {})
     _persist(
         run_id=run.id,
         final_state=_final_state_with_features(),
         db_path=isolated_db,
     )
 
-    hyps = store.list_hypotheses(run.id, db_path=isolated_db)
+    hyps = store_hypotheses.list_hypotheses(run.id, db_path=isolated_db)
     ids = {h["id"] for h in hyps}
     assert ids == {"eng-hyp-a", "eng-hyp-b"}
 
@@ -780,7 +790,7 @@ def test_persist_passes_engine_ids_through_to_store(isolated_db: str) -> None:
 def test_persist_writes_scene_setting_onto_the_hypothesis_row(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("CSC goal", "standard", "engine", {})
+    run = runs.create_run("CSC goal", "standard", "engine", {})
     final_state = {
         "hypotheses": [
             _engine_hypothesis(
@@ -805,7 +815,7 @@ def test_persist_writes_scene_setting_onto_the_hypothesis_row(
         db_path=isolated_db,
     )
 
-    hyps = store.list_hypotheses(run.id, db_path=isolated_db)
+    hyps = store_hypotheses.list_hypotheses(run.id, db_path=isolated_db)
     assert len(hyps) == 1
     assert hyps[0]["introduction"] == (
         "Breast cancer stem cells drive relapse and resistance."
@@ -821,20 +831,26 @@ def test_persist_matches_resolve_by_engine_id(isolated_db: str) -> None:
     state = _final_state_with_features()
     state["tournament_matchups"][0]["hypothesis_a"] = "drifted text A"
     state["tournament_matchups"][0]["hypothesis_b"] = "drifted text B"
-    run = store.create_run("CSC goal", "standard", "engine", {})
+    run = runs.create_run("CSC goal", "standard", "engine", {})
     _persist(
         run_id=run.id,
         final_state=state,
         db_path=isolated_db,
     )
 
-    matches = store.list_matches(run.id, db_path=isolated_db)
+    matches = records.list_matches(run.id, db_path=isolated_db)
     assert len(matches) == 1
     match = matches[0]
     assert match["winner_id"] == "eng-hyp-a"
     assert match["loser_id"] == "eng-hyp-b"
-    assert store.get_hypothesis("eng-hyp-a", db_path=isolated_db) is not None
-    assert store.get_hypothesis("eng-hyp-b", db_path=isolated_db) is not None
+    assert (
+        store_hypotheses.get_hypothesis("eng-hyp-a", db_path=isolated_db)
+        is not None
+    )
+    assert (
+        store_hypotheses.get_hypothesis("eng-hyp-b", db_path=isolated_db)
+        is not None
+    )
 
 
 def test_persist_skips_matchup_with_unresolved_id(isolated_db: str) -> None:
@@ -842,23 +858,23 @@ def test_persist_skips_matchup_with_unresolved_id(isolated_db: str) -> None:
     state = _final_state_with_features()
     state["tournament_matchups"][0]["hypothesis_b_id"] = "eng-hyp-gone"
     state["tournament_matchups"][0]["winner_id"] = "eng-hyp-gone"
-    run = store.create_run("CSC goal", "standard", "engine", {})
+    run = runs.create_run("CSC goal", "standard", "engine", {})
     _persist(
         run_id=run.id,
         final_state=state,
         db_path=isolated_db,
     )
 
-    assert store.list_matches(run.id, db_path=isolated_db) == []
+    assert records.list_matches(run.id, db_path=isolated_db) == []
 
 
 def test_persist_handles_missing_research_overview(isolated_db: str) -> None:
     state = _final_state_with_features()
     del state["research_overview"]
-    run = store.create_run("No overview", "standard", "engine", {})
+    run = runs.create_run("No overview", "standard", "engine", {})
     _persist_and_finalize(run, state, isolated_db)
 
-    report = store.get_latest_report(run.id, db_path=isolated_db)
+    report = reports.get_latest_report(run.id, db_path=isolated_db)
     assert report is not None
     assert not report["payload"].get("research_overview")
     assert "## Research Overview" not in report["markdown_text"]
@@ -868,24 +884,24 @@ def test_persist_handles_missing_research_overview(isolated_db: str) -> None:
 def test_persist_handles_empty_research_overview(isolated_db: str) -> None:
     state = _final_state_with_features()
     state["research_overview"] = {"overview": {}, "nih_specific_aims": {}}
-    run = store.create_run("Empty overview", "standard", "engine", {})
+    run = runs.create_run("Empty overview", "standard", "engine", {})
     _persist_and_finalize(run, state, isolated_db)
 
-    report = store.get_latest_report(run.id, db_path=isolated_db)
+    report = reports.get_latest_report(run.id, db_path=isolated_db)
     assert report is not None
     assert "## Research Overview" not in report["markdown_text"]
     assert "## NIH Specific Aims" not in report["markdown_text"]
 
 
 def test_persist_writes_deep_verification_reviews(isolated_db: str) -> None:
-    run = store.create_run("CSC goal", "standard", "engine", {})
+    run = runs.create_run("CSC goal", "standard", "engine", {})
     _persist(
         run_id=run.id,
         final_state=_final_state_with_features(),
         db_path=isolated_db,
     )
 
-    reviews = store.list_reviews(run.id, db_path=isolated_db)
+    reviews = records.list_reviews(run.id, db_path=isolated_db)
     deep = [r for r in reviews if r["reviewer_agent"] == "deep_verification"]
     assert len(deep) == 1
     critique = deep[0]["critique"]
@@ -931,14 +947,14 @@ def _final_state_with_novelty_review() -> dict[str, Any]:
 def test_persist_writes_novelty_review_lists_into_critique(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("CSC goal", "standard", "engine", {})
+    run = runs.create_run("CSC goal", "standard", "engine", {})
     _persist(
         run_id=run.id,
         final_state=_final_state_with_novelty_review(),
         db_path=isolated_db,
     )
 
-    reviews = store.list_reviews(run.id, db_path=isolated_db)
+    reviews = records.list_reviews(run.id, db_path=isolated_db)
     review = next(r for r in reviews if r["reviewer_agent"] == "review")
     assert "Aspects already explored:" in review["critique"]
     assert "CXCR1 is a known breast-CSC marker." in review["critique"]
@@ -995,14 +1011,14 @@ def _final_state_with_mature_reviews() -> dict[str, Any]:
 
 
 def test_persist_writes_distinct_mature_review_rows(isolated_db: str) -> None:
-    run = store.create_run("CSC goal", "standard", "engine", {})
+    run = runs.create_run("CSC goal", "standard", "engine", {})
     _persist(
         run_id=run.id,
         final_state=_final_state_with_mature_reviews(),
         db_path=isolated_db,
     )
 
-    reviews = store.list_reviews(run.id, db_path=isolated_db)
+    reviews = records.list_reviews(run.id, db_path=isolated_db)
     by_agent = {r["reviewer_agent"]: r for r in reviews}
     assert set(by_agent) == {
         "full_review",
@@ -1081,14 +1097,14 @@ def _final_state_with_citations() -> dict[str, Any]:
 def test_persist_classifies_citations_via_shared_classifier(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("CSC goal", "standard", "engine", {})
+    run = runs.create_run("CSC goal", "standard", "engine", {})
     _persist(
         run_id=run.id,
         final_state=_final_state_with_citations(),
         db_path=isolated_db,
     )
 
-    citations = store.list_citations(run.id, db_path=isolated_db)
+    citations = records.list_citations(run.id, db_path=isolated_db)
     states = {c["claim"]: c["state"] for c in citations}
     assert states == {
         "[C1] cited in hypothesis": "verified",
@@ -1102,14 +1118,14 @@ def test_a_knowledge_graph_citations_evidence_row_keeps_its_display_text(
 ) -> None:
     # Non-paper citations use display rather than title; falling back to the
     # citation key loses source identity.
-    run = store.create_run("CSC goal", "standard", "engine", {})
+    run = runs.create_run("CSC goal", "standard", "engine", {})
     _persist(
         run_id=run.id,
         final_state=_final_state_with_citations(),
         db_path=isolated_db,
     )
 
-    evidence = store.list_evidence(run.id, db_path=isolated_db)
+    evidence = records.list_evidence(run.id, db_path=isolated_db)
     kg_row = next(e for e in evidence if e["source"] == "knowledge_graph")
     assert kg_row["title"] == "INDRA: CXCR1 -> STAT3"
 
@@ -1117,7 +1133,7 @@ def test_a_knowledge_graph_citations_evidence_row_keeps_its_display_text(
 async def test_the_rendered_report_resolves_the_grounding_text_citation_keys(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("CSC goal", "standard", "engine", {})
+    run = runs.create_run("CSC goal", "standard", "engine", {})
     await drain_final_state.persist_final_state(
         run_id=run.id,
         final_state=_final_state_with_citations(),
@@ -1191,14 +1207,14 @@ def test_each_citation_is_scored_against_the_sentence_that_cites_it(
 ) -> None:
     # Classify each cited sentence; unrelated source vocabulary can make the
     # support threshold unreachable.
-    run = store.create_run("CSC goal", "standard", "engine", {})
+    run = runs.create_run("CSC goal", "standard", "engine", {})
     _persist(
         run_id=run.id,
         final_state=_final_state_with_multi_source_grounding(),
         db_path=isolated_db,
     )
 
-    citations = store.list_citations(run.id, db_path=isolated_db)
+    citations = records.list_citations(run.id, db_path=isolated_db)
     states = {c["claim"]: c["state"] for c in citations}
     assert states == {
         "[C1] cited in hypothesis": "verified",

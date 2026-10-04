@@ -18,7 +18,7 @@ from co_scientist.llm import campaign_free_mode
 
 import app.citations as citation_metadata
 import app.citations as citation_resolver
-from app import safety, store
+from app import safety
 from app.citations import (
     CitationMetadata,
     Resolvability,
@@ -32,6 +32,9 @@ from app.engine_adapter.drain.matches import _persist_engine_matches
 from app.execution_policy import scoped_execution_policy
 from app.hypothesis import screen_hypotheses
 from app.report import markdown as report_markdown
+from app.store import db, hypotheses, records, runs
+from app.store.models import RunRow
+from app.store.runs import RunCreateOptions
 from tests._drain_helpers import (
     _engine_hypothesis,
     _final_state_with_features,
@@ -66,8 +69,8 @@ def _escalation_state(held_text: str = _HELD_TEXT) -> dict[str, Any]:
     }
 
 
-def _real_run(goal: str) -> store.RunRow:
-    return store.create_run(goal, "standard", "engine", {})
+def _real_run(goal: str) -> RunRow:
+    return runs.create_run(goal, "standard", "engine", {})
 
 
 def _fake_semantic_response(category: str) -> SimpleNamespace:
@@ -93,7 +96,8 @@ def _stub_eligible(
 
 def _held_status(run_id: str, isolated_db: str) -> str:
     by_id = {
-        h["id"]: h for h in store.list_hypotheses(run_id, db_path=isolated_db)
+        h["id"]: h
+        for h in hypotheses.list_hypotheses(run_id, db_path=isolated_db)
     }
     return str(by_id["held-1"]["safety_status"])
 
@@ -115,7 +119,7 @@ def test_drain_escalates_and_raises_a_held_verdict(
     )
 
     assert _held_status(run.id, isolated_db) == "prohibited"
-    decisions = store.list_safety_decisions(run.id, db_path=isolated_db)
+    decisions = records.list_safety_decisions(run.id, db_path=isolated_db)
     raised = [
         d
         for d in decisions
@@ -166,18 +170,18 @@ def test_rescreen_does_not_downgrade_an_escalation_raised_block(
         run_id=run.id, final_state=_escalation_state(), db_path=isolated_db
     )
     assert _held_status(run.id, isolated_db) == "prohibited"
-    before = store.list_safety_decisions(run.id, db_path=isolated_db)
+    before = records.list_safety_decisions(run.id, db_path=isolated_db)
 
     second = screen_hypotheses(
         run.id,
-        store.list_hypotheses(run.id, db_path=isolated_db),
+        hypotheses.list_hypotheses(run.id, db_path=isolated_db),
         db_path=isolated_db,
     )
 
     assert _held_status(run.id, isolated_db) == "prohibited"
     assert "held-1" in second.blocked_ids
     assert second.escalatable == ()
-    after = store.list_safety_decisions(run.id, db_path=isolated_db)
+    after = records.list_safety_decisions(run.id, db_path=isolated_db)
     assert len(after) == len(before), "re-screen must not duplicate audit rows"
 
 
@@ -229,12 +233,12 @@ def test_drain_skips_escalation_cleanly_when_offline(
         )
 
     install_completion_backend(monkeypatch, fail_if_called)
-    run = store.create_run(
+    run = runs.create_run(
         "drain escalation offline",
         "standard",
         "engine",
         {},
-        store.RunCreateOptions(llm_backend="offline", db_path=isolated_db),
+        RunCreateOptions(llm_backend="offline", db_path=isolated_db),
     )
 
     drained = _persist(
@@ -281,7 +285,7 @@ def test_escalation_does_not_hold_the_write_lock(
     try:
         assert call_started.wait(timeout=5), "escalation call never started"
         start = time.monotonic()
-        store.create_run(
+        runs.create_run(
             "concurrent write during escalation", "standard", "engine", {}
         )
         elapsed = time.monotonic() - start
@@ -316,7 +320,7 @@ async def test_a_cleared_hold_is_audited_as_an_allow_not_a_block(
         db_path=isolated_db,
     )
 
-    decisions = store.list_safety_decisions(run.id, db_path=isolated_db)
+    decisions = records.list_safety_decisions(run.id, db_path=isolated_db)
     held_rows = [
         row
         for row in decisions
@@ -342,7 +346,7 @@ def _final_state_with_article(article: dict[str, Any]) -> dict[str, Any]:
 def test_drain_persists_doi_pmid_passage_and_retrieval_timestamp(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("identity goal", "standard", "engine", {})
+    run = runs.create_run("identity goal", "standard", "engine", {})
     article = {
         "title": "A PubMed paper",
         "source": "pubmed",
@@ -354,7 +358,7 @@ def test_drain_persists_doi_pmid_passage_and_retrieval_timestamp(
     }
     _persist_and_finalize(run, _final_state_with_article(article), isolated_db)
 
-    evidence = store.list_evidence(run.id, db_path=isolated_db)
+    evidence = records.list_evidence(run.id, db_path=isolated_db)
     assert len(evidence) == 1
     row = evidence[0]
     assert row["doi"] == "10.1000/xyz123"
@@ -367,7 +371,7 @@ def test_drain_persists_doi_pmid_passage_and_retrieval_timestamp(
 def test_drain_derives_pmid_from_pubmed_url_without_source_id(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("identity goal", "standard", "engine", {})
+    run = runs.create_run("identity goal", "standard", "engine", {})
     article = {
         "title": "Untagged source article",
         "source": "web",
@@ -376,7 +380,7 @@ def test_drain_derives_pmid_from_pubmed_url_without_source_id(
     }
     _persist_and_finalize(run, _final_state_with_article(article), isolated_db)
 
-    evidence = store.list_evidence(run.id, db_path=isolated_db)
+    evidence = records.list_evidence(run.id, db_path=isolated_db)
     assert evidence[0]["pmid"] == "98765432"
     assert evidence[0]["doi"] is None
 
@@ -384,7 +388,7 @@ def test_drain_derives_pmid_from_pubmed_url_without_source_id(
 def test_offline_resolver_available_matches_metadata_heuristic(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("identity goal", "standard", "engine", {})
+    run = runs.create_run("identity goal", "standard", "engine", {})
     final_state = {
         "hypotheses": [],
         "articles": [
@@ -416,7 +420,8 @@ def test_offline_resolver_available_matches_metadata_heuristic(
     _persist_and_finalize(run, final_state, isolated_db)
 
     evidence = {
-        e["title"]: e for e in store.list_evidence(run.id, db_path=isolated_db)
+        e["title"]: e
+        for e in records.list_evidence(run.id, db_path=isolated_db)
     }
     assert evidence["Reachable-by-metadata paper"]["available"] is True
     assert evidence["Reachable-by-metadata paper"]["retracted"] is False
@@ -445,7 +450,7 @@ def test_live_resolver_dereferences_rather_than_inspecting_the_string(
         fake_resolve_many,
     )
 
-    run = store.create_run("identity goal", "standard", "engine", {})
+    run = runs.create_run("identity goal", "standard", "engine", {})
     final_state = {
         "hypotheses": [],
         "articles": [
@@ -470,7 +475,8 @@ def test_live_resolver_dereferences_rather_than_inspecting_the_string(
     _persist_and_finalize(run, final_state, isolated_db)
 
     evidence = {
-        e["title"]: e for e in store.list_evidence(run.id, db_path=isolated_db)
+        e["title"]: e
+        for e in records.list_evidence(run.id, db_path=isolated_db)
     }
     assert evidence["Actually reachable"]["available"] is True
     assert evidence["Actually reachable"]["retracted"] is False
@@ -499,7 +505,7 @@ def test_live_resolver_persists_retraction_from_either_source(
         fake_resolve_many,
     )
 
-    run = store.create_run("identity goal", "standard", "engine", {})
+    run = runs.create_run("identity goal", "standard", "engine", {})
     final_state = {
         "hypotheses": [],
         "articles": [
@@ -525,7 +531,8 @@ def test_live_resolver_persists_retraction_from_either_source(
     _persist_and_finalize(run, final_state, isolated_db)
 
     evidence = {
-        e["title"]: e for e in store.list_evidence(run.id, db_path=isolated_db)
+        e["title"]: e
+        for e in records.list_evidence(run.id, db_path=isolated_db)
     }
     for title in ("Flagged by metadata", "Caught by the live retraction set"):
         assert evidence[title]["available"] is False
@@ -537,7 +544,7 @@ def test_old_evidence_row_with_no_retracted_column_renders_unretracted(
 ) -> None:
     # Added nullable retraction columns cannot establish facts about legacy
     # evidence.
-    run = store.create_run("identity goal", "standard", "engine", {})
+    run = runs.create_run("identity goal", "standard", "engine", {})
     article = {
         "title": "Pre-migration paper",
         "source": "pubmed",
@@ -552,7 +559,7 @@ def test_old_evidence_row_with_no_retracted_column_renders_unretracted(
         )
         conn.commit()
 
-    evidence = store.list_evidence(run.id, db_path=isolated_db)
+    evidence = records.list_evidence(run.id, db_path=isolated_db)
     assert len(evidence) == 1
     assert evidence[0]["available"] is False
     assert evidence[0]["retracted"] is False
@@ -561,7 +568,7 @@ def test_old_evidence_row_with_no_retracted_column_renders_unretracted(
 def test_drain_persists_hybrid_retrieval_score_provenance(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("identity goal", "standard", "engine", {})
+    run = runs.create_run("identity goal", "standard", "engine", {})
     article = {
         "title": "Scored paper",
         "source": "pubmed",
@@ -573,7 +580,7 @@ def test_drain_persists_hybrid_retrieval_score_provenance(
     }
     _persist_and_finalize(run, _final_state_with_article(article), isolated_db)
 
-    evidence = store.list_evidence(run.id, db_path=isolated_db)
+    evidence = records.list_evidence(run.id, db_path=isolated_db)
     row = evidence[0]
     assert row["retrieval_score"] == 0.87
     assert row["retrieval_rationale"] == "Directly addresses the goal."
@@ -587,7 +594,7 @@ def test_evidence_passages_uses_stored_passage_text(
     # reconstruction.
     from app.claims.grounding import evidence_passages
 
-    run = store.create_run("identity goal", "standard", "engine", {})
+    run = runs.create_run("identity goal", "standard", "engine", {})
     article = {
         "title": "Passage paper",
         "source": "pubmed",
@@ -617,7 +624,7 @@ def test_live_path_routes_every_verdict_through_the_resolvability_seam(
         citation_metadata, "assess_resolvability", recording_assess
     )
 
-    run = store.create_run("identity goal", "standard", "engine", {})
+    run = runs.create_run("identity goal", "standard", "engine", {})
     article = {
         "title": "Seam paper",
         "source": "pubmed",
@@ -650,7 +657,7 @@ def test_offline_path_routes_through_the_same_seam(
         citation_metadata, "assess_resolvability", recording_assess
     )
 
-    run = store.create_run("identity goal", "standard", "engine", {})
+    run = runs.create_run("identity goal", "standard", "engine", {})
     article = {
         "title": "Offline seam paper",
         "source": "pubmed",
@@ -667,7 +674,7 @@ def test_drain_persists_the_classified_source_type(
 ) -> None:
     # Publication type is lost after draining, so classify once while engine
     # metadata is available.
-    run = store.create_run("identity goal", "standard", "engine", {})
+    run = runs.create_run("identity goal", "standard", "engine", {})
     final_state = {
         "hypotheses": [],
         "articles": [
@@ -699,7 +706,8 @@ def test_drain_persists_the_classified_source_type(
     _persist_and_finalize(run, final_state, isolated_db)
 
     evidence = {
-        e["title"]: e for e in store.list_evidence(run.id, db_path=isolated_db)
+        e["title"]: e
+        for e in records.list_evidence(run.id, db_path=isolated_db)
     }
     assert evidence["Journal paper"]["source_type"] == "peer_reviewed"
     assert evidence["Preprint indexed in pubmed"]["source_type"] == "preprint"
@@ -711,7 +719,7 @@ def test_persist_writes_safety_and_toxicity_onto_the_hypothesis_row(
 ) -> None:
     # Proposer safety prose is not reviewer assessment and must never control
     # the safety gate.
-    run = store.create_run("CSC goal", "standard", "engine", {})
+    run = runs.create_run("CSC goal", "standard", "engine", {})
     final_state = {
         "hypotheses": [
             _engine_hypothesis(
@@ -733,7 +741,7 @@ def test_persist_writes_safety_and_toxicity_onto_the_hypothesis_row(
         db_path=isolated_db,
     )
 
-    hyps = store.list_hypotheses(run.id, db_path=isolated_db)
+    hyps = hypotheses.list_hypotheses(run.id, db_path=isolated_db)
     assert len(hyps) == 1
     assert hyps[0]["safety_and_toxicity"] == (
         "Limited human safety data exists for this class."
@@ -785,7 +793,7 @@ def test_authored_title_is_clipped_past_the_display_cap() -> None:
 def test_persist_writes_the_authored_title_onto_the_hypothesis_row(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("CSC goal", "standard", "engine", {})
+    run = runs.create_run("CSC goal", "standard", "engine", {})
     final_state = {
         "hypotheses": [
             _engine_hypothesis(
@@ -801,7 +809,7 @@ def test_persist_writes_the_authored_title_onto_the_hypothesis_row(
     }
     _persist(run_id=run.id, final_state=final_state, db_path=isolated_db)
 
-    hyps = store.list_hypotheses(run.id, db_path=isolated_db)
+    hyps = hypotheses.list_hypotheses(run.id, db_path=isolated_db)
     assert len(hyps) == 1
     assert hyps[0]["title"] == "CXCR1 Blockade Against Breast Cancer Stem Cells"
 
@@ -811,7 +819,7 @@ def test_persist_derives_the_title_for_an_evolved_child_without_one(
 ) -> None:
     # A child's mechanism can diverge; missing titles derive from its own text
     # rather than its parent.
-    run = store.create_run("CSC goal", "standard", "engine", {})
+    run = runs.create_run("CSC goal", "standard", "engine", {})
     final_state = {
         "hypotheses": [
             _engine_hypothesis(
@@ -839,7 +847,8 @@ def test_persist_derives_the_title_for_an_evolved_child_without_one(
     _persist(run_id=run.id, final_state=final_state, db_path=isolated_db)
 
     hyps = {
-        h["id"]: h for h in store.list_hypotheses(run.id, db_path=isolated_db)
+        h["id"]: h
+        for h in hypotheses.list_hypotheses(run.id, db_path=isolated_db)
     }
     assert hyps["parent-1"]["title"] == "Kinase X Inhibition Strategy"
     assert hyps["child-1"]["title"] == (
@@ -886,16 +895,18 @@ def _screening_state() -> dict[str, Any]:
 
 
 def test_drain_screens_hypotheses_before_finalize(isolated_db: str) -> None:
-    run = store.create_run("safety goal", "standard", "engine", {})
+    run = runs.create_run("safety goal", "standard", "engine", {})
     state = _screening_state()
 
     _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
-    by_text = {h["statement"][:8]: h for h in store.list_hypotheses(run.id)}
+    by_text = {
+        h["statement"][:8]: h for h in hypotheses.list_hypotheses(run.id)
+    }
     assert by_text["Inhibiti"]["safety_status"] == "allow"
     assert by_text["Weaponiz"]["safety_status"] == "prohibited"
 
-    decisions = store.list_safety_decisions(run.id, db_path=isolated_db)
+    decisions = records.list_safety_decisions(run.id, db_path=isolated_db)
     assert any(
         d["stage"] == "hypothesis" and d["decision"] == "block"
         for d in decisions
@@ -907,7 +918,7 @@ def test_drain_persists_held_hypotheses_as_reviewable_decisions(
 ) -> None:
     # Held ideas leave the engine pool, so drain must preserve adjudicable
     # decisions before they disappear.
-    run = store.create_run("held hypotheses goal", "standard", "engine", {})
+    run = runs.create_run("held hypotheses goal", "standard", "engine", {})
 
     _persist(
         run_id=run.id,
@@ -915,7 +926,7 @@ def test_drain_persists_held_hypotheses_as_reviewable_decisions(
         db_path=isolated_db,
     )
 
-    decisions = store.list_safety_decisions(run.id, db_path=isolated_db)
+    decisions = records.list_safety_decisions(run.id, db_path=isolated_db)
     holds = [d for d in decisions if d["decision"] == "hold"]
     assert len(holds) == 2
     for row in holds:
@@ -930,7 +941,7 @@ def test_drain_persists_held_hypotheses_as_reviewable_decisions(
     assert "held-1" in reasons and "held-2" in reasons
     assert "enhance pathogen transmissibility" in reasons
     assert "toxin production line" in reasons
-    assert [h["id"] for h in store.list_hypotheses(run.id)] == ["safe-1"]
+    assert [h["id"] for h in hypotheses.list_hypotheses(run.id)] == ["safe-1"]
 
 
 def test_drain_records_a_hold_without_an_engine_audit_entry(
@@ -938,7 +949,7 @@ def test_drain_records_a_hold_without_an_engine_audit_entry(
 ) -> None:
     # Missing audit joins must not discard held hypotheses; retain a hold with
     # fallback rationale.
-    run = store.create_run("orphan hold goal", "standard", "engine", {})
+    run = runs.create_run("orphan hold goal", "standard", "engine", {})
     state = _held_final_state()
     state["safety_decisions"] = []
 
@@ -946,7 +957,7 @@ def test_drain_records_a_hold_without_an_engine_audit_entry(
 
     holds = [
         d
-        for d in store.list_safety_decisions(run.id, db_path=isolated_db)
+        for d in records.list_safety_decisions(run.id, db_path=isolated_db)
         if d["decision"] == "hold"
     ]
     assert len(holds) == 2
@@ -990,7 +1001,7 @@ def _multi_parent_state() -> dict[str, Any]:
 
 
 def test_drain_persists_multi_parent_lineage(isolated_db: str) -> None:
-    run = store.create_run("combine goal", "standard", "engine", {})
+    run = runs.create_run("combine goal", "standard", "engine", {})
     _persist(
         run_id=run.id,
         final_state=_multi_parent_state(),
@@ -998,7 +1009,8 @@ def test_drain_persists_multi_parent_lineage(isolated_db: str) -> None:
     )
 
     hyps = {
-        h["id"]: h for h in store.list_hypotheses(run.id, db_path=isolated_db)
+        h["id"]: h
+        for h in hypotheses.list_hypotheses(run.id, db_path=isolated_db)
     }
     child = hyps["child-1"]
     assert child["parent_id"] == "parent-1"
@@ -1013,11 +1025,12 @@ def test_drain_drops_pruned_co_parent_from_lineage(isolated_db: str) -> None:
     state["hypotheses"] = [
         h for h in state["hypotheses"] if h["id"] != "parent-2"
     ]
-    run = store.create_run("combine goal", "standard", "engine", {})
+    run = runs.create_run("combine goal", "standard", "engine", {})
     _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
     hyps = {
-        h["id"]: h for h in store.list_hypotheses(run.id, db_path=isolated_db)
+        h["id"]: h
+        for h in hypotheses.list_hypotheses(run.id, db_path=isolated_db)
     }
     child = hyps["child-1"]
     assert child["parent_id"] == "parent-1"
@@ -1027,7 +1040,7 @@ def test_drain_drops_pruned_co_parent_from_lineage(isolated_db: str) -> None:
 def test_drain_persists_creation_iteration(isolated_db: str) -> None:
     # Unknown creation cycles remain NULL so scaling falls back to generation
     # rather than inventing cycle zero.
-    run = store.create_run("kinase goal", "standard", "engine", {})
+    run = runs.create_run("kinase goal", "standard", "engine", {})
     _persist(
         run_id=run.id,
         final_state={
@@ -1048,7 +1061,8 @@ def test_drain_persists_creation_iteration(isolated_db: str) -> None:
     )
 
     by_id = {
-        h["id"]: h for h in store.list_hypotheses(run.id, db_path=isolated_db)
+        h["id"]: h
+        for h in hypotheses.list_hypotheses(run.id, db_path=isolated_db)
     }
     assert by_id["seed"]["creation_iteration"] == 0
     assert by_id["reborn"]["creation_iteration"] == 2
@@ -1060,11 +1074,11 @@ def test_persist_match_records_the_iteration_it_was_judged_in(
 ) -> None:
     state = _final_state_with_features()
     state["tournament_matchups"][0]["iteration"] = 2
-    run = store.create_run("CSC goal", "standard", "engine", {})
+    run = runs.create_run("CSC goal", "standard", "engine", {})
 
     _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
-    matches = store.list_matches(run.id, db_path=isolated_db)
+    matches = records.list_matches(run.id, db_path=isolated_db)
     assert [match["iteration"] for match in matches] == [2]
 
 
@@ -1073,11 +1087,11 @@ def test_persist_match_without_an_iteration_falls_back_to_zero(
 ) -> None:
     state = _final_state_with_features()
     state["tournament_matchups"][0].pop("iteration", None)
-    run = store.create_run("CSC goal", "standard", "engine", {})
+    run = runs.create_run("CSC goal", "standard", "engine", {})
 
     _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
-    matches = store.list_matches(run.id, db_path=isolated_db)
+    matches = records.list_matches(run.id, db_path=isolated_db)
     assert [match["iteration"] for match in matches] == [0]
 
 
@@ -1122,8 +1136,8 @@ def _judged_matchup() -> dict[str, Any]:
 def test_a_judged_debate_reaches_the_report(isolated_db: str) -> None:
     # Each debate turn may swap presentation numbers; persist one canonical
     # match verdict.
-    run = store.create_run("cardiac fibrosis goal", "express", "engine", {})
-    with store.transaction(isolated_db) as conn:
+    run = runs.create_run("cardiac fibrosis goal", "express", "engine", {})
+    with db.transaction(isolated_db) as conn:
         _persist_engine_matches(
             run.id,
             [_judged_matchup()],
@@ -1131,7 +1145,7 @@ def test_a_judged_debate_reaches_the_report(isolated_db: str) -> None:
             conn,
         )
 
-    [row] = store.list_matches(run.id, db_path=isolated_db)
+    [row] = records.list_matches(run.id, db_path=isolated_db)
     document = json.loads(row["debate_transcript"])
     assert document["verdict"] == "2"
     assert [turn["favored"] for turn in document["turns"]] == ["2", "2"]
@@ -1143,7 +1157,7 @@ def test_a_judged_debate_reaches_the_report(isolated_db: str) -> None:
             research_goal="cardiac fibrosis goal",
             provider="engine",
             top_hypotheses=[{"id": "h2", "title": "Empagliflozin"}],
-            matches=store.list_matches(run.id, db_path=isolated_db),
+            matches=records.list_matches(run.id, db_path=isolated_db),
             hypothesis_title_by_id={"h1": "NHE1 screen", "h2": "Empagliflozin"},
         )
     )
@@ -1193,9 +1207,9 @@ def _state(reviews: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _persisted_novelty(state: dict[str, Any], db_path: str) -> Any:
-    run = store.create_run("novelty goal", "standard", "engine", {})
+    run = runs.create_run("novelty goal", "standard", "engine", {})
     _persist(run_id=run.id, final_state=state, db_path=db_path)
-    rows = store.list_hypotheses(run.id, db_path=db_path)
+    rows = hypotheses.list_hypotheses(run.id, db_path=db_path)
     return rows[0]["novelty_score"]
 
 

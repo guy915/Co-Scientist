@@ -6,7 +6,6 @@ import sqlite3
 from collections.abc import Mapping
 from typing import Any, NamedTuple
 
-import app.store as store
 from app.citations import empty_citation_summary
 from app.claims import EvidencePassage
 from app.claims.grounding import (
@@ -41,6 +40,11 @@ from app.hypothesis.safety import (
     HypothesisSafetyOutcome,
     escalate_held_hypotheses,
 )
+from app.store import db, hypotheses
+from app.store import records as store_records
+from app.store import supervisor_plan as plans
+from app.store.records import NewSafetyDecision
+from app.store.supervisor_plan import NewSupervisorPlan
 
 logger = logging.getLogger(__name__)
 
@@ -273,7 +277,7 @@ def _held_decision(
     run_id: str,
     entry: Mapping[str, Any],
     audit_by_id: Mapping[str, Mapping[str, Any]],
-) -> store.NewSafetyDecision | None:
+) -> NewSafetyDecision | None:
     hyp_id = str(entry.get("id") or "")
     text = str(entry.get("text") or "")
     if not hyp_id and not text:
@@ -282,7 +286,7 @@ def _held_decision(
     outcome = str(
         entry.get("safety_status") or HypothesisSafetyOutcome.UNCERTAIN.value
     )
-    return store.NewSafetyDecision(
+    return NewSafetyDecision(
         run_id=run_id,
         stage="hypothesis",
         decision="hold",
@@ -313,7 +317,7 @@ def _persist_held_for_review(
         decision = _held_decision(run_id, entry, audit_by_id)
         if decision is None:
             continue
-        store.add_safety_decision(decision, conn=conn)
+        store_records.add_safety_decision(decision, conn=conn)
         recorded += 1
     logger.info(
         "Recorded %d held-for-review decision(s) for run %s.",
@@ -336,7 +340,7 @@ def _screen_and_collect_grounding_inputs(
     """
     from app.report.gates import EXCLUDED_HYPOTHESIS_STATUSES
 
-    persisted = store.list_hypotheses(run_id, conn=conn)
+    persisted = hypotheses.list_hypotheses(run_id, conn=conn)
     screening_result = screen_hypotheses(run_id, persisted, conn=conn)
     passages = evidence_passages(run_id, conn=conn)
     grounding_candidates = [
@@ -421,7 +425,7 @@ async def _persist_evidence_hypotheses_and_screen(
         store_id_by_engine_id=store_id_by_engine_id,
         persisted_engine_ids=inputs.persisted_engine_ids,
     )
-    with store.transaction(db_path) as conn:
+    with db.transaction(db_path) as conn:
         # Persist search calls before evidence rows that reference their
         # provenance.
         _persist_retrieval_calls(run_id, inputs.final_state, conn)
@@ -446,7 +450,7 @@ def _persist_grounding_matches_proximity_txn(
     db_path: str | None,
 ) -> Any:
     assessed, escalated = provider_outputs
-    with store.transaction(db_path) as conn:
+    with db.transaction(db_path) as conn:
         grounding_result = persist_grounding(run_id, assessed, conn=conn)
         _persist_engine_matches(
             run_id, inputs.matchups, store_id_by_engine_id, conn
@@ -510,8 +514,8 @@ async def persist_final_state(
 def _persist_supervisor_plan(
     run_id: str, final_state: dict[str, Any], conn: sqlite3.Connection
 ) -> None:
-    store.save_supervisor_plan(
-        store.NewSupervisorPlan(
+    plans.save_supervisor_plan(
+        NewSupervisorPlan(
             run_id=run_id,
             guidance=final_state.get("supervisor_guidance") or {},
             termination_reason=final_state.get("termination_reason"),
@@ -522,6 +526,6 @@ def _persist_supervisor_plan(
         ),
         conn=conn,
     )
-    store.replace_supervisor_allocations(
+    plans.replace_supervisor_allocations(
         run_id, final_state.get("task_history") or [], conn=conn
     )

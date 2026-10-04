@@ -6,10 +6,11 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
-import app.store as store
 from app.citations import CitationRecord, classify_citation
 from app.claims.assessor import SENTENCE_SPLIT
 from app.report import format_deep_verification_critique
+from app.store import records as store
+from app.store.records import NewCitation, NewEvidence, NewReview
 
 _BRACKET_GROUP = re.compile(r"\[([^\[\]]+)\]")
 
@@ -39,7 +40,7 @@ def _ensure_citation_evidence_id(
     cite_ev_id = ev_id_by_title.get(cite_title)
     if cite_ev_id is None:
         cite_ev_id = store.add_evidence(
-            store.NewEvidence(
+            NewEvidence(
                 run_id=run_id,
                 title=cite_title,
                 source=cite_info.get("type", "engine"),
@@ -123,7 +124,7 @@ def _persist_one_citation(
     )
     sink.citation_summary[state] += 1
     store.add_citation(
-        store.NewCitation(
+        NewCitation(
             run_id=target.run_id,
             hypothesis_id=target.hyp_id,
             evidence_id=cite_ev_id,
@@ -455,7 +456,7 @@ def _persist_scientist_review(
     if _scientist_review_row_survives(source_id, conn):
         return True
     store.add_review(
-        store.NewReview(
+        NewReview(
             run_id=run_id,
             hypothesis_id=hyp_id,
             reviewer_agent=_SCIENTIST_REVIEWER,
@@ -500,7 +501,7 @@ def _persist_engine_review_rows(
         if novelty_lines:
             critique_lines += ["", *novelty_lines]
         store.add_review(
-            store.NewReview(
+            NewReview(
                 run_id=run_id,
                 hypothesis_id=hyp_id,
                 reviewer_agent="review",
@@ -531,7 +532,7 @@ def _persist_deep_verification_review(
         probes, h.get("deep_verification_verdict")
     )
     store.add_review(
-        store.NewReview(
+        NewReview(
             run_id=run_id,
             hypothesis_id=hyp_id,
             reviewer_agent="deep_verification",
@@ -661,7 +662,7 @@ def _persist_mature_review_rows(
             continue
         verdict = str(review.get("verdict") or "unspecified")
         store.add_review(
-            store.NewReview(
+            NewReview(
                 run_id=run_id,
                 hypothesis_id=hyp_id,
                 reviewer_agent=reviewer_agent,

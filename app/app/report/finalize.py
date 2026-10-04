@@ -4,7 +4,6 @@ import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
-from app import store
 from app.notifications import _enqueue_completion_notification
 from app.report.build import (
     ReportRequest,
@@ -21,8 +20,10 @@ from app.safety import (
     redact_payload_text,
     screen_final,
 )
-from app.store import RunStatus
-from app.store.models import ScientificTask
+from app.store import db, events, records, runs
+from app.store import reports as store
+from app.store.models import RunStatus, ScientificTask
+from app.store.records import NewSafetyDecision
 
 logger = logging.getLogger(__name__)
 
@@ -168,7 +169,7 @@ def _commit_leased_report_publication(
     # engine_adapter and app.report.
     from app.engine_tasks.support import assert_task_commit_allowed
 
-    with store.transaction(db_path) as conn:
+    with db.transaction(db_path) as conn:
         assert_task_commit_allowed(task, conn)
         saved = store.save_report(
             run_id,
@@ -181,14 +182,14 @@ def _commit_leased_report_publication(
             run_id, built.facts, db_path=db_path, conn=conn
         )
         report_payload = {**built.payload, "report_id": saved["id"]}
-        report_seq = store.append_event(
+        report_seq = events.append_event(
             run_id, "report", report_payload, conn=conn
         )
         status_payload = {"status": "completed"}
-        status_seq = store.append_event(
+        status_seq = events.append_event(
             run_id, "status", status_payload, conn=conn
         )
-        store.update_run_status(
+        runs.update_run_status(
             run_id, RunStatus.COMPLETED, db_path=db_path, conn=conn
         )
         _enqueue_completion_notification(
@@ -215,7 +216,7 @@ async def _publish_report(
         # reports.
         store.replace_knowledge_facts(run_id, built.facts, db_path=db_path)
         yield await emit("report", {**payload, "report_id": saved["id"]})
-        store.update_run_status(run_id, RunStatus.COMPLETED, db_path=db_path)
+        runs.update_run_status(run_id, RunStatus.COMPLETED, db_path=db_path)
         _enqueue_completion_notification(
             run_id, research_goal, saved["id"], db_path=db_path
         )
@@ -246,7 +247,7 @@ async def _block_for_empty_leaderboard(
     reason = _empty_leaderboard_reason(
         built.payload["idea_count"], built.exclusion_tally
     )
-    decision = store.NewSafetyDecision(
+    decision = NewSafetyDecision(
         run_id=run_id,
         stage="scientific_readiness",
         decision="block",
@@ -254,8 +255,8 @@ async def _block_for_empty_leaderboard(
         matches=[],
     )
     if task is None:
-        store.add_safety_decision(decision, db_path=db_path)
-        store.update_run_status(
+        records.add_safety_decision(decision, db_path=db_path)
+        runs.update_run_status(
             run_id, RunStatus.BLOCKED, error=reason, db_path=db_path
         )
         event = await emit("status", {"status": "blocked", "reason": reason})
@@ -272,7 +273,7 @@ async def _block_for_empty_leaderboard(
 
 def _commit_empty_leaderboard_block(
     run_id: str,
-    decision: store.NewSafetyDecision,
+    decision: NewSafetyDecision,
     task: ScientificTask,
     db_path: str | None,
 ) -> int:
@@ -282,10 +283,10 @@ def _commit_empty_leaderboard_block(
     from app.engine_tasks.support import assert_task_commit_allowed
 
     payload = {"status": "blocked", "reason": decision.reason}
-    with store.transaction(db_path) as conn:
+    with db.transaction(db_path) as conn:
         assert_task_commit_allowed(task, conn)
-        store.add_safety_decision(decision, conn=conn)
-        store.update_run_status(
+        records.add_safety_decision(decision, conn=conn)
+        runs.update_run_status(
             run_id, RunStatus.BLOCKED, error=decision.reason, conn=conn
         )
-        return store.append_event(run_id, "status", payload, conn=conn)
+        return events.append_event(run_id, "status", payload, conn=conn)

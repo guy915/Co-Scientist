@@ -9,7 +9,6 @@ from fastapi import (
 from fastapi.responses import JSONResponse, StreamingResponse
 
 import app.runs.crud as runs_deletion
-from app import store
 from app.api_contracts import RunsResponse
 from app.api_contracts.runs import Run, RunWithSummary
 from app.runs import chat as runs_chat
@@ -24,6 +23,7 @@ from app.runs.lifecycle import (
 from app.runs.support import (
     _run_or_404 as _run_or_404,
 )
+from app.store import events as store
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 

@@ -12,20 +12,28 @@ from co_scientist.checkpoint import (
 )
 from co_scientist.models import Hypothesis
 
-import app.store as store
 from app.engine_adapter import is_engine_checkpoint
 from app.engine_tasks.support import OUTCOME_REFINEMENT_TASK
-from app.store import DEMO_CLIENT_ID, NewOutcomeRefinementAction
+from app.store import checkpoints, db, events, hypotheses, runs, tasks
+from app.store import outcomes as store
+from app.store import tasks_lifecycle as lifecycle
+from app.store.hypotheses import NewHypothesis
+from app.store.models import DEMO_CLIENT_ID, RunStatus
+from app.store.outcomes import (
+    NewOutcomeRefinementAction,
+    OutcomeRefinementConflictError,
+)
+from app.store.tasks import NewTask
 
 logger = logging.getLogger(__name__)
 
 
-def _child_row(run_id: str, child: Hypothesis) -> store.NewHypothesis:
+def _child_row(run_id: str, child: Hypothesis) -> NewHypothesis:
     if child.parent_id is None or child.parent_ids != [child.parent_id]:
         raise ValueError(
             "targeted outcome refinement returned non-single lineage"
         )
-    return store.NewHypothesis(
+    return NewHypothesis(
         run_id=run_id,
         hypothesis_id=child.id,
         parent_id=child.parent_id,
@@ -267,7 +275,7 @@ def _outcome_snapshot(
 
 
 def _owned_run(conn: Any, request: OutcomeRefinementRequest) -> Any:
-    run = store.get_run(request.run_id, conn=conn)
+    run = runs.get_run(request.run_id, conn=conn)
     if run is None or run.client_id != request.owner_id:
         raise OutcomeRefinementNotFoundError
     return run
@@ -291,8 +299,8 @@ def _matching_outcome(
 def _eligible_parent(
     conn: Any, request: OutcomeRefinementRequest
 ) -> CheckpointedParent:
-    parent_row = store.get_hypothesis(request.hypothesis_id, conn=conn)
-    checkpoint = store.get_latest_checkpoint(request.run_id, conn=conn)
+    parent_row = hypotheses.get_hypothesis(request.hypothesis_id, conn=conn)
+    checkpoint = checkpoints.get_latest_checkpoint(request.run_id, conn=conn)
     if (
         parent_row is None
         or parent_row["run_id"] != request.run_id
@@ -323,7 +331,7 @@ def _validate_new_action_run(run: Any) -> None:
     if (
         run.client_id == DEMO_CLIENT_ID
         or run.provider != "engine"
-        or run.status != store.RunStatus.COMPLETED.value
+        or run.status != RunStatus.COMPLETED.value
     ):
         raise OutcomeRefinementIneligibleError
 
@@ -338,7 +346,7 @@ def _replay_for_key(
         or existing["hypothesis_id"] != request.hypothesis_id
         or existing["owner_id"] != request.owner_id
     ):
-        raise store.OutcomeRefinementConflictError
+        raise OutcomeRefinementConflictError
     return _action_payload(existing, replayed=True)
 
 
@@ -388,7 +396,7 @@ def _require_unclaimed_outcome(
         )
         is not None
     ):
-        raise store.OutcomeRefinementConflictError
+        raise OutcomeRefinementConflictError
 
 
 def _new_action_record(
@@ -427,22 +435,20 @@ def _materialize_action(
 ) -> None:
     if action["status"] in {"completed", "no_child", "safety_rejected"}:
         return
-    run = store.get_run(action["run_id"], conn=conn)
+    run = runs.get_run(action["run_id"], conn=conn)
     if run is None or run.status in {
-        store.RunStatus.CANCELLED.value,
-        store.RunStatus.BLOCKED.value,
+        RunStatus.CANCELLED.value,
+        RunStatus.BLOCKED.value,
     }:
         return
     if not _ensure_action_task(action, conn, retry_failed=retry_failed):
         return
     if run.status in {
-        store.RunStatus.COMPLETED.value,
-        store.RunStatus.FAILED.value,
+        RunStatus.COMPLETED.value,
+        RunStatus.FAILED.value,
     }:
-        store.update_run_status(
-            action["run_id"], store.RunStatus.QUEUED, conn=conn
-        )
-        store.append_event(
+        runs.update_run_status(action["run_id"], RunStatus.QUEUED, conn=conn)
+        events.append_event(
             action["run_id"],
             "lifecycle",
             {
@@ -467,8 +473,8 @@ def _ensure_action_task(
         (action["run_id"], action["task_idempotency_key"]),
     ).fetchone()
     if existing is None:
-        store.enqueue_task(
-            store.NewTask(
+        tasks.enqueue_task(
+            NewTask(
                 run_id=action["run_id"],
                 task_type=OUTCOME_REFINEMENT_TASK,
                 inputs={
@@ -487,7 +493,7 @@ def _ensure_action_task(
         )
         return True
     if existing["status"] in {"failed", "cancelled"}:
-        return retry_failed and store.revive_task_for_retry(
+        return retry_failed and lifecycle.revive_task_for_retry(
             action["run_id"], action["task_idempotency_key"], conn=conn
         )
     return True
@@ -502,7 +508,7 @@ def materialize_pending_outcome_refinements(
     materialized = 0
     for snapshot in pending:
         try:
-            with store.transaction(db_path) as conn:
+            with db.transaction(db_path) as conn:
                 action = store.get_outcome_refinement_action(
                     snapshot["run_id"], snapshot["action_id"], conn=conn
                 )
@@ -530,7 +536,7 @@ def request_outcome_refinement_action(
     db_path: str | None = None,
 ) -> dict[str, Any]:
     request_key = _validate_request_key(request.request_idempotency_key)
-    with store.transaction(db_path) as conn:
+    with db.transaction(db_path) as conn:
         run = _owned_run(conn, request)
         outcome = _matching_outcome(conn, request)
         replay = _replay_existing_action(request, request_key, conn)

@@ -3,9 +3,13 @@ from __future__ import annotations
 import pytest
 from co_scientist.models import Hypothesis
 
-from app import store
 from app.config import settings
-from app.store import RunStatus
+from app.store import events as store_events
+from app.store import outcomes as store
+from app.store import runs
+from app.store import tasks as store_tasks
+from app.store.models import RunStatus
+from app.store.outcomes import NewHypothesisOutcome
 from tests._client import make_client
 from tests._outcome_refinement_api_support import (
     MESELSON_STAHL_PARENT_TEXT,
@@ -56,7 +60,7 @@ def test_owner_can_create_one_durable_targeted_outcome_intent(
         )
         == []
     )
-    assert store.list_tasks(run_id, db_path=isolated_db) == []
+    assert store_tasks.list_tasks(run_id, db_path=isolated_db) == []
     _save_engine_checkpoint(
         run_id,
         Hypothesis(
@@ -66,7 +70,7 @@ def test_owner_can_create_one_durable_targeted_outcome_intent(
         ),
         isolated_db,
     )
-    store.update_run_status(run_id, RunStatus.COMPLETED, db_path=isolated_db)
+    runs.update_run_status(run_id, RunStatus.COMPLETED, db_path=isolated_db)
 
     action_path = (
         f"/api/runs/{run_id}/hypotheses/{hypothesis_id}/"
@@ -107,7 +111,7 @@ def test_owner_can_create_one_durable_targeted_outcome_intent(
         "The replication of DNA in Escherichia coli"
     ) < context.index("Hanawalt's historical account")
     assert "Full text and abstracts are outside" not in context
-    tasks = store.list_tasks(run_id, db_path=isolated_db)
+    tasks = store_tasks.list_tasks(run_id, db_path=isolated_db)
     assert len(tasks) == 1
     assert tasks[0].task_type == "engine.outcome.refinement"
     assert tasks[0].idempotency_key == action["task_idempotency_key"]
@@ -126,7 +130,7 @@ def test_owner_can_create_one_durable_targeted_outcome_intent(
         )
         == []
     )
-    events = store.list_events(run_id, db_path=isolated_db)
+    events = store_events.list_events(run_id, db_path=isolated_db)
     action_events = [
         event
         for event in events
@@ -155,7 +159,9 @@ def test_owner_can_create_one_durable_targeted_outcome_intent(
         )
         == []
     )
-    assert len(store.list_events(run_id, db_path=isolated_db)) == len(events)
+    assert len(store_events.list_events(run_id, db_path=isolated_db)) == len(
+        events
+    )
     reopened_client.close()
 
 
@@ -184,7 +190,7 @@ def test_refinement_action_is_owner_scoped_and_exactly_one_per_outcome(
         ),
         isolated_db,
     )
-    store.update_run_status(run_id, RunStatus.COMPLETED, db_path=isolated_db)
+    runs.update_run_status(run_id, RunStatus.COMPLETED, db_path=isolated_db)
     action_path = (
         f"/api/runs/{run_id}/hypotheses/{parent_id}/"
         f"outcomes/{outcome['id']}/refine"
@@ -287,7 +293,7 @@ def test_refinement_requires_completed_engine_checkpoint_and_eligible_parent(
     hypothesis_id = _add_hypothesis(run_id, isolated_db, "Ineligible parent")
     body = _outcome_body()
     outcome = store.add_hypothesis_outcome(
-        store.NewHypothesisOutcome(
+        NewHypothesisOutcome(
             run_id=run_id,
             hypothesis_id=hypothesis_id,
             method_protocol=body["method_protocol"],
@@ -301,7 +307,7 @@ def test_refinement_requires_completed_engine_checkpoint_and_eligible_parent(
         ),
         db_path=isolated_db,
     )
-    store.update_run_status(run_id, RunStatus.COMPLETED, db_path=isolated_db)
+    runs.update_run_status(run_id, RunStatus.COMPLETED, db_path=isolated_db)
     action_path = (
         f"/api/runs/{run_id}/hypotheses/{hypothesis_id}/"
         f"outcomes/{outcome['id']}/refine"
@@ -321,7 +327,7 @@ def test_refinement_requires_completed_engine_checkpoint_and_eligible_parent(
         ),
         isolated_db,
     )
-    store.update_run_status(run_id, RunStatus.RUNNING, db_path=isolated_db)
+    runs.update_run_status(run_id, RunStatus.RUNNING, db_path=isolated_db)
     assert (
         client.post(
             action_path,
@@ -329,7 +335,7 @@ def test_refinement_requires_completed_engine_checkpoint_and_eligible_parent(
         ).status_code
         == 409
     )
-    store.update_run_status(run_id, RunStatus.COMPLETED, db_path=isolated_db)
+    runs.update_run_status(run_id, RunStatus.COMPLETED, db_path=isolated_db)
 
     _save_engine_checkpoint(
         run_id,

@@ -13,7 +13,7 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from app import API_VERSION, diagnostics, store
+from app import API_VERSION, diagnostics
 from app.config import settings
 from app.diagnostics import (
     DEGRADED,
@@ -32,7 +32,11 @@ from app.diagnostics import (
     probe_literature_stack_cached,
 )
 from app.run_modes import DEFAULT_RUN_TIER, RUN_TIER_DEFAULTS
-from app.store import DEMO_CLIENT_ID
+from app.store import checkpoints, runs
+from app.store import runs_views as views
+from app.store.checkpoints import NewCheckpoint
+from app.store.models import DEMO_CLIENT_ID, RunStatus
+from app.store.runs import RunCreateOptions
 from tests._client import make_client, make_operator_client
 from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
@@ -450,19 +454,19 @@ _INDRA_CONFIG = str(
 
 
 def _seed_interrupted_engine_run(isolated_db: str) -> str:
-    interrupted = store.create_run(
+    interrupted = runs.create_run(
         "interrupted goal",
         "default",
         "engine",
         {},
-        store.RunCreateOptions(db_path=isolated_db),
+        RunCreateOptions(db_path=isolated_db),
     )
-    store.update_run_status(
-        interrupted.id, store.RunStatus.RUNNING, db_path=isolated_db
+    runs.update_run_status(
+        interrupted.id, RunStatus.RUNNING, db_path=isolated_db
     )
-    store.save_checkpoint(
+    checkpoints.save_checkpoint(
         interrupted.id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage="engine_task:test",
             schema_version=1,
             last_event_seq=0,
@@ -533,27 +537,27 @@ def test_lifespan_reconciles_interrupted_runs_and_seeds_demo_data(
     # does not exercise startup.
     import app.main as main_module
 
-    interrupted = store.create_run(
+    interrupted = runs.create_run(
         "interrupted goal",
         "default",
         "mock",
         {},
-        store.RunCreateOptions(db_path=isolated_db),
+        RunCreateOptions(db_path=isolated_db),
     )
-    store.update_run_status(
-        interrupted.id, store.RunStatus.RUNNING, db_path=isolated_db
+    runs.update_run_status(
+        interrupted.id, RunStatus.RUNNING, db_path=isolated_db
     )
 
     with TestClient(main_module.app) as client:
         res = client.get("/health")
         assert res.status_code == 200
 
-    reconciled = store.get_run(interrupted.id, db_path=isolated_db)
+    reconciled = runs.get_run(interrupted.id, db_path=isolated_db)
     assert reconciled is not None
-    assert reconciled.status == store.RunStatus.FAILED.value
+    assert reconciled.status == RunStatus.FAILED.value
     assert reconciled.error and "restart" in reconciled.error
 
-    demo_runs = store.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
+    demo_runs = views.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
     assert len(demo_runs) == 3
 
 
@@ -694,7 +698,7 @@ def test_startup_prunes_checkpoints_but_never_vacuums(
         pruned.set()
         return 0
 
-    monkeypatch.setattr(store, "prune_superseded_checkpoints", _prune)
+    monkeypatch.setattr(checkpoints, "prune_superseded_checkpoints", _prune)
 
     with TestClient(main_module.app) as client:
         assert client.get("/health").status_code == 200

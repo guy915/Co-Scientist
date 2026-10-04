@@ -28,15 +28,17 @@ def test_golden_artifact_retains_unknown_identity_and_cost() -> None:
 def test_durable_artifact_retains_requested_and_observed_models(
     tmp_path: Path,
 ) -> None:
-    from app import store
+    from app.store import retrieval_calls as store
+    from app.store import runs
+    from app.store.runs import RunCreateOptions
 
     db = str(tmp_path / "metrics.db")
-    run = store.create_run(
+    run = runs.create_run(
         "public evidence",
         "express",
         "engine",
         {},
-        store.RunCreateOptions(db_path=db, llm_backend="real"),
+        RunCreateOptions(db_path=db, llm_backend="real"),
     )
     raw = {
         "judge::openrouter/served": {

@@ -10,10 +10,16 @@ from typing import Any
 import pytest
 
 import app.qa.manifest as qa_run_state
-from app import qa, store
+from app import qa
 from app.config import CONVERSATIONAL_REASONING_EFFORT, settings
 from app.qa import QaRunContext, build_evidence_manifest, build_system_prompt
-from app.store.models import RunRow
+from app.store import db, runs
+from app.store import events as store_events
+from app.store import messages as store
+from app.store import runs_views as views
+from app.store.messages import NewMessage
+from app.store.models import RunRow, RunStatus
+from app.store.runs import RunCreateOptions
 from tests._client import drain as _drain
 from tests._client import fake_litellm as _fake_litellm
 from tests._client import make_client as _client
@@ -163,14 +169,14 @@ def test_stream_llm_deltas_yields_only_nonempty_chunks(
 def test_handle_qa_stream_error_persists_fallback_and_logs(
     isolated_db: str, caplog: pytest.LogCaptureFixture
 ) -> None:
-    store.create_run(
+    runs.create_run(
         "goal",
         "default",
         "mock",
         {},
-        store.RunCreateOptions(client_id="c1", db_path=isolated_db),
+        RunCreateOptions(client_id="c1", db_path=isolated_db),
     )
-    run_id = store.list_runs(client_id="c1", db_path=isolated_db)[0].id
+    run_id = views.list_runs(client_id="c1", db_path=isolated_db)[0].id
 
     with caplog.at_level(logging.ERROR, logger="app.qa"):
         fallback = qa._handle_qa_stream_error(run_id, RuntimeError("boom"))
@@ -190,14 +196,14 @@ def test_stream_answer_happy_path_persists_and_yields_frames(
     install_completion_backend(
         monkeypatch, (_fake_litellm(["Ans", "wer"])).acompletion
     )
-    store.create_run(
+    runs.create_run(
         "goal",
         "default",
         "mock",
         {},
-        store.RunCreateOptions(client_id="c1", db_path=isolated_db),
+        RunCreateOptions(client_id="c1", db_path=isolated_db),
     )
-    run_id = store.list_runs(client_id="c1", db_path=isolated_db)[0].id
+    run_id = views.list_runs(client_id="c1", db_path=isolated_db)[0].id
     manifest = [
         {"n": 1, "evidence_id": "e1", "title": "T", "state": "verified"}
     ]
@@ -225,14 +231,14 @@ def test_stream_answer_without_manifest_skips_sources_and_meta(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     install_completion_backend(monkeypatch, (_fake_litellm(["Ok"])).acompletion)
-    store.create_run(
+    runs.create_run(
         "goal",
         "default",
         "mock",
         {},
-        store.RunCreateOptions(client_id="c2", db_path=isolated_db),
+        RunCreateOptions(client_id="c2", db_path=isolated_db),
     )
-    run_id = store.list_runs(client_id="c2", db_path=isolated_db)[0].id
+    run_id = views.list_runs(client_id="c2", db_path=isolated_db)[0].id
 
     frames = _drain(
         qa.stream_answer(
@@ -275,14 +281,14 @@ def test_stream_answer_relays_and_persists_reasoning(
             _thinking_litellm("Checking the evidence first.", "Answer.")
         ).acompletion,
     )
-    store.create_run(
+    runs.create_run(
         "goal",
         "default",
         "mock",
         {},
-        store.RunCreateOptions(client_id="c4", db_path=isolated_db),
+        RunCreateOptions(client_id="c4", db_path=isolated_db),
     )
-    run_id = store.list_runs(client_id="c4", db_path=isolated_db)[0].id
+    run_id = views.list_runs(client_id="c4", db_path=isolated_db)[0].id
 
     frames = _drain(
         qa.stream_answer(
@@ -307,14 +313,14 @@ def test_stream_answer_error_path_persists_and_emits_fallback(
         monkeypatch,
         (_fake_litellm([], raise_exc=RuntimeError("no key"))).acompletion,
     )
-    store.create_run(
+    runs.create_run(
         "goal",
         "default",
         "mock",
         {},
-        store.RunCreateOptions(client_id="c3", db_path=isolated_db),
+        RunCreateOptions(client_id="c3", db_path=isolated_db),
     )
-    run_id = store.list_runs(client_id="c3", db_path=isolated_db)[0].id
+    run_id = views.list_runs(client_id="c3", db_path=isolated_db)[0].id
 
     frames = _drain(
         qa.stream_answer(
@@ -409,14 +415,14 @@ def test_build_offline_answer_handles_a_run_with_no_hypotheses() -> None:
 def test_stream_offline_answer_emits_sources_chunks_done_and_persists(
     isolated_db: str,
 ) -> None:
-    store.create_run(
+    runs.create_run(
         "goal",
         "default",
         "mock",
         {},
-        store.RunCreateOptions(client_id="off1", db_path=isolated_db),
+        RunCreateOptions(client_id="off1", db_path=isolated_db),
     )
-    run_id = store.list_runs(client_id="off1", db_path=isolated_db)[0].id
+    run_id = views.list_runs(client_id="off1", db_path=isolated_db)[0].id
     manifest = [
         {"n": 1, "evidence_id": "e1", "title": "T", "state": "verified"}
     ]
@@ -500,7 +506,7 @@ def _prompt_for(rid: str) -> str:
     from app import qa
     from app.runs import chat as runs_chat
 
-    run = store.get_run(rid)
+    run = runs.get_run(rid)
     assert run is not None
     return qa.build_system_prompt(runs_chat._gather_qa_context(run))
 
@@ -521,7 +527,7 @@ def test_a_running_run_carries_no_final_report_section() -> None:
         "/api/runs",
         json={"research_goal": "Investigate X", "tier": "express"},
     ).json()["id"]
-    store.update_run_status(rid, store.RunStatus.RUNNING)
+    runs.update_run_status(rid, RunStatus.RUNNING)
 
     prompt = _prompt_for(rid)
 
@@ -652,18 +658,18 @@ def test_manifest_ignores_citations_to_unknown_evidence() -> None:
 
 
 def test_message_meta_round_trips(isolated_db: str) -> None:
-    store.create_run(
+    runs.create_run(
         "rg",
         "default",
         "engine",
         {},
-        store.RunCreateOptions(client_id="c1", db_path=isolated_db),
+        RunCreateOptions(client_id="c1", db_path=isolated_db),
     )
-    run_id = store.list_runs(client_id="c1", db_path=isolated_db)[0].id
+    run_id = views.list_runs(client_id="c1", db_path=isolated_db)[0].id
 
     sources = [{"n": 1, "evidence_id": "e1", "title": "T", "state": "verified"}]
     store.append_message(
-        store.NewMessage(
+        NewMessage(
             run_id=run_id,
             sender="system",
             content="Answer [1].",
@@ -680,18 +686,16 @@ def test_message_meta_round_trips(isolated_db: str) -> None:
 
 
 def test_message_without_meta_is_none(isolated_db: str) -> None:
-    store.create_run(
+    runs.create_run(
         "rg",
         "default",
         "engine",
         {},
-        store.RunCreateOptions(client_id="c1", db_path=isolated_db),
+        RunCreateOptions(client_id="c1", db_path=isolated_db),
     )
-    run_id = store.list_runs(client_id="c1", db_path=isolated_db)[0].id
+    run_id = views.list_runs(client_id="c1", db_path=isolated_db)[0].id
     store.append_message(
-        store.NewMessage(
-            run_id=run_id, sender="user", content="hi", kind="steering"
-        ),
+        NewMessage(run_id=run_id, sender="user", content="hi", kind="steering"),
         db_path=isolated_db,
     )
     msgs = store.list_messages(run_id, db_path=isolated_db)
@@ -757,15 +761,15 @@ def test_status_events_are_not_steps() -> None:
 
 
 def _seed_running_run() -> RunRow:
-    run = store.create_run("A goal", "standard", "engine", {})
-    store.update_run_status(run.id, store.RunStatus.RUNNING)
+    run = runs.create_run("A goal", "standard", "engine", {})
+    runs.update_run_status(run.id, RunStatus.RUNNING)
     return dataclasses.replace(run, status="running")
 
 
 def test_elapsed_is_measured_from_execution_start_not_draft_creation() -> None:
     run = _seed_running_run()
-    store.append_event(run.id, "lifecycle", {"event": "queued"})
-    with store.connect() as conn:
+    store_events.append_event(run.id, "lifecycle", {"event": "queued"})
+    with db.connect() as conn:
         progress = qa_run_state.gather_run_progress(
             run, [], {"ideas": 2}, conn, now=time.time() + 120.0
         )
@@ -778,7 +782,7 @@ def test_elapsed_is_measured_from_execution_start_not_draft_creation() -> None:
 
 def test_a_run_that_never_started_reports_no_elapsed_time() -> None:
     run = _seed_running_run()
-    with store.connect() as conn:
+    with db.connect() as conn:
         progress = qa_run_state.gather_run_progress(
             run, [], {}, conn, now=time.time()
         )
@@ -793,7 +797,7 @@ def test_only_meta_review_notes_count_as_conclusions() -> None:
         {"reviewer_agent": "review", "summary": "one idea's critique"},
         {"reviewer_agent": "meta_review", "summary": "the pattern so far"},
     ]
-    with store.connect() as conn:
+    with db.connect() as conn:
         progress = qa_run_state.gather_run_progress(
             run, reviews, {}, conn, now=time.time()
         )
@@ -803,11 +807,11 @@ def test_only_meta_review_notes_count_as_conclusions() -> None:
 
 def test_a_finished_run_stops_its_elapsed_clock() -> None:
     run = _seed_running_run()
-    store.append_event(run.id, "lifecycle", {"event": "queued"})
+    store_events.append_event(run.id, "lifecycle", {"event": "queued"})
     run = dataclasses.replace(
         run, status="completed", completed_at=time.time() + 60.0
     )
-    with store.connect() as conn:
+    with db.connect() as conn:
         progress = qa_run_state.gather_run_progress(
             run, [], {}, conn, now=time.time() + 9_000.0
         )

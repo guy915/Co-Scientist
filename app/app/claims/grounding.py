@@ -9,7 +9,6 @@ from collections.abc import Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-import app.store as store
 from app.claims import (
     _ASSESSOR_DETERMINISTIC,
     Assessor,
@@ -32,6 +31,8 @@ from app.claims.gate import (
     SupportSpan,
     is_speculative,
 )
+from app.store import records as store
+from app.store.records import NewClaimEvidence, NewSafetyDecision
 
 logger = logging.getLogger(__name__)
 
@@ -578,7 +579,7 @@ def _persist_claim_edges(
 ) -> None:
     for assessment, role in assessments:
         store.add_claim_evidence(
-            store.NewClaimEvidence(
+            NewClaimEvidence(
                 run_id=run_id,
                 hypothesis_id=hyp_id,
                 claim=assessment.claim,
@@ -610,7 +611,7 @@ def _record_blocked_hypothesis(
     than a second approximation.
     """
     store.add_safety_decision(
-        store.NewSafetyDecision(
+        NewSafetyDecision(
             run_id=run_id,
             stage="claim_gate",
             decision="block",

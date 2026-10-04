@@ -6,7 +6,6 @@ import sqlite3
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from app import store
 from app.hypothesis.safety import (
     EscalatedVerdict,
     HeldHypothesis,
@@ -16,6 +15,10 @@ from app.hypothesis.safety import (
     redact_fields,
     review_hypothesis_safety,
 )
+from app.store import hypotheses as store
+from app.store import records
+from app.store.hypotheses import HypothesisStateChanges
+from app.store.records import NewSafetyDecision
 
 logger = logging.getLogger(__name__)
 
@@ -67,8 +70,8 @@ def _apply_redaction(
     )
     if isinstance(hyp, dict):
         hyp.update(changed)
-    store.add_safety_decision(
-        store.NewSafetyDecision(
+    records.add_safety_decision(
+        NewSafetyDecision(
             run_id=run_id,
             stage="hypothesis",
             decision="redact",
@@ -99,11 +102,11 @@ def _hypothesis_decision_row(
     hyp_id: Any,
     review: HypothesisSafetyReview,
     decision: str,
-) -> store.NewSafetyDecision:
+) -> NewSafetyDecision:
     """Record the actual contextual outcome, including a cleared hold; a
     hardcoded block would lie in publication and adjudication audit.
     """
-    return store.NewSafetyDecision(
+    return NewSafetyDecision(
         run_id=run_id,
         stage="hypothesis",
         decision=decision,
@@ -122,7 +125,7 @@ def record_hypothesis_block(
     conn: sqlite3.Connection | None = None,
     db_path: str | None = None,
 ) -> None:
-    store.add_safety_decision(
+    records.add_safety_decision(
         _hypothesis_decision_row(run_id, hyp_id, review, "block"),
         db_path=db_path,
         conn=conn,
@@ -203,7 +206,7 @@ def _screen_one_hypothesis(
     review = review_hypothesis_safety(text)
     store.update_hypothesis_state(
         hyp_id,
-        store.HypothesisStateChanges(safety_status=review.outcome.value),
+        HypothesisStateChanges(safety_status=review.outcome.value),
         db_path=db_path,
         conn=conn,
     )
@@ -256,11 +259,11 @@ def _persist_one_resolved_verdict(
     blocking = is_blocking_status(outcome)
     store.update_hypothesis_state(
         verdict.hyp_id,
-        store.HypothesisStateChanges(safety_status=outcome),
+        HypothesisStateChanges(safety_status=outcome),
         db_path=db_path,
         conn=conn,
     )
-    store.add_safety_decision(
+    records.add_safety_decision(
         _hypothesis_decision_row(
             run_id,
             verdict.hyp_id,

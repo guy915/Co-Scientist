@@ -6,7 +6,6 @@ import re
 import time
 from typing import Any
 
-import app.store as store
 from app.citations import CitationState
 from app.claims.gate import ClaimRole, EntailmentLabel
 from app.demo_seed_data import (
@@ -26,7 +25,21 @@ from app.seed.overview import (
     _curated_research_overview,
     mature_review_rows,
 )
-from app.store import RunRow
+from app.store import events, reports, runs
+from app.store import hypotheses as store_hypotheses
+from app.store import records as store
+from app.store import retrieval_calls as retrieval
+from app.store import runs_views as views
+from app.store.hypotheses import HypothesisStateChanges, NewHypothesis
+from app.store.models import RunRow, RunStatus
+from app.store.records import (
+    NewCitation,
+    NewClaimEvidence,
+    NewEvidence,
+    NewMatch,
+    NewProximityEdge,
+    NewReview,
+)
 
 # ruff: noqa: E501
 
@@ -507,7 +520,7 @@ def insert_scenario_evidence(
 ) -> list[str]:
     return [
         store.add_evidence(
-            store.NewEvidence(
+            NewEvidence(
                 run_id=run_id,
                 title=item.title,
                 source="pubmed",
@@ -566,8 +579,8 @@ def _add_hypothesis(
     lineage: tuple[str | None, int],
 ) -> str:
     parent_id, generation = lineage
-    hyp_id = store.add_hypothesis(
-        store.NewHypothesis(
+    hyp_id = store_hypotheses.add_hypothesis(
+        NewHypothesis(
             run_id=seed.run.id,
             title=item.title,
             statement=item.statement,
@@ -584,9 +597,9 @@ def _add_hypothesis(
         db_path=seed.db_path,
     )
     elo = seed.scenario.elo_ceiling - index * seed.scenario.elo_step
-    store.update_hypothesis_state(
+    store_hypotheses.update_hypothesis_state(
         hyp_id,
-        store.HypothesisStateChanges(
+        HypothesisStateChanges(
             elo_rating=elo,
             novelty=round(0.86 - index * 0.015, 2),
             safety_status="allow",
@@ -617,7 +630,7 @@ def _add_reviews(
         ),
     ):
         store.add_review(
-            store.NewReview(
+            NewReview(
                 run_id=seed.run.id,
                 hypothesis_id=hyp_id,
                 reviewer_agent=reviewer,
@@ -642,7 +655,7 @@ def _add_claim_rows(
     evidence_id = evidence_ids[item.evidence_index]
     claim = item.statement
     store.add_citation(
-        store.NewCitation(
+        NewCitation(
             run_id=seed.run.id,
             hypothesis_id=hyp_id,
             evidence_id=evidence_id,
@@ -652,7 +665,7 @@ def _add_claim_rows(
         db_path=seed.db_path,
     )
     store.add_claim_evidence(
-        store.NewClaimEvidence(
+        NewClaimEvidence(
             run_id=seed.run.id,
             hypothesis_id=hyp_id,
             claim=claim,
@@ -703,12 +716,12 @@ def _match_row(
     iteration: int,
     pair: tuple[int, int],
     hypothesis_ids: list[str],
-) -> store.NewMatch:
+) -> NewMatch:
     winner_index, loser_index = pair
     scenario = seed.scenario
     winner_elo = scenario.elo_ceiling - winner_index * scenario.elo_step
     loser_elo = scenario.elo_ceiling - loser_index * scenario.elo_step
-    return store.NewMatch(
+    return NewMatch(
         run_id=seed.run.id,
         iteration=iteration,
         winner_id=hypothesis_ids[winner_index],
@@ -734,14 +747,14 @@ def _record_match(
 ) -> None:
     match = _match_row(seed, iteration, pair, hypothesis_ids)
     store.add_match(match, db_path=seed.db_path)
-    store.update_hypothesis_state(
+    store_hypotheses.update_hypothesis_state(
         match.winner_id,
-        store.HypothesisStateChanges(win_delta=1),
+        HypothesisStateChanges(win_delta=1),
         db_path=seed.db_path,
     )
-    store.update_hypothesis_state(
+    store_hypotheses.update_hypothesis_state(
         match.loser_id,
-        store.HypothesisStateChanges(loss_delta=1),
+        HypothesisStateChanges(loss_delta=1),
         db_path=seed.db_path,
     )
 
@@ -758,7 +771,7 @@ def _seed_tournament(
 def _seed_proximity(seed: _CuratedSeed, hypothesis_ids: list[str]) -> None:
     if len(hypothesis_ids) > 1:
         store.add_proximity_edge(
-            store.NewProximityEdge(
+            NewProximityEdge(
                 run_id=seed.run.id,
                 source_hypothesis_id=hypothesis_ids[0],
                 target_hypothesis_id=hypothesis_ids[1],
@@ -819,7 +832,7 @@ async def _save_scenario_report(
         "> **Curated demonstration only.** These are illustrative research "
         "proposals, not validated findings or treatment guidance.\n\n"
     )
-    store.save_report(
+    reports.save_report(
         seed.run.id,
         payload,
         banner + built.markdown,
@@ -846,18 +859,18 @@ def _emit_scenario_events(
         ("report", {"hypothesis_count": counts.hypotheses}),
         ("status", {"status": "completed"}),
     ):
-        store.append_event(
+        events.append_event(
             seed.run.id, event_type, event_payload, db_path=seed.db_path
         )
 
 
 def _finalize_scenario_run(seed: _CuratedSeed, counts: _ScenarioCounts) -> None:
     duration = seed.scenario.duration_seconds
-    store.update_run_status(
-        seed.run.id, store.RunStatus.COMPLETED, db_path=seed.db_path
+    runs.update_run_status(
+        seed.run.id, RunStatus.COMPLETED, db_path=seed.db_path
     )
-    store.set_run_timing(seed.run.id, duration, db_path=seed.db_path)
-    store.save_run_metrics(
+    runs.set_run_timing(seed.run.id, duration, db_path=seed.db_path)
+    retrieval.save_run_metrics(
         seed.run.id,
         {
             "total_time": duration,
@@ -881,8 +894,8 @@ def _finalize_scenario_run(seed: _CuratedSeed, counts: _ScenarioCounts) -> None:
 async def _seed_curated_scenario(
     run: RunRow, scenario: DemoScenario, db_path: str | None
 ) -> None:
-    store.clear_run_derived_data(run.id, db_path=db_path)
-    store.set_run_title(run.id, scenario.title, db_path=db_path)
+    views.clear_run_derived_data(run.id, db_path=db_path)
+    runs.set_run_title(run.id, scenario.title, db_path=db_path)
     seed = _CuratedSeed(
         run=run,
         scenario=scenario,

@@ -5,12 +5,13 @@ import logging.handlers
 
 import pytest
 
-from app import store
 from app.logging_setup import (
     configure_log_capture,
     run_log_context,
     shutdown_log_capture,
 )
+from app.store import logs
+from app.store.logs import NewLogRecord
 
 
 @pytest.fixture(autouse=True)
@@ -38,7 +39,7 @@ def test_capture_persists_records_with_run_id(isolated_db: str) -> None:
     with run_log_context("run-42"):
         test_logger.warning("scoped record")
     _flush()
-    rows = store.list_logs(db_path=isolated_db)
+    rows = logs.list_logs(db_path=isolated_db)
     by_message = {row["message"]: row for row in rows}
     assert by_message["plain record 7"]["run_id"] is None
     assert by_message["plain record 7"]["level"] == "INFO"
@@ -54,7 +55,7 @@ def test_capture_formats_exception_text(isolated_db: str) -> None:
     except ValueError:
         test_logger.exception("operation failed")
     _flush()
-    rows = store.list_logs(db_path=isolated_db)
+    rows = logs.list_logs(db_path=isolated_db)
     assert len(rows) == 1
     assert rows[0]["message"] == "operation failed"
     assert "ValueError: kaboom" in rows[0]["exc_text"]
@@ -66,14 +67,14 @@ def test_capture_respects_level_threshold(isolated_db: str) -> None:
     test_logger.info("too quiet")
     test_logger.error("loud enough")
     _flush()
-    rows = store.list_logs(db_path=isolated_db)
+    rows = logs.list_logs(db_path=isolated_db)
     assert [row["message"] for row in rows] == ["loud enough"]
 
 
 def test_configure_prunes_existing_backlog(isolated_db: str) -> None:
     for i in range(10):
-        store.append_log(
-            store.NewLogRecord(
+        logs.append_log(
+            NewLogRecord(
                 level="INFO",
                 levelno=logging.INFO,
                 logger_name="app.capture_test",
@@ -83,7 +84,7 @@ def test_configure_prunes_existing_backlog(isolated_db: str) -> None:
         )
     configure_log_capture(max_rows=4)
     _flush()
-    assert len(store.list_logs(db_path=isolated_db)) == 4
+    assert len(logs.list_logs(db_path=isolated_db)) == 4
 
 
 def test_reconfigure_does_not_duplicate_records(isolated_db: str) -> None:
@@ -91,7 +92,7 @@ def test_reconfigure_does_not_duplicate_records(isolated_db: str) -> None:
     configure_log_capture()
     _test_logger().info("once only")
     _flush()
-    rows = store.list_logs(db_path=isolated_db)
+    rows = logs.list_logs(db_path=isolated_db)
     assert [row["message"] for row in rows] == ["once only"]
 
 
@@ -111,7 +112,7 @@ def test_capture_includes_non_propagating_uvicorn_loggers(
     finally:
         access.propagate = prior_propagate
         access.setLevel(prior_level)
-    rows = store.list_logs(db_path=isolated_db)
+    rows = logs.list_logs(db_path=isolated_db)
     assert ['"GET /status HTTP/1.1"' in row["message"] for row in rows] == [
         True
     ]
@@ -134,7 +135,7 @@ def test_capture_skips_own_polling_endpoint_access_logs(
     finally:
         access.propagate = prior_propagate
         access.setLevel(prior_level)
-    messages = [row["message"] for row in store.list_logs(db_path=isolated_db)]
+    messages = [row["message"] for row in logs.list_logs(db_path=isolated_db)]
     assert any("/api/runs" in message for message in messages)
     assert not any("/api/logs" in message for message in messages)
 
@@ -153,7 +154,7 @@ def test_propagating_uvicorn_record_is_captured_once(
         _flush()
     finally:
         access.setLevel(prior_level)
-    rows = store.list_logs(db_path=isolated_db)
+    rows = logs.list_logs(db_path=isolated_db)
     assert len(rows) == 1
 
 
@@ -201,7 +202,7 @@ def test_high_volume_dependency_loggers_are_not_persisted(
         chatty.warning("%s is in trouble", name)
     _flush()
 
-    rows = store.list_logs(db_path=isolated_db)
+    rows = logs.list_logs(db_path=isolated_db)
     messages = {row["message"] for row in rows}
     assert not [m for m in messages if m.startswith("routine ")]
     assert len([m for m in messages if "is in trouble" in m]) == 3
@@ -220,7 +221,7 @@ def test_repeated_identical_records_are_persisted_once(
     probe.warning("MCP server responded but provided no tools")
     _flush()
 
-    rows = store.list_logs(db_path=isolated_db)
+    rows = logs.list_logs(db_path=isolated_db)
     messages = [row["message"] for row in rows]
     assert (
         messages.count("MCP server unavailable at http://127.0.0.1:9/mcp") == 1
@@ -247,6 +248,6 @@ def test_orphaned_litellm_worker_tasks_are_not_persisted(
         )
     _flush()
 
-    messages = {row["message"] for row in store.list_logs(db_path=isolated_db)}
+    messages = {row["message"] for row in logs.list_logs(db_path=isolated_db)}
     assert not [m for m in messages if "LoggingWorker._worker_loop" in m]
     assert len([m for m in messages if "run_run_worker_pool" in m]) == 1

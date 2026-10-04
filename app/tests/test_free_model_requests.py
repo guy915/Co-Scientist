@@ -6,15 +6,11 @@ from typing import Any
 import pytest
 
 import app.qa as qa_stream
-from app import (
-    credentials,
-    goal_text,
-    run_start_announcement,
-    store,
-)
+from app import credentials, goal_text, run_start_announcement
 from app.config import settings
 from app.execution_policy import scoped_execution_policy
 from app.interviews import model as interviews_model
+from app.store import runs
 from tests._llm_fake_backend import install_completion_backend
 
 MODEL = "openrouter/campaign/chat:free"
@@ -37,7 +33,7 @@ async def _stream_call(kind: str, model: str) -> Any:
                 model, "system", "question", []
             )
         ]
-    run = store.create_run("Public research", "express", "engine", {})
+    run = runs.create_run("Public research", "express", "engine", {})
     return [
         item
         async for item in run_start_announcement._stream_model_fragments(run)

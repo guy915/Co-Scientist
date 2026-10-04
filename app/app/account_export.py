@@ -5,13 +5,16 @@ from typing import Any
 
 from fastapi import APIRouter, Request
 
-from app import store
 from app.auth import require_client_scope
+from app.store import documents as store
+from app.store import interviews, reports
+from app.store import runs_views as views
+from app.store.models import RunRow
 
 router = APIRouter(tags=["account"])
 
 
-def _run_export(run: store.RunRow) -> dict[str, Any]:
+def _run_export(run: RunRow) -> dict[str, Any]:
     return {
         "id": run.id,
         "title": run.title,
@@ -21,7 +24,7 @@ def _run_export(run: store.RunRow) -> dict[str, Any]:
         "created_at": run.created_at,
         "updated_at": run.updated_at,
         "completed_at": run.completed_at,
-        "report_markdown": store.read_report_markdown(run.id),
+        "report_markdown": reports.read_report_markdown(run.id),
     }
 
 
@@ -57,7 +60,7 @@ async def export_account_data(request: Request) -> dict[str, Any]:
         HTTPException: 400 when the caller declared no client identity.
     """
     owner = require_client_scope(request)
-    runs = [_run_export(run) for run in store.list_runs(owner, limit=10_000)]
+    runs = [_run_export(run) for run in views.list_runs(owner, limit=10_000)]
     documents = [
         _staged_document_export(document)
         for document in store.list_staged_documents_for_client(owner)
@@ -67,5 +70,5 @@ async def export_account_data(request: Request) -> dict[str, Any]:
         "exported_at": time.time(),
         "runs": runs,
         "documents": documents,
-        "interviews": store.list_interviews(owner),
+        "interviews": interviews.list_interviews(owner),
     }

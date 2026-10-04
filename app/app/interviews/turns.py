@@ -10,7 +10,6 @@ import app.credentials as credentials
 import app.interviews.model as model
 import app.interviews.questions as question_repair
 import app.staged_documents as staged_documents
-import app.store as store
 from app.auth import client_id
 from app.execution_policy import CAMPAIGN, STANDARD
 from app.interviews.model import (
@@ -22,6 +21,9 @@ from app.interviews.model import (
 )
 from app.interviews.questions import normalized_questions
 from app.llm_scope import budgeted
+from app.store import documents
+from app.store import interviews as store
+from app.store.interviews import NewInterviewTurn
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +61,7 @@ def request_byok(
 
 def _with_documents(interview: dict[str, Any]) -> dict[str, Any]:
     """Responses expose attachment metadata, not full private document text."""
-    attached = store.list_interview_documents(str(interview["id"]))
+    attached = documents.list_interview_documents(str(interview["id"]))
     interview["documents"] = [
         staged_documents.document_summary(d) for d in attached
     ]
@@ -73,7 +75,7 @@ def _attach_documents(
         return
     owner = client_id(request)
     staged_documents.resolve_owned_documents(document_ids, owner)
-    store.attach_documents_to_interview(interview_id, document_ids, owner)
+    documents.attach_documents_to_interview(interview_id, document_ids, owner)
 
 
 def _reasoning_capture(
@@ -159,7 +161,7 @@ async def _with_repaired_questions(turn: _ResolvedTurn) -> _ResolvedTurn:
 def _persist_interview_turn(interview_id: str, turn: _ResolvedTurn) -> None:
     store.append_interview_turn(
         interview_id,
-        store.NewInterviewTurn(
+        NewInterviewTurn(
             "agent",
             turn.message,
             turn.reasoning,

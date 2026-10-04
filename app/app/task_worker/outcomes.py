@@ -13,10 +13,15 @@ from co_scientist.exceptions import (
     LLMTimeoutError,
 )
 
-from app import engine_tasks, store
+from app import engine_tasks
 from app.engine_tasks.portfolio import cancel_downstream_portfolio_chain
-from app.store import ScientificTask
-from app.store.models import UNKNOWN_PROVIDER_OUTCOME_ERROR
+from app.store import tasks
+from app.store import tasks_lifecycle as store
+from app.store.models import (
+    UNKNOWN_PROVIDER_OUTCOME_ERROR,
+    ScientificTask,
+    TaskFailure,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -42,13 +47,13 @@ def _failure_kind(exc: Exception) -> str | None:
     return _FAILURE_KINDS.get(type(exc))
 
 
-def _failure_error(exc: Exception) -> str | store.TaskFailure:
+def _failure_error(exc: Exception) -> str | TaskFailure:
     if isinstance(exc, LLMTimeoutError) and not exc.zero_cost_admitted:
-        return store.TaskFailure(
+        return TaskFailure(
             UNKNOWN_PROVIDER_OUTCOME_ERROR, "llm_timeout_unknown"
         )
     kind = _failure_kind(exc)
-    return store.TaskFailure(str(exc), kind) if kind is not None else str(exc)
+    return TaskFailure(str(exc), kind) if kind is not None else str(exc)
 
 
 class _LeaseLostError(RuntimeError):
@@ -153,7 +158,7 @@ def _fail_permanent_task(
     _cancel_downstream_before_terminal_failure(
         task, retryable=False, db_path=db_path
     )
-    store.fail_task(
+    tasks.fail_task(
         task.id,
         worker_id,
         _failure_error(exc),
@@ -186,7 +191,7 @@ def _fail_retryable_task(
         _cancel_downstream_before_terminal_failure(
             task, retryable=retryable, db_path=db_path
         )
-    store.fail_task(
+    tasks.fail_task(
         task.id,
         worker_id,
         _failure_error(exc),

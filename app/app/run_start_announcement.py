@@ -5,7 +5,7 @@ import logging
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from app import credentials, offline_guard, store
+from app import credentials, offline_guard
 from app.config import (
     THINKING_FLOOR_TIMEOUT_SECONDS,
     deepseek_thinking_kwargs,
@@ -20,7 +20,9 @@ from app.execution_policy import (
 )
 from app.llm_scope import budgeted_stream, stream_chunks
 from app.sse import sse_frame
-from app.store.models import RunRow
+from app.store import messages as store
+from app.store.messages import NewMessage
+from app.store.models import MessageRow, RunRow
 
 logger = logging.getLogger(__name__)
 
@@ -123,12 +125,12 @@ async def _stream_model_fragments(
             yield "chunk", prose
 
 
-def persist_prompt(run_id: str, prompt: str) -> store.MessageRow:
+def persist_prompt(run_id: str, prompt: str) -> MessageRow:
     """Persist the start request before streaming so it survives a reply
     that never lands.
     """
     return store.append_message(
-        store.NewMessage(
+        NewMessage(
             run_id=run_id, sender="user", content=prompt, kind=START_KIND
         )
     )
@@ -146,7 +148,7 @@ def _persist_announcement(
     if fallback:
         meta["fallback"] = True
     store.append_message(
-        store.NewMessage(
+        NewMessage(
             run_id=run_id,
             sender="system",
             content=text,

@@ -6,12 +6,19 @@ from typing import Any
 
 import pytest
 
-from app import engine_tasks, store, task_worker
+from app import engine_tasks, task_worker
 from app.config import settings
 from app.engine_tasks import support as engine_tasks_support
 from app.report import build as report_build
 from app.report import finalize as report_finalize
 from app.safety import SafetyDecision
+from app.store import events as store_events
+from app.store import hypotheses, reports, runs
+from app.store import runs_views as views
+from app.store import tasks as store
+from app.store.hypotheses import NewHypothesis
+from app.store.models import RunStatus
+from app.store.tasks import NewTask
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _Generator,
@@ -66,11 +73,9 @@ def _seed_owned_finalize(
     )
     assert created.status_code == 200, created.text
     run_id = str(created.json()["id"])
-    store.update_run_status(
-        run_id, store.RunStatus.RUNNING, db_path=isolated_db
-    )
-    hypothesis_id = store.add_hypothesis(
-        store.NewHypothesis(
+    runs.update_run_status(run_id, RunStatus.RUNNING, db_path=isolated_db)
+    hypothesis_id = hypotheses.add_hypothesis(
+        NewHypothesis(
             run_id=run_id,
             title="IL-6 feedback",
             statement="IL-6 increases inflammation via STAT3 signaling.",
@@ -80,7 +85,7 @@ def _seed_owned_finalize(
     state = _task_state(run_id)
     checkpoint_seq = _seed_checkpoint(run_id, state, db_path=isolated_db)
     queued = store.enqueue_task(
-        store.NewTask(
+        NewTask(
             run_id=run_id,
             task_type=engine_tasks_support.FINALIZE_TASK,
             inputs={"checkpoint_seq": checkpoint_seq},
@@ -184,15 +189,15 @@ def _publication_snapshot(
     public = owner.get(
         f"/api/shared/{share.json().get('token', 'no-issued-share-token')}"
     )
-    reconciliation = store.reconcile_interrupted_runs(db_path=isolated_db)
-    persisted_run = store.get_run(run_id, db_path=isolated_db)
+    reconciliation = views.reconcile_interrupted_runs(db_path=isolated_db)
+    persisted_run = runs.get_run(run_id, db_path=isolated_db)
     task_after = store.get_task(task_id, db_path=isolated_db)
     assert persisted_run is not None and task_after is not None
-    events = store.list_events(run_id, db_path=isolated_db)
+    events = store_events.list_events(run_id, db_path=isolated_db)
     tasks = store.list_tasks(run_id, db_path=isolated_db)
     event_counts = _publication_event_counts(events)
     task_types = [item.task_type for item in tasks]
-    final_run = store.get_run(run_id, db_path=isolated_db)
+    final_run = runs.get_run(run_id, db_path=isolated_db)
     assert final_run is not None
 
     return {
@@ -200,7 +205,7 @@ def _publication_snapshot(
         == [{"id": run_id, "status": "cancelled"}],
         "run_status": persisted_run.status,
         "task_status": task_after.status,
-        "report_row_exists": store.get_latest_report(
+        "report_row_exists": reports.get_latest_report(
             run_id, db_path=isolated_db
         )
         is not None,
@@ -211,7 +216,7 @@ def _publication_snapshot(
             f"/api/runs/{run_id}/report.md", headers=_OWNER
         ).status_code,
         "knowledge_fact_count": len(
-            store.list_knowledge_facts(run_id, db_path=isolated_db)
+            reports.list_knowledge_facts(run_id, db_path=isolated_db)
         ),
         "report_event_count": event_counts["report"],
         "completed_event_count": event_counts["completed"],
@@ -245,7 +250,7 @@ async def test_cancel_after_final_safety_withholds_report_publication(
     )
     assert actual == {
         "cancel_reached_publication_boundary": True,
-        "run_status": store.RunStatus.CANCELLED.value,
+        "run_status": RunStatus.CANCELLED.value,
         "task_status": "cancelled",
         "report_row_exists": False,
         "owner_report_status": 404,
@@ -257,7 +262,7 @@ async def test_cancel_after_final_safety_withholds_report_publication(
         "email_task_count": 0,
         "owner_share_status": 409,
         "public_report_status": 404,
-        "restart_run_status": store.RunStatus.CANCELLED.value,
+        "restart_run_status": RunStatus.CANCELLED.value,
         "restart_reconciles_as_active": False,
     }
 
@@ -275,8 +280,8 @@ async def test_normal_finalize_publishes_and_survives_restart(
         "normal-report-worker", run_id=run_id, db_path=isolated_db
     )
 
-    run = store.get_run(run_id, db_path=isolated_db)
-    assert run is not None and run.status == store.RunStatus.COMPLETED.value
+    run = runs.get_run(run_id, db_path=isolated_db)
+    assert run is not None and run.status == RunStatus.COMPLETED.value
     report_response = owner.get(f"/api/runs/{run_id}/report", headers=_OWNER)
     markdown_response = owner.get(
         f"/api/runs/{run_id}/report.md", headers=_OWNER
@@ -287,9 +292,9 @@ async def test_normal_finalize_publishes_and_survives_restart(
     )
     assert markdown_response.status_code == 200
     assert "IL-6 feedback" in markdown_response.text
-    assert len(store.list_knowledge_facts(run_id, db_path=isolated_db)) == 1
+    assert len(reports.list_knowledge_facts(run_id, db_path=isolated_db)) == 1
 
-    events = store.list_events(run_id, db_path=isolated_db)
+    events = store_events.list_events(run_id, db_path=isolated_db)
     counts = _publication_event_counts(events)
     report_event = next(event for event in events if event["type"] == "report")
     completion_event = next(
@@ -309,10 +314,10 @@ async def test_normal_finalize_publishes_and_survives_restart(
     assert len(email_tasks) == 1
     assert email_tasks[0].inputs["email"] == _EMAIL
 
-    reconciled = store.reconcile_interrupted_runs(db_path=isolated_db)
+    reconciled = views.reconcile_interrupted_runs(db_path=isolated_db)
     assert run_id not in reconciled["failed"]
     assert run_id not in reconciled["resumable"]
-    persisted_report = store.get_latest_report(run_id, db_path=isolated_db)
+    persisted_report = reports.get_latest_report(run_id, db_path=isolated_db)
     assert persisted_report is not None
     assert (
         owner.get(f"/api/runs/{run_id}/report", headers=_OWNER).status_code
@@ -320,9 +325,9 @@ async def test_normal_finalize_publishes_and_survives_restart(
     )
     cancelled = owner.post(f"/api/runs/{run_id}/cancel", headers=_OWNER)
     assert cancelled.status_code == 409
-    persisted = store.get_run(run_id, db_path=isolated_db)
+    persisted = runs.get_run(run_id, db_path=isolated_db)
     assert persisted is not None
-    assert persisted.status == store.RunStatus.COMPLETED.value
+    assert persisted.status == RunStatus.COMPLETED.value
 
 
 @pytest.mark.asyncio
@@ -343,8 +348,8 @@ async def test_restart_does_not_strand_finalize_lease_after_report_commit(
             "crashed-report-worker", run_id=run_id, db_path=isolated_db
         )
 
-    report = store.get_latest_report(run_id, db_path=isolated_db)
-    run = store.get_run(run_id, db_path=isolated_db)
+    report = reports.get_latest_report(run_id, db_path=isolated_db)
+    run = runs.get_run(run_id, db_path=isolated_db)
     task_rows = store.list_tasks(run_id, db_path=isolated_db)
     finalize = next(
         task
@@ -352,10 +357,10 @@ async def test_restart_does_not_strand_finalize_lease_after_report_commit(
         if task.task_type == engine_tasks_support.FINALIZE_TASK
     )
     assert report is not None
-    assert run is not None and run.status == store.RunStatus.COMPLETED.value
+    assert run is not None and run.status == RunStatus.COMPLETED.value
     assert finalize.status == "leased"
 
-    reconciliation = store.reconcile_interrupted_runs(db_path=isolated_db)
+    reconciliation = views.reconcile_interrupted_runs(db_path=isolated_db)
     recovered_runs = store.list_active_engine_task_run_ids(db_path=isolated_db)
     recovered_task = store.get_task(finalize.id, db_path=isolated_db)
     assert recovered_task is not None
@@ -363,7 +368,7 @@ async def test_restart_does_not_strand_finalize_lease_after_report_commit(
     assert run_id not in reconciliation["resumable"]
     assert run_id not in recovered_runs
     assert recovered_task.status == "completed"
-    assert store.get_latest_report(run_id, db_path=isolated_db) is not None
+    assert reports.get_latest_report(run_id, db_path=isolated_db) is not None
     assert (
         owner.get(f"/api/runs/{run_id}/report", headers=_OWNER).status_code
         == 200

@@ -10,7 +10,7 @@ from typing import Any, cast
 import pytest
 from fastapi.testclient import TestClient
 
-from app import offline_guard, store
+from app import offline_guard
 from app.config import settings
 from app.interviews import model as interviews_model
 from app.run_corpus import (
@@ -18,6 +18,8 @@ from app.run_corpus import (
     KeywordCorpusRetriever,
     engine_context_sources,
 )
+from app.store import interviews as store
+from app.store import messages, records
 from tests._client import make_client
 from tests._interviews_helpers import (
     _fake_stream,
@@ -168,14 +170,14 @@ def test_text_upload_is_extracted_with_immutable_provenance(
     assert response.status_code == 200
     payload = response.json()
     assert payload["sha256"] == hashlib.sha256(content).hexdigest()
-    evidence = store.list_evidence(run_id, db_path=isolated_db)
+    evidence = records.list_evidence(run_id, db_path=isolated_db)
     uploaded = next(item for item in evidence if item["id"] == payload["id"])
     assert uploaded["abstract"] == content.decode()
     assert uploaded["mime_type"] == "text/markdown"
     assert uploaded["byte_size"] == len(content)
     assert uploaded["document_version"] == payload["sha256"]
     assert uploaded["extraction_tool"] == "utf8-decoder-v1"
-    pending = store.get_pending_steering(run_id, db_path=isolated_db)
+    pending = messages.get_pending_steering(run_id, db_path=isolated_db)
     assert pending[-1].meta == {
         "kind": "attachment",
         "evidence_id": payload["id"],
@@ -202,7 +204,7 @@ def test_image_upload_is_ocr_extracted_with_multimodal_provenance(
 
     assert response.status_code == 200
     payload = response.json()
-    evidence = store.list_evidence(run_id, db_path=isolated_db)
+    evidence = records.list_evidence(run_id, db_path=isolated_db)
     uploaded = next(item for item in evidence if item["id"] == payload["id"])
     assert "Kinase X" in uploaded["abstract"]
     assert uploaded["mime_type"] == "image/png"
@@ -264,7 +266,7 @@ def test_upload_endpoint_refuses_a_mislabeled_file(isolated_db: str) -> None:
 
     assert response.status_code == 422
     assert "does not match" in response.json()["detail"]
-    assert store.list_evidence(run_id, db_path=isolated_db) == []
+    assert records.list_evidence(run_id, db_path=isolated_db) == []
 
 
 def test_invalid_image_is_rejected_without_persisting_evidence(
@@ -288,7 +290,7 @@ def test_invalid_image_is_rejected_without_persisting_evidence(
 
     assert response.status_code == 422
     assert "OCR failed" in response.json()["detail"]
-    assert store.list_evidence(run_id, db_path=isolated_db) == []
+    assert records.list_evidence(run_id, db_path=isolated_db) == []
 
 
 def _corpus() -> list[CorpusDocument]:

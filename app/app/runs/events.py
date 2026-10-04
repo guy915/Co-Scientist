@@ -6,9 +6,10 @@ from typing import Any
 
 from fastapi import Request
 
-from app import store
 from app.sse import sse_frame
-from app.store import TERMINAL_STATUSES, RunRow, RunStatus
+from app.store import events as store
+from app.store import runs
+from app.store.models import TERMINAL_STATUSES, RunRow, RunStatus
 
 # Paused runs are resumable but stop producing events; close the stream until
 # clients
@@ -39,7 +40,7 @@ def _terminal_status_from_event(ev: dict[str, Any]) -> str | None:
 
 
 def _terminal_status_from_run(run_id: str) -> str | None:
-    current = store.get_run(run_id)
+    current = runs.get_run(run_id)
     if current and current.status in _STREAM_END_STATUSES:
         return current.status
     return None

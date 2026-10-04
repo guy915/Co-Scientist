@@ -11,13 +11,17 @@ from fastapi.testclient import TestClient
 import app.interviews.model as interviews_prompts
 import app.interviews.questions as question_repair
 import app.interviews.questions as repair
-from app import store
 from app.config import settings
 from app.engine_adapter.opts import build_engine_opts
 from app.interviews import model as interviews_model
 from app.interviews.model import CLOSE_MARKER, OPEN_MARKER, _normalized_fields
 from app.interviews.questions import normalized_questions
 from app.main import app
+from app.store import documents, runs
+from app.store import interviews as store
+from app.store.documents import NewStagedDocument
+from app.store.interviews import NewInterviewTurn
+from app.store.runs import RunCreateOptions
 from tests._llm_fake_backend import install_completion_backend
 
 from ._client import make_client
@@ -41,7 +45,7 @@ def _make_chat(owner: str = "chat-owner", turns: int = 2) -> str:
     interview_id: str = str(interview["id"])
     for index in range(turns):
         store.append_interview_turn(
-            interview_id, store.NewInterviewTurn("user", f"answer {index}")
+            interview_id, NewInterviewTurn("user", f"answer {index}")
         )
     return interview_id
 
@@ -106,8 +110,8 @@ def test_deleting_an_unknown_chat_is_a_404() -> None:
 def test_a_deleted_chat_leaves_its_staged_document_behind() -> None:
     client: TestClient = make_client()
     chat_id = _make_chat()
-    document_id = store.add_staged_document(
-        store.NewStagedDocument(
+    document_id = documents.add_staged_document(
+        NewStagedDocument(
             client_id="chat-owner",
             title="notes.txt",
             text="cryoprotectant toxicity notes",
@@ -117,12 +121,14 @@ def test_a_deleted_chat_leaves_its_staged_document_behind() -> None:
             extraction_tool="test",
         )
     )
-    store.attach_documents_to_interview(chat_id, [document_id], "chat-owner")
+    documents.attach_documents_to_interview(
+        chat_id, [document_id], "chat-owner"
+    )
 
     body = client.delete(f"/api/interviews/{chat_id}", headers=_OWNER).json()
 
     assert body["counts"]["staged_documents_detached"] == 1
-    assert store.get_staged_documents([document_id], "chat-owner")
+    assert documents.get_staged_documents([document_id], "chat-owner")
 
 
 # Option repair must not cost the scientist an otherwise valid prose turn.
@@ -218,9 +224,7 @@ def test_agent_turn_round_trips_its_questions(isolated_db: str) -> None:
     interview = store.create_interview("client-1", "Reverse cardiac fibrosis")
     store.append_interview_turn(
         interview["id"],
-        store.NewInterviewTurn(
-            "agent", "Which model system?", questions=_QUESTIONS
-        ),
+        NewInterviewTurn("agent", "Which model system?", questions=_QUESTIONS),
     )
     reloaded = store.get_interview(interview["id"])
     assert reloaded is not None
@@ -1173,12 +1177,12 @@ def test_field_edits_without_lab_constraints_record_none(
 
 
 def _run_from_interview(interview_id: str, isolated_db: str) -> Any:
-    return store.create_run(
+    return runs.create_run(
         "a goal",
         "standard",
         "engine",
         {"interview_id": interview_id},
-        store.RunCreateOptions(db_path=isolated_db),
+        RunCreateOptions(db_path=isolated_db),
     )
 
 
@@ -1215,12 +1219,12 @@ def test_engine_opts_omit_lab_constraints_when_none_declared(
 def test_engine_opts_without_interview_carry_no_lab_constraints(
     isolated_db: str,
 ) -> None:
-    run = store.create_run(
+    run = runs.create_run(
         "a goal",
         "standard",
         "engine",
         {},
-        store.RunCreateOptions(db_path=isolated_db),
+        RunCreateOptions(db_path=isolated_db),
     )
     opts = build_engine_opts(run.config, run.id, isolated_db)
     assert "lab_constraints" not in opts
@@ -1229,12 +1233,12 @@ def test_engine_opts_without_interview_carry_no_lab_constraints(
 def test_engine_opts_survive_a_missing_interview_row(
     isolated_db: str,
 ) -> None:
-    run = store.create_run(
+    run = runs.create_run(
         "a goal",
         "standard",
         "engine",
         {"interview_id": "no-such-interview"},
-        store.RunCreateOptions(db_path=isolated_db),
+        RunCreateOptions(db_path=isolated_db),
     )
     opts = build_engine_opts(run.config, run.id, isolated_db)
     assert "lab_constraints" not in opts

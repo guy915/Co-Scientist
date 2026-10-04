@@ -86,14 +86,16 @@ def _rate(part: int, total: int) -> float | None:
 
 
 def score_run(run_id: str, db_path: str | None = None) -> dict[str, Any]:
-    from app import store
+    from app.store import hypotheses as store
+    from app.store import records, runs
+    from app.store import retrieval_calls as retrieval
 
     from evaluations._usage_evidence import summarize_usage
 
-    metrics = store.get_run_metrics(run_id, db_path=db_path) or {}
-    run = store.get_run(run_id, db_path=db_path)
+    metrics = retrieval.get_run_metrics(run_id, db_path=db_path) or {}
+    run = runs.get_run(run_id, db_path=db_path)
     hyps = store.list_hypotheses(run_id, db_path=db_path)
-    edges = store.list_claim_evidence(run_id, db_path=db_path)
+    edges = records.list_claim_evidence(run_id, db_path=db_path)
     return {
         "run_id": run_id,
         "configured_backend": run.llm_backend if run is not None else None,

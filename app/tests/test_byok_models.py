@@ -5,10 +5,11 @@ from typing import Any
 import pytest
 from starlette.datastructures import Headers
 
-from app import byok_models, credentials, store
+from app import byok_models, credentials
 from app.config import BYOK_PROVIDER_DEFAULT_MODELS, settings
 from app.engine_adapter.opts import build_generator
 from app.run_modes import resolved_run_config
+from app.store import runs
 
 _KEY = "sk-model-choice-123456"
 
@@ -63,7 +64,7 @@ def test_a_model_from_another_provider_is_refused() -> None:
 def test_supervisor_model_round_trips_through_storage(
     byok_secret: None,
 ) -> None:
-    run = store.create_run("goal", "express", "engine", {})
+    run = runs.create_run("goal", "express", "engine", {})
     cred = credentials.ByokCredential(
         provider="deepseek",
         api_key=_KEY,

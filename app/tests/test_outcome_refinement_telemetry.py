@@ -7,8 +7,10 @@ from co_scientist.llm import ModelCallStats, record_call
 from co_scientist.models import Hypothesis
 from co_scientist.models.metrics import ExecutionMetrics
 
-from app import store, task_worker
+from app import task_worker
 from app.config import settings
+from app.store import checkpoints, outcomes, tasks
+from app.store import retrieval_calls as store
 from tests._client import make_client
 from tests.test_outcome_refinement_executor import (
     _claim_action,
@@ -112,7 +114,7 @@ def test_child_checkpoint_retains_refinement_model_usage(
         task_worker._execute_task_payload(task, db_path=isolated_db)
     )
     assert result["child_hypothesis_id"] is not None
-    checkpoint = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert checkpoint is not None
     checkpoint_metrics = checkpoint["state"]["state"]["metrics"]
     usage = checkpoint_metrics["model_usage"]
@@ -122,7 +124,7 @@ def test_child_checkpoint_retains_refinement_model_usage(
     task_worker._record_success(
         task, "child-metrics-worker", result, isolated_db
     )
-    review_task = store.claim_task(
+    review_task = tasks.claim_task(
         "review-worker", run_id=run_id, db_path=isolated_db
     )
     assert review_task is not None
@@ -169,14 +171,14 @@ def test_failed_refinement_usage_survives_retry(
     assert metrics is not None
     assert metrics["model_usage"][f"outcome_refinement::{model}"]["calls"] == 1
 
-    assert store.fail_task(
+    assert tasks.fail_task(
         task.id,
         "first-worker",
         "temporary",
         retryable=False,
         db_path=isolated_db,
     )
-    action = store.get_outcome_refinement_action(
+    action = outcomes.get_outcome_refinement_action(
         run_id, action_id, db_path=isolated_db
     )
     assert action is not None
