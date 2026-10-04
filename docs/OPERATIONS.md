@@ -246,3 +246,8 @@ event feed with per-match events.
 Bound both per-source content and total corpus size: neither cap substitutes
 for the other. The 130-source cap targets about 52,000 evidence tokens;
 adding full texts requires selecting passages rather than lifting those caps.
+
+Fit synthesis to the provider clock as well as its output allowance: an observed
+42,000-token request at 27–37 tokens/second could not fit a 600-second deadline.
+Outline once and write bounded parts, preserving successful siblings and grounded
+draft fallbacks when a part fails.
