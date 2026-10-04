@@ -554,3 +554,9 @@ async def test_recognized_skill_receives_no_campaign_host_credentials(
         assert "unavailable in campaign" in stale_read["content"]
     finally:
         catalog.available_skills.cache_clear()
+
+
+def test_delayed_campaign_scope_reads_policy_at_entry() -> None:
+    delayed = scoped_campaign_mode(False)
+    with scoped_campaign_mode(True), delayed:
+        assert campaign_free_mode()

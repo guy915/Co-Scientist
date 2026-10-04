@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import threading
 from types import SimpleNamespace
 from typing import Any, cast
@@ -32,7 +33,9 @@ from co_scientist.llm import (
 )
 from co_scientist.llm.admission.call_budget import (
     _MAX_TRACKED_RUNS,
+    current_completion_budget,
     record_provider_request,
+    scoped_completion_budget,
 )
 from co_scientist.llm.attempts.escalation import (
     BudgetEscalation,
@@ -868,3 +871,22 @@ def test_research_overview_budget_clears_the_floor() -> None:
     assert constants.RESEARCH_OVERVIEW_MAX_TOKENS <= (
         constants.REVIEW_BATCH_MAX_TOKENS_CAP
     )
+
+
+@pytest.mark.asyncio
+async def test_completion_budget_entry_and_child_identity() -> None:
+    invalid = scoped_completion_budget(0)
+    assert current_completion_budget() is None
+    with scoped_completion_budget(2) as outer:
+        with pytest.raises(ValueError, match="at least one call"), invalid:
+            pass
+        assert current_completion_budget() is outer
+
+        async def consume() -> None:
+            assert current_completion_budget() is outer
+            record_provider_request()
+
+        await asyncio.gather(consume(), consume())
+        with pytest.raises(LLMCallBudgetExceededError):
+            record_provider_request()
+    assert current_completion_budget() is None

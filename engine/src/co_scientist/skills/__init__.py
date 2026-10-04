@@ -17,6 +17,7 @@ from dataclasses import dataclass
 
 import yaml
 
+from co_scientist._context import _bind_contextvar
 from co_scientist.llm import campaign_free_mode
 
 logger = logging.getLogger(__name__)
@@ -376,11 +377,8 @@ _current_usage: ContextVar[SkillUsage | None] = ContextVar(
 @contextlib.contextmanager
 def scoped_skill_usage() -> Iterator[SkillUsage]:
     usage = SkillUsage()
-    token = _current_usage.set(usage)
-    try:
+    with _bind_contextvar(_current_usage, usage):
         yield usage
-    finally:
-        _current_usage.reset(token)
 
 
 def record_skill_use(name: str) -> None:

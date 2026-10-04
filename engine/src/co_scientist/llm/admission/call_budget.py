@@ -12,6 +12,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 
+from co_scientist._context import _bind_contextvar
 from co_scientist.exceptions import LLMCallBudgetExceededError
 
 
@@ -46,11 +47,8 @@ def scoped_completion_budget(ceiling: int) -> Iterator[CompletionBudget]:
     if ceiling < 1:
         raise ValueError("completion budget must allow at least one call")
     budget = CompletionBudget(ceiling)
-    token = _current.set(budget)
-    try:
+    with _bind_contextvar(_current, budget):
         yield budget
-    finally:
-        _current.reset(token)
 
 
 logger = logging.getLogger(__name__)
@@ -83,11 +81,8 @@ def scoped_llm_call_budget(
     """
     if run_id is not None:
         _ensure_tracked(run_id, ceiling)
-    token = _current_run.set(run_id)
-    try:
+    with _bind_contextvar(_current_run, run_id):
         yield
-    finally:
-        _current_run.reset(token)
 
 
 def _ensure_tracked(run_id: str, ceiling: int | None) -> None:

@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from co_scientist._context import _bind_contextvar
 from co_scientist.config.env_vars import parse_timeout_env
 from co_scientist.config.registry import parse_bool_env
 from co_scientist.constants import (
@@ -421,11 +422,8 @@ def scoped_cache_override(enable_cache: bool | None) -> Iterator[None]:
     if enable_cache is None:
         yield
         return
-    token = _cache_enabled_override.set(enable_cache)
-    try:
+    with _bind_contextvar(_cache_enabled_override, enable_cache):
         yield
-    finally:
-        _cache_enabled_override.reset(token)
 
 
 _global_cache: LLMCache | None = None
