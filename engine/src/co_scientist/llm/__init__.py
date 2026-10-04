@@ -1,49 +1,9 @@
-"""LLM dispatch: entry points, value objects and run-scoped contexts.
-
-The one module the rest of the engine, the app and the evaluations call the
-model through. Production code outside this package imports from
-``co_scientist.llm`` alone, except ``offline.llm`` (which replaces the
-completion boundary) and ``constants.pricing`` (which reads the route table),
-and tests patch internals directly; ``__all__`` is the whole interface: three
-entry points (``call_llm``, ``call_llm_json``, ``call_llm_with_tools``), the
-value objects they take, and the run-scoped contexts and counters their
-callers establish and read.
-
-Layout, lowest layer first. Each layer imports only from itself and the
-layers before it in this list, at the module that defines the name
-(``tests/test_llm_layering.py`` enforces it):
-
-* ``profile``: what is known about each model route -- capabilities,
-  routing, price -- as one ``ModelProfile``. Imports nothing from the
-  rest of the package.
-* ``values``: ``CompletionSpec``, ``LLMCallOptions``.
-* ``admission``: credentials, per-run call budget, free-model policy.
-* ``structured``: parse, repair, validate and reshape structured output.
-* ``telemetry``: in-memory per-call usage capture. It reads token counts
-  off ``request.response``, the one import that points up the list.
-* ``request``: one provider request and its response (completion
-  arguments, timeout ceiling, response format, thinking, gateway routing).
-* ``precall``: the prompt-save, temperature clamp and cache lookup every
-  entry point runs first.
-* ``attempts``: one attempt, and the one loop that retries it
-  (``attempts.retry.run_attempts``).
-* ``tools``: the tool-calling loop.
-* ``call``: ``call_llm`` and ``call_llm_json``.
-
-The interface resolves its names on first access instead of importing the
-implementation here. A handful of foundation modules the implementation
-itself imports (``cache``, ``models.metrics``, ``workspace``, ``mcp_client``)
-read ``current_api_key``, ``campaign_free_mode`` or ``ModelCallStats`` from
-this package; an eager import of every entry point from this file would
-re-enter them half-initialised, so each name loads only the module that
-defines it.
-"""
+"""Lazy exports avoid re-entering foundation modules while half-initialized."""
 
 import importlib
 from typing import TYPE_CHECKING, Any
 
-# Kept as a module attribute: tests patch the completion boundary via
-# "co_scientist.llm.litellm.acompletion", which resolves to this object.
+# Keep the supported co_scientist.llm.litellm.acompletion patch seam.
 import litellm as litellm
 
 if TYPE_CHECKING:
@@ -128,9 +88,6 @@ __all__ = [
     "scoped_telemetry_phase",
 ]
 
-# The module each exported name is defined in. Kept beside ``__all__`` so
-# adding to the interface is one edit in one place; the TYPE_CHECKING block
-# above gives type checkers the same names.
 _EXPORTS: dict[str, str] = {
     "effective_max_tokens": "co_scientist.llm.request.thinking",
     "complete_request": "co_scientist.llm.request.transport",
@@ -169,22 +126,10 @@ _EXPORTS: dict[str, str] = {
 
 
 if not TYPE_CHECKING:
-    # Hidden from the type checker, which would otherwise accept any
-    # attribute of this package and stop catching a misspelled import.
+    # Hiding __getattr__ from typing prevents misspelled exports from being
+    # accepted.
 
     def __getattr__(name: str) -> Any:
-        """Loads an exported name from the module that defines it, once.
-
-        Args:
-            name: The attribute being read.
-
-        Returns:
-            The exported object, cached on the package so later reads skip
-            this.
-
-        Raises:
-            AttributeError: If ``name`` is not part of the interface.
-        """
         module = _EXPORTS.get(name)
         if module is None:
             raise AttributeError(

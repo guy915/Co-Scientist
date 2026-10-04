@@ -1,5 +1,3 @@
-"""Provider credentials and the verified free-model admission policy."""
-
 import asyncio
 import contextlib
 import os
@@ -22,25 +20,13 @@ _byok_api_key: ContextVar[str | None] = ContextVar("byok_api_key", default=None)
 
 
 def current_api_key() -> str | None:
-    """Return the BYOK key scoped to the current task, if any.
-
-    Returns:
-        The key set by an enclosing ``scoped_api_key`` block, else None.
-    """
     return _byok_api_key.get()
 
 
 @contextlib.contextmanager
 def scoped_api_key(api_key: str | None) -> Iterator[None]:
-    """Scope a BYOK key to the current asyncio task for the block.
-
-    Args:
-        api_key: The provider key every completion inside the block
-            should use, or None for a no-op scope (callers can pass an
-            optional credential straight through).
-
-    Yields:
-        None.
+    """None preserves the ambient task credential; explicit scopes restore it
+    on every exit.
     """
     if api_key is None:
         yield
@@ -80,23 +66,18 @@ CATALOG_TTL_SECONDS = 60
 
 
 class CatalogReader:
-    """A metadata source with one cache shared across worker event loops.
-
-    Inject the synchronous loader when constructing a reader. Each reader
-    owns its snapshot and threading lock; replacing one cannot carry prices
-    from its predecessor into the new source. Loaders run off the event loop.
+    """Each reader owns its prices and threading lock across worker loops.
+    Replacing a reader cannot inherit its predecessor's snapshot.
     """
 
     def __init__(
         self, loader: Callable[[], dict[str, Any]] | None = None
     ) -> None:
-        """Use OpenRouter's public metadata unless a loader is supplied."""
         self._loader = loader if loader is not None else _fetch_catalog
         self._lock = threading.Lock()
         self._snapshot: tuple[float, dict[str, Any]] | None = None
 
     def read(self) -> dict[str, Any]:
-        """Fetch fresh metadata, withholding an expired snapshot on failure."""
         with self._lock:
             if (
                 self._snapshot is not None
@@ -109,7 +90,6 @@ class CatalogReader:
             return catalog
 
     def invalidate(self) -> None:
-        """Require the next read to refresh metadata from this source."""
         with self._lock:
             self._snapshot = None
 
@@ -129,18 +109,17 @@ def _fetch_catalog() -> dict[str, Any]:
         ) from exc
 
 
-# Installed once for all worker threads, like the completion backend. A
-# ContextVar would make a source installed on the API loop invisible to them.
+# The shared metadata reader must cross worker threads; API-loop ContextVars are
+# invisible there.
 _reader = CatalogReader()
 
 
 def current_catalog() -> dict[str, Any]:
-    """Read the installed source off the event loop; never use stale prices."""
+    """Never admit using stale prices when refresh fails."""
     return _reader.read()
 
 
 def install_catalog_reader(reader: CatalogReader) -> CatalogReader:
-    """Install a process-wide reader and return its predecessor."""
     global _reader
     previous, _reader = _reader, reader
     return previous
@@ -148,7 +127,6 @@ def install_catalog_reader(reader: CatalogReader) -> CatalogReader:
 
 @contextmanager
 def using_catalog_reader(reader: CatalogReader) -> Iterator[None]:
-    """Use a source for a scope, restoring the prior reader on any exit."""
     previous = install_catalog_reader(reader)
     try:
         yield
@@ -157,7 +135,6 @@ def using_catalog_reader(reader: CatalogReader) -> Iterator[None]:
 
 
 def invalidate_catalog() -> None:
-    """Require the installed reader to fetch fresh metadata next time."""
     _reader.invalidate()
 
 
@@ -172,7 +149,6 @@ def _is_zero(value: Any) -> bool:
 
 
 def verify_model(model: str, catalog: dict[str, Any]) -> None:
-    """Require an exact catalog entry and evidence covering text inference."""
     row = catalog.get(model)
     if not isinstance(row, dict) or model.startswith(("openrouter/", "~")):
         raise FreeModelEligibilityError(
@@ -195,12 +171,10 @@ def verify_model(model: str, catalog: dict[str, Any]) -> None:
 
 
 def _utc_today() -> date:
-    """Return the current UTC calendar date for catalog expiration checks."""
     return datetime.now(timezone.utc).date()
 
 
 def _verify_expiration(row: dict[str, Any]) -> None:
-    """Reject malformed or elapsed catalog expiry dates, when supplied."""
     if "expiration_date" not in row or row["expiration_date"] is None:
         return
     value = row["expiration_date"]
@@ -214,8 +188,7 @@ def _verify_expiration(row: dict[str, Any]) -> None:
         raise FreeModelEligibilityError(
             "zero-cost route expiration date is invalid"
         )
-    # OpenRouter publishes dates without times; treat the named UTC date as
-    # the last valid day, expiring the route once the next UTC day begins.
+    # Catalog expiry is the last valid UTC date, not the first expired day.
     if expiration < _utc_today():
         raise FreeModelEligibilityError(
             "zero-cost route expiration date has elapsed"
@@ -225,9 +198,8 @@ def _verify_expiration(row: dict[str, Any]) -> None:
 def _verify_pricing(model: str, pricing: Any) -> None:
     if not isinstance(pricing, dict):
         raise FreeModelEligibilityError("zero-cost pricing is missing")
-    # Free-suffixed variants and the explicitly admitted promotion may omit
-    # ancillary rates. Other promotions must list them; absent rates are not
-    # evidence of a zero price.
+    # Absent ancillary rates prove no zero price except for explicitly admitted
+    # variants/promotions.
     ancillary = {
         "request",
         "internal_reasoning",
@@ -254,7 +226,6 @@ def _verify_pricing(model: str, pricing: Any) -> None:
 
 
 def campaign_free_mode() -> bool:
-    """Return whether every campaign request requires zero-cost admission."""
     configured = os.getenv(FREE_MODE_ENV, "0").strip().lower()
     if configured not in {"0", "false", "", "1", "true"}:
         raise FreeModelEligibilityError("zero-cost mode setting is invalid")
@@ -263,11 +234,7 @@ def campaign_free_mode() -> bool:
 
 @contextlib.contextmanager
 def scoped_campaign_mode(enabled: bool) -> Iterator[None]:
-    """Scope campaign free-model admission to the current task.
-
-    The scope is monotone: nested callers can enable campaign mode but cannot
-    weaken an already-active campaign scope.
-    """
+    """Nested scopes may strengthen campaign admission but never weaken it."""
     token = _campaign_mode.set(_campaign_mode.get() or enabled)
     try:
         yield
@@ -364,10 +331,8 @@ def _routes(args: dict[str, Any], body: dict[str, Any]) -> list[str]:
 async def enforce_free_request(
     args: dict[str, Any], *, byok: bool = False
 ) -> bool:
-    """Validate routes before transport and attach binding zero-price ceilings.
-
-    Campaign mode overrides BYOK. Outside it, the caller supplies credential
-    provenance explicitly; a deployment key in kwargs is not a BYOK signal.
+    """Campaign policy overrides BYOK; a deployment key is not evidence of
+    caller-owned credentials.
     """
     if not _requires_free(args, byok):
         return False
@@ -389,7 +354,7 @@ async def enforce_free_request(
     }
     provider["require_parameters"] = True
     args["extra_body"] = {**body, "provider": provider}
-    # Pin the transport too: an environment-level proxy/base override must
-    # not send an OpenRouter-qualified route to a different billing service.
+    # Pin transport so environment proxy/base overrides cannot change the
+    # billing service.
     args["api_base"] = _API_BASE
     return True
