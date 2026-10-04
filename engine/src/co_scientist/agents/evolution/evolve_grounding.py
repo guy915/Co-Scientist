@@ -1,17 +1,3 @@
-"""Live literature grounding for enhancement evolution.
-
-The paper's enhancement strategy is enhancement *through grounding*: the
-agent identifies the hypothesis's weaknesses, generates search queries,
-retrieves and reads articles, and elaborates details to fill the reasoning
-gaps (SSR §4). This module performs that live retrieval for the parent
-idea being enhanced and renders it into a prompt-ready evidence block.
-
-Degradation is the same convention the reflection cascade uses: without an
-MCP server (or when the retrieval itself fails) the block falls back to the
-run's existing articles, and a retrieval never raises into the evolution
-call -- tools degrade to an empty result rather than fail the refinement.
-"""
-
 import logging
 
 from co_scientist.agents.reflection.deep_verification_evidence import (
@@ -34,21 +20,13 @@ from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
-# Bounds the per-parent grounding retrieval the same way the reflection
-# cascade bounds its own targeted retrievals: at most this many keyword
-# queries, and at most this many sources rendered into the prompt.
 _MAX_GROUNDING_QUERIES = LITERATURE_REVIEW_MAX_QUERIES
 _MAX_GROUNDING_ARTICLES = 6
 
-# Rendered when neither a live retrieval nor the run's accumulated articles
-# can ground the refinement, so the section never renders hollow.
 _NO_EVIDENCE_TEXT = (
     "No retrieved evidence is available to ground this refinement."
 )
 
-# Placeholder for operators whose brief carries no targeted retrieval, so
-# the shared template variable always renders an explicit statement rather
-# than an unexplained blank.
 _NOT_APPLICABLE_TEXT = (
     "Targeted literature retrieval applies to the enhancement operator "
     "only; this operator works from the context already provided."
@@ -56,28 +34,14 @@ _NOT_APPLICABLE_TEXT = (
 
 
 def not_applicable_block() -> str:
-    """The grounding-block placeholder for non-enhancement operators."""
     return _NOT_APPLICABLE_TEXT
 
 
 async def enhancement_grounding_block(
     state: WorkflowState, hypothesis: Hypothesis
 ) -> str:
-    """Build the targeted-evidence block for one enhancement refinement.
-
-    Performs a live retrieval for the parent idea being enhanced; when the
-    MCP server is unavailable or the retrieval returns nothing, falls back
-    to the run's existing articles so the operator still grounds in what
-    the run already read.
-
-    Args:
-        state: The workflow state (MCP availability, search config, and the
-            run's accumulated articles).
-        hypothesis: The parent hypothesis being enhanced.
-
-    Returns:
-        A prompt-ready evidence block, never empty.
-    """
+    """Empty or failed live retrieval falls back to the accumulated corpus,
+    so optional grounding cannot prevent refinement."""
     articles = await _retrieve_parent_evidence(state, hypothesis)
     if articles:
         return build_evidence_context(
@@ -88,9 +52,8 @@ async def enhancement_grounding_block(
         )
     run_articles = state.get("articles") or []
     if run_articles:
-        # The run corpus mixes literature-review papers with the targeted
-        # sources reflection retrieved (only the former are marked
-        # analyzed), and both may ground an enhancement.
+        # Both analyzed corpus and targeted reflection sources can ground
+        # enhancement.
         return build_evidence_context(
             run_articles,
             require_analyzed=False,
@@ -103,12 +66,6 @@ async def enhancement_grounding_block(
 async def _retrieve_parent_evidence(
     state: WorkflowState, hypothesis: Hypothesis
 ) -> list[Article]:
-    """Formulate queries for one parent and run its targeted searches.
-
-    Returns an empty list -- never raises -- when the MCP server is down,
-    query generation fails, or the retrieval does, leaving the caller to
-    fall back to the run's accumulated articles.
-    """
     if not state.get("mcp_available"):
         return []
     queries = await _parent_search_queries(state, hypothesis)
@@ -127,14 +84,7 @@ async def _retrieve_parent_evidence(
 async def _parent_search_queries(
     state: WorkflowState, hypothesis: Hypothesis
 ) -> list[str]:
-    """Formulate keyword search queries targeting the parent's mechanism.
-
-    The search back end ANDs every term, so prose retrieves nothing: this
-    asks the model for the few terms a relevant paper would actually carry,
-    the same shape the reflection cascade's own queries take. Returns an
-    empty list when the model call fails, which leaves the enhancement
-    ungrounded rather than sending a query that cannot match.
-    """
+    """Keyword backends AND terms; prose searches would match nothing."""
     try:
         result = await call_llm_json(
             prompt=get_hypothesis_query_generation_prompt(
@@ -170,18 +120,14 @@ async def _parent_search_queries(
 
 
 def counts_query_call(state: WorkflowState, operator_value: str) -> bool:
-    """Whether one enhancement task will spend a query-generation LLM call."""
     return bool(state.get("mcp_available")) and operator_value == "enhancement"
 
 
 def grounding_metrics_extra(
     state: WorkflowState, operator_values: list[str]
 ) -> int:
-    """Count the query-generation calls a round's enhancements will spend.
-
-    The retrieval itself is an MCP tool call, not an LLM call; only the
-    query formulation is, and it runs exactly when the MCP server is up.
-    """
+    """MCP retrieval is not model spend; count query formulation only when
+    the enhancement actually attempts it."""
     return sum(
         1 for value in operator_values if counts_query_call(state, value)
     )

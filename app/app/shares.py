@@ -1,5 +1,3 @@
-"""Access-controlled public Goal Report sharing endpoints."""
-
 from __future__ import annotations
 
 from typing import Any
@@ -16,13 +14,8 @@ from app.report import exclude_unsafe_hypotheses, released_claim_evidence
 
 router = APIRouter(tags=["shares"])
 
-# Evidence fields a public share may surface: a source's bibliographic
-# identity, which the released report cites by title/url. The ``abstract``
-# column stays out because attachment evidence stores the private document
-# body there, and the report publishes no evidence full text; upload
-# provenance (digests, sizes, extractor) is likewise owner-only. Retraction
-# status is at least as relevant to a public reader as reachability, so it
-# travels with ``available`` rather than being held back as owner-only.
+# Public evidence excludes private attachment bodies and upload provenance;
+# retraction remains a reader-visible fact.
 _PUBLIC_EVIDENCE_FIELDS = (
     "id",
     "title",
@@ -36,7 +29,6 @@ _PUBLIC_EVIDENCE_FIELDS = (
 
 
 def _owned_run(run_id: str, request: Request) -> store.RunRow:
-    """Return a run only when the requesting browser owns it."""
     run = store.get_run(run_id)
     if run is None or run.client_id != client_id(request):
         raise HTTPException(status_code=404, detail="run not found")
@@ -73,10 +65,8 @@ async def revoke_share(
 
 
 def _public_run_view(run: store.RunRow) -> dict[str, Any]:
-    """The only run fields the public page renders.
-
-    The full row carries the run's raw configuration, ownership, and error
-    state, which a share capability must not hand out.
+    """Public capability access must not expose raw configuration, ownership
+    or internal error state.
     """
     return {
         "title": run.title,
@@ -86,11 +76,8 @@ def _public_run_view(run: store.RunRow) -> dict[str, Any]:
 
 
 def _referenced_evidence_ids(edges: list[dict[str, Any]]) -> set[str]:
-    """Evidence ids cited by released claim edges' provenance spans.
-
-    Resolved to the parent article id: a span located inside a chunked
-    passage carries the chunk's id, but this set is matched against the
-    evidence table's own article-level ids below.
+    """Chunk provenance resolves to parent article IDs before matching
+    stored evidence rows.
     """
     ids: set[str] = set()
     for edge in edges:
@@ -107,20 +94,8 @@ def _referenced_evidence_ids(edges: list[dict[str, Any]]) -> set[str]:
 def _released_content(
     run_id: str,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """A run's hypotheses and evidence as the Goal Report releases them.
-
-    Reuses the finalize path's publication gates -- the same
-    ``exclude_unsafe_hypotheses`` / ``released_claim_evidence`` pair the
-    report builder applies -- so a share exposes exactly the ranked ideas
-    the report published and only the evidence those ideas cite. Safety-
-    blocked, review-rejected, deduplicated, and contradicted ideas stay
-    out, and evidence rows are reduced to their bibliographic identity.
-
-    Args:
-        run_id: Identifier of the shared run.
-
-    Returns:
-        A tuple of (released hypotheses, released evidence views).
+    """Shares apply the same publication gates as reports and expose only
+    released ideas and their referenced sources.
     """
     all_hypotheses = store.list_hypotheses(run_id)
     claim_edges = store.list_claim_evidence(run_id)

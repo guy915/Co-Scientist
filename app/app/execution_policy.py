@@ -1,5 +1,3 @@
-"""Server-derived execution policy for persisted research objects."""
-
 from __future__ import annotations
 
 import contextlib
@@ -23,7 +21,6 @@ _campaign_model: ContextVar[str | None] = ContextVar(
 
 
 def campaign_model_for_config(config: Any = None) -> str | None:
-    """Return a campaign route only when that run persisted one."""
     value = (
         config.get(CAMPAIGN_MODEL_CONFIG_KEY)
         if isinstance(config, dict)
@@ -33,7 +30,6 @@ def campaign_model_for_config(config: Any = None) -> str | None:
 
 
 def effective_execution_model(configured_model: str | None) -> str | None:
-    """Use the scoped campaign route before shaping an app model request."""
     return _campaign_model.get() or configured_model
 
 
@@ -41,7 +37,6 @@ def effective_execution_model(configured_model: str | None) -> str | None:
 def scoped_execution_policy(
     execution_policy: str, *, campaign_model_name: str | None = None
 ) -> Iterator[None]:
-    """Apply one persisted policy to app and engine model calls."""
     with scoped_campaign_mode(execution_policy == CAMPAIGN):
         selected = _campaign_model.get()
         if selected is None and execution_policy == CAMPAIGN:
@@ -56,7 +51,9 @@ def scoped_execution_policy(
 def resolve_execution_policy(
     request: Request, interview: dict[str, Any] | None = None
 ) -> str:
-    """Resolve a monotone policy from trusted server state only."""
+    """Campaign policy derives monotonically from trusted persisted state,
+    never caller-controlled identity headers.
+    """
     if interview and interview.get("execution_policy") == CAMPAIGN:
         return CAMPAIGN
     principal = principal_for_request(request)

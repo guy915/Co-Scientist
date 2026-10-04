@@ -1,5 +1,3 @@
-"""Supervisor node - create research plan and workflow guidance."""
-
 import logging
 from typing import Any
 
@@ -31,18 +29,6 @@ logger = logging.getLogger(__name__)
 
 
 async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
-    """Creates a research plan and provides workflow guidance.
-
-    This node analyzes the research goal and configures an appropriate
-    research plan, setting parameters and providing guidance for the
-    entire workflow.
-
-    Args:
-        state: Current workflow state
-
-    Returns:
-        Dictionary with updated state fields (supervisor_guidance)
-    """
     prompt_context = _extract_supervisor_context(state)
     await _announce_supervisor_start(state, prompt_context)
 
@@ -59,11 +45,6 @@ async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
 async def _announce_supervisor_start(
     state: WorkflowState, prompt_context: dict[str, Any]
 ) -> None:
-    """Logs and streams the start of supervisor planning.
-
-    This is the first node in the graph, so this also marks the start of
-    the entire workflow from the UI's perspective.
-    """
     research_goal = prompt_context["inputs"].research_goal
     logger.info(
         "Supervisor analyzing research goal: %s...", research_goal[:100]
@@ -79,7 +60,6 @@ async def _announce_supervisor_start(
 async def _announce_supervisor_complete(
     state: WorkflowState, key_areas: list[str]
 ) -> None:
-    """Streams supervisor-plan completion; key_areas count rides along."""
     await emit_progress(
         state,
         "supervisor_complete",
@@ -92,14 +72,12 @@ async def _announce_supervisor_complete(
 async def _run_supervisor_planning(
     state: WorkflowState, prompt_context: dict[str, Any]
 ) -> dict[str, Any]:
-    """Builds the prompt, calls the LLM, and assembles supervisor guidance."""
     prompt, schema = get_supervisor_prompt(**prompt_context)
     response = await _call_supervisor_llm(state, prompt, schema)
     return _build_supervisor_guidance(response)
 
 
 def _log_key_areas(key_areas: list[str]) -> None:
-    """Logs identified key research areas, if any."""
     if key_areas:
         logger.info(
             "Key research areas identified: %s", ", ".join(key_areas[:3])
@@ -127,19 +105,6 @@ async def _call_supervisor_llm(
 def _build_supervisor_result(
     supervisor_guidance: dict[str, Any], key_areas: list[str]
 ) -> dict[str, Any]:
-    """Assembles the supervisor_node return dict.
-
-    Args:
-        supervisor_guidance: Assembled supervisor_guidance dict.
-        key_areas: Key research areas extracted from supervisor_guidance,
-            reused here for the phase_message metadata.
-
-    Returns:
-        Dict with updated state fields (supervisor_guidance, metrics,
-        messages).
-    """
-    # Update metrics (deltas only, merge_metrics will add to existing state)
-    # This node makes exactly one LLM call, so the delta is always 1.
     metrics = create_metrics_update(deltas=MetricDeltas(llm_calls=1))
 
     return {
@@ -154,23 +119,8 @@ def _build_supervisor_result(
 
 
 def _extract_supervisor_context(state: WorkflowState) -> dict[str, Any]:
-    """Extracts the state fields needed to build the supervisor prompt.
-
-    Groups the field-by-field state access into one place so
-    supervisor_node stays focused on orchestration. Most fields are
-    optional (None) if the run relies on engine defaults; the prompt
-    builder falls back to "not specified" text in that case. mcp_available
-    and pubmed_available let the prompt honestly describe whether
-    literature review will actually run, rather than assuming it always
-    will.
-
-    Args:
-        state: Current workflow state.
-
-    Returns:
-        Dict of keyword arguments ready to spread into
-        get_supervisor_prompt.
-    """
+    """Capability flags must describe whether literature review can actually
+    run rather than promising evidence unavailable to the workflow."""
     return {
         "inputs": SupervisorPromptInputs(
             research_goal=state["research_goal"],
@@ -195,18 +145,7 @@ def _extract_supervisor_context(state: WorkflowState) -> dict[str, Any]:
 
 
 def _extract_key_areas(supervisor_guidance: dict[str, Any]) -> list[str]:
-    """Pulls the identified key research areas out of supervisor guidance.
-
-    Guards with isinstance since research_goal_analysis is only loosely
-    typed as dict[str, Any] and the LLM could in principle return an
-    unexpected shape despite the schema.
-
-    Args:
-        supervisor_guidance: assembled supervisor_guidance dict.
-
-    Returns:
-        The key_areas list, or an empty list if absent/malformed.
-    """
+    """Provider responses may have unexpected shapes despite their schema."""
     goal_analysis = supervisor_guidance.get("research_goal_analysis", {})
     if not isinstance(goal_analysis, dict):
         return []
@@ -215,21 +154,8 @@ def _extract_key_areas(supervisor_guidance: dict[str, Any]) -> list[str]:
 
 
 def _build_supervisor_guidance(response: dict[str, Any]) -> dict[str, Any]:
-    """Assembles the supervisor_guidance state dict from the LLM response.
-
-    Uses defensive .get() with empty-container defaults: even though the
-    schema constrains the LLM output, this keeps downstream consumers
-    (generate, debate, meta-review, etc.) safe from missing keys without
-    needing their own None-checks. The result becomes
-    state["supervisor_guidance"], the steering context every later node
-    reads to build its own prompts.
-
-    Args:
-        response: raw LLM JSON response from the supervisor call.
-
-    Returns:
-        The assembled supervisor_guidance dict.
-    """
+    """Lax providers may omit fields; container defaults protect shared
+    guidance consumers without repeating defensive checks."""
     return {
         "research_goal_analysis": response.get("research_goal_analysis", {}),
         "workflow_plan": response.get("workflow_plan", {}),

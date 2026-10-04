@@ -1,11 +1,3 @@
-"""Diagnostics HTTP surface: root, health, config, and status endpoints.
-
-Response models and handlers for the app-level diagnostics endpoints
-(``/``, ``/health``, ``/config``, ``/status``), mounted by ``app.main``.
-Probe logic lives in ``app.diagnostics``; this module only shapes the
-HTTP responses.
-"""
-
 from typing import Any
 
 from fastapi import APIRouter, Request, Response
@@ -121,13 +113,8 @@ class SystemStatusResponse(BaseModel):
             "be opted in to a completion email"
         ),
     )
-    # The fields below this point (through `enabled_tools`) are operator
-    # diagnostics: null for every other caller. None of them is read by the
-    # frontend -- only `provider`, `llm_backend`, `model_name`, and the
-    # availability/connector fields above are -- and each discloses a real
-    # piece of the deployment's internals (an internal hostname, whether a
-    # provider credential is configured, the tools config path). See
-    # `is_operator`.
+    # Operator-only diagnostics expose internal routing, configuration and
+    # credential presence; public callers receive null.
     probes: dict[str, ProbeStatus] | None = Field(
         None,
         description=(
@@ -216,11 +203,8 @@ async def root(request: Request) -> dict[str, str | None]:
 def _redact_health_check(
     check: HealthCheckResult, operator: bool
 ) -> HealthCheckResult:
-    """Drop a failing check's detail text for a non-operator caller.
-
-    ``ok`` alone is enough for a deploy probe or an anonymous status read;
-    ``detail`` can carry exception text, file paths, or run ids that are
-    operator diagnostics, not public information.
+    """Failure details can reveal paths, exceptions or run IDs; public
+    health reads need only the verdict.
     """
     if operator:
         return check
@@ -310,11 +294,6 @@ async def get_config() -> ConfigResponse:
 
 
 def _local_capabilities() -> dict[str, Any]:
-    """The availability answer this process knows without probing.
-
-    An SMTP transport is either configured here or it is not, and the
-    plan card's completion-email opt-in is gated on the answer.
-    """
     return {
         "email_notifications_available": email_notifications_configured(),
     }
@@ -327,14 +306,12 @@ def _build_status_payload(
     literature_available: bool,
     adapter_status: dict[str, Any],
 ) -> dict[str, Any]:
-    """Assemble the ``/status`` response from probe and adapter results."""
     return {
         "mcp_available": mcp.available,
         "pubmed_available": pubmed.available,
         "literature_review_available": literature_available,
-        # True only when a search issued now would reach a provider: the
-        # MCP server has the tool registered AND the provider has not
-        # refused the key since the last search that worked.
+        # Tool registration alone does not prove the configured provider will
+        # accept a search now.
         "web_search_available": web_search.available,
         **_local_capabilities(),
         "probes": {
@@ -345,24 +322,17 @@ def _build_status_payload(
                 "error": web_search.error,
             },
         },
-        # User-facing data-source connectors for the composer menu, derived
-        # from live availability plus the configured tools YAML.
         "connectors": engine_adapter.connectors_report(
             literature_available=literature_available,
             enabled_tools=adapter_status.get("enabled_tools"),
             web_search_available=web_search.available,
         ),
-        # provider/llm_backend/model_name/etc. from engine_adapter.system_status
         **adapter_status,
     }
 
 
-# Status fields visible to every caller regardless of operator status: the
-# product's own UI reads these -- the offline-mode banner and the
-# composer's connector list -- even for an anonymous visitor. Everything
-# else `_build_status_payload` assembles (the internal MCP hostname,
-# provider-key presence, BYOK/engine-importability state, per-probe error
-# text, the tools config) is an operator diagnostic with no product use.
+# Public UI capability fields remain visible; deployment internals and probe
+# error text require operator access.
 _PUBLIC_STATUS_FIELDS = frozenset(
     {
         "mcp_available",
@@ -381,12 +351,8 @@ _PUBLIC_STATUS_FIELDS = frozenset(
 def _redact_status_payload(
     payload: dict[str, Any], operator: bool
 ) -> dict[str, Any]:
-    """Null out operator-only diagnostic fields for a non-operator caller.
-
-    Applied to the fully assembled payload rather than earlier:
-    ``connectors`` is itself derived from ``enabled_tools``, so the real
-    value has to survive long enough to compute that public summary before
-    the raw field it was computed from is redacted.
+    """Compute public connector summaries before removing the raw operator-
+    only configuration they depend on.
     """
     if operator:
         return payload
@@ -413,8 +379,8 @@ async def get_system_status(request: Request) -> dict[str, Any]:
 
     adapter_status = engine_adapter.system_status()
 
-    # Both legs are required: the literature_review node needs the MCP server
-    # up AND its PubMed-backed tools answering.
+    # Literature tools need both the MCP process and its PubMed-backed source to
+    # answer.
     literature_available = mcp.available and pubmed.available
 
     payload = _build_status_payload(

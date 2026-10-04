@@ -1,25 +1,8 @@
-"""Prometheus ``/metrics`` derivation: read-only aggregates over the store.
-
-Every number here is computed fresh from ``runs``/``scientific_tasks`` on
-each call rather than accumulated in an in-process counter -- a counter
-would read zero after every restart and, on the single serving replica
-this API runs at, is strictly worse than a query against the table that
-is already the source of truth (see AGENTS.md). Each query is scoped to
-an indexed column (``runs.status`` via ``idx_runs_status``,
-``scientific_tasks.status`` via ``idx_tasks_ready``) and issues no write,
-so it is safe to run on every Prometheus scrape; :func:`metrics_text_cached`
-adds a short TTL cache on top so an accidental scrape storm costs one
-query pass, not one per request.
-"""
-
 from __future__ import annotations
 
 import dataclasses
 import time
 
-# CONTENT_TYPE_LATEST (the text/plain exposition content type) is imported
-# here to be re-exported, so the endpoint handler does not need its own
-# import of the library's constant name.
 from prometheus_client import (
     CONTENT_TYPE_LATEST as CONTENT_TYPE_LATEST,
 )
@@ -33,9 +16,8 @@ from app import API_VERSION
 from app.config import settings
 from app.store.db import connect
 
-# Latency histogram bucket upper bounds, in seconds. A durable task is an
-# LLM-driven engine node, so the range runs from a few seconds to an hour
-# rather than the sub-second buckets a web-request histogram would use.
+# LLM-driven task latency spans seconds to an hour, unlike subsecond HTTP-
+# request histograms.
 LATENCY_BUCKETS_SECONDS: tuple[float, ...] = (
     5.0,
     15.0,
@@ -50,16 +32,6 @@ LATENCY_BUCKETS_SECONDS: tuple[float, ...] = (
 
 
 def runs_by_status(db_path: str | None = None) -> dict[str, int]:
-    """Return the count of runs in each lifecycle status.
-
-    One aggregate query over ``idx_runs_status``.
-
-    Args:
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        Mapping of run status to row count.
-    """
     with connect(db_path) as conn:
         rows = conn.execute(
             "SELECT status, COUNT(*) AS n FROM runs GROUP BY status"
@@ -68,17 +40,6 @@ def runs_by_status(db_path: str | None = None) -> dict[str, int]:
 
 
 def tasks_by_status(db_path: str | None = None) -> dict[str, int]:
-    """Return the count of scientific tasks in each queue status.
-
-    One aggregate query over ``idx_tasks_ready``'s leading ``status``
-    column.
-
-    Args:
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        Mapping of task status to row count.
-    """
     with connect(db_path) as conn:
         rows = conn.execute(
             "SELECT status, COUNT(*) AS n FROM scientific_tasks GROUP BY status"
@@ -87,17 +48,6 @@ def tasks_by_status(db_path: str | None = None) -> dict[str, int]:
 
 
 def failed_task_exhaustion(db_path: str | None = None) -> dict[str, int]:
-    """Return failed-task counts split by retry-budget exhaustion.
-
-    Scoped to ``status='failed'``, which ``idx_tasks_ready`` covers, so
-    this never scans queued/leased/completed rows.
-
-    Args:
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        ``{"true": <exhausted count>, "false": <not-exhausted count>}``.
-    """
     query = (
         "SELECT"
         " COALESCE(SUM(attempt>=max_attempts), 0) AS exhausted,"
@@ -114,16 +64,8 @@ def failed_task_exhaustion(db_path: str | None = None) -> dict[str, int]:
 
 @dataclasses.dataclass(frozen=True)
 class TaskLatencyRow:
-    """One task type's latency histogram data, over completed tasks.
-
-    Attributes:
-        task_type: The task type this row summarizes.
-        count: Number of completed tasks of this type with both
-            timestamps set.
-        total_duration: Sum of ``completed_at - started_at`` in seconds.
-        bucket_counts: Cumulative count per bound in
-            :data:`LATENCY_BUCKETS_SECONDS`, same order (Prometheus
-            histogram bucket semantics: count of durations <= bound).
+    """Histogram buckets are cumulative counts of durations at or below each
+    bound, as Prometheus requires.
     """
 
     task_type: str
@@ -133,22 +75,8 @@ class TaskLatencyRow:
 
 
 def task_latency_by_type(db_path: str | None = None) -> list[TaskLatencyRow]:
-    """Return per-task-type latency histogram data for completed tasks.
-
-    One aggregate query, scoped to ``status='completed'`` (an
-    ``idx_tasks_ready`` range scan) with the per-bucket cumulative counts
-    computed in SQL so only ``O(task types)`` rows -- not one row per
-    task -- ever cross into Python. The matched row set still grows with
-    the deployment's lifetime completed-task count, since neither
-    ``started_at`` nor ``completed_at`` is independently indexed; see the
-    module docstring and the shipping report for that caveat.
-
-    Args:
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        One :class:`TaskLatencyRow` per task type with at least one
-        completed, timestamped task.
+    """SQL returns one aggregate per task type; the completed row scan still
+    grows with deployment lifetime.
     """
     bucket_columns = [f"b{i}" for i in range(len(LATENCY_BUCKETS_SECONDS))]
     bucket_sql = ",".join(
@@ -236,20 +164,14 @@ def _build_info_family() -> GaugeMetricFamily:
 
 
 class _StoreCollector:
-    """Collector whose families are recomputed on every ``collect()``.
-
-    The custom-collector pattern (rather than module-level ``Gauge``s
-    mutated by callers) is what lets every value here be a fresh,
-    read-only snapshot of the store instead of an in-process counter --
-    see the module docstring for why that distinction matters on a
-    single-replica, restart-prone deployment.
+    """Durable store snapshots survive restarts; process-local metric
+    counters would lose accumulated truth.
     """
 
     def __init__(self, db_path: str | None = None) -> None:
         self._db_path = db_path
 
     def collect(self) -> list[GaugeMetricFamily | HistogramMetricFamily]:
-        """Return every metric family, each backed by one store query."""
         return [
             _runs_family(self._db_path),
             _tasks_family(self._db_path),
@@ -260,49 +182,22 @@ class _StoreCollector:
 
 
 def render_metrics_text(db_path: str | None = None) -> bytes:
-    """Render the full Prometheus exposition-format text, uncached.
-
-    Args:
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        The exposition text as UTF-8 bytes.
-    """
     registry = CollectorRegistry()
     registry.register(_StoreCollector(db_path))
     return generate_latest(registry)
 
 
-# Module-level (monotonic deadline, rendered text) cache. A bare tuple
-# assignment, no lock: mirrors app.diagnostics's health-check and probe
-# caches. A race between two callers both missing the cache just runs the
-# query pass twice, which is what would happen without a cache at all --
-# the cache's job is to make the *steady-state* repeated-scrape case
-# cheap, not to guarantee a single query per TTL window. A
-# threading.Lock would only serialize that harmless race; an asyncio
-# primitive would be actively wrong here (see AGENTS.md: each durable
-# run's worker cohort runs its own event loop, so a lock created on one
-# loop raises when awaited from another -- this endpoint is reachable
-# from any of them).
+# A double cache miss is harmless duplicated reads; loop-bound locks would break
+# across worker-cohort event loops.
 _metrics_cache: tuple[float, bytes] | None = None
 
 
 def clear_metrics_cache() -> None:
-    """Drop the cached exposition text (used by tests and reconfig)."""
     global _metrics_cache
     _metrics_cache = None
 
 
 def metrics_text_cached(db_path: str | None = None) -> bytes:
-    """Return exposition text, reusing a short-TTL cache.
-
-    Args:
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        The cached or freshly rendered exposition text, at most
-        ``settings.metrics_cache_ttl_seconds`` old.
-    """
     global _metrics_cache
     now = time.monotonic()
     if _metrics_cache is not None and now < _metrics_cache[0]:

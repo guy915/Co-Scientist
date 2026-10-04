@@ -1,32 +1,3 @@
-"""Bring-your-own-key (BYOK) credentials: transport, crypto, storage.
-
-A scientist may supply their own provider API key, sent as request
-headers (never query parameters -- URLs leak into history, logs, and
-referrers). This module owns the whole life of that key:
-
-- Transport: ``credential_from_headers`` reads ``X-LLM-API-Key`` /
-  ``X-LLM-Provider`` and pairs the key with its provider's default
-  model (``config.BYOK_PROVIDER_DEFAULT_MODELS``).
-- Validation: ``validate_byok_credential`` proves the pair with a cheap
-  one-token completion BEFORE a run accepts it, so a rejected or
-  expired key surfaces at creation time, not mid-run.
-- Storage: the durable task model decides this -- a run's tasks lease
-  independently and may execute later or elsewhere than the request
-  that created the run -- so the key is persisted for the run's
-  lifetime, encrypted at rest (Fernet, key material derived from
-  ``settings.byok_encryption_key``) in ``run_credentials``, scoped to
-  the owning client, and cascaded away when the run is deleted.
-- Scoping: ``scoped_byok`` binds a credential to the current (async)
-  execution context so the app's own LLM calls (interview, Q&A, title,
-  safety, claim verification) resolve it without threading it through
-  every signature. Never a process global: each durable task scopes its
-  own run's credential.
-
-The plaintext key is never logged (see
-``ByokRedactionFilter``), never
-returned by any endpoint, and never placed in checkpointed state.
-"""
-
 from __future__ import annotations
 
 import base64
@@ -53,36 +24,28 @@ logger = logging.getLogger(__name__)
 API_KEY_HEADER = "X-LLM-API-Key"
 PROVIDER_HEADER = "X-LLM-Provider"
 
-# Wall clock for the cheap validation completion. Generous enough for a
-# cold provider round trip, tight enough that run creation cannot hang
-# on a dead endpoint.
+# Bound credential validation so a dead provider cannot hang run creation.
 _VALIDATION_TIMEOUT_SECONDS = 30.0
 
 
 class ByokRequestError(ValueError):
-    """A malformed BYOK request (missing/unknown provider). Maps to 400."""
+    """Malformed provider/key pairs are request errors."""
 
 
 class ByokValidationError(Exception):
-    """The provider rejected the key or could not be reached. Maps to 400."""
+    """Rejected or unreachable provider credentials are refused before run
+    creation.
+    """
 
 
 class ByokNotConfiguredError(RuntimeError):
-    """This deployment has no BYOK encryption secret configured. 503."""
+    """Missing encryption support refuses credential-bearing requests."""
 
 
 @dataclass(frozen=True)
 class ByokCredential:
-    """One validated bring-your-own-key credential.
-
-    Attributes:
-        provider: Provider id, one of ``config.PROVIDER_CREDENTIAL_ENV``.
-        api_key: The provider API key (plaintext only in memory).
-        model: The litellm worker-tier model this credential runs (the
-            scientist's choice from ``byok_models``, else the provider's
-            default), recorded at validation time.
-        supervisor_model: The supervisor-tier model, or None to run the
-            supervisor on ``model`` as well.
+    """Plaintext keys exist only in scoped memory, never endpoint responses
+    or checkpointed state.
     """
 
     provider: str
@@ -92,26 +55,14 @@ class ByokCredential:
 
     @property
     def models(self) -> tuple[str, ...]:
-        """Every distinct model this credential runs, worker first."""
         if self.supervisor_model in (None, self.model):
             return (self.model,)
         return (self.model, str(self.supervisor_model))
 
 
-# ---------------------------------------------------------------------------
-# Crypto
-# ---------------------------------------------------------------------------
-
-
 def _fernet() -> Fernet:
-    """Return a Fernet cipher keyed from the deployment's BYOK secret.
-
-    The Fernet key is derived (HKDF-SHA256) from the configured secret so
-    operators may set any non-empty string; a fixed salt/info pair binds
-    the derivation to this one purpose.
-
-    Raises:
-        ByokNotConfiguredError: When ``byok_encryption_key`` is unset.
+    """HKDF derives a purpose-bound Fernet key from any nonempty deployment
+    secret.
     """
     from cryptography.fernet import Fernet
     from cryptography.hazmat.primitives import hashes
@@ -132,30 +83,12 @@ def _fernet() -> Fernet:
 
 
 def encrypt_api_key(api_key: str) -> str:
-    """Encrypt an API key for storage at rest.
-
-    Args:
-        api_key: The plaintext provider key.
-
-    Returns:
-        The Fernet token (URL-safe string) to persist.
-    """
     return _fernet().encrypt(api_key.encode("utf-8")).decode("ascii")
 
 
 def decrypt_api_key(token: str) -> str:
-    """Decrypt a stored API key token.
-
-    Args:
-        token: The persisted Fernet token.
-
-    Returns:
-        The plaintext provider key.
-
-    Raises:
-        RuntimeError: When the token is corrupt or was sealed under a
-            different secret (e.g. after a rotation). Failing loudly
-            beats silently billing the deployment's credential.
+    """Corrupt or rotated ciphertext fails loudly rather than silently
+    billing the deployment's credential.
     """
     from cryptography.fernet import InvalidToken
 
@@ -169,10 +102,8 @@ def decrypt_api_key(token: str) -> str:
 
 
 def idempotency_secret_fingerprint(api_key: str) -> str:
-    """HMAC a BYOK secret for a run-create receipt without storing it.
-
-    The domain prefix keeps this fingerprint separate from other uses of
-    the BYOK encryption secret.
+    """A purpose-separated keyed digest identifies receipt intent without
+    persisting plaintext credentials.
     """
     secret = settings.byok_encryption_key
     if not secret:
@@ -192,7 +123,6 @@ def run_creation_request_digest(
     api_key: str | None = None,
     provider: str | None = None,
 ) -> str:
-    """Digest parsed run intent and a keyed fingerprint of an explicit key."""
     key = (api_key or "").strip()
     fingerprint = idempotency_secret_fingerprint(key) if key else None
     canonical = json.dumps(
@@ -209,29 +139,9 @@ def run_creation_request_digest(
     return hashlib.sha256(digest_input).hexdigest()
 
 
-# ---------------------------------------------------------------------------
-# Transport
-# ---------------------------------------------------------------------------
-
-
 def credential_from_headers(
     headers: Mapping[str, str],
 ) -> ByokCredential | None:
-    """Parse the BYOK headers into a credential, when a key is sent.
-
-    Args:
-        headers: Request headers (case-insensitive mapping).
-
-    Returns:
-        The credential with its worker and supervisor models resolved
-        (the provider's default where no choice was sent), or None when
-        no key was sent.
-
-    Raises:
-        ByokRequestError: A key without a provider, a provider the
-            default-model table does not know, or a model the provider
-            does not offer.
-    """
     api_key = (headers.get(API_KEY_HEADER) or "").strip()
     if not api_key:
         return None
@@ -259,11 +169,6 @@ def credential_from_headers(
     )
 
 
-# ---------------------------------------------------------------------------
-# Storage
-# ---------------------------------------------------------------------------
-
-
 def store_run_credential(
     run_id: str,
     client_id: str,
@@ -272,15 +177,6 @@ def store_run_credential(
     *,
     conn: sqlite3.Connection | None = None,
 ) -> None:
-    """Persist a run's encrypted credential, replacing any prior one.
-
-    Args:
-        run_id: The run that owns the credential.
-        client_id: The owning client/researcher identity.
-        credential: The validated credential to store.
-        db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to join an existing transaction.
-    """
     from app.store.db import _now, _use_conn
 
     with _use_conn(conn, db_path) as active:
@@ -308,15 +204,6 @@ def store_run_credential(
 def get_run_credential(
     run_id: str, db_path: str | None = None
 ) -> ByokCredential | None:
-    """Return a run's decrypted credential, or None when it has none.
-
-    Args:
-        run_id: The run whose credential is requested.
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        The decrypted credential, or None for a non-BYOK run.
-    """
     from app.store.db import connect
 
     with connect(db_path) as conn:
@@ -336,17 +223,9 @@ def get_run_credential(
     )
 
 
-# ---------------------------------------------------------------------------
-# Validation
-# ---------------------------------------------------------------------------
-
-
 async def _acompletion(**kwargs: Any) -> object:
-    """Indirection over litellm.acompletion so tests can monkeypatch.
-
-    Typed ``Any`` rather than ``object`` because these are forwarded
-    verbatim to a signature of ~40 specifically-typed parameters, which a
-    checker resolving that signature reads as one type error per parameter.
+    """Forwarded parameters retain Any because LiteLLM's heterogeneous
+    completion signature cannot be represented by object.
     """
     from app import llm_request
 
@@ -354,23 +233,14 @@ async def _acompletion(**kwargs: Any) -> object:
 
 
 def _sanitized_detail(credential: ByokCredential, exc: Exception) -> str:
-    """Return an error detail that can never echo the key back."""
+    """Provider error details must never echo the submitted credential."""
     return str(exc).replace(credential.api_key, "[REDACTED]")
 
 
 @budgeted("credential_probe")
 async def validate_byok_credential(credential: ByokCredential) -> None:
-    """Prove a credential with a cheap one-token completion.
-
-    Must run OUTSIDE any database transaction: it is a network call, and
-    the store's single writer must not be held across it.
-
-    Args:
-        credential: The provider/key/model pair to prove.
-
-    Raises:
-        ByokValidationError: When the provider rejects the key (worded
-            exactly as a rejection) or the call cannot complete.
+    """Credential validation is provider I/O and must complete outside
+    SQLite write transactions.
     """
     from litellm.exceptions import AuthenticationError
 
@@ -399,22 +269,16 @@ async def validate_byok_credential(credential: ByokCredential) -> None:
         ) from exc
 
 
-# ---------------------------------------------------------------------------
-# Request/task scoping
-# ---------------------------------------------------------------------------
-
 _current_byok: ContextVar[ByokCredential | None] = ContextVar(
     "cosci_byok", default=None
 )
 
 
 def current_byok() -> ByokCredential | None:
-    """Return the credential scoped to the current context, if any."""
     return _current_byok.get()
 
 
 def redact_byok_text(text: str) -> str:
-    """Replace the current run's exact key in diagnostic text."""
     credential = current_byok()
     if credential is None or not credential.api_key:
         return text
@@ -425,15 +289,6 @@ def redact_byok_text(text: str) -> str:
 def scoped_byok(
     credential: ByokCredential | None,
 ) -> Iterator[None]:
-    """Scope a BYOK credential to the current (async) execution context.
-
-    Args:
-        credential: The run's credential, or None for a no-op scope so
-            callers can pass an optional credential straight through.
-
-    Yields:
-        None.
-    """
     if credential is None:
         yield
         return
@@ -445,19 +300,8 @@ def scoped_byok(
 
 
 def byok_model_and_key(model: str) -> tuple[str, str | None]:
-    """Resolve the effective (model, api_key) for an app LLM call.
-
-    With a scoped BYOK credential the call uses the credential's model
-    and key -- overriding the deployment model and credential for this
-    run only; without one the deployment model is kept and litellm
-    resolves the deployment's environment credential as usual.
-
-    Args:
-        model: The deployment model the call site would otherwise use.
-
-    Returns:
-        ``(byok_model, byok_key)`` when a credential is scoped, else
-        ``(model, None)``.
+    """Scoped credentials override model and key for this execution only,
+    without mutating deployment defaults.
     """
     from app.execution_policy import effective_execution_model
 
@@ -471,7 +315,6 @@ def byok_model_and_key(model: str) -> tuple[str, str | None]:
 
 
 def _redact_log_details(record: logging.LogRecord) -> None:
-    """Redact formatted traceback and stack text on a log record."""
     if record.exc_info:
         record.exc_text = logging.Formatter().formatException(record.exc_info)
     for field in ("exc_text", "stack_info"):
@@ -481,17 +324,11 @@ def _redact_log_details(record: logging.LogRecord) -> None:
 
 
 class ByokRedactionFilter(logging.Filter):
-    """Scrubs a scoped BYOK key out of any record that carries it.
-
-    Defense in depth: no code path logs the key deliberately, but a
-    provider error message could embed it, and records from libraries
-    are not ours to control. Attached to both the stdout handler and the
-    persistent capture pipeline (see ``logging_setup``); when no
-    credential is scoped the filter is a cheap no-op.
+    """Provider libraries can embed keys in errors; stdout and persistence
+    both need scoped credential redaction.
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
-        """Redact the scoped key from the record, keeping the record."""
         if current_byok() is None:
             return True
         try:
@@ -502,6 +339,6 @@ class ByokRedactionFilter(logging.Filter):
                 record.args = None
             _redact_log_details(record)
         except Exception:
-            # Redaction must never break logging itself.
+            # Credential redaction must never break logging itself.
             return True
         return True

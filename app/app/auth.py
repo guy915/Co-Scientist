@@ -1,5 +1,3 @@
-"""Invite-based researcher authentication with signed bearer sessions."""
-
 from __future__ import annotations
 
 import base64
@@ -14,19 +12,14 @@ from pydantic import BaseModel, Field
 
 from app.config import settings
 
-# Production runs one API process. Replicated deployments need a shared
-# limiter; caller-controlled client IDs and forwarded headers are not keys.
+# Process-local IP limits assume one API replica; replicated deployments need a
+# shared limiter.
 _exchange_hits: dict[str, list[float]] = {}
 _MAX_SCOPES = 4096
 _WINDOW_SECONDS = 60
 
 
 def check_exchange_rate(request: Request) -> None:
-    """Reject invite exchanges after the per-IP budget is spent.
-
-    Raises:
-        HTTPException: 429 with Retry-After when the window is full.
-    """
     now = time.monotonic()
     host = request.client.host if request.client else "unknown"
     for stale in [
@@ -56,8 +49,6 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 @dataclass(frozen=True)
 class Principal:
-    """Verified researcher identity and its authentication method."""
-
     subject: str
     method: str
 
@@ -69,22 +60,18 @@ class AccessCodeRequest(BaseModel):
 
 
 def auth_required() -> bool:
-    """Return whether private API routes require verified sessions."""
     return settings.auth_mode.strip().lower() == "required"
 
 
 def _b64encode(value: bytes) -> str:
-    """Encode token bytes without padding."""
     return base64.urlsafe_b64encode(value).decode().rstrip("=")
 
 
 def _b64decode(value: str) -> bytes:
-    """Decode an unpadded URL-safe token segment."""
     return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
 
 
 def _secret() -> bytes:
-    """Return configured signing secret or reject unsafe required mode."""
     if not settings.auth_secret:
         raise RuntimeError(
             "AUTH_SECRET is required when authentication is used"
@@ -93,7 +80,6 @@ def _secret() -> bytes:
 
 
 def create_session_token(subject: str, now: int | None = None) -> str:
-    """Create a signed, expiring researcher session token."""
     issued_at = int(time.time()) if now is None else now
     payload = {
         "sub": subject,
@@ -111,7 +97,6 @@ def create_session_token(subject: str, now: int | None = None) -> str:
 
 
 def verify_session_token(token: str, now: int | None = None) -> Principal:
-    """Verify signature, shape, and expiry, returning the researcher."""
     try:
         encoded, signature = token.split(".", 1)
         expected = _b64encode(
@@ -135,16 +120,8 @@ def verify_session_token(token: str, now: int | None = None) -> Principal:
 
 
 def principal_for_request(request: Request) -> Principal | None:
-    """Resolve a verified bearer principal or compatibility client scope.
-
-    Identity is read from headers only. A signed session or the researcher
-    id must never travel in the query string: URLs are retained in browser
-    history, proxy access logs, and referrer headers long after the
-    request that carried them, so a query-string credential leaks on a
-    timeline a header credential does not. The one caller that used to
-    need a query-carried credential -- the SSE event stream, which
-    ``EventSource`` cannot attach a header to -- now opens the stream over
-    ``fetch`` instead, which can.
+    """Credentials travel in headers only: query strings leak through
+    browser history, proxy logs and referrers.
     """
     authorization = request.headers.get("Authorization", "")
     if authorization.startswith("Bearer "):
@@ -156,7 +133,6 @@ def principal_for_request(request: Request) -> Principal | None:
 
 
 def require_principal(request: Request) -> Principal:
-    """Return the current principal or raise an authentication challenge."""
     principal = principal_for_request(request)
     if principal is None:
         raise HTTPException(
@@ -166,7 +142,6 @@ def require_principal(request: Request) -> Principal:
 
 
 def require_bearer_principal(request: Request) -> Principal:
-    """Require a verified bearer session even in compatibility mode."""
     principal = require_principal(request)
     if principal.method != "bearer":
         raise HTTPException(
@@ -176,30 +151,13 @@ def require_bearer_principal(request: Request) -> Principal:
 
 
 def client_id(request: Request) -> str:
-    """Return the verified researcher subject or compatibility scope."""
     return require_principal(request).subject
 
 
 def require_client_scope(request: Request) -> str:
-    """Return the caller's non-empty scope, refusing an identity-less create.
-
-    A compatibility caller sending no ``X-Client-ID`` header resolves to
-    the empty-string subject (``principal_for_request``): allowing that
-    subject to create a private, caller-owned record would persist it
-    under the same empty subject every other identity-less caller also
-    resolves to, so anyone else who also sent no header could read, list,
-    or delete it right back. ``logs_api._scope_for`` already treats an
-    empty subject as a scope that must match nothing (a NUL-prefixed
-    sentinel) for the same reason on the read side; this is the
-    creation-time half of that rule -- refuse up front rather than
-    silently pooling the new record with every other anonymous caller's.
-
-    Returns:
-        The caller's non-empty subject.
-
-    Raises:
-        HTTPException: 400 naming the header a compatibility caller must
-            send to get a private scope of its own.
+    """An empty identity would pool private records with every other
+    unidentified caller; refuse creation rather than assigning that
+    scope.
     """
     subject = client_id(request)
     if not subject:
@@ -214,7 +172,9 @@ def require_client_scope(request: Request) -> str:
 
 
 def _configured_codes() -> dict[str, str]:
-    """Parse configured researcher-to-code mapping, failing closed."""
+    """Malformed invite configuration fails closed rather than granting
+    accidental access.
+    """
     try:
         value = json.loads(settings.researcher_access_codes)
     except json.JSONDecodeError as exc:

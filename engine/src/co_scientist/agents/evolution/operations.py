@@ -1,5 +1,3 @@
-"""Immutable evolution context and scientific operations shared by callers."""
-
 import dataclasses
 from dataclasses import replace
 from typing import Any, cast
@@ -14,20 +12,8 @@ from co_scientist.state import WorkflowState
 
 @dataclasses.dataclass(frozen=True)
 class EvolutionContext:
-    """Run/round-invariant inputs threaded through one evolution round.
-
-    Bundles the model, prior-round signals (meta-review, removed
-    duplicates), and the guidance/tool context every evolved hypothesis
-    shares. ``creation_iteration``, ``model_name``, and ``run_id`` are
-    unused by prompt assembly but ride along so the LLM call and child
-    construction can read them from the same context. ``state`` and
-    ``ranked_hypotheses`` are likewise round-invariant (one node run reads
-    the state once, and dropping one parent cannot reorder the ranking),
-    and ride here so per-hypothesis helpers keep five or fewer arguments.
-    ``reference_index`` is read by both halves: the prompt shows the run's
-    ``[C*]`` list so a refinement can cite it, and ``evolve_results``
-    resolves the child's own grounding paragraph against the same table.
-    """
+    """Prompt keys and child citations use one reference index; round-ranked
+    context stays stable while processing parents."""
 
     model_name: str
     meta_review: dict[str, Any]
@@ -50,7 +36,6 @@ def build_evolution_context(
     removed_duplicates: list[str],
     supervisor_guidance: dict[str, Any] | None,
 ) -> EvolutionContext:
-    """Bundles this evolution round's run-invariant inputs from state."""
     return EvolutionContext(
         model_name=state["model_name"],
         meta_review=state.get("meta_review", {}),
@@ -65,9 +50,8 @@ def build_evolution_context(
         proximity_graph=state.get("proximity_graph"),
         ranked_hypotheses=tuple(rank_by_elo(state["hypotheses"])),
         state=state,
-        # Built once for the round, not once per parent: it is derived
-        # from state, so every refinement in the round cites the same
-        # [C*] keys and every child resolves against the same table.
+        # Build one C* index per round so prompt keys and all child resolutions
+        # agree.
         reference_index=build_reference_index(
             state.get("articles"), state.get("context_enrichment_sources")
         ),
@@ -77,18 +61,8 @@ def build_evolution_context(
 def prepare_outcome_refinement_context(
     state: WorkflowState, parent: Hypothesis
 ) -> EvolutionContext:
-    """Keep run guidance and evidence while prompting on one selected parent.
-
-    Siblings are supplied separately to the outcome operation for duplicate
-    validation. They and unrelated round signals never enter prompt state.
-
-    Args:
-        state: The original run state, retained without mutation.
-        parent: The only parent the targeted action may refine.
-
-    Returns:
-        Parent-only prompt context with the run's shared citation keys.
-    """
+    """Siblings belong only to duplicate validation; unrelated round signals
+    must not enter the selected-parent outcome prompt."""
     scoped_state = cast(
         WorkflowState,
         {

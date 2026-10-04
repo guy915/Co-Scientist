@@ -1,5 +1,3 @@
-"""Evolve node - refine top hypotheses with context-aware evolution."""
-
 import asyncio
 import logging
 import random
@@ -74,53 +72,16 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
-# The parent set is the paper's fixed top-5 ranked hypotheses (SSR §4), not
-# the tier-scaled envelope (4/8/12/16) the app once threaded through state:
-# that scaling was a compute-envelope accretion the paper does not describe,
-# and it changed which ideas got bred per tier. Small pools are handled by
-# the slice itself -- an express-tier run may hold fewer than five rankable
-# ideas, and it then evolves every one it has. Defined here (not in
-# constants/__init__.py) because it belongs to evolution's contract alone.
+# SSR section 4 uses fixed top-five parents; tier-scaled envelopes would change
+# scientific selection rather than just fund compute.
 EVOLUTION_PARENT_COUNT: Final = 5
 
 
 def _select_evolution_pool(
     hypotheses: list[Hypothesis],
 ) -> list[Hypothesis]:
-    """Selects the strongest rankable hypotheses to evolve.
-
-    Ranks defensively and drops the ideas the gates disqualified, rather
-    than slicing the pool as it arrives. Evolution is entered from
-    meta_review, which returns no ``hypotheses`` key at all, so the order
-    here is whatever the last node to write the pool left -- and the two
-    ranking early-exits (fewer than two rankable ideas; the whole-run
-    tournament budget spent, which the code there calls the common case
-    late in a run) both return the pool untouched, on the durable path as
-    well as in the graph. A plain slice then bred the head of an unsorted
-    list: in a run whose review gate blocked all but one idea, every
-    parent was a disqualified idea and the survivor was never bred at all.
-    That is the same failure as the incident where a shrunken pool kept
-    re-deriving one drug, and it reads the same way -- as the ideas being
-    repetitive, not as the parents being wrong.
-
-    Undermined ideas are dropped here even though they rank and publish.
-    The demotion that keeps them off the head of a *reader's* list is not
-    enough for a parent pool: an idea reaches deep verification by leading
-    the tournament, so it carries a top rating, and breeding by Elo would
-    make the ideas with a probe-falsified fundamental assumption the
-    preferred ancestors of every later generation -- the shrunken-pool
-    failure above, arriving through the other gate.
-
-    Args:
-        hypotheses: Hypothesis pool entering evolution, in whatever order
-            the node that last wrote the pool left it.
-
-    Returns:
-        The top EVOLUTION_PARENT_COUNT eligible hypotheses by Elo.
-        ``len(top_k)`` is the real attempt count -- below five when fewer
-        hypotheses qualify, and zero when none do -- so callers report
-        progress off it.
-    """
+    """Rank defensively after early exits; exclude blocked and undermined
+    parents so unsupported leaders cannot seed later generations."""
     rankable = [
         hyp
         for hyp in hypotheses
@@ -137,7 +98,6 @@ def _select_evolution_pool(
 async def _emit_evolution_start(
     state: WorkflowState, actual_count: int
 ) -> None:
-    """Logs and emits the start-of-phase progress for this evolution round."""
     logger.info("Evolving top %s hypotheses", actual_count)
 
     await emit_progress(
@@ -158,23 +118,11 @@ async def _prepare_evolution_round(
     state: WorkflowState,
     hypotheses: list[Hypothesis],
 ) -> tuple[list[Hypothesis], list[str], dict[str, Any] | None]:
-    """Selects the evolution pool and emits the start-of-phase progress.
-
-    Args:
-        state: Current workflow state.
-        hypotheses: Hypothesis pool entering evolution, in whatever order
-            the node that last wrote the pool left it.
-
-    Returns:
-        Tuple of (top_k hypotheses to evolve, flattened previously removed
-        duplicate texts, supervisor guidance for the evolution phase).
-    """
     top_k = _select_evolution_pool(hypotheses)
     await _emit_evolution_start(state, len(top_k))
 
-    # Flatten proximity.py's removed_duplicates dicts down to bare text;
-    # used below to steer evolution away from recreating hypotheses that
-    # were already pruned as duplicates in an earlier iteration.
+    # Include pruned duplicate text so evolution cannot recreate earlier
+    # removals.
     removed_duplicates = [
         dup.get("text", "") for dup in state.get("removed_duplicates", [])
     ]
@@ -190,32 +138,14 @@ async def _finalize_evolve_result(
     attempt_count: int,
     extra_llm_calls: int = 0,
 ) -> dict[str, Any]:
-    """Appends the evolution children and builds the evolve_node state delta.
-
-    Also emits the completion progress event for the evolution phase.
-
-    Args:
-        state: Current workflow state.
-        children: New immutable children produced by this round's evolution.
-        evolution_details: Evolution detail entries, one per created child.
-        attempt_count: Number of parents evolution attempted this round.
-        extra_llm_calls: LLM calls spent beside the per-parent refinements
-            (the enhancement retrievals' query generation, when the MCP
-            server is up).
-
-    Returns:
-        The evolve_node state delta dictionary.
-    """
-    # Children are ADDED to the pool; parents and every other hypothesis stay
-    # active so both compete in the next tournament (paper invariant). The
-    # pool no longer shrinks to the evolved subset.
+    # Append children without retiring parents so both can compete in the next
+    # tournament.
     logger.info(
         "Evolution produced %s new children from %s attempts",
         len(children),
         attempt_count,
     )
 
-    # Emit progress
     await emit_progress(
         state,
         "evolve_complete",
@@ -231,15 +161,10 @@ async def _finalize_evolve_result(
 
 _build_evolution_context = build_evolution_context
 
-# Shared default operation (frozen/immutable): the enhancement operator with
-# no specialist feedback, used when a caller does not specify one.
 _DEFAULT_EVOLUTION_OPERATION = _EvolutionOperation()
 
-# Operators whose brief draws on designated top-ranked partners:
-# combination merges them, inspiration borrows from them, and out-of-box
-# reasons by analogy from them (published A.7's {hypotheses} input -- see
-# evolution_operators.py's MP-8 note; without partners that prompt's
-# central input renders empty).
+# Combination, inspiration and analogy operators need their designated partners;
+# otherwise their template input renders empty.
 _PARTNER_OPERATORS = frozenset(
     {
         EvolutionOperator.COMBINATION,
@@ -250,12 +175,8 @@ _PARTNER_OPERATORS = frozenset(
 
 
 def _evolve_token_budget(other_hypotheses_texts: list[str]) -> int:
-    """Computes and logs the evolution call's token budget.
-
-    Fixed token budget since we strategically sample max 15 context
-    hypotheses: 8000 base + 15 * 800 = 20,000 tokens at the cap, so the
-    budget is bounded for any pool size.
-    """
+    """Capped peer sampling bounds prompt cost independently of whole-pool
+    size."""
     evolve_max_tokens = scaled_max_tokens(
         EXTENDED_MAX_TOKENS,
         len(other_hypotheses_texts),
@@ -329,17 +250,6 @@ async def evolve_single_hypothesis_from_outcome(
     outcome_context: str,
     validation_hypotheses: list[Hypothesis],
 ) -> tuple[Hypothesis | None, dict[str, Any] | None]:
-    """Refine one parent with a recorded outcome and its sibling reject set.
-
-    Args:
-        hypothesis: The only parent this targeted action may evolve.
-        context: Run context with unrelated prompt content removed.
-        outcome_context: Bounded, untrusted outcome snapshot for the prompt.
-        validation_hypotheses: Siblings used only to reject duplicate children.
-
-    Returns:
-        The accepted child and detail, or ``(None, None)`` when rejected.
-    """
     operation = _EvolutionOperation(
         outcome_refinement=_OutcomeRefinement(
             context=outcome_context,
@@ -361,7 +271,6 @@ async def _evolve_llm_response(
     hypothesis_index: int | None,
     operation: _EvolutionOperation,
 ) -> dict[str, Any]:
-    """Builds the prompt, calls the evolution LLM, tags the operator used."""
     other_hypotheses_texts = [peer.text for peer in other_hypotheses]
     grounding = ""
     if (
@@ -389,40 +298,20 @@ async def _evolve_llm_response(
 def _context_sample_seed(
     context: EvolutionContext, hypothesis: Hypothesis
 ) -> str:
-    """Run-scoped seed for one parent's diversity-context sample.
-
-    Threaded from the run id so a round's sampling is reproducible (and so
-    concurrent runs draw from their own RNG rather than perturbing a shared
-    global one). The hypothesis id keeps each parent's sample independent;
-    ids are stable across a durable task's retries, so a re-executed task
-    samples the same context it did before.
-    """
+    """Stable run/parent IDs preserve retry samples without concurrent runs
+    perturbing a shared RNG."""
     return f"{context.run_id or 'evolution'}:context:{hypothesis.id}"
 
 
 def _sampled_context(
     state: WorkflowState, context: EvolutionContext, hyp: Hypothesis
 ) -> list[Hypothesis]:
-    """Samples the near-duplicate rejection context for one parent.
-
-    Sampled from the whole pool, not just the top_k being evolved this
-    round. These hypotheses are the near-duplicate *rejection* set (see
-    _apply_evolution_result), so anything missing from them is something
-    a child is free to re-derive: scoping to top_k left the guard blind
-    to most of the run's ideas, and a child duplicating one of them
-    passed here only for proximity to archive it later. A run that ends
-    with a dozen near-identical ideas has usually been through exactly
-    that.
-
-    It also makes sample_context_hypotheses do the job it was written
-    for. Against top_k the pool never exceeded max_context, so the
-    top-5-by-Elo-plus-random sampling never ran and the cap never bound;
-    against the full pool it does both.
-    """
+    """Whole-pool peers expose duplicates beyond top-k and exercise capped
+    diversity sampling even with small parent sets."""
     return sample_context_hypotheses(
         all_hypotheses=state["hypotheses"],
         exclude_hypothesis=hyp,
-        max_context=15,  # cap at 15 for fixed token budget
+        max_context=15,
         ranked_hypotheses=list(context.ranked_hypotheses),
         rng=random.Random(_context_sample_seed(context, hyp)),
     )
@@ -435,16 +324,8 @@ async def _evolve_or_none(
     hypothesis_index: int,
     operation: _EvolutionOperation,
 ) -> tuple[Hypothesis | None, dict[str, Any] | None]:
-    """Evolve one parent, isolating any failure to that parent.
-
-    Returns ``(None, None)`` instead of raising, which is already the
-    node's vocabulary for "this parent produced no child" (an unchanged or
-    near-duplicate refinement). Letting the exception out of the
-    ``asyncio.gather`` in ``evolve_node`` instead cancelled every sibling
-    refinement mid-call and aborted the round, discarding children that
-    had already been generated and paid for; on the durable path the whole
-    evolution task then failed and re-ran every parent from scratch.
-    """
+    """One failed parent must not abort paid-for sibling children or make
+    durable retries regenerate the whole round."""
     try:
         return await evolve_single_hypothesis(
             hypothesis=hypothesis,
@@ -469,7 +350,6 @@ def _build_single_evolution_task(
     context: EvolutionContext,
     operator: EvolutionOperator,
 ) -> Coroutine[Any, Any, tuple[Hypothesis | None, dict[str, Any] | None]]:
-    """Builds the per-parent evolution coroutine for one pool member."""
     partners = (
         tuple(combination_partners(context.ranked_hypotheses, hyp))
         if operator in _PARTNER_OPERATORS
@@ -496,30 +376,11 @@ def _build_evolution_tasks(
     supervisor_guidance: dict[str, Any] | None,
     operators: list[EvolutionOperator],
 ) -> list[Coroutine[Any, Any, tuple[Hypothesis | None, dict[str, Any] | None]]]:
-    """Builds the per-hypothesis evolution coroutines for this round.
-
-    Evolve each hypothesis with strategically sampled context (PARALLEL):
-    instead of including ALL other hypotheses, we sample a subset to
-    control token budget.
-
-    Args:
-        state: Current workflow state.
-        top_k: Hypotheses selected for evolution this round.
-        removed_duplicates: Flattened previously removed duplicate texts.
-        supervisor_guidance: Supervisor guidance for the evolution phase.
-        operators: The per-parent operator assignment for this round (one
-            per member of top_k, in order).
-
-    Returns:
-        List of evolve_single_hypothesis coroutines, one per hypothesis in
-        top_k, ready to be awaited via asyncio.gather.
-    """
     context = build_evolution_context(
         state, removed_duplicates, supervisor_guidance
     )
-    # The pool is ranked once for the whole round in the context (see
-    # _build_evolution_context): every member samples its context from the
-    # same pool minus itself, and dropping one member cannot reorder the rest.
+    # Sample from one round-ranked pool so removing a parent cannot reorder
+    # peers.
     return [
         _build_single_evolution_task(state, i, hyp, context, operator)
         for i, (hyp, operator) in enumerate(zip(top_k, operators, strict=True))
@@ -527,19 +388,6 @@ def _build_evolution_tasks(
 
 
 async def evolve_node(state: WorkflowState) -> dict[str, Any]:
-    """Evolve top-k hypotheses with context-aware refinement.
-
-    This node implements the most impactful anti-duplicate strategy:
-    context-aware evolution where each LLM call sees a strategically
-    sampled subset of its peers (top-Elo plus random, capped at 15) to
-    prevent convergence without an unbounded token budget.
-
-    Args:
-        state: Current workflow state
-
-    Returns:
-        Dictionary with updated state fields (evolved hypotheses)
-    """
     hypotheses = state["hypotheses"]
 
     (
@@ -548,9 +396,6 @@ async def evolve_node(state: WorkflowState) -> dict[str, Any]:
         supervisor_guidance,
     ) = await _prepare_evolution_round(state, hypotheses)
 
-    # One seeded operator assignment for the round: every parent gets an
-    # explicit operator and the portfolio gains coverage across rounds
-    # whatever the tier's parent count.
     operators = select_operators(
         len(top_k),
         state.get("current_iteration", 0),
@@ -562,8 +407,6 @@ async def evolve_node(state: WorkflowState) -> dict[str, Any]:
     )
     results = await asyncio.gather(*evolution_tasks)
 
-    # Unpack results: (child or None, evolution_detail or None). One attempt
-    # per selected parent; rejected refinements contribute no child.
     children, evolution_details = _collect_evolution_results(results)
 
     return await _finalize_evolve_result(

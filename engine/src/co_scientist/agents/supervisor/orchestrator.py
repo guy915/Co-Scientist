@@ -1,5 +1,3 @@
-"""Supervisor routing, cycle bookkeeping and observable scheduler statistics."""
-
 from __future__ import annotations
 
 import dataclasses
@@ -52,8 +50,6 @@ logger = logging.getLogger(__name__)
 
 @dataclasses.dataclass(frozen=True)
 class _StatsScalars:
-    """The observable scalars derived from state for one scheduler decision."""
-
     pool_size: int
     reviewed: int
     owed_review: int
@@ -70,11 +66,6 @@ class _StatsScalars:
 
 
 def _default_budget(state: WorkflowState) -> Budget:
-    """Return the run's compute budget, or one derived from max_iterations.
-
-    A run may configure a full budget via ``state["budget"]``; otherwise the
-    only ceiling is the existing ``max_iterations`` satisfied-completion cap.
-    """
     raw = state.get("budget")
     if raw:
         return Budget.from_dict(raw)
@@ -82,13 +73,6 @@ def _default_budget(state: WorkflowState) -> Budget:
 
 
 def _yields(pool_size: int, book: dict[str, Any]) -> tuple[float, float]:
-    """Return (generation_yield, evolution_yield) from the pool delta.
-
-    The delta since the previous decision is attributed to whichever work task
-    ran last: new rows after a GENERATE are generation yield, appended children
-    after an EVOLVE are evolution yield. A yield is a simple count of net new
-    hypotheses (0 when the last task was maintenance such as proximity).
-    """
     delta = max(
         0, pool_size - int(book.get("pool_at_last_decision", pool_size))
     )
@@ -103,13 +87,8 @@ def _yields(pool_size: int, book: dict[str, Any]) -> tuple[float, float]:
 def _rank_stable_cycles(
     top_elo: int, total_matches: int, book: dict[str, Any]
 ) -> int:
-    """Return the updated count of consecutive stable-leaderboard cycles.
-
-    Stability requires at least one match to have been played (an untouched
-    initial pool is not "converged") and the top Elo to be unchanged from the
-    previous decision. The seeded ``prev_top_elo`` of None (first decision) is
-    never stable — there is no prior cycle to compare against.
-    """
+    """Untouched seed Elo and the first decision cannot establish
+    convergence."""
     prev = book.get("prev_top_elo")
     prior = int(book.get("rank_stable_cycles", 0))
     if total_matches > 0 and prev is not None and top_elo == int(prev):
@@ -120,15 +99,6 @@ def _rank_stable_cycles(
 def _compute_stats(
     state: WorkflowState, book: dict[str, Any]
 ) -> SchedulerStats:
-    """Derive the scheduler's observable statistics from workflow state.
-
-    Args:
-        state: Current workflow state.
-        book: Orchestrator bookkeeping from before this decision.
-
-    Returns:
-        The statistics the deterministic policy reads.
-    """
     hyps: list[Hypothesis] = state["hypotheses"]
     pool_size = len(hyps)
     rankable_count, avg_coverage, unmatched = _rankable_coverage(hyps)
@@ -143,9 +113,7 @@ def _compute_stats(
         total_matches=sum(h.total_matches for h in hyps),
         avg_coverage=avg_coverage,
         unmatched_rankable_count=unmatched,
-        # The tournament's own floor over this pool, so the settlement
-        # episode the scheduler opens and the rounds it may spend are one
-        # number rather than two that agree only at the extremes.
+        # Coverage debt and finite settlement allowance must use the same floor.
         owed_coverage_rounds=_coverage_floor(hyps),
         top_elo=max((h.elo_rating for h in hyps), default=INITIAL_ELO_RATING),
         llm_calls=llm_calls,
@@ -159,36 +127,14 @@ def _compute_stats(
 def _rankable_coverage(
     hyps: list[Hypothesis],
 ) -> tuple[int, float, int]:
-    """Return (rankable_count, average coverage, unmatched count).
-
-    Coverage is measured over the rankable pool only. An un-rankable idea
-    (one a review or the evidence gate rejected) can never accrue matches,
-    so counting it in the denominator would hold average coverage below the
-    gate forever and loop the orchestrator on ranking. Deep-verification
-    "undermined" ideas *are* counted: they rank, so they accrue matches and
-    belong in both halves of the fraction.
-
-    The unmatched count is reported separately because the average cannot
-    represent it: a pool can clear its average threshold while individual
-    hypotheses have never been matched at all.
-
-    Args:
-        hyps: The full hypothesis pool.
-
-    Returns:
-        The rankable count, their average match coverage, and how many of
-        them have never been matched.
-    """
+    """Excluded ideas cannot earn coverage; count rankable ideas only and
+    track unmatched individuals separately from an average."""
     rankable = [h for h in hyps if h.is_rankable()]
     rankable_count = len(rankable)
     rankable_matches = sum(h.total_matches for h in rankable)
     avg_coverage = rankable_matches / rankable_count if rankable_count else 0.0
-    # Reported beside ``owed_coverage_rounds`` in the same decision, so it
-    # is counted over the same population: an idea still owing the run a
-    # peer review is owed that review rather than matches (see
-    # ``ranking_lifecycle._coverage_floor``). Reading the two off different
-    # populations is what would let the reason line say an idea has never
-    # been matched while the floor it quotes says nothing is owed.
+    # Count unmatched over the same reviewed, rankable population as the quoted
+    # floor so the observable reason cannot contradict its debt.
     unmatched = sum(
         1 for h in rankable if h.total_matches == 0 and has_peer_review(h)
     )
@@ -198,19 +144,8 @@ def _rankable_coverage(
 def _scheduler_scalars(
     state: WorkflowState, book: dict[str, Any], pool_size: int
 ) -> tuple[int, float, float, float]:
-    """Return (llm_calls, generation_yield, evolution_yield, elapsed_s).
-
-    ``llm_calls`` reads the seam-counted total (``llm.admission.call_budget``,
-    incremented once per actual provider request regardless of which node
-    made it) rather than the self-reported ``metrics.llm_calls``: a dozen
-    nodes never reported into the metric at all, so it structurally
-    under-counted and let ``max_llm_calls`` see spend that never happened.
-    ``max()`` with the self-reported figure covers the one case the seam
-    cannot see on its own -- a process restart resets its in-memory
-    counter to zero while a resumed run's checkpoint still carries the
-    (still merely non-decreasing) self-reported count, so falling back to
-    zero would let a resumed run spend a second full budget.
-    """
+    """Provider-seam counts include unreported calls; max with checkpoint
+    metrics prevents restart resetting a resumed run to a fresh budget."""
     metrics = state.get("metrics")
     reported = metrics.llm_calls if metrics is not None else 0
     run_id = state.get("run_id")
@@ -224,14 +159,8 @@ def _scheduler_scalars(
 def _meta_review_gap(
     book: dict[str, Any], scalars: _StatsScalars, iteration: int
 ) -> tuple[int, int]:
-    """Return (work cycles, critique material) since the last meta-review.
-
-    Both are differences against anchors the orchestrator's bookkeeping
-    reset the last time a decision routed through the meta_review node
-    (``orchestrator_bookkeeping._meta_review_anchors``). Floored at zero
-    because proximity dedup removes hypotheses and their match tallies with
-    them, so the material total is not strictly monotone.
-    """
+    """Dedup removes ideas and their match tallies, so material deltas may
+    shrink and must floor at zero."""
     cycles = iteration - int(book.get("iteration_at_last_meta_review", 0))
     material = (scalars.reviewed + scalars.total_matches) - int(
         book.get("feedback_at_last_meta_review", 0)
@@ -246,13 +175,6 @@ def _cadence_signals(
     pool_size: int,
     iteration: int,
 ) -> dict[str, Any]:
-    """Bundle the since-last-checkpoint cadence fields the policy reads.
-
-    Each measures progress against a bookkeeping anchor the orchestrator
-    reset the last time a decision routed through the corresponding node
-    (proximity, ranking stability, meta-review) -- see
-    ``orchestrator_bookkeeping.py``.
-    """
     meta_cycles, meta_material = _meta_review_gap(book, scalars, iteration)
     return {
         "pool_grew_since_proximity": (
@@ -263,9 +185,6 @@ def _cadence_signals(
         ),
         "iterations_since_meta_review": meta_cycles,
         "feedback_since_meta_review": meta_material,
-        # Same shape as the meta-review clock beside it, with no material
-        # counter: a periodic overview synthesizes the pool itself, and a
-        # completed work cycle has by definition changed it (FIX-6).
         "iterations_since_research_overview": max(
             0,
             iteration - int(book.get("iteration_at_last_research_overview", 0)),
@@ -279,7 +198,6 @@ def _build_scheduler_stats(
     book: dict[str, Any],
     scalars: _StatsScalars,
 ) -> SchedulerStats:
-    """Assembles the SchedulerStats value object from computed scalars."""
     pool_size = scalars.pool_size
     iteration = state.get("current_iteration", 0)
     cadence = _cadence_signals(state, book, scalars, pool_size, iteration)
@@ -309,77 +227,47 @@ def _build_scheduler_stats(
         pending_steering=bool(state.get("pending_steering")),
         cancelled=bool(state.get("cancel_requested")),
         safety_blocked=bool(state.get("safety_blocked")),
-        # Default True so a state assembled before this field existed (or a
-        # restored checkpoint from one) keeps meta-review on.
+        # Old/restored state missing the field keeps meta-review enabled.
         meta_review_enabled=state.get("enable_meta_review", True) is not False,
         **cadence,
     )
 
 
 def _task_type_or_none(value: Any) -> TaskType | None:
-    """Coerce a stored task-type string back to its enum, or None."""
     if value is None:
         return None
     return TaskType(value)
 
 
 def _init_bookkeeping(hypotheses: list[Hypothesis]) -> dict[str, Any]:
-    """Seed orchestrator bookkeeping on the first loop-point decision.
-
-    Anchors the pool sizes to the post-initial-generation pool so the first
-    decision sees no proximity backlog and a yield tie — which, with the last
-    work task treated as the initial GENERATE, evolves the leaders first
-    (matching the established first-iteration behavior) before later cycles
-    alternate into generation.
-    """
+    """Post-generation anchors create a yield tie and no proximity backlog,
+    retaining first-cycle leader evolution before later work alternates."""
     pool_size = len(hypotheses)
     return {
-        # Sentinel so the first decision's Elo comparison never counts as
-        # "stable" (there is no prior cycle to be stable against).
         "prev_top_elo": None,
         "rank_stable_cycles": 0,
         "pool_at_last_proximity": pool_size,
         "pool_at_last_decision": pool_size,
         "last_work_task": TaskType.GENERATE.value,
-        # None until a settlement episode opens: the override may fire, and
-        # the allowance is sized from the backlog observed at that moment.
-        # Both fields return to None whenever the backlog clears.
         "settlement_allowance": None,
         "owed_at_last_settlement": None,
-        # Meta-review cadence anchors. Zero rather than the pool's current
-        # counts so the first firing is gated by the iteration clock alone:
-        # the initial generation's reviews are exactly the material the
-        # first system-wide feedback should be synthesized from.
+        # Zero feedback anchors let the first firing use initial-generation
+        # reviews rather than treating them as already consumed.
         "iteration_at_last_meta_review": 0,
         "feedback_at_last_meta_review": 0,
-        # The periodic research overview's own cadence anchor (FIX-6),
-        # seeded the same way and read by _research_overview_anchor below.
         "iteration_at_last_research_overview": 0,
-        # No evolve has run yet, and no leaderboard has settled yet either.
         "evolved_since_stable": False,
     }
 
 
-# Tasks that route through the meta_review node, so scheduling either one
-# resets the cadence anchors (``workflow_topology.TASK_ROUTES``).
 _META_REVIEW_ROUTED_TASKS = frozenset({TaskType.META_REVIEW, TaskType.EVOLVE})
 
-# Tasks that advance the iteration counter as they are scheduled; mirrors
-# ``orchestrator._advance_iteration``'s own rule.
 _ITERATION_ADVANCING_TASKS = frozenset({TaskType.GENERATE, TaskType.EVOLVE})
 
 
 def _routes_through_meta_review(decision: SupervisorDecision) -> bool:
-    """Whether this decision runs the meta_review node before it is done.
-
-    Three ways it can: the task *is* meta-review, the task is EVOLVE (whose
-    route enters at meta_review so the critique feeds the evolution
-    prompts), or the pass stacked meta-review as a companion ahead of some
-    other primary (``policy.stack_companions``). All three consume the
-    critique material accumulated so far, so all three re-anchor the
-    cadence -- a stacked firing that did not would re-stack on every
-    remaining loop point.
-    """
+    """Primary, evolve-route and stacked firings consume cadence; without re-
+    anchoring, companions repeat at every loop point."""
     if decision.next_task in _META_REVIEW_ROUTED_TASKS:
         return True
     return TaskType.META_REVIEW.value in stacked_task_values(
@@ -388,14 +276,8 @@ def _routes_through_meta_review(decision: SupervisorDecision) -> bool:
 
 
 def _schedules_research_overview(decision: SupervisorDecision) -> bool:
-    """Whether this decision runs the overview node before it is done.
-
-    Two ways it can, exactly as ``_routes_through_meta_review`` above: the
-    task *is* the periodic overview, or the pass stacked that same branch
-    as a companion ahead of some other primary. Both consume the cadence,
-    so both must re-anchor it -- a stacked firing that did not would
-    re-stack on every remaining loop point.
-    """
+    """Stacked and primary overview firings both consume cadence; re-anchor
+    either to prevent repeated companion work."""
     if decision.next_task is TaskType.SYNTHESIZE:
         return True
     return TaskType.SYNTHESIZE.value in stacked_task_values(
@@ -408,30 +290,14 @@ def _research_overview_anchor(
     stats: SchedulerStats,
     decision: SupervisorDecision,
 ) -> int:
-    """Return the iteration anchor the periodic overview's cadence reads.
-
-    Unchanged unless this decision schedules a periodic overview firing;
-    when it does, the anchor is the current iteration. No "the iteration
-    the decision becomes" adjustment, unlike ``_meta_review_anchors``
-    below: that adjustment exists because EVOLVE both routes through the
-    meta_review node and advances the counter, and SYNTHESIZE does
-    neither. Resetting the anchor as the decision is taken is what
-    terminates the step -- the overview is not a work task, so nothing
-    else would ever move the gap off its threshold.
-    """
+    """Overview is maintenance, not a work cycle; re-anchor at scheduling
+    because no iteration advance will otherwise clear its due threshold."""
     if not _schedules_research_overview(decision):
         return int(book.get("iteration_at_last_research_overview", 0))
     return stats.iteration
 
 
 def _feedback_total(stats: SchedulerStats) -> int:
-    """Return the critique material meta-review synthesizes from.
-
-    Reviews written plus tournament participations played: exactly the two
-    inputs ``GenerateSystemFeedback`` gathers (listing 07 L12). Read as one
-    monotone-ish total rather than two counters because the cadence only
-    ever asks whether *any* of it is new.
-    """
     return stats.reviewed_count + stats.total_matches
 
 
@@ -440,16 +306,8 @@ def _meta_review_anchors(
     stats: SchedulerStats,
     decision: SupervisorDecision,
 ) -> tuple[int, int]:
-    """Return the (iteration, feedback) cadence anchors for the next decision.
-
-    Unchanged unless this decision routes through the meta_review node.
-    When it does, the iteration anchor is the iteration the decision
-    *becomes*, not the one its stats were read at: ``orchestrator.
-    _advance_iteration`` increments the counter for a work task as it is
-    scheduled, so anchoring at the pre-increment value would read as a
-    completed cycle on the very next decision and buy a second firing it
-    had not earned.
-    """
+    """EVOLVE advances when scheduled; use the resulting iteration so the
+    next decision cannot fund a second unearned feedback firing."""
     if not _routes_through_meta_review(decision):
         return (
             int(book.get("iteration_at_last_meta_review", 0)),
@@ -462,16 +320,8 @@ def _meta_review_anchors(
 def _evolved_since_stable(
     book: dict[str, Any], stats: SchedulerStats, decision: SupervisorDecision
 ) -> bool:
-    """Return whether evolution has answered the current stagnation episode.
-
-    Set when an EVOLVE is scheduled against a leaderboard that has already
-    settled (``rank_stable_cycles >= 1``), and cleared the moment the
-    ordering moves again, so each fresh stagnation episode earns its own
-    evolve attempt before ``policy_checks._check_convergence`` may call the
-    run done. An evolve scheduled *before* anything settled does not count:
-    listing 01 L55-58's response is to the stagnation, and a stale flag from
-    an earlier cycle would let the very next settling terminate untried.
-    """
+    """Each new stagnation episode earns evolution; a pre-stability attempt
+    cannot count as responding to current stagnation."""
     if stats.rank_stable_cycles < 1:
         return False
     if decision.next_task is TaskType.EVOLVE:
@@ -482,18 +332,8 @@ def _evolved_since_stable(
 def _is_settlement_rank(
     stats: SchedulerStats, decision: SupervisorDecision
 ) -> bool:
-    """Return whether this decision is a ranking round that settles coverage.
-
-    Re-derived by running the policy's own owed-coverage check against the
-    same stats rather than inferred from ``next_task``: a RANK is a
-    settlement round only when that check asked for one. Inferring it from
-    "RANK while anything is unmatched" charged ordinary calibration ranking
-    to the allowance, which drained an episode before it began.
-
-    The check is a pure function of ``stats`` with no I/O, so re-running it
-    is exact and cheap, and the policy stays free of any settlement state of
-    its own.
-    """
+    """Charge only rounds requested by the policy coverage check; ordinary
+    calibration must not drain settlement allowance before its episode."""
     return (
         decision.next_task is TaskType.RANK
         and policy._check_owed_coverage(stats) is not None
@@ -501,49 +341,16 @@ def _is_settlement_rank(
 
 
 def _is_owed_review_override(stats: SchedulerStats, budget: Budget) -> bool:
-    """Return whether ``_check_owed_review`` is asking for a pass this cycle.
-
-    Deliberately *not* re-derived from the decision actually taken, unlike
-    ``_is_settlement_rank`` above: on the queue-adjudication path
-    (``supervisor_decision._needs_queue_adjudication``) a consulted model
-    may return a task other than REFLECT even though this check supplied
-    the forced baseline, and marking on the *executed* task would leave
-    that cycle's override neither spent nor bounded -- the same next-cycle
-    ``stats.owed_review_count`` would ask for it again, with nothing
-    changed about why the model diverted the first time. Marking on
-    whether the check *fired*, independent of what got executed, is what
-    keeps the bound in ``policy_checks._check_owed_review`` -- at most
-    ``owed_review.MAX_OWED_REVIEW_OVERRIDES_PER_RUN`` firings ever -- true
-    regardless of planner behavior. The cost is symmetric with
-    ``review_recheck``'s own bound: a hypothesis marked this way whose
-    forced review never actually ran is in the same state as one whose
-    forced review ran and failed -- one spent attempt, no peer review.
-    """
+    """Spend at the forced check even if queue adjudication diverts its task;
+    executed-task marking would endlessly rearm the override."""
     return policy._check_owed_review(stats, budget) is not None
 
 
 def _owed_review_override_marks(
     stats: SchedulerStats, budget: Budget, hypotheses: list[Hypothesis]
 ) -> list[Hypothesis]:
-    """Return the pool to persist after this cycle's override marking.
-
-    Marks every hypothesis currently owed the override at once, before the
-    forced review's own outcome is known (mirroring
-    ``review_recheck.mark_recheck_issued``): the marker records that this
-    hypothesis's one budget-overriding attempt has been *spent*, not that
-    it *succeeded*, which is what stops a hypothesis whose review keeps
-    failing -- or whose forced cycle a consulted model diverted away from
-    (see ``_is_owed_review_override``) -- from re-arming
-    ``_check_owed_review`` on every remaining cycle.
-
-    Returns ``[]`` -- "no update" under
-    ``state.reducers.deduplicate_hypotheses`` -- when the check did not
-    fire this cycle, so a caller may include this in every decision's
-    state delta unconditionally. Returns the *full* pool (mutated in
-    place), never a subset, when it did: the reducer's bare-list form
-    replaces the pool with exactly what it is given, and a partial list
-    would silently drop the rest of the pool from the run.
-    """
+    """Issue spends the attempt regardless of success. Return the full pool
+    when marking: a bare subset would replace and drop all other ideas."""
     if not _is_owed_review_override(stats, budget):
         return []
     for hypothesis in owed_review_targets(hypotheses):
@@ -554,37 +361,13 @@ def _owed_review_override_marks(
 def _owed_review_hypotheses_delta(
     state: WorkflowState, stats: SchedulerStats
 ) -> list[Hypothesis]:
-    """Return the ``hypotheses`` entry of the orchestrator's state delta.
-
-    "no update" (an empty list) unless ``_check_owed_review`` is asking
-    for a pass this cycle, in which case the currently-owed
-    hypotheses are marked before the forced review's own outcome --
-    or whether it even runs -- is known (see
-    ``_owed_review_override_marks``).
-    """
     budget = _default_budget(state)
     return _owed_review_override_marks(stats, budget, state["hypotheses"])
 
 
 def _initial_settlement_allowance(hypotheses: list[Hypothesis]) -> int:
-    """Return the most settlement rounds that could ever be useful.
-
-    Delegates to ``ranking_lifecycle._coverage_floor`` rather than restating
-    it: one round covers at most two owed matches and the pool admits only so
-    many distinct pairings, which is the same arithmetic over the same pool
-    that bounds the rounds an individual tournament schedules.
-
-    A near-copy that read the scheduler's zero-match count instead agreed with
-    the floor only at the extremes. The floor sums what each rankable idea
-    still owes against ``TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS``, so ten ideas
-    sitting at one match each owed the tournament five rounds and the
-    orchestrator none -- and the orchestrator's is the number that decides how
-    long settlement may run.
-
-    ``SchedulerStats.owed_coverage_rounds`` is this same floor computed from
-    the same pool one layer up, which is what lets the episode open, close,
-    and be sized on a single quantity.
-    """
+    """Use the tournament floor; zero-match counts miss ideas one match short
+    and would underfund the settlement allowance."""
     return _coverage_floor(hypotheses)
 
 
@@ -594,30 +377,8 @@ def _settled_allowance(
     decision: SupervisorDecision,
     hypotheses: list[Hypothesis],
 ) -> tuple[int | None, int | None]:
-    """Return the (allowance, last-owed) pair for the next decision.
-
-    The allowance is scoped to a *settlement episode*, not to the run. An
-    episode opens on the first round the owed-coverage check requests and
-    closes when the owed rounds reach zero, at which point both fields return
-    to None so a later backlog re-arms from what it actually owes.
-
-    Within an episode the counter is initialised once, is charged on every
-    settlement round whether or not the round helped, floors at zero, and is
-    never increased -- so an episode fires finitely often. A new episode can
-    open only after the owed rounds reached zero, which is to say only after
-    settlement succeeded, so the run still reaches a terminal decision.
-
-    Trigger, close, and size are one quantity: the tournament's coverage
-    floor over the pool, read here as ``stats.owed_coverage_rounds`` and
-    recomputed as the initial allowance. They were briefly two -- the
-    scheduler asked whether any rankable idea had *no* match at all while the
-    size counted every match still owed -- and that split is what let a pool
-    sitting one match short of the minimum end a run under-covered. Closing
-    on a coarser quantity than the trigger is the more dangerous half of the
-    same mistake: the episode would re-arm while the check still fired,
-    refilling the allowance that bounds it, and the settlement loop would
-    have nothing left to stop it.
-    """
+    """One owed-round measure opens, sizes and closes the finite episode;
+    never refill until debt reaches zero or cleanup could loop forever."""
     if _is_settlement_rank(stats, decision):
         allowance = book.get("settlement_allowance")
         if allowance is None:
@@ -627,7 +388,6 @@ def _settled_allowance(
             stats.owed_coverage_rounds,
         )
     if stats.owed_coverage_rounds == 0:
-        # Episode over: nothing is owed, so the counter re-arms.
         return None, None
     return (
         book.get("settlement_allowance"),
@@ -641,25 +401,6 @@ def _next_bookkeeping(
     decision: SupervisorDecision,
     hypotheses: list[Hypothesis],
 ) -> dict[str, Any]:
-    """Compute the bookkeeping to carry into the next decision.
-
-    Updates the rank-stability counter and previous top Elo, resets the
-    proximity anchor after a proximity task, remembers the pool size and the
-    last *work* task (generate/evolve) so the next decision can measure yield
-    and break ties, and advances the settlement-episode allowance that bounds
-    how long owed tournament coverage may override a budget ceiling (see
-    :func:`_settled_allowance`).
-
-    Args:
-        book: Orchestrator bookkeeping from before this decision.
-        stats: The statistics this decision was made from.
-        decision: The scheduling decision just taken.
-        hypotheses: The pool ``stats`` was computed from, read for the
-            tournament coverage a fresh settlement episode is sized from.
-
-    Returns:
-        The bookkeeping to carry into the next decision.
-    """
     updated = dict(book)
     updated["prev_top_elo"] = stats.top_elo
     updated["rank_stable_cycles"] = stats.rank_stable_cycles
@@ -685,15 +426,11 @@ def _next_bookkeeping(
 
 @dataclasses.dataclass(frozen=True)
 class _DecisionOutcome:
-    """One scheduling decision plus its derived recording fields."""
-
     decision: SupervisorDecision
     decision_provenance: str
     iteration: int
     observable_reason: str
     termination_reason_value: str | None
-    # Real LLM calls this decision spent -- 1 when the planner model was
-    # consulted, 0 for a hard-stop or required transition (finding L3).
     llm_calls: int = 0
 
 
@@ -703,7 +440,6 @@ def _appended_task_record(
     iteration: int,
     observable_reason: str,
 ) -> list[dict[str, Any]]:
-    """Return task_history with this decision's record appended."""
     record = TaskRecord(
         task_type=decision.next_task,
         status=(
@@ -716,8 +452,8 @@ def _appended_task_record(
     history = list(state.get("task_history", []))
     serialized = record.to_dict()
     serialized["priority"] = decision.priority
-    # The raw model rationale remains available for operator audit but is not
-    # presented as a factual activity summary.
+    # Preserve model rationale for audit, but do not present it as observed
+    # activity.
     serialized["planner_reason"] = decision.reason
     history.append(serialized)
     return history
@@ -727,7 +463,6 @@ def _observable_decision_reason(
     stats: SchedulerStats,
     decision: SupervisorDecision,
 ) -> str:
-    """Describe an allocation using committed facts instead of model claims."""
     match_count = stats.total_matches // 2
     reason = (
         f"Supervisor selected {decision.next_task.value} from live state: "
@@ -740,21 +475,6 @@ def _observable_decision_reason(
 
 
 async def orchestrator_node(state: WorkflowState) -> dict[str, Any]:
-    """Decide and record the next task at the adaptive loop point.
-
-    Computes observable statistics, consults the deterministic policy
-    (validated for allowed transitions), appends a task record with the
-    decision's reason, emits a progress event, and sets ``next_task`` for the
-    graph's conditional edge.
-
-    Args:
-        state: Current workflow state.
-
-    Returns:
-        State delta: ``next_task``, appended ``task_history``, updated
-        ``orchestrator_state``, ``current_iteration`` (incremented on a work
-        task), and ``termination_reason`` when terminating.
-    """
     book = state.get("orchestrator_state") or _init_bookkeeping(
         state["hypotheses"]
     )
@@ -784,7 +504,6 @@ async def _finalize_orchestrator_decision(
     stats: SchedulerStats,
     outcome: _DecisionOutcome,
 ) -> dict[str, Any]:
-    """Logs/streams the decision, then assembles the orchestrator_node delta."""
     await _emit_orchestrator_decision(state, outcome)
     return _orchestrator_result(state, book, stats, outcome)
 
@@ -792,16 +511,13 @@ async def _finalize_orchestrator_decision(
 async def _run_supervisor_decision(
     state: WorkflowState, book: dict[str, Any]
 ) -> tuple[SchedulerStats, SupervisorDecision, str, int]:
-    """Computes scheduler stats and budget, then asks the policy to decide."""
     stats = _compute_stats(state, book)
     budget = _default_budget(state)
     decision, decision_provenance, llm_calls = await choose_supervisor_task(
         state, stats, budget
     )
-    # Stacking runs after the primary is settled, never inside the policy:
-    # the planner's own guards rebuild a decision with
-    # ``dataclasses.replace(baseline, queue_actions=...)``, which would drop
-    # a companion attached any earlier.
+    # Stack companions after planner guards; rebuilding the baseline earlier
+    # would discard already attached companions.
     return (
         stats,
         policy.stack_companions(decision, stats, budget),
@@ -813,11 +529,6 @@ async def _run_supervisor_decision(
 def _advance_iteration(
     state: WorkflowState, decision: SupervisorDecision
 ) -> int:
-    """Advances current_iteration for a work task; unchanged for maintenance.
-
-    A work cycle (generate/evolve) advances the iteration counter; a
-    maintenance task (proximity/rank/reflect) and termination do not.
-    """
     iteration = state.get("current_iteration", 0)
     if decision.next_task in WORK_TASKS:
         iteration += 1
@@ -827,7 +538,6 @@ def _advance_iteration(
 def _decision_context(
     state: WorkflowState, stats: SchedulerStats, decision: SupervisorDecision
 ) -> tuple[int, str, str | None]:
-    """Derives the iteration, observable reason, and termination value."""
     iteration = _advance_iteration(state, decision)
     observable_reason = _observable_decision_reason(stats, decision)
     termination_reason_value = (
@@ -842,7 +552,6 @@ async def _emit_orchestrator_decision(
     state: WorkflowState,
     outcome: _DecisionOutcome,
 ) -> None:
-    """Logs and streams the scheduling decision."""
     decision = outcome.decision
     logger.info(
         "Orchestrator scheduled %s (iteration %s): %s",
@@ -867,7 +576,6 @@ def _orchestrator_result(
     stats: SchedulerStats,
     outcome: _DecisionOutcome,
 ) -> dict[str, Any]:
-    """Assembles the orchestrator_node state delta."""
     decision = outcome.decision
     return {
         "next_task": decision.next_task.value,
@@ -882,9 +590,8 @@ def _orchestrator_result(
         "hypotheses": _owed_review_hypotheses_delta(state, stats),
         "supervisor_decision_provenance": outcome.decision_provenance,
         "current_iteration": outcome.iteration,
-        # Steering is a one-shot high-priority request: clear it once the
-        # orchestrator has seen it (and scheduled work to incorporate it) so
-        # the loop does not re-trigger on the same message.
+        # Consume steering once work to incorporate it is scheduled; do not
+        # trigger repeated cycles for the same input.
         "pending_steering": False,
         "termination_reason": outcome.termination_reason_value,
         "messages": phase_message(
@@ -892,8 +599,6 @@ def _orchestrator_result(
             outcome.observable_reason,
             next_task=decision.next_task.value,
         ),
-        # finding L3: previously omitted, so a spent orchestrator planning
-        # call never reached the accumulated llm_calls max_llm_calls reads.
         "metrics": create_metrics_update(
             deltas=MetricDeltas(llm_calls=outcome.llm_calls)
         ),
