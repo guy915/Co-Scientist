@@ -74,13 +74,8 @@ def next_task_type(completed: str, state: WorkflowState) -> str | None:
     return _resolve(WORKFLOW_ROUTES[completed], state)
 
 
-# Nodes whose real successor is decided only once their own execution
-# commits: the fan-out family (its aggregate is created dynamically, at a
-# size unknown until the node runs) plus the orchestrator (whose successor
-# is the adaptive decision made during its own run, never a fixed route --
-# see ``workflow_topology.route_next_task``). A portfolio plan may include
-# one of these as its last entry, but must never resolve what follows it
-# (finding F4).
+# Fan-out size and orchestrator successors exist only after execution;
+# portfolios must stop there.
 FANNING_NODES = frozenset(
     {
         "generate",
@@ -92,16 +87,11 @@ FANNING_NODES = frozenset(
 )
 _PORTFOLIO_STOP_NODES = FANNING_NODES | {"orchestrator"}
 
-# The longest deterministic run observed in this table today is four nodes
-# (meta_review -> research_overview -> evolve -> review, a pass that stacked
-# both periodic companions ahead of an EVOLVE primary); this bounds it
-# without letting a future routing change walk unbounded.
+# Bound deterministic walks even if future routing accidentally cycles.
 _MAX_PORTFOLIO_DEPTH = 4
 
-# Resolver routes that read live state instead of naming a fixed successor,
-# keyed by the completed node, mapped to the state key that must already be
-# present for a portfolio walk to resolve them ahead of that node's own
-# execution. Absent means walkable only once the node commits for real.
+# Resolve live-state routes ahead of execution only when their required state is
+# already committed.
 _RESOLVER_REQUIRES: dict[str, str] = {
     "supervisor": "mcp_available",
     "generate": "mcp_available",

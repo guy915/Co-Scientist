@@ -9,19 +9,11 @@ import re
 
 
 def _patterns(*sources: str) -> tuple[re.Pattern[str], ...]:
-    """Compile case-insensitive patterns."""
     return tuple(re.compile(s, re.IGNORECASE) for s in sources)
 
 
-# Tier A -- "certainly prohibited": the pattern names an action, not just a
-# category, so no surrounding context clears it. The spacing-tolerant
-# weaponize pattern defeats a padded-out "weapon ize" evasion that a plain
-# ``\bweaponi[sz]e\b`` word boundary misses; the enhance/lethality window is
-# widened well past the original 40 chars so a multi-clause description of
-# the same enhancement (capsid remodeling, receptor-binding optimization,
-# ...) between the verb and its object still matches. The nuclear-device and
-# explosive-device patterns are new coverage for weapon classes the reviewer
-# previously had no pattern for at all.
+# Action patterns remain binding regardless of context; tolerate padded spelling
+# and distant objects.
 _PROHIBITED_CERTAIN = _patterns(
     r"\bweapon[\s-]?i[sz]e\b",
     r"\bweaponi[sz]ation\b",
@@ -31,38 +23,19 @@ _PROHIBITED_CERTAIN = _patterns(
     r"\b(design|build|construct|assemble)\b.{0,60}"
     r"\b(explosive device|explosive charge|pipe bomb)\b.{0,100}"
     r"\b(kill|casualt|crowded)\w*",
-    # Acquisition and preparation, named against a weapon *category*. These
-    # belong in Tier A rather than among the corroborating verbs below
-    # because of what Tier B now permits: a Tier B hold is resolvable by a
-    # contextual model in either direction, so anything left in Tier B is
-    # only as safe as that model's judgment. "How to make a nerve agent",
-    # "improve the yield of a bioweapon" and "methods to obtain a chemical
-    # weapon" are not judgment calls -- they are the request itself, and
-    # every one of them sat in Tier B until this pattern existed, because
-    # "make", "obtain" and "acquire" are absent from the operational-verb
-    # list (that list being finite is the documented reason a *clear* can
-    # never be gated on it). Naming the object as well as the verb is what
-    # keeps this off the legitimate near-boundary items: a detection assay,
-    # a treaty-compliance record and a disaster-triage protocol contain no
-    # verb of acquisition applied to the weapon itself.
+    # Weapon acquisition is Tier A: contextual Tier B resolution must not clear
+    # operational requests.
     r"\b(make|making|obtain(ing)?|acquir(e|ing)|procur(e|ing)"
     r"|prepar(e|ing)|source|sourcing|purchase|purchasing)\b.{0,40}"
     r"\b(nerve agent|chemical weapon|bioweapon|biological weapon"
     r"|sarin|vx|tabun|novichok|anthrax|smallpox|ricin)\b",
-    # Yield/potency improvement is the operational act even though
-    # "improve" is deliberately absent from every other list here: it is
-    # ordinary process language ("improving triage protocols") until it is
-    # applied to a weapon's effectiveness, which is what naming both the
-    # measure and the object pins down.
+    # Improvement is benign process language unless applied to a weapon's
+    # effectiveness.
     r"\b(improv|increas|maximi[sz]|boost)\w*\b.{0,40}"
     r"\b(yield|potency|lethality|virulence|transmissibility|dispersal)\b"
     r".{0,60}\b(weapon|agent|bioweapon|toxin|pathogen)\b",
-    # A synthesis procedure named against a weapon class. Tier B would put
-    # this to a contextual assessor, and it is not a question a reader
-    # needs to weigh: "a step-by-step synthesis protocol for the nerve
-    # agent" is the operational artifact itself. (``_REDACT`` also matches
-    # the step-by-step phrasing, but Tier B is checked first and would
-    # have resolved it, so the coverage has to be here.)
+    # Weapon synthesis procedures are operational artifacts; Tier B precedence
+    # would otherwise defer them.
     r"\b(step[- ]by[- ]step|detailed|complete|full)\b.{0,40}"
     r"\b(synthesis|protocol|procedure|route|recipe)\b.{0,60}"
     r"\b(nerve agent|nerve toxin|chemical weapon|bioweapon"
@@ -76,19 +49,13 @@ _ETHICAL_CERTAIN = _patterns(
     r"\bnon[- ]consensual\b",
 )
 
-# Tier B -- "matched a sensitive pattern, needs context": the pattern names
-# only a category of danger. Resolved by ``_resolve_context_hit`` rather
-# than treated as terminal; see the module docstring.
+# Category-only danger needs contextual resolution instead of an unconditional
+# block.
 _PROHIBITED_CONTEXT = _patterns(
     r"\bmass[- ]casualty\b",
     r"\bbio[- ]?weapon\b",
-    # "biological weapon" and "nerve toxin agent" are the same categories
-    # spelled out, and both walked past a layer that knew only the
-    # contracted forms -- "Engineer a biological weapon capable of causing
-    # casualties across an entire city" matched nothing at all. Naming a
-    # category is Tier B, so widening it holds for context rather than
-    # blocking outright; the operational verb in that sentence is what
-    # then resolves it upward.
+    # Spelled-out weapon categories must be held just like their contracted
+    # forms.
     r"\b(biological|chemical|radiological|nuclear) weapons?\b",
     r"\bnerve (agent|toxin)\b",
     r"\bnerve toxin agent\b",
@@ -99,11 +66,8 @@ _ETHICAL_CONTEXT = _patterns(
     r"\beugenic",
 )
 
-# Corroborating signals for Tier B. An operational-intent verb resolves a
-# category-only match toward "certainly prohibited" regardless of any
-# meta-research marker also present, so a hedge like "reviewing how to
-# construct a bioweapon" cannot buy its way past the category check just by
-# adding a research-sounding verb.
+# Operational intent outranks research framing; a hedge cannot excuse
+# construction instructions.
 _OPERATIONAL_INTENT_VERBS = _patterns(
     r"\bconstruct(ing|ed)?\b",
     r"\bbuild(ing)?\b",
@@ -124,31 +88,8 @@ _OPERATIONAL_INTENT_VERBS = _patterns(
     r"\bsmuggl(e|ing|ed)\b",
 )
 
-# Meta-research / defensive framing. IMPORTANT: this list no longer has any
-# power to clear a Tier B match to ALLOW (see _resolve_context_hit and the
-# module docstring) -- its only effect is which reason string a held
-# UNCERTAIN verdict carries, never whether it is held. That still makes a
-# bad entry worth avoiding (a misleading "descriptive/meta-research" reason
-# on an operational sentence is a real, if lower-stakes, defect for a human
-# reviewer), so every entry is required to pass: "could this word appear in
-# a sentence that is straightforwardly asking to do the dangerous thing?"
-# Four entries failed that test and were removed, not just downgraded:
-#   - "improve"/"improving": improving a weapon's yield or lethality IS the
-#     operational act ("Improve the yield of a bioweapon"), not a
-#     meta-research framing. (This is not moved to the operational-verb
-#     list either -- it also appears in genuinely benign process language,
-#     e.g. "improving hospital triage protocols", and that list's verbs are
-#     unconditional Tier A blocks when paired with a weapon-device pattern,
-#     which "improve" is specific enough to misfire on.)
-#   - "training": a straightforwardly dangerous request routinely uses this
-#     exact word ("training materials on chemical weapon acquisition").
-#   - "policy": ambiguous between arms-control/treaty policy (benign) and an
-#     organization's own operational doctrine for acquiring or using a
-#     weapon (not benign) -- the word alone does not distinguish them.
-#   - "detection"/"surveillance": both read as legitimate defensive framing
-#     in isolation but are standard vocabulary for evasion/operational
-#     planning too ("detection evasion", "surveillance to obtain a chemical
-#     weapon covertly").
+# Defensive markers only change a held reason; ambiguous words cannot clear
+# danger matches.
 _BENIGN_CONTEXT_MARKERS = _patterns(
     r"\breview(ing|s|ed)?\b",
     r"\banaly(?:z|s)(?:e|ing|ed|is)\b",
@@ -182,10 +123,8 @@ _OBFUSCATION = _patterns(
     r"\b(for research purposes only|purely hypothetical(ly)?)\b",
     r"\byou know what i mean\b",
 )
-# Widened past the original single-purpose word list so the obfuscation tier
-# (which already requires this hint to co-occur with a hedging phrase, so
-# widening it does not add a bare-keyword block on its own) catches the
-# weapon-class nouns it previously had no coverage for at all.
+# Obfuscation requires a sensitive hint plus hedging, never a bare-keyword
+# block.
 _SENSITIVE_HINT = _patterns(
     r"\b(pathogen|toxin|virus|agent|synthesis|anthrax|smallpox|ebola"
     r"|marburg|nerve agent|chemical weapon|bioweapon|nuclear|radiological"
@@ -218,8 +157,6 @@ REDACTED_PLACEHOLDER = "[REDACTED FOR SAFETY]"
 
 
 class SafetyOutcome(str, enum.Enum):
-    """Structured per-hypothesis safety outcomes."""
-
     PROHIBITED = "prohibited"
     DUAL_USE = "dual_use"
     ETHICAL_CONCERN = "ethical_concern"
@@ -238,12 +175,10 @@ BLOCKING_OUTCOMES = frozenset(
 
 
 def is_blocking(outcome: SafetyOutcome) -> bool:
-    """True when this outcome excludes a hypothesis from ranking/synthesis."""
     return outcome in BLOCKING_OUTCOMES
 
 
 def is_blocking_status(status: str | None) -> bool:
-    """True when a persisted status string blocks tournament/synthesis."""
     if not status:
         return False
     try:
@@ -254,13 +189,8 @@ def is_blocking_status(status: str | None) -> bool:
 
 @dataclasses.dataclass(frozen=True)
 class SafetyReview:
-    """The structured safety review of one hypothesis, with provenance.
-
-    ``needs_context`` marks a verdict produced by the Tier B category-only
-    path (see the module docstring): a contextual model, when available,
-    should still have the final say and may raise -- never lower -- this
-    verdict. It is False for every Tier A ("certainly prohibited") verdict
-    and for the plain no-match allow.
+    """Contextual assessment may clear or block Tier B holds; Tier A verdicts
+    remain binding.
     """
 
     outcome: SafetyOutcome
@@ -271,11 +201,9 @@ class SafetyReview:
 
     @property
     def blocks_tournament(self) -> bool:
-        """True when this hypothesis must be excluded from ranking."""
         return self.outcome in BLOCKING_OUTCOMES
 
     def to_dict(self) -> dict[str, object]:
-        """Serialize for an audit record."""
         return {
             "outcome": self.outcome.value,
             "reason": self.reason,
@@ -287,8 +215,6 @@ class SafetyReview:
 
 @dataclasses.dataclass(frozen=True)
 class ContentSafetyReview:
-    """Canonical deterministic intake/final-content policy decision."""
-
     decision: str
     category: str
     reason: str
@@ -301,7 +227,6 @@ class ContentSafetyReview:
 def _all_matches(
     text: str, patterns: tuple[re.Pattern[str], ...]
 ) -> tuple[str, ...]:
-    """Return the first match from every canonical policy pattern."""
     return tuple(
         match.group(0)
         for pattern in patterns
@@ -312,7 +237,6 @@ def _all_matches(
 def review_content_safety(
     text: str, stage: str, *, strict_intake: bool = False
 ) -> ContentSafetyReview:
-    """Apply the shared deterministic policy to intake or final content."""
     if stage not in {"intake", "final"}:
         raise ValueError("stage must be 'intake' or 'final'")
     prohibited = _all_matches(text, _CONTENT_PROHIBITED)
@@ -353,7 +277,6 @@ def review_content_safety(
 def _first_match(
     text: str, patterns: tuple[re.Pattern[str], ...]
 ) -> str | None:
-    """Return the first matched substring, or None."""
     for pattern in patterns:
         m = pattern.search(text)
         if m:
@@ -367,14 +290,12 @@ def _match_review(
     outcome: SafetyOutcome,
     reason: str,
 ) -> SafetyReview | None:
-    """Build a SafetyReview from the first pattern match, or None."""
     hit = _first_match(text, patterns)
     if hit is None:
         return None
     return SafetyReview(outcome, reason, (hit,), POLICY_VERSION)
 
 
-# Checked, in order, before the context/obfuscation/dual-use/redact tiers.
 _CERTAIN_CHECKS: tuple[
     tuple[tuple[re.Pattern[str], ...], SafetyOutcome, str], ...
 ] = (
@@ -390,8 +311,6 @@ _CERTAIN_CHECKS: tuple[
     ),
 )
 
-# Checked after the certain tier, before obfuscation: category-only matches
-# resolved by ``_resolve_context_hit`` rather than treated as terminal.
 _CONTEXT_CHECKS: tuple[
     tuple[tuple[re.Pattern[str], ...], SafetyOutcome, str], ...
 ] = (
@@ -407,7 +326,6 @@ _CONTEXT_CHECKS: tuple[
     ),
 )
 
-# Checked, in order, after the obfuscation tier, before the default allow.
 _POST_OBFUSCATION_CHECKS: tuple[
     tuple[tuple[re.Pattern[str], ...], SafetyOutcome, str], ...
 ] = (
@@ -428,7 +346,6 @@ def _first_tiered_review(
     text: str,
     checks: tuple[tuple[tuple[re.Pattern[str], ...], SafetyOutcome, str], ...],
 ) -> SafetyReview | None:
-    """Return the first matching tier's SafetyReview, or None."""
     for patterns, outcome, reason in checks:
         review = _match_review(text, patterns, outcome, reason)
         if review is not None:
@@ -439,19 +356,8 @@ def _first_tiered_review(
 def _resolve_context_hit(
     text: str, hit: str, outcome: SafetyOutcome, reason: str
 ) -> SafetyReview:
-    """Corroborate a Tier B category-only match against the rest of the text.
-
-    See the module docstring for the full reasoning, in particular why this
-    never returns ALLOW: an operational-intent verb list is finite and an
-    attacker picks the verb, so gating a *clear* on the absence of a listed
-    verb is a bypass waiting for a synonym, not a safety property. An
-    operational-intent verb anywhere in the text resolves the match toward
-    the original ``outcome`` (block) -- there is no legitimate framing that
-    excuses an instruction to build the thing. Absent that, a meta-research
-    marker (or, absent even that, nothing at all) resolves to UNCERTAIN: held
-    for manual review, never allowed through automatically. The marker only
-    changes the recorded reason, since it is corroborating context for a
-    human reviewer, not a machine-verifiable clearance.
+    """A finite verb list cannot prove benign intent; meta-research markers
+    change the held reason only.
     """
     if _first_match(text, _OPERATIONAL_INTENT_VERBS):
         return SafetyReview(outcome, reason, (hit,), POLICY_VERSION, True)
@@ -480,7 +386,6 @@ def _resolve_context_hit(
 
 
 def _first_context_review(text: str) -> SafetyReview | None:
-    """Return the first Tier B category-only match, resolved, or None."""
     for patterns, outcome, reason in _CONTEXT_CHECKS:
         hit = _first_match(text, patterns)
         if hit is not None:
@@ -489,7 +394,6 @@ def _first_context_review(text: str) -> SafetyReview | None:
 
 
 def _obfuscation_review(text: str) -> SafetyReview | None:
-    """Return the UNCERTAIN verdict for obfuscated sensitive intent, or None."""
     obfuscation = _first_match(text, _OBFUSCATION)
     if obfuscation is None or _first_match(text, _SENSITIVE_HINT) is None:
         return None
@@ -502,10 +406,6 @@ def _obfuscation_review(text: str) -> SafetyReview | None:
 
 
 def _review_after_certain_tier(text: str) -> SafetyReview:
-    """Resolve everything checked after the Tier A/B tiers.
-
-    Obfuscation, then dual-use/redact, then the default allow.
-    """
     review = _obfuscation_review(text)
     if review is not None:
         return review
@@ -518,19 +418,6 @@ def _review_after_certain_tier(text: str) -> SafetyReview:
 
 
 def review_hypothesis_safety(text: str) -> SafetyReview:
-    """Review one hypothesis's text and return a structured safety outcome.
-
-    Precedence (most severe first): certainly-prohibited (Tier A), a Tier B
-    category-only match (never cleared to allow -- see the module
-    docstring), obfuscated intent (uncertain), dual-use (allow with
-    redact), sensitive operational detail (redact), else allow.
-
-    Args:
-        text: The hypothesis (and any mechanism/experiment) text.
-
-    Returns:
-        The :class:`SafetyReview`.
-    """
     review = _first_tiered_review(text, _CERTAIN_CHECKS)
     if review is not None:
         return review
@@ -545,13 +432,6 @@ def redact_hypothesis_fields(
     explanation: str | None,
     experiment: str | None,
 ) -> tuple[str | None, str | None, str | None]:
-    """Redact operational-detail fields for DUAL_USE/REDACT outcomes.
-
-    Returns:
-        The (text, explanation, experiment) tuple with sensitive fields
-        replaced by the placeholder. Text is kept; explanation and experiment
-        are redacted.
-    """
     return (
         text,
         REDACTED_PLACEHOLDER if explanation else explanation,

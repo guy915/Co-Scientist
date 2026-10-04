@@ -1,5 +1,3 @@
-"""Budgeted research descent and admission over scientific questions."""
-
 from __future__ import annotations
 
 import asyncio
@@ -35,19 +33,8 @@ def bind_findings(
     question: str,
     calls: Sequence[SearchCall],
 ) -> tuple[Finding, ...]:
-    """Bind each extracted claim to the question and call behind it.
-
-    A finding that cannot be traced to the call that surfaced its
-    document keeps an empty ``call_id`` rather than being dropped: the
-    claim and its span are the evidence, and the call is provenance.
-
-    Args:
-        extracted: What the model drew from the documents.
-        question: The question the thread was answering.
-        calls: The thread's calls, for locating each document's origin.
-
-    Returns:
-        Findings carrying their question, span and originating call.
+    """Missing call provenance leaves an empty call_id; it must not discard
+    the claim and quoted span.
     """
     call_by_locator = {
         hit.locator: call.id for call in calls for hit in call.hits
@@ -67,18 +54,8 @@ def bind_findings(
 def _claim_locators(
     calls: Sequence[SearchCall],
 ) -> list[tuple[SearchCall, list[SourceHit]]]:
-    """Pair each call with the hits no earlier call already returned.
-
-    Deduplication happens once, before either fill, so a paper both a
-    reserved source and an unreserved one returned is seated once and
-    counted against whichever came first -- the same collapse-onto-the-
-    first-source rule as before reservations existed.
-
-    Args:
-        calls: This question's calls, in the order they were issued.
-
-    Returns:
-        One entry per call, hits in the source's own ranking.
+    """Deduplicate before reserved/ordinary fills; the first source claims
+    shared locators.
     """
     seen: set[str] = set()
     paired = []
@@ -93,18 +70,8 @@ def _fill_reserved(
     paired: Sequence[tuple[SearchCall, list[SourceHit]]],
     budget: ResearchBudget,
 ) -> list[SourceHit]:
-    """Seat the hits a source's reservation guarantees a place.
-
-    Reservations are filled best-first from within their own source,
-    never padded when the source returned fewer hits than it reserved,
-    and cannot push the question past ``hits_per_question``.
-
-    Args:
-        paired: Calls with their deduplicated hits.
-        budget: The level's ceilings, carrying ``reserved_slots``.
-
-    Returns:
-        The reserved hits, in call order.
+    """Reservations preserve source ranking, never pad missing hits or exceed
+    the document budget.
     """
     quotas = dict(budget.reserved_slots)
     if not quotas:
@@ -121,28 +88,8 @@ def _fill_reserved(
 def admit_within_budget(
     calls: Sequence[SearchCall], budget: ResearchBudget
 ) -> tuple[list[SourceHit], list[SearchCall]]:
-    """Choose which results get read, and record which did not.
-
-    Sources are drawn in configured order and results in their own
-    ranking, so the ordering a replay has to reproduce is the ordering
-    the sources gave. A locator returned by two sources collapses onto
-    the first one that returned it.
-
-    The one departure from that order is a source holding
-    ``reserved_slots``: it is seated first, up to its reservation. That
-    exists because preference order is a proxy for quality that one
-    source cannot compete on -- the group's own papers are searched last
-    and the indexed literature fills every place before they are reached,
-    so without a reservation a corpus that answers the question well is
-    never read at all.
-
-    Args:
-        calls: This question's calls, one per source.
-        budget: The level's ceilings.
-
-    Returns:
-        The admitted hits, and the calls updated with what each of them
-        contributed and what was refused.
+    """Reservations prevent configured-last sources being crowded out by
+    indexed literature.
     """
     paired = _claim_locators(calls)
     admitted = _fill_reserved(paired, budget)
@@ -175,12 +122,8 @@ def admit_within_budget(
     return admitted, recorded
 
 
-# Stance recorded for questions the caller supplied itself. A caller that
-# already knows what to ask -- a review probing one assumption, say --
-# skips stance planning entirely.
 SEED_STANCE = "seed"
 
-# What the next level is, or why there is not one.
 _Continuation = Union[
     "tuple[list[Question], ResearchBudget]",
     StopReason,
@@ -195,20 +138,6 @@ async def conduct_research(
     budget: ResearchBudget,
     seed_questions: Sequence[str] = (),
 ) -> ResearchResult:
-    """Research a goal within a budget, and report everything it did.
-
-    Args:
-        goal: What the research is for.
-        model: The caller's model adapter.
-        retrieval: The caller's search and fetch adapter.
-        budget: Ceilings for this request. Never exceeded.
-        seed_questions: Questions to start from. When given, stance
-            planning is skipped and these are the first level.
-
-    Returns:
-        Every thread, call and finding the request produced, and why the
-        descent ended.
-    """
     session = _Session(model=model, retrieval=retrieval, budget=budget)
     stances, questions = await session.open(goal, seed_questions)
     stop_reason, levels_run = await session.descend(questions)
@@ -224,12 +153,6 @@ async def conduct_research(
 
 
 class _Session:
-    """One research request, and everything it accumulates.
-
-    Holding the ports and the ledger together is what keeps the
-    per-thread call sites short; nothing here outlives the request.
-    """
-
     def __init__(
         self,
         *,
@@ -237,14 +160,11 @@ class _Session:
         retrieval: RetrievalPort,
         budget: ResearchBudget,
     ) -> None:
-        """Start empty, with a limiter bound to the running loop."""
         self.model = model
         self.retrieval = retrieval
         self.budget = budget
-        # Created per request, so it binds to the event loop actually
-        # running it. A module-level semaphore binds to whichever loop
-        # touched it first and raises from every other -- and several
-        # are live at once, one per worker cohort.
+        # Semaphores belong to the request's live loop, never a module shared by
+        # worker cohorts.
         self.limiter = asyncio.Semaphore(budget.concurrency)
         self.threads: list[ThreadRecord] = []
         self.calls: list[SearchCall] = []
@@ -253,20 +173,8 @@ class _Session:
     async def open(
         self, goal: str, seed_questions: Sequence[str]
     ) -> tuple[tuple[str, ...], list[Question]]:
-        """Decide what the first level asks.
-
-        A caller with its own questions skips stance planning entirely;
-        otherwise stances are planned first and each contributes one
-        question, so the first level's coverage is spread across
-        perspectives rather than concentrated in whichever one the model
-        found most interesting.
-
-        Args:
-            goal: What the research is for.
-            seed_questions: Caller-supplied questions, if any.
-
-        Returns:
-            The stances used, and the first level's questions.
+        """Plan stance coverage before questions so one attractive
+        perspective cannot consume the first level.
         """
         if seed_questions:
             return (), [
@@ -296,14 +204,6 @@ class _Session:
     async def descend(
         self, questions: list[Question]
     ) -> tuple[StopReason, int]:
-        """Run levels until the budget or the material runs out.
-
-        Args:
-            questions: The first level's questions.
-
-        Returns:
-            Why the descent ended, and how many levels ran.
-        """
         levels_run = 0
         while questions:
             accepted = self._clamp(questions, levels_run + 1)
@@ -323,7 +223,6 @@ class _Session:
         return StopReason.NO_FOLLOW_UPS, levels_run
 
     def _continue_from(self, depth: int) -> _Continuation:
-        """Decide whether there is a next level, and what it is."""
         if not self._level_found_anything(depth):
             logger.warning(
                 "Research level %s produced no findings; stopping descent",
@@ -339,7 +238,6 @@ class _Session:
         return questions, next_budget
 
     def _level_found_anything(self, depth: int) -> bool:
-        """Whether any thread at this depth produced a finding."""
         return any(
             thread.finding_ids
             for thread in self.threads
@@ -347,14 +245,8 @@ class _Session:
         )
 
     def _follow_up_questions(self, depth: int) -> list[Question]:
-        """Collect this depth's follow-ups as the next level's questions.
-
-        Deduplicated by text, and not only within the level: two threads
-        reading adjacent literature routinely surface the same open
-        question, and a level's reading routinely raises a question an
-        earlier level already researched. Both cost a thread out of a
-        small budget to re-answer something on record, and the second
-        one also makes the descent look deeper than it was.
+        """Deduplicate across levels as well as siblings to avoid paying
+        again for already-answered questions.
         """
         seen: set[str] = {thread.question.text for thread in self.threads}
         questions: list[Question] = []
@@ -377,11 +269,8 @@ class _Session:
     def _clamp(
         self, questions: Sequence[Question], depth: int
     ) -> list[Question]:
-        """Take what this level can fund, and record what it refused.
-
-        A declined thread carries the depth it was declined at, so a
-        question refused at the first level and one refused three levels
-        down stay distinguishable in the record.
+        """Preserve declined depth so refusal at different levels remains
+        distinguishable.
         """
         breadth = self.budget.breadth
         for question in questions[breadth:]:
@@ -400,11 +289,10 @@ class _Session:
         return list(questions[:breadth])
 
     async def _run_thread(self, question: Question, depth: int) -> None:
-        """Research one question and record what happened to it."""
         async with self.limiter:
             try:
                 record = await self._research_question(question, depth)
-            except Exception as exc:  # one thread, not the request
+            except Exception as exc:
                 logger.warning(
                     "Research thread failed for %r: %s", question.text, exc
                 )
@@ -419,7 +307,6 @@ class _Session:
     async def _research_question(
         self, question: Question, depth: int
     ) -> ThreadRecord:
-        """Search, read and extract for one question."""
         query = await self.model.to_query(question=question.text)
         calls = await self._search_sources(question.text, query)
         admitted, calls = admit_within_budget(calls, self.budget)
@@ -443,17 +330,6 @@ class _Session:
         admitted: Sequence[SourceHit],
         calls: Sequence[SearchCall],
     ) -> ThreadRecord:
-        """Read what one question admitted, and account for it.
-
-        Args:
-            question: What the thread is answering.
-            depth: The level it is running at.
-            admitted: The hits the budget funded.
-            calls: The thread's calls, already recorded.
-
-        Returns:
-            The thread's record, empty-but-successful included.
-        """
         call_ids = tuple(call.id for call in calls)
         documents = await self._read_documents(admitted)
         extraction = await self.model.extract(
@@ -488,11 +364,8 @@ class _Session:
     async def _search_sources(
         self, question: str, query: str
     ) -> list[SearchCall]:
-        """Run one query against every configured source.
-
-        A source that raises becomes a failed call beside its siblings:
-        one unreachable remote service must not veto the sources that
-        are fine, including a local corpus that was never unavailable.
+        """A failed source must not veto healthy remote siblings or a local
+        corpus.
         """
 
         async def one(source: str) -> SearchCall:
@@ -503,7 +376,7 @@ class _Session:
                     source=source,
                     limit=self.budget.hits_per_question,
                 )
-            except Exception as exc:  # one source, not the request
+            except Exception as exc:
                 logger.warning("Search failed on %s: %s", source, exc)
                 return SearchCall(
                     question=question,
@@ -531,17 +404,14 @@ class _Session:
     async def _read_documents(
         self, hits: Sequence[SourceHit]
     ) -> list[Document]:
-        """Fetch each admitted hit, falling back to its snippet.
-
-        A document that cannot be fetched is still evidence at snippet
-        depth; dropping it would silently narrow a thread's reading to
-        whatever happened to be fetchable.
+        """Unreadable full text remains snippet-depth evidence rather than
+        silently disappearing.
         """
 
         async def one(hit: SourceHit) -> Document:
             try:
                 text = await self.retrieval.read(locator=hit.locator)
-            except Exception as exc:  # one document, not the thread
+            except Exception as exc:
                 logger.warning("Read failed for %s: %s", hit.locator, exc)
                 text = None
             if text:
