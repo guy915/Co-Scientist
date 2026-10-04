@@ -412,6 +412,8 @@ test('cancels a running run and shows the cancelled state on home', async ({
     })
     .toMatch(/running|synthesizing/);
 
+  // API cancellation isolates Recents rendering from the separately tested
+  // header stop control.
   await api.cancelRun(id);
 
   // Cancellation settles cooperatively at the next checkpoint.

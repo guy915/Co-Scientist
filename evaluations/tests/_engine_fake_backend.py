@@ -8,6 +8,8 @@ _ENGINE_FAKE = (
     Path(__file__).resolve().parents[2] / "engine" / "tests" / "_llm_fake.py"
 )
 
+# Deferred imports let each probe configure its environment before loading
+# the recording backend.
 SCRIPT_PRELUDE = f"""
 def fake_backend(provider):
     import importlib.util
