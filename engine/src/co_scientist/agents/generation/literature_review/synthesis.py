@@ -1,5 +1,3 @@
-"""Analyze collected literature and synthesize its scientific context."""
-
 import asyncio
 import logging
 from typing import Any
@@ -40,11 +38,9 @@ async def _run_paper_analysis_llm(
     research_goal: str,
     model_name: str,
 ) -> dict[str, Any]:
-    """Builds the paper-analysis prompt and calls the LLM, unwrapped."""
     year = parse_year_from_metadata(metadata)
-    # Prefers fulltext, falls back to abstract, and truncates to a
-    # bounded length so a single very long paper cannot blow the
-    # analysis prompt's token budget.
+    # Bound paper text so one long document cannot consume the analysis budget.
+
     content = get_paper_content_for_analysis(metadata)
 
     prompt = get_literature_review_paper_analysis_prompt(
@@ -83,7 +79,6 @@ async def _analyze_single_paper(
     research_goal: str,
     model_name: str,
 ) -> dict[str, Any] | None:
-    """Analyze a single paper for gaps and opportunities."""
     try:
         return await _run_paper_analysis_llm(
             paper_id, metadata, research_goal, model_name
@@ -91,14 +86,13 @@ async def _analyze_single_paper(
     except TASK_CONTROL_FLOW_ERRORS:
         raise
     except Exception as e:
-        # Returning None (not raising) lets _phase3_analyze_papers filter
-        # this paper out and continue synthesizing from the rest.
+        # A failed paper must not prevent synthesis from successful analyses.
+
         logger.error("Failed to analyze paper %s: %s", paper_id, e)
         return None
 
 
 def _log_sample_analysis(analyses: list[dict[str, Any]]) -> None:
-    """Debug-log the analysis keys of the first paper, if any were analyzed."""
     if not analyses:
         return
     first = analyses[0]
@@ -112,9 +106,8 @@ async def _phase3_analyze_papers(
     all_paper_metadata: dict[str, dict[str, Any]],
     state: WorkflowState,
 ) -> list[dict[str, Any]]:
-    """Phase 3: Analyze papers with content for gaps and opportunities."""
-    # Papers with fulltext or a source-provided abstract are eligible; records
-    # with metadata alone are excluded rather than counted as analyzed.
+    # Metadata alone must never count as analyzed evidence.
+
     papers_with_content = get_papers_with_content(all_paper_metadata)
 
     if not papers_with_content:
@@ -125,7 +118,6 @@ async def _phase3_analyze_papers(
         "Phase 3: analyzing %s papers (parallel)", len(papers_with_content)
     )
 
-    # One LLM call per paper, all in parallel.
     tasks = [
         _analyze_single_paper(
             paper_id,
@@ -137,7 +129,6 @@ async def _phase3_analyze_papers(
     ]
     results = await asyncio.gather(*tasks)
 
-    # Filter out failed analyses
     analyses = [r for r in results if r is not None]
     logger.info(
         "Completed %s/%s paper analyses",
@@ -155,18 +146,10 @@ def _build_synthesis_prompt(
     state: WorkflowState,
     background_context: str,
 ) -> str:
-    """Builds the synthesis prompt and logs the upcoming LLM call.
-
-    background_context is the (possibly empty) Phase 2.6 knowledge-graph
-    text; the synthesis prompt weaves it in alongside the per-paper analyses
-    so the LLM can ground statements in both.
-    """
     prompt = get_literature_review_synthesis_prompt(
         research_goal=state["research_goal"],
         paper_analyses=paper_analyses,
         background_context=background_context,
-        # Audit E7: focus the gap analysis on what the meta-review flags
-        # as missing or weak. Empty on iteration 1.
         meta_review=state.get("meta_review"),
     )
 
@@ -206,23 +189,13 @@ async def _run_synthesis_llm(
 
 _FALLBACK_MIN_FIELD_CHARS = 40
 
-"""Floor on each truncated field in the fallback roll-up. Without a floor,
-a large enough paper pool divides the per-paper allowance down to nothing
--- this keeps every entry legible even when papers are numerous, at the
-cost of the total running past ``LITERATURE_SYNTHESIS_FALLBACK_MAX_CHARS``
-for an extreme pool (the caller's own final ``truncate`` still bounds the
-overall output in that case)."""
+"""Keep each field legible in large pools; final truncation still bounds
+the whole roll-up when this floor exceeds its per-paper allowance."""
 
 
 def _fallback_field_budget(paper_count: int, header_len: int) -> int:
-    """Per-field character allowance for the fallback roll-up.
-
-    Splits what is left after the header across every paper, then across
-    the four strings (title plus the three analysis fields) each paper
-    entry renders -- so a large pool spends the cap thinly across every
-    paper instead of the first few papers' untruncated text consuming it
-    all before the rest are ever reached.
-    """
+    """Share the cap across papers and fields so long early entries cannot
+    crowd later papers out."""
     remaining = max(LITERATURE_SYNTHESIS_FALLBACK_MAX_CHARS - header_len, 0)
     per_paper = remaining // max(paper_count, 1)
     return max(per_paper // 4, _FALLBACK_MIN_FIELD_CHARS)
@@ -231,14 +204,8 @@ def _fallback_field_budget(paper_count: int, header_len: int) -> int:
 def _format_fallback_entry(
     index: int, entry: dict[str, Any], field_chars: int
 ) -> str:
-    """Renders one paper's analysis as a short markdown bullet block.
-
-    Only the three fields most directly useful for spotting an opportunity
-    (what was found, what is missing, what nobody has tried) are included
-    -- this is a roll-up, not a restatement of the full per-paper analysis.
-    Each field is truncated to ``field_chars`` so one paper's long text
-    cannot crowd out the papers after it.
-    """
+    """Keep findings, gaps and unexplored areas: these feed generation,
+    unlike reader-only analysis fields."""
     metadata = entry.get("metadata") or {}
     analysis = entry.get("analysis") or {}
     title = metadata.get("title") or f"Untitled paper {index}"
@@ -254,36 +221,8 @@ def _format_fallback_entry(
 
 
 def _build_fallback_synthesis(paper_analyses: list[dict[str, Any]]) -> str:
-    """Builds a deterministic (no-LLM) roll-up when the synthesis call fails.
-
-    Not a synthesis: nothing here identifies cross-paper themes, spots
-    contradictions, or organizes findings thematically the way
-    ``_run_synthesis_llm``'s output does -- it is a mechanical listing of
-    each paper's own analysis, so a reader is not told a synthesis
-    happened when it did not. It exists so that a failed synthesis call
-    does not discard papers that cost real LLM calls to retrieve and
-    analyze; downstream consumers (``coordinator_strategy.
-    _check_literature_availability`` and every generation prompt reading
-    ``articles_with_reasoning``) only check for the ``LITERATURE_REVIEW_
-    FAILED`` sentinel, so this text is otherwise treated as ordinary
-    literature-review context.
-
-    ``gaps_identified`` and ``unexplored_areas`` are both included
-    (alongside ``key_findings``) because they are the two
-    hypothesis-generative fields -- the whole reason the literature
-    review feeds generation is to point it at what is missing and what
-    nobody has tried yet. ``methodology_limitations``, ``future_work``
-    and ``relevance`` serve a human reader, not the next node, and stay
-    out to leave room for the two fields that do.
-
-    Bounded to ``LITERATURE_SYNTHESIS_FALLBACK_MAX_CHARS`` so a large paper
-    pool cannot make the roll-up blow a downstream prompt's token budget,
-    the way the real synthesis call's own ``max_tokens`` already bounds its
-    output -- spent via a per-paper, per-field allowance
-    (``_fallback_field_budget``) rather than one global truncation, so a
-    large pool still leaves every paper's three signals represented
-    instead of the first paper or two consuming the whole cap.
-    """
+    """Preserve analyzed evidence when synthesis fails without pretending
+    cross-paper synthesis succeeded; bound every paper's share."""
     header = (
         "## Literature Review (unsynthesized -- synthesis step failed)\n\n"
         f"The synthesis LLM call failed, so this is a mechanical roll-up"
@@ -305,11 +244,10 @@ async def _phase4_synthesize(
     state: WorkflowState,
     background_context: str = "",
 ) -> str:
-    """Phase 4: Synthesize across papers to create articles_with_reasoning."""
     if not paper_analyses:
-        # No analyses to synthesize from: return the failure sentinel so
-        # downstream generation nodes fall back to no-literature mode
-        # instead of treating an empty synthesis as valid grounding.
+        # Without analyses, preserve the no-grounding sentinel for downstream
+        # generation.
+
         logger.error("No paper analyses available for synthesis")
         return LITERATURE_REVIEW_FAILED
 
@@ -323,10 +261,9 @@ async def _phase4_synthesize(
     except TASK_CONTROL_FLOW_ERRORS:
         raise
     except Exception as e:
-        # The analyses themselves are real, LLM-costly retrieval output;
-        # losing the synthesis prose must not also discard them, so this
-        # degrades to a deterministic roll-up rather than the sentinel
-        # (which the empty-analyses branch above still owns).
+        # Failed synthesis must not discard costly real analyses; retain them in
+        # a bounded roll-up.
+
         logger.error(
             "Synthesis failed: %s -- degrading to a deterministic roll-up"
             " of %s paper analyses",

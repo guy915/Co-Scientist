@@ -1,10 +1,3 @@
-"""Generation node and its parallel strategy dispatch.
-
-Public planning and finalization live in ``operations`` for both execution
-paths. This module runs graph strategies, applies expansion research and
-records their metrics; durable callers own independent leases and scheduling.
-"""
-
 import asyncio
 import logging
 from collections.abc import Coroutine
@@ -40,7 +33,6 @@ def _build_generation_tasks(
     articles_with_reasoning: str | None,
     reference_index: ReferenceIndex,
 ) -> list[tuple[str, Coroutine[Any, Any, Any]]]:
-    """Build allocated strategy calls in deterministic result order."""
     tasks: list[tuple[str, Coroutine[Any, Any, Any]]] = []
     if counts.tools_count > 0:
         tasks.append(
@@ -90,7 +82,8 @@ def _build_generation_tasks(
 
 
 async def generate_hypotheses(state: WorkflowState) -> dict[str, Any]:
-    """Prepare, run strategies concurrently, and finalize one graph cycle."""
+    """Generation failure is a hard error; returning partial/degraded output
+    would hide a failed strategy."""
     logger.info("Starting hypothesis generation")
 
     expansion = await research_for_expansion(state)
@@ -112,22 +105,11 @@ async def generate_hypotheses(state: WorkflowState) -> dict[str, Any]:
         return result
 
     except Exception as e:
-        # Log with full context here (this is the top-level entry point),
-        # then re-raise so the caller (generate_node) treats generation
-        # failure as a hard error rather than a partial/degraded result.
         logger.error("Generation failed: %s", e)
         raise
 
 
 async def generate_node(state: WorkflowState) -> dict[str, Any]:
-    """LangGraph node for hypothesis generation.
-
-    Args:
-        state: current workflow state
-
-    Returns:
-        dict with hypotheses, debate_transcripts, metrics, and message
-    """
     logger.info("Starting generate node")
     with scoped_skill_usage() as skills:
         result = await generate_hypotheses(state)
