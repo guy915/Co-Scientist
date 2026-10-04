@@ -1,32 +1,5 @@
-"""The workspace, exposed as tools a model can call.
-
-Everything under `sandbox/`, `patch/` and `session.py` is a library until
-something registers it. This module is that registration, and it is the
-first tool on this host that is not an MCP call.
-
-Three decisions are load-bearing.
-
-**Local, not MCP.** The alternative was a local MCP server, which keeps
-one registration path at the cost of an HTTP hop and the 300 s
-`COSCIENTIST_MCP_TOOL_TIMEOUT_SECONDS` ceiling -- a ceiling that bounds
-the tool call and the command with one number, so a long analysis and a
-hung provider become the same event. Effects are declared here at import
-time instead, and `tool_effects` consults local declarations before the
-MCP registry.
-
-**Exposure is gated, not just execution.** When no sandbox backend
-exists and the policy does not name an outside boundary, `run_command`
-is not offered at all. Offering it and failing at call time would spend
-a loop iteration per attempt on an error the model cannot act on, and
-production is exactly that case today: the api image carries no
-bubblewrap, so `sandbox_backend()` is None there.
-
-**`argv`, never a command string.** The model passes
-`["bash", "-lc", "a | b"]` when it wants a shell, which is visible in the
-argv the classifier reads. Accepting a string and splitting it here
-would put an implicit shell behind every call and make
-`command_safety`'s composite parsing a description of something that no
-longer happens.
+"""Withhold unconfineable execution tools rather than wasting model turns.
+Local command deadlines remain separate from MCP transport timeouts.
 """
 
 import asyncio
@@ -89,18 +62,13 @@ logger = logging.getLogger(__name__)
 
 
 class WorkspaceToolInputError(ValueError):
-    """Arguments the model sent that this module will not act on."""
+    """Bad model arguments must return an answered tool call, not terminate the
+    conversation.
+    """
 
 
 @dataclass(frozen=True)
 class _ToolContext:
-    """What every handler acts on: one workspace and its output policy.
-
-    Attributes:
-        session: The workspace the call operates in.
-        recorder: Redacts and bounds anything on its way to the model.
-    """
-
     session: WorkspaceSession
     recorder: OutputRecorder
 
@@ -108,13 +76,12 @@ class _ToolContext:
 async def _handle_apply_patch(
     context: "_ToolContext", args: dict[str, Any]
 ) -> dict[str, Any]:
-    """Applies a patch envelope and reports what changed."""
     session = context.session
     patch_text = args.get("patch")
     if not isinstance(patch_text, str) or not patch_text.strip():
         raise WorkspaceToolInputError("patch must be a non-empty string")
-    # Parsing and writing are synchronous and can touch many files; a
-    # cohort's event loop runs several tasks, so this does not hold it.
+    # Offload synchronous multi-file parsing/writing rather than blocking a
+    # cohort's event loop.
     outcome = await asyncio.to_thread(session.apply_patch_text, patch_text)
     payload: dict[str, Any] = {
         "changed": list(outcome.changed),
@@ -133,11 +100,8 @@ async def _handle_apply_patch(
 async def _handle_read_file(
     context: "_ToolContext", args: dict[str, Any]
 ) -> dict[str, Any]:
-    """Reads one workspace file.
-
-    Redacted like command output: a file the model just wrote may hold
-    whatever a command printed into it, and this path would otherwise be
-    the way around the redaction on the other.
+    """Files can contain command output; redaction here prevents bypassing
+    stdout protection.
     """
     path = args.get("path")
     if not isinstance(path, str) or not path.strip():
@@ -150,11 +114,8 @@ async def _handle_read_file(
         "truncated": bounded.truncated,
     }
     if bounded.pointer is not None:
-        # Without this the preview's own "read the full output with
-        # read_file" is a dead end: re-reading the same path returns the
-        # same preview forever, and the model has no other handle. With
-        # it, the remaining text is reachable -- through this path, or by
-        # slicing the spill file with run_command.
+        # Expose the spill path so re-reading can reach the middle instead of
+        # repeating the preview.
         payload["full_output"] = bounded.pointer.path
     return payload
 
@@ -162,10 +123,8 @@ async def _handle_read_file(
 async def _handle_write_file(
     context: "_ToolContext", args: dict[str, Any]
 ) -> dict[str, Any]:
-    """Writes one whole file, then runs the same checks a patch does.
-
-    The safety scan is not optional here: without it this tool would be
-    the way around the one ``apply_patch`` runs on everything it writes.
+    """Whole-file writes must run the same safety scan as patches to avoid
+    bypassing it.
     """
     path = args.get("path")
     if not isinstance(path, str) or not path.strip():
@@ -186,14 +145,12 @@ async def _handle_write_file(
 async def _handle_list_files(
     context: "_ToolContext", args: dict[str, Any]
 ) -> dict[str, Any]:
-    """Lists the workspace's files."""
     del args
     files = await asyncio.to_thread(context.session.list_files)
     return {"files": list(files)}
 
 
 def _require_argv(args: dict[str, Any]) -> list[str]:
-    """Validates the argv argument of a run_command call."""
     argv = args.get("argv")
     if isinstance(argv, str):
         raise WorkspaceToolInputError(
@@ -208,28 +165,24 @@ def _require_argv(args: dict[str, Any]) -> list[str]:
 
 
 def _resolve_seconds(raw: Any, default: float, floor: float = 0.0) -> float:
-    """Clamps a requested wait to the ceiling one command may hold."""
     if not isinstance(raw, int | float) or raw < floor:
         return default
     return min(float(raw), DEFAULT_COMMAND_TIMEOUT_SECONDS)
 
 
 def _resolve_yield(args: dict[str, Any]) -> float:
-    """How long to wait before handing back a session id instead."""
     return _resolve_seconds(
         args.get("yield_seconds"), DEFAULT_YIELD_SECONDS, floor=0.001
     )
 
 
 def _resolve_wait(args: dict[str, Any]) -> float:
-    """How long a poll waits for the command to finish. Zero is valid."""
     return _resolve_seconds(args.get("wait_seconds"), DEFAULT_YIELD_SECONDS)
 
 
 def _full_output_paths(
     streams: dict[str, BoundedOutput],
 ) -> dict[str, str]:
-    """Maps each spilled stream to the path holding its full text."""
     return {
         name: bounded.pointer.path
         for name, bounded in streams.items()
@@ -240,11 +193,8 @@ def _full_output_paths(
 def _session_payload(
     context: "_ToolContext", read: SessionRead
 ) -> dict[str, Any]:
-    """Renders one look at a session for the model.
-
-    ``running`` is the field that matters: a command still going is a
-    successful answer carrying a session id, not a timeout and not an
-    error. The caller's next move is to poll it, not to start over.
+    """A running command is a successful session response; poll it rather than
+    restarting.
     """
     streams = {
         "stdout": context.recorder.record("stdout", read.stdout),
@@ -271,28 +221,20 @@ def _session_payload(
 async def _handle_run_command(
     context: "_ToolContext", args: dict[str, Any]
 ) -> dict[str, Any]:
-    """Starts a confined command and reports how far it got.
-
-    It is started as a session rather than awaited to completion,
-    because the interesting commands here -- a build, a test suite, a
-    training run -- routinely outlast any deadline short enough to be
-    worth waiting on, and killing one at that deadline discards both the
-    work and the output it had already produced.
+    """Sessions preserve long-running work beyond the initial wait instead of
+    killing it.
     """
     argv = _require_argv(args)
-    # Credentials reach a vendored skill script and nothing else. The
-    # same workspace runs model-written programs against a network that
-    # is open precisely so skills can use it, so a key in the shared
-    # environment is a key any generated program could read and send on.
+    # Inject credentials only into recognized skill scripts, never arbitrary
+    # network-capable model programs.
     skill = (
         invoked_skill(argv)
         if context.session.skills_enabled and not campaign_free_mode()
         else None
     )
     if skill is not None:
-        # Recorded by name rather than counted from the tool name: the
-        # notice a run owes is per data source and run_command is one
-        # name over all of them. See skills/usage.py.
+        # Attribution is per data source; run_command alone cannot identify the
+        # notice owed.
         record_skill_use(skill)
     env_extra = skill_environment() if skill is not None else None
     session = await context.session.sessions.start(
@@ -310,7 +252,6 @@ async def _handle_run_command(
 def _named_session(
     context: "_ToolContext", args: dict[str, Any]
 ) -> CommandSession:
-    """Resolves the session a poll names, or says why it cannot."""
     session_id = args.get("session_id")
     if not isinstance(session_id, str) or not session_id:
         raise WorkspaceToolInputError("session_id must be a string")
@@ -324,22 +265,19 @@ def _named_session(
 
 
 async def _send_input(session: CommandSession, args: dict[str, Any]) -> None:
-    """Passes a poll's `input` to the command, if it asked for one."""
     if not isinstance(args.get("input"), str):
         return
     try:
         await session.write(str(args["input"]))
     except ValueError as exc:
-        # Actionable, not a harness fault: the command answered or
-        # exited before the input arrived, and polling without it still
-        # returns what it printed.
+        # An exited command cannot accept input; polling still retrieves its
+        # output.
         raise WorkspaceToolInputError(str(exc)) from None
 
 
 async def _handle_poll_command(
     context: "_ToolContext", args: dict[str, Any]
 ) -> dict[str, Any]:
-    """Continues a command a previous call left running."""
     session = _named_session(context, args)
     await _send_input(session, args)
     if args.get("kill"):
@@ -350,40 +288,23 @@ async def _handle_poll_command(
     return _session_payload(context, session.read(cursor))
 
 
-# Declared at import so the batching rule sees them however the tools are
-# later exposed. run_command and apply_patch are barriers and run alone;
-# read_file and list_files batch with sibling reads, which is the only
-# case where consulting this table changes behaviour at all -- a barrier
-# is what an unknown tool defaults to anyway.
+# Declare effects before exposure: writes/processes are barriers, reads may
+# batch.
 declare_local_tool(RUN_COMMAND, WorkspaceSession.RUN_COMMAND_EFFECTS)
 declare_local_tool(APPLY_PATCH, WorkspaceSession.APPLY_PATCH_EFFECTS)
 declare_local_tool(READ_FILE, WorkspaceSession.READ_FILE_EFFECTS)
 declare_local_tool(WRITE_FILE, WorkspaceSession.WRITE_FILE_EFFECTS)
 declare_local_tool(LIST_FILES, WorkspaceSession.READ_FILE_EFFECTS)
-# Polling touches a live process -- it can write to its stdin and end
-# it -- so it is a barrier for the same reason starting one is.
+# Polling can write stdin or terminate a live process, so it is a barrier.
 declare_local_tool(POLL_COMMAND, WorkspaceSession.RUN_COMMAND_EFFECTS)
-# Reading a skill's instructions is reading a file off the image: no
-# barrier, so it batches concurrently with the other reads in a turn.
+# Bundled skill instructions are immutable reads and can batch with other reads.
 declare_local_tool(READ_SKILL, WorkspaceSession.READ_FILE_EFFECTS)
 
-# Policies whose confinement is somebody else's job: EXTERNAL means the
-# caller placed the boundary outside this process, DANGER_FULL_ACCESS
-# means it was explicitly declined. Both are legitimate reasons to have
-# no local backend, and neither should hide the tool.
+# Explicit external/declined confinement legitimately needs no local backend.
 _BACKEND_EXEMPT_KINDS = (SandboxKind.EXTERNAL, SandboxKind.DANGER_FULL_ACCESS)
 
 
 def can_run_commands(policy: SandboxPolicy) -> bool:
-    """Reports whether commands can be confined under this policy here.
-
-    Args:
-        policy: The confinement the session would apply.
-
-    Returns:
-        True when a backend exists, or when the policy places the
-        boundary outside this process.
-    """
     if policy.kind in _BACKEND_EXEMPT_KINDS:
         return True
     return sandbox_backend() is not None
@@ -392,19 +313,8 @@ def can_run_commands(policy: SandboxPolicy) -> bool:
 def workspace_tool_schemas(
     policy: SandboxPolicy, *, skills_enabled: bool = False
 ) -> list[dict[str, Any]]:
-    """Builds the tool schemas offerable under a policy.
-
-    Args:
-        policy: The confinement the session applies. Governs whether the
-            command tool is offered at all.
-        skills_enabled: Whether this consumer asked for the vendored
-            science skills. Defaults off, which is what keeps installing
-            the bundle from silently re-arming a consumer measured to be
-            worse with it.
-
-    Returns:
-        OpenAI-format tool definitions. The file tools are always
-        present; ``run_command`` only when it could actually be confined.
+    """Installing skills must not enable consumers that were measured worse
+    with them.
     """
     policy = campaign_workspace_policy(policy)
     schemas = [
@@ -413,12 +323,8 @@ def workspace_tool_schemas(
         read_file_schema(),
         list_files_schema(),
     ]
-    # Offered only where a skill could actually be used: the consumer
-    # has to ask, the bundle has to be installed (the catalogue is empty
-    # unless COSCIENTIST_SKILLS_DIR is set, which a checkout, a test and
-    # a CI job do not set), and commands have to be runnable -- because
-    # instructions whose every step is a command are worse than useless
-    # to a model that cannot run one.
+    # Offer skill instructions only when the consumer asks and commands can
+    # actually run.
     skills = (
         available_skills()
         if skills_enabled
@@ -445,12 +351,8 @@ def workspace_tool_schemas(
 async def _handle_read_skill(
     context: "_ToolContext", args: dict[str, Any]
 ) -> dict[str, Any]:
-    """Returns one skill's instructions.
-
-    Not passed through the output recorder: this is a file baked into the
-    image, not something a command produced, so there is no secret of
-    ours in it to redact and no budget of the model's to spend
-    truncating it.
+    """Bundled instructions contain no command-injected secrets; do not
+    truncate or redact them.
     """
     del context
     name = args.get("name")
@@ -485,7 +387,6 @@ _HANDLERS = {
 
 
 def _parse_arguments(raw: Any) -> dict[str, Any]:
-    """Parses a tool call's JSON arguments into a dict."""
     if raw in (None, ""):
         return {}
     if isinstance(raw, dict):
@@ -502,33 +403,12 @@ def _parse_arguments(raw: Any) -> dict[str, Any]:
 
 
 class WorkspaceToolProvider:
-    """Serves the workspace tools, delegating anything else onward.
-
-    Attributes:
-        session: The workspace every call acts on.
-    """
-
     def __init__(
         self,
         session: WorkspaceSession,
         delegate: Any | None = None,
         secrets: SecretRegistry | None = None,
     ) -> None:
-        """Binds a provider to one run's workspace.
-
-        Args:
-            session: The workspace to act on.
-            delegate: Optional provider handling every other tool name --
-                in practice the ``MCPToolProvider`` for this run, so the
-                model sees one tool surface. A local name always wins,
-                loudly: shadowing an MCP tool is a configuration mistake
-                worth a log line rather than a silent reordering.
-            secrets: Values to mask in anything returned to the model.
-                Defaults to the host environment's credential-shaped
-                variables -- the default has to be the protective one,
-                since a caller who forgets this argument is exactly the
-                caller who most needs it.
-        """
         self.session = session
         self._delegate = delegate
         if secrets is None:
@@ -546,7 +426,6 @@ class WorkspaceToolProvider:
         }
 
     def _schemas(self) -> list[dict[str, Any]]:
-        """Returns this session's tool schemas under its own gating."""
         return workspace_tool_schemas(
             self.session.policy, skills_enabled=self.session.skills_enabled
         )
@@ -554,31 +433,14 @@ class WorkspaceToolProvider:
     def tracked_executor(
         self, label: str
     ) -> tuple[Callable[[Any], Awaitable[dict[str, Any]]], dict[str, int]]:
-        """Wraps this provider's executor with per-tool-name counting.
-
-        Args:
-            label: Log prefix identifying the calling phase.
-
-        Returns:
-            An (executor, counts) pair; see ``tools.provider``.
-        """
         return track_calls(self, label)
 
     def get_tools(self) -> tuple[set[str], list[dict[str, Any]]]:
-        """Returns the local tool names and their OpenAI schemas."""
         return set(self._names), self._schemas()
 
     def merge_tools(
         self, mcp_tools: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        """Combines MCP schemas with the workspace's, local names winning.
-
-        Args:
-            mcp_tools: The MCP tool schemas for this run.
-
-        Returns:
-            One schema list with no duplicate names.
-        """
         kept = []
         for schema in mcp_tools:
             name = schema.get("function", {}).get("name")
@@ -593,18 +455,8 @@ class WorkspaceToolProvider:
         return [*self._schemas(), *kept]
 
     async def execute_tool_call(self, tool_call: Any) -> dict[str, Any]:
-        """Executes one tool call against the workspace, or delegates it.
-
-        Every failure becomes a tool-role error message: a raise here
-        would leave the assistant turn's tool call unanswered, which the
-        provider rejects on the next iteration -- so one bad argument
-        would end the conversation rather than the call.
-
-        Args:
-            tool_call: The model's call, with ``.id`` and ``.function``.
-
-        Returns:
-            A tool-role message answering the call.
+        """Every call needs a tool-role answer; raising leaves an unanswered
+        call the next turn rejects.
         """
         name = tool_call.function.name
         if name == READ_SKILL and campaign_free_mode():
@@ -620,7 +472,6 @@ class WorkspaceToolProvider:
                 self._context, _parse_arguments(tool_call.function.arguments)
             )
         except (WorkspaceToolInputError, PatchError) as exc:
-            # Expected and actionable: the model can fix its own call.
             logger.info("workspace tool %s rejected a call: %s", name, exc)
             return tool_error_message(name, tool_call.id, str(exc))
         except Exception as exc:
@@ -631,7 +482,6 @@ class WorkspaceToolProvider:
         return tool_result_message(name, tool_call.id, payload)
 
     async def _delegate_call(self, tool_call: Any, name: str) -> dict[str, Any]:
-        """Passes a non-workspace tool call to the delegate provider."""
         if self._delegate is None:
             return tool_error_message(
                 name, tool_call.id, f"unknown tool: {name}"

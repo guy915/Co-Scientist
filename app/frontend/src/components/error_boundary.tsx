@@ -6,17 +6,13 @@ import {Icon} from './icon';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
-  /**
-   * Optional replacement UI; when set it renders instead of the default
-   * card.
-   */
   fallback?: ReactNode;
 }
 
 interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
-  // component stack; arrives after the error itself
+  // React supplies the component stack after the error itself.
   errorInfo: React.ErrorInfo | null;
 }
 
@@ -42,7 +38,6 @@ const FALLBACK_OUTLINE_BUTTON_CLASSES =
   'font-medium text-th-fg hover:bg-th-muted focus-visible:outline-2 ' +
   'focus-visible:outline-offset-2 focus-visible:outline-th-ring';
 
-// Static header of the fallback card: title plus subtitle.
 function FallbackHeader() {
   return (
     <header className="p-6">
@@ -59,7 +54,6 @@ function FallbackHeader() {
   );
 }
 
-// The caught error's message, rendered in a highlighted block.
 function FallbackErrorMessage({error}: {error: Error | null}) {
   return (
     <div className="rounded-lg border border-th-destructive bg-th-muted p-4">
@@ -70,8 +64,6 @@ function FallbackErrorMessage({error}: {error: Error | null}) {
   );
 }
 
-// Collapsible component-stack details; renders nothing until
-// componentDidCatch has captured `errorInfo` (see ErrorFallbackCard).
 function FallbackComponentStack({
   errorInfo,
 }: {
@@ -90,7 +82,6 @@ function FallbackComponentStack({
   );
 }
 
-// "Try Again" (calls onReset) and "Reload Page" (hard reload) actions.
 function FallbackActions({onReset}: {onReset: () => void}) {
   return (
     <div className="flex gap-2">
@@ -112,10 +103,6 @@ function FallbackActions({onReset}: {onReset: () => void}) {
   );
 }
 
-// Default fallback UI shown in place of a subtree that threw during render;
-// `errorInfo` (the component stack) arrives one commit after `error` itself,
-// so FallbackComponentStack renders only once componentDidCatch has
-// captured it.
 function ErrorFallbackCard({
   error,
   errorInfo,
@@ -139,17 +126,8 @@ function ErrorFallbackCard({
   );
 }
 
-/**
- * Catches render-time errors in its subtree and shows a fallback UI.
- *
- * A class component because error boundaries have no hook equivalent: only
- * getDerivedStateFromError / componentDidCatch can intercept descendant render
- * errors. Note the boundary contract: it catches errors thrown during render,
- * lifecycle methods, and constructors of the tree below it, but NOT errors in
- * event handlers, async code, or the boundary's own render.
- *
- * @param props The children to guard and an optional custom fallback.
- */
+// React has no hook error boundary; this covers descendant render/lifecycle
+// errors, never handlers, async code or its own render.
 export class ErrorBoundary extends Component<
   ErrorBoundaryProps,
   ErrorBoundaryState
@@ -159,18 +137,14 @@ export class ErrorBoundary extends Component<
     this.state = {hasError: false, error: null, errorInfo: null};
   }
 
-  // Render phase: flip to the fallback UI synchronously so the broken
-  // subtree is never committed. Must be pure (no side effects here).
+  // Render-phase recovery must remain pure; logging belongs in the commit
+  // phase.
   static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
     return {hasError: true, error};
   }
 
-  // Commit phase: side effects are allowed here, so log and capture the
-  // component stack for the collapsible details section.
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
-    // Also persist it: a render crash is exactly what someone debugging
-    // later needs to see in the app-wide log, not only in this console.
     logUiError(
       `render error: ${String(error)}`,
       errorInfo.componentStack ?? undefined,
@@ -178,8 +152,6 @@ export class ErrorBoundary extends Component<
     this.setState({errorInfo});
   }
 
-  // Clears the error state and re-renders children; recovery only sticks if
-  // whatever threw was transient.
   handleReset = () => {
     this.setState({hasError: false, error: null, errorInfo: null});
   };

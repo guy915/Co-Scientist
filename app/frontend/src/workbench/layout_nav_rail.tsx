@@ -16,15 +16,6 @@ import {useFittingRows, useOverflowing} from './hooks/dom';
 import {preferredSessionSide} from './layout_session_switch';
 import {tabPath} from './run_tabs';
 
-// Re-exported so `ChatRailData` keeps its long-standing import site (the
-// shell reads it from the rail, not from the list module it now lives in).
-
-// The constants below pair a CSS class for the "open" rail state with one
-// for the "collapsed"/default state; each pair is selected at render time by
-// the single `navOpen` boolean (see NAV_RAIL_VARIANTS below). The actual
-// responsive behavior (desktop icon rail vs mobile off-canvas drawer,
-// iOS-safe viewport sizing) lives in shell_surface.css, keyed off the
-// `nav-open` / `nav-collapsed` shell classes and the ~700px breakpoint.
 const NAV_PANEL_OPEN_CLASSES = 'ucs-nav-panel ucs-nav-panel--open';
 
 const NAV_PANEL_COLLAPSED_CLASSES = 'ucs-nav-panel ucs-nav-panel--collapsed';
@@ -65,9 +56,6 @@ const SIDE_CONTENT_OPEN_CLASSES = 'ucs-side-content--open';
 
 const SIDE_CONTENT_COLLAPSED_CLASSES = 'ucs-side-content--collapsed';
 
-// Per-region class bundles for the rail's expanded vs collapsed presentation,
-// keyed by the single `navOpen` flag (see NavRail below). Replaces what would
-// otherwise be parallel `navOpen ? ... : ...` ternaries with one lookup.
 const NAV_RAIL_VARIANTS = {
   open: {
     panel: NAV_PANEL_OPEN_CLASSES,
@@ -92,13 +80,9 @@ const NAV_RAIL_VARIANTS = {
   },
 } as const;
 
-// One rail variant's class bundle (see NAV_RAIL_VARIANTS above).
 type NavRailVariant =
   (typeof NAV_RAIL_VARIANTS)[keyof typeof NAV_RAIL_VARIANTS];
 
-// The rail's top group: Menu toggle, New chat, and the chat-history
-// sidebar. Split out of NavRail so the component itself stays a thin
-// wrapper around this and the bottom Settings control.
 interface NavRailTopProps {
   navOpen: boolean;
   toggleNav: () => void;
@@ -137,22 +121,6 @@ function NavRailTop({
   );
 }
 
-/**
- * Renders the icon rail: Menu toggle, New chat, the chat-history sidebar,
- * and the bottom Settings control. All open/collapsed presentation is
- * derived here (and in the sub-components below) from the single `navOpen`
- * flag.
- *
- * @param navOpen Whether the rail is expanded (desktop) or open (mobile).
- * @param toggleNav Toggles the rail/drawer.
- * @param startNewChat Resets the chat workspace and navigates home.
- * @param rail The chat list, its expansion flag, and what to highlight.
- * @param activePanel The currently open popover, if any.
- * @param onTogglePanel Opens/closes the given popover.
- * @param onOpenSettings Opens the full-screen Settings dialog at a section.
- * @param settingsControlRef Anchor ref for outside-click dismissal of the
- *   Settings popover.
- */
 interface NavRailProps {
   navOpen: boolean;
   toggleNav: () => void;
@@ -198,9 +166,6 @@ export function NavRail({
   );
 }
 
-// The Settings popover menu itself, shown while the rail's Settings control
-// is the active panel. Its rows come from the dialog's own SETTINGS_SECTIONS
-// so the menu and the dialog's section rail always agree.
 function SettingsPopoverMenu({
   onOpenSettings,
 }: {
@@ -222,10 +187,6 @@ function SettingsPopoverMenu({
   );
 }
 
-// The Settings control at the bottom of the rail: the trigger button plus
-// its popover menu (Appearance/Model/Help). Takes the resolved class bundle
-// rather than `navOpen`, so the open/collapsed lookup happens once, in
-// NavRail, and cannot disagree with the rail it sits in.
 function RailSettingsControl({
   nav,
   activePanel,
@@ -256,10 +217,8 @@ function RailSettingsControl({
   );
 }
 
-// The rail's "New chat" action. A real link, so Cmd/middle-clicking it opens
-// a fresh workspace in a new tab like every other navigation here; the reset
-// still runs on a plain click, and only on a plain click -- see
-// isModifiedClick.
+// Only ordinary navigation resets the current chat; modified clicks must leave
+// this tab unchanged.
 function NavNewChatLink({
   className,
   labelClassName,
@@ -290,10 +249,7 @@ function NavNewChatLink({
   );
 }
 
-// A single rail action (Menu/hamburger, Settings): an icon plus a label that
-// is visually collapsed to icon-only via `labelClassName` when the rail is
-// collapsed, with the full label still exposed to assistive tech through
-// aria-label/data-tooltip.
+// Collapsed labels retain their accessible names through aria-label.
 function NavActionButton({
   label,
   icon,
@@ -327,8 +283,6 @@ function NavActionButton({
   );
 }
 
-// One row inside the Settings popover menu (Appearance/Model/Help); onClick
-// is wired by the caller to openSettings(section).
 function SettingsMenuButton({
   label,
   icon,
@@ -359,8 +313,8 @@ const SIDE_HEADING_CLASSES = 'ucs-side-heading';
 
 const CHAT_LIST_CLASSES = 'ucs-chat-list';
 
-// Applied only while the list has more chats than the rail can show, since it
-// turns the list into a scroll container (which clips its tooltips).
+// Scroll containers clip tooltips even without visible scrollbars; enable
+// scrolling only when needed.
 const CHAT_LIST_SCROLLABLE_CLASSES = 'ucs-chat-list--scrollable';
 
 const CHAT_HISTORY_LINK_CLASSES = 'ucs-chat-link';
@@ -371,42 +325,21 @@ const CHAT_HISTORY_LABEL_CLASSES = 'ucs-chat-label';
 
 const CHAT_HISTORY_MORE_CLASSES = 'ucs-chat-more';
 
-/**
- * The chat-list state the rail renders, threaded whole through NavRail so
- * each level passes one value instead of five.
- */
 export interface ChatRailData {
   chats: ChatSummary[];
-  /** The chat being viewed on /chats/:id, if any. */
   activeChatId: string | undefined;
-  /** The run being viewed on /runs/:id, so its chat stays highlighted. */
   activeRunId: string | undefined;
   showAllChats: boolean;
   onToggleShowAllChats: () => void;
 }
 
-// Whether a chat row is the one currently being viewed -- either opened
-// directly, or through the run it started.
 function isActiveChat(chat: ChatSummary, rail: ChatRailData): boolean {
   if (rail.activeChatId) return chat.id === rail.activeChatId;
   return Boolean(chat.run_id) && chat.run_id === rail.activeRunId;
 }
 
-/**
- * Where a chat row leads: wherever this reader last had the Chat/Results
- * switch on for this session, defaulting to the stage the session has
- * actually reached.
- *
- * A session that has started a run has moved past its conversation, so by
- * default the row opens the run -- which is the live progress view while it
- * executes and the report once it lands, chosen by the run page itself.
- * Reopening the transcript instead put every session, running or long
- * finished, back at the same settled prompt and made the rail read as a list
- * of drafts. That default yields to memory once the reader has actually used
- * the header's Chat/Results switch (see layout_session_memory) -- only a chat
- * that never started a run, or one with no recorded side yet, opens by the
- * rule above.
- */
+// Started sessions default to their run; explicit last-viewed side takes
+// precedence so history reopens where the reader left off.
 function chatPath(chat: ChatSummary): string {
   if (!chat.run_id) return `/chats/${chat.id}`;
   return preferredSessionSide(chat.run_id) === 'chat'
@@ -414,8 +347,6 @@ function chatPath(chat: ChatSummary): string {
     : tabPath(chat.run_id, undefined);
 }
 
-// One row in the "Chats" list: the chat's generated title, falling back to a
-// concise clause of the scientist's challenge.
 function ChatHistoryLink({
   chat,
   isActive,
@@ -445,7 +376,6 @@ function ChatHistoryLink({
   );
 }
 
-// The "Show more"/"Show less" toggle at the bottom of the chat list.
 function ShowMoreChatsButton({
   showAllChats,
   onToggle,
@@ -468,10 +398,6 @@ function ShowMoreChatsButton({
   );
 }
 
-// The scrollable chat list itself, plus the "Show more"/"Show less" toggle
-// when the history exceeds what fits. Split out of ChatHistorySidebar so the
-// overflow-tracking ref/state (only ever read by this list) stays local to
-// the piece that uses it.
 interface ChatListProps {
   visibleChats: ChatSummary[];
   rail: ChatRailData;
@@ -480,16 +406,12 @@ interface ChatListProps {
 }
 
 function ChatList({visibleChats, rail, hasExtraChats, listRef}: ChatListProps) {
-  // Only scroll the list when the rail cannot fit it. A scroll container clips
-  // its content even with no scrollbar showing, which would cut off the
-  // chat-link tooltips escaping to the right.
+  // Only overflowing lists may scroll: otherwise their container would clip
+  // escaping chat tooltips.
   const [chatListRef, chatListOverflows] = useOverflowing<HTMLDivElement>();
 
   return (
     <div
-      // One element, two measurements: the overflow probe decides whether it
-      // scrolls, the fitting probe (owned by the parent) decides how many rows
-      // it is handed.
       ref={node => {
         chatListRef.current = node;
         listRef.current = node;
@@ -517,14 +439,6 @@ function ChatList({visibleChats, rail, hasExtraChats, listRef}: ChatListProps) {
   );
 }
 
-/**
- * The "Chats" section of the rail: the chat list, capped to what the rail
- * actually has room for until expanded, with the active chat highlighted.
- *
- * @param sideContentClasses The rail's open/collapsed section classes, passed
- *   in so this module stays independent of the rail's variant table.
- * @param rail The chats, the expansion flag, and what to highlight.
- */
 export function ChatHistorySidebar({
   sideContentClasses,
   rail,

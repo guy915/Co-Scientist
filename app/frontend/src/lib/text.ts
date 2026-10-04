@@ -1,17 +1,5 @@
 import {renderInlineHtml} from './sanitize_html';
 
-/**
- * Shorten a research goal into a concise, single-line session title for run
- * lists and the history sidebar, mirroring Google's compact "Chats" list,
- * which shows short titles rather than the full prompt.
- *
- * Heuristic (no LLM): take the first clause, cap to a readable length on a word
- * boundary, drop a dangling short word, and add an ellipsis when truncated.
- *
- * @param goal The full research goal / prompt.
- * @param maxChars Maximum length before truncation.
- * @returns A concise title (never empty).
- */
 export function conciseTitle(goal: string, maxChars = 52): string {
   const trimmed = (goal ?? '').trim();
   if (!trimmed) return 'Untitled session';
@@ -20,38 +8,16 @@ export function conciseTitle(goal: string, maxChars = 52): string {
   return truncateOnWordBoundary(firstClause, maxChars);
 }
 
-/**
- * The first sentence/clause of a research goal, split on sentence-ending
- * punctuation followed by whitespace/end — so an abbreviation like
- * "M.tuberculosis" (period mid-word) is not mistaken for a clause boundary and
- * truncated to "...for M". Returns '' for empty input.
- *
- * Exported for width-aware titles (e.g. the recents cards) that render this
- * clause through TruncatedLabel instead of the char-capped conciseTitle: the
- * label fills the available width and ellipsizes on a word boundary, matching
- * every other truncation in the UI.
- */
+// Sentence boundaries require whitespace/end so scientific abbreviations such
+// as M.tuberculosis remain intact.
 export function firstSentenceClause(text: string): string {
   const source = (text ?? '').trim();
   const sentenceEnd = source.search(/[.?!;](\s|$)/);
   return (sentenceEnd >= 0 ? source.slice(0, sentenceEnd) : source).trim();
 }
 
-/**
- * Capitalizes a listed term's first letter, where doing so is safe.
- *
- * The four setup fields are written by the model, which capitalizes its
- * preference sentences and leaves focus-area noun phrases lowercase, so the
- * two lists in the same specification card disagreed about their own house
- * style ("Prioritize mechanistic novelty" above "gut-brain axis").
- *
- * Only a first *word* that is entirely lowercase ASCII is touched. Scientific
- * terms make the naive version wrong in two directions a reader would notice:
- * "α-synuclein aggregation" must not become "Α-synuclein" (that is a Greek
- * capital alpha, and journals set the prefix lowercase), and "mRNA stability"
- * must not become "MRNA stability". Both are left exactly as the model wrote
- * them, which is also how they should be set.
- */
+// Only lowercase ASCII first words may change: scientific forms such as mRNA
+// and Greek prefixes must retain their case.
 export function capitalizeTerm(term: string): string {
   const text = term.trim();
   const firstWord = text.split(/\s/, 1)[0] ?? '';
@@ -59,17 +25,8 @@ export function capitalizeTerm(term: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-/**
- * Coerce a possibly-malformed structured-output field into readable text.
- *
- * Research-overview fields are produced by the model in json_object mode with
- * no server-side schema enforcement, so a field the schema declares a string
- * can arrive as an object, or as a string that is itself serialized JSON.
- * Rendering that verbatim leaks raw JSON into the UI. This flattens any of
- * those shapes into human-readable text: a JSON-looking string is parsed and
- * flattened, an object is rendered as its values joined by an em dash, and a
- * well-formed string passes through unchanged.
- */
+// json_object output does not enforce field types; flatten malformed/serialized
+// values rather than expose raw JSON.
 export function readableText(value: unknown): string {
   if (typeof value === 'string') return readableFromString(value);
   if (Array.isArray(value)) return joinReadable(value, ' ');
@@ -77,11 +34,6 @@ export function readableText(value: unknown): string {
   return primitiveText(value);
 }
 
-/**
- * Coerce a possibly-malformed list field (e.g. `suggested_experiments`) into
- * an array of readable strings, tolerating a JSON-encoded string, a lone
- * object, or a list whose items are objects or serialized JSON.
- */
 export function readableTextList(value: unknown): string[] {
   if (typeof value === 'string') return listFromString(value);
   if (Array.isArray(value)) return mapReadable(value);
@@ -117,7 +69,6 @@ function isJsonLike(text: string): boolean {
   );
 }
 
-/** Whether a value can be indexed as a record (arrays included). */
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -135,11 +86,6 @@ function primitiveText(value: unknown): string {
   return String(value);
 }
 
-/**
- * Truncates `text` on a word boundary and always ends in a bare ellipsis
- * ("word…"): drops the partial trailing word and any dangling very short
- * word, and never leaves a trailing space or separator before the ellipsis.
- */
 function truncateOnWordBoundary(text: string, maxChars: number): string {
   const cut = text.slice(0, maxChars);
   const lastSpace = cut.lastIndexOf(' ');
@@ -152,24 +98,13 @@ function truncateOnWordBoundary(text: string, maxChars: number): string {
   return `${trimmedTail}…`;
 }
 
-const HOUR_SECONDS = 3600; // threshold above which durations render in hours
+const HOUR_SECONDS = 3600;
 const MINUTE_SECONDS = 60;
 
-/** Renders `value` with its unit, pluralized. */
 function pluralize(value: number, unit: string): string {
   return `${value} ${unit}${value === 1 ? '' : 's'}`;
 }
 
-/**
- * Formats a duration in seconds as a rounded human phrase, e.g. "3 hours" or
- * "12 minutes". Durations of at least one hour render in hours; shorter ones
- * render in minutes (never below "1 minute").
- *
- * @param seconds Elapsed time in seconds.
- * @param options.subMinute When true, spans below one minute render as
- *   "< 1 minute" instead of rounding up to "1 minute".
- * @returns A pluralized duration phrase.
- */
 export function formatDurationPhrase(
   seconds: number,
   options?: {subMinute?: boolean},
@@ -182,19 +117,9 @@ export function formatDurationPhrase(
   return pluralize(minutes, 'minute');
 }
 
-/**
- * Structured-abstract handling for PubMed content.
- *
- * PubMed/NLM structured abstracts prepend a section label (BACKGROUND, METHODS,
- * RESULTS, ...) to each section's text and concatenate the sections into a
- * single string with no reliable separator: an all-caps label runs straight
- * into its body ("SUMMARYThe global..."), while a title-case label is followed
- * by two spaces ("Background  Major..."). Rendered verbatim, sections run
- * together and are hard to read. This module splits such a string back into
- * labeled sections so each can render as its own paragraph.
- */
+// NLM structured abstracts concatenate labels without reliable separators,
+// including SUMMARYThe and title-case labels followed by two spaces.
 
-/** Canonical NLM categories plus commonly-seen section labels (uppercase). */
 const SECTION_LABELS = [
   'MATERIALS AND METHODS',
   'MAIN OUTCOME MEASURES',
@@ -228,42 +153,27 @@ const SECTION_LABELS = [
   'AIM',
 ];
 
-/** One labeled (or unlabeled) segment of a structured abstract. */
 export interface AbstractSection {
-  /** Display label (title-cased) or null for unlabeled text. */
   label: string | null;
-  /** Sanitized inline HTML, safe for `dangerouslySetInnerHTML`. */
+  // HTML bodies are sanitized for dangerouslySetInnerHTML.
   html: string;
 }
 
-/**
- * Escapes regex metacharacters so `value` can be embedded literally in a
- * pattern.
- */
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/**
- * "SUMMARY" -> "Summary", "MAIN OUTCOME MEASURES" -> "Main outcome
- * measures".
- */
 function titleCase(label: string): string {
   return label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
 }
 
-// Sorted longest-first so a multi-word label like "MATERIALS AND METHODS"
-// wins the alternation before the shorter "METHODS" form can match a prefix.
+// Longest labels must win alternation before shorter prefix matches.
 const sortedLabels = [...SECTION_LABELS].sort((a, b) => b.length - a.length);
 const upperForms = sortedLabels.map(escapeRegExp).join('|');
 const titleForms = sortedLabels.map(l => escapeRegExp(titleCase(l))).join('|');
 
-// A label counts as a section header when it sits at the start of the string or
-// after sentence-ending punctuation/whitespace, and is followed by a colon, two
-// or more spaces, or (all-caps labels only) a directly-adjacent capitalized
-// word. The two-space requirement keeps ordinary prose ("Results were ...")
-// from being mistaken for a header. Case-sensitive so the capital-letter
-// lookahead stays meaningful.
+// Two spaces avoid treating ordinary Results were prose as a header; capital
+// lookahead must stay case-sensitive.
 const LABEL_RE = new RegExp(
   '(?:^|(?<=[.)\\s]))' +
     `(?:(${upperForms})(?::\\s*|\\s{2,}|(?=[A-Z][a-z]))` +
@@ -271,12 +181,6 @@ const LABEL_RE = new RegExp(
   'g',
 );
 
-/**
- * Finds every section-label occurrence in `text`, in document order.
- *
- * @param text The abstract text to scan for labels.
- * @returns One mark per detected label, with its match bounds.
- */
 function findLabelMarks(
   text: string,
 ): {start: number; end: number; label: string}[] {
@@ -289,15 +193,12 @@ function findLabelMarks(
       end: LABEL_RE.lastIndex,
       label: match[1] ?? match[2],
     });
-    // Guards against an infinite loop on a zero-length match (lastIndex would
-    // otherwise never advance).
+    // Advance zero-length matches to prevent an infinite scan.
     if (LABEL_RE.lastIndex === match.index) LABEL_RE.lastIndex++;
   }
   return marks;
 }
 
-// Returns `sections`, or (when every detected piece trimmed to nothing) a
-// single unlabeled fallback section built from the original `text`.
 function withFallback(
   sections: AbstractSection[],
   text: string,
@@ -307,27 +208,16 @@ function withFallback(
   return [{label: null, html: trimmed ? renderInlineHtml(trimmed) : ''}];
 }
 
-/**
- * Splits a possibly-structured abstract into labeled sections with sanitized
- * bodies. An unstructured abstract returns a single section with a null label.
- *
- * @param raw The untrusted abstract text (may contain inline HTML).
- * @returns One section per detected label, in document order.
- */
 export function splitAbstractSections(raw: string): AbstractSection[] {
   const text = raw ?? '';
   const marks = findLabelMarks(text);
 
   const sections: AbstractSection[] = [];
-  // Skips empty sections, e.g. a detected label with no body text before the
-  // next one (or before the end of the string).
   const pushSection = (label: string | null, body: string) => {
     const trimmed = body.trim();
     if (trimmed) sections.push({label, html: renderInlineHtml(trimmed)});
   };
 
-  // Any text before the first label is unlabeled lead-in; with no labels at
-  // all, that lead-in is the whole abstract (a single unlabeled section).
   pushSection(null, text.slice(0, marks[0]?.start ?? text.length));
   marks.forEach((mark, index) => {
     const bodyEnd =

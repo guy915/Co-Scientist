@@ -9,13 +9,13 @@ import {RunHistoryProvider} from './hooks/history_context';
 import {Layout} from './layout';
 import {ThemeProvider} from './theme_context';
 
-// Hoist the factory's mock before imports bind the real network module.
+// Hoist mocks before imports bind real network modules.
 const apiMock = vi.hoisted(() => {
   const listDemoRuns = vi.fn();
   const listRuns = vi.fn();
   const listInterviews = vi.fn();
   const getRunEvents = vi.fn();
-  // Keep the real history merge policy while replacing only network methods.
+  // Keep real merge policy while replacing only network methods.
   const loadRunHistory = vi.fn(async () => {
     const [owned, demo] = await Promise.all([
       listRuns().catch(() => []),
@@ -44,8 +44,7 @@ const logsApiMock = vi.hoisted(() => ({
   reportAppLogs: vi.fn(),
 }));
 
-// Pure status helpers stay real so network mocking cannot change lifecycle
-// behavior.
+// Keep lifecycle helpers real so network mocks cannot change status semantics.
 vi.mock('@/api/runs', async importOriginal => ({
   ...(await importOriginal<typeof import('@/api/runs')>()),
   ...apiMock,
@@ -112,8 +111,7 @@ export function chatFixture(
 }
 
 export function installLayoutMocks() {
-  // Reset the session baseline so isolated suites cannot inherit earlier log
-  // history.
+  // Reset the session anchor so isolated suites cannot inherit log history.
   resetSessionBaselineForTest();
   window.localStorage.clear();
   window.localStorage.setItem('cosci-theme', 'dark');
@@ -143,8 +141,8 @@ export function installLayoutMocks() {
     total: 0,
     session_total: 0,
   });
-  // An empty initial response establishes cursor zero so later fixture records
-  // belong to this session.
+  // Initial empty logs establish cursor zero; subsequent fixtures then belong
+  // to this session.
   logsApiMock.getAppLogs.mockResolvedValueOnce({
     logs: [],
     last_id: 0,

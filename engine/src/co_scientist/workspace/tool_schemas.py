@@ -1,11 +1,5 @@
-"""The OpenAI schemas for the workspace tools.
-
-Split from ``tools`` for length. Descriptions are the only interface the
-model has to these tools, so they carry the constraints the code enforces
--- that ``argv`` is an array and a shell must be asked for by name, that
-a patch is located by the context it quotes rather than by line number,
-and that the whole patch applies or none of it does. A model told none of
-that discovers each rule by being refused.
+"""Assigned descriptions are the model's tool interface; preserve their
+constraints.
 """
 
 from typing import Any
@@ -20,13 +14,9 @@ LIST_FILES = "list_files"
 POLL_COMMAND = "poll_command"
 READ_SKILL = "read_skill"
 
-# How long `run_command` waits before handing back a session id instead
-# of a result. Short: the point is that a long command keeps running, so
-# holding the turn open buys nothing the next poll does not.
+# Yield quickly without discarding work; the next poll can observe progress.
 DEFAULT_YIELD_SECONDS = 10.0
 
-# Declared once: it is the only argument `run_command` grew, and the
-# schema functions are at the length ceiling without it inline.
 _YIELD_SECONDS = {
     "type": "number",
     "description": (
@@ -38,14 +28,8 @@ _YIELD_SECONDS = {
 
 
 def run_command_schema(*, network_allowed: bool = False) -> dict[str, Any]:
-    """Builds the OpenAI schema for the command-execution tool.
-
-    The network sentence has to track the session's actual policy. A
-    workspace that permits egress while the description says it cannot
-    reach the network contradicts the very instruction the caller is
-    acting on -- the science skills exist to query remote databases,
-    and a model told the attempt is impossible has no reason to make
-    it.
+    """Network descriptions must match actual policy or models will refuse
+    usable database skills.
     """
     reach = (
         "reach the network only through the commands you are asked to run"
@@ -89,7 +73,6 @@ def run_command_schema(*, network_allowed: bool = False) -> dict[str, Any]:
 
 
 def apply_patch_schema() -> dict[str, Any]:
-    """Builds the OpenAI schema for the file-editing tool."""
     return {
         "type": "function",
         "function": {
@@ -129,7 +112,6 @@ def apply_patch_schema() -> dict[str, Any]:
 
 
 def read_file_schema() -> dict[str, Any]:
-    """Builds the OpenAI schema for the workspace file reader."""
     return {
         "type": "function",
         "function": {
@@ -153,7 +135,6 @@ def read_file_schema() -> dict[str, Any]:
 
 
 def write_file_schema() -> dict[str, Any]:
-    """Builds the OpenAI schema for the workspace file writer."""
     return {
         "type": "function",
         "function": {
@@ -187,7 +168,6 @@ def write_file_schema() -> dict[str, Any]:
 
 
 def list_files_schema() -> dict[str, Any]:
-    """Builds the OpenAI schema for the workspace file listing."""
     return {
         "type": "function",
         "function": {
@@ -202,7 +182,6 @@ def list_files_schema() -> dict[str, Any]:
 
 
 def _poll_properties() -> dict[str, Any]:
-    """The arguments a poll takes, as JSON schema."""
     return {
         "session_id": {
             "type": "string",
@@ -242,7 +221,6 @@ def _poll_properties() -> dict[str, Any]:
 
 
 def poll_command_schema() -> dict[str, Any]:
-    """Builds the OpenAI schema for continuing a running command."""
     return {
         "type": "function",
         "function": {
@@ -265,17 +243,8 @@ def poll_command_schema() -> dict[str, Any]:
 
 
 def read_skill_schema(names: tuple[str, ...]) -> dict[str, Any]:
-    """Builds the OpenAI schema for reading one skill's instructions.
-
-    The catalogue is enumerated in the parameter rather than described in
-    prose, so a name the model invents is rejected by the provider's own
-    schema validation instead of costing a turn and an error message.
-
-    Args:
-        names: Every skill name currently available.
-
-    Returns:
-        The tool definition.
+    """Enumerate installed names so provider validation rejects invented skills
+    before a wasted turn.
     """
     return {
         "type": "function",

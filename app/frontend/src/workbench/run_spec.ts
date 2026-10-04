@@ -8,18 +8,13 @@ import type {
 } from '@/api/runs';
 import {getStoredApiKey} from '@/lib/client_id';
 
-/**
- * The only run type free usage (no API key of one's own) may start; the
- * backend refuses any other (app/free_usage.py).
- */
+// The backend permits only express for keyless free runs.
 export const FREE_RUN_TIER: RunTier = 'express';
 
-/** The default run type: Standard with an API key, else the free tier. */
 export function defaultRunTier(): RunTier {
   return getStoredApiKey() ? 'standard' : FREE_RUN_TIER;
 }
 
-/** Chat-inferred setup shown before a run is created. */
 export interface InferredRunSpec {
   interviewId?: string;
   title?: string | null;
@@ -33,7 +28,6 @@ export interface InferredRunSpec {
   completionEmail?: string;
 }
 
-/** Maps a completed Agent interview into the run-configuration card model. */
 export function interviewToRunSpec(interview: Interview): InferredRunSpec {
   return {
     interviewId: interview.id,
@@ -49,12 +43,8 @@ export function interviewToRunSpec(interview: Interview): InferredRunSpec {
   };
 }
 
-/**
- * The plan card's in-place editor state: plain strings/arrays for the four
- * fields the interview derives (goal, focus area, preferences, title).
- * Kept distinct from `InferredRunSpec` because the editor's title is always
- * a string (empty means unset), where the card's is `string | null`.
- */
+// Editor empty-title strings remain distinct from nullable persisted card
+// titles.
 export interface EditedSpecFields {
   goal: string;
   title: string;
@@ -62,11 +52,6 @@ export interface EditedSpecFields {
   requirements: string[];
 }
 
-/**
- * Maps the editor's local field values onto the `PUT /fields` request
- * shape. A blank title is sent as `null`, matching how an unedited card
- * (never having set a title) already reads.
- */
 export function buildInterviewFieldsPayload(
   values: EditedSpecFields,
 ): Interview['fields'] {
@@ -78,12 +63,8 @@ export function buildInterviewFieldsPayload(
   };
 }
 
-/**
- * Maps a `PUT /fields` response back onto the run-spec field names, for
- * merging into the draft/confirmed spec after a save. The server may not
- * have stored the edit exactly as sent (it trims list entries), so the
- * editor adopts this rather than assuming its own local values landed.
- */
+// Adopt server-normalized edits rather than assuming submitted list entries
+// persisted unchanged.
 export function applyEditedInterviewFields(
   interview: Interview,
 ): Pick<
@@ -99,26 +80,19 @@ export function applyEditedInterviewFields(
   };
 }
 
-/** One compute-tier choice in the run-setup picker. */
 export interface RunTierOption {
   id: RunTier;
   label: string;
   description: string;
-  /** Set when free usage cannot start this run type. */
   disabled?: boolean;
 }
 
-/** One evidence-vs-novelty focus choice in the run-setup picker. */
 export interface RunFocusOption {
   id: RunFocus;
   label: string;
   description: string;
 }
 
-/**
- * Compute-tier choices shown in the run-setup picker; `id` is sent to the
- * backend as the run's `tier`.
- */
 export const TIER_OPTIONS: RunTierOption[] = [
   {
     id: 'express',
@@ -146,10 +120,6 @@ export const TIER_OPTIONS: RunTierOption[] = [
   },
 ];
 
-/**
- * The run-type choices open to the current user: every tier with an API key;
- * with none, the non-free tiers are disabled and say why.
- */
 export function availableTierOptions(): RunTierOption[] {
   if (getStoredApiKey()) return TIER_OPTIONS;
   return TIER_OPTIONS.map(option =>
@@ -163,10 +133,6 @@ export function availableTierOptions(): RunTierOption[] {
   );
 }
 
-/**
- * Evidence-vs-novelty tradeoff choices shown in the run-setup picker; `id` is
- * sent to the backend as the run's `focus`.
- */
 export const FOCUS_OPTIONS: RunFocusOption[] = [
   {
     id: 'prefer_evidence',
@@ -198,15 +164,6 @@ export const FOCUS_OPTIONS: RunFocusOption[] = [
   },
 ];
 
-/**
- * Looks up an option's display label by id (e.g. TIER_OPTIONS/FOCUS_OPTIONS),
- * returning `fallback` when the id isn't recognized (missing or legacy value).
- *
- * @param options The option list to search.
- * @param value The stored id to resolve.
- * @param fallback Label to use when `value` matches no option.
- * @returns The matched option's label, or `fallback`.
- */
 export function runOptionLabel(
   options: readonly {id: string; label: string}[],
   value: string | undefined,
@@ -215,30 +172,17 @@ export function runOptionLabel(
   return options.find(option => option.id === value)?.label ?? fallback;
 }
 
-/**
- * The minimal address-shape check (anything@anything.tld) used both to
- * decide whether a typed address turns notification on, and to gate
- * "Start research" below.
- */
 export function isValidCompletionEmail(email: string): boolean {
   return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
 }
 
-/**
- * Whether the spec's completion-notification email passes the minimal
- * shape check used to enable "Start research"; trivially true when
- * notification is off. `notifyOnCompletion` is derived from the email's
- * own validity (see `CompletionNotification`), so a half-typed address
- * never sets it -- it stays a normal, silent "no email" rather than
- * something that can block starting a run.
- */
+// Incomplete email remains a silent opt-out rather than blocking Start while
+// the scientist types.
 export function isCompletionEmailValid(spec: InferredRunSpec): boolean {
   if (!spec.notifyOnCompletion) return true;
   return isValidCompletionEmail(spec.completionEmail || '');
 }
 
-// Joins values with a trailing "or" ("A, B, or C"), matching the run plan's
-// categorical-attribute punctuation.
 function joinWithOr(values: string[]): string {
   if (values.length === 1) return values[0];
   if (values.length === 2) return `${values[0]} or ${values[1]}`;
@@ -260,7 +204,7 @@ function categoricalDisplayString(name: string, values: string[]): string {
   return options.length ? `${name} (${joinWithOr(options)})` : name;
 }
 
-// Displays either legacy free prose or the structured run-attribute shape.
+// Legacy attributes may be prose rather than structured records.
 export function attributeDisplayString(item: RunAttribute): string {
   if (typeof item === 'string') return item;
   if ('scale' in item) return scaledDisplayString(item.name, item.scale);

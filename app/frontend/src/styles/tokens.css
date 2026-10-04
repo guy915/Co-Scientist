@@ -1,5 +1,5 @@
-/* Shell and data palettes stay separate so product-blue shell surfaces can
-   diverge from seed-derived teal data roles in both light and dark themes. */
+/* Shell product-blue and seed-derived data teal need independent paired
+   light/dark palettes. */
 :root {
   --cosci-idea-ref-blue: #0b57d0;
   --cosci-teal: #1a6b6b;
@@ -18,37 +18,22 @@
   --cosci-shell-icon: #444746;
   --cosci-shell-hover-bg: #dfeafc;
 
-  /* The app's one accent: the brand teal-green and the text that reads on
-     it. Every surface that wants "our accent" — the logo, the logs popover —
-     aliases these. They used to alias --cosci-step-dot-bg instead, which
-     made the home step circle's own styling load-bearing for several
-     unrelated surfaces. Unlike the reference these DO swap per theme: mint
-     green in dark. */
+  /* Share the brand accent independently of timeline-dot styling; its palette
+     switches to mint in dark. */
   --cosci-accent: #238a84;
   --cosci-accent-fg: #f2f2f2;
 
-  /* Step timeline. Our own brand greens (the reference's dots are purple70
-     #c597ff / line #b9a9d7, and a *light pastel* fill rather than our dark
-     filled one — a deliberate divergence, see the visual-diff audit): a
-     teal-green dot with a near-white number, and a line blending the brand
-     teal with the neutral outline. */
   --cosci-step-line: color-mix(in srgb, var(--cosci-accent) 38%, #c4c7c5);
-  /* Suggestion chips read as outlined pills — transparent at rest so
-     they sit on the page rather than as filled cards; hover paints a
-     subtle state layer. */
   --cosci-suggestion-bg: transparent;
   --cosci-composer-border: #e9eef6;
   --cosci-composer-bg: #fff;
 
-  /* Reference: box-shadow 0 2px 12px -2px surface-container-high in light,
-     NO shadow in dark (form .form-elements next-gen rules). */
+  /* Reference composer shadow exists only in light mode. */
   --cosci-composer-shadow: 0 2px 12px -2px #e9eef6;
   --cosci-composer-submit: var(--cosci-teal);
   --cosci-composer-submit-disabled: #c4c7c5;
   --cosci-source-button-hover: #444746;
 
-  /* Shared state-layer fill for round icon buttons (see
-     ICON_BUTTON_CLASSES). */
   --cosci-icon-button-hover-bg: #f0f4f9;
   --cosci-menu-bg: #fff;
   --cosci-menu-row-hover: #f0f4f9;
@@ -56,7 +41,6 @@
   --cosci-recent-card-hover-bg: #f8fafd;
   --cosci-recent-chip-bg: #beefbb;
   --cosci-idea-row-selected-bg: #f4faff;
-  /* The reference excludes selected rows from the hover rule — no change. */
   --cosci-idea-chip-bg: #e0f4ff;
 }
 
@@ -66,10 +50,8 @@
   --cosci-panel: #1e1f20;
   --cosci-border: #444746;
 
-  /* The reference's dark shell overrides on-surface to pure #fff (not the
-     stock MD3 #e3e3e3) — measured from the dark capture's :host([dark-theme])
-     block and confirmed against the screenshots (greeting/body text render
-     255-white). Secondary text is on-surface-variant #c4c7c5. */
+  /* The reference dark shell uses white on-surface rather than stock MD3 grey,
+     with on-surface-variant secondary text. */
   --cosci-text: #fff;
   --cosci-muted: #c4c7c5;
   --cosci-subtle: #8e918f;
@@ -79,9 +61,6 @@
   --cosci-shell-icon: var(--cosci-muted);
   --cosci-shell-hover-bg: #282a2c;
 
-  /* Dark: the accent is the mint green (matching the submit button), with a
-     near-black text color on it; the step line blends mint with the dark
-     outline. */
   --cosci-accent: var(--cosci-green);
   --cosci-accent-fg: #131314;
   --cosci-step-line: color-mix(
@@ -90,8 +69,6 @@
     var(--cosci-border)
   );
   --cosci-suggestion-bg: transparent;
-  /* Dark composer: surface-container fill, no border, NO shadow (the
-     reference's dark next-gen form zeroes the box-shadow). */
   --cosci-composer-border: transparent;
   --cosci-composer-bg: var(--cosci-panel);
   --cosci-composer-shadow: none;
@@ -103,16 +80,8 @@
   --cosci-menu-row-hover: #333537;
   --cosci-menu-divider: #444746;
 
-  /* Recents card dark: surface-container fill on the #131314 canvas; hover
-     LIGHTENS to the shared dark hover fill (#282a2c, matching the rail,
-     suggestions, and icon buttons) so the state layer reads as a highlight
-     rather than sinking darker into the canvas. Chips surface-container-highest,
-     winning chip green90's dark value #006c35 with on-surface text. */
   --cosci-recent-card-hover-bg: #282a2c;
   --cosci-recent-chip-bg: #006c35;
-  /* Ideas list dark: selected row = blue-variant98's dark value #003d64 with
-     primary #a8c7fa border; rank/Elo chips = blue-variant95's dark value
-     #133043; breadcrumb chips = surface-container; all text on-surface. */
   --cosci-idea-row-selected-bg: #003d64;
   --cosci-idea-chip-bg: #133043;
 
@@ -134,48 +103,29 @@ body {
     #1a6b5e;
 }
 
-/* Shared component colors.
- *
- * Components use semantic Tailwind utilities from index.css. Utilities with
- * the same light/dark color pair reference one canonical palette token here,
- * so their values stay together without repeated declarations. Components
- * need no dark: variant; the shared pair owns both modes.
- *
- * Two rules when adding tokens:
- *  1. Alias baseline tokens (var()/color-mix() over the palette in
- *     tokens.css) when the surface should match an existing color,
- *     as the logs tokens do. Reserve new hex pairs for genuinely new surfaces.
- *  2. Every new token needs BOTH a light and a dark value.
- */
+/* New semantic tokens need both light and dark values; reuse baseline pairs
+   when surfaces match rather than fork component colors. */
 :root {
-  /* Danger / alert (report alert + toast) */
   --cosci-danger-bg: #fce8e6;
   --cosci-danger-border: #b3261e;
   --cosci-danger-fg: #b3261e;
 
-  /* Caution. Orange: far enough around the wheel from the danger red to
-     be told apart at chip size and at a glance, close enough to still
-     read as the lesser of the two rather than as a separate category. */
+  /* Orange remains distinguishable from danger red at chip size while
+     expressing lesser caution. */
   --cosci-warning-bg: #ffedd7;
   --cosci-warning-fg: #9a3412;
 
-  /* Attachment cards. The extension badge keeps one mid-grey in both themes
-     (white label text stays legible on it either way). */
+  /* The attachment badge’s shared mid-grey keeps white labels legible in both
+     themes. */
   --cosci-attach-badge: #7d8797;
 
-  /* Center toast + raised action pill (toast = MD3 inverse surface pair).
-     The action uses inverse-primary: a light blue that stays legible on the
-     dark pill (the plain --cosci-blue would be dark-on-dark and read faded). */
+  /* Inverse-primary stays legible on the dark action pill; ordinary blue would
+     be dark-on-dark. */
   --cosci-toast-bg: #303030;
   --cosci-toast-fg: #f2f2f2;
   --cosci-toast-action: #a8c7fa;
 
-  /* Skeleton loaders */
 
-  /* Diagnostics / Logs — every value aliases an existing baseline token, no
-     bespoke hex. The teal tonal is the app's one green; surface/border/text/
-     meta reuse the neutral scale. Because those tokens already re-theme, the
-     logs need no dark-mode overrides. */
   --cosci-logs-accent-hover: color-mix(
     in srgb,
     var(--cosci-accent) 88%,
@@ -192,61 +142,34 @@ body {
     transparent
   );
 
-  /* Radio option cards */
   --cosci-option-marker: #747775;
 
-  /* Buttons. Filled = md-filled-button (primary fill); outlined =
-     md-outlined-button (outline-colored border, primary label) per the
-     reference's Cancel/Start-session pair. */
   --cosci-btn-primary-fg: #fff;
   --cosci-btn-primary-hover: #0842a0;
   --cosci-btn-outline-hover-bg: rgb(11 87 208 / 8%);
   --cosci-btn-secondary-border: #747775;
 
-  /* Composer source-menu toggles */
   --cosci-toggle-on-track: #d3e3fd;
   --cosci-toggle-off-track: #e1e3e1;
 
-  /* Selected tinted row (settings section rail, theme segment, affiliation
-     option): the shell's shared blue selection tint, inverted in dark. */
   --cosci-selected-row-fg: #0b57d0;
 
-  /* Chat bubbles + setup document (reference: user bubble =
-     surface-container-high; setup .plan-details = surface-container light,
-     surface-container-highest dark) */
-  /* Hover state layer for icon buttons that sit ON the bubble (the expand
-     toggle): --cosci-hover equals the bubble bg, so it needs its own shade. */
+  /* Bubble controls need a distinct hover shade because the normal hover token
+     equals their background. */
   --cosci-user-bubble-hover: #dbe2ee;
 
-  /* References "Open" pill — neutral outlined pill (external-link icon) that
-     matches the report/knowledge-base reference rows in the captures. Aliases
-     the neutral scale so it re-themes without bespoke dark values. */
 
-  /* Global scrollbar thumb (index.css). Bespoke grey ramp — the dark
-     values don't line up with any existing neutral token pair. */
   --cosci-scrollbar-thumb: #bdc1c6;
 
-  /* Tooltips — an inverse surface like the center toast: bg/fg alias the
-     toast pair, and the border is the neutral border inverted (dark-mode
-     border shade while the app is light, and vice versa). */
 
-  /* Settings dialog surfaces: the theme segment track and the section
-     cards share a light tint but diverge in dark. */
   --cosci-settings-segment-bg: #f8fafd;
   --cosci-settings-card-bg: #f8fafd;
 
-  /* Settings save toast — near-black snackbar, inverted in dark. */
 
-  /* Run-step "done" check — MD3 green in light, brand mint in dark. */
   --cosci-run-step-done: #1e8e3e;
 
-  /* Fenced-code syntax highlighting (rehype-highlight token classes, see
-     tokens.css). Fresh hex, not aliased to an existing --cosci-*
-     hue: --cosci-green in particular reads at 1.46:1 on the code block's
-     --cosci-hover background in light mode (measured), so it and the
-     run-step green are not safe to reuse here. Every pair below is ≥4.5:1
-     against --cosci-hover in its own mode (measured against #e9eef6 light /
-     #282a2c dark). */
+  /* Syntax palettes measure at least 4.5:1 on each code background; brand
+     green is only 1.46:1 in light and is unsafe to reuse. */
   --cosci-code-comment: #5f6368;
   --cosci-code-string: #146c2e;
   --cosci-code-title: #7c3fa6;
@@ -270,8 +193,6 @@ body {
 
   --cosci-option-marker: #8e918f;
 
-  /* MD3 dark filled buttons invert: primary #a8c7fa fill, on-primary #062e6f
-     label. Outlined keeps the outline-colored border with a primary label. */
   --cosci-btn-primary-fg: #062e6f;
   --cosci-btn-primary-hover: #9bbbef;
   --cosci-btn-outline-hover-bg: rgb(168 199 250 / 8%);
@@ -299,17 +220,8 @@ body {
   --cosci-code-attr: #ff9eb0;
 }
 
-/* rehype-highlight (lowlight) token classes for fenced code blocks in chat
- * markdown (see markdown_message.tsx). Values come from the --cosci-code-*
- * pair in tokens.css, which already carries its own light/dark
- * values, so no [data-theme] selector is needed here -- same pattern as
- * tooltips.css.
- *
- * No bundled highlight.js stylesheet is imported (that ships one fixed
- * palette and would be wrong in one theme); this is the from-scratch
- * equivalent, grouped by the six colors this app assigns rather than by
- * every token lowlight emits.
- */
+/* A fixed bundled highlight palette fails in one theme; token aliases provide
+   paired light/dark syntax colors. */
 .hljs {
   color: inherit;
   background: transparent;

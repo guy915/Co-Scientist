@@ -1,16 +1,11 @@
-/**
- * Best-effort copy to the system clipboard. Prefers the async Clipboard API
- * and falls back to a hidden textarea + `execCommand` when it is unavailable
- * (insecure or unfocused contexts). Never throws: a failed copy must not
- * abort the caller (e.g. a copy-prompt toast).
- */
+// Clipboard APIs may be absent in insecure/unfocused contexts; copying must
+// never abort its caller.
 export async function copyText(text: string) {
   try {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text);
       return;
     }
-    // funnel into the fallback below
     throw new Error('Clipboard API unavailable');
   } catch {
     try {
@@ -21,11 +16,12 @@ export async function copyText(text: string) {
       textarea.style.opacity = '0';
       document.body.append(textarea);
       textarea.select();
-      // deprecated, but still the most broadly compatible sync fallback
+      // Deprecated execCommand remains the broadly compatible synchronous
+      // fallback.
       document.execCommand('copy');
       textarea.remove();
     } catch {
-      // Clipboard unavailable; ignore.
+      // Clipboard failure must not abort the caller’s action.
     }
   }
 }

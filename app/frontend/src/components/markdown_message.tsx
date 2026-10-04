@@ -7,7 +7,6 @@ const MarkdownRenderer = lazy(() =>
   })),
 );
 
-/** Keeps pending or unavailable formatting readable without interpreting HTML. */
 function PlainText({
   content,
   className,
@@ -38,12 +37,8 @@ function PlainText({
   );
 }
 
-/**
- * Loads Markdown and highlighting only when model prose is first displayed.
- *
- * The pending text is escaped by React and stays readable as a message grows.
- * Once loaded, the renderer retains block memoization and code-copy controls.
- */
+// Keep heavy parsing/highlighting behind the lazy boundary; pending model prose
+// is React-escaped plain text.
 export function MarkdownMessage({
   content,
   className = '',

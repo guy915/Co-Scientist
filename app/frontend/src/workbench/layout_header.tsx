@@ -25,7 +25,6 @@ const HEADER_TITLE_CLASSES = 'ucs-header-title';
 
 const HEADER_ACTIONS_CLASSES = 'ucs-header-actions';
 
-// Mobile drawer / desktop rail toggle; the header's leftmost control.
 function HamburgerButton({
   navOpen,
   onClick,
@@ -47,10 +46,8 @@ function HamburgerButton({
   );
 }
 
-// The Co-Scientist wordmark/icon; doubles as a "go home" / new-chat control.
-// A link, so it behaves like the home link it looks like under a Cmd or
-// middle click; the session reset runs only on a plain click, which is the
-// only click that navigates this tab (see isModifiedClick).
+// Only ordinary link navigation resets this tab’s chat; modified clicks must
+// preserve it.
 function ProductLockup({onNewChat}: {onNewChat: () => void}) {
   return (
     <Link
@@ -72,24 +69,6 @@ function ProductLockup({onNewChat}: {onNewChat: () => void}) {
   );
 }
 
-/**
- * Renders the header action bar: hamburger (mobile drawer / desktop rail
- * toggle), product lockup (doubles as "go home"), the page's dispatched
- * title, and the Logs/diagnostics control.
- *
- * @param navOpen Whether the nav rail/drawer is open.
- * @param toggleNav Toggles the nav rail/drawer.
- * @param startNewChat Resets the chat workspace and navigates home.
- * @param headerTitle The page-dispatched title override, if any.
- * @param activePanel The currently open header popover, if any.
- * @param onTogglePanel Opens/closes the given popover.
- * @param logsControlRef Anchor ref for outside-click dismissal of the Logs
- *   popover.
- * @param session The session this route is one half of, switched between by
- *   the Chat/Results control; null when there is no other half.
- * @param runStatus Status of that session's run, when it has one, which is
- *   what decides whether the Stop control is offered.
- */
 export function ShellHeader({
   navOpen,
   toggleNav,
@@ -123,10 +102,7 @@ export function ShellHeader({
           />
         )}
       </div>
-      {/* Inside the Logs anchor rather than beside it: the switch wears the
-          same pill as the controls it sits with, and a click on it navigates,
-          which closes any open popover on its own (see
-          useDismissChromeOnNavigate). */}
+      {/* Navigation dismisses popovers itself, so the session switch may share the Logs anchor. */}
       <div ref={logsControlRef} className={HEADER_ACTIONS_CLASSES}>
         <CancelRunControl runId={session?.runId} status={runStatus} />
         <SessionSwitch session={session} />
@@ -159,7 +135,6 @@ const STATUS_CHIP_NEUTRAL_CLASSES =
 const STATUS_CHIP_DANGER_CLASSES =
   'bg-cosci-logs-danger-bg text-cosci-logs-danger-fg';
 
-/** What the header chip should say, or null to render nothing. */
 export interface SystemStatusChip {
   label: string;
   detail: string;
@@ -167,18 +142,6 @@ export interface SystemStatusChip {
   danger: boolean;
 }
 
-/**
- * Derives the header chip from the latest system status.
- *
- * Shows nothing while loading or when a live model backend is configured;
- * the chip only appears when there is something worth flagging: the API
- * being unreachable, or runs executing against the deterministic offline
- * LLM backend (no live model calls, e.g. keyless/demo deployments).
- *
- * @param status The last /status payload, or null before the first.
- * @param unreachable Whether the most recent /status fetch failed.
- * @returns The chip contents, or null to render nothing.
- */
 export function buildSystemStatusChip(
   status: SystemStatus | null,
   unreachable: boolean,
@@ -205,12 +168,6 @@ export function buildSystemStatusChip(
   return null;
 }
 
-/**
- * Header offline-mode / API-health indicator, fed by the `/status` endpoint.
- *
- * Renders as a compact chip next to the Logs control; hidden entirely when
- * the backend is reachable and running against a live model backend.
- */
 export function SystemStatusIndicator() {
   const {status, unreachable} = useSystemStatus();
   const chip = buildSystemStatusChip(status, unreachable);

@@ -1,5 +1,3 @@
-"""A run's confined working directory and the tools that act on it."""
-
 from co_scientist.workspace.checks import (
     CheckFinding,
     check_paths,

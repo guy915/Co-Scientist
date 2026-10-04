@@ -73,13 +73,13 @@ class HypothesisGenerator:
         self.literature_review_papers_count = (
             opts.literature_review_papers_count
         )
-        # Credentials stay outside checkpoint state; shared cache keys carry
-        # no credential, so bring-your-own-key runs must bypass that cache.
+        # Credentials stay outside checkpoints; credential-free shared cache
+        # keys require BYOK bypass.
         self.api_key = opts.api_key
         self.enable_cache = False if self.api_key else opts.enable_cache
         _configure_cache_dir_env(opts.cache_dir)
-        # Bundled provider-neutral registry unless a custom config replaces
-        # it (faithful runs must not silently collapse to a single source).
+        # Keep the provider-neutral bundled registry unless custom configuration
+        # replaces it.
         self._tool_registry = _build_tool_registry(
             opts.tools_config, opts.disable_tools
         )
@@ -119,7 +119,7 @@ class HypothesisGenerator:
             pubmed_available,
             enable_literature_review_node,
         ) = await self._resolve_literature_review_settings(opts)
-        # Forced strategies requiring tools must fail when tool calling is off.
+        # Forced tool strategies must fail when tool calling is unavailable.
         enable_tool_calling = _resolve_tool_calling_generation(
             opts,
             mcp_available,
@@ -167,8 +167,8 @@ class HypothesisGenerator:
         return self._tool_registry
 
     async def _check_cached_availability(self) -> tuple[bool, bool]:
-        # The two flags are set together and never independently, so once
-        # either is known both are.
+        # Availability flags are always set together, so knowing either
+        # establishes both.
         if (
             self._mcp_available is not None
             and self._pubmed_available is not None
@@ -180,8 +180,6 @@ class HypothesisGenerator:
             check_mcp_available,
         )
 
-        # Probe concurrently: the checks are independent and each opens its own
-        # MCP round trip.
         mcp_available, pubmed_available = await asyncio.gather(
             check_mcp_available(tool_registry=self._tool_registry),
             check_literature_source_available(

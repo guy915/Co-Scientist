@@ -1,14 +1,5 @@
-"""Confined execution of commands the model authored.
-
-`policy` carries the decision as data; `seatbelt` and `bwrap` render it
-into the arguments of an OS primitive; `argv.wrap_argv` picks the backend
-and, crucially, **fails closed** when no backend is available rather than
-handing back the bare command.
-
-Nothing here executes anything. Wrapping and running are separate so that
-the wrapped argv can be inspected, logged, and asserted on without a
-process being spawned -- and so that a test can prove the confinement
-holds by running a command that tries to escape it.
+"""Unsupported confinement must fail closed, never return an unconfined
+command.
 """
 
 from co_scientist.sandbox.argv import (

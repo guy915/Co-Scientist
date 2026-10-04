@@ -11,8 +11,6 @@ const NOT_FOUND_TITLE_CLASSES =
 const NOT_FOUND_ACTIONS_CLASSES =
   'mt-8 flex flex-wrap gap-3 max-sm:grid max-sm:grid-cols-1';
 
-// MD3 filled-button look on the router <Link> home CTA: pill radius, primary
-// tonal colors via the th-* token bridge, full-width below the sm breakpoint.
 const HOME_LINK_CLASSES =
   'inline-flex min-h-12 items-center justify-center rounded-full border ' +
   'border-transparent bg-th-primary px-[1.35rem] py-[0.72rem] text-sm ' +
@@ -20,12 +18,6 @@ const HOME_LINK_CLASSES =
   'hover:opacity-90 max-sm:w-full focus-visible:outline-2 ' +
   'focus-visible:outline-offset-[3px] focus-visible:outline-th-primary';
 
-/**
- * Renders the 404 page shown for unmatched routes.
- *
- * Mounted on the catch-all `*` route in workbench_app.tsx; marked noindex
- * since error pages should never enter a search index.
- */
 export function NotFoundPage() {
   return (
     <>
@@ -46,7 +38,6 @@ export function NotFoundPage() {
   );
 }
 
-/** Updates the named `<meta>` tag in `<head>`, creating it if missing. */
 function upsertMeta(name: string, content: string) {
   const selector = `meta[name="${name}"]`;
   let element = document.head.querySelector<HTMLMetaElement>(selector);
@@ -58,27 +49,15 @@ function upsertMeta(name: string, content: string) {
   element.content = content;
 }
 
-/**
- * Sets page metadata that marks the current route as non-indexable.
- *
- * The app has no publicly indexable surface, so every routed page mounts one
- * of these: it syncs the document title (with the shared branding suffix) and
- * writes the description plus the noindex robots directives. Runs on mount
- * and whenever the title changes, mutating document.head directly (this SPA
- * has no <head> manager like react-helmet). Tags are upserted rather than
- * removed on unmount: the next routed page overwrites them with its own
- * values.
- *
- * @param props The page title to render in the document head.
- */
+// Every route stays non-indexable; retain head tags on unmount so the next
+// route overwrites them without an indexable gap.
 export function NoIndex({title}: {title: string}) {
   useEffect(() => {
     document.title = `${title} - Co-Scientist`;
     upsertMeta('description', 'Co-Scientist research workspace.');
     upsertMeta('robots', 'noindex, nofollow');
-    upsertMeta('googlebot', 'noindex, nofollow'); // Google-specific twin
+    upsertMeta('googlebot', 'noindex, nofollow');
   }, [title]);
 
-  // Head-effect-only component; contributes nothing to the DOM tree.
   return null;
 }
