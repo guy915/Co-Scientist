@@ -156,8 +156,6 @@ async def retry_interview_turn(
 
 router = APIRouter(prefix="/api/interviews", tags=["interviews"])
 
-_advance = advance_turn
-
 
 @router.post("")
 async def create_interview(

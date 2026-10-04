@@ -161,12 +161,6 @@ class ProbeResult:
     error: str | None = None
 
 
-def _probe_result_from(available: bool) -> ProbeResult:
-    return ProbeResult(
-        available=available, state=PROBE_UP if available else PROBE_DOWN
-    )
-
-
 def _probe_error(detail: str) -> ProbeResult:
     return ProbeResult(available=False, state=PROBE_ERROR, error=detail)
 
@@ -176,8 +170,9 @@ async def _run_probe(coro: Any, timeout: float) -> ProbeResult:
     definitive down verdict.
     """
     try:
-        return _probe_result_from(
-            bool(await asyncio.wait_for(coro, timeout=timeout))
+        available = bool(await asyncio.wait_for(coro, timeout=timeout))
+        return ProbeResult(
+            available=available, state=PROBE_UP if available else PROBE_DOWN
         )
     except asyncio.TimeoutError:
         # On Python 3.10 asyncio.TimeoutError is not yet the built-in

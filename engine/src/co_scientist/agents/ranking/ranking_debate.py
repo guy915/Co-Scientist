@@ -313,10 +313,6 @@ def _render_ordered_prompt(
     return _MatchupPrompt(prompt, schema, notes_a, notes_b)
 
 
-def _build_matchup_prompt_from_ctx(ctx: _DebateContext) -> _MatchupPrompt:
-    return _render_ordered_prompt(ctx.hypothesis_a, ctx.hypothesis_b, ctx)
-
-
 def _build_turn_prompt(
     ctx: _DebateContext,
     turn: int,
@@ -798,7 +794,7 @@ async def judge_matchup(
     # Choose one prompt family per matchup so swapped re-renders keep the same
     # single-turn or scientific-debate contract.
     ctx = ctx._replace(debate=turns > SINGLE_TURN_DEBATE_TURNS)
-    base = _build_matchup_prompt_from_ctx(ctx)
+    base = _render_ordered_prompt(ctx.hypothesis_a, ctx.hypothesis_b, ctx)
     fallback = _balanced_invalid_fallback(
         ctx.hypothesis_a, ctx.hypothesis_b, ctx.matchup_index
     )

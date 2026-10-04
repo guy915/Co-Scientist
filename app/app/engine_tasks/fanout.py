@@ -94,16 +94,6 @@ async def execute_verification_item(
     }
 
 
-async def _run_observation_reflection(
-    state: dict[str, Any], hypothesis: Any
-) -> Any:
-    from co_scientist.agents.reflection import observe_hypothesis
-
-    if not state.get("articles_with_reasoning"):
-        raise RuntimeError("observation review has no literature context")
-    return await observe_hypothesis(state, hypothesis)
-
-
 async def execute_mature_reflection_item(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
@@ -118,7 +108,13 @@ async def execute_mature_reflection_item(
     with scoped_telemetry("comprehensive_reflection") as telemetry:
         ledger: dict[str, Any] | None = None
         if mode is ReviewType.OBSERVATION:
-            result = await _run_observation_reflection(state, hypothesis)
+            from co_scientist.agents.reflection import observe_hypothesis
+
+            if not state.get("articles_with_reasoning"):
+                raise RuntimeError(
+                    "observation review has no literature context"
+                )
+            result = await observe_hypothesis(state, hypothesis)
         else:
             _, result, ledger = await review_hypothesis(state, hypothesis, mode)
     if result is None:
@@ -207,15 +203,6 @@ def _enqueue_generation_strategy_tasks(
     ]
 
 
-def _generation_aggregate_spec(counts: Any) -> _AggregateSpec:
-    return _AggregateSpec(
-        task_type=GENERATION_AGGREGATE_TASK,
-        priority=81,
-        key_prefix="generation",
-        extra_inputs={"counts": dataclasses.asdict(counts)},
-    )
-
-
 async def _plan_generation_fanout(state: dict[str, Any]) -> _GenerationPlan:
     """Provider preparation completes before any plan transaction acquires
     SQLite's writer.
@@ -226,7 +213,12 @@ async def _plan_generation_fanout(state: dict[str, Any]) -> _GenerationPlan:
     return _GenerationPlan(
         task_specs=_generation_task_specs(plan.counts.strategy_counts),
         inputs=_StrategyInputs(plan.literature, plan.reference_index),
-        aggregate_spec=_generation_aggregate_spec(plan.counts),
+        aggregate_spec=_AggregateSpec(
+            task_type=GENERATION_AGGREGATE_TASK,
+            priority=81,
+            key_prefix="generation",
+            extra_inputs={"counts": dataclasses.asdict(plan.counts)},
+        ),
     )
 
 

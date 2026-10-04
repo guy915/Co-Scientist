@@ -69,16 +69,6 @@ def _insert_task_row(conn: sqlite3.Connection, values: tuple[Any, ...]) -> None:
     )
 
 
-def _fetch_task_by_idempotency_key(
-    conn: sqlite3.Connection, run_id: str, idempotency_key: str
-) -> sqlite3.Row | None:
-    row: sqlite3.Row | None = conn.execute(
-        "SELECT * FROM scientific_tasks WHERE run_id=? AND idempotency_key=?",
-        (run_id, idempotency_key),
-    ).fetchone()
-    return row
-
-
 @dataclasses.dataclass(frozen=True)
 class NewTask:
     run_id: str
@@ -125,9 +115,11 @@ def enqueue_task(
     values = _task_row_values(str(uuid.uuid4()), task, _now())
     with _use_conn(conn, db_path) as active:
         _insert_task_row(active, values)
-        row = _fetch_task_by_idempotency_key(
-            active, task.run_id, task.idempotency_key
-        )
+        row: sqlite3.Row | None = active.execute(
+            "SELECT * FROM scientific_tasks WHERE run_id=? "
+            "AND idempotency_key=?",
+            (task.run_id, task.idempotency_key),
+        ).fetchone()
     if row is None:
         raise RuntimeError("task enqueue did not persist a row")
     return _decode(row)

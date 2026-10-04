@@ -612,12 +612,32 @@ async def test_verification_none_becomes_durable_item_failure(
 
 @pytest.mark.asyncio
 async def test_observation_rejects_missing_literature_before_call(
+    isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    run = runs.create_run("Observation grounding", "extended", "engine", {})
+    state = _task_state(run.id)
+    idea = Hypothesis(id="observation-idea", text="Scientific claim")
+    state.update(hypotheses=[idea], articles_with_reasoning="")
+    seq = _seed_checkpoint(run.id, state, db_path=isolated_db)
+    task = store.enqueue_task(
+        NewTask(
+            run_id=run.id,
+            task_type=MATURE_REFLECTION_ITEM_TASK,
+            inputs={
+                "hypothesis_id": idea.id,
+                "review_mode": "observation",
+                "checkpoint_seq": seq,
+            },
+            idempotency_key="observation-without-literature",
+        ),
+        db_path=isolated_db,
+    )
+    _patch_generator(monkeypatch, _Generator(state), restore=True)
     operation = AsyncMock()
     monkeypatch.setattr(_operations_reflection, "observe_hypothesis", operation)
     with pytest.raises(RuntimeError, match="no literature context"):
-        await items._run_observation_reflection({}, Hypothesis(text="claim"))
+        await items.execute_mature_reflection_item(task, db_path=isolated_db)
     operation.assert_not_awaited()
 
 
