@@ -10,8 +10,8 @@ import {
   type Interview,
 } from '@/api/runs';
 import {makeSpec, makeMessage} from '@/test_fixtures';
-import type {ChatEntry} from '../pages/chat_timeline_bubble';
-import type {HandlerDeps} from './use_chat_session';
+import type {SessionState} from './use_chat_session';
+import {sessionRuntime} from './__tests__/session_helpers';
 
 vi.mock('@/api/runs', async importOriginal => {
   const actual = await importOriginal<typeof import('@/api/runs')>();
@@ -45,9 +45,9 @@ describe('chat session handlers', () => {
       [],
       expect.any(AbortSignal),
     );
-    expect(deps.setInterview).toHaveBeenCalledWith(interview);
-    expect(deps.stageDraftSpec).not.toHaveBeenCalled();
-    expect(deps.setMessages).toHaveBeenCalledTimes(2);
+    expect(deps.state.interview).toEqual(interview);
+    expect(deps.state.draft).toBeNull();
+    expect(deps.observed.some(state => state.messages.length === 1)).toBe(true);
   });
 
   test('asks the run a question instead of posting to the closed interview', async () => {
@@ -72,7 +72,7 @@ describe('chat session handlers', () => {
       expect.any(Object),
       expect.any(AbortSignal),
     );
-    expect(deps.setInput).toHaveBeenCalledWith('');
+    expect(deps.state.input).toBe('');
   });
 
   test('stages only a completed persisted interview derivation', async () => {
@@ -103,23 +103,19 @@ describe('chat session handlers', () => {
       [],
       expect.any(AbortSignal),
     );
-    expect(deps.stageDraftSpec).toHaveBeenCalledWith(
-      expect.objectContaining({
+    expect(deps.state.draft).toMatchObject({
+      spec: {
         interviewId: active.id,
         goal: 'Study liver fibrosis',
         attributes: ['Stellate-cell metabolism'],
         requirements: ['Human evidence'],
-      }),
-      expect.any(Number),
-      // The closing turn id is needed to retry the plan while retaining its
-      // reasoning.
-      {
-        message: 'Which mechanisms should I prioritize?',
-        reasoning: undefined,
-        turnId: 1,
       },
-    );
-    expect(deps.setMessages).toHaveBeenCalledTimes(2);
+      createdAt: 2,
+      intro: 'Which mechanisms should I prioritize?',
+      turnId: 1,
+    });
+    expect(deps.state.draft?.reasoning).toBeUndefined();
+    expect(deps.observed.some(state => state.messages.length === 1)).toBe(true);
   });
 
   test('drops the streamed reply once the turn it belonged to resolves', async () => {
@@ -137,10 +133,16 @@ describe('chat session handlers', () => {
       preventDefault: vi.fn(),
     } as never);
 
-    expect(deps.setAgentDraft).toHaveBeenCalledTimes(3);
+    expect(
+      deps.observed.some(
+        state =>
+          state.agentDraft ===
+          'Which model system should this be built around?',
+      ),
+    ).toBe(true);
 
-    expect(deps.setAgentDraft).toHaveBeenLastCalledWith('');
-    expect(deps.setAgentReasoning).toHaveBeenLastCalledWith('');
+    expect(deps.state.agentDraft).toBe('');
+    expect(deps.state.agentReasoning).toBe('');
   });
 });
 
@@ -168,7 +170,7 @@ describe('chat session handlers draft spec', () => {
       }),
       expect.any(AbortSignal),
     );
-    expect(deps.setDraft).toHaveBeenCalledWith(null);
+    expect(deps.state.draft).toBeNull();
   });
 
   test('handleRetryDraftSpec is a no-op without a staged draft', () => {
@@ -186,8 +188,15 @@ describe('chat session handlers draft spec', () => {
 
     handlers.handleCancelDraftSpec();
 
-    expect(deps.clearSessionState).toHaveBeenCalledOnce();
-    expect(deps.setToast).toHaveBeenCalledWith('The session was canceled');
+    expect(deps.state).toMatchObject({
+      interview: null,
+      draft: null,
+      confirmed: null,
+      startedSession: null,
+    });
+    expect(deps.services.setToast).toHaveBeenCalledWith(
+      'The session was canceled',
+    );
   });
 });
 
@@ -195,15 +204,6 @@ describe('chat session handlers messages', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
-
-  function applyMessagesUpdate(
-    setMessages: unknown,
-    prev: ChatEntry[],
-  ): ChatEntry[] {
-    const updater = vi.mocked(setMessages as (value: unknown) => void).mock
-      .calls[0][0] as unknown as (current: ChatEntry[]) => ChatEntry[];
-    return updater(prev);
-  }
 
   test('handleRetryMessage asks the Agent to answer that turn again', () => {
     const deps = makeDeps({interview: makeInterview()});
@@ -215,6 +215,7 @@ describe('chat session handlers messages', () => {
       turnId: 7,
     });
 
+    deps.update({messages: [answer]});
     handlers.handleRetryMessage(answer);
 
     expect(retryInterviewTurn).toHaveBeenCalledWith(
@@ -226,7 +227,7 @@ describe('chat session handlers messages', () => {
       }),
       expect.any(AbortSignal),
     );
-    expect(applyMessagesUpdate(deps.setMessages, [answer])).toEqual([]);
+    expect(deps.state.messages).toEqual([]);
   });
 
   test('handleRetryMessage does nothing without a durable turn', () => {
@@ -236,7 +237,7 @@ describe('chat session handlers messages', () => {
     handlers.handleRetryMessage(makeMessage({role: 'assistant'}));
 
     expect(retryInterviewTurn).not.toHaveBeenCalled();
-    expect(deps.setMessages).not.toHaveBeenCalled();
+    expect(deps.update).not.toHaveBeenCalled();
   });
 
   test('handleCopyRequest copies the prompt and toasts a new chat', async () => {
@@ -251,31 +252,40 @@ describe('chat session handlers messages', () => {
     await handlers.handleCopyRequest(makeMessage({content: 'Copy me'}));
 
     expect(writeText).toHaveBeenCalledWith('Copy me');
-    expect(deps.setToast).toHaveBeenCalledWith(
+    expect(deps.services.setToast).toHaveBeenCalledWith(
       expect.objectContaining({
         message: 'Prompt copied',
         action: expect.objectContaining({label: 'Start new chat'}),
       }),
     );
-    const toastArg = vi.mocked(deps.setToast).mock.calls[0][0] as {
+    const toastArg = vi.mocked(deps.services.setToast).mock.calls[0][0] as {
       action: {onClick: () => void};
     };
     toastArg.action.onClick();
 
-    expect(deps.clearSessionState).toHaveBeenCalledOnce();
-    expect(deps.setMessages).toHaveBeenCalledWith([]);
-    expect(deps.setError).toHaveBeenCalledWith(null);
-    expect(deps.setToast).toHaveBeenCalledWith(null);
-    expect(deps.setInput).toHaveBeenCalledWith('Copy me');
-    expect(deps.focusComposer).toHaveBeenCalledOnce();
+    expect(deps.state).toMatchObject({
+      interview: null,
+      draft: null,
+      confirmed: null,
+      startedSession: null,
+    });
+    expect(deps.state.messages).toEqual([]);
+    expect(deps.state.error).toBeNull();
+    expect(deps.services.setToast).toHaveBeenCalledWith(null);
+    expect(deps.state.input).toBe('Copy me');
+    expect(deps.services.focusComposer).toHaveBeenCalledOnce();
   });
 
   test('handleEditMessage replaces the turn in place', () => {
-    const deps = makeDeps({interview: makeInterview()});
+    const deps = makeDeps({
+      interview: makeInterview(),
+      input: 'Unsent composer draft',
+    });
     const handlers = buildChatHandlers(deps);
     const prompt = makeMessage({content: 'Original prompt', turnId: 3});
     const answer = makeMessage({id: 'm2', role: 'assistant', turnId: 4});
 
+    deps.update({messages: [prompt, answer]});
     handlers.handleEditMessage(prompt, '  Revised prompt  ');
 
     expect(editInterviewTurn).toHaveBeenCalledWith(
@@ -288,10 +298,10 @@ describe('chat session handlers messages', () => {
       }),
       expect.any(AbortSignal),
     );
-    expect(applyMessagesUpdate(deps.setMessages, [prompt, answer])).toEqual([
+    expect(deps.state.messages).toEqual([
       {...prompt, content: 'Revised prompt'},
     ]);
-    expect(deps.setInput).not.toHaveBeenCalled();
+    expect(deps.state.input).toBe('Unsent composer draft');
   });
 
   test('handleEditMessage ignores an empty revision', () => {
@@ -301,7 +311,7 @@ describe('chat session handlers messages', () => {
     handlers.handleEditMessage(makeMessage({turnId: 3}), '   ');
 
     expect(editInterviewTurn).not.toHaveBeenCalled();
-    expect(deps.setMessages).not.toHaveBeenCalled();
+    expect(deps.update).not.toHaveBeenCalled();
   });
 
   test('revisions are closed once a run has started', () => {
@@ -318,7 +328,7 @@ describe('chat session handlers messages', () => {
 
     expect(retryInterviewTurn).not.toHaveBeenCalled();
     expect(editInterviewTurn).not.toHaveBeenCalled();
-    expect(deps.setMessages).not.toHaveBeenCalled();
+    expect(deps.update).not.toHaveBeenCalled();
   });
 });
 
@@ -361,17 +371,9 @@ describe('chat session handlers qa', () => {
     expect(addInterviewTurn).not.toHaveBeenCalled();
     expect(createInterview).not.toHaveBeenCalled();
 
-    expect(deps.setMessages).toHaveBeenCalledTimes(2);
-    const firstUpdater = vi.mocked(deps.setMessages).mock.calls[0][0] as (
-      prev: unknown[],
-    ) => {role: string; content: string}[];
-    expect(firstUpdater([])).toEqual([
+    expect(deps.observed.some(state => state.messages.length === 1)).toBe(true);
+    expect(deps.state.messages).toEqual([
       expect.objectContaining({role: 'user', content: 'Why does this matter?'}),
-    ]);
-    const secondUpdater = vi.mocked(deps.setMessages).mock.calls[1][0] as (
-      prev: unknown[],
-    ) => {role: string; content: string}[];
-    expect(secondUpdater([])).toEqual([
       expect.objectContaining({
         role: 'assistant',
         content: 'Because the evidence supports it.',
@@ -405,18 +407,18 @@ describe('chat session handlers qa', () => {
       }),
       expect.any(Object),
     );
-    expect(deps.setAgentReasoning).toHaveBeenCalled();
-
-    const secondUpdater = vi.mocked(deps.setMessages).mock.calls[1][0] as (
-      prev: unknown[],
-    ) => {role: string; content: string; reasoning?: string}[];
-    expect(secondUpdater([])).toEqual([
-      expect.objectContaining({
-        role: 'assistant',
-        content: 'Yes, because of the evidence.',
-        reasoning: 'Checking the evidence first. It supports the claim.',
-      }),
-    ]);
+    expect(
+      deps.observed.some(
+        state =>
+          state.agentReasoning ===
+          'Checking the evidence first. It supports the claim.',
+      ),
+    ).toBe(true);
+    expect(deps.state.messages.at(-1)).toMatchObject({
+      role: 'assistant',
+      content: 'Yes, because of the evidence.',
+      reasoning: 'Checking the evidence first. It supports the claim.',
+    });
   });
 
   test('without a started run, submit still advances the interview as before', async () => {
@@ -466,9 +468,9 @@ describe('chat session handlers qa', () => {
     handlers.handleStop();
     await submitted;
 
-    expect(deps.setError).not.toHaveBeenCalledWith(expect.any(String));
-    expect(deps.setMessages).toHaveBeenCalledTimes(1);
-    expect(deps.setAgentDraft).toHaveBeenLastCalledWith('');
+    expect(deps.state.error).toBeNull();
+    expect(deps.state.messages).toHaveLength(1);
+    expect(deps.state.agentDraft).toBe('');
   });
 
   test('a real failure asking the run shows the error banner', async () => {
@@ -478,7 +480,7 @@ describe('chat session handlers qa', () => {
 
     await handlers.handleSubmit({preventDefault: vi.fn()} as never);
 
-    expect(deps.setError).toHaveBeenCalledWith('provider down');
+    expect(deps.state.error).toBe('provider down');
   });
 
   test('marks the turn busy for the round trip, same as an interview turn', async () => {
@@ -493,11 +495,11 @@ describe('chat session handlers qa', () => {
 
     const submitted = handlers.handleSubmit({preventDefault: vi.fn()} as never);
     await Promise.resolve();
-    expect(deps.setIsStarting).toHaveBeenLastCalledWith(true);
+    expect(deps.state.isStarting).toBe(true);
 
     resolveAsk(1);
     await submitted;
-    expect(deps.setIsStarting).toHaveBeenLastCalledWith(false);
+    expect(deps.state.isStarting).toBe(false);
   });
 });
 
@@ -558,13 +560,13 @@ describe('chat session handlers stop', () => {
 
     await handlers.handleSubmit({preventDefault: vi.fn()} as never);
 
-    expect(deps.setError).not.toHaveBeenCalledWith(expect.any(String));
+    expect(deps.state.error).toBeNull();
     expect(getInterview).toHaveBeenCalledWith(interview.id);
-    expect(deps.setInterview).toHaveBeenCalledWith(resynced);
+    expect(deps.state.interview).toEqual(resynced);
     // Unpersisted interrupted prose must disappear so the live view matches
     // reload.
-    expect(deps.setAgentDraft).toHaveBeenLastCalledWith('');
-    expect(deps.setAgentReasoning).toHaveBeenLastCalledWith('');
+    expect(deps.state.agentDraft).toBe('');
+    expect(deps.state.agentReasoning).toBe('');
   });
 
   test('a stopped fresh interview restores the composer and refreshes history', async () => {
@@ -576,10 +578,15 @@ describe('chat session handlers stop', () => {
 
     // Stopped creation has no interview id until its closing frame arrives.
     expect(getInterview).not.toHaveBeenCalled();
-    expect(deps.setError).not.toHaveBeenCalledWith(expect.any(String));
-    expect(deps.clearSessionState).toHaveBeenCalledOnce();
-    expect(deps.setInput).toHaveBeenCalledWith('Study liver fibrosis');
-    expect(deps.reloadHistory).toHaveBeenCalledOnce();
+    expect(deps.state.error).toBeNull();
+    expect(deps.state).toMatchObject({
+      interview: null,
+      draft: null,
+      confirmed: null,
+      startedSession: null,
+    });
+    expect(deps.state.input).toBe('Study liver fibrosis');
+    expect(deps.services.reloadHistory).toHaveBeenCalledOnce();
   });
 
   test('a real failure still shows the error banner, not a silent stop', async () => {
@@ -592,7 +599,7 @@ describe('chat session handlers stop', () => {
 
     await handlers.handleSubmit({preventDefault: vi.fn()} as never);
 
-    expect(deps.setError).toHaveBeenCalledWith('provider down');
+    expect(deps.state.error).toBe('provider down');
     expect(getInterview).not.toHaveBeenCalled();
   });
 
@@ -617,9 +624,9 @@ describe('chat session handlers stop', () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(deps.setError).not.toHaveBeenCalledWith(expect.any(String));
+    expect(deps.state.error).toBeNull();
     expect(getInterview).toHaveBeenCalledWith(interview.id);
-    expect(deps.setInterview).toHaveBeenCalledWith(resynced);
+    expect(deps.state.interview).toEqual(resynced);
   });
 });
 
@@ -654,34 +661,6 @@ export function makeInterview(overrides: Partial<Interview> = {}): Interview {
   };
 }
 
-export function makeDeps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
-  return {
-    input: '',
-    interview: null,
-    startedSession: null,
-    setInterview: vi.fn(),
-    onChatStarted: vi.fn(),
-    setInput: vi.fn(),
-    draft: null,
-    setDraft: vi.fn(),
-    setConfirmed: vi.fn(),
-    setStartedSession: vi.fn(),
-    setIsStarting: vi.fn(),
-    setIsAwaitingAgent: vi.fn(),
-    setAgentReasoning: vi.fn(),
-    setAgentDraft: vi.fn(),
-    turnAbortRef: {current: null},
-    setMessages: vi.fn(),
-    setError: vi.fn(),
-    pendingAttachments: [],
-    setPendingAttachments: vi.fn(),
-    setToast: vi.fn(),
-    clearSessionState: vi.fn(),
-    stageDraftSpec: vi.fn(),
-    focusComposer: vi.fn(),
-    reloadHistory: vi.fn().mockResolvedValue(undefined),
-    pubmedEnabled: true,
-    webSearchEnabled: true,
-    ...overrides,
-  };
+export function makeDeps(overrides: Partial<SessionState> = {}) {
+  return sessionRuntime(overrides);
 }

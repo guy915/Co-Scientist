@@ -1,11 +1,18 @@
-import type {Dispatch, SetStateAction} from 'react';
+import type {Dispatch} from 'react';
 import {makePrefixedId} from '@/lib/client_id';
 import {DIAGNOSTIC_EVENT} from '../dom_events';
 import type {QaSource} from '@/api/runs';
 import {type Interview, type InterviewTurn, type RunMessage} from '@/api/runs';
 import {interviewToRunSpec} from '../run_spec';
 import {type ChatEntry} from '../pages/chat_timeline_bubble';
-import {type HandlerDeps} from './use_chat_session';
+import {
+  type HandlerDeps,
+  type SpecStage,
+  type DraftIntro,
+  type SessionUpdate,
+  fieldSetter,
+  stageDraftPatch,
+} from './use_chat_session';
 
 export function turnToEntry(turn: InterviewTurn): ChatEntry {
   const role = turn.role === 'agent' ? 'assistant' : 'user';
@@ -34,10 +41,15 @@ export function splitTranscript(interview: Interview): {
   return {entries: turns.map(turnToEntry), closing};
 }
 
-export interface TranscriptSink extends Pick<
-  HandlerDeps,
-  'setInterview' | 'setDraft' | 'setConfirmed' | 'stageDraftSpec'
-> {
+export interface TranscriptSink {
+  setInterview: (interview: Interview | null) => void;
+  setDraft: (stage: SpecStage | null) => void;
+  setConfirmed: (stage: SpecStage | null) => void;
+  stageDraftSpec: (
+    spec: ReturnType<typeof interviewToRunSpec>,
+    createdAt?: number,
+    intro?: DraftIntro,
+  ) => void;
   // Snapshot sinks accept replacement setters, not only stateful dispatch;
   // narrowing would reject valid plain-entry consumers.
   setMessages: (entries: ChatEntry[]) => void;
@@ -46,9 +58,20 @@ export interface TranscriptSink extends Pick<
 // Replace invalidated transcript turns from the server snapshot and clear
 // withdrawn incomplete plans; appending would retain stale derivations.
 export function applyInterview(
-  sink: TranscriptSink,
+  sink: TranscriptSink | Dispatch<SessionUpdate>,
   interview: Interview,
 ): void {
+  if (typeof sink === 'function') {
+    const update = sink;
+    sink = {
+      setMessages: fieldSetter(update, 'messages'),
+      setInterview: fieldSetter(update, 'interview'),
+      setDraft: fieldSetter(update, 'draft'),
+      setConfirmed: fieldSetter(update, 'confirmed'),
+      stageDraftSpec: (spec, at, intro) =>
+        update(stageDraftPatch(spec, at, intro)),
+    };
+  }
   const {entries, closing} = splitTranscript(interview);
   sink.setMessages(entries);
   sink.setInterview(interview);
@@ -163,21 +186,19 @@ export interface NewChatMessage {
 }
 
 export function appendChatMessage(
-  setMessages: Dispatch<SetStateAction<ChatEntry[]>>,
+  update: Dispatch<SessionUpdate>,
   message: NewChatMessage,
 ): number {
   const createdAt = message.createdAt ?? Date.now() / 1000;
-  setMessages(prev => [
-    ...prev,
-    {
-      id: makePrefixedId(message.role),
-      role: message.role,
-      content: message.content,
-      reasoning: message.reasoning,
-      sources: message.sources,
-      created_at: createdAt,
-    },
-  ]);
+  const entry: ChatEntry = {
+    id: makePrefixedId(message.role),
+    role: message.role,
+    content: message.content,
+    reasoning: message.reasoning,
+    sources: message.sources,
+    created_at: createdAt,
+  };
+  update(current => ({messages: [...current.messages, entry]}));
   return createdAt;
 }
 

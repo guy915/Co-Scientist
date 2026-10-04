@@ -1,7 +1,8 @@
 // Rehydration must recover persisted run Q&A rather than only in-memory
 // exchanges.
 
-import {screen, within} from '@testing-library/react';
+import {act, renderHook, screen, waitFor, within} from '@testing-library/react';
+import {MemoryRouter} from 'react-router-dom';
 import {beforeEach, expect, it, vi} from 'vitest';
 import {
   apiMock,
@@ -9,6 +10,12 @@ import {
   minimalRun,
   renderWorkspace,
 } from './chat_workspace_test_helpers';
+import {
+  RunHistoryProvider,
+  ChatHistoryProvider,
+} from '../hooks/history_context';
+import {useChatSession} from '../hooks/use_chat_session';
+import {useChatRehydration} from '../hooks/use_chat_rehydrate';
 
 const pendingIntentMock = vi.hoisted(() => vi.fn());
 
@@ -58,6 +65,151 @@ function completedInterview() {
     completed_at: 2,
   };
 }
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(done => {
+    resolve = done;
+  });
+  return {promise, resolve};
+}
+
+function rehydrateSession(chatId: string) {
+  return renderHook(
+    ({id}) => {
+      const session = useChatSession({
+        reloadHistory: async () => undefined,
+        onChatStarted: () => undefined,
+        focusComposer: () => undefined,
+        setToast: () => undefined,
+        pubmedEnabled: true,
+        webSearchEnabled: true,
+      });
+      useChatRehydration(session, id);
+      return session;
+    },
+    {
+      initialProps: {id: chatId},
+      reactStrictMode: true,
+      wrapper: ({children}) => (
+        <MemoryRouter>
+          <RunHistoryProvider>
+            <ChatHistoryProvider>{children}</ChatHistoryProvider>
+          </RunHistoryProvider>
+        </MemoryRouter>
+      ),
+    },
+  );
+}
+
+it('adopts the second StrictMode transcript load before appending Q&A and ignores the cancelled first load', async () => {
+  const cancelled = deferred<ReturnType<typeof completedInterview>>();
+  const owned = deferred<ReturnType<typeof completedInterview>>();
+  const rows = deferred<unknown[]>();
+  apiMock.getInterview
+    .mockReset()
+    .mockReturnValueOnce(cancelled.promise)
+    .mockReturnValueOnce(owned.promise);
+  apiMock.getRunMessages.mockReset().mockReturnValue(rows.promise);
+  apiMock.listInterviews.mockResolvedValue([
+    {
+      id: 'interview-1',
+      title: 'A chat',
+      challenge: 'Owned research',
+      status: 'completed',
+      run_id: 'run-1',
+      created_at: 1,
+      updated_at: 3,
+    },
+  ]);
+  apiMock.listRuns.mockResolvedValue([minimalRun({id: 'run-1'})]);
+  const {result} = rehydrateSession('interview-1');
+  await waitFor(() => expect(apiMock.getInterview).toHaveBeenCalledTimes(2));
+  expect(apiMock.getRunMessages).not.toHaveBeenCalled();
+  await act(async () => {
+    owned.resolve(completedInterview());
+  });
+  await waitFor(() =>
+    expect(apiMock.getRunMessages).toHaveBeenCalledWith('run-1'),
+  );
+  await act(async () => {
+    rows.resolve([
+      {
+        id: 11,
+        run_id: 'run-1',
+        sender: 'system',
+        content: 'Owned Q&A answer',
+        kind: 'qa',
+        created_at: 11,
+        applied: true,
+        meta: {reasoning: 'Owned evidence'},
+      },
+    ]);
+  });
+  expect(result.current.messages.map(message => message.content)).toEqual([
+    'Investigate glucose homeostasis.',
+    'Owned Q&A answer',
+  ]);
+  expect(result.current.messages.at(-1)?.reasoning).toBe('Owned evidence');
+  await act(async () => {
+    cancelled.resolve({
+      ...completedInterview(),
+      turns: [
+        {
+          ...completedInterview().turns[0],
+          content: 'Cancelled private transcript',
+        },
+      ],
+    });
+  });
+  expect(result.current.messages.map(message => message.content)).toEqual([
+    'Investigate glucose homeostasis.',
+    'Owned Q&A answer',
+  ]);
+});
+
+it('ignores an old owned fetch after another chat has committed', async () => {
+  const old = deferred<ReturnType<typeof completedInterview>>();
+  const next = {
+    ...completedInterview(),
+    id: 'interview-2',
+    turns: [
+      {...completedInterview().turns[0], content: 'Current private transcript'},
+      completedInterview().turns[1],
+    ],
+  };
+  apiMock.getInterview
+    .mockReset()
+    .mockImplementation(id =>
+      id === 'interview-1' ? old.promise : Promise.resolve(next),
+    );
+  const {result, rerender} = rehydrateSession('interview-1');
+  rerender({id: 'interview-2'});
+  await waitFor(() => expect(result.current.interview?.id).toBe('interview-2'));
+  await act(async () => {
+    old.resolve({
+      ...completedInterview(),
+      turns: [
+        {...completedInterview().turns[0], content: 'Old private transcript'},
+      ],
+    });
+  });
+  expect(result.current.interview?.id).toBe('interview-2');
+  expect(result.current.messages.map(message => message.content)).toEqual([
+    'Current private transcript',
+  ]);
+});
+
+it('leaves an inaccessible interview empty under StrictMode', async () => {
+  apiMock.getInterview
+    .mockReset()
+    .mockRejectedValue(new Error('404 not found'));
+  const {result} = rehydrateSession('inaccessible-chat');
+  await waitFor(() => expect(apiMock.getInterview).toHaveBeenCalledTimes(2));
+  expect(result.current.interview).toBeNull();
+  expect(result.current.messages).toEqual([]);
+  expect(result.current.hasConversation).toBe(false);
+});
 
 it('shows a run Q&A exchange after reopening the chat', async () => {
   apiMock.getInterview.mockResolvedValue(completedInterview());
