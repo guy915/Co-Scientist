@@ -17,6 +17,7 @@ from app import (
 from app.api_contracts import MessagesResponse
 from app.api_contracts.runs import RunMessage
 from app.execution_policy import CAMPAIGN, campaign_model_for_config
+from app.qa import snapshot
 from app.runs.models import (
     AskRequest,
     QaRevisionRequest,
@@ -28,7 +29,7 @@ from app.store import db, records
 from app.store import hypotheses as store_hypotheses
 from app.store import messages as store
 from app.store.messages import NewMessage
-from app.store.models import MessageRow, RunRow
+from app.store.models import MessageRow, RunRow, RunStatus
 
 router = APIRouter()
 
@@ -64,18 +65,45 @@ async def list_messages(run_id: str) -> dict[str, Any]:
 def _gather_qa_context(run: RunRow) -> qa.QaRunContext:
     """Q&A reads must not acquire SQLite's single writer."""
     with db.connect() as conn:
+        conn.execute("BEGIN")
+        state = snapshot.checkpoint_state(run, conn)
         hypotheses = store_hypotheses.list_hypotheses(run.id, conn=conn)
+        if "hypotheses" in state and run.status != RunStatus.COMPLETED:
+            hypotheses = [
+                snapshot.idea_view(h)
+                for h in state["hypotheses"]
+                if isinstance(h, dict)
+            ]
         reviews = records.list_reviews(run.id, conn=conn)
+        if "hypotheses" in state and run.status != RunStatus.COMPLETED:
+            reviews = [
+                {
+                    **r,
+                    "reviewer_agent": r.get("reviewer", "review"),
+                    "hypothesis_id": h.get("id", ""),
+                    "summary": r.get("review_summary", ""),
+                }
+                for h in hypotheses
+                for r in h.get("reviews") or []
+                if isinstance(r, dict)
+            ]
         matches = records.list_matches(run.id, conn=conn)
+        if "tournament_matchups" in state and run.status != RunStatus.COMPLETED:
+            matches = state["tournament_matchups"] or []
         history = store.list_messages(run.id, conn=conn)[:-1]
         evidence = records.list_evidence(run.id, conn=conn)
         citations = records.list_citations(run.id, conn=conn)
+        artifacts = snapshot.gather_artifacts(
+            run, conn, state, hypotheses, reviews, matches, history
+        )
         progress = qa_run_state.gather_run_progress(
             run,
             reviews,
             {
                 "ideas": len(hypotheses),
-                "evidence": len(evidence),
+                "evidence": max(
+                    len(evidence), len(state.get("articles") or [])
+                ),
                 "matches": len(matches),
             },
             conn,
@@ -83,6 +111,7 @@ def _gather_qa_context(run: RunRow) -> qa.QaRunContext:
         )
     return qa.QaRunContext(
         research_goal=run.research_goal,
+        artifacts=artifacts,
         hypotheses=hypotheses,
         reviews=reviews,
         matches=matches,
@@ -92,7 +121,11 @@ def _gather_qa_context(run: RunRow) -> qa.QaRunContext:
         report=(
             None
             if progress.is_running
-            else qa_run_state.gather_report_facts(run.id)
+            else (
+                qa_run_state.build_report_facts(artifacts["report"][0])
+                if artifacts.get("report")
+                else None
+            )
         ),
     )
 
@@ -164,6 +197,7 @@ def _live_qa_response(
                 system_prompt=qa.build_system_prompt(context),
                 manifest=context.manifest,
                 ideas=context.hypotheses,
+                artifacts=context.artifacts,
             ),
             byok=byok,
             execution_policy=run.execution_policy,

@@ -7,7 +7,7 @@ import sqlite3
 import uuid
 from typing import Any
 
-from app.store.db import _list_by_run, _now, _use_conn, connect
+from app.store.db import _list_by_run, _now, _use_conn
 
 
 def replace_knowledge_facts(
@@ -87,9 +87,11 @@ def save_report(
 
 
 def get_latest_report(
-    run_id: str, db_path: str | None = None
+    run_id: str,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> dict[str, Any] | None:
-    with connect(db_path) as conn:
+    with _use_conn(conn, db_path) as conn:
         row = conn.execute(
             "SELECT * FROM reports WHERE run_id=? "
             "ORDER BY created_at DESC LIMIT 1",

@@ -238,3 +238,46 @@ def test_a_nameless_tool_fragment_does_not_trigger_a_round(
 
     assert _drain(qa.stream_llm_deltas("model", "sys", "q", [_idea("H")])) == []
     assert len(fake.sent) == 1
+
+
+def test_run_artifact_lookup_uses_same_bounded_two_round_stream(
+    monkeypatch: pytest.MonkeyPatch,
+    reachable_provider: None,
+) -> None:
+    scripted = _scripted_litellm(
+        [
+            [
+                _chunk(
+                    tool_calls=[
+                        _fragment(
+                            0,
+                            id="run_lookup",
+                            name="search_run_artifacts",
+                            arguments='{"section":"meta_review"}',
+                        )
+                    ]
+                )
+            ],
+            [_chunk(content="Replication remains necessary.")],
+        ]
+    )
+    install_completion_backend(monkeypatch, scripted.acompletion)
+    output = _drain(
+        qa.stream_llm_deltas(
+            "model",
+            "sys",
+            "What did the synthesis conclude?",
+            [],
+            {"meta_review": [{"conclusion": "Replication remains necessary"}]},
+        )
+    )
+    assert output == [("chunk", "Replication remains necessary.")]
+    assert len(scripted.sent) == 2
+    assert (
+        scripted.sent[0]["tools"][0]["function"]["name"]
+        == "search_run_artifacts"
+    )
+    assert "tools" not in scripted.sent[1]
+    messages = scripted.sent[1]["messages"]
+    assert messages[-1]["tool_call_id"] == "run_lookup"
+    assert "Replication remains necessary" in messages[-1]["content"]

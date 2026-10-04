@@ -17,6 +17,7 @@ from app.config import (
 )
 from app.execution_policy import scoped_execution_policy
 from app.llm_scope import budgeted_stream, stream_chunks
+from app.qa import artifacts as qa_artifacts
 from app.qa.manifest import QaRunContext as QaRunContext
 from app.qa.manifest import _tokenize
 from app.qa.manifest import build_evidence_manifest as build_evidence_manifest
@@ -102,14 +103,23 @@ def _resolved_calls(
 
 
 def _tool_result_messages(
-    calls: list[dict[str, Any]], ideas: list[dict[str, Any]]
+    calls: list[dict[str, Any]],
+    ideas: list[dict[str, Any]],
+    artifacts: dict[str, list[Any]] | None = None,
 ) -> list[dict[str, Any]]:
     return [
         {
             "role": "tool",
             "tool_call_id": call["id"],
             "name": call["name"],
-            "content": qa_ideas.run_tool_call(call, ideas),
+            "content": (
+                qa_artifacts.retrieve(
+                    artifacts or {},
+                    qa_ideas._tool_arguments(str(call.get("arguments") or "")),
+                )
+                if call["name"] == qa_artifacts.TOOL_NAME
+                else qa_ideas.run_tool_call(call, ideas)
+            ),
         }
         for call in calls
     ]
@@ -121,6 +131,7 @@ async def stream_llm_deltas(
     system_prompt: str,
     question: str,
     ideas: list[dict[str, Any]],
+    artifacts: dict[str, list[Any]] | None = None,
 ) -> AsyncGenerator[tuple[str, str], None]:
     """Allow one lookup round only before prose starts; reasoning alone does not
     close that round. Starting a second answer after emitted prose would
@@ -135,7 +146,9 @@ async def stream_llm_deltas(
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": question},
     ]
-    tools = [qa_ideas.tool_declaration()] if ideas else None
+    tools = [qa_ideas.tool_declaration()] if ideas else []
+    if artifacts:
+        tools.append(qa_artifacts.tool_declaration())
     tool_calls: dict[int, dict[str, Any]] = {}
     answered = False
     async for kind, fragment in _stream_completion(
@@ -144,12 +157,12 @@ async def stream_llm_deltas(
         if kind == "chunk":
             answered = True
         yield kind, fragment
-    calls = _resolved_calls(tool_calls)
+    calls = _resolved_calls(tool_calls)[:4]
     if answered or not calls:
         return
     messages += [
         qa_ideas.assistant_tool_message(calls),
-        *_tool_result_messages(calls, ideas),
+        *_tool_result_messages(calls, ideas, artifacts),
     ]
     async for kind, fragment in _stream_completion(
         _completion_request(model, api_key, messages, None), {}
@@ -172,6 +185,7 @@ class QaAnswerInputs:
     system_prompt: str
     manifest: list[dict[str, Any]]
     ideas: list[dict[str, Any]] = field(default_factory=list)
+    artifacts: dict[str, list[Any]] = field(default_factory=dict)
 
 
 def _question_ranked_hypotheses(
@@ -407,6 +421,7 @@ async def stream_answer(
                 inputs.system_prompt,
                 question.text,
                 inputs.ideas,
+                **({"artifacts": inputs.artifacts} if inputs.artifacts else {}),
             )
             async for frame in _framed_answer(
                 run_id, question.message_id, inputs.manifest, deltas

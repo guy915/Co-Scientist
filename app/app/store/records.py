@@ -363,12 +363,15 @@ def _insert_record(
 
 
 def list_safety_decisions(
-    run_id: str, db_path: str | None = None
+    run_id: str,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
     rows = _list_by_run(
         "safety_decisions",
         run_id,
         db_path,
+        conn,
         json_fields=("matches", "risk_domains"),
     )
     for row in rows:
