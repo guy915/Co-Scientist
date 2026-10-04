@@ -1,18 +1,5 @@
-"""The Goal Report: payload, markdown, release gate, and the finalize pipeline.
-
-One package for the document a run ends in. ``finalize`` is the publish
-pipeline (final safety gate, persistence, report/completed events); ``build``
-gathers a run's data into the payload/markdown pair; ``content`` derives the
-leaderboard, buckets and topics it shows; ``gates`` decides which ideas the
-report may release (contradicted and unsafe ideas are withheld, merely
-unsupported ones are published as Unverified). ``notifications`` schedules
-completion email; ``markdown`` renders the document from its section modules.
-
-This ``__init__`` is the interface; the submodules are package-private.
-``engine_adapter`` imports ``format_deep_verification_critique`` from here
-while ``finalize`` reaches ``engine_tasks.support`` (and through it
-``engine_adapter``), so ``finalize`` imports ``engine_tasks.support`` inside
-the functions that need it -- hoisting that import is an import cycle.
+"""Import engine task support inside finalize functions to avoid a cycle through
+engine_adapter.
 """
 
 from app.report.build import ReportRequest, build_report_content

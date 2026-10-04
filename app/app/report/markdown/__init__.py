@@ -1,5 +1,3 @@
-"""Render the Goal Report from its ordered document sections."""
-
 from __future__ import annotations
 
 import dataclasses
@@ -33,7 +31,6 @@ from app.report.markdown.overview import (
 def _render_stratification_attributes_markdown(
     attributes: list[dict[str, Any]] | None,
 ) -> list[str]:
-    """Render the Supervisor's synthesized 1-5 stratification attributes."""
     items = [
         attr
         for attr in attributes or []
@@ -51,7 +48,6 @@ def _render_stratification_attributes_markdown(
 
 
 def _critical_criterion_name(criterion: Any) -> str:
-    """Extract a critical criterion's display name, or "" when unusable."""
     if isinstance(criterion, str):
         return criterion.strip()
     if isinstance(criterion, dict):
@@ -60,7 +56,6 @@ def _critical_criterion_name(criterion: Any) -> str:
 
 
 def _critical_criterion_description(criterion: Any) -> str:
-    """Extract a critical criterion's prose description, or ""."""
     if not isinstance(criterion, dict):
         return ""
     return str(criterion.get("description") or "").strip()
@@ -69,13 +64,6 @@ def _critical_criterion_description(criterion: Any) -> str:
 def _critical_criteria_entries(
     critical_criteria: list[Any] | None,
 ) -> list[tuple[str, str]]:
-    """Extract (name, description) pairs, skipping unusable entries.
-
-    Kept separate from ``_render_evaluation_criteria_markdown`` (its only
-    caller today) so a non-list ``critical_criteria`` field and an
-    unusable entry both filter out here, once, rather than in the
-    renderer's own layout logic.
-    """
     if not isinstance(critical_criteria, list):
         return []
     return [
@@ -87,7 +75,6 @@ def _critical_criteria_entries(
 
 
 def _render_evaluation_criterion(name: str, description: str) -> list[str]:
-    """Render one Evaluation Criteria entry."""
     if description:
         return [f"**{name}:** {description}", ""]
     return [f"- {name}"]
@@ -96,7 +83,6 @@ def _render_evaluation_criterion(name: str, description: str) -> list[str]:
 def _render_evaluation_criteria_markdown(
     critical_criteria: list[Any] | None,
 ) -> list[str]:
-    """Render the Supervisor's synthesized per-goal evaluation criteria."""
     entries = _critical_criteria_entries(critical_criteria)
     if not entries:
         return []
@@ -122,11 +108,8 @@ def _render_review_summary_question(question: Any) -> str:
 def _render_review_summary_criterion(
     index: int, criterion: Any, name: str
 ) -> list[str]:
-    """Render one numbered criterion heading plus its question bullets.
-
-    A legacy bare-name entry (``criterion`` is a str, not a dict) carries
-    no ``questions`` to look up, so it numbers in with no bullets beneath
-    it -- degraded, not dropped.
+    """Legacy bare-name criteria still render without question bullets until
+    production reset.
     """
     lines = [f"### {index}. {name}\n"]
     raw_questions = (
@@ -144,7 +127,6 @@ def _render_review_summary_criterion(
 def _render_review_summary_markdown(
     critical_criteria: list[Any] | None,
 ) -> list[str]:
-    """Render the Supervisor's synthesized review rubric as its own section."""
     if not isinstance(critical_criteria, list):
         return []
     named = [
@@ -174,8 +156,6 @@ _MIN_DEBATE_TURNS: Final = 2
 
 
 class _Debate(NamedTuple):
-    """One match's stored debate, resolved against the published pool."""
-
     idea_1: str
     idea_2: str
     verdict: str
@@ -183,11 +163,8 @@ class _Debate(NamedTuple):
 
 
 def _stored_document(match: dict[str, Any]) -> dict[str, Any] | None:
-    """Parse a match row's transcript column, or None when it has none.
-
-    A row written before the column existed reads NULL, and a row whose
-    JSON does not parse is treated the same way: the report omits the
-    debate rather than printing a fragment of one.
+    """Old or malformed transcripts omit the debate rather than publishing a
+    fragment.
     """
     raw = match.get("debate_transcript")
     if not raw:
@@ -202,12 +179,8 @@ def _stored_document(match: dict[str, Any]) -> dict[str, Any] | None:
 def _resolve_debate(
     match: dict[str, Any], titles: dict[str, str]
 ) -> _Debate | None:
-    """Resolve one match into a renderable debate, or None to skip it.
-
-    Idea 1 and idea 2 are the judge's own canonical presentation order,
-    recovered from the verdict: the winner is idea 1 exactly when the
-    verdict says 1. Deriving it from the outcome instead would make every
-    published verdict line read "better idea: 1".
+    """Recover the judge's canonical idea order from its verdict; deriving order
+    from the winner would always show idea 1 winning.
     """
     document = _stored_document(match)
     if document is None:
@@ -225,13 +198,8 @@ def _resolve_debate(
 def _select_debates(
     matches: list[dict[str, Any]], titles: dict[str, str]
 ) -> list[_Debate]:
-    """The debates this section renders, deepest first, capped.
-
-    Depth is the tournament's own measure of which comparison mattered:
-    ``ranking_debate`` budgets multiple turns to top-ranked pairings and
-    settles the rest in one, so ordering by turn count puts the run's most
-    contested comparisons first. Python's sort is stable, so matches of
-    equal depth keep the order the tournament judged them in.
+    """Turn count prioritizes contested comparisons; stable sorting preserves
+    tournament order for equal depths.
     """
     debates = [
         debate
@@ -243,7 +211,6 @@ def _select_debates(
 
 
 def _turn_text(turn: dict[str, Any]) -> str:
-    """One turn's argument, truncated at the cap with the cut marked."""
     text = " ".join(str(turn.get("text") or "").split())
     if len(text) <= _MAX_TURN_CHARS:
         return text
@@ -251,7 +218,6 @@ def _turn_text(turn: dict[str, Any]) -> str:
 
 
 def _numbering_note(turn: dict[str, Any]) -> str:
-    """State which idea this turn's own text calls "Hypothesis 1"."""
     first = str(turn.get("first") or "")
     if first not in ("1", "2"):
         return ""
@@ -259,12 +225,8 @@ def _numbering_note(turn: dict[str, Any]) -> str:
 
 
 def _render_turn(index: int, turn: dict[str, Any]) -> str:
-    """Render one turn as a labelled paragraph.
-
-    The turn's own number is trusted only as a label; ``index`` is what
-    the reader counts by, so a transcript missing a turn number still
-    reads as a sequence. "Favors idea N" is always the section's own
-    numbering; ``_numbering_note`` names the turn's.
+    """Use the section's numbering for favored ideas; preserve the transcript's
+    own numbering as a separate note.
     """
     favored = "2" if str(turn.get("favored") or "1") == "2" else "1"
     return (
@@ -274,7 +236,6 @@ def _render_turn(index: int, turn: dict[str, Any]) -> str:
 
 
 def _render_debate(number: int, debate: _Debate) -> list[str]:
-    """Render one debate: its pairing, its turns, and its verdict line."""
     lines = [
         f"### Debate {number}: 1. {debate.idea_1} vs 2. {debate.idea_2}",
         "",
@@ -289,7 +250,6 @@ def _render_tournament_debates_markdown(
     matches: list[dict[str, Any]],
     hypothesis_title_by_id: dict[str, str] | None,
 ) -> list[str]:
-    """Render the 'Tournament debates' section, or nothing when empty."""
     debates = _select_debates(matches, hypothesis_title_by_id or {})
     if not debates:
         return []
@@ -312,18 +272,6 @@ def _render_tournament_debates_markdown(
 def _claim_evidence_by_hypothesis(
     claim_evidence: list[dict[str, Any]],
 ) -> dict[str, list[dict[str, Any]]]:
-    """Group claim edges by hypothesis id in one pass.
-
-    The section renders up to five hypotheses and every edge belongs to
-    exactly one of them, so grouping once beats re-filtering the whole edge
-    list per entry.
-
-    Args:
-        claim_evidence: The run's released claim-evidence edges.
-
-    Returns:
-        Mapping of hypothesis id to its edges, in their original order.
-    """
     grouped: dict[str, list[dict[str, Any]]] = {}
     for edge in claim_evidence:
         key = str(edge.get("hypothesis_id") or "")
@@ -331,16 +279,8 @@ def _claim_evidence_by_hypothesis(
     return grouped
 
 
-# K3: novelty scores/language throughout the review, ranking, and
-# generation prompts are the reviewing model's own unaided judgment --
-# grounding that judgment in an actual literature search
-# (novelty_validation, populated by
-# co_scientist.agents.generation.literature_tools.validate) only
-# runs on the tool-calling generation path, which the app never enables for
-# a real run (see engine_adapter/opts.py). A reader must never be left with
-# definitive novelty language on the strength of an unverified judgment, so
-# this note renders whenever nothing in the report was actually corpus-
-# checked -- which today is every run.
+# Normal app runs do not corpus-check model novelty; disclose that novelty
+# judgments remain directional.
 _NOVELTY_DISCLOSURE = (
     "_Novelty above reflects the reviewing model's own judgment, not a"
     " search of the published literature. Treat any claim that an idea is"
@@ -351,7 +291,6 @@ _NOVELTY_DISCLOSURE = (
 def _render_novelty_disclosure(
     top_hypotheses: list[dict[str, Any]],
 ) -> list[str]:
-    """Render the novelty-unverified disclosure, unless corpus-checked."""
     if not top_hypotheses or any(
         hyp.get("novelty_validation") for hyp in top_hypotheses
     ):
@@ -366,7 +305,6 @@ def _render_top_hypotheses_markdown(
     evidence: list[dict[str, Any]],
     reviews: list[dict[str, Any]],
 ) -> list[str]:
-    """Render the numbered 'Top hypotheses' section."""
     edges_by_hypothesis = _claim_evidence_by_hypothesis(claim_evidence)
     refs_by_hypothesis = references_by_hypothesis(citations, evidence)
     reviews_by_hypothesis = _reviews_by_hypothesis(reviews)
@@ -387,7 +325,6 @@ def _render_top_hypotheses_markdown(
 def _render_citation_audit(
     citation_summary: dict[str, int] | None,
 ) -> list[str]:
-    """Render the 'Citation audit' section, or nothing when absent."""
     if not citation_summary:
         return []
     lines = ["## Citation audit"]
@@ -400,67 +337,37 @@ def _render_citation_audit(
 
 @dataclasses.dataclass(frozen=True)
 class ReportMarkdownInputs:
-    """Everything the report markdown document renders from.
-
-    Run identity, ranked hypotheses, and synthesized document sections.
-    """
-
     research_goal: str
     provider: str
     top_hypotheses: list[dict[str, Any]]
-    # A freshly synthesized narrative restatement of the goal in different
-    # words (GOAL-RESTATEMENT-001), rendered at the head of the top-hypotheses
-    # section. None (offline/keyless runs, rows predating the column, or a
-    # generation failure) omits the paragraph -- the raw "Research Goal
-    # Details" block above is unaffected either way.
     goal_restatement: str | None = None
     meta_review: dict[str, Any] | None = None
     citation_summary: dict[str, int] | None = None
     research_overview: dict[str, Any] | None = None
     knowledge_base: list[dict[str, Any]] | None = None
-    # The run's persisted requirements/attributes/criteria (and goal),
-    # rendered as "Research Goal Details" -- see run_modes.setup_config.
     setup: dict[str, Any] | None = None
-    # Synthesized stratification axes differ from the scientist's setup
-    # attributes; combining them would lose their distinct meanings.
+    # Synthesized stratification axes differ from scientist setup attributes.
     attributes: list[dict[str, Any]] | None = None
-    # Synthesized reviewer guidance differs from the scientist's setup criteria.
-    # Legacy names and richer description/question objects must remain readable.
+    # Synthesized reviewer guidance differs from scientist criteria; legacy
+    # names and richer objects both remain readable.
     critical_criteria: list[Any] | None = None
-    # Epoch seconds this report was built, rendered as the provenance and
-    # research-purposes-only caution line. None omits that line entirely
-    # rather than stating a date via the wall clock -- see
-    # report.markdown.document._render_provenance_line.
     prepared_at: float | None = None
     summary: str | None = None
     claim_evidence: list[dict[str, Any]] | None = None
     skills_used: dict[str, int] | None = None
     retrieval_calls: list[dict[str, Any]] | None = None
-    # Raw citations/evidence rows (store.list_citations / list_evidence),
-    # joined per hypothesis by report.markdown.references to resolve the
-    # [C*] keys the mechanism text cites. None (an old run rendered before
-    # this field existed, or a run with no citation data at all) resolves
-    # no keys -- the report never fabricates a reference.
+    # Legacy reports without citation data must never invent references.
     citations: list[dict[str, Any]] | None = None
     evidence: list[dict[str, Any]] | None = None
-    # Every review row the drain persisted (store.list_reviews), joined per
-    # hypothesis for the Go/No-Go framing and simulation-review subsections
-    # (R14-15/R14-22, report/markdown/hypothesis.py). None omits both.
     reviews: list[dict[str, Any]] | None = None
-    # This run's hypothesis titles by id, for a contact group's example
-    # hypotheses (R14-6) -- see report.build._hypothesis_title_by_id. Also
-    # the published-pool gate the tournament section renders behind (see
-    # report.markdown.process).
     hypothesis_title_by_id: dict[str, str] | None = None
-    # Every tournament match row the drain persisted
-    # (store.list_matches), rendered as "Tournament debates" from the
-    # turn-by-turn transcript each carries. None, or a run whose matches
-    # predate that column, renders no such section.
     matches: list[dict[str, Any]] | None = None
 
 
 def _report_sections(inputs: ReportMarkdownInputs) -> list[list[str]]:
-    """Render sections once, in the order shared by the body and contents."""
+    """The contents and body share one section skeleton so omitted sections
+    cannot leave dead navigation entries.
+    """
     top_hypotheses = _render_top_hypotheses_markdown(
         inputs.top_hypotheses,
         inputs.claim_evidence or [],
@@ -477,27 +384,13 @@ def _report_sections(inputs: ReportMarkdownInputs) -> list[list[str]]:
         _render_evaluation_criteria_markdown(inputs.critical_criteria),
         _render_stratification_attributes_markdown(inputs.attributes),
         _render_meta_review_overview_markdown(inputs.meta_review or {}),
-        # R14-1: each of the research-overview's own four sub-sections
-        # travels as its own entry rather than the one flattened list
-        # ``render_research_overview_markdown`` returns, so a report that
-        # only carries e.g. Research Contacts still gets the other three
-        # correctly omitted from the table of contents.
         *research_overview_sections(
             inputs.research_overview or {}, inputs.hypothesis_title_by_id
         ),
-        # R12-23: the published "Review summary" sits right after the
-        # research directions and before the full hypothesis write-up.
         _render_review_summary_markdown(inputs.critical_criteria),
         _render_main_research_directions_markdown(inputs.meta_review or {}),
         top_hypotheses,
-        # "Idea Comparison Table" / "Comparison with Existing Solutions" /
-        # "Recommendation" (R14-7/R14-8) -- the tournament-facing half of
-        # the meta-review's synthesis, evaluating the candidates just
-        # rendered above.
         _render_meta_review_ranking_markdown(inputs.meta_review or {}),
-        # F3: the debates behind that comparison's verdicts -- the
-        # tournament's own published artifact, immediately after the
-        # ranking material it explains.
         _render_tournament_debates_markdown(
             inputs.matches or [], inputs.hypothesis_title_by_id
         ),
@@ -506,30 +399,11 @@ def _report_sections(inputs: ReportMarkdownInputs) -> list[list[str]]:
             inputs.skills_used or {}, inputs.retrieval_calls or []
         ),
         _render_citation_audit(inputs.citation_summary),
-        # R12-12: the run-wide bibliography, deduplicated -- see
-        # report/markdown/references.py for placement and dedup
-        # rationale. Sits last, matching the published MASH report's own
-        # References span running to the end of the document.
         _render_references_section(inputs.evidence or []),
     ]
 
 
 def render_report_markdown(inputs: ReportMarkdownInputs) -> str:
-    """Render a run's Goal Report markdown from one skeleton for every provider.
-
-    Sections populate only when their data is present, so a provider that
-    omits meta-review, citations, or a research overview simply skips those
-    headings rather than emitting empty ones. Right after the always-present
-    title/provider line and the R14-4 About disclosure comes a table of
-    contents (R14-1) naming whichever sections this particular render
-    actually produced.
-
-    Args:
-        inputs: The run identity, top hypotheses, and rendered sections.
-
-    Returns:
-        The rendered markdown document.
-    """
     title_lines = _render_title_and_provider(
         inputs.research_goal, inputs.provider
     )
