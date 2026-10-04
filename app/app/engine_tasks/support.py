@@ -573,7 +573,7 @@ def assert_task_commit_allowed(
 def _generator_and_opts(
     task: ScientificTask, db_path: str | None
 ) -> tuple[Any, dict[str, Any]]:
-    from co_scientist import HypothesisGenerator
+    from co_scientist.generator.core import HypothesisGenerator
 
     from app.credentials import get_run_credential
 
@@ -590,7 +590,7 @@ def _generator_and_opts(
 
 def _generator_for_restore(task: ScientificTask, db_path: str | None) -> Any:
     """Build a registry-compatible generator without consuming steering."""
-    from co_scientist import HypothesisGenerator
+    from co_scientist.generator.core import HypothesisGenerator
 
     from app.credentials import get_run_credential
 
