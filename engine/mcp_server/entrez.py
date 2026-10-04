@@ -1,5 +1,3 @@
-"""NCBI Entrez initialization, process pacing, and bounded request recovery."""
-
 import contextvars
 import logging
 import os
@@ -20,11 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 def read_entrez(handle: Any) -> Any:
-    """Parse an Entrez response and close it, including when parsing fails.
-
-    Request pacing belongs in entrez_call, before the HTTP request is sent.
-    Both metadata tools use this reader for dict- and list-shaped responses.
-    """
+    """Pace before sending requests, not while parsing their responses."""
     try:
         return Entrez.read(handle)
     except Exception:
@@ -34,21 +28,13 @@ def read_entrez(handle: Any) -> Any:
         handle.close()
 
 
-# Module-level guard: Biopython's Entrez client stores credentials as
-# process-global attributes (Entrez.email, Entrez.api_key) rather than on an
-# instance, so initialization only needs to happen once per process even
-# though multiple tool modules call initialize_entrez() at import time.
+# Biopython stores credentials process-wide, so configure once across tool
+# modules.
 _entrez_initialized = False
 
 
 def initialize_entrez() -> None:
-    """Initializes Entrez with email and API key from the environment.
-
-    Idempotent: configuration is applied and warnings logged only on the first
-    call. NCBI rejects a request carrying an empty ``api_key=`` query parameter
-    with HTTP 400 while accepting one that omits it, so an unset key is left
-    unassigned rather than blanked.
-    """
+    """NCBI rejects empty api_key parameters with HTTP 400; omit unset keys."""
     global _entrez_initialized
 
     if os.environ.get("DISABLE_SSL_VERIFY", "").lower() in (
@@ -61,16 +47,14 @@ def initialize_entrez() -> None:
     if _entrez_initialized:
         return
 
-    # Set the flag before doing the work (rather than after) so a failure
-    # partway through does not cause every subsequent call to retry and
-    # re-log the same warnings.
+    # Set the guard first so failed initialization cannot repeat warnings on
+    # every import.
     _entrez_initialized = True
     _init_entrez_email()
     _init_entrez_api_key()
 
 
 def _init_entrez_email() -> None:
-    """Sets Entrez.email from ENTREZ_EMAIL if not already configured."""
     if Entrez.email:
         return
 
@@ -87,7 +71,6 @@ def _init_entrez_email() -> None:
 
 
 def _init_entrez_api_key() -> None:
-    """Sets Entrez.api_key from ENTREZ_API_KEY if not already configured."""
     if Entrez.api_key:
         return
 
@@ -96,8 +79,7 @@ def _init_entrez_api_key() -> None:
         Entrez.api_key = entrez_key
         logger.info("Initialized Entrez with API key")
     else:
-        # Without a key NCBI enforces the default ~3 requests/second
-        # rate limit rather than the higher registered-key limit.
+        # NCBI permits 3 requests/s without a key, 10 with one.
         logger.info("ENTREZ_API_KEY not set - using default rate limits")
 
 
@@ -127,7 +109,6 @@ def _canonical_http_date(value: str) -> str | None:
 
 
 def retry_after_value(error: HTTPError) -> str | None:
-    """Reads only the bounded Retry-After header from a response."""
     headers = error.headers
     if headers is None:
         return None
@@ -138,7 +119,6 @@ def retry_after_value(error: HTTPError) -> str | None:
 def retry_after_trace_value(
     value: str | None,
 ) -> tuple[str | None, str | None, bool]:
-    """Returns a bounded semantic value and an explicitly bounded raw prefix."""
     if value is None:
         return None, None, False
     raw = str(value)
@@ -174,7 +154,6 @@ def _date_delay(raw: str, wall_clock: Callable[[], float]) -> float:
 def retry_after_delay(
     value: str | None, wall_clock: Callable[[], float]
 ) -> float | None:
-    """Returns a bounded delay, or None when a valid delay exceeds 60s."""
     if value is None:
         delay = RETRY_AFTER_DEFAULT_SECONDS
     else:
@@ -192,7 +171,6 @@ def retry_after_delay(
 def retry_after_trace(
     error: HTTPError, wall_clock: Callable[[], float]
 ) -> tuple[dict[str, str | bool | None], float | None]:
-    """Returns bounded trace fields alongside the unchanged policy delay."""
     raw = retry_after_value(error)
     canonical, raw_prefix, raw_truncated = retry_after_trace_value(raw)
     return (
@@ -205,18 +183,14 @@ def retry_after_trace(
     )
 
 
-# Minimum seconds between two requests leaving this process, just inside
-# NCBI's documented ceilings (10/s with a key, 3/s without) so ordinary clock
-# jitter cannot push a pair over the line.
+# Pace the entire process just below NCBI's 10/s keyed and 3/s unkeyed ceilings.
 _INTERVAL_WITH_API_KEY = 0.11
 _INTERVAL_WITHOUT_API_KEY = 0.4
 
 _lock = threading.Lock()
-# Monotonic time at which the next request may be issued.
 _next_slot = 0.0
 
-# Clock and sleep hooks, indirected only so tests can drive the pacer with a
-# fake clock instead of real elapsed time. Production never overrides these.
+# Indirect clock/sleep hooks let tests avoid real elapsed waits.
 _clock: Callable[[], float] = time.monotonic
 _sleep: Callable[[float], None] = time.sleep
 _wall_clock: Callable[[], float] = time.time
@@ -238,7 +212,6 @@ _pilot_trace_lock = threading.Lock()
 
 
 def bind_study4_recovery(study_id: str) -> int:
-    """Binds this process to the one prospective Study 4 retry budget."""
     if study_id != STUDY4_RECOVERY_STUDY_ID:
         raise ValueError(
             "Study 4 Entrez recovery requires the protocol study ID"
@@ -253,7 +226,6 @@ def bind_study4_recovery(study_id: str) -> int:
 
 
 def study4_retries_used(study_id: str) -> int:
-    """Returns a monotonic process snapshot for the bound prospective study."""
     with _study4_budget_lock:
         if _study4_bound_study_id != study_id:
             raise RuntimeError("Study 4 Entrez retry budget is not bound")
@@ -261,7 +233,6 @@ def study4_retries_used(study_id: str) -> int:
 
 
 def reserve_study4_retry(study_id: str) -> int | None:
-    """Atomically consumes one retry from the process-wide study ceiling."""
     global _study4_retries_used
     with _study4_budget_lock:
         if _study4_bound_study_id != study_id:
@@ -276,11 +247,8 @@ def reserve_study4_retry(study_id: str) -> int | None:
 def pilot_trace_context(
     trace: dict[str, Any] | None, paper_id: str | None = None
 ) -> Any:
-    """Scopes optional trace accounting across async work and worker threads.
-
-    ``asyncio.to_thread`` copies the current context, so individual blocking
-    Entrez calls keep the correct run and paper identity without process-wide
-    mutable request state.
+    """to_thread copies request context so blocking calls retain run/paper
+    identity without global state.
     """
     parent = _pilot_trace_context.get()
     resolved_trace = (
@@ -302,7 +270,6 @@ def pilot_trace_context(
 def record_pilot_fetch_error(
     stage: str, exc: Exception, paper_id: str | None = None
 ) -> None:
-    """Records bounded, redacted fetch failure details for the active pilot."""
     context = _pilot_trace_context.get()
     if context is None:
         return
@@ -324,7 +291,6 @@ def record_pilot_fetch_error(
 
 
 def record_pilot_metadata_origin(paper_id: str, origin: str) -> None:
-    """Records origin only for IDs exposed in the bounded selected-ID sample."""
     context = _pilot_trace_context.get()
     if context is None:
         return
@@ -577,7 +543,6 @@ def _study4_entrez_call(
 
 
 def _request_interval() -> float:
-    """Seconds to leave between requests, given the credentials in force."""
     initialize_entrez()
     return (
         _INTERVAL_WITH_API_KEY
@@ -587,7 +552,6 @@ def _request_interval() -> float:
 
 
 def _await_slot() -> None:
-    """Block until this caller's turn to issue a request comes round."""
     interval = _request_interval()
     with _lock:
         now = _clock()
@@ -599,7 +563,7 @@ def _await_slot() -> None:
 
 
 def _claim_slot(next_slot: float) -> None:
-    """Record when the following request may go out. Call under ``_lock``."""
+    """The caller must hold the process-wide pacer lock."""
     global _next_slot
     _next_slot = next_slot
 
@@ -627,17 +591,8 @@ def _study4_call_context(
 
 
 def entrez_call(request: Callable[..., Any], /, **kwargs: Any) -> Any:
-    """Issue one Entrez request, paced against NCBI's rate limit.
-
-    Every ``Entrez.esearch``/``efetch``/``elink`` call in this server must go
-    through here; calling Entrez directly reintroduces the burst.
-
-    Args:
-        request: The Entrez entry point to call (e.g. ``Entrez.esearch``).
-        **kwargs: Arguments forwarded to it verbatim.
-
-    Returns:
-        The open response handle the Entrez call returned.
+    """Every Entrez request must use this seam to preserve process-wide NCBI
+    pacing.
     """
     # Biopython's key is process-global. Passing None suppresses it for this
     # request even when a standard user's key was loaded earlier in the process.
@@ -646,9 +601,8 @@ def entrez_call(request: Callable[..., Any], /, **kwargs: Any) -> Any:
     active_metadata = _active_study4_metadata()
     _await_slot()
     _assert_pilot_retry_policy()
-    # These count calls entering the maintained request seam. They are not
-    # wire-attempt counts; Biopython retries are separately disabled and
-    # attested only in the explicit pilot serving mode.
+    # Seam calls are not wire attempts; only explicit pilot mode disables and
+    # attests Biopython retries.
     call = _record_pilot_entrez_call(request)
     recovery = _study4_call_context(call, active_metadata)
     if recovery is not None:

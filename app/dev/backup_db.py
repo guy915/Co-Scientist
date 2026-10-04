@@ -11,7 +11,6 @@ from pathlib import Path
 
 
 def _copy_database(source: Path, target: Path, timeout: float) -> None:
-    """Copy committed pages, including WAL, with a bounded backup deadline."""
     deadline = time.monotonic() + timeout
 
     def progress(_status: int, _remaining: int, _total: int) -> None:
@@ -32,18 +31,6 @@ def _copy_database(source: Path, target: Path, timeout: float) -> None:
 def backup_database(
     source: Path, destination: Path, timeout: float = 30.0
 ) -> None:
-    """Publish a validated backup with mode 0600, refusing existing targets.
-
-    Args:
-        source: Existing SQLite database, opened read-only.
-        destination: New backup file in an existing directory.
-        timeout: Maximum time spent copying database pages, in seconds.
-
-    Raises:
-        FileNotFoundError: The source or destination directory is missing.
-        FileExistsError: The destination exists; it is never overwritten.
-        ValueError: The deadline is not positive and finite.
-    """
     if not source.is_file():
         raise FileNotFoundError(source)
     if destination.exists():
@@ -57,15 +44,14 @@ def backup_database(
     target = Path(temporary)
     try:
         _copy_database(source, target, timeout)
-        # A hard link publishes atomically without replacing an existing
-        # destination, even if another backup was created during the copy.
+        # Hard-link publication cannot replace a target another backup created
+        # during the copy.
         os.link(target, destination)
     finally:
         target.unlink(missing_ok=True)
 
 
 def main() -> None:
-    """Back up an explicitly named database without importing the app."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path)
     parser.add_argument("destination", type=Path)

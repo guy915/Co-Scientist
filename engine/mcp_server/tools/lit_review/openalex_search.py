@@ -1,8 +1,5 @@
-"""Cross-disciplinary literature search via OpenAlex.
-
-Return normalized works for successful searches. Raise when OpenAlex cannot
-be reached, refuses quota, or returns invalid JSON so upstream retries and
-source-degradation reporting distinguish a failed source from no matches.
+"""Failed retrieval is distinct from no matches, enabling upstream retry and
+degradation reporting.
 """
 
 import logging
@@ -20,29 +17,14 @@ logger = logging.getLogger(__name__)
 _OPENALEX_WORKS_URL = "https://api.openalex.org/works"
 _MAX_PER_PAGE = 100  # Current documented OpenAlex page-size ceiling.
 
-# OpenAlex's default `search` param is stemmed and documents wildcards as
-# unsupported there (a live 400: "Wildcards (* or ?) require exact (no-stem)
-# search... Use the search.exact= parameter instead"). Quoted phrases and
-# boolean AND/NOT/OR pass through unmodified -- only * and ? are rejected.
+# OpenAlex stemmed search rejects wildcards; Boolean structure and quoted
+# phrases pass through.
 _WILDCARD_CHARS_RE = re.compile(r"[*?]")
 _WHITESPACE_RE = re.compile(r"\s+")
 
 
 def _sanitize_query(query: str) -> str:
-    """Strips OpenAlex's disallowed wildcard characters from a query.
-
-    A model-written query carrying ``*``/``?`` (glob-style truncation
-    conventions common to other search sources) makes the whole request
-    fail with HTTP 400 rather than degrading to a literal match, so the
-    characters are dropped and any resulting run of whitespace collapsed.
-
-    Args:
-        query: Free-text search query, as generated upstream.
-
-    Returns:
-        The query with wildcard characters removed and whitespace
-        collapsed/trimmed.
-    """
+    """OpenAlex stemmed search rejects wildcard characters with HTTP 400."""
     stripped = _WILDCARD_CHARS_RE.sub("", query)
     cleaned = _WHITESPACE_RE.sub(" ", stripped).strip()
     if cleaned != query:
@@ -55,7 +37,6 @@ class OpenAlexUnavailableError(RuntimeError):
 
 
 def _refusal_detail(response: httpx.Response) -> str:
-    """Lift OpenAlex's own explanation out of an error body, if it gave one."""
     try:
         body = response.json()
     except ValueError:
@@ -66,17 +47,8 @@ def _refusal_detail(response: httpx.Response) -> str:
 
 
 def _unavailable_reason(exc: Exception) -> str:
-    """Describe why OpenAlex refused, in terms worth reading in a log.
-
-    A rate limit is the failure this source actually has, and its body
-    carries the only useful part -- how long the caller is locked out and
-    why -- so it is lifted out rather than left as a bare status code.
-
-    Args:
-        exc: The failure raised while searching.
-
-    Returns:
-        A single-line reason.
+    """Quota error bodies expose the lockout reason and duration absent from
+    a bare status.
     """
     if not isinstance(exc, httpx.HTTPStatusError):
         return f"{type(exc).__name__}: {exc}"
@@ -91,7 +63,6 @@ def _unavailable_reason(exc: Exception) -> str:
 
 
 def _reconstruct_abstract(inverted_index: Any) -> str:
-    """Restore abstract word order from OpenAlex's position lists."""
     if not isinstance(inverted_index, dict):
         return ""
     positions = [
@@ -106,7 +77,6 @@ def _reconstruct_abstract(inverted_index: Any) -> str:
 
 
 def normalize_works(data: dict[str, Any], max_papers: int) -> dict[str, Any]:
-    """Normalize OpenAlex results to metadata keyed by short work ID."""
     results = data.get("results") if isinstance(data, dict) else None
     if not isinstance(results, list):
         return {}
@@ -151,29 +121,14 @@ def normalize_works(data: dict[str, Any], max_papers: int) -> dict[str, Any]:
 def _build_search_params(
     query: str, max_papers: int, recency_years: int
 ) -> tuple[dict[str, str], int]:
-    """Builds OpenAlex /works query params for a search request.
-
-    Pure function (no I/O) so it can be unit-tested directly.
-
-    Args:
-        query: Free-text search query.
-        max_papers: Maximum number of works to return across cursor pages.
-        recency_years: If > 0, restrict to works published within this many
-            years.
-
-    Returns:
-        A tuple of (query params dict, effective per-page count).
-    """
-    # Clamp to at least 1 and at most the API's per-page ceiling.
     per_page = min(max(max_papers, 1), _MAX_PER_PAGE)
     params: dict[str, str] = {
         "search": _sanitize_query(query),
         "per_page": str(per_page),
         "cursor": "*",
     }
-    # Reuse the Entrez contact email if set; OpenAlex's "polite pool"
-    # (faster, more reliable responses) is granted to requests that
-    # identify a contact via mailto.
+    # NCBI contact email also qualifies OpenAlex requests for its faster polite
+    # pool.
     mailto = os.environ.get("ENTREZ_EMAIL") or os.environ.get("OPENALEX_MAILTO")
     if mailto:
         params["mailto"] = mailto
@@ -183,8 +138,6 @@ def _build_search_params(
         params["api_key"] = api_key
     filters = ["is_retracted:false"]
     if recency_years and recency_years > 0:
-        # OpenAlex filter syntax: restrict to works published on/after
-        # January 1 of (current year - recency_years).
         from_year = datetime.now(timezone.utc).year - recency_years
         filters.append(f"from_publication_date:{from_year}-01-01")
     params["filter"] = ",".join(filters)
@@ -192,7 +145,6 @@ def _build_search_params(
 
 
 def _next_cursor(data: Any) -> str | None:
-    """Return a usable OpenAlex cursor from one response page."""
     if not isinstance(data, dict):
         return None
     meta = data.get("meta")
@@ -205,17 +157,6 @@ def _next_cursor(data: Any) -> str | None:
 async def _collect_openalex_works(
     params: dict[str, str], per_page: int, max_papers: int
 ) -> dict[str, Any]:
-    """Pages through OpenAlex works up to ``max_papers``.
-
-    Args:
-        params: Query parameters for the works endpoint; mutated with the
-            page size and cursor as pagination proceeds.
-        per_page: Base page size requested from OpenAlex.
-        max_papers: Maximum number of works to collect.
-
-    Returns:
-        A dict of normalized works, at most ``max_papers`` entries.
-    """
     collected: dict[str, Any] = {}
     async with httpx.AsyncClient(
         timeout=30, trust_env=not campaign_free_mode()

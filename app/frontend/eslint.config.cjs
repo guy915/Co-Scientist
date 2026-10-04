@@ -37,18 +37,13 @@ module.exports = defineConfig([
     ],
   },
   ...require('gts'),
-  // Keep strict TypeScript checks without size ceilings that force unrelated
-  // helper functions and re-export modules into otherwise cohesive code.
+  // Size ceilings force unrelated helpers and facades out of cohesive modules.
   {
     files: ['src/**/*.ts', 'src/**/*.tsx'],
     extends: [...strictRules, ...stylisticRules],
   },
-  // Test files and test infrastructure: non-null assertions on queried DOM
-  // nodes (e.g. `input.closest('form')!`) are idiomatic test shorthand — a
-  // null simply fails the test with a clear error — and empty functions are
-  // the standard way to stub no-op mocks (console spies, ResizeObserver,
-  // debounce wrappers). Relaxed here at config level instead of inline
-  // disables at each call site.
+  // Test null assertions fail clearly; empty functions are intentional mocks.
+  // Configure these once rather than requiring disables at every test call.
   {
     files: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/test_setup.ts'],
     rules: {

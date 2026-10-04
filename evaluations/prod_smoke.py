@@ -46,8 +46,6 @@ _TIMEOUT_SECONDS = 15.0
 
 @dataclass
 class CheckResult:
-    """Outcome of one smoke check."""
-
     name: str
     ok: bool
     info: str
@@ -55,8 +53,6 @@ class CheckResult:
 
 
 class _FailedRequest:
-    """Sentinel standing in for a response when the transport call raised."""
-
     def __init__(self, exc: httpx.HTTPError) -> None:
         self.exc = exc
 
@@ -64,10 +60,7 @@ class _FailedRequest:
 def _get(
     client: httpx.Client, path: str, **kwargs: Any
 ) -> httpx.Response | _FailedRequest:
-    """GETs `path`, returning a `_FailedRequest` (not raising) on failure.
-
-    A connection error is itself a finding (report it), not a crash.
-    """
+    """Connection failures are findings to report, not harness crashes."""
     try:
         return client.get(path, timeout=_TIMEOUT_SECONDS, **kwargs)
     except httpx.HTTPError as exc:
@@ -75,7 +68,6 @@ def _get(
 
 
 def check_health(client: httpx.Client) -> CheckResult:
-    """`/health` answers 200 and reports a non-unhealthy status."""
     resp = _get(client, "/health")
     if isinstance(resp, _FailedRequest):
         return CheckResult("health", False, f"request failed: {resp.exc}")
@@ -87,10 +79,8 @@ def check_health(client: httpx.Client) -> CheckResult:
 
 
 def check_status_probes(client: httpx.Client) -> CheckResult:
-    """`/status` answers 200; MCP/SMTP integration state is reported.
-
-    Informational: MCP-down or SMTP-unconfigured are operator decisions
-    reflected in Railway env vars (see AGENTS.md), not smoke failures.
+    """Missing optional integrations are operator configuration, not smoke
+    failures.
     """
     resp = _get(client, "/status")
     if isinstance(resp, _FailedRequest):
@@ -110,12 +100,8 @@ def check_status_probes(client: httpx.Client) -> CheckResult:
 
 
 def check_ownership_isolation(client: httpx.Client) -> CheckResult:
-    """A run id nobody owns (overwhelmingly: does not exist) reads as 404.
-
-    Never creates the run being requested -- a fresh random UUID is
-    (with overwhelming probability) not any run that exists, so this
-    exercises the exact "unowned or absent" branch `enforce_run_ownership`
-    is supposed to collapse to one response for.
+    """Random unissued IDs probe ownership/absence without creating
+    production records.
     """
     bogus_id = str(uuid.uuid4())
     resp = _get(
@@ -134,12 +120,8 @@ def check_ownership_isolation(client: httpx.Client) -> CheckResult:
 
 
 def check_cors_untrusted_origin(client: httpx.Client) -> CheckResult:
-    """An origin outside the allowlist gets no Allow-Origin echo.
-
-    A wildcard or echoed-untrusted-origin response would mean any web page
-    can read authenticated responses from a signed-in browser -- exactly
-    the CORS misconfiguration `main.py`'s `_allowed_origins` note guards
-    against.
+    """Untrusted CORS echoes would expose authenticated responses to
+    arbitrary web pages.
     """
     resp = _get(
         client,
@@ -160,10 +142,8 @@ def check_cors_untrusted_origin(client: httpx.Client) -> CheckResult:
 
 
 def check_sanitized_share_404(client: httpx.Client) -> CheckResult:
-    """A share token nobody issued reads as a clean 404, nothing leaked.
-
-    Never creates a share -- the token is 32 random bytes, so it is (with
-    overwhelming probability) not one any run ever issued.
+    """Random unissued share tokens probe confidentiality without creating
+    shares.
     """
     bogus_token = uuid.uuid4().hex + uuid.uuid4().hex
     resp = _get(client, f"/api/shared/{bogus_token}")
@@ -197,19 +177,11 @@ _CHECKS = (
 def run(
     base_url: str, *, transport: httpx.BaseTransport | None = None
 ) -> list[CheckResult]:
-    """Runs every check against `base_url` and returns their results.
-
-    Args:
-        base_url: API base URL to smoke.
-        transport: Optional transport override, so tests can point every
-            check at an ``httpx.MockTransport`` instead of the network.
-    """
     with httpx.Client(base_url=base_url, transport=transport) as client:
         return [check(client) for check in _CHECKS]
 
 
 def main(argv: list[str] | None = None) -> int:
-    """CLI entry point: run every check, print a report, return an exit code."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--base-url",

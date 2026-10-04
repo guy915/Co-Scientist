@@ -1,6 +1,5 @@
-"""The fifteen-axis pilot measures agreement, not scientific quality.
-
-Keep its axes and scale separate from expert and engine review scores.
+"""Specific Aims measures ordinal agreement, not expert or engine quality
+scores.
 """
 
 from __future__ import annotations
@@ -57,18 +56,8 @@ AGREEMENT_SCALE: tuple[str, ...] = (
 def build_specific_aims_export(
     run_id: str, hypotheses: list[dict[str, Any]]
 ) -> dict[str, Any]:
-    """Build a blinded Specific-Aims-rubric export.
-
-    Same blinding contract as ``expert_review.build_blinded_export``: strips
-    provider/Elo/lineage, keeps only the opaque item id and the text a rater
-    needs. Uses the 15-axis agreement instrument, never ``RATING_AXES``.
-
-    Args:
-        run_id: The run the hypotheses belong to (hashed into the item id).
-        hypotheses: Serialized hypotheses (need ``id`` and ``text``).
-
-    Returns:
-        A machine-readable blinded export naming its own instrument.
+    """Blind source identity while retaining the separate fifteen-axis
+    agreement instrument.
     """
     return {
         "schema_version": SPECIFIC_AIMS_SCHEMA_VERSION,
@@ -90,27 +79,12 @@ def build_specific_aims_export(
 
 @dataclasses.dataclass(frozen=True)
 class SpecificAimsRating:
-    """One rater's 15-axis agreement rating of one blinded item."""
-
     rater_id: str
     item_id: str
     ratings: dict[str, str]
 
 
 def _validate_specific_aims_axes(raw: dict[str, Any]) -> dict[str, str]:
-    """Validate that every one of the 15 axes holds an agreement-scale label.
-
-    Args:
-        raw: One raw rating dict; ``raw["ratings"]`` must map every axis in
-            ``SPECIFIC_AIMS_AXES`` to a value in ``AGREEMENT_SCALE``.
-
-    Returns:
-        The validated axis-to-label mapping.
-
-    Raises:
-        ExpertReviewValidationError: If ``ratings`` is missing, not an
-            object, or any axis is missing/out of the agreement scale.
-    """
     ratings = raw.get("ratings")
     if not isinstance(ratings, dict):
         raise ExpertReviewValidationError("ratings must be an object")
@@ -128,21 +102,8 @@ def _validate_specific_aims_axes(raw: dict[str, Any]) -> dict[str, str]:
 def parse_specific_aims_ratings(
     payload: dict[str, Any],
 ) -> list[SpecificAimsRating]:
-    """Validate and parse an imported Specific-Aims ratings payload.
-
-    Every one of the 15 axes must be present and hold one of the five
-    agreement labels; a malformed rating fails closed rather than being
-    silently coerced. Mirrors ``expert_review.parse_ratings``' contract, on
-    the separate instrument.
-
-    Args:
-        payload: ``{"schema_version": int, "ratings": [ {...}, ... ]}``.
-
-    Returns:
-        The validated ratings.
-
-    Raises:
-        ExpertReviewValidationError: On any schema violation.
+    """Malformed ordinal ratings fail closed, never coerced into cardinal
+    quality scores.
     """
     if payload.get("schema_version") != SPECIFIC_AIMS_SCHEMA_VERSION:
         raise ExpertReviewValidationError(
@@ -171,21 +132,8 @@ def parse_specific_aims_ratings(
 def summarize_specific_aims_ratings(
     ratings: list[SpecificAimsRating],
 ) -> dict[str, Any]:
-    """Summarize a Specific-Aims panel as a per-axis agreement distribution.
-
-    Deliberately NOT a mean/confidence-interval (unlike
-    ``expert_review.summarize_ratings``): this is an ordinal agreement
-    scale, not a cardinal quality score, so no numeric average is computed
-    here. No threshold is applied and nothing is compared against the two
-    published exemplars -- they are a reference distribution, not a
-    calibration set (see ``evaluations/datasets/specific_aims_rubric_v1.json``).
-
-    Args:
-        ratings: Validated ratings from ``parse_specific_aims_ratings``.
-
-    Returns:
-        Panel size plus, for every axis, a count of ratings at each of the
-        five agreement levels.
+    """Ordinal agreement has no numeric mean; published exemplars are
+    references, not calibration thresholds.
     """
     counts: dict[str, dict[str, int]] = {
         axis: dict.fromkeys(AGREEMENT_SCALE, 0) for axis in SPECIFIC_AIMS_AXES

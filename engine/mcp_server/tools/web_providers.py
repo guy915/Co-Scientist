@@ -1,5 +1,3 @@
-"""Web search providers, credential state, and MCP search tools."""
-
 import hashlib
 import html
 import logging
@@ -17,25 +15,12 @@ from mcp_server.campaign import (
 
 logger = logging.getLogger(__name__)
 
-# Search snippets arrive with markup: Brave wraps query-term matches in
-# <strong>, and providers pass through entities from the source page. The
-# agent should never see tags, so snippets are cleaned to plain text on the
-# way in, the same guarantee read_url gives for page bodies.
+# Clean snippets like fetched pages so source markup never reaches the agent.
 _TAG_RE = re.compile(r"<[^>]+>")
 _WHITESPACE_RE = re.compile(r"\s+")
 
 
 def clean_snippet(raw: Any) -> str:
-    """Strips markup and normalizes whitespace in a result snippet.
-
-    Args:
-        raw: Snippet text from a provider, possibly containing HTML tags
-            and character entities.
-
-    Returns:
-        Plain text with tags removed, entities decoded, and runs of
-        whitespace collapsed. Empty string for missing or non-string input.
-    """
     if not isinstance(raw, str) or not raw:
         return ""
     # Unescape after stripping tags so an encoded "&lt;b&gt;" in the source
@@ -44,55 +29,28 @@ def clean_snippet(raw: Any) -> str:
     return _WHITESPACE_RE.sub(" ", text).strip()
 
 
-# Statuses that mean "this key will not serve another search until
-# something changes": revoked, unpaid, forbidden (401/402/403), and the two
-# Tavily returns once the month's credits are spent (432 plan limit, 433
-# pay-as-you-go limit). Brave withdrew its free tier in Feb 2026 and
-# exhausted keys began answering 402 with a zero monthly allowance --
-# which, because every provider error degrades to `{}`, reached the agents
-# as "the web had nothing on this" rather than as a spent connector. 429 is
-# deliberately absent: throttling is a healthy key being asked to wait, and
-# it clears itself within seconds.
+# 401/402/403 and Tavily 432/433 require changed credentials/quota; 429 self-
+# heals.
 _KEY_REJECTED_STATUSES = frozenset({401, 402, 403, 432, 433})
 
-# Rejections observed so far, keyed by provider, most recent last. Module
-# state because the fact is about this process's credentials rather than
-# about any one search: it decides which provider the next search goes to,
-# and what the connector reports about itself.
+# Refusals describe process credentials, not one query, and govern subsequent
+# provider choices.
 _credential_errors: dict[str, dict[str, Any]] = {}
 
 
 def web_search_credential_error() -> dict[str, Any] | None:
-    """Reports the most recent provider rejection, for the status route.
-
-    Returns:
-        ``{"provider": ..., "status": ..., "detail": ...}`` describing the
-        latest rejection, or None when nothing has been refused since the
-        last search that worked.
-    """
     if not _credential_errors:
         return None
     return next(reversed(_credential_errors.values()))
 
 
 def credential_error_for(provider: str) -> dict[str, Any] | None:
-    """Reports whether one provider has been refused.
-
-    Args:
-        provider: Provider name, as used in ``_PROVIDERS``.
-
-    Returns:
-        That provider's recorded rejection, or None if it has none.
-    """
     return _credential_errors.get(provider)
 
 
 def _record_credential_error(provider: str, status: int, detail: str) -> None:
-    """Records that ``provider`` refused this process's key.
-
-    Re-recording moves the entry to the end, so
-    ``web_search_credential_error`` reports the latest refusal rather than
-    the first one seen.
+    """Reinsert refusals so the status route reports the latest provider
+    failure.
     """
     _credential_errors.pop(provider, None)
     _credential_errors[provider] = {
@@ -103,12 +61,6 @@ def _record_credential_error(provider: str, status: int, detail: str) -> None:
 
 
 def _clear_credential_error(provider: str | None = None) -> None:
-    """Forgets a recorded rejection after a search that worked.
-
-    Args:
-        provider: The provider that just succeeded, or None to forget
-            every record (used to reset state between tests).
-    """
     if provider is None:
         _credential_errors.clear()
     else:
@@ -118,17 +70,6 @@ def _clear_credential_error(provider: str | None = None) -> None:
 def _handle_provider_error(
     provider: str, query: str, exc: Exception
 ) -> dict[str, Any]:
-    """Classifies a failed search and records it if the key was refused.
-
-    Args:
-        provider: Provider name, as used in the status payload.
-        query: The search that failed, for the log line.
-        exc: The transport, status, or parse error raised.
-
-    Returns:
-        An empty result set, so a failed search still degrades rather than
-        raising -- the callers merge results and have no error channel.
-    """
     status = (
         exc.response.status_code
         if isinstance(exc, httpx.HTTPStatusError)
@@ -159,33 +100,14 @@ _BRAVE_FRESHNESS_BUCKETS = ((1, "pd"), (7, "pw"), (31, "pm"), (365, "py"))
 
 
 def _result_id(prefix: str, index: int, url: str) -> str:
-    """Builds a stable per-result key for the returned dict.
-
-    Args:
-        prefix: Provider short name.
-        index: Rank of the result within the response.
-        url: Result URL, used to keep keys distinct when ranks collide
-            across merged calls.
-
-    Returns:
-        A key of the form ``"<prefix>-<index>-<url digest>"``. A blake2b
-        digest of the URL, not the built-in ``hash``, so the id is stable
-        across processes -- it becomes the Article's source_id, which
-        lineage and deduplication key on.
+    """Use a stable URL digest: Python hash salt would change source identity
+    across processes.
     """
     digest = hashlib.blake2b(url.encode(), digest_size=4).hexdigest()
     return f"{prefix}-{index}-{digest}"
 
 
 def _brave_freshness(recency_days: int) -> str | None:
-    """Maps a day count onto Brave's freshness buckets.
-
-    Args:
-        recency_days: Restrict to results this recent; 0 means no limit.
-
-    Returns:
-        A Brave freshness code, or None when no restriction applies.
-    """
     if recency_days <= 0:
         return None
     for threshold, code in _BRAVE_FRESHNESS_BUCKETS:
@@ -199,16 +121,6 @@ def _result_metadata(
     url: str,
     provider_fields: Callable[[dict[str, Any]], dict[str, Any]],
 ) -> dict[str, Any]:
-    """Builds the metadata for one normalized result.
-
-    Args:
-        item: One raw result item from the provider.
-        url: The item's already-extracted result URL.
-        provider_fields: Maps the item to provider-specific fields.
-
-    Returns:
-        The common metadata merged with the provider-specific fields.
-    """
     return {
         "title": clean_snippet(item.get("title")),
         "url": url,
@@ -223,24 +135,6 @@ def _normalize_results(
     prefix: str,
     provider_fields: Callable[[dict[str, Any]], dict[str, Any]],
 ) -> dict[str, Any]:
-    """Builds the shared ``{result_id: metadata}`` envelope.
-
-    Owns everything the providers have in common -- the list guard, the
-    result cap, the per-item dict and url checks, the id scheme, and the
-    common fields -- so a provider defines only its own field mapping and
-    the two cannot drift apart.
-
-    Args:
-        results: The provider's raw result list (any type; non-lists yield
-            an empty dict).
-        max_results: Maximum number of results to keep.
-        prefix: Provider short name for ``_result_id``.
-        provider_fields: Maps one raw result item to the provider-specific
-            metadata fields.
-
-    Returns:
-        A dict of normalized results, empty if the payload is malformed.
-    """
     if not isinstance(results, list):
         return {}
 
@@ -257,23 +151,10 @@ def _normalize_results(
 
 
 def normalize_brave(data: Any, max_results: int) -> dict[str, Any]:
-    """Normalizes a Brave web-search response.
-
-    Pure function (no I/O) so it can be unit-tested directly.
-
-    Args:
-        data: Parsed JSON from the Brave search endpoint.
-        max_results: Maximum number of results to keep.
-
-    Returns:
-        A dict of normalized results, empty if the payload is malformed.
-    """
 
     def fields(item: dict[str, Any]) -> dict[str, Any]:
-        # Brave's "description" is the result snippet, with query terms
-        # wrapped in <strong>. It maps onto abstract because that is the
-        # field the engine's article pipeline already reads for summary
-        # text.
+        # Brave descriptions feed the article abstract field consumed
+        # downstream.
         return {
             "abstract": clean_snippet(item.get("description")),
             "published_date": item.get("page_age") or item.get("age") or "",
@@ -288,17 +169,6 @@ def normalize_brave(data: Any, max_results: int) -> dict[str, Any]:
 
 
 def normalize_tavily(data: Any, max_results: int) -> dict[str, Any]:
-    """Normalizes a Tavily search response.
-
-    Pure function (no I/O) so it can be unit-tested directly.
-
-    Args:
-        data: Parsed JSON from the Tavily search endpoint.
-        max_results: Maximum number of results to keep.
-
-    Returns:
-        A dict of normalized results, empty if the payload is malformed.
-    """
 
     def fields(item: dict[str, Any]) -> dict[str, Any]:
         # Tavily returns extracted page text, not just a snippet, so a
@@ -316,18 +186,6 @@ def normalize_tavily(data: Any, max_results: int) -> dict[str, Any]:
 async def search_brave(
     query: str, max_results: int, recency_days: int
 ) -> dict[str, Any]:
-    """Runs one Brave web search.
-
-    Args:
-        query: Natural-language search query.
-        max_results: Maximum number of results to return. ``search_web``,
-            the only caller, has already clamped this to a sane range.
-        recency_days: Restrict to results this recent; 0 means no limit.
-
-    Returns:
-        Normalized results, or an empty dict on any network or parse error
-        so a failed search degrades to "no results" rather than raising.
-    """
     require_metered_search_allowed()
     params: dict[str, str] = {
         "q": query,
@@ -354,17 +212,6 @@ async def search_brave(
 async def search_tavily(
     query: str, max_results: int, recency_days: int
 ) -> dict[str, Any]:
-    """Runs one Tavily search.
-
-    Args:
-        query: Natural-language search query.
-        max_results: Maximum number of results to return. ``search_web``,
-            the only caller, has already clamped this to a sane range.
-        recency_days: Restrict to results this recent; 0 means no limit.
-
-    Returns:
-        Normalized results, or an empty dict on any network or parse error.
-    """
     require_metered_search_allowed()
     payload: dict[str, Any] = {
         "query": query,
@@ -390,29 +237,16 @@ async def search_tavily(
 
 SearchFn = Callable[[str, int, int], Awaitable[dict[str, Any]]]
 
-# Provider name -> (search function, name of the env var holding its key).
 _PROVIDERS: dict[str, tuple[SearchFn, str]] = {
     "brave": (search_brave, "BRAVE_API_KEY"),
     "tavily": (search_tavily, "TAVILY_API_KEY"),
 }
 
-# Order used when WEB_SEARCH_PROVIDER is unset: first provider with a key
-# configured wins. Brave leads on latency and runs an index independent of
-# Google and Bing.
+# Default provider order favors Brave latency and its independent search index.
 _AUTODETECT_ORDER = ("brave", "tavily")
 
 
 def _resolve_requested_provider(requested: str) -> tuple[str, SearchFn] | None:
-    """Resolves an explicit ``WEB_SEARCH_PROVIDER`` request.
-
-    Args:
-        requested: The lowercased, stripped value of the env var.
-
-    Returns:
-        A (provider name, search function) pair when the requested
-        provider is known and its key is configured, otherwise None (with
-        a warning logged explaining why).
-    """
     entry = _PROVIDERS.get(requested)
     if entry is None:
         logger.warning(
@@ -429,15 +263,8 @@ def _resolve_requested_provider(requested: str) -> tuple[str, SearchFn] | None:
 
 
 def configured_providers() -> list[tuple[str, SearchFn]]:
-    """Lists every provider with a key, preferred one first.
-
-    An explicit ``WEB_SEARCH_PROVIDER`` names the preference; the rest
-    follow in autodetect order, so a second key is a fallback rather than
-    a value that has to be chosen between.
-
-    Returns:
-        (provider name, search function) pairs, empty when no provider has
-        an API key configured.
+    """Provider preference orders keys; additional keys are fallbacks rather
+    than mutually exclusive choices.
     """
     if campaign_free_mode():
         return []
@@ -454,18 +281,8 @@ def configured_providers() -> list[tuple[str, SearchFn]]:
 
 
 def candidate_providers() -> list[tuple[str, SearchFn]]:
-    """Lists the providers one search may try, in order.
-
-    Providers that have refused this process's key are dropped, so a
-    second free allowance actually gets used once the first is spent.
-    When *every* configured provider has been refused the preferred one is
-    returned alone: a record only clears on a search that works, so
-    something has to be tried or a monthly reset would stay invisible
-    until the process restarts.
-
-    Returns:
-        (provider name, search function) pairs, empty when no provider has
-        an API key configured.
+    """Retry the preferred provider after universal refusal so monthly resets
+    can become observable.
     """
     configured = configured_providers()
     healthy = [
@@ -475,14 +292,6 @@ def candidate_providers() -> list[tuple[str, SearchFn]]:
 
 
 def resolve_provider() -> tuple[str, SearchFn] | None:
-    """Selects the web-search provider a search should use first.
-
-    Returns:
-        A (provider name, search function) pair, or None when no provider
-        has an API key configured. None is what suppresses tool
-        registration, so a key-less deployment never advertises a web
-        search tool it cannot serve.
-    """
     candidates = candidate_providers()
     return candidates[0] if candidates else None
 
@@ -529,9 +338,8 @@ async def search_web(
                 query,
             )
             return results
-        # Only a refusal justifies re-asking elsewhere. An empty answer is
-        # an answer, and spending a second provider's monthly allowance to
-        # hear it twice is how two free tiers become one.
+        # Empty success is an answer; do not spend another allowance to hear it
+        # twice.
         if credential_error_for(name) is None:
             logger.debug("web search via %s found nothing for %r", name, query)
             return {}

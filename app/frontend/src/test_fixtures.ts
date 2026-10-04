@@ -1,12 +1,7 @@
-/** Shared factories for building typed API objects in tests. */
 import type {Hypothesis, MatchRow, Run} from '@/api/runs';
 import type {InferredRunSpec} from '@/workbench/run_spec';
 import {type ChatEntry} from '@/workbench/pages/chat_timeline_bubble';
 
-/**
- * A fully-populated Hypothesis; override only the fields a test cares
- * about.
- */
 export function makeHypothesis(over: Partial<Hypothesis> = {}): Hypothesis {
   return {
     id: 'h1',
@@ -34,11 +29,6 @@ export function makeHypothesis(over: Partial<Hypothesis> = {}): Hypothesis {
   };
 }
 
-/**
- * A minimal run record carrying the always-present fields; override only
- * what a test needs. Optional signals (latest_stage, execution_progress,
- * summary, ...) are supplied through `over`.
- */
 export function makeRun(over: Partial<Run> = {}): Run {
   return {
     id: 'r1',
@@ -55,7 +45,6 @@ export function makeRun(over: Partial<Run> = {}): Run {
   } as Run;
 }
 
-/** An inferred run specification with every section populated. */
 export function makeSpec(over: Partial<InferredRunSpec> = {}): InferredRunSpec {
   return {
     goal: 'Study liver fibrosis',
@@ -68,7 +57,6 @@ export function makeSpec(over: Partial<InferredRunSpec> = {}): InferredRunSpec {
   };
 }
 
-/** A chat timeline entry; defaults to a short user message. */
 export function makeMessage(over: Partial<ChatEntry> = {}): ChatEntry {
   return {
     id: 'm1',
@@ -79,7 +67,6 @@ export function makeMessage(over: Partial<ChatEntry> = {}): ChatEntry {
   };
 }
 
-/** A tournament match row keyed by `id`; override any extra fields. */
 export function makeMatch(id: number, over: Partial<MatchRow> = {}): MatchRow {
   return {id, ...over} as unknown as MatchRow;
 }

@@ -1,14 +1,5 @@
-// Generates src/components/icon.tsx from authentic Material Symbols Rounded
-// glyphs (weight 400) shipped by @material-symbols/svg-400. Rounded matches
-// the Google Symbols ROND-100 axis the live Gemini Enterprise product renders
-// its icons with (measured July 2026).
-//
-// The glyph outlines are inlined as SVG paths so the icon set stays
-// tree-shakeable, prerender-safe, and free of font FOUT while remaining
-// pixel-identical to Google's Material Symbols.
-//
-// To add an icon: add a `publicName: 'material-symbols-file-stem'` entry to
-// ICONS below, then run `node scripts/generate_icons.mjs`.
+// Rounded weight-400 glyphs match Google Symbols ROND 100.
+// Inline paths avoid font FOUT and remain safe during prerendering.
 
 import {readFileSync, writeFileSync} from 'node:fs';
 import {dirname, resolve} from 'node:path';
@@ -39,18 +30,13 @@ const ICONS = {
   edit: 'edit',
   edit_square: 'edit_square',
   emoji_events: 'trophy',
-  // Shield-with-a-keyhole. The reference product renders the Google-internal
-  // 'android_security_privacy_safe' ligature (not in the public set); of the
-  // public Material Symbols, 'encrypted' is the true shield-with-keyhole
-  // (plain 'shield' is an empty shield, 'security' is quartered).
+  // Google's internal keyhole shield is unavailable publicly; encrypted supplies that shape.
+  // Plain shield is empty and security is quartered.
   encrypted: 'encrypted',
   expand_less: 'keyboard_arrow_up',
   expand_more: 'keyboard_arrow_down',
   format_list_numbered: 'format_list_numbered',
-  // Two overlapping speech bubbles — the "Chat" side of the session switch,
-  // which pairs a conversation with the results it produced. Deliberately not
-  // the single 'chat' bubble, which reads as one message rather than a
-  // running transcript.
+  // Overlapping bubbles denote a transcript, unlike the single-message chat glyph.
   forum: 'forum',
   // Double helix -- the landing page's Evolution agent card.
   genetics: 'genetics',
@@ -62,13 +48,9 @@ const ICONS = {
   // Podium bars -- the landing page's Ranking agent card.
   leaderboard: 'leaderboard',
   light_mode: 'light_mode',
-  // The plain outline light bulb (bulb body + base bars, no rays) the Idea
-  // Generation product renders in its agent glyph — not 'emoji_objects', which
-  // adds a filament and radiating rays.
+  // The product uses a plain bulb; emoji_objects adds a filament and rays.
   lightbulb: 'lightbulb',
-  // Clipboard with a lab flask — the "Results" side of the session switch.
-  // The report tabs already spend 'summarize' on Research Overview, so the
-  // switch needs a glyph that names the whole report rather than one tab.
+  // Results needs a whole-report glyph; summarize already denotes Research Overview.
   lab_profile: 'lab_profile',
   menu: 'menu',
   menu_book: 'menu_book',
@@ -76,9 +58,7 @@ const ICONS = {
   // matches the airy outlined set.
   neurology: 'neurology',
   open_in_new: 'open_in_new',
-  // Painter's palette — the glyph the reference settings menu renders for
-  // "Appearance" (an <md-icon>palette</md-icon> ligature in the 2026-06
-  // gemini-enterprise capture, since deleted from references/).
+  // Appearance uses the painter's palette glyph.
   palette: 'palette',
   // The landing page's human-review safety card.
   person: 'person',

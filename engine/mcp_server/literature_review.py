@@ -1,5 +1,3 @@
-"""PubMed search, shared metadata cache, and PMC fulltext retrieval."""
-
 import asyncio
 import json
 import logging
@@ -40,8 +38,6 @@ def _shared_pool_paper_year(paper: tuple[str, dict[str, Any]]) -> int:
 
 
 class PubmedSource(_EntrezClient):
-    """Store papers in slug/shared and link them into slug/runs/run_id."""
-
     async def _fetch_one_paper_metadata(
         self,
         paper_id: str,
@@ -104,7 +100,9 @@ class PubmedSource(_EntrezClient):
         }
 
     def _download_pmc_fulltext(self, pmc_id: str) -> str:
-        """Page through PMC efetch responses when NCBI truncates a document."""
+        """PMC can truncate documents across efetch responses, requiring
+        pagination.
+        """
         chunks = []
         cursor = 0
         while True:
@@ -126,7 +124,6 @@ class PubmedSource(_EntrezClient):
     def get_pubmed_fulltext(
         self, pmc_id: str, slug: str, run_id: str | None = None
     ) -> str | None:
-        """Cache and link fulltext; record download failures in provenance."""
         try:
             shared_dir, run_dir = self._prepare_run_directories(slug, run_id)
             fulltext_file = shared_dir / f"{pmc_id}.fulltext.html"
@@ -178,7 +175,6 @@ class PubmedSource(_EntrezClient):
         shortfall: int,
         trace: dict[str, Any] | None,
     ) -> None:
-        """Fill a per-run shortfall from already downloaded, recent papers."""
         selected = set(papers_to_use)
         candidates = []
         for metadata_file in shared_dir.glob("*.metadata.json"):
@@ -242,7 +238,6 @@ class PubmedSource(_EntrezClient):
         all_details: dict[str, Any],
         max_papers: int,
     ) -> dict[str, Any]:
-        """Prefer PMC-linked papers, then fill the corpus with abstracts."""
         selected_ids = list(dict.fromkeys(papers_to_use))
         selected_ids.extend(
             paper_id for paper_id in all_details if paper_id not in selected_ids
@@ -262,12 +257,8 @@ class PubmedSource(_EntrezClient):
         *,
         include_fulltext: bool = True,
     ) -> dict[str, Any]:
-        """Collect a PMC-first corpus and preserve its cache and run provenance.
-
-        Search 3x the requested corpus size to cover missing fulltexts. Keep
-        PMC-linked papers in search order, supplement from the existing pool
-        for tracked runs, then fill remaining slots with abstract-only records.
-        include_fulltext=False skips only downloads, preserving selection.
+        """Search extra candidates to cover missing full text; disabling
+        downloads must not change selection.
         """
         trace = new_pilot_trace(run_id)
         shared_dir, run_dir = self._prepare_run_directories(slug, run_id)

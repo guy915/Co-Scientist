@@ -1,22 +1,6 @@
-# Cancer Precision Oncology - INDRA CoGex Configuration
-# Version 1.0
-#
-# Domain-specific configuration for cancer/oncology hypothesis generation.
-# Extends default PubMed config with INDRA knowledge graph tools and
-# cancer-focused prompt guidance.
-#
-# Example research goal:
-#   "What novel synthetic lethal interactions could be therapeutically exploited
-#    in KRAS G12C mutant non-small cell lung cancer, especially in patients
-#    who have developed resistance to sotorasib?"
-#
-# Requirements:
-# - MCP server with INDRA CoGex tools on default port (8888)
-# - PubMed still used for literature review (from default config)
 
 version: "1.0"
 
-# Domain-Specific Prompt Customizations
 prompts:
   domain_context: |
     ## Domain: Cancer Research - Precision Oncology
@@ -83,8 +67,6 @@ prompts:
     3. **Consider patient selection** - which molecular subtype benefits most?
     4. **Propose validation strategy** - what cell lines or models would test this?
 
-# Tool Definitions
-# INDRA tools extend the default PubMed tools (same MCP server)
 tools:
   search_tools:
     indra_statements:
@@ -198,12 +180,7 @@ tools:
       category: "search"
       enabled: true
 
-# Workflow Configurations
-# Only tools listed here are used during each workflow phase.
-# context_enrichment_tools: called once per research goal during literature review,
-#   results injected as mechanistic background into the synthesis prompt.
-#   Uses the canonical 'entity_name' param mapped via each tool's parameter_mapping.
-# The reflection workflow gates INDRA pre-fetch: no entry = no calls.
+# Entity-keyed context enrichment also grounds the reflection gate.
 workflows:
   literature_review:
     context_enrichment_tools:
@@ -214,10 +191,7 @@ workflows:
     search_tools:
       - "indra_statements"
 
-# Reflection-Time Enrichments
-# Populated during the reflection node using entity-level knowledge graph lookups.
-# workflow: "reflection" prevents the generation coordinator from calling these
-# tools with whole-hypothesis text (wrong call signature for INDRA tools).
+# Reflection tools accept gene/protein entities, not whole hypothesis text.
 enrichments:
   - tool: "indra_statements"
     input_field: "text"
@@ -225,6 +199,5 @@ enrichments:
     enabled: true
     workflow: "reflection"
 
-# Global Settings
 settings:
   merge_strategy: "extend"

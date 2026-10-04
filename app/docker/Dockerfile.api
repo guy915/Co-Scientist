@@ -1,14 +1,6 @@
 # syntax=docker/dockerfile:1
-#
-# Sibling: repo-root Dockerfile.api (Railway). The two are deliberately
-# divergent -- this one (docker-compose) installs the engine at startup from a
-# mounted checkout via entrypoint.sh, while the Railway file bakes the engine
-# source into the image at build time. A change to app deps or the run
-# command here usually needs a mirrored change there.
-# Pinned by digest so the same source always builds the same base
-# image (N18) -- python:3.12-slim is a mutable tag that moves under
-# it on rebuild. Update deliberately: `docker pull python:3.12-slim`
-# then `docker inspect --format='{{index .RepoDigests 0}}' python:3.12-slim`.
+# Compose installs its mounted engine at startup; Railway bakes source into its image.
+# Digest pins keep base images reproducible.
 FROM python:3.12-slim@sha256:646fb0bca3dd3ea1bcc6feb72c17ed16eed6e10cffc732fcc1478bd3e7f02d7b
 
 WORKDIR /app
@@ -18,16 +10,12 @@ RUN apt-get update && apt-get install -y \
     tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy and install viewer deps first (layer cache before source copy).
-# The engine is installed at container startup by entrypoint.sh from the
-# mounted checkout, so skip the local engine package dependency at build time
-# (--no-deps) and install the runtime deps from the single-sourced
-# requirements-app.txt (mirrors pyproject minus the engine pin).
+# Skip the published engine dependency until startup installs the mounted checkout.
+# requirements-app.txt supplies the app runtime closure.
 COPY pyproject.toml requirements-app.txt LICENSE NOTICE ./
 RUN pip install --no-cache-dir -e . --no-deps \
     && pip install --no-cache-dir -r requirements-app.txt
 
-# copy application source
 COPY app/ ./app/
 
 RUN mkdir -p /app/cache

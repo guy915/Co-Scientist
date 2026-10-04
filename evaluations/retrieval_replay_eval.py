@@ -43,8 +43,6 @@ import tempfile
 from typing import Any
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-# The viewer backend is a plain package under app/, reached the way every
-# other runner here reaches it; the engine is an installed dependency.
 if str(_ROOT / "app") not in sys.path:
     sys.path.insert(0, str(_ROOT / "app"))
 
@@ -54,18 +52,7 @@ _SYNTHETIC_GOAL = "replay reproducibility fixture"
 
 
 def score_run(run_id: str, db_path: str | None = None) -> dict[str, Any]:
-    """Score one persisted run's retrieval record for replayability.
-
-    Args:
-        run_id: The run to score.
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        The metric block. ``calls`` of 0 means the run bought no
-        research, which is reported rather than scored -- express and
-        standard runs do not, and neither does a run whose sources were
-        unreachable.
-    """
+    """No research calls means unscored, not a replayability failure."""
     from app import store
 
     calls = store.list_retrieval_calls(run_id, db_path=db_path)
@@ -93,7 +80,6 @@ def score_run(run_id: str, db_path: str | None = None) -> dict[str, Any]:
 
 
 def _rederives(call: dict[str, Any]) -> bool:
-    """Whether a stored call's id follows from the fields it carries."""
     from co_scientist.research import content_id
 
     derived = content_id(
@@ -106,7 +92,6 @@ def _rederives(call: dict[str, Any]) -> bool:
 
 
 def _result_set_complete(call: dict[str, Any]) -> bool:
-    """Whether everything the call acted on is in what it recorded seeing."""
     seen = {str(hit.get("locator")) for hit in call.get("hits") or []}
     acted = {str(x) for x in call.get("admitted") or []} | {
         str(x) for x in call.get("dropped") or []
@@ -115,16 +100,12 @@ def _result_set_complete(call: dict[str, Any]) -> bool:
 
 
 def _ratio(hits: int, total: int) -> float | None:
-    """A rate, or None when there was nothing to rate."""
     return round(hits / total, 4) if total else None
 
 
 def score_synthetic(db_path: str) -> dict[str, Any]:
-    """Persist a synthetic ledger through the real writer, then score it.
-
-    The point is the path, not the numbers: the same mapping and the same
-    insert the drain uses, so a change that breaks replayability breaks
-    this without needing a provider key or a search service.
+    """Exercise the real drain writer so mapping regressions fail without a
+    provider.
     """
     from app import store
 
@@ -150,12 +131,8 @@ def score_synthetic(db_path: str) -> dict[str, Any]:
 
 
 def _synthetic_result() -> Any:
-    """One research request, in the shape the engine hands the drain.
-
-    Two searches for one question so the ledger is not degenerate: one
-    that found a document worth reading and one whose results the
-    evidence budget refused, since telling those apart is most of what
-    the record is for.
+    """Include read and budget-refused results to distinguish retrieval from
+    evidence admission.
     """
     from co_scientist.research import (
         Finding,
@@ -195,7 +172,6 @@ def _synthetic_result() -> Any:
 
 
 def _synthetic_calls(question: str) -> tuple[Any, Any]:
-    """The two searches: one read from, one entirely passed over."""
     from co_scientist.research import CallStatus, SearchCall, SourceHit
 
     query = "fibrosis signalling blockade human"
@@ -226,16 +202,13 @@ def _synthetic_calls(question: str) -> tuple[Any, Any]:
 
 
 def run(run_id: str | None) -> dict[str, Any]:
-    """Score a named run, or a synthetic ledger when none is named."""
     if run_id:
         return {"mode": "persisted_run", **score_run(run_id)}
     previous = os.environ.get("COSCIENTIST_DB_PATH")
     with tempfile.TemporaryDirectory() as tmp:
         db_path = str(pathlib.Path(tmp) / "replay.db")
-        # `store.create_run` is the one call here that takes no `db_path`;
-        # it reads the env var directly in store/db.py. Restore it after,
-        # or a caller in the same process is left pointing at this
-        # directory once the temporary tree is gone.
+        # The writer reads the store path from environment; restore it before
+        # deleting the temporary tree.
         os.environ["COSCIENTIST_DB_PATH"] = db_path
         try:
             return {"mode": "synthetic", **score_synthetic(db_path)}
@@ -247,7 +220,6 @@ def run(run_id: str | None) -> dict[str, Any]:
 
 
 def main() -> int:
-    """Score replay reproducibility, write an artifact, print a summary."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--run",

@@ -45,24 +45,20 @@ _TOP_N_ELO = 10
 
 
 def _mean(values: Sequence[float]) -> float | None:
-    """Return a rounded mean, or None when no measurements exist."""
     return round(sum(values) / len(values), 4) if values else None
 
 
 def _text(hypothesis: dict[str, Any]) -> str:
-    """Return one hypothesis's canonical proposal text."""
     return str(hypothesis.get("text") or hypothesis.get("statement") or "")
 
 
 def _verified_ratio(hypotheses: Sequence[dict[str, Any]]) -> float | None:
-    """Return verified atomic claims divided by all assessed claims."""
     verified = sum(int(item.get("verified_claims", 0)) for item in hypotheses)
     total = sum(int(item.get("assessed_claims", 0)) for item in hypotheses)
     return round(verified / total, 4) if total else None
 
 
 def _scaling_point(snapshot: dict[str, Any]) -> dict[str, Any]:
-    """Build one scaling-curve point from a single run snapshot."""
     hypotheses = list(snapshot.get("hypotheses") or [])
     ranked = sorted(
         hypotheses,
@@ -97,12 +93,8 @@ def _scaling_point(snapshot: dict[str, Any]) -> dict[str, Any]:
 
 
 def scaling_curve(snapshots: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Compute quality, diversity, grounding, cost, and latency by budget.
-
-    Each snapshot must represent the same goal/configuration family at one
-    committed compute budget. Elo is reported as an internal tournament signal,
-    never treated as external quality ground truth; blinded ``expert_score`` is
-    the independent quality field when available.
+    """Compare the same goal/config family; internal Elo is not external
+    quality ground truth.
     """
     points = [_scaling_point(snapshot) for snapshot in snapshots]
     return sorted(
@@ -115,43 +107,19 @@ def scaling_curve(snapshots: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _hypothesis_elo(item: dict[str, Any]) -> int | None:
-    """Return a hypothesis's Elo rating, or None when it carries none."""
     rating = item.get("elo_rating")
     return int(rating) if rating is not None else None
 
 
 def _temporal_order_key(item: dict[str, Any]) -> tuple[int, int, float, str]:
-    """Sort key approximating a hypothesis's place in a run's timeline.
-
-    Ordered primarily by ``creation_iteration`` -- the authoring-cycle
-    ordinal the engine stamps at creation (0 for the initial generation, N
-    for a research-expansion/evolution cycle N). This is the run's true
-    timeline axis, and the closest the persisted schema comes to the paper's
-    continuous wall-clock partition (SSR App. D). It is a genuine cycle
-    ordinal, not a wall-clock stamp, so it carries signal even offline,
-    where every hypothesis is INSERTed at finalize within one sub-second
-    drain and ``created_at`` collapses.
-
-    ``generation`` -- the lineage ordinal (0 for an original; a child gets
-    ``parent.generation + 1``) -- is the fallback for a legacy row that
-    predates the ``creation_iteration`` column, and the secondary key within
-    one cycle. Preferring ``creation_iteration`` corrects a real
-    mis-ordering: when ``generate`` runs again in a later cycle, its fresh
-    generation-0 hypotheses would otherwise sort *ahead* of an earlier
-    cycle's evolved (higher-generation) descendants -- the timeline
-    backwards. ``created_at`` (the drain's finalize-time INSERT) then breaks
-    ties, and ``id`` breaks any still-remaining tie deterministically. A
-    hypothesis missing every field sorts first rather than raising, since
-    some callers (tests, older snapshots) may omit them; siblings authored
-    in one generation call share a cycle and tie down to ``id``, which is
-    correct -- they were authored together, with no order to recover.
+    """Creation cycles survive batched finalization timestamps; lineage alone
+    reverses later fresh generations.
     """
     creation_iteration = item.get("creation_iteration")
     generation = item.get("generation")
     generation_ordinal = int(generation) if generation is not None else 0
-    # creation_iteration is the timeline axis; fall back to the lineage
-    # ordinal only where the run predates the column (all-NULL), which
-    # reproduces the historical generation-primary order exactly.
+    # Use authoring cycles; only legacy all-NULL runs fall back to lineage
+    # order.
     timeline = (
         int(creation_iteration)
         if creation_iteration is not None
@@ -169,14 +137,8 @@ def _temporal_order_key(item: dict[str, Any]) -> tuple[int, int, float, str]:
 def _split_into_buckets(
     items: Sequence[dict[str, Any]], bucket_count: int
 ) -> list[list[dict[str, Any]]]:
-    """Partition items into up to ``bucket_count`` contiguous equal chunks.
-
-    Fewer than ``bucket_count`` items yields one hypothesis per bucket
-    instead of padding out empty ones -- a run with, say, 4 hypotheses
-    cannot form 10 *equal, non-empty* temporal buckets, and an empty
-    bucket would report a meaningless null point on the curve. Otherwise
-    this is the standard near-equal contiguous partition: the first
-    ``n % bucket_count`` buckets get one extra item.
+    """Small pools cannot form equal nonempty buckets; do not pad meaningless
+    null points.
     """
     n = len(items)
     if n == 0:
@@ -195,7 +157,6 @@ def _split_into_buckets(
 def _temporal_bucket_point(
     bucket: Sequence[dict[str, Any]], index: int, total: int
 ) -> dict[str, Any]:
-    """Summarize one temporal bucket's best Elo and top-10-average Elo."""
     ratings = [r for r in (_hypothesis_elo(h) for h in bucket) if r is not None]
     ranked = sorted(ratings, reverse=True)
     return {
@@ -212,38 +173,8 @@ def temporal_scaling_curve(
     *,
     bucket_count: int = _TEMPORAL_BUCKET_COUNT,
 ) -> list[dict[str, Any]]:
-    """Google's published within-run scaling method (SSR L141, Figs. 4-5).
-
-    Partitions ONE run's hypotheses into ``bucket_count`` (default 10)
-    equal-size temporal buckets ordered by generation cycle (see
-    ``_temporal_order_key``) -- the first bucket the earliest cycle, the
-    last the most recent -- and reports each bucket's best (maximum) Elo
-    rating and its top-10-average Elo rating (mean of up to the bucket's
-    own top 10 ratings, matching the paper's "average Elo rating of the
-    top 10 hypotheses" and the same up-to-10 pattern ``_scaling_point``
-    already uses for a whole run). Unlike ``scaling_curve`` (separate runs,
-    different compute tiers), this never varies budget: it measures
-    whether one run's own hypothesis quality trends upward over its own
-    generation/evolution cycles -- exactly what Figures 4 and 5 plot, per
-    goal, before any cross-goal averaging.
-
-    Resolution caveat: the paper partitions a long-running, continuous
-    generation process by wall-clock time; our schema's only real cycle
-    signal is the discrete ``generation`` ordinal, and a run caps at a
-    handful of generation values (an offline express/standard run reaches
-    only 0 and 1 -- one evolution round). Ten buckets over a small
-    generation range means several buckets typically share a generation
-    and differ only by the coarser, less meaningful ``created_at``/``id``
-    tie-break within it -- the curve is real but coarser than the paper's.
-
-    Degenerate cases handled without raising:
-        - An empty run (no hypotheses) returns ``[]``.
-        - A run with fewer than ``bucket_count`` hypotheses returns one
-          bucket per hypothesis rather than padding out empty buckets.
-        - A hypothesis with no Elo yet (missing or None ``elo_rating``) is
-          excluded from its bucket's Elo stats; a bucket where every
-          hypothesis lacks one reports ``best_elo``/``top10_avg_elo`` as
-          ``None`` instead of raising.
+    """Within-run authoring-cycle trends differ from across-run budget
+    scaling and are coarser than wall time.
     """
     ordered = sorted(hypotheses, key=_temporal_order_key)
     buckets = _split_into_buckets(ordered, bucket_count)
@@ -265,7 +196,6 @@ def _complete_cost_mean(items: Sequence[dict[str, Any]]) -> float | None:
 
 
 def ablation_summary(records: Sequence[dict[str, Any]]) -> dict[str, Any]:
-    """Aggregate paired controlled runs by feature arm and metric."""
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for record in records:
         grouped[str(record.get("arm") or "unspecified")].append(record)
@@ -300,7 +230,6 @@ def ablation_summary(records: Sequence[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _paired_goal_count(records: Sequence[dict[str, Any]]) -> int:
-    """Count goals represented in every ablation arm."""
     arms = {str(item.get("arm")) for item in records}
     by_goal: dict[str, set[str]] = defaultdict(set)
     for item in records:
@@ -309,7 +238,6 @@ def _paired_goal_count(records: Sequence[dict[str, Any]]) -> int:
 
 
 def main() -> int:
-    """Evaluate a JSON artifact containing snapshots and/or ablation runs."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("artifact", type=Path)
     args = parser.parse_args()

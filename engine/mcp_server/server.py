@@ -1,9 +1,3 @@
-"""Co-Scientist literature review MCP server.
-
-Reference implementation using FastMCP for PubMed literature review tools.
-PubMed-only implementation for biomedical research.
-"""
-
 import logging
 import os
 from pathlib import Path
@@ -16,8 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastmcp import FastMCP
 
-# No server-side session state kept between requests, so the process can be
-# scaled horizontally / restarted without clients needing session affinity.
+# Stateless HTTP avoids restart/replica session affinity.
 fastmcp.settings.stateless_http = True
 
 # Load the server's co-located .env before importing tools that read it.
@@ -38,13 +31,11 @@ from mcp_server.campaign import (
     campaign_policy,
 )
 
-# Configure logging based on .env
 configured_log_level = (
     os.environ.get("COSCIENTIST_MCP_LOG_LEVEL")
     or os.environ.get("LOG_LEVEL", "INFO")
 ).upper()
 log_level = getattr(logging, configured_log_level, logging.INFO)
-# Set root logger to INFO (default for all libraries)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -104,13 +95,10 @@ from mcp_server.tools.web_providers import (
     web_search_credential_error,
 )
 
-# Log startup configuration
 entrez_email_present = bool(os.environ.get("ENTREZ_EMAIL"))
 
-# A web search provider is optional. When no provider key is configured the
-# search_web tool is left unregistered rather than registered and always
-# failing, so agents never spend a tool-calling turn on a capability this
-# deployment cannot serve. read_url needs no key and is always available.
+# Do not offer key-gated search when no provider exists; read_url remains
+# keyless.
 _web_provider = resolve_provider()
 web_search_provider = _web_provider[0] if _web_provider else None
 
@@ -121,23 +109,16 @@ logger.debug(
     web_search_provider or "none",
 )
 
-# FastMCP app exposing the tools below over the MCP protocol (JSON-RPC over
-# HTTP, given stateless_http=True above).
 mcp = FastMCP("co-scientist-lit-review")
 
-# Registered MCP tools in advertised order: literature review, web access,
-# then INDRA CoGex knowledge-graph tools. The ``/`` handler derives its
-# ``mcp_tools`` manifest from this same list so registration and manifest
-# cannot drift.
+# One tuple drives registration order and the root manifest to prevent drift.
 _MCP_TOOLS = (
     (check_pubmed_available, "check_pubmed_available"),
     (search_pubmed, "search_pubmed"),
     (pubmed_search_with_fulltext, "pubmed_search_with_fulltext"),
     (search_openalex, "search_openalex"),
     (get_opencitations_citation_edges, "get_opencitations_citation_edges"),
-    # Both gated on the same key: the check tool exists to say whether
-    # that key still works, which is only a question worth asking when
-    # one was configured at all.
+    # Offer the key-health probe only when its search provider is configured.
     *(
         (
             (search_web, "search_web"),
@@ -178,9 +159,7 @@ if campaign_free_mode():
 for _tool_fn, _tool_name in _MCP_TOOLS:
     mcp.tool(with_call_logging(_tool_fn, _tool_name), name=_tool_name)
 
-# Which tools this process actually advertises, and the state of the things
-# they need. Logged at startup because the alternative is inferring it from
-# an empty result an hour into a run.
+# Startup logs distinguish absent capabilities from later empty answers.
 logger.info(
     "Registered %d MCP tools: %s",
     len(_MCP_TOOLS),
@@ -193,16 +172,13 @@ logger.info(
     else "anonymous (ENTREZ_EMAIL unset; reachability not yet checked)",
 )
 
-# Build the MCP app as an ASGI sub-app so it can be mounted onto a FastAPI
-# app that also serves the plain "/" status endpoint below; reuse its
-# lifespan so FastMCP's startup/shutdown hooks still run.
+# Reuse FastMCP lifespan so mounting beneath FastAPI preserves initialization
+# and cleanup.
 mcp_http_app = mcp.http_app()
 app = FastAPI(lifespan=mcp_http_app.lifespan)
 
-# This is a server-to-server API -- the engine's MCP client, never a
-# browser -- so it has no cross-origin caller to allow. No origin is
-# trusted, and credentials cannot ride cross-origin requests that are
-# already refused.
+# Only server callers use MCP; browsers need no trusted origin or credentialed
+# CORS.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[],
@@ -211,9 +187,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# The inner control next to the outer one (network placement). A no-op
-# until COSCIENTIST_MCP_SHARED_SECRET is set on both this service and the
-# engine's client -- see auth_middleware's module docstring.
+# Shared secrets add an independent control beyond network placement.
 _mcp_shared_secret = resolve_shared_secret()
 app.add_middleware(SharedSecretAuthMiddleware, secret=_mcp_shared_secret)
 logger.info(
@@ -246,23 +220,17 @@ async def root() -> JSONResponse:
                     "INDRA_COGEX_URL", "https://discovery.indra.bio"
                 ),
                 "web_search_provider": web_search_provider,
-                # Present only once a provider has refused the key. Until
-                # then there is nothing observed to report: the server
-                # learns a key is dead from a real search failing, not at
-                # boot.
+                # Credential refusals are observed on real searches, not
+                # inferred at startup.
                 "web_search_credential_error": web_search_credential_error(),
             },
         }
     )
 
 
-# Mounted after the "/" route above; FastAPI matches the more specific
-# route first so GET "/" still returns the JSON status payload while all
-# other paths (the MCP JSON-RPC endpoint) fall through to mcp_http_app.
+# Mount after root so health JSON wins before the catch-all MCP application.
 app.mount("/", mcp_http_app)
 
 if __name__ == "__main__":
-    # Only used for local/manual runs; container deployments invoke uvicorn
-    # directly (see AGENTS.md), where this block does not execute.
     port = int(os.environ.get("COSCIENTIST_MCP_PORT", 8888))
     uvicorn.run(app, host="0.0.0.0", port=port)

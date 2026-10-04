@@ -1,12 +1,9 @@
-# macOS
 .DS_Store
 .AppleDouble
 .LSOverride
 
-# Thumbnails
 ._*
 
-# Environment
 .env
 .env.local
 .env.*
@@ -15,7 +12,6 @@
 .env.*.bak
 .env.bak
 
-# Python
 __pycache__/
 *.py[cod]
 *.pyo
@@ -27,30 +23,24 @@ venv/
 dist/
 build/
 
-# Node
 node_modules/
 npm-debug.log*
 yarn-error.log*
 
-# Logs
 *.log
 
-# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 .qodo
 
-# Project
-# Video recordings of the original Co-Scientist product — kept locally as a
-# reference only, never committed (large binaries, not ours to redistribute).
-# Custom development DB names and backups can contain private researcher data.
+# Development databases and backups can contain private researcher data.
 *.db
 *.db-*
 reports/
 cache/
-# The engine's cache package is source, not a runtime cache directory.
+# The engine cache package is source, not disposable runtime cache.
 !/engine/src/co_scientist/cache/
 .cache/
 .coscientist_cache/
@@ -75,7 +65,6 @@ test-results/
 .vercel
 .superpowers/
 
-# Local tooling and session scratch
 .agents/
 .claude/
 .remember/

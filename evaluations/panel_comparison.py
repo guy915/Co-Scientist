@@ -46,7 +46,6 @@ def _validated_panel(report: dict[str, Any]) -> dict[str, Any]:
 def compare_panels(
     baseline: dict[str, Any], candidate: dict[str, Any]
 ) -> dict[str, Any]:
-    """Reject missing or mismatched panel controls before a paired analysis."""
     left, right = _validated_panel(baseline), _validated_panel(candidate)
     if left != right:
         raise ValueError("comparison panel controls differ; rerun both sides")
@@ -60,7 +59,6 @@ def compare_panels(
 
 
 def main() -> None:
-    """Validate a pair of existing report artifacts without inference."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("baseline", type=Path)
     parser.add_argument("candidate", type=Path)

@@ -1,10 +1,4 @@
 #!/bin/bash
-#
-# Container entrypoint for the Co-Scientist API service. Makes the
-# co-scientist-engine package available (using a mounted checkout at
-# $WORKSPACE if present, otherwise cloning COSCIENTIST_ENGINE_REPO at
-# COSCIENTIST_ENGINE_REF), installs it, then launches the FastAPI app
-# under uvicorn.
 set -e
 
 WORKSPACE=/workspace/co-scientist-engine
@@ -25,11 +19,7 @@ fi
 
 pip install --no-cache-dir -q -e "$WORKSPACE"
 
-# --reload matches `make dev-api`'s own flag and carries the same trade-off
-# documented in AGENTS.md Gotchas: it restarts the process on any edit
-# under app/, dropping the embedded worker cohort mid-task for whatever run
-# is in flight. Accepted here for dev-only hot reload; never carry this
-# into the production Dockerfile (repo-root Dockerfile.api has no --reload).
+# Reload drops in-flight worker tasks on edits; this trade-off is development-only.
 exec python -m uvicorn app.main:app \
     --host 0.0.0.0 \
     --port 8008 \

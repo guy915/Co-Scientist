@@ -1,6 +1,5 @@
-"""Blinding hides run/provider/Elo from raters.
-
-Keep this quality instrument separate from Specific Aims agreement scores.
+"""Blind provider, run and Elo identity; quality ratings stay separate from
+Specific Aims agreement.
 """
 
 from __future__ import annotations
@@ -15,8 +14,7 @@ from typing import Any
 
 SCHEMA_VERSION = 3
 
-# The 1-5 axes and 1-N preference rank the export asks experts to fill. Impact
-# is retained alongside the five acceptance-condition axes used by the system.
+# Quality axes include impact alongside the system acceptance axes.
 RATING_AXES = (
     "alignment",
     "plausibility",
@@ -28,7 +26,6 @@ RATING_AXES = (
 
 
 def _item_id(run_id: str, hypothesis_id: str) -> str:
-    """Return a stable opaque id that does not leak the source system."""
     digest = hashlib.sha256(f"{run_id}:{hypothesis_id}".encode()).hexdigest()
     return f"item-{digest[:16]}"
 
@@ -36,18 +33,7 @@ def _item_id(run_id: str, hypothesis_id: str) -> str:
 def build_blinded_export(
     run_id: str, hypotheses: list[dict[str, Any]]
 ) -> dict[str, Any]:
-    """Build a blinded expert-review export from a run's hypotheses.
-
-    Strips provider/Elo/lineage so raters cannot infer the source system; keeps
-    only the opaque item id and the text an expert needs to rate.
-
-    Args:
-        run_id: The run the hypotheses belong to (hashed into the item id).
-        hypotheses: Serialized hypotheses (need ``id`` and ``text``).
-
-    Returns:
-        A machine-readable blinded export.
-    """
+    """Remove provider/Elo/lineage so raters cannot infer the source system."""
     return {
         "schema_version": SCHEMA_VERSION,
         "rating_axes": list(RATING_AXES),
@@ -63,8 +49,6 @@ def build_blinded_export(
 
 @dataclasses.dataclass(frozen=True)
 class ExpertRating:
-    """One expert's rating of one item, validated on import."""
-
     rater_id: str
     item_id: str
     alignment: int
@@ -81,15 +65,6 @@ class ExpertReviewValidationError(Exception):
 
 
 def _validate_axes(raw: dict[str, Any]) -> None:
-    """Validate that every rating axis is an integer in 1-5.
-
-    Args:
-        raw: One raw rating dict.
-
-    Raises:
-        ExpertReviewValidationError: If any axis is missing or out of
-            range.
-    """
     for axis in RATING_AXES:
         value = raw.get(axis)
         if not isinstance(value, int) or not 1 <= value <= 5:
@@ -99,17 +74,6 @@ def _validate_axes(raw: dict[str, Any]) -> None:
 
 
 def _validate_ids(raw: dict[str, Any]) -> tuple[str, str]:
-    """Validate the rater and item identifiers, failing closed.
-
-    Args:
-        raw: One raw rating dict.
-
-    Returns:
-        The validated (rater_id, item_id) pair.
-
-    Raises:
-        ExpertReviewValidationError: If either identifier is missing.
-    """
     rater_id = str(raw.get("rater_id") or "")
     item_id = str(raw.get("item_id") or "")
     if not rater_id:
@@ -120,7 +84,6 @@ def _validate_ids(raw: dict[str, Any]) -> tuple[str, str]:
 
 
 def _parse_one_rating(raw: dict[str, Any]) -> ExpertRating:
-    """Validate one raw rating dict, failing closed on any violation."""
     rater_id, item_id = _validate_ids(raw)
     _validate_axes(raw)
     rank = raw.get("preference_rank")
@@ -142,20 +105,8 @@ def _parse_one_rating(raw: dict[str, Any]) -> ExpertRating:
 
 
 def parse_ratings(payload: dict[str, Any]) -> list[ExpertRating]:
-    """Validate and parse an imported expert-ratings payload.
-
-    Each axis must be an integer in 1-5 and the preference rank a positive
-    integer. A malformed rating fails closed rather than being silently
-    coerced, so no invalid rating enters the results.
-
-    Args:
-        payload: ``{"schema_version": int, "ratings": [ {...}, ... ]}``.
-
-    Returns:
-        The validated ratings.
-
-    Raises:
-        ExpertReviewValidationError: On any schema violation.
+    """Malformed panel ratings fail closed rather than silently entering
+    measurements.
     """
     if payload.get("schema_version") != SCHEMA_VERSION:
         raise ExpertReviewValidationError(
@@ -176,7 +127,6 @@ def parse_ratings(payload: dict[str, Any]) -> list[ExpertRating]:
 
 
 def _mean_confidence_interval(values: list[int]) -> dict[str, Any]:
-    """Return a mean and normal-approximation 95% interval on the 1-5 scale."""
     mean = statistics.fmean(values)
     margin = (
         1.96 * statistics.stdev(values) / math.sqrt(len(values))
@@ -194,7 +144,6 @@ def _mean_confidence_interval(values: list[int]) -> dict[str, Any]:
 
 
 def _wilson_interval(successes: int, total: int) -> list[float] | None:
-    """Return a Wilson 95% interval for a pairwise agreement proportion."""
     if total == 0:
         return None
     z = 1.96
@@ -214,7 +163,6 @@ def _wilson_interval(successes: int, total: int) -> list[float] | None:
 def _pairwise_agreement(
     co_ratings: dict[tuple[str, str], list[int]],
 ) -> dict[str, Any]:
-    """Compute pairwise agreement statistics across co-rated item-axis pairs."""
     exact = 0
     within_one = 0
     comparisons = 0
@@ -241,12 +189,7 @@ def _pairwise_agreement(
 
 
 def summarize_ratings(ratings: list[ExpertRating]) -> dict[str, Any]:
-    """Summarize a real panel with uncertainty and inter-rater agreement.
-
-    Agreement is reported as transparent pairwise exact and within-one-point
-    proportions across every co-rated item/axis, each with a Wilson interval.
-    No statistic is emitted when the panel has no co-rated items.
-    """
+    """No agreement statistic is meaningful without co-rated items."""
     by_axis: dict[str, list[int]] = {axis: [] for axis in RATING_AXES}
     co_ratings: dict[tuple[str, str], list[int]] = defaultdict(list)
     for rating in ratings:

@@ -1,35 +1,6 @@
-# Heart Failure with Preserved Ejection Fraction (HFpEF) - INDRA CoGex Configuration
-# Version 1.0
-#
-# Domain-specific configuration for HFpEF hypothesis generation.
-# Audience: cardiologists, heart failure specialists, translational
-# cardiometabolic researchers, clinical trialists.
-#
-# Differentiating tools vs. cancer/alzheimers configs:
-#   - query_causal_subnetwork: find indirect mechanistic paths connecting
-#     cardiometabolic risk factors (obesity, T2D, hypertension) to adverse
-#     cardiac remodeling — the central unanswered question in HFpEF
-#   - query_clinical_trials: explicitly survey the failed HFpEF trial landscape
-#     to motivate novel mechanistic approaches
-#   - query_pathways (multi-gene): shared pathway analysis across HFpEF-
-#     associated genes to identify convergence points for intervention
-#   - query_drug_info (indications + side_effects): repurposing angle using
-#     cardiometabolic drugs already approved for diabetes, obesity, hypertension
-#
-# Example research goal:
-#   "What shared molecular mediators connect cardiometabolic risk factors
-#    (obesity, hypertension, type 2 diabetes) to adverse cardiac remodeling
-#    in heart failure with preserved ejection fraction (HFpEF), and which
-#    could serve as targets for novel pharmacological intervention in this
-#    patient population with no approved disease-modifying therapies?"
-#
-# Requirements:
-# - MCP server with INDRA CoGex tools on default port (8888)
-# - PubMed still used for literature review (from default config)
 
 version: "1.0"
 
-# Domain-Specific Prompt Customizations
 prompts:
   domain_context: |
     ## Domain: Cardiology - Heart Failure with Preserved Ejection Fraction (HFpEF)
@@ -223,8 +194,6 @@ prompts:
     4. **Propose the biomarker endpoint** - what measurable signal (cardiac MRI
        extracellular volume, BNP, GLS, exercise VO2max) would confirm target engagement?
 
-# Tool Definitions
-# INDRA tools extend the default PubMed tools (same MCP server)
 tools:
   search_tools:
     indra_statements:
@@ -356,7 +325,6 @@ tools:
           gene_list=["11766","2197","7066","9946"] (TGFB1,COL1A1,MMP2,CTGF)
           analysis_type="discrete"
 
-# Workflow Configurations
 workflows:
   literature_review:
     context_enrichment_tools:
@@ -367,7 +335,6 @@ workflows:
     search_tools:
       - "indra_statements"
 
-# Reflection-Time Enrichments
 enrichments:
   - tool: "indra_statements"
     input_field: "text"
@@ -375,6 +342,5 @@ enrichments:
     enabled: true
     workflow: "reflection"
 
-# Global Settings
 settings:
   merge_strategy: "extend"

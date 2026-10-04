@@ -103,41 +103,32 @@ _EXTERNAL_GAP = (
 
 @dataclass(frozen=True)
 class Candidate:
-    """One graded candidate answer to a concordance item's question."""
-
     id: str
     text: str
     correctness: int
 
 
-# A comparator judges one pair and returns "a" (candidate_a wins) or "b".
 Comparator = Callable[[Candidate, Candidate, str], str]
 
 
 def correctness_preferring_comparator(
     a: Candidate, b: Candidate, question: str
 ) -> str:
-    """A comparator that always prefers the more-correct candidate.
-
-    Ties broken toward ``a``. Used to pin the harness's own math: with a
-    comparator that never disagrees with the ground truth, Elo must recover
-    a ranking that never disagrees with it either.
+    """The always-correct comparator pins harness math independently of the
+    real judge.
     """
     del question
     return "a" if a.correctness >= b.correctness else "b"
 
 
 def inverting_comparator(a: Candidate, b: Candidate, question: str) -> str:
-    """A comparator that always prefers the LESS-correct candidate."""
     del question
     return "a" if a.correctness <= b.correctness else "b"
 
 
 def make_coin_flip_comparator(seed: int) -> Comparator:
-    """Return a seeded comparator that ignores correctness entirely.
-
-    A chance-level baseline: real comparator results should be read against
-    this, since Kendall's tau has no other built-in floor.
+    """Compare real judgments against a chance baseline; tau has no other
+    built-in floor.
     """
     rng = random.Random(seed)
 
@@ -153,18 +144,13 @@ def _sign(value: float) -> int:
 
 
 def _tie_correction(values: Sequence[float]) -> float:
-    """Sum of ``t*(t-1)/2`` over each tie group, for the tau-b denominator."""
     counts = Counter(values)
     return sum(count * (count - 1) / 2 for count in counts.values())
 
 
 def kendall_tau_b(x: Sequence[float], y: Sequence[float]) -> float | None:
-    """Return Kendall's tau-b between two equal-length ranked sequences.
-
-    Tau-b corrects for ties in either sequence (both correctness labels and
-    final Elo ratings can tie), matching the standard definition used by
-    e.g. ``scipy.stats.kendalltau``. Returns None when fewer than two items
-    are given or every pair is tied in one sequence (rank undefined).
+    """Tau-b corrects ties in labels and ratings; fully tied ranks are
+    undefined.
     """
     n = len(x)
     if n < 2 or n != len(y):
@@ -181,11 +167,8 @@ def kendall_tau_b(x: Sequence[float], y: Sequence[float]) -> float | None:
 
 
 def _item_seed(item_id: str) -> int:
-    """Deterministic per-item seed, stable across processes and re-runs.
-
-    Builtin ``hash()`` on a string is salted per-process (PYTHONHASHSEED),
-    so it cannot be used here without breaking reproducibility; CRC32 has
-    no such salt.
+    """Python string hashes are salted per process; CRC32 preserves
+    reproducible item seeds.
     """
     return zlib.crc32(item_id.encode("utf-8"))
 
@@ -196,20 +179,8 @@ def _run_item_tournament(
     comparator: Comparator,
     position_seed: int,
 ) -> dict[str, int]:
-    """Round-robin every distinct pair once; return final ratings by id.
-
-    Args:
-        candidates: The item's graded candidates.
-        question: The item's question, passed through to the comparator.
-        comparator: The pairwise judge.
-        position_seed: Seeds a per-item shuffle of candidate order before
-            pairing. The committed dataset places the correct answer first
-            in most items, so pairing in list order would show every
-            comparator -- including a position-biased real judge -- the
-            correct answer as "a" almost every time, inflating concordance
-            for a reason that has nothing to do with judgment quality. The
-            shuffle is deterministic per item (seed = hash of item id) so a
-            re-run reproduces the same matchups.
+    """Shuffle deterministically: correct-first dataset order would inflate a
+    position-biased judge's score.
     """
     from co_scientist.agents.ranking.ranking_debate import calculate_elo_update
     from co_scientist.constants import ELO_K_FACTOR
@@ -234,7 +205,6 @@ def _run_item_tournament(
 def _item_result(
     item: dict[str, Any], comparator: Comparator
 ) -> dict[str, Any]:
-    """Run one item's tournament; score its Elo-vs-correctness concordance."""
     candidates = [Candidate(**c) for c in item["candidates"]]
     ratings = _run_item_tournament(
         candidates, item["question"], comparator, _item_seed(item["id"])
@@ -266,13 +236,8 @@ _ELO_BUCKET_WIDTH = 50
 
 
 def _elo_bucket_floor(elo: int) -> int:
-    """Floor of the 50-point Elo bucket containing ``elo``.
-
-    Anchored the same way the paper's own boundaries are (1001-1050,
-    1051-1100, ...): every boundary is congruent to 1 mod 50. The anchor
-    itself is arbitrary -- Elo has no natural zero -- but fixed, so a
-    re-run always buckets the same rating the same way, and it reproduces
-    the paper's own labels whenever ratings happen to fall in that range.
+    """Elo bucket origin is arbitrary, but fixed to reproduce the
+    publication's 50-point labels.
     """
     return _ELO_BUCKET_WIDTH * ((elo - 1) // _ELO_BUCKET_WIDTH) + 1
 
@@ -284,37 +249,9 @@ def _elo_bucket_label(floor: int) -> str:
 def elo_bucket_accuracy(
     per_item: Sequence[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Google's published Elo-calibration method (SSR L141, App. D).
-
-    Pools every candidate response's final Elo rating across ALL items --
-    "categorized all generated responses across all considered questions
-    based on their Elo rating into discrete buckets ... in 50 point
-    increments" -- then reports, per bucket, "the percentage of correct
-    responses within each bucket".
-
-    A response counts as correct when its graded correctness equals the
-    item's own maximum. GPQA has exactly one correct answer per question;
-    this harness's substitute dataset marks that with the top value of its
-    0-3 scale, so comparing against the item's own max (rather than a
-    hardcoded scale ceiling) generalizes to any dataset shaped the same way.
-
-    Args:
-        per_item: Per-item results as returned inside ``evaluate_concordance``
-            (each with ``ratings`` -- candidate id -> final Elo -- and
-            ``correctness`` -- candidate id -> graded correctness).
-
-    Returns:
-        One entry per non-empty bucket, sorted by Elo ascending, each with
-        the bucket's label, floor, response count, and accuracy. An item
-        with no candidates contributes nothing (guards a possible empty
-        dataset without raising); a dataset with no items yields ``[]``.
-
-    Not implemented: the paper's companion Gemini-2.0 reference-accuracy
-    baseline (32 sampled responses per question, used only to correct for
-    per-question difficulty being unevenly distributed across buckets) --
-    that needs a live Gemini backend this repository is not configured to
-    reach, and is a debiasing refinement layered on top of this method, not
-    the bucketing-and-accuracy method itself.
+    """Calibrate against each item's own maximum, not a hardcoded correctness
+    scale. Gemini difficulty-debiasing baselines require an unavailable
+    live backend.
     """
     buckets: dict[int, list[bool]] = defaultdict(list)
     for item in per_item:
@@ -342,17 +279,6 @@ def evaluate_concordance(
     comparator: Comparator,
     comparator_id: str,
 ) -> dict[str, Any]:
-    """Score one comparator's Elo-vs-correctness concordance over a dataset.
-
-    Args:
-        items: Dataset items, each with a ``question`` and ``candidates``.
-        comparator: The pairwise judge to drive every matchup.
-        comparator_id: A label for the comparator, carried into the report.
-
-    Returns:
-        Per-item results, mean tau-b, top-1 accuracy, and the published
-        50-point Elo-bucket accuracy breakdown (``elo_buckets``).
-    """
     per_item = [_item_result(item, comparator) for item in items]
     taus = [r["tau_b"] for r in per_item if r["tau_b"] is not None]
     return {
@@ -373,20 +299,8 @@ def _load_dataset() -> dict[str, Any]:
 
 
 def _make_llm_comparator() -> tuple[Comparator, str]:
-    """Build a comparator backed by the engine's real pairwise ranking judge.
-
-    Wraps the async ``judge_matchup`` (the exact function the production
-    tournament calls) in a synchronous comparator via ``asyncio.run`` --
-    this harness's tournament loop is synchronous, and the CLI issues calls
-    one at a time regardless.
-
-    Position bias: the candidate order the caller passes in is already
-    per-item shuffled (see ``_run_item_tournament``), and on top of that a
-    running matchup counter is fed as ``matchup_index`` so the production
-    judge's own ``start_parity`` alternation engages too -- with
-    ``matchup_index`` left ``None`` (its default) that alternation never
-    triggers and a first-position-biased judge would inflate concordance on
-    a dataset that happens to place the correct answer first most often.
+    """Alternate matchup parity as well as item order so position-biased
+    judges cannot inflate concordance.
     """
     from evaluations._live_config import configure_live_environment
 
@@ -414,12 +328,6 @@ def _make_llm_comparator() -> tuple[Comparator, str]:
 
 
 def run(*, use_llm: bool) -> dict[str, Any]:
-    """Evaluate every comparator (plus the real judge, if requested).
-
-    The stub comparators always run, offline and free, so the report is
-    never empty even for a live invocation; ``--llm`` adds the real judge's
-    result alongside them for direct comparison.
-    """
     live_comparator = _make_llm_comparator() if use_llm else None
     dataset = _load_dataset()
     items = dataset["items"]
@@ -462,7 +370,6 @@ def run(*, use_llm: bool) -> dict[str, Any]:
 
 
 def main() -> int:
-    """Run the CLI, write the artifact, print a summary table."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--llm",

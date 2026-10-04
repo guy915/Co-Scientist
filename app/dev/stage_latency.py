@@ -1,58 +1,6 @@
-"""Report and compare run latency cohorts from the durable task spine.
-
-The benchmark every latency change is measured against. It profiles a set of
-runs (see ``stage_latency_analysis`` for how time is attributed), prints the
-stage breakdown, and can save a cohort to JSON so a later cohort can be
-diffed against it.
-
-Usage::
-
-    # Baseline the last 7 standard runs and save them.
-    python -m dev.stage_latency --tier standard --limit 7 \\
-        --save .remember/tmp/baseline.json --label baseline
-
-    # After a change, compare a fresh cohort against that baseline.
-    python -m dev.stage_latency --tier standard --limit 7 \\
-        --since 2026-07-24 --compare-to .remember/tmp/baseline.json
-
-Run it from ``app/``. ``--db`` defaults to the same database the app uses.
-
-Baseline, seven most recent completed runs as of 2026-07-24 (commit
-5218432f)::
-
-    wall   mean 33.9m   p50 27.8m   p95 76.3m   range 14.4m-76.3m
-    active 33.9m        idle 0.1s   worker-time sum 53.9m
-    target mean <= 27.1m
-
-    engine.node.ranking                 21.7%   n 3.6   p50  1.6m
-    engine.fanout.generation.strategy   13.8%   n 6.6   p50  2.2m
-    engine.ranking.match                13.3%   n 22.3  p50 19.3s
-    engine.fanout.reflection.item        8.7%   n 22.7  p50 20.9s
-    engine.fanout.verification.item      8.3%   n 5.9   p50 43.5s
-    engine.node.research_overview        5.8%   n 1.0   p50  2.1m
-    engine.node.orchestrator             5.6%   n 4.7   p50 22.9s
-    engine.node.literature_review        5.3%   n 1.0   p50  1.7m
-
-Two properties of that baseline shape the work queued behind it. Idle time
-is ~0, so there is no queue latency to reclaim -- every second is inside a
-task. And ``solo_s`` equals ``wall_share_s`` for every stage, meaning no two
-stage kinds ever overlap: the run executes as a strictly serial spine.
-
-That second property is an observation about how the pipeline is *wired*,
-not a law about how it must be. Several stages read only a hypothesis's
-text and write disjoint fields, so they are chained without a data
-dependency forcing it. Whether unchaining them would actually pay is what
-the occupancy report answers:
-
-    python -m dev.stage_latency --tier standard --limit 7 --cohort-size 8
-
-``free`` is the mean worker slots a stage left unused. A stage with several
-free slots can host an independent stage alongside it for nothing -- the
-cohort was going to idle anyway. A stage reported as ``saturated`` cannot:
-overlapping it only requeues the same work behind the same eight workers,
-and its latency has to come from a wider cohort or a shorter chain. Read
-this table before proposing either fix; the two readings prescribe opposite
-work and the wall-share table alone cannot tell them apart.
+"""Wall-share partitions busy time; occupancy distinguishes overlap
+opportunities from saturated cohorts that need wider workers or shorter
+dependencies.
 """
 
 from __future__ import annotations
@@ -81,13 +29,8 @@ from dev.stage_latency_analysis import (  # noqa: E402
 
 
 def _configured_cohort_size() -> int:
-    """Return the app's worker_pool_size, or the module default.
-
-    Read from the live setting rather than assumed, so the occupancy report
-    compares against the ceiling the runs were actually executed under. A
-    report that measured 8 concurrent tasks against a wrongly assumed
-    ceiling of 12 would read as comfortable headroom when the cohort was in
-    fact saturated -- the exact conclusion this report exists to get right.
+    """Measure against the actual configured ceiling or saturated runs appear
+    to have spare capacity.
     """
     try:
         from app.config import settings
@@ -96,19 +39,16 @@ def _configured_cohort_size() -> int:
     except Exception:
         return DEFAULT_COHORT_SIZE
 
-# The plan's first-wave goal: a cohort must come in at or below this
-# fraction of the baseline mean to count as a win.
+
 FIRST_WAVE_TARGET_FRACTION = 0.80
 
 _DEFAULT_DB = os.environ.get("COSCIENTIST_DB_PATH", "coscientist.db")
 
-# Terminal statuses worth benchmarking. A cancelled or failed run stopped
-# early, so its wall time measures the failure, not the pipeline.
+# Failed/cancelled runs measure early termination rather than pipeline latency.
 _MEASURED_RUN_STATUS = ("completed",)
 
 
 def _git_commit() -> str:
-    """Return the current HEAD short sha, or 'unknown' outside a checkout."""
     try:
         out = subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],
@@ -122,17 +62,15 @@ def _git_commit() -> str:
 
 
 def _parse_date(value: str) -> float:
-    """Parse a YYYY-MM-DD date into epoch seconds."""
     return time.mktime(time.strptime(value, "%Y-%m-%d"))
 
 
 def _select_runs(
     conn: sqlite3.Connection, args: argparse.Namespace
 ) -> list[sqlite3.Row]:
-    """Return the run rows matching the CLI's cohort filters."""
-    clauses = ["status IN ({})".format(
-        ",".join("?" for _ in _MEASURED_RUN_STATUS)
-    )]
+    clauses = [
+        "status IN ({})".format(",".join("?" for _ in _MEASURED_RUN_STATUS))
+    ]
     params: list[Any] = list(_MEASURED_RUN_STATUS)
     if args.run:
         clauses.append("id = ?")
@@ -153,7 +91,6 @@ def _select_runs(
 def _profiles_for(
     conn: sqlite3.Connection, args: argparse.Namespace
 ) -> list[RunProfile]:
-    """Build the cohort's run profiles, applying tier and limit filters."""
     rows = _select_runs(conn, args)
     spans = load_spans(conn, [row["id"] for row in rows])
     profiles: list[RunProfile] = []
@@ -176,11 +113,8 @@ def _profiles_for(
 
 
 def _merge_stages(profiles: Sequence[RunProfile]) -> list[StageStats]:
-    """Aggregate per-run stage stats into one cohort-wide table.
-
-    Percentiles are recomputed over the pooled per-invocation durations
-    rather than averaged across runs, since averaging percentiles of
-    different sample sizes is not a percentile of anything.
+    """Pool invocation samples; averaging percentiles from different sample
+    sizes is not a percentile.
     """
     totals: dict[str, dict[str, float]] = {}
     for profile in profiles:
@@ -213,7 +147,6 @@ def _merge_stages(profiles: Sequence[RunProfile]) -> list[StageStats]:
 def _pooled(
     profiles: Sequence[RunProfile], task_type: str, fraction: float
 ) -> float:
-    """Return a percentile over every run's per-invocation p50 for a stage."""
     samples = [
         stage.p50_s
         for profile in profiles
@@ -226,7 +159,6 @@ def _pooled(
 def _cohort(
     profiles: Sequence[RunProfile], label: str, db_path: str
 ) -> dict[str, Any]:
-    """Build the serializable cohort summary."""
     walls = [profile.wall_s for profile in profiles]
     mean = sum(walls) / len(walls) if walls else 0.0
     return {
@@ -253,12 +185,8 @@ def _cohort(
 
 
 def _merge_occupancy(profiles: Sequence[RunProfile]) -> dict[str, Any]:
-    """Aggregate per-run occupancy into one cohort-wide summary.
-
-    Per-stage figures are averaged over the runs that actually ran that
-    stage, not over the whole cohort: a stage absent from a run contributes
-    no occupancy observation, and counting it as zero would report an
-    always-saturated stage as having headroom.
+    """Average only runs that executed a stage; absent stages are not zero-
+    occupancy observations.
     """
     if not profiles:
         return {}
@@ -281,29 +209,24 @@ def _merge_occupancy(profiles: Sequence[RunProfile]) -> dict[str, Any]:
         "mean_concurrency": _mean(
             p.occupancy.mean_concurrency for p in profiles
         ),
-        "peak_concurrency": max(
-            p.occupancy.peak_concurrency for p in profiles
-        ),
+        "peak_concurrency": max(p.occupancy.peak_concurrency for p in profiles),
         "mean_saturated_s": _mean(p.occupancy.saturated_s for p in profiles),
         "stages": sorted(stages, key=lambda s: -float(s["headroom"])),
     }
 
 
 def _mean(values: Any) -> float:
-    """Return the arithmetic mean of an iterable, or 0.0 when empty."""
     items = list(values)
     return sum(items) / len(items) if items else 0.0
 
 
 def _fmt(seconds: float) -> str:
-    """Render seconds as a compact minutes-and-seconds string."""
     if seconds >= 60:
         return f"{seconds / 60:.1f}m"
     return f"{seconds:.1f}s"
 
 
 def _print_header(cohort: dict[str, Any]) -> None:
-    """Print the cohort's run-level summary."""
     print(f"cohort: {cohort['label']}  commit={cohort['commit']}")
     print(f"runs:   {cohort['run_count']}")
     if not cohort["run_count"]:
@@ -327,7 +250,6 @@ def _print_header(cohort: dict[str, Any]) -> None:
 
 
 def _print_stages(cohort: dict[str, Any]) -> None:
-    """Print the per-stage critical-path table."""
     active = cohort["mean_active_s"] or 1.0
     print()
     print(
@@ -348,13 +270,8 @@ def _print_stages(cohort: dict[str, Any]) -> None:
 
 
 def _print_occupancy(cohort: dict[str, Any]) -> None:
-    """Print worker-cohort utilization, most idle slots first.
-
-    ``conc`` is every task in flight while the stage ran, not just its own,
-    since that is what decides whether an independent stage could have run
-    alongside it. A stage with wide headroom is a candidate for overlapping
-    with one it does not depend on; a stage that is mostly saturated is not,
-    and needs a wider cohort or a shorter chain instead.
+    """All concurrent tasks consume headroom, not just tasks of the displayed
+    stage.
     """
     occ = cohort.get("occupancy")
     if not occ:
@@ -367,9 +284,7 @@ def _print_occupancy(cohort: dict[str, Any]) -> None:
         f"peak {occ['peak_concurrency']}  "
         f"saturated {_fmt(occ['mean_saturated_s'])}/run"
     )
-    print(
-        f"{'stage':<42}{'conc':>7}{'peak':>6}{'free':>7}{'saturated':>11}"
-    )
+    print(f"{'stage':<42}{'conc':>7}{'peak':>6}{'free':>7}{'saturated':>11}")
     for stage in occ["stages"]:
         print(
             f"{stage['task_type']:<42}"
@@ -381,7 +296,6 @@ def _print_occupancy(cohort: dict[str, Any]) -> None:
 
 
 def _print_widths(profiles: Sequence[RunProfile]) -> None:
-    """Print mean fan-out width per wave across the cohort."""
     widths: dict[str, list[float]] = {}
     for profile in profiles:
         for family, width in profile.items_per_invocation.items():
@@ -395,7 +309,6 @@ def _print_widths(profiles: Sequence[RunProfile]) -> None:
 
 
 def _print_comparison(current: dict[str, Any], baseline_path: str) -> None:
-    """Print the current cohort's deltas against a saved baseline."""
     with open(baseline_path, encoding="utf-8") as handle:
         baseline = json.load(handle)
     print()
@@ -406,9 +319,9 @@ def _print_comparison(current: dict[str, Any], baseline_path: str) -> None:
     base_mean = baseline["mean_wall_s"] or 1.0
     delta = current["mean_wall_s"] - baseline["mean_wall_s"]
     pct = 100.0 * delta / base_mean
-    verdict = "MEETS" if pct <= -100 * (
-        1 - FIRST_WAVE_TARGET_FRACTION
-    ) else "below"
+    verdict = (
+        "MEETS" if pct <= -100 * (1 - FIRST_WAVE_TARGET_FRACTION) else "below"
+    )
     print(
         f"  mean wall {_fmt(baseline['mean_wall_s'])} -> "
         f"{_fmt(current['mean_wall_s'])}  ({pct:+.1f}%)  [{verdict} target]"
@@ -419,7 +332,6 @@ def _print_comparison(current: dict[str, Any], baseline_path: str) -> None:
 def _print_stage_deltas(
     current: dict[str, Any], baseline: dict[str, Any]
 ) -> None:
-    """Print per-stage wall-share deltas, largest regression first."""
     base = {s["task_type"]: s["wall_share_s"] for s in baseline["stages"]}
     rows = [
         (s["task_type"], s["wall_share_s"] - base.get(s["task_type"], 0.0))
@@ -429,18 +341,21 @@ def _print_stage_deltas(
     for task_type, delta in rows:
         if abs(delta) < 1.0:
             continue
-        print(f"  {task_type:<44}{_fmt(delta):>9} {'faster' if delta < 0 else 'slower'}")
+        print(
+            f"  {task_type:<44}{_fmt(delta):>9} {'faster' if delta < 0 else 'slower'}"
+        )
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    """Build the CLI argument parser."""
     parser = argparse.ArgumentParser(
         description="Critical-path latency report over durable run tasks."
     )
     parser.add_argument("--db", default=_DEFAULT_DB, help="SQLite path.")
     parser.add_argument("--run", help="Profile a single run id.")
     parser.add_argument("--tier", help="Filter to one run tier.")
-    parser.add_argument("--since", help="Only runs created on/after YYYY-MM-DD.")
+    parser.add_argument(
+        "--since", help="Only runs created on/after YYYY-MM-DD."
+    )
     parser.add_argument("--until", help="Only runs created before YYYY-MM-DD.")
     parser.add_argument("--limit", type=int, default=0, help="Max runs.")
     parser.add_argument("--label", default="current", help="Cohort name.")
@@ -457,7 +372,6 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run the latency report."""
     args = _build_parser().parse_args(argv)
     conn = sqlite3.connect(args.db)
     conn.row_factory = sqlite3.Row

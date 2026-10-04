@@ -1,40 +1,5 @@
-"""Local MCP-backed golden run.
-
-Drives one small biomedical run through the real production path -- the
-durable task queue (``store.create_run`` -> ``task_worker`` ->
-``engine_tasks`` -> engine -> MCP/INDRA -> drain -> report) against the LOCAL
-MCP server, with the INDRA cancer tools config and the semantic (LLM) claim
-assessor enabled, then asserts the acceptance from the persisted store and
-writes a reproducibility artifact under ``evaluations/results/``.
-
-The run is delivered exactly as ``POST /api/runs/{id}/start`` delivers one:
-the run row is persisted, ``task_worker.enqueue_run_workflow`` puts
-``engine.bootstrap`` on the queue, and a bounded worker cohort
-(``run_run_worker_pool``, the same one the embedded API worker launches)
-drains the resulting node/fan-out/tournament task chain to a terminal state.
-There is no in-process streaming drive any more, so the acceptance is read
-from the persisted event log and store rather than from a stream.
-
-Acceptance (P0.6): the run completes on the real (not offline) backend with
-nonzero *real* evidence records, nonempty support passages, and at least one
-authorized INDRA tool invocation with ``indra_cancer.yaml`` -- the live
-acceptance behind CITE-CLAIM-001 and TOOLS-CONFIG-001.
-
-Run size comes from the tier, not from this script: the durable path
-re-resolves the persisted config through ``resolved_run_config``, whose
-numeric knobs may only raise a tier baseline. ``express`` is therefore the
-smallest run available, and only ``evidence_count`` is raised above it (more
-retrieved evidence is what the two cited requirements are about).
-
-This makes real model-provider + MCP (PubMed/INDRA) calls and is run out of
-band, never in CI. It is LOCAL only; it never touches Railway prod. Re-running
-uses a fresh temp DB each time. Campaign mode refuses this runner before
-execution because INDRA is not a qualified campaign tool. Do not disable
-campaign mode to bypass that restriction.
-
-Run:
-    # Export MODEL_NAME and its matching provider key explicitly.
-    .venv/bin/python -m evaluations.golden_run
+"""Live acceptance is local-only and requires a real backend; campaign mode
+cannot authorize INDRA.
 """
 
 from __future__ import annotations
@@ -59,10 +24,8 @@ _INDRA_CONFIG = (
     / "examples"
     / "indra_cancer.yaml"
 )
-# Smallest tier the durable path can execute; see the module docstring.
 _TIER = "express"
-# Raised above the express baseline (4): evidence is what the two cited
-# requirements are asserted over. Overrides may only raise, never lower.
+# Tier overrides may raise, never lower, the smallest durable baseline.
 _EVIDENCE_COUNT = 6
 
 _INDRA_TOOLS = {
@@ -83,7 +46,6 @@ _GOAL = (
 
 
 def _configure_env(db_path: str) -> None:
-    """Pin explicit model settings without reading credentials from disk."""
     model = os.getenv("MODEL_NAME", "").strip()
     if not model or "/" not in model:
         raise ValueError(
@@ -110,12 +72,8 @@ def _configure_env(db_path: str) -> None:
 
 
 def _install_tool_call_counter() -> dict[str, int]:
-    """Patch the MCP client so every tool invocation is counted by name.
-
-    Lit-review search calls ``call_tool``; tool-calling generation (if any)
-    calls ``execute_tool_call``. Both are wrapped so the counts are ground
-    truth for "which MCP tools were actually invoked", independent of how
-    evidence is later shaped.
+    """Count both direct and model-requested tools independently of later
+    evidence reshaping.
     """
     from co_scientist import mcp_client
 
@@ -139,14 +97,8 @@ def _install_tool_call_counter() -> dict[str, int]:
 
 
 def _persist_run(db_path: str) -> str:
-    """Create the run row the durable queue will execute, returning its id.
-
-    Mirrors what ``POST /api/runs`` persists: a config resolved through
-    ``resolved_run_config`` around a real planning ``setup`` block, so the
-    engine receives the same guidance a UI-created run would. The backend is
-    pinned to "real" rather than left for ``offline_mode()`` to decide, so a
-    missing key fails the run instead of quietly producing an offline
-    artifact that would satisfy every check below.
+    """Pin real backend so missing credentials fail rather than satisfy
+    acceptance with offline artifacts.
     """
     from app import store
     from app.run_modes import resolved_run_config, setup_config
@@ -174,7 +126,6 @@ def _persist_run(db_path: str) -> str:
 
 
 def _collect(run_id: str, db_path: str) -> dict[str, Any]:
-    """Read the persisted artifacts the acceptance is asserted against."""
     from app import store
 
     evidence = store.list_evidence(run_id, db_path=db_path)
@@ -194,12 +145,8 @@ def _collect(run_id: str, db_path: str) -> dict[str, Any]:
 
 
 def _cost_summary(metrics: dict[str, Any] | None) -> dict[str, Any]:
-    """Roll the run's persisted ``model_usage`` telemetry into a cost total.
-
-    ``model_usage`` is keyed ``"{phase}::{model}"`` (see
-    ``co_scientist.models.metrics.ExecutionMetrics``); this sums the
-    legacy ``cost_usd`` estimates. The evidence block separately identifies
-    complete estimates and unknowns; neither is a provider billing receipt.
+    """Legacy cost estimates are not billing receipts; report completeness
+    separately.
     """
     from evaluations._usage_evidence import summarize_usage
 
@@ -220,7 +167,6 @@ def _cost_summary(metrics: dict[str, Any] | None) -> dict[str, Any]:
 def _support_passages(
     claim_edges: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Flatten every supporting/contradicting span across all claim edges."""
     spans: list[dict[str, Any]] = []
     for edge in claim_edges:
         for key in ("supporting", "contradicting"):
@@ -233,7 +179,6 @@ def _support_passages(
 def _assess(
     collected: dict[str, Any], tool_calls: dict[str, int]
 ) -> dict[str, Any]:
-    """Compute the acceptance checks over the persisted artifacts."""
     evidence = collected["evidence"]
     sources = sorted({str(e.get("source") or "") for e in evidence})
     indra_calls = {t: c for t, c in tool_calls.items() if t in _INDRA_TOOLS}
@@ -267,7 +212,6 @@ def _assess(
 
 
 def _sample_evidence(evidence: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """A compact evidence sample for the artifact (title/source/url only)."""
     return [
         {
             "title": e.get("title"),
@@ -280,7 +224,6 @@ def _sample_evidence(evidence: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _sample_spans(spans: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """A compact support-span sample for the artifact."""
     return [
         {
             "evidence_id": s.get("evidence_id"),
@@ -297,11 +240,8 @@ def _build_report(
     collected: dict[str, Any],
     assessment: dict[str, Any],
 ) -> dict[str, Any]:
-    """Assemble the reproducibility report payload.
-
-    Configuration is read back from the resolved settings rather than from
-    the environment this script wrote, so the artifact records what the run
-    actually used (including the explicitly selected model).
+    """Read resolved settings so provenance records the run's actual
+    configuration.
     """
     from app.config import settings
 
@@ -335,7 +275,6 @@ def _build_report(
 
 
 def run() -> dict[str, Any]:
-    """Execute the golden run and return the reproducibility report."""
     # LiteLLM may load dotenv during the engine import itself.
     os.environ["PYTHON_DOTENV_DISABLED"] = "1"
     from co_scientist.llm import campaign_free_mode
@@ -359,9 +298,8 @@ def run() -> dict[str, Any]:
 
     from app import engine_adapter
 
-    # The app lifespan validates this before serving; without it a bad
-    # TOOLS_CONFIG silently falls back to default tools and the run would
-    # "pass" having never loaded indra_cancer.yaml at all.
+    # Validate config because silent fallback could pass without loading the
+    # requested INDRA tools.
     engine_adapter.validate_tools_config(settings.tools_config)
 
     run_id = _persist_run(db_path)
@@ -373,12 +311,8 @@ def run() -> dict[str, Any]:
     return _build_report(run_id, events, collected, assessment)
 
 
-# The engine seeds nothing globally: tournament pairing derives a
-# deterministic per-call seed from `md5(research_goal + iteration)` (see
-# `agents/ranking/ranking.py::_build_tournament_pairings`), and every LLM
-# completion is otherwise provider-default (unseeded). Recorded as a
-# description, not a number, since there is no single seed value for the
-# run.
+# Tournament pairing seeds by goal/cycle; provider completions have no single
+# run-wide seed.
 _SEED_DESCRIPTION = (
     "no global seed; tournament pairing is deterministic from "
     "hash(research_goal, iteration) -- see ranking.py; LLM sampling is "
@@ -387,7 +321,6 @@ _SEED_DESCRIPTION = (
 
 
 def main() -> int:
-    """Run the golden run, write the artifact, print a compact summary."""
     report = run()
     out = write_dated_artifact(
         report,

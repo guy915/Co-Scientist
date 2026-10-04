@@ -1,4 +1,4 @@
-# Build contexts must never contain local credentials or researcher data.
+# Build contexts must never contain credentials or researcher data.
 **/.env
 **/.env.*
 !**/.env.example
@@ -7,13 +7,12 @@
 **/*.sqlite*
 **/reports
 **/cache
-# The engine's cache package is source, not a runtime cache directory.
+# The engine cache package is source, not disposable runtime cache.
 !engine/src/co_scientist/cache
 **/.cache
 **/paper_cache
 **/.coscientist_cache
 
-# Development tooling and generated outputs.
 .git
 .codex
 .remember
@@ -39,7 +38,7 @@
 **/*.log
 .DS_Store
 
-# Research archives are not runtime inputs. Keep vendor/ and package READMEs.
+# Research archives are not runtime inputs; retain vendor sources and package READMEs.
 references
 docs
 PLAN.md

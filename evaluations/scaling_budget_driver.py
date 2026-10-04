@@ -57,9 +57,8 @@ from evaluations import _run_driver
 from evaluations._artifacts import write_dated_artifact
 from evaluations.scaling_eval import scaling_curve, temporal_scaling_curve
 
-# Mirrors app.run_modes.RUN_TIER_DEFAULTS's key order (smallest budget
-# first); duplicated as a plain tuple so this module's CLI default does not
-# need an app import before _run_driver has set up the app import path.
+# Keep CLI tier defaults local so app settings do not load before environment
+# isolation.
 _ALL_TIERS = ("express", "standard", "extended", "ultra")
 
 _DEFAULT_GOAL = (
@@ -81,14 +80,8 @@ _OFFLINE_DISCLAIMER = (
 
 
 def _arm_to_snapshot(arm: dict[str, Any]) -> dict[str, Any]:
-    """Shape one driven arm into the snapshot ``scaling_curve`` reads.
-
-    Also carries ``temporal_curve`` (R1-13): Google's published within-run
-    method, applied to this arm's own hypotheses. Unlike the cross-tier
-    ``curve`` this driver already builds, this orders by a real per-arm
-    signal (``creation_iteration``, falling back to ``generation``) rather
-    than by tier -- see ``scaling_eval.temporal_scaling_curve`` for what
-    that ordering can and cannot resolve.
+    """Temporal curves order authoring cycles; cross-tier curves compare
+    different budgets.
     """
     return {
         "run_id": arm["run_id"],
@@ -106,18 +99,6 @@ def _arm_to_snapshot(arm: dict[str, Any]) -> dict[str, Any]:
 def run_budget_curve(
     goal: str, tiers: Sequence[str], *, live: bool
 ) -> dict[str, Any]:
-    """Drive one arm per tier and return the full curve report.
-
-    Args:
-        goal: The single research goal every tier arm shares.
-        tiers: Ordered tier names to run (smallest budget first).
-        live: When True, run on the real provider backend; the caller must
-            already have confirmed a provider key is available.
-
-    Returns:
-        A JSON-safe report: the goal, mode, per-arm detail, snapshots, and
-        the computed scaling curve.
-    """
     tmp = pathlib.Path(tempfile.mkdtemp(prefix="scaling-curve-"))
     _run_driver.configure_environment(
         str(tmp / "scaling.db"), str(tmp / "cache"), live=live
@@ -170,7 +151,6 @@ def _parse_args() -> argparse.Namespace:
 
 
 def _print_temporal_curves(report: dict[str, Any]) -> None:
-    """Print each arm's within-run temporal Elo curve (R1-13)."""
     for snapshot in report["snapshots"]:
         print(f"  temporal curve for {snapshot['run_id']}:")
         for bucket in snapshot["temporal_curve"]:
@@ -183,7 +163,6 @@ def _print_temporal_curves(report: dict[str, Any]) -> None:
 
 
 def main() -> int:
-    """Run the CLI: drive the curve, write the artifact, print a summary."""
     args = _parse_args()
     tiers = [t.strip() for t in args.tiers.split(",") if t.strip()]
     report = run_budget_curve(args.goal, tiers, live=args.live)

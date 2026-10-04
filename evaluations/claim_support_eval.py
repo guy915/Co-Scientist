@@ -64,17 +64,7 @@ _GOAL = (
 
 
 def score_claims(annotated: list[dict[str, Any]]) -> dict[str, Any]:
-    """Reduce per-hypothesis claim counts to the two rates.
-
-    Args:
-        annotated: Hypotheses carrying ``assessed_claims`` and
-            ``verified_claims``, as ``_run_driver`` annotates them.
-
-    Returns:
-        The metric block. A rate is None rather than 0.0 where nothing
-        was assessed: a run that made no assessable claim is not a run
-        with perfect support, and the two must not print the same.
-    """
+    """No assessed claims means an unknown rate, not perfect support."""
     assessed = sum(int(h.get("assessed_claims") or 0) for h in annotated)
     supported = sum(int(h.get("verified_claims") or 0) for h in annotated)
     with_claims = [h for h in annotated if int(h.get("assessed_claims") or 0)]
@@ -92,12 +82,10 @@ def score_claims(annotated: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _rate(part: int, total: int) -> float | None:
-    """A rate, or None when there was nothing to rate."""
     return round(part / total, 4) if total else None
 
 
 def score_run(run_id: str, db_path: str | None = None) -> dict[str, Any]:
-    """Score a run already in the store, without driving anything."""
     from app import store
 
     from evaluations._usage_evidence import summarize_usage
@@ -120,7 +108,6 @@ def score_run(run_id: str, db_path: str | None = None) -> dict[str, Any]:
 def drive_and_score(
     goal: str = _GOAL, tier: str = "express", *, live: bool = False
 ) -> dict[str, Any]:
-    """Drive one run through the real durable path and score its claims."""
     import tempfile
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -148,7 +135,6 @@ def drive_and_score(
 
 
 def run(run_id: str | None, *, live: bool = False) -> dict[str, Any]:
-    """Score a named run, or drive one and score that."""
     if run_id:
         return {
             "mode": "persisted_run",
@@ -164,7 +150,6 @@ def run(run_id: str | None, *, live: bool = False) -> dict[str, Any]:
 
 
 def main() -> int:
-    """Score claim support, write a dated artifact, print a summary."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run", default=None, help="Score this run instead.")
     parser.add_argument(
