@@ -199,6 +199,11 @@ callbacks must defer writes to observed text to avoid loop errors; batch geometr
 reads and writes to avoid repeated layout flushes. Theme suppression lasts two
 animation frames.
 
+DOM growth is not a reader gesture: compare scrollTop with the last applied
+bottom scroll before measuring the new gap; asynchronous scroll events can lag
+the gesture. Rearm initial landing by conversation identity because chat switches
+reuse the workspace rather than remounting it.
+
 ## Retrieval scores and scheduling ceilings
 
 Capture lexical retrieval scores before stamping hybrid scores. Reusing the
