@@ -249,8 +249,8 @@ BYOK_PROVIDER_DEFAULT_MODELS: dict[str, str] = {
     "openai": "openai/gpt-4o",
     "openrouter": "openrouter/z-ai/glm-5.3-flash",
 }
-# Known defaults cover model roles; existing runs retain their stored model
-# selection.
+# A local default per provider avoids guessing which other models a key covers.
+# It seeds every role; existing runs retain their stored model selections.
 
 
 def byok_default_model(provider: str) -> str | None:
