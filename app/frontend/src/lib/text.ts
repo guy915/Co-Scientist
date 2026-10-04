@@ -1,5 +1,9 @@
 import {renderInlineHtml} from './sanitize_html';
 
+export function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export function conciseTitle(goal: string, maxChars = 52): string {
   const trimmed = (goal ?? '').trim();
   if (!trimmed) return 'Untitled session';

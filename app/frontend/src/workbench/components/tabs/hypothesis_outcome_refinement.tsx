@@ -1,3 +1,4 @@
+import {errorMessage} from '@/lib/text';
 import {
   type OutcomeRefinementAction,
   getHypothesisOutcomeRefinement,
@@ -361,8 +362,4 @@ async function loadSavedAction(
     if (err instanceof HttpError && err.status === 404) return null;
     throw err;
   }
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
