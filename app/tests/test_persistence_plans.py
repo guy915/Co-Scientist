@@ -2,17 +2,26 @@ from __future__ import annotations
 
 import pathlib
 import sqlite3
+import subprocess
+import sys
 from typing import Any
 
 import pytest
 
-from app.store import checkpoints, db, reports, runs
+from app.store import checkpoints, db, hypotheses, records, reports, runs
 from app.store import db as _store_db
 from app.store import db as store_db
 from app.store import retrieval_calls as retrieval
 from app.store import runs_views as views
 from app.store import supervisor_plan as plans
 from app.store.checkpoints import NewCheckpoint
+from app.store.hypotheses import NewHypothesis
+from app.store.records import (
+    NewEvidence,
+    NewMatch,
+    NewReview,
+    NewSafetyDecision,
+)
 from app.store.runs import RunCreateOptions
 from app.store.schema import SCHEMA
 from app.store.supervisor_plan import NewSupervisorPlan
@@ -72,34 +81,6 @@ def test_clear_run_derived_data_removes_metrics(isolated_db: str) -> None:
     assert retrieval.get_run_metrics(run_id, db_path=isolated_db) is None
 
 
-# Fresh schemas hide migration ordering bugs; populated legacy fixtures exercise
-# the actual upgrade path.
-
-
-_OLD_APP_LOGS = """
-CREATE TABLE app_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    created_at REAL NOT NULL,
-    level TEXT NOT NULL,
-    levelno INTEGER NOT NULL,
-    logger TEXT NOT NULL,
-    message TEXT NOT NULL,
-    run_id TEXT,
-    exc_text TEXT
-);
-CREATE INDEX idx_app_logs_run ON app_logs(run_id, id);
-"""
-
-
-def _old_shape_db(tmp_path: object) -> str:
-    path = str(tmp_path / "old.db")  # type: ignore[operator]
-    conn = sqlite3.connect(path)
-    conn.executescript(_OLD_APP_LOGS)
-    conn.commit()
-    conn.close()
-    return path
-
-
 def _columns(path: str, table: str) -> set[str]:
     conn = sqlite3.connect(path)
     try:
@@ -108,351 +89,177 @@ def _columns(path: str, table: str) -> set[str]:
         conn.close()
 
 
-def _indexes(path: str, table: str) -> set[str]:
-    conn = sqlite3.connect(path)
-    try:
-        return {row[1] for row in conn.execute(f"PRAGMA index_list({table})")}
-    finally:
-        conn.close()
-
-
-def test_connect_upgrades_an_old_app_logs_table(tmp_path: object) -> None:
-    # Schema indexes cannot reference columns until legacy migration adds them.
-    path = _old_shape_db(tmp_path)
-
-    with db.connect(path) as conn:
-        conn.execute("SELECT client_id FROM app_logs").fetchall()
-
-    assert "client_id" in _columns(path, "app_logs")
-    assert "idx_app_logs_client" in _indexes(path, "app_logs")
-
-
-def test_connect_is_idempotent_over_an_upgraded_database(
-    tmp_path: object,
-) -> None:
-    path = _old_shape_db(tmp_path)
-    with db.connect(path):
-        pass
-    db._initialized.discard(path)
-
-    with db.connect(path) as conn:
-        conn.execute("SELECT client_id FROM app_logs").fetchall()
-
-    assert "idx_app_logs_client" in _indexes(path, "app_logs")
-
-
-_OLD_INTERVIEW_TURNS = """
-CREATE TABLE interview_turns (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    interview_id TEXT NOT NULL,
-    role TEXT NOT NULL,
-    content TEXT NOT NULL,
-    reasoning TEXT,
-    created_at REAL NOT NULL
-);
-"""
-
-
-def test_connect_upgrades_old_interview_turns_table(
-    tmp_path: object,
-) -> None:
-    # Missing legacy fallback markers mean unknown pre-marker provenance, not
-    # known scripted output.
-    path = str(tmp_path / "old_turns.db")  # type: ignore[operator]
-    conn = sqlite3.connect(path)
-    conn.executescript(_OLD_INTERVIEW_TURNS)
-    conn.execute(
-        "INSERT INTO interview_turns (interview_id, role, content, "
-        "created_at) VALUES ('iv-1', 'agent', 'Which focus area?', 1.0)"
-    )
-    conn.commit()
-    conn.close()
-
-    with db.connect(path) as conn:
-        rows = conn.execute("SELECT fallback FROM interview_turns").fetchall()
-
-    assert "fallback" in _columns(path, "interview_turns")
-    assert [row[0] for row in rows] == [0]
-
-
-_OLD_HYPOTHESES = """
-CREATE TABLE hypotheses (
-    id TEXT PRIMARY KEY,
-    run_id TEXT NOT NULL,
-    parent_id TEXT,
-    generation INTEGER NOT NULL DEFAULT 0,
-    category TEXT,
-    title TEXT NOT NULL,
-    statement TEXT NOT NULL,
-    mechanism TEXT,
-    expected_effect TEXT,
-    experimental_context TEXT,
-    created_by_agent TEXT NOT NULL,
-    created_at REAL NOT NULL
-);
-"""
-
-
-def test_connect_upgrades_old_hypotheses_table(tmp_path: object) -> None:
-    path = str(tmp_path / "old_hyps.db")  # type: ignore[operator]
-    conn = sqlite3.connect(path)
-    conn.executescript(_OLD_HYPOTHESES)
-    conn.execute(
-        "INSERT INTO hypotheses (id, run_id, title, statement, "
-        "created_by_agent, created_at) "
-        "VALUES ('h1', 'r1', 'T', 'S', 'generation', 1.0)"
-    )
-    conn.commit()
-    conn.close()
-
-    with db.connect(path) as conn:
-        rows = conn.execute("SELECT parent_ids FROM hypotheses").fetchall()
-
-    assert "parent_ids" in _columns(path, "hypotheses")
-    assert [row[0] for row in rows] == [None]
-
-
-def test_connect_adds_scene_setting_columns_to_old_hypotheses(
-    tmp_path: object,
-) -> None:
-    path = str(tmp_path / "old_hyps_scene.db")  # type: ignore[operator]
-    conn = sqlite3.connect(path)
-    conn.executescript(_OLD_HYPOTHESES)
-    conn.execute(
-        "INSERT INTO hypotheses (id, run_id, title, statement, "
-        "created_by_agent, created_at) "
-        "VALUES ('h1', 'r1', 'T', 'S', 'generation', 1.0)"
-    )
-    conn.commit()
-    conn.close()
-
-    with db.connect(path) as conn:
-        rows = conn.execute(
-            "SELECT introduction, recent_findings FROM hypotheses"
-        ).fetchall()
-
-    columns = _columns(path, "hypotheses")
-    assert {"introduction", "recent_findings"} <= columns
-    assert [tuple(row) for row in rows] == [(None, None)]
-
-
-def test_connect_adds_safety_and_toxicity_column_to_old_hypotheses(
-    tmp_path: object,
-) -> None:
-    path = str(tmp_path / "old_hyps_safety.db")  # type: ignore[operator]
-    conn = sqlite3.connect(path)
-    conn.executescript(_OLD_HYPOTHESES)
-    conn.execute(
-        "INSERT INTO hypotheses (id, run_id, title, statement, "
-        "created_by_agent, created_at) "
-        "VALUES ('h1', 'r1', 'T', 'S', 'generation', 1.0)"
-    )
-    conn.commit()
-    conn.close()
-
-    with db.connect(path) as conn:
-        rows = conn.execute(
-            "SELECT safety_and_toxicity FROM hypotheses"
-        ).fetchall()
-
-    assert "safety_and_toxicity" in _columns(path, "hypotheses")
-    assert [row[0] for row in rows] == [None]
-
-
-_OLD_EVIDENCE = """
-CREATE TABLE evidence (
-    id TEXT PRIMARY KEY,
-    run_id TEXT NOT NULL,
-    title TEXT NOT NULL,
-    source TEXT,
-    url TEXT,
-    authors_json TEXT,
-    year INTEGER,
-    abstract TEXT,
-    available INTEGER NOT NULL DEFAULT 1,
-    mime_type TEXT,
-    sha256 TEXT,
-    byte_size INTEGER,
-    document_version TEXT,
-    extraction_tool TEXT,
-    doi TEXT,
-    pmid TEXT,
-    passage_text TEXT,
-    retrieved_at REAL,
-    retrieval_score REAL,
-    retrieval_rationale TEXT,
-    retriever_version TEXT,
-    created_at REAL NOT NULL
-);
-CREATE INDEX idx_ev_run ON evidence(run_id);
-"""
-
-
-def test_connect_upgrades_evidence_for_retrieval_provenance(
-    tmp_path: object,
-) -> None:
-    # Legacy tables need ALTER for search links; CREATE IF NOT EXISTS does not
-    # add columns.
-    path = str(tmp_path / "old_evidence.db")  # type: ignore[operator]
-    conn = sqlite3.connect(path)
-    conn.executescript(_OLD_EVIDENCE)
-    conn.execute(
-        "INSERT INTO evidence (id, run_id, title, created_at) "
-        "VALUES ('e1', 'r1', 'A paper', 1.0)"
-    )
-    conn.commit()
-    conn.close()
-
-    with db.connect(path) as conn:
-        rows = conn.execute("SELECT retrieval_call_id FROM evidence").fetchall()
-        conn.execute("SELECT COUNT(*) FROM retrieval_calls").fetchone()
-
-    assert "retrieval_call_id" in _columns(path, "evidence")
-    assert [row[0] for row in rows] == [None]
-
-
-def test_connect_upgrades_evidence_for_retraction(tmp_path: object) -> None:
-    # Legacy evidence cannot establish historical retraction; additive columns
-    # initially remain unknown.
-    path = str(tmp_path / "old_evidence.db")  # type: ignore[operator]
-    conn = sqlite3.connect(path)
-    conn.executescript(_OLD_EVIDENCE)
-    conn.execute(
-        "INSERT INTO evidence (id, run_id, title, created_at) "
-        "VALUES ('e1', 'r1', 'A paper', 1.0)"
-    )
-    conn.commit()
-    conn.close()
-
-    with db.connect(path) as conn:
-        rows = conn.execute("SELECT retracted FROM evidence").fetchall()
-
-    assert "retracted" in _columns(path, "evidence")
-    assert [row[0] for row in rows] == [None]
-
-
-_OLD_MATCHES = """
-CREATE TABLE matches (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    run_id TEXT NOT NULL,
-    iteration INTEGER NOT NULL,
-    winner_id TEXT NOT NULL,
-    loser_id TEXT NOT NULL,
-    winner_elo_before INTEGER NOT NULL,
-    winner_elo_after INTEGER NOT NULL,
-    loser_elo_before INTEGER NOT NULL,
-    loser_elo_after INTEGER NOT NULL,
-    rationale TEXT,
-    tier TEXT,
-    debate_turns INTEGER NOT NULL DEFAULT 1,
-    created_at REAL NOT NULL
-);
-"""
-
-
-def test_connect_upgrades_matches_for_the_debate_transcript(
-    tmp_path: object,
-) -> None:
-    # Additive transcript columns preserve existing rationale without table
-    # rebuild or VACUUM.
-    path = str(tmp_path / "old_matches.db")  # type: ignore[operator]
-    conn = sqlite3.connect(path)
-    conn.executescript(_OLD_MATCHES)
-    conn.execute(
-        "INSERT INTO matches (run_id, iteration, winner_id, loser_id, "
-        "winner_elo_before, winner_elo_after, loser_elo_before, "
-        "loser_elo_after, rationale, tier, debate_turns, created_at) "
-        "VALUES ('r1', 0, 'h1', 'h2', 1200, 1212, 1200, 1188, "
-        "'Idea 1 wins.', 'decisive', 3, 1.0)"
-    )
-    conn.commit()
-    conn.close()
-
-    with db.connect(path) as conn:
-        rows = conn.execute(
-            "SELECT rationale, debate_transcript FROM matches"
-        ).fetchall()
-
-    assert "debate_transcript" in _columns(path, "matches")
-    assert [tuple(row) for row in rows] == [("Idea 1 wins.", None)]
-
-
-@pytest.mark.parametrize(
-    "legacy_columns",
-    [
-        (),
-        ("markdown_path",),
-        ("markdown_text_ranking",),
-        ("markdown_path", "markdown_text_ranking"),
-    ],
-)
-def test_connect_removes_retired_report_columns_without_changing_current_data(
-    tmp_path: pathlib.Path, legacy_columns: tuple[str, ...]
-) -> None:
-    path = str(tmp_path / "report-transition.db")
-    with sqlite3.connect(path) as conn:
+def test_current_schema_supports_scientific_records_without_migrations() -> (
+    None
+):
+    with sqlite3.connect(":memory:") as conn:
+        conn.row_factory = sqlite3.Row
         conn.executescript(SCHEMA)
-        for column in legacy_columns:
-            conn.execute(f"ALTER TABLE reports ADD COLUMN {column} TEXT")
         conn.execute(
             "INSERT INTO runs(id,research_goal,profile,status,provider,"
             "config_json,created_at,updated_at) "
             "VALUES('run','goal','default','completed','mock','{}',1,1)"
         )
-        conn.execute(
-            "INSERT INTO reports(id,run_id,payload_json,markdown_text,"
-            "created_at) "
-            "VALUES('report','run',?, ?,1)",
-            ('{"text":"\\u03bb"}', "# λ\n\nbody  \n"),
+        hypothesis_id = hypotheses.add_hypothesis(
+            NewHypothesis(
+                run_id="run",
+                title="Current idea",
+                statement="Mechanism",
+                author="Scientist",
+                introduction="Context",
+                recent_findings="Finding",
+                safety_and_toxicity="Safety",
+            ),
+            conn=conn,
         )
-        indexes = conn.execute(
-            "SELECT name,sql FROM sqlite_master WHERE type='index' "
-            "AND tbl_name='reports' ORDER BY name"
-        ).fetchall()
-    with db.connect(path) as conn:
-        assert not {"markdown_path", "markdown_text_ranking"} & {
-            row[1] for row in conn.execute("PRAGMA table_info(reports)")
-        }
+        hypothesis = hypotheses.get_hypothesis(hypothesis_id, conn=conn)
+        assert hypothesis is not None
+        assert (
+            hypothesis["author"],
+            hypothesis["introduction"],
+            hypothesis["recent_findings"],
+            hypothesis["safety_and_toxicity"],
+        ) == ("Scientist", "Context", "Finding", "Safety")
+        records.add_review(
+            NewReview(
+                run_id="run",
+                hypothesis_id=hypothesis_id,
+                reviewer_agent="scientist",
+                summary="Assessment",
+                critique="Detail",
+                author="Reviewer",
+                verdict="supported",
+                detail_json='{"depth":2}',
+            ),
+            conn=conn,
+        )
+        review = records.list_reviews("run", conn=conn)[0]
+        assert (review["author"], review["verdict"], review["detail_json"]) == (
+            "Reviewer",
+            "supported",
+            '{"depth":2}',
+        )
+        records.add_evidence(
+            NewEvidence(run_id="run", title="Retracted source", retracted=True),
+            conn=conn,
+        )
+        assert records.list_evidence("run", conn=conn)[0]["retracted"] is True
+        records.add_match(
+            NewMatch(
+                run_id="run",
+                iteration=1,
+                winner_id=hypothesis_id,
+                loser_id="other",
+                winner_before=1200,
+                winner_after=1212,
+                loser_before=1200,
+                loser_after=1188,
+                rationale="Decision",
+                debate_turns=3,
+                debate_transcript="Discussion",
+            ),
+            conn=conn,
+        )
+        match = records.list_matches("run", conn=conn)[0]
+        assert (match["debate_turns"], match["debate_transcript"]) == (
+            3,
+            "Discussion",
+        )
+        records.add_safety_decision(
+            NewSafetyDecision(
+                run_id="run",
+                stage="review",
+                decision="needs_review",
+                reason="Check",
+                matches=[],
+                category="dual_use",
+                policy_version="current",
+                risk_domains=["biological"],
+                requires_review=True,
+                assessor="researcher",
+            ),
+            conn=conn,
+        )
         assert tuple(
             conn.execute(
-                "SELECT id,run_id,payload_json,markdown_text,created_at "
-                "FROM reports"
+                "SELECT category,policy_version,risk_domains_json,"
+                "requires_review,"
+                "assessor FROM safety_decisions"
             ).fetchone()
-        ) == ("report", "run", '{"text":"\\u03bb"}', "# λ\n\nbody  \n", 1.0)
-        assert [
-            tuple(row)
-            for row in conn.execute(
-                "SELECT name,sql FROM sqlite_master WHERE type='index' "
-                "AND tbl_name='reports' ORDER BY name"
+        ) == ("dual_use", "current", '["biological"]', 1, "researcher")
+        assert {"resolution", "resolved_by", "resolved_at"} <= {
+            row["name"]
+            for row in conn.execute("PRAGMA table_xinfo(safety_decisions)")
+        }
+        for table, column, default in [
+            ("matches", "debate_turns", "1"),
+            ("safety_decisions", "requires_review", "0"),
+        ]:
+            info = {
+                row["name"]: row
+                for row in conn.execute(f"PRAGMA table_xinfo({table})")
+            }[column]
+            assert (info["type"], info["notnull"], info["dflt_value"]) == (
+                "INTEGER",
+                1,
+                default,
             )
-        ] == indexes
-        assert not conn.execute("PRAGMA foreign_key_check").fetchall()
-        conn.execute("DELETE FROM runs WHERE id='run'")
-        assert conn.execute("SELECT count(*) FROM reports").fetchone()[0] == 0
-    with db.connect(path):
-        pass
-    assert reports.get_latest_report("run", db_path=path) is None
 
 
-def test_report_column_removal_rolls_back_when_dependency_blocks_drop(
+def test_current_schema_preserves_usage_and_log_ownership_on_restart(
     tmp_path: pathlib.Path,
 ) -> None:
-    path = str(tmp_path / "blocked-report-transition.db")
+    path = str(tmp_path / "current-store.db")
     with sqlite3.connect(path) as conn:
         conn.executescript(SCHEMA)
-        conn.execute("ALTER TABLE reports ADD COLUMN markdown_path TEXT")
+        indexes = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='index'"
+            )
+        }
+        assert {"idx_free_run_usage_client", "idx_app_logs_client"} <= indexes
+        assert [
+            row[2]
+            for row in conn.execute(
+                "PRAGMA index_info(idx_free_run_usage_client)"
+            )
+        ] == ["client_id", "created_at"]
+        assert [
+            row[2]
+            for row in conn.execute("PRAGMA index_info(idx_app_logs_client)")
+        ] == ["client_id", "id"]
+        conn.execute("INSERT INTO free_run_usage VALUES('spent-run','owner',1)")
         conn.execute(
-            "ALTER TABLE reports ADD COLUMN markdown_text_ranking TEXT"
+            "INSERT INTO app_logs(created_at,level,levelno,logger,message,"
+            "client_id) VALUES(1,'INFO',20,'test','retained','owner')"
         )
-        conn.execute(
-            "CREATE INDEX retained_ranking_dependency "
-            "ON reports(markdown_text_ranking)"
-        )
-    with pytest.raises(sqlite3.OperationalError), db.connect(path):
-        pass
-    assert {"markdown_path", "markdown_text_ranking"} <= _columns(
-        path, "reports"
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from app.store.db import connect; import sys; "
+            "ctx=connect(sys.argv[1]); c=ctx.__enter__(); "
+            "assert c.isolation_level is None; "
+            "assert c.execute('PRAGMA journal_mode').fetchone()[0]=='wal'; "
+            "assert c.execute('PRAGMA foreign_keys').fetchone()[0]==1; "
+            "ctx.__exit__(None,None,None)",
+            path,
+        ],
+        check=True,
     )
+    with db.connect(path) as conn:
+        assert tuple(
+            conn.execute(
+                "SELECT run_id,client_id,created_at FROM free_run_usage"
+            ).fetchone()
+        ) == ("spent-run", "owner", 1.0)
+        assert tuple(
+            conn.execute("SELECT message,client_id FROM app_logs").fetchone()
+        ) == ("retained", "owner")
+        assert not conn.execute(
+            "PRAGMA foreign_key_list(free_run_usage)"
+        ).fetchall()
 
 
 def test_report_preserves_empty_markdown_and_uses_current_schema(
@@ -815,62 +622,6 @@ async def test_supervisor_plan_endpoint_returns_persisted_rows(
     assert result["plan"]["plan"] == {"workflow_plan": {"iterations": 1}}
     assert len(result["allocations"]) == 1
     assert result["allocations"][0]["task_type"] == "generate"
-
-
-def test_new_tables_come_up_against_a_pre_existing_database(
-    isolated_db: str,
-) -> None:
-    raw = sqlite3.connect(isolated_db)
-    try:
-        raw.execute(
-            "CREATE TABLE runs ("
-            "id TEXT PRIMARY KEY, research_goal TEXT NOT NULL, "
-            "profile TEXT NOT NULL, status TEXT NOT NULL, "
-            "provider TEXT NOT NULL, config_json TEXT NOT NULL, "
-            "client_id TEXT NOT NULL DEFAULT '', "
-            "created_at REAL NOT NULL, updated_at REAL NOT NULL, "
-            "completed_at REAL, error TEXT, llm_backend TEXT)"
-        )
-        raw.execute(
-            "INSERT INTO runs (id, research_goal, profile, status, "
-            "provider, config_json, client_id, created_at, updated_at) "
-            "VALUES ('legacy-run', 'legacy goal', 'standard', 'completed', "
-            "'engine', '{}', 'legacy-client', 1, 1)"
-        )
-        raw.commit()
-    finally:
-        raw.close()
-
-    run = runs.get_run("legacy-run", db_path=isolated_db)
-    assert run is not None
-
-    with store_db.connect(isolated_db) as conn:
-        tables = {
-            row[0]
-            for row in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            )
-        }
-        assert "supervisor_plan" in tables
-        assert "supervisor_allocations" in tables
-        indexes = {
-            row[1]
-            for row in conn.execute("PRAGMA index_list(supervisor_allocations)")
-        }
-        assert "idx_sup_alloc_run" in indexes
-
-    plans.save_supervisor_plan(
-        NewSupervisorPlan(
-            run_id="legacy-run",
-            guidance={"workflow_plan": {}},
-            termination_reason=None,
-            decision_provenance="model",
-            orchestrator_state={},
-        ),
-        db_path=isolated_db,
-    )
-    plan = plans.get_supervisor_plan("legacy-run", db_path=isolated_db)
-    assert plan is not None
 
 
 # Failure/cancellation can skip finalize, so checkpoint commits must persist

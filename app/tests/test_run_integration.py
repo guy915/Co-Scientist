@@ -32,7 +32,6 @@ from app.report import build as report_build
 from app.report import finalize as report_finalize
 from app.seed.overview import full_review_count, simulation_review_count
 from app.store import checkpoints, db, messages, records, reports
-from app.store import db as store_db
 from app.store import events as store_events
 from app.store import hypotheses as store_hypotheses
 from app.store import retrieval_calls as retrieval
@@ -301,8 +300,6 @@ def test_checkpoint_wal_runs_cleanly(isolated_db: str) -> None:
 
 
 def test_headerless_run_survives_restart(isolated_db: str) -> None:
-    # Client-isolation purge runs only when ownership is introduced, never on
-    # every restart.
     run = store.create_run(
         "g",
         "default",
@@ -310,8 +307,9 @@ def test_headerless_run_survives_restart(isolated_db: str) -> None:
         {},
         RunCreateOptions(client_id="", db_path=isolated_db),
     )
-    with db.connect(isolated_db) as conn:
-        store_db._run_migrations(conn)
+    db._initialized.discard(isolated_db)
+    with db.connect(isolated_db):
+        pass
     rows = views.list_runs(client_id="", db_path=isolated_db)
     assert any(r.id == run.id for r in rows)
 

@@ -40,6 +40,7 @@ from app.store import db, documents, logs, runs, tasks
 from app.store import receipts as store_receipts
 from app.store.models import DEMO_CLIENT_ID, RunStatus, ScientificTask
 from app.store.runs import RunCreateOptions
+from app.store.schema import SCHEMA
 from app.store.tasks import NewTask
 from tests._client import append_log_row, wait_for
 from tests._client import make_client as _deletion_make_client
@@ -485,49 +486,15 @@ def _migration_post_run(
     )
 
 
-def test_post_run_adds_receipts_to_a_persisted_pre_receipt_database(
+def test_post_run_preserves_existing_data_and_persists_receipts(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     legacy_run_id = "pre-receipt-run"
     raw = sqlite3.connect(isolated_db)
     try:
+        raw.executescript(SCHEMA)
         raw.executescript(
             """
-            CREATE TABLE runs (
-                id TEXT PRIMARY KEY,
-                research_goal TEXT NOT NULL,
-                title TEXT,
-                profile TEXT NOT NULL,
-                status TEXT NOT NULL,
-                provider TEXT NOT NULL,
-                config_json TEXT NOT NULL,
-                client_id TEXT NOT NULL DEFAULT '',
-                execution_policy TEXT NOT NULL DEFAULT 'standard',
-                created_at REAL NOT NULL,
-                updated_at REAL NOT NULL,
-                completed_at REAL,
-                error TEXT,
-                llm_backend TEXT,
-                goal_restatement TEXT
-            );
-            CREATE TABLE run_credentials (
-                run_id TEXT PRIMARY KEY,
-                client_id TEXT NOT NULL,
-                provider TEXT NOT NULL,
-                model TEXT NOT NULL,
-                encrypted_key TEXT NOT NULL,
-                created_at REAL NOT NULL,
-                FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
-            );
-            CREATE TABLE run_events (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                run_id TEXT NOT NULL,
-                seq INTEGER NOT NULL,
-                type TEXT NOT NULL,
-                payload_json TEXT NOT NULL,
-                created_at REAL NOT NULL,
-                FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
-            );
             INSERT INTO runs (
                 id, research_goal, profile, status, provider, config_json,
                 client_id, created_at, updated_at, llm_backend
@@ -542,13 +509,6 @@ def test_post_run_adds_receipts_to_a_persisted_pre_receipt_database(
                 'pre-receipt-run', 1, 'lifecycle', '{"event":"created"}', 1
             );
             """
-        )
-        assert (
-            raw.execute(
-                "SELECT name FROM sqlite_master "
-                "WHERE type='table' AND name='run_creation_receipts'"
-            ).fetchone()
-            is None
         )
         raw.commit()
     finally:

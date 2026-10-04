@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 import types
 from collections.abc import Sequence
 from typing import Any
@@ -49,8 +48,7 @@ from app.report import content as report_content
 from app.report import gates as report_gates
 from app.report.content import derive_knowledge_facts
 from app.report.markdown.hypothesis import _render_claim_evidence
-from app.store import db, hypotheses, runs
-from app.store import records as store
+from app.store import hypotheses, runs
 from app.store.records import NewClaimEvidence
 from tests._client import make_client
 from tests._drain_helpers import _build_report
@@ -336,42 +334,6 @@ async def test_grounding_retains_method_across_api_reopen(
         payload["claim_evidence"][0]["verification_method"] == "model_primary"
     )
     assert "Assessment method: model judgment" in markdown
-
-
-def test_legacy_edges_keep_unknown_method_after_repeat_migration(
-    isolated_db: str,
-) -> None:
-    run = runs.create_run("Legacy evidence", "express", "engine", {})
-    hyp_id = _add(
-        run.id, "Legacy", "A public research hypothesis.", isolated_db
-    )
-    store.add_claim_evidence(
-        NewClaimEvidence(
-            run_id=run.id,
-            hypothesis_id=hyp_id,
-            claim="A legacy claim.",
-            label="insufficient",
-            supporting=[],
-            contradicting=[],
-            assessor="llm:old",
-        )
-    )
-    with sqlite3.connect(isolated_db) as conn:
-        columns = {
-            r[1] for r in conn.execute("PRAGMA table_info(claim_evidence)")
-        }
-        if "verification_method" in columns:
-            conn.execute(
-                "ALTER TABLE claim_evidence DROP COLUMN verification_method"
-            )
-    for _ in range(2):
-        db._initialized.discard(isolated_db)
-        with db.connect(isolated_db):
-            pass
-    edges = store.list_claim_evidence(run.id)
-    assert len(edges) == 1
-    assert edges[0]["verification_method"] == "legacy_unknown"
-    assert edges[0]["assessor"] == "llm:old"
 
 
 @pytest.mark.parametrize(

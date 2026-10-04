@@ -797,35 +797,6 @@ def test_campaign_researcher_setting_normalizes_and_rejects_empty_ids() -> None:
         Settings(_env_file=None, campaign_researcher_ids={"researcher-a", " "})
 
 
-def test_legacy_rows_migrate_to_standard_policy(isolated_db: str) -> None:
-    run = runs.create_run(
-        "Legacy run",
-        "standard",
-        "mock",
-        {},
-        RunCreateOptions(client_id="legacy", db_path=isolated_db),
-    )
-    interview = interviews.create_interview(
-        "legacy", "Legacy interview", db_path=isolated_db
-    )
-
-    from app.store.db import _run_migrations
-
-    with db.connect(isolated_db) as conn:
-        conn.execute("ALTER TABLE runs DROP COLUMN execution_policy")
-        conn.execute("ALTER TABLE interviews DROP COLUMN execution_policy")
-        _run_migrations(conn)
-
-    migrated_run = runs.get_run(run.id, db_path=isolated_db)
-    migrated_interview = interviews.get_interview(
-        interview["id"], db_path=isolated_db
-    )
-    assert migrated_run is not None
-    assert migrated_run.execution_policy == "standard"
-    assert migrated_interview is not None
-    assert migrated_interview["execution_policy"] == "standard"
-
-
 def test_campaign_interview_survives_restart_and_cannot_downgrade_linked_run(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:

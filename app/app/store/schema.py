@@ -46,6 +46,15 @@ CREATE TABLE IF NOT EXISTS run_credentials (
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
 
+-- Free-use slots have no run FK: deletion must not refund the allowance.
+CREATE TABLE IF NOT EXISTS free_run_usage (
+    run_id TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL,
+    created_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_free_run_usage_client
+    ON free_run_usage(client_id, created_at);
+
 -- Owner-scoped receipts make ambiguous run-create retries replay one run.
 -- The digest contains only canonical intent and a keyed fingerprint of any
 -- explicit BYOK secret; the raw provider key is never stored here.
@@ -179,6 +188,10 @@ CREATE TABLE IF NOT EXISTS hypotheses (
     experimental_context TEXT,
     created_by_agent TEXT NOT NULL,  -- 'generation' | 'evolution'
     created_at REAL NOT NULL,
+    author TEXT,
+    introduction TEXT,
+    recent_findings TEXT,
+    safety_and_toxicity TEXT,
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE,
     FOREIGN KEY (parent_id) REFERENCES hypotheses(id) ON DELETE SET NULL
 );
@@ -240,14 +253,12 @@ CREATE TABLE IF NOT EXISTS evidence (
     retriever_version TEXT,             -- method/version that produced the
                                          -- score (see relevance.py)
     -- The search that found this evidence (retrieval_calls.id), or NULL for
-    -- evidence that arrived by another path -- an uploaded document, a
-    -- directly fetched corpus paper, or any run predating this column.
-    -- Deliberately not a foreign key: the retrieval_calls key is
-    -- (run_id, id), and a composite FK cannot be added by ALTER TABLE, so
-    -- declaring one here would make a migrated database differ from a fresh
-    -- one. Both tables cascade with their run regardless.
+    -- evidence from another path, such as an upload or directly fetched paper.
+    -- Deliberately no retrieval-call foreign key: evidence can be persisted
+    -- independently; both tables cascade with their run.
     retrieval_call_id TEXT,
     created_at REAL NOT NULL,
+    retracted INTEGER,
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_ev_run ON evidence(run_id);
@@ -288,6 +299,9 @@ CREATE TABLE IF NOT EXISTS reviews (
     testability REAL,
     overall REAL,
     created_at REAL NOT NULL,
+    author TEXT,
+    verdict TEXT,
+    detail_json TEXT,
     FOREIGN KEY (hypothesis_id) REFERENCES hypotheses(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_rv_hyp ON reviews(hypothesis_id);
@@ -334,6 +348,8 @@ CREATE TABLE IF NOT EXISTS matches (
     -- decisiveness class: upset|decisive|clear|narrow
     tier TEXT,
     created_at REAL NOT NULL,
+    debate_turns INTEGER NOT NULL DEFAULT 1,
+    debate_transcript TEXT,
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_match_run ON matches(run_id);
@@ -348,6 +364,14 @@ CREATE TABLE IF NOT EXISTS safety_decisions (
     reason TEXT,
     matches_json TEXT,
     created_at REAL NOT NULL,
+    category TEXT,
+    policy_version TEXT,
+    risk_domains_json TEXT,
+    requires_review INTEGER NOT NULL DEFAULT 0,
+    assessor TEXT,
+    resolution TEXT,
+    resolved_by TEXT,
+    resolved_at REAL,
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
 -- This table had no index at all, so every per-run read of it (the audit
@@ -677,11 +701,7 @@ CREATE TABLE IF NOT EXISTS app_logs (
     client_id TEXT                   -- owning client for ingested UI records
 );
 CREATE INDEX IF NOT EXISTS idx_app_logs_run ON app_logs(run_id, id);
--- NOTE: the index over client_id is created in _run_migrations, not here.
--- CREATE TABLE IF NOT EXISTS is a no-op against an existing table, so on a
--- database from an older build this column does not exist yet when _SCHEMA
--- runs; indexing it here would abort executescript before the migration
--- that adds it could run. See _run_migrations.
+CREATE INDEX IF NOT EXISTS idx_app_logs_client ON app_logs(client_id, id);
 
 -- Explainable hypothesis-proximity landscape persisted from the engine.
 CREATE TABLE IF NOT EXISTS proximity_edges (
