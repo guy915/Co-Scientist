@@ -14,6 +14,7 @@ from app.store import runs_views as views
 from app.store import supervisor_plan as plans
 from app.store.checkpoints import NewCheckpoint
 from app.store.runs import RunCreateOptions
+from app.store.schema import SCHEMA
 from app.store.supervisor_plan import NewSupervisorPlan
 from tests._drain_helpers import (
     _final_state_with_features,
@@ -376,28 +377,93 @@ def test_connect_upgrades_matches_for_the_debate_transcript(
     assert [tuple(row) for row in rows] == [("Idea 1 wins.", None)]
 
 
-def _insert_legacy_report_row(
-    db_path: str,
-    run_id: str,
-    report_id: str,
-    markdown_path: str | None,
-    markdown_text_ranking: str | None = None,
+@pytest.mark.parametrize(
+    "legacy_columns",
+    [
+        (),
+        ("markdown_path",),
+        ("markdown_text_ranking",),
+        ("markdown_path", "markdown_text_ranking"),
+    ],
+)
+def test_connect_removes_retired_report_columns_without_changing_current_data(
+    tmp_path: pathlib.Path, legacy_columns: tuple[str, ...]
 ) -> None:
-    with _store_db.connect(db_path) as conn:
+    path = str(tmp_path / "report-transition.db")
+    with sqlite3.connect(path) as conn:
+        conn.executescript(SCHEMA)
+        for column in legacy_columns:
+            conn.execute(f"ALTER TABLE reports ADD COLUMN {column} TEXT")
         conn.execute(
-            "INSERT INTO reports (id, run_id, payload_json, markdown_path, "
-            "markdown_text, markdown_text_ranking, created_at) "
-            "VALUES (?,?,?,?,?,?,?)",
-            (
-                report_id,
-                run_id,
-                "{}",
-                markdown_path,
-                None,
-                markdown_text_ranking,
-                0.0,
-            ),
+            "INSERT INTO runs(id,research_goal,profile,status,provider,"
+            "config_json,created_at,updated_at) "
+            "VALUES('run','goal','default','completed','mock','{}',1,1)"
         )
+        conn.execute(
+            "INSERT INTO reports(id,run_id,payload_json,markdown_text,"
+            "created_at) "
+            "VALUES('report','run',?, ?,1)",
+            ('{"text":"\\u03bb"}', "# λ\n\nbody  \n"),
+        )
+        indexes = conn.execute(
+            "SELECT name,sql FROM sqlite_master WHERE type='index' "
+            "AND tbl_name='reports' ORDER BY name"
+        ).fetchall()
+    with db.connect(path) as conn:
+        assert not {"markdown_path", "markdown_text_ranking"} & {
+            row[1] for row in conn.execute("PRAGMA table_info(reports)")
+        }
+        assert tuple(
+            conn.execute(
+                "SELECT id,run_id,payload_json,markdown_text,created_at "
+                "FROM reports"
+            ).fetchone()
+        ) == ("report", "run", '{"text":"\\u03bb"}', "# λ\n\nbody  \n", 1.0)
+        assert [
+            tuple(row)
+            for row in conn.execute(
+                "SELECT name,sql FROM sqlite_master WHERE type='index' "
+                "AND tbl_name='reports' ORDER BY name"
+            )
+        ] == indexes
+        assert not conn.execute("PRAGMA foreign_key_check").fetchall()
+        conn.execute("DELETE FROM runs WHERE id='run'")
+        assert conn.execute("SELECT count(*) FROM reports").fetchone()[0] == 0
+    with db.connect(path):
+        pass
+    assert reports.get_latest_report("run", db_path=path) is None
+
+
+def test_report_column_removal_rolls_back_when_dependency_blocks_drop(
+    tmp_path: pathlib.Path,
+) -> None:
+    path = str(tmp_path / "blocked-report-transition.db")
+    with sqlite3.connect(path) as conn:
+        conn.executescript(SCHEMA)
+        conn.execute("ALTER TABLE reports ADD COLUMN markdown_path TEXT")
+        conn.execute(
+            "ALTER TABLE reports ADD COLUMN markdown_text_ranking TEXT"
+        )
+        conn.execute(
+            "CREATE INDEX retained_ranking_dependency "
+            "ON reports(markdown_text_ranking)"
+        )
+    with pytest.raises(sqlite3.OperationalError), db.connect(path):
+        pass
+    assert {"markdown_path", "markdown_text_ranking"} <= _columns(
+        path, "reports"
+    )
+
+
+def test_report_preserves_empty_markdown_and_uses_current_schema(
+    isolated_db: str,
+) -> None:
+    run_id = _make_run(isolated_db)
+    reports.save_report(run_id, {}, "", db_path=isolated_db)
+    assert reports.read_report_markdown(run_id, db_path=isolated_db) == ""
+    assert not {"markdown_path", "markdown_text_ranking"} & _columns(
+        isolated_db, "reports"
+    )
 
 
 def test_reports_round_trip_full_markdown_through_database(
@@ -426,42 +492,6 @@ def test_reports_round_trip_full_markdown_through_database(
     assert not (tmp_path / "reports").exists()
 
 
-def test_read_report_markdown_falls_back_to_disk_when_db_text_missing(
-    isolated_db: str, tmp_path: pathlib.Path
-) -> None:
-    run = runs.create_run(
-        "disk fallback goal",
-        "default",
-        "mock",
-        {},
-        RunCreateOptions(db_path=isolated_db),
-    )
-    md_file = tmp_path / "on_disk.md"
-    md_file.write_text("# From disk", encoding="utf-8")
-
-    _insert_legacy_report_row(
-        isolated_db, run.id, "report-disk-1", str(md_file)
-    )
-
-    text = reports.read_report_markdown(run.id, db_path=isolated_db)
-    assert text == "# From disk"
-
-
-def test_read_report_markdown_none_without_db_text_or_path(
-    isolated_db: str,
-) -> None:
-    run = runs.create_run(
-        "no source goal",
-        "default",
-        "mock",
-        {},
-        RunCreateOptions(db_path=isolated_db),
-    )
-    _insert_legacy_report_row(isolated_db, run.id, "report-disk-2", None)
-
-    assert reports.read_report_markdown(run.id, db_path=isolated_db) is None
-
-
 def test_get_latest_report_and_read_markdown_none_without_any_report(
     isolated_db: str,
 ) -> None:
@@ -474,73 +504,6 @@ def test_get_latest_report_and_read_markdown_none_without_any_report(
     )
     assert reports.get_latest_report(run.id, db_path=isolated_db) is None
     assert reports.read_report_markdown(run.id, db_path=isolated_db) is None
-
-
-def test_read_report_markdown_none_when_disk_file_missing(
-    isolated_db: str, tmp_path: pathlib.Path
-) -> None:
-    run = runs.create_run(
-        "missing file goal",
-        "default",
-        "mock",
-        {},
-        RunCreateOptions(db_path=isolated_db),
-    )
-    missing_path = tmp_path / "does_not_exist.md"
-
-    _insert_legacy_report_row(
-        isolated_db, run.id, "report-disk-3", str(missing_path)
-    )
-
-    assert reports.read_report_markdown(run.id, db_path=isolated_db) is None
-
-
-def test_save_report_never_writes_the_legacy_ranking_column(
-    isolated_db: str,
-) -> None:
-    run = runs.create_run(
-        "no ranking write goal",
-        "default",
-        "mock",
-        {},
-        RunCreateOptions(db_path=isolated_db),
-    )
-    reports.save_report(
-        run.id, {"k": "v"}, "# Goal Report", db_path=isolated_db
-    )
-
-    report = reports.get_latest_report(run.id, db_path=isolated_db)
-    assert report is not None
-    assert report["markdown_text_ranking"] is None
-
-
-def test_read_report_markdown_appends_a_legacy_split_window_row(
-    isolated_db: str,
-) -> None:
-    # Legacy split reports carry ranking text in another column; merging must
-    # preserve both halves.
-    run = runs.create_run(
-        "split window goal",
-        "default",
-        "mock",
-        {},
-        RunCreateOptions(db_path=isolated_db),
-    )
-    _insert_legacy_report_row(
-        isolated_db,
-        run.id,
-        "report-split-window",
-        None,
-        markdown_text_ranking="# ranking half",
-    )
-    with _store_db.connect(isolated_db) as conn:
-        conn.execute(
-            "UPDATE reports SET markdown_text=? WHERE id=?",
-            ("# overview half", "report-split-window"),
-        )
-
-    text = reports.read_report_markdown(run.id, db_path=isolated_db)
-    assert text == "# overview half\n\n# ranking half"
 
 
 def _plan_final_state() -> dict[str, object]:

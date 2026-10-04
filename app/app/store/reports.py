@@ -5,7 +5,6 @@ import json
 import secrets
 import sqlite3
 import uuid
-from pathlib import Path
 from typing import Any
 
 from app.store.db import _list_by_run, _now, _use_conn, connect
@@ -72,17 +71,14 @@ def save_report(
 ) -> dict[str, str]:
     report_id = str(uuid.uuid4())
     with _use_conn(conn, db_path) as active:
-        # Empty paths preserve the string API contract without new files; retain
-        # legacy readers until verified export/reset.
         active.execute(
             "INSERT INTO reports "
-            "(id, run_id, payload_json, markdown_path, markdown_text, "
-            "created_at) VALUES (?,?,?,?,?,?)",
+            "(id, run_id, payload_json, markdown_text, "
+            "created_at) VALUES (?,?,?,?,?)",
             (
                 report_id,
                 run_id,
                 json.dumps(payload),
-                "",
                 markdown,
                 _now(),
             ),
@@ -105,29 +101,16 @@ def get_latest_report(
             "id": row["id"],
             "run_id": row["run_id"],
             "payload": json.loads(row["payload_json"]),
-            "markdown_path": row["markdown_path"],
+            "markdown_path": "",
             "markdown_text": row["markdown_text"],
-            # Legacy rows can split Markdown across both text columns.
-            "markdown_text_ranking": row["markdown_text_ranking"],
             "created_at": row["created_at"],
         }
 
 
 def read_report_markdown(run_id: str, db_path: str | None = None) -> str | None:
-    # Legacy reports may have only a path or split text; keep these readers
-    # until verified production export/reset.
     latest = get_latest_report(run_id, db_path=db_path)
-    if not latest:
-        return None
-    markdown_text = latest.get("markdown_text")
-    if isinstance(markdown_text, str) and markdown_text:
-        ranking_text = latest.get("markdown_text_ranking")
-        if isinstance(ranking_text, str) and ranking_text:
-            return f"{markdown_text}\n\n{ranking_text}"
-        return markdown_text
-    # Reports predating database Markdown may still be file-backed.
-    path = Path(latest["markdown_path"] or "")
-    return path.read_text(encoding="utf-8") if path.is_file() else None
+    text = latest["markdown_text"] if latest else None
+    return text if isinstance(text, str) else None
 
 
 def _hash_token(token: str) -> str:

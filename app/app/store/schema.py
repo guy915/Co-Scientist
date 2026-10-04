@@ -364,13 +364,9 @@ CREATE TABLE IF NOT EXISTS reports (
     run_id TEXT NOT NULL,
     -- structured report (Overview, Ideas, Tournament, Citations, Safety)
     payload_json TEXT NOT NULL,
-    markdown_path TEXT,
     -- full markdown (the single Goal Report document) stored in DB for
     -- durability across restarts.
     markdown_text TEXT,
-    -- Historical rows can contain a second document; forward migrations
-    -- must preserve its fallback read until the production store is reset.
-    markdown_text_ranking TEXT,
     created_at REAL NOT NULL,
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
