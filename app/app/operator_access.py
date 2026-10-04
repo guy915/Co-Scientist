@@ -6,17 +6,12 @@ from fastapi import Request
 
 from app.config import settings
 
-# A local CLI/agent session is already inside the trust boundary.
+# Direct loopback callers are already inside the local trust boundary.
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 
 
 def is_operator(request: Request) -> bool:
-    """Return whether the caller may access app-wide operator information.
-
-    Operators are holders of the configured admin token or callers whose
-    direct client address is loopback. Host and forwarding headers do not
-    establish operator access.
-    """
+    # Host and forwarding headers must never establish operator access.
     token = settings.logs_admin_token
     if token:
         supplied = request.headers.get("X-Logs-Token", "")

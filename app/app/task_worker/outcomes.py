@@ -31,11 +31,7 @@ from app.store.models import UNKNOWN_PROVIDER_OUTCOME_ERROR
 
 logger = logging.getLogger(__name__)
 
-# Mirrors store.events._stage_logger's own name, so a rate-limit park reads
-# in the Logs panel/`cosci logs` exactly like an ordinary run-stage line
-# (see store/events.py's module docstring) without going through the
-# run_events/SSE path -- there is nothing here a live viewer needs to see
-# mid-stream, only a durable record of why the task is waiting.
+# Persist rate-limit parks beside stage records without inventing SSE progress.
 _stage_logger = logging.getLogger("app.run_stage")
 
 # Spreads several tasks parked at the same platform-cap reset instant

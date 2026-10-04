@@ -25,7 +25,7 @@ uvicorn[standard]>=0.24.0
 python-dotenv>=1.0.0
 pydantic>=2.0.0
 pydantic-settings>=2.0.0
-# Runtime dep of the `cosci` CLI (app.cli), which drives the API over HTTP.
+# Citation reachability imports httpx directly.
 httpx>=0.25.0
 # Required by FastAPI for the multipart UploadFile route in app/app/runs/.
 python-multipart>=0.0.9

@@ -158,12 +158,7 @@ def _scope_for(request: Request) -> str | None:
 
 
 def _sanitize(text: str) -> str:
-    """Collapse control characters in submitted text to spaces.
-
-    Ingestion is open by necessity, and a newline or tab in a message
-    would let a caller forge extra lines in the CLI's tab-delimited
-    output -- i.e. fabricate log entries that never happened.
-    """
+    # Open ingestion must not let control characters forge diagnostic entries.
     return "".join(ch if ch.isprintable() else " " for ch in text).strip()
 
 
@@ -172,24 +167,8 @@ def _sanitize(text: str) -> str:
 # above.
 
 
-# High-volume logger prefixes hidden from the default view (below
-# WARNING): per-request access records, per-click/-navigation UI
-# records, and dependency chatter. Pass ``verbose=1`` (CLI: ``cosci logs
-# --all``) for the full stream. The default keeps the log readable for
-# humans and cheap in tokens for automated consumers.
-#
-# Hidden is not the same as absent: these stay persisted so ``--all`` can
-# show them. The capture side separately refuses to persist a narrower set
-# of pure third-party per-call chatter, which nothing can ask for -- see
-# logging_setup.UNPERSISTED_LOGGERS.
-#
-# The whole ``co_scientist`` engine namespace is hidden because its
-# per-call INFO (per-source literature searches, per-agent tool init,
-# per-match ranking) runs into the hundreds within minutes of one run and
-# buried the readable stream. The run's narrative is not lost: every stage
-# is mirrored into the ``app.run_stage`` logger (~21 records per run, not
-# under this prefix, so it stays visible), and any engine WARNING+ still
-# surfaces. ``verbose=1`` restores the raw per-call lines.
+# verbose=1 reveals hidden records; capture filtering is separate.
+# app.run_stage preserves the narrative while engine chatter stays hidden.
 NOISE_LOGGERS: tuple[str, ...] = (
     "uvicorn.access",
     "ui.interaction",

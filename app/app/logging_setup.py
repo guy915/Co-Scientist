@@ -311,19 +311,8 @@ class _StoreWriteHandler(logging.Handler):
 _EXTRA_CAPTURE_LOGGERS = ("uvicorn", "uvicorn.access")
 
 
-# Third-party libraries whose INFO output is per-call chatter and is never
-# read: two lines per LLM call, one per MCP request, one per HTTP call.
-# Persisting them is not free -- in production they were 72% of the table
-# (LiteLLM alone 9,928 of 20,021 rows), each an open-write-close against a
-# database with a single writer and no fair queuing, and that stream
-# starved ordinary API writes until creating a run failed with "database
-# is locked".
-#
-# Deliberately narrower than the read path's NOISE_LOGGERS: uvicorn.access
-# and the ui.* loggers are merely *hidden* by default and stay persisted,
-# because `cosci logs --all` is documented as the way to debug request- and
-# interaction-level behaviour. This drops only records nothing can ask for.
-# WARNING and above always persists -- that is a dependency in trouble.
+# Per-call chatter starves SQLite's single writer; discard it before writes.
+# verbose=1 reveals access/UI records; WARNING+ always persists.
 UNPERSISTED_LOGGERS: tuple[str, ...] = (
     "httpx",
     "httpcore",
@@ -455,11 +444,7 @@ def _drop_orphaned_logging_worker_noise(record: logging.LogRecord) -> bool:
 
 
 def _drop_self_noise(record: logging.LogRecord) -> bool:
-    """Filter out access records for the log-polling endpoint itself.
-
-    The UI and ``cosci logs --follow`` poll ``/api/logs``; persisting each
-    poll's access line would make the log grow by being looked at.
-    """
+    # Reading the log must not grow it through access records for its own polls.
     if record.name != "uvicorn.access":
         return True
     try:

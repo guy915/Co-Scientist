@@ -1,20 +1,6 @@
-"""Offline retraction check, independent of what a source already flagged.
+"""Index flags lag; Crossref/Retraction Watch supplies an independent DOI set.
 
-``citations.resolver`` marks a paper retracted when PubMed or OpenAlex
-already flagged it. That source-side flag can lag: retraction propagation
-between indexes runs months behind, so a paper retracted at Crossref can
-still read "clean" everywhere else. This module is the second, independent
-check: a DOI set extracted from the Crossref/Retraction Watch dataset,
-shipped as a gzipped, DOI-only text file committed at
-``app/app/data/retractions.txt.gz`` (see ``app/dev/refresh_retractions.py``
-for how it is built, and the repo-root ``NOTICE`` for attribution).
-
-Loaded lazily and cached at module level: nothing here touches the
-filesystem at import time, so a bare import or CLI invocation that never
-resolves a citation never pays for it. A missing or unreadable data file
-degrades to an empty set with a warning rather than raising -- this check
-is a second line of defense, and losing it must never take citation
-resolution down with it.
+Load lazily and tolerate missing data so citations remain usable; see NOTICE.
 """
 
 from __future__ import annotations

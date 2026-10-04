@@ -97,9 +97,7 @@ function clientLevel(level: DiagnosticLogLevel | undefined): string {
   return level === 'error' || level === 'warning' ? level : 'info';
 }
 
-// Converts a raw diagnostic-event detail into the record shape the
-// ingestion endpoint accepts. The payload rides inside the message so the
-// persisted line stays greppable from the CLI too.
+// Keep payload text searchable in persisted diagnostic messages.
 export function detailToClientRecord(
   detail: DiagnosticLogEventDetail,
 ): ClientLogRecord {
@@ -239,7 +237,7 @@ function tracksSection(): string[] {
     'Deliberately absent:',
     '- per-call HTTP/LLM chatter below WARNING, which is never persisted',
     '- access, interaction and navigation noise, hidden from the default',
-    '  view but present in `cosci logs --all`',
+    '  view but available from GET /api/logs?verbose=1',
     '- verbatim repeats of a record within a 10-minute window',
     '',
   ];
@@ -291,13 +289,12 @@ function statisticsSection(counts: DiagnosticCounts): string[] {
   ];
 }
 
-// How to read a record — chiefly that `id` and `number` are different
-// things, since only `id` cross-references `cosci logs`.
+// Display positions differ from persisted ids used by API cursors.
 function legendSection(): string[] {
   return [
     '=== FIELD LEGEND ===',
-    'id      - persisted store row id; what `cosci logs` and after_id',
-    '          cursors speak. Gapped wherever hidden noise consumed ids.',
+    'id      - persisted store row id used by API after_id cursors.',
+    '          Gapped wherever hidden noise consumed ids.',
     'number  - position in the filtered stream, shown as "#N" in the panel.',
     'level   - error is ERROR/CRITICAL (40+), warning is WARNING (30),',
     '          info is everything below. levelName carries the exact name.',
