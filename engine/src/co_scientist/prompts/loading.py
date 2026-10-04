@@ -6,12 +6,10 @@ subdirectory of this package.
 
 import functools
 import logging
-import os
 import re
 from pathlib import Path
 from typing import Any
 
-from co_scientist.config.registry import parse_bool_env
 from co_scientist.prompts._common import PromptSections
 from co_scientist.schemas import get_schema_for_prompt
 
@@ -25,86 +23,6 @@ _PROMPTS_DIR = Path(__file__).parent / "templates"
 # Matches a "{{variable}}" template placeholder; compiled once here rather
 # than on every substitute_variables() call (one per rendered prompt).
 _VARIABLE_PATTERN = re.compile(r"\{\{([^}]+)\}\}")
-
-# Helper functions for saving prompts to disk
-# These are a debugging aid only (writing the fully-rendered prompt text
-# under .coscientist_prompts/) and are not part of the load_prompt() render
-# path itself.
-
-
-def get_prompt_save_path(run_id: str, prompt_name: str) -> Path:
-    """Get path for saving a filled-in prompt to disk for debugging.
-
-    Ensures the output directory exists and returns the full path.
-
-    Args:
-        run_id: unique run identifier (from state)
-        prompt_name: descriptive name for the prompt file (e.g.,
-            "review_batch", "literature_synthesis")
-
-    Returns:
-        Path object for the prompt file location
-
-    Example:
-        path = get_prompt_save_path("abc123", "review_batch")
-        # Returns Path(".coscientist_prompts/abc123/review_batch.txt")
-    """
-    prompts_dir = Path(".coscientist_prompts") / run_id
-    prompts_dir.mkdir(parents=True, exist_ok=True)
-
-    # Ensure .txt extension
-    if not prompt_name.endswith(".txt"):
-        prompt_name = f"{prompt_name}.txt"
-
-    return prompts_dir / prompt_name
-
-
-def _write_prompt_content(
-    path: Path, content: str, metadata: dict[str, Any] | None
-) -> None:
-    """Write prompt content and an optional metadata footer to path."""
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(content)
-
-        # Append metadata if provided
-        if metadata:
-            f.write("\n\n=== METADATA (by save_prompt_to_disk) ===\n")
-            for key, value in metadata.items():
-                f.write(f"{key}: {value}\n")
-
-
-def save_prompt_to_disk(
-    run_id: str,
-    prompt_name: str,
-    content: str,
-    metadata: dict[str, Any] | None = None,
-) -> bool:
-    """Save a filled-in prompt to disk for debugging.
-
-    Args:
-        run_id: unique run identifier
-        prompt_name: descriptive name for the prompt file
-        content: the filled-in prompt content
-        metadata: optional dict of metadata to append (e.g., token counts,
-            config)
-
-    Returns:
-        True if saved successfully, False otherwise
-    """
-    # One synchronous file write per LLM call adds up over a run; deployments
-    # that don't need the debug artifacts can turn them off globally here.
-    if not parse_bool_env(os.getenv("COSCIENTIST_SAVE_PROMPTS", "true")):
-        return False
-
-    try:
-        path = get_prompt_save_path(run_id, prompt_name)
-        _write_prompt_content(path, content, metadata)
-        logger.debug("Saved prompt to: %s", path)
-        return True
-
-    except Exception as e:
-        logger.warning("Failed to save prompt to disk: %s", e)
-        return False
 
 
 def load_prompt(

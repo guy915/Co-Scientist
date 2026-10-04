@@ -520,26 +520,6 @@ def _compute_draft_max_tokens(count: int, max_iterations: int) -> int:
     return draft_max_tokens
 
 
-def _build_draft_prompt_metadata(
-    count: int, max_iterations: int, prompt: str
-) -> dict[str, Any]:
-    """Build the prompt_metadata dict logged with a draft LLM call.
-
-    Args:
-        count: Number of hypotheses being drafted.
-        max_iterations: Iteration budget for the tool-calling loop.
-        prompt: The assembled draft prompt.
-
-    Returns:
-        The prompt_metadata dict for call_llm_with_tools.
-    """
-    return {
-        "hypotheses_count": count,
-        "max_iterations": max_iterations,
-        "prompt_length_chars": len(prompt),
-    }
-
-
 def _count_assistant_turns(messages: list[dict[str, Any]]) -> int:
     """Count real completions spent in a tool-call loop's message history.
 
@@ -565,16 +545,6 @@ async def _call_draft_llm_with_tools(
     call: _DraftCall,
     draft_max_tokens: int,
 ) -> tuple[str, int]:
-    """Call the tool-calling draft LLM once and return its final response.
-
-    Args:
-        state: Current workflow state.
-        call: Inputs for this draft-phase LLM invocation.
-        draft_max_tokens: Token budget for this call.
-
-    Returns:
-        Tuple of (final response text, real LLM calls made by the loop).
-    """
     # Diversity-critical generation: keep drafts fresh, never cache-frozen.
     final_response, messages = await call_llm_with_tools(
         prompt=call.prompt,
@@ -593,9 +563,6 @@ async def _call_draft_llm_with_tools(
             use_cache=False,
             run_id=state.get("run_id"),
             prompt_name="generate_draft_with_tools",
-            prompt_metadata=_build_draft_prompt_metadata(
-                call.count, call.max_iterations, call.prompt
-            ),
         ),
     )
     return final_response, _count_assistant_turns(messages)

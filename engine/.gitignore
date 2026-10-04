@@ -47,7 +47,6 @@ htmlcov/
 
 # coscientist specific
 .coscientist_cache/
-.coscientist_prompts/
 co_scientist_states/
 *.log
 

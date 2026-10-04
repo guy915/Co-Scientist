@@ -1,36 +1,26 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
 from co_scientist import cache as cache_mod
-from co_scientist import prompts as prompts_mod
 from co_scientist.cache import LLMCache
 from co_scientist.constants import THINKING_FLOOR_MAX_TOKENS
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,
-    ToolLoop,
     call_llm,
     call_llm_json,
-    call_llm_with_tools,
     precall,
 )
-from tests._llm_fake import SEARCH_TOOL as _SEARCH_TOOL
 from tests._llm_fake import disable_llm_cache as _disable_cache
 from tests._llm_fake import install_fake_backend
 from tests._llm_fake import make_completion as _completion
 from tests._llm_fake import make_message as _message
 from tests._llm_fake import patch_acompletion as _patch_acompletion
-
-# The real prompt writer, captured at import time -- i.e. before the autouse
-# ``_no_prompt_disk_writes`` conftest fixture swaps in its per-test no-op.
-_REAL_SAVE_PROMPT_TO_DISK = prompts_mod.save_prompt_to_disk
-
 
 _LLM_WRAPPERS_INT_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -191,128 +181,6 @@ async def test_call_llm_json_schema_mismatch_raises_validation_error(
             ),
             max_attempts=2,
         )
-
-
-def _enable_real_prompt_saving(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """Capture the real writer before the autouse no-op; relative output
-    stays in tmp_path."""
-    monkeypatch.setattr(
-        prompts_mod, "save_prompt_to_disk", _REAL_SAVE_PROMPT_TO_DISK
-    )
-    monkeypatch.setenv("COSCIENTIST_SAVE_PROMPTS", "true")
-    monkeypatch.chdir(tmp_path)
-
-
-async def test_call_llm_json_saves_prompt_when_named(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    _enable_real_prompt_saving(monkeypatch, tmp_path)
-    _disable_cache(monkeypatch)
-    _patch_acompletion(monkeypatch, [_completion(_message('{"a": 1}'))])
-
-    result = await call_llm_json(
-        "the review prompt",
-        CompletionSpec(model_name="test-model"),
-        options=LLMCallOptions(
-            run_id="run-1",
-            prompt_name="review_batch",
-            prompt_metadata={"hypotheses_count": 3},
-        ),
-    )
-
-    assert result == {"a": 1}
-    saved = tmp_path / ".coscientist_prompts" / "run-1" / "review_batch.txt"
-    assert saved.exists()
-    content = saved.read_text(encoding="utf-8")
-    assert content.startswith("the review prompt")
-    assert "hypotheses_count: 3" in content
-
-
-async def test_call_llm_json_does_not_save_without_prompt_name(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    _enable_real_prompt_saving(monkeypatch, tmp_path)
-    _disable_cache(monkeypatch)
-    _patch_acompletion(monkeypatch, [_completion(_message('{"a": 1}'))])
-
-    await call_llm_json(
-        "a prompt",
-        CompletionSpec(model_name="test-model"),
-        options=LLMCallOptions(run_id="run-1"),
-    )
-
-    assert not (tmp_path / ".coscientist_prompts").exists()
-
-
-async def test_call_llm_json_run_id_falls_back_to_unknown(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    _enable_real_prompt_saving(monkeypatch, tmp_path)
-    _disable_cache(monkeypatch)
-    _patch_acompletion(monkeypatch, [_completion(_message('{"a": 1}'))])
-
-    await call_llm_json(
-        "a prompt",
-        CompletionSpec(model_name="test-model"),
-        options=LLMCallOptions(prompt_name="proximity"),
-    )
-
-    saved = tmp_path / ".coscientist_prompts" / "unknown" / "proximity.txt"
-    assert saved.exists()
-
-
-async def test_call_llm_saves_prompt_when_named(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    _enable_real_prompt_saving(monkeypatch, tmp_path)
-    _disable_cache(monkeypatch)
-    _patch_acompletion(monkeypatch, [_completion(_message("synthesis text"))])
-
-    await call_llm(
-        "the synthesis prompt",
-        CompletionSpec(model_name="test-model"),
-        options=LLMCallOptions(
-            run_id="run-2", prompt_name="literature_review_synthesis"
-        ),
-    )
-
-    saved = (
-        tmp_path
-        / ".coscientist_prompts"
-        / "run-2"
-        / "literature_review_synthesis.txt"
-    )
-    assert saved.exists()
-    assert saved.read_text(encoding="utf-8").startswith("the synthesis prompt")
-
-
-async def test_call_llm_with_tools_saves_prompt_when_named(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    _enable_real_prompt_saving(monkeypatch, tmp_path)
-    _disable_cache(monkeypatch)
-    _patch_acompletion(monkeypatch, [_completion(_message("done"))])
-
-    async def tool_executor(unused_tc: Any) -> dict[str, Any]:
-        return {"role": "tool", "content": ""}
-
-    await call_llm_with_tools(
-        "the draft prompt",
-        CompletionSpec(model_name="test-model"),
-        ToolLoop(tools=_SEARCH_TOOL, executor=tool_executor),
-        options=LLMCallOptions(prompt_name="generate_draft_with_tools"),
-    )
-
-    saved = (
-        tmp_path
-        / ".coscientist_prompts"
-        / "unknown"
-        / "generate_draft_with_tools.txt"
-    )
-    assert saved.exists()
-    assert saved.read_text(encoding="utf-8").startswith("the draft prompt")
 
 
 def test_thinking_enabled_by_default_for_deepseek() -> None:

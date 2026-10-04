@@ -273,14 +273,6 @@ def _log_batch_review_response_shape(
     hypotheses: list[Hypothesis],
     run_id: str | None,
 ) -> None:
-    """Logs batch-review response diagnostics and any count mismatch.
-
-    Args:
-        response: raw LLM JSON response from the batch review call.
-        reviews_data: the "reviews" list pulled from response.
-        hypotheses: hypotheses that were reviewed, for count/logging only.
-        run_id: optional run ID, referenced in the mismatch log message.
-    """
     logger.info("Batch review response keys: %s", list(response.keys()))
     logger.info(
         "Reviews data type: %s, length: %s",
@@ -296,8 +288,7 @@ def _log_batch_review_response_shape(
             "MISMATCH: Expected %s reviews but got %s. "
             "This indicates the LLM may have hit output token limits"
             " or failed to generate all reviews. "
-            "Check the saved prompt at"
-            " .coscientist_prompts/%s/review_batch.txt",
+            "Inspect review_batch call diagnostics for run %s",
             len(hypotheses),
             len(reviews_data),
             run_id,
@@ -493,12 +484,6 @@ async def review_single_hypothesis(
     context: ReviewContext,
     hypothesis_index: int | None = None,
 ) -> HypothesisReview:
-    """Reviews a single hypothesis and returns its ``HypothesisReview``.
-
-    ``context`` supplies the research goal, model, run id, and the optional
-    guidance (supervisor, meta-review, run setup/focus) and tool registry
-    that feed the prompt; ``hypothesis_index`` only names the saved prompt.
-    """
     prompt, schema = get_review_prompt(
         research_goal=context.research_goal,
         hypothesis_text=hypothesis_text,
@@ -523,13 +508,7 @@ async def _call_review_llm(
     run_id: str | None,
     hypothesis_index: int | None,
 ) -> dict[str, Any]:
-    """Calls the LLM to review a single hypothesis.
-
-    Failures raise out of this coroutine; review_parallel_individual
-    gathers with return_exceptions and records the failure against that
-    one hypothesis, so a single failed call no longer aborts the rest of
-    the batch (audit E15).
-    """
+    """Gathered failures leave peer reviews running."""
     return await call_llm_json(
         prompt=prompt,
         spec=CompletionSpec(
@@ -543,10 +522,6 @@ async def _call_review_llm(
             prompt_name=indexed_prompt_name(
                 "review_individual", hypothesis_index
             ),
-            prompt_metadata={
-                "hypothesis_index": hypothesis_index,
-                "prompt_length_chars": len(prompt),
-            },
         ),
     )
 
@@ -623,15 +598,7 @@ async def review_comparative_batch(
     hypotheses: list[Hypothesis],
     context: ReviewContext,
 ) -> list[HypothesisReview | None]:
-    """Reviews hypotheses in a single comparative batch (one LLM call).
-
-    All hypotheses are shown together for relative comparison, producing
-    more differentiated scores but limited by token constraints. Returns
-    one review per hypothesis, None where an entry was missing or
-    malformed (audit E15 -- the rest of the batch still applies).
-    ``context`` supplies the research goal, guidance, and tool registry
-    as prompt context; its ``run_id`` only names saved prompts.
-    """
+    """Relative scoring shares a token budget; malformed entries fail alone."""
     response = await _run_batch_review_call(hypotheses, context)
     return _parse_batch_review_response(response, hypotheses, context.run_id)
 
@@ -640,17 +607,14 @@ async def _run_batch_review_call(
     hypotheses: list[Hypothesis],
     context: ReviewContext,
 ) -> dict[str, Any]:
-    """Prepares the batch-review prompt and calls the LLM for it."""
     call = _prepare_batch_review_call(hypotheses, context)
-    return await _call_batch_review_llm(call, context, hypotheses)
+    return await _call_batch_review_llm(call, context)
 
 
 async def _call_batch_review_llm(
     call: _BatchReviewCall,
     context: ReviewContext,
-    hypotheses: list[Hypothesis],
 ) -> dict[str, Any]:
-    """Calls the LLM to review a comparative batch of hypotheses."""
     return await call_llm_json(
         prompt=call.prompt,
         spec=CompletionSpec(
@@ -663,11 +627,6 @@ async def _call_batch_review_llm(
         options=LLMCallOptions(
             run_id=context.run_id,
             prompt_name="review_batch",
-            prompt_metadata={
-                "hypotheses_count": len(hypotheses),
-                "scaled_max_tokens": call.max_tokens,
-                "prompt_length_chars": len(call.prompt),
-            },
         ),
     )
 

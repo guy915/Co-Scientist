@@ -45,10 +45,8 @@ from co_scientist.prompts.literature import (
     get_validation_synthesis_prompt_with_tools,
 )
 from co_scientist.prompts.loading import (
-    get_prompt_save_path,
     load_prompt,
     load_prompt_with_schema,
-    save_prompt_to_disk,
     substitute_variables,
 )
 from co_scientist.prompts.planning import (
@@ -110,7 +108,6 @@ __all__ = [
     "get_literature_review_relevance_batch_prompt",
     "get_literature_review_synthesis_prompt",
     "get_meta_review_prompt",
-    "get_prompt_save_path",
     "get_proximity_prompt",
     "get_ranking_prompt",
     "get_reflection_prompt",
@@ -125,6 +122,5 @@ __all__ = [
     "get_validation_synthesis_prompt_with_tools",
     "load_prompt",
     "load_prompt_with_schema",
-    "save_prompt_to_disk",
     "substitute_variables",
 ]

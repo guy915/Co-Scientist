@@ -1,25 +1,9 @@
-"""Request preparation and shaping for LiteLLM completion calls.
-
-Builds the keyword arguments for ``litellm.acompletion`` calls made by the
-wrappers in ``co_scientist.llm``, and owns the one await every completion goes
-through (``_acompletion_within_timeout``: admission, call budget, timeout
-ceiling, telemetry): temperature clamping, prompt debug-artifact saving and
-the per-call credential.
-
-Response-format selection and the json_object capability shim live here.
-Sibling modules own thinking/reasoning arguments (``llm.request.thinking``),
-response extraction (``llm.request.response``) and the completion backend
-(``llm.request.backend``).
-"""
-
-import asyncio
 import json
 import logging
 import warnings
 from dataclasses import dataclass
 from typing import Any, Final
 
-from co_scientist import prompts
 from co_scientist.config.env_vars import parse_timeout_env
 from co_scientist.llm.admission.free_policy import current_api_key
 from co_scientist.llm.profile import model_profile
@@ -266,41 +250,6 @@ async def _acompletion_within_timeout(
         byok=bool(current_api_key()),
         timeout_seconds=llm_timeout_seconds(),
         timeout_grace_seconds=_TIMEOUT_GRACE_SECONDS,
-    )
-
-
-async def _save_prompt_if_named(
-    prompt: str,
-    run_id: str | None,
-    prompt_name: str | None,
-    prompt_metadata: dict[str, Any] | None,
-) -> None:
-    """Saves the filled-in prompt to disk when a prompt name is given.
-
-    Unified save policy for every LLM call site: the prompt is saved
-    whenever ``prompt_name`` is provided, under ``run_id or "unknown"``.
-    Every write is still globally gated by the ``COSCIENTIST_SAVE_PROMPTS``
-    env check inside ``prompts.save_prompt_to_disk`` (which also emits the
-    canonical debug log for each saved prompt). The blocking file write runs
-    in a worker thread so gathered LLM calls don't stall the event loop.
-
-    ``save_prompt_to_disk`` is resolved through the ``prompts`` module at
-    call time so tests can monkeypatch it there.
-
-    Args:
-        prompt: The filled-in prompt content to save.
-        run_id: Optional run identifier; ``None`` falls back to "unknown".
-        prompt_name: Optional debug-artifact name; ``None`` disables saving.
-        prompt_metadata: Optional metadata appended to the saved file.
-    """
-    if prompt_name is None:
-        return
-    await asyncio.to_thread(
-        prompts.save_prompt_to_disk,
-        run_id=run_id or "unknown",
-        prompt_name=prompt_name,
-        content=prompt,
-        metadata=prompt_metadata,
     )
 
 

@@ -102,23 +102,6 @@ def _debate_final_turn_max_tokens(count: int) -> int:
     )
 
 
-def _final_turn_prompt_metadata(
-    debate_id: int | None,
-    turn: int,
-    articles_with_reasoning: str | None,
-    ref_idx: ReferenceIndex,
-    prompt: str,
-) -> dict[str, Any]:
-    """Build the prompt_metadata payload for a debate's final-turn LLM call."""
-    return {
-        "debate_id": debate_id,
-        "turn": turn,
-        "has_literature": articles_with_reasoning is not None,
-        "reference_keys": list(ref_idx.sources.keys()),
-        "prompt_length_chars": len(prompt),
-    }
-
-
 # The debate prompt's stated termination condition (paper SSR note 9.1):
 # a panel that has resolved its disagreement concludes by writing
 # "HYPOTHESIS" before the finalized idea. Two accepted shapes:
@@ -180,22 +163,9 @@ class DebateBatchPosition:
 async def _call_final_debate_turn(
     state: WorkflowState,
     ctx: "_DebateContext",
-    turn: int,
     prompt: str,
     schema: Any,
 ) -> dict[str, Any]:
-    """Call the LLM for a debate's final structured-output turn.
-
-    Args:
-        state: current workflow state
-        ctx: per-debate context shared by every turn of this debate
-        turn: 1-based index of this (final) turn
-        prompt: the final-turn prompt built from the transcript so far
-        schema: JSON schema constraining the final turn's output
-
-    Returns:
-        Parsed JSON response containing the "hypotheses" list.
-    """
     final_max_tokens = _debate_final_turn_max_tokens(ctx.count)
 
     return await call_llm_json(
@@ -210,13 +180,6 @@ async def _call_final_debate_turn(
             use_cache=False,
             run_id=state.get("run_id"),
             prompt_name=f"generate_debate_{ctx.debate_id}_final",
-            prompt_metadata=_final_turn_prompt_metadata(
-                ctx.debate_id,
-                turn,
-                ctx.articles_with_reasoning,
-                ctx.ref_idx,
-                prompt,
-            ),
         ),
     )
 
@@ -264,7 +227,7 @@ async def _run_final_debate_turn(
     Raises:
         GenerationError: if the final turn produced no hypothesis.
     """
-    response = await _call_final_debate_turn(state, ctx, turn, prompt, schema)
+    response = await _call_final_debate_turn(state, ctx, prompt, schema)
     hyp_data = _first_debate_hypothesis_data(response, ctx.debate_label)
 
     # Shared constructor (also used by the literature_tools validate phase)

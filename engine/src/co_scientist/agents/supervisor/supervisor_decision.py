@@ -428,16 +428,7 @@ async def choose_supervisor_task(
 async def _call_supervisor_planner(
     state: WorkflowState, stats: SchedulerStats, budget: Budget
 ) -> SupervisorDecision:
-    """Calls the allocation model and validates its proposed allocation.
-
-    Runs on the worker model with thinking on. Note where this call sits:
-    the required transitions are already settled in code, so what reaches
-    the model is the open generation-vs-evolution judgement, and the whole
-    cohort waits on the answer -- this is the run's serial spine, where
-    latency is added wall-clock time rather than time overlapped with other
-    work. Every answer stays bounded by ``validate_decision`` and the guards
-    around it.
-    """
+    """The cohort waits here; allocation latency cannot overlap other work."""
     response = await call_llm_json(
         prompt=_planning_prompt(state, stats, budget),
         spec=CompletionSpec(
@@ -449,7 +440,6 @@ async def _call_supervisor_planner(
             use_cache=False,
             run_id=state.get("run_id"),
             prompt_name="supervisor_allocation",
-            prompt_metadata={"iteration": stats.iteration},
         ),
     )
     # The schema validation inside call_llm_json has already bounded both

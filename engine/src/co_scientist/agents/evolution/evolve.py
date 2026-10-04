@@ -277,20 +277,6 @@ async def _call_evolution_llm(
     context: EvolutionContext,
     hypothesis_index: int | None,
 ) -> dict[str, Any]:
-    """Calls the LLM to evolve a hypothesis from a prepared prompt.
-
-    Args:
-        full_prompt: The evolution prompt, including the diversity
-            instruction.
-        schema: JSON schema for the expected LLM response.
-        other_hypotheses_texts: Sampled subset of other hypotheses (max
-            15), used only to size the token budget.
-        context: Run-level evolution context (model name, run id).
-        hypothesis_index: Optional index for naming saved prompts.
-
-    Returns:
-        Parsed JSON response from the LLM.
-    """
     evolve_max_tokens = _evolve_token_budget(other_hypotheses_texts)
     prompt_name = indexed_prompt_name("evolve", hypothesis_index)
     return await call_llm_json(
@@ -304,11 +290,6 @@ async def _call_evolution_llm(
         max_attempts=7,
         options=LLMCallOptions(
             prompt_name=prompt_name,
-            prompt_metadata={
-                "hypothesis_index": hypothesis_index,
-                "prompt_length_chars": len(full_prompt),
-                "context_hypotheses_count": len(other_hypotheses_texts),
-            },
         ),
     )
 
@@ -320,22 +301,7 @@ async def evolve_single_hypothesis(
     hypothesis_index: int | None = None,
     operation: _EvolutionOperation = _DEFAULT_EVOLUTION_OPERATION,
 ) -> tuple[Hypothesis | None, dict[str, Any] | None]:
-    """Evolve a single hypothesis into a new child with sampled context.
-
-    ``context`` bundles the run/round-invariant inputs (model, meta-review,
-    removed duplicates, guidance, and -- for the enhancement operator's
-    live grounding retrieval -- the workflow state) and ``operation`` the
-    per-hypothesis operator and specialist feedback. Returns
-    ``(child, detail)`` on acceptance, else ``(None, None)``.
-
-    Args:
-        hypothesis: The hypothesis to evolve.
-        other_hypotheses: Sampled pool peers; their texts form the
-            anti-convergence context and the near-duplicate rejection set.
-        context: Run-level evolution context.
-        hypothesis_index: Optional index for naming saved prompts.
-        operation: The operator and its inputs for this hypothesis.
-    """
+    """Pool peers resist convergence and provide near-duplicate rejection."""
     response = await _evolve_llm_response(
         hypothesis,
         other_hypotheses,

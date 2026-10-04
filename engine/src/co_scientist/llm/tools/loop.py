@@ -561,17 +561,6 @@ async def _prepare_tool_call(
     LLMCache | NullCache,
     tuple[str, list[dict[str, Any]]] | None,
 ]:
-    """Runs the shared pre-call sequence for ``call_llm_with_tools``.
-
-    Args:
-        request: The tool-call request as the caller asked for it.
-        opts: Cache and debug-artifact options for this call.
-
-    Returns:
-        A (clamped_request, cache, cached_result) tuple where cached_result
-        is the already-cached (final_response, message_history) pair on a
-        cache hit, else None.
-    """
     request, cache, cached_response = await _prepare_llm_call(request, opts)
     if cached_response is None:
         return request, cache, None

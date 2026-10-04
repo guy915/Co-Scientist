@@ -109,20 +109,6 @@ def _log_key_areas(key_areas: list[str]) -> None:
 async def _call_supervisor_llm(
     state: WorkflowState, prompt: str, schema: dict[str, Any] | None
 ) -> dict[str, Any]:
-    """Calls the LLM to generate the supervisor's research plan.
-
-    call_llm_json validates the response against schema, so downstream
-    nodes can trust supervisor_guidance has the expected shape without
-    re-checking types.
-
-    Args:
-        state: Current workflow state.
-        prompt: Rendered supervisor prompt.
-        schema: JSON schema the response must conform to.
-
-    Returns:
-        The raw LLM JSON response.
-    """
     return await call_llm_json(
         prompt=prompt,
         spec=CompletionSpec(
@@ -134,9 +120,6 @@ async def _call_supervisor_llm(
         options=LLMCallOptions(
             run_id=state.get("run_id"),
             prompt_name="supervisor",
-            prompt_metadata={
-                "prompt_length_chars": len(prompt),
-            },
         ),
     )
 
