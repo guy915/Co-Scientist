@@ -198,3 +198,17 @@ Programmatic scroll anchors do not establish user follow intent. ResizeObserver
 callbacks must defer writes to observed text to avoid loop errors; batch geometry
 reads and writes to avoid repeated layout flushes. Theme suppression lasts two
 animation frames.
+
+## Retrieval scores and scheduling ceilings
+
+Capture lexical retrieval scores before stamping hybrid scores. Reusing the
+overwritten score double-weights the semantic term and can collapse rankings.
+
+FastMCP may return an execution error as ordinary result text. Treat its error
+envelope as a permanent query failure; retrying a refused query cannot repair it.
+Transient transport failures instead use bounded, jittered retries.
+
+Owed review cannot override the provider-call ceiling: scheduler and transport
+use the same counter, so its first call would turn budget termination into a
+permanent task failure. Spend its bounded per-hypothesis marker at issuance,
+regardless of success; settlement coverage retains its separate scheduling policy.
