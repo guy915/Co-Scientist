@@ -11,7 +11,7 @@ from co_scientist.generator.run_setup import GeneratorOptions
 from tests._mcp import stub_mcp_availability
 
 
-async def testprepare_task_state_populates_core_config(
+async def test_prepare_task_state_populates_core_config(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     stub_mcp_availability(monkeypatch, available=False)
@@ -40,7 +40,7 @@ async def testprepare_task_state_populates_core_config(
     assert workflow is not None and workflow.is_multi_source()
 
 
-async def testprepare_task_state_generates_run_id(
+async def test_prepare_task_state_generates_run_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     stub_mcp_availability(monkeypatch, available=False)
@@ -49,7 +49,7 @@ async def testprepare_task_state_generates_run_id(
     assert state["run_id"]
 
 
-async def testprepare_task_state_honors_explicit_run_id(
+async def test_prepare_task_state_honors_explicit_run_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     stub_mcp_availability(monkeypatch, available=False)
@@ -58,7 +58,7 @@ async def testprepare_task_state_honors_explicit_run_id(
     assert state["run_id"] == "fixed-id"
 
 
-async def testprepare_task_state_passes_through_opts(
+async def test_prepare_task_state_passes_through_opts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     stub_mcp_availability(monkeypatch, available=False)
@@ -82,7 +82,7 @@ async def testprepare_task_state_passes_through_opts(
     assert state["literature"] == ["lit1"]
 
 
-async def testprepare_task_state_opt_defaults(
+async def test_prepare_task_state_opt_defaults(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     stub_mcp_availability(monkeypatch, available=False)
@@ -98,7 +98,7 @@ async def testprepare_task_state_opt_defaults(
     assert state["dev_test_lit_tools_isolation"] is False
 
 
-async def testprepare_task_state_dev_isolation_flag(
+async def test_prepare_task_state_dev_isolation_flag(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     stub_mcp_availability(monkeypatch, available=False)
@@ -109,7 +109,7 @@ async def testprepare_task_state_dev_isolation_flag(
     assert state["dev_test_lit_tools_isolation"] is True
 
 
-async def testprepare_task_state_reads_dev_mode_env_into_state(
+async def test_prepare_task_state_reads_dev_mode_env_into_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Environment configuration enters at the run boundary, not inside node
@@ -121,7 +121,7 @@ async def testprepare_task_state_reads_dev_mode_env_into_state(
     assert state["dev_mode"] is True
 
 
-async def testprepare_task_state_dev_mode_opt_overrides_env(
+async def test_prepare_task_state_dev_mode_opt_overrides_env(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     stub_mcp_availability(monkeypatch, available=False)
@@ -135,7 +135,7 @@ async def testprepare_task_state_dev_mode_opt_overrides_env(
     assert state["dev_mode"] is True
 
 
-async def testprepare_task_state_dev_mode_defaults_off(
+async def test_prepare_task_state_dev_mode_defaults_off(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     stub_mcp_availability(monkeypatch, available=False)
