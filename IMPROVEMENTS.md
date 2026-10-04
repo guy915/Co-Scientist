@@ -102,10 +102,10 @@ The source is a production Express run, `04b988c6-d0c5-42be-9882-c993420d2be5`
     buttons, left of the DNA illustration, above the section tabs. Use
     youtube-nocookie, lazy-load it and keep it responsive.
 16. **One sticky bar:** today the top bar ("Co-Scientist" left,
-    "Logs"/Feedback right) and the section tabs (Overview · How it works ·
+    "Feedback" and "Logs" right) and the section tabs (Overview · How it works ·
     Tournament · Evidence · Safety · Tiers · FAQ) stick as two stacked rows.
     On scroll, the tabs should join the top bar, centred between the logo and
-    the right button, as a single row. Handle narrow widths (the tabs may
+    the right-hand buttons, as a single row. Handle narrow widths (the tabs may
     need to scroll horizontally or collapse).
 17. **Uneven cards:** in the three "You write / The agents / You get" cards,
     the fills look uneven. The left inner card is tall, the middle list stops
@@ -113,13 +113,16 @@ The source is a production Express run, `04b988c6-d0c5-42be-9882-c993420d2be5`
     the three inner panels share height and fill evenly (stretch or
     distribute the content so the bottoms align).
 
-## Phase 6 — Feedback form replaces Logs
+## Phase 6 — Feedback form beside Logs
 
-18. Replace the "Logs" pill (top-right of the workbench and landing page)
-    with **Feedback**. It opens a centred modal like the Settings view: a
-    category dropdown and a message textarea, with Submit and Cancel.
-19. **Categories** (decided, in this order): Bug · Results quality · Feature
-    request · Other. The logs, URL and run ID give the rest of the context,
+18. Add a **Feedback** pill to the left of the "Logs" pill (top-right of the
+    workbench and landing page). Its glyph is the Material Symbols `stars`
+    icon (a star in a circle), the one the old SBI pilot feedback button
+    used; it is already in `components/icon.tsx`. It opens a centred modal
+    like the Settings view: a category dropdown and a message textarea, with
+    Submit and Cancel.
+19. **Categories** (decided, in this order): Bug · Security · Results
+    quality · Feature request · Other. The logs, URL and run ID give the rest of the context,
     so don't add more buckets.
 20. Each submission silently attaches the session's diagnostic logs (today's
     Logs export: preamble, session details, stats, records), the current URL
@@ -133,6 +136,6 @@ The source is a production Express run, `04b988c6-d0c5-42be-9882-c993420d2be5`
     failed fetches and their status, modal opens, run-stage transitions with
     durations, and provider retry and escalation events. Keep the
     10-minute de-dup and the WARNING floor for per-call HTTP chatter.
-22. Remove the old Logs panel UI once feedback ships. Note: an earlier
-    feedback form was removed on 2026-08-27 along with the audience feature;
-    don't revive that code. This is a new, simpler feature.
+22. Keep the Logs pill and its panel unchanged for now (decided). Note: an
+    earlier feedback form was removed on 2026-08-27 along with the audience
+    feature; don't revive that code. This is a new, simpler feature.
