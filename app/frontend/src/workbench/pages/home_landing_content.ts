@@ -1,25 +1,18 @@
 import type {IconName} from '@/components/icon';
 import type {ShapeName} from './home_landing_hooks';
 
-// Static copy and product facts for the landing page under the chat home
-// (see home_landing.tsx). Every number here is the product's own: the tier
-// table mirrors RUN_TIER_DEFAULTS in app/app/run_modes/, and the starting
-// Elo mirrors INITIAL_ELO_RATING in the engine's constants/tournament.py.
-// Keep them in step when either source changes.
+// Keep tier facts synchronized with app RUN_TIER_DEFAULTS and initial Elo with
+// engine constants/tournament.py.
 
-/** Tonal container families the landing page paints its shapes with. */
 export type LandingTone = 'teal' | 'blue' | 'green' | 'yellow' | 'red';
 
-/** The rating every idea enters the tournament with. */
 export const INITIAL_ELO = 1200;
 
-/** One section of the landing page, as the sticky tab rail lists it. */
 export interface LandingSection {
   id: string;
   label: string;
 }
 
-// In page order. The ids double as the DOM ids the rail scrolls to.
 export const LANDING_SECTIONS: readonly LandingSection[] = [
   {id: 'landing-overview', label: 'Overview'},
   {id: 'landing-how', label: 'How it works'},
@@ -30,7 +23,6 @@ export const LANDING_SECTIONS: readonly LandingSection[] = [
   {id: 'faq', label: 'FAQ'},
 ];
 
-/** A specialist agent, as its card and the system diagram present it. */
 export interface LandingAgent {
   name: string;
   summary: string;
@@ -39,8 +31,6 @@ export interface LandingAgent {
   tone: LandingTone;
 }
 
-// Supervisor first: its card spans the grid, the six specialists follow in
-// the order the paper introduces them.
 export const LANDING_AGENTS: readonly LandingAgent[] = [
   {
     name: 'Supervisor',
@@ -97,7 +87,6 @@ export const LANDING_AGENTS: readonly LandingAgent[] = [
   },
 ];
 
-/** One of the three safety layers. */
 export interface LandingSafetyLayer {
   title: string;
   body: string;
@@ -130,7 +119,6 @@ export const LANDING_SAFETY: readonly LandingSafetyLayer[] = [
   },
 ];
 
-/** A run tier's pool size, from RUN_TIER_DEFAULTS. */
 export interface LandingTier {
   name: string;
   seeds: number;
@@ -145,13 +133,10 @@ export const LANDING_TIERS: readonly LandingTier[] = [
   {name: 'Ultra', seeds: 16, cycles: 4, maxIdeas: 96},
 ];
 
-/** The tier a run starts on unless the researcher picks another. */
 export const DEFAULT_TIER = 'Standard';
 
-/** The largest pool any tier can grow, i.e. the tier grid's dot count. */
 export const MAX_POOL = 96;
 
-// The literature and data tools the agents read, for the sources marquee.
 export const LANDING_SOURCES: readonly string[] = [
   'PubMed',
   'Europe PMC',
@@ -164,7 +149,6 @@ export const LANDING_SOURCES: readonly string[] = [
   'The open web',
 ];
 
-/** One claim-check verdict, as the Evidence section explains it. */
 export interface LandingVerdict {
   label: string;
   body: string;
@@ -189,14 +173,11 @@ export const LANDING_VERDICTS: readonly LandingVerdict[] = [
   },
 ];
 
-/** One question in the landing page's FAQ. */
 export interface FaqEntry {
   question: string;
   answer: string;
 }
 
-// The product FAQ. It used to live in Settings > Help; that section now
-// links here instead, so this is the one copy.
 export const FAQ: readonly FaqEntry[] = [
   {
     question: 'What is Co-Scientist?',
@@ -260,16 +241,14 @@ export const FAQ: readonly FaqEntry[] = [
   },
 ];
 
-// Elo helpers behind the landing page's tournament visuals. The chart and
-// the tree are illustrations, labeled as such on the page, but the rating
-// update itself is the real Elo rule, starting every idea at INITIAL_ELO.
+// Charts are labeled illustrations, but their rating updates use the real Elo
+// rule.
 
-/** Expected score of a player rated `a` against one rated `b`. */
 export function expectedScore(a: number, b: number): number {
   return 1 / (1 + 10 ** ((b - a) / 400));
 }
 
-// Park-Miller generator, so the chart is identical on every load.
+// Park-Miller seeding makes the illustration identical on every load.
 function seededRandom(seed: number): () => number {
   let state = seed;
   return () => {
@@ -278,17 +257,13 @@ function seededRandom(seed: number): () => number {
   };
 }
 
-/** The rating history of a seeded tournament, one snapshot per match. */
 export interface EloHistory {
-  /** history[m][i]: idea i's rating after m matches (m = 0 is the start). */
   history: number[][];
-  /** Index of the idea that finished highest. */
   leader: number;
 }
 
 const CHART_K = 32;
 
-// Plays one seeded match between two random ideas and updates both ratings.
 function playChartMatch(
   elo: number[],
   skill: readonly number[],
@@ -303,11 +278,6 @@ function playChartMatch(
   elo[b] -= CHART_K * (aWins - expected);
 }
 
-/**
- * Plays a seeded tournament of `ideas` ideas over `matches` matches. Idea 0
- * is given the strongest underlying quality so the chart tells a story, but
- * it still has to win its matches for its rating to climb.
- */
 export function simulateEloHistory(
   ideas = 8,
   matches = 64,

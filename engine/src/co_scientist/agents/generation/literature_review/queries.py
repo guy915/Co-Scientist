@@ -1,10 +1,3 @@
-"""Phase 1: literature review query generation.
-
-Generates the search queries used by Phase 2, preferring an MCP query-
-generation tool when one is configured and falling back to a source-aware LLM
-prompt (and finally to a keyword-distilled form of the research goal).
-"""
-
 import logging
 import re
 from dataclasses import dataclass
@@ -48,7 +41,6 @@ async def _generate_queries_via_mcp(
     tool_name: str,
     query_format: str,
 ) -> list[str]:
-    """Generate queries using MCP tool."""
     try:
         result = await mcp_client.call_tool(
             tool_name,
@@ -59,8 +51,8 @@ async def _generate_queries_via_mcp(
         logger.info("MCP query generation returned %s queries", len(queries))
         return queries
     except Exception as e:
-        # An empty list here (rather than raising) is the signal that lets
-        # _phase1_generate_queries fall through to the LLM-based generator.
+        # An empty MCP result signals LLM fallback, not the end of review.
+
         logger.warning(
             "MCP query generation failed: %s, falling back to LLM",
             describe_exception(e),
@@ -72,12 +64,6 @@ def _build_query_generation_prompt(
     state: WorkflowState,
     config: SearchConfig,
 ) -> str:
-    """Build the source-aware query-generation prompt.
-
-    source_type steers the prompt wording (e.g. "academic" boolean search
-    phrasing vs "knowledge_graph" entity-oriented phrasing) so the LLM
-    produces queries that suit whatever source(s) are actually configured.
-    """
     source_type = determine_query_source_type(
         config.workflow,
         config.tool_registry,
@@ -94,8 +80,8 @@ def _build_query_generation_prompt(
             user_literature=state.get("literature", []),
             user_hypotheses=state.get("starting_hypotheses", []),
         ),
-        # Audit E7: search what the meta-review says is missing or weak.
-        # Empty on iteration 1, when no critique exists yet.
+        # The critique identifies missing or weak evidence; absent on the first
+        # cycle.
         meta_review=state.get("meta_review"),
     )
 
@@ -104,7 +90,6 @@ async def _generate_queries_via_llm(
     state: WorkflowState,
     config: SearchConfig,
 ) -> list[str]:
-    """Generate queries using LLM with source-aware prompt."""
     prompt = _build_query_generation_prompt(state, config)
     try:
         result = await call_llm_json(
@@ -125,19 +110,12 @@ async def _generate_queries_via_llm(
 
 
 def _resolve_query_format(workflow: "WorkflowConfig") -> str:
-    """Resolve the configured query format, defaulting to "boolean"."""
     return workflow.query_format or "boolean"
 
 
 def _resolve_query_generation_tool(
     config: SearchConfig,
 ) -> tuple[str, str] | None:
-    """Resolve the configured MCP query-generation (tool_name, query_format).
-
-    Returns None when no query_generation_tool is configured (or its tool
-    config can't be resolved), which signals the caller to fall through to
-    LLM-based generation.
-    """
     if not (
         config.tool_registry
         and config.workflow
@@ -159,12 +137,6 @@ async def _try_mcp_query_generation(
     config: SearchConfig,
     mcp_client: MCPToolClient,
 ) -> list[str]:
-    """Generate queries via the configured MCP query-generation tool, if any.
-
-    Returns an empty list when no query_generation_tool is configured (or
-    its tool config can't be resolved), which signals the caller to fall
-    through to LLM-based generation.
-    """
     resolved = _resolve_query_generation_tool(config)
     if not resolved:
         return []
@@ -181,10 +153,6 @@ async def _try_mcp_query_generation(
     )
 
 
-# Words too generic to help narrow a literature search; stripping them off
-# the research goal keeps the final fallback keyword-shaped instead of a
-# prose sentence, matching the "3-8 key terms" queries the query-generation
-# prompt asks the model for on every other path.
 _GOAL_FALLBACK_STOPWORDS = frozenset(
     {
         "a",
@@ -228,28 +196,13 @@ _GOAL_FALLBACK_STOPWORDS = frozenset(
     }
 )
 
-# Mirrors the "3-8 key terms" guidance the query-generation prompt gives the
-# model, so the fallback reads the same as a normally-generated query.
+
 _GOAL_FALLBACK_MAX_TERMS = 8
 
 
 def _distill_goal_to_query(research_goal: str) -> str:
-    """Reduce a prose research goal to a keyword-shaped fallback query.
-
-    Only reached once both query generators have already failed, so this is
-    the literal text a downstream source's ``esearch`` sees. A full prose
-    sentence -- articles, punctuation, question words and all -- collapses
-    under PubMed's AND-every-term semantics before the broadening ladder
-    even gets a chance to run, so this strips common stopwords and caps the
-    term count instead of forwarding the goal verbatim.
-
-    Args:
-        research_goal: The run's research goal, as free text.
-
-    Returns:
-        A space-joined keyword string, or the original goal unchanged if
-        stripping stopwords would leave nothing to search with.
-    """
+    """PubMed ANDs every term; prose goals collapse recall, so the
+    no-generator fallback must be keyword-shaped."""
     words = re.findall(r"[A-Za-z0-9][A-Za-z0-9-]*", research_goal)
     keywords = [w for w in words if w.lower() not in _GOAL_FALLBACK_STOPWORDS]
     if not keywords:
@@ -259,17 +212,6 @@ def _distill_goal_to_query(research_goal: str) -> str:
 
 @dataclass(frozen=True)
 class QueryPhaseResult:
-    """Phase 1 output: the resolved search queries plus real LLM calls spent.
-
-    Bundled together (rather than two loose return values) so downstream
-    callers stay under the five-parameter limit once they also need to
-    thread the call count alongside the queries.
-
-    Attributes:
-        queries: Generated (MCP-tool, LLM, or keyword-distilled) queries.
-        llm_calls: Real LLM calls Phase 1 spent generating them.
-    """
-
     queries: list[str]
     llm_calls: int
 
@@ -279,30 +221,17 @@ async def _phase1_generate_queries(
     config: SearchConfig,
     mcp_client: MCPToolClient,
 ) -> QueryPhaseResult:
-    """Phase 1: Generate search queries.
-
-    Returns:
-        The resolved queries paired with real LLM calls spent. The
-        MCP-tool and keyword-distillation paths make no LLM call; only the
-        LLM-fallback generator does, so llm_calls is 1 exactly when that
-        path ran (finding L3 -- literature review previously reported no
-        llm_calls at all).
-    """
     logger.info("Phase 1: generating search queries")
 
     queries = await _try_mcp_query_generation(state, config, mcp_client)
 
-    # Fallback to LLM-based generation
-    # Also the primary path when no query_generation_tool is configured at
-    # all.
     llm_calls = 0
     if not queries:
         queries = await _generate_queries_via_llm(state, config)
         llm_calls = 1
 
-    # Final fallback to a keyword-distilled research goal
-    # Guarantees Phase 2 always has at least one query to search with, even
-    # if both generators failed.
+    # Even when both generators fail, retrieval still needs a query.
+
     if not queries:
         fallback = _distill_goal_to_query(state["research_goal"])
         logger.warning(
@@ -311,9 +240,8 @@ async def _phase1_generate_queries(
         )
         queries = [fallback]
 
-    # Bounds the number of parallel search calls (and downstream
-    # papers-per-query fan-out) regardless of how many queries either
-    # generator returned.
+    # Cap query fan-out regardless of how many queries a generator returns.
+
     queries = queries[:LITERATURE_REVIEW_MAX_QUERIES]
 
     logger.info("Generated %s search queries", len(queries))

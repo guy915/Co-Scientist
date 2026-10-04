@@ -1,11 +1,3 @@
-"""Phase 2.6: literature review context enrichment.
-
-Fetches background context (e.g. knowledge-graph causal edges) for entities
-extracted from the research goal, and formats those sources as a labeled
-``[C*]`` section appended to the synthesis. Entirely YAML-driven: a no-op
-unless the workflow lists ``context_enrichment_tools``.
-"""
-
 import asyncio
 import json
 import logging
@@ -26,12 +18,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Max chars injected into synthesis prompt from all enrichment tools combined
+
 _CONTEXT_ENRICHMENT_MAX_CHARS = 1500
-# Max results requested per entity per tool call
+
 _CONTEXT_ENRICHMENT_RESULTS_PER_ENTITY = 4
-# Sentinel returned by _try_json_decode when raw isn't valid JSON, so a
-# successfully-decoded ``None``/``null`` payload isn't mistaken for failure.
+# A decoded JSON null must remain distinct from failure to decode JSON.
+
 _NOT_JSON = object()
 
 
@@ -40,13 +32,12 @@ async def _call_enrichment_tool_for_entity(
     mapped_params: dict[str, Any],
     mcp_client: MCPToolClient,
 ) -> Any:
-    """Call one enrichment tool for one entity; returns raw result or None."""
     try:
         return await mcp_client.call_tool(tool_name, **mapped_params)
     except Exception as e:
-        # Enrichment is best-effort background context, not a required
-        # input, so a failed call for one entity/tool just yields no
-        # evidence for it rather than aborting the whole node.
+        # Optional background lookup failures skip that evidence rather than
+        # abort review.
+
         logger.debug("context enrichment call failed (%s): %s", tool_name, e)
         return None
 
@@ -54,12 +45,6 @@ async def _call_enrichment_tool_for_entity(
 def _format_generic_items(
     items: list[Any],
 ) -> tuple[str, list[dict[str, Any]]]:
-    """Format a generic list of result items as (display_text, structured).
-
-    Shared by the "results"-wrapped dict shape and the bare-list shape in
-    `_parse_enrichment_result`: both just cap the list, stringify each item
-    for display, and carry the raw payload through (when it's a dict).
-    """
     capped = items[:_CONTEXT_ENRICHMENT_RESULTS_PER_ENTITY]
     text = "\n".join(str(item)[:120] for item in capped)
     structured = [
@@ -75,17 +60,8 @@ def _format_generic_items(
 def _format_one_indra_statement(
     s: dict[str, Any],
 ) -> tuple[str, dict[str, Any]] | None:
-    """Format one INDRA statement as a causal edge for the synthesis prompt.
-
-    Parsing is shared with reflection's INDRA formatters
-    (``parse_indra_statement``), which tolerates the non-dict values a
-    knowledge-graph server can return for an endpoint and recognizes the
-    Complex/family shape that lists members instead of a subject and object.
-
-    Returns:
-        The (display_text, structured_item) pair, or None when the statement
-        names neither a pair of endpoints nor any complex members.
-    """
+    """INDRA endpoints may return non-dicts or Complex/family records with
+    members instead of paired endpoints."""
     core = parse_indra_statement(s)
     belief = f"(belief: {core.belief:.2f})"
     if core.subj and core.obj:
@@ -101,7 +77,6 @@ def _format_one_indra_statement(
 def _format_indra_statements(
     stmts: list[dict[str, Any]],
 ) -> tuple[str, list[dict[str, Any]]]:
-    """Format INDRA statements as causal-edge text, skipping shapeless ones."""
     lines = []
     items = []
     for s in stmts[:_CONTEXT_ENRICHMENT_RESULTS_PER_ENTITY]:
@@ -115,7 +90,6 @@ def _format_indra_statements(
 
 
 def _try_json_decode(raw: str) -> Any:
-    """Decode `raw` as JSON, or return the _NOT_JSON sentinel on failure."""
     try:
         return json.loads(raw)
     except (ValueError, TypeError):
@@ -123,12 +97,6 @@ def _try_json_decode(raw: str) -> Any:
 
 
 def _wrap_as_text_result(value: Any) -> tuple[str, list[dict[str, Any]]]:
-    """Truncate `value` to display text and wrap it as a single display item.
-
-    Used for enrichment payloads that don't match any known shape (a plain
-    string that isn't JSON, or a scalar value): falls back to a single
-    stringified display item, or an empty result for falsy values.
-    """
     text = str(value)[:300] if value else ""
     return text, [{"display": text, "data": {}}] if text else []
 
@@ -136,22 +104,14 @@ def _wrap_as_text_result(value: Any) -> tuple[str, list[dict[str, Any]]]:
 def _format_dict_result(
     data: dict[str, Any],
 ) -> tuple[str, list[dict[str, Any]]]:
-    """Format a dict-shaped enrichment result.
+    # An empty INDRA statements result must not fall through to raw-dict prose.
 
-    Handles the INDRA "statements" shape and the generic "results" list
-    shape, falling back to stringifying the whole dict (truncated) as a
-    single display item.
-    """
-    # INDRA-shaped response: has a "statements" key (even when empty). Never
-    # fall through to the raw-dict repr for this format.
     if "statements" in data:
         stmts = data.get("statements", [])
         if not stmts:
-            return "", []  # entity had no results - skip cleanly
+            return "", []
         return _format_indra_statements(stmts)
 
-    # Generic "results" list shape (non-INDRA tools that wrap their payload
-    # in a results key).
     results = data.get("results", [])
     if results:
         return _format_generic_items(results)
@@ -161,45 +121,24 @@ def _format_dict_result(
 
 
 def _parse_enrichment_result(raw: Any) -> tuple[str, list[dict[str, Any]]]:
-    """Extract formatted text AND structured items from an enrichment result.
-
-    Returns (display_text, structured_items) where structured_items is a
-    list of dicts suitable for storage in context_enrichment_sources.
-    """
     data = raw
     if isinstance(raw, str):
         data = _try_json_decode(raw)
         if data is _NOT_JSON:
-            # Not JSON: treat the raw string itself as the display text.
             return _wrap_as_text_result(raw)
 
     if isinstance(data, dict):
         return _format_dict_result(data)
 
     if isinstance(data, list):
-        # Generic bare-list response shape.
         return _format_generic_items(data)
 
-    # Scalar (or falsy) result: stringify directly.
     return _wrap_as_text_result(data)
 
 
 def _build_enrichment_canonical_params(entity: str) -> dict[str, Any]:
-    """Build the canonical params for one enrichment tool call.
-
-    Named separately from its single caller so the contract test can drive
-    the real vocabulary this path sends (see
-    ``tests/test_tool_param_contract.py``): every configured enrichment tool
-    has to accept whatever these canonical names map to, and a tool whose
-    mapping is written for another path's vocabulary is rejected by the
-    server rather than merely returning nothing.
-
-    Args:
-        entity: The entity name this call looks up.
-
-    Returns:
-        The canonical enrichment params, before the tool's own mapping.
-    """
+    """Tool mappings must accept this path's canonical vocabulary; mismatched
+    mappings cause server refusals, not empty evidence."""
     return {
         "entity_name": entity,
         "limit": _CONTEXT_ENRICHMENT_RESULTS_PER_ENTITY,
@@ -211,15 +150,8 @@ async def _query_enrichment_entity(
     entity: str,
     mcp_client: MCPToolClient,
 ) -> tuple[str, list[dict[str, Any]]]:
-    """Query one enrichment tool for one entity, tagging results by it.
-
-    The tool name is derived from tool_config; map_parameters translates the
-    canonical entity_name/limit pair into this tool's own YAML-configured
-    parameter names. The tool id is *not* stamped here: the caller
-    (`_aggregate_enrichment_results`) stamps every item with the originating
-    YAML tool id, which is the one citation building needs and the one
-    ToolConfig actually carries.
-    """
+    """Citation building needs the originating YAML tool ID, which the
+    aggregate stamps after entity-level retrieval."""
     tool_name = tool_config.mcp_tool_name
     params = tool_config.map_parameters(
         _build_enrichment_canonical_params(entity)
@@ -238,12 +170,7 @@ async def _call_enrichment_tool_for_entities(
     entities: list[str],
     mcp_client: MCPToolClient,
 ) -> tuple[str, list[dict[str, Any]]]:
-    """Call one enrichment tool for all entities in parallel.
 
-    Returns (formatted_text, structured_items) where structured_items carry
-    the tool_id so they can be stored in context_enrichment_sources.
-    """
-    # One tool call per entity, all in parallel.
     per_entity = await asyncio.gather(
         *[
             _query_enrichment_entity(tool_config, entity, mcp_client)
@@ -266,11 +193,6 @@ def _resolve_enrichment_tool_configs(
     tool_registry: "ToolRegistry",
     mcp_client: MCPToolClient,
 ) -> list["ToolConfig"]:
-    """Resolve the enabled, available context-enrichment tool configs.
-
-    Stashes the originating YAML tool_id onto each resolved config (via
-    ``_yaml_tool_id``) for downstream citation building.
-    """
     tool_configs = []
     for tool_id in workflow.context_enrichment_tools:
         tc = tool_registry.get_tool(tool_id)
@@ -288,12 +210,6 @@ def _aggregate_enrichment_results(
     tool_configs: list["ToolConfig"],
     tool_results: list[Any],
 ) -> tuple[list[str], list[dict[str, Any]]]:
-    """Aggregate per-tool enrichment results into display sections and items.
-
-    ``tool_results`` may contain exceptions (from
-    ``asyncio.gather(..., return_exceptions=True)``); those tools are
-    skipped and logged rather than aborting aggregation for the rest.
-    """
     sections: list[str] = []
     all_structured: list[dict[str, Any]] = []
     for tc, result in zip(tool_configs, tool_results, strict=True):
@@ -305,7 +221,7 @@ def _aggregate_enrichment_results(
         text, items = result
         if text:
             sections.append(f"**{tc.display_name}**\n{text}")
-        # Tag items with the yaml tool_id
+
         yaml_tool_id = getattr(tc, "_yaml_tool_id", tc.mcp_tool_name)
         for item in items:
             item["tool_id"] = yaml_tool_id
@@ -317,13 +233,6 @@ def _resolve_enrichment_context(
     state: WorkflowState,
     config: SearchConfig,
 ) -> "tuple[WorkflowConfig, ToolRegistry, list[str]] | None":
-    """Resolve the workflow, tool registry, and entities needed to enrich.
-
-    Returns None if context_enrichment_tools isn't configured for this
-    workflow (keeping lit review unchanged for domains that don't use it),
-    or if no entities could be extracted from the research goal - either
-    case means Phase 2.6 has nothing to do.
-    """
     workflow = config.workflow
     if not workflow or not workflow.context_enrichment_tools:
         return None
@@ -332,9 +241,8 @@ def _resolve_enrichment_context(
     if not tool_registry:
         return None
 
-    # Entities (e.g. gene/protein names) are pulled from the research goal
-    # text itself, not from any paper content, since enrichment runs
-    # independently of/in parallel with paper search and content fetching.
+    # Goal-derived entities let enrichment run independently of paper retrieval.
+
     entities = extract_entity_names(state["research_goal"], max_entities=3)
     if not entities:
         logger.debug(
@@ -350,11 +258,8 @@ async def _run_enrichment_tools(
     tool_configs: list["ToolConfig"],
     mcp_client: MCPToolClient,
 ) -> tuple[list[str], list[dict[str, Any]]]:
-    """Query every tool_config for every entity in parallel, and aggregate.
-
-    return_exceptions=True so one tool's failure doesn't drop results from
-    the others.
-    """
+    """Optional enrichment failures must not discard successful sibling
+    tools."""
     tool_tasks = [
         _call_enrichment_tool_for_entities(tc, entities, mcp_client)
         for tc in tool_configs
@@ -364,12 +269,8 @@ async def _run_enrichment_tools(
 
 
 def _cap_enrichment_text(combined: str) -> str:
-    """Truncate combined enrichment text to the synthesis prompt budget.
-
-    Enrichment content can be large across several tools/entities; capping
-    it keeps it from crowding out the paper-analysis content in the prompt
-    budget.
-    """
+    """Bound enrichment so it cannot crowd paper analyses out of the
+    synthesis prompt."""
     if len(combined) > _CONTEXT_ENRICHMENT_MAX_CHARS:
         return combined[:_CONTEXT_ENRICHMENT_MAX_CHARS] + "\n[...truncated]"
     return combined
@@ -381,11 +282,6 @@ async def _gather_enrichment_content(
     entities: list[str],
     mcp_client: MCPToolClient,
 ) -> tuple[list[str], list[dict[str, Any]]] | None:
-    """Resolves tool configs and runs them, returning sections/items or None.
-
-    Returns None when no enrichment tool is actually available (unresolvable
-    or disabled), so the caller can short-circuit to the empty result.
-    """
     tool_configs = _resolve_enrichment_tool_configs(
         workflow, tool_registry, mcp_client
     )
@@ -398,7 +294,6 @@ def _finalize_enrichment_output(
     sections: list[str],
     all_structured: list[dict[str, Any]],
 ) -> tuple[str, list[dict[str, Any]]]:
-    """Caps the combined enrichment text and logs the Phase 2.6 summary."""
     combined = _cap_enrichment_text("\n\n".join(sections))
     logger.info(
         "Phase 2.6 complete: %s tool(s), %s structured items (%s chars)",
@@ -414,18 +309,6 @@ async def _phase2_6_fetch_context_enrichment(
     config: SearchConfig,
     mcp_client: MCPToolClient,
 ) -> tuple[str, list[dict[str, Any]]]:
-    """Phase 2.6: fetch background context from knowledge-graph tools.
-
-    Completely YAML-driven: only runs when the literature_review workflow
-    lists tools under 'context_enrichment_tools'. Returns ("", []) when not
-    configured, keeping lit review unchanged for other domains.
-
-    Calls all configured tools x all extracted entities in parallel.
-    Output text is capped to avoid bloating the synthesis prompt.
-
-    Returns:
-        (formatted_text_for_synthesis, structured_items_for_citation_index)
-    """
     empty: tuple[str, list[dict[str, Any]]] = ("", [])
 
     resolved = _resolve_enrichment_context(state, config)
@@ -455,20 +338,12 @@ def _format_kg_section_with_keys(
     context_enrichment_sources: list[dict[str, Any]],
     paper_count: int,
 ) -> str:
-    """Format context enrichment sources as a labeled [C*] section.
-
-    Keys start at C{paper_count + 1}, exactly matching what
-    build_reference_index will assign at generation time (papers fill
-    C1..Cn first, then these entries follow). This lets the generation LLM
-    see the same [C*] handles in articles_with_reasoning that appear in its
-    Citation Reference List.
-    """
+    """Enrichment starts after analyzed papers so synthesis and generation
+    expose the same [C*] citation handles."""
     if not context_enrichment_sources:
         return ""
     lines = []
     for i, item in enumerate(context_enrichment_sources):
-        # 1-indexed key offset by paper_count so these keys pick up exactly
-        # where the paper citations ([C1]..[C{paper_count}]) leave off.
         key = f"C{paper_count + i + 1}"
         display = item.get("display", "External source")
         lines.append(f"[{key}] {display}")

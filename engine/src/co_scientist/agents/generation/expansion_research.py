@@ -1,5 +1,3 @@
-"""Research expansion, its prompt guidance, and budgeted exploration."""
-
 from __future__ import annotations
 
 import logging
@@ -27,45 +25,27 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
-# How many of the already-explored hypotheses the expansion prompt names.
-# The pool can hold dozens by a late cycle; a bounded sample keeps the
-# section prompt-sized while still marking the explored territory.
+# A late-cycle pool can be large; bound explored-history context.
+
+
 EXPANSION_POOL_SAMPLE_SIZE = 12
 
 
-# Per-hypothesis summary length in that coverage list.
 EXPANSION_POOL_ITEM_CHARS = 200
 
 
-# Extra tool-loop round-trips an expansion draft gets on top of the
-# count-derived budget: broad retrieval searches more, reads more.
+# Broad exploratory retrieval searches and reads more than focused drafting.
+
 EXPANSION_EXTRA_DRAFT_ITERATIONS = 2
 
 
 def is_research_expansion(state: WorkflowState) -> bool:
-    """Whether a generate cycle is research expansion, not initial draft.
-
-    Args:
-        state: The workflow state the generate node was entered with.
-
-    Returns:
-        True once the run has completed at least one iteration cycle.
-    """
     return int(state.get("current_iteration") or 0) > 0
 
 
 def explored_hypothesis_summaries(
     state: WorkflowState,
 ) -> list[str]:
-    """Bounded one-line summaries of the hypotheses explored so far.
-
-    Args:
-        state: The workflow state carrying the current pool.
-
-    Returns:
-        Up to ``EXPANSION_POOL_SAMPLE_SIZE`` truncated hypothesis texts,
-        in pool order. Empty before any hypothesis exists.
-    """
     hypotheses = state.get("hypotheses") or []
     summaries = [
         truncate(str(h.text).strip(), EXPANSION_POOL_ITEM_CHARS)
@@ -75,7 +55,6 @@ def explored_hypothesis_summaries(
 
 
 def _explored_coverage_block(summaries: list[str]) -> str:
-    """Renders the explored-territory list, or a none-explored note."""
     if not summaries:
         return ""
     bullets = "".join(f"- {summary}\n" for summary in summaries)
@@ -87,36 +66,11 @@ def _explored_coverage_block(summaries: list[str]) -> str:
 
 
 def _widened_evidence_block(state: WorkflowState) -> str:
-    """Renders the exploration's findings, when this cycle bought one.
-
-    On the deep tiers an expansion cycle first runs its own budgeted
-    exploration (``expansion_research.research_for_expansion``) and
-    leaves the result here. Absent on every other tier, where expansion
-    is the prompt and the wider tool-loop budget alone.
-
-    Args:
-        state: The workflow state, as the generate node's strategies see
-            it after the exploration has been applied.
-
-    Returns:
-        The findings block, or an empty string when nothing was
-        explored.
-    """
     findings = str(state.get("research_expansion_findings") or "").strip()
     return f"\n{findings}\n" if findings else ""
 
 
 def build_expansion_section(state: WorkflowState) -> str:
-    """Renders the research-expansion prompt section for a generate cycle.
-
-    Args:
-        state: The workflow state the generate node was entered with.
-
-    Returns:
-        The expansion guidance block, or an empty string for the initial
-        generation cycle (iteration 0), leaving focused-grounding
-        behavior unchanged there.
-    """
     if not is_research_expansion(state):
         return ""
     logger.info(
@@ -144,41 +98,20 @@ def build_expansion_section(state: WorkflowState) -> str:
     )
 
 
-# Findings named in the expansion prompt. The draft agent reads this
-# beside the review synthesis and its own tool results, so the section
-# has to widen the evidence base without displacing it.
+# Widened findings must not displace the review synthesis in downstream prompts.
+
+
 _MAX_LISTED_FINDINGS = 30
 
 
 class ExpansionResearch(NamedTuple):
-    """What one expansion cycle's exploration produced.
-
-    Attributes:
-        section: The widened-evidence block for the expansion prompt.
-        articles: The papers the findings were drawn from, in the shape
-            the review's own pool uses, so they carry citation keys.
-        ledger: The whole request as plain data, for ``research_ledgers``.
-    """
-
     section: str
     articles: list[Any]
     ledger: dict[str, Any]
 
     def applied_to(self, state: WorkflowState) -> WorkflowState:
-        """Return the state the generation strategies should run against.
-
-        The articles are merged before generation rather than after so
-        the shared ``[C*]`` citation namespace is built over them too --
-        a paper this cycle found and no strategy can cite is a paper the
-        exploration did not deliver.
-
-        Args:
-            state: The state the generate node was entered with.
-
-        Returns:
-            A copy carrying the widened evidence. The original is left
-            alone; the node reports its own changes in its result dict.
-        """
+        """Merge research articles before generation so the shared citation
+        namespace lets strategies cite the newly found evidence."""
         merged: dict[str, Any] = {
             **state,
             "articles": [*(state.get("articles") or []), *self.articles],
@@ -190,17 +123,6 @@ class ExpansionResearch(NamedTuple):
 async def research_for_expansion(
     state: WorkflowState,
 ) -> ExpansionResearch | None:
-    """Explore the regions this run has not covered, within its ceilings.
-
-    Args:
-        state: The state the generate node was entered with, for the
-            cycle number, the tier, the run's tools and the explored pool.
-
-    Returns:
-        What the exploration found, or None when this cycle explores
-        nothing -- it is the initial generation cycle, the tier funds no
-        research, no source is reachable, or the loop found nothing.
-    """
     prepared = await _prepare(state)
     if prepared is None:
         return None
@@ -237,16 +159,6 @@ async def _explore(
     retrieval: McpRetrieval,
     budget: ResearchBudget,
 ) -> ResearchResult:
-    """Run the loop with no seeds, so it plans its own coverage.
-
-    Args:
-        state: The workflow state, for the goal and the run's identity.
-        retrieval: The sources this cycle may search.
-        budget: The ceilings it runs under.
-
-    Returns:
-        Everything the loop did, findings and declined questions alike.
-    """
     return await conduct_research(
         goal=_expansion_goal(state),
         model=LlmResearchModel(
@@ -262,14 +174,8 @@ async def _explore(
 async def _prepare(
     state: WorkflowState,
 ) -> tuple[McpRetrieval, ResearchBudget] | None:
-    """Resolve what this cycle may search, and whether it may at all.
-
-    Every gate is checked before a client is opened, so a cycle that
-    buys no exploration costs nothing.
-
-    Returns:
-        The retrieval port and its budget, or None.
-    """
+    """Check every research gate before opening a client so unfunded
+    exploration spends nothing."""
     from co_scientist.evidence.search_support import (
         search_config_for,
     )
@@ -290,21 +196,8 @@ async def _prepare(
 
 
 def _expansion_goal(state: WorkflowState) -> str:
-    """State the goal as the ground this run has *not* covered yet.
-
-    The explored pool goes into the goal rather than into seed questions
-    because it is not something to research -- it is the boundary the
-    planning call has to plan around. Bounded by the same sample the
-    expansion prompt uses, so a late cycle's pool cannot grow the goal
-    without limit.
-
-    Args:
-        state: The workflow state carrying the goal and the pool.
-
-    Returns:
-        The research goal, with the explored directions named when the
-        run has any.
-    """
+    """Explored ideas constrain the planning goal rather than seed research;
+    they mark territory to avoid, not questions to answer."""
     goal = str(state.get("research_goal") or "").strip()
     explored = explored_hypothesis_summaries(state)
     if not explored:
@@ -320,7 +213,6 @@ def _expansion_goal(state: WorkflowState) -> str:
 
 
 def _expansion_section(result: ResearchResult) -> str:
-    """Render the exploration as the prompt's widened-evidence block."""
     lines = [
         "Evidence found by exploring beyond the ideas above"
         f" ({len(result.threads)} question(s) over {result.levels_run}"

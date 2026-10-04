@@ -1,20 +1,3 @@
-"""Literature review node orchestrator.
-
-Orchestrates a multi-phase literature review process:
-1. Generate search queries (MCP tool or LLM)
-2. Collect papers from configured sources
-3. Discover PDF links (for sources returning landing pages)
-4. Fetch content (for sources without fulltext)
-5. Analyze each paper for gaps/limitations
-6. Synthesize findings into articles_with_reasoning
-
-The phase-sequence helpers live in the sibling ``outcomes`` and
-``orchestration`` modules; shared search configuration belongs to
-``evidence.search_support``. This module owns the top-level orchestrator and its
-cache/availability gates. Tests patch collaborators in the module that calls
-them.
-"""
-
 import dataclasses
 import logging
 from typing import Any
@@ -86,15 +69,11 @@ logger = logging.getLogger(__name__)
 _LITERATURE_CACHE_SCHEMA_VERSION = 3
 
 
-# =============================================================================
-# Cache and availability gates
-# =============================================================================
-
-
 def _literature_cache_params(
     state: WorkflowState, config: SearchConfig
 ) -> dict[str, Any]:
-    """Return every material input that can change literature output."""
+    """Key every result-affecting input, including source semantics, research
+    budget and critique; store only the config digest."""
     registry = config.tool_registry
     tool_contract: dict[str, Any]
     if registry is None:
@@ -103,24 +82,17 @@ def _literature_cache_params(
             "source_name": config.source_name,
         }
     else:
-        # The hash receives the resolved typed config, including enabled
-        # sources, parameter mappings, response mappings, and endpoint. The
-        # cache stores only the resulting digest, never this configuration.
         tool_contract = dataclasses.asdict(registry.config)
     return {
         "cache_schema_version": _LITERATURE_CACHE_SCHEMA_VERSION,
         "research_goal": state["research_goal"],
         "model_name": state.get("model_name"),
         "papers_to_read_count": config.papers_to_read_count,
-        # A tier that researches produces a different review from one that
-        # does not, so the two must not share a cache entry.
         "research_tier": state.get("research_tier"),
         "tool_contract": tool_contract,
         "run_setup_guidance": state.get("run_setup_guidance"),
         "run_focus_guidance": state.get("run_focus_guidance"),
         "preferences": state.get("preferences"),
-        # The query/synthesis prompts now carry the meta-review critique
-        # (audit E7), so a different critique cannot replay stale results.
         "meta_review": state.get("meta_review"),
     }
 
@@ -128,11 +100,6 @@ def _literature_cache_params(
 def _initialize_review(
     state: WorkflowState,
 ) -> tuple[SearchConfig, _ReviewCachePlan]:
-    """Resolves search config and cache lookup parameters for this run.
-
-    Returns:
-        A (config, cache_plan) tuple.
-    """
     config = search_config_for(state)
     logger.info(
         "Literature review config: dev_mode=%s, papers=%s",
@@ -142,10 +109,9 @@ def _initialize_review(
 
     node_cache = get_node_cache()
     cache_params = _literature_cache_params(state, config)
-    # dev_test_lit_tools_isolation forces cache use even when the global
-    # cache is disabled, so a developer iterating on the downstream
-    # lit-tools generation phase can skip re-running this expensive node
-    # every time.
+    # Dev tool isolation forces cache reuse so downstream iteration need not
+    # repeat expensive review.
+
     force_cache = bool(state.get("dev_test_lit_tools_isolation", False))
     if force_cache:
         logger.info("Dev isolation mode: forcing literature review cache")
@@ -157,15 +123,8 @@ async def _check_cache(
     state: WorkflowState,
     cache_plan: _ReviewCachePlan,
 ) -> dict[str, Any] | None:
-    """Return the cached literature review result, if any.
-
-    Keyed on the goal, model, evidence budget, run guidance, cache schema, and
-    complete resolved tool contract. Identical scientific inputs reuse the
-    full output, while source/configuration changes cannot replay stale work.
-
-    Returns:
-        The cached result dict on a cache hit, else None.
-    """
+    """Source/configuration changes must not replay a stale review even if
+    goal and model are unchanged."""
     cached = cache_plan.node_cache.get(
         "literature_review",
         force=cache_plan.force_cache,
@@ -192,7 +151,6 @@ async def _check_cache(
 
 
 def _has_orphaned_research_articles(result: dict[str, Any]) -> bool:
-    """Return whether cached articles cite research without its ledger."""
     if result.get("research_ledgers"):
         return False
     articles = result.get("articles")
@@ -210,19 +168,8 @@ async def _check_server_available(
     state: WorkflowState,
     config: SearchConfig,
 ) -> dict[str, Any] | None:
-    """Verify the literature MCP server is reachable.
-
-    Fails fast (before spending any LLM calls on query generation) only if
-    the MCP server itself is unreachable -- in which case no search source
-    can run. It deliberately does not gate on any single source's health:
-    the node searches several sources (PubMed, OpenAlex, ...), each of
-    whose failures is swallowed downstream so the others still complete.
-    Gating on one source (historically PubMed) would let an unavailable
-    remote service veto sources that are perfectly reachable.
-
-    Returns:
-        A failure result dict if the server is unreachable, else None.
-    """
+    """Only an unreachable MCP server vetoes review; a single unavailable
+    source must not block reachable siblings."""
     server_available = await check_mcp_available(
         tool_registry=config.tool_registry
     )
@@ -237,10 +184,9 @@ async def _check_server_available(
         0.2,
     )
     result = make_failure_result("literature source service unavailable")
-    # The server was reachable when the run was set up, or the graph would
-    # have routed around this node entirely. Losing it here is the same
-    # degradation arriving later, so it is recorded the same way rather
-    # than left as this node's private failure.
+    # Losing MCP mid-node must carry the same run-wide degradation as losing it
+    # at setup.
+
     result["retrieval_degradation"] = resolve_retrieval_degradation(
         mcp_available=False,
         private_sources=state.get("context_enrichment_sources"),
@@ -251,42 +197,17 @@ async def _check_server_available(
 def _with_llm_call_metrics(
     result: dict[str, Any], llm_calls: int
 ) -> dict[str, Any]:
-    """Attach a metrics delta reporting this node's real LLM calls, in place.
-
-    Every literature-review exit path (cache hit, MCP unavailable, no
-    papers found, no fulltext available, full success) routes through this
-    so ``max_llm_calls`` sees the node's real spend regardless of which
-    phase it exited at (finding L3 -- literature review previously
-    reported no llm_calls at all).
-
-    Args:
-        result: the node's state-update dict, mutated in place.
-        llm_calls: real LLM calls made before this exit.
-
-    Returns:
-        The same ``result`` dict, for chaining at a return statement.
-    """
+    """Every exit must retain real node spend so early failures cannot bypass
+    max_llm_calls."""
     result["metrics"] = create_metrics_update(
         deltas=MetricDeltas(llm_calls=llm_calls)
     )
     return result
 
 
-# =============================================================================
-# Main node function
-# =============================================================================
-
-
 async def _prepare_review(
     state: WorkflowState,
 ) -> tuple[SearchConfig, _ReviewCachePlan, MCPToolClient] | dict[str, Any]:
-    """Resolve config/cache, gate on cache/server, and open the MCP client.
-
-    Returns:
-        Either the (config, cache_plan, mcp_client) tuple needed to continue
-        the run, or an early-exit result dict on a cache hit or an
-        unreachable MCP server.
-    """
     config, cache_plan = _initialize_review(state)
 
     cached = await _check_cache(state, cache_plan)
@@ -307,20 +228,6 @@ async def _prepare_review(
 
 @dataclasses.dataclass(frozen=True)
 class _ReviewOutput:
-    """Everything the phases produced, on the way to the node's result.
-
-    Bundled because finalizing needs all of it and a six-parameter call
-    signature reads as an accident rather than a sequence.
-
-    Attributes:
-        config: The review's resolved search configuration.
-        collected: What Phase 2 collected, enriched.
-        query_result: Phase 1's queries and their cost.
-        cache_plan: Where the finished result is cached.
-        reviewed: Phases 3-4: the synthesis and the analyses behind it.
-        research: Phase 6's result, or None when no research ran.
-    """
-
     config: SearchConfig
     collected: _CollectionResult
     query_result: QueryPhaseResult
@@ -330,21 +237,8 @@ class _ReviewOutput:
 
 
 def _merge_research(output: _ReviewOutput) -> str:
-    """Fold Phase 6's papers into the pool and its findings into the text.
-
-    A researched paper the ordinary search already collected keeps the
-    record it was collected with: that record has been through content
-    fetch and per-paper analysis, and replacing it with a search result
-    would trade an analyzed paper for an unanalyzed one.
-
-    Returns:
-        The synthesis with the research section appended, unchanged when
-        no research ran. A failed review keeps the bare
-        LITERATURE_REVIEW_FAILED sentinel however much research found,
-        because downstream generation compares against it exactly
-        (see coordinator_strategy) and an appended section would read as
-        a review that succeeded.
-    """
+    """Keep analyzed records over fresh research hits. Preserve the exact
+    failure sentinel even when research finds new evidence."""
     research = output.research
     if research is None:
         return output.reviewed.text
@@ -360,7 +254,6 @@ def _merge_research(output: _ReviewOutput) -> str:
 async def _finalize_review(
     state: WorkflowState, output: _ReviewOutput
 ) -> dict[str, Any]:
-    """Phase 5: merge research, build articles, finalize and cache."""
     collected = output.collected
     queries = output.query_result.queries
     synthesis, articles = _finalize_synthesis_and_articles(
@@ -392,13 +285,6 @@ async def _run_search_phases(
     config: SearchConfig,
     mcp_client: MCPToolClient,
 ) -> tuple[QueryPhaseResult, _CollectionResult] | dict[str, Any]:
-    """Phase 1 + 2-2.6: generate queries, collect papers, and gate on them.
-
-    Returns:
-        Either the (query_result, collected) pair to continue with, or an
-        early-exit failure result dict (carrying query_result.llm_calls as
-        its own metrics delta) if collection yielded nothing usable.
-    """
     query_result = await _phase1_generate_queries(state, config, mcp_client)
     queries = query_result.queries
 
@@ -417,17 +303,6 @@ async def _run_search_phases(
 
 
 async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
-    """Conducts literature review using configured MCP tools with LLM analysis.
-
-    Orchestrates the following phases:
-    1. Generate search queries (MCP tool or LLM)
-    2. Collect papers from configured sources
-    3. Discover PDF links (for sources returning landing pages)
-    4. Fetch content (for sources without fulltext)
-    5. Analyze each paper for gaps/limitations
-    6. Synthesize findings into articles_with_reasoning
-    7. Research what the synthesis left open, where the tier funds it
-    """
     logger.info("Starting literature review node")
 
     prepared = await _prepare_review(state)

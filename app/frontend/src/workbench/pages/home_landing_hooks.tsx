@@ -7,9 +7,6 @@ import {
   useRef,
 } from 'react';
 
-// Small DOM hooks shared by the landing page's sections.
-
-/** Props every animated landing section takes. */
 export interface MotionProps {
   reduceMotion: boolean;
 }
@@ -23,7 +20,6 @@ function prefersReducedMotion(): boolean {
   );
 }
 
-/** Tracks the OS reduced-motion preference. */
 export function useReducedMotion(): boolean {
   const [reduce, setReduce] = useState(prefersReducedMotion);
   useEffect(() => {
@@ -36,13 +32,8 @@ export function useReducedMotion(): boolean {
   return reduce;
 }
 
-/**
- * Reports whether the referenced element is on screen. With `once`, it
- * latches true the first time the element appears, which is what entrance
- * animations want; without it, it follows visibility, which is what a
- * running animation wants so it can pause off screen. Where the browser has
- * no IntersectionObserver it reports false, so nothing animates.
- */
+// Without IntersectionObserver, report off screen so animations cannot run
+// unobserved.
 export function useInView(
   ref: RefObject<Element | null>,
   {once = true, margin = '0px', threshold = 0.15} = {},
@@ -65,12 +56,8 @@ export function useInView(
   return inView;
 }
 
-/**
- * Returns the nearest ancestor of `el` that scrolls vertically, or the
- * window when the document itself is the scroller. The home page scrolls
- * inside the shell's page element, not the window, so scroll listeners and
- * scroll-to-top calls must target whichever this is.
- */
+// The home scrolls inside a shell pane; target its scrolling ancestor rather
+// than assuming the window.
 export function scrollParent(el: Element | null): HTMLElement | Window {
   for (let node = el?.parentElement; node; node = node.parentElement) {
     const {overflowY} = getComputedStyle(node);
@@ -79,20 +66,13 @@ export function scrollParent(el: Element | null): HTMLElement | Window {
   return window;
 }
 
-/** Where a sliding selection pill sits inside its track, in pixels. */
 export interface IndicatorBox {
   left: number;
   width: number;
-  /** False on the first placement, so the pill appears without sliding in. */
+  // Place the indicator without animating its first appearance.
   animate: boolean;
 }
 
-/**
- * Measures the selected item (`selector`) inside the referenced track so a
- * single pill can slide between items instead of each item painting its own
- * background. Re-measures when the selection (`selected`) or the track's
- * size changes.
- */
 export function useSlidingIndicator(
   trackRef: RefObject<HTMLElement | null>,
   selector: string,
@@ -119,10 +99,6 @@ export function useSlidingIndicator(
   return box;
 }
 
-// The pill that slides between the selected items of a segmented track: the
-// section rail and the tier picker. See useSlidingIndicator.
-
-/** Renders the sliding pill for a measured selection, or nothing yet. */
 export function SlidingPill({box}: {box: IndicatorBox | null}) {
   if (!box) return null;
   return (
@@ -136,16 +112,14 @@ export function SlidingPill({box}: {box: IndicatorBox | null}) {
   );
 }
 
-// Material 3 Expressive shapes for the landing page, drawn as SVG paths on a
-// 100x100 box. Every shape is sampled at the same number of points, so any
-// two can be morphed into each other by interpolating point by point.
+// Sample all shapes at equal point counts so pointwise interpolation can morph
+// any pair.
 
 type Point = readonly [number, number];
 
 const SAMPLES = 180;
 const TAU = Math.PI * 2;
 
-// Samples a closed shape whose radius varies with the angle (0 = top).
 function polar(radius: (angle: number) => number): Point[] {
   return Array.from({length: SAMPLES}, (_, i) => {
     const angle = (i / SAMPLES) * TAU - Math.PI / 2;
@@ -154,7 +128,6 @@ function polar(radius: (angle: number) => number): Point[] {
   });
 }
 
-// Samples a superellipse, which reads as a pill with soft corners.
 function pill(halfWidth: number, halfHeight: number): Point[] {
   const p = 8;
   return Array.from({length: SAMPLES}, (_, i) => {
@@ -181,7 +154,6 @@ const SHAPES = {
   pill: pill(47, 30),
 };
 
-/** The names of the shapes this module can draw. */
 export type ShapeName = keyof typeof SHAPES;
 
 function toPath(points: readonly Point[]): string {
@@ -192,12 +164,10 @@ function toPath(points: readonly Point[]): string {
   );
 }
 
-/** Returns the SVG path data for a named shape. */
 export function shapePath(name: ShapeName): string {
   return toPath(SHAPES[name]);
 }
 
-/** Returns the path `k` of the way (0-1) from one shape to another. */
 export function blendShapes(from: ShapeName, to: ShapeName, k: number): string {
   const a = SHAPES[from];
   const b = SHAPES[to];
@@ -208,15 +178,7 @@ export function blendShapes(from: ShapeName, to: ShapeName, k: number): string {
 
 const MORPH_MS = 700;
 
-/**
- * Morphs the referenced path between its resting shape and a circle, the M3
- * Expressive hover response. Writes the `d` attribute directly each frame
- * rather than through state, so a morph costs no React renders.
- *
- * @param rest The shape the path shows at rest.
- * @param reduceMotion When true the path snaps instead of animating.
- * @returns The path ref and the enter/leave handlers to attach.
- */
+// Write the path per frame rather than rerender React for every morph step.
 export function useShapeMorph(
   rest: ShapeName,
   reduceMotion: boolean,
@@ -226,7 +188,7 @@ export function useShapeMorph(
   toRest: () => void;
 } {
   const pathRef = useRef<SVGPathElement | null>(null);
-  // The token of the morph in flight; a newer morph orphans the older one.
+  // A newer morph orphans the older animation token.
   const token = useRef(0);
   const run = useCallback(
     (from: ShapeName, to: ShapeName) => {

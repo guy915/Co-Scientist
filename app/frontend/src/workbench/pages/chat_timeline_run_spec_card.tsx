@@ -34,31 +34,10 @@ import {useSystemStatus} from '../hooks/system_status_context';
 import {Link} from 'react-router-dom';
 import {TruncatedLabel} from '../components/truncated_label';
 
-// Props for RunSpecCard, named at module level per the destructured prop
-// signature otherwise pushing the component past the line cap.
-//
-// `spec` is the inferred (or confirmed) run specification to display.
-// `isStarting` disables the actions and swaps the start button's label while
-// a start-run request is in flight. `locked` renders read-only: option
-// groups are disabled, Cancel is hidden, and Start is disabled (used for a
-// confirmed spec). `intro` is the Agent's closing interview message, shown
-// as the card's lead-in so the completed interview reads as a single
-// response; it falls back to generic copy when absent (e.g. a re-shown
-// confirmed spec). `introReasoning` is the thinking behind that message,
-// disclosed inside the turn like any other reply's. `introFallback` marks
-// that closing message as
-// fallback-authored (no model reachable), so the lead-in carries the same
-// quiet notice a fallback bubble does. The remaining handlers wire the
-// Focus/Tier options and the cancel/retry/start actions back to the
-// session hook.
 interface RunSpecCardProps {
   spec: InferredRunSpec;
-  /**
-   * Timeline item id to tag this card's row with, so the auto-scroll can
-   * bring the card's own top edge into view when it arrives (see
-   * chat_workspace.tsx). Omitted by the confirmed card, which is a
-   * re-render of a card already on screen rather than a new arrival.
-   */
+  // Anchor only newly arriving draft cards; confirmed cards replace a turn
+  // already on screen.
   anchorId?: string;
   isStarting: boolean;
   locked?: boolean;
@@ -77,11 +56,7 @@ interface RunSpecCardProps {
   onStart: () => void;
 }
 
-// The Agent's closing interview message with its restatement of the plan
-// taken out (the document below is where
-// those fields live), or a generic lead-in when nothing of it is left: a
-// re-shown confirmed spec carrying no message, or a turn that was only the
-// summary. `||`, not `??`: an empty closing message must fall back too.
+// Use || so an empty closing message also receives the fallback lead-in.
 function planIntroText(intro?: string): string {
   return (
     planLeadIn(intro) ||
@@ -141,18 +116,9 @@ function runPlanEditAction(
   return editor.startEditing;
 }
 
-/**
- * Renders the inferred research-plan turn shown in the timeline once a
- * request has been refined by the Agent: the closing interview message as
- * an ordinary assistant reply, carrying the plan document (four fields, the
- * Focus/Tier groups, and the cancel/start actions) as its inline attachment.
- * Also used, via `locked`, to show a previously-confirmed spec read-only.
- */
 export function RunSpecCard(props: RunSpecCardProps) {
   const responseText = formatRunSpecResponse(props.spec);
   const locked = props.locked ?? false;
-  // Owned here rather than inside the fields section: the control that
-  // opens it is the heading's pencil, which sits outside the plan box.
   const editor = useSpecFieldsEditor(props.spec, props.onFieldsChange);
 
   return (
@@ -194,12 +160,8 @@ export function RunSpecCard(props: RunSpecCardProps) {
   );
 }
 
-// The "Research plan" title plus its edit-plan trigger, shown atop
-// RunSpecCard's document body. The pencil is the only way into the field
-// editor, so it is absent -- not disabled -- whenever there is nothing to
-// edit: a locked (already started) card, a spec with no interview behind
-// it to save through, and the form's own open state, which carries Save and
-// Cancel of its own.
+// Hide editing when no durable interview can save it; the open editor has its
+// own Save and Cancel.
 function PlanHeading({onEdit}: {onEdit?: () => void}) {
   return (
     <div className="reference-plan-heading flex items-center gap-[0.45rem]">
@@ -229,8 +191,6 @@ function PlanHeading({onEdit}: {onEdit?: () => void}) {
   );
 }
 
-// The Focus and Run type option-card groups, factored out of
-// RunSpecDocument since both share the same value/disabled/onChange shape.
 function SpecOptionGroups({
   spec,
   locked,
@@ -264,8 +224,6 @@ function SpecOptionGroups({
   );
 }
 
-// Props for RunSpecDocument, named at module level per the destructured
-// prop signature otherwise pushing the component past the line cap.
 interface RunSpecDocumentProps {
   spec: InferredRunSpec;
   locked: boolean;
@@ -279,8 +237,6 @@ interface RunSpecDocumentProps {
   onStart: () => void;
 }
 
-// Renders the four interview fields and the editable run tier
-// option groups, and the cancel/start actions.
 function RunSpecDocument(props: RunSpecDocumentProps) {
   const {
     spec,
@@ -323,8 +279,8 @@ function RunSpecDocument(props: RunSpecDocumentProps) {
   );
 }
 
-// A linked DRAFT remains locked for editing, but can be started explicitly
-// after a refresh.
+// A linked draft stays locked for editing but remains explicitly startable
+// after refresh.
 function RunSpecActions({
   locked,
   isStarting,
@@ -375,8 +331,6 @@ function RunSpecActions({
   );
 }
 
-// Renders the run spec card's content as a Markdown document, used for the
-// card's copy/download actions (see responseActions).
 function formatRunSpecResponse(spec: InferredRunSpec): string {
   return [
     `# ${spec.title || conciseTitle(spec.goal)}`,
@@ -404,7 +358,6 @@ function formatRunSpecResponse(spec: InferredRunSpec): string {
   ].join('\n');
 }
 
-// One option in a RunOptionGroup (Focus or Tier).
 interface RunOptionGroupOption {
   id: string;
   label: string;
@@ -412,8 +365,6 @@ interface RunOptionGroupOption {
   disabled?: boolean;
 }
 
-// Props for OptionCard, named at module level per the destructured prop
-// signature otherwise pushing the component past the line cap.
 interface OptionCardProps {
   option: RunOptionGroupOption;
   name: string;
@@ -422,9 +373,6 @@ interface OptionCardProps {
   onChange: (value: string) => void;
 }
 
-// One radio-card in a RunOptionGroup: a native radio input (visually hidden;
-// OPTION_INPUT_CLASSES) paired with a styled marker/label/description card
-// that reflects the checked state.
 function OptionCard(props: OptionCardProps) {
   const {option, name, selected, disabled, onChange} = props;
   return (
@@ -458,8 +406,6 @@ function OptionCard(props: OptionCardProps) {
   );
 }
 
-// Renders one radio-card group (Focus or Tier) inside RunSpecCard: one
-// OptionCard per option, sharing the group's name/value/disabled/onChange.
 function RunOptionGroup({
   label,
   name,
@@ -545,19 +491,8 @@ const EMAIL_LABEL_CLASSES = 'text-cosci-fg';
 const EMAIL_INPUT_CLASSES =
   'w-full rounded-xl border border-cosci-border bg-transparent p-3';
 
-/**
- * The completion-email opt-in.
- *
- * There is no separate checkbox: the address field is always present, and
- * notification is simply whichever way a valid address makes it -- typing
- * one on turns it on, clearing or breaking it turns it off. Gated on the
- * server actually having an SMTP transport (`/status`'s
- * `email_notifications_available`): with none configured the durable send
- * task can only raise, exhaust its retries, and fail somewhere the scientist
- * never looks, so an editable field would promise a message that is never
- * coming. Unavailable, the row states that plainly rather than disappearing
- * -- the feature exists, this deployment just cannot send.
- */
+// Offer email opt-in only with SMTP transport; otherwise the durable
+// notification cannot deliver the promised message.
 export function CompletionNotification({
   spec,
   disabled,
@@ -583,8 +518,6 @@ export function CompletionNotification({
   );
 }
 
-// Says why the field is inert, so an unconfigured server reads as a
-// deployment fact rather than a control that ignores keystrokes.
 function UnavailableNote({available}: {available: boolean}) {
   if (available) return null;
   return (
@@ -594,9 +527,6 @@ function UnavailableNote({available}: {available: boolean}) {
   );
 }
 
-// The address the Goal Report notice goes to. Always on screen -- entering
-// a valid one is the opt-in, an invalid or blank one is a silent opt-out,
-// and neither state is announced as an error.
 function NotificationEmail({
   spec,
   disabled,
@@ -631,72 +561,31 @@ function NotificationEmail({
 const STARTED_NEXT_BUTTON_CLASSES =
   'min-h-[2.6rem] cursor-pointer rounded-full border border-cosci-btn-outline-border bg-transparent px-[1.2rem] font-semibold text-cosci-btn-outline-fg hover:bg-cosci-btn-outline-hover-bg focus-visible:bg-cosci-btn-outline-hover-bg';
 
-/** A run that has been started, as shown by the timeline's terminal card. */
 export interface StartedSession {
   id: string;
   title: string;
   at: number;
-  /**
-   * The Agent's reply to the scientist's start request, shown as the card's
-   * lead-in so a started run reads as one response rather than a card under
-   * a canned notice. Written by the model and streamed in as it arrives
-   * (see chat_session_start_run.ts), which is why it grows from empty.
-   */
   intro?: string;
-  /** The chain of thought behind that reply, disclosed inside the turn like
-   * any other reply's. */
   reasoning?: string;
-  /**
-   * True while the reply is still being written. It is what tells an empty
-   * `intro` that is still filling from one that never will, so the standby
-   * copy below does not flash in front of the model's own first sentence.
-   */
+  // Distinguish a reply still filling from one absent permanently so fallback
+  // copy cannot flash before model prose.
   announcing?: boolean;
 }
 
-/**
- * What the card says when no reply was written for it: a run started before
- * this exchange existed and reopened since, a provider that could not be
- * reached, or a turn the scientist stopped.
- *
- * The wording the card carried unconditionally until the Agent started
- * answering for itself. It is the same substance the model is asked for
- * (run under way; open it whenever, first ideas take a few minutes), because
- * the run did start in every one of those cases and the scientist needs the
- * same two facts about it.
- */
 export const STARTED_SESSION_STANDBY_COPY =
   'Your session has been started and Co-Scientist has started research!' +
   '\n\n' +
   'You can view and interact with your session at any time, but note that ' +
   'it might take a few minutes for the first ideas to be ready to view.';
 
-// The lead-in text to render: the Agent's own reply, the standby copy once
-// it is settled that there will not be one, and nothing at all while the
-// reply is still on its way.
 function introCopy(session: StartedSession): string {
   const written = session.intro?.trim();
   if (written) return written;
   return session.announcing ? '' : STARTED_SESSION_STANDBY_COPY;
 }
 
-/**
- * Renders the terminal timeline turn shown once a research run has actually
- * been started: the Agent's own confirmation as an ordinary assistant reply,
- * carrying the session link card and "what next" actions (open details, or
- * start a new topic) as its inline attachment.
- *
- * @param session The started session (id, title, start timestamp) to display.
- * @param href Route of the run's detail page. A URL rather than an open
- *   handler so both affordances below can be real links, which a middle- or
- *   cmd-click opens in a new browser tab.
- * @param onNewTopic Handler to reset the workspace and start a fresh topic.
- *
- * Carries copy/download but no retry: this card reports a run the server has
- * already started, so there is no response here to regenerate. The control
- * used to re-sort the card to the current time, which from a click looked
- * exactly like nothing happening.
- */
+// Use real links for browser navigation; omit retry because the server has
+// already started this run.
 export function StartedSessionCard({
   session,
   href,
@@ -716,12 +605,8 @@ export function StartedSessionCard({
       live={session.announcing}
       ariaLabel="Started research session"
       attachment={
-        // Withheld until the reply is written. The turn reads as an answer
-        // that hands over the session, so the session block belongs after
-        // the answer, not in front of a reply that has not started arriving
-        // -- and it grew under the reader's eyes while the text streamed in
-        // above it. A run reopened from history has no announcement to wait
-        // for (`announcing` is unset) and shows it straight away.
+        // Wait for the announcement before showing its session attachment;
+        // reopened history has no announcement to await.
         session.announcing ? undefined : (
           <MessageAttachment>
             <SessionLinkCard session={session} href={href} />
@@ -738,8 +623,6 @@ export function StartedSessionCard({
   );
 }
 
-// The clickable card linking to the started session's detail page: title
-// (truncated) plus a "Research session" byline and an "Open" affordance.
 function SessionLinkCard({
   session,
   href,
@@ -770,9 +653,6 @@ function SessionLinkCard({
   );
 }
 
-// The "what next" block under a started session: view the session details,
-// or start a fresh topic. The first is a navigation, so it is a link wearing
-// the pill-button styling rather than a button.
 function SessionNextActions({
   href,
   onNewTopic,
@@ -802,10 +682,8 @@ function SessionNextActions({
   );
 }
 
-// Renders the started-session card's content as a Markdown document, used
-// for the card's copy/download actions (see responseActions). Carries the
-// reply actually on screen -- the Agent's own, or the standby copy -- rather
-// than a second wording of it that would drift from what was read.
+// Copy the reply actually displayed rather than a second wording that could
+// drift.
 function formatStartedSessionResponse(
   session: StartedSession,
   intro: string,
@@ -820,11 +698,8 @@ function formatStartedSessionResponse(
   ].join('\n');
 }
 
-// The headings the summary opens each part with, as the five fields are
-// named to the model (`interviews/prompts.py`, "# The five fields") and as
-// the plan document labels them. Near-misses are listed because the model
-// paraphrases: it is asked for a heading per part, never for these exact
-// words.
+// Accept paraphrased plan headings because the model is not required to echo
+// exact field labels.
 const PLAN_FIELD_HEADINGS = new Set([
   'research challenge',
   'research goal',
@@ -845,18 +720,12 @@ const PLAN_FIELD_HEADINGS = new Set([
 
 const HEADING_PATTERN = /^ {0,3}#{1,6} +(.*?) *#* *$/;
 
-// A line that is part of a list, table, quote or heading rather than of a
-// plain paragraph.
 const STRUCTURED_LINE = /^ {0,3}([#>|]|[-*+] |\d+[.)] )/;
 
-// A horizontal rule, which the model uses to separate the summary's parts.
 const RULE_LINE = /^ {0,3}(-{3,}|\*{3,}|_{3,}) *$/;
 
-// A heading's text, stripped to what it names: emphasis markers, numbering,
-// a trailing parenthetical and trailing punctuation all vary between turns
-// and none of them change which field the heading is about. The
-// parenthetical is not hypothetical -- a live turn headed its title section
-// "Title (proposed)", which is the section anyway.
+// Ignore emphasis, numbering and parentheticals when recognizing model-written
+// plan headings.
 function headingLabel(line: string): string | null {
   const match = HEADING_PATTERN.exec(line);
   if (!match) return null;
@@ -869,8 +738,6 @@ function headingLabel(line: string): string | null {
     .toLowerCase();
 }
 
-// Every line except those under a heading that names a plan field. A field
-// heading opens a dropped run; the next heading of any kind closes it.
 function withoutFieldSections(source: string): string {
   const kept: string[] = [];
   let dropping = false;
@@ -886,8 +753,6 @@ function isBlankOrRule(line: string): boolean {
   return !line.trim() || RULE_LINE.test(line);
 }
 
-// Drops the blank lines and separator rules left dangling where a section
-// was cut out, and collapses the gaps between what survived.
 function tidy(text: string): string {
   const lines = text.split('\n');
   while (lines.length && isBlankOrRule(lines[0])) lines.shift();
@@ -895,15 +760,8 @@ function tidy(text: string): string {
   return lines.join('\n').replace(/\n{3,}/g, '\n\n');
 }
 
-/**
- * The turn's closing sentence, when it ends on one.
- *
- * The completing turn is asked to end by saying the run can be started or
- * the scope refined further, and it writes that after the summary -- which
- * puts it inside the last section cut above even though it is not part of
- * the plan. Recognised by position and shape: the last paragraph of the
- * turn, made only of prose lines.
- */
+// Preserve the completing turn's prose sign-off even when it falls inside the
+// last stripped plan section.
 function signOff(source: string): string {
   const blocks = source.split(/\n[ \t]*\n/);
   const last = (blocks[blocks.length - 1] ?? '').trim();
@@ -912,23 +770,12 @@ function signOff(source: string): string {
   return structured ? '' : last;
 }
 
-/**
- * The completing interview turn as the plan turn shows it: everything the
- * model wrote except its restatement of the plan.
- *
- * @param intro The Agent's closing message, as persisted.
- * @returns The prose to render above the plan document; empty when the turn
- *   was nothing but the summary and carried no sign-off, which leaves the
- *   card on its own generic lead-in.
- */
 export function planLeadIn(intro?: string): string {
   const source = (intro ?? '').trim();
   if (!source) return '';
   return withSignOff(tidy(withoutFieldSections(source)), signOff(source));
 }
 
-// Puts the sign-off back under whatever survived, unless it is already
-// there (a turn that carried no summary keeps its own last paragraph).
 function withSignOff(kept: string, closing: string): string {
   if (!closing || kept.endsWith(closing)) return kept;
   return kept ? `${kept}\n\n${closing}` : closing;

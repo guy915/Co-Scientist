@@ -17,29 +17,23 @@ const REPORT_INLINE_ACTION_CLASSES =
 
 const REPORT_INLINE_ACTION_ICON_CLASSES = 'text-base';
 
-// State and derived data behind the "Learning" tab: the synthesized sections
-// (see learningSections), the query-filtered reference list, and the
-// per-section "Details" expand/collapse toggle.
 function useLearningViewState(
   goal: string,
   evidence: Evidence[],
   report: Report | null,
 ) {
   const [query, setQuery] = useState('');
-  // Section ids currently showing their "Details" block; toggled independently
-  // per section so expanding one does not affect the others.
   const [expandedSectionIds, setExpandedSectionIds] = useState<string[]>([]);
   const sections = useMemo(
     () => learningSections(goal, evidence, report),
     [goal, evidence, report],
   );
-  // Built from the unfiltered evidence so searching the reference list never
-  // renumbers a citation out from under the reader.
+  // Build numbering from unfiltered evidence so searching never renumbers
+  // citations.
   const referenceNumberById = useMemo(
     () => referenceNumbers(evidence),
     [evidence],
   );
-  // Case-insensitive substring match across title, source, and authors.
   const filteredReferences = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return evidence.filter(item => {
@@ -66,14 +60,6 @@ function useLearningViewState(
   };
 }
 
-/**
- * Renders the "Learning" tab: up to three synthesized summary sections
- * (derived from the run's evidence, or a fallback placeholder when none has
- * been gathered yet) followed by a searchable reference list.
- *
- * @param props The research goal (used in fallback copy) and the run's
- *   collected evidence.
- */
 export function LearningView({
   goal,
   evidence,
@@ -114,8 +100,6 @@ export function LearningView({
   );
 }
 
-// Expanded "Details" block within a Learning section: renders nothing when
-// collapsed, so the caller can render it unconditionally.
 function LearningSectionDetailsBlock({
   detail,
   uncertainty,
@@ -157,7 +141,6 @@ function LearningSectionDetailsBlock({
   );
 }
 
-// "Show more"/"Show less" toggle button beneath a Learning section's body.
 function LearningSectionToggle({
   expanded,
   onToggle,
@@ -182,8 +165,6 @@ function LearningSectionToggle({
   );
 }
 
-// One "Learning" tab summary section: title, summary body, an optional
-// expanded "Details" block, and the toggle button that drives `expanded`.
 function LearningSectionBlock({
   section,
   expanded,
@@ -220,10 +201,6 @@ function LearningSectionBlock({
   );
 }
 
-// Splits an abstract's text into its labeled sections (e.g. "Background",
-// "Methods") via splitAbstractSections and renders each as its own paragraph,
-// hiding a redundant "Summary" label since that heading is already shown by
-// the caller.
 function AbstractBody({text}: {text: string}) {
   const parts = splitAbstractSections(text);
   return (
@@ -241,8 +218,6 @@ function AbstractBody({text}: {text: string}) {
   );
 }
 
-// One synthesized Learning-tab section, as built by learningSections and
-// rendered by LearningSectionBlock.
 interface LearningSectionItem {
   id: string;
   title: string;
@@ -263,8 +238,6 @@ function topicToSection(topic: KnowledgeBaseTopic): LearningSectionItem {
   };
 }
 
-// The persisted Knowledge Base, if the report has synthesized one, else null
-// so the caller falls back to the live evidence list.
 function knowledgeBaseTopics(
   report: Report | null,
 ): LearningSectionItem[] | null {
@@ -272,8 +245,6 @@ function knowledgeBaseTopics(
   return topics && topics.length ? topics.map(topicToSection) : null;
 }
 
-// The research goal to reference in generated copy, defaulted when the run
-// has not recorded one yet.
 function resolveFallbackGoal(goal: string): string {
   return (
     goal ||
@@ -282,10 +253,6 @@ function resolveFallbackGoal(goal: string): string {
   );
 }
 
-// Builds up to three display sections (title/summary/detail) from the run's
-// evidence. When no evidence has been gathered yet (early in a run), a single
-// placeholder item is used instead so the tab still shows meaningful copy
-// rather than an empty page.
 function learningSections(
   goal: string,
   evidence: Evidence[],
@@ -300,8 +267,6 @@ function learningSections(
     .map((item, index) => evidenceSection(item, index, fallbackGoal));
 }
 
-// The single placeholder item shown before any evidence has been gathered,
-// so the tab still shows meaningful copy rather than an empty page.
 function placeholderSection(fallbackGoal: string): LearningSectionItem {
   return {
     id: 'knowledge-unavailable',
@@ -315,16 +280,13 @@ function placeholderSection(fallbackGoal: string): LearningSectionItem {
   };
 }
 
-// Summary copy for a source whose full text was never reachable: it used to
-// fall through to the generic learning blurb, presenting an unreachable
-// source as if it had been read (D18).
+// Unreachable source copy must not imply its full text was read.
 const UNAVAILABLE_SOURCE_SUMMARY =
   'The full source could not be reached when this evidence was gathered, ' +
   'so it is listed without a summary.';
 
-// Summary copy for a retracted source: distinct from the merely-unreachable
-// case above, since collapsing the two here reintroduces on the Knowledge
-// Base tab the exact conflation the References pill was fixed to avoid.
+// Retraction differs from unreachable; do not present withdrawal as a network
+// failure.
 const RETRACTED_SOURCE_SUMMARY =
   'This source has been retracted, so it is listed without a summary.';
 
@@ -348,8 +310,6 @@ function evidenceSection(
     id: `learning-section-${index + 1}`,
     title: learningTitle(item.title, index),
     summary: evidenceSummary(item, fallbackGoal),
-    // Detail expands on the summary with source attribution when available,
-    // otherwise a generic note tying the item back to the research goal.
     detail:
       item.source && item.year
         ? `Source context: ${item.source}, ${item.year}. Co-Scientist ` +
@@ -375,14 +335,8 @@ function learningTitle(title: string, index: number): string {
     .join(' ');
 }
 
-/**
- * The "References" section of the Knowledge Base tab, plus the numbering that
- * ties it to the citations printed on the topic cards above it.
- *
- * Reference numbers are derived once from the run's full evidence list and
- * shared by both surfaces, so a card's "[73]" and the list's "[73]" always
- * name the same paper -- including while the list is filtered by a search.
- */
+// Share reference numbering between topic cards and the full list, including
+// while search filters that list.
 
 const REFERENCE_SEARCH_CLASSES =
   'cosci-reference-search mb-[1.4rem] flex w-[min(100%,44rem)] items-center ' +
@@ -416,10 +370,6 @@ const REFERENCE_LIST_LINK_CLASSES =
 
 const REFERENCE_LIST_LINK_ICON_CLASSES = 'text-base';
 
-// The quiet counterpart of the "Open" pill for a source whose full text was
-// never reachable: same slot and shape, muted so it reads as a state, not an
-// action. An unreachable source used to render identically to a fetched one,
-// which presented a degraded knowledge base as normal (D18).
 const REFERENCE_UNAVAILABLE_CLASSES =
   'reference-unavailable-pill inline-flex items-center gap-[0.35rem] ' +
   'rounded-full border border-cosci-border bg-transparent px-[0.7rem] ' +
@@ -431,10 +381,6 @@ const REFERENCE_UNAVAILABLE_TEXT = 'Unavailable';
 const REFERENCE_UNAVAILABLE_TITLE =
   'The full source could not be reached when this evidence was gathered';
 
-// A retracted source is a stronger and different claim than "unreachable" --
-// the paper was read and the publisher withdrew it -- so it gets its own
-// pill rather than folding into the quiet "Unavailable" state above, which a
-// reader would otherwise misread as a network or access problem.
 const REFERENCE_RETRACTED_CLASSES =
   'reference-retracted-pill inline-flex items-center gap-[0.35rem] ' +
   'rounded-full border border-cosci-danger-border bg-cosci-danger-bg ' +
@@ -445,34 +391,17 @@ const REFERENCE_RETRACTED_TEXT = 'Retracted';
 
 const REFERENCE_RETRACTED_TITLE = 'This source has been retracted';
 
-/** One resolved citation: the reference it names and the number to print. */
 export interface ReferenceCitation {
   id: string;
   number: number;
 }
 
-/**
- * Maps each reference's durable id to its 1-based place in the run's full
- * reference list -- the number the References section prints beside it.
- *
- * @param evidence The run's complete, unfiltered evidence list.
- * @returns Reference number by evidence id.
- */
 export function referenceNumbers(evidence: Evidence[]): Map<string, number> {
   return new Map(evidence.map((item, index) => [item.id, index + 1]));
 }
 
-/**
- * Resolves a topic's cited evidence ids to reference numbers, ascending.
- *
- * Ids with no matching reference are dropped: they have neither a number to
- * print nor a row to link to, and a citation pointing nowhere reads as a
- * citation to the wrong paper.
- *
- * @param referenceIds The evidence ids a Knowledge Base topic cites.
- * @param numberById Reference numbers, as built by referenceNumbers.
- * @returns The printable citations, ordered by reference number.
- */
+// Omit unresolved citation ids: they have neither a valid number nor a
+// destination.
 export function resolveCitations(
   referenceIds: string[],
   numberById: Map<string, number>,
@@ -483,14 +412,6 @@ export function resolveCitations(
     .sort((first, second) => first.number - second.number);
 }
 
-/**
- * Search box plus numbered reference list.
- *
- * @param props `evidence` is expected to already be filtered by the caller's
- *   query; this component only renders it and reports query changes back up
- *   via onQueryChange (controlled input). `referenceNumberById` must be built
- *   from the unfiltered list so numbers survive filtering.
- */
 export function ReferencesBlock({
   evidence,
   referenceNumberById,
@@ -514,7 +435,6 @@ export function ReferencesBlock({
   );
 }
 
-// Controlled search input above the reference list.
 function ReferenceSearchBox({
   query,
   onQueryChange,
@@ -540,8 +460,6 @@ function ReferenceSearchBox({
   );
 }
 
-// Numbered reference list, or a single placeholder row when nothing matches
-// the current search.
 function ReferenceList({
   evidence,
   referenceNumberById,
@@ -571,9 +489,6 @@ function ReferenceList({
   );
 }
 
-// One numbered reference row: title plus an optional "Open" link. `number` is
-// the row's place in the full reference list, not in the filtered view, so it
-// matches the citations printed on the topic cards above.
 function ReferenceListItem({item, number}: {item: Evidence; number: number}) {
   return (
     <li id={`reference-${item.id}`} className={REFERENCE_LIST_ITEM_CLASSES}>
@@ -587,13 +502,8 @@ function ReferenceListItem({item, number}: {item: Evidence; number: number}) {
   );
 }
 
-// The row's reachability state: an "Open" action when the full source was
-// fetched, a "Retracted" pill when the source itself has been withdrawn, else
-// a quiet "Unavailable" pill so a source that was never reachable is plainly
-// labelled instead of reading as a normal reference (D18). `retracted` is
-// checked first because a retracted source also persists `available: false`
-// (the same gates keep treating it as unavailable), so without this order it
-// would read as a plain reachability problem rather than a retraction.
+// Check retraction before availability: retracted rows also persist
+// available=false.
 function ReferenceSourceState({item}: {item: Evidence}) {
   if (item.retracted) {
     return (

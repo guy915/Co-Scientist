@@ -5,10 +5,6 @@ import {joinClasses} from '../classes';
 import type {RunEventActivity} from '@/api/wire_common';
 import {capitalizeTerm} from '@/lib/text';
 
-/**
- * The live activity timeline: connection status, grouped events and cards.
- */
-
 const IDLE_NOTE_CLASSES =
   'mt-4 flex items-center gap-3 rounded-md bg-cosci-hover px-4 py-3.5';
 const IDLE_DOT_CLASSES =
@@ -22,7 +18,6 @@ const TIMELINE_RAIL_CLASSES =
 const TIMELINE_ROW_CLASSES =
   'flex min-h-[2.125rem] items-center justify-between gap-3';
 
-// A small sonar dot signalling the feed is live.
 function LivePulse() {
   return (
     <span className="relative flex size-2.5" aria-hidden="true">
@@ -32,9 +27,6 @@ function LivePulse() {
   );
 }
 
-// Labels for every transport state that is not a healthy open connection.
-// 'open' and a missing state (a stream double with no transport field)
-// render nothing — neither is a degraded condition to surface.
 const STREAM_STATUS_LABEL: Record<
   Exclude<StreamConnectionState, 'open'>,
   string
@@ -44,8 +36,7 @@ const STREAM_STATUS_LABEL: Record<
   disconnected: 'Stream disconnected',
 };
 
-// The pulse dot claims the feed is live, so a stream that is not open gets
-// this static marker in its place instead of passing as healthy.
+// A non-open stream must not show the live pulse.
 function StreamStatusDot({
   connection,
 }: {
@@ -63,9 +54,8 @@ function StreamStatusDot({
   );
 }
 
-// A quiet status line naming the stream's degraded transport state. It sits
-// in the activity header because that heading is the element claiming the
-// feed is live; role="status" lets assistive tech hear the change.
+// Expose degraded transport through role=status where the heading otherwise
+// claims a live feed.
 function StreamStatusNote({
   connection,
 }: {
@@ -85,8 +75,6 @@ function StreamStatusNote({
   );
 }
 
-// The phase icon disc on the connector rail; the latest card's disc is
-// filled and gently pulses so it reads as "happening now".
 function ActivityDisc({
   icon,
   tone,
@@ -115,10 +103,6 @@ function ActivityDisc({
   );
 }
 
-// One event, rendered as its own timeline row: a phase icon on the
-// connector rail, then the phase title, its detail, and how long ago it
-// landed. Used both for single-event groups and for each row of an
-// expanded multi-event group's detail list.
 function ActivityItem({
   event,
   meta,
@@ -158,10 +142,6 @@ function ActivityItem({
   );
 }
 
-// The collapsed title row of a multi-event card: the activity title with a
-// step count, plus the expand/collapse toggle. A separate function from its
-// caller so the branch that renders the (visible only when expanded) detail
-// list doesn't also have to fit under the same line/complexity ceiling.
 function GroupSummaryRow({
   group,
   isLatest,
@@ -177,9 +157,7 @@ function GroupSummaryRow({
 }) {
   const count = group.events.length;
   const latest = group.events[group.events.length - 1];
-  // The newest group is still accumulating steps, so its time slot reads as
-  // an ongoing state rather than a relative age that would read "just now"
-  // and then go stale a second later.
+  // The newest accumulating group is ongoing rather than a stale relative age.
   const timeLabel = isLatest
     ? 'In progress'
     : relativeTime(latest.created_at, now);
@@ -213,8 +191,6 @@ function GroupSummaryRow({
   );
 }
 
-// The expanded panel of a multi-event card: each grouped event as its own
-// compact row, oldest first (matching the group's own arrival order).
 function GroupEventList({group, now}: {group: ActivityGroup; now: number}) {
   return (
     <ol className="mt-2 flex flex-col gap-1.5 border-s border-cosci-border ps-4">
@@ -235,13 +211,8 @@ function GroupEventList({group, now}: {group: ActivityGroup; now: number}) {
   );
 }
 
-// One card in the vertical activity timeline. A single-event group renders
-// as a plain ActivityItem; a multi-event group renders as a collapsible
-// card carrying a step count. Collapsed by default -- the expand state is
-// local to the card, keyed in the caller by the group's first event's
-// `seq`, which never changes as the group grows (new same-activity events
-// only append to it), so expanding a still-live card does not reset when
-// the next step arrives.
+// Key expansion by the first event sequence so appended live steps cannot
+// reset it.
 function ActivityGroupCard({
   group,
   isLatest,
@@ -287,8 +258,6 @@ function ActivityGroupCard({
   );
 }
 
-// The streaming activity timeline, newest first, with an empty-state note
-// until the first card lands.
 export function ActivityLog({
   groups,
   connection,
@@ -350,7 +319,6 @@ const SAFETY_META: ActivityMeta = {
   tone: 'text-th-warning',
 };
 
-// Server activity labels also supply the matching legacy-node presentation.
 const ACTIVITY_KEY_META: Record<
   Exclude<RunEventActivity, 'other'>,
   ActivityMeta
@@ -398,7 +366,6 @@ const ACTIVITY_KEY_META: Record<
   safety: SAFETY_META,
 };
 
-// Older stored events and lifecycle events use node names instead.
 const ACTIVITY_META: Record<string, ActivityMeta> = {
   bootstrap: {
     title: 'Initializing run',
@@ -512,7 +479,7 @@ export interface ActivityGroup {
   events: StreamEvent[];
 }
 
-// Group adjacent events only, so a later return to a phase stays visible.
+// Group adjacent events only so a return to an earlier phase stays visible.
 function groupConsecutiveActivity(events: StreamEvent[]): ActivityGroup[] {
   const groups: ActivityGroup[] = [];
   for (const event of events) {

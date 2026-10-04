@@ -10,7 +10,6 @@ const PAGE_CLASSES =
   'mx-auto mb-24 grid w-[min(60rem,calc(100%-2rem))] gap-10 py-10 ' +
   'text-cosci-fg';
 
-// Loads the shared report for a token, tracking load errors.
 function useSharedReport(token: string) {
   const [shared, setShared] = useState<SharedGoalReport | null>(null);
   const [error, setError] = useState('');
@@ -34,17 +33,16 @@ function useSharedReport(token: string) {
   return {shared, error};
 }
 
-// The report headline: the model-generated title, else the raw goal.
 function reportHeadline(run: SharedRun): string {
   return run.title || run.research_goal;
 }
 
-// The Run Specifications label for the run's mode.
 function runTypeLabel(run: SharedRun): string {
   return run.run_mode === 'advanced' ? 'Advanced Run' : 'Standard Run';
 }
 
-/** Read-only public Goal Report rendered exclusively through a share token. */
+// Public reports remain read-only and resolve exclusively through a share
+// token.
 export function SharedGoalReportPage() {
   const {token = ''} = useParams<{token: string}>();
   const {shared, error} = useSharedReport(token);
@@ -82,7 +80,6 @@ export function SharedGoalReportPage() {
   );
 }
 
-// The report's content sections: ideas, knowledge base, and summary.
 function SharedReportSections({shared}: {shared: SharedGoalReport}) {
   const {report, hypotheses, evidence} = shared;
   const insights = report.payload.agent_insights;
