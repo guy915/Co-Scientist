@@ -106,6 +106,10 @@ BYOK encryption uses a separate key: rotation requires migrating or removing the
 affected stored credentials. Keep database sidecars, caches and outputs out of
 commits and image build contexts.
 
+Use one provider-credential map for offline selection and semantic safety:
+separate maps mistook credentialed Azure/Google deployments for keyless ones
+and silently skipped provider work or contextual review.
+
 ## Claim adjudication
 
 A contradiction requires a verbatim, on-topic negating quote. Off-target or
@@ -251,3 +255,13 @@ Fit synthesis to the provider clock as well as its output allowance: an observed
 42,000-token request at 27–37 tokens/second could not fit a 600-second deadline.
 Outline once and write bounded parts, preserving successful siblings and grounded
 draft fallbacks when a part fails.
+
+## Safety deferral and proximity storage
+
+Unsafe-content stops never defer to owed review or tournament coverage.
+Cleanup may exceed ordinary work ceilings only within its settlement allowance
+or permanent issuance markers; provider admission still caps new requests.
+
+The proximity edge floor bounds checkpoint size and the SQLite writer's insert
+workload, while every pair is still measured. Round before admission so the
+persisted similarity is the value compared against the floor.
