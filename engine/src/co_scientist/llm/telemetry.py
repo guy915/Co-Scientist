@@ -10,6 +10,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
 
+from co_scientist._context import _bind_contextvar
 from co_scientist.constants import MODEL_PRICING, estimate_cost_usd
 from co_scientist.llm.request.response import extract_token_usage
 
@@ -115,11 +116,10 @@ def scoped_telemetry_phase(sub_phase: str) -> Iterator[None]:
     """Relabel within the same accumulator; nested fresh scopes lose inner
     usage from node snapshots.
     """
-    token = _current_phase.set(f"{_current_phase.get()}.{sub_phase}")
-    try:
+    with _bind_contextvar(
+        _current_phase, f"{_current_phase.get()}.{sub_phase}"
+    ):
         yield
-    finally:
-        _current_phase.reset(token)
 
 
 def record_call(model_name: str, stats: ModelCallStats) -> None:

@@ -13,6 +13,7 @@ from typing import Any
 import httpx
 import litellm
 
+from co_scientist._context import _bind_contextvar
 from co_scientist.exceptions import FreeModelEligibilityError
 from co_scientist.llm.profile import promotional_free_route
 
@@ -31,11 +32,8 @@ def scoped_api_key(api_key: str | None) -> Iterator[None]:
     if api_key is None:
         yield
         return
-    token = _byok_api_key.set(api_key)
-    try:
+    with _bind_contextvar(_byok_api_key, api_key):
         yield
-    finally:
-        _byok_api_key.reset(token)
 
 
 FREE_MODE_ENV = "COSCIENTIST_REQUIRE_FREE_MODELS"
@@ -235,11 +233,8 @@ def campaign_free_mode() -> bool:
 @contextlib.contextmanager
 def scoped_campaign_mode(enabled: bool) -> Iterator[None]:
     """Nested scopes may strengthen campaign admission but never weaken it."""
-    token = _campaign_mode.set(_campaign_mode.get() or enabled)
-    try:
+    with _bind_contextvar(_campaign_mode, _campaign_mode.get() or enabled):
         yield
-    finally:
-        _campaign_mode.reset(token)
 
 
 def _requires_free(args: dict[str, Any], byok: bool) -> bool:

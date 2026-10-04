@@ -4,6 +4,7 @@ from collections.abc import Iterator
 from contextvars import ContextVar
 from typing import Any, Final
 
+from co_scientist._context import _bind_contextvar
 from co_scientist.config.env_vars import parse_list_env
 from co_scientist.constants import (
     MINIMAL_REASONING_MAX_TOKENS,
@@ -105,11 +106,8 @@ _minimal_reasoning_forced: ContextVar[bool] = ContextVar(
 
 @contextlib.contextmanager
 def scoped_minimal_reasoning() -> Iterator[None]:
-    token = _minimal_reasoning_forced.set(True)
-    try:
+    with _bind_contextvar(_minimal_reasoning_forced, True):
         yield
-    finally:
-        _minimal_reasoning_forced.reset(token)
 
 
 def _minimal_reasoning_knob(recovering: bool) -> dict[str, Any]:

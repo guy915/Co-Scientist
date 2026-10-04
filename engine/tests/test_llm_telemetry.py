@@ -723,3 +723,10 @@ def test_legacy_usage_never_gains_observation_evidence_on_merge() -> None:
     assert merged["reported_usage_calls"] == 1
     assert merged["priced_usage_calls"] == 1
     assert merged["requested_models"] == {"requested": 1}
+
+
+def test_delayed_sub_phase_uses_current_outer_scope() -> None:
+    delayed = scoped_telemetry_phase("sub")
+    with scoped_telemetry("later") as accumulator, delayed:
+        record_call("m", ModelCallStats(calls=1))
+    assert accumulator.snapshot()["later.sub::m"]["calls"] == 1
