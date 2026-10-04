@@ -1,5 +1,3 @@
-"""Run CRUD and lifecycle helpers for the runs table."""
-
 from __future__ import annotations
 
 import json
@@ -39,7 +37,6 @@ def bootstrap_task_lease_matches(
     worker_id: str | None,
     attempt: int,
 ) -> bool:
-    """Check that the intake decision still belongs to the live bootstrap."""
     row = conn.execute(
         "SELECT status AS task_status, lease_owner, attempt, task_type, "
         "lease_expires_at FROM scientific_tasks WHERE id=? AND run_id=?",
@@ -94,19 +91,6 @@ def mark_bootstrap_running(
     attempt: int,
     db_path: str | None = None,
 ) -> str | None:
-    """Start only a live run whose bootstrap lease still belongs to caller.
-
-    Args:
-        run_id: Run whose lifecycle is being advanced.
-        task_id: Bootstrap task whose lease authorizes the transition.
-        worker_id: Worker expected to own the task lease.
-        attempt: Attempt number expected for the claimed task.
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        The terminal or paused status when no transition is allowed, the
-        current running status on success, or None if the run/lease vanished.
-    """
     with transaction(db_path) as conn:
         row = conn.execute(
             "SELECT runs.status AS run_status, task.status AS task_status, "
@@ -131,10 +115,8 @@ def mark_bootstrap_running(
     return RunStatus.RUNNING.value
 
 
-# Tables cascade-deleted once the run row itself is gone, counted here only
-# so a caller can prove the cascade actually ran rather than trusting the
-# schema comment. Every one of these carries a ``run_id`` column reachable
-# directly or through a FK chain rooted at ``runs``.
+# Cascade row accounting spans direct run children and FK descendants so
+# deletion can be verified.
 _RUN_ID_TABLES: tuple[str, ...] = (
     "run_credentials",
     "report_shares",
@@ -155,24 +137,14 @@ _RUN_ID_TABLES: tuple[str, ...] = (
     "proximity_edges",
 )
 
-# hypothesis_state has no run_id column of its own; it cascades transitively
-# once its hypothesis row is deleted, so it is counted through a join.
+# Hypothesis state has no run_id; account for its transitive cascade through the
+# hypothesis join.
 _HYPOTHESIS_SCOPED_TABLES: tuple[str, ...] = ("hypothesis_state",)
 
 
 def count_run_rows(
     run_id: str, *, db_path: str | None = None
 ) -> dict[str, int]:
-    """Count every row scoped to ``run_id``, across every affected table.
-
-    Args:
-        run_id: Identifier of the run to count rows for.
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        Table name -> row count. All zero (except a present ``runs`` row)
-        once the run is gone confirms the cascade reached every table.
-    """
     with connect(db_path) as conn:
         counts = {
             "runs": conn.execute(
@@ -197,16 +169,6 @@ def count_run_rows(
 
 
 def delete_run(run_id: str, *, db_path: str | None = None) -> dict[str, int]:
-    """Permanently delete a run and every row that belongs to it.
-
-    Args:
-        run_id: Identifier of the run to delete.
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        The row counts that existed just before deletion (see
-        ``count_run_rows``), for the caller to report or verify against.
-    """
     before = count_run_rows(run_id, db_path=db_path)
     with connect(db_path) as conn:
         conn.execute(
@@ -219,19 +181,8 @@ def delete_run(run_id: str, *, db_path: str | None = None) -> dict[str, int]:
 
 
 def run_used_offline(run: RunRow) -> bool:
-    """Return whether a run executed against the offline LLM backend.
-
-    Reads the persisted ``llm_backend`` column. This is the per-run signal to
-    key any decision about a *past* run's nature on, distinct from the
-    process-level ``engine_adapter.offline_mode()`` request-time predicate.
-    Rows created before the column existed fall back to the provider: the
-    mock provider was always offline-backed, the real engine always real.
-
-    Args:
-        run: The run row to inspect.
-
-    Returns:
-        True when the run's backend is offline.
+    """Historical backend comes from the run row, not current process
+    configuration; legacy mock-provider rows were always offline.
     """
     if run.llm_backend is None:
         return run.provider == "mock"
@@ -244,21 +195,6 @@ def run_offline_backed(
     missing_run_fallback: bool = False,
     db_path: str | None = None,
 ) -> bool:
-    """Resolve a run's offline/real backend by id, with a gone-row fallback.
-
-    The by-id form of :func:`run_used_offline` for callers that do not hold
-    the row. One home for the "load the run, then fall back when it has
-    been deleted" policy the finalization and escalation gates share, so
-    their gating cannot drift.
-
-    Args:
-        run_id: Identifier of the run to inspect.
-        missing_run_fallback: What to report when the run row is gone.
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        True when the run's backend is offline.
-    """
     run = get_run(run_id, db_path=db_path)
     if run is None:
         return missing_run_fallback
@@ -268,19 +204,8 @@ def run_offline_backed(
 def set_run_llm_backend(
     run_id: str, llm_backend: str, db_path: str | None = None
 ) -> None:
-    """Set a run's persisted LLM backend (idempotent; no-op if the run is gone).
-
-    Written when a run's resolved config carries an explicit ``llm_backend``
-    override (e.g. a demo run pinned to the offline engine backend), so
-    ``run_used_offline`` reports the override rather than the value derived
-    at creation time. The override must land here before/when the workflow
-    starts, since every later reader (report finalization, hypothesis
-    badging) re-fetches the row rather than reusing the resolved config.
-
-    Args:
-        run_id: Identifier of the run to update.
-        llm_backend: The backend to persist, "offline" or "real".
-        db_path: Optional override for the SQLite database path.
+    """Persist resolved overrides before execution because later publication
+    and badging readers reload the run row.
     """
     with connect(db_path) as conn:
         conn.execute(
@@ -296,23 +221,8 @@ def redact_run_goal(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
-    """Overwrite a run's goal and title with their redacted forms.
-
-    An intake ``redact`` decision used to record the label and leave the
-    original goal in the row, where it stayed readable through the run API,
-    the run list, and every surface built from them. The title is rewritten
-    in the same statement because it is generated from the goal and would
-    otherwise carry the same span; ``goal_restatement`` is cleared for the
-    same reason — it is a paraphrase of the goal, stamped at create before
-    the intake screen runs, so leaving it would leak the redacted goal in
-    other words at the head of the report's top-hypotheses section.
-
-    Args:
-        run_id: Identifier of the run to update.
-        goal: The redacted research goal to persist.
-        title: The redacted session title to persist.
-        db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to reuse within a transaction.
+    """Redact title and clear restatement with the goal: both are derived
+    text that could otherwise disclose the same sensitive span.
     """
     with _use_conn(conn, db_path) as active:
         active.execute(
@@ -325,11 +235,8 @@ def redact_run_goal(
 def set_run_config(
     run_id: str, config: dict[str, Any], db_path: str | None = None
 ) -> None:
-    """Replace one run's persisted configuration.
-
-    Startup fixtures use this when a new fixture revision adds displayable
-    setup fields. Existing demo rows must receive the same configuration as a
-    newly created row; otherwise their Goal Details retain the old empty data.
+    """Older demo rows need revised setup fields too; startup reconstruction
+    must match newly created fixtures.
     """
     with connect(db_path) as conn:
         conn.execute(
@@ -343,7 +250,6 @@ def get_run(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> RunRow | None:
-    """Return a single run by id, or None when no such run exists."""
     with _use_conn(conn, db_path) as conn:
         row = conn.execute(
             "SELECT * FROM runs WHERE id = ?", (run_id,)
@@ -352,18 +258,6 @@ def get_run(
 
 
 def run_exists(run_id: str, db_path: str | None = None) -> bool:
-    """Return whether a run exists, without materializing the row.
-
-    Cheaper than ``get_run`` for endpoints that only need a 404 guard: it skips
-    the ``SELECT *`` and the ``config_json`` decode that ``_row_to_run`` does.
-
-    Args:
-        run_id: Identifier of the run to probe.
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        True if a run row with this id exists.
-    """
     with connect(db_path) as conn:
         row = conn.execute(
             "SELECT 1 FROM runs WHERE id = ?", (run_id,)
@@ -378,15 +272,6 @@ def update_run_status(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
-    """Update a run's status, timestamps, and optional error message.
-
-    Args:
-        run_id: Identifier of the run to update.
-        status: The new lifecycle status to persist.
-        error: Optional error message to store when the run failed.
-        db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to join an existing transaction.
-    """
     now = _now()
     completed_at = now if status in TERMINAL_STATUSES else None
     with _use_conn(conn, db_path) as active:
@@ -404,7 +289,6 @@ def update_run_status_if_current(
     expected_statuses: tuple[RunStatus, ...],
     error: str | None = None,
 ) -> bool:
-    """Change status only if the current row is in an allowed state."""
     if not expected_statuses:
         return False
     now = _now()
@@ -430,11 +314,8 @@ def set_run_timing(
     duration_seconds: float,
     db_path: str | None = None,
 ) -> None:
-    """Set a completed run's synthetic start and finish times.
-
-    Curated demos are reconstructed at startup, including ones created by an
-    older release. Resetting both endpoints prevents the elapsed-time UI from
-    treating the period between releases as compute time.
+    """Reconstructed demos must not report the interval between releases as
+    scientific compute time.
     """
     completed_at = _now()
     created_at = completed_at - max(duration_seconds, 1.0)
@@ -451,18 +332,6 @@ def summary_counts(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> dict[str, int]:
-    """Return per-table row counts for a run in a single connection.
-
-    Uses COUNT(*) per table rather than materializing and parsing whole tables.
-
-    Args:
-        run_id: Identifier of the run to summarize.
-        db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to reuse (e.g. from ``transaction``).
-
-    Returns:
-        Mapping of summary field name to row count.
-    """
     tables = {
         "events": "run_events",
         "hypotheses": "hypotheses",
@@ -481,13 +350,6 @@ def summary_counts(
 
 
 def set_run_title(run_id: str, title: str, db_path: str | None = None) -> None:
-    """Set a run's short session title (idempotent; no-op if the run is gone).
-
-    Args:
-        run_id: Identifier of the run to update.
-        title: The generated short title to store.
-        db_path: Optional override for the SQLite database path.
-    """
     with connect(db_path) as conn:
         conn.execute("UPDATE runs SET title = ? WHERE id = ?", (title, run_id))
 
@@ -495,16 +357,6 @@ def set_run_title(run_id: str, title: str, db_path: str | None = None) -> None:
 def set_run_goal_restatement(
     run_id: str, restatement: str, db_path: str | None = None
 ) -> None:
-    """Set a run's narrative goal restatement (idempotent; no-op if gone).
-
-    GOAL-RESTATEMENT-001: a background generator fills this shortly after
-    create, and the report reads it from the run row at finalize.
-
-    Args:
-        run_id: Identifier of the run to update.
-        restatement: The synthesized narrative restatement to store.
-        db_path: Optional override for the SQLite database path.
-    """
     with connect(db_path) as conn:
         conn.execute(
             "UPDATE runs SET goal_restatement = ? WHERE id = ?",
@@ -514,8 +366,6 @@ def set_run_goal_restatement(
 
 @dataclass(frozen=True)
 class RunCreateOptions:
-    """Optional run creation inputs and database override."""
-
     client_id: str = ""
     title: str | None = None
     llm_backend: str | None = None
@@ -526,7 +376,6 @@ class RunCreateOptions:
 
 
 def log_run_created(run: RunRow) -> None:
-    """Mirror a committed run creation in the application log."""
     logger.info(
         "created run %s run_mode=%s provider=%s llm_backend=%s client_id=%s",
         run.id,
@@ -544,10 +393,8 @@ def create_run(
     config: dict[str, Any],
     options: RunCreateOptions | None = None,
 ) -> RunRow:
-    """Insert a new DRAFT row and return it.
-
-    Caller-owned transactions defer the creation log until their commit,
-    unless ``log_created`` explicitly overrides that behavior.
+    """Caller-owned transactions defer logging until commit so rolled-back
+    creation cannot appear in the log.
     """
     opts = options or RunCreateOptions()
     now = _now()
@@ -601,12 +448,8 @@ def create_run(
 def _count_other_active_runs(
     conn: sqlite3.Connection, run_id: str, client_id: str
 ) -> int:
-    """Count the client's other in-flight runs, whatever tier they are.
-
-    Deliberately blind to ``profile``: the quota is one ceiling per
-    identity. Partitioning the count by tier as well made the effective
-    allowance ``max_concurrent_runs`` per tier -- four times what is
-    advertised, and reachable simply by naming a different tier each time.
+    """The concurrency allowance spans every tier for one identity; counting
+    per tier would multiply the advertised limit.
     """
     return int(
         conn.execute(
@@ -620,7 +463,6 @@ def _count_other_active_runs(
 def _queue_run_if_startable(
     conn: sqlite3.Connection, run_id: str, now: float, expected_status: str
 ) -> int:
-    """Move a run to QUEUED only from the status this start request read."""
     if expected_status not in {
         RunStatus.DRAFT.value,
         RunStatus.FAILED.value,
@@ -647,7 +489,6 @@ def reserve_run_capacity_in_transaction(
     limit: int,
     expected_status: str,
 ) -> bool:
-    """Reserve a client's run slot using the caller's active transaction."""
     count = _count_other_active_runs(conn, run_id, client_id)
     if count >= limit:
         return False

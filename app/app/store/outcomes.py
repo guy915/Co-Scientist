@@ -1,5 +1,3 @@
-"""Append-only researcher-recorded hypothesis outcomes."""
-
 from __future__ import annotations
 
 import json
@@ -18,8 +16,6 @@ class OutcomeRefinementConflictError(ValueError):
 
 @dataclass(frozen=True)
 class NewOutcomeRefinementAction:
-    """One immutable request to use an outcome in a targeted follow-up."""
-
     action_id: str
     run_id: str
     outcome_id: str
@@ -32,7 +28,6 @@ class NewOutcomeRefinementAction:
 
 
 def _decode_action(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
-    """Return a durable action row without reinterpreting its snapshot."""
     action = dict(row)
     action["context_codepoints"] = len(action["context_snapshot"])
     return action
@@ -136,8 +131,8 @@ def _persist_action(
     try:
         return _insert_action(conn, intent), False
     except sqlite3.IntegrityError as exc:
-        # Unique constraints still fence callers that share a connection
-        # without using this function's outer transaction.
+        # Unique constraints also fence callers sharing a connection outside
+        # this helper's outer transaction.
         raise OutcomeRefinementConflictError from exc
 
 
@@ -147,10 +142,8 @@ def create_outcome_refinement_action(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> tuple[dict[str, Any], bool]:
-    """Persist one intent/event atomically, replaying the same request key.
-
-    Returns the action and whether it was already present. A distinct request
-    key cannot authorize the same outcome a second time.
+    """A request-key replay is idempotent; a different key cannot authorize
+    the same outcome-parent intent again.
     """
     if not intent.request_idempotency_key.strip():
         raise ValueError("request idempotency key must not be blank")
@@ -172,7 +165,6 @@ def get_outcome_refinement_action(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> dict[str, Any] | None:
-    """Fetch one outbox intent by its stable action id."""
     with _use_conn(conn, db_path) as active:
         row = active.execute(
             "SELECT * FROM outcome_refinement_actions "
@@ -189,7 +181,6 @@ def get_outcome_refinement_action_by_key(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> dict[str, Any] | None:
-    """Fetch the same intent after an owner retries its request."""
     with _use_conn(conn, db_path) as active:
         row = _fetch_by_key(active, run_id, request_idempotency_key)
         return _decode_action(row) if row is not None else None
@@ -202,7 +193,6 @@ def get_outcome_refinement_action_for_outcome(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> dict[str, Any] | None:
-    """Fetch the one intent allowed for an outcome-parent pair."""
     with _use_conn(conn, db_path) as active:
         row = _fetch_by_outcome(active, run_id, outcome_id)
         return _decode_action(row) if row is not None else None
@@ -215,7 +205,6 @@ def list_pending_outcome_refinement_actions(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
-    """Read intents not yet materialized into claimable executor tasks."""
     bounded_limit = min(max(int(limit), 1), 100)
     with _use_conn(conn, db_path) as active:
         if run_id is None:
@@ -243,7 +232,6 @@ def update_outcome_refinement_action(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> dict[str, Any] | None:
-    """Set execution state and its optional child under the caller's commit."""
     with _use_conn(conn, db_path) as active:
         row = active.execute(
             "SELECT child_hypothesis_id FROM outcome_refinement_actions "
@@ -278,8 +266,6 @@ class InvalidOutcomeReferencesError(ValueError):
 
 @dataclass(frozen=True)
 class NewHypothesisOutcome:
-    """Fields supplied by a researcher for one measured outcome."""
-
     run_id: str
     hypothesis_id: str
     method_protocol: str
@@ -309,7 +295,6 @@ def _decode_outcome(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
 def _hypothesis_snapshot(
     conn: sqlite3.Connection, outcome: NewHypothesisOutcome
 ) -> dict[str, str]:
-    """Read the hypothesis display identity while it belongs to this run."""
     row = conn.execute(
         "SELECT title, statement FROM hypotheses WHERE id=? AND run_id=?",
         (outcome.hypothesis_id, outcome.run_id),
@@ -322,7 +307,6 @@ def _hypothesis_snapshot(
 def _evidence_snapshots(
     conn: sqlite3.Connection, run_id: str, evidence_ids: list[str]
 ) -> list[dict[str, Any]]:
-    """Validate evidence ownership and capture only stable source metadata."""
     if not evidence_ids:
         return []
     placeholders = ",".join("?" for _ in evidence_ids)
@@ -345,7 +329,6 @@ def _insert_outcome(
     conn: sqlite3.Connection,
     record: dict[str, Any],
 ) -> None:
-    """Persist the outcome and its immutable identity snapshots."""
     conn.execute(
         "INSERT INTO hypothesis_outcomes (id, run_id, hypothesis_id, "
         "method_protocol, conditions, measured_observation, units, "
@@ -376,7 +359,6 @@ def add_hypothesis_outcome(
     *,
     db_path: str | None = None,
 ) -> dict[str, Any]:
-    """Append an outcome and its metadata-only replay event atomically."""
     outcome_id = str(uuid.uuid4())
     recorded_at = _now()
     with transaction(db_path) as conn:
@@ -390,7 +372,8 @@ def add_hypothesis_outcome(
             ),
         }
         _insert_outcome(conn, record)
-        # Persist only metadata in the replay log; observations stay private.
+        # Replay logs contain metadata only; private observations stay out of
+        # the event stream.
         _append_event(
             conn,
             outcome.run_id,
@@ -412,7 +395,6 @@ def list_hypothesis_outcomes(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
-    """Return outcomes in append order for one run."""
     with _use_conn(conn, db_path) as conn:
         rows = conn.execute(
             "SELECT id, run_id, hypothesis_id, method_protocol, conditions, "
@@ -433,7 +415,6 @@ def get_hypothesis_outcome(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> dict[str, Any] | None:
-    """Return one immutable outcome only when it belongs to the given run."""
     with _use_conn(conn, db_path) as active:
         row = active.execute(
             "SELECT id, run_id, hypothesis_id, method_protocol, conditions, "

@@ -18,21 +18,8 @@ def replace_knowledge_facts(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
-    """Replace a run's knowledge-facts rows wholesale.
-
-    Matches the ``claim_evidence``/``run_metrics`` pattern used elsewhere in
-    this store: rows are fully reconstructed from the claim-evidence graph
-    each time a report is finalized, so re-finalizing a resumed run never
-    accumulates duplicates.
-
-    Args:
-        run_id: Owning run.
-        facts: Rows as built by
-            ``app.report.content.derive_knowledge_facts`` --
-            ``{hypothesis_id, evidence_id, kind, statement, entities,
-            state}`` dicts.
-        db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to reuse (e.g. from ``transaction``).
+    """Re-finalization reconstructs the graph wholesale; replacement
+    prevents duplicate facts after resume.
     """
     with _use_conn(conn, db_path) as conn:
         conn.execute("DELETE FROM knowledge_facts WHERE run_id = ?", (run_id,))
@@ -65,18 +52,6 @@ def list_knowledge_facts(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
-    """Return a run's durable facts/contradictions, decoded and filterable.
-
-    Args:
-        run_id: Owning run.
-        kind: Optional filter to ``"fact"`` or ``"contradiction"``.
-        entity: Optional case-insensitive entity-name filter.
-        db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to reuse.
-
-    Returns:
-        Rows oldest first, each with ``entities`` decoded to a list.
-    """
     rows = _list_by_run(
         "knowledge_facts", run_id, db_path, conn, json_fields=("entities",)
     )
@@ -97,8 +72,8 @@ def save_report(
 ) -> dict[str, str]:
     report_id = str(uuid.uuid4())
     with _use_conn(conn, db_path) as active:
-        # Empty paths preserve the string API contract without new files;
-        # legacy readers stay until the verified store reset.
+        # Empty paths preserve the string API contract without new files; retain
+        # legacy readers until verified export/reset.
         active.execute(
             "INSERT INTO reports "
             "(id, run_id, payload_json, markdown_path, markdown_text, "
@@ -118,7 +93,6 @@ def save_report(
 def get_latest_report(
     run_id: str, db_path: str | None = None
 ) -> dict[str, Any] | None:
-    """Return the most recent report row for a run, or None."""
     with connect(db_path) as conn:
         row = conn.execute(
             "SELECT * FROM reports WHERE run_id=? "
@@ -133,15 +107,15 @@ def get_latest_report(
             "payload": json.loads(row["payload_json"]),
             "markdown_path": row["markdown_path"],
             "markdown_text": row["markdown_text"],
-            # Older rows may split their report across both text columns.
+            # Legacy rows can split Markdown across both text columns.
             "markdown_text_ranking": row["markdown_text_ranking"],
             "created_at": row["created_at"],
         }
 
 
 def read_report_markdown(run_id: str, db_path: str | None = None) -> str | None:
-    # Older reports may contain only a file path or split their Markdown text.
-    # Keep both readers until production export and reset have been verified.
+    # Legacy reports may have only a path or split text; keep these readers
+    # until verified production export/reset.
     latest = get_latest_report(run_id, db_path=db_path)
     if not latest:
         return None
@@ -151,13 +125,12 @@ def read_report_markdown(run_id: str, db_path: str | None = None) -> str | None:
         if isinstance(ranking_text, str) and ranking_text:
             return f"{markdown_text}\n\n{ranking_text}"
         return markdown_text
-    # Legacy rows saved before Markdown was stored in the database.
+    # Reports predating database Markdown may still be file-backed.
     path = Path(latest["markdown_path"] or "")
     return path.read_text(encoding="utf-8") if path.is_file() else None
 
 
 def _hash_token(token: str) -> str:
-    """Hash one bearer token before persistence or lookup."""
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
@@ -168,7 +141,6 @@ def create_report_share(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> dict[str, Any]:
-    """Create a unique public capability for an owned run."""
     token = secrets.token_urlsafe(32)
     share_id = str(uuid.uuid4())
     created_at = _now()
@@ -192,7 +164,6 @@ def resolve_report_share(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> dict[str, Any] | None:
-    """Resolve an active token without returning its stored hash."""
     with _use_conn(conn, db_path) as active:
         row = active.execute(
             "SELECT id, run_id, created_by_client, created_at FROM "
@@ -208,7 +179,6 @@ def list_report_shares(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
-    """List active grants without exposing bearer tokens."""
     with _use_conn(conn, db_path) as active:
         rows = active.execute(
             "SELECT id, run_id, created_by_client, created_at FROM "
@@ -227,7 +197,6 @@ def revoke_report_share(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> bool:
-    """Revoke one grant only when its creator still owns the run."""
     with _use_conn(conn, db_path) as active:
         changed = active.execute(
             "UPDATE report_shares SET revoked_at=? WHERE id=? AND run_id=? "

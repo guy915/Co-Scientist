@@ -1,5 +1,3 @@
-"""Control-plane lifecycle operations over the durable task queue."""
-
 from __future__ import annotations
 
 import dataclasses
@@ -24,7 +22,6 @@ def complete_task(
     *,
     db_path: str | None = None,
 ) -> bool:
-    """Complete a currently owned lease exactly once."""
     now = _now()
     with transaction(db_path) as conn:
         changed = conn.execute(
@@ -50,7 +47,6 @@ def renew_task_lease(
     *,
     db_path: str | None = None,
 ) -> bool:
-    """Extend an owned lease so long scientific work cannot be redelivered."""
     if lease_seconds <= 0:
         raise ValueError("lease_seconds must be positive")
     now = _now()
@@ -63,15 +59,12 @@ def renew_task_lease(
     return bool(changed)
 
 
-# The largest max_attempts any caller in this codebase configures is 3
-# (the NewTask default; notifications.py's own retry task uses it too).
-# Capped well above that for headroom against a future caller raising its
-# own budget, while still bounding this column's size on a hot table.
+# Bound history above configured retry ceilings while keeping the hot task
+# column finite.
 _MAX_STORED_ATTEMPTS = 10
 
-# A traceback-carrying error can be arbitrarily large, and this column is
-# decoded on every task read -- cap per-attempt storage the same way
-# store/events.py caps its own free-text fields.
+# Tracebacks can be arbitrarily large and are decoded on every task read; bound
+# each stored attempt.
 _ATTEMPT_ERROR_MAX_CHARS = 2000
 
 
@@ -82,18 +75,8 @@ def _record_failed_attempt(
     retryable: bool,
     now: float,
 ) -> str:
-    """Append this attempt's failure to the task's bounded history.
-
-    ``task.attempt_started_at`` is set once per lease, at claim time
-    (``_try_lease_task``) -- deliberately not ``task.updated_at``, which
-    a long attempt's heartbeat renewal (``renew_task_lease``) also bumps,
-    and would otherwise report only the most recent renewal as the
-    attempt's start for exactly the slow failures this history exists to
-    diagnose.
-
-    Returns:
-        The updated ``attempts_json`` value, capped at
-        :data:`_MAX_STORED_ATTEMPTS` entries, newest last.
+    """Lease claim time is stable; heartbeat-updated timestamps would hide
+    the duration of slow failed attempts.
     """
     record = {
         "attempt": task.attempt,
@@ -115,15 +98,8 @@ def _persist_failed_attempt(
     retryable: bool,
     retry_at: float | None = None,
 ) -> str:
-    """Record one failed attempt and write the resulting task state.
-
-    Computes retry eligibility, appends the attempt to the bounded
-    history, and writes both in the caller's own transaction (never
-    opens one of its own), so a caller that rolls back afterwards --
-    e.g. because settlement raises -- undoes this write too.
-
-    Returns:
-        The resulting task status, ``"queued"`` or ``"failed"``.
+    """Join the caller's transaction so a failed settlement also rolls back
+    the attempt and retry-state write.
     """
     now = _now()
     retry_left = retryable and task.attempt < task.max_attempts
@@ -148,35 +124,20 @@ def _persist_failed_attempt(
     return status
 
 
-# The liveness invariant shared by the advisory probes and the claim's
-# rescue UPDATE: an expired lease with retry budget left is claimable
-# again. One fragment, interpolated everywhere it applies, so a probe can
-# never say "no work" while the claim's rescue would have found some.
-# Binds one parameter: the current time.
+# Share the rescue predicate with advisory probes so liveness checks cannot
+# disagree with what a claim can recover.
 _EXPIRED_LEASE_RESCUABLE = (
     "status='leased' AND lease_expires_at<=? AND attempt<max_attempts"
 )
 
-# A queued row is only actually claimable once its not-before instant has
-# passed (see store.tasks_lifecycle.park_task_for_rate_limit); NULL is
-# every ordinarily-enqueued row, claimable immediately as it always was.
-# Binds one parameter: the current time.
+# Ordinary queued rows have NULL availability and are immediately due; parked
+# rows carry their not-before instant.
 _QUEUED_AND_DUE = (
     "status='queued' AND (available_at IS NULL OR available_at<=?)"
 )
 
-# The complement of the fragment above, and the reason it needs a name: an
-# expired lease whose retry budget is *spent* is claimable by nobody and
-# owned by nobody. The worker that took it is provably gone (the lease
-# outlived it), so no ``fail_task`` call is ever coming, and the rescue
-# UPDATE skips it by design. Left untreated the row sits ``leased``
-# forever, which counted as live work to both the cohort's idle tick and
-# ``_settle_run_out_of_work`` -- so the cohort never exited and the run
-# never settled, the exact "non-terminal with no claimable work" state
-# ``F1`` was meant to make impossible. Call it dead, not active:
-# ``abandon_dead_leases`` fails such rows explicitly and settles the run.
-# A NULL expiry is not dead -- it is a lease that was never given a
-# deadline, not one that outlived its owner.
+# Spent expired leases cannot be reclaimed or acknowledged and must not count as
+# live work; NULL expiry is not proof of abandonment.
 _DEAD_LEASE = (
     "status='leased' AND lease_expires_at IS NOT NULL "
     "AND lease_expires_at<=? AND attempt>=max_attempts"
@@ -184,19 +145,8 @@ _DEAD_LEASE = (
 
 
 def _has_claimable_task(run_id: str | None, db_path: str | None) -> bool:
-    """Return whether a claim attempt could plausibly find work.
-
-    Read-only and advisory. Every worker in every run's cohort polls for
-    work several times a second, and opening a write transaction just to
-    discover the queue is empty turned an idle cohort into a write-lock
-    storm: hundreds of no-op BEGIN IMMEDIATEs a second against a database
-    with a single writer, changing no rows. The database looked idle while
-    ordinary API writes exhausted their 30-second busy timeout and run
-    creation returned 500. In WAL a reader takes no write lock, so asking
-    first costs nothing and the common answer is "no".
-
-    The claim itself re-checks everything under the write lock, so a race
-    here only risks a wasted attempt, never a double lease.
+    """Read-only polling avoids empty BEGIN IMMEDIATE storms; claim rechecks
+    under the writer lock, so advisory races cannot double-lease.
     """
     now = _now()
     query = (
@@ -224,24 +174,8 @@ def has_task_of_type(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> bool:
-    """Return whether the run has a task of this type prefix and status.
-
-    Read-only. With no supplied connection it opens no write transaction;
-    callers may also join an existing transaction for an atomic decision.
-
-    The prefix is compared literally, not as a LIKE pattern, so it matches
-    a caller's ``task_type.startswith(prefix)`` exactly -- LIKE would treat
-    ``_`` as a wildcard and match case-insensitively.
-
-    Args:
-        run_id: Identifier of the run whose tasks to probe.
-        type_prefix: Literal prefix the task type must start with.
-        status: Optional queue status the task must also be in.
-        db_path: Optional override for the SQLite database path.
-        conn: Optional transaction to join.
-
-    Returns:
-        True if the run has at least one matching task.
+    """Literal prefixes match startswith semantics; SQL LIKE would wildcard
+    underscores and ignore case.
     """
     query = (
         "SELECT 1 FROM scientific_tasks WHERE run_id=?"
@@ -257,8 +191,8 @@ def has_task_of_type(
 
 _ACTIVE_RUN_STATUSES = ("queued", "running", "synthesizing")
 
-# Pausing a run stops engine workflow tasks while leaving independent work,
-# such as a completion notification, eligible for the general task queue.
+# Run pause stops engine work without withholding independent completion
+# notifications.
 _ENGINE_RUN_STATUS_GUARD = (
     "(substr(task_type,1,7)<>'engine.' OR NOT EXISTS "
     "(SELECT 1 FROM runs WHERE runs.id=scientific_tasks.run_id "
@@ -268,22 +202,6 @@ _ENGINE_RUN_STATUS_GUARD = (
 
 @dataclasses.dataclass(frozen=True)
 class QueueHealthSnapshot:
-    """Read-only ``/health`` snapshot of durable-queue health.
-
-    Attributes:
-        stalled_run_ids: Non-terminal runs with no queued task, no
-            unexpired lease, and no rescuable expired lease -- nothing a
-            fresh claim or a live worker cohort could pick up. See
-            :func:`queue_health_snapshot` for why this is a real gap.
-        queued_depth: Total queued tasks across active runs. Informational
-            only: a busy system is supposed to have some, so this never by
-            itself marks the check unhealthy.
-        rescuable_leases: Expired leases with retry budget left, which the
-            next ``claim_task`` call rescues automatically.
-        failed_tasks: Terminally failed tasks belonging to a run that still
-            has other active work and so has not settled yet.
-    """
-
     stalled_run_ids: tuple[str, ...]
     queued_depth: int
     rescuable_leases: int
@@ -293,7 +211,6 @@ class QueueHealthSnapshot:
 def _summarize_queue_rows(
     rows: list[sqlite3.Row],
 ) -> QueueHealthSnapshot:
-    """Fold per-run aggregate rows into one queue health snapshot."""
     stalled: list[str] = []
     queued_depth = 0
     rescuable_leases = 0
@@ -315,33 +232,8 @@ def _summarize_queue_rows(
 def queue_health_snapshot(
     db_path: str | None = None,
 ) -> QueueHealthSnapshot:
-    """Summarize durable-queue health across active runs for ``/health``.
-
-    One read-only aggregate query, grouped per active run -- no write
-    transaction, so it is as safe to run on every health poll as
-    :func:`_has_claimable_task`. A run counts as stalled when it has no
-    queued task, no lease with time left on it, and no expired lease still
-    within its retry budget: nothing a worker cohort or a fresh claim
-    could ever pick up.
-
-    This used to describe a gap the F1 fix
-    (``app.store.runs_views._settle_run_out_of_work``) left open: it
-    only settles a run when ``fail_task`` explicitly marks a task
-    ``failed``, and a lease that expires *after* its retry budget is spent
-    is never explicitly failed -- nobody still holds it to call
-    ``fail_task`` -- so the row stayed ``leased`` forever, counted as
-    active work to ``_settle_run_out_of_work``'s own query, and left the
-    run ``running`` with no worker that would ever touch it again.
-    ``tasks_lifecycle.abandon_dead_leases`` closes it: the cohort now
-    reaches idle-exit over such a row (see ``cohort_poll``) and fails it
-    there. This probe stays as the independent check that it worked --
-    a stalled run reported here is now a bug rather than a known state.
-
-    Args:
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        The snapshot described above.
+    """A stalled run has no queued, live or rescuable work; this independent
+    read-only probe detects broken settlement.
     """
     now = _now()
     placeholders = ",".join("?" for _ in _ACTIVE_RUN_STATUSES)
@@ -365,31 +257,8 @@ def queue_health_snapshot(
 def cohort_poll(
     run_id: str, db_path: str | None = None
 ) -> tuple[bool, bool, float | None]:
-    """One idle-tick snapshot: (claimable, active lease, parked-until).
-
-    The cohort's idle loop needs all three answers every tick -- "is there
-    work to claim", "is a sibling still holding a lease that may fan out
-    more", and "is the only remaining work a rate-limit park that will
-    become claimable later". Asking them separately opened extra
-    connections per tick per worker, sustained for the whole wall clock of
-    every run; one read-only connection answers all three from a single
-    consistent snapshot.
-
-    A *dead* lease (see ``_DEAD_LEASE``) is excluded from the active
-    answer. It is not a sibling that may fan out more work: its owner is
-    provably gone and its retry budget is spent, so nothing will ever
-    acknowledge it. Counting it as active kept every cohort member
-    polling for the life of the process over a task none of them could
-    ever claim -- the run neither progressed nor ended. Excluding it lets
-    the cohort reach idle-exit, which is where ``abandon_dead_leases``
-    settles the run.
-
-    A row parked by ``park_task_for_rate_limit`` is neither claimable (its
-    ``available_at`` is still in the future) nor an active lease (it was
-    released back to ``queued``), so without the third answer the cohort
-    reads it as no work at all and exits -- exactly the stranding this was
-    built to avoid. ``parked_until`` is the soonest such row's not-before
-    instant, so the idle loop knows how long it may safely sleep.
+    """One read snapshot avoids repeated idle connections; future-due queued
+    work keeps the cohort alive, while spent dead leases cannot.
     """
     query = (
         "SELECT"
@@ -430,7 +299,6 @@ def _stop_run_after_unknown_provider_outcome(
     task_type: str,
     failure: TaskFailure,
 ) -> None:
-    """Revoke sibling work and publish one terminal unknown-outcome event."""
     cancel_run_tasks(run_id, conn=conn)
     from app.store.runs_views import _settle_run_for_failed_task
 
@@ -439,17 +307,8 @@ def _stop_run_after_unknown_provider_outcome(
     )
 
 
-# A campaign run's policy is persisted at creation and never weakens, and
-# under it every provider request must pass the exact zero-price gate
-# (``co_scientist.llm.admission.free_policy.enforce_free_request``) or it is
-# refused before transport. So a lease such a run lost cannot have spent
-# anything, provided no caller credential rode along -- the same evidence
-# ``LLMTimeoutError.zero_cost_admitted`` carries for a live timeout. Those
-# leases are left to the ordinary expired-lease rescue, which retries them
-# within the task's attempt budget. Failing them instead stopped a healthy
-# campaign run after a restart (run 34b29088, 2026-09-27: the verification
-# item's lease outlived the process that held it, and the run failed with
-# llm_timeout_unknown although every call it could have made was free).
+# Persisted campaign policy proves zero-price admission only without caller
+# credentials; those expired leases may safely use ordinary rescue.
 _PROVABLY_FREE_RUN = (
     "runs.execution_policy='campaign' AND NOT EXISTS "
     "(SELECT 1 FROM run_credentials WHERE run_credentials.run_id=runs.id)"
@@ -459,7 +318,6 @@ _PROVABLY_FREE_RUN = (
 def _ambiguous_expired_engine_leases(
     conn: sqlite3.Connection, now: float
 ) -> list[sqlite3.Row]:
-    """Read active engine leases whose original request outcome is unknown."""
     return conn.execute(
         "SELECT * FROM scientific_tasks WHERE status='leased' "
         "AND lease_expires_at IS NOT NULL AND lease_expires_at<=? "
@@ -478,7 +336,6 @@ def _fail_ambiguous_engine_lease(
     failure: TaskFailure,
     now: float,
 ) -> bool:
-    """Fail one expired lease and stop its run in the caller's transaction."""
     attempts_json = _record_failed_attempt(
         task,
         task.lease_owner or "unknown-worker",
@@ -501,7 +358,6 @@ def _fail_ambiguous_engine_lease(
 
 
 def _fail_ambiguous_expired_leases(conn: sqlite3.Connection, now: float) -> int:
-    """Fail each active run's first expired engine lease, transactionally."""
     failure = TaskFailure(UNKNOWN_PROVIDER_OUTCOME_ERROR, "llm_timeout_unknown")
     failed_runs: set[str] = set()
     failed_count = 0
@@ -516,23 +372,9 @@ def _fail_ambiguous_expired_leases(conn: sqlite3.Connection, now: float) -> int:
 
 
 def clamp_task_priority(priority: int) -> int:
-    """Bound a Supervisor-proposed priority to its declared JSON range.
-
-    The Supervisor's allocation schema promises 0-100 for both the next
-    task's priority and each queued reprioritization
-    (``supervisor_decision.py``'s ``_DECISION_SCHEMA``), but structured-
-    output enforcement is not guaranteed by every provider, so every write
-    path re-bounds the value defensively instead of trusting it. This is
-    not a property of the ``scientific_tasks.priority`` column itself --
-    ``notifications.py`` deliberately enqueues completion-email tasks at
-    priority -100, outside this range, to sink beneath all Supervisor-
-    scheduled work.
-
-    Args:
-        priority: The proposed priority, from Supervisor JSON output.
-
-    Returns:
-        The priority clamped to [0, 100].
+    """Provider schema enforcement is not universal; clamp Supervisor
+    priorities only, leaving independent low-priority notifications
+    unchanged.
     """
     return max(0, min(100, priority))
 
@@ -545,7 +387,6 @@ def reprioritize_task(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> bool:
-    """Change one queued task's claim priority and record Supervisor reason."""
     bounded = clamp_task_priority(priority)
     with _use_conn(conn, db_path) as active:
         row = active.execute(
@@ -572,7 +413,6 @@ def cancel_task(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> bool:
-    """Cancel one not-yet-leased task without disturbing unrelated work."""
     now = _now()
     with _use_conn(conn, db_path) as active:
         changed = active.execute(
@@ -591,7 +431,6 @@ def retry_task(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> bool:
-    """Requeue one failed task with one explicit additional attempt."""
     now = _now()
     with _use_conn(conn, db_path) as active:
         row = active.execute(
@@ -618,7 +457,6 @@ def cancel_run_tasks(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> int:
-    """Revoke every queued, leased, or paused task for a cancelled run."""
     now = _now()
     with _use_conn(conn, db_path) as active:
         changed = active.execute(
@@ -637,7 +475,6 @@ def pause_run_tasks(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> int:
-    """Make queued work non-claimable, joining a caller transaction if given."""
     now = _now()
     with _use_conn(conn, db_path) as active:
         changed = active.execute(
@@ -655,33 +492,9 @@ def park_task(
     *,
     db_path: str | None = None,
 ) -> bool:
-    """Park one leased task as paused work awaiting an external release.
-
-    The waiting half of the durable queue. A task that stops because a
-    person has to decide something has neither failed (retrying cannot
-    supply the decision) nor succeeded (its work is not done), and
-    recording it as either strands the run: a succeeded row can never be
-    revived -- ``revive_task_for_retry`` deliberately refuses it -- and the
-    ``{task_type}:{checkpoint_seq}`` idempotency key cannot change while
-    the run makes no progress, so re-enqueueing the boundary hits ON
-    CONFLICT DO NOTHING and creates nothing to claim. Parking leaves the
-    row exactly where ``resume_run_tasks`` finds it.
-
-    The attempt counter is reset for the reason
-    :func:`revive_task_for_retry` records: release is a fresh operator
-    intent, not a continuation of a retry sequence. Spending the budget on
-    holds instead would strand a run held more than twice at exactly the
-    silent dead end this function exists to prevent, and the loop is
-    bounded by how often a person adjudicates rather than by the worker.
-
-    Args:
-        task_id: The leased task to park.
-        worker_id: Identity that must still own the lease.
-        reason: Human-readable reason recorded on the row.
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        True when this worker still owned the lease and parked the task.
+    """Human holds are neither completion nor failed retries; reset their
+    attempts so repeated adjudications cannot strand the same idempotent
+    boundary.
     """
     now = _now()
     with transaction(db_path) as conn:
@@ -702,35 +515,8 @@ def park_task_for_rate_limit(
     *,
     db_path: str | None = None,
 ) -> bool:
-    """Return a leased task to the queue, not claimable before resume_at.
-
-    Distinct from :func:`park_task`: that function is the *held-for-a-
-    person* wait (a safety hold), which resets the attempt counter because
-    release is a fresh operator intent, and leaves the row ``paused`` until
-    someone explicitly calls :func:`resume_run_tasks`. This is the
-    *waiting-for-a-clock* case -- an ``LLMRateLimitParkError`` from a
-    platform-wide rate-limit cap -- so the row stays ``queued`` (the run
-    keeps reading as making progress, and the ordinary cohort poll picks it
-    back up on its own once ``available_at`` passes, needing no operator
-    action) and the attempt this claim spent is undone rather than reset,
-    since a park is not a retry and must not consume one -- undoing the
-    increment ``_try_lease_task`` made at claim leaves the count exactly
-    where it was before this attempt.
-
-    The park is also recorded in the bounded attempt history
-    (``retryable=True``) via the same builder ``fail_task`` uses, so
-    ``GET /api/runs/{id}/tasks`` shows why the task is waiting.
-
-    Args:
-        task_id: The leased task to park.
-        worker_id: Identity that must still own the lease.
-        reason: Human-readable reason recorded on the row and in its
-            attempt history.
-        resume_at: Epoch seconds before which the row must not be claimed.
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        True when this worker still owned the lease and parked the task.
+    """Clock waits release the lease without spending an attempt; keep work
+    queued so the cohort resumes it without operator action.
     """
     now = _now()
     with transaction(db_path) as conn:
@@ -762,10 +548,8 @@ def resume_run_tasks(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> int:
-    """Return paused queued work to the global ready queue.
-
-    A caller may pass its existing write transaction to make unpausing
-    atomic with the subsequent resume-work discovery and enqueue.
+    """Join lifecycle admission's transaction so unpause and continuation
+    discovery cannot race another resume.
     """
     now = _now()
     with _use_conn(conn, db_path) as active:
@@ -777,24 +561,17 @@ def resume_run_tasks(
     return int(changed)
 
 
-# Only these. A succeeded task must never be revived -- rerunning it would
-# redo work the run already committed -- and queued/paused tasks are either
-# runnable already or owned by the paths above. A leased task is revivable
-# too, but only once its lease has expired: see the query below.
+# Never revive succeeded work or a live lease: either would repeat an already
+# committed or still executing boundary.
 _REVIVABLE_TASK_STATUSES = ("failed", "cancelled")
 
 
 def _revive_task_row(
     conn: sqlite3.Connection, run_id: str, idempotency_key: str, now: float
 ) -> int:
-    """Revive one terminally-dead or lease-expired task; return rows changed.
-
-    Engine attempt numbers also fence stale workers, so keep their sequence
-    monotonic. Preserve the original retry ceiling and extend it by at most
-    one when already exhausted; each owner recovery therefore authorizes no
-    more than one extra attempt. An unexpired lease is left strictly alone:
-    its owner may still be working, and reviving it would run the boundary
-    twice at once.
+    """Engine attempts fence stale workers and stay monotonic; owner
+    recovery extends an exhausted ceiling by at most one, never reviving
+    live leases.
     """
     placeholders = ",".join("?" * len(_REVIVABLE_TASK_STATUSES))
     return conn.execute(
@@ -819,31 +596,8 @@ def revive_task_for_retry(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> bool:
-    """Return one terminally-dead task to the queue with a fresh budget.
-
-    Enqueueing is idempotent on ``(run_id, idempotency_key)``, which is what a
-    resume needs when a boundary is merely already queued -- but it also meant
-    a boundary whose task had *died* could never be retried: the insert hit
-    ON CONFLICT DO NOTHING, so the resume enqueued nothing and the worker had
-    nothing to claim. The run then announced that it was resuming and sat
-    silent forever. Neither existing recovery path reaches such a task:
-    ``resume_run_tasks`` only requeues ``paused``, and ``claim_task``'s
-    expired-lease rescue skips tasks whose attempts are spent.
-
-    The attempt counter is reset because a resume is a fresh intent rather
-    than a continuation of the old retry sequence -- the earlier attempts may
-    have been spent on a condition since repaired (a full disk, a dead
-    provider). Resumes are operator- or startup-initiated, so this is bounded
-    by how often they happen rather than by the worker's own retry loop.
-
-    Args:
-        run_id: The run whose task should be revived.
-        idempotency_key: Key identifying the task within the run.
-        db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to join an existing transaction.
-
-    Returns:
-        True if a dead task was revived, False if there was nothing to revive.
+    """Idempotent enqueue cannot resurrect a dead boundary; explicit
+    recovery authorizes fresh work without replaying completed tasks.
     """
     now = _now()
     with _use_conn(conn, db_path) as active:
@@ -860,12 +614,8 @@ _DEAD_LEASE_ERROR = (
 def _fail_dead_lease_rows(
     conn: sqlite3.Connection, run_id: str, now: float
 ) -> list[str]:
-    """Mark this run's dead leases failed; return their task types.
-
-    Ordinary failure runs through ``fail_task``, which requires the
-    worker to still own the lease and call it. A dead lease is precisely
-    the case where that never happens, so the transition is made here
-    instead -- to the same ``failed`` status, with an error saying why.
+    """An expired owner cannot call fail_task; exhausted abandoned leases
+    need an explicit terminal transition.
     """
     rows = conn.execute(
         f"SELECT id, task_type FROM scientific_tasks WHERE run_id=? "
@@ -888,27 +638,8 @@ def abandon_dead_leases(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> int:
-    """Fail leases whose owner is gone and whose retries are spent.
-
-    The missing half of ``F1``. ``fail_task`` settles a run when a task
-    dies past its retry budget, but it can only run if someone still
-    holds the lease to call it. When a worker dies holding a lease whose
-    attempts are already spent, nobody calls it and ``claim_task``'s
-    rescue skips the row by design -- so it stayed ``leased`` forever,
-    blocked ``_settle_run_out_of_work`` (which treats any lease as live
-    work), and left the run running with nothing that could advance it.
-
-    Called once when a cohort reaches idle-exit, never on a poll tick:
-    it opens a write transaction, and the single SQLite writer cannot
-    afford one of those per tick per worker.
-
-    Args:
-        run_id: Run whose dead leases should be abandoned.
-        db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to join an existing transaction.
-
-    Returns:
-        The number of dead leases failed.
+    """Settle spent orphaned leases once at cohort idle exit, never by
+    taking the SQLite write lock on every poll tick.
     """
     from app.store.runs_views import _settle_run_for_failed_task
 

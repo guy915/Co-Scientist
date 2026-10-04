@@ -1,5 +1,3 @@
-"""Owner-scoped receipts for idempotent run creation."""
-
 from __future__ import annotations
 
 import re
@@ -17,8 +15,6 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class RunCreationReceipt:
-    """A stored request digest and its current owner-checked run, if present."""
-
     request_digest: str
     run: RunRow | None
 
@@ -31,7 +27,6 @@ _IDEMPOTENCY_KEY = re.compile(r"[A-Za-z0-9._~-]{1,128}")
 
 
 def valid_run_creation_key(key: str) -> bool:
-    """Whether a key matches the run-creation contract's ASCII token set."""
     return _IDEMPOTENCY_KEY.fullmatch(key) is not None
 
 
@@ -42,7 +37,9 @@ def lookup_run_creation_receipt(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> RunCreationReceipt | None:
-    """Find one receipt without exposing a run owned by another client."""
+    """Owner-check the current run even when a stored receipt exists;
+    ownership changes must not expose its data.
+    """
     with _use_conn(conn, db_path) as active:
         receipt = active.execute(
             "SELECT request_digest, run_id FROM run_creation_receipts "
@@ -70,7 +67,6 @@ def add_run_creation_receipt(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
-    """Record a new receipt, normally on the run-creation transaction."""
     with _use_conn(conn, db_path) as active:
         active.execute(
             "INSERT INTO run_creation_receipts "
@@ -86,7 +82,6 @@ def _recheck_receipt_and_documents(
     idempotency_key: str | None,
     staged_documents: list[dict[str, object]],
 ) -> tuple[list[dict[str, object]], RunCreationReceipt | None]:
-    """Recheck the concurrent receipt and staged ownership under the lock."""
     from app.store.documents import get_staged_documents
 
     if idempotency_key is not None:
@@ -111,7 +106,9 @@ def commit_run_creation(
     create_run: Callable[[sqlite3.Connection], RunRow],
     attachment_source: str,
 ) -> tuple[RunRow | None, RunCreationReceipt | None]:
-    """Atomically write a run's setup, or return a concurrent receipt."""
+    """Recheck receipt and staged ownership under the same writer lock as
+    setup, credentials and attachment persistence.
+    """
     from app import credentials
     from app.store.db import transaction
     from app.store.documents import index_staged_documents_for_run

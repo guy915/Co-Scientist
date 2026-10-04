@@ -1,10 +1,3 @@
-"""Evidence, citations, reviews, tournament matches and safety records.
-
-Each helper accepts a database override and, where applicable, a caller's
-transaction connection. Hypothesis lineage and evidence provenance remain
-separate from the mutable tournament state.
-"""
-
 from __future__ import annotations
 
 import json
@@ -18,41 +11,11 @@ from app.citations import CitationState
 from app.claims.gate import DEFAULT_CLAIM_ROLE
 from app.store.db import _list_by_run, _now, _use_conn, connect
 
-# ---------------------------------------------------------------------------
-# Evidence / citations
-# ---------------------------------------------------------------------------
-
 
 @dataclass(frozen=True)
 class NewEvidence:
-    """One evidence row to insert, mirroring the evidence table.
-
-    ``source`` names where the evidence came from (e.g. 'pubmed', 'arxiv',
-    or 'mock') and ``available`` records whether its full text is
-    available. The next five fields are upload/extraction provenance for
-    attached documents: the original media type, content digest (immutable
-    document identity), upload size in bytes, version label for
-    extraction/cache provenance, and the extractor (with version) that
-    produced the text. ``doi``/``pmid`` are canonical identifiers, when the
-    source has them, and ``retrieved_at`` is when the article was retrieved
-    -- distinct from the row's ``created_at`` insert stamp. ``passage_text``
-    is not a constructor field: it is always materialized from ``title`` +
-    ``abstract`` at insert time, so it is exactly the text a claim-evidence
-    span's offsets index, never a value a caller could pass out of sync
-    with the row it describes. ``retrieval_score``/``retrieval_rationale``/
-    ``retriever_version`` are the persisted hybrid-retrieval provenance
-    (see ``search_support.py``'s scorer): the combined lexical+semantic
-    score, the semantic pass's stated reason, and the method/version that
-    produced both. ``retrieval_call_id`` names the search that found this
-    row (``retrieval_calls.id``); None is a real state rather than a gap
-    -- an uploaded document and a directly fetched corpus paper have no
-    query behind them. ``retracted`` is reported alongside ``available``
-    rather than folded into it -- a retracted source still persists as
-    unavailable, unchanged, but a reader is told which one it was (see
-    ``engine_adapter.drain.evidence_resolution.ResolvedArticle``).
-    ``source_type`` is what kind of source it is (peer-reviewed, preprint,
-    database record, web page, attached document), classified from the
-    metadata at drain time; it is reported to a reader and gates nothing.
+    """Passage offsets index insert-time title plus abstract; direct corpus
+    fetches and uploads legitimately have no retrieval call.
     """
 
     run_id: str
@@ -80,10 +43,8 @@ class NewEvidence:
 
 
 def _evidence_passage_text(f: NewEvidence) -> str:
-    """Materialize the exact passage a claim-evidence span indexes.
-
-    Mirrors ``app.claims.grounding.evidence_passages``' text formula so the
-    stored column and the text a span was located in never drift apart.
+    """Match the grounding passage formula exactly so persisted span offsets
+    never drift from their evidence text.
     """
     return " ".join(str(part or "") for part in (f.title, f.abstract)).strip()
 
@@ -94,16 +55,6 @@ def add_evidence(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> str:
-    """Insert an evidence row and return its generated id.
-
-    Args:
-        evidence: The evidence row to insert (see :class:`NewEvidence`).
-        db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to reuse (e.g. from ``transaction``).
-
-    Returns:
-        The identifier assigned to the new evidence row.
-    """
     ev_id = str(uuid.uuid4())
     values = _record_columns(evidence, {"authors": "authors_json"})
     values.update(
@@ -123,19 +74,8 @@ def list_evidence(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
-    """Return a run's evidence rows ordered by creation time.
-
-    Args:
-        run_id: Identifier of the run whose evidence to list.
-        db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to reuse (e.g. from ``transaction``).
-
-    Returns:
-        A list of evidence dicts with decoded authors and available/
-        retracted fields. ``retracted`` reads back False for a row
-        persisted before that column existed (NULL), the same as a row
-        that was never flagged -- an old run has no way to know, so it
-        renders exactly as it did before this column existed.
+    """Legacy NULL retraction markers read as false, preserving what older
+    runs could know.
     """
     rows = _list_by_run(
         "evidence", run_id, db_path, conn, json_fields=("authors",)
@@ -148,12 +88,6 @@ def list_evidence(
 
 @dataclass(frozen=True)
 class NewCitation:
-    """One classified claim-to-evidence citation link to insert.
-
-    ``state`` is the classification of how the cited evidence relates to
-    the claim it was attached to.
-    """
-
     run_id: str
     hypothesis_id: str
     evidence_id: str
@@ -167,13 +101,6 @@ def add_citation(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
-    """Insert a classified claim-to-evidence citation link.
-
-    Args:
-        citation: The citation link to insert (see :class:`NewCitation`).
-        db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to reuse (e.g. from ``transaction``).
-    """
     values = _record_columns(citation)
     values["state"] = citation.state.value
     _insert_record("citations", values, db_path, conn)
@@ -184,23 +111,13 @@ def list_citations(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
-    """Return a run's citation rows ordered by creation time."""
     return _list_by_run("citations", run_id, db_path, conn)
 
 
 @dataclass(frozen=True)
 class NewClaimEvidence:
-    """One claim-level entailment edge of the claim-evidence graph.
-
-    ``label`` is the entailment verdict (an ``EntailmentLabel`` value) and
-    ``claim_role`` marks a categorical finding versus a visibly speculative
-    proposal (a ``ClaimRole`` value); ``app.claims.gate`` says what each
-    means to a reader. ``supporting``/``contradicting`` are
-    the spans for/against the claim -- JSON-serializable provenance
-    objects (``{evidence_id, quote, start, end, source, url}``; legacy
-    rows stored bare passage strings). ``assessor`` is the provenance id
-    of the entailment assessor. ``verification_method`` records the decision
-    path without upgrading its scientific authority; old rows remain unknown.
+    """Legacy spans may be plain strings; verification provenance never
+    upgrades scientific authority, and absent provenance stays unknown.
     """
 
     run_id: str
@@ -220,14 +137,6 @@ def add_claim_evidence(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
-    """Insert one claim-level entailment edge for the claim-evidence graph.
-
-    Args:
-        edge: The entailment edge to insert (see
-            :class:`NewClaimEvidence`).
-        db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to reuse (e.g. from ``transaction``).
-    """
     values = _record_columns(
         edge,
         {
@@ -247,7 +156,6 @@ def list_claim_evidence(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
-    """Return a run's claim-evidence edges with passage lists decoded."""
     return _list_by_run(
         "claim_evidence",
         run_id,
@@ -257,23 +165,10 @@ def list_claim_evidence(
     )
 
 
-# ---------------------------------------------------------------------------
-# Reviews
-# ---------------------------------------------------------------------------
-
-
 @dataclass(frozen=True)
 class NewReview:
-    """One reviewer's assessment of a hypothesis, mirroring the row.
-
-    ``reviewer_agent`` names the agent that produced the review (e.g.
-    'reflection'); the four reviewer-assigned scores are optional.
-    ``author`` and ``verdict`` carry a scientist reviewer's identity and
-    categorical judgement as their own columns, so neither has to be
-    recovered by reading the summary prose; both stay empty for an agent
-    review. ``detail_json`` carries one review type's own structured
-    fields beyond summary/critique (e.g. the simulation review's failure
-    points), display-only -- see ``drain.reviews._review_detail_json``.
+    """Structured review detail is display-only; scientist authorship and
+    verdict must not be inferred from summary prose.
     """
 
     run_id: str
@@ -296,13 +191,6 @@ def add_review(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
-    """Insert a reviewer's assessment of a hypothesis.
-
-    Args:
-        review: The review row to insert (see :class:`NewReview`).
-        db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to reuse (e.g. from ``transaction``).
-    """
     _insert_record("reviews", _record_columns(review), db_path, conn)
 
 
@@ -311,7 +199,6 @@ def list_reviews(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
-    """Return a run's review rows ordered by creation time."""
     return _list_by_run("reviews", run_id, db_path, conn)
 
 
@@ -320,11 +207,8 @@ def review_exists(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> bool:
-    """Return whether a review row is still stored under this id.
-
-    Review ids are AUTOINCREMENT, so a deleted row's id is never handed to a
-    later review; a scientist review carried in engine state can therefore
-    ask by id whether its own row survived the run's resets.
+    """AUTOINCREMENT never reuses deleted review IDs, so carried scientist
+    reviews can safely test whether their own row survived reset.
     """
     with _use_conn(conn, db_path) as conn:
         row = conn.execute(
@@ -335,14 +219,8 @@ def review_exists(
 
 @dataclass(frozen=True)
 class NewMatch:
-    """One pairwise tournament match row to insert.
-
-    Carries the winner's and loser's Elo before/after the match, the
-    judge's rationale for why the winner prevailed, the decisiveness
-    ``tier`` (upset|decisive|clear|narrow), the debate depth in turns
-    (1 = single-turn comparison, >1 = multi-turn scientific debate), and
-    the turn-by-turn debate transcript as a JSON document (None when the
-    judge recorded no turns -- see ``_migrate_match_debate_transcript``).
+    """Absent transcripts mean the judge recorded no turns; legacy depth one
+    represents a single comparison.
     """
 
     run_id: str
@@ -365,13 +243,6 @@ def add_match(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
-    """Record the outcome of a pairwise tournament match.
-
-    Args:
-        match: The match outcome to insert (see :class:`NewMatch`).
-        db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to reuse (e.g. from ``transaction``).
-    """
     values = _record_columns(
         match,
         {
@@ -388,20 +259,11 @@ def list_matches(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
-    """Return a run's tournament match rows ordered by creation time."""
     return _list_by_run("matches", run_id, db_path, conn)
 
 
 @dataclass(frozen=True)
 class NewProximityEdge:
-    """One explainable proximity edge between two stored hypotheses.
-
-    ``similarity`` is the weight of the edge and ``degree`` its coarse
-    label; ``cluster_id`` groups near-duplicates. ``method``, ``version``,
-    and ``model`` record which dedup pass produced the edge, and
-    ``updated_at`` is the provider's own timestamp for it.
-    """
-
     run_id: str
     source_hypothesis_id: str
     target_hypothesis_id: str
@@ -420,14 +282,6 @@ def add_proximity_edge(
     conn: sqlite3.Connection | None = None,
     db_path: str | None = None,
 ) -> None:
-    """Persist one explainable proximity edge between stored hypotheses.
-
-    Args:
-        edge: The proximity edge to insert (see
-            :class:`NewProximityEdge`).
-        conn: Optional open connection to reuse (e.g. from ``transaction``).
-        db_path: Optional override for the SQLite database path.
-    """
     _insert_record("proximity_edges", _record_columns(edge), db_path, conn)
 
 
@@ -436,20 +290,11 @@ def list_proximity_edges(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
-    """Return a run's weighted proximity landscape edges."""
     return _list_by_run("proximity_edges", run_id, db_path, conn)
 
 
 @dataclass(frozen=True)
 class NewSafetyDecision:
-    """One safety-gate decision to record, mirroring the row.
-
-    ``stage`` is the gate that ran ('intake', 'hypothesis', or 'final'),
-    ``decision`` its verdict, and ``matches`` the policy patterns that
-    fired. ``requires_review`` marks a decision a human must adjudicate,
-    and ``assessor`` is the provenance id of whatever produced it.
-    """
-
     run_id: str
     stage: str
     decision: str
@@ -468,14 +313,6 @@ def add_safety_decision(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
-    """Record a safety-gate decision.
-
-    Args:
-        decision: The decision to record (see
-            :class:`NewSafetyDecision`).
-        db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to reuse (e.g. from ``transaction``).
-    """
     values = _record_columns(
         decision,
         {"matches": "matches_json", "risk_domains": "risk_domains_json"},
@@ -502,7 +339,6 @@ _NewRecord = (
 def _record_columns(
     record: _NewRecord, aliases: dict[str, str] | None = None
 ) -> dict[str, Any]:
-    """Read the declared row fields without copying iterable payloads."""
     aliases = aliases or {}
     return {
         aliases.get(field.name, field.name): getattr(record, field.name)
@@ -516,7 +352,6 @@ def _insert_record(
     db_path: str | None,
     conn: sqlite3.Connection | None,
 ) -> None:
-    """Insert an internally declared row on the caller's transaction."""
     with _use_conn(conn, db_path) as active:
         values["created_at"] = _now()
         columns = ", ".join(values)
@@ -530,7 +365,6 @@ def _insert_record(
 def list_safety_decisions(
     run_id: str, db_path: str | None = None
 ) -> list[dict[str, Any]]:
-    """Return a run's safety decisions with the matches list decoded."""
     rows = _list_by_run(
         "safety_decisions",
         run_id,
@@ -548,12 +382,8 @@ def count_unresolved_review_decisions(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> int:
-    """Count a run's safety decisions still awaiting human review.
-
-    Seeks the run's rows via ``idx_safety_run(run_id, created_at)`` and
-    counts in SQL rather than decoding every row's JSON columns the way
-    ``list_safety_decisions`` does -- this runs on the ``GET /runs/{id}``
-    hot path, so it stays a single indexed COUNT rather than a full listing.
+    """This run-detail hot path needs one indexed count, not full safety-row
+    JSON decoding.
     """
     with _use_conn(conn, db_path) as conn:
         row = conn.execute(
@@ -571,7 +401,6 @@ def resolve_safety_decision(
     resolved_by: str,
     db_path: str | None = None,
 ) -> bool:
-    """Resolve one held/redacted safety decision exactly once."""
     if resolution not in {"approved", "rejected"}:
         raise ValueError("resolution must be approved or rejected")
     with connect(db_path) as conn:
@@ -590,7 +419,6 @@ def safety_stage_is_approved(
     policy_version: str,
     db_path: str | None = None,
 ) -> bool:
-    """Return whether a reviewer approved the latest matching policy stage."""
     with connect(db_path) as conn:
         row = conn.execute(
             "SELECT resolution FROM safety_decisions WHERE run_id=? AND "

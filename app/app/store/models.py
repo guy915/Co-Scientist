@@ -1,5 +1,3 @@
-"""Row dataclasses, run-status enum, and sqlite3.Row decoding helpers."""
-
 from __future__ import annotations
 
 import dataclasses
@@ -21,12 +19,9 @@ class RunStatus(str, enum.Enum):
     CANCELLED = "cancelled"
     FAILED = "failed"
     BLOCKED = "blocked"
-    # Cooperatively paused mid-run (Milestone 4); resumable from its last
-    # checkpoint. Not terminal — a paused run can be resumed or cancelled.
     PAUSED = "paused"
 
 
-# Statuses that mark a run as finished; reaching one sets `completed_at`.
 TERMINAL_STATUSES: tuple[RunStatus, ...] = (
     RunStatus.COMPLETED,
     RunStatus.FAILED,
@@ -34,15 +29,11 @@ TERMINAL_STATUSES: tuple[RunStatus, ...] = (
     RunStatus.CANCELLED,
 )
 
-# Client identifier for the seeded demo runs newcomers can browse. Owns the
-# single source of truth for the sentinel; app.seed and app.runs import it.
 DEMO_CLIENT_ID = "__demo__"
 
 
 @dataclass
 class RunRow:
-    """Represents a single run row from the runs table."""
-
     id: str
     research_goal: str
     profile: str
@@ -55,43 +46,28 @@ class RunRow:
     completed_at: float | None
     error: str | None
     execution_policy: str = "standard"
-    # Short model-generated session heading, distinct from research_goal.
-    # None until a background generator fills it in (surfaces fall back to a
-    # clause of the goal); also None for runs created before this existed.
     title: str | None = None
-    # Highest Elo across the run's hypotheses. Populated by ``list_runs`` (via a
-    # single aggregate query) so list surfaces avoid fetching every hypothesis;
-    # None on single-run reads and runs with no hypotheses yet.
+    # List queries populate aggregate Elo; single-run reads and runs without
+    # hypotheses retain None.
     top_elo: int | None = None
-    # Titles of the run's top hypotheses by Elo (capped), populated by
-    # ``list_runs`` so home surfaces show real winning ideas without fetching
-    # every hypothesis. None on single-run reads; ``[]`` for a listed run with
-    # no hypotheses yet.
+    # An empty listed hypothesis set is []; None denotes a single-run read
+    # without this enrichment.
     top_hypotheses: list[str] | None = None
-    # Type of the run's most recent pipeline-stage event (e.g. ``generate``,
-    # ``ranking``), populated by ``list_runs`` to drive the live progress
-    # indicator. None on single-run reads and runs with no stage events yet.
     latest_stage: str | None = None
-    # LLM backend the run executed against: "offline" (deterministic router)
-    # or "real". None on rows created before the column existed; the
-    # ``run_used_offline`` helper falls back to the provider for those.
+    # Legacy backend NULL falls back to provider provenance, never current
+    # process configuration.
     llm_backend: str | None = None
-    # Freshly synthesized narrative restatement of the goal in different
-    # words (GOAL-RESTATEMENT-001), rendered at the head of the report's
-    # top-hypotheses section. None until a background generator fills it,
-    # None on offline/keyless runs and on rows predating the column. Kept off
-    # ``to_dict`` on purpose: it is a report-only artifact consumed via the
-    # RunRow, and a paragraph of prose has no place in every run-list payload.
+    # Restatement is report-only and omitted from run-list JSON; legacy and
+    # offline rows legitimately leave it NULL.
     goal_restatement: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize the row to the JSON shape the API returns to clients."""
         return {
             "id": self.id,
             "research_goal": self.research_goal,
             "title": self.title,
-            # run_mode and profile are duplicate keys: run_mode is the newer
-            # name, profile is retained for clients still reading the old key.
+            # Keep profile alongside run_mode for clients still reading the
+            # legacy key.
             "run_mode": self.profile,
             "profile": self.profile,
             "status": self.status,
@@ -112,16 +88,8 @@ class RunRow:
 
 @dataclass
 class MessageRow:
-    """Represents a single message row from the messages table.
-
-    ``applied_at``/``applied_decision`` are set together, only for a
-    steering message and only once (``mark_steering_applied``): when the
-    orchestrator's own commit acknowledges it, ``applied_decision`` carries
-    that commit's ``next_task`` (e.g. "generate"), giving the "how it
-    changed the plan" record HITL-STEERING-001 asks for directly on the
-    message rather than requiring a reader to correlate it against the
-    event stream by timestamp. Both stay None for a message never applied,
-    or applied before this column existed.
+    """Legacy rows can lack acknowledgement fields; applied_decision records
+    the scheduling consequence without event-time correlation.
     """
 
     id: int
@@ -136,12 +104,10 @@ class MessageRow:
     applied_decision: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize the row to the JSON shape the API returns to clients."""
         return dataclasses.asdict(self)
 
 
 def _row_to_run(row: sqlite3.Row) -> RunRow:
-    """Build a RunRow from a runs table row, tolerating a missing top_elo."""
     keys = row.keys()
     return RunRow(
         id=row["id"],
@@ -170,7 +136,6 @@ def _row_to_run(row: sqlite3.Row) -> RunRow:
 
 
 def _parse_message_meta(row: sqlite3.Row) -> dict[str, Any] | None:
-    """Decode the optional meta_json column into a dict."""
     raw = row["meta_json"]
     if not raw:
         return None
@@ -182,7 +147,6 @@ def _parse_message_meta(row: sqlite3.Row) -> dict[str, Any] | None:
 
 
 def _row_to_message(row: sqlite3.Row) -> MessageRow:
-    """Build a MessageRow from a messages table row, tolerating older rows."""
     keys = row.keys()
     return MessageRow(
         id=row["id"],
@@ -208,16 +172,12 @@ UNKNOWN_PROVIDER_OUTCOME_ERROR = (
 
 @dataclasses.dataclass(frozen=True)
 class TaskFailure:
-    """Raw task failure plus an optional exact provider failure kind."""
-
     error: str
     failure_kind: str | None = None
 
 
 @dataclasses.dataclass(frozen=True)
 class ScientificTask:
-    """One durable unit of specialist work."""
-
     id: str
     run_id: str
     task_type: str
@@ -238,19 +198,14 @@ class ScientificTask:
     updated_at: float
     started_at: float | None
     completed_at: float | None
-    # Bounded history of failed attempts only -- see _record_failed_attempt.
-    # A row written before attempts_json existed reads back as (), the
-    # only state such a row could represent.
+    # Rows predating attempt history decode as the empty sequence, not a
+    # fabricated failure.
     attempts: tuple[dict[str, Any], ...] = ()
-    # When the current lease's attempt was claimed; see schema.py.
     attempt_started_at: float | None = None
-    # Not-before instant (epoch seconds) for an otherwise-queued row; see
-    # schema.py. NULL for every ordinarily-enqueued row.
     available_at: float | None = None
 
 
 def _decode(row: sqlite3.Row) -> ScientificTask:
-    """Decode a SQLite task row into its typed representation."""
     return ScientificTask(
         id=str(row["id"]),
         run_id=str(row["run_id"]),

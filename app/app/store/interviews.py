@@ -1,5 +1,3 @@
-"""Durable Agent-interview sessions and append-only transcript turns."""
-
 from __future__ import annotations
 
 import json
@@ -19,26 +17,14 @@ def create_interview(
     execution_policy: str = "standard",
     db_path: str | None = None,
 ) -> dict[str, Any]:
-    """Create an active interview seeded with the scientist's challenge.
-
-    Args:
-        client_id: The owning client.
-        challenge: The scientist's opening research challenge.
-        execution_policy: Server-derived execution policy for this interview.
-        db_path: Optional database override.
-
-    Returns:
-        The created interview row.
-    """
     interview_id = str(uuid.uuid4())
     now = _now()
     fields: dict[str, Any] = {
         "research_challenge": challenge.strip(),
         "focus_area": [],
         "preferences": [],
-        # K5: lab constraints are elicited during the interview; the empty
-        # list is the "none declared" state and threads to the engine as
-        # "no constraints" (the prompts render unchanged).
+        # Empty lab constraints mean none declared and must not change the
+        # unconstrained prompts.
         "lab_constraints": [],
         "title": None,
     }
@@ -62,9 +48,6 @@ def create_interview(
             "created_at) VALUES (?,?,?,?)",
             (interview_id, "user", challenge.strip(), now),
         )
-        # Read back on the same connection: the write is already committed
-        # (the store connects in autocommit), so opening a second one only
-        # bought another connect/pragma round trip.
         result = get_interview(interview_id, conn=conn)
     assert result is not None
     return result
@@ -76,7 +59,6 @@ def get_interview(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> dict[str, Any] | None:
-    """Return one interview with its decoded fields and full transcript."""
     with _use_conn(conn, db_path) as active:
         row = active.execute(
             "SELECT * FROM interviews WHERE id=?", (interview_id,)
@@ -91,21 +73,13 @@ def get_interview(
         ).fetchall()
     result = dict(row)
     result["fields"] = json.loads(result.pop("fields_json"))
-    # Normalize the stored 0/1 into a JSON boolean so every payload the
-    # frontend reads (interview GET, streamed turn frames) carries a real
-    # true/false marker.
     result["turns"] = [_decoded_turn(turn) for turn in turns]
     return result
 
 
 def _decoded_turn(turn: sqlite3.Row) -> dict[str, Any]:
-    """Render one stored turn as the payload every client reads.
-
-    The stored 0/1 fallback marker becomes a real JSON boolean, and the
-    questions column becomes a list -- empty rather than null, so the
-    frontend maps over it without a null branch. Both the interview GET and
-    the streamed turn's closing frame go through here, so the two can never
-    describe the same turn differently.
+    """GET and streamed closing frames share normalization so the same turn
+    cannot have conflicting wire representations.
     """
     row = dict(turn)
     raw = row.pop("questions_json", None)
@@ -119,12 +93,8 @@ def _decoded_turn(turn: sqlite3.Row) -> dict[str, Any]:
 def _interview_run_ids(
     conn: sqlite3.Connection, client_id: str
 ) -> dict[str, str]:
-    """Map interview id to the run started from it, for one client.
-
-    The link lives in the run's config blob (``config["interview_id"]``,
-    written by ``app.runs.crud``), so it is resolved in Python rather than
-    with json_extract -- one client's runs are a handful of rows, and this
-    keeps the listing free of a JSON1 build dependency.
+    """Resolve config links in Python to avoid a JSON1 build dependency;
+    each client has few runs.
     """
     rows = conn.execute(
         "SELECT id, config_json FROM runs WHERE client_id=? "
@@ -149,12 +119,8 @@ def run_id_for_interview(
     *,
     db_path: str | None = None,
 ) -> str | None:
-    """Return the run started from one interview, or None.
-
-    Kept out of ``get_interview`` deliberately: that reader is on the
-    per-turn and engine-adapter paths, and the link costs a scan of the
-    client's runs (see ``_interview_run_ids``). Only the chat-reopening
-    endpoint needs the answer, and it asks once.
+    """Only chat reopening needs this scan; per-turn readers must not pay
+    its cost.
     """
     if not client_id:
         return None
@@ -163,7 +129,6 @@ def run_id_for_interview(
 
 
 def _chat_summary(row: sqlite3.Row, run_id: str | None) -> dict[str, Any]:
-    """Build one chat-list entry from an interview row and its run link."""
     fields = json.loads(row["fields_json"])
     return {
         "id": row["id"],
@@ -182,17 +147,6 @@ def list_interviews(
     limit: int = 200,
     db_path: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Return one client's chats, newest first, without their transcripts.
-
-    Args:
-        client_id: The owning client; rows are never returned across clients.
-        limit: Maximum chats returned.
-        db_path: Optional database override.
-
-    Returns:
-        Chat summaries carrying the run each chat started, when it started
-        one, so the sidebar can link a chat through to its run.
-    """
     with connect(db_path) as conn:
         rows = conn.execute(
             "SELECT id, status, fields_json, created_at, updated_at "
@@ -206,22 +160,8 @@ def list_interviews(
 
 @dataclass(frozen=True)
 class NewInterviewTurn:
-    """One turn to append to an interview transcript.
-
-    Attributes:
-        role: ``user`` or ``agent``.
-        content: The turn's visible text.
-        reasoning: The Agent's chain of thought for this turn, when the
-            model emitted one. Stored so a resumed chat replays the thinking
-            it showed and the next turn is derived from it.
-        fallback: True when the deterministic recovery path authored this
-            Agent turn because no model could be reached. Persisted per
-            turn so the UI can signal exactly which turns are scripted;
-            always False for user turns.
-        questions: The structured multiple-choice questions this Agent turn
-            offered the scientist, if any. Persisted with the turn that
-            asked them so a reopened chat re-offers the pending one rather
-            than showing a question with no way to answer it.
+    """Persist reasoning, fallback provenance and offered questions so
+    reopened chats retain the same context and pending answer.
     """
 
     role: str
@@ -238,14 +178,6 @@ def append_interview_turn(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
-    """Append one immutable interview turn.
-
-    Args:
-        interview_id: The interview the turn belongs to.
-        turn: The role, text, reasoning, and fallback provenance to record.
-        db_path: Optional database override.
-        conn: Optional open connection to reuse.
-    """
     now = _now()
     with _use_conn(conn, db_path) as active:
         active.execute(
@@ -273,26 +205,8 @@ def rewind_interview(
     *,
     db_path: str | None = None,
 ) -> int:
-    """Discard one turn and every turn after it.
-
-    The transcript is otherwise append-only, and stays so for the ordinary
-    path: this exists for the two places a scientist revises the
-    conversation itself rather than adding to it -- editing an earlier
-    prompt, and retrying an answer. Both mean "the conversation did not go
-    this way", so the turns downstream of the edited one were derived from
-    something that no longer exists and cannot be kept.
-
-    The interview's own status is left to the caller, which re-derives the
-    four fields from what remains (see ``interviews._reset_derivation``).
-
-    Args:
-        interview_id: The interview to rewind.
-        turn_id: The first turn to discard; it goes too.
-        db_path: Optional database override.
-
-    Returns:
-        How many turns were discarded; zero when the turn did not belong to
-        this interview.
+    """Edits and retries invalidate downstream derivations; callers
+    reconstruct interview fields from the retained transcript.
     """
     now = _now()
     with connect(db_path) as conn:
@@ -316,7 +230,6 @@ def update_interview(
     completed: bool = False,
     db_path: str | None = None,
 ) -> None:
-    """Persist the latest structured derivation and interview state."""
     now = _now()
     status = "completed" if completed else "active"
     with connect(db_path) as conn:
@@ -337,26 +250,8 @@ def update_interview(
 def delete_interview(
     interview_id: str, *, db_path: str | None = None
 ) -> dict[str, int]:
-    """Permanently delete a chat and its transcript.
-
-    ``interview_turns`` declares ``ON DELETE CASCADE`` against this table
-    and foreign keys are enforced on every connection this store hands out
-    (see ``app.store.db._open_raw_connection``), so deleting the interview
-    row is enough to take the transcript with it.
-
-    ``staged_documents`` deliberately carries no foreign key -- a document
-    is staged before any interview or run exists (see
-    ``app.store.documents``) -- so a deleted chat's reference is cleared
-    explicitly rather than left dangling. The document itself survives: it
-    may be the caller's only copy, it is deletable on its own, and a chat
-    that was carried into a run left that run holding the same document.
-
-    Args:
-        interview_id: Identifier of the chat to delete.
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        Table name -> rows removed, so a caller can prove the cascade ran.
+    """Transcript rows cascade; staged documents lack an interview FK and
+    must be detached without deleting the scientist's copy.
     """
     with connect(db_path) as conn:
         turns = conn.execute(
