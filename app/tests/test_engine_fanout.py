@@ -758,7 +758,7 @@ def test_a_failed_recheck_item_still_records_its_attempt(
     )
 
     assert applied.failed == 1
-    assert hypothesis.enrichments["recurrent_review"]["verdict"] == "unreviewed"
+    assert hypothesis.enrichments["recurrent"]["verdict"] == "unreviewed"
     assert _mature_reflection_specs(_state([hypothesis])) == []
 
 
