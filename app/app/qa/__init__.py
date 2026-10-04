@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import AsyncGenerator, AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any
@@ -15,8 +16,10 @@ from app.config import (
     settings,
     thinking_safe_max_tokens,
 )
+from app.diagnostic_events import log_chat_turn
 from app.execution_policy import scoped_execution_policy
 from app.llm_scope import budgeted_stream, stream_chunks
+from app.logging_setup import run_log_context
 from app.qa import artifacts as qa_artifacts
 from app.qa.manifest import QaRunContext as QaRunContext
 from app.qa.manifest import _tokenize
@@ -107,8 +110,10 @@ def _tool_result_messages(
     ideas: list[dict[str, Any]],
     artifacts: dict[str, list[Any]] | None = None,
 ) -> list[dict[str, Any]]:
-    return [
-        {
+    messages = []
+    for call in calls:
+        started = time.perf_counter()
+        message = {
             "role": "tool",
             "tool_call_id": call["id"],
             "name": call["name"],
@@ -121,8 +126,14 @@ def _tool_result_messages(
                 else qa_ideas.run_tool_call(call, ideas)
             ),
         }
-        for call in calls
-    ]
+        logger.info(
+            "tool_call name=%s result_chars=%d duration_seconds=%.3f",
+            call["name"],
+            len(message["content"]),
+            time.perf_counter() - started,
+        )
+        messages.append(message)
+    return messages
 
 
 @budgeted_stream("qa")
@@ -310,6 +321,7 @@ async def _framed_answer(
     """Emit sources before prose so live citations resolve; persist the exact
     emitted transcript before done for immediate reloads.
     """
+    started = time.perf_counter()
     if manifest:
         yield sse_frame({"type": "sources", "sources": manifest})
     full: list[str] = []
@@ -318,6 +330,12 @@ async def _framed_answer(
         (reasoning if kind == "reasoning" else full).append(fragment)
         yield sse_frame({"type": kind, "content": fragment})
     _persist_qa_answer(run_id, full, reasoning, manifest, question_id)
+    log_chat_turn(
+        "agent",
+        "".join(full),
+        run_id=run_id,
+        duration_seconds=time.perf_counter() - started,
+    )
     yield sse_frame({"type": "done", "question_id": question_id})
 
 
@@ -415,6 +433,7 @@ async def stream_answer(
                 execution_policy, campaign_model_name=campaign_model_name
             ),
             credentials.scoped_byok(byok),
+            run_log_context(run_id),
         ):
             deltas = stream_llm_deltas(
                 settings.effective_chat_model,

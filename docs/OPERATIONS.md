@@ -290,3 +290,40 @@ dispatch path also returns that result without model calls. Scientific checkpoin
 and ordinary task dependencies remain intact for recovery; no retired call replays.
 A run reactivated solely for refinement returns to completed when its published
 report survives and no ordinary work is pending.
+
+## Feedback and operational diagnostics
+
+`POST /api/feedback` requires the caller's usual owner identity (a researcher
+session in required auth mode). It accepts the five fixed categories, a trimmed
+message (8,000 characters), session diagnostic export (100,000 characters), URL
+(2,048 characters) and optional reported run ID (128 characters). The run ID is
+context only: it never grants access to that run or fetches its artifacts. Owned
+feedback is included in the caller's account export.
+
+Maintainers read `GET /api/feedback/admin?limit=50&offset=0` with
+`X-Logs-Token: <LOGS_ADMIN_TOKEN>`. Set the existing token on the API deployment.
+An unset or incorrect token always denies access, including localhost and
+forwarded requests; this route does not require a separate researcher session.
+This implementation uses the admin store rather than SMTP delivery.
+
+The SQLite store keeps the newest 200 submissions within a 10 MiB UTF-8 payload
+budget. Reads hide records older than 30 days; submissions prune them physically.
+Admission limits are 5 per owner, 20 per connecting host and 100 globally per
+rolling minute, retained independently of row eviction and process restarts.
+Excess requests receive HTTP 429 with `Retry-After: 60`. The connecting host is
+hashed for admission checks and is not returned with submissions.
+
+Feedback silently uses the existing tab-session anchor and diagnostic exporter
+(preamble, session details, statistics and records), including operational INFO
+records hidden by the Logs panel's default noise filter. It keeps the newest
+loaded records within the attachment limit; a failed log fetch produces an
+explicit diagnostic-unavailable record so the message can still be submitted.
+The Logs pill, panel and default filtering stay unchanged.
+
+New metadata captures chat roles, character counts and response durations, tool
+names and execution durations/outcomes, failed-fetch method/path/status (without
+query strings or payloads), modal opens, and engine-stage execution spans
+(including failure and cancellation). Provider retries are INFO and escalations
+retain their existing WARNING level. Chat text and tool arguments/results are
+not added to these metadata records. Existing ten-minute duplicate suppression
+and the WARNING floor for per-call HTTP dependency chatter still apply.

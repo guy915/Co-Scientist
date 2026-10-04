@@ -353,7 +353,7 @@ class _AttemptRun(Generic[R, T]):
     def _announce(self, number: int) -> None:
         if number == 1 or self._plan.is_escalation_only:
             return
-        logger.debug(
+        logger.info(
             "retrying llm call (attempt %s/%s)",
             number,
             self._plan.max_attempts,

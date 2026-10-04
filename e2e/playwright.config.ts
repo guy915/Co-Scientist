@@ -4,6 +4,7 @@ import {
   API_URL,
   APP_DIR,
   E2E_AUTH_SECRET,
+  E2E_LOGS_ADMIN_TOKEN,
   E2E_OTHER_RESEARCHER_ACCESS_CODE,
   E2E_RESEARCHER_ACCESS_CODE,
   E2E_RESEARCHER_ID,
@@ -38,6 +39,7 @@ const backendServer = {
     CLAIM_ASSESSOR: 'heuristic',
     EVIDENCE_RESOLVER: 'offline',
     SMTP_HOST: '',
+    LOGS_ADMIN_TOKEN: E2E_LOGS_ADMIN_TOKEN,
     // Fresh per-invocation stores must never touch developer data or inherit
     // earlier runs.
     COSCIENTIST_DB_PATH: `${STATE_DIR}/coscientist.db`,
@@ -97,8 +99,6 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  projects: [
-    {name: 'chromium', use: {...devices['Desktop Chrome']}},
-  ],
+  projects: [{name: 'chromium', use: {...devices['Desktop Chrome']}}],
   webServer: [backendServer, frontendServer],
 });

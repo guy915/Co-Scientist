@@ -636,6 +636,32 @@ CREATE INDEX IF NOT EXISTS idx_retrieval_calls_run
 CREATE INDEX IF NOT EXISTS idx_retrieval_calls_question
     ON retrieval_calls(run_id, question_id);
 
+-- Feedback retention and admission history are separate: deleting an old
+-- submission must never reset a caller's rate budget.
+CREATE TABLE IF NOT EXISTS feedback (
+    id TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL,
+    category TEXT NOT NULL,
+    message TEXT NOT NULL,
+    diagnostics TEXT NOT NULL,
+    url TEXT NOT NULL,
+    run_id TEXT,
+    created_at REAL NOT NULL,
+    byte_size INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at, id);
+CREATE INDEX IF NOT EXISTS idx_feedback_owner
+    ON feedback(client_id, created_at);
+CREATE TABLE IF NOT EXISTS feedback_admissions (
+    client_id TEXT NOT NULL,
+    host_key TEXT NOT NULL,
+    created_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_feedback_admission_owner
+    ON feedback_admissions(client_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_feedback_admission_host
+    ON feedback_admissions(host_key, created_at);
+
 -- Persisted application log records captured from the Python root logger
 -- (see app/logging_setup.py). App-wide: run_id is NULL for records emitted
 -- outside any run context. Deliberately no FK to runs -- log history

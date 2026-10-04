@@ -7,7 +7,7 @@ from fastapi import APIRouter, Request
 
 from app.auth import require_client_scope
 from app.store import documents as store
-from app.store import interviews, reports
+from app.store import feedback, interviews, reports
 from app.store import runs_views as views
 from app.store.models import RunRow
 
@@ -71,4 +71,7 @@ async def export_account_data(request: Request) -> dict[str, Any]:
         "runs": runs,
         "documents": documents,
         "interviews": interviews.list_interviews(owner),
+        "feedback": feedback.list_feedback(
+            owner=owner, limit=feedback.MAX_ROWS
+        ),
     }

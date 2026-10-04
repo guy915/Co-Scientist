@@ -197,6 +197,7 @@ class _StoreWriteHandler(logging.Handler):
                     run_id=getattr(record, "run_id", None),
                     exc_text=record.exc_text,
                     created_at=record.created,
+                    client_id=getattr(record, "client_id", None),
                 )
             )
             self._writes += 1

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
 from typing import Any, NoReturn
@@ -51,6 +52,29 @@ from co_scientist.tool_effects import batch_by_effects
 logger = logging.getLogger(__name__)
 
 
+async def _execute_logged_tool(
+    call: Any, executor: Callable[[Any], Awaitable[dict[str, Any]]]
+) -> dict[str, Any]:
+    started = time.perf_counter()
+    name = str(getattr(getattr(call, "function", None), "name", "unknown"))[:80]
+    outcome = "returned"
+    try:
+        return await executor(call)
+    except asyncio.CancelledError:
+        outcome = "cancelled"
+        raise
+    except Exception:
+        outcome = "failed"
+        raise
+    finally:
+        logger.info(
+            "tool_call name=%s outcome=%s duration_seconds=%.3f",
+            name,
+            outcome,
+            time.perf_counter() - started,
+        )
+
+
 async def _execute_tool_calls(
     tool_calls: list[Any],
     tool_executor: Callable[[Any], Awaitable[dict[str, Any]]],
@@ -61,7 +85,9 @@ async def _execute_tool_calls(
     results: list[dict[str, Any]] = []
     for batch in batch_by_effects(tool_calls):
         results.extend(
-            await asyncio.gather(*[tool_executor(tc) for tc in batch])
+            await asyncio.gather(
+                *[_execute_logged_tool(tc, tool_executor) for tc in batch]
+            )
         )
     return results
 

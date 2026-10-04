@@ -96,6 +96,8 @@ Tables (SQLite, WAL):
 | Table | Append-only? | Notes |
 | --- | --- | --- |
 | `runs` | mutable status/error/timestamps | one row per run |
+| `feedback` | bounded | owner-scoped message plus session diagnostic export; newest 200 within 10 MiB, visible for 30 days |
+| `feedback_admissions` | bounded | durable rolling-minute owner/host/global admission budgets, independent of feedback eviction |
 | `run_events` | append-only | canonical event log; `(run_id, seq)` |
 | `hypotheses` | append-only | original rows never mutated; `parent_id` for lineage |
 | `hypothesis_state` | mutable | Elo, win/loss, scores, status, cluster_id — separated to preserve append-only invariant on `hypotheses` |

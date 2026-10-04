@@ -70,7 +70,7 @@ async def test_a_throttled_call_waits_a_growing_jittered_interval(
     assert 2.0 <= run.slept[1] <= 4.0
     assert run.throttled == 2
     assert run.retries == 2
-    assert len(run.retry_debug) == 2
+    assert run.retry_announcements == [("retry", "INFO")] * 2
     assert run.logged == WAITED_THEN_GAVE_UP
     assert len(set(run.max_tokens)) == 1, "a throttle does not change the rung"
     assert set(run.thinking) == {"enabled"}
@@ -88,6 +88,7 @@ async def test_a_throttled_call_recovers_after_one_wait(
     assert len(run.slept) == 1
     assert run.throttled == 1
     assert run.retries == 1
+    assert run.retry_announcements == [("retry", "INFO")]
     assert run.logged == [("failed", "WARNING"), ("waited", "WARNING")]
 
 
@@ -215,6 +216,7 @@ async def test_a_thinking_only_attempt_skips_to_thinking_off_and_recovers(
     assert run.thinking == ["enabled", "disabled"]
     assert run.slept == []
     assert run.retries == 1
+    assert run.retry_announcements == [("retry", "INFO")]
     assert run.logged == [("failed", "WARNING"), ("escalated", "WARNING")]
 
 
@@ -302,6 +304,7 @@ async def test_a_schema_failure_retries_at_once_with_feedback_on_the_same_rung(
     assert len(run.calls) == 2
     assert run.slept == []
     assert run.retries == 1
+    assert run.retry_announcements == [("retry", "INFO")]
     first, second = run.prompts
     assert SCHEMA_FEEDBACK not in first
     assert second.startswith("a prompt")
@@ -484,7 +487,7 @@ async def test_a_tool_turn_unretryable_failure_propagates_at_once(
     assert run.slept == []
     assert run.throttled == 0
     assert run.retries == 0
-    assert run.retry_debug == []
+    assert run.retry_announcements == []
     assert run.logged == (
         []
         if error_type is FreeModelEligibilityError
@@ -505,7 +508,7 @@ async def test_a_tool_turn_climbs_the_ladder_and_gives_up_at_the_top(
     assert last == raised
     assert run.slept == []
     assert run.retries == 2
-    assert len(run.retry_debug) == 2
+    assert run.retry_announcements == [("retry", "INFO")] * 2
     assert run.logged == [
         ("failed", "WARNING"),
         ("escalated", "WARNING"),
@@ -523,6 +526,7 @@ async def test_a_tool_turn_thinking_only_answer_skips_to_thinking_off(
     assert run.error is None
     assert run.thinking == ["enabled", "disabled"]
     assert run.retries == 1
+    assert run.retry_announcements == [("retry", "INFO")]
     assert run.logged == [("failed", "WARNING"), ("escalated", "WARNING")]
 
 
@@ -597,7 +601,7 @@ async def test_alternating_reasoning_failures_exhaust_the_tool_attempt_budget(
     assert run.slept == []
     assert run.throttled == 0
     assert run.retries == 2
-    assert len(run.retry_debug) == 2
+    assert run.retry_announcements == [("retry", "INFO")] * 2
     assert not any(kind == "park" for kind, _ in run.logged)
     assert run.logged[-1] == ("failed", "ERROR")
 
@@ -859,6 +863,7 @@ async def test_tool_turn_recovers_a_transient_failure(
     assert len(run.calls) == 2
     assert len(run.slept) == 1 and run.slept[0] > 0
     assert run.retries == 1
+    assert run.retry_announcements == [("retry", "INFO")]
     assert run.calls[0] == run.calls[1]
 
 

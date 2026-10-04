@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import AsyncGenerator
+from time import perf_counter
 from typing import Any
 
 from app import credentials, offline_guard
@@ -13,6 +14,7 @@ from app.config import (
     thinking_off_kwargs,
     thinking_safe_max_tokens,
 )
+from app.diagnostic_events import log_chat_turn
 from app.execution_policy import (
     CAMPAIGN,
     campaign_model_for_config,
@@ -129,11 +131,14 @@ def persist_prompt(run_id: str, prompt: str) -> MessageRow:
     """Persist the start request before streaming so it survives a reply
     that never lands.
     """
-    return store.append_message(
+    message = store.append_message(
         NewMessage(
             run_id=run_id, sender="user", content=prompt, kind=START_KIND
         )
     )
+
+    log_chat_turn("user", prompt, run_id=run_id)
+    return message
 
 
 def _persist_announcement(
@@ -216,6 +221,7 @@ async def stream_announcement(
     """The run already started; announcement failure must yield standby
     confirmation rather than imply scientific execution failed.
     """
+    started = perf_counter()
     prose: list[str] = []
     reasoning: list[str] = []
     try:
@@ -231,6 +237,9 @@ async def stream_announcement(
         text = FALLBACK_ANNOUNCEMENT
         yield sse_frame({"type": "chunk", "content": text})
     _persist_announcement(run.id, text, "".join(reasoning).strip(), fallback)
+    log_chat_turn(
+        "agent", text, run_id=run.id, duration_seconds=perf_counter() - started
+    )
     yield sse_frame(
         {"type": "done", "prompt_id": prompt_message_id, "fallback": fallback}
     )
