@@ -89,14 +89,6 @@ Completed runs have four report views:
 | Overview | Synthesized report with Markdown and JSON downloads |
 | Ideas | Ranked hypotheses, mechanisms, experimental designs, and lineage |
 
-The terminal client is available after setup:
-
-```bash
-.venv/bin/cosci runs create "Investigate a research mechanism" --tier express --start
-.venv/bin/cosci runs wait <run-id>
-.venv/bin/cosci runs report <run-id> --md
-```
-
 With no usable provider credential, or `COSCIENTIST_FORCE_OFFLINE=1`, runs use
 the offline backend. Check `/status` for `llm_backend` (`offline` or `real`).
 Offline runs exercise the pipeline and do not establish hypothesis quality.
@@ -120,7 +112,7 @@ remain explicit opt-in operations.
 
 | Path | Purpose |
 | --- | --- |
-| `app/` | FastAPI API, SQLite store, operator CLI, and React workbench |
+| `app/` | FastAPI API, SQLite store, and React workbench |
 | `engine/` | LangGraph hypothesis-generation engine and reference MCP server |
 | `evaluations/` | Offline evaluation tools and release gate |
 | `e2e/` | Playwright browser tests |

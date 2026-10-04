@@ -31,7 +31,7 @@ Each project is also independently installable and runnable.
 Per-project detail lives beside the code and loads when you touch that subtree. Read the one you are working in:
 
 - **[`engine/AGENTS.md`](engine/AGENTS.md)** — LangGraph agent graph, node→file map, LLM dispatch/bounds, MCP + web search, tool registry, prompts, style conventions, and the reference MCP server (`engine/mcp_server/`).
-- **[`app/AGENTS.md`](app/AGENTS.md)** — FastAPI backend and module map, durable task execution (the real run path), auth/ownership, persisted logs, key endpoints, the `cosci` CLI, the React frontend, and the Docker workflow.
+- **[`app/AGENTS.md`](app/AGENTS.md)** — FastAPI backend and module map, durable task execution (the real run path), auth/ownership, persisted logs, key endpoints, the React frontend, and the Docker workflow.
 
 ## Production hosting
 
