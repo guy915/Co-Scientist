@@ -13,6 +13,8 @@ for release validation.
 Tool turns use the standard bounded policy with at most three physical
 attempts per turn. Throttles and temporary outages use jittered backoff;
 platform quotas park the durable task, and retries are metered in telemetry.
+Use a longer wait schedule for outages: throttle delays can exhaust every
+attempt before a multi-minute provider outage clears.
 Timeouts, call-budget exhaustion, oversized prompts and failed free admission
 remain terminal. Retries stop before tool execution and never replay tools
 from completed turns. The mandatory-reasoning rung retains the tool request's
