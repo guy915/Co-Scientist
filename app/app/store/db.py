@@ -58,9 +58,18 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
             "CASE WHEN provider = 'mock' THEN 'offline' ELSE 'real' END"
         )
     _add_column_if_missing(conn, "reports", "markdown_text", "TEXT")
-    # Keep the nullable legacy overview column until verified production export
-    # and reset.
-    _add_column_if_missing(conn, "reports", "markdown_text_ranking", "TEXT")
+    # The verified reset makes file paths and split documents obsolete.
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(reports)")}
+    conn.execute("SAVEPOINT retire_report_columns")
+    try:
+        for column in ("markdown_path", "markdown_text_ranking"):
+            if column in columns:
+                conn.execute(f"ALTER TABLE reports DROP COLUMN {column}")
+    except sqlite3.Error:
+        conn.execute("ROLLBACK TO retire_report_columns")
+        raise
+    finally:
+        conn.execute("RELEASE retire_report_columns")
 
     _add_column_if_missing(
         conn,
