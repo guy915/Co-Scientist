@@ -42,7 +42,7 @@ describe('chat workspace home', () => {
       screen.getByRole('link', {
         name: /ferroptosis in pancreatic cancer cells/i,
       }),
-    ).toHaveAttribute('href', '/runs/demo-ferroptosis/details');
+    ).toHaveAttribute('href', '/examples/demo-ferroptosis');
   });
 
   it('points from the composer down to the landing page', async () => {

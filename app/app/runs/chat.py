@@ -15,7 +15,9 @@ from app import (
     run_start_announcement,
 )
 from app.api_contracts import MessagesResponse
+from app.api_contracts.interviews import Interview
 from app.api_contracts.runs import RunMessage
+from app.auth import require_client_scope
 from app.execution_policy import CAMPAIGN, campaign_model_for_config
 from app.qa import snapshot
 from app.runs.models import (
@@ -28,6 +30,7 @@ from app.runs.support import _require_run, _run_or_404
 from app.store import db, records
 from app.store import hypotheses as store_hypotheses
 from app.store import messages as store
+from app.store.examples import open_example_chat
 from app.store.messages import NewMessage
 from app.store.models import MessageRow, RunRow, RunStatus
 
@@ -272,3 +275,11 @@ async def announce_start(
         run_start_announcement.stream_announcement(run, prompt_msg.id, byok),
         media_type="text/event-stream",
     )
+
+
+@router.post("/{run_id}/example-chat", response_model=Interview)
+async def open_example(run_id: str, request: Request) -> dict[str, Any]:
+    try:
+        return open_example_chat(run_id, require_client_scope(request))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc

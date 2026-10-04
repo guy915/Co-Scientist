@@ -65,10 +65,11 @@ function planIntroText(intro?: string): string {
   );
 }
 
-function planInstructions(recoveryAction?: boolean): string {
+function planInstructions(recoveryAction?: boolean, locked?: boolean): string {
   if (recoveryAction) {
     return 'This research setup is saved as a draft. Continue research to start the same session.';
   }
+  if (locked) return 'This saved plan belongs to the research session below.';
   return 'Review the research setup and select a focus and run type. Once ready, click "Start research" to begin.';
 }
 
@@ -131,7 +132,7 @@ export function RunSpecCard(props: RunSpecCardProps) {
       attachment={
         <MessageAttachment>
           <p className={`reference-review-copy ${'m-0 text-base leading-6'}`}>
-            {planInstructions(props.recoveryAction)}
+            {planInstructions(props.recoveryAction, locked)}
           </p>
           <RecoveryLookupStatus
             status={props.recoveryLookupStatus}

@@ -718,7 +718,7 @@ _PROPOSALS: dict[str, tuple[DemoProposal, ...]] = {
 # ruff: noqa: E501
 
 
-DEMO_SEED_VERSION = 14
+DEMO_SEED_VERSION = 15
 
 
 def scenario_evidence(scenario: DemoScenario) -> tuple[DemoEvidence, ...]:

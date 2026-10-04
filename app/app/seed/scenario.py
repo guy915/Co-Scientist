@@ -20,6 +20,7 @@ from app.demo_seed_data import (
 )
 from app.report import ReportRequest, build_report_content
 from app.run_modes import PlanningLists
+from app.seed.chat import seed_example_chat
 from app.seed.overview import (
     _curated_meta_review,
     _curated_research_overview,
@@ -895,7 +896,7 @@ async def _seed_curated_scenario(
     run: RunRow, scenario: DemoScenario, db_path: str | None
 ) -> None:
     views.clear_run_derived_data(run.id, db_path=db_path)
-    runs.set_run_title(run.id, scenario.title, db_path=db_path)
+    runs.set_run_title(run.id, f"Example: {scenario.title}", db_path=db_path)
     seed = _CuratedSeed(
         run=run,
         scenario=scenario,
@@ -918,3 +919,4 @@ async def _seed_curated_scenario(
     )
     _emit_scenario_events(seed, counts, meta_review)
     _finalize_scenario_run(seed, counts)
+    seed_example_chat(run, scenario, db_path)

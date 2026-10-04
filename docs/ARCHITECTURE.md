@@ -123,6 +123,22 @@ What varies per run is the **LLM backend**, not the provider. `engine_adapter.of
 
 An offline-backed run still executes the real durable engine; `co_scientist.offline.llm.install_offline_router()` installs the engine's completion backend for `offline/`-prefixed models, which returns deterministic, schema-valid content instead of calling a real provider. The resolved backend (`"offline"` | `"real"`) is persisted per run as `llm_backend` and reported at `/status`; the deprecated `mock_mode` mirror of that value has since been removed from the API surface. A re-opened run remembers which backend produced it.
 
+## Curated example chats
+
+The three seeded examples include fixed scope conversations, completed plan
+cards, illustrative Q&A and their scientific results. Titles begin `Example: `.
+Desktop Recents and a mobile example strip open `/examples/:id`, which requests
+`POST /api/runs/{id}/example-chat` and navigates to the visitor's owned chat.
+
+`store/examples.py` copies the curated scientific records and transcript in one
+SQLite transaction, remapping identities and lineage. It reuses one copy per
+owner and source on later opens, preserving continued chat. No engine tasks,
+credentials, logs, share tokens or free-generation allowance are copied or
+consumed; the copy makes no provider or retrieval call. Existing researcher
+authentication still applies. Shared examples allow reads and this copy endpoint;
+other mutations return 403. Seed version 15 backfills the full conversations,
+with a readiness marker committed only after the curated bundle is complete.
+
 ## Run chat context
 
 Run Q&A reads a consistent SQLite snapshot without draining the engine or
