@@ -1,5 +1,3 @@
-"""Experiment identity regression tests."""
-
 from __future__ import annotations
 
 import copy
@@ -15,8 +13,6 @@ import pytest
 from evaluations import _run_driver, scaling_eval
 from evaluations._identity import identity_digest, validate_identity
 from evaluations.citation_usefulness_eval import run_deterministic
-
-# Identity.
 
 
 def test_identity_helpers_work_without_execution_imports() -> None:
@@ -63,9 +59,6 @@ def test_digest_preserves_order_independence_and_rejects_nonfinite_values() -> (
         validate_identity(sealed)
     with pytest.raises(ValueError, match="JSON compliant"):
         identity_digest({"version": 1, "value": float("nan")})
-
-
-# Comparison identity.
 
 
 def test_persisted_arm_freezes_inputs_and_model_policy(tmp_path: Path) -> None:
@@ -237,9 +230,6 @@ def test_worker_drift_cannot_produce_an_arm_result(
             {},
             _run_driver.ArmInvocation("comparison-test", "offline", db),
         )
-
-
-# Comparison groups.
 
 
 def _record(
@@ -416,9 +406,6 @@ def test_ablation_cli_matches_interventions_across_goals(
     else:
         with pytest.raises(ValueError, match="intervention"):
             scaling_eval.main()
-
-
-# Panel comparison.
 
 
 def _compare(

@@ -17,7 +17,6 @@ const MODEL_SYSTEM: InterviewQuestion = {
   ],
 };
 
-// One active interview whose opening Agent turn is waiting on a choice.
 function asking(questions: InterviewQuestion[]): Interview {
   return {
     id: 'interview-1',
@@ -57,12 +56,7 @@ function asking(questions: InterviewQuestion[]): Interview {
   };
 }
 
-/**
- * The live message composer -- once the chooser is on screen, its own
- * free-text "Something else" field is also a "textbox", so a lookup after
- * that point must tell the two apart by tag rather than assume there is
- * only one.
- */
+// The chooser adds another textbox; identify the composer by its element type.
 function getComposer(): HTMLElement {
   return screen.getAllByRole('textbox').find(el => el.tagName === 'TEXTAREA')!;
 }
@@ -85,8 +79,6 @@ beforeEach(() => {
 
 it('offers the turn answers inside the composer, above the input', async () => {
   const prompt = await askTheScientist();
-  // Inside the composer's own form, which is what makes it read as the
-  // input box expanding upward rather than as a card floating above it.
   expect(prompt.closest('form')).toBe(getComposer().closest('form'));
 });
 

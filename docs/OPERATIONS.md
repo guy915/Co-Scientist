@@ -180,3 +180,15 @@ Use the same match-debt quantity to size, open and close a settlement episode.
 Do not refill while debt persists; bound the episode by distinct pairs.
 Place the answer-deliverable instruction before an injected response schema;
 placing the same instruction afterward did not prevent empty thinking replies.
+
+## Search widening and scroll timing
+
+Keep PubMed automatic term mapping on exact/recency rungs; broader field-tagged
+queries retain leading subject anchors. Fully ORing a starved query can return
+huge unrelated corpora. Strip wildcard syntax on ordinary OpenAlex search
+(API 400s), and distinguish source refusal from successful empty retrieval.
+
+Programmatic scroll anchors do not establish user follow intent. ResizeObserver
+callbacks must defer writes to observed text to avoid loop errors; batch geometry
+reads and writes to avoid repeated layout flushes. Theme suppression lasts two
+animation frames.

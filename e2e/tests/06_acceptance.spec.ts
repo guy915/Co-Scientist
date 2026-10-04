@@ -2,10 +2,6 @@ import {DESKTOP_VIEWPORT, MOBILE_VIEWPORT, captureViewport, createCompletedRun, 
 import {type Page} from '@playwright/test';
 
 test.describe('visual acceptance', () => {
-// Each test sizes the page from one shared Viewport and hands that same
-// object to captureViewport, which asserts no horizontal overflow at its
-// width before taking the shot — so the sized width and the asserted width
-// are one value, not two that can drift.
 
 test('home renders at the required desktop viewport', async ({page}) => {
   await page.setViewportSize(DESKTOP_VIEWPORT);
@@ -17,8 +13,6 @@ test('home renders at the required desktop viewport', async ({page}) => {
     }),
   ).toBeVisible();
   await expect(page.locator('.reference-home-main')).toHaveCSS('opacity', '1');
-  // The workbench header surfaces the Logs popover; it is part of the
-  // faithful render.
   await expect(page.getByRole('button', {name: /Logs/i})).toBeVisible();
   await captureViewport(page, {
     ...DESKTOP_VIEWPORT,
@@ -76,7 +70,6 @@ test('Goal Report renders at the desktop viewport', async ({page, api}) => {
   await page.setViewportSize(DESKTOP_VIEWPORT);
   await page.goto(`/runs/${id}/ideas`);
 
-  // The completed Goal Report's Ideas surface renders the Elo-ranked list.
   await expect(
     page.getByRole('list', {name: /ranked hypothesis list/i}),
   ).toBeVisible();
@@ -97,7 +90,6 @@ test('Goal Report remains reachable at the required mobile viewport', async ({
   await page.setViewportSize(MOBILE_VIEWPORT);
   await page.goto(`/runs/${id}/ideas`);
 
-  // The completed Goal Report's Ideas surface renders the Elo-ranked list.
   await expect(
     page.getByRole('list', {name: /ranked hypothesis list/i}),
   ).toBeVisible();

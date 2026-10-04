@@ -17,8 +17,6 @@ describe('use is mobile', () => {
     fireChange(matches: boolean): void;
   }
 
-  // Builds a window.matchMedia stand-in that tracks one MediaQueryList per
-  // query string and lets tests fire 'change' events on it.
   function installFakeMatchMedia(initialMatches: Record<string, boolean> = {}) {
     const lists = new Map<string, FakeMediaQueryList>();
     function getOrCreate(query: string): FakeMediaQueryList {
@@ -127,7 +125,7 @@ describe('use is mobile', () => {
 });
 
 describe('use overflowing', () => {
-  // jsdom has no layout engine, so drive the two measurements the hook reads.
+  // jsdom has no layout engine; drive the hook's measurements explicitly.
   function stubGeometry(
     clientHeight: number,
     childTops: number[],
@@ -162,23 +160,20 @@ describe('use overflowing', () => {
 
   describe('useOverflowing', () => {
     it('reports no overflow when the children fit the box', () => {
-      // 3 children spanning 0..90 in a 100-tall box.
       stubGeometry(100, [0, 30, 60], 30);
       render(<Probe count={3} />);
       expect(screen.getByTestId('state')).toHaveTextContent('false');
     });
 
     it('reports overflow when the children outrun the box', () => {
-      // 5 children spanning 0..150 in a 100-tall box.
       stubGeometry(100, [0, 30, 60, 90, 120], 30);
       render(<Probe count={5} />);
       expect(screen.getByTestId('state')).toHaveTextContent('true');
     });
 
     it('ignores a hidden tooltip hanging past the last child', () => {
-      // The span of the children is what counts. scrollHeight would include the
-      // absolutely positioned tooltip below the last row and wrongly report a
-      // list that fits as overflowing -- which would clip the tooltip itself.
+      // scrollHeight includes absolute tooltips and can falsely classify a
+      // fitting list as overflowing.
       stubGeometry(100, [0, 30, 60], 30);
       Object.defineProperty(HTMLElement.prototype, 'scrollHeight', {
         configurable: true,
@@ -215,11 +210,8 @@ describe('use restore focus on close', () => {
     expect(document.activeElement).toBe(opener);
   });
 
-  // The real path in this app: the rail's Settings menu is a popover that
-  // unmounts as soon as the dialog it launched opens, so by the time the
-  // dialog closes the captured opener is a detached node. `.focus()` on one is
-  // a silent no-op, which left focus on `<body>` -- verified in a browser
-  // before this fix -- restarting tabbing from the top of the page.
+  // The opener can unmount behind a dialog; focusing a detached node silently
+  // does nothing.
   it('falls back to the nearest surviving ancestor when the opener is gone', () => {
     const rail = document.createElement('div');
     const popover = document.createElement('div');
@@ -230,7 +222,6 @@ describe('use restore focus on close', () => {
     menuItem.focus();
 
     const view = render(<Dialog />);
-    // The popover (and the menu item inside it) closes behind the dialog.
     popover.remove();
     view.unmount();
 

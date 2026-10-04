@@ -33,7 +33,6 @@ function setConnection(connection: typeof streamMock.state.connection) {
   streamMock.state = {...streamMock.state, connection};
 }
 
-// Render tests observe event refreshes immediately; data-hook tests cover timing.
 vi.mock('@/workbench/hooks/timers', async importOriginal => {
   const actual =
     await importOriginal<typeof import('@/workbench/hooks/timers')>();
@@ -59,18 +58,12 @@ vi.mock('@/api/runs', async importActual => {
   };
 });
 
-// The results chrome, asserted by its landmark rather than by any one tab
-// control so the assertion survives the tabs being links or buttons.
 const TAB_NAV = 'Goal report sections';
 
-// A fetch that never settles, standing in for the window between opening a
-// run and its row arriving.
 const pending = <T,>() => new Promise<T>(() => {});
 
-// The run-detail route element is mounted once for /runs/:id/:tab, so
-// switching runs is a param change rather than a remount. This harness
-// navigates the same way the sidebar does, in-router, so the test exercises
-// that reuse instead of hiding it behind a fresh render.
+// Run route parameter changes reuse the mounted component; the harness must
+// navigate likewise.
 function RunSwitcher({to}: {to: string}) {
   const navigate = useNavigate();
   return (
@@ -160,8 +153,6 @@ it('drops the previous run’s content when the route id changes', async () => {
   renderRunDetail('/runs/run-1/details', '/runs/run-2/details');
   expect(await screen.findByText('Run Specifications')).toBeInTheDocument();
 
-  // The second run's row has not arrived yet; run-1's report must not stand
-  // in for it in the meantime.
   vi.mocked(runsApi.getRun).mockImplementation(pending);
   await userEvent.click(screen.getByRole('button', {name: 'switch run'}));
 
@@ -177,23 +168,14 @@ it('shows no report chrome for a run the history reports as running', async () =
 
   renderRunDetail('/runs/run-1/details');
 
-  // The run row is still in flight, so the history list is the only signal
-  // that this run is executing -- and it is enough to keep the results tabs
-  // off the paint that used to flash them. (The settled-run case below is the
-  // counterpart proving the history is read at all, rather than the chrome
-  // merely waiting for the fetch.)
   await waitFor(() => expect(runsApi.loadRunHistory).toHaveBeenCalled());
   expect(screen.queryByRole('navigation', {name: TAB_NAV})).toBeNull();
   expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument();
 });
 
 it('never reports a settled state belonging to the previous run', async () => {
-  // The reset that clears the previous run runs in an effect, so it lands
-  // after the render that follows an id change. On that render the page used
-  // to still be told the run was loaded -- with the old run's row attached --
-  // which is one painted frame of the last run's report before the skeleton.
-  // Every render is inspected here because that frame is gone before any
-  // `waitFor` gets to look.
+  // Effect resets occur after rendering; inspect every render to catch
+  // stale-report frames.
   const renders: {id: string; loaded: boolean; runId?: string}[] = [];
   function Probe({id}: {id: string}) {
     const data = useRunDetailData(id);

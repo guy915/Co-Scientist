@@ -2,13 +2,9 @@ import {fireEvent, render, screen} from '@testing-library/react';
 import {expect, test} from 'vitest';
 import {ThoughtsDisclosure} from './chat_timeline_thoughts';
 
-// The dots are decorative and aria-hidden, so they are found by their class
-// rather than by role or text.
+// Decorative dots are aria-hidden, so query their class rather than their role.
 const DOTS = '.reference-thinking-dots';
 
-// The panel is a button plus a region rather than <details>/<summary>, so
-// that opening and closing can animate; `aria-expanded` is where the
-// disclosure state now reads from.
 function isOpen(container: HTMLElement): boolean {
   return (
     container.querySelector('button')?.getAttribute('aria-expanded') === 'true'
@@ -23,7 +19,6 @@ test('counts dots and stands open while the turn is still being written', () => 
   expect(container.querySelector(DOTS)).not.toBeNull();
   expect(isOpen(container)).toBe(true);
   expect(screen.getByText('Weighing two mechanisms.')).toBeInTheDocument();
-  // Real periods in the label's own type, not drawn circles.
   expect(container.querySelector(DOTS)?.textContent).toBe('...');
 });
 
@@ -33,8 +28,6 @@ test('lets the thinking run as plain text, uncapped and unquoted', () => {
   );
   const trail = container.querySelector('.reference-thoughts-trail');
 
-  // It is the Agent's own thinking, not a quotation, and a reader following
-  // a live turn should not have to scroll a box inside the scrolling page.
   expect(trail?.className).not.toMatch(/border-l|max-h-|overflow-y/);
 });
 
@@ -43,7 +36,6 @@ test('shows the label before the first thought arrives', () => {
 
   expect(screen.getByText('Thinking')).toBeInTheDocument();
   expect(container.querySelector(DOTS)).not.toBeNull();
-  // No empty trail: the text block appears with the first fragment.
   expect(container.querySelector('.reference-thoughts-trail')).toBeNull();
 });
 
@@ -52,17 +44,14 @@ test('drops the dots and closes once the turn has landed', () => {
     <ThoughtsDisclosure reasoning="Weighing two mechanisms." />,
   );
 
-  // Same word, same control -- the dots stopping and the panel closing are
-  // the whole difference between the two states.
   expect(screen.getByText('Thinking')).toBeInTheDocument();
   expect(container.querySelector(DOTS)).toBeNull();
   expect(isOpen(container)).toBe(false);
 });
 
 test('folds itself away as soon as the answer starts arriving', () => {
-  // Not when the turn ends: the first token of the reply is what makes the
-  // thinking stale, and leaving it open until then buries the answer being
-  // written under a wall of reasoning.
+  // The first reply token makes thinking stale; waiting until completion buries
+  // the answer.
   const {container, rerender} = render(
     <ThoughtsDisclosure reasoning="A thought." live />,
   );
@@ -95,7 +84,7 @@ test('announces the live label only, never the raw chain of thought', () => {
   expect(
     screen.getByText('Thinking').closest('[role="status"]'),
   ).not.toBeNull();
-  // Announcing the trail would re-read the whole thing on every token.
+  // Live announcements would reread reasoning on every token.
   expect(screen.getByText('A thought.').closest('[aria-live]')).toBeNull();
 });
 
@@ -105,9 +94,7 @@ test('does not announce a finished turn as a live status', () => {
 });
 
 test('animates between the two states rather than snapping', () => {
-  // A native <details> hides its content outright, so the panel is a grid
-  // track animated between 0fr and 1fr instead -- which reaches the
-  // content's own height without measuring reasoning that is still growing.
+  // Grid-track disclosure animates growing reasoning without measuring it.
   const {container} = render(
     <ThoughtsDisclosure reasoning="A thought." live />,
   );
@@ -119,7 +106,5 @@ test('animates between the two states rather than snapping', () => {
   fireEvent.click(screen.getByRole('button'));
 
   expect(panel?.className).toContain('grid-rows-[0fr]');
-  // Out of the tab order and the accessibility tree while collapsed, which
-  // <details> gave for free.
   expect(panel?.hasAttribute('inert')).toBe(true);
 });

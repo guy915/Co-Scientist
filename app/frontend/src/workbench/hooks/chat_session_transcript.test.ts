@@ -29,8 +29,6 @@ test('turnToEntry leaves model-driven turns unmarked', () => {
   expect(entry.fallback).toBeUndefined();
 });
 
-// A completed interview plus the sinks applyInterview writes through, so a
-// test can assert which of the two plan states it landed in.
 function completedInterview(runId: string | null): Interview {
   return {
     id: 'chat-1',
@@ -74,16 +72,13 @@ test('a completed interview with no run stages an editable plan', () => {
   expect(calls.confirmed).toHaveLength(0);
 });
 
-// Reopening a chat whose run already started used to re-stage the plan as a
-// draft, so Start research was live beside a card saying the run was under
-// way -- one click from a second run on the same goal.
+// A reopened started chat must not offer a second run from the same plan.
 test('a completed interview whose run started comes back settled', () => {
   const {sink, calls} = recordingSink();
   applyInterview(sink, completedInterview('run-1'));
   expect(calls.draft).toEqual([null]);
   expect(calls.confirmed).toHaveLength(1);
   const stage = calls.confirmed[0] as {intro?: string; createdAt: number};
-  // Settled, but not stripped: the closing turn is still the card's lead-in.
   expect(stage.intro).toBe('The scope is settled.');
   expect(stage.createdAt).toBe(7);
 });

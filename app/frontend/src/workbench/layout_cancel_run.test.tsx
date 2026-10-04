@@ -40,8 +40,6 @@ it('offers the control while the run is executing', () => {
 });
 
 it('offers nothing once the run has finished', () => {
-  // The header is shown on every route, so a finished session must not keep
-  // a control that can only fail.
   renderControl('completed');
   expect(screen.queryByRole('button', {name: /stop/i})).toBeNull();
 });
@@ -57,8 +55,6 @@ it('offers nothing for a draft that was never started', () => {
 });
 
 it('offers the control for a paused run too', () => {
-  // A paused run is precisely an unfinished run the scientist may want rid
-  // of, and the server accepts a cancel for it.
   renderControl('paused');
   expect(stopButton()).toBeInTheDocument();
 });
@@ -105,9 +101,8 @@ it('refreshes the run list after stopping, which is what hides it', async () => 
 });
 
 it('treats "already finished" as the list being stale, not as an error', async () => {
-  // The status comes from a poll, so the run can end between the refresh
-  // that offered this button and the click on it. Refreshing is the whole
-  // remedy: it takes the button away.
+  // A run can finish between polling and cancellation; refreshing removes the
+  // stale action.
   cancelRun.mockRejectedValue(new HttpError('run already finished', 409));
   const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
   const onChanged = vi.fn();

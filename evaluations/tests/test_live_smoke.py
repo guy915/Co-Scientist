@@ -1,13 +1,9 @@
-"""Live smoke regression tests."""
-
 from __future__ import annotations
 
 import httpx
 import pytest
 
 from evaluations import mcp_live_smoke, prod_smoke
-
-# Prod smoke.
 
 
 def _client(handler: httpx.MockTransport) -> httpx.Client:
@@ -59,10 +55,6 @@ def test_check_ownership_isolation_ok_on_404() -> None:
 
 
 def test_check_ownership_isolation_fails_when_run_is_readable() -> None:
-    """A random unowned run id must never resolve to 200.
-
-    That would be an ownership leak, not a smoke pass.
-    """
     transport = httpx.MockTransport(
         lambda req: httpx.Response(200, json={"id": "leaked"})
     )
@@ -173,9 +165,6 @@ def test_main_returns_zero_when_only_informational_checks_fail(
         ],
     )
     assert prod_smoke.main(["--base-url", "https://smoke.test"]) == 0
-
-
-# Mcp live smoke.
 
 
 def _fake_response(status_code: int, json_body: object) -> httpx.Response:

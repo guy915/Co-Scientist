@@ -14,10 +14,8 @@ interface FakeMediaQueryList {
   fireChange(matches: boolean): void;
 }
 
-// Installs window.matchMedia so it resolves '(prefers-color-scheme: dark)' to
-// a controllable fake MediaQueryList. `style: 'legacy'` omits
-// addEventListener/removeEventListener so useSystemColorScheme falls back to
-// the older addListener/removeListener pair (pre-Safari-14 API).
+// Legacy Safari uses addListener/removeListener instead of event-listener
+// methods.
 function installFakeMatchMedia(
   initialDarkMatches: boolean,
   style: 'modern' | 'legacy' = 'modern',
@@ -54,8 +52,8 @@ function wrapper({children}: {children: ReactNode}) {
   return <ThemeProvider>{children}</ThemeProvider>;
 }
 
-// Flushes the double-rAF used by useApplyTheme to lift the
-// 'theme-switching' transition freeze after the new styles are committed.
+// Theme transition suppression ends after two animation frames commit the new
+// palette.
 async function flushThemeTransition() {
   await act(async () => {
     await new Promise(resolve => requestAnimationFrame(resolve));
@@ -89,7 +87,7 @@ it('defaults to system mode, dark when matchMedia is absent', async () => {
 
 it('honors a stored light preference over the system scheme', async () => {
   localStorage.setItem(STORAGE_KEY, 'light');
-  installFakeMatchMedia(true); // system says dark; explicit pref should win
+  installFakeMatchMedia(true);
   const {result} = renderHook(() => useTheme(), {wrapper});
   await flushThemeTransition();
 
@@ -171,7 +169,7 @@ it('toggle flips between light and dark', async () => {
 });
 
 it('toggle from system mode resolves to dark', async () => {
-  installFakeMatchMedia(false); // system currently resolves to light
+  installFakeMatchMedia(false);
   const {result} = renderHook(() => useTheme(), {wrapper});
   await flushThemeTransition();
   expect(result.current.mode).toBe('system');
@@ -211,8 +209,7 @@ it('unsubscribes the modern change listener on unmount', async () => {
 
 describe('useTheme', () => {
   beforeEach(() => {
-    // React logs the thrown render error to the console; silence the
-    // expected noise.
+    // React logs thrown render errors; silence only the expected noise.
     vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 

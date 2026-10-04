@@ -30,7 +30,6 @@ describe('text', () => {
       expect(out.endsWith('…')).toBe(true);
       expect(out.length).toBeLessThanOrEqual(53);
       expect(out.startsWith('Identify novel mechanisms')).toBe(true);
-      // No dangling short connector word before the ellipsis.
       expect(out).not.toMatch(/\b(in|of|to|a|the)…$/);
     });
 
@@ -104,15 +103,11 @@ describe('text', () => {
 
   describe('capitalizeTerm', () => {
     it('capitalizes a lowercase noun phrase', () => {
-      // The model capitalizes its preference sentences and leaves focus-area
-      // terms lowercase, so the two lists in one specification card disagreed
-      // about their own house style.
       expect(capitalizeTerm('gut-brain axis')).toBe('Gut-brain axis');
     });
 
     it('leaves a Greek-letter prefix alone', () => {
-      // Uppercasing it yields a Greek capital alpha, which is a different
-      // character and not how the term is set anywhere in the literature.
+      // Greek alpha stays lowercase in scientific literature.
       expect(capitalizeTerm('α-synuclein aggregation')).toBe(
         'α-synuclein aggregation',
       );
@@ -174,7 +169,6 @@ describe('format abstract', () => {
   });
 
   it('does not treat ordinary prose as a header', () => {
-    // Single space + lowercase continuation is normal prose, not a section.
     const raw = 'Results were significant across every tissue we examined.';
     const result = splitAbstractSections(raw);
     expect(result).toHaveLength(1);

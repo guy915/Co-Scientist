@@ -30,10 +30,8 @@ export function LocationDisplay() {
   return <div data-testid="location">{location.pathname}</div>;
 }
 
-// RunDetail seeds a run's activity from the shared run history, so a running
-// run does not flash the report chrome. The chat-history provider is here
-// because the page mounts inside it in the app; each fetch degrades to an
-// empty list, which is the "history says nothing about this run" case.
+// Shared history prevents running pages flashing report chrome; match the app's
+// provider stack.
 export function renderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>

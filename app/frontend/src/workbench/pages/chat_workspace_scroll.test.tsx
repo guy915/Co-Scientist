@@ -10,9 +10,7 @@ import {
 import {type StartedSession} from './chat_timeline_run_spec_card';
 import {TIMELINE_ANCHOR_ATTRIBUTE} from './chat_timeline_bubble';
 
-// jsdom gives every element a zero height, which would read as "already at
-// the bottom" whatever scrollTop says. These are the metrics of a scroller
-// holding 1000px of content in a 400px window.
+// jsdom reports zero heights; give the scroller realistic overflow geometry.
 const CONTENT_HEIGHT = 1000;
 const WINDOW_HEIGHT = 400;
 const BOTTOM = CONTENT_HEIGHT - WINDOW_HEIGHT;
@@ -26,9 +24,6 @@ function makeItems(count: number): TimelineItem[] {
   }));
 }
 
-// Mounts the hook on a real element with fixed scroll metrics, leaves the
-// reader at `startAt`, and returns the element plus a way to append an item
-// the way a streaming turn does.
 function renderScroller(startAt: number) {
   let grow: (() => void) | undefined;
   function Harness() {
@@ -49,12 +44,8 @@ beforeEach(() => {
   vi.useFakeTimers();
 });
 
-// Mounts the hook empty (the real timing: a fresh mount/reopen renders
-// before rehydration has fetched anything), then lets the test populate it
-// the way rehydration does. Dimensions are defined after render, like every
-// other harness -- jsdom measures a freshly mounted element as zero either
-// way, so what actually matters here is that scrollTop is never touched
-// before `populate` runs: a real browser leaves it at 0 too.
+// Mount before transcript rehydration to expose initial scrolling rather than
+// preloaded state.
 function renderFreshScroller(conversationId?: string) {
   let populate: ((items: TimelineItem[]) => void) | undefined;
   let setConversation: ((id: string | undefined) => void) | undefined;
@@ -82,9 +73,6 @@ function renderFreshScroller(conversationId?: string) {
 }
 
 test('lands at the bottom the first time a fresh mount gets real content', () => {
-  // Reopening a chat -- from the results tab or straight from the sidebar --
-  // mounts the hook before the transcript has loaded. The reader must never
-  // be left at scrollTop 0 once it arrives.
   const {scroller, populate} = renderFreshScroller();
 
   populate(makeItems(20));
@@ -98,8 +86,6 @@ test('leaves a reader who scrolled up alone once the initial load has settled', 
   populate(makeItems(20));
   act(() => void vi.runAllTimers());
 
-  // The initial land-at-bottom already happened; the reader now scrolls up
-  // to read back, and a further streamed fragment must not haul them down.
   scroller.scrollTop = 120;
   populate(makeItems(21));
   act(() => void vi.runAllTimers());
@@ -108,10 +94,8 @@ test('leaves a reader who scrolled up alone once the initial load has settled', 
 });
 
 test('switching to a different chat without remounting still lands at the bottom', () => {
-  // ChatWorkspace does not remount for a sidebar switch between two already-
-  // loaded chats ("/chats/:id" is a param change on the same route), and
-  // rehydration replaces the whole message log in one step rather than
-  // passing through empty -- so a mount-only ref would miss this case.
+  // Chat route parameter changes reuse the hook without remounting or emptying
+  // the transcript.
   const {scroller, populate, switchConversation} =
     renderFreshScroller('chat-a');
   populate(makeItems(20));
@@ -130,14 +114,11 @@ test('keeps following the newest content when the reader is at the bottom', () =
   grow();
   act(() => void vi.runAllTimers());
 
-  // Driven past the bottom deliberately; the browser clamps, jsdom does not.
+  // Browsers clamp scrollTop at content bounds; jsdom does not.
   expect(scroller.scrollTop).toBe(CONTENT_HEIGHT);
 });
 
 test('leaves the reader where they scrolled to', () => {
-  // A streaming turn appends on every token, so an auto-scroll that ignores
-  // where the reader is drags them back down several times a second and
-  // reading back over the reply is impossible until the turn ends.
   const {scroller, grow} = renderScroller(120);
 
   grow();
@@ -146,9 +127,6 @@ test('leaves the reader where they scrolled to', () => {
   expect(scroller.scrollTop).toBe(120);
 });
 
-// Mounts the hook over a started session whose card grows in place, the way
-// the Agent's start announcement streams into it. The card is one item with a
-// fixed id and timestamp throughout; only its `revision` moves.
 function renderAnnouncingScroller(startAt: number) {
   let grow: (() => void) | undefined;
   function Harness() {
@@ -177,9 +155,6 @@ function renderAnnouncingScroller(startAt: number) {
   const scroller = getByTestId('scroller');
   Object.defineProperty(scroller, 'scrollHeight', {value: CONTENT_HEIGHT});
   Object.defineProperty(scroller, 'clientHeight', {value: WINDOW_HEIGHT});
-  // The card arriving jumps the view to the bottom by design; flush that
-  // before placing the reader, so what these tests measure is what the
-  // *announcement* does afterwards.
   act(() => void vi.runAllTimers());
   scroller.scrollTop = startAt;
   return {scroller, grow: () => act(() => grow?.())};
@@ -195,9 +170,8 @@ test('follows the start announcement as it is written', () => {
 });
 
 test('leaves a reader who scrolled up during the announcement alone', () => {
-  // The card is already on screen when its lead-in starts filling, so the
-  // reader can be anywhere in the conversation while it does. The
-  // session-started jump must not re-fire per fragment and drag them down.
+  // An announcement grows an existing card and must not retrigger its arrival
+  // jump.
   const {scroller, grow} = renderAnnouncingScroller(120);
 
   grow();
@@ -206,10 +180,8 @@ test('leaves a reader who scrolled up during the announcement alone', () => {
   expect(scroller.scrollTop).toBe(120);
 });
 
-// Mounts the hook over a conversation the plan card lands at the end of, with
-// the card's row carrying the anchor attribute the real card renders. The
-// rects are faked because jsdom measures everything as zero: the card's row
-// sits 300px below the scroller's own top edge on screen.
+// jsdom rects are zero; position the plan below the scroller to observe its
+// anchor.
 const ANCHOR_ON_SCREEN_OFFSET = 300;
 const SCROLLER_SCREEN_TOP = 50;
 
@@ -277,8 +249,6 @@ function renderPlanScroller(
 }
 
 test('opens the arriving plan turn at its own top, not the conversation top', () => {
-  // scrollTop = 0 is the top of the whole conversation: the reader landed
-  // back on their opening message the moment the plan was produced.
   const {scroller, arrive} = renderPlanScroller(600);
 
   arrive();
@@ -295,11 +265,8 @@ test('falls back to the bottom when the plan turn cannot be located', () => {
 });
 
 test('leaves a scrolled-up reader alone when the plan is confirmed', () => {
-  // Clicking Start research swaps the draft card for the confirmed one, which
-  // is then the timeline's last item for the whole create+start round trip.
-  // Treating that swap as an arrival is what jumped the view a second time,
-  // and anchoring it now would find no draft card and drag the reader to the
-  // bottom instead -- a quieter version of the same bug.
+  // Draft-to-confirmed swaps are not arrivals; reanchoring would skip past the
+  // plan.
   let confirm: (() => void) | undefined;
   function Harness() {
     const [confirmed, setConfirmed] = useState(false);
@@ -320,7 +287,6 @@ test('leaves a scrolled-up reader alone when the plan is confirmed', () => {
   const scroller = getByTestId('scroller');
   Object.defineProperty(scroller, 'scrollHeight', {value: CONTENT_HEIGHT});
   Object.defineProperty(scroller, 'clientHeight', {value: WINDOW_HEIGHT});
-  // Flush the draft card's own arrival before placing the reader.
   act(() => void vi.runAllTimers());
   scroller.scrollTop = 120;
 
@@ -330,11 +296,8 @@ test('leaves a scrolled-up reader alone when the plan is confirmed', () => {
   expect(scroller.scrollTop).toBe(120);
 });
 
-// Mounts the hook on a scroller that behaves like a real one: scrollTop
-// clamps to the bottom of the content, and the content grows by whatever a
-// streamed fragment adds. The other harnesses here pin scrollHeight, which
-// makes every post-scroll gap negative and so hides what happens once a
-// fragment adds more than FOLLOW_THRESHOLD_PX at once.
+// Clamp scrolling while content grows; fixed heights hide large-fragment
+// following failures.
 function renderGrowingScroller() {
   let grow: ((by: number) => void) | undefined;
   function Harness() {
@@ -375,11 +338,8 @@ function renderGrowingScroller() {
 }
 
 test('keeps following when one fragment adds more than the follow threshold', () => {
-  // The gap is measured after the DOM has already grown, so a fragment
-  // taller than FOLLOW_THRESHOLD_PX reads as a reader who scrolled away --
-  // and since the skip leaves scrollTop where it was, every later fragment
-  // reads the same way. The turn followed for a second or two and then
-  // stopped for good.
+  // Measure following intent before DOM growth or a large fragment looks like
+  // reader scrolling.
   const {scroller, grow} = renderGrowingScroller();
   grow(0);
   expect(scroller.scrollTop).toBe(CONTENT_HEIGHT - WINDOW_HEIGHT);
@@ -400,23 +360,15 @@ test('stops following once the reader scrolls away, however far the content grow
   expect(scroller.scrollTop).toBe(120);
 });
 
-// A plan card tall enough that opening it at its own top leaves the bottom
-// of the timeline far below the fold -- which is the real card's shape, and
-// the only state in which the test below can fail.
 const PLAN_CARD_HEIGHT = 1200;
 
-// Mirrors the module's own FOLLOW_THRESHOLD_PX, which is private to it: the
-// setup below is only meaningful if the anchored position sits further from
-// the bottom than a reader following along ever would.
+// The anchored position must exceed the private follow threshold for this guard
+// to be meaningful.
 const FOLLOW_THRESHOLD_PX = 64;
 
 test('leaves the confirmed plan where the card opened, not at its Start button', () => {
-  // The reader never touches the scroller here: the anchored placement is
-  // this hook's own work. Recording it as a scroll made "hasn't moved since"
-  // read as "following the bottom", so clicking Start -- which swaps the
-  // draft card for the confirmed one and re-anchors to the bottom -- threw
-  // them past the whole plan. The scrolled-up test above cannot catch it,
-  // because it moves scrollTop itself.
+  // Programmatic anchoring must not count as a reader choosing to follow the
+  // bottom.
   const {scroller, arrive, confirm, contentHeight} = renderPlanScroller(
     600,
     true,

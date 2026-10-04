@@ -18,9 +18,6 @@ vi.mock('../hooks/system_status_context', () => ({
 }));
 
 describe('chat workspace timeline', () => {
-  // The plan card's completion-email opt-in is gated on the server actually
-  // having an SMTP transport; these tests are about the card, not the probe.
-
   it('shows the model reasoning it has streamed so far', () => {
     renderItems(
       buildTimelineItems(
@@ -43,7 +40,6 @@ describe('chat workspace timeline', () => {
     );
 
     expect(screen.getByText('Thinking')).toBeInTheDocument();
-    // No empty reasoning trail before the model has produced any.
     expect(container.querySelector('.reference-thoughts-trail')).toBeNull();
   });
 
@@ -63,9 +59,7 @@ describe('chat workspace timeline', () => {
     const trail = screen.getByText(
       'The scientist named no mechanism, so ask for one.',
     );
-    // Announcing this too would re-read the whole raw chain of thought to a
-    // screen reader on every streamed token -- it must stay visible without
-    // being wired into any live region.
+    // Announcing reasoning would reread it on every token.
     expect(trail.closest('[role="status"], [aria-live]')).toBeNull();
   });
 
@@ -80,8 +74,6 @@ describe('chat workspace timeline', () => {
     expect(screen.queryByText('stale thought')).toBeNull();
   });
 
-  // The owner's own complaint: after a run starts, the post-run Q&A chat must
-  // show its live thinking exactly as the pre-run interview turn does above.
   it('shows the model reasoning a live post-run Q&A turn has streamed so far', () => {
     renderItems(
       buildTimelineItems(
@@ -104,8 +96,6 @@ describe('chat workspace timeline', () => {
     const args = transcriptArgs();
     renderItems(buildTimelineItems(args));
 
-    // Editing happens inside the message: the bubble becomes an editor, and
-    // sending from it revises that turn rather than starting another one.
     fireEvent.click(screen.getByLabelText('Edit prompt'));
     const editor = screen.getByLabelText('Edit prompt');
     fireEvent.change(editor, {target: {value: 'A better question'}});
@@ -131,7 +121,6 @@ describe('chat workspace timeline', () => {
 
     expect(screen.queryByLabelText('Edit prompt')).toBeNull();
     expect(screen.queryByLabelText('Retry response')).toBeNull();
-    // Copy is unaffected: it needs nothing from the server.
     expect(screen.getByLabelText('Copy prompt')).toBeInTheDocument();
   });
 
@@ -214,20 +203,14 @@ describe('chat workspace timeline', () => {
     expect(items).toHaveLength(1);
     renderItems(items);
 
-    // Locked: no Cancel affordance, Start disabled.
     expect(screen.queryByText('Cancel')).not.toBeInTheDocument();
     expect(screen.getByText('Start research')).toBeDisabled();
 
-    // Locked: no way into the field editor either -- the plan is the one the
-    // run already started against.
     expect(screen.queryByLabelText('Edit plan')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText('Retry response'));
     expect(args.stageDraftSpec).toHaveBeenCalledWith(spec);
 
-    // The locked card's tier/cancel handlers are inert no-ops that
-    // can't be reached through disabled UI controls; invoke them directly
-    // via the rendered element's props to cover their bodies.
     const cardElement = items[0].node as ReactElement<{
       onTierChange: (tier: string) => void;
       onCancel: () => void;
@@ -342,8 +325,6 @@ describe('chat workspace timeline', () => {
     expect(items).toHaveLength(1);
     renderItems(items);
 
-    // Both open affordances are links to the run, not click handlers, so a
-    // middle- or cmd-click opens the session in a new browser tab.
     for (const name of [/Open$/, /View session details/]) {
       expect(screen.getByRole('link', {name})).toHaveAttribute(
         'href',
@@ -351,16 +332,14 @@ describe('chat workspace timeline', () => {
       );
     }
 
-    // No retry: the run is already started, so there is no response here to
-    // regenerate and the control could only ever appear to do nothing.
     expect(screen.queryByLabelText('Retry response')).toBeNull();
 
     fireEvent.click(
       screen.getByText('Start a new research goal session on a new topic'),
     );
     expect(args.resetWorkspace).toHaveBeenCalledOnce();
-    // Leaving /chats/:id is what makes the reset stick: staying put lets the
-    // rehydrator re-attach this chat's run and put the card straight back.
+    // Leaving the chat route prevents rehydration from reattaching the session
+    // after reset.
     expect(args.navigate).toHaveBeenCalledWith('/');
     expect(args.focusComposer).toHaveBeenCalledOnce();
   });
@@ -382,9 +361,6 @@ describe('chat workspace timeline', () => {
     ]);
   });
 
-  // The started card's own group: the Agent's reply to "Start research" is the
-  // card's lead-in and its thinking is disclosed above it, exactly as the
-  // completing interview turn's are on the plan card.
   function announcingSession(
     overrides: Partial<StartedSession> = {},
   ): StartedSession {
@@ -413,9 +389,8 @@ describe('chat workspace timeline', () => {
   });
 
   it('re-signs the session card as its announcement is written', () => {
-    // The reply streams into a card whose id and timestamp never change, so
-    // `revision` is the only thing that tells the auto-scroll it grew (see
-    // chat_workspace.tsx).
+    // Growing start cards keep their id/time; revision signals their geometry
+    // changed.
     const signature = (intro: string) =>
       buildTimelineItems(
         baseArgs({
@@ -434,10 +409,6 @@ describe('chat workspace timeline', () => {
     expect(screen.getByText(/Co-Scientist has started research/)).toBeVisible();
   });
 
-  // The plan card's lead-in is the Agent's own closing interview message, and
-  // must render like any other assistant reply's markdown -- this used to be
-  // a plain <p>, so **bold** and similar syntax showed up as literal
-  // characters instead of formatting.
   it('renders the plan card lead-in as markdown, like an ordinary reply', async () => {
     const draft: SpecStage = {
       spec: makeSpec(),
@@ -449,12 +420,8 @@ describe('chat workspace timeline', () => {
     expect((await screen.findByText('primary')).tagName).toBe('STRONG');
   });
 
-  // The plan and started-session cards should be ordinary assistant messages
-  // that happen to carry an inline attachment -- not bespoke cards with their
-  // own row/gap spacing. Both must share the exact wrapper class string a
-  // plain assistant reply renders (CHAT_BUBBLE_ROW_CLASSES via
-  // AssistantMessage), so a "space feels different" regression shows up here
-  // as a class mismatch rather than only in a screenshot.
+  // jsdom cannot measure spacing; matching the ordinary assistant wrapper
+  // guards its structure.
   it('wraps the plan and started-session turns in the same row a plain reply uses', () => {
     const replyRow = renderItems(
       buildTimelineItems(transcriptArgs()),
@@ -474,15 +441,6 @@ describe('chat workspace timeline', () => {
 });
 
 describe('chat workspace timeline turn shape', () => {
-  // The plan card's completion-email opt-in is gated on the server actually
-  // having an SMTP transport; these tests are about the turn's shape, not the
-  // probe.
-
-  // The parts of one assistant turn, in the order the DOM holds them. A turn
-  // is reasoning, then prose, then its inline attachment, then its actions --
-  // and that order is what must not change as the turn settles or the run
-  // starts (the disclosure used to be a timeline item of its own, so it moved
-  // from above the plan to below it the moment the draft became confirmed).
   const PART_SELECTORS = [
     ['reasoning', '.ucs-thoughts'],
     ['prose', '.reference-model-bubble-text'],
@@ -518,8 +476,6 @@ describe('chat workspace timeline turn shape', () => {
 
   it('renders a plan turn as reasoning, prose, attachment, actions', () => {
     const items = buildTimelineItems(baseArgs({draft: planStage}));
-    // One entry: the disclosure is part of the message, not a timeline item of
-    // its own with the column's gap around it.
     expect(items).toHaveLength(1);
 
     const {container} = renderItems(items);
@@ -532,10 +488,6 @@ describe('chat workspace timeline turn shape', () => {
   });
 
   it('keeps the plan turn intact once the run has started', () => {
-    // Clicking Start research swaps the draft stage for the confirmed one. The
-    // turn behind it is the same turn, so it must keep the same parts in the
-    // same order and the same words -- the closing message used to be dropped
-    // here, replaced by generic copy, and its thinking jumped below the plan.
     const {container} = renderItems(
       buildTimelineItems(baseArgs({confirmed: planStage})),
     );
@@ -553,10 +505,6 @@ describe('chat workspace timeline turn shape', () => {
   });
 
   it('streams a turn in progress into one message, not three items', () => {
-    // While the Agent writes, its thinking and its reply are parts of the same
-    // message -- not separate timeline entries with the column's own gap
-    // between them, which is what made the spacing above the reply collapse
-    // the moment the turn resolved.
     const items = buildTimelineItems(
       baseArgs({
         isAwaitingAgent: true,
@@ -578,10 +526,8 @@ describe('chat workspace timeline turn shape', () => {
   });
 
   it('keeps a reply-in-progress out of the accessibility tree', () => {
-    // A partial sentence per token is not what a screen reader should read;
-    // the durable turn that replaces this message moments later is. The
-    // disclosure above it stays exposed -- it is the same control the settled
-    // turn keeps.
+    // Screen readers should receive durable turns rather than partial sentences
+    // per token.
     const {container} = renderItems(
       buildTimelineItems(
         baseArgs({
@@ -598,10 +544,6 @@ describe('chat workspace timeline turn shape', () => {
     expect(screen.getByText('Thinking').closest('[aria-hidden]')).toBeNull();
   });
 });
-
-// Shared scaffolding for the timeline's own tests: a full argument bag with
-// every collaborator stubbed, and a renderer that mounts every item's node so
-// RTL queries see the whole timeline at once.
 
 export function baseArgs(
   overrides: Partial<BuildTimelineItemsArgs> = {},
@@ -635,7 +577,6 @@ export function baseArgs(
   };
 }
 
-// The started-session card links to the run, so a router has to be in scope.
 export function renderItems(
   items: {id: string; node: ReactElement | unknown}[],
 ) {

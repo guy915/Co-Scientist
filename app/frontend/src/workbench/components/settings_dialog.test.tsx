@@ -5,9 +5,6 @@ import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import {ThemeProvider} from '../theme_context';
 import {SettingsDialog} from './settings_dialog';
 
-// O1: the Settings dialog must trap Tab within itself, mark the page behind
-// it inert, and hand focus back to whatever opened it once it closes.
-
 beforeEach(() => window.localStorage.clear());
 afterEach(() => window.localStorage.clear());
 

@@ -226,8 +226,6 @@ test('requires an explicit owner click after refinement status can be refreshed'
   };
   const hypothesisId = hypotheses.hypotheses[0]?.id;
   expect(hypothesisId).toBeTruthy();
-  // API and worker tests verify frozen source metadata. This case focuses on the
-  // browser action.
   const outcomeFields = {
     method_protocol:
       'Grow E. coli for many generations with 15NH4Cl, shift to medium with a ten-fold excess of 14NH4Cl, and separate DNA by equilibrium sedimentation in a CsCl density gradient.',

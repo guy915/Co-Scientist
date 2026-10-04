@@ -1,11 +1,4 @@
-"""Source for a probe script that fakes the engine's provider answers.
-
-Not a test module (underscore prefix). The live-runner probes run in a
-subprocess, so the engine's recording ``FakeBackend``
-(``engine/tests/_llm_fake.py``) is made available to them as script text:
-prepend ``SCRIPT_PRELUDE`` and answer every engine completion with
-``with fake_backend(provider):``.
-"""
+# Subprocess probes need the recording backend supplied as script text.
 
 from __future__ import annotations
 
@@ -15,8 +8,8 @@ _ENGINE_FAKE = (
     Path(__file__).resolve().parents[2] / "engine" / "tests" / "_llm_fake.py"
 )
 
-# The imports sit inside ``fake_backend`` so loading the fake happens where the
-# probe asks for it, after the probe has configured its environment.
+# Deferred imports let each probe configure its environment before loading
+# the recording backend.
 SCRIPT_PRELUDE = f"""
 def fake_backend(provider):
     import importlib.util

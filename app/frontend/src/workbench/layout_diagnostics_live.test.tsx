@@ -23,13 +23,11 @@ describe('layout diagnostics live', () => {
       total: id,
       session_total: id,
     });
-    // Let the mount-time loads settle first, so both racing requests
-    // below belong to the same effect generation.
+    // Settle mount loads so racing requests share an effect generation rather
+    // than disposal guards.
     renderLayout();
     await settleMountTimeLoads();
 
-    // The next request hangs (stale); the one after answers fresh. The
-    // stale response then arrives LAST and must be dropped.
     let resolveStale: (value: unknown) => void = () => {};
     const hanging = new Promise(resolve => {
       resolveStale = resolve;
@@ -45,10 +43,8 @@ describe('layout diagnostics live', () => {
 
     resolveStale(payload(1));
     await act(async () => {
-      // give the stale response a real window to (wrongly) land
       await new Promise(resolve => setTimeout(resolve, 20));
     });
-    // The late stale response did not overwrite the fresher one.
     expect(screen.queryByRole('button', {name: /Logs 1$/})).toBeNull();
     expect(screen.getByRole('button', {name: /Logs 2/i})).toBeInTheDocument();
   });
@@ -65,13 +61,10 @@ describe('layout diagnostics live', () => {
     fireEvent.click(await screen.findByRole('button', {name: /Logs 2/i}));
     const list = await screen.findByLabelText('Log events');
 
-    // Simulate a scrollable list with the user scrolled well above the
-    // bottom.
     stubListGeometry(list);
     list.scrollTop = 100;
     fireEvent.scroll(list);
 
-    // New records arrive (an in-page event bumps the fetch version).
     logsApiMock.getAppLogs.mockResolvedValue({
       logs: [logRecord(1), logRecord(2), logRecord(3)],
       last_id: 3,
@@ -86,7 +79,6 @@ describe('layout diagnostics live', () => {
     );
     await screen.findByText(/record 3/);
 
-    // Reading position is preserved; only opening the popover jumps down.
     expect(list.scrollTop).toBe(100);
   });
 
@@ -103,12 +95,11 @@ describe('layout diagnostics live', () => {
     const list = await screen.findByLabelText('Log events');
 
     stubListGeometry(list);
-    list.scrollTop = 900; // at the bottom: pinned
+    list.scrollTop = 900;
     fireEvent.scroll(list);
 
-    // The window is at its cap: a new record replaces the oldest, so the
-    // entry COUNT stays the same and only the ids advance. Auto-follow
-    // must still fire for the pinned reader.
+    // A capped window can change ids without changing count; pinned readers
+    // must still follow.
     logsApiMock.getAppLogs.mockResolvedValue({
       logs: [logRecord(2), logRecord(3)],
       last_id: 3,
@@ -123,8 +114,8 @@ describe('layout diagnostics live', () => {
     );
     await screen.findByText(/record 3/);
 
-    // waitFor: the scroll happens in a passive effect after the render
-    // that findByText observed.
+    // Scrolling happens in a passive effect after findByText observes
+    // rendering.
     await waitFor(() => expect(list.scrollTop).toBe(1000));
   });
 });
@@ -137,9 +128,7 @@ describe('layout diagnostic events', () => {
   it('never persists goal text as a run id', async () => {
     renderLayout();
 
-    // Callers used to pass a goal-derived title as `run`, which was
-    // stored in the run_id column and served over the API. Only a real
-    // run id may become run_id; a display title is ignored.
+    // Display titles must not be stored as run_id.
     fireEvent(
       window,
       new CustomEvent(DIAGNOSTIC_EVENT, {
@@ -176,8 +165,6 @@ describe('layout diagnostic events', () => {
       }),
     );
 
-    // The event is POSTed to the app-wide log rather than kept in memory,
-    // so it survives reloads and is visible to the CLI and other tabs.
     await waitFor(() =>
       expect(logsApiMock.postAppLogs).toHaveBeenCalledWith([
         {
@@ -206,7 +193,6 @@ describe('layout diagnostics report', () => {
     installLayoutMocks();
   });
 
-  // The panel only offers Report where the server can actually send mail.
   function withEmailDelivery() {
     systemApiMock.getSystemStatus.mockResolvedValue({
       llm_backend: 'real',
@@ -232,9 +218,7 @@ describe('layout diagnostics report', () => {
     await waitFor(() =>
       expect(logsApiMock.reportAppLogs).toHaveBeenCalledOnce(),
     );
-    // The whole self-describing document, not a pointer to it: the panel's
-    // view is anchored to this browsing session, so a link would not
-    // reproduce what the scientist was looking at.
+    // Session-scoped log views cannot be reproduced by a link alone.
     const [report] = logsApiMock.reportAppLogs.mock.calls[0] as [string];
     expect(report).toContain('=== LOGS (JSON) ===');
     expect(await screen.findByText('Sent')).toBeInTheDocument();
@@ -247,8 +231,6 @@ describe('layout diagnostics report', () => {
 
     fireEvent.click(await openReportButton());
 
-    // A report that silently did not arrive is worse than no button: the
-    // scientist stops looking for another way to tell anyone.
     expect(await screen.findByText("Couldn't send")).toBeInTheDocument();
   });
 });

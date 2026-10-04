@@ -1,5 +1,3 @@
-"""Offline contracts for pubmed metadata batch."""
-
 import asyncio
 import hashlib
 import json
@@ -320,7 +318,6 @@ class TestPubmedMetadataBatch:
     def test_public_tool_can_skip_fulltext_and_preserve_strict_metadata_trace(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        """Metadata-only mode keeps PMC-first IDs and the pinned batch proof."""
         cache_root = tmp_path / "metadata-only-cache"
         default_run_id = "metadata-default-run"
         build_id = "metadata-only-build"
@@ -883,8 +880,8 @@ def test_legacy_fetch_write_invalidates_no_link_proof_even_when_bytes_match(
         hashlib.sha256(serialized.encode("utf-8")).hexdigest(),
         encoding="ascii",
     )
-    # A missing cache entry must invalidate any orphaned no-link proof when
-    # legacy retrieval writes the same metadata bytes again.
+    # Missing cache entries must invalidate orphaned no-link proofs even when
+    # bytes are rewritten identically.
     metadata_file.unlink()
     source = PubmedSource(tmp_path)
     monkeypatch.setattr(

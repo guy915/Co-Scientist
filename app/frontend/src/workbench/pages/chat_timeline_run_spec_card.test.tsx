@@ -100,11 +100,7 @@ test('an unconfigured server keeps the field inert and says so', () => {
   statusState.status.email_notifications_available = true;
 });
 
-// Real completing turns, copied out of the interview store. The interview
-// prompt asks the model to "present the finalized scope as a structured
-// summary" with a heading per part, so every completing turn restates the
-// five fields the plan document below it already renders as editable
-// values. These fixtures are what that actually looks like.
+// Real completing interview turns restate plan fields in structured prose.
 
 const WITH_LEAD_IN = [
   '## Scope finalized',
@@ -164,12 +160,8 @@ it('drops the sections that restate the plan document own fields', () => {
 it('keeps the prose the model wrote around the summary', () => {
   const lead = planLeadIn(WITH_LEAD_IN);
 
-  // The model's own heading and its lead-in paragraph are not a plan field,
-  // so they survive...
   expect(lead).toContain('## Scope finalized');
   expect(lead).toContain('I have incorporated the epigenetic preference');
-  // ...and so does the sign-off that closes the turn, even though it sits
-  // inside the last dropped section.
   expect(lead).toContain('This scope is ready to start');
 });
 
@@ -198,8 +190,6 @@ it('is empty for a turn with nothing left to say', () => {
 });
 
 it('matches a field heading carrying a parenthetical', () => {
-  // Straight out of a live turn: the model headed its title section
-  // "Title (proposed)", which is the plan's title section by another name.
   const turn = [
     'Here it is, laid out.',
     '',

@@ -9,7 +9,6 @@ vi.mock('@/lib/smooth_scroll', () => ({
 }));
 
 describe('ideas detail pane', () => {
-  /** A fully-populated hypothesis exercising every detail section. */
   function fullHypothesis() {
     return makeHypothesis({
       id: 'h1',
@@ -27,7 +26,6 @@ describe('ideas detail pane', () => {
     });
   }
 
-  /** Two reviews: one matching hypothesis h1, one for a different id. */
   function matchingReviews(): Review[] {
     return [
       {
@@ -41,7 +39,6 @@ describe('ideas detail pane', () => {
         testability: 6,
         overall: 7,
       },
-      // A review for a different hypothesis must be filtered out.
       {
         id: 2,
         hypothesis_id: 'other',
@@ -56,7 +53,6 @@ describe('ideas detail pane', () => {
     ];
   }
 
-  /** Three matches: two involving h1 (older, newer) and one unrelated. */
   function orderedMatches(): MatchRow[] {
     return [
       {
@@ -89,7 +85,6 @@ describe('ideas detail pane', () => {
         rationale: 'The latest match rationale.',
         debate_transcript: null,
       },
-      // A match not involving this hypothesis must be filtered out.
       {
         id: 3,
         iteration: 2,
@@ -108,7 +103,6 @@ describe('ideas detail pane', () => {
     ];
   }
 
-  /** Claim evidence: a supported claim, a speculative claim, one unrelated. */
   function mixedClaimEvidence(): ClaimEvidenceRow[] {
     return [
       {
@@ -130,7 +124,6 @@ describe('ideas detail pane', () => {
         contradicting: [],
         assessor: 'deterministic-v1',
       },
-      // A claim for a different hypothesis must be filtered out.
       {
         id: 3,
         hypothesis_id: 'other',
@@ -143,7 +136,6 @@ describe('ideas detail pane', () => {
     ];
   }
 
-  /** Renders the detail pane with the full fixture set. */
   function renderFullDetail() {
     render(
       <HypothesisDetail
@@ -155,7 +147,6 @@ describe('ideas detail pane', () => {
     );
   }
 
-  /** A grounded claim with an exact span plus a spanless speculative claim. */
   function groundedClaimEvidence(): ClaimEvidenceRow[] {
     return [
       {
@@ -176,7 +167,6 @@ describe('ideas detail pane', () => {
         contradicting: [],
         assessor: 'llm:deepseek/deepseek-chat',
       },
-      // A speculative claim has no span but remains visibly labeled.
       {
         id: 2,
         hypothesis_id: 'h1',
@@ -190,7 +180,6 @@ describe('ideas detail pane', () => {
     ];
   }
 
-  /** Renders the detail pane with only claim evidence populated. */
   function renderClaimDetail(claimEvidence: ClaimEvidenceRow[]) {
     render(
       <HypothesisDetail
@@ -227,7 +216,6 @@ describe('ideas detail pane', () => {
   it('surfaces provenance and lineage details', () => {
     renderFullDetail();
 
-    // Provenance & lineage section surfaces origin, generation, cluster, safety.
     expect(
       screen.getByText(/Evolution agent \(refined from a parent\)/),
     ).toBeInTheDocument();
@@ -241,8 +229,6 @@ describe('ideas detail pane', () => {
   it("summarizes claim evidence for only this hypothesis's claims", () => {
     renderFullDetail();
 
-    // Claim-evidence summary counts only this hypothesis's claims (2 of 3),
-    // labelled by verdict.
     expect(
       screen.getByText(/2 claim\(s\) assessed, 1 supported, 1 speculative/),
     ).toBeInTheDocument();
@@ -257,8 +243,6 @@ describe('ideas detail pane', () => {
   });
 
   it('labels each review row by its reviewer instead of one Full review', () => {
-    // Finding D13/E1: the initial, deep, and full/simulation/recurrent
-    // results are independent reviews and must stay visibly distinct.
     const hypothesis = makeHypothesis({id: 'h1'});
     const reviews: Review[] = [
       {
@@ -336,7 +320,6 @@ describe('ideas detail pane', () => {
       ),
     ).toBeInTheDocument();
 
-    // Both matches are retained in descending creation order.
     expect(screen.getByText('Iteration 2 · close')).toBeInTheDocument();
     expect(screen.getByText('Iteration 1 · strong')).toBeInTheDocument();
     expect(
@@ -396,7 +379,6 @@ describe('ideas detail pane', () => {
         screen.getByRole('link', {name: new RegExp(label)}),
       ).toBeInTheDocument();
     }
-    // "Match summary" is inline-only, not linked from the rail.
     expect(
       screen.queryByRole('link', {name: /Match summary/}),
     ).not.toBeInTheDocument();
@@ -415,8 +397,7 @@ describe('ideas detail pane', () => {
       16,
       '.idea-detail-pane, .cosci-report-scroll',
     );
-    // dispatchEvent returns false when a cancelable event's default was
-    // prevented.
+    // dispatchEvent returns false when a cancelable default was prevented.
     expect(notPrevented).toBe(false);
   });
 
@@ -435,14 +416,11 @@ describe('ideas detail pane', () => {
     it('renders each grounded claim with its quote and source link', () => {
       renderClaimDetail(groundedClaimEvidence());
 
-      // The exact supporting quote is shown...
       expect(
         screen.getByText(/reduces tumor growth in AML/),
       ).toBeInTheDocument();
-      // ...with a link that opens the exact source.
       const link = screen.getByRole('link', {name: /open source/});
       expect(link).toHaveAttribute('href', 'https://example.org/ev-1');
-      // The claim remains visible even though no evidence span supports it.
       expect(screen.getByText(/A speculative claim\./)).toBeInTheDocument();
       expect(
         screen.getByText('Speculative — evidence insufficient'),
@@ -465,7 +443,6 @@ describe('ideas detail pane', () => {
       expect(
         screen.getByText(/A legacy supporting passage\./),
       ).toBeInTheDocument();
-      // No source link when the legacy row carries no url.
       expect(
         screen.queryByRole('link', {name: /open source/}),
       ).not.toBeInTheDocument();
@@ -511,7 +488,6 @@ describe('ideas detail match history', () => {
         rationale: 'Historical win rationale.',
         tier: 'clear',
         debate_turns: 1,
-        // Same timestamp as the newer row: the greater persisted id breaks ties.
         created_at: 300,
         debate_transcript: null,
       },
@@ -606,8 +582,6 @@ describe('ideas detail match history', () => {
 });
 
 describe('ideas detail review findings', () => {
-  // Split out of ideas_detail_pane.test.tsx to keep that file under the
-  // repo's 500-line ceiling.
   describe('HypothesisDetail structured review findings (detail_json)', () => {
     function baseReview(overrides: Partial<Review>): Review {
       return {
@@ -658,7 +632,6 @@ describe('ideas detail review findings', () => {
       expect(
         screen.getByText('The dose-response titration in week 2'),
       ).toBeInTheDocument();
-      // The prose critique still renders in full alongside the structure.
       expect(screen.getByText('The simulation critique.')).toBeInTheDocument();
     });
 
@@ -684,8 +657,7 @@ describe('ideas detail review findings', () => {
     });
 
     it('renders no structured block for a row that predates the column', () => {
-      // No detail_json key at all -- the shape every row carried before the
-      // column existed.
+      // Rows written before detail_json existed legitimately omit it.
       renderReview(baseReview({}));
 
       expect(screen.queryByText('Decisive step:')).not.toBeInTheDocument();
@@ -715,8 +687,7 @@ describe('ideas detail review findings', () => {
     });
 
     it('coerces a wrong-typed failure_points/decisive_step instead of crashing', () => {
-      // json_object mode carries no schema enforcement: an array field can
-      // arrive as a bare string, and a string field as an object.
+      // json_object mode does not enforce field types.
       renderReview(
         baseReview({
           detail_json: JSON.stringify({

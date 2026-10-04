@@ -21,7 +21,6 @@ describe('renderInlineHtml', () => {
   });
 
   it('strips attributes from whitelisted tags', () => {
-    // `<i onclick=...>` is not the literal `<i>`, so it stays escaped.
     expect(renderInlineHtml('<i onclick="steal()">x</i>')).toBe(
       '&lt;i onclick="steal()"&gt;x</i>',
     );
@@ -30,7 +29,6 @@ describe('renderInlineHtml', () => {
   it('neutralizes the slash-separated attribute bypass', () => {
     const payload = '<img/src=x/onerror=alert(1)>';
     const result = renderInlineHtml(payload);
-    // No live element start survives; "onerror" remains only as inert text.
     expect(result).not.toMatch(/<[a-z]/i);
     expect(result).toBe('&lt;img/src=x/onerror=alert(1)&gt;');
   });

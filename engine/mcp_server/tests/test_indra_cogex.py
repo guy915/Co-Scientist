@@ -1,5 +1,3 @@
-"""Offline contracts for indra cogex."""
-
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any, cast
@@ -28,15 +26,12 @@ from mcp_server.tools.indra_cogex import (
     tool_error,
 )
 
-# --- parse_id / maybe_parse_agent -------------------------------------
-
 
 @pytest.mark.parametrize(
     "identifier,expected",
     [
         ("HGNC:6407", ["HGNC", "6407"]),
         ("MESH:D002289", ["MESH", "D002289"]),
-        # A second colon belongs to the id portion, not a new field.
         ("CHEBI:CHEBI:27690", ["CHEBI", "CHEBI:27690"]),
     ],
 )
@@ -68,12 +63,7 @@ def test_maybe_parse_agent_does_not_parse_urls() -> None:
 
 
 def test_maybe_parse_agent_falls_back_on_unparseable_curie() -> None:
-    # No namespace before the colon, so parse_id would raise; the agent
-    # helper is more permissive and returns the original string instead.
     assert maybe_parse_agent(":no-namespace") == ":no-namespace"
-
-
-# --- tool_error / cap_results -------------------------------------------
 
 
 def test_tool_error_carries_message_and_query() -> None:
@@ -87,16 +77,9 @@ def test_cap_results_truncates_and_reports_the_original_total() -> None:
 
 
 def test_cap_results_passes_non_lists_through_unchanged() -> None:
-    # Some CoGex endpoints return an error dict instead of a list; capping
-    # that would be wrong, so it is returned as-is with a zero total. The
-    # declared return type is list[Any], since that's the typical case;
-    # cast documents that this call deliberately exercises the fallback.
     passthrough, total = cap_results({"error": "bad"}, 2)
     assert cast(Any, passthrough) == {"error": "bad"}
     assert total == 0
-
-
-# --- indra_post -----------------------------------------------------------
 
 
 async def test_indra_post_returns_parsed_json(
@@ -113,16 +96,12 @@ async def test_indra_post_returns_parsed_json(
 async def test_indra_post_does_not_catch_transport_failures(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # The tool owns its error envelope; the HTTP client propagates failures.
     stub_failure(monkeypatch, httpx.ConnectError("boom"))
 
     with pytest.raises(httpx.ConnectError):
         await indra_post("/api/x", {"a": 1})
 
 
-# --- cross-tool degrade contract ---------------------------------------
-
-# Exercise the error envelope through each public tool entrypoint.
 _ALL_TOOLS: dict[
     str, tuple[Callable[..., Awaitable[dict[str, Any]]], dict[str, Any]]
 ] = {
@@ -178,9 +157,6 @@ async def test_every_tool_degrades_on_transport_failure(
     assert f"{tool_fn.__name__} failed: connection refused" in caplog.text
 
 
-# --- query_gene_disease_network: success, parametrized over direction ---
-
-
 @pytest.mark.parametrize(
     "entity_type,endpoint,result_key,total_key",
     [
@@ -215,8 +191,8 @@ async def test_gene_disease_network_includes_variants_as_a_second_call(
 ) -> None:
     client = stub_responses(
         monkeypatch,
-        [{"id": "HGNC:1"}],  # genes
-        [{"rsid": "rs1"}],  # variants
+        [{"id": "HGNC:1"}],
+        [{"rsid": "rs1"}],
     )
 
     result = await query_gene_disease_network(
@@ -258,9 +234,6 @@ async def test_gene_disease_network_reports_a_malformed_identifier(
     assert "invalid identifier" in result["error"]
 
 
-# --- query_gene_codependents: single shape, not parametrized -------------
-
-
 async def test_gene_codependents_success_and_caps_results(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -278,11 +251,8 @@ async def test_gene_codependents_success_and_caps_results(
     assert call_payload == {"gene": ["HGNC", "6407"]}
 
 
-# --- query_drug_info: all four query_type branches share one dispatch ---
-# table (_DRUG_ENDPOINTS in the source), so they are parametrized here too.
-# The expected mapping is written out by hand rather than imported from
-# that table, so a change to the table itself still has something to check
-# it against.
+# Independent expected mappings still detect changes to the production dispatch
+# table.
 
 
 @pytest.mark.parametrize(
@@ -346,9 +316,6 @@ async def test_drug_info_rejects_invalid_query_type(
     }
 
 
-# --- query_clinical_trials: disease vs drug -------------------------------
-
-
 @pytest.mark.parametrize(
     "entity_type,endpoint,param_name",
     [
@@ -386,12 +353,6 @@ async def test_clinical_trials_rejects_invalid_entity_type(
         "error": "invalid entity_type 'bogus', use 'disease' or 'drug'",
         "query": {"identifier": "MESH:D000544", "entity_type": "bogus"},
     }
-
-
-# --- run_enrichment_analysis: discrete / signed / kinase ------------------
-# The three analysis types share one request/response shape closely enough
-# to parametrize, aside from "signed" needing an extra argument -- captured
-# below as per-case extra kwargs rather than forcing a shared signature.
 
 
 @pytest.mark.parametrize(
@@ -456,9 +417,6 @@ async def test_enrichment_signed_requires_negative_genes(
     }
 
 
-# --- query_pathways: single-gene vs shared-pathway mode -------------------
-
-
 @pytest.mark.parametrize(
     "gene_ids,endpoint,payload_key,mode",
     [
@@ -484,9 +442,6 @@ async def test_pathways_success(
 
     assert result["pathways"] == [{"pathway": "WP1"}]
     assert result["total_pathways"] == 1
-    # The success path enriches the query with "mode"; this is the one
-    # field the exception path (below) does not have, since it is computed
-    # inside the coroutine body rather than by the public wrapper.
     assert result["query"] == {"gene_ids": gene_ids, "mode": mode}
     call_url, call_payload = client.calls[0]
     assert call_url.endswith(endpoint)
@@ -500,13 +455,8 @@ async def test_pathways_reports_a_malformed_identifier(
 
     result = await query_pathways(["HGNC:6407", "no-colon"])
 
-    # The exception path's query comes from the public wrapper, so it has
-    # no "mode" key -- only the success path adds one.
     assert result["query"] == {"gene_ids": ["HGNC:6407", "no-colon"]}
     assert "invalid identifier" in result["error"]
-
-
-# --- query_causal_subnetwork: mediated vs direct relations ---------------
 
 
 @pytest.mark.parametrize(
@@ -578,7 +528,6 @@ async def test_statements_by_agent_success(
     assert result["statements"] == [{"stmt": "Inhibition"}]
     call_url, call_payload = client.calls[0]
     assert call_url.endswith("/api/get_statements")
-    # A plain name is sent as-is rather than parsed into a CURIE.
     assert call_payload["agent"] == "KRAS"
     assert "other_agent" not in call_payload
     assert "rel_types" not in call_payload

@@ -8,9 +8,7 @@ import {
 
 const httpMock = vi.hoisted(() => {
   const clientHeaders = vi.fn(() => ({'X-Client-ID': 'client-7'}));
-  // Mirrors runs_http's jsonRequest (the real one is mocked away with
-  // './runs_http'), building its headers through the mocked clientHeaders so the
-  // inits the module under test sends still carry the caller's identity.
+  // Build headers through the identity mock so requests retain their owner.
   const jsonRequest = vi.fn(
     (body: unknown, includeClientId = false): RequestInit => ({
       method: 'POST',
@@ -54,11 +52,8 @@ it('announces a successful clear', async () => {
   expect(listener).toHaveBeenCalledTimes(1);
 });
 
-// Every read and write must identify the caller. The endpoint scopes a
-// non-loopback caller to its own records, so an unidentified request
-// matches nothing: without these headers the panel is permanently empty
-// in any real deployment, and records the UI submits are stored
-// ownerless and can never be read back.
+// Unidentified remote log requests match nothing and create unreadable
+// ownerless records.
 it('identifies the caller when reading', async () => {
   httpMock.fetchJson.mockResolvedValue({logs: [], last_id: 0, total: 0});
 

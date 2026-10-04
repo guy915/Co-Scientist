@@ -9,8 +9,6 @@ import {
 } from './chat_session_start_run';
 import type {InferredRunSpec} from '../run_spec';
 
-// Spread the real module so the pure status questions stay real and only the
-// network calls are faked.
 vi.mock('@/api/runs', async importActual => ({
   ...(await importActual<typeof import('@/api/runs')>()),
   createRun: vi.fn(async () => ({id: 'r1', status: 'draft'})),
@@ -21,7 +19,7 @@ vi.mock('@/api/runs', async importActual => ({
   uploadRunDocument: vi.fn(async () => {}),
 }));
 
-// Imported after the mock is registered so the module under test binds to it.
+// Register the mock before importing the module that binds it.
 
 describe('start run', () => {
   beforeEach(() => {
@@ -386,9 +384,8 @@ it('freezes the whole closing turn, not just its spec', async () => {
   window.localStorage.clear();
   window.sessionStorage.clear();
   vi.clearAllMocks();
-  // The confirmed stage is the same turn the draft was, so it carries the
-  // Agent's closing message and its thinking across the start. Dropping them
-  // here is what made the plan turn lose its prose the moment the run began.
+  // The draft and confirmed card share one closing turn; retain its prose and
+  // reasoning.
   const setConfirmed = vi.fn();
   const stage = {
     spec: SPEC,

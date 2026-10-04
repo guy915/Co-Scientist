@@ -1,7 +1,6 @@
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 import {getSystemStatus, type SystemStatus} from './system';
 
-/** A representative /status payload for the offline mock configuration. */
 const STATUS: SystemStatus = {
   mcp_available: false,
   pubmed_available: false,

@@ -1,5 +1,3 @@
-"""Offline contracts for web."""
-
 import socket
 from typing import Any
 
@@ -28,14 +26,6 @@ from mcp_server.tools.web_providers import (
 
 
 def _fake_getaddrinfo(mapping: dict[str, str]) -> Any:
-    """Builds a getaddrinfo stub resolving hosts per the given mapping.
-
-    Args:
-        mapping: Hostname to IP address string.
-
-    Returns:
-        A callable with getaddrinfo's signature.
-    """
 
     def _resolve(host: str, *args: Any, **kwargs: Any) -> list[Any]:
         if host not in mapping:
@@ -47,7 +37,6 @@ def _fake_getaddrinfo(mapping: dict[str, str]) -> Any:
 
 @pytest.fixture
 def resolve_to(monkeypatch: pytest.MonkeyPatch) -> Any:
-    """Patches DNS resolution so tests never touch the network."""
 
     def _apply(mapping: dict[str, str]) -> None:
         monkeypatch.setattr(socket, "getaddrinfo", _fake_getaddrinfo(mapping))
@@ -85,11 +74,8 @@ def test_rejects_private_range(resolve_to: Any) -> None:
 
 
 def test_rejects_public_hostname_resolving_to_loopback(resolve_to: Any) -> None:
-    """Rejects a public hostname that resolves to loopback.
-
-    A string check on the host would let this through; DNS resolution is
-    what catches it.
-    """
+    """Hostname text alone cannot detect public names resolving to private
+    addresses."""
     resolve_to({"127.0.0.1.nip.io": "127.0.0.1"})
     with pytest.raises(UrlNotFetchableError, match="non-public"):
         check_fetchable("http://127.0.0.1.nip.io/admin")
@@ -102,7 +88,6 @@ def test_rejects_decimal_encoded_loopback(resolve_to: Any) -> None:
 
 
 def test_rejects_cloud_metadata_host(resolve_to: Any) -> None:
-    # Named explicitly, so it is refused before DNS is even consulted.
     resolve_to({})
     with pytest.raises(UrlNotFetchableError, match="not allowed"):
         check_fetchable("http://169.254.169.254/latest/meta-data/")
@@ -148,18 +133,12 @@ def test_extract_keeps_headings_and_body() -> None:
 
 
 def test_extract_drops_page_furniture() -> None:
-    """Chrome is the bulk of a typical page's tokens; it must not survive."""
     text = extract_text_from_html(_PAGE)
     for noise in ("analytics()", "color:red", "About", "Copyright 2026"):
         assert noise not in text
 
 
 def test_extract_falls_back_for_div_only_markup() -> None:
-    """Falls back to a flat text dump for div-only markup.
-
-    Such pages expose no allowlisted blocks, but a flat dump still beats
-    returning nothing.
-    """
     html = "<html><body><div>Bare content here</div></body></html>"
     assert "Bare content here" in extract_text_from_html(html)
 
@@ -172,7 +151,6 @@ def test_extract_truncates() -> None:
 
 
 def _client_returning(response: httpx.Response) -> Any:
-    """Builds an httpx client stub that always returns one response."""
 
     class _Client:
         def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -193,10 +171,6 @@ def _client_returning(response: httpx.Response) -> Any:
 async def test_read_url_blocks_internal_address(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Blocks an internal address before any request is made.
-
-    The reason reaches the agent so it learns not to retry.
-    """
     result = await read_url("http://localhost:8008/api/runs")
     assert result.startswith("[blocked:")
 
@@ -291,8 +265,6 @@ def test_normalize_brave_maps_fields() -> None:
     first = out[next(iter(out))]
     assert first["title"] == "GLP-1 trial results"
     assert first["url"] == "https://example.com/a"
-    # The snippet lands in abstract because that is the field the engine's
-    # article pipeline reads for summary text.
     assert first["abstract"] == "A phase 2 readout."
     assert first["source"] == "web"
     assert first["site"] == "Example News"
@@ -309,8 +281,7 @@ def test_normalize_brave_respects_max_results() -> None:
         ("Trials &amp; results", "Trials & results"),
         ("line one\n\n  line two", "line one line two"),
         ("<p>nested <em>tags</em> here</p>", "nested tags here"),
-        # Encoded markup must not survive as a live tag: strip first, then
-        # unescape, so this stays inert text.
+        # Strip markup before unescaping so encoded tags remain inert text.
         ("&lt;script&gt;alert(1)&lt;/script&gt;", "<script>alert(1)</script>"),
         (None, ""),
         ("", ""),
@@ -322,7 +293,6 @@ def test_clean_snippet(raw: Any, expected: str) -> None:
 
 
 def test_normalize_brave_strips_markup_from_snippets() -> None:
-    """Brave wraps query terms in <strong>; the agent must never see tags."""
     payload = {
         "web": {
             "results": [
@@ -347,15 +317,10 @@ def test_normalize_brave_skips_results_without_url() -> None:
 
 
 def test_result_ids_are_stable_across_calls() -> None:
-    """Keeps a stable id for the same page across calls.
-
-    source_id keys off the URL digest, and lineage and dedup depend on it
-    staying constant across runs.
-    """
+    """Lineage and dedup depend on stable URL-based source ids across runs."""
     first = normalize_brave(_WEB_SEARCH_BRAVE_PAYLOAD, max_results=10)
     second = normalize_brave(_WEB_SEARCH_BRAVE_PAYLOAD, max_results=10)
     assert list(first.keys()) == list(second.keys())
-    # Not the randomized built-in hash.
     assert all("-" in key for key in first)
 
 
@@ -450,7 +415,6 @@ async def test_search_web_returns_empty_without_provider(
 async def test_search_web_clamps_max_results(
     monkeypatch: pytest.MonkeyPatch, requested: int, expected: int
 ) -> None:
-    """A model can ask for any number; the provider must see a sane one."""
     import mcp_server.tools.web_providers as web_search_module
 
     captured: dict[str, int] = {}
@@ -493,8 +457,6 @@ async def test_search_web_floors_negative_recency(
     assert captured["recency_days"] == 0
 
 
-# One healthy result: enough to prove a working search, since what these
-# tests read is the credential record rather than the results themselves.
 _WEB_SEARCH_CREDENTIALS_BRAVE_PAYLOAD: dict[str, Any] = {
     "web": {
         "results": [
@@ -509,7 +471,6 @@ _WEB_SEARCH_CREDENTIALS_BRAVE_PAYLOAD: dict[str, Any] = {
 
 
 def _status_error(status: int) -> httpx.HTTPStatusError:
-    """Build the error httpx raises from ``raise_for_status`` at ``status``."""
     request = httpx.Request("GET", "https://example.invalid/search")
     response = httpx.Response(status, request=request)
     return httpx.HTTPStatusError(
@@ -519,18 +480,10 @@ def _status_error(status: int) -> httpx.HTTPStatusError:
 
 @pytest.fixture
 def _clear_credential_state() -> Any:
-    """Keep the module-level failure record from leaking between tests."""
+    """Reset the module-level provider failure record to isolate tests."""
     _clear_credential_error()
     yield
     _clear_credential_error()
-
-
-# --- Falling back to the other provider ------------------------------------
-#
-# Two free allowances only add up if a refusal on one moves the search to the
-# other. Both halves matter: a provider that is out of credit must stop being
-# chosen, and a search that genuinely found nothing must NOT spend the other
-# provider's quota re-asking.
 
 
 @pytest.mark.usefixtures("_clear_credential_state")
@@ -539,7 +492,6 @@ class TestWebSearchCredentials:
     async def test_rejected_key_is_recorded_not_swallowed(
         self, monkeypatch: pytest.MonkeyPatch, status: int
     ) -> None:
-        """Refused credentials are distinguished from empty results."""
         monkeypatch.setenv("BRAVE_API_KEY", "k")
         stub_failure(monkeypatch, _status_error(status))
 
@@ -554,7 +506,8 @@ class TestWebSearchCredentials:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """429 is a healthy key being throttled; it self-heals in seconds."""
+        """Throttling self-heals and says nothing about whether a credential
+        is valid."""
         monkeypatch.setenv("BRAVE_API_KEY", "k")
         stub_failure(monkeypatch, _status_error(429))
 
@@ -565,7 +518,6 @@ class TestWebSearchCredentials:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """An unreachable provider says nothing about the key."""
         monkeypatch.setenv("BRAVE_API_KEY", "k")
         stub_failure(monkeypatch, httpx.ConnectError("no route"))
 
@@ -576,7 +528,6 @@ class TestWebSearchCredentials:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Both providers report through the same record, named separately."""
         monkeypatch.setenv("TAVILY_API_KEY", "k")
         stub_failure(monkeypatch, _status_error(401))
 
@@ -589,7 +540,6 @@ class TestWebSearchCredentials:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """A restored key must not leave the connector reading as dead."""
         monkeypatch.setenv("BRAVE_API_KEY", "k")
         stub_failure(monkeypatch, _status_error(402))
         await search_brave("anything", 5, 0)
@@ -603,7 +553,6 @@ class TestWebSearchCredentials:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """The connector probe reports usability, not mere registration."""
         from mcp_server.tools.web_providers import check_web_search_available
 
         monkeypatch.setenv("BRAVE_API_KEY", "k")
@@ -619,7 +568,6 @@ class TestWebSearchCredentials:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """No key configured is also "not usable", by the same answer."""
         from mcp_server.tools.web_providers import check_web_search_available
 
         monkeypatch.delenv("BRAVE_API_KEY", raising=False)
@@ -631,7 +579,6 @@ class TestWebSearchCredentials:
     async def test_exhausted_credits_count_as_a_rejection(
         self, monkeypatch: pytest.MonkeyPatch, status: int
     ) -> None:
-        """Tavily answers 432/433 when the monthly credits are gone."""
         monkeypatch.setenv("TAVILY_API_KEY", "k")
         stub_failure(monkeypatch, _status_error(status))
 
@@ -644,7 +591,6 @@ class TestWebSearchCredentials:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """With both keys set, a refused provider stops being the choice."""
         monkeypatch.delenv("WEB_SEARCH_PROVIDER", raising=False)
         monkeypatch.setenv("BRAVE_API_KEY", "k")
         monkeypatch.setenv("TAVILY_API_KEY", "k")
@@ -660,7 +606,6 @@ class TestWebSearchCredentials:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Provider preference permits fallback after refusal."""
         monkeypatch.setenv("WEB_SEARCH_PROVIDER", "tavily")
         monkeypatch.setenv("BRAVE_API_KEY", "k")
         monkeypatch.setenv("TAVILY_API_KEY", "k")
@@ -673,11 +618,8 @@ class TestWebSearchCredentials:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """A record only clears on a success, so something must still be tried.
-
-        Otherwise a monthly reset is invisible: every provider stays marked
-        dead until the process restarts.
-        """
+        """Only success clears refusal records; trying a provider keeps
+        monthly resets discoverable."""
         monkeypatch.delenv("WEB_SEARCH_PROVIDER", raising=False)
         monkeypatch.setenv("BRAVE_API_KEY", "k")
         monkeypatch.setenv("TAVILY_API_KEY", "k")
@@ -691,7 +633,6 @@ class TestWebSearchCredentials:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """One search survives the moment the first provider runs out."""
         from mcp_server.tools.web_providers import search_web
 
         monkeypatch.delenv("WEB_SEARCH_PROVIDER", raising=False)
@@ -727,7 +668,8 @@ class TestWebSearchCredentials:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Finding nothing is an answer; only a refusal justifies re-asking."""
+        """Finding nothing is an answer; only refusal justifies spending
+        another provider's quota."""
         from mcp_server.tools.web_providers import search_web
 
         monkeypatch.delenv("WEB_SEARCH_PROVIDER", raising=False)
@@ -760,7 +702,6 @@ class TestWebSearchCredentials:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """The connector is usable as long as one key still works."""
         from mcp_server.tools.web_providers import check_web_search_available
 
         monkeypatch.delenv("WEB_SEARCH_PROVIDER", raising=False)

@@ -1,5 +1,3 @@
-"""Offline contracts for literature."""
-
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -48,12 +46,6 @@ _FEED_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
 
 
 def _feed(doi: str = "") -> str:
-    """Builds one arXiv Atom feed response with a single entry.
-
-    Args:
-        doi: An ``<arxiv:doi>`` element to include, or "" to omit it --
-            most preprints have no published DOI.
-    """
     doi_element = f"<arxiv:doi>{doi}</arxiv:doi>" if doi else ""
     return _FEED_TEMPLATE.format(doi=doi_element)
 
@@ -61,7 +53,6 @@ def _feed(doi: str = "") -> str:
 async def test_a_real_feed_normalizes_to_records(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A realistic Atom response yields a non-empty, cleaned-up record."""
     stub_responses(monkeypatch, _feed(doi="10.1234/foo"))
 
     result = await arxiv_search.search_arxiv("resistance reversal")
@@ -81,7 +72,6 @@ async def test_a_real_feed_normalizes_to_records(
 async def test_the_source_id_drops_the_revision_suffix(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A later version of the same submission is still the same paper."""
     stub_responses(monkeypatch, _feed())
 
     result = await arxiv_search.search_arxiv("resistance reversal")
@@ -92,7 +82,6 @@ async def test_the_source_id_drops_the_revision_suffix(
 async def test_a_missing_doi_is_none_not_a_missing_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Most preprints have no journal DOI; the field is still present."""
     stub_responses(monkeypatch, _feed(doi=""))
 
     result = await arxiv_search.search_arxiv("resistance reversal")
@@ -103,7 +92,6 @@ async def test_a_missing_doi_is_none_not_a_missing_key(
 async def test_a_failed_request_degrades_instead_of_raising(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """One unreachable source must not fail a step consulting several."""
     stub_failure(monkeypatch, httpx.ConnectError("boom"))
 
     result = await arxiv_search.search_arxiv("resistance reversal")
@@ -118,10 +106,6 @@ async def test_a_failed_request_degrades_instead_of_raising(
 async def test_malformed_xml_degrades_instead_of_raising(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A public HTTP endpoint's bad or truncated body must not crash.
-
-    Same degrade path as a transport failure below.
-    """
     stub_responses(monkeypatch, "<feed><entry><title>unterminated")
 
     result = await arxiv_search.search_arxiv("resistance reversal")
@@ -132,11 +116,8 @@ async def test_malformed_xml_degrades_instead_of_raising(
 async def test_an_entry_with_no_id_is_skipped(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An error query answers as one entry with no <id>.
-
-    Treating that as a paper would surface a synthetic empty-titled
-    record instead of the honest empty-records envelope.
-    """
+    """Query errors can look like entries; admitting them invents empty-
+    titled papers."""
     stub_responses(
         monkeypatch,
         '<feed xmlns="http://www.w3.org/2005/Atom">'
@@ -154,12 +135,8 @@ class TestArxivSearch:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """The engine re-keys a list-shaped response by each record's own id.
-
-        Without a stable id, results from a second query would overwrite the
-        first's at the same list position (see europepmc_search's analogous
-        test for the incident this guards against).
-        """
+        """Position-based ids let a later query overwrite unrelated earlier
+        results."""
         stub_responses(monkeypatch, _feed())
 
         result = await arxiv_search.search_arxiv("resistance reversal")
@@ -169,19 +146,12 @@ class TestArxivSearch:
 
 @pytest.fixture
 def _no_retry_wait(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep the transport retry's waits out of the suite's wall clock."""
     monkeypatch.setattr(
         europepmc_search, "_TRANSPORT_RETRY_DELAYS_SECONDS", (0.0, 0.0)
     )
 
 
 def _payload(source: str = "MED", **overrides: object) -> dict[str, object]:
-    """Builds one Europe PMC search response with a single result.
-
-    Args:
-        source: The Europe PMC source code the result carries.
-        overrides: Result fields to replace, e.g. a marked-up title.
-    """
     result: dict[str, object] = {
         "id": "42387642",
         "source": source,
@@ -201,13 +171,8 @@ class TestEuropepmcSearch:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Peer-review status is a fact about the evidence, not a detail.
-
-        Europe PMC returns preprints alongside journal articles in one
-        result list. A hypothesis citing an unreviewed preprint as if it were
-        a published finding is overstating its support, so the flag travels
-        with every record.
-        """
+        """Europe PMC mixes preprints and published articles; peer-review
+        status changes evidence strength."""
         stub_responses(monkeypatch, _payload(source="PPR"))
 
         result = await europepmc_search.search_europepmc("PKMYT1")
@@ -221,7 +186,6 @@ class TestEuropepmcSearch:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """The flag has to distinguish, or it is not carrying information."""
         stub_responses(monkeypatch, _payload(source="MED"))
 
         result = await europepmc_search.search_europepmc("PKMYT1")
@@ -232,13 +196,8 @@ class TestEuropepmcSearch:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Restricted at the query, since the corpus is one index.
-
-        bioRxiv's own API can only list by posting date, so preprint
-        *search* has to run through Europe PMC with its source filter --
-        which means the restriction lives in the query string and would be
-        silently lost if it were dropped.
-        """
+        """bioRxiv cannot search by topic; Europe PMC source filtering
+        supplies that restriction."""
         client = stub_responses(monkeypatch, _payload(source="PPR"))
 
         await europepmc_search.search_preprints("PKMYT1")
@@ -250,12 +209,6 @@ class TestEuropepmcSearch:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Distinct from preprint_search's every-server filter above.
-
-        A live probe confirmed the PUBLISHER field is real (an unrecognized
-        publisher name returns zero hits rather than the unfiltered set), so
-        this pins the query this tool actually sends, not just its shape.
-        """
         client = stub_responses(monkeypatch, _payload(source="PPR"))
 
         await europepmc_search.search_biorxiv("PKMYT1")
@@ -269,7 +222,6 @@ class TestEuropepmcSearch:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """The envelope reports the query the caller asked, not EuropePMC's."""
         stub_responses(monkeypatch, _payload(source="PPR"))
 
         result = await europepmc_search.search_biorxiv("PKMYT1")
@@ -288,7 +240,8 @@ class TestEuropepmcSearch:
     async def test_a_failed_request_is_distinct_from_an_empty_search(
         self, monkeypatch: pytest.MonkeyPatch, tool: object, source: str
     ) -> None:
-        """The caller needs a failure to preserve source diagnostics."""
+        """An unreachable source must remain distinguishable from a
+        successful empty result."""
         stub_failure(monkeypatch, httpx.ConnectError("boom"))
 
         with pytest.raises(RuntimeError, match=source):
@@ -298,15 +251,8 @@ class TestEuropepmcSearch:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Records are keyed by their identifier once they reach the engine.
-
-        The engine re-keys a list-shaped response by each record's own id so
-        a paper found by two queries collapses to one entry. Europe PMC's
-        own ``source``/``id`` pair is the only field present on every record
-        -- a DOI is absent from plenty of preprints -- so without it the
-        re-key falls back to list position and results from the second query
-        overwrite the first's.
-        """
+        """Position-based ids let a later query overwrite unrelated earlier
+        results."""
         stub_responses(monkeypatch, _payload())
 
         result = await europepmc_search.search_europepmc(
@@ -319,11 +265,6 @@ class TestEuropepmcSearch:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """A realistic response yields a real, keyable record.
-
-        Not just an empty envelope that happens to match the failure-path
-        shape below.
-        """
         stub_responses(monkeypatch, _payload(source="PPR"))
 
         result = await europepmc_search.search_biorxiv("pkmyt1", max_results=1)
@@ -337,14 +278,6 @@ class TestEuropepmcSearch:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Retrieval ranking rewards citations under one name only.
-
-        ``search_support._retrieval_score`` reads ``cited_by_count`` -- the
-        name OpenAlex already emits. A record carrying the same number under
-        a different key scores zero on that axis, so a heavily cited Europe
-        PMC paper ranks alongside an uncited one and below every PubMed hit,
-        without anything failing.
-        """
         stub_responses(monkeypatch, _payload())
 
         result = await europepmc_search.search_europepmc(
@@ -357,12 +290,6 @@ class TestEuropepmcSearch:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Europe PMC italicizes species names, in either encoding.
-
-        A live query returns both forms in one result list, and whichever
-        arrives, the agent quoting the title should see the name and not the
-        markup around it.
-        """
         stub_responses(
             monkeypatch,
             _payload(
@@ -429,11 +356,6 @@ class TestEuropepmcSearch:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """One dropped keep-alive socket must not cost the source the query.
-
-        Production logged "Server disconnected without sending a response" for
-        Europe PMC and bioRxiv in the same second, and each lost its query.
-        """
         responses: list[object] = [
             httpx.RemoteProtocolError("Server disconnected"),
             _payload(),
@@ -459,7 +381,6 @@ class TestEuropepmcSearch:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """The retry is bounded, and its last failure keeps its diagnosis."""
         client = stub_failure(
             monkeypatch, httpx.RemoteProtocolError("Server disconnected")
         )
@@ -518,8 +439,8 @@ def test_normalize_falls_back_to_doi_url_and_display_name() -> None:
     out = normalize_works(_SAMPLE, max_papers=10)
     w = out["W456"]
     assert w["title"] == "Second work"
-    assert w["abstract"] == ""  # no inverted index
-    assert w["url"] == "https://doi.org/10.2/y"  # no landing page -> doi
+    assert w["abstract"] == ""
+    assert w["url"] == "https://doi.org/10.2/y"
 
 
 def test_normalize_caps_results() -> None:
@@ -590,12 +511,8 @@ def test_search_openalex_returns_normalized(monkeypatch: Any) -> None:
 def test_search_openalex_raises_when_it_cannot_be_asked(
     monkeypatch: Any,
 ) -> None:
-    """A source that refused is not a source with nothing to say.
-
-    Collapsing the two hid a dead source for a whole credentialed run:
-    26 searches, every one refused, every one recorded as an empty
-    result set.
-    """
+    """Source refusal is not a successful empty search and must preserve
+    failure provenance."""
     err = httpx.HTTPError("boom")
     monkeypatch.setattr(
         httpx,
@@ -608,11 +525,6 @@ def test_search_openalex_raises_when_it_cannot_be_asked(
 
 
 def test_a_rate_limit_says_how_long_and_why(monkeypatch: Any) -> None:
-    """A 429 says how long the caller is locked out, and why.
-
-    OpenAlex meters its free tier, so this is the failure this source
-    actually has, and its body carries the only part worth reading.
-    """
     response = httpx.Response(
         429,
         headers={"retry-after": "6810"},
@@ -638,7 +550,6 @@ def test_a_rate_limit_says_how_long_and_why(monkeypatch: Any) -> None:
 
 
 def test_no_match_is_still_an_empty_result(monkeypatch: Any) -> None:
-    """The other half of the distinction: asked, answered, nothing there."""
     monkeypatch.setattr(
         httpx,
         "AsyncClient",
@@ -681,13 +592,7 @@ def test_search_params_exclude_retractions_and_support_api_key(
 
 
 def test_wildcards_are_stripped_before_reaching_openalex() -> None:
-    """Wildcards must never reach OpenAlex's default `search` param.
-
-    A live check confirms it 400s there ("Wildcards (* or ?) require
-    exact (no-stem) search... Use the search.exact= parameter instead"),
-    so a model-written query using them must reach the API without them
-    rather than fail the whole call.
-    """
+    """OpenAlex rejects wildcard terms on the ordinary search parameter."""
     params, _ = _build_search_params(
         "glioblastoma repurpos* drug?", max_papers=10, recency_years=0
     )
@@ -717,7 +622,8 @@ _DOI = "10.1108/jd-12-2013-0166"
 
 
 async def _no_wait_for_slot() -> None:
-    """Keep fake-transport tests independent of the process-wide pacer."""
+    """Fake HTTP responses must not wait for the process-wide real-network
+    pacer."""
 
 
 def _client_factory(app: Any):  # type: ignore[no-untyped-def]
@@ -735,7 +641,6 @@ def _client_factory(app: Any):  # type: ignore[no-untyped-def]
 async def test_citation_edges_is_available_on_the_mcp_surface(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The server advertises the citation lookup over its public MCP path."""
     responses = [
         [{"count": "1"}],
         [{"count": "1"}],
@@ -804,7 +709,6 @@ async def test_citation_edges_is_available_on_the_mcp_surface(
 def _install_responses(
     monkeypatch: pytest.MonkeyPatch, responses: list[Any]
 ) -> list[str]:
-    """Route the tool's HTTP requests through a queued MockTransport."""
     requests: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:

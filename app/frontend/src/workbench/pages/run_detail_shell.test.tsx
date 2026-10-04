@@ -4,14 +4,8 @@ import {MemoryRouter, Route, Routes} from 'react-router-dom';
 import {ReportTabNav} from './run_detail_shell';
 import {TABS, type TabName} from '../run_tabs';
 
-// The tab strip is a grid (4 or 5 columns, one per rendered tab -- see
-// reportTabsClasses) with min-w-0 cells and no width floor on the label
-// span, sitting inside ancestors that clip horizontal overflow (see the M2
-// breakpoint/clipping fix) -- so a label that did not fit its column was
-// silently cut off by the ancestor's overflow: hidden rather than shrinking
-// on purpose. Stubbing TruncatedLabel lets the test see which component
-// actually rendered each label without depending on jsdom's (always-zero)
-// layout measurements.
+// jsdom cannot measure clipping; stub TruncatedLabel to observe the rendering
+// boundary.
 vi.mock('../components/truncated_label', () => ({
   TruncatedLabel: ({text}: {text: string}) => (
     <span data-testid="truncated-label">{text}</span>
@@ -45,10 +39,8 @@ it('renders every tab label through TruncatedLabel rather than a bare span', () 
   expect(screen.getAllByTestId('truncated-label')).toHaveLength(TABS.length);
 });
 
-// TruncatedLabel rewrites its span's textContent imperatively (see its own
-// docstring), which in a real browser truncates the accessible name derived
-// from content along with the visible text. An explicit aria-label keeps the
-// link's name whole regardless of what the label ends up fitting.
+// Imperative truncation shortens content-derived names; explicit aria-label
+// retains the full name.
 it('gives each tab link an explicit aria-label so its accessible name survives truncation', () => {
   renderTabs();
   expect(screen.getByRole('link', {name: 'Research Overview'})).toHaveAttribute(

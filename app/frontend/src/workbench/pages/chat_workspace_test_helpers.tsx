@@ -7,19 +7,11 @@ import {ChatHistoryProvider} from '../hooks/history_context';
 import {RunHistoryProvider} from '../hooks/history_context';
 import {ChatWorkspace} from './chat_workspace';
 
-/**
- * Shared `@/api/runs` mock for the ChatWorkspace test suites.
- *
- * Declared with `vi.hoisted` so it is available to the `vi.mock` factory
- * below, which is hoisted above this module's `ChatWorkspace` import; routing
- * every suite's rendering through {@link renderWorkspace} guarantees the mock
- * is registered before the real `@/api/runs` module ever loads.
- */
+// Hoist the factory's mock before imports bind the real network module.
 const apiMock = vi.hoisted(() => {
   const listDemoRuns = vi.fn();
   const listRuns = vi.fn();
-  // Override the real loadRunHistory so tests keep driving history through the
-  // listRuns/listDemoRuns mocks, while reusing the real merge policy.
+  // Keep the real history merge policy while replacing only network methods.
   const loadRunHistory = vi.fn(async () => {
     const [owned, demo] = await Promise.all([
       listRuns().catch(() => []),
@@ -55,12 +47,6 @@ vi.mock('@/api/runs', async importOriginal => ({
 
 export {apiMock};
 
-/**
- * Renders ChatWorkspace inside a MemoryRouter alongside a location probe so
- * tests can assert on the current pathname.
- *
- * @returns The React Testing Library render result.
- */
 export function renderWorkspace(path = '/') {
   return render(
     <MemoryRouter initialEntries={[path]}>
@@ -82,13 +68,7 @@ function LocationProbe() {
   return <div data-testid="location">{location.pathname}</div>;
 }
 
-/**
- * Drives the connectors menu off a real /status payload. Only the connectors
- * list is read by the menu, so the rest of the response is left out. Must run
- * after installChatWorkspaceMocks, which clears stubbed globals.
- *
- * @param connectors The connector rows the stubbed /status returns.
- */
+// Install connector responses after mock setup clears stubbed globals.
 export function stubStatusConnectors(
   connectors: {id: string; display: string}[] = [
     {id: 'pubmed', display: 'PubMed'},
@@ -106,12 +86,6 @@ export function stubStatusConnectors(
   );
 }
 
-/**
- * Builds a minimal run record, merging in any per-test overrides.
- *
- * @param overrides Fields to override on the base run record.
- * @returns A run record shaped like the `/api/runs` list payload.
- */
 export function minimalRun(overrides = {}) {
   return {
     ...makeRun({
@@ -128,7 +102,6 @@ export function minimalRun(overrides = {}) {
   };
 }
 
-/** A representative hypothesis record returned by the getHypotheses mock. */
 export const hypothesis = makeHypothesis({
   id: 'hyp-1',
   run_id: 'run-1',
@@ -144,19 +117,12 @@ export const hypothesis = makeHypothesis({
   loss_count: 1,
 });
 
-/**
- * The Agent's start announcement in these suites -- deliberately nothing like
- * the standby copy the card falls back to, so a test asserting on it cannot
- * pass on hardcoded text.
- */
+// Use distinctive start prose so hardcoded standby text cannot satisfy
+// announcement assertions.
 export const ANNOUNCEMENT_TEXT =
   'Your cold-stress session is running now. Look in on it whenever you ' +
   'like; the first ideas need a few minutes.';
 
-/**
- * Resets globals/mocks and installs the default `@/api/runs` mock responses
- * shared by every ChatWorkspace suite. Call from each suite's `beforeEach`.
- */
 export function installChatWorkspaceMocks() {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -172,9 +138,8 @@ export function installChatWorkspaceMocks() {
       title: 'Cold-stress glucose homeostasis',
     },
     current_question: null,
-    // Both turns, as the server records them: the session rebuilds its
-    // transcript from this payload, and each bubble takes the durable turn
-    // id it can be edited or retried by.
+    // Persist durable turn ids because transcript editing and retries address
+    // those ids.
     turns: [
       {
         id: 1,
@@ -199,9 +164,7 @@ export function installChatWorkspaceMocks() {
   }));
   apiMock.getHypotheses.mockResolvedValue([hypothesis]);
   apiMock.getRun.mockRejectedValue(new Error('Run not found'));
-  // The Agent's reply to "Start research", as the server streams it: some
-  // thinking, then the announcement itself. Suites asserting the degraded
-  // card override this with a rejection.
+  // The start response preserves reasoning-before-announcement wire order.
   apiMock.announceRunStart.mockImplementation(
     async (
       _runId: string,
@@ -217,9 +180,8 @@ export function installChatWorkspaceMocks() {
     },
   );
   apiMock.getRunMessages.mockResolvedValue([]);
-  // Reset explicitly: restoreAllMocks leaves a mockResolvedValue set by
-  // one test in place for the next, and a stray chat row carrying a
-  // run_id changes what every later suite rehydrates.
+  // restoreAllMocks retains resolved values; reset chat rows or stale run_id
+  // changes rehydration.
   apiMock.listInterviews.mockResolvedValue([]);
   apiMock.listDemoRuns.mockResolvedValue([
     minimalRun({

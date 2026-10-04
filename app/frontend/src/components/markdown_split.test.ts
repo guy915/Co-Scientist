@@ -19,8 +19,6 @@ describe('splitMarkdownIntoBlocks', () => {
     const content = 'a\n\n\n\nb';
     const blocks = splitMarkdownIntoBlocks(content);
     expect(blocks).toEqual(['a', 'b']);
-    // Concatenating the slices must never invent characters that were not in
-    // the source -- only ever drop the blank-line separators.
     expect(blocks.join('')).toBe('ab');
   });
 
@@ -41,8 +39,7 @@ describe('splitMarkdownIntoBlocks', () => {
   });
 
   it('still splits when HTML appears only inline inside a paragraph', () => {
-    // Inline HTML has no document-scope hazard and no lost separator, so it
-    // is not a reason to fall back to whole-message rendering.
+    // Inline HTML does not create the document-scope hazard of block HTML.
     const content = 'Text with <b>inline</b> html.\n\nSecond paragraph.';
     expect(splitMarkdownIntoBlocks(content)).toEqual([
       'Text with <b>inline</b> html.',

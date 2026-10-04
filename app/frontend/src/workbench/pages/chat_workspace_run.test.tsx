@@ -12,39 +12,22 @@ beforeEach(() => {
   installChatWorkspaceMocks();
 });
 
-/** The research goal every run-flow suite drives the workspace with. */
 const RESEARCH_GOAL = 'Investigate glucose homeostasis under cold stress.';
 
-/** Sentinel object URL returned by the stubbed `URL.createObjectURL`. */
 const RESPONSE_BLOB_URL = 'blob:co-scientist-response';
 
-/**
- * Types the research goal into the composer and submits it.
- *
- * @param goal The research goal to enter; defaults to {@link RESEARCH_GOAL}.
- */
 function submitResearchGoal(goal = RESEARCH_GOAL) {
   const input = screen.getByRole('textbox');
   fireEvent.change(input, {target: {value: goal}});
   fireEvent.submit(input.closest('form')!);
 }
 
-/**
- * The live message composer -- once a run's spec card is on screen, its
- * always-present completion-email field is also a "textbox", so lookups
- * after that point must tell the two apart by tag rather than assume
- * there is only one.
- */
+// Completion email adds another textbox; identify the composer by its element
+// type.
 function getComposer(): HTMLElement {
   return screen.getAllByRole('textbox').find(el => el.tagName === 'TEXTAREA')!;
 }
 
-/**
- * Installs clipboard, object-URL, and anchor-download spies used by the
- * transcript action-control assertions.
- *
- * @returns The installed spies and the captured download filenames.
- */
 function installClipboardAndDownloadSpies() {
   const writeText = vi.fn().mockResolvedValue(undefined);
   Object.defineProperty(navigator, 'clipboard', {
@@ -79,10 +62,6 @@ function installClipboardAndDownloadSpies() {
   };
 }
 
-/**
- * Renders the workspace, submits the research goal, and waits for the inferred
- * run-spec setup card to appear.
- */
 async function driveToRunSpec() {
   renderWorkspace();
   submitResearchGoal();
@@ -93,10 +72,6 @@ async function driveToRunSpec() {
   ).toBeInTheDocument();
 }
 
-/**
- * Selects the Ultra run type, confirms the spec, and waits for the durable run
- * to be created and started.
- */
 async function startRunFromSpec({
   waitForSessionCard = true,
 }: {waitForSessionCard?: boolean} = {}) {
@@ -133,9 +108,8 @@ it('shows request and response controls in the transcript', async () => {
   renderWorkspace();
   submitResearchGoal();
 
-  // Wait for the turn to resolve first: the optimistic prompt bubble is
-  // replaced by the durable turn it became, so a node grabbed before then is
-  // detached by the time it is asserted on.
+  // Optimistic bubbles are replaced by durable turns; wait before retaining
+  // their DOM node.
   expect(
     await screen.findByRole('heading', {name: 'Research plan'}),
   ).toBeInTheDocument();
@@ -145,8 +119,6 @@ it('shows request and response controls in the transcript', async () => {
   expect(screen.getAllByLabelText('Copy response')).not.toHaveLength(0);
   expect(screen.getAllByLabelText('Download response')).not.toHaveLength(0);
 
-  // Editing opens on the message itself, prefilled, rather than pushing the
-  // prompt back down into the composer.
   fireEvent.click(screen.getByLabelText('Edit prompt'));
   expect(screen.getByLabelText('Edit prompt')).toHaveValue(RESEARCH_GOAL);
   fireEvent.click(screen.getByLabelText('Cancel edit'));
@@ -220,7 +192,6 @@ it('infers a run spec in chat from the research goal', async () => {
   expect(screen.getByText('Cancel')).toBeInTheDocument();
   expect(screen.getByRole('group', {name: 'Focus'})).toBeInTheDocument();
   expect(screen.getByRole('group', {name: 'Run type'})).toBeInTheDocument();
-  // No API key stored: free usage defaults to, and only allows, Express.
   expect(screen.getByLabelText(/Express/i)).toBeChecked();
   expect(screen.getByLabelText(/Standard/i)).toBeDisabled();
 });
@@ -230,7 +201,6 @@ it('starts the durable run on confirmation', async () => {
   await startRunFromSpec();
 
   expect(screen.getByTestId('location')).toHaveTextContent('/');
-  // The Agent answers the start turn; the card carries no duplicate copy.
   expect(await screen.findByText(ANNOUNCEMENT_TEXT)).toBeInTheDocument();
   expect(apiMock.announceRunStart).toHaveBeenCalledWith(
     'run-1',
@@ -265,8 +235,8 @@ it('starts the durable run on confirmation', async () => {
 });
 
 it('does not repeat the start exchange the live tab already shows', async () => {
-  // The persisted exchange becomes fetchable once the chat gains its run_id;
-  // fetching it must not duplicate the live copy.
+  // Fetching newly linked persisted exchanges must not duplicate their live
+  // copies.
   apiMock.listInterviews.mockResolvedValue([
     {
       id: 'interview-1',
@@ -305,8 +275,6 @@ it('does not repeat the start exchange the live tab already shows', async () => 
   await startRunFromSpec();
 
   expect(await screen.findByText(ANNOUNCEMENT_TEXT)).toBeInTheDocument();
-  // One prompt bubble (the plan card's Start control carries the same words,
-  // so buttons are excluded), and one copy of the reply.
   await waitFor(() => {
     expect(
       screen
@@ -318,7 +286,6 @@ it('does not repeat the start exchange the live tab already shows', async () => 
 });
 
 it('withholds the session block until the reply has been written', async () => {
-  // Keep the session block hidden until the Agent's start reply settles.
   let finishAnnouncement: (() => void) | undefined;
   apiMock.announceRunStart.mockImplementation(
     async (
@@ -362,8 +329,6 @@ it('falls back to the standby copy when no reply is written', async () => {
   await driveToRunSpec();
   await startRunFromSpec();
 
-  // The run started; only its announcement did not. The card says the same
-  // two things the Agent would have, and no error is raised over it.
   expect(
     await screen.findByText(
       /Your session has been started and Co-Scientist has started research/,
@@ -374,7 +339,6 @@ it('falls back to the standby copy when no reply is written', async () => {
 });
 
 it('drops a half-written reply the scientist stopped', async () => {
-  // Interrupted replies are not persisted, so the live card must match reload.
   apiMock.announceRunStart.mockImplementation(
     async (
       _runId: string,
@@ -414,7 +378,6 @@ it('keeps the composer live once the run starts, asking it instead of the interv
   await driveToRunSpec();
   await startRunFromSpec();
 
-  // The completed interview leaves the composer live for run Q&A.
   const composer = getComposer();
   expect(composer).toBeEnabled();
   expect(screen.getByRole('button', {name: 'Files'})).toBeEnabled();
@@ -440,7 +403,6 @@ it('keeps the composer live once the run starts, asking it instead of the interv
       expect.any(AbortSignal),
     );
   });
-  // Never reaches the closed interview (A17).
   expect(apiMock.addInterviewTurn).not.toHaveBeenCalled();
 });
 
@@ -470,8 +432,6 @@ it('streams a run Q&A answer into a growing assistant bubble', async () => {
   ).toBeInTheDocument();
 
   resolveAsk?.();
-  // The growing draft settles into the durable answer bubble once the
-  // stream completes, rather than disappearing.
   await waitFor(() => {
     expect(
       screen.getByText('Because the evidence supports it.'),

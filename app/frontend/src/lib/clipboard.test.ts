@@ -21,7 +21,6 @@ it('uses the async Clipboard API when available', async () => {
   await copyText('hello world');
 
   expect(writeText).toHaveBeenCalledWith('hello world');
-  // The synchronous fallback must not run when the async API succeeds.
   expect(execCommand).not.toHaveBeenCalled();
 });
 
@@ -36,7 +35,6 @@ it('falls back to execCommand when the clipboard API is absent', async () => {
   await copyText('fallback text');
 
   expect(execCommand).toHaveBeenCalledWith('copy');
-  // The hidden textarea used for the fallback must be cleaned up.
   expect(document.querySelector('textarea')).toBeNull();
 });
 

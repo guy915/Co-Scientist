@@ -44,9 +44,8 @@ describe('error logging', () => {
       }),
     );
 
-    // Nothing failed: the layout settles, the notice carries no error and no
-    // location, and it arrives many times a second — persisting it evicts
-    // the records the panel's fixed window was opened to show.
+    // ResizeObserver notices are not failures; persisting them crowds out
+    // actual logs.
     expect(logsApiMock.postAppLogs).not.toHaveBeenCalled();
     uninstall();
   });
@@ -104,8 +103,6 @@ describe('interaction logging', () => {
   let uninstall: () => void;
 
   beforeEach(() => {
-    // Interactions buffer onto a short timer before POSTing; tests drive
-    // the flush explicitly.
     vi.useFakeTimers();
     uninstall = installUiInteractionLogging();
   });
@@ -174,7 +171,6 @@ describe('interaction logging', () => {
     button.textContent = 'Start run';
     button.click();
     button.click();
-    // Nothing ships until the flush timer fires.
     expect(logsApiMock.postAppLogs).not.toHaveBeenCalled();
     vi.runAllTimers();
 
@@ -190,7 +186,6 @@ describe('interaction logging', () => {
     button.textContent = 'Go';
     for (let i = 0; i < 20; i++) button.click();
 
-    // The 20th record fills the buffer and ships without the timer.
     expect(logsApiMock.postAppLogs).toHaveBeenCalledTimes(1);
     const records = logsApiMock.postAppLogs.mock.calls[0][0] as unknown[];
     expect(records).toHaveLength(20);
@@ -205,7 +200,6 @@ describe('interaction logging', () => {
     expect(logsApiMock.postAppLogs).toHaveBeenCalledWith([
       {message: 'click: "Start run" (button)', logger: 'interaction'},
     ]);
-    // Already shipped: the timer firing later must not repost it.
     vi.runAllTimers();
     expect(logsApiMock.postAppLogs).toHaveBeenCalledTimes(1);
   });
@@ -234,7 +228,7 @@ describe('interaction logging', () => {
   it('persists form submissions', () => {
     const form = mount(document.createElement('form'));
     form.setAttribute('aria-label', 'Research goal');
-    // jsdom aborts real submissions; dispatch the event directly.
+    // jsdom aborts native form submissions; dispatch the event directly.
     form.dispatchEvent(new Event('submit', {bubbles: true}));
     vi.runAllTimers();
 

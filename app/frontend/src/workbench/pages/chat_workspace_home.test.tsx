@@ -45,8 +45,6 @@ describe('chat workspace home', () => {
     ).toHaveAttribute('href', '/runs/demo-ferroptosis/details');
   });
 
-  // The home still opens on the chat; the landing page waits below it, behind
-  // one quiet line under the composer that scrolls to it.
   it('points from the composer down to the landing page', async () => {
     renderWorkspace();
     const hint = screen.getByRole('button', {
@@ -77,8 +75,6 @@ describe('chat workspace home active empty', () => {
         research_goal: 'Investigate synaptic pruning therapies.',
         status: 'running',
         completed_at: null,
-        // The shape a real engine run reports: it leases durable tasks and
-        // emits no stage events, and its task budget is never determinate.
         latest_stage: null,
         execution_progress: {
           determinate: false,
@@ -101,8 +97,6 @@ describe('chat workspace home active empty', () => {
 
     renderWorkspace();
 
-    // Reviewing hypotheses is the third of the four phases, so the run lists
-    // the three it has entered and not the tournament it has not reached.
     expect(await screen.findByText('In Progress')).toBeInTheDocument();
     expect(screen.getByText('Exploring focus areas')).toBeInTheDocument();
     expect(screen.getByText('Generating hypotheses')).toBeInTheDocument();
@@ -183,15 +177,12 @@ describe('chat workspace home completed cards', () => {
 
     const {container} = renderWorkspace();
 
-    // The goal text appears in both the card title and description.
     await screen.findAllByText(/failed before generating anything/i);
     expect(container.querySelector('.reference-winner-list')).toBeNull();
   });
 
   it('omits the winning-ideas chips on a cancelled run', async () => {
-    // A cancelled run has no winners -- the tournament never finished -- so
-    // "Winning ideas" and a top score below the card's own subtitle claim a
-    // result the run does not have.
+    // Cancelled tournaments have no winners or earned top score.
     apiMock.listDemoRuns.mockResolvedValue([]);
     apiMock.listRuns.mockResolvedValue([
       minimalRun({
@@ -243,10 +234,6 @@ describe('chat workspace home recents window', () => {
     installChatWorkspaceMocks();
   });
 
-  /**
-   * Seeds six completed recent runs so the home stage has more cards than the
-   * initial four-card window reveals.
-   */
   function seedSixRecentRuns() {
     apiMock.listDemoRuns.mockResolvedValue([]);
     apiMock.getHypotheses.mockResolvedValue([]);
@@ -301,8 +288,6 @@ describe('chat workspace chats', () => {
     installChatWorkspaceMocks();
   });
 
-  // A two-turn chat still in progress, with the Agent's reasoning stored on
-  // its turn the way the backend now persists it.
   function activeInterview(): Interview {
     return {
       id: 'interview-7',
@@ -349,8 +334,6 @@ describe('chat workspace chats', () => {
     fireEvent.change(input, {target: {value: 'Study liver fibrosis'}});
     fireEvent.submit(input.closest('form')!);
 
-    // The chat exists server-side from its first turn, so the URL names it and
-    // the rail is told to reload -- both are what make it reopenable at all.
     await waitFor(() => {
       expect(screen.getByTestId('location')).toHaveTextContent(
         '/chats/interview-1',
@@ -369,8 +352,6 @@ describe('chat workspace chats', () => {
     expect(
       screen.getByText('Which mechanisms should I prioritize?'),
     ).toBeInTheDocument();
-    // The turn's chain of thought is kept with it rather than dropped when the
-    // reply lands, so a reopened chat can still show why it asked.
     expect(screen.getByText('Thinking')).toBeInTheDocument();
     expect(
       screen.getByText('No mechanism named yet, so ask for one.'),

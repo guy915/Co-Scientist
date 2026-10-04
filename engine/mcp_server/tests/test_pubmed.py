@@ -1,5 +1,3 @@
-"""Offline contracts for pubmed."""
-
 from __future__ import annotations
 
 import asyncio
@@ -38,8 +36,6 @@ from mcp_server.tools.lit_review.search_pubmed import check_pubmed_available
 
 
 class _CannedEntrezHandle:
-    """Minimal response handle for the offline public-tool test."""
-
     def __init__(self, response: Any) -> None:
         self.response = response
 
@@ -48,7 +44,6 @@ class _CannedEntrezHandle:
 
 
 def test_extract_publication_types_reads_the_list() -> None:
-    """Every entry in an article's PublicationTypeList is returned as-is."""
     article = {
         "PublicationTypeList": ["Journal Article", "Retracted Publication"]
     }
@@ -59,14 +54,12 @@ def test_extract_publication_types_reads_the_list() -> None:
 
 
 def test_extract_publication_types_defaults_to_empty() -> None:
-    """An article with no PublicationTypeList yields an empty list."""
     assert _extract_publication_types({}) == []
 
 
 def test_fetch_paper_details_surfaces_publication_types(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """A retracted article's publication type reaches the metadata dict."""
     canned = {
         "PubmedArticle": [
             {
@@ -113,11 +106,8 @@ def test_fetch_paper_details_surfaces_publication_types(
 def test_fetch_paper_details_reads_as_plain_text(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """PubMed italicizes species and gene names inside its metadata.
-
-    A live query returns them on roughly half of all records, and the tag
-    travels straight into whatever an agent quotes.
-    """
+    """PubMed embeds formatting tags in species and gene names that agents
+    may quote."""
     canned = {
         "PubmedArticle": [
             {
@@ -165,7 +155,6 @@ def test_fetch_paper_details_reads_as_plain_text(
 def test_fetch_paper_details_keeps_article_without_author_list(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """An optional AuthorList does not discard otherwise valid metadata."""
     canned = {
         "PubmedArticle": [
             {
@@ -204,7 +193,6 @@ def test_fetch_paper_details_keeps_article_without_author_list(
 def test_pubmed_tool_returns_article_without_author_list(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """The maintained tool keeps valid results when Entrez omits authors."""
     paper = {
         "PubmedArticle": [
             {
@@ -270,16 +258,11 @@ def test_pubmed_tool_returns_article_without_author_list(
 
 
 def test_extract_abstract_keeps_the_missing_sentinel() -> None:
-    """An article with no abstract still reports "<not found>".
-
-    The sentinel is angle-bracketed but is not markup, which is why only
-    real formatting tags are stripped.
-    """
+    """The angle-bracketed missing sentinel is text, not publisher markup."""
     assert _extract_abstract({}) == "<not found>"
 
 
 def _canned(article: dict[str, Any]) -> dict[str, Any]:
-    """Wraps one Article mapping in the efetch response shape."""
     return {
         "PubmedArticle": [
             {
@@ -292,7 +275,6 @@ def _canned(article: dict[str, Any]) -> dict[str, Any]:
 
 @pytest.fixture
 def entrez(monkeypatch: pytest.MonkeyPatch) -> Any:
-    """Stubs the Entrez round-trip with whatever the test hands back."""
 
     def _install(article: dict[str, Any]) -> None:
         monkeypatch.setattr(
@@ -308,7 +290,6 @@ def entrez(monkeypatch: pytest.MonkeyPatch) -> Any:
 
 
 def test_an_article_reads_as_plain_text(entrez: Any) -> None:
-    """PubMed italicizes species names and subscripts gene symbols."""
     entrez(
         {
             "ArticleTitle": "Emergence of <i>mcr-1.1</i> in bla<sub>NDM</sub>",
@@ -330,11 +311,8 @@ def test_an_article_reads_as_plain_text(entrez: Any) -> None:
 
 
 def test_an_article_without_an_abstract_reports_none(entrez: Any) -> None:
-    """Absent stays absent: cleaning must not turn None into "".
-
-    Downstream ranking treats an empty abstract as evidence it can read
-    and a missing one as a paper to fetch, so the two are not the same.
-    """
+    """A missing abstract means fetch it; empty text is already considered
+    readable evidence."""
     entrez(
         {
             "ArticleTitle": "A paper with no abstract",
@@ -397,26 +375,15 @@ def test_entrez_reader_closes_a_malformed_response(
     assert handle.closed
 
 
-# =============================================================================
-# field_tag_terms
-# =============================================================================
-
-
 def test_field_tag_terms_wraps_each_term_in_mesh_and_tiab() -> None:
-    """Every term is OR'd against its own MeSH heading and text-word match.
-
-    This is what keeps an over-specific multi-term query from collapsing to
-    zero hits under PubMed's automatic term mapping: tagging bypasses the
-    ATM fallback that silently ANDs every bare word once a phrase fails to
-    match a controlled-vocabulary heading.
-    """
+    """PubMed automatic mapping can silently AND bare words when a phrase has
+    no controlled heading."""
     assert field_tag_terms("kinase tumor", " AND ") == (
         "(kinase[tiab] OR kinase[mesh]) AND (tumor[tiab] OR tumor[mesh])"
     )
 
 
 def test_field_tag_terms_honors_the_given_joiner() -> None:
-    """The same tagging is reusable for an OR-joined broadened rung."""
     assert field_tag_terms("kinase tumor growth", " OR ") == (
         "(kinase[tiab] OR kinase[mesh]) OR (tumor[tiab] OR tumor[mesh])"
         " OR (growth[tiab] OR growth[mesh])"
@@ -424,30 +391,20 @@ def test_field_tag_terms_honors_the_given_joiner() -> None:
 
 
 def test_field_tag_terms_tags_a_single_term() -> None:
-    """A single term still gains the MeSH/text-word OR, just with no join."""
     assert field_tag_terms("kinase", " AND ") == (
         "(kinase[tiab] OR kinase[mesh])"
     )
 
 
 def test_field_tag_terms_leaves_explicit_boolean_queries_untouched() -> None:
-    """A query the caller already wrote as boolean is not re-tokenized.
-
-    Re-tagging term-by-term would fight the caller's own AND/OR/NOT
-    structure rather than extend it.
-    """
+    """Retokenizing an explicit Boolean query would fight the caller's own
+    structure."""
     assert field_tag_terms("kinase AND tumor", " AND ") == "kinase AND tumor"
     assert field_tag_terms("kinase OR tumor", " OR ") == "kinase OR tumor"
     assert field_tag_terms("kinase NOT tumor", " AND ") == "kinase NOT tumor"
 
 
-# =============================================================================
-# or_relaxed_query
-# =============================================================================
-
-
 def test_or_relaxes_a_multi_term_query_with_field_tags() -> None:
-    """A space-separated (implicitly ANDed) query becomes a tagged OR."""
     assert or_relaxed_query("kinase inhibition tumor growth") == (
         "(kinase[tiab] OR kinase[mesh])"
         " OR (inhibition[tiab] OR inhibition[mesh])"
@@ -457,27 +414,15 @@ def test_or_relaxes_a_multi_term_query_with_field_tags() -> None:
 
 
 def test_single_term_and_boolean_queries_are_not_relaxed() -> None:
-    """Nothing to broaden: one term, or an already-boolean query."""
     assert or_relaxed_query("kinase") is None
     assert or_relaxed_query("kinase OR tumor") is None
     assert or_relaxed_query("kinase AND tumor") is None
     assert or_relaxed_query("kinase NOT tumor") is None
 
 
-# =============================================================================
-# relaxation_ladder
-# =============================================================================
-
-
 def test_ladder_broadens_recency_then_anchored_then_terms() -> None:
-    """Recency, then all-but-the-subject, then every term, in that order.
-
-    Only the two broadened rungs carry field tags. The exact and
-    recency-dropped rungs are left exactly as PubMed's own automatic term
-    mapping receives them -- see the module docstring for the live
-    measurement showing a naive per-word tag on those rungs regresses
-    queries ATM already handles well.
-    """
+    """Per-word tags can regress exact queries that PubMed automatic mapping
+    already handles."""
     ladder = relaxation_ladder("kinase inhibition tumor", recency_years=7)
     anchored = (
         "(kinase[tiab] OR kinase[mesh])"
@@ -498,18 +443,11 @@ def test_ladder_broadens_recency_then_anchored_then_terms() -> None:
 
 
 def test_the_anchored_rung_keeps_the_leading_terms_required() -> None:
-    """Broadening must answer the question it was given.
-
-    ORing every term is a different question, not a wider one: measured
-    live, "PHGDH knockdown osimertinib resistance EGFR adenocarcinoma"
-    ANDs to 0 hits and ORs to 1,966,502, and the three documents a caller
-    then read were a gastric cancer case report, a leiomyosarcoma series
-    and a paper on antimicrobial resistance.
-    """
+    """Fully ORing terms changes the subject; keep leading anchors to avoid
+    unrelated evidence."""
     anchored = anchored_relaxed_query("PHGDH knockdown osimertinib resistance")
 
     assert anchored is not None
-    # The leading pair stays ANDed; only the tail relaxes.
     assert anchored.startswith(
         "(PHGDH[tiab] OR PHGDH[mesh])"
         " AND (knockdown[tiab] OR knockdown[mesh]) AND ("
@@ -520,16 +458,13 @@ def test_the_anchored_rung_keeps_the_leading_terms_required() -> None:
 
 
 def test_a_query_with_nothing_past_its_anchors_is_not_anchored() -> None:
-    """Anchoring every term would just restate the exact rung."""
     assert anchored_relaxed_query("kinase") is None
     assert anchored_relaxed_query("kinase tumor") is None
     assert anchored_relaxed_query("kinase AND tumor") is None
 
 
 def test_ladder_omits_redundant_rungs() -> None:
-    """With no recency window and one term, only the exact query remains."""
     assert relaxation_ladder("kinase", recency_years=0) == [("kinase", 0)]
-    # No recency to drop; the OR rung still differs, so it is included.
     assert relaxation_ladder("kinase tumor", recency_years=0) == [
         ("kinase tumor", 0),
         (
@@ -540,19 +475,12 @@ def test_ladder_omits_redundant_rungs() -> None:
 
 
 def test_ladder_leaves_an_explicit_boolean_query_untagged() -> None:
-    """A caller-supplied boolean query passes through every rung as-is."""
     for operator in ("AND", "OR", "NOT"):
         query = f"kinase {operator} tumor"
         assert relaxation_ladder(query, recency_years=0) == [(query, 0)]
 
 
-# =============================================================================
-# search_with_relaxation
-# =============================================================================
-
-
 def test_lowercase_prose_operators_do_not_suppress_relaxation() -> None:
-    """Only PubMed's uppercase Boolean operators signal query structure."""
     calls: list[str] = []
 
     def _esearch(term: str, retmax: int, recency: int) -> list[str]:
@@ -570,7 +498,6 @@ def test_lowercase_prose_operators_do_not_suppress_relaxation() -> None:
 
 
 def test_runner_returns_first_rung_when_it_has_enough() -> None:
-    """A first rung that meets the threshold costs exactly one search."""
     calls: list[tuple[str, int, int]] = []
 
     def _esearch(term: str, retmax: int, recency: int) -> list[str]:
@@ -579,17 +506,15 @@ def test_runner_returns_first_rung_when_it_has_enough() -> None:
 
     ids = search_with_relaxation("kinase tumor", 10, 7, _esearch)
     assert len(ids) == MIN_RESULTS_BEFORE_RELAX
-    assert len(calls) == 1  # no relaxation issued
+    assert len(calls) == 1
     assert calls[0][1:] == (10, 7)
 
 
 def test_runner_relaxes_until_a_rung_returns_enough() -> None:
-    """A starved query falls through every rung to the broadest one."""
     calls: list[tuple[str, int, int]] = []
 
     def _esearch(term: str, retmax: int, recency: int) -> list[str]:
         calls.append((term, retmax, recency))
-        # Only the fully-ORed rung returns results.
         if term.startswith("(kinase[tiab] OR kinase[mesh]) OR"):
             return ["1", "2", "3", "4"]
         return []
@@ -598,16 +523,10 @@ def test_runner_relaxes_until_a_rung_returns_enough() -> None:
     assert ids == ["1", "2", "3", "4"]
     assert [c[1:] for c in calls] == [(10, 7), (10, 0), (10, 0), (10, 0)]
     assert calls[0][0] == "kinase inhibition tumor"
-    assert " AND (" in calls[2][0]  # the anchored rung was tried first
+    assert " AND (" in calls[2][0]
 
 
 def test_the_anchored_rung_is_taken_before_the_fully_ored_one() -> None:
-    """The point of the middle rung: it stops the descent short.
-
-    Reaching the OR rung is what returned three off-topic documents on a
-    real run, so a rung that keeps the subject and clears the bar has to
-    end the descent rather than merely precede it.
-    """
     calls: list[str] = []
 
     def _esearch(term: str, retmax: int, recency: int) -> list[str]:
@@ -622,12 +541,6 @@ def test_the_anchored_rung_is_taken_before_the_fully_ored_one() -> None:
 
 
 def test_first_rung_target_survives_when_anchored_rung_fills_buffer() -> None:
-    """A later qualifying rung must not discard an exact-rung PMID.
-
-    The inputs and IDs reproduce the retained B. fragilis diagnostic, not a
-    holdout for the frozen scientific comparison. The stub keeps this test
-    offline while preserving the actual observed rung boundary.
-    """
     query = (
         "Symbiotic Bacteroides fragilis polysaccharide A signals through TLR2 "
         "on Foxp3+ regulatory T cells to promote mucosal tolerance and "
@@ -685,7 +598,6 @@ def test_merged_rung_ids_keep_first_occurrence_order_and_retmax_cap() -> None:
 
 
 def test_runner_keeps_a_thin_result_when_no_rung_clears_the_bar() -> None:
-    """Some evidence beats none: the first non-empty rung is returned."""
 
     def _esearch(term: str, retmax: int, recency: int) -> list[str]:
         return ["only-one"] if recency > 0 else []
@@ -695,7 +607,6 @@ def test_runner_keeps_a_thin_result_when_no_rung_clears_the_bar() -> None:
 
 
 def test_runner_returns_empty_when_nothing_matches_at_any_breadth() -> None:
-    """A query matching nothing even when broadened yields an empty list."""
     ids = search_with_relaxation(
         "kinase inhibition tumor", 10, 7, lambda *_: []
     )
@@ -703,16 +614,15 @@ def test_runner_returns_empty_when_nothing_matches_at_any_breadth() -> None:
 
 
 def test_threshold_is_clamped_to_retmax() -> None:
-    """A retmax below the minimum never forces relaxation it cannot satisfy."""
     calls: list[str] = []
 
     def _esearch(term: str, retmax: int, recency: int) -> list[str]:
         calls.append(term)
-        return ["1"]  # one result, and retmax is 1
+        return ["1"]
 
     ids = search_with_relaxation("kinase tumor", 1, 0, _esearch)
     assert ids == ["1"]
-    assert len(calls) == 1  # one hit satisfies retmax=1, no relax
+    assert len(calls) == 1
 
 
 def test_storage_import_does_not_initialize_entrez() -> None:
@@ -771,7 +681,6 @@ def test_metadata_and_empty_link_proof_survive_cache_relocation(
 def test_final_results_fill_fulltext_shortfall_with_abstracts(
     tmp_path: Path,
 ) -> None:
-    """PMC papers lead, while abstract-only records fill the corpus target."""
     source = PubmedSource(tmp_path)
     metadata = {
         "abstract-1": {"title": "Recent abstract", "abstract": "A1"},
@@ -792,7 +701,6 @@ def test_final_results_fill_fulltext_shortfall_with_abstracts(
 
 
 def test_final_results_respect_total_corpus_limit(tmp_path: Path) -> None:
-    """The abstract fallback never expands beyond the requested paper count."""
     source = PubmedSource(tmp_path)
     metadata = {
         "fulltext-1": {"fulltext": "One"},
@@ -810,7 +718,6 @@ def test_final_results_respect_total_corpus_limit(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
-        # Both encodings of the same real Europe PMC title.
         (
             "Colistin resistance in <i>Klebsiella pneumoniae</i>",
             "Colistin resistance in Klebsiella pneumoniae",
@@ -819,16 +726,15 @@ def test_final_results_respect_total_corpus_limit(tmp_path: Path) -> None:
             "Sphingosine against &lt;i&gt;Pseudomonas aeruginosa&lt;/i&gt;",
             "Sphingosine against Pseudomonas aeruginosa",
         ),
-        # A structured abstract's section headers are block-level: dropping
-        # them without a space would run "Aims" into the sentence after it.
+        # Dropping block headers without a space joins them to the following
+        # sentence.
         ("<h4>Aims</h4>The convergence of", "Aims The convergence of"),
-        # An inline tag closes up: bla<sub>NDM</sub> is one gene name.
+        # Inline tags must close up so a split gene name remains one symbol.
         ("bla<sub>NDM-1</sub> carriage", "blaNDM-1 carriage"),
         ("Trials &amp; results", "Trials & results"),
-        # Europe PMC pads abbreviated species names with zero-width spaces.
+        # Europe PMC species abbreviations can include zero-width spaces.
         ("(<i>K. pneumoniae</i>\u200b\u200b)", "(K. pneumoniae)"),
         ("line one\n\n  line two", "line one line two"),
-        # Entities that are not markup decode to the character they name.
         ("growth at p &lt; 0.05 in group A", "growth at p < 0.05 in group A"),
         (None, ""),
         ("", ""),
@@ -840,24 +746,16 @@ def test_clean_markup(raw: Any, expected: str) -> None:
 
 
 def test_clean_markup_leaves_a_comparison_shaped_like_a_tag_intact() -> None:
-    """A decoded comparison whose operands spell a tag name is still text.
-
-    "p &lt;b and q&gt; r" decodes to "p <b and q> r", which reads as an
-    opening tag with attributes to anything matching loosely. Deleting it
-    would take the clause with it, so only bare tags are stripped.
-    """
+    """Loose angle-bracket stripping can delete a comparison clause rather
+    than publisher markup."""
     raw = "holds for p &lt;b and q&gt; r"
 
     assert clean_markup(raw) == "holds for p <b and q> r"
 
 
 def test_clean_markup_leaves_comparisons_intact() -> None:
-    """A decoded "<" is text, not a tag, so a comparison survives.
-
-    Stripping anything between angle brackets would eat the span between a
-    "less than" and the next ">" -- in an abstract that silently deletes a
-    clause. Only the formatting tags publishers actually send are removed.
-    """
+    """Loose angle-bracket stripping can delete a comparison clause rather
+    than publisher markup."""
     raw = "significant at p&lt;0.05 while A&gt;B held"
 
     assert clean_markup(raw) == "significant at p<0.05 while A>B held"
@@ -900,7 +798,6 @@ def test_pmc_rendering_handles_sparse_articles(xml: str, expected: str) -> None:
 
 @pytest.mark.parametrize("max_chars", [0, 25, 200_000])
 def test_pmc_sections_preserve_the_corpus_format(max_chars: int) -> None:
-    """PMC keeps abstracts, sections, and boxed paragraphs without clutter."""
     article = """<article>
         <abstract><p>Abstract one.</p><p>Abstract two.</p></abstract>
         <body><sec><title>Methods</title>

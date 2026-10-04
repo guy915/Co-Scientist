@@ -2,8 +2,6 @@ import {beforeEach, expect, it, vi} from 'vitest';
 import {type InferredRunSpec} from '../run_spec';
 import {type HandlerDeps} from './use_chat_session';
 
-// Spread the real module so the pure status questions stay real and only the
-// network calls are faked.
 vi.mock('@/api/runs', async importActual => ({
   ...(await importActual<typeof import('@/api/runs')>()),
   createRun: vi.fn(async () => ({id: 'r1', status: 'draft'})),
@@ -12,7 +10,7 @@ vi.mock('@/api/runs', async importActual => ({
   getRun: vi.fn(async (id: string) => ({id, status: 'draft'})),
 }));
 
-// Imported after the mock is registered so the module under test binds to it.
+// Register the mock before importing the module that binds it.
 import {cancelRun, createRun, getRun, startRun} from '@/api/runs';
 import {readPendingCreateIntent} from './chat_session_start_run';
 import {promoteDraftToRun} from './chat_session_start_run';
@@ -32,9 +30,6 @@ interface Recorded {
   drafts: unknown[];
 }
 
-// The handler reads a handful of HandlerDeps fields; the no-op setters
-// satisfy the rest without reconstructing view state. `recorded` captures
-// the two transitions the failure path has to make.
 function deps(
   recorded: Recorded,
   attachments: {id: string}[] = [],
@@ -94,11 +89,7 @@ it('settles the created run when starting it fails', async () => {
 
   await promoteDraftToRun(deps(recorded));
 
-  // Rolled back: the run that was created but never started is settled,
-  // rather than left as a draft nothing points at.
   expect(cancelRun).toHaveBeenCalledWith('r1');
-  // Surfaced: the error names the run, and the plan is staged again so the
-  // scientist can retry rather than losing the specification.
   expect(recorded.errors.join(' ')).toContain('quota reached');
   expect(recorded.drafts.at(-1)).toEqual({spec: SPEC, createdAt: 0});
   expect(await readPendingCreateIntent('chat-1')).toBeUndefined();

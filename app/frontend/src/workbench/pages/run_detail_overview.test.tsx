@@ -72,11 +72,6 @@ describe('run detail overview', () => {
 });
 
 describe('run detail overview degraded', () => {
-  // Degraded-section notices on the Summary tab (L7): a report section the
-  // engine could not generate after repeated attempts says so, instead of
-  // rendering blank (or worse, the in-flight "appears after synthesis" promise
-  // on a run that already finished).
-
   const NOTICE = 'This section could not be generated after repeated attempts.';
 
   function renderWithReport(
@@ -123,8 +118,6 @@ describe('run detail overview degraded', () => {
   });
 
   it('prefers real overview content over the notice when both exist', () => {
-    // A partial synthesis that still carries a summary renders the summary;
-    // the notice is for sections left blank.
     renderWithReport({
       degraded_sections: ['research_overview'],
       research_overview: {overview: {summary: 'A partial synthesis.'}},
@@ -195,9 +188,6 @@ describe('run detail overview stat line', () => {
   });
 
   it('counts every idea explored, not just the released ones', () => {
-    // A run that explores 22 ideas and releases 2 announced "A total of 2
-    // ideas were explored" directly above its own list of 22, because the
-    // lead stat read the post-gate count.
     const report = makeReport({
       idea_count: 22,
       hypothesis_count: 2,
@@ -217,9 +207,6 @@ describe('run detail overview stat line', () => {
   });
 
   it('reports verified ideas separately from high-potential ones', () => {
-    // The tile repeated the High Potential count, so a run could claim two
-    // verified ideas while every idea in the list carried an "Unverified"
-    // badge. It is now the server's count of ideas with a supported claim.
     const report = makeReport({
       verified_count: 0,
       idea_buckets: {
@@ -266,11 +253,8 @@ describe('run detail overview sections', () => {
     expect(
       screen.getByRole('heading', {name: 'Research directions'}),
     ).toBeInTheDocument();
-    // MO-12: two named directions gates the compact preview list ahead of the
-    // full per-direction detail, so both titles now also appear as its bullet
-    // items -- on top of "Direction one" already naming the research-contact
-    // linkage line below, this asserts at least one occurrence exists rather
-    // than picking one arbitrarily.
+    // Direction titles appear in preview bullets and detail headings; queries
+    // must allow duplicates.
     expect(
       screen.getByText('We will be focusing on these research directions:'),
     ).toBeInTheDocument();
@@ -278,8 +262,6 @@ describe('run detail overview sections', () => {
     expect(screen.getByText('It matters because X.')).toBeInTheDocument();
     expect(screen.getByText('Experiment A')).toBeInTheDocument();
     expect(screen.getByText('Experiment B')).toBeInTheDocument();
-    // Second direction has no suggested experiments, so no list under it. It
-    // also appears twice now: once in the preview, once as its own heading.
     expect(
       screen.getAllByText('Direction two (no experiments)').length,
     ).toBeGreaterThan(0);
@@ -299,16 +281,12 @@ describe('run detail overview sections', () => {
     expect(
       screen.getByText('What to investigate in sub-topic one.'),
     ).toBeInTheDocument();
-    // F7: the exemplar's own third sub-topic block, which "What" (the topic
-    // statement) does not stand in for.
     expect(screen.getByText('Example idea:')).toBeInTheDocument();
     expect(
       screen.getByText('One worked example for sub-topic one.'),
     ).toBeInTheDocument();
     expect(screen.getByText('Question A?')).toBeInTheDocument();
     expect(screen.getByText('Question B?')).toBeInTheDocument();
-    // Direction two carries neither field, and must not fall over. It also
-    // appears twice now: once in the preview, once as its own heading.
     expect(
       screen.getAllByText('Direction two (no experiments)').length,
     ).toBeGreaterThan(0);
@@ -346,8 +324,6 @@ describe('run detail overview sections', () => {
     expect(screen.queryByText('Why:')).not.toBeInTheDocument();
     expect(screen.queryByText('What:')).not.toBeInTheDocument();
     expect(screen.queryByText('Example idea:')).not.toBeInTheDocument();
-    // MO-12: a single direction gets no preview -- it would just repeat the
-    // one heading right below it rather than orient the reader.
     expect(
       screen.queryByText('We will be focusing on these research directions:'),
     ).not.toBeInTheDocument();
@@ -359,7 +335,6 @@ describe('run detail overview sections', () => {
         overview: {
           research_directions: [
             {title: 'Named direction'},
-            // No title after coercion -- must not count toward the gate.
             {importance: 'Untitled but has content.'},
           ],
         },
@@ -411,9 +386,8 @@ describe('run detail overview sections', () => {
   });
 
   it('flattens malformed research directions instead of showing raw JSON', () => {
-    // In production the model emits these fields in json_object mode with no
-    // schema enforcement, so a string field can arrive as serialized JSON or an
-    // object. The section must render readable text, never raw JSON.
+    // json_object mode permits object or serialized-string fields without
+    // schema enforcement.
     const report = makeReport({
       research_overview: {
         overview: {
@@ -451,11 +425,9 @@ describe('run detail overview sections', () => {
     expect(
       screen.getByText('Delete relA - test tolerance'),
     ).toBeInTheDocument();
-    // The JSON-array-string experiment is parsed into individual items.
     expect(
       screen.queryByText('["Assay A", "Assay B"]'),
     ).not.toBeInTheDocument();
-    // No raw JSON braces leak into the rendered output.
     expect(document.body.textContent).not.toContain('{"significance"');
     expect(document.body.textContent).not.toContain('"experiment"');
   });
@@ -506,7 +478,6 @@ describe('run detail overview sections', () => {
     expect(document.body.textContent).not.toContain('{"context"');
     expect(document.body.textContent).not.toContain('{"field"');
     expect(document.body.textContent).not.toContain('{"why"');
-    // The source link keeps its real URL.
     expect(
       screen.getByRole('link', {name: 'Supporting article: A biofilm study'}),
     ).toHaveAttribute('href', 'https://example.org/paper');
@@ -521,12 +492,8 @@ describe('run detail overview sections', () => {
     expect(
       screen.getByText('An introduction to the aims.'),
     ).toBeInTheDocument();
-    // OVERVIEW-AIMS-VOCABULARY-001: each aim is headed by its number
-    // (matching every published exemplar), and its goal moves into the
-    // body under a labelled "Overarching goal:" line. The section heading
-    // (h3) and the per-aim heading (h4) share the phrase "Specific Aims",
-    // so the role query is scoped by heading level to find exactly one of
-    // each rather than colliding.
+    // Section and aim headings share a phrase; distinguish them by heading
+    // level.
     expect(
       screen.getByRole('heading', {name: 'Specific Aims 1', level: 4}),
     ).toBeInTheDocument();
@@ -541,13 +508,8 @@ describe('run detail overview sections', () => {
       screen.getByRole('heading', {name: 'Research contacts'}),
     ).toBeInTheDocument();
     expect(screen.getByText('Ada Researcher')).toBeInTheDocument();
-    // R14-16: Justification: is the one label consistent across all 14
-    // published research contacts that carry it.
     expect(screen.getByText('Justification:')).toBeInTheDocument();
-    // MO-7: ties the contact back to the direction that surfaced them.
-    // "Direction one" also names the research-direction preview bullet and
-    // heading above, so this asserts at least one occurrence rather than an
-    // exact count tied to the preview's own gate.
+    // Preview bullets and contact linkage can repeat direction names.
     expect(screen.getByText('Research direction:')).toBeInTheDocument();
     expect(screen.getAllByText('Direction one').length).toBeGreaterThan(0);
     expect(
@@ -588,9 +550,6 @@ describe('run detail overview sections', () => {
   });
 
   it('omits the research-direction line when the model returns it empty', () => {
-    // research_overview_contacts.py:151 does `raw.get("research_direction")
-    // or ""`, so an empty string is a legitimate, non-crash value here too --
-    // it must render no label, not a label with nothing after it.
     const report = makeReport({
       research_overview: {
         research_contacts: [
@@ -642,8 +601,8 @@ describe('run detail overview sections', () => {
   });
 
   it('still renders aims stored in the previous shape', () => {
-    // Reports persist as the engine produced them, so runs that predate the
-    // exemplar vocabulary keep introduction/aim/rationale/approach/impact.
+    // Persisted reports may retain earlier
+    // introduction/aim/rationale/approach/impact fields.
     const report = makeReport({
       research_overview: {
         nih_specific_aims: {
