@@ -1,20 +1,5 @@
-"""Turning a research result into plain data, and back.
-
-A caller that persists anything has to get this result across a boundary
-that only carries JSON -- a checkpoint, a task payload, a store row. The
-artifacts are frozen dataclasses holding enums and tuples, so
-``dataclasses.asdict`` alone produces something that will not survive the
-trip: an ``Enum`` member is not JSON, and a tuple comes back a list.
-
-Hence an explicit pair. ``result_to_dict`` writes enums as their values
-and every sequence as a list; ``result_from_dict`` reads that back into
-the same artifacts, so the ids re-derive identically and a resumed run
-still recognises the work it paid for.
-
-Unknown keys are ignored and missing ones take their dataclass default,
-so a payload written by an older build still loads. Ids are deliberately
-*not* written: they are derived from content, and storing them would
-allow a payload whose stored id disagrees with what its fields hash to.
+"""Serialize enum values and sequences for JSON; reconstruct content IDs
+instead of storing competing IDs.
 """
 
 from __future__ import annotations
@@ -35,15 +20,6 @@ from co_scientist.research.artifacts import (
 
 
 def result_to_dict(result: ResearchResult) -> dict[str, Any]:
-    """Render a research result as JSON-safe plain data.
-
-    Args:
-        result: What ``conduct_research`` returned.
-
-    Returns:
-        A dict of lists, strings and numbers, round-trippable by
-        :func:`result_from_dict`.
-    """
     return {
         "goal": result.goal,
         "stances": list(result.stances),
@@ -56,13 +32,8 @@ def result_to_dict(result: ResearchResult) -> dict[str, Any]:
 
 
 def result_from_dict(data: dict[str, Any]) -> ResearchResult:
-    """Rebuild a research result from :func:`result_to_dict` output.
-
-    Args:
-        data: A payload written by ``result_to_dict``.
-
-    Returns:
-        The result, with every id re-derived from its content.
+    """Unknown keys and missing defaults preserve older payloads; derived IDs
+    must still match content.
     """
     return ResearchResult(
         goal=str(data.get("goal", "")),
@@ -84,7 +55,6 @@ def result_from_dict(data: dict[str, Any]) -> ResearchResult:
 
 
 def _thread_to_dict(thread: ThreadRecord) -> dict[str, Any]:
-    """Render one thread record."""
     return {
         "question": {
             "text": thread.question.text,
@@ -103,7 +73,6 @@ def _thread_to_dict(thread: ThreadRecord) -> dict[str, Any]:
 
 
 def _thread_from_dict(data: dict[str, Any]) -> ThreadRecord:
-    """Read one thread record back."""
     asked = data.get("question")
     asked = asked if isinstance(asked, dict) else {}
     return ThreadRecord(
@@ -124,7 +93,6 @@ def _thread_from_dict(data: dict[str, Any]) -> ThreadRecord:
 
 
 def _call_to_dict(call: SearchCall) -> dict[str, Any]:
-    """Render one search call, ranking included."""
     return {
         "question": call.question,
         "query": call.query,
@@ -139,7 +107,6 @@ def _call_to_dict(call: SearchCall) -> dict[str, Any]:
 
 
 def _call_from_dict(data: dict[str, Any]) -> SearchCall:
-    """Read one search call back."""
     return SearchCall(
         question=str(data.get("question", "")),
         query=str(data.get("query", "")),
@@ -154,7 +121,6 @@ def _call_from_dict(data: dict[str, Any]) -> SearchCall:
 
 
 def _hit_to_dict(hit: SourceHit) -> dict[str, Any]:
-    """Render one hit as the source returned it."""
     return {
         "locator": hit.locator,
         "title": hit.title,
@@ -166,7 +132,6 @@ def _hit_to_dict(hit: SourceHit) -> dict[str, Any]:
 
 
 def _hit_from_dict(data: dict[str, Any]) -> SourceHit:
-    """Read one hit back."""
     metadata = data.get("metadata")
     return SourceHit(
         locator=str(data.get("locator", "")),
@@ -184,7 +149,6 @@ def _hit_from_dict(data: dict[str, Any]) -> SourceHit:
 
 
 def _finding_to_dict(finding: Finding) -> dict[str, Any]:
-    """Render one finding, bound to the call that surfaced it."""
     return {
         "text": finding.text,
         "question": finding.question,
@@ -195,7 +159,6 @@ def _finding_to_dict(finding: Finding) -> dict[str, Any]:
 
 
 def _finding_from_dict(data: dict[str, Any]) -> Finding:
-    """Read one finding back."""
     return Finding(
         text=str(data.get("text", "")),
         question=str(data.get("question", "")),
@@ -206,7 +169,6 @@ def _finding_from_dict(data: dict[str, Any]) -> Finding:
 
 
 def _enum(kind: Any, value: Any, fallback: Any) -> Any:
-    """Read an enum member by value, falling back on anything else."""
     try:
         return kind(value)
     except ValueError:
@@ -214,31 +176,26 @@ def _enum(kind: Any, value: Any, fallback: Any) -> Any:
 
 
 def _dicts(value: Any) -> list[dict[str, Any]]:
-    """Take the dict members out of a payload's list."""
     if not isinstance(value, list):
         return []
     return [item for item in value if isinstance(item, dict)]
 
 
 def _strings(value: Any) -> list[str]:
-    """Take the string members out of a payload's list."""
     if not isinstance(value, list):
         return []
     return [item for item in value if isinstance(item, str)]
 
 
 def _optional_str(value: Any) -> str | None:
-    """Keep a string, or None for anything else."""
     return value if isinstance(value, str) else None
 
 
 def _optional_int(value: Any) -> int | None:
-    """Keep an int, or None for anything else."""
     return int(value) if isinstance(value, int) else None
 
 
 def _optional_float(value: Any) -> float | None:
-    """Keep a number as a float, or None for anything else."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
     return float(value)

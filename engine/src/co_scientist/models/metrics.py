@@ -1,11 +1,3 @@
-"""Execution-metrics models and node state-update helpers.
-
-Split out of ``models`` to keep that module focused on the hypothesis
-domain dataclasses; every name here remains importable from
-``co_scientist.models`` via re-export shims, so import sites are
-unaffected.
-"""
-
 import dataclasses
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -15,82 +7,38 @@ from co_scientist.llm import ModelCallStats
 
 
 def _known_field_kwargs(cls: Any, data: dict[str, Any]) -> dict[str, Any]:
-    """Return the items of ``data`` whose keys are fields of ``cls``.
-
-    Dropping unknown keys keeps older serialized payloads loadable if a field
-    is later removed; the caller splats the result into ``cls(...)``.
-
-    Args:
-        cls: The dataclass whose field names are the allowed keys.
-        data: A ``to_dict`` payload, possibly carrying stale keys.
-
-    Returns:
-        A dict of ``data`` items restricted to ``cls``'s field names.
-    """
+    """Ignore unknown serialized fields so older checkpoints remain loadable."""
     field_names = {f.name for f in dataclasses.fields(cls)}
     return {k: v for k, v in data.items() if k in field_names}
 
 
 @dataclass
 class ExecutionMetrics:
-    """Metrics for workflow execution."""
-
     total_time: float = 0.0
     hypothesis_count: int = 0
     reviews_count: int = 0
     tournaments_count: int = 0
     evolutions_count: int = 0
-    llm_calls: int = 0  # Total LLM calls made
-    # Keyed by workflow phase/node name (e.g. "generate", "review");
-    # wall-clock seconds spent in that phase, summed across calls.
+    llm_calls: int = 0
     phase_times: dict[str, float] = field(default_factory=dict)
-    # Keyed by "{phase}::{model}" (the durable task/node name and the
-    # litellm model name); each value is a plain dict of the fields on
-    # ``llm.telemetry.ModelCallStats`` (calls, prompt/completion/reasoning
-    # tokens, cost_usd, latency_seconds, retries, cache_hits/misses, and an
-    # errors dict keyed by error kind). Populated by
-    # ``task_runtime.execute_task_node`` from the in-memory telemetry
-    # captured during that node's LLM calls -- see
-    # ``co_scientist.llm.telemetry`` for why this is aggregated in memory
-    # rather than written per call (AGENTS.md: a per-call database row or
-    # persisted log record starves the single SQLite writer).
+    # Aggregate node telemetry in memory; per-call persistence starves SQLite's
+    # single writer.
     model_usage: dict[str, dict[str, Any]] = field(default_factory=dict)
-    # Science skill name -> times a node invoked it, summed across the
-    # run. Recorded because the skills reach third-party databases whose
-    # terms are separate from the bundle's licence and most of which
-    # require the user be notified of them; a notice seeded into a
-    # temporary workspace reaches nobody, so the run's report attributes
-    # the sources it actually used and this is how they get there. Empty
-    # on every run that used no skill, which is every run without
-    # COSCIENTIST_SKILLS_DIR.
+    # Database terms can require attribution; temporary skill notices do not
+    # reach the report reader.
     skills_used: dict[str, int] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize for checkpoint transport (all fields are plain data)."""
         return dataclasses.asdict(self)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ExecutionMetrics":
-        """Rebuild from a ``to_dict`` payload, ignoring unknown keys.
-
-        Ignoring unknown keys keeps older checkpoints loadable if a metric
-        field is later removed.
-        """
         return cls(**_known_field_kwargs(cls, data))
 
 
 def _merge_phase_times(
     existing_phase_times: dict[str, float], new_phase_times: dict[str, float]
 ) -> dict[str, float]:
-    """Merge two phase-timing dicts, summing seconds for phases in both.
-
-    Args:
-        existing_phase_times: Phase times already accumulated in state.
-        new_phase_times: Phase times from a node's metrics delta.
-
-    Returns:
-        A new dict with combined wall-clock seconds per phase.
-    """
     merged_phase_times = dict(existing_phase_times)
 
     for phase, time_val in new_phase_times.items():
@@ -104,17 +52,8 @@ def _merge_phase_times(
 def _merge_usage_entry(
     existing_entry: dict[str, Any], new_entry: dict[str, Any]
 ) -> dict[str, Any]:
-    """Sum one (phase, model) usage entry's numeric fields and count maps.
-
-    Every field a ``ModelCallStats.as_dict()`` entry carries is additive
-    (see that dataclass), so this is a plain field-by-field sum with the
-    error, request and deterministic-fallback maps merged by ``_merge_counts``.
-
-    The field list is read off ``ModelCallStats`` rather than restated
-    here. A hand-written list is a second place to remember, and the one
-    that gets forgotten: fan-out is how the most expensive phase in a run
-    aggregates, so a field missing from the list is not partially counted
-    but silently zeroed for exactly the phase whose cost matters most.
+    """Every usage field is additive; derive fields so fan-out cannot
+    silently zero new counters.
     """
     numeric_fields = tuple(
         f.name
@@ -145,15 +84,6 @@ def _merge_model_usage(
     existing_usage: dict[str, dict[str, Any]],
     new_usage: dict[str, dict[str, Any]],
 ) -> dict[str, dict[str, Any]]:
-    """Merge two ``model_usage`` dicts, summing entries for shared keys.
-
-    Args:
-        existing_usage: Usage already accumulated in state.
-        new_usage: Usage from a node's telemetry snapshot.
-
-    Returns:
-        A new dict with combined per-(phase, model) usage.
-    """
     merged = {key: dict(entry) for key, entry in existing_usage.items()}
     for key, new_entry in new_usage.items():
         merged[key] = _merge_usage_entry(merged.get(key, {}), new_entry)
@@ -163,7 +93,6 @@ def _merge_model_usage(
 def _merge_counts(
     existing: dict[str, int], new: dict[str, int]
 ) -> dict[str, int]:
-    """Sums two name-to-count maps into a new dict."""
     merged = dict(existing)
     for name, count in new.items():
         merged[name] = merged.get(name, 0) + count
@@ -173,29 +102,11 @@ def _merge_counts(
 def merge_metrics(
     existing: ExecutionMetrics, new: ExecutionMetrics
 ) -> ExecutionMetrics:
-    """State reducer that merges metrics from multiple nodes.
-
-    When multiple nodes update metrics concurrently, this combines them. Lives
-    next to ExecutionMetrics so field additions and their merge policy are a
-    one-file change.
-
-    Args:
-        existing: Existing metrics in state
-        new: New metrics being added (should contain only deltas)
-
-    Returns:
-        Merged metrics (new object, does not mutate inputs)
-    """
-    # LangGraph invokes this reducer whenever a node's state update includes
-    # a "metrics" key; "new" is that node's create_metrics_update(...) output
-    # (deltas only), not a cumulative snapshot. Builds a NEW metrics object.
     merged_phase_times = _merge_phase_times(
         existing.phase_times, new.phase_times
     )
 
-    # hypothesis_count is the node's reported running *total* rather than a
-    # delta, so max() avoids double-counting; total_time only overwrites
-    # when a node measured one (> 0); the rest are additive deltas.
+    # Hypothesis counts are running totals, unlike additive usage deltas.
     merged = ExecutionMetrics(
         hypothesis_count=max(existing.hypothesis_count, new.hypothesis_count),
         reviews_count=existing.reviews_count + new.reviews_count,
@@ -215,19 +126,7 @@ def merge_metrics(
 
 @dataclass(frozen=True)
 class MetricDeltas:
-    """The additive per-node counters one metrics update contributes.
-
-    Each field is a delta the ``merge_metrics`` reducer adds to the
-    cumulative run total, not an absolute value.
-
-    Attributes:
-        reviews: Reviews produced by this node.
-        tournaments: Tournament rounds run by this node.
-        evolutions: Evolutions produced by this node.
-        llm_calls: LLM calls made by this node.
-        skills_used: science skill invocations this node made, by skill
-            name.
-    """
+    """Reducers add node deltas, never cumulative run snapshots."""
 
     reviews: int = 0
     tournaments: int = 0
@@ -243,23 +142,8 @@ def create_metrics_update(
     phase_times: dict[str, float] | None = None,
     model_usage: dict[str, dict[str, Any]] | None = None,
 ) -> ExecutionMetrics:
-    """Create new ExecutionMetrics with ONLY the deltas (not cumulative).
-
-    The merge_metrics reducer will add these deltas to the existing state.
-    Do NOT pass base metrics - only pass the increments from this node.
-
-    Args:
-        hypothesis_count: new total hypothesis count
-            (replaces via max(), not adds)
-        deltas: additive per-node counters (reviews/tournaments/
-            evolutions/llm_calls); defaults to all-zero.
-        total_time: new total time (only set if > 0)
-        phase_times: new phase times dict (merged with existing)
-        model_usage: new per-(phase, model) LLM call usage (merged with
-            existing); see ``ExecutionMetrics.model_usage``.
-
-    Returns:
-        new ExecutionMetrics object with ONLY deltas
+    """Only additive increments belong here; a repeated cumulative snapshot
+    double-counts usage.
     """
     d = deltas if deltas is not None else MetricDeltas()
     return ExecutionMetrics(
@@ -280,16 +164,6 @@ def create_metrics_update(
 def phase_message(
     phase: str, content: str, **metadata: Any
 ) -> list[dict[str, Any]]:
-    """Build the one-message list a node returns in its state update.
-
-    Args:
-        phase: Workflow phase name recorded in the message metadata.
-        content: Human-readable summary of what the node did.
-        **metadata: Extra metadata fields merged alongside the phase.
-
-    Returns:
-        A single-element assistant-message list for the messages channel.
-    """
     return [
         {
             "role": "assistant",
