@@ -1,5 +1,3 @@
-"""Terminal synthesis payloads for a curated demo run."""
-
 from __future__ import annotations
 
 import json
@@ -14,13 +12,9 @@ from app.demo_seed_data import (
     scenario_key,
 )
 
-# The curated payload below is reader-facing scientific prose; keeping each
-# statement intact makes the fixture auditable.
 # ruff: noqa: E501
 
 
-# (go_no_go, time_to_verdict) per scenario, in ranked order, for the top
-# five ideas -- the ideas the report's "Top hypotheses" section renders.
 _FULL_REVIEWS: dict[str, tuple[tuple[str, str], ...]] = {
     _SCENARIO_KEYS[0]: (
         (
@@ -90,8 +84,6 @@ _FULL_REVIEWS: dict[str, tuple[tuple[str, str], ...]] = {
     ),
 }
 
-# (failure_points, decisive_step) per scenario, in ranked order, for the
-# two highest-ranked ideas only.
 _SIMULATION_REVIEWS: dict[str, tuple[tuple[tuple[str, ...], str], ...]] = {
     _SCENARIO_KEYS[0]: (
         (
@@ -145,10 +137,8 @@ _SIMULATION_REVIEWS: dict[str, tuple[tuple[tuple[str, ...], str], ...]] = {
 
 
 def full_review_row(scenario_key: str, index: int) -> tuple[str, str, str]:
-    """Return one hypothesis's (summary, critique, detail_json) full review.
-
-    Empty strings/``""`` for ``critique`` are never returned -- the caller
-    only invokes this for ranks that ``_FULL_REVIEWS`` actually covers.
+    """Only covered ranks call this reader; full reviews must never return
+    an empty critique.
     """
     go_no_go, time_to_verdict = _FULL_REVIEWS[scenario_key][index]
     summary = "Full review verdict: sound"
@@ -162,7 +152,6 @@ def full_review_row(scenario_key: str, index: int) -> tuple[str, str, str]:
 def simulation_review_row(
     scenario_key: str, index: int
 ) -> tuple[str, str, str]:
-    """Return one hypothesis's (summary, critique, detail_json) simulation."""
     failure_points, decisive_step = _SIMULATION_REVIEWS[scenario_key][index]
     summary = "Simulation review verdict: holds"
     critique = "\n".join(
@@ -176,24 +165,16 @@ def simulation_review_row(
 
 
 def full_review_count(scenario_key: str) -> int:
-    """How many ranked ideas in this scenario carry a full review row."""
     return len(_FULL_REVIEWS[scenario_key])
 
 
 def simulation_review_count(scenario_key: str) -> int:
-    """How many ranked ideas in this scenario carry a simulation review row."""
     return len(_SIMULATION_REVIEWS[scenario_key])
 
 
 def mature_review_rows(
     run_id: str, hypothesis_id: str, scenario_key: str, index: int
 ) -> list[store.NewReview]:
-    """Return the curated full/simulation review rows for one ranked idea.
-
-    Empty for a rank neither table covers -- most of a scenario's ideas,
-    matching how a real run's mature Reflection cascade reaches only a
-    subset of hypotheses.
-    """
     rows: list[store.NewReview] = []
     if index < full_review_count(scenario_key):
         summary, critique, detail = full_review_row(scenario_key, index)
@@ -222,17 +203,11 @@ def mature_review_rows(
     return rows
 
 
-# Curated scientific prose stays intact for auditability.
 # ruff: noqa: E501
 
 
-# Each entry weaves together that scenario's own top-3 hypotheses
-# (demo_seed_data/scenarios.py, in Elo-descending order -- the same
-# ``hypotheses[:3]`` slice ``_curated_meta_review`` passes to
-# ``_candidate_comparison``), never a fourth mechanism the scenario does
-# not carry. Two paragraphs, bolded direction names inline, closing on an
-# unanticipated cross-direction observation -- the published exemplar's
-# own shape (top-ranking-hypotheses.md:24-28).
+# Synthesis combines this scenario's top-three ideas, never inventing a fourth
+# mechanism outside its curated hypotheses.
 _MAIN_RESEARCH_DIRECTIONS: dict[str, str] = {
     _SCENARIO_KEYS[0]: (
         "Research into S. aureus biofilm tolerance is shifting from bulk "
@@ -319,20 +294,12 @@ _MAIN_RESEARCH_DIRECTIONS: dict[str, str] = {
 
 
 def curated_main_research_directions(key: str) -> str:
-    """Return one scenario's synthesized main-research-directions narrative."""
     return _MAIN_RESEARCH_DIRECTIONS[key]
 
 
 class _ComparisonTable(NamedTuple):
-    """One demo's Idea Comparison Table content (R14-3 domain-aware axes).
-
-    ``idea_values`` carries one values tuple per top-3 hypothesis, in the
-    same order ``_curated_research_overview``'s own ``top = hypotheses[:3]``
-    uses -- so a comparison row always describes the idea it is zipped
-    against. ``existing_axes``/``existing_rows`` are left empty for a
-    scenario with no standard-of-care landscape to compare against (the
-    schema's own instruction to the model); the renderer already omits the
-    whole section when the source dict carries neither a summary nor rows.
+    """Values follow the top-three hypothesis order; leave existing
+    solutions empty where no standard-of-care landscape applies.
     """
 
     thematic_summary: str
@@ -343,10 +310,8 @@ class _ComparisonTable(NamedTuple):
     existing_rows: tuple[tuple[str, tuple[str, ...]], ...] = ()
 
 
-# Grounded in each scenario's own top-3 hypotheses (demo_seed_data/scenarios.py)
-# -- every value below restates a real mechanism or review note from that
-# hypothesis, not generic filler. Order matches _curated_research_overview's
-# ``top = hypotheses[:3]``.
+# Comparison values must align with the top-three hypothesis order, not generic
+# scenario filler.
 _COMPARISON_TABLES: dict[str, _ComparisonTable] = {
     _SCENARIO_KEYS[0]: _ComparisonTable(
         thematic_summary=(
@@ -434,9 +399,8 @@ _COMPARISON_TABLES: dict[str, _ComparisonTable] = {
                 "imaging/behavior pipeline to establish mediation.",
             ),
         ),
-        # No existing_summary/axes/rows: this is a basic developmental
-        # mechanism question, not one with a standard-of-care or
-        # existing-treatment landscape to compare against.
+        # Basic developmental mechanisms lack a standard-of-care landscape; do
+        # not invent an existing-treatment comparison.
     ),
     _SCENARIO_KEYS[2]: _ComparisonTable(
         thematic_summary=(
@@ -503,7 +467,6 @@ _COMPARISON_TABLES: dict[str, _ComparisonTable] = {
 def _candidate_comparison(
     table: _ComparisonTable, top: tuple[DemoHypothesis, ...]
 ) -> dict[str, Any]:
-    """Build the Idea Comparison Table dict for the run's top-3 hypotheses."""
     return {
         "thematic_summary": table.thematic_summary,
         "axes": list(table.axes),
@@ -520,7 +483,6 @@ def _candidate_comparison(
 
 
 def _existing_solutions_comparison(table: _ComparisonTable) -> dict[str, Any]:
-    """Build the existing-solutions comparison dict, or {} when not applicable."""
     if not table.existing_rows:
         return {}
     return {
@@ -533,11 +495,6 @@ def _existing_solutions_comparison(table: _ComparisonTable) -> dict[str, Any]:
     }
 
 
-# Generic across all three scenarios -- the demo's boilerplate synthesis
-# framing, not a scenario-specific finding, so unlike the comparison
-# tables and directions narrative above these are not keyed by
-# scenario_key. Module-level so _curated_meta_review stays under the
-# 40-code-line function ceiling.
 _COMMON_STRENGTHS = [
     "The highest-ranked ideas name a specific mediator, perturbation, readout, and falsification criterion.",
     "The program preserves multiple causal explanations instead of collapsing to one generic mechanism.",
@@ -568,7 +525,6 @@ _STRATEGIC_RECOMMENDATIONS = [
 def _curated_meta_review(
     scenario: DemoScenario, hypotheses: tuple[DemoHypothesis, ...]
 ) -> dict[str, Any]:
-    """Create a full meta-review payload rather than a one-line summary."""
     table = _COMPARISON_TABLES[scenario_key(scenario)]
     top = hypotheses[:3]
     comparison_fields: dict[str, Any] = {
@@ -579,8 +535,6 @@ def _curated_meta_review(
         comparison_fields["existing_solutions_comparison"] = existing
     return {
         "summary": scenario.meta_review,
-        # R14-27: the report's "Main Research Directions" narrative -- see
-        # the scenario-specific narratives above.
         "main_research_directions": curated_main_research_directions(
             scenario_key(scenario)
         ),
@@ -592,17 +546,11 @@ def _curated_meta_review(
     }
 
 
-# The curated payload below is reader-facing scientific prose; keeping each
-# source-backed statement intact makes the fixture auditable.
 # ruff: noqa: E501
 
 
-# Grounded in each scenario's own top-3 hypotheses
-# (demo_seed_data/scenarios.py) -- every entry connects two of those
-# hypotheses in a way neither states on its own, or reframes one of their
-# shared assumptions, rather than describing a specific published finding.
-# Order matches ``_curated_research_overview``'s own ``top = hypotheses[:3]``
-# only loosely: these are cross-cutting, not indexed to one hypothesis.
+# Unexpected directions combine or reframe existing ideas; they are not
+# assertions of specific published findings.
 _UNEXPECTED_DIRECTIONS: dict[str, tuple[dict[str, str], ...]] = {
     _SCENARIO_KEYS[0]: (
         {
@@ -714,14 +662,12 @@ _UNEXPECTED_DIRECTIONS: dict[str, tuple[dict[str, str], ...]] = {
 
 
 def curated_unexpected_directions(key: str) -> list[dict[str, Any]]:
-    """Return one scenario's synthesized unexpected research directions."""
     return [dict(item) for item in _UNEXPECTED_DIRECTIONS[key]]
 
 
 def _overview_directions(
     top: tuple[DemoHypothesis, ...],
 ) -> list[dict[str, Any]]:
-    """Return the research directions the overview recommends."""
     return [
         {
             "title": item.title,
@@ -736,7 +682,6 @@ def _overview_directions(
 
 
 def _overview_aims(top: tuple[DemoHypothesis, ...]) -> list[dict[str, Any]]:
-    """Return the grant-style specific aims derived from the top ideas."""
     return [
         {
             "overarching_goal": f"Aim {index}: Test {item.title}",
@@ -751,7 +696,6 @@ def _overview_knowledge_base(
     evidence: tuple[DemoEvidence, ...],
     hypotheses: tuple[DemoHypothesis, ...],
 ) -> list[dict[str, Any]]:
-    """Return the knowledge-base topics, each citing two curated sources."""
     return [
         {
             "title": item.title,
@@ -771,12 +715,8 @@ def _overview_knowledge_base(
     ]
 
 
-# R14-6: which of a scenario's three top research directions each of its
-# first three evidence sources (the ``evidence[:3]`` a contact is drawn
-# from) most directly speaks to, plus the group's "why they are best for
-# this direction" rationale -- grounded in what that specific source
-# actually reports, not a generic template. Order matches
-# ``_overview_contacts``'s own ``evidence[:3]`` iteration.
+# Contact rationales follow the first three real sources and explain their
+# relevance to a specific research direction.
 _CONTACT_DIRECTIONS: dict[str, tuple[tuple[int, str], ...]] = {
     _SCENARIO_KEYS[0]: (
         (
@@ -828,7 +768,6 @@ def _overview_contacts(
     top: tuple[DemoHypothesis, ...],
     directions: tuple[tuple[int, str], ...],
 ) -> list[dict[str, Any]]:
-    """Return the authorship-derived contacts, each tagged to a direction."""
     return [
         {
             "candidate_id": f"demo-contact-{index + 1}",
@@ -856,7 +795,6 @@ def _overview_contact_groups(
     directions: tuple[tuple[int, str], ...],
     hypothesis_ids: tuple[str, ...],
 ) -> list[dict[str, Any]]:
-    """Return one contact group per direction (R14-6), example ids included."""
     return [
         {
             "research_direction": top[direction_index].title,
@@ -868,7 +806,6 @@ def _overview_contact_groups(
 
 
 def _overview_nih_aims(top: tuple[DemoHypothesis, ...]) -> dict[str, Any]:
-    """Return the grant-style NIH Specific Aims sub-document."""
     return {
         "disease_description": (
             "This curated demonstration models a grant-style synthesis of a "
@@ -899,7 +836,6 @@ def _curated_research_overview(
     hypotheses: tuple[DemoHypothesis, ...],
     hypothesis_ids: list[str],
 ) -> dict[str, Any]:
-    """Build the complete terminal synthesis shape used by real runs."""
     top = hypotheses[:3]
     directions = _CONTACT_DIRECTIONS[scenario_key(scenario)]
     ids = tuple(hypothesis_ids[:3])

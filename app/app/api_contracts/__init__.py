@@ -1,5 +1,3 @@
-"""HTTP envelopes for the JSON surfaces consumed by the workbench."""
-
 from typing_extensions import TypedDict
 
 from app.api_contracts.runs import ReportShare, Run, RunMessage

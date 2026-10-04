@@ -1,5 +1,3 @@
-"""Planning, knowledge-base and research-direction prompt renderers."""
-
 from dataclasses import dataclass
 from typing import Any
 
@@ -25,20 +23,6 @@ def get_knowledge_base_outline_prompt(
     evidence_corpus: str = _NO_CORPUS,
     context: PromptRunContext | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
-    """Get the knowledge-base outline prompt and schema.
-
-    Args:
-        research_goal: The run's research goal.
-        hypotheses_summary: Formatted summary of the top-Elo hypotheses,
-            for orientation only -- the section states what is known, not
-            what the run proposed.
-        evidence_corpus: Analyzed sources, pre-formatted.
-        context: Run-scoped prompt context (tool registry, run
-            setup/focus guidance).
-
-    Returns:
-        Tuple of (rendered prompt string, JSON schema dict or None).
-    """
     ctx = context or PromptRunContext()
     return _build_prompt(
         "research_overview_knowledge_base_outline",
@@ -54,19 +38,8 @@ def get_knowledge_base_outline_prompt(
 
 @dataclass(frozen=True)
 class ThemeWritingMaterial:
-    """What one theme's writing call is handed by the outline before it.
-
-    The whole outline travels with every theme, not just the theme's own
-    slice: each writing call runs without sight of what the others
-    produced, so two themes whose headings overlap would otherwise become
-    two passages saying the same thing.
-
-    Attributes:
-        title: The theme this call is responsible for.
-        sections: That theme's outlined headings and the evidence ids each
-            was assigned, pre-formatted.
-        outline: The full outline -- every theme and its headings --
-            pre-formatted, for the overlap the writer must avoid.
+    """Each independent writer sees the whole outline to avoid overlapping
+    passages.
     """
 
     title: str
@@ -80,18 +53,6 @@ def get_knowledge_base_theme_prompt(
     evidence_corpus: str = _NO_CORPUS,
     context: PromptRunContext | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
-    """Get the prompt and schema for writing one outlined theme.
-
-    Args:
-        research_goal: The run's research goal.
-        material: The theme to write and the outline it sits in.
-        evidence_corpus: Analyzed sources, pre-formatted.
-        context: Run-scoped prompt context (tool registry, run
-            setup/focus guidance).
-
-    Returns:
-        Tuple of (rendered prompt string, JSON schema dict or None).
-    """
     ctx = context or PromptRunContext()
     return _build_prompt(
         "research_overview_knowledge_base_theme",
@@ -112,19 +73,8 @@ _NO_CORPUS = "No verified evidence corpus available."
 
 @dataclass(frozen=True)
 class DirectionWritingMaterial:
-    """What one direction's writing call is handed by the draft before it.
-
-    Every direction's title travels with each call, not just this one's:
-    the six run concurrently and none sees what the others produced, so
-    two neighbouring directions would otherwise argue the same mechanism
-    twice. Same reason ``ThemeWritingMaterial`` carries the whole outline.
-
-    Attributes:
-        title: The direction this call is responsible for.
-        rationale: The importance paragraph the draft argued it with,
-            which this call develops rather than contradicts.
-        all_directions: Every direction's title, pre-formatted, for the
-            overlap the writer must avoid.
+    """Concurrent writers see every direction title to avoid arguing the same
+    mechanism twice.
     """
 
     title: str
@@ -139,19 +89,6 @@ def get_research_overview_direction_prompt(
     evidence_corpus: str = _NO_CORPUS,
     context: PromptRunContext | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
-    """Get the prompt and schema for developing one drafted direction.
-
-    Args:
-        research_goal: The run's research goal.
-        material: The direction to develop and the set it sits in.
-        hypotheses_summary: Formatted summary of the top-Elo hypotheses.
-        evidence_corpus: Analyzed sources, pre-formatted.
-        context: Run-scoped prompt context (tool registry, run
-            setup/focus guidance).
-
-    Returns:
-        Tuple of (rendered prompt string, JSON schema dict or None).
-    """
     ctx = context or PromptRunContext()
     return _build_prompt(
         "research_overview_direction",
@@ -168,22 +105,13 @@ def get_research_overview_direction_prompt(
     )
 
 
-# Published meta-review-08 renders "Additional instructions:" over
-# {instructions} unconditionally, and the node that calls this builder
-# has nothing to put there -- so the label shipped over an empty line in
-# every real run while the fidelity fixture, which passes instructions by
-# hand, showed it filled. A truthful "none" line keeps the published
-# label from standing over nothing, the way _NO_NOTES does for ranking's
-# published {notes} slot and _DEFAULT_DEBATE_INSTRUCTIONS for A.2's.
+# No state value supplies this unconditional template slot; render a truthful
+# absence.
 _NO_META_REVIEW_INSTRUCTIONS = (
     "No additional instructions were supplied for this synthesis."
 )
 
 
-# Renders prompts/meta_review.md for
-# agents/meta_review/meta_review.py; all_reviews is
-# the JSON dump of every review collected so far, synthesized once per
-# iteration into cross-hypothesis feedback.
 def get_meta_review_prompt(
     research_goal: str,
     all_reviews: str,
@@ -191,22 +119,6 @@ def get_meta_review_prompt(
     preferences: str | None = None,
     context: PromptRunContext | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
-    """Get the meta-review synthesis prompt and schema.
-
-    Args:
-        research_goal: The run's research goal.
-        all_reviews: JSON dump of every review collected so far.
-        instructions: Optional extra synthesis instructions; falls back to
-            a "none supplied" line so the published label is never blank.
-        preferences: The scientist's stated preferences, if any (published
-            meta-review-08's "Preferences: {preferences}"); defaults the
-            same way Generation's prompts do (format_preferences).
-        context: Run-scoped prompt context (supervisor guidance, tool
-            registry, run setup/focus guidance).
-
-    Returns:
-        Tuple of (rendered prompt string, JSON schema dict or None).
-    """
     ctx = context or PromptRunContext()
     return _build_prompt(
         "meta_review",
@@ -226,9 +138,6 @@ def get_meta_review_prompt(
     )
 
 
-# Renders prompts/research_overview.md for
-# agents/meta_review/research_overview.py, the
-# terminal synthesis over the top-Elo hypotheses.
 def get_research_overview_prompt(
     research_goal: str,
     hypotheses_summary: str,
@@ -236,19 +145,6 @@ def get_research_overview_prompt(
     evidence_corpus: str = "No verified evidence corpus available.",
     context: PromptRunContext | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
-    """Get the research-overview + NIH Specific Aims prompt and schema.
-
-    Args:
-        research_goal: The run's research goal.
-        hypotheses_summary: Formatted summary of the top-Elo hypotheses.
-        contact_candidates: Verified literature authors, pre-formatted.
-        evidence_corpus: Analyzed sources, pre-formatted.
-        context: Run-scoped prompt context (meta-review, tool registry,
-            run setup/focus guidance).
-
-    Returns:
-        Tuple of (rendered prompt string, JSON schema dict or None).
-    """
     ctx = context or PromptRunContext()
     return _build_prompt(
         "research_overview",
@@ -266,30 +162,14 @@ def get_research_overview_prompt(
     )
 
 
-# Renders prompts/research_overview_interim.md for a periodic (non-
-# terminal) firing of agents/meta_review/research_overview.py (FIX-6).
-# Asks for direction titles and open questions alone -- everything
-# interim_overview.build_interim_overview reads back out -- rather than
-# the ten-section terminal document above; no contact_candidates, since
-# an interim firing never asks for research_contacts.
+# Periodic synthesis writes only direction titles and questions consumed by the
+# next cycle.
 def get_research_overview_interim_prompt(
     research_goal: str,
     hypotheses_summary: str,
     evidence_corpus: str = "No verified evidence corpus available.",
     context: PromptRunContext | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
-    """Get the interim research-overview prompt and its lean schema.
-
-    Args:
-        research_goal: The run's research goal.
-        hypotheses_summary: Formatted summary of the top-Elo hypotheses.
-        evidence_corpus: Analyzed sources, pre-formatted.
-        context: Run-scoped prompt context (meta-review, tool registry,
-            run setup/focus guidance).
-
-    Returns:
-        Tuple of (rendered prompt string, JSON schema dict or None).
-    """
     ctx = context or PromptRunContext()
     return _build_prompt(
         "research_overview_interim",
@@ -308,19 +188,6 @@ def get_research_overview_interim_prompt(
 
 @dataclass(frozen=True)
 class OverviewReviewMaterial:
-    """Run material the overview reviewer and reviser both check against.
-
-    Bundled into one object (like ``SupervisorPromptInputs`` below)
-    because the review and revise builders share every field but the
-    drafted text itself, and each stays under the five-parameter limit
-    this way.
-
-    Attributes:
-        research_goal: The run's research goal.
-        hypotheses_summary: Formatted summary of the top-Elo hypotheses.
-        evidence_corpus: Analyzed sources, pre-formatted.
-    """
-
     research_goal: str
     hypotheses_summary: str
     evidence_corpus: str
@@ -330,16 +197,6 @@ def get_research_overview_review_prompt(
     material: OverviewReviewMaterial,
     drafted_overview: str,
 ) -> tuple[str, dict[str, Any] | None]:
-    """Get the research-overview accuracy-review prompt and schema.
-
-    Args:
-        material: Research goal, hypothesis summary, and evidence corpus
-            the drafted overview is checked against.
-        drafted_overview: The drafted overview, pre-formatted for review.
-
-    Returns:
-        Tuple of (rendered prompt string, JSON schema dict or None).
-    """
     return _build_prompt(
         "research_overview_review",
         {
@@ -354,15 +211,6 @@ def get_research_overview_review_prompt(
 
 @dataclass(frozen=True)
 class OverviewRevisionRequest:
-    """Inputs for regenerating an overview after a rejected review.
-
-    Attributes:
-        material: The same run material the review was checked against.
-        contact_candidates: Verified literature authors, pre-formatted.
-        drafted_overview: The rejected draft, pre-formatted for revision.
-        review_notes: The reviewer's located notes, pre-formatted.
-    """
-
     material: OverviewReviewMaterial
     contact_candidates: str
     drafted_overview: str
@@ -372,17 +220,6 @@ class OverviewRevisionRequest:
 def get_research_overview_revise_prompt(
     request: OverviewRevisionRequest,
 ) -> tuple[str, dict[str, Any] | None]:
-    """Get the research-overview revision prompt and schema.
-
-    Args:
-        request: The rejected draft, the reviewer's notes, and the run
-            material to revise it against.
-
-    Returns:
-        Tuple of (rendered prompt string, JSON schema dict or None) --
-        the schema matches ``get_research_overview_prompt``'s, since the
-        reviser regenerates the whole overview rather than a diff.
-    """
     material = request.material
     return _build_prompt(
         "research_overview_revise",
@@ -401,7 +238,6 @@ def get_research_overview_revise_prompt(
 def _format_lit_review_description(
     mcp_available: bool, pubmed_available: bool
 ) -> str:
-    """Describe literature-review availability for the supervisor prompt."""
     if pubmed_available or mcp_available:
         return (
             "literature review will search pubmed for relevant papers"
@@ -412,23 +248,6 @@ def _format_lit_review_description(
 
 @dataclass(frozen=True)
 class SupervisorPromptInputs:
-    """The run inputs the supervisor plans against.
-
-    Attributes:
-        research_goal: The run's research goal.
-        preferences: Free-text user preferences, if any.
-        attributes: Desired hypothesis attributes.
-        constraints: User-supplied run constraints.
-        criteria: User-supplied evaluation criteria.
-        user_hypotheses: Seed hypotheses supplied by the user.
-        user_literature: Seed literature supplied by the user.
-        initial_hypotheses_count: Requested first-wave hypothesis count.
-        max_iterations: Requested maximum workflow iterations.
-        evolution_max_count: Requested maximum evolved hypotheses.
-        mcp_available: Whether an MCP server is reachable.
-        pubmed_available: Whether PubMed search is reachable.
-    """
-
     research_goal: str
     preferences: str | None = None
     attributes: list[str] | None = None
@@ -446,19 +265,7 @@ class SupervisorPromptInputs:
 def _build_supervisor_prompt_variables(
     inputs: SupervisorPromptInputs,
 ) -> dict[str, Any]:
-    """Build the template variables for the supervisor planning prompt.
-
-    Every user-supplied run input (preferences, constraints, seed
-    hypotheses/literature, count knobs) is normalized to a "None
-    provided"/"not specified" string so the template never renders a raw
-    Python None.
-
-    Args:
-        inputs: The run inputs the supervisor plans against.
-
-    Returns:
-        Dict of template variables for the supervisor prompt.
-    """
+    """Normalize absent inputs so raw Python None never reaches a template."""
     return {
         "research_goal": inputs.research_goal,
         "preferences": inputs.preferences or "None provided",
@@ -478,23 +285,10 @@ def _build_supervisor_prompt_variables(
     }
 
 
-# Renders prompts/supervisor.md for
-# agents/supervisor/supervisor.py, the planning call
-# at the head of the graph.
 def get_supervisor_prompt(
     inputs: SupervisorPromptInputs,
     context: PromptRunContext | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
-    """Get the supervisor research planning prompt and schema.
-
-    Args:
-        inputs: The run inputs the supervisor plans against.
-        context: Run-scoped prompt context (tool registry, run setup/focus
-            guidance).
-
-    Returns:
-        Tuple of (rendered prompt string, JSON schema dict or None).
-    """
     ctx = context or PromptRunContext()
     return _build_prompt(
         "supervisor",
@@ -507,7 +301,6 @@ def get_supervisor_prompt(
 def _format_meta_review_evolution_phase_section(
     evolution_phase: dict[str, Any],
 ) -> list[str]:
-    """Format the evolution-phase slice of meta-review supervisor guidance."""
     if not evolution_phase:
         return []
 
@@ -525,7 +318,6 @@ def _format_meta_review_evolution_phase_section(
 def _format_supervisor_guidance_for_meta_review(
     supervisor_guidance: dict[str, Any] | None,
 ) -> str:
-    """Format supervisor guidance for meta-review prompts."""
     if not supervisor_guidance or not isinstance(supervisor_guidance, dict):
         return ""
 

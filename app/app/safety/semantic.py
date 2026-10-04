@@ -1,11 +1,3 @@
-"""The contextual (model) half of the content safety screen.
-
-Split from ``app.safety`` so the deterministic policy, the model assessment,
-and the run-level effects stay independently readable while each module stays
-under the repository's file-length ceiling. ``app.safety`` keeps
-``screen_contextual`` and calls into the helpers here.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -31,7 +23,6 @@ __all__ = [
 
 
 def _semantic_prompt(text: str, stage: str) -> str:
-    """Build a bounded contextual-risk classification prompt."""
     return (
         "Classify the scientific content under a research safety policy. "
         "Return JSON only with category, reason, risk_domains, "
@@ -58,12 +49,8 @@ def _semantic_prompt(text: str, stage: str) -> str:
     )
 
 
-# "uncertain" is listed first because it is the enum's backfill default:
-# under the json_object downgrade, a model that omits ``category``
-# entirely gets it filled with the enum's first value
-# (``co_scientist.llm.structured.validate._default_for_field_schema``), and a
-# missing verdict must read as "needs a human", never as the strictest or the
-# most permissive category by accident of list order.
+# json_object backfills enum omissions with its first value; uncertainty must
+# remain the default rather than accidental allowance or prohibition.
 _SEMANTIC_CATEGORY_SCHEMA = {
     "type": "string",
     "enum": [
@@ -75,12 +62,8 @@ _SEMANTIC_CATEGORY_SCHEMA = {
     ],
 }
 
-# Bare-string tolerant, exactly like claims.verifier's citation list: under
-# the json_object downgrade a model can plausibly write one domain
-# unwrapped rather than as a one-element array, and ``coerce_json_list``
-# (below, in ``_merge_risk_domains``) is what recovers that shape -- a
-# plain ``array`` type would fail local schema validation before that
-# recovery ever runs.
+# Accept bare risk-domain strings before local validation so the readable-list
+# coercion can recover unwrapped single values.
 _RISK_DOMAINS_SCHEMA = {
     "oneOf": [
         {"type": "array", "items": {"type": "string"}},
@@ -88,13 +71,8 @@ _RISK_DOMAINS_SCHEMA = {
     ]
 }
 
-# The fields ``_build_semantic_decision``, ``_offensive_score``,
-# ``_structured_flag_domains`` and ``_merge_risk_domains`` actually read.
-# ``operational_detail`` (asked for in the prompt for the model's own
-# reasoning, per the reference product's shape) is not one of them, so it
-# is left off this closed schema -- an object node built by
-# ``co_scientist.schemas.builders.obj`` prunes any undeclared key under
-# the json_object downgrade rather than failing on it.
+# The prompt's operational_detail informs model reasoning only; the closed
+# response schema intentionally omits that unused field.
 _SEMANTIC_DECISION_SCHEMA = obj(
     {
         "category": _SEMANTIC_CATEGORY_SCHEMA,
@@ -119,15 +97,8 @@ _SEMANTIC_CATEGORY_TO_DECISION = {
     "allowed": "allow",
 }
 
-# Structured signals the reference product carries on its run config
-# (offensive_score 1-5, is_personal_medical_recommendation,
-# is_personal_finance_recommendation) rather than leaving to prose. They are
-# read here, inside the one authoritative screen, and not as a second verdict
-# beside it: each fires a named risk domain on the decision the caller
-# already gates on, and can only raise an otherwise-clean pass to a hold for
-# human adjudication. Nothing here lowers a verdict, and nothing here blocks
-# -- these three name a misuse of the product or a tone problem, neither of
-# which is the deterministic policy's hard-hazard case.
+# Structured misuse/tone flags can hold an allowed result for human review; they
+# cannot lower withheld verdicts or create a hard-hazard block.
 _OFFENSIVE_HOLD_SCORE = 4
 
 _PERSONAL_RECOMMENDATION_FLAGS = {
@@ -137,7 +108,6 @@ _PERSONAL_RECOMMENDATION_FLAGS = {
 
 
 def _offensive_score(parsed: dict[str, Any]) -> float:
-    """Read the 1-5 offensiveness score, unparseable values reading lowest."""
     try:
         return float(parsed.get("offensive_score") or 0)
     except (TypeError, ValueError):
@@ -145,14 +115,6 @@ def _offensive_score(parsed: dict[str, Any]) -> float:
 
 
 def _structured_flag_domains(parsed: dict[str, Any]) -> list[str]:
-    """Name the risk domains the model's structured flags raise.
-
-    Args:
-        parsed: The semantic model's parsed JSON response.
-
-    Returns:
-        Risk-domain names, in a stable order; empty when nothing fires.
-    """
     domains = [
         domain
         for key, domain in _PERSONAL_RECOMMENDATION_FLAGS.items()
@@ -176,7 +138,6 @@ _FLAG_HOLD_REASONS = {
 
 
 def _flag_hold_reason(domains: list[str]) -> str:
-    """Phrase the hold a structured flag raises, naming what fired."""
     causes = " and it ".join(
         _FLAG_HOLD_REASONS[domain]
         for domain in domains
@@ -188,42 +149,13 @@ def _flag_hold_reason(domains: list[str]) -> str:
 async def _call_semantic_safety_model(
     text: str, stage: str, model: str
 ) -> dict[str, Any]:
-    """Call the semantic safety model and return its parsed JSON response.
-
-    Routed through the engine's ``call_llm_json`` seam rather than calling
-    ``litellm`` directly (the shape ``claims.verifier`` moved off of in
-    113218e9): a gateway model that answers a json_object request with the
-    JSON wrapped in a Markdown fence -- reproduced against
-    ``minimax/minimax-m3:free``, the free fallback chain's first rung --
-    used to raise ``json.loads``'s "Expecting value" straight out of this
-    function, which every caller treats as a provider failure and holds
-    for human review (``_assessment_unavailable_decision``). The engine
-    seam already strips fences
-    (``llm.structured.validate.extract_response_json``), backfills required
-    fields and prunes invented ones under the json_object downgrade, retries on
-    the shared budget ladder, and raises once every attempt is exhausted -- so
-    the same ``except Exception`` in
-    ``screen_contextual``/``assess_hold_contextually`` still catches a
-    persistently bad model and still falls back to the unavailable-assessment
-    hold; it just no longer trips on a well-formed-but-fenced first answer.
-
-    Sending no ``max_tokens`` was not "unbounded" -- it took the
-    provider's own default, small enough for thinking to exhaust before
-    the verdict was written, and that failure was silent all the way to
-    the outcome. The floor is no longer this module's job: the engine's
-    own ``_apply_thinking_args`` raises ``max_tokens`` to its thinking
-    floor (and applies the DeepSeek thinking kwargs) only for a model that
-    actually reasons, so a plain answer-sized budget here is never
-    double-floored. There is likewise no per-call timeout knob in this
-    seam; the process-wide ``COSCIENTIST_LLM_TIMEOUT_SECONDS`` (600s
-    default) governs instead of the 20s this module used to send --
-    generous, but both gates run inside durable background tasks with no
-    caller waiting on a clock.
+    """Use shared structured parsing and physical-call metering; json_object
+    gateways may fence or reshape otherwise valid JSON.
     """
     from app import credentials
 
-    # A scoped bring-your-own-key credential overrides both the model and
-    # the deployment credential for this screen.
+    # Scoped BYOK selects its own model and credential rather than using the
+    # deployment's account.
     resolved_model, api_key = credentials.byok_model_and_key(model)
     spec = CompletionSpec(
         model_name=resolved_model,
@@ -232,20 +164,8 @@ async def _call_semantic_safety_model(
         json_schema=_SEMANTIC_DECISION_SCHEMA,
         api_key=api_key,
     )
-    # Caching stays off: the direct-litellm call this replaces was never
-    # cached, and a safety gate re-screened on resume (screen_with_
-    # escalation's approval check aside) should re-evaluate rather than
-    # silently replay an earlier verdict. It also broke a test in
-    # test_hypothesis_safety_escalation.py that fakes a provider failure
-    # after an earlier test's success populated a hit for the same prompt.
-    #
-    # Two attempts, not the default five: the fence case this call exists
-    # to fix resolves on attempt 1, and a second attempt covers one
-    # budget-escalation rung for an ordinary hiccup. Both gates run inside
-    # durable tasks with no caller waiting on a clock, but bootstrap holds
-    # the run's very first lease for the duration -- five attempts at the
-    # 600s process timeout is up to 50 minutes of a stuck lease where the
-    # call this replaced gave up after one attempt at 20s.
+    # Re-screen rather than cache old safety verdicts; two physical attempts
+    # bound bootstrap's first lease without a five-attempt timeout wait.
     result: dict[str, Any] = await call_llm_json(
         _semantic_prompt(text, stage),
         spec,
@@ -258,22 +178,9 @@ async def _call_semantic_safety_model(
 def _merge_risk_domains(
     parsed: dict[str, Any], flagged: list[str]
 ) -> list[str]:
-    """Combine the model's free-text risk domains with the flagged ones.
-
-    Deduplicated because the model can name a domain in prose that a
-    structured flag also raises, and a decision listing the same risk twice
-    reads as two findings.
-
-    Args:
-        parsed: The semantic model's parsed JSON response.
-        flagged: Risk domains raised by the structured flags.
-
-    Returns:
-        The domains in first-seen order.
+    """Deduplicate free-text and structured domains so one risk does not
+    appear as independent findings.
     """
-    # response_format={"type": "json_object"} carries no schema
-    # enforcement, so a single domain can plausibly arrive as a bare
-    # string rather than a one-element list.
     merged: list[str] = coerce_json_list(
         parsed.get("risk_domains"),
         element="str",
@@ -286,16 +193,14 @@ def _merge_risk_domains(
 def _build_semantic_decision(
     stage: str, model: str, parsed: dict[str, Any]
 ) -> SafetyDecision:
-    """Turn a parsed semantic-model response into a :class:`SafetyDecision`."""
     category = str(parsed.get("category") or "uncertain")
     if category not in _SEMANTIC_CATEGORY_TO_DECISION:
         category = "uncertain"
     decision = _SEMANTIC_CATEGORY_TO_DECISION[category]
     reason = str(parsed.get("reason") or "Contextual safety assessment.")
     flagged = _structured_flag_domains(parsed)
-    # Escalate-only, and only from a clean pass: a structured flag can turn
-    # an "allowed" verdict into a hold, but never softens a category the
-    # model already withheld on, and never overwrites its reason for doing so.
+    # Flags may hold only a clean allow; preserve the model's already-withheld
+    # verdict and reason.
     if flagged and decision == "allow":
         decision = "hold"
         category = "uncertain"
@@ -314,7 +219,6 @@ def _build_semantic_decision(
 async def run_semantic_safety_model(
     text: str, stage: str, model: str
 ) -> SafetyDecision:
-    """Call the semantic safety model and turn its category into a decision."""
     parsed = await _call_semantic_safety_model(text, stage, model)
     return _build_semantic_decision(stage, model, parsed)
 
@@ -322,19 +226,8 @@ async def run_semantic_safety_model(
 def _assessment_unavailable_decision(
     stage: str, baseline: SafetyDecision, assessor: str
 ) -> SafetyDecision:
-    """Build the refusal used whenever the contextual screen cannot run.
-
-    A deterministic redaction already withholds the content and names the
-    spans to remove, so it stands; anything weaker becomes a hold, because a
-    configured screen that did not run must not read as a clean pass.
-
-    Args:
-        stage: Safety stage being screened (``"intake"`` or ``"final"``).
-        baseline: The deterministic decision the screen would have refined.
-        assessor: Provenance string recorded on the decision.
-
-    Returns:
-        The decision to gate on in place of the missing assessment.
+    """Configured assessment failure cannot count as clean: keep an existing
+    redaction, otherwise hold for review.
     """
     if baseline.decision == "redact":
         return baseline
@@ -355,7 +248,6 @@ def _assessment_unavailable_decision(
 def semantic_safety_error_decision(
     stage: str, model: str, baseline: SafetyDecision, exc: Exception
 ) -> SafetyDecision:
-    """Build the fallback decision when the semantic safety call fails."""
     logger.warning("Contextual safety assessment failed: %s", exc)
     return _assessment_unavailable_decision(
         stage, baseline, f"semantic:{model}:error"
@@ -365,13 +257,8 @@ def semantic_safety_error_decision(
 def semantic_credential_missing_decision(
     stage: str, model: str, baseline: SafetyDecision
 ) -> SafetyDecision:
-    """Refuse when the configured screen has no credential to reach.
-
-    Returning the deterministic baseline here was a silent fail-open: the
-    screen is configured, so the deployment believes it is running, and a
-    missing credential is a deployment fault rather than a property of the
-    content. The refusal is logged at WARNING because nothing else on this
-    path names the cause.
+    """A missing configured credential is a deployment fault, not evidence
+    of safe content; refuse rather than return the baseline.
     """
     logger.warning(
         "Contextual safety assessment is enabled but model %s has no "

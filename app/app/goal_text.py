@@ -1,12 +1,3 @@
-"""Generate optional run titles and narrative goal restatements.
-
-Both texts depend only on the goal and run off the create critical path.
-Titles fall back to a goal clause; unavailable restatements are omitted from
-the Goal Report (GOAL-RESTATEMENT-001). Each operation keeps its own call
-budget while sharing provider admission, thinking limits and one retry for a
-completion that spent its reasoning allowance without writing an answer.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -29,11 +20,8 @@ logger = logging.getLogger(__name__)
 _MAX_TITLE_CHARS = 80
 _MAX_RESTATEMENT_CHARS = 800
 
-# Adapted from the Gemini Enterprise chat-naming prompt, captured 2026-06
-# at references/ui-ux/gemini-enterprise/chat-naming-prompt.md (git history).
-# Conversation-history, attachment and assistant-identity rules do not apply
-# to a single goal. Its 30-character sidebar ceiling is also omitted because
-# our recents show the title above the full goal.
+# Adapted from Gemini Enterprise chat naming; single-goal input omits
+# conversation/attachment rules and its 30-character sidebar limit.
 _TITLE_PROMPT = (
     "You generate the sidebar title for a research session. Given the "
     "session's research goal, reply with a short title summarizing its "
@@ -108,8 +96,6 @@ _RESTATEMENT_PROMPT = (
 
 @dataclass(frozen=True)
 class _TextRequest:
-    """Prompt and answer-sized limits for one goal-text operation."""
-
     purpose: str
     system_prompt: str
     max_tokens: int
@@ -131,23 +117,18 @@ def _clean_text(raw: str, max_chars: int, punctuation: str = "") -> str | None:
 
 
 def clean_title(raw: str) -> str | None:
-    """Collapse whitespace, strip quotes and punctuation, and cap length."""
     return _clean_text(raw, _MAX_TITLE_CHARS, ".!?,;:")
 
 
 def clean_restatement(raw: str) -> str | None:
-    """Normalize a quoted response to one paragraph, rejecting long essays."""
     return _clean_text(raw, _MAX_RESTATEMENT_CHARS)
 
 
 async def _request_completion(
     goal: str, request: _TextRequest, *, thinking_enabled: bool = True
 ) -> Any:
-    """Use the scoped credential and raise answer limits for reasoning.
-
-    The goal is sent verbatim, so forced-offline admission precedes request
-    construction. Token and timeout floors apply to both attempts; the retry
-    only disables thinking, preserving the existing provider request policy.
+    """The goal is sent verbatim, so offline admission precedes request
+    construction; both attempts keep their token and timeout floors.
     """
     offline_guard.require_remote_chat(request.purpose)
     model, api_key = credentials.byok_model_and_key(
@@ -175,7 +156,6 @@ async def _request_completion(
 
 
 async def _generate_text(goal: str, request: _TextRequest) -> str | None:
-    """Treat request failures as unavailable and retry thinking-only once."""
     goal = goal.strip()
     if not goal:
         return None
@@ -206,20 +186,17 @@ async def _generate_text(goal: str, request: _TextRequest) -> str | None:
 
 @budgeted("title")
 async def generate_run_title(goal: str) -> str | None:
-    """Return a short title, or None to keep the goal-clause fallback."""
     content = await _generate_text(goal, _TITLE)
     return clean_title(content) if content is not None else None
 
 
 @budgeted("goal_restatement")
 async def generate_goal_restatement(goal: str) -> str | None:
-    """Return a narrative goal restatement, or None to omit the paragraph."""
     content = await _generate_text(goal, _RESTATEMENT)
     return clean_restatement(content) if content is not None else None
 
 
 def _response_content(response: Any) -> str:
-    """The first choice's message text, or an empty string when absent."""
     choices = getattr(response, "choices", None) or []
     if not choices:
         return ""
@@ -227,7 +204,6 @@ def _response_content(response: Any) -> str:
 
 
 def _reasoned_with_no_answer(response: Any) -> bool:
-    """Read the same reasoning usage field as the engine's retry ladder."""
     usage = getattr(response, "usage", None)
     details = getattr(usage, "completion_tokens_details", None)
     reasoning_tokens = getattr(details, "reasoning_tokens", None) or 0

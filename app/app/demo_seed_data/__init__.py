@@ -1,18 +1,12 @@
-"""Curated, clearly illustrative scenarios for the default demo runs."""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-# Curated publication titles and reader-facing prose are intentionally kept
-# intact here; wrapping individual literals would make this data hard to audit.
 # ruff: noqa: E501
 
 
 @dataclass(frozen=True)
 class DemoEvidence:
-    """One source used to ground an illustrative demo scenario."""
-
     title: str
     authors: tuple[str, ...]
     year: int
@@ -22,8 +16,6 @@ class DemoEvidence:
 
 @dataclass(frozen=True)
 class DemoHypothesis:
-    """One ranked, testable proposal in an illustrative demo scenario."""
-
     title: str
     statement: str
     mechanism: str
@@ -36,8 +28,6 @@ class DemoHypothesis:
 
 @dataclass(frozen=True)
 class DemoScenario:
-    """The curated content needed to populate one complete demo run."""
-
     title: str
     summary: str
     meta_review: str
@@ -53,8 +43,6 @@ class DemoScenario:
 
 @dataclass(frozen=True)
 class DemoProposal:
-    """One additional generation-wave proposal for a curated demo."""
-
     title: str
     premise: str
     experiment: str
@@ -449,17 +437,14 @@ DEMO_SCENARIOS: dict[str, DemoScenario] = {
 
 _SCENARIO_KEYS = tuple(DEMO_SCENARIOS)
 
-# Keep reader-facing demo prose easy to audit.
 # ruff: noqa: E501
 
 
-# Curated publication titles and reader-facing prose are intentionally kept
-# intact here; wrapping individual literals would make this data hard to audit.
 # ruff: noqa: E501
 
 
-# These are source records selected for browseability in the demo, not a
-# systematic review. Their PubMed pages remain the durable primary links.
+# Browseable demo sources are not a systematic review; PubMed pages supply their
+# durable primary links.
 _EXTRA_EVIDENCE: dict[str, tuple[DemoEvidence, ...]] = {
     _SCENARIO_KEYS[0]: (
         DemoEvidence(
@@ -592,8 +577,6 @@ _EXTRA_EVIDENCE: dict[str, tuple[DemoEvidence, ...]] = {
 }
 
 
-# Curated publication titles and reader-facing prose are intentionally kept
-# intact here; wrapping individual literals would make this data hard to audit.
 # ruff: noqa: E501, RUF001
 
 
@@ -732,23 +715,17 @@ _PROPOSALS: dict[str, tuple[DemoProposal, ...]] = {
     ),
 }
 
-# The reader-facing prose these functions compose is kept intact;
-# wrapping individual literals would make the demo content hard to audit.
 # ruff: noqa: E501
 
 
-# Versions the whole curated bundle, sibling content modules included: a
-# deployed instance replaces its stored demo artifacts when this changes.
 DEMO_SEED_VERSION = 14
 
 
 def scenario_evidence(scenario: DemoScenario) -> tuple[DemoEvidence, ...]:
-    """Return the curated six-source evidence bundle for one demo scenario."""
     return scenario.evidence + _EXTRA_EVIDENCE[scenario_key(scenario)]
 
 
 def scenario_key(scenario: DemoScenario) -> str:
-    """Resolve a scenario's stable key from its object identity."""
     for key, candidate in DEMO_SCENARIOS.items():
         if candidate is scenario:
             return key
@@ -756,7 +733,6 @@ def scenario_key(scenario: DemoScenario) -> str:
 
 
 def _proposal_hypothesis(proposal: DemoProposal) -> DemoHypothesis:
-    """Expand a concise generation seed into the full hypothesis record."""
     return DemoHypothesis(
         title=proposal.title,
         statement=proposal.premise,
@@ -778,7 +754,6 @@ def _proposal_hypothesis(proposal: DemoProposal) -> DemoHypothesis:
 
 
 def _evolved_hypothesis(source: DemoHypothesis) -> DemoHypothesis:
-    """Create a distinct second-generation version with stronger falsification."""
     return DemoHypothesis(
         title=f"Refined: {source.title}",
         statement=(
@@ -811,7 +786,6 @@ def _evolved_hypothesis(source: DemoHypothesis) -> DemoHypothesis:
 
 
 def _second_pass_hypothesis(source: DemoHypothesis) -> DemoHypothesis:
-    """Create a validation-focused iteration for only the strongest ideas."""
     source_title = source.title.removeprefix("Refined: ")
     return DemoHypothesis(
         title=f"Validation-ready: {source_title}",
@@ -843,7 +817,6 @@ def _second_pass_hypothesis(source: DemoHypothesis) -> DemoHypothesis:
 
 
 def scenario_hypotheses(scenario: DemoScenario) -> tuple[DemoHypothesis, ...]:
-    """Return a scenario-specific multi-generation hypothesis set."""
     first_wave = scenario.hypotheses + tuple(
         _proposal_hypothesis(item)
         for item in _PROPOSALS[scenario_key(scenario)]

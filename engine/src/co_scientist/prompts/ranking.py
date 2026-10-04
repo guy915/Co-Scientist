@@ -1,5 +1,3 @@
-"""Pairwise ranking prompts and the evidence shown for each side."""
-
 from dataclasses import dataclass
 from typing import Any
 
@@ -20,23 +18,6 @@ _NO_REFLECTION = "No reflection notes available."
 
 @dataclass(frozen=True)
 class RankingSide:
-    """One side of a pairwise tournament match.
-
-    Bundles every per-hypothesis signal the ranking prompt aggregates, so
-    the builder takes two symmetric sides instead of eight interleaved
-    ``*_a``/``*_b`` parameters.
-
-    Attributes:
-        text: The hypothesis text being compared.
-        review: This hypothesis's review scores, if it has been reviewed.
-        reflection_notes: This hypothesis's reflection notes, if any.
-        deep_verification: This hypothesis's deep-verification result
-            (``probes`` and ``verdict``), blank before the first pass.
-        mature_reviews: This hypothesis's full/simulation/recurrent review
-            summary (``mature_review_summary`` shape), blank before the
-            mature Reflection cascade has run.
-    """
-
     text: str
     review: dict[str, Any] | None = None
     reflection_notes: str | None = None
@@ -45,14 +26,6 @@ class RankingSide:
 
 
 def _format_review_scores(review: dict[str, Any] | None) -> list[str]:
-    """Format one hypothesis's own review scores as bullet lines.
-
-    Args:
-        review: The review projection for this side, or None.
-
-    Returns:
-        Section lines, or an empty list when the side has no review.
-    """
     if not isinstance(review, dict):
         return []
 
@@ -65,7 +38,6 @@ def _format_review_scores(review: dict[str, Any] | None) -> list[str]:
 
 
 def _format_probe_lines(probe: dict[str, Any]) -> list[str]:
-    """Format one deep-verification probe's question/answer lines."""
     question = probe.get("question", "")
     answer = probe.get("answer", "")
     fundamental = (
@@ -82,21 +54,6 @@ def _format_probe_lines(probe: dict[str, Any]) -> list[str]:
 def _format_deep_verification_context(
     probes: list[dict[str, Any]] | None, verdict: str | None, label: str
 ) -> str:
-    """Format deep-verification probes for one hypothesis in ranking prompts.
-
-    Returns an empty string when no probes are available so the ranking prompt
-    is unchanged on the first tournament (before any deep verification has run).
-
-    Args:
-        probes: Probing-question entries from the deep-verification node, or
-            None.
-        verdict: The deep-verification verdict ("holds", "weakened", or
-            "undermined"), or None.
-        label: The hypothesis's published number ("1" or "2").
-
-    Returns:
-        A formatted block with a leading separator, or an empty string.
-    """
     if not probes:
         return ""
 
@@ -120,7 +77,6 @@ _MATURE_REVIEW_SECTION_LABELS: dict[str, str] = {
 def _format_mature_review_lines(
     section: str, review: dict[str, Any]
 ) -> list[str]:
-    """Format one full/simulation/recurrent review summary as bullets."""
     lines = [f"- {section} verdict: {review.get('verdict', 'unknown')}\n"]
     justification = review.get("justification")
     if justification:
@@ -138,24 +94,6 @@ def _format_mature_review_lines(
 def _format_mature_reviews_context(
     mature_reviews: dict[str, dict[str, Any]] | None, label: str
 ) -> str:
-    """Format mature-review findings for one hypothesis in ranking prompts.
-
-    A fatal finding here -- a full or recurrent review that rejected the
-    idea, or a simulation whose mechanism broke down -- must be able to
-    influence the verdict (audit E1), so the judge reads each mature
-    review's verdict and its decisive findings.
-
-    Returns an empty string when no mature review has run, leaving the
-    prompt unchanged before the first mature Reflection cascade.
-
-    Args:
-        mature_reviews: The ``mature_review_summary`` projection for this
-            hypothesis, or None.
-        label: The hypothesis's published number ("1" or "2").
-
-    Returns:
-        A formatted block with a leading separator, or an empty string.
-    """
     if not mature_reviews:
         return ""
 
@@ -169,16 +107,6 @@ def _format_mature_reviews_context(
 
 
 def format_side_review(side: RankingSide, label: str) -> str:
-    """Compose one side's whole review block for the published slot.
-
-    Args:
-        side: The ``RankingSide`` whose review material is being rendered.
-        label: The hypothesis's published number ("1" or "2").
-
-    Returns:
-        The block that fills ``{{review_1}}``/``{{review_2}}``; never empty,
-        so the published input slot always points at something.
-    """
     deep_verification = side.deep_verification or {}
     parts = _format_review_scores(side.review)
     parts.append(
@@ -196,22 +124,8 @@ def format_side_review(side: RankingSide, label: str) -> str:
     return "".join(parts).strip() or _NO_REVIEW
 
 
-# Governing-criteria section for the judge (finding A2/K4). The review
-# stage always scores its fixed eight axes (schemas/review.py) and this
-# section does not change them; it sits under the published
-# "Evaluation criteria:" / "Criteria for hypothesis superiority:" label,
-# beside the {preferences} slot, and tells the judge how the scientist's
-# own criteria map onto the verdict when they were supplied:
-#
-# - Each criterion governs the verdict directly -- the comparison fields
-#   of the judgment schema stay the published five evaluation aspects
-#   (the schema is static), but the judge is told to decide by the
-#   scientist's criteria first.
-# - Where a criterion overlaps one of those aspects or a review score
-#   axis (e.g. a resource criterion with desirability for implementation,
-#   a specificity criterion with sufficiency of detail), the scientist's
-#   framing of that axis weighs heaviest.
-# Absent criteria render nothing and the judge keeps the published five.
+# Scientist criteria govern verdicts; fixed review axes remain
+# schema/persistence dimensions.
 _CRITERIA_PREAMBLE = (
     "**Scientist Evaluation Criteria (governing)**\n"
     "The scientist who commissioned this research specified what matters "
@@ -223,24 +137,14 @@ _CRITERIA_PREAMBLE = (
     "scientist's framing of that axis weigh heaviest:\n"
 )
 
-# The published "Considerations:" (A.4) / "Additional notes:" (A.5) slot.
-# Everything we thread into the judge that is neither the goal, the
-# criteria, the two hypotheses nor their reviews is run context: the
-# deployment's domain block, the supervisor's plan, the previous
-# iteration's meta-review critique, and the run's setup/focus guidance.
-# They render under this one published label instead of four invented
-# headings of their own.
+# Use the existing considerations slot for run context rather than changing the
+# prompt headings.
 _NO_NOTES = "No additional considerations for this comparison.\n"
 
 
 def _format_ranking_evaluation_criteria(
     criteria: list[str] | None,
 ) -> str:
-    """Format the scientist's evaluation criteria for the ranking judge.
-
-    Renders nothing when no criteria were supplied, leaving the judge on
-    the published evaluation aspects alone.
-    """
     cleaned = [
         str(item).strip() for item in criteria or [] if str(item).strip()
     ]
@@ -252,25 +156,12 @@ def _format_ranking_evaluation_criteria(
     return "".join(sections)
 
 
-# Published ranking-04/ranking-05 both hand the judge a {preferences}
-# slot. This is the same published slot evolution resolved onto our
-# ``preferences: str`` field (MP-3); ranking reads the same field so the
-# two agents cannot diverge on what "preferences" means. It renders bare
-# under the published label rather than under a heading of our own, and
-# format_preferences emits a default sentence when none was supplied --
-# so unlike the criteria section this one always renders.
+# Preferences always render their default; governing criteria remain optional.
 def _format_ranking_preferences(preferences: str | None) -> str:
-    """Format the scientist's stated preferences for the ranking judge."""
     return f"{format_preferences(preferences)}\n"
 
 
 def _format_ranking_notes(context: PromptRunContext) -> str:
-    """Fill the published considerations/notes slot with the run context.
-
-    Each block is stripped and rejoined on one blank line so an absent
-    one leaves no spacing behind, and the slot is never empty -- the
-    published label always has something under it.
-    """
     domain = _get_domain_variables(context.tool_registry)
     blocks = (
         domain["domain_context"],
@@ -291,29 +182,15 @@ def _build_ranking_prompt_variables(
     side_b: RankingSide,
     context: PromptRunContext,
 ) -> dict[str, Any]:
-    """Build the template variables for the ranking comparison prompt.
-
-    Args:
-        research_goal: The run's research goal.
-        side_a: The "A" side of the match, presented as hypothesis 1.
-        side_b: The "B" side of the match, presented as hypothesis 2.
-        context: Run-scoped prompt context; supplies the preferences and
-            criteria slots and everything under the published notes slot.
-
-    Returns:
-        Dict of template variables for the ranking prompt.
-    """
     return {
         "research_goal": research_goal,
         "hypothesis_a": side_a.text,
         "hypothesis_b": side_b.text,
-        # The published per-hypothesis review slot: this side's own
-        # scores, reflection analysis, deep-verification probes and
-        # mature-review verdicts, composed in prompts/ranking_sides.py.
+        # Each side carries its own initial, reflection, deep and mature review
+        # evidence.
         "review_1": format_side_review(side_a, "1"),
         "review_2": format_side_review(side_b, "2"),
-        # Always produced (empty when absent) so the slot never renders as
-        # a {{MISSING:...}} sentinel.
+        # Always supply these slots, even when empty, to avoid MISSING.
         "evaluation_criteria": _format_ranking_evaluation_criteria(
             context.criteria
         ),
@@ -322,9 +199,6 @@ def _build_ranking_prompt_variables(
     }
 
 
-# Renders prompts/ranking_pairwise.md (published A.4) or, for a
-# top-ranked multi-turn matchup, prompts/ranking_debate.md (published
-# A.5) for each pairwise tournament match in agents/ranking/ranking.py.
 def get_ranking_prompt(
     research_goal: str,
     side_a: RankingSide,
@@ -333,30 +207,6 @@ def get_ranking_prompt(
     *,
     debate: bool = False,
 ) -> tuple[str, dict[str, Any] | None]:
-    """Get the ranking (and tournament) comparison prompt and schema.
-
-    Args:
-        research_goal: The run's research goal.
-        side_a: The "A" side of the match, presented as hypothesis 1.
-        side_b: The "B" side of the match, presented as hypothesis 2.
-        context: Run-scoped prompt context (supervisor guidance,
-            meta-review, tool registry, run setup/focus guidance, and the
-            scientist's preferences and evaluation criteria -- the latter
-            govern the judge's verdict when present, finding A2/K4).
-        debate: True for a top-ranked multi-turn matchup, which renders
-            published ranking-05's simulated-debate prompt; False for a
-            lower-ranked single-shot comparison, which renders published
-            ranking-04's.
-
-    Returns:
-        Tuple of (rendered prompt string, JSON schema dict or None).
-
-    Note:
-        The scientist's preferences and criteria ride ``context`` rather
-        than parameters of their own: published ranking-04/05 surface a
-        ``{preferences}`` slot to the judge (MP-6), and both describe the
-        run rather than this match.
-    """
     ctx = context or PromptRunContext()
     return _build_prompt(
         "ranking_debate" if debate else "ranking_pairwise",
@@ -365,14 +215,9 @@ def get_ranking_prompt(
     )
 
 
-# Renders prompts/proximity.md for
-# agents/proximity/proximity.py. The hypothesis texts
-# are passed as a JSON array; include_domain=False because similarity
-# clustering is domain-neutral by design.
 def get_proximity_prompt(
     hypotheses: list[Any], supervisor_guidance: dict[str, Any] | None = None
 ) -> tuple[str, dict[str, Any] | None]:
-    """Get the proximity/similarity analysis prompt and schema."""
     import json
 
     return _build_prompt(
@@ -395,16 +240,6 @@ def get_proximity_prompt(
 def _format_key_areas_guidance(
     supervisor_guidance: dict[str, Any] | None, header: str, trailer: str
 ) -> str:
-    """Format the supervisor's key research areas as a guidance section.
-
-    Args:
-        supervisor_guidance: Supervisor guidance dict from workflow state.
-        header: Bolded sub-header introducing the key-areas list.
-        trailer: Sentence telling the node how to apply the key areas.
-
-    Returns:
-        A markdown guidance section, or an empty string without key areas.
-    """
     if not supervisor_guidance or not isinstance(supervisor_guidance, dict):
         return ""
 
@@ -420,7 +255,6 @@ def _format_key_areas_guidance(
 def _format_supervisor_guidance_for_ranking(
     supervisor_guidance: dict[str, Any] | None,
 ) -> str:
-    """Format supervisor guidance for ranking prompts."""
     return _format_key_areas_guidance(
         supervisor_guidance,
         "Key Research Areas to Consider",
@@ -432,7 +266,6 @@ def _format_supervisor_guidance_for_ranking(
 def _format_supervisor_guidance_for_proximity(
     supervisor_guidance: dict[str, Any] | None,
 ) -> str:
-    """Format supervisor guidance for proximity prompts."""
     return _format_key_areas_guidance(
         supervisor_guidance,
         "Key Research Areas",

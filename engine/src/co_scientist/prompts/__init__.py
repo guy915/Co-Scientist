@@ -1,20 +1,3 @@
-"""Prompt loading and template substitution utilities.
-
-All prompt templates are stored as markdown files in the templates/
-subdirectory. The sibling modules group the prompt builders by the node
-that consumes them (loading, review, ranking, planning, literature,
-generation), and this package re-exports the public API so callers keep
-importing from ``co_scientist.prompts``.
-"""
-
-# Convenience functions for common prompts
-# One getter per prompt template; each names the template file stem it
-# renders (templates/<name>.md) and is called by exactly one node module.
-# Private helpers re-exported (the ``as`` alias marks an explicit re-export
-# for mypy) for co_scientist.agents.evolution.evolve_prompt, which assembles
-# its evolution prompt without a dedicated getter here and imports these from
-# the package.
-# Not part of the public API.
 from co_scientist.prompts._common import (
     PromptRunContext,
     format_lab_constraints_section,

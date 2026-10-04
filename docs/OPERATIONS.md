@@ -92,6 +92,10 @@ matches cannot clear themselves: only a contextual assessor can clear a held
 verdict or strengthen it to a block. Operational hard blocks bypass that assessor;
 unavailable or ambiguous review remains held.
 
+Redact both report payload and Markdown: reports, events and public shares
+expose them independently. Final-report redaction leaves the separately served
+claim-evidence facts unchanged.
+
 ## Advisory reachability
 
 Online audits retain every finding from all five locks. Historical findings in
@@ -111,6 +115,10 @@ commits and image build contexts.
 Use one provider-credential map for offline selection and semantic safety:
 separate maps mistook credentialed Azure/Google deployments for keyless ones
 and silently skipped provider work or contextual review.
+
+Resolve every staged-document ID against its owner before committing a run or
+interview; partial attachment silently changes the requested evidence. Deleting
+a staging record leaves text already copied into a run as that run’s evidence.
 
 ## Claim adjudication
 

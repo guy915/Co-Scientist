@@ -1,8 +1,3 @@
-"""Discover contracts and generate frontend wire types.
-
-Run with ``python -m app.api_contracts.generate``.
-"""
-
 from __future__ import annotations
 
 import json
@@ -20,7 +15,6 @@ GROUPS: tuple[ModuleType, ...] = (common, interviews, reports, runs, science)
 
 
 def contracts() -> dict[str, dict[str, Any]]:
-    """Return the backend contracts grouped by generated frontend module."""
     result: dict[str, dict[str, Any]] = {}
     for module in GROUPS:
         aliases = module.__annotations__
@@ -41,7 +35,6 @@ def contracts() -> dict[str, dict[str, Any]]:
 
 
 def schemas() -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
-    """Collect every root and referenced schema with its owning group."""
     definitions: dict[str, dict[str, Any]] = {}
     owners: dict[str, str] = {}
     for group, values in contracts().items():
@@ -55,12 +48,10 @@ def schemas() -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
 
 
 def reference(schema: dict[str, Any]) -> str:
-    """Resolve one local JSON Schema reference."""
     return str(schema["$ref"]).rsplit("/", 1)[-1]
 
 
 def properties(schema: dict[str, Any]) -> list[str]:
-    """Render declared properties, preserving optional versus nullable."""
     required = schema.get("required", [])
     fields = []
     for name, value in schema.get("properties", {}).items():
@@ -72,7 +63,8 @@ def properties(schema: dict[str, Any]) -> list[str]:
         optional = "" if name in required else "?"
         fields.append(f"  {key}{optional}: {type_expression(value)};")
     if schema.get("x-open-config"):
-        # JSON config admits arbitrary persisted keys as well as typed setup.
+        # Persisted config permits arbitrary extra keys alongside typed setup
+        # fields; preserve that openness in the generated contract.
         fields.append(
             "  [key: string]: JsonValue | RunSetupConfig | undefined;"
         )
@@ -80,7 +72,6 @@ def properties(schema: dict[str, Any]) -> list[str]:
 
 
 def type_expression(schema: dict[str, Any]) -> str:
-    """Translate a type; reject unsupported keywords rather than weaken it."""
     if "$ref" in schema:
         return reference(schema)
     if "anyOf" in schema:
@@ -92,7 +83,6 @@ def type_expression(schema: dict[str, Any]) -> str:
 
 
 def structured_type(schema: dict[str, Any]) -> str:
-    """Translate scalars and containers after union/reference handling."""
     kind = schema.get("type")
     scalars = {
         "string": "string",
@@ -115,19 +105,18 @@ def structured_type(schema: dict[str, Any]) -> str:
 
 
 def object_type(schema: dict[str, Any]) -> str:
-    """Render fixed properties or a dictionary's value constraint."""
     if "properties" in schema:
         return "{\n" + "\n".join(properties(schema)) + "\n}"
     extra = schema.get("additionalProperties", {})
     value = type_expression(extra) if isinstance(extra, dict) else "unknown"
-    # A recursive alias through Record triggers TS2456; use an object index.
+    # Recursive aliases through Record trigger TypeScript TS2456; use an object
+    # index instead.
     if value == "JsonValue":
         return f"{{[key: string]: {value}}}"
     return f"Record<string, {value}>"
 
 
 def references(schema: Any) -> set[str]:
-    """Find local references recursively for generated module imports."""
     if isinstance(schema, dict):
         found = {reference(schema)} if "$ref" in schema else set()
         for value in schema.values():
@@ -139,7 +128,6 @@ def references(schema: Any) -> set[str]:
 
 
 def declaration(name: str, schema: dict[str, Any]) -> str:
-    """Emit one named interface or alias."""
     if "properties" in schema:
         body = "\n".join(properties(schema))
         return f"export interface {name} {{\n{body}\n}}"
@@ -151,7 +139,6 @@ HEADER = "// Generated from app.api_contracts; edit the backend models.\n"
 
 
 def generated_files() -> dict[str, str]:
-    """Return deterministic source text, also used by the CI drift test."""
     definitions, owners = schemas()
     result = {}
     for group in sorted(set(owners.values())):
@@ -176,7 +163,6 @@ def generated_files() -> dict[str, str]:
 
 
 def main() -> None:
-    """Write all generated modules without depending on frontend tooling."""
     for name, content in generated_files().items():
         (API_DIR / name).write_text(content)
 

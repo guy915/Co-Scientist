@@ -1,5 +1,3 @@
-"""Backend-owned interview wire models for frontend type generation."""
-
 from __future__ import annotations
 
 from typing import Literal

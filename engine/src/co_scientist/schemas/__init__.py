@@ -1,11 +1,3 @@
-"""Public response schemas and their prompt-name lookup.
-
-Stage modules define JSON schemas for structured LLM output. This package
-exports the supported constants and maps markdown template names to schemas
-for prompts.load_prompt_with_schema. Callers may also choose a stage schema
-directly when no template-name lookup is needed.
-"""
-
 from typing import Any
 
 from co_scientist.schemas.generation import (
@@ -51,12 +43,8 @@ from co_scientist.schemas.synthesis import (
     RESEARCH_OVERVIEW_SCHEMA,
 )
 
-# Keys are the prompt template's filename stem (matching prompts/*.md,
-# without the extension), not the schema's own "name" field. Templates
-# with no entry here (e.g. the three query-generation variants, which are
-# conversational/plain-text) legitimately have no entry so
-# get_schema_for_prompt returns None and load_prompt_with_schema in
-# prompts.py yields a schema-less call.
+# Keys match template filename stems; conversational prompts intentionally have
+# no schema.
 _PROMPT_SCHEMA_MAP: dict[str, dict[str, Any]] = {
     "research_stances": RESEARCH_STANCES_SCHEMA,
     "research_questions": RESEARCH_QUESTIONS_SCHEMA,
@@ -74,35 +62,22 @@ _PROMPT_SCHEMA_MAP: dict[str, dict[str, Any]] = {
     "full_review": FULL_REVIEW_SCHEMA,
     "simulation_review": SIMULATION_REVIEW_SCHEMA,
     "evolution": EVOLUTION_SCHEMA,
-    # The two evolution operators that render a published prompt of their
-    # own (A.6 feasibility improvement, A.7 out-of-the-box thinking)
-    # return the same refined-hypothesis object as evolution.md.
     "evolution_feasibility": EVOLUTION_SCHEMA,
     "evolution_out_of_box": EVOLUTION_SCHEMA,
     "meta_review": META_REVIEW_SCHEMA,
-    # The two published ranking prompts (A.4 single-shot, A.5 simulated
-    # debate) answer against one judgment schema.
     "ranking_pairwise": RANKING_SCHEMA,
     "ranking_debate": RANKING_SCHEMA,
     "proximity": PROXIMITY_SCHEMA,
     "reflection_observations": REFLECTION_SCHEMA,
     "deep_verification": DEEP_VERIFICATION_SCHEMA,
     "research_overview": RESEARCH_OVERVIEW_SCHEMA,
-    # FIX-6: a periodic firing asks for direction titles and open
-    # questions alone -- see RESEARCH_OVERVIEW_INTERIM_SCHEMA.
     "research_overview_interim": RESEARCH_OVERVIEW_INTERIM_SCHEMA,
-    # F8: the deep knowledge-base pass is a second pass over the same
-    # evidence corpus, outlined once and then written a theme at a time --
-    # one ~20,000-token answer cannot be served inside the 600s per-call
-    # ceiling (KNOWLEDGE_BASE_OUTLINE_MAX_TOKENS records the measurement).
     "research_overview_knowledge_base_outline": KNOWLEDGE_BASE_OUTLINE_SCHEMA,
     "research_overview_knowledge_base_theme": KNOWLEDGE_BASE_THEME_SCHEMA,
-    # One drafted direction, developed on its own call: the draft names
-    # six and argues each, and six of these write the bodies.
     "research_overview_direction": RESEARCH_OVERVIEW_DIRECTION_SCHEMA,
     "research_overview_review": RESEARCH_OVERVIEW_REVIEW_SCHEMA,
-    # The reviser regenerates the whole overview, so it shares the
-    # synthesis schema rather than defining a second copy of the shape.
+    # Revision regenerates the whole overview and therefore shares the draft
+    # schema.
     "research_overview_revise": RESEARCH_OVERVIEW_SCHEMA,
     "supervisor": SUPERVISOR_SCHEMA,
     "literature_review_paper_analysis": LITERATURE_PAPER_ANALYSIS_SCHEMA,
@@ -115,14 +90,6 @@ _PROMPT_SCHEMA_MAP: dict[str, dict[str, Any]] = {
 
 
 def get_schema_for_prompt(prompt_name: str) -> dict[str, Any] | None:
-    """Get the JSON schema for a given prompt name.
-
-    Args:
-        prompt_name: Name of the prompt (e.g., "generation", "review")
-
-    Returns:
-        JSON schema dict or None if no schema is defined for this prompt
-    """
     return _PROMPT_SCHEMA_MAP.get(prompt_name)
 
 

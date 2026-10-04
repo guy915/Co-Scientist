@@ -1,16 +1,5 @@
-"""Pre-run document staging: ``/api/documents``.
-
-A scientist attaches a paper in the composer, before there is an interview
-turn to ground or a run to attach it to. This router accepts that upload on
-its own, extracts it once (``document_ingest``), and stores it against the
-caller's identity (``store.staged_documents``). The interview then quotes
-it when scoping the goal, and creating a run copies it into that run's
-private corpus as part of the create call.
-
-Uploading only *after* the run exists was both too late to inform the plan
-and a separate write that could fail on its own, leaving a run created,
-unstarted, and ungrounded. Staging first is what makes creation the single
-committing step.
+"""Stage before the interview so attachments inform planning; run creation
+then commits copied corpus text atomically.
 """
 
 from __future__ import annotations

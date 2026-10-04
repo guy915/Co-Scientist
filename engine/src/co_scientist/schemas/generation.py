@@ -1,18 +1,9 @@
-"""Structured generation, debate, assumption and evolution schemas."""
-
 from typing import Any, Final
 
 from co_scientist.schemas.builders import obj, str_array
 
-# Assumption-tree schemas (SSR §4, audit E12): the assumptions technique
-# builds an iterative assumption/sub-assumption tree before generating
-# hypotheses, in two bounded schema calls ahead of the final
-# GENERATION_SCHEMA call. The top level lists the area's taken-for-granted
-# assumptions and marks the load-bearing ones; the sub level decomposes
-# selected parents, identified by their POSITIONAL INDEX in the prompt's
-# numbered parent list -- never by echoing the parent's text back (an
-# echoing schema would scale the output with the input and truncate on
-# large trees, the way proximity's once did).
+# Parent identity uses prompt indices, bounding output without echoing long
+# hypotheses.
 ASSUMPTION_TREE_SCHEMA: dict[str, Any] = {
     "name": "assumption_tree",
     "strict": False,
@@ -76,13 +67,6 @@ ASSUMPTION_SUB_SCHEMA: dict[str, Any] = {
         }
     ),
 }
-# Hypothesis novelty analysis schema
-# Imported directly (not via get_schema_for_prompt) by
-# agents/generation/literature_tools/validate.py, which pairs it with
-# get_hypothesis_novelty_analysis_prompt to check one draft hypothesis
-# against one paper at a time. novelty_assessment is a closed enum the
-# validation-synthesis step reads back to judge whether a draft still
-# stakes out new territory relative to the literature.
 HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_novelty_analysis",
     "strict": False,
@@ -133,11 +117,7 @@ HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA: dict[str, Any] = {
     ),
 }
 
-# Field sub-schemas shared verbatim across the generation schemas below,
-# referenced by identity (nothing mutates schema dicts at runtime; sharing
-# schema objects is the established pattern -- see schemas/review.py). The
-# validation-synthesis schema keeps its own "hypothesis" wording (it describes
-# a *final* hypothesis), so that field is not shared.
+# Shared schema objects must remain immutable across callers.
 _HYPOTHESIS_FIELD: dict[str, Any] = {
     "type": "string",
     "description": (
@@ -178,8 +158,7 @@ _EXPLANATION_FIELD: dict[str, Any] = {
     ),
 }
 
-# Pilot go/no-go thresholds are proposer-authored design details, never reviewer
-# recommendations or inputs to the safety gate.
+# Proposer pilot thresholds are design details, never reviewer gates.
 MAX_EXPERIMENT_STEPS: Final = 5
 _EXPERIMENT_STEP_CHARS: Final = 300
 _EXPERIMENT_CRITERION_CHARS: Final = 300
@@ -197,16 +176,9 @@ _EXPERIMENT_FIELD: dict[str, Any] = obj(
         "steps": {
             "type": "array",
             "items": _EXPERIMENT_STEP_FIELD,
-            # No minItems: the offline backend's schema filler emits one
-            # item per array by default (co_scientist.offline.llm), and
-            # format_experiment_plan renders however many steps arrive
-            # rather than enforcing a floor -- the published "2-5" is
-            # advisory in the description, not a hard lower bound here.
-            # maxItems is enforced server-side wherever a provider
-            # honors it; the formatter caps it again defensively
-            # (MAX_EXPERIMENT_STEPS in experiment_plan.py), since
-            # json_object mode -- the production downgrade path -- does
-            # not enforce maxItems.
+            # Offline schema filling emits one item; rendering accepts fewer
+            # than the advisory count. json_object mode needs a defensive
+            # maximum.
             "maxItems": MAX_EXPERIMENT_STEPS,
             "description": (
                 f"2-{MAX_EXPERIMENT_STEPS} ordered steps of the pilot"
@@ -238,14 +210,8 @@ _EXPERIMENT_FIELD: dict[str, Any] = obj(
     }
 )
 
-# Phase 1 draft sketch only: kept as free prose, unlike the structured
-# pilot plan above, because nothing downstream ever reads a draft's
-# `experiment` back out. prompts/literature.py's
-# _format_novelty_hypothesis_section (the only place a draft dict is
-# read again) forwards just text/gap_reasoning/literature_sources into
-# the Phase 2 synthesis prompt that produces the hypothesis's real,
-# structured experiment field -- restructuring a field whose output is
-# discarded would spend output tokens on nothing.
+# Draft experiment prose is discarded; only synthesis supplies the structured
+# experiment.
 _EXPERIMENT_DRAFT_FIELD: dict[str, Any] = {
     "type": "string",
     "description": (
@@ -271,8 +237,7 @@ _LITERATURE_GROUNDING_FIELD: dict[str, Any] = {
     ),
 }
 
-# Scene-setting is emitted per hypothesis, so unbounded prose multiplies output
-# tokens with the pool size.
+# Scene-setting repeats per hypothesis; bound it independently of pool size.
 _INTRODUCTION_FIELD: dict[str, Any] = {
     "type": "string",
     "description": (
@@ -308,12 +273,6 @@ _SAFETY_TOXICITY_FIELD: dict[str, Any] = {
     ),
 }
 
-# Generation schema
-# Shapes the final-turn output of the debate-based generation node
-# (agents/generation/debate.py) for both the
-# "generation_debate_and_literature" and "generation_after_debate" prompt
-# templates. One hypothesis per array entry with its explanation, literature
-# grounding, and proposed experiment.
 GENERATION_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_generation",
     "strict": False,
@@ -330,10 +289,8 @@ GENERATION_SCHEMA: dict[str, Any] = {
                         "explanation": _EXPLANATION_FIELD,
                         "literature_grounding": _LITERATURE_GROUNDING_FIELD,
                         "experiment": _EXPERIMENT_FIELD,
-                        # Required (K7): categorization was inconsistent
-                        # while the field was optional and absent from the
-                        # prompt body; the templates now present the value
-                        # contract alongside this schema.
+                        # The prompt requests categorization; required fields
+                        # keep the output contract aligned.
                         "category": {
                             "type": "string",
                             "description": (
@@ -353,13 +310,6 @@ GENERATION_SCHEMA: dict[str, Any] = {
         }
     ),
 }
-# Generation draft schema (Phase 1: drafting without validation)
-# Shapes the output of the "generation_draft_with_tools" prompt, consumed by
-# the tool-using draft step in agents/generation/literature_tools/draft.py.
-# Each draft still needs a novelty-validation pass (see
-# HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA below) before it becomes a final
-# Hypothesis, so this schema omits literature_grounding/novelty_validation
-# and instead requires gap_reasoning/literature_sources to justify the draft.
 GENERATION_DRAFT_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_draft",
     "strict": False,
@@ -397,11 +347,6 @@ GENERATION_DRAFT_SCHEMA: dict[str, Any] = {
         }
     ),
 }
-# Hypothesis validation synthesis schema (Phase 2)
-# Shapes Phase 2's hypothesis_validation_synthesis_with_tools response,
-# consumed by agents/generation/literature_tools/validate.py.
-# novelty_validation.decision records whether the draft passed unchanged
-# ("approved"), was adjusted ("refined"), or was redirected ("pivoted").
 HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_validation_synthesis",
     "strict": False,
@@ -428,9 +373,8 @@ HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA: dict[str, Any] = {
                         "explanation": _EXPLANATION_FIELD,
                         "literature_grounding": _LITERATURE_GROUNDING_FIELD,
                         "experiment": _EXPERIMENT_FIELD,
-                        # Required (K7): the same contract as the generation
-                        # schema's category, which this final hypothesis is
-                        # published with.
+                        # Validation retains the generation prompt's required
+                        # categorization contract.
                         "category": {
                             "type": "string",
                             "description": (
@@ -459,36 +403,9 @@ HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA: dict[str, Any] = {
 }
 
 
-# Evolution's experiment and title fields ask for exactly what generation's
-# do, so they are the same objects rather than second copies of the wording
-# (schema dicts are never mutated; sharing them by identity is this
-# package's established pattern). _TITLE_FIELD's ask -- a compact authored
-# noun phrase -- reads identically whether the hypothesis is new or refined
-# (R14-12), so it needs no evolution-specific rewording the way explanation
-# does below. The sibling explanation field legitimately differs -- it asks
-# for the refinements -- so it is written out below.
-#
-# The four proposal sections below are shared the same way, and for a
-# sharper reason: they used to be inherited from the parent because the
-# evolution LLM was never asked for them. Production extended run bc77950f
-# (2026-09-08) evolved seven children and every one published its parent's
-# mechanism and safety text byte-identically -- including a verteporfin
-# child carrying a palbociclib mechanism paragraph, whose categorical
-# claims therefore named a molecule it does not propose and which no
-# retrieval could ever support. A child's sections must describe the
-# child, so the refinement is asked for them in the call it already makes.
+# Evolution fields describe the child, never a copied parent experiment or
+# title.
 
-# Evolution schema
-# Shapes the "evolution" prompt output, consumed by the
-# hypothesis-refinement step in agents/evolution/evolve.py. Represents a
-# single refined hypothesis (evolution runs one hypothesis at a time);
-# refinement_summary
-# is a human-readable diff-style note, not used for further LLM prompting.
-#
-# Multi-parent combination identifies the partners it merged by the
-# positional index the prompt assigned them -- never by echoing their text,
-# which would scale the response with the partners' length (the same trap
-# proximity clustering hit; see proximity_dedup._match_cluster_member).
 EVOLUTION_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_evolution",
     "strict": False,
@@ -532,8 +449,8 @@ EVOLUTION_SCHEMA: dict[str, Any] = {
                 ),
             },
         },
-        # Identification only, and only for the combination operator; every
-        # other operator omits it.
+        # Combination partner indices identify parents without echoing text;
+        # other operators omit them.
         optional=("combined_partners",),
     ),
 }

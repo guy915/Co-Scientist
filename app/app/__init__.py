@@ -1,10 +1,5 @@
-"""Co-Scientist FastAPI server and installed API version.
-
-The canonical version lives in ``pyproject.toml``; this module reads it
-from the installed package metadata so the FastAPI app, the root
-endpoint, and the health endpoint all report the same value. The
-fallback covers running from a raw checkout where the distribution
-metadata is not installed.
+"""Installed package metadata is the version source for API diagnostics; raw
+checkouts need a fallback when distribution metadata is absent.
 """
 
 from __future__ import annotations

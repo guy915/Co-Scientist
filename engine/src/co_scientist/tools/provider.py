@@ -1,5 +1,3 @@
-"""Tool provider wrapping MCPToolClient for LLM tool calling."""
-
 import json
 import logging
 from collections.abc import Awaitable, Callable
@@ -11,34 +9,13 @@ from co_scientist.mcp_client import MCPToolClient
 logger = logging.getLogger(__name__)
 
 
-# Enough of an undecodable payload to recognize what returned it (an HTML
-# error page, a throttling notice, a stack trace) without pasting a whole
-# response body into the log.
+# Bound excerpts to recognize upstream HTML/throttling without logging entire
+# bodies.
 _PAYLOAD_EXCERPT_CHARS = 200
 
 
 def parse_mcp_result(result: Any) -> Any:
-    """Decodes a raw MCP tool result that may arrive as a JSON string.
-
-    MCP tools return either already-decoded Python data or a JSON-encoded
-    string depending on transport. This is the canonical decode step; callers
-    keep their own handling of malformed JSON.
-
-    A decode failure quotes the start of the offending payload. The bare
-    message ("Expecting value: line 1 column 1 (char 0)") says only that the
-    body was not JSON, which is the one thing already known -- it cannot
-    distinguish an upstream HTML status page from a throttling notice from
-    an empty body, and those call for different fixes.
-
-    Args:
-        result: Raw MCP tool result.
-
-    Returns:
-        The decoded object for JSON strings, otherwise the value unchanged.
-
-    Raises:
-        json.JSONDecodeError: If result is a string that is not valid JSON.
-    """
+    """Accept raw JSON text and already-decoded client payloads."""
     if isinstance(result, str):
         try:
             return json.loads(result)
@@ -52,7 +29,9 @@ def parse_mcp_result(result: Any) -> Any:
 
 
 def _payload_excerpt(payload: str) -> str:
-    """Quote the head of an undecodable payload for a diagnostic message."""
+    """Bound diagnostic excerpts without losing clues that distinguish HTML,
+    throttling and empty bodies.
+    """
     head = " ".join(payload.split())[:_PAYLOAD_EXCERPT_CHARS]
     if not head:
         return "empty"
@@ -63,16 +42,6 @@ def _payload_excerpt(payload: str) -> str:
 def tool_result_message(
     tool_name: str, tool_call_id: str, payload: Any
 ) -> dict[str, Any]:
-    """Builds a successful tool-role message.
-
-    Args:
-        tool_name: The name the model called.
-        tool_call_id: The id of the call being answered.
-        payload: JSON-serializable result content.
-
-    Returns:
-        A tool-role message dict.
-    """
     return {
         "role": "tool",
         "name": tool_name,
@@ -84,33 +53,12 @@ def tool_result_message(
 def tool_error_message(
     tool_name: str, tool_call_id: str, error: str
 ) -> dict[str, Any]:
-    """Builds a tool-role message reporting a failure to the model.
-
-    Args:
-        tool_name: The name the model called.
-        tool_call_id: The id of the call being answered.
-        error: What went wrong, phrased for the model to act on.
-
-    Returns:
-        A tool-role message dict carrying an ``error`` key.
-    """
     return tool_result_message(tool_name, tool_call_id, {"error": error})
 
 
 def tracked_executor(
     provider: Any, label: str
 ) -> tuple[Callable[[Any], Awaitable[dict[str, Any]]], dict[str, int]]:
-    """Wraps a provider's ``execute_tool_call`` with per-name counting.
-
-    Args:
-        provider: Anything with an ``execute_tool_call`` coroutine.
-        label: Log prefix identifying the calling phase, e.g. "Draft".
-
-    Returns:
-        An (executor, counts) pair. The executor delegates to the
-        provider; counts maps tool name to call count and is updated in
-        place as the executor runs.
-    """
     counts: dict[str, int] = {}
 
     async def executor(tool_call: Any) -> dict[str, Any]:
@@ -123,56 +71,21 @@ def tracked_executor(
     return executor, counts
 
 
-# Thin wrapper used by the tool-calling generation nodes (draft/validate/
-# debate agents) so they interact with a small, stable interface regardless
-# of what the underlying MCPToolClient looks like.
 class MCPToolProvider:
-    """Uniform tool interface over an MCP client.
-
-    Tracks the tools exposed via get_tools so execute_tool_call can reject
-    unknown names with an error tool-response instead of raising.
-
-    example usage:
-        provider = MCPToolProvider(mcp_client=mcp_client)
-
-        tools_dict, openai_tools = provider.get_tools(
-            mcp_whitelist=["pubmed_search_with_fulltext"])
-
-        result = await provider.execute_tool_call(tool_call)
-    """
-
     def __init__(self, mcp_client: MCPToolClient | None = None):
-        """Initialize the tool provider.
-
-        Args:
-            mcp_client: optional MCP client for MCP tools
-        """
         self.mcp_client = mcp_client
 
-        # Names exposed via get_tools; used to reject unknown tool calls.
         self._tool_names: set[str] = set()
 
     def get_tools(
         self,
         mcp_whitelist: list[str] | None = None,
     ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-        """Get tools from the MCP client.
-
-        Args:
-            mcp_whitelist: optional list of MCP tool names to include.
-                None exposes every tool the MCP client offers; an empty
-                list is a valid "no tools" request.
-
-        Returns:
-            tuple of (tools_dict, openai_tools_list)
-            tools_dict is {tool_name: tool_object}
-            openai_tools_list is a list of OpenAI-format tools
-        """
+        """None exposes all tools; an empty whitelist exposes none."""
         tools_dict: dict[str, Any] = {}
         openai_tools: list[dict[str, Any]] = []
 
-        # The whitelist is forwarded as-is: MCPToolClient.get_tools treats
-        # None as "all tools" and an empty list filters everything out.
+        # Forward None versus [] unchanged: all tools versus none.
         if self.mcp_client is not None:
             try:
                 tools_dict, openai_tools = self.mcp_client.get_tools(
@@ -181,65 +94,39 @@ class MCPToolProvider:
                 self._tool_names.update(tools_dict.keys())
                 logger.debug("added %s MCP tools", len(tools_dict))
             except Exception as e:
-                # Degrade gracefully: a transient MCP outage should not
-                # crash the caller, just leave it with no tools available.
+                # Transient MCP outages degrade to no tools rather than aborting
+                # the loop.
                 logger.warning("Failed to get MCP tools: %s", e)
 
         logger.info("tool provider ready: %s tools", len(tools_dict))
         return tools_dict, openai_tools
 
     async def execute_tool_call(self, tool_call: Any) -> dict[str, Any]:
-        """Execute a tool call via the MCP client.
-
-        Args:
-            tool_call: LiteLLM tool call object with .id, .function.name,
-                .function.arguments
-
-        Returns:
-            tool response message dict:
-                {role: "tool", name: ..., tool_call_id: ..., content: ...}
+        """Reject unadvertised names; return failures as tool messages so the
+        loop can continue.
         """
         tool_name = tool_call.function.name
         tool_call_id = tool_call.id
 
-        # Reject names never advertised via get_tools() rather than letting
-        # the LLM invoke arbitrary/hallucinated names; the model still gets
-        # an error tool-response so the conversation loop can continue.
+        # Reject names never advertised to the model.
         if tool_name not in self._tool_names:
             error_msg = f"unknown tool: {tool_name}"
             logger.error(error_msg)
             return tool_error_message(tool_name, tool_call_id, error_msg)
 
         try:
-            # Defensive: _tool_names is only populated when a client exists,
-            # so this branch should be unreachable in practice.
             if self.mcp_client is None:
                 raise ConfigError("MCP client not configured")
             return await self.mcp_client.execute_tool_call(tool_call)
         except Exception as e:
-            # Any failure (network error, malformed args, tool-side
-            # exception) becomes a tool-role error message rather than a
-            # raised exception, so one bad call cannot crash the multi-turn
-            # tool-calling loop.
+            # Return failures as tool messages so one bad call cannot abort the
+            # multi-turn loop.
             error_msg = f"tool execution failed: {e!s}"
             logger.error("%s error: %s", tool_name, error_msg)
             return tool_error_message(tool_name, tool_call_id, error_msg)
 
-    # Used by the draft and validate literature-tools agents (each passes its
-    # own phase label, e.g. "Draft") to log and cap per-tool call volume
-    # across a multi-iteration tool-calling loop.
     def tracked_executor(
         self,
         label: str,
     ) -> tuple[Callable[[Any], Awaitable[dict[str, Any]]], dict[str, int]]:
-        """Wrap execute_tool_call with per-tool-name call counting.
-
-        Args:
-            label: Log prefix identifying the calling phase, e.g. "Draft".
-
-        Returns:
-            An (executor, counts) pair. The executor delegates to
-            execute_tool_call; counts maps tool name to call count and is
-            updated in place as the executor runs.
-        """
         return tracked_executor(self, label)

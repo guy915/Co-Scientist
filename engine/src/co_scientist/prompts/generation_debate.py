@@ -1,5 +1,3 @@
-"""Prompt builders for the debate-based hypothesis generation flow."""
-
 from dataclasses import dataclass, field
 from typing import Any, Final
 
@@ -25,16 +23,6 @@ from co_scientist.prompts.loading import (
 def _format_debate_key_areas_section(
     key_areas: list[Any], *, needs_header: bool
 ) -> list[str]:
-    """Format the key-research-areas slice of debate supervisor guidance.
-
-    Args:
-        key_areas: Key research areas from the supervisor's goal analysis.
-        needs_header: Whether to emit the "Key research areas" header, i.e.
-            no earlier section already introduced the guidance block.
-
-    Returns:
-        Section lines, or an empty list when key_areas is empty.
-    """
     if not key_areas:
         return []
 
@@ -49,17 +37,6 @@ def _format_debate_key_areas_section(
 def _format_debate_generation_phase_section(
     generation_phase: dict[str, Any], *, needs_header: bool
 ) -> list[str]:
-    """Format the generation-phase slice of debate supervisor guidance.
-
-    Args:
-        generation_phase: The `workflow_plan.generation_phase` dict from
-            supervisor guidance.
-        needs_header: Whether to emit the "Generation guidance" header, i.e.
-            no earlier section already introduced the guidance block.
-
-    Returns:
-        Section lines, or an empty list when generation_phase is empty.
-    """
     if not generation_phase:
         return []
 
@@ -75,16 +52,6 @@ def _format_debate_generation_phase_section(
 def _format_supervisor_guidance_for_debate(
     supervisor_guidance: dict[str, Any] | None,
 ) -> str:
-    """Format supervisor guidance for the debate generation prompt.
-
-    Args:
-        supervisor_guidance: Supervisor guidance dict from workflow state.
-
-    Returns:
-        A guidance section combining key research areas, generation-phase
-        focus areas, and the run's debate-mode config, or an empty string
-        when none of the three is present.
-    """
     if not supervisor_guidance or not isinstance(supervisor_guidance, dict):
         return ""
 
@@ -191,12 +158,8 @@ IMPORTANT: Use plain text with standard punctuation (no LaTeX, no decorative \
 Unicode).
 """
 
-# Default task instruction for the literature-aware debate template's
-# {{instructions}} slot, mirroring the draft-with-tools builder's fallback
-# (DraftPromptRequest.instructions). WorkflowState carries no run-level
-# instructions key, so the slot is filled from the request when a caller
-# supplies one and from this default otherwise -- it must never render as
-# a {{MISSING:...}} sentinel.
+# WorkflowState has no instructions field; the default prevents MISSING in the
+# template.
 _DEFAULT_DEBATE_INSTRUCTIONS = (
     "Focus on creative ideation - debate diverse hypotheses, building on"
     " the user-provided starting hypotheses above when present."
@@ -204,11 +167,6 @@ _DEFAULT_DEBATE_INSTRUCTIONS = (
 
 
 def _format_debate_attributes(attributes: str | list[str] | None) -> str:
-    """Format debate-prompt attributes as a comma-joined string.
-
-    Shared by _build_debate_prompt_variables to keep the ternary out of the
-    variables dict literal.
-    """
     if isinstance(attributes, list):
         return ", ".join(attributes) or "testable and falsifiable"
     return attributes or "testable and falsifiable"
@@ -219,11 +177,6 @@ def _build_debate_literature_variables(
     articles: list[Any] | None,
     reference_list: str,
 ) -> dict[str, Any]:
-    """Build the literature-context template variables for debate prompts.
-
-    articles_with_reasoning is included only when provided, so the template
-    can distinguish "no literature review ran" from "ran but empty".
-    """
     variables: dict[str, Any] = {
         "articles_metadata": format_articles_metadata(articles or []),
         "citation_reference_section": _build_citation_reference_section(
@@ -237,26 +190,6 @@ def _build_debate_literature_variables(
 
 @dataclass(frozen=True)
 class DebatePromptRequest:
-    """Inputs for one turn of the debate-based generation prompt.
-
-    Attributes:
-        research_goal: The run's research goal.
-        transcript: The debate transcript accumulated so far.
-        preferences: Free-text user preferences, if any.
-        attributes: Desired hypothesis attributes, as text or a list.
-        user_hypotheses: Seed hypotheses supplied by the user.
-        instructions: Custom task instructions for the debate, if any.
-        criteria: The scientist's evaluation criteria for the run, if any;
-            they steer what the panel argues for (finding A2).
-        is_final_turn: Whether this is the schema-constrained final turn.
-        articles_with_reasoning: The literature-review synthesis text; its
-            presence also selects the literature-aware template.
-        articles: Literature-review articles for citation metadata.
-        reference_list: The ``[C*]`` citation reference list.
-        context: Run-scoped prompt context (supervisor guidance,
-            meta-review, tool registry, run setup/focus guidance).
-    """
-
     research_goal: str
     transcript: str
     preferences: str | None = None
@@ -271,36 +204,16 @@ class DebatePromptRequest:
     context: PromptRunContext = field(default_factory=PromptRunContext)
 
 
-# The paper's generation-debate turn envelope (SSR note 9.1): sufficient
-# discussion "typically 3-5 conversational turns, with a maximum of 10",
-# concluded by the panel writing the HYPOTHESIS termination token. These
-# live here, not in constants/__init__.py, because the debate turn loop
-# (agents/generation/debate.py) and the template prose below must share a
-# single source: the panel paces itself against whatever number it is
-# told, so a stale figure in the template reads as a real instruction.
-# The constants package holds values shared across nodes; this envelope
-# belongs to the debate alone.
+# Published debates typically take 3-5 turns, with ten discussion turns allowed.
+# Loop/template limits agree; synthesis is outside the discussion allowance.
 _DEBATE_TYPICAL_MIN_TURNS: Final = 3
-"""Lower end of the paper's typical convergence range for a debate."""
 
 _DEBATE_TYPICAL_MAX_TURNS: Final = 5
-"""Upper end of the paper's typical convergence range for a debate."""
 
 _DEBATE_MAX_DISCUSSION_TURNS: Final = 10
-"""Hard ceiling on free-form discussion turns before the synthesis turn."""
 
 
 def _debate_turn_envelope() -> dict[str, int]:
-    """Return the debate turn envelope as template variables.
-
-    Single-sources the envelope so the template's prose figures and the
-    loop that enforces them (agents/generation/debate.py) cannot drift:
-    the discussion runs up to ``_DEBATE_MAX_DISCUSSION_TURNS`` free-form
-    turns, with the panel told to converge within the typical range and
-    declare consensus with the HYPOTHESIS token when it does. The
-    schema-constrained synthesis turn runs after the discussion, on top
-    of this budget.
-    """
     return {
         "discussion_typical_min_turns": _DEBATE_TYPICAL_MIN_TURNS,
         "discussion_typical_max_turns": _DEBATE_TYPICAL_MAX_TURNS,
@@ -311,11 +224,6 @@ def _debate_turn_envelope() -> dict[str, int]:
 def _format_debate_evaluation_criteria(
     criteria: list[str] | None,
 ) -> str:
-    """Format the scientist's evaluation criteria for the debate panel.
-
-    Renders nothing when no criteria were supplied, leaving the panel on
-    the template's built-in quality criteria.
-    """
     cleaned = [
         str(item).strip() for item in criteria or [] if str(item).strip()
     ]
@@ -335,14 +243,6 @@ def _format_debate_evaluation_criteria(
 
 
 def _build_debate_base_variables(req: DebatePromptRequest) -> dict[str, Any]:
-    """Build the goal/transcript/user-input core of the debate variables.
-
-    The literature-aware template declares a {{user_hypotheses}} and an
-    {{instructions}} slot, so both are always produced: user hypotheses
-    render as an explicit "none provided" line when absent, and
-    instructions fall back to the default task instruction -- neither may
-    render as a {{MISSING:...}} sentinel.
-    """
     variables: dict[str, Any] = {
         "goal": req.research_goal,
         "transcript": req.transcript or "",
@@ -352,8 +252,7 @@ def _build_debate_base_variables(req: DebatePromptRequest) -> dict[str, Any]:
         "attributes": _format_debate_attributes(req.attributes),
         "user_hypotheses": format_user_hypotheses(req.user_hypotheses),
         "instructions": req.instructions or _DEFAULT_DEBATE_INSTRUCTIONS,
-        # Always produced (empty when absent) so the slot never renders as
-        # a {{MISSING:...}} sentinel.
+        # Always supply the slot, even when empty, to avoid MISSING.
         "evaluation_criteria": _format_debate_evaluation_criteria(req.criteria),
     }
     variables.update(_debate_turn_envelope())
@@ -361,17 +260,6 @@ def _build_debate_base_variables(req: DebatePromptRequest) -> dict[str, Any]:
 
 
 def _format_reviews_overview(meta_review: dict[str, Any] | None) -> str:
-    """Fill the published ``{reviews_overview}`` slot of A.2.
-
-    The published debate prompt hands the panel an overview of the reviews
-    of the ideas it is refining. Our equivalent is the meta-review
-    synthesis of the previous cycle's reviews, so the published slot is
-    wired to it rather than left empty. The block keeps the shared
-    formatter's own wording and header, which every other consumer of the
-    meta-review also renders; only the empty case is answered here, so
-    iteration 1 -- which has no reviews yet -- says so rather than leaving
-    the published label standing over nothing.
-    """
     return _format_meta_review_context(meta_review).strip() or (
         "No reviews are available yet; this is the first generation cycle"
         " of the run."
@@ -381,18 +269,6 @@ def _format_reviews_overview(meta_review: dict[str, Any] | None) -> str:
 def _build_debate_guidance_variables(
     context: PromptRunContext,
 ) -> dict[str, Any]:
-    """Build the guidance/context/domain variables for the debate prompt.
-
-    Covers supervisor guidance, the published reviews-overview slot fed
-    from the cross-iteration meta-review, run setup/focus guidance, and
-    the domain-specific prompt customizations from the tool registry.
-
-    Args:
-        context: Run-scoped prompt context for this debate turn.
-
-    Returns:
-        Dict of the guidance, reviews-overview, and domain variables.
-    """
     variables: dict[str, Any] = {
         "supervisor_guidance": _format_supervisor_guidance_for_debate(
             context.supervisor_guidance
@@ -407,14 +283,6 @@ def _build_debate_guidance_variables(
 def _build_debate_prompt_variables(
     req: DebatePromptRequest,
 ) -> dict[str, Any]:
-    """Build the dict of template variables for the debate generation prompt.
-
-    Args:
-        req: The resolved debate-prompt request for this turn.
-
-    Returns:
-        Dict of template variables for the debate prompt.
-    """
     variables = _build_debate_base_variables(req)
     variables.update(
         _build_debate_literature_variables(
@@ -430,17 +298,6 @@ def _render_debate_prompt(
     articles_with_reasoning: str | None,
     is_final_turn: bool,
 ) -> tuple[str, dict[str, Any] | None]:
-    """Render the debate prompt for one turn, given its resolved variables.
-
-    The template follows literature availability
-    (generation_debate_and_literature when a lit review synthesis exists,
-    generation_after_debate otherwise). Non-final turns are conversational
-    and schema-less. The final turn is schema-constrained, with the JSON
-    output instructions concatenated verbatim after the rendered template.
-
-    Returns:
-        Tuple of (formatted prompt string, JSON schema dict or None).
-    """
     prompt_name = (
         "generation_debate_and_literature"
         if articles_with_reasoning
@@ -450,34 +307,15 @@ def _render_debate_prompt(
         return load_prompt(prompt_name, variables), None
 
     prompt, schema = load_prompt_with_schema(prompt_name, variables)
-    # Concatenated verbatim after the rendered template (never run through
-    # substitute_variables), so the literal braces in the JSON example below
-    # need no {{}} escaping.
+    # Append verbatim: this instruction contains literal JSON braces that must
+    # not be substituted.
     prompt = prompt + _DEBATE_FINAL_TURN_INSTRUCTIONS
     return prompt, schema
 
 
-# Called by agents/generation/debate.py once per debate turn. Template
-# choice depends on literature availability
-# (generation_debate_and_literature vs generation_after_debate), and the
-# final turn switches from free-form discussion to schema-constrained JSON
-# output (GENERATION_SCHEMA).
 def get_debate_generation_prompt(
     req: DebatePromptRequest,
 ) -> tuple[str, dict[str, Any] | None]:
-    """Get the debate-based hypothesis generation prompt.
-
-    Multi-turn: experts discuss and refine hypotheses while the request's
-    ``transcript`` accumulates; the final turn switches to
-    schema-constrained JSON output.
-
-    Args:
-        req: The resolved debate-prompt request for this turn; its fields
-            are documented on DebatePromptRequest.
-
-    Returns:
-        Tuple of (rendered prompt string, JSON schema dict or None).
-    """
     return _render_debate_prompt(
         _build_debate_prompt_variables(req),
         req.articles_with_reasoning,

@@ -1,16 +1,3 @@
-"""Startup seeding for complete, curated demo runs.
-
-Creates three browseable examples for newcomers. The default scenarios are
-curated, illustrative fixtures with realistic run artifacts; ad-hoc seed
-calls retain the real offline-engine fallback used by tests and developers.
-
-This module owns which runs are seeded and when. The curated content itself
-lives in siblings -- goal-detail lists in ``seed.planning``, the derived-row
-writers in ``seed.scenario``, and the terminal synthesis payloads in
-``seed.overview`` -- the moved names callers and tests use re-exported here
-so ``app.seed`` stays their import and monkeypatch surface.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -31,19 +18,16 @@ from app.store import DEMO_CLIENT_ID, RunRow
 
 logger = logging.getLogger(__name__)
 
-# The fallback engine path stays intentionally small. Curated scenarios do
-# not consume this budget, but direct callers can still ask to seed an
-# arbitrary goal through the deterministic engine.
+# Only ad-hoc offline-engine seeds consume this small fallback budget; curated
+# examples are fixed content.
 _DEMO_TIER = "express"
 
 _DEMO_GOALS = list(DEMO_SCENARIOS)
 
 
 def _build_demo_run_config(goal: str) -> dict[str, Any]:
-    """Build the resolved run config for one demo goal.
-
-    The marker allows deployed instances to replace an older thin demo with
-    the current curated artifact bundle exactly once.
+    """Version the entire curated artifact bundle so older demos are
+    replaced once per content revision.
     """
     scenario = DEMO_SCENARIOS.get(goal)
     config = resolved_run_config(
@@ -68,7 +52,6 @@ def _ensure_demo_run_row(
     config: dict[str, Any],
     db_path: str | None,
 ) -> RunRow:
-    """Return `run`, creating the demo run row first if one doesn't exist."""
     if run is not None:
         return run
     scenario = DEMO_SCENARIOS.get(goal)
@@ -87,14 +70,8 @@ def _ensure_demo_run_row(
 
 
 def _drive_demo_run(run_id: str, db_path: str | None) -> None:
-    """Drain one demo run's durable task chain to completion.
-
-    Runs a bounded worker cohort on its own event loop, exactly as the
-    embedded API worker does for a real ``POST /start`` (see
-    ``runs.lifecycle._enqueue_workflow_and_maybe_launch_worker``). The cohort
-    returns once the run has no ready task left -- i.e. once it has reached a
-    terminal state and persisted its report -- so the caller can rely on the
-    demo run being complete when this returns.
+    """Await the bounded durable worker chain on its own loop so callers
+    receive a completed demo and persisted report.
     """
     policy = task_worker.WorkerPolicy(db_path=db_path)
     run_in_scoped_loop(
@@ -107,7 +84,6 @@ def _drive_demo_run(run_id: str, db_path: str | None) -> None:
 
 
 def _scenario_report_is_current(run: RunRow, db_path: str | None) -> bool:
-    """Return whether a curated scenario has the current artifact revision."""
     report = store.get_latest_report(run.id, db_path=db_path)
     setup = run.config.get("setup") if isinstance(run.config, dict) else None
     return bool(
@@ -125,31 +101,20 @@ async def _seed_demo_run(
     run: RunRow | None,
     db_path: str | None,
 ) -> None:
-    """Create one curated default scenario or an offline-engine fallback.
-
-    Known default goals receive a complete curated fixture. Other callers use
-    the existing durable, deterministic engine path, keeping a realistic
-    exercise route available without making product examples depend on it.
-
-    Args:
-        goal: The demo research goal to seed.
-        run: The existing run row for this goal, or None to create one.
-        db_path: Optional override for the SQLite database path.
+    """Default goals use curated examples; ad-hoc goals retain the durable
+    offline-engine path without making startup depend on model work.
     """
     config = _build_demo_run_config(goal)
     run = _ensure_demo_run_row(goal, run, config, db_path)
     scenario = DEMO_SCENARIOS.get(goal)
     if scenario is not None:
-        # Re-seeded demos may predate the setup fields shown in Goal Details.
-        # Keep their row configuration in sync with newly created demo rows.
+        # Reconstructed legacy demo rows need the same setup fields as newly
+        # created ones.
         store.set_run_config(run.id, config, db_path=db_path)
         await _seed_curated_scenario(run, scenario, db_path)
         logger.info("Seeded curated demo run %s (%.60s…)", run.id[:8], goal)
         return
     task_worker.enqueue_run_workflow(run.id, db_path=db_path)
-    # Run the cohort on its own loop/thread (mirroring the embedded worker)
-    # and await it, so seeding blocks until the run is complete rather than
-    # racing startup.
     await asyncio.to_thread(_drive_demo_run, run.id, db_path)
     logger.info("Seeded offline engine demo run %s (%.60s…)", run.id[:8], goal)
 
@@ -159,10 +124,8 @@ async def _seed_or_reseed_demo_run(
     run: RunRow | None,
     db_path: str | None,
 ) -> None:
-    """Seed `goal`, skipping an existing demo at the current revision.
-
-    A failed seed must not take down app startup; it is logged and swallowed
-    here so the caller can move on to the next demo goal.
+    """A failed demo seed must not abort app startup or prevent later
+    examples from being tried.
     """
     if run is not None:
         scenario = DEMO_SCENARIOS.get(goal)
@@ -187,17 +150,8 @@ async def _seed_or_reseed_demo_run(
 
 
 async def seed_demo_runs(db_path: str | None = None) -> None:
-    """Seed demo runs if they are not already present.
-
-    Also re-seeds any existing demo run whose report is missing or
-    unreadable (e.g. after a container restart that cleared the on-disk
-    .md files before the markdown_text column was added).
-    """
-    # main.py's lifespan already installs the offline router unconditionally
-    # before calling this, but this function is also exercised directly (by
-    # tests) without that lifespan running first. Installing it here too is
-    # idempotent and guarantees the demo runs' offline/ model calls resolve
-    # regardless of caller.
+    # Direct callers bypass lifespan setup; idempotent offline-router
+    # installation keeps demo calls deterministic there too.
     from co_scientist.offline.llm import install_offline_router
 
     install_offline_router()
