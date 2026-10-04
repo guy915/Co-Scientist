@@ -377,19 +377,11 @@ _AIMS_PREAMBLE_BLOCKS = (
     ("unmet_need", "Unmet Need"),
     ("proposed_solution", "Proposed Solution"),
 )
-_AIMS_CLOSING_BLOCKS = (
-    ("pilot_evaluation", "Pilot Evaluation"),
-    ("impact", "Impact"),
-)
-# Keep goals labeled beneath numbered aim headings, including the legacy aim
-# spelling.
+_AIMS_CLOSING_BLOCKS = (("pilot_evaluation", "Pilot Evaluation"),)
 _AIM_BODY_FIELDS = (
     ("overarching_goal", "Overarching goal"),
-    ("aim", "Aim"),
     ("hypothesis", "Hypothesis"),
     ("reasoning", "Reasoning"),
-    ("rationale", "Rationale"),
-    ("approach", "Approach"),
 )
 
 
@@ -431,9 +423,7 @@ def _render_aims_list(aims: list[Any]) -> list[str]:
 def _render_nih_aims_section(aims_section: dict[str, Any]) -> list[str]:
     if not isinstance(aims_section, dict):
         return []
-    preamble = _render_optional_paragraph(
-        _readable_text(aims_section.get("introduction"))
-    ) + _render_labeled_blocks(aims_section, _AIMS_PREAMBLE_BLOCKS)
+    preamble = _render_labeled_blocks(aims_section, _AIMS_PREAMBLE_BLOCKS)
     aims = aims_section.get("aims") or []
     closing = _render_labeled_blocks(aims_section, _AIMS_CLOSING_BLOCKS)
     if not _has_aims_content(preamble, aims, closing):
@@ -624,35 +614,8 @@ _META_REVIEW_BULLET_SECTIONS = (
 )
 
 
-# Old reports and checkpoints retain fixed comparison fields until production
-# reset.
-_IDEA_COMPARISON_FIELDS = (
-    ("distinguishing_attribute", "Distinguishing attribute"),
-    ("computational_scalability", "Computational scalability"),
-    ("supporting_evidence_basis", "Supporting evidence basis"),
-    ("primary_novelty_parameter", "Primary novelty parameter"),
-)
-
-_EXISTING_SOLUTION_FIELDS = (
-    ("approach", "Approach"),
-    ("sensitivity_to_novelty", "Sensitivity to novelty"),
-    ("scalability", "Scalability"),
-)
-
-
 # Comparison axes follow the research domain; existing-solution comparisons can
 # be empty when no landscape applies.
-
-
-def _render_legacy_comparison_fields(
-    entry: dict[str, Any], fields: tuple[tuple[str, str], ...]
-) -> list[str]:
-    lines = []
-    for key, heading in fields:
-        value = str(entry.get(key) or "").strip()
-        if value:
-            lines.append(f"  - **{heading}:** {value}")
-    return lines
 
 
 def _render_axis_values(axes: list[Any], values: Any) -> list[str]:
@@ -674,21 +637,14 @@ def _render_comparison_row(
     row: Any,
     axes: list[Any],
     label_key: str,
-    legacy_fields: tuple[tuple[str, str], ...],
 ) -> list[str]:
-    """Keep legacy fixed comparison fields readable alongside domain-aware axes
-    until production reset.
-    """
     if not isinstance(row, dict):
         return []
     label = str(row.get(label_key) or "").strip()
     if not label:
         return []
     lines = [f"- **{label}**"]
-    if axes and isinstance(row.get("values"), list):
-        lines += _render_axis_values(axes, row["values"])
-    else:
-        lines += _render_legacy_comparison_fields(row, legacy_fields)
+    lines += _render_axis_values(axes, row.get("values"))
     return lines
 
 
@@ -700,11 +656,6 @@ def _render_comparison(
     summary_key = "summary" if existing_solutions else "thematic_summary"
     rows_key = "rows" if existing_solutions else "ideas"
     label_key = "method" if existing_solutions else "idea"
-    legacy_fields = (
-        _EXISTING_SOLUTION_FIELDS
-        if existing_solutions
-        else _IDEA_COMPARISON_FIELDS
-    )
     heading = (
         "Comparison to existing solutions"
         if existing_solutions
@@ -714,7 +665,7 @@ def _render_comparison(
     axes = comparison.get("axes") or []
     row_lines: list[str] = []
     for row in comparison.get(rows_key) or []:
-        row_lines += _render_comparison_row(row, axes, label_key, legacy_fields)
+        row_lines += _render_comparison_row(row, axes, label_key)
     if not (summary or row_lines):
         return []
     lines = [f"\n### {heading}\n"]

@@ -747,34 +747,6 @@ def test_published_aims_vocabulary_renders_every_block() -> None:
     assert "### Pilot Evaluation" in text
 
 
-def test_stored_reports_in_the_previous_aims_shape_still_render() -> None:
-    # Persisted aims predate the current schema; their older fields must remain
-    # readable.
-    payload = {
-        "nih_specific_aims": {
-            "introduction": "Significance and the gap.",
-            "aims": [
-                {
-                    "aim": "Aim 1: Establish the baseline.",
-                    "rationale": "Nothing else measures it.",
-                    "approach": "Knockdown in a matched model.",
-                }
-            ],
-            "impact": "A decision framework for the mechanism.",
-        }
-    }
-
-    text = _render_overview_payload(payload)
-
-    assert "## NIH Specific Aims" in text
-    assert "Significance and the gap." in text
-    assert "### Specific Aims 1" in text
-    assert "**Aim:** Aim 1: Establish the baseline." in text
-    assert "**Rationale:** Nothing else measures it." in text
-    assert "**Approach:** Knockdown in a matched model." in text
-    assert "### Impact" in text
-
-
 def _contents_markdown(**overrides: Any) -> str:
     hypothesis: dict[str, Any] = overrides.pop(
         "hypothesis",

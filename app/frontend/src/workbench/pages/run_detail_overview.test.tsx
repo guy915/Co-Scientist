@@ -129,7 +129,7 @@ describe('run detail overview degraded', () => {
 });
 
 describe('run detail overview stat line', () => {
-  it('omits intro/impact paragraphs when a specific aim lacks them', () => {
+  it('renders current aim fields without surrounding paragraphs', () => {
     const report = makeReport({
       research_overview: {
         nih_specific_aims: {
@@ -185,6 +185,18 @@ describe('run detail overview stat line', () => {
     );
     const stat = screen.getByText(/A total of 1 idea was explored/);
     expect(stat.textContent).toBe('A total of 1 idea was explored.');
+  });
+
+  it('keeps missing persisted counts independent of live rows', () => {
+    render(
+      <ResearchOverviewView
+        run={makeRun()}
+        report={makeReport()}
+        hypotheses={[makeHypothesis({id: 'h1'})]}
+        matches={[makeMatch(1)]}
+      />,
+    );
+    expect(screen.queryByText(/A total of/)).not.toBeInTheDocument();
   });
 
   it('counts every idea explored, not just the released ones', () => {
@@ -597,47 +609,6 @@ describe('run detail overview sections', () => {
             'played\\.',
         ),
       ),
-    ).toBeInTheDocument();
-  });
-
-  it('still renders aims stored in the previous shape', () => {
-    // Persisted reports may retain earlier
-    // introduction/aim/rationale/approach/impact fields.
-    const report = makeReport({
-      research_overview: {
-        nih_specific_aims: {
-          introduction: 'Significance and the gap.',
-          aims: [
-            {
-              aim: 'Aim 1: Establish the baseline.',
-              rationale: 'Nothing else measures it.',
-              approach: 'Knockdown in a matched model.',
-            },
-          ],
-          impact: 'A decision framework for the mechanism.',
-        },
-      },
-    } as unknown as Parameters<typeof makeReport>[0]);
-
-    render(
-      <ResearchOverviewView
-        run={makeRun()}
-        report={report}
-        hypotheses={[]}
-        matches={[]}
-      />,
-    );
-
-    expect(screen.getByText('Significance and the gap.')).toBeInTheDocument();
-    expect(
-      screen.getByText('Aim 1: Establish the baseline.'),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Nothing else measures it.')).toBeInTheDocument();
-    expect(
-      screen.getByText('Knockdown in a matched model.'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText('A decision framework for the mechanism.'),
     ).toBeInTheDocument();
   });
 });
