@@ -4,17 +4,20 @@ Trim Co-Scientist to a lean product without losing what it does. Every decision
 below was settled with the owner on 3 October 2026, so the campaign runs
 unattended: the agent decides by these rules and reports at the end.
 
-**Status:** Phase 3 reset-dependent cleanup in progress; Phases 1 and 2 complete.
-All five removals and independent Phase 3 work are complete. Production was
-quiesced, exported privately and independently verified on 4 October 2026:
-101 runs, 36 tables and 36,617 rows; live/archive run IDs, per-run counts,
-integrity, foreign keys, schema/content hashes and transferred checksums match.
-All 48 legacy file references were already missing; none survived to export.
+**Status:** Complete. Phases 1–3 and all five removals are complete.
+Production was quiesced, privately exported and independently verified on
+4 October 2026: 101 runs, 36 tables and 36,617 rows; counts, run IDs, per-run
+counts, integrity, foreign keys, schema/content hashes and transferred
+checksums match. All 48 legacy file references were already missing.
 The once-only reset produced an independently verified empty 31-table current
-schema. Original database files and the archive remain private outside Git.
-Normal API startup/configuration is restored; API, MCP and frontend are healthy.
-The four remaining themes retire reset-dependent compatibility. Baseline
-`33ec8984`; the last-two-PR size criterion will be checked again at completion.
+schema. Archive and original database files remain private outside Git.
+Normal API startup/configuration is restored; one replica, UID 0 and volume
+are preserved. Reset-dependent compatibility and historical migrations retire
+in PRs #165–168, preserving full DB Markdown, current demo shapes, ownership,
+free-use accounting and durable execution. The last two themed PRs remove
+190 and 4 production lines, each under 500. The ratchet equals the final count.
+Baseline `33ec8984`; phase-boundary counts and verification evidence are
+recorded in the final PR body.
 
 ## Destination
 
