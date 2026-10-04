@@ -10,7 +10,6 @@ from co_scientist.constants import RANKING_WAVE_SIZE as RANKING_WAVE_SIZE
 from co_scientist.exceptions import TASK_CONTROL_FLOW_ERRORS
 from co_scientist.llm import scoped_telemetry
 
-import app.store as store
 from app.engine_tasks.support import (
     RANKING_FINALIZE_TASK,
     RANKING_MATCH_TASK,
@@ -24,7 +23,8 @@ from app.engine_tasks.support import (
     leased_state,
     merge_usage_snapshots,
 )
-from app.store import ScientificTask
+from app.store import db, events, outcomes, runs
+from app.store.models import ScientificTask
 from app.store.runs_views import _ACTIVE_RUN_STATUSES
 
 logger = logging.getLogger(__name__)
@@ -372,11 +372,11 @@ async def _emit_ranking_wave_progress(
         next_index // RANKING_PROGRESS_EVERY
     )
     if plan.wave and next_index < rounds and crossed:
-        with store.transaction(commit.db_path) as conn:
-            run = store.get_run(commit.task.run_id, conn=conn)
+        with db.transaction(commit.db_path) as conn:
+            run = runs.get_run(commit.task.run_id, conn=conn)
             if run is None or run.status not in _ACTIVE_RUN_STATUSES:
                 return
-            store.append_event(
+            events.append_event(
                 commit.task.run_id,
                 "scientific_task",
                 {
@@ -498,7 +498,7 @@ def _consume_outcome_refinement_gate(
             continue
         action_id = provenance.get("action_id")
         action = (
-            store.get_outcome_refinement_action(
+            outcomes.get_outcome_refinement_action(
                 run_id, str(action_id), db_path=db_path
             )
             if action_id

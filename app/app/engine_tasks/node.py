@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from app import store
 from app.engine_tasks import runtime as engine_tasks_runtime
 from app.engine_tasks.fanout import (
     _enqueue_generation_fanout,
@@ -28,7 +27,8 @@ from app.engine_tasks.support import (
     _successor_task_type,
     _task_commit,
 )
-from app.store import RunStatus, ScientificTask
+from app.store import runs
+from app.store.models import RunRow, RunStatus, ScientificTask
 
 ADMISSION_NODE = "orchestrator"
 _SYNC_FANOUT_HANDLERS: dict[str, Callable[..., dict[str, Any]]] = {
@@ -162,7 +162,7 @@ async def _dispatch_node_fanout(
 
 async def _commit_node_result(
     commit: TaskCommit,
-    run: store.RunRow,
+    run: RunRow,
     node_name: str,
     committed: dict[str, Any],
     successor: str | None,
@@ -207,8 +207,8 @@ async def _commit_node_result(
 
 def _require_active_run(
     task: ScientificTask, db_path: str | None, *, stage: str
-) -> store.RunRow:
-    run = store.get_run(task.run_id, db_path=db_path)
+) -> RunRow:
+    run = runs.get_run(task.run_id, db_path=db_path)
     if run is None or run.status == RunStatus.CANCELLED.value:
         raise RuntimeError(f"run cancelled {stage}")
     return run

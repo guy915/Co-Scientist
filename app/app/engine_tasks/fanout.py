@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Any, NamedTuple
 
-import app.store as store
 from app.engine_tasks.fanout_aggregates import (
     _AggregateSpec,
     _enqueue_aggregate_task,
@@ -25,7 +24,9 @@ from app.engine_tasks.support import (
     _save_exact_checkpoint,
     assert_task_commit_allowed,
 )
-from app.store import ScientificTask
+from app.store import db, events, tasks
+from app.store.models import ScientificTask
+from app.store.tasks import NewTask
 
 
 def _hypothesis_for_item(
@@ -175,8 +176,8 @@ def _enqueue_generation_strategy_tasks(
     conn: sqlite3.Connection,
 ) -> list[ScientificTask]:
     return [
-        store.enqueue_task(
-            store.NewTask(
+        tasks.enqueue_task(
+            NewTask(
                 run_id=task.run_id,
                 task_type=GENERATION_STRATEGY_TASK,
                 inputs={
@@ -239,7 +240,7 @@ def _commit_generation_fanout(
     """Planning checkpoint and all fan-out rows commit together, leaving no
     partially scheduled wave.
     """
-    with store.transaction(db_path) as conn:
+    with db.transaction(db_path) as conn:
         assert_task_commit_allowed(task, conn)
         planned_seq = _save_exact_checkpoint(
             task,
@@ -277,7 +278,7 @@ async def _enqueue_generation_fanout(
     plan = await _plan_generation_fanout(state)
     envelope = serialize_workflow_state(
         state,
-        last_event_seq=store.latest_event_seq(task.run_id, db_path=db_path),
+        last_event_seq=events.latest_event_seq(task.run_id, db_path=db_path),
     )
     planned_seq, items, aggregate = _commit_generation_fanout(
         task, checkpoint_seq, envelope, plan, db_path
@@ -415,8 +416,8 @@ def _enqueue_review_item_tasks(
     conn: sqlite3.Connection,
 ) -> list[ScientificTask]:
     return [
-        store.enqueue_task(
-            store.NewTask(
+        tasks.enqueue_task(
+            NewTask(
                 run_id=task.run_id,
                 task_type=REVIEW_ITEM_TASK,
                 inputs={
@@ -453,7 +454,7 @@ def _create_fanout_tasks(
     """Item tasks and their aggregate commit together so no partial family
     can be observed.
     """
-    with store.transaction(db_path) as conn:
+    with db.transaction(db_path) as conn:
         assert_task_commit_allowed(task, conn)
         items = enqueue_items(conn)
         aggregate = _enqueue_aggregate_task(
@@ -502,8 +503,8 @@ def _enqueue_verification_item_tasks(
     conn: sqlite3.Connection,
 ) -> list[ScientificTask]:
     return [
-        store.enqueue_task(
-            store.NewTask(
+        tasks.enqueue_task(
+            NewTask(
                 run_id=task.run_id,
                 task_type=VERIFICATION_ITEM_TASK,
                 inputs={
@@ -622,8 +623,8 @@ def _enqueue_mature_reflection_item_tasks(
     conn: sqlite3.Connection,
 ) -> list[ScientificTask]:
     return [
-        store.enqueue_task(
-            store.NewTask(
+        tasks.enqueue_task(
+            NewTask(
                 run_id=task.run_id,
                 task_type=MATURE_REFLECTION_ITEM_TASK,
                 inputs={

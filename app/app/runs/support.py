@@ -7,19 +7,20 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from app import store
-from app.store import RunRow, ScientificTask
+from app.store import messages, runs
+from app.store.messages import NewMessage
+from app.store.models import RunRow, ScientificTask
 
 
 def _run_or_404(run_id: str, conn: sqlite3.Connection | None = None) -> RunRow:
-    run = store.get_run(run_id, conn=conn)
+    run = runs.get_run(run_id, conn=conn)
     if not run:
         raise HTTPException(status_code=404, detail="run not found")
     return run
 
 
 def _require_run(run_id: str) -> None:
-    if not store.run_exists(run_id):
+    if not runs.run_exists(run_id):
         raise HTTPException(status_code=404, detail="run not found")
 
 
@@ -34,8 +35,8 @@ def _steer_and_continue(
     """
     from app import engine_tasks
 
-    message = store.append_message(
-        store.NewMessage(
+    message = messages.append_message(
+        NewMessage(
             run_id=run_id,
             sender=sender,
             content=content,

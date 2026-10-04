@@ -16,11 +16,17 @@ from co_scientist.llm.admission.call_budget import record_provider_request
 from fastapi import BackgroundTasks
 
 import app.main as main_lifespan
-from app import engine_tasks, store, task_worker
+from app import engine_tasks, task_worker
 from app.config import Settings, settings
 from app.runs import lifecycle as runs_lifecycle
-from app.store import RunStatus
+from app.store import checkpoints, runs, tasks
+from app.store import db as _store_db
 from app.store import db as store_db
+from app.store import events as store_events
+from app.store import tasks_lifecycle as lifecycle
+from app.store.checkpoints import NewCheckpoint
+from app.store.models import RunRow, RunStatus, ScientificTask
+from app.store.tasks import NewTask
 from app.task_worker import outcomes as task_worker_outcomes
 from tests._client import make_client
 from tests._engine_tasks_helpers import _enqueue, make_cancellable_executor
@@ -52,19 +58,21 @@ def test_start_launches_an_embedded_worker_only_when_enabled(
     monkeypatch: pytest.MonkeyPatch, embedded: bool, expected: int
 ) -> None:
     monkeypatch.setattr(settings, "coscientist_embedded_worker", embedded)
-    monkeypatch.setattr(store, "transaction", lambda: nullcontext(object()))
+    monkeypatch.setattr(_store_db, "transaction", lambda: nullcontext(object()))
     monkeypatch.setattr(
-        store, "reserve_run_capacity_in_transaction", lambda *_, **__: True
+        runs, "reserve_run_capacity_in_transaction", lambda *_, **__: True
     )
-    monkeypatch.setattr(store, "revive_task_for_retry", lambda *_, **__: None)
+    monkeypatch.setattr(
+        lifecycle, "revive_task_for_retry", lambda *_, **__: None
+    )
     monkeypatch.setattr(
         engine_tasks, "enqueue_bootstrap", lambda *_, **__: object()
     )
-    monkeypatch.setattr(store, "append_event", lambda *a, **k: None)
+    monkeypatch.setattr(store_events, "append_event", lambda *a, **k: None)
     background = BackgroundTasks()
 
     runs_lifecycle._enqueue_workflow_and_maybe_launch_worker(
-        store.RunRow(
+        RunRow(
             id="run-1",
             research_goal="test",
             profile="express",
@@ -90,7 +98,7 @@ async def test_recovery_launches_no_embedded_workers_when_disabled(
     # execution.
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     monkeypatch.setattr(
-        store, "list_active_engine_task_run_ids", lambda: ["run-1"]
+        tasks, "list_active_engine_task_run_ids", lambda: ["run-1"]
     )
     workers: list[asyncio.Task[Any]] = []
 
@@ -100,7 +108,7 @@ async def test_recovery_launches_no_embedded_workers_when_disabled(
 
 
 def test_enqueue_workflow_is_idempotent(isolated_db: str) -> None:
-    run = store.create_run("worker goal", "standard", "engine", {})
+    run = runs.create_run("worker goal", "standard", "engine", {})
     first = task_worker.enqueue_run_workflow(run.id, db_path=isolated_db)
     duplicate = task_worker.enqueue_run_workflow(run.id, db_path=isolated_db)
     assert duplicate.id == first.id
@@ -119,7 +127,7 @@ def test_engine_start_queues_durable_work(
         started = client.post(f"/api/runs/{run_id}/start", json={})
     assert started.status_code == 200
     assert started.json()["status"] == "queued"
-    [task] = store.list_tasks(run_id, db_path=isolated_db)
+    [task] = tasks.list_tasks(run_id, db_path=isolated_db)
     assert task.task_type == "engine.bootstrap"
     assert task.status == "queued"
 
@@ -128,9 +136,9 @@ def test_engine_start_queues_durable_work(
 async def test_worker_executes_and_commits_once(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("worker goal", "standard", "engine", {})
-    task = store.enqueue_task(
-        store.NewTask(
+    run = runs.create_run("worker goal", "standard", "engine", {})
+    task = tasks.enqueue_task(
+        NewTask(
             run_id=run.id,
             task_type="engine.test.commit",
             inputs={},
@@ -140,14 +148,14 @@ async def test_worker_executes_and_commits_once(
     )
 
     async def _execute(
-        _task: store.ScientificTask, *, db_path: str | None = None
+        _task: ScientificTask, *, db_path: str | None = None
     ) -> dict[str, str]:
-        store.update_run_status(run.id, store.RunStatus.COMPLETED)
+        runs.update_run_status(run.id, RunStatus.COMPLETED)
         return {"run_id": run.id, "status": "completed"}
 
     monkeypatch.setattr(engine_tasks, "execute_engine_task", _execute)
     assert await task_worker.run_once("worker-a", db_path=isolated_db)
-    saved = store.get_task(task.id, db_path=isolated_db)
+    saved = tasks.get_task(task.id, db_path=isolated_db)
     assert saved is not None
     assert saved.status == "completed"
     assert saved.result == {"run_id": run.id, "status": "completed"}
@@ -158,9 +166,9 @@ async def test_worker_executes_and_commits_once(
 async def test_worker_completes_superseded_engine_task(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("superseded goal", "standard", "engine", {})
-    task = store.enqueue_task(
-        store.NewTask(
+    run = runs.create_run("superseded goal", "standard", "engine", {})
+    task = tasks.enqueue_task(
+        NewTask(
             run_id=run.id,
             task_type="engine.test.superseded",
             inputs={},
@@ -171,13 +179,13 @@ async def test_worker_completes_superseded_engine_task(
     )
 
     async def _execute(
-        _task: store.ScientificTask, *, db_path: str | None = None
+        _task: ScientificTask, *, db_path: str | None = None
     ) -> dict[str, Any]:
         raise engine_tasks.SupersededTaskError("checkpoint advanced")
 
     monkeypatch.setattr(engine_tasks, "execute_engine_task", _execute)
     assert await task_worker.run_once("worker-a", db_path=isolated_db)
-    saved = store.get_task(task.id, db_path=isolated_db)
+    saved = tasks.get_task(task.id, db_path=isolated_db)
     assert saved is not None
     assert saved.status == "completed"
     assert saved.attempt == 1
@@ -192,9 +200,9 @@ async def test_worker_completes_superseded_engine_task(
 async def test_worker_shutdown_cancels_task_payload(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("worker shutdown", "standard", "engine", {})
-    store.enqueue_task(
-        store.NewTask(
+    run = runs.create_run("worker shutdown", "standard", "engine", {})
+    tasks.enqueue_task(
+        NewTask(
             run_id=run.id,
             task_type="engine.test.shutdown",
             inputs={},
@@ -239,9 +247,9 @@ def test_sync_worker_pool_runs_on_its_own_event_loop(
 async def test_worker_delivers_opted_in_completion_email(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("notification goal", "standard", "engine", {})
-    task = store.enqueue_task(
-        store.NewTask(
+    run = runs.create_run("notification goal", "standard", "engine", {})
+    task = tasks.enqueue_task(
+        NewTask(
             run_id=run.id,
             task_type="notification.email",
             inputs={
@@ -263,7 +271,7 @@ async def test_worker_delivers_opted_in_completion_email(
         task_worker, "deliver_completion_notification", _deliver
     )
     assert await task_worker.run_once("mail-worker", db_path=isolated_db)
-    saved = store.get_task(task.id, db_path=isolated_db)
+    saved = tasks.get_task(task.id, db_path=isolated_db)
     assert saved is not None
     assert saved.status == "completed"
     assert saved.result == {
@@ -286,9 +294,9 @@ def _run_with_lease(
     spend_budget: bool,
     goal: str = "stranded goal",
 ) -> tuple[str, str]:
-    run = store.create_run(goal, "standard", "engine", {})
-    task = store.enqueue_task(
-        store.NewTask(
+    run = runs.create_run(goal, "standard", "engine", {})
+    task = tasks.enqueue_task(
+        NewTask(
             run_id=run.id,
             task_type=_TASK_TYPE,
             inputs={"checkpoint_seq": 1},
@@ -297,7 +305,7 @@ def _run_with_lease(
         db_path=db,
     )
     extra = ", attempt=max_attempts" if spend_budget else ""
-    with store.connect(db) as conn:
+    with _store_db.connect(db) as conn:
         conn.execute(
             "UPDATE scientific_tasks SET status='leased', lease_owner=?, "
             f"lease_expires_at=?{extra} WHERE id=?",
@@ -308,7 +316,7 @@ def _run_with_lease(
 
 
 def _task_status(task_id: str, db: str) -> str:
-    with store.connect(db) as conn:
+    with _store_db.connect(db) as conn:
         row = conn.execute(
             "SELECT status FROM scientific_tasks WHERE id=?", (task_id,)
         ).fetchone()
@@ -320,11 +328,11 @@ def test_dead_lease_is_failed_and_settles_its_run(isolated_db: str) -> None:
         isolated_db, expires_at=time.time() - 3600, spend_budget=True
     )
 
-    abandoned = store.abandon_dead_leases(run_id, db_path=isolated_db)
+    abandoned = lifecycle.abandon_dead_leases(run_id, db_path=isolated_db)
 
     assert abandoned == 1
     assert _task_status(task_id, isolated_db) == "failed"
-    run = store.get_run(run_id, db_path=isolated_db)
+    run = runs.get_run(run_id, db_path=isolated_db)
     assert run is not None
     assert run.status == "failed"
 
@@ -336,9 +344,9 @@ def test_dead_lease_settlement_emits_a_terminal_status_event(
         isolated_db, expires_at=time.time() - 3600, spend_budget=True
     )
 
-    store.abandon_dead_leases(run_id, db_path=isolated_db)
+    lifecycle.abandon_dead_leases(run_id, db_path=isolated_db)
 
-    events = store.list_events(run_id, db_path=isolated_db)
+    events = store_events.list_events(run_id, db_path=isolated_db)
     terminal = [
         event
         for event in events
@@ -353,9 +361,9 @@ def test_a_live_lease_is_never_abandoned(isolated_db: str) -> None:
         isolated_db, expires_at=time.time() + 3600, spend_budget=True
     )
 
-    assert store.abandon_dead_leases(run_id, db_path=isolated_db) == 0
+    assert lifecycle.abandon_dead_leases(run_id, db_path=isolated_db) == 0
     assert _task_status(task_id, isolated_db) == "leased"
-    run = store.get_run(run_id, db_path=isolated_db)
+    run = runs.get_run(run_id, db_path=isolated_db)
     assert run is not None
     assert run.status == "running"
 
@@ -367,7 +375,7 @@ def test_an_expired_lease_with_retries_left_is_never_abandoned(
         isolated_db, expires_at=time.time() - 3600, spend_budget=False
     )
 
-    assert store.abandon_dead_leases(run_id, db_path=isolated_db) == 0
+    assert lifecycle.abandon_dead_leases(run_id, db_path=isolated_db) == 0
     assert _task_status(task_id, isolated_db) == "leased"
 
 
@@ -378,7 +386,7 @@ def test_cohort_poll_reports_a_dead_lease_as_inactive(
         isolated_db, expires_at=time.time() - 3600, spend_budget=True
     )
 
-    claimable, active, _ = store.cohort_poll(run_id, db_path=isolated_db)
+    claimable, active, _ = lifecycle.cohort_poll(run_id, db_path=isolated_db)
 
     assert not claimable, "a spent-budget lease is claimable by nobody"
     assert not active, "nor is anyone still working on it"
@@ -391,7 +399,7 @@ def test_cohort_poll_still_reports_a_live_lease_as_active(
         isolated_db, expires_at=time.time() + 3600, spend_budget=True
     )
 
-    _, active, _park = store.cohort_poll(run_id, db_path=isolated_db)
+    _, active, _park = lifecycle.cohort_poll(run_id, db_path=isolated_db)
 
     assert active
 
@@ -411,7 +419,7 @@ async def test_cohort_idle_exit_settles_a_run_left_with_a_dead_lease(
     )
 
     assert _task_status(task_id, isolated_db) == "failed"
-    run = store.get_run(run_id, db_path=isolated_db)
+    run = runs.get_run(run_id, db_path=isolated_db)
     assert run is not None
     assert run.status == "failed"
 
@@ -420,8 +428,8 @@ def _enqueue_test_tasks(
     run_id: str, count: int, prefix: str, db_path: str
 ) -> None:
     for index in range(count):
-        store.enqueue_task(
-            store.NewTask(
+        tasks.enqueue_task(
+            NewTask(
                 run_id=run_id,
                 task_type=f"engine.test.{index}",
                 inputs={},
@@ -433,7 +441,7 @@ def _enqueue_test_tasks(
 
 def _assert_all_completed(run_id: str, db_path: str) -> None:
     assert {
-        task.status for task in store.list_tasks(run_id, db_path=db_path)
+        task.status for task in tasks.list_tasks(run_id, db_path=db_path)
     } == {"completed"}
 
 
@@ -444,7 +452,7 @@ def _count_lease_renewals(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
         box["renewals"] += 1
         return True
 
-    monkeypatch.setattr(store, "renew_task_lease", _renew)
+    monkeypatch.setattr(lifecycle, "renew_task_lease", _renew)
     return box
 
 
@@ -456,7 +464,7 @@ class _ConcurrencyProbe:
         self._lock = asyncio.Lock()
 
     async def execute(
-        self, _task: store.ScientificTask, *, db_path: str | None = None
+        self, _task: ScientificTask, *, db_path: str | None = None
     ) -> dict[str, bool]:
         async with self._lock:
             self._active += 1
@@ -471,9 +479,9 @@ class _ConcurrencyProbe:
 async def test_worker_heartbeats_long_workflow_lease(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("long worker goal", "standard", "engine", {})
-    store.enqueue_task(
-        store.NewTask(
+    run = runs.create_run("long worker goal", "standard", "engine", {})
+    tasks.enqueue_task(
+        NewTask(
             run_id=run.id,
             task_type="engine.test.long",
             inputs={},
@@ -484,10 +492,10 @@ async def test_worker_heartbeats_long_workflow_lease(
     release = asyncio.Event()
 
     async def _execute(
-        _task: store.ScientificTask, *, db_path: str | None = None
+        _task: ScientificTask, *, db_path: str | None = None
     ) -> dict[str, bool]:
         await release.wait()
-        store.update_run_status(run.id, store.RunStatus.COMPLETED)
+        runs.update_run_status(run.id, RunStatus.COMPLETED)
         return {"completed": True}
 
     monkeypatch.setattr(engine_tasks, "execute_engine_task", _execute)
@@ -497,7 +505,7 @@ async def test_worker_heartbeats_long_workflow_lease(
         )
     )
     await asyncio.sleep(0.1)
-    assert store.claim_task("worker-b", db_path=isolated_db) is None
+    assert tasks.claim_task("worker-b", db_path=isolated_db) is None
     release.set()
     assert await running
 
@@ -506,9 +514,9 @@ async def test_worker_heartbeats_long_workflow_lease(
 async def test_worker_cancels_execution_after_lease_revocation(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("cancel active work", "standard", "engine", {})
-    task = store.enqueue_task(
-        store.NewTask(
+    run = runs.create_run("cancel active work", "standard", "engine", {})
+    task = tasks.enqueue_task(
+        NewTask(
             run_id=run.id,
             task_type="engine.test.cancellable",
             inputs={},
@@ -530,10 +538,10 @@ async def test_worker_cancels_execution_after_lease_revocation(
     )
     await asyncio.wait_for(started.wait(), timeout=1)
 
-    assert store.cancel_run_tasks(run.id, db_path=isolated_db) == 1
+    assert lifecycle.cancel_run_tasks(run.id, db_path=isolated_db) == 1
     assert await asyncio.wait_for(running, timeout=1)
     assert interrupted.is_set()
-    saved = store.get_task(task.id, db_path=isolated_db)
+    saved = tasks.get_task(task.id, db_path=isolated_db)
     assert saved is not None
     assert saved.status == "cancelled"
 
@@ -542,7 +550,7 @@ async def test_worker_cancels_execution_after_lease_revocation(
 async def test_embedded_worker_pool_executes_fanout_concurrently(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("parallel goal", "standard", "engine", {})
+    run = runs.create_run("parallel goal", "standard", "engine", {})
     _enqueue_test_tasks(run.id, 4, "parallel", isolated_db)
     probe = _ConcurrencyProbe(0.03)
     monkeypatch.setattr(engine_tasks, "execute_engine_task", probe.execute)
@@ -560,9 +568,9 @@ async def test_embedded_worker_pool_executes_fanout_concurrently(
 
 @pytest.mark.asyncio
 async def test_worker_isolates_unknown_task_failure(isolated_db: str) -> None:
-    run = store.create_run("worker goal", "standard", "engine", {})
-    task = store.enqueue_task(
-        store.NewTask(
+    run = runs.create_run("worker goal", "standard", "engine", {})
+    task = tasks.enqueue_task(
+        NewTask(
             run_id=run.id,
             task_type="unknown.task",
             inputs={},
@@ -571,7 +579,7 @@ async def test_worker_isolates_unknown_task_failure(isolated_db: str) -> None:
         db_path=isolated_db,
     )
     assert await task_worker.run_once("worker-a", db_path=isolated_db)
-    saved = store.get_task(task.id, db_path=isolated_db)
+    saved = tasks.get_task(task.id, db_path=isolated_db)
     assert saved is not None
     assert saved.status == "failed"
     assert "unsupported task type" in str(saved.error)
@@ -583,9 +591,9 @@ async def test_transient_provider_failure_keeps_its_retry_budget(
 ) -> None:
     # Empty provider responses are transient; classifying every ValueError as
     # permanent strands runs.
-    run = store.create_run("Transient failure", "standard", "engine", {})
-    task = store.enqueue_task(
-        store.NewTask(
+    run = runs.create_run("Transient failure", "standard", "engine", {})
+    task = tasks.enqueue_task(
+        NewTask(
             run_id=run.id,
             task_type="engine.node.ranking",
             inputs={},
@@ -600,7 +608,7 @@ async def test_transient_provider_failure_keeps_its_retry_budget(
     monkeypatch.setattr(task_worker, "_execute_task_payload", empty_response)
     assert await task_worker.run_once("w1", run_id=run.id, db_path=isolated_db)
 
-    after = store.get_task(task.id, db_path=isolated_db)
+    after = tasks.get_task(task.id, db_path=isolated_db)
     assert after is not None
     assert after.status == "queued", "a transient failure must stay retryable"
     assert after.attempt < after.max_attempts
@@ -610,9 +618,9 @@ async def test_transient_provider_failure_keeps_its_retry_budget(
 async def test_unsupported_task_type_is_still_permanent(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("Bad task type", "standard", "engine", {})
-    task = store.enqueue_task(
-        store.NewTask(
+    run = runs.create_run("Bad task type", "standard", "engine", {})
+    task = tasks.enqueue_task(
+        NewTask(
             run_id=run.id,
             task_type="engine.node.ranking",
             inputs={},
@@ -627,7 +635,7 @@ async def test_unsupported_task_type_is_still_permanent(
     monkeypatch.setattr(task_worker, "_execute_task_payload", unsupported)
     assert await task_worker.run_once("w1", run_id=run.id, db_path=isolated_db)
 
-    after = store.get_task(task.id, db_path=isolated_db)
+    after = tasks.get_task(task.id, db_path=isolated_db)
     assert after is not None
     assert after.status == "failed", "an unknown task type is not retryable"
 
@@ -636,7 +644,7 @@ async def test_unsupported_task_type_is_still_permanent(
 async def test_default_worker_cohort_overlaps_more_than_four_leases(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("wide fanout", "standard", "engine", {})
+    run = runs.create_run("wide fanout", "standard", "engine", {})
     _enqueue_test_tasks(run.id, 12, "wide", isolated_db)
     probe = _ConcurrencyProbe(0.05)
     monkeypatch.setattr(engine_tasks, "execute_engine_task", probe.execute)
@@ -657,7 +665,7 @@ async def test_heartbeat_writes_on_the_lease_schedule_not_the_poll_schedule(
 ) -> None:
     # Cancellation polls are memory-only; writing lease renewal every tick
     # starves the single SQLite writer.
-    run = store.create_run("heartbeat cost", "standard", "engine", {})
+    run = runs.create_run("heartbeat cost", "standard", "engine", {})
     task = _enqueue(run.id, "engine.test.heartbeat", "heartbeat:0", isolated_db)
     renewals = _count_lease_renewals(monkeypatch)
 
@@ -688,13 +696,13 @@ def test_idle_claim_does_not_contend_for_the_write_lock(
     import sqlite3
     import time as _time
 
-    assert store.claim_task("warmup", db_path=isolated_db) is None
+    assert tasks.claim_task("warmup", db_path=isolated_db) is None
 
     blocker = sqlite3.connect(isolated_db, timeout=0.5, isolation_level=None)
     blocker.execute("BEGIN IMMEDIATE")
     try:
         started = _time.monotonic()
-        assert store.claim_task("idle-worker", db_path=isolated_db) is None
+        assert tasks.claim_task("idle-worker", db_path=isolated_db) is None
         assert _time.monotonic() - started < 1.0
     finally:
         blocker.execute("ROLLBACK")
@@ -705,10 +713,10 @@ def test_idle_wait_does_not_decode_every_task(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Polling one boolean must not decode every historical task row.
-    run = store.create_run("idle wait cost", "standard", "engine", {})
+    run = runs.create_run("idle wait cost", "standard", "engine", {})
     for index in range(30):
-        store.enqueue_task(
-            store.NewTask(
+        tasks.enqueue_task(
+            NewTask(
                 run_id=run.id,
                 task_type=f"engine.test.{index}",
                 inputs={},
@@ -717,16 +725,18 @@ def test_idle_wait_does_not_decode_every_task(
             db_path=isolated_db,
         )
     calls = 0
-    real_list = store.list_tasks
+    real_list = tasks.list_tasks
 
     def _counting_list(*args: Any, **kwargs: Any) -> Any:
         nonlocal calls
         calls += 1
         return real_list(*args, **kwargs)
 
-    monkeypatch.setattr(store, "list_tasks", _counting_list)
+    monkeypatch.setattr(tasks, "list_tasks", _counting_list)
 
-    claimable, active, _park = store.cohort_poll(run.id, db_path=isolated_db)
+    claimable, active, _park = lifecycle.cohort_poll(
+        run.id, db_path=isolated_db
+    )
     assert claimable is True and active is False
     assert calls == 0
 
@@ -737,12 +747,10 @@ def test_idle_wait_does_not_decode_every_task(
 def test_ceiling_exceeded_fails_permanently_and_settles_the_run(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("LLM budget ceiling", "standard", "engine", {})
-    store.update_run_status(
-        run.id, store.RunStatus.RUNNING, db_path=isolated_db
-    )
-    task = store.enqueue_task(
-        store.NewTask(
+    run = runs.create_run("LLM budget ceiling", "standard", "engine", {})
+    runs.update_run_status(run.id, RunStatus.RUNNING, db_path=isolated_db)
+    task = tasks.enqueue_task(
+        NewTask(
             run_id=run.id,
             task_type="engine.node.generate",
             inputs={},
@@ -753,7 +761,7 @@ def test_ceiling_exceeded_fails_permanently_and_settles_the_run(
         ),
         db_path=isolated_db,
     )
-    leased = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
+    leased = tasks.claim_task("worker", run_id=run.id, db_path=isolated_db)
     assert leased is not None and leased.id == task.id
 
     error = LLMCallBudgetExceededError(count=2501, ceiling=2500)
@@ -761,7 +769,7 @@ def test_ceiling_exceeded_fails_permanently_and_settles_the_run(
         leased, "worker", error, isolated_db
     )
 
-    task_after = store.get_task(task.id, db_path=isolated_db)
+    task_after = tasks.get_task(task.id, db_path=isolated_db)
     assert task_after is not None
     assert task_after.status == "failed", (
         "a ceiling breach must fail outright, not requeue for retry"
@@ -770,9 +778,9 @@ def test_ceiling_exceeded_fails_permanently_and_settles_the_run(
         "it must not have burned through the retry budget to get there"
     )
 
-    settled = store.get_run(run.id, db_path=isolated_db)
+    settled = runs.get_run(run.id, db_path=isolated_db)
     assert settled is not None
-    assert settled.status == store.RunStatus.FAILED.value
+    assert settled.status == RunStatus.FAILED.value
     assert settled.error is not None
     assert "LLM-call ceiling exceeded" in settled.error
     assert "2501" in settled.error and "2500" in settled.error, (
@@ -784,12 +792,10 @@ def test_ceiling_exceeded_fails_permanently_and_settles_the_run(
 def test_ceiling_exceeded_releases_the_runs_counter(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("LLM budget release", "standard", "engine", {})
-    store.update_run_status(
-        run.id, store.RunStatus.RUNNING, db_path=isolated_db
-    )
-    store.enqueue_task(
-        store.NewTask(
+    run = runs.create_run("LLM budget release", "standard", "engine", {})
+    runs.update_run_status(run.id, RunStatus.RUNNING, db_path=isolated_db)
+    tasks.enqueue_task(
+        NewTask(
             run_id=run.id,
             task_type="engine.node.generate",
             inputs={},
@@ -797,7 +803,7 @@ def test_ceiling_exceeded_releases_the_runs_counter(
         ),
         db_path=isolated_db,
     )
-    leased = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
+    leased = tasks.claim_task("worker", run_id=run.id, db_path=isolated_db)
     assert leased is not None
 
     with scoped_llm_call_budget(run.id, ceiling=1):
@@ -828,12 +834,10 @@ def _advance_clock(monkeypatch: pytest.MonkeyPatch, seconds: float) -> None:
 def test_rate_limit_park_requeues_without_spending_an_attempt(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("Rate limit park", "standard", "engine", {})
-    store.update_run_status(
-        run.id, store.RunStatus.RUNNING, db_path=isolated_db
-    )
-    task = store.enqueue_task(
-        store.NewTask(
+    run = runs.create_run("Rate limit park", "standard", "engine", {})
+    runs.update_run_status(run.id, RunStatus.RUNNING, db_path=isolated_db)
+    task = tasks.enqueue_task(
+        NewTask(
             run_id=run.id,
             task_type="engine.node.generate",
             inputs={},
@@ -842,7 +846,7 @@ def test_rate_limit_park_requeues_without_spending_an_attempt(
         ),
         db_path=isolated_db,
     )
-    leased = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
+    leased = tasks.claim_task("worker", run_id=run.id, db_path=isolated_db)
     assert leased is not None and leased.id == task.id
     assert leased.attempt == 1
 
@@ -854,7 +858,7 @@ def test_rate_limit_park_requeues_without_spending_an_attempt(
         leased, "worker", error, isolated_db
     )
 
-    parked = store.get_task(task.id, db_path=isolated_db)
+    parked = tasks.get_task(task.id, db_path=isolated_db)
     assert parked is not None
     assert parked.status == "queued", "a platform cap must not fail the task"
     assert parked.attempt == 0, "parking must not consume an attempt"
@@ -862,12 +866,12 @@ def test_rate_limit_park_requeues_without_spending_an_attempt(
     assert parked.available_at is not None
     assert resume_at <= parked.available_at <= resume_at + 15
 
-    reclaim = store.claim_task("worker2", run_id=run.id, db_path=isolated_db)
+    reclaim = tasks.claim_task("worker2", run_id=run.id, db_path=isolated_db)
     assert reclaim is None
 
-    still_running = store.get_run(run.id, db_path=isolated_db)
+    still_running = runs.get_run(run.id, db_path=isolated_db)
     assert still_running is not None
-    assert still_running.status == store.RunStatus.RUNNING.value
+    assert still_running.status == RunStatus.RUNNING.value
 
     assert parked.attempts, "the park must be visible in attempt history"
     last_attempt = parked.attempts[-1]
@@ -878,9 +882,9 @@ def test_rate_limit_park_requeues_without_spending_an_attempt(
 def test_rate_limit_park_becomes_claimable_once_due(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("Rate limit park due", "standard", "engine", {})
-    task = store.enqueue_task(
-        store.NewTask(
+    run = runs.create_run("Rate limit park due", "standard", "engine", {})
+    task = tasks.enqueue_task(
+        NewTask(
             run_id=run.id,
             task_type="engine.node.generate",
             inputs={},
@@ -888,21 +892,21 @@ def test_rate_limit_park_becomes_claimable_once_due(
         ),
         db_path=isolated_db,
     )
-    leased = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
+    leased = tasks.claim_task("worker", run_id=run.id, db_path=isolated_db)
     assert leased is not None
 
     resume_at = store_db._now() + 60
-    ok = store.park_task_for_rate_limit(
+    ok = lifecycle.park_task_for_rate_limit(
         task.id, "worker", "rate limited", resume_at, db_path=isolated_db
     )
     assert ok
 
-    reclaim = store.claim_task("worker2", run_id=run.id, db_path=isolated_db)
+    reclaim = tasks.claim_task("worker2", run_id=run.id, db_path=isolated_db)
     assert reclaim is None
 
     _advance_clock(monkeypatch, 61)
 
-    reclaimed = store.claim_task("worker2", run_id=run.id, db_path=isolated_db)
+    reclaimed = tasks.claim_task("worker2", run_id=run.id, db_path=isolated_db)
     assert reclaimed is not None and reclaimed.id == task.id
 
 
@@ -911,9 +915,9 @@ async def test_cohort_keeps_polling_over_a_parked_task_instead_of_exiting(
 ) -> None:
     # Future-due parked rows keep the cohort alive even though they are neither
     # claimable nor leased.
-    run = store.create_run("Rate limit park cohort", "standard", "engine", {})
-    task = store.enqueue_task(
-        store.NewTask(
+    run = runs.create_run("Rate limit park cohort", "standard", "engine", {})
+    task = tasks.enqueue_task(
+        NewTask(
             run_id=run.id,
             task_type="engine.node.generate",
             inputs={},
@@ -921,10 +925,10 @@ async def test_cohort_keeps_polling_over_a_parked_task_instead_of_exiting(
         ),
         db_path=isolated_db,
     )
-    leased = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
+    leased = tasks.claim_task("worker", run_id=run.id, db_path=isolated_db)
     assert leased is not None
     resume_at = store_db._now() + 3600
-    ok = store.park_task_for_rate_limit(
+    ok = lifecycle.park_task_for_rate_limit(
         task.id, "worker", "rate limited", resume_at, db_path=isolated_db
     )
     assert ok
@@ -963,9 +967,9 @@ def _save_resume_checkpoint(
     state: dict[str, Any] = {"resume_successor": successor}
     if shape.provider is not None:
         state["provider"] = shape.provider
-    store.save_checkpoint(
+    checkpoints.save_checkpoint(
         run_id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage=shape.stage,
             schema_version=1,
             last_event_seq=shape.last_event_seq,
@@ -984,7 +988,7 @@ def _mark_leased(
     spend_budget: bool,
 ) -> None:
     extra = ", attempt=max_attempts" if spend_budget else ""
-    with store.connect(db) as conn:
+    with _store_db.connect(db) as conn:
         conn.execute(
             "UPDATE scientific_tasks SET status='leased', lease_owner=?, "
             f"lease_expires_at=?{extra} WHERE id=?",
@@ -998,9 +1002,9 @@ def test_resume_uses_recorded_successor_not_orchestrator_default(
     # Bootstrap checkpoints precede supervisor guidance; their successor must be
     # supervisor, with the original idempotency key.
     supervisor_type = f"{engine_tasks.NODE_TASK_PREFIX}supervisor"
-    run = store.create_run("worker goal", "standard", "engine", {})
-    enqueued = store.enqueue_task(
-        store.NewTask(
+    run = runs.create_run("worker goal", "standard", "engine", {})
+    enqueued = tasks.enqueue_task(
+        NewTask(
             run_id=run.id,
             task_type=supervisor_type,
             inputs={"checkpoint_seq": 1},
@@ -1032,10 +1036,10 @@ def test_resume_defaults_to_orchestrator_when_successor_unrecorded(
 ) -> None:
     # Legacy and fan-out planning checkpoints already have supervisor guidance,
     # so orchestrator re-entry remains valid.
-    run = store.create_run("worker goal", "standard", "engine", {})
-    store.save_checkpoint(
+    run = runs.create_run("worker goal", "standard", "engine", {})
+    checkpoints.save_checkpoint(
         run.id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage="engine_task:orchestrator",
             schema_version=1,
             last_event_seq=0,
@@ -1054,9 +1058,9 @@ def test_resume_defaults_to_orchestrator_when_successor_unrecorded(
 def test_resume_reuses_post_pause_fanout_rows_for_latest_checkpoint(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("paused fanout", "standard", "engine", {})
-    parent = store.enqueue_task(
-        store.NewTask(
+    run = runs.create_run("paused fanout", "standard", "engine", {})
+    parent = tasks.enqueue_task(
+        NewTask(
             run_id=run.id,
             task_type=f"{engine_tasks.NODE_TASK_PREFIX}generate",
             inputs={"checkpoint_seq": 0},
@@ -1064,17 +1068,17 @@ def test_resume_reuses_post_pause_fanout_rows_for_latest_checkpoint(
         ),
         db_path=isolated_db,
     )
-    leased = store.claim_task(
+    leased = tasks.claim_task(
         "parent-worker", run_id=run.id, db_path=isolated_db
     )
     assert leased is not None and leased.id == parent.id
-    assert store.complete_task(
+    assert lifecycle.complete_task(
         parent.id, "parent-worker", {}, db_path=isolated_db
     )
-    store.update_run_status(run.id, RunStatus.PAUSED, db_path=isolated_db)
-    store.save_checkpoint(
+    runs.update_run_status(run.id, RunStatus.PAUSED, db_path=isolated_db)
+    checkpoints.save_checkpoint(
         run.id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage=f"engine_task:{parent.id}",
             schema_version=1,
             last_event_seq=1,
@@ -1083,8 +1087,8 @@ def test_resume_reuses_post_pause_fanout_rows_for_latest_checkpoint(
         db_path=isolated_db,
     )
 
-    stale = store.enqueue_task(
-        store.NewTask(
+    stale = tasks.enqueue_task(
+        NewTask(
             run_id=run.id,
             task_type=f"{engine_tasks.NODE_TASK_PREFIX}review",
             inputs={"checkpoint_seq": 0},
@@ -1093,8 +1097,8 @@ def test_resume_reuses_post_pause_fanout_rows_for_latest_checkpoint(
         ),
         db_path=isolated_db,
     )
-    fanout = store.enqueue_task(
-        store.NewTask(
+    fanout = tasks.enqueue_task(
+        NewTask(
             run_id=run.id,
             task_type="engine.fanout.generation.strategy",
             inputs={"checkpoint_seq": 1},
@@ -1104,7 +1108,7 @@ def test_resume_reuses_post_pause_fanout_rows_for_latest_checkpoint(
         ),
         db_path=isolated_db,
     )
-    store.update_run_status(run.id, RunStatus.QUEUED, db_path=isolated_db)
+    runs.update_run_status(run.id, RunStatus.QUEUED, db_path=isolated_db)
 
     resumed = task_worker.enqueue_run_workflow(
         run.id, resume=True, db_path=isolated_db
@@ -1115,15 +1119,15 @@ def test_resume_reuses_post_pause_fanout_rows_for_latest_checkpoint(
     assert not any(
         task.task_type == f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
         and task.status == "queued"
-        for task in store.list_tasks(run.id, db_path=isolated_db)
+        for task in tasks.list_tasks(run.id, db_path=isolated_db)
     )
 
 
 def _wedge_task_at(
     run_id: str, task_type: str, checkpoint_seq: int, status: str, db: str
 ) -> str:
-    task = store.enqueue_task(
-        store.NewTask(
+    task = tasks.enqueue_task(
+        NewTask(
             run_id=run_id,
             task_type=task_type,
             inputs={"checkpoint_seq": checkpoint_seq},
@@ -1131,7 +1135,7 @@ def _wedge_task_at(
         ),
         db_path=db,
     )
-    with store.connect(db) as conn:
+    with _store_db.connect(db) as conn:
         conn.execute(
             "UPDATE scientific_tasks SET status=?, attempt=max_attempts "
             "WHERE id=?",
@@ -1142,7 +1146,7 @@ def _wedge_task_at(
 
 def _queued(run_id: str, db: str) -> list[Any]:
     return [
-        t for t in store.list_tasks(run_id, db_path=db) if t.status == "queued"
+        t for t in tasks.list_tasks(run_id, db_path=db) if t.status == "queued"
     ]
 
 
@@ -1152,11 +1156,11 @@ def test_resume_revives_a_boundary_whose_task_died(
 ) -> None:
     # An unchanged checkpoint collides with a terminal boundary key; explicit
     # resume must revive failed work.
-    run = store.create_run("wedged goal", "standard", "engine", {})
+    run = runs.create_run("wedged goal", "standard", "engine", {})
     task_type = f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
-    store.save_checkpoint(
+    checkpoints.save_checkpoint(
         run.id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage="post_generation",
             schema_version=1,
             last_event_seq=1,
@@ -1178,11 +1182,11 @@ def test_resume_revives_a_boundary_whose_task_died(
 
 def test_resume_does_not_rerun_completed_work(isolated_db: str) -> None:
     # Reviving succeeded boundaries repeats already committed and paid-for work.
-    run = store.create_run("done goal", "standard", "engine", {})
+    run = runs.create_run("done goal", "standard", "engine", {})
     task_type = f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
-    store.save_checkpoint(
+    checkpoints.save_checkpoint(
         run.id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage="post_generation",
             schema_version=1,
             last_event_seq=1,
@@ -1202,11 +1206,11 @@ def test_resume_revives_a_lease_stranded_by_a_dead_worker(
 ) -> None:
     # Expired exhausted leases need explicit recovery; ordinary claim rescue
     # intentionally skips spent retries.
-    run = store.create_run("stranded goal", "standard", "engine", {})
+    run = runs.create_run("stranded goal", "standard", "engine", {})
     task_type = f"{engine_tasks.NODE_TASK_PREFIX}ranking"
     _save_resume_checkpoint(run.id, task_type, isolated_db)
-    task = store.enqueue_task(
-        store.NewTask(
+    task = tasks.enqueue_task(
+        NewTask(
             run_id=run.id,
             task_type=task_type,
             inputs={"checkpoint_seq": 1},
@@ -1234,11 +1238,11 @@ def test_resume_revives_a_lease_stranded_by_a_dead_worker(
 def test_resume_leaves_a_live_lease_alone(isolated_db: str) -> None:
     # Only expired leases imply abandonment; reviving a live lease executes the
     # boundary concurrently.
-    run = store.create_run("busy goal", "standard", "engine", {})
+    run = runs.create_run("busy goal", "standard", "engine", {})
     task_type = f"{engine_tasks.NODE_TASK_PREFIX}ranking"
-    store.save_checkpoint(
+    checkpoints.save_checkpoint(
         run.id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage="post_generation",
             schema_version=1,
             last_event_seq=1,
@@ -1246,8 +1250,8 @@ def test_resume_leaves_a_live_lease_alone(isolated_db: str) -> None:
         ),
         db_path=isolated_db,
     )
-    task = store.enqueue_task(
-        store.NewTask(
+    task = tasks.enqueue_task(
+        NewTask(
             run_id=run.id,
             task_type=task_type,
             inputs={"checkpoint_seq": 1},
@@ -1255,7 +1259,7 @@ def test_resume_leaves_a_live_lease_alone(isolated_db: str) -> None:
         ),
         db_path=isolated_db,
     )
-    with store.connect(isolated_db) as conn:
+    with _store_db.connect(isolated_db) as conn:
         conn.execute(
             "UPDATE scientific_tasks SET status='leased', lease_owner='alive', "
             "lease_expires_at=? WHERE id=?",
@@ -1265,7 +1269,7 @@ def test_resume_leaves_a_live_lease_alone(isolated_db: str) -> None:
     task_worker.enqueue_run_workflow(run.id, resume=True, db_path=isolated_db)
 
     assert not _queued(run.id, isolated_db)
-    with store.connect(isolated_db) as conn:
+    with _store_db.connect(isolated_db) as conn:
         row = conn.execute(
             "SELECT status, lease_owner FROM scientific_tasks WHERE id=?",
             (task.id,),

@@ -10,13 +10,20 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 
 import app.engine_adapter as engine_adapter
 import app.engine_tasks as engine_tasks
-import app.store as store
 import app.task_worker as task_worker
 from app.auth import client_id
 from app.config import settings
 from app.runs.models import SafetyAdjudicationRequest, StartRunRequest
 from app.runs.support import _run_or_404
-from app.store import TERMINAL_STATUSES, RunRow, RunStatus, ScientificTask
+from app.store import checkpoints, db, events, records, runs, tasks
+from app.store import runs_views as views
+from app.store import tasks_lifecycle as lifecycle
+from app.store.models import (
+    TERMINAL_STATUSES,
+    RunRow,
+    RunStatus,
+    ScientificTask,
+)
 from app.task_worker.enqueue import is_abandoned_spent_bootstrap
 
 logger = logging.getLogger(__name__)
@@ -25,7 +32,7 @@ logger = logging.getLogger(__name__)
 def _has_paused_engine_task(
     run_id: str, *, conn: sqlite3.Connection | None = None
 ) -> bool:
-    return store.has_task_of_type(
+    return lifecycle.has_task_of_type(
         run_id, engine_tasks.ENGINE_TASK_PREFIX, status="paused", conn=conn
     )
 
@@ -33,9 +40,9 @@ def _has_paused_engine_task(
 def _has_leased_precheckpoint_bootstrap(
     run_id: str, *, conn: sqlite3.Connection | None = None
 ) -> bool:
-    return not store.has_checkpoint(
+    return not checkpoints.has_checkpoint(
         run_id, conn=conn
-    ) and store.has_task_of_type(
+    ) and lifecycle.has_task_of_type(
         run_id, engine_tasks.BOOTSTRAP_TASK, status="leased", conn=conn
     )
 
@@ -43,14 +50,14 @@ def _has_leased_precheckpoint_bootstrap(
 def _has_failed_precheckpoint_bootstrap_while_paused(
     run_id: str, *, conn: sqlite3.Connection | None = None
 ) -> bool:
-    if store.has_checkpoint(run_id, conn=conn):
+    if checkpoints.has_checkpoint(run_id, conn=conn):
         return False
-    run = store.get_run(run_id, conn=conn)
+    run = runs.get_run(run_id, conn=conn)
     if run is None or run.status != RunStatus.PAUSED.value:
         return False
     return any(
         is_abandoned_spent_bootstrap(task)
-        for task in store.list_tasks(run_id, conn=conn)
+        for task in tasks.list_tasks(run_id, conn=conn)
     )
 
 
@@ -64,7 +71,7 @@ def lifecycle_revision(run_id: str, *, conn: sqlite3.Connection) -> int:
 
 
 def resume_admission_snapshot(run_id: str) -> tuple[RunRow, int]:
-    with store.connect() as conn:
+    with db.connect() as conn:
         conn.execute("BEGIN")
         run = _run_or_404(run_id, conn=conn)
         revision = lifecycle_revision(run_id, conn=conn)
@@ -77,7 +84,7 @@ def _is_resumable(run_id: str) -> bool:
     checkpoint exists.
     """
     return (
-        store.has_checkpoint(run_id)
+        checkpoints.has_checkpoint(run_id)
         or _has_paused_engine_task(run_id)
         or _has_leased_precheckpoint_bootstrap(run_id)
         or _has_failed_precheckpoint_bootstrap_while_paused(run_id)
@@ -90,7 +97,7 @@ def _prepare_resume_state(
     """True engine resume retains committed artifacts and events; legacy
     envelopes clear derived data before fresh bootstrap.
     """
-    checkpoint = store.get_latest_checkpoint(run_id, conn=conn)
+    checkpoint = checkpoints.get_latest_checkpoint(run_id, conn=conn)
     true_resume = (
         engine_adapter.is_engine_checkpoint(checkpoint)
         or _has_paused_engine_task(run_id, conn=conn)
@@ -101,14 +108,14 @@ def _prepare_resume_state(
         # Retain a sequence above every discarded event, even when the
         # checkpoint floor
         # predates trailing log rows.
-        store.append_event(
+        events.append_event(
             run_id,
             "lifecycle",
             {"event": "legacy_resume_cleanup"},
             conn=conn,
         )
-        store.clear_run_derived_data(run_id, conn=conn)
-        store.clear_checkpoints(run_id, conn=conn)
+        views.clear_run_derived_data(run_id, conn=conn)
+        checkpoints.clear_checkpoints(run_id, conn=conn)
     return true_resume
 
 
@@ -136,8 +143,8 @@ def _check_resume_admission(
 def _record_resume_transition(
     run_id: str, true_resume: bool, *, conn: sqlite3.Connection
 ) -> None:
-    store.update_run_status(run_id, RunStatus.QUEUED, conn=conn)
-    store.append_event(
+    runs.update_run_status(run_id, RunStatus.QUEUED, conn=conn)
+    events.append_event(
         run_id,
         "status",
         {"status": "resuming", "detail": _resume_detail(true_resume)},
@@ -161,7 +168,7 @@ def _queue_resume_workflow(
     expected_status: str,
     expected_lifecycle_revision: int,
 ) -> ScientificTask:
-    with store.transaction() as conn:
+    with db.transaction() as conn:
         _check_resume_admission(
             run_id,
             expected_status,
@@ -184,7 +191,7 @@ def _queue_resume_workflow(
 
 
 async def _apply_adjudication_lifecycle(
-    run: store.RunRow,
+    run: RunRow,
     decision: dict[str, Any],
     resolution: str,
     *,
@@ -208,10 +215,10 @@ async def _apply_adjudication_lifecycle(
 
 
 def _block_rejected_run_if_current(
-    run: store.RunRow, *, expected_lifecycle_revision: int
+    run: RunRow, *, expected_lifecycle_revision: int
 ) -> None:
-    with store.transaction() as conn:
-        current = store.get_run(run.id, conn=conn)
+    with db.transaction() as conn:
+        current = runs.get_run(run.id, conn=conn)
         if current is None:
             raise HTTPException(status_code=404, detail="run not found")
         if (
@@ -222,7 +229,7 @@ def _block_rejected_run_if_current(
             raise HTTPException(
                 status_code=409, detail="run status changed during adjudication"
             )
-        store.update_run_status(
+        runs.update_run_status(
             run.id,
             RunStatus.BLOCKED,
             error="Safety reviewer rejected held content.",
@@ -259,7 +266,7 @@ async def adjudicate_safety(
         raise HTTPException(
             status_code=403, detail="an identified reviewer is required"
         )
-    resolved = store.resolve_safety_decision(
+    resolved = records.resolve_safety_decision(
         run_id, decision_id, body.resolution, reviewer
     )
     if not resolved:
@@ -267,7 +274,7 @@ async def adjudicate_safety(
             status_code=409,
             detail="decision is not reviewable or was already resolved",
         )
-    decisions = store.list_safety_decisions(run_id)
+    decisions = records.list_safety_decisions(run_id)
     decision = next(item for item in decisions if item["id"] == decision_id)
     await _apply_adjudication_lifecycle(
         run,
@@ -299,14 +306,14 @@ def _reserve_capacity_or_409(run: RunRow, conn: Any) -> None:
     bounded separately by tier budgets.
     """
     limit = settings.max_concurrent_runs
-    if not store.reserve_run_capacity_in_transaction(
+    if not runs.reserve_run_capacity_in_transaction(
         conn,
         run.id,
         run.client_id,
         limit,
         run.status,
     ):
-        current = store.get_run(run.id, conn=conn)
+        current = runs.get_run(run.id, conn=conn)
         if current is None:
             raise HTTPException(status_code=404, detail="run not found")
         if current.status != run.status:
@@ -322,15 +329,15 @@ def _reserve_capacity_or_409(run: RunRow, conn: Any) -> None:
 def _enqueue_workflow_and_maybe_launch_worker(
     run: RunRow, background: BackgroundTasks
 ) -> ScientificTask:
-    with store.transaction() as conn:
+    with db.transaction() as conn:
         _reserve_capacity_or_409(run, conn)
-        store.revive_task_for_retry(
+        lifecycle.revive_task_for_retry(
             run.id,
             "engine:bootstrap:v1",
             conn=conn,
         )
         task = engine_tasks.enqueue_bootstrap(run.id, conn=conn)
-        store.append_event(
+        events.append_event(
             run.id,
             "lifecycle",
             {"event": "queued"},
@@ -373,7 +380,7 @@ async def start_run(
     if run.status in {
         RunStatus.CANCELLED.value,
         RunStatus.FAILED.value,
-    } and store.has_checkpoint(run_id):
+    } and checkpoints.has_checkpoint(run_id):
         raise HTTPException(
             status_code=409,
             detail="run has a checkpoint; use /resume to continue it",
@@ -398,15 +405,17 @@ async def cancel_run(run_id: str) -> dict[str, Any]:
     status event is emitted (mirroring the failed-run path) so open SSE
     streams close. An already-terminal run cannot be cancelled, returns 409.
     """
-    with store.transaction() as conn:
-        run = store.get_run(run_id, conn=conn)
+    with db.transaction() as conn:
+        run = runs.get_run(run_id, conn=conn)
         if run is None:
             raise HTTPException(status_code=404, detail="run not found")
         if RunStatus(run.status) in TERMINAL_STATUSES:
             raise HTTPException(status_code=409, detail="run already finished")
-        store.cancel_run_tasks(run_id, conn=conn)
-        store.update_run_status(run_id, RunStatus.CANCELLED, conn=conn)
-        store.append_event(run_id, "status", {"status": "cancelled"}, conn=conn)
+        lifecycle.cancel_run_tasks(run_id, conn=conn)
+        runs.update_run_status(run_id, RunStatus.CANCELLED, conn=conn)
+        events.append_event(
+            run_id, "status", {"status": "cancelled"}, conn=conn
+        )
     return {"id": run_id, "status": "cancelled"}
 
 
@@ -418,20 +427,20 @@ async def pause_run(run_id: str) -> dict[str, Any]:
     may finish its durable checkpoint, but no engine successor can be claimed
     until explicit resume; no extra checkpoint needs to be created here.
     """
-    with store.transaction() as conn:
-        run = store.get_run(run_id, conn=conn)
+    with db.transaction() as conn:
+        run = runs.get_run(run_id, conn=conn)
         if run is None:
             raise HTTPException(status_code=404, detail="run not found")
-        has_engine_task = store.has_task_of_type(
+        has_engine_task = lifecycle.has_task_of_type(
             run_id, engine_tasks.ENGINE_TASK_PREFIX, conn=conn
         )
         if has_engine_task and run.status in {
             RunStatus.QUEUED.value,
             RunStatus.RUNNING.value,
         }:
-            store.pause_run_tasks(run_id, conn=conn)
-            store.update_run_status(run_id, RunStatus.PAUSED, conn=conn)
-            store.append_event(
+            lifecycle.pause_run_tasks(run_id, conn=conn)
+            runs.update_run_status(run_id, RunStatus.PAUSED, conn=conn)
+            events.append_event(
                 run_id,
                 "lifecycle",
                 {"event": "pause_requested"},

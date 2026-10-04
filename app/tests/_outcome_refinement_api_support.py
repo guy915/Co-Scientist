@@ -5,7 +5,12 @@ from typing import Any
 from co_scientist.checkpoint import serialize_workflow_state
 from co_scientist.models import Hypothesis
 
-from app import auth, store
+from app import auth
+from app.store import checkpoints, events, records
+from app.store import hypotheses as store
+from app.store.checkpoints import NewCheckpoint
+from app.store.hypotheses import NewHypothesis
+from app.store.records import NewEvidence
 
 MESELSON_STAHL_PARENT_TEXT = (
     "DNA replication in E. coli is semiconservative: after replication, "
@@ -45,7 +50,7 @@ def _add_meselson_stahl_fixture(
     run_id: str, db_path: str
 ) -> tuple[str, dict[str, Any], list[str]]:
     parent_id = store.add_hypothesis(
-        store.NewHypothesis(
+        NewHypothesis(
             run_id=run_id,
             title="Semiconservative DNA replication in E. coli",
             statement=MESELSON_STAHL_PARENT_TEXT,
@@ -53,8 +58,8 @@ def _add_meselson_stahl_fixture(
         db_path=db_path,
     )
     source_ids = [
-        store.add_evidence(
-            store.NewEvidence(
+        records.add_evidence(
+            NewEvidence(
                 run_id=run_id,
                 title="The replication of DNA in Escherichia coli",
                 source="pubmed",
@@ -68,8 +73,8 @@ def _add_meselson_stahl_fixture(
             ),
             db_path=db_path,
         ),
-        store.add_evidence(
-            store.NewEvidence(
+        records.add_evidence(
+            NewEvidence(
                 run_id=run_id,
                 title="Hanawalt's historical account",
                 source="pmc",
@@ -104,7 +109,7 @@ def _outcome_body(evidence_id: str | None = None) -> dict[str, Any]:
 
 def _add_hypothesis(run_id: str, db_path: str, title: str) -> str:
     return store.add_hypothesis(
-        store.NewHypothesis(
+        NewHypothesis(
             run_id=run_id,
             title=title,
             statement=f"{title} by pathway Y.",
@@ -128,14 +133,14 @@ def _save_engine_checkpoint(
     hypothesis: Hypothesis,
     db_path: str,
 ) -> None:
-    event_seq = store.latest_event_seq(run_id, db_path=db_path)
+    event_seq = events.latest_event_seq(run_id, db_path=db_path)
     envelope = serialize_workflow_state(
         {"hypotheses": [hypothesis]},
         last_event_seq=event_seq,
     )
-    store.save_checkpoint(
+    checkpoints.save_checkpoint(
         run_id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage="completed",
             schema_version=1,
             last_event_seq=event_seq,

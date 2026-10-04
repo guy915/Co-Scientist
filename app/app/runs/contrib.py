@@ -17,7 +17,6 @@ from starlette.background import BackgroundTask
 import app.document_ingest as document_ingest
 import app.human_input as human_input
 import app.run_corpus as run_corpus
-import app.store as store
 import app.task_worker as task_worker
 from app.api_contracts.science import HypothesisOutcome
 from app.auth import client_id, require_bearer_principal
@@ -44,7 +43,16 @@ from app.runs.models import (
     HypothesisOutcomeRequest,
 )
 from app.runs.support import _require_run, _run_or_404, _steer_and_continue
-from app.store import ScientificTask
+from app.store import events as store
+from app.store import hypotheses, outcomes, records, runs
+from app.store.hypotheses import NewHypothesis
+from app.store.models import ScientificTask
+from app.store.outcomes import (
+    InvalidOutcomeReferencesError,
+    NewHypothesisOutcome,
+    OutcomeRefinementConflictError,
+)
+from app.store.records import NewEvidence, NewReview
 
 attachments_router = APIRouter()
 
@@ -52,8 +60,8 @@ attachments_router = APIRouter()
 def _persist_and_notify_attachment(
     run_id: str, req: HumanAttachmentRequest
 ) -> tuple[str, ScientificTask | None]:
-    ev_id = store.add_evidence(
-        store.NewEvidence(
+    ev_id = records.add_evidence(
+        NewEvidence(
             run_id=run_id,
             title=req.title,
             source=run_corpus.ATTACHMENT_SOURCE,
@@ -98,8 +106,8 @@ def _persist_and_notify_upload(
     extracted: document_ingest.ExtractedDocument,
     uploader: str,
 ) -> tuple[str, ScientificTask | None]:
-    evidence_id = store.add_evidence(
-        store.NewEvidence(
+    evidence_id = records.add_evidence(
+        NewEvidence(
             run_id=run_id,
             title=title,
             source=run_corpus.ATTACHMENT_SOURCE,
@@ -160,7 +168,7 @@ async def upload_attachment(
 async def search_attachments(run_id: str, q: str) -> dict[str, Any]:
     """Retrieve a run's attachment corpus by keyword."""
     _require_run(run_id)
-    documents = run_corpus.corpus_from_evidence(store.list_evidence(run_id))
+    documents = run_corpus.corpus_from_evidence(records.list_evidence(run_id))
     retriever = run_corpus.KeywordCorpusRetriever(documents)
     hits = retriever.retrieve(q)
     return {
@@ -206,8 +214,8 @@ def _persist_manual_hypothesis(
     """Scientist-authored hypotheses must pass the same safety boundary as
     generated ones.
     """
-    hyp_id = store.add_hypothesis(
-        store.NewHypothesis(
+    hyp_id = hypotheses.add_hypothesis(
+        NewHypothesis(
             run_id=run_id,
             title=str(hyp["title"]),
             statement=str(hyp["statement"]),
@@ -215,7 +223,7 @@ def _persist_manual_hypothesis(
             author=author,
         )
     )
-    screen_hypotheses(run_id, store.list_hypotheses(run_id))
+    screen_hypotheses(run_id, hypotheses.list_hypotheses(run_id))
     return hyp_id
 
 
@@ -252,7 +260,7 @@ async def add_human_hypothesis(
     thereafter appears in the run's hypotheses. A blocked hypothesis returns
     the admission decision and is not persisted (HTTP 200 with admitted=false).
     """
-    run = store.get_run(run_id)
+    run = runs.get_run(run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="run not found")
     author = client_id(request) or req.author
@@ -284,7 +292,7 @@ async def add_human_hypothesis(
 
 
 def _require_run_hypothesis(run_id: str, hypothesis_id: str) -> None:
-    hyp = store.get_hypothesis(hypothesis_id)
+    hyp = hypotheses.get_hypothesis(hypothesis_id)
     if hyp is None or hyp.get("run_id") != run_id:
         raise HTTPException(
             status_code=404, detail="hypothesis not found in this run"
@@ -309,8 +317,8 @@ async def record_hypothesis_outcome(
         raise HTTPException(status_code=404, detail="run not found")
     _require_run_hypothesis(run_id, hypothesis_id)
     try:
-        return store.add_hypothesis_outcome(
-            store.NewHypothesisOutcome(
+        return outcomes.add_hypothesis_outcome(
+            NewHypothesisOutcome(
                 run_id=run_id,
                 hypothesis_id=hypothesis_id,
                 method_protocol=req.method_protocol,
@@ -323,7 +331,7 @@ async def record_hypothesis_outcome(
                 author=author,
             )
         )
-    except store.InvalidOutcomeReferencesError as exc:
+    except InvalidOutcomeReferencesError as exc:
         raise HTTPException(
             status_code=404,
             detail="hypothesis or evidence not found in this run",
@@ -371,7 +379,7 @@ async def request_hypothesis_outcome_refinement(
         OutcomeRefinementIneligibleError,
         OutcomeRefinementContextTooLargeError,
         OutcomeRefinementRequestError,
-        store.OutcomeRefinementConflictError,
+        OutcomeRefinementConflictError,
     ) as exc:
         raise _outcome_refinement_http_error(exc) from exc
 
@@ -412,8 +420,8 @@ def _build_human_review_or_422(
 def _persist_and_notify_human_review(
     run_id: str, review: human_input.HumanReview, author: str
 ) -> ScientificTask | None:
-    store.add_review(
-        store.NewReview(
+    records.add_review(
+        NewReview(
             run_id=run_id,
             hypothesis_id=review.hypothesis_id,
             reviewer_agent="scientist",

@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx import ASGITransport
 
-from app import seed, store, task_worker
+from app import seed, task_worker
 from app.config import settings
 from app.demo_seed_data import (
     DEMO_SCENARIOS,
@@ -31,8 +31,19 @@ from app.engine_tasks import support as engine_tasks_support
 from app.report import build as report_build
 from app.report import finalize as report_finalize
 from app.seed.overview import full_review_count, simulation_review_count
-from app.store import DEMO_CLIENT_ID, RunRow, RunStatus
+from app.store import checkpoints, db, messages, records, reports
 from app.store import db as store_db
+from app.store import events as store_events
+from app.store import hypotheses as store_hypotheses
+from app.store import retrieval_calls as retrieval
+from app.store import runs as store
+from app.store import runs_views as views
+from app.store import tasks as store_tasks
+from app.store.checkpoints import NewCheckpoint
+from app.store.messages import NewMessage
+from app.store.models import DEMO_CLIENT_ID, RunRow, RunStatus
+from app.store.runs import RunCreateOptions
+from app.store.tasks import NewTask
 from tests._client import DEFAULT_TEST_CLIENT_ID, wait_for_status
 from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
@@ -95,7 +106,7 @@ def test_report_payload_carries_degraded_sections(isolated_db: str) -> None:
         )
     )
 
-    report = store.get_latest_report(run.id, db_path=isolated_db)
+    report = reports.get_latest_report(run.id, db_path=isolated_db)
     assert report is not None
     assert report["payload"]["degraded_sections"] == ["meta_review"]
 
@@ -128,7 +139,7 @@ def test_report_payload_degraded_sections_default_empty(
         )
     )
 
-    report = store.get_latest_report(run.id, db_path=isolated_db)
+    report = reports.get_latest_report(run.id, db_path=isolated_db)
     assert report is not None
     assert report["payload"]["degraded_sections"] == []
 
@@ -162,39 +173,33 @@ def _make_run(goal: str, isolated_db: str) -> str:
         "default",
         "engine",
         {},
-        store.RunCreateOptions(client_id="c1", db_path=isolated_db),
+        RunCreateOptions(client_id="c1", db_path=isolated_db),
     )
     return run.id
 
 
 def test_reconcile_fails_interrupted_runs(isolated_db: str) -> None:
     running = _make_run("running goal", isolated_db)
-    store.update_run_status(
-        running, store.RunStatus.RUNNING, db_path=isolated_db
-    )
+    store.update_run_status(running, RunStatus.RUNNING, db_path=isolated_db)
     queued = _make_run("queued goal", isolated_db)
-    store.update_run_status(queued, store.RunStatus.QUEUED, db_path=isolated_db)
+    store.update_run_status(queued, RunStatus.QUEUED, db_path=isolated_db)
     synth = _make_run("synth goal", isolated_db)
-    store.update_run_status(
-        synth, store.RunStatus.SYNTHESIZING, db_path=isolated_db
-    )
+    store.update_run_status(synth, RunStatus.SYNTHESIZING, db_path=isolated_db)
     done = _make_run("done goal", isolated_db)
-    store.update_run_status(
-        done, store.RunStatus.COMPLETED, db_path=isolated_db
-    )
+    store.update_run_status(done, RunStatus.COMPLETED, db_path=isolated_db)
 
-    reconciled = store.reconcile_interrupted_runs(db_path=isolated_db)
+    reconciled = views.reconcile_interrupted_runs(db_path=isolated_db)
 
     assert set(reconciled["failed"]) == {running, queued, synth}
     assert reconciled["resumable"] == []
     for rid in (running, queued, synth):
         row = store.get_run(rid, db_path=isolated_db)
         assert row is not None
-        assert row.status == store.RunStatus.FAILED.value
+        assert row.status == RunStatus.FAILED.value
         assert row.error and "restart" in row.error
     done_row = store.get_run(done, db_path=isolated_db)
     assert done_row is not None
-    assert done_row.status == store.RunStatus.COMPLETED.value
+    assert done_row.status == RunStatus.COMPLETED.value
 
 
 def test_active_engine_tasks_are_discoverable_before_lease_expiry(
@@ -205,13 +210,11 @@ def test_active_engine_tasks_are_discoverable_before_lease_expiry(
         "standard",
         "engine",
         {},
-        store.RunCreateOptions(db_path=isolated_db),
+        RunCreateOptions(db_path=isolated_db),
     )
-    store.update_run_status(
-        run.id, store.RunStatus.RUNNING, db_path=isolated_db
-    )
-    store.enqueue_task(
-        store.NewTask(
+    store.update_run_status(run.id, RunStatus.RUNNING, db_path=isolated_db)
+    store_tasks.enqueue_task(
+        NewTask(
             run_id=run.id,
             task_type="engine.node.review",
             inputs={"checkpoint_seq": 1},
@@ -220,21 +223,23 @@ def test_active_engine_tasks_are_discoverable_before_lease_expiry(
         db_path=isolated_db,
     )
     assert (
-        store.claim_task("dead-worker", lease_seconds=300, db_path=isolated_db)
+        store_tasks.claim_task(
+            "dead-worker", lease_seconds=300, db_path=isolated_db
+        )
         is not None
     )
 
-    assert store.list_active_engine_task_run_ids(db_path=isolated_db) == [
+    assert store_tasks.list_active_engine_task_run_ids(db_path=isolated_db) == [
         run.id
     ]
 
 
 def test_reconcile_marks_checkpointed_run_resumable(isolated_db: str) -> None:
     rid = _make_run("g", isolated_db)
-    store.update_run_status(rid, store.RunStatus.RUNNING, db_path=isolated_db)
-    store.save_checkpoint(
+    store.update_run_status(rid, RunStatus.RUNNING, db_path=isolated_db)
+    checkpoints.save_checkpoint(
         rid,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage="post_ranking",
             schema_version=1,
             last_event_seq=7,
@@ -243,14 +248,14 @@ def test_reconcile_marks_checkpointed_run_resumable(isolated_db: str) -> None:
         db_path=isolated_db,
     )
 
-    reconciled = store.reconcile_interrupted_runs(db_path=isolated_db)
+    reconciled = views.reconcile_interrupted_runs(db_path=isolated_db)
 
     assert reconciled["resumable"] == [rid]
     assert reconciled["failed"] == []
     row = store.get_run(rid, db_path=isolated_db)
     assert row is not None
-    assert row.status != store.RunStatus.FAILED.value
-    events = store.list_events(rid, db_path=isolated_db)
+    assert row.status != RunStatus.FAILED.value
+    events = store_events.list_events(rid, db_path=isolated_db)
     assert any(
         e["type"] == "status" and e["payload"].get("status") == "resumable"
         for e in events
@@ -259,9 +264,9 @@ def test_reconcile_marks_checkpointed_run_resumable(isolated_db: str) -> None:
 
 def test_reconcile_appends_status_event(isolated_db: str) -> None:
     rid = _make_run("g", isolated_db)
-    store.update_run_status(rid, store.RunStatus.RUNNING, db_path=isolated_db)
-    store.reconcile_interrupted_runs(db_path=isolated_db)
-    events = store.list_events(rid, db_path=isolated_db)
+    store.update_run_status(rid, RunStatus.RUNNING, db_path=isolated_db)
+    views.reconcile_interrupted_runs(db_path=isolated_db)
+    events = store_events.list_events(rid, db_path=isolated_db)
     assert any(
         e["type"] == "status" and e["payload"].get("status") == "failed"
         for e in events
@@ -270,29 +275,29 @@ def test_reconcile_appends_status_event(isolated_db: str) -> None:
 
 def test_reconcile_is_idempotent(isolated_db: str) -> None:
     rid = _make_run("g", isolated_db)
-    store.update_run_status(rid, store.RunStatus.RUNNING, db_path=isolated_db)
-    assert store.reconcile_interrupted_runs(db_path=isolated_db)["failed"] == [
+    store.update_run_status(rid, RunStatus.RUNNING, db_path=isolated_db)
+    assert views.reconcile_interrupted_runs(db_path=isolated_db)["failed"] == [
         rid
     ]
-    assert not store.reconcile_interrupted_runs(db_path=isolated_db)["failed"]
+    assert not views.reconcile_interrupted_runs(db_path=isolated_db)["failed"]
 
 
 def test_reconciled_run_is_restartable(isolated_db: str) -> None:
     rid = _make_run("g", isolated_db)
-    store.update_run_status(rid, store.RunStatus.RUNNING, db_path=isolated_db)
-    store.reconcile_interrupted_runs(db_path=isolated_db)
+    store.update_run_status(rid, RunStatus.RUNNING, db_path=isolated_db)
+    views.reconcile_interrupted_runs(db_path=isolated_db)
     row = store.get_run(rid, db_path=isolated_db)
     assert row is not None
     assert row.status not in (
-        store.RunStatus.RUNNING.value,
-        store.RunStatus.SYNTHESIZING.value,
-        store.RunStatus.COMPLETED.value,
+        RunStatus.RUNNING.value,
+        RunStatus.SYNTHESIZING.value,
+        RunStatus.COMPLETED.value,
     )
 
 
 def test_checkpoint_wal_runs_cleanly(isolated_db: str) -> None:
     _make_run("g", isolated_db)
-    store.checkpoint_wal(db_path=isolated_db)
+    db.checkpoint_wal(db_path=isolated_db)
 
 
 def test_headerless_run_survives_restart(isolated_db: str) -> None:
@@ -303,11 +308,11 @@ def test_headerless_run_survives_restart(isolated_db: str) -> None:
         "default",
         "engine",
         {},
-        store.RunCreateOptions(client_id="", db_path=isolated_db),
+        RunCreateOptions(client_id="", db_path=isolated_db),
     )
-    with store.connect(isolated_db) as conn:
+    with db.connect(isolated_db) as conn:
         store_db._run_migrations(conn)
-    rows = store.list_runs(client_id="", db_path=isolated_db)
+    rows = views.list_runs(client_id="", db_path=isolated_db)
     assert any(r.id == run.id for r in rows)
 
 
@@ -398,9 +403,7 @@ def test_evolution_creates_new_rows_with_parent_lineage(
         "express",
         "engine",
         {},
-        store.RunCreateOptions(
-            client_id=DEFAULT_TEST_CLIENT_ID, db_path=isolated_db
-        ),
+        RunCreateOptions(client_id=DEFAULT_TEST_CLIENT_ID, db_path=isolated_db),
     )
     _persist(
         run_id=run.id,
@@ -423,7 +426,7 @@ def test_evolution_creates_new_rows_with_parent_lineage(
 def test_evolution_runs_between_ranking_rounds(isolated_db: str) -> None:
     # Evolution need not create a child when a peer already holds its refinement
     # text.
-    from app import store
+    from app.store import events as store
 
     client = _client()
     rid = client.post(
@@ -513,9 +516,13 @@ async def _drive_replay_then_live_run(
             client.post(f"/api/runs/{run_id}/start", json={})
         )
         await _await_condition(
-            lambda: len(store.list_events(run_id, db_path=isolated_db)) >= 3
+            lambda: (
+                len(store_events.list_events(run_id, db_path=isolated_db)) >= 3
+            )
         )
-        events_at_open = len(store.list_events(run_id, db_path=isolated_db))
+        events_at_open = len(
+            store_events.list_events(run_id, db_path=isolated_db)
+        )
         events_resp = await client.get(
             f"/api/runs/{run_id}/events", params={"after": 0}
         )
@@ -532,7 +539,7 @@ def test_full_run_flow_persists_events_matching_store_and_api(
         "Integration flow: dissect ferroptosis resistance in melanoma",
     )
 
-    stored = store.list_events(run_id, db_path=isolated_db)
+    stored = store_events.list_events(run_id, db_path=isolated_db)
     assert stored
 
     api_events = _parse_sse(client.get(f"/api/runs/{run_id}/events").text)
@@ -545,11 +552,11 @@ def test_full_run_flow_persists_events_matching_store_and_api(
     assert [e["payload"] for e in replayed] == [e["payload"] for e in stored]
 
     api_hyps = client.get(f"/api/runs/{run_id}/hypotheses").json()["hypotheses"]
-    store_hyps = store.list_hypotheses(run_id, db_path=isolated_db)
+    store_hyps = store_hypotheses.list_hypotheses(run_id, db_path=isolated_db)
     assert {h["id"] for h in api_hyps} == {h["id"] for h in store_hyps}
 
     api_report = client.get(f"/api/runs/{run_id}/report").json()
-    store_report = store.get_latest_report(run_id, db_path=isolated_db)
+    store_report = reports.get_latest_report(run_id, db_path=isolated_db)
     assert store_report is not None
     assert api_report["id"] == store_report["id"]
     assert api_report["payload"] == store_report["payload"]
@@ -572,7 +579,7 @@ async def test_sse_stream_replay_then_live_matches_full_event_log(
     assert collected[-1]["payload"]["status"] == "completed"
 
     non_terminal = collected[:-1]
-    stored = store.list_events(run_id, db_path=isolated_db)
+    stored = store_events.list_events(run_id, db_path=isolated_db)
     assert [e["seq"] for e in non_terminal] == [e["seq"] for e in stored]
     assert [e["type"] for e in non_terminal] == [e["type"] for e in stored]
 
@@ -612,7 +619,7 @@ def test_completion_notification_is_opt_in_and_durable(
             interval=0.1,
         )
 
-    tasks = store.list_tasks(run_id, db_path=isolated_db)
+    tasks = store_tasks.list_tasks(run_id, db_path=isolated_db)
     email_tasks = [
         task for task in tasks if task.task_type == "notification.email"
     ]
@@ -643,7 +650,7 @@ def test_completion_notification_is_skipped_without_an_smtp_transport(
         client.post(f"/api/runs/{run_id}/start", headers=headers, json={})
         _wait_status(client, run_id, "completed", timeout=20.0, interval=0.1)
 
-    tasks = store.list_tasks(run_id, db_path=isolated_db)
+    tasks = store_tasks.list_tasks(run_id, db_path=isolated_db)
     assert not [t for t in tasks if t.task_type == "notification.email"]
     assert "SMTP is not configured" in caplog.text
 
@@ -657,7 +664,7 @@ def _persist_offline_run(isolated_db: str) -> Any:
         "express",
         "mock",
         {"tier": "express", "enable_literature_review": False},
-        store.RunCreateOptions(
+        RunCreateOptions(
             client_id="steering-e2e",
             llm_backend="offline",
             db_path=isolated_db,
@@ -692,8 +699,8 @@ def _steer_mid_run_then_crash(
     ) -> Any:
         box["commits"] += 1
         if box["commits"] == 2:
-            store.append_message(
-                store.NewMessage(
+            messages.append_message(
+                NewMessage(
                     run_id=run_id,
                     sender="user",
                     content=_STEER,
@@ -733,17 +740,17 @@ def test_mid_run_steering_survives_a_crash_and_applies_once(
     _drive(run.id, isolated_db)
 
     assert box["crashes"] == 1, "the crash window was never exercised"
-    assert store.get_pending_steering(run.id, db_path=isolated_db) == []
+    assert messages.get_pending_steering(run.id, db_path=isolated_db) == []
     steers = [
         message
-        for message in store.list_messages(run.id, db_path=isolated_db)
+        for message in messages.list_messages(run.id, db_path=isolated_db)
         if message.kind == "steering"
     ]
     assert [message.applied for message in steers] == [True]
     final = store.get_run(run.id, db_path=isolated_db)
     assert final is not None
     assert final.status == RunStatus.COMPLETED.value
-    assert store.get_latest_report(run.id, db_path=isolated_db) is not None
+    assert reports.get_latest_report(run.id, db_path=isolated_db) is not None
 
 
 def _fail_one_judged_matchup(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
@@ -779,14 +786,14 @@ def test_one_failed_matchup_leaves_the_rest_of_the_run_intact(
     final = store.get_run(run.id, db_path=isolated_db)
     assert final is not None
     assert final.status == RunStatus.COMPLETED.value
-    matches = store.list_matches(run.id, db_path=isolated_db)
+    matches = records.list_matches(run.id, db_path=isolated_db)
     assert len(matches) > 1
     # Sibling matchup commits survive one failure; only the failed judgment may
     # rerun.
     assert box["calls"] == len(matches) + 1
     failed_tasks = [
         task
-        for task in store.list_tasks(run.id, db_path=isolated_db)
+        for task in store_tasks.list_tasks(run.id, db_path=isolated_db)
         if task.status == "failed"
     ]
     assert failed_tasks == []
@@ -804,7 +811,7 @@ def _run_offline_workflow(
         "express",
         "engine",
         {"tier": "express"},
-        store.RunCreateOptions(llm_backend="offline", db_path=db_path),
+        RunCreateOptions(llm_backend="offline", db_path=db_path),
     )
     task_worker.enqueue_run_workflow(run.id, db_path=db_path)
     asyncio.run(
@@ -814,7 +821,7 @@ def _run_offline_workflow(
             policy=task_worker.WorkerPolicy(db_path=db_path),
         )
     )
-    events = store.list_events(run.id, db_path=db_path)
+    events = store_events.list_events(run.id, db_path=db_path)
     return run.id, events
 
 
@@ -857,7 +864,7 @@ def test_offline_workflow_emits_canonical_event_sequence(
         f"missing nodes: {expected_nodes - set(nodes)}"
     )
 
-    hyps = store.list_hypotheses(run_id, db_path=isolated_db)
+    hyps = store_hypotheses.list_hypotheses(run_id, db_path=isolated_db)
     if any(h.get("parent_id") for h in hyps):
         assert "proximity" in nodes, "missing nodes: {'proximity'}"
 
@@ -875,11 +882,11 @@ def test_offline_workflow_completes_with_report(isolated_db: str) -> None:
 
     final = store.get_run(run_id)
     assert final is not None
-    assert final.status == store.RunStatus.COMPLETED.value
+    assert final.status == RunStatus.COMPLETED.value
 
-    hyps = store.list_hypotheses(run_id)
+    hyps = store_hypotheses.list_hypotheses(run_id)
     assert hyps
-    report = store.get_latest_report(run_id)
+    report = reports.get_latest_report(run_id)
     assert report is not None
     assert report["payload"]["leaderboard"]
     assert report["payload"]["provider"] == "engine"
@@ -897,7 +904,7 @@ def test_offline_deep_verification_writes_reviews(isolated_db: str) -> None:
     ]
     assert "deep_verification" in nodes
 
-    reviews = store.list_reviews(run_id, db_path=isolated_db)
+    reviews = records.list_reviews(run_id, db_path=isolated_db)
     deep = [r for r in reviews if r["reviewer_agent"] == "deep_verification"]
     assert deep
     assert all(r["summary"] for r in deep)
@@ -915,7 +922,7 @@ def test_offline_research_overview_rides_report(isolated_db: str) -> None:
     ]
     assert "research_overview" in nodes
 
-    report = store.get_latest_report(run_id, db_path=isolated_db)
+    report = reports.get_latest_report(run_id, db_path=isolated_db)
     assert report is not None
     assert report["payload"].get("research_overview")
 
@@ -932,7 +939,7 @@ def test_seed_demo_runs_creates_three_runs_with_reports(
 ) -> None:
     _seed(isolated_db)
 
-    runs = store.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
+    runs = views.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
     assert len(runs) == 3
     goals = {r.research_goal for r in runs}
     assert goals == set(seed._DEMO_GOALS)
@@ -940,13 +947,15 @@ def test_seed_demo_runs_creates_three_runs_with_reports(
         assert run.status == "completed"
         assert run.llm_backend == "offline"
         assert store.run_used_offline(run)
-        md = store.read_report_markdown(run.id, db_path=isolated_db)
+        md = reports.read_report_markdown(run.id, db_path=isolated_db)
         assert md is not None and "Research Report" in md
         scenario = DEMO_SCENARIOS[run.research_goal]
         expected_ideas = len(scenario_hypotheses(scenario))
-        hypotheses = store.list_hypotheses(run.id, db_path=isolated_db)
+        hypotheses = store_hypotheses.list_hypotheses(
+            run.id, db_path=isolated_db
+        )
         assert len(hypotheses) == expected_ideas
-        evidence = store.list_evidence(run.id, db_path=isolated_db)
+        evidence = records.list_evidence(run.id, db_path=isolated_db)
         assert len(evidence) == 6
         assert all(item["pmid"] for item in evidence)
         assert "\n## References\n" in md
@@ -958,10 +967,10 @@ def test_seed_demo_runs_creates_three_runs_with_reports(
             + simulation_review_count(key)
         )
         assert (
-            len(store.list_reviews(run.id, db_path=isolated_db))
+            len(records.list_reviews(run.id, db_path=isolated_db))
             == expected_reviews
         )
-        assert len(store.list_matches(run.id, db_path=isolated_db)) == (
+        assert len(records.list_matches(run.id, db_path=isolated_db)) == (
             expected_ideas - 1 + expected_ideas // 2
         )
         assert all(
@@ -969,14 +978,14 @@ def test_seed_demo_runs_creates_three_runs_with_reports(
             for hypothesis in hypotheses
         )
         assert "Curated demonstration only" in md
-        report = store.get_latest_report(run.id, db_path=isolated_db)
+        report = reports.get_latest_report(run.id, db_path=isolated_db)
         assert report is not None
         assert report["payload"]["demo_seed_version"] == DEMO_SEED_VERSION
         assert len(report["payload"]["knowledge_base"]) == 6
         overview = report["payload"]["research_overview"]
         aims = overview["nih_specific_aims"]["aims"]
         assert len(aims) == 3
-        metrics = store.get_run_metrics(run.id, db_path=isolated_db)
+        metrics = retrieval.get_run_metrics(run.id, db_path=isolated_db)
         assert metrics is not None
         assert metrics["total_time"] == scenario.duration_seconds
         assert max(hypothesis["elo_rating"] for hypothesis in hypotheses) == (
@@ -996,10 +1005,10 @@ def test_seed_demo_runs_render_criteria_and_unexpected_directions(
     # rather than lazy rendering.
     _seed(isolated_db)
 
-    runs = store.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
+    runs = views.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
     assert len(runs) == 3
     for run in runs:
-        md = store.read_report_markdown(run.id, db_path=isolated_db)
+        md = reports.read_report_markdown(run.id, db_path=isolated_db)
         assert md is not None
         assert "\n## Evaluation Criteria\n" in md
         section = md.split("## Evaluation Criteria", 1)[1]
@@ -1037,10 +1046,10 @@ def test_seed_demo_runs_render_main_research_directions(
 ) -> None:
     _seed(isolated_db)
 
-    runs = store.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
+    runs = views.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
     assert len(runs) == 3
     for run in runs:
-        md = store.read_report_markdown(run.id, db_path=isolated_db)
+        md = reports.read_report_markdown(run.id, db_path=isolated_db)
         assert md is not None
         assert "\n## Main Research Directions\n" in md
 
@@ -1065,17 +1074,17 @@ def test_seed_demo_runs_is_idempotent_when_reports_exist(
 ) -> None:
     _seed(isolated_db)
     before = {
-        r.id: store.get_latest_report(r.id, db_path=isolated_db)
-        for r in store.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
+        r.id: reports.get_latest_report(r.id, db_path=isolated_db)
+        for r in views.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
     }
 
     _seed(isolated_db)
 
-    after_runs = store.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
+    after_runs = views.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
     assert len(after_runs) == 3
     assert {r.id for r in after_runs} == set(before)
     for run in after_runs:
-        report = store.get_latest_report(run.id, db_path=isolated_db)
+        report = reports.get_latest_report(run.id, db_path=isolated_db)
         assert report is not None
         seeded_at = before[run.id]["created_at"]  # type: ignore[index]
         assert report["created_at"] == seeded_at
@@ -1088,18 +1097,19 @@ def test_seed_demo_runs_reseeds_run_missing_report(isolated_db: str) -> None:
         "default",
         "mock",
         {},
-        store.RunCreateOptions(client_id=DEMO_CLIENT_ID, db_path=isolated_db),
+        RunCreateOptions(client_id=DEMO_CLIENT_ID, db_path=isolated_db),
     )
-    assert store.read_report_markdown(run.id, db_path=isolated_db) is None
+    assert reports.read_report_markdown(run.id, db_path=isolated_db) is None
 
     _seed(isolated_db)
 
-    runs = store.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
+    runs = views.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
     assert len(runs) == 3
     reseeded = next(r for r in runs if r.research_goal == goal)
     assert reseeded.id == run.id
     assert (
-        store.read_report_markdown(reseeded.id, db_path=isolated_db) is not None
+        reports.read_report_markdown(reseeded.id, db_path=isolated_db)
+        is not None
     )
 
 
@@ -1110,13 +1120,15 @@ def test_seed_demo_runs_replaces_legacy_demo_content(isolated_db: str) -> None:
         "express",
         "engine",
         {},
-        store.RunCreateOptions(client_id=DEMO_CLIENT_ID, db_path=isolated_db),
+        RunCreateOptions(client_id=DEMO_CLIENT_ID, db_path=isolated_db),
     )
-    store.save_report(run.id, {"legacy": True}, "# Legacy", db_path=isolated_db)
+    reports.save_report(
+        run.id, {"legacy": True}, "# Legacy", db_path=isolated_db
+    )
 
     _seed(isolated_db)
 
-    report = store.get_latest_report(run.id, db_path=isolated_db)
+    report = reports.get_latest_report(run.id, db_path=isolated_db)
     assert report is not None
     assert report["payload"]["demo_seed_version"] == DEMO_SEED_VERSION
     assert "Curated demonstration only" in report["markdown_text"]
@@ -1129,9 +1141,9 @@ def test_seed_demo_runs_backfills_goal_detail_config(isolated_db: str) -> None:
         "standard",
         "engine",
         {},
-        store.RunCreateOptions(client_id=DEMO_CLIENT_ID, db_path=isolated_db),
+        RunCreateOptions(client_id=DEMO_CLIENT_ID, db_path=isolated_db),
     )
-    store.save_report(
+    reports.save_report(
         run.id,
         {"demo_seed_version": DEMO_SEED_VERSION},
         "# Current-looking report",
@@ -1162,7 +1174,7 @@ def test_seed_demo_run_failure_is_swallowed(
         _seed(isolated_db)
 
     assert "Failed to seed demo run" in caplog.text
-    assert store.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db) == []
+    assert views.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db) == []
 
 
 def test_seed_demo_run_creates_new_run_when_none_given(
@@ -1176,12 +1188,12 @@ def test_seed_demo_run_creates_new_run_when_none_given(
     goal = "A standalone seeding goal"
     asyncio.run(seed._seed_demo_run(goal, None, isolated_db))
 
-    runs = store.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
+    runs = views.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)
     created = [r for r in runs if r.research_goal == goal]
     assert len(created) == 1
     assert created[0].status == "completed"
     assert created[0].llm_backend == "offline"
-    assert store.read_report_markdown(created[0].id, db_path=isolated_db)
+    assert reports.read_report_markdown(created[0].id, db_path=isolated_db)
 
 
 @pytest.mark.parametrize("has_report", [False, True])
@@ -1193,10 +1205,10 @@ def test_custom_goal_is_reseeded_only_when_report_missing(
         "express",
         "engine",
         {},
-        store.RunCreateOptions(db_path=isolated_db),
+        RunCreateOptions(db_path=isolated_db),
     )
     if has_report:
-        store.save_report(run.id, {"k": "v"}, "# md", db_path=isolated_db)
+        reports.save_report(run.id, {"k": "v"}, "# md", db_path=isolated_db)
     reseeded: list[str] = []
 
     async def record_seed(

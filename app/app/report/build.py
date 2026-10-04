@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Any, NamedTuple
 
-from app import store
 from app.elo import live_leaderboard, rank_for_publication
 from app.report.content import (
     _agent_insights,
@@ -19,6 +18,9 @@ from app.report.gates import (
     exclude_unsafe_hypotheses,
 )
 from app.report.markdown import ReportMarkdownInputs, render_report_markdown
+from app.store import hypotheses
+from app.store import records as store
+from app.store import retrieval_calls as retrieval
 
 
 class ReportRequest(NamedTuple):
@@ -138,7 +140,7 @@ def _resolve_knowledge_base(
 
 
 def _gather_report_data(run_id: str, db_path: str | None) -> _ReportData:
-    all_hyps = store.list_hypotheses(run_id, db_path=db_path)
+    all_hyps = hypotheses.list_hypotheses(run_id, db_path=db_path)
     claim_edges = store.list_claim_evidence(run_id, db_path=db_path)
     # Order once after safety filtering so top ideas and standings open with the
     # same idea.
@@ -157,7 +159,7 @@ def _gather_report_data(run_id: str, db_path: str | None) -> _ReportData:
         citations=store.list_citations(run_id, db_path=db_path),
         matches=store.list_matches(run_id, db_path=db_path),
         reviews=store.list_reviews(run_id, db_path=db_path),
-        retrieval_calls=store.list_retrieval_calls(run_id, db_path=db_path),
+        retrieval_calls=retrieval.list_retrieval_calls(run_id, db_path=db_path),
         exclusion_tally=_exclusion_tally(all_hyps, hyps, contradicted),
     )
 

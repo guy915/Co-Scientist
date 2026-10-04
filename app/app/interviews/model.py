@@ -12,7 +12,6 @@ from pydantic import BaseModel, Field
 
 import app.credentials as credentials
 import app.offline_guard as offline_guard
-import app.store as store
 from app.config import (
     CONVERSATIONAL_REASONING_EFFORT,
     THINKING_FLOOR_TIMEOUT_SECONDS,
@@ -22,6 +21,7 @@ from app.config import (
     thinking_safe_max_tokens,
 )
 from app.llm_scope import budgeted, stream_chunks
+from app.store import documents as store
 
 logger = logging.getLogger(__name__)
 

@@ -43,7 +43,8 @@ def make_operator_client() -> TestClient:
 
 
 def append_log_row(db_path: str, message: str, **fields: Any) -> int:
-    from app import store
+    from app.store import logs
+    from app.store.logs import NewLogRecord
 
     record: dict[str, Any] = {
         "level": "INFO",
@@ -52,7 +53,7 @@ def append_log_row(db_path: str, message: str, **fields: Any) -> int:
         "message": message,
     }
     record.update(fields)
-    return store.append_log(store.NewLogRecord(**record), db_path=db_path)
+    return logs.append_log(NewLogRecord(**record), db_path=db_path)
 
 
 def wait_for(

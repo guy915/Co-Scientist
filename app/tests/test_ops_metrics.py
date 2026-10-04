@@ -7,8 +7,12 @@ from typing import Any
 import pytest
 from prometheus_client.parser import text_string_to_metric_families
 
-from app import ops_metrics, store
+from app import ops_metrics
+from app.store import runs, tasks
 from app.store.db import connect
+from app.store.models import RunStatus
+from app.store.runs import RunCreateOptions
+from app.store.tasks import NewTask
 from tests._client import make_client as _client
 from tests._client import make_operator_client as _operator_client
 
@@ -34,25 +38,23 @@ def _sample_value(family: Any, **labels: str) -> float | None:
     return None
 
 
-def _make_run(
-    db_path: str, status: store.RunStatus = store.RunStatus.COMPLETED
-) -> str:
-    run = store.create_run(
+def _make_run(db_path: str, status: RunStatus = RunStatus.COMPLETED) -> str:
+    run = runs.create_run(
         "metrics goal",
         "standard",
         "engine",
         {},
-        options=store.RunCreateOptions(db_path=db_path),
+        options=RunCreateOptions(db_path=db_path),
     )
-    store.update_run_status(run.id, status, db_path=db_path)
+    runs.update_run_status(run.id, status, db_path=db_path)
     return run.id
 
 
 def _enqueue(
     run_id: str, key: str, db_path: str, task_type: str = "engine.node.x"
 ) -> str:
-    task = store.enqueue_task(
-        store.NewTask(
+    task = tasks.enqueue_task(
+        NewTask(
             run_id=run_id,
             task_type=task_type,
             inputs={},
@@ -91,10 +93,10 @@ def test_metrics_returns_valid_exposition_format() -> None:
 
 
 def test_metrics_counts_runs_per_status(isolated_db: str) -> None:
-    _make_run(isolated_db, store.RunStatus.COMPLETED)
-    _make_run(isolated_db, store.RunStatus.COMPLETED)
-    _make_run(isolated_db, store.RunStatus.FAILED)
-    _make_run(isolated_db, store.RunStatus.RUNNING)
+    _make_run(isolated_db, RunStatus.COMPLETED)
+    _make_run(isolated_db, RunStatus.COMPLETED)
+    _make_run(isolated_db, RunStatus.FAILED)
+    _make_run(isolated_db, RunStatus.RUNNING)
 
     res = _operator_client().get("/metrics")
     family = _families(res.text)["coscientist_runs"]
@@ -105,7 +107,7 @@ def test_metrics_counts_runs_per_status(isolated_db: str) -> None:
 
 
 def test_metrics_counts_tasks_per_status(isolated_db: str) -> None:
-    run_id = _make_run(isolated_db, store.RunStatus.RUNNING)
+    run_id = _make_run(isolated_db, RunStatus.RUNNING)
     _enqueue(run_id, "k1", isolated_db)
     t2 = _enqueue(run_id, "k2", isolated_db)
     _set_task_row(t2, isolated_db, status="completed")
@@ -118,7 +120,7 @@ def test_metrics_counts_tasks_per_status(isolated_db: str) -> None:
 
 
 def test_metrics_splits_failed_tasks_by_exhaustion(isolated_db: str) -> None:
-    run_id = _make_run(isolated_db, store.RunStatus.FAILED)
+    run_id = _make_run(isolated_db, RunStatus.FAILED)
     exhausted = _enqueue(run_id, "k1", isolated_db)
     _set_task_row(
         exhausted, isolated_db, status="failed", attempt=3, max_attempts=3
@@ -142,7 +144,7 @@ def test_metrics_splits_failed_tasks_by_exhaustion(isolated_db: str) -> None:
 def test_metrics_latency_reflects_started_completed_timestamps(
     isolated_db: str,
 ) -> None:
-    run_id = _make_run(isolated_db, store.RunStatus.COMPLETED)
+    run_id = _make_run(isolated_db, RunStatus.COMPLETED)
     task_id = _enqueue(
         run_id, "k1", isolated_db, task_type="engine.node.ranking"
     )
@@ -195,8 +197,8 @@ def test_metrics_cache_avoids_requerying_within_ttl(
 
 
 def test_metrics_endpoint_issues_no_write(isolated_db: str) -> None:
-    _make_run(isolated_db, store.RunStatus.COMPLETED)
-    run_id = _make_run(isolated_db, store.RunStatus.RUNNING)
+    _make_run(isolated_db, RunStatus.COMPLETED)
+    run_id = _make_run(isolated_db, RunStatus.RUNNING)
     task_id = _enqueue(run_id, "k1", isolated_db)
     _set_task_row(
         task_id,

@@ -8,7 +8,6 @@ from typing import Any
 import app.credentials as credentials
 import app.offline_guard as offline_guard
 import app.qa.manifest as qa_ideas
-import app.store as store
 from app.config import (
     CONVERSATIONAL_REASONING_EFFORT,
     THINKING_FLOOR_TIMEOUT_SECONDS,
@@ -23,6 +22,9 @@ from app.qa.manifest import _tokenize
 from app.qa.manifest import build_evidence_manifest as build_evidence_manifest
 from app.qa.manifest import build_system_prompt as build_system_prompt
 from app.sse import sse_frame as sse_frame
+from app.store import messages as store
+from app.store import runs
+from app.store.messages import NewMessage
 
 logger = logging.getLogger(__name__)
 
@@ -345,7 +347,7 @@ def _persist_qa_answer(
 ) -> None:
     answer = "".join(full)
     store.append_message(
-        store.NewMessage(
+        NewMessage(
             run_id=run_id,
             sender="system",
             content=answer,
@@ -365,9 +367,7 @@ def _handle_qa_stream_error(run_id: str, exc: Exception) -> str:
         "(set CHAT_MODEL_NAME or MODEL_NAME)."
     )
     store.append_message(
-        store.NewMessage(
-            run_id=run_id, sender="system", content=fallback, kind="qa"
-        )
+        NewMessage(run_id=run_id, sender="system", content=fallback, kind="qa")
     )
     return fallback
 
@@ -385,7 +385,7 @@ async def stream_answer(
     run's authorized credential.
     """
     if execution_policy is None:
-        run = store.get_run(run_id)
+        run = runs.get_run(run_id)
         if run is None:
             yield sse_frame({"type": "error", "message": "run not found"})
             return

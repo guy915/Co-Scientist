@@ -13,7 +13,7 @@ from co_scientist.models import (
 )
 
 import app.engine_tasks.ranking as engine_tasks_ranking_wave
-from app import engine_tasks, store
+from app import engine_tasks
 from app.claims import (
     AssessorDraft,
     ClaimAssessment,
@@ -33,6 +33,11 @@ from app.engine_tasks.gate import (
     _harvest_hypothesis_claims,
     _log_gate_wave,
 )
+from app.store import checkpoints, runs, tasks
+from app.store import events as store_events
+from app.store import retrieval_calls as retrieval
+from app.store import tasks_lifecycle as lifecycle
+from app.store.models import RunStatus, ScientificTask
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _add_fixture_review,
@@ -695,10 +700,8 @@ async def test_long_tournament_reports_progress_between_its_matches(
 ) -> None:
     # Periodic progress prevents long healthy tournaments looking frozen without
     # flooding the activity feed.
-    run = store.create_run("Task-level science", "standard", "engine", {})
-    store.update_run_status(
-        run.id, store.RunStatus.RUNNING, db_path=isolated_db
-    )
+    run = runs.create_run("Task-level science", "standard", "engine", {})
+    runs.update_run_status(run.id, RunStatus.RUNNING, db_path=isolated_db)
     _seed_ranking_node(
         run.id,
         monkeypatch,
@@ -732,7 +735,7 @@ async def test_tournament_judges_a_wave_of_matchups_concurrently(
 ) -> None:
     # Parallel judging must use the engine semaphore rather than serializing one
     # matchup per task.
-    run = store.create_run("Wave science", "standard", "engine", {})
+    run = runs.create_run("Wave science", "standard", "engine", {})
     _seed_ranking_node(
         run.id,
         monkeypatch,
@@ -748,7 +751,7 @@ async def test_tournament_judges_a_wave_of_matchups_concurrently(
     scheduled = await _run_ranking_node(run.id, isolated_db)
     assert int(scheduled["tournament_rounds"]) > 1
 
-    match = store.claim_task("w", run_id=run.id, db_path=isolated_db)
+    match = tasks.claim_task("w", run_id=run.id, db_path=isolated_db)
     assert match is not None
     assert match.task_type == engine_tasks_support.RANKING_MATCH_TASK
     result = await engine_tasks_ranking.execute_ranking_match(
@@ -765,7 +768,7 @@ async def test_tournament_wave_fills_to_the_configured_size(
 ) -> None:
     # Candidate supply must reach wave size; a smaller inherited pool silently
     # serializes tournaments.
-    run = store.create_run("Wave size", "standard", "engine", {})
+    run = runs.create_run("Wave size", "standard", "engine", {})
     _seed_ranking_node(
         run.id,
         monkeypatch,
@@ -784,7 +787,7 @@ async def test_tournament_wave_fills_to_the_configured_size(
         >= engine_tasks_ranking_wave.RANKING_WAVE_SIZE
     )
 
-    match = store.claim_task("w", run_id=run.id, db_path=isolated_db)
+    match = tasks.claim_task("w", run_id=run.id, db_path=isolated_db)
     assert match is not None
     result = await engine_tasks_ranking.execute_ranking_match(
         match, db_path=isolated_db
@@ -817,7 +820,7 @@ async def test_spent_budget_schedules_no_tournament(
 ) -> None:
     # Opening an empty tournament erases prior matches; spent budgets must
     # preserve already judged work.
-    run = store.create_run("Spent budget", "standard", "engine", {})
+    run = runs.create_run("Spent budget", "standard", "engine", {})
     _seed_ranking_node(
         run.id,
         monkeypatch,
@@ -835,7 +838,7 @@ async def test_spent_budget_schedules_no_tournament(
     scheduled = await _run_ranking_node(run.id, isolated_db)
 
     assert scheduled.get("tournament_rounds") is None
-    successor = store.claim_task("w", run_id=run.id, db_path=isolated_db)
+    successor = tasks.claim_task("w", run_id=run.id, db_path=isolated_db)
     assert successor is not None
     assert successor.task_type != engine_tasks_support.RANKING_MATCH_TASK
 
@@ -846,7 +849,7 @@ async def test_partial_budget_schedules_only_what_is_left(
 ) -> None:
     # The pool is already covered so no first-match obligation overrides
     # remaining budget.
-    run = store.create_run("Partial budget", "standard", "engine", {})
+    run = runs.create_run("Partial budget", "standard", "engine", {})
     _seed_ranking_node(
         run.id,
         monkeypatch,
@@ -1008,7 +1011,7 @@ async def test_preparation_admits_eligible_pool_and_preserves_checkpoint_order(
         lambda *args: (7, "next"),
     )
     result = await engine_tasks_ranking._schedule_ranking_chain(
-        cast(store.ScientificTask, object()), state, 6, db_path=None
+        cast(ScientificTask, object()), state, 6, db_path=None
     )
     assert result is not None
     assert budget_pools == [pool]
@@ -1036,7 +1039,7 @@ def _owned_running_run(db_path: str) -> tuple[Any, str]:
     )
     assert created.status_code == 200, created.text
     run_id = str(created.json()["id"])
-    store.update_run_status(run_id, store.RunStatus.RUNNING, db_path=db_path)
+    runs.update_run_status(run_id, RunStatus.RUNNING, db_path=db_path)
     return client, run_id
 
 
@@ -1077,9 +1080,9 @@ async def test_paused_ranking_match_resumes_its_exact_successor(
                 headers={"X-Client-ID": "ranking-pause-other-owner"},
             )
             assert unauthorized.status_code == 404
-            still_running = store.get_run(run_id, db_path=isolated_db)
+            still_running = runs.get_run(run_id, db_path=isolated_db)
             assert still_running is not None
-            assert still_running.status == store.RunStatus.RUNNING.value
+            assert still_running.status == RunStatus.RUNNING.value
             response = client.post(f"/api/runs/{run_id}/pause", headers=_OWNER)
             assert response.status_code == 200, response.text
             assert response.json()["status"] == "paused"
@@ -1093,7 +1096,7 @@ async def test_paused_ranking_match_resumes_its_exact_successor(
         }
 
     monkeypatch.setattr(ranking_module, "judge_matchup", pause_during_judging)
-    match = store.claim_task(
+    match = tasks.claim_task(
         "ranking-match", run_id=run_id, db_path=isolated_db
     )
     assert match is not None
@@ -1102,11 +1105,11 @@ async def test_paused_ranking_match_resumes_its_exact_successor(
         match, db_path=isolated_db
     )
     assert paused
-    assert store.complete_task(
+    assert lifecycle.complete_task(
         match.id, "ranking-match", result, db_path=isolated_db
     )
 
-    checkpoint = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert checkpoint is not None
     assert checkpoint["seq"] == int(scheduled["checkpoint_seq"]) + 1
     assert checkpoint["stage"] == f"engine_task:{match.id}"
@@ -1122,7 +1125,7 @@ async def test_paused_ranking_match_resumes_its_exact_successor(
         hypothesis.elo_rating != 1200 for hypothesis in state["hypotheses"]
     )
 
-    successor = store.get_task(result["successor_task_id"], db_path=isolated_db)
+    successor = tasks.get_task(result["successor_task_id"], db_path=isolated_db)
     assert successor is not None
     assert successor.task_type == engine_tasks_support.RANKING_MATCH_TASK
     assert successor.status == "queued"
@@ -1132,15 +1135,15 @@ async def test_paused_ranking_match_resumes_its_exact_successor(
         successor.provenance["scheduled_by"]
         == engine_tasks_support.RANKING_MATCH_TASK
     )
-    paused_run = store.get_run(run_id, db_path=isolated_db)
+    paused_run = runs.get_run(run_id, db_path=isolated_db)
     assert paused_run is not None
-    assert paused_run.status == store.RunStatus.PAUSED.value
+    assert paused_run.status == RunStatus.PAUSED.value
     assert (
-        store.claim_task("before-resume", run_id=run_id, db_path=isolated_db)
+        tasks.claim_task("before-resume", run_id=run_id, db_path=isolated_db)
         is None
     )
 
-    events = store.list_events(run_id, db_path=isolated_db)
+    events = store_events.list_events(run_id, db_path=isolated_db)
     pause_event = next(
         event
         for event in events
@@ -1157,9 +1160,9 @@ async def test_paused_ranking_match_resumes_its_exact_successor(
 
     resumed = client.post(f"/api/runs/{run_id}/resume", headers=_OWNER)
     assert resumed.status_code == 200, resumed.text
-    resumed_task = store.get_task(successor.id, db_path=isolated_db)
+    resumed_task = tasks.get_task(successor.id, db_path=isolated_db)
     assert resumed_task is not None and resumed_task.status == "queued"
-    claim = store.claim_task("after-resume", run_id=run_id, db_path=isolated_db)
+    claim = tasks.claim_task("after-resume", run_id=run_id, db_path=isolated_db)
     assert claim is not None
     assert claim.id == successor.id
     assert claim.task_type == engine_tasks_support.RANKING_MATCH_TASK
@@ -1195,7 +1198,7 @@ async def test_paused_ranking_finalize_keeps_elo_metrics_and_exact_resume(
     _install_plain_fake_judge(monkeypatch)
 
     while True:
-        match = store.claim_task(
+        match = tasks.claim_task(
             "ranking-match", run_id=run_id, db_path=isolated_db
         )
         assert match is not None
@@ -1206,7 +1209,7 @@ async def test_paused_ranking_finalize_keeps_elo_metrics_and_exact_resume(
         result = await engine_tasks_ranking.execute_ranking_match(
             match, db_path=isolated_db
         )
-        assert store.complete_task(
+        assert lifecycle.complete_task(
             match.id, "ranking-match", result, db_path=isolated_db
         )
 
@@ -1227,11 +1230,11 @@ async def test_paused_ranking_finalize_keeps_elo_metrics_and_exact_resume(
     result = await engine_tasks_ranking.execute_ranking_finalize(
         finalizer, db_path=isolated_db
     )
-    assert store.complete_task(
+    assert lifecycle.complete_task(
         finalizer.id, "ranking-match", result, db_path=isolated_db
     )
 
-    checkpoint = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert checkpoint is not None
     assert checkpoint["seq"] == int(finalizer.inputs["checkpoint_seq"]) + 1
     assert checkpoint["stage"] == f"engine_task:{finalizer.id}"
@@ -1248,14 +1251,14 @@ async def test_paused_ranking_finalize_keeps_elo_metrics_and_exact_resume(
     assert any(
         hypothesis.elo_rating != 1200 for hypothesis in state["hypotheses"]
     )
-    metrics = store.get_run_metrics(run_id, db_path=isolated_db)
+    metrics = retrieval.get_run_metrics(run_id, db_path=isolated_db)
     assert metrics is not None
     assert metrics["tournaments_count"] == len(details)
     assert metrics["llm_calls"] == sum(
         int(detail["debate_turns"]) for detail in details
     )
 
-    successor = store.get_task(result["successor_task_id"], db_path=isolated_db)
+    successor = tasks.get_task(result["successor_task_id"], db_path=isolated_db)
     assert successor is not None
     assert successor.task_type == f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
     assert successor.status == "queued"
@@ -1265,17 +1268,17 @@ async def test_paused_ranking_finalize_keeps_elo_metrics_and_exact_resume(
         == engine_tasks_support.RANKING_FINALIZE_TASK
     )
     assert checkpoint["state"]["resume_successor"] == successor.task_type
-    paused_run = store.get_run(run_id, db_path=isolated_db)
+    paused_run = runs.get_run(run_id, db_path=isolated_db)
     assert paused_run is not None
-    assert paused_run.status == store.RunStatus.PAUSED.value
+    assert paused_run.status == RunStatus.PAUSED.value
     assert (
-        store.claim_task(
+        tasks.claim_task(
             "before-finalize-resume", run_id=run_id, db_path=isolated_db
         )
         is None
     )
 
-    events = store.list_events(run_id, db_path=isolated_db)
+    events = store_events.list_events(run_id, db_path=isolated_db)
     pause_event = next(
         event
         for event in events
@@ -1302,7 +1305,7 @@ async def test_paused_ranking_finalize_keeps_elo_metrics_and_exact_resume(
 
     resumed = client.post(f"/api/runs/{run_id}/resume", headers=_OWNER)
     assert resumed.status_code == 200, resumed.text
-    claim = store.claim_task(
+    claim = tasks.claim_task(
         "after-finalize-resume", run_id=run_id, db_path=isolated_db
     )
     assert claim is not None

@@ -7,7 +7,6 @@ from typing import Any, NamedTuple
 import pytest
 from fastapi.testclient import TestClient
 
-from app import store
 from app.config import settings
 from app.execution_policy import CAMPAIGN, CAMPAIGN_MODEL_NAME, STANDARD
 from app.interviews import model as interviews_model
@@ -19,6 +18,8 @@ from app.interviews.model import (
     TurnSplitter,
 )
 from app.main import app
+from app.store import interviews as store
+from app.store.interviews import NewInterviewTurn
 from tests._llm_fake_backend import install_completion_backend
 
 from ._interviews_helpers import (
@@ -271,7 +272,7 @@ def _seed_interview(db_path: str) -> str:
     )
     store.append_interview_turn(
         str(interview["id"]),
-        store.NewInterviewTurn("user", "Prioritize efflux-pump regulation."),
+        NewInterviewTurn("user", "Prioritize efflux-pump regulation."),
         db_path=db_path,
     )
     return str(interview["id"])

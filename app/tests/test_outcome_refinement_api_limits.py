@@ -5,9 +5,12 @@ from typing import Any, cast
 import pytest
 from co_scientist.models import Hypothesis
 
-from app import store
 from app.config import settings
-from app.store import RunStatus
+from app.store import outcomes, records, runs
+from app.store.models import DEMO_CLIENT_ID, RunStatus
+from app.store.outcomes import NewHypothesisOutcome
+from app.store.records import NewEvidence
+from app.store.runs import RunCreateOptions
 from tests._client import make_client
 from tests._outcome_refinement_api_support import (
     _add_hypothesis,
@@ -29,19 +32,19 @@ def test_refinement_rejects_demo_and_non_engine_runs(
     isolated_db: str,
 ) -> None:
     owner = "outcome-refinement-run-eligibility"
-    demo = store.create_run(
+    demo = runs.create_run(
         "Demo outcome refinement",
         "standard",
         "engine",
         {},
-        options=store.RunCreateOptions(
-            client_id=store.DEMO_CLIENT_ID,
+        options=RunCreateOptions(
+            client_id=DEMO_CLIENT_ID,
             db_path=isolated_db,
         ),
     )
     demo_hypothesis = _add_hypothesis(demo.id, isolated_db, "Demo parent")
-    demo_outcome = store.add_hypothesis_outcome(
-        store.NewHypothesisOutcome(
+    demo_outcome = outcomes.add_hypothesis_outcome(
+        NewHypothesisOutcome(
             run_id=demo.id,
             hypothesis_id=demo_hypothesis,
             method_protocol="Protocol",
@@ -64,18 +67,18 @@ def test_refinement_rejects_demo_and_non_engine_runs(
         ),
         isolated_db,
     )
-    store.update_run_status(demo.id, RunStatus.COMPLETED, db_path=isolated_db)
+    runs.update_run_status(demo.id, RunStatus.COMPLETED, db_path=isolated_db)
 
-    mock = store.create_run(
+    mock = runs.create_run(
         "Mock outcome refinement",
         "standard",
         "mock",
         {},
-        options=store.RunCreateOptions(client_id=owner, db_path=isolated_db),
+        options=RunCreateOptions(client_id=owner, db_path=isolated_db),
     )
     mock_hypothesis = _add_hypothesis(mock.id, isolated_db, "Mock parent")
-    mock_outcome = store.add_hypothesis_outcome(
-        store.NewHypothesisOutcome(
+    mock_outcome = outcomes.add_hypothesis_outcome(
+        NewHypothesisOutcome(
             run_id=mock.id,
             hypothesis_id=mock_hypothesis,
             method_protocol="Protocol",
@@ -89,7 +92,7 @@ def test_refinement_rejects_demo_and_non_engine_runs(
         ),
         db_path=isolated_db,
     )
-    store.update_run_status(mock.id, RunStatus.COMPLETED, db_path=isolated_db)
+    runs.update_run_status(mock.id, RunStatus.COMPLETED, db_path=isolated_db)
 
     client = make_client()
     demo_action = client.post(
@@ -111,13 +114,13 @@ def test_refinement_rejects_demo_and_non_engine_runs(
     assert demo_action.status_code == 404
     assert mock_action.status_code == 409
     assert (
-        store.list_pending_outcome_refinement_actions(
+        outcomes.list_pending_outcome_refinement_actions(
             demo.id, db_path=isolated_db
         )
         == []
     )
     assert (
-        store.list_pending_outcome_refinement_actions(
+        outcomes.list_pending_outcome_refinement_actions(
             mock.id, db_path=isolated_db
         )
         == []
@@ -134,8 +137,8 @@ def test_refinement_rejects_more_than_three_source_metadata_links(
     run_id = _new_run(client, owner)
     hypothesis_id = _add_hypothesis(run_id, isolated_db, "Source-linked parent")
     evidence_ids = [
-        store.add_evidence(
-            store.NewEvidence(run_id=run_id, title=f"Source {index}"),
+        records.add_evidence(
+            NewEvidence(run_id=run_id, title=f"Source {index}"),
             db_path=isolated_db,
         )
         for index in range(4)
@@ -155,7 +158,7 @@ def test_refinement_rejects_more_than_three_source_metadata_links(
         ),
         isolated_db,
     )
-    store.update_run_status(run_id, RunStatus.COMPLETED, db_path=isolated_db)
+    runs.update_run_status(run_id, RunStatus.COMPLETED, db_path=isolated_db)
     action = client.post(
         f"/api/runs/{run_id}/hypotheses/{hypothesis_id}/"
         f"outcomes/{outcome.json()['id']}/refine",
@@ -163,7 +166,7 @@ def test_refinement_rejects_more_than_three_source_metadata_links(
     )
     assert action.status_code == 422
     assert (
-        store.list_pending_outcome_refinement_actions(
+        outcomes.list_pending_outcome_refinement_actions(
             run_id, db_path=isolated_db
         )
         == []
@@ -195,9 +198,7 @@ def test_refinement_context_uses_unicode_codepoints_and_rejects_6001(
             ),
             isolated_db,
         )
-        store.update_run_status(
-            run_id, RunStatus.COMPLETED, db_path=isolated_db
-        )
+        runs.update_run_status(run_id, RunStatus.COMPLETED, db_path=isolated_db)
         response = client.post(
             f"/api/runs/{run_id}/hypotheses/{hypothesis_id}/outcomes",
             headers=headers,

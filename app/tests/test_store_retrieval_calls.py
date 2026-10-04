@@ -17,7 +17,9 @@ from co_scientist.research import (
     ThreadStatus,
 )
 
-from app import store
+from app.store import records, runs
+from app.store import retrieval_calls as store
+from app.store.records import NewEvidence
 
 
 @pytest.fixture
@@ -74,7 +76,7 @@ def _result(
 
 
 def test_a_search_round_trips_with_its_question_and_ranking(db: str) -> None:
-    run = store.create_run("provenance", "standard", "engine", {})
+    run = runs.create_run("provenance", "standard", "engine", {})
     result = _result()
 
     store.add_retrieval_calls(store.retrieval_call_rows(run.id, result))
@@ -96,7 +98,7 @@ def test_a_search_round_trips_with_its_question_and_ranking(db: str) -> None:
 
 def test_the_same_search_persisted_twice_is_one_row(db: str) -> None:
     # Stable search identity makes ledger replay idempotent.
-    run = store.create_run("resume", "standard", "engine", {})
+    run = runs.create_run("resume", "standard", "engine", {})
     rows = store.retrieval_call_rows(run.id, _result())
 
     assert store.add_retrieval_calls(rows) == 1
@@ -108,8 +110,8 @@ def test_the_same_search_persisted_twice_is_one_row(db: str) -> None:
 def test_two_runs_asking_the_same_thing_keep_separate_rows(db: str) -> None:
     # Identical retrieval calls in different runs must not share or delete
     # provenance.
-    first = store.create_run("goal", "standard", "engine", {})
-    second = store.create_run("goal", "standard", "engine", {})
+    first = runs.create_run("goal", "standard", "engine", {})
+    second = runs.create_run("goal", "standard", "engine", {})
     result = _result()
 
     store.add_retrieval_calls(store.retrieval_call_rows(first.id, result))
@@ -122,12 +124,12 @@ def test_two_runs_asking_the_same_thing_keep_separate_rows(db: str) -> None:
         == store.list_retrieval_calls(second.id)[0]["id"]
     )
 
-    store.delete_run(first.id)
+    runs.delete_run(first.id)
     assert len(store.list_retrieval_calls(second.id)) == 1
 
 
 def test_a_failed_search_is_recorded_not_dropped(db: str) -> None:
-    run = store.create_run("degraded", "standard", "engine", {})
+    run = runs.create_run("degraded", "standard", "engine", {})
     result = _result(
         calls=[
             SearchCall(
@@ -161,7 +163,7 @@ def test_a_failed_search_is_recorded_not_dropped(db: str) -> None:
 
 
 def test_a_deeper_search_records_the_level_it_ran_at(db: str) -> None:
-    run = store.create_run("descent", "standard", "engine", {})
+    run = runs.create_run("descent", "standard", "engine", {})
 
     store.add_retrieval_calls(
         store.retrieval_call_rows(run.id, _result(depth=3))
@@ -171,13 +173,13 @@ def test_a_deeper_search_records_the_level_it_ran_at(db: str) -> None:
 
 
 def test_evidence_can_name_the_search_that_found_it(db: str) -> None:
-    run = store.create_run("link", "standard", "engine", {})
+    run = runs.create_run("link", "standard", "engine", {})
     result = _result()
     rows = store.retrieval_call_rows(run.id, result)
     store.add_retrieval_calls(rows)
 
-    ev_id = store.add_evidence(
-        store.NewEvidence(
+    ev_id = records.add_evidence(
+        NewEvidence(
             run_id=run.id,
             title="Title doc-a",
             source="pubmed",
@@ -185,23 +187,23 @@ def test_evidence_can_name_the_search_that_found_it(db: str) -> None:
         )
     )
 
-    stored = {row["id"]: row for row in store.list_evidence(run.id)}
+    stored = {row["id"]: row for row in records.list_evidence(run.id)}
     assert stored[ev_id]["retrieval_call_id"] == rows[0].id
 
 
 def test_evidence_without_a_search_behind_it_stays_null(db: str) -> None:
-    run = store.create_run("upload", "standard", "engine", {})
+    run = runs.create_run("upload", "standard", "engine", {})
 
-    ev_id = store.add_evidence(
-        store.NewEvidence(run_id=run.id, title="Attached report")
+    ev_id = records.add_evidence(
+        NewEvidence(run_id=run.id, title="Attached report")
     )
 
-    stored = {row["id"]: row for row in store.list_evidence(run.id)}
+    stored = {row["id"]: row for row in records.list_evidence(run.id)}
     assert stored[ev_id]["retrieval_call_id"] is None
 
 
 def test_a_result_with_no_searches_writes_nothing(db: str) -> None:
-    run = store.create_run("empty", "standard", "engine", {})
+    run = runs.create_run("empty", "standard", "engine", {})
 
     assert store.add_retrieval_calls([]) == 0
     assert store.list_retrieval_calls(run.id) == []

@@ -156,9 +156,9 @@ def validate_stored_arm(
     db_path: str,
     expected: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    from app import store
+    from app.store import runs
 
-    run = store.get_run(run_id, db_path=db_path)
+    run = runs.get_run(run_id, db_path=db_path)
     if run is None:
         raise ValueError("comparison run is missing")
     identity = validate_identity(run.config.get("evaluation_identity"))

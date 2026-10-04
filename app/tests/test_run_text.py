@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from app import elo, store
+from app import elo
 from app.config import settings
 from app.elo import INITIAL_ELO
 from app.goal_text import (
@@ -15,6 +15,8 @@ from app.goal_text import (
     generate_goal_restatement,
     generate_run_title,
 )
+from app.store import runs
+from app.store.runs import RunCreateOptions
 from app.text_utils import readable_experiment_summary
 from tests._llm_fake_backend import install_completion_backend
 
@@ -213,27 +215,27 @@ def test_clean_title_rejects_empty_or_overlong(raw: str) -> None:
 
 
 def test_set_run_title_persists_and_serializes(isolated_db: str) -> None:
-    run = store.create_run(
+    run = runs.create_run(
         "Map senescence escape mechanisms",
         "default",
         "mock",
         {},
-        store.RunCreateOptions(client_id="c1", db_path=isolated_db),
+        RunCreateOptions(client_id="c1", db_path=isolated_db),
     )
     assert run.title is None
     assert run.to_dict()["title"] is None
 
-    store.set_run_title(run.id, "Senescence Escape Mechanisms", isolated_db)
+    runs.set_run_title(run.id, "Senescence Escape Mechanisms", isolated_db)
 
-    reloaded = store.get_run(run.id, db_path=isolated_db)
+    reloaded = runs.get_run(run.id, db_path=isolated_db)
     assert reloaded is not None
     assert reloaded.title == "Senescence Escape Mechanisms"
     assert reloaded.to_dict()["title"] == "Senescence Escape Mechanisms"
 
 
 def test_set_run_title_missing_run_is_noop(isolated_db: str) -> None:
-    store.set_run_title("does-not-exist", "Ghost Title", isolated_db)
-    assert store.get_run("does-not-exist", db_path=isolated_db) is None
+    runs.set_run_title("does-not-exist", "Ghost Title", isolated_db)
+    assert runs.get_run("does-not-exist", db_path=isolated_db) is None
 
 
 async def test_title_call_thinks_and_its_budget_assumes_that(

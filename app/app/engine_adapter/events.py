@@ -5,8 +5,9 @@ from typing import Any
 
 from co_scientist.agents.proximity.proximity_graph import is_judged_edge
 
-from app import store
 from app.run_events import hypothesis_stub
+from app.store import messages as store
+from app.store.messages import NewMessage
 
 
 def _canonical_event_type(node_name: str) -> str:
@@ -196,7 +197,7 @@ def append_node_milestone(
     milestone = _format_milestone(node_type, payload)
     if milestone:
         store.append_message(
-            store.NewMessage(
+            NewMessage(
                 run_id=run_id,
                 sender="system",
                 content=milestone,

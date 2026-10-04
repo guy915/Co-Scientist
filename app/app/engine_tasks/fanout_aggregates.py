@@ -5,7 +5,6 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from app import store
 from app.engine_tasks.support import (
     NodeCompletion,
     TaskCommit,
@@ -15,7 +14,9 @@ from app.engine_tasks.support import (
     leased_state,
     merge_usage_snapshots,
 )
-from app.store import ScientificTask
+from app.store import tasks
+from app.store.models import ScientificTask
+from app.store.tasks import NewTask
 
 
 @dataclass(frozen=True)
@@ -354,8 +355,8 @@ def _enqueue_aggregate_task(
     conn: sqlite3.Connection,
     spec: _AggregateSpec,
 ) -> ScientificTask:
-    return store.enqueue_task(
-        store.NewTask(
+    return tasks.enqueue_task(
+        NewTask(
             run_id=task.run_id,
             task_type=spec.task_type,
             inputs={

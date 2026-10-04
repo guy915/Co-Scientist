@@ -6,8 +6,13 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from app import engine_tasks, store
-from app.store import ScientificTask
+from app import engine_tasks
+from app.store import checkpoints
+from app.store import db as store_db
+from app.store import tasks as store
+from app.store import tasks_lifecycle as lifecycle
+from app.store.models import ScientificTask
+from app.store.tasks import NewTask
 from app.store.tasks_lifecycle import _DEAD_LEASE_ERROR
 
 logger = logging.getLogger(__name__)
@@ -82,7 +87,7 @@ def _enqueue_resume_task(
     )
     _revive_dead_resume_target(run_id, task_type, idempotency_key, db)
     return store.enqueue_task(
-        store.NewTask(
+        NewTask(
             run_id=run_id,
             task_type=task_type,
             inputs={"checkpoint_seq": checkpoint_seq},
@@ -107,7 +112,7 @@ def _revive_dead_resume_target(
     """A dead boundary retains its idempotency key; revive it before enqueue
     or the resume would create no work.
     """
-    if store.revive_task_for_retry(
+    if lifecycle.revive_task_for_retry(
         run_id, idempotency_key, db_path=db.path, conn=db.conn
     ):
         logger.info(
@@ -173,7 +178,7 @@ def _revive_expired_checkpoint_writer(
         or predecessor.lease_expires_at > now
     ):
         return
-    if store.revive_task_for_retry(
+    if lifecycle.revive_task_for_retry(
         run_id,
         predecessor.idempotency_key,
         db_path=db.path,
@@ -276,8 +281,8 @@ def _already_claimable_task(
     """Pause may race successor enqueue; locate continuation using current
     checkpoint and predecessor, never a stale portfolio guess.
     """
-    unpaused = store.resume_run_tasks(run_id, db_path=db.path, conn=db.conn)
-    checkpoint = store.get_latest_checkpoint(
+    unpaused = lifecycle.resume_run_tasks(run_id, db_path=db.path, conn=db.conn)
+    checkpoint = checkpoints.get_latest_checkpoint(
         run_id, db_path=db.path, conn=db.conn
     )
     tasks = store.list_tasks(run_id, db_path=db.path, conn=db.conn)
@@ -312,7 +317,7 @@ def _enqueue_resumed_workflow(
     existing = _already_claimable_task(run_id, db)
     if existing is not None:
         return existing
-    checkpoint = store.get_latest_checkpoint(
+    checkpoint = checkpoints.get_latest_checkpoint(
         run_id, db_path=db.path, conn=db.conn
     )
     if checkpoint is not None:
@@ -384,7 +389,7 @@ def enqueue_run_workflow(
                 _ResumeDB(db_path, conn),
                 revive_failed_precheckpoint_bootstrap=revive_failed_precheckpoint_bootstrap,
             )
-        with store.transaction(db_path) as conn:
+        with store_db.transaction(db_path) as conn:
             return _enqueue_resumed_workflow(
                 run_id,
                 _ResumeDB(db_path, conn),

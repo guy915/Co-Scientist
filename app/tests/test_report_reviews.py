@@ -4,7 +4,6 @@ import asyncio
 import json
 from typing import Any
 
-from app import store
 from app.engine_adapter.drain.reviews import (
     _append_full_critique,
     _assumption_line,
@@ -19,6 +18,7 @@ from app.report.markdown.hypothesis import (
     _render_hypothesis_reviews,
     _render_reviews_summary,
 )
+from app.store import records, reports, runs
 from tests._drain_helpers import (
     _build_report,
     _final_state_with_features,
@@ -574,13 +574,13 @@ def _final_state_with_mature_enrichments() -> dict[str, Any]:
 def test_report_payload_carries_every_persisted_review(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("review goal", "standard", "engine", {})
+    run = runs.create_run("review goal", "standard", "engine", {})
 
     _persist_and_finalize(
         run, _final_state_with_mature_enrichments(), isolated_db
     )
 
-    report = store.get_latest_report(run.id, db_path=isolated_db)
+    report = reports.get_latest_report(run.id, db_path=isolated_db)
     assert report is not None
     agents = sorted(
         row["reviewer_agent"] for row in report["payload"]["reviews"]
@@ -591,17 +591,17 @@ def test_report_payload_carries_every_persisted_review(
 
 
 def test_report_payload_reviews_default_empty(isolated_db: str) -> None:
-    run = store.create_run("no review goal", "standard", "engine", {})
+    run = runs.create_run("no review goal", "standard", "engine", {})
 
     _persist_and_finalize(run, _final_state_with_lineage(), isolated_db)
 
-    report = store.get_latest_report(run.id, db_path=isolated_db)
+    report = reports.get_latest_report(run.id, db_path=isolated_db)
     assert report is not None
     assert report["payload"]["reviews"] == []
 
 
 def test_mature_review_rows_are_distinctly_labeled(isolated_db: str) -> None:
-    run = store.create_run("labeled goal", "standard", "engine", {})
+    run = runs.create_run("labeled goal", "standard", "engine", {})
 
     _persist(
         run_id=run.id,
@@ -609,7 +609,7 @@ def test_mature_review_rows_are_distinctly_labeled(isolated_db: str) -> None:
         db_path=isolated_db,
     )
 
-    reviews = store.list_reviews(run.id, db_path=isolated_db)
+    reviews = records.list_reviews(run.id, db_path=isolated_db)
     summaries = {
         r["reviewer_agent"]: r["summary"]
         for r in reviews
@@ -1037,10 +1037,10 @@ def test_drain_persists_detail_json_on_the_review_row(
             "decisive_step": "Step 4.",
         },
     }
-    run = store.create_run("detail-json goal", "standard", "engine", {})
+    run = runs.create_run("detail-json goal", "standard", "engine", {})
     _persist_and_finalize(run, state, isolated_db)
 
-    rows = store.list_reviews(run.id, db_path=isolated_db)
+    rows = records.list_reviews(run.id, db_path=isolated_db)
     reviews = {r["reviewer_agent"]: r for r in rows}
     full_detail = json.loads(reviews["full_review"]["detail_json"])
     sim_detail = json.loads(reviews["simulation_review"]["detail_json"])
@@ -1051,7 +1051,7 @@ def test_drain_persists_detail_json_on_the_review_row(
     }
     dv = [
         r
-        for r in store.list_reviews(run.id, db_path=isolated_db)
+        for r in records.list_reviews(run.id, db_path=isolated_db)
         if r["reviewer_agent"] == "deep_verification"
     ]
     dv_detail = json.loads(dv[0]["detail_json"])

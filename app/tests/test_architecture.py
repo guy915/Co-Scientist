@@ -11,7 +11,6 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import TypeAdapter, ValidationError
 
-from app import store
 from app.api_contracts.common import JsonValue, RunEventActivity
 from app.api_contracts.generate import (
     API_DIR,
@@ -20,7 +19,10 @@ from app.api_contracts.generate import (
     type_expression,
 )
 from app.main import app
+from app.store import reports as store
+from app.store import runs
 from app.store.events import ACTIVITY_VALUES
+from app.store.runs import RunCreateOptions
 
 _APP_DIR = Path(__file__).resolve().parents[1] / "app"
 _INTERVIEW_MODULES = {
@@ -195,12 +197,12 @@ def test_requirements_app_matches_pyproject() -> None:
 
 
 def _legacy_run(isolated_db: str) -> str:
-    run = store.create_run(
+    run = runs.create_run(
         "Study feedback",
         "standard",
         "mock",
         {"old_knob": [1, None]},
-        store.RunCreateOptions(client_id="contract-owner", db_path=isolated_db),
+        RunCreateOptions(client_id="contract-owner", db_path=isolated_db),
     )
     store.save_report(
         run.id,

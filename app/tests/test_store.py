@@ -4,8 +4,20 @@ import os
 
 import pytest
 
-from app import store
 from app.citations import CitationState
+from app.store import db as store_db
+from app.store import events as store_events
+from app.store import hypotheses as store
+from app.store import records, runs
+from app.store import runs_views as views
+from app.store.hypotheses import HypothesisStateChanges, NewHypothesis
+from app.store.records import (
+    NewCitation,
+    NewEvidence,
+    NewMatch,
+    NewReview,
+    NewSafetyDecision,
+)
 
 
 @pytest.fixture
@@ -14,31 +26,31 @@ def db(isolated_db: str) -> str:
 
 
 def test_event_log_is_append_only_and_strictly_increasing(db: str) -> None:
-    run = store.create_run("test", "standard", "mock", {})
+    run = runs.create_run("test", "standard", "mock", {})
     seqs = []
     for i in range(5):
-        seqs.append(store.append_event(run.id, "log", {"i": i}))
-    events = store.list_events(run.id)
+        seqs.append(store_events.append_event(run.id, "log", {"i": i}))
+    events = store_events.list_events(run.id)
     assert seqs == [e["seq"] for e in events]
     assert all(seqs[i] < seqs[i + 1] for i in range(4))
 
 
 def test_list_events_filters_after_seq(db: str) -> None:
-    run = store.create_run("filter test", "standard", "mock", {})
+    run = runs.create_run("filter test", "standard", "mock", {})
     for i in range(4):
-        store.append_event(run.id, "log", {"i": i})
-    half = store.list_events(run.id)[1]["seq"]
-    after = store.list_events(run.id, after_seq=half)
+        store_events.append_event(run.id, "log", {"i": i})
+    half = store_events.list_events(run.id)[1]["seq"]
+    after = store_events.list_events(run.id, after_seq=half)
     assert len(after) == 2
     for ev in after:
         assert ev["seq"] > half
 
 
 def test_list_runs_reports_top_elo(db: str) -> None:
-    run = store.create_run("top-elo", "standard", "mock", {})
+    run = runs.create_run("top-elo", "standard", "mock", {})
     for rating in (1240, 1310, 1180):
         hid = store.add_hypothesis(
-            store.NewHypothesis(
+            NewHypothesis(
                 run_id=run.id,
                 title="t",
                 statement="s",
@@ -46,22 +58,22 @@ def test_list_runs_reports_top_elo(db: str) -> None:
             )
         )
         store.update_hypothesis_state(
-            hid, store.HypothesisStateChanges(elo_rating=rating)
+            hid, HypothesisStateChanges(elo_rating=rating)
         )
-    store.create_run("no-hyps", "standard", "mock", {})
+    runs.create_run("no-hyps", "standard", "mock", {})
 
-    by_goal = {r.research_goal: r for r in store.list_runs()}
+    by_goal = {r.research_goal: r for r in views.list_runs()}
     assert by_goal["top-elo"].top_elo == 1310
     assert by_goal["no-hyps"].top_elo is None
-    assert store.get_run(run.id) is not None
-    assert store.get_run(run.id).top_elo is None  # type: ignore[union-attr]
+    assert runs.get_run(run.id) is not None
+    assert runs.get_run(run.id).top_elo is None  # type: ignore[union-attr]
 
 
 def test_list_runs_reports_top_hypotheses_by_elo(db: str) -> None:
-    run = store.create_run("top-hyps", "standard", "mock", {})
+    run = runs.create_run("top-hyps", "standard", "mock", {})
     for title, rating in (("Low", 1180), ("High", 1320), ("Mid", 1250)):
         hid = store.add_hypothesis(
-            store.NewHypothesis(
+            NewHypothesis(
                 run_id=run.id,
                 title=title,
                 statement="s",
@@ -69,23 +81,23 @@ def test_list_runs_reports_top_hypotheses_by_elo(db: str) -> None:
             )
         )
         store.update_hypothesis_state(
-            hid, store.HypothesisStateChanges(elo_rating=rating)
+            hid, HypothesisStateChanges(elo_rating=rating)
         )
-    store.create_run("no-hyps", "standard", "mock", {})
+    runs.create_run("no-hyps", "standard", "mock", {})
 
-    by_goal = {r.research_goal: r for r in store.list_runs()}
+    by_goal = {r.research_goal: r for r in views.list_runs()}
     assert by_goal["top-hyps"].top_hypotheses == ["High", "Mid", "Low"]
     assert by_goal["no-hyps"].top_hypotheses == []
-    single = store.get_run(run.id)
+    single = runs.get_run(run.id)
     assert single is not None
     assert single.top_hypotheses is None
 
 
 def test_list_runs_caps_top_hypotheses_at_three(db: str) -> None:
-    run = store.create_run("many-hyps", "standard", "mock", {})
+    run = runs.create_run("many-hyps", "standard", "mock", {})
     for rating in (1300, 1290, 1280, 1270, 1260):
         hid = store.add_hypothesis(
-            store.NewHypothesis(
+            NewHypothesis(
                 run_id=run.id,
                 title=f"h{rating}",
                 statement="s",
@@ -93,33 +105,33 @@ def test_list_runs_caps_top_hypotheses_at_three(db: str) -> None:
             )
         )
         store.update_hypothesis_state(
-            hid, store.HypothesisStateChanges(elo_rating=rating)
+            hid, HypothesisStateChanges(elo_rating=rating)
         )
 
-    listed = {r.research_goal: r for r in store.list_runs()}["many-hyps"]
+    listed = {r.research_goal: r for r in views.list_runs()}["many-hyps"]
     assert listed.top_hypotheses == ["h1300", "h1290", "h1280"]
 
 
 def test_list_runs_reports_latest_pipeline_stage(db: str) -> None:
-    run = store.create_run("staged", "standard", "mock", {})
-    store.append_event(run.id, "supervisor.plan", {})
-    store.append_event(run.id, "generate", {})
-    store.append_event(run.id, "ranking", {})
-    store.append_event(run.id, "status", {"status": "running"})
-    store.create_run("unstaged", "standard", "mock", {})
+    run = runs.create_run("staged", "standard", "mock", {})
+    store_events.append_event(run.id, "supervisor.plan", {})
+    store_events.append_event(run.id, "generate", {})
+    store_events.append_event(run.id, "ranking", {})
+    store_events.append_event(run.id, "status", {"status": "running"})
+    runs.create_run("unstaged", "standard", "mock", {})
 
-    by_goal = {r.research_goal: r for r in store.list_runs()}
+    by_goal = {r.research_goal: r for r in views.list_runs()}
     assert by_goal["staged"].latest_stage == "ranking"
     assert by_goal["unstaged"].latest_stage is None
-    single = store.get_run(run.id)
+    single = runs.get_run(run.id)
     assert single is not None
     assert single.latest_stage is None
 
 
 def test_hypothesis_state_decoupled_from_hypothesis_row(db: str) -> None:
-    run = store.create_run("decoupling test", "standard", "mock", {})
+    run = runs.create_run("decoupling test", "standard", "mock", {})
     hid = store.add_hypothesis(
-        store.NewHypothesis(
+        NewHypothesis(
             run_id=run.id,
             title="t",
             statement="s",
@@ -130,10 +142,10 @@ def test_hypothesis_state_decoupled_from_hypothesis_row(db: str) -> None:
         )
     )
     store.update_hypothesis_state(
-        hid, store.HypothesisStateChanges(elo_rating=1300, win_delta=1)
+        hid, HypothesisStateChanges(elo_rating=1300, win_delta=1)
     )
     store.update_hypothesis_state(
-        hid, store.HypothesisStateChanges(elo_rating=1350, win_delta=1)
+        hid, HypothesisStateChanges(elo_rating=1350, win_delta=1)
     )
     h = store.get_hypothesis(hid)
     assert h is not None
@@ -144,9 +156,9 @@ def test_hypothesis_state_decoupled_from_hypothesis_row(db: str) -> None:
 
 
 def test_hypothesis_row_carries_scene_setting(db: str) -> None:
-    run = store.create_run("scene-setting test", "standard", "mock", {})
+    run = runs.create_run("scene-setting test", "standard", "mock", {})
     hid = store.add_hypothesis(
-        store.NewHypothesis(
+        NewHypothesis(
             run_id=run.id,
             title="t",
             statement="s",
@@ -168,9 +180,9 @@ def test_hypothesis_row_carries_scene_setting(db: str) -> None:
 
 
 def test_hypothesis_row_carries_safety_and_toxicity(db: str) -> None:
-    run = store.create_run("safety test", "standard", "mock", {})
+    run = runs.create_run("safety test", "standard", "mock", {})
     hid = store.add_hypothesis(
-        store.NewHypothesis(
+        NewHypothesis(
             run_id=run.id,
             title="t",
             statement="s",
@@ -184,9 +196,9 @@ def test_hypothesis_row_carries_safety_and_toxicity(db: str) -> None:
 
 
 def test_evolved_hypothesis_has_parent_and_higher_generation(db: str) -> None:
-    run = store.create_run("lineage", "standard", "mock", {})
+    run = runs.create_run("lineage", "standard", "mock", {})
     parent = store.add_hypothesis(
-        store.NewHypothesis(
+        NewHypothesis(
             run_id=run.id,
             title="P",
             statement="ps",
@@ -194,7 +206,7 @@ def test_evolved_hypothesis_has_parent_and_higher_generation(db: str) -> None:
         )
     )
     child = store.add_hypothesis(
-        store.NewHypothesis(
+        NewHypothesis(
             run_id=run.id,
             title="C",
             statement="cs",
@@ -212,19 +224,19 @@ def test_evolved_hypothesis_has_parent_and_higher_generation(db: str) -> None:
 
 
 def test_multi_parent_hypothesis_records_every_parent(db: str) -> None:
-    run = store.create_run("multi-parent", "standard", "mock", {})
+    run = runs.create_run("multi-parent", "standard", "mock", {})
     primary = store.add_hypothesis(
-        store.NewHypothesis(
+        NewHypothesis(
             run_id=run.id, title="P1", statement="p1", hypothesis_id="p1"
         )
     )
     partner = store.add_hypothesis(
-        store.NewHypothesis(
+        NewHypothesis(
             run_id=run.id, title="P2", statement="p2", hypothesis_id="p2"
         )
     )
     child = store.add_hypothesis(
-        store.NewHypothesis(
+        NewHypothesis(
             run_id=run.id,
             title="C",
             statement="cs",
@@ -246,9 +258,9 @@ def test_multi_parent_hypothesis_records_every_parent(db: str) -> None:
 
 
 def test_redact_hypothesis_fields_overwrites_detail_columns(db: str) -> None:
-    run = store.create_run("redact", "standard", "mock", {})
+    run = runs.create_run("redact", "standard", "mock", {})
     hid = store.add_hypothesis(
-        store.NewHypothesis(
+        NewHypothesis(
             run_id=run.id,
             title="H",
             statement="keep me",
@@ -269,18 +281,18 @@ def test_redact_hypothesis_fields_overwrites_detail_columns(db: str) -> None:
 def test_redact_hypothesis_fields_rejects_non_redactable_column(
     db: str,
 ) -> None:
-    run = store.create_run("redact", "standard", "mock", {})
+    run = runs.create_run("redact", "standard", "mock", {})
     hid = store.add_hypothesis(
-        store.NewHypothesis(run_id=run.id, title="H", statement="s")
+        NewHypothesis(run_id=run.id, title="H", statement="s")
     )
     with pytest.raises(ValueError, match="non-redactable"):
         store.redact_hypothesis_fields(hid, {"statement": "wiped"})
 
 
 def test_safety_decision_persists_matches_array(db: str) -> None:
-    run = store.create_run("safety", "standard", "mock", {})
-    store.add_safety_decision(
-        store.NewSafetyDecision(
+    run = runs.create_run("safety", "standard", "mock", {})
+    records.add_safety_decision(
+        NewSafetyDecision(
             run_id=run.id,
             stage="intake",
             decision="block",
@@ -288,15 +300,15 @@ def test_safety_decision_persists_matches_array(db: str) -> None:
             matches=["match-a", "match-b"],
         )
     )
-    rows = store.list_safety_decisions(run.id)
+    rows = records.list_safety_decisions(run.id)
     assert rows[0]["decision"] == "block"
     assert rows[0]["matches"] == ["match-a", "match-b"]
 
 
 def test_match_log_preserves_pre_post_elo(db: str) -> None:
-    run = store.create_run("matches", "standard", "mock", {})
-    store.add_match(
-        store.NewMatch(
+    run = runs.create_run("matches", "standard", "mock", {})
+    records.add_match(
+        NewMatch(
             run_id=run.id,
             iteration=1,
             winner_id="w",
@@ -308,7 +320,7 @@ def test_match_log_preserves_pre_post_elo(db: str) -> None:
             rationale="rationale",
         )
     )
-    rows = store.list_matches(run.id)
+    rows = records.list_matches(run.id)
     assert rows[0]["winner_elo_before"] == 1200
     assert rows[0]["winner_elo_after"] == 1212
     assert rows[0]["loser_elo_before"] == 1200
@@ -316,9 +328,9 @@ def test_match_log_preserves_pre_post_elo(db: str) -> None:
 
 
 def test_match_log_records_debate_turns(db: str) -> None:
-    run = store.create_run("matches", "standard", "mock", {})
-    store.add_match(
-        store.NewMatch(
+    run = runs.create_run("matches", "standard", "mock", {})
+    records.add_match(
+        NewMatch(
             run_id=run.id,
             iteration=1,
             winner_id="w",
@@ -330,8 +342,8 @@ def test_match_log_records_debate_turns(db: str) -> None:
             rationale="single",
         )
     )
-    store.add_match(
-        store.NewMatch(
+    records.add_match(
+        NewMatch(
             run_id=run.id,
             iteration=1,
             winner_id="w",
@@ -344,7 +356,7 @@ def test_match_log_records_debate_turns(db: str) -> None:
             debate_turns=3,
         )
     )
-    rows = store.list_matches(run.id)
+    rows = records.list_matches(run.id)
     assert rows[0]["debate_turns"] == 1
     assert rows[1]["debate_turns"] == 3
 
@@ -352,31 +364,31 @@ def test_match_log_records_debate_turns(db: str) -> None:
 def test_connections_pair_wal_with_normal_synchronous(db: str) -> None:
     # WAL with NORMAL reduces fsync lock time while checkpoints preserve
     # durability; writes remain single-writer.
-    with store.connect() as conn:
+    with store_db.connect() as conn:
         assert conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
         assert conn.execute("PRAGMA synchronous").fetchone()[0] == 1
 
 
 def test_connections_enforce_foreign_keys(db: str) -> None:
     # SQLite foreign-key enforcement is per connection.
-    with store.connect() as conn:
+    with store_db.connect() as conn:
         assert conn.execute("PRAGMA foreign_keys").fetchone()[0] == 1
 
 
 def _seed_cascade_children(run_id: str) -> None:
     hid = store.add_hypothesis(
-        store.NewHypothesis(
+        NewHypothesis(
             run_id=run_id,
             title="t",
             statement="s",
             created_by_agent="generation",
         )
     )
-    eid = store.add_evidence(
-        store.NewEvidence(run_id=run_id, title="paper", source="pubmed")
+    eid = records.add_evidence(
+        NewEvidence(run_id=run_id, title="paper", source="pubmed")
     )
-    store.add_review(
-        store.NewReview(
+    records.add_review(
+        NewReview(
             run_id=run_id,
             hypothesis_id=hid,
             reviewer_agent="reflection",
@@ -384,8 +396,8 @@ def _seed_cascade_children(run_id: str) -> None:
             critique="crit",
         )
     )
-    store.add_citation(
-        store.NewCitation(
+    records.add_citation(
+        NewCitation(
             run_id=run_id,
             hypothesis_id=hid,
             evidence_id=eid,
@@ -393,21 +405,21 @@ def _seed_cascade_children(run_id: str) -> None:
             state=CitationState.VERIFIED,
         )
     )
-    store.append_event(run_id, "log", {"i": 0})
+    store_events.append_event(run_id, "log", {"i": 0})
 
 
 def test_deleting_a_run_cascades_to_child_rows(db: str) -> None:
-    run = store.create_run("cascade", "standard", "mock", {})
+    run = runs.create_run("cascade", "standard", "mock", {})
     _seed_cascade_children(run.id)
 
-    with store.connect() as conn:
+    with store_db.connect() as conn:
         conn.execute("DELETE FROM runs WHERE id=?", (run.id,))
 
     assert store.list_hypotheses(run.id) == []
-    assert store.list_evidence(run.id) == []
-    assert store.list_reviews(run.id) == []
-    assert store.list_citations(run.id) == []
-    assert store.list_events(run.id) == []
+    assert records.list_evidence(run.id) == []
+    assert records.list_reviews(run.id) == []
+    assert records.list_citations(run.id) == []
+    assert store_events.list_events(run.id) == []
 
 
 _PER_RUN_LISTED_TABLES = (
@@ -426,7 +438,7 @@ def test_per_run_listing_never_scans_the_whole_table(
     db: str, table: str
 ) -> None:
     # Run-scoped indexes avoid scanning other runs.
-    with store.connect() as conn:
+    with store_db.connect() as conn:
         plan = conn.execute(
             f"EXPLAIN QUERY PLAN SELECT * FROM {table} WHERE run_id=? "
             "ORDER BY created_at ASC",

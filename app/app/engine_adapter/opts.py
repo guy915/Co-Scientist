@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING, Any
 
-from app import run_corpus, store
+from app import run_corpus
 from app.config import settings
 from app.execution_policy import effective_execution_model
 from app.run_modes import (
@@ -15,6 +15,9 @@ from app.run_modes import (
     normalize_run_tier,
     setup_guidance,
 )
+from app.store import interviews, records
+from app.store import messages as store
+from app.store.models import MessageRow
 
 if TYPE_CHECKING:
     from app.credentials import ByokCredential
@@ -77,7 +80,7 @@ def _lab_constraints_for_run(
     interview_id = cfg.get("interview_id")
     if not interview_id:
         return []
-    interview = store.get_interview(str(interview_id), db_path=db_path)
+    interview = interviews.get_interview(str(interview_id), db_path=db_path)
     if interview is None:
         return []
     raw = interview["fields"].get("lab_constraints") or []
@@ -88,7 +91,7 @@ def _apply_private_sources(
     initial_opts: dict[str, Any], run_id: str, goal: str, db_path: str | None
 ) -> None:
     private_sources = run_corpus.engine_context_sources(
-        store.list_evidence(run_id, db_path=db_path),
+        records.list_evidence(run_id, db_path=db_path),
         goal,
     )
     if private_sources:
@@ -233,7 +236,7 @@ def build_generator(
 
 
 def _steering_preferences(
-    setup_text: str, messages: list[store.MessageRow]
+    setup_text: str, messages: list[MessageRow]
 ) -> str | None:
     """Acknowledged steering remains guidance across subsequent checkpoint
     restores.

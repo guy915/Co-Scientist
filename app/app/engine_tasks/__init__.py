@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from app import store
 from app.engine_tasks import runtime as engine_tasks_runtime
 from app.engine_tasks.fanout import (
     execute_generation_strategy,
@@ -60,7 +59,8 @@ from app.execution_policy import (
     scoped_execution_policy,
 )
 from app.run_modes import resolved_run_config
-from app.store import ScientificTask
+from app.store import runs
+from app.store.models import ScientificTask
 
 _ENGINE_TASK_DISPATCH: dict[str, Callable[..., Awaitable[dict[str, Any]]]] = {
     BOOTSTRAP_TASK: execute_bootstrap,
@@ -100,7 +100,7 @@ async def execute_engine_task(
 
     from app.credentials import get_run_credential, scoped_byok
 
-    run = store.get_run(task.run_id, db_path=db_path)
+    run = runs.get_run(task.run_id, db_path=db_path)
     if run is None:
         raise LookupError(f"run not found for task dispatch: {task.run_id}")
     credential = get_run_credential(task.run_id, db_path=db_path)

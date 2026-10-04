@@ -10,7 +10,6 @@ import pytest
 from co_scientist.cache import scoped_cache_override
 from litellm.exceptions import RateLimitError
 
-from app import store
 from app.claims import (
     AssessorDraft,
     EvidencePassage,
@@ -50,7 +49,9 @@ from app.report import content as report_content
 from app.report import gates as report_gates
 from app.report.content import derive_knowledge_facts
 from app.report.markdown.hypothesis import _render_claim_evidence
-from app.store import NewClaimEvidence, db
+from app.store import db, hypotheses, runs
+from app.store import records as store
+from app.store.records import NewClaimEvidence
 from tests._client import make_client
 from tests._drain_helpers import _build_report
 from tests._store_helpers import _add
@@ -318,7 +319,7 @@ async def test_grounding_retains_method_across_api_reopen(
     persist_grounding(
         run_id,
         assess_hypothesis_claims(
-            store.list_hypotheses(run_id),
+            hypotheses.list_hypotheses(run_id),
             as_passages([claim]),
             AssessorSpec(assessor=assess, assessor_id="llm:test"),
         ),
@@ -330,7 +331,7 @@ async def test_grounding_retains_method_across_api_reopen(
         e["verification_method"] == "model_primary" for e in edges
     )
     assert all(e["assessor"] == "llm:test" for e in edges)
-    payload, markdown = await _build_report(store.get_run(run_id), isolated_db)
+    payload, markdown = await _build_report(runs.get_run(run_id), isolated_db)
     assert (
         payload["claim_evidence"][0]["verification_method"] == "model_primary"
     )
@@ -340,12 +341,12 @@ async def test_grounding_retains_method_across_api_reopen(
 def test_legacy_edges_keep_unknown_method_after_repeat_migration(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("Legacy evidence", "express", "engine", {})
+    run = runs.create_run("Legacy evidence", "express", "engine", {})
     hyp_id = _add(
         run.id, "Legacy", "A public research hypothesis.", isolated_db
     )
     store.add_claim_evidence(
-        store.NewClaimEvidence(
+        NewClaimEvidence(
             run_id=run.id,
             hypothesis_id=hyp_id,
             claim="A legacy claim.",

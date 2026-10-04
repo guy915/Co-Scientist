@@ -13,11 +13,16 @@ from co_scientist.models import (
     HypothesisReview,
 )
 
-from app import engine_tasks, store
+from app import engine_tasks
 from app.engine_tasks import ranking as engine_tasks_ranking
 from app.engine_tasks import runtime as engine_tasks_runtime
 from app.engine_tasks import support as engine_tasks_support
 from app.engine_tasks.runtime import ProductionEngineTaskRuntime
+from app.store import checkpoints, events, messages, runs, tasks
+from app.store import tasks_lifecycle as lifecycle
+from app.store.checkpoints import NewCheckpoint
+from app.store.models import ScientificTask
+from app.store.tasks import NewTask
 
 from ._llm_fake_backend import load_engine_fake
 
@@ -51,9 +56,9 @@ def _seed_checkpoint(
     )
 
     envelope = serialize_workflow_state(state, last_event_seq=0)
-    return store.save_checkpoint(
+    return checkpoints.save_checkpoint(
         run_id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage=stage,
             schema_version=CHECKPOINT_VERSION,
             last_event_seq=0,
@@ -136,7 +141,7 @@ def _patch_task_node(monkeypatch: pytest.MonkeyPatch, execute: Any) -> None:
 def _milestones(run_id: str, *, db_path: str | None = None) -> list[str]:
     return [
         message.content
-        for message in store.list_messages(run_id, db_path=db_path)
+        for message in messages.list_messages(run_id, db_path=db_path)
         if message.kind == "milestone"
     ]
 
@@ -146,7 +151,7 @@ def _task_events(
 ) -> list[dict[str, Any]]:
     return [
         event
-        for event in store.list_events(run_id, db_path=db_path)
+        for event in events.list_events(run_id, db_path=db_path)
         if event["payload"].get("task") == task
     ]
 
@@ -214,8 +219,8 @@ def _seed_ranking_node(
         }
     )
     checkpoint_seq = _seed_checkpoint(run_id, state)
-    store.enqueue_task(
-        store.NewTask(
+    tasks.enqueue_task(
+        NewTask(
             run_id=run_id,
             task_type=f"{engine_tasks.NODE_TASK_PREFIX}ranking",
             inputs={"checkpoint_seq": checkpoint_seq},
@@ -266,17 +271,19 @@ def _install_concurrency_tracking_judge(
 
 
 async def _run_ranking_node(run_id: str, db_path: str) -> dict[str, Any]:
-    leased = store.claim_task("ranking", run_id=run_id, db_path=db_path)
+    leased = tasks.claim_task("ranking", run_id=run_id, db_path=db_path)
     assert leased is not None
     scheduled = await engine_tasks.execute_node_task(leased, db_path=db_path)
-    assert store.complete_task(leased.id, "ranking", scheduled, db_path=db_path)
+    assert lifecycle.complete_task(
+        leased.id, "ranking", scheduled, db_path=db_path
+    )
     return scheduled
 
 
 async def _drain_ranking_matches(run_id: str, db_path: str) -> int:
     matches = 0
     while True:
-        match = store.claim_task(
+        match = tasks.claim_task(
             f"match-{matches}", run_id=run_id, db_path=db_path
         )
         assert match is not None
@@ -285,7 +292,7 @@ async def _drain_ranking_matches(run_id: str, db_path: str) -> int:
         result = await engine_tasks_ranking.execute_ranking_match(
             match, db_path=db_path
         )
-        assert store.complete_task(
+        assert lifecycle.complete_task(
             match.id, f"match-{matches}", result, db_path=db_path
         )
         matches += 1
@@ -295,21 +302,21 @@ async def _drain_ranking_matches(run_id: str, db_path: str) -> int:
 def _running_ranking_events(run_id: str, db_path: str) -> list[dict[str, Any]]:
     return [
         e
-        for e in store.list_events(run_id, db_path=db_path)
+        for e in events.list_events(run_id, db_path=db_path)
         if e["payload"].get("task") == "ranking"
         and e["payload"].get("status") == "running"
     ]
 
 
 def _run() -> str:
-    return store.create_run("queue goal", "standard", "engine", {}).id
+    return runs.create_run("queue goal", "standard", "engine", {}).id
 
 
 def _enqueue(
     run_id: str, task_type: str, key: str, db: str, **kwargs: Any
 ) -> Any:
-    return store.enqueue_task(
-        store.NewTask(
+    return tasks.enqueue_task(
+        NewTask(
             run_id=run_id,
             task_type=task_type,
             inputs={},
@@ -335,9 +342,9 @@ def _three_control_tasks(run_id: str, db: str) -> tuple[str, str, str]:
         priority=100,
         max_attempts=1,
     )
-    leased = store.claim_task("failed-worker", run_id=run_id, db_path=db)
+    leased = tasks.claim_task("failed-worker", run_id=run_id, db_path=db)
     assert leased is not None and leased.id == failed.id
-    assert store.fail_task(
+    assert tasks.fail_task(
         failed.id,
         "failed-worker",
         "transient provider error",
@@ -352,7 +359,7 @@ def make_cancellable_executor(
 ) -> Callable[..., Awaitable[dict[str, bool]]]:
 
     async def _execute(
-        _task: store.ScientificTask, *, db_path: str | None = None
+        _task: ScientificTask, *, db_path: str | None = None
     ) -> dict[str, bool]:
         started.set()
         try:

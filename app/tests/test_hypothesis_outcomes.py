@@ -4,9 +4,14 @@ from typing import Any
 
 import pytest
 
-from app import store
 from app.config import settings
-from app.store import RunStatus
+from app.store import checkpoints, events, hypotheses, runs
+from app.store import records as store
+from app.store import runs_views as views
+from app.store.checkpoints import NewCheckpoint
+from app.store.models import DEMO_CLIENT_ID, RunStatus
+from app.store.records import NewEvidence
+from app.store.runs import RunCreateOptions
 from tests._client import make_client
 from tests._outcome_refinement_api_support import (
     _add_hypothesis,
@@ -34,10 +39,10 @@ def test_researcher_records_outcome_and_reads_it_after_restart(
         run_id, isolated_db, "Treatment reduces growth"
     )
     evidence_id = store.add_evidence(
-        store.NewEvidence(run_id=run_id, title="Assay protocol"),
+        NewEvidence(run_id=run_id, title="Assay protocol"),
         db_path=isolated_db,
     )
-    store.update_run_status(run_id, RunStatus.COMPLETED, db_path=isolated_db)
+    runs.update_run_status(run_id, RunStatus.COMPLETED, db_path=isolated_db)
 
     hypothesis_before = next(
         row
@@ -263,14 +268,12 @@ def test_compatibility_identity_cannot_read_or_write_private_outcomes(
 def test_demo_outcomes_are_publicly_readable_and_not_writable(
     isolated_db: str,
 ) -> None:
-    demo = store.create_run(
+    demo = runs.create_run(
         "Public demo outcome",
         "standard",
         "engine",
         {},
-        options=store.RunCreateOptions(
-            client_id=store.DEMO_CLIENT_ID, db_path=isolated_db
-        ),
+        options=RunCreateOptions(client_id=DEMO_CLIENT_ID, db_path=isolated_db),
     )
     hypothesis_id = _add_hypothesis(demo.id, isolated_db, "Demo hypothesis")
     client = make_client()
@@ -294,7 +297,7 @@ def test_outcome_rejects_evidence_from_another_run(isolated_db: str) -> None:
     other_run = _new_run(client, owner)
     hypothesis_id = _add_hypothesis(run_id, isolated_db, "Owned hypothesis")
     foreign_evidence_id = store.add_evidence(
-        store.NewEvidence(run_id=other_run, title="Private other-run evidence"),
+        NewEvidence(run_id=other_run, title="Private other-run evidence"),
         db_path=isolated_db,
     )
 
@@ -335,8 +338,8 @@ def test_outcome_text_is_bounded(isolated_db: str) -> None:
 @pytest.mark.parametrize(
     ("clearer", "clears_events"),
     [
-        (store.clear_publication_artifacts, False),
-        (store.clear_run_derived_data, True),
+        (views.clear_publication_artifacts, False),
+        (views.clear_run_derived_data, True),
     ],
     ids=["publication-replay", "legacy-resume"],
 )
@@ -353,7 +356,7 @@ def test_outcomes_and_audit_events_survive_agent_cleanup(
         run_id, isolated_db, "Agent hypothesis to test"
     )
     evidence_id = store.add_evidence(
-        store.NewEvidence(
+        NewEvidence(
             run_id=run_id,
             title="Retrieved assay paper",
             source="pubmed",
@@ -373,18 +376,18 @@ def test_outcomes_and_audit_events_survive_agent_cleanup(
     )
     assert created.status_code == 201
     outcome = created.json()
-    original_events = store.list_events(run_id, db_path=isolated_db)
+    original_events = events.list_events(run_id, db_path=isolated_db)
     original_outcome_event = next(
         event
         for event in original_events
         if event["type"] == "scientist.outcome"
     )
-    original_high_water = store.latest_event_seq(run_id, db_path=isolated_db)
+    original_high_water = events.latest_event_seq(run_id, db_path=isolated_db)
 
     if clears_events:
-        store.save_checkpoint(
+        checkpoints.save_checkpoint(
             run_id,
-            store.NewCheckpoint(
+            NewCheckpoint(
                 stage="resume-test",
                 schema_version=1,
                 last_event_seq=original_high_water,
@@ -415,7 +418,7 @@ def test_outcomes_and_audit_events_survive_agent_cleanup(
     ]
     assert evidence_id not in [row["id"] for row in store.list_evidence(run_id)]
     assert hypothesis_id not in [
-        row["id"] for row in store.list_hypotheses(run_id)
+        row["id"] for row in hypotheses.list_hypotheses(run_id)
     ]
 
     replayed = client.get(
@@ -431,7 +434,7 @@ def test_outcomes_and_audit_events_survive_agent_cleanup(
     assert "measured_observation" not in outcome_event["payload"]
     assert outcome_event == original_outcome_event
 
-    next_seq = store.append_event(
+    next_seq = events.append_event(
         run_id, "status", {"status": "still-ordered"}, db_path=isolated_db
     )
     assert next_seq > outcome_event["seq"]

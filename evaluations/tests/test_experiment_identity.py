@@ -62,7 +62,7 @@ def test_digest_preserves_order_independence_and_rejects_nonfinite_values() -> (
 
 
 def test_persisted_arm_freezes_inputs_and_model_policy(tmp_path: Path) -> None:
-    from app import store
+    from app.store import runs
 
     db = str(tmp_path / "comparison.db")
     _run_driver.configure_environment(db, str(tmp_path / "cache"), live=False)
@@ -75,7 +75,7 @@ def test_persisted_arm_freezes_inputs_and_model_policy(tmp_path: Path) -> None:
             "Other goal",
         )
     ]
-    records = [store.get_run(run_id, db_path=db) for run_id in ids]
+    records = [runs.get_run(run_id, db_path=db) for run_id in ids]
     identities = [run.config["evaluation_identity"] for run in records]
     assert identities[0] == identities[1]
     assert identities[0]["digest"] != identities[2]["digest"]
@@ -104,8 +104,8 @@ def test_model_and_fallback_changes_change_persisted_identity(
 ) -> None:
 
     import co_scientist.llm.profile as routes
-    from app import store
     from app.config import settings
+    from app.store import runs as store
 
     db = str(tmp_path / "model-policy.db")
     _run_driver.configure_environment(db, str(tmp_path / "cache"), live=False)
@@ -162,8 +162,9 @@ def test_invalid_identity_stops_before_worker(
     monkeypatch: pytest.MonkeyPatch,
     fault: str,
 ) -> None:
-    from app import store, task_worker
+    from app import task_worker
     from app.config import settings
+    from app.store import runs as store
 
     db = str(tmp_path / "drift.db")
     _run_driver.configure_environment(db, str(tmp_path / "cache"), live=False)
@@ -198,8 +199,9 @@ def test_worker_drift_cannot_produce_an_arm_result(
     monkeypatch: pytest.MonkeyPatch,
     fault: str,
 ) -> None:
-    from app import store, task_worker
+    from app import task_worker
     from app.config import settings
+    from app.store import runs as store
 
     from evaluations._identity import identity_digest
 
@@ -239,7 +241,7 @@ def _record(
     tier: str = "express",
     overrides: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    from app import store
+    from app.store import runs as store
 
     db = str(tmp_path / "groups.db")
     _run_driver.configure_environment(db, str(tmp_path / "cache"), live=False)

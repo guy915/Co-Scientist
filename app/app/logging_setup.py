@@ -11,7 +11,8 @@ import threading
 from collections.abc import Generator
 from contextvars import ContextVar
 
-import app.store as store
+from app.store import logs as store
+from app.store.logs import NewLogRecord
 
 # Child tasks inherit run context, allowing one workflow binding to correlate
 # every emitted record.
@@ -188,7 +189,7 @@ class _StoreWriteHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         try:
             store.append_log(
-                store.NewLogRecord(
+                NewLogRecord(
                     level=record.levelname,
                     levelno=record.levelno,
                     logger_name=record.name,

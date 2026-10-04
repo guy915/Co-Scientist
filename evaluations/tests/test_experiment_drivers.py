@@ -49,7 +49,7 @@ def _drive_one_arm(
 
 
 def _persisted_state(run_id: str, db_path: str) -> dict[str, Any]:
-    from app import store
+    from app.store import checkpoints as store
 
     checkpoint = store.get_latest_checkpoint(run_id, db_path=db_path)
     assert checkpoint is not None, "run left no checkpoint"

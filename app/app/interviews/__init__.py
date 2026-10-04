@@ -7,7 +7,6 @@ from fastapi.responses import StreamingResponse
 
 import app.interviews.turns as support
 import app.staged_documents as staged_documents
-import app.store as store
 from app.api_contracts.interviews import ChatSummary, Interview
 from app.auth import client_id, require_client_scope
 from app.execution_policy import resolve_execution_policy
@@ -51,6 +50,8 @@ from app.interviews.turns import (
 from app.interviews.turns import advance_turn as advance_turn
 from app.interviews.turns import owned_interview as _owned_interview
 from app.interviews.turns import request_byok as _request_byok
+from app.store import interviews as store
+from app.store.interviews import NewInterviewTurn
 
 _revision_router = APIRouter()
 
@@ -109,7 +110,7 @@ def _rewind_and_restream(
     store.rewind_interview(interview_id, turn_id)
     if replacement is not None:
         store.append_interview_turn(
-            interview_id, store.NewInterviewTurn("user", replacement)
+            interview_id, NewInterviewTurn("user", replacement)
         )
     _reset_derivation(interview_id)
     return _interview_stream(
@@ -257,7 +258,7 @@ async def add_interview_turn(
         raise HTTPException(status_code=409, detail="interview is not active")
     _attach_documents(interview_id, body.document_ids, request)
     store.append_interview_turn(
-        interview_id, store.NewInterviewTurn("user", body.content)
+        interview_id, NewInterviewTurn("user", body.content)
     )
     return _interview_stream(
         interview_id,

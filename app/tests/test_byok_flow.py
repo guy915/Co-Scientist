@@ -7,9 +7,11 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app import credentials, engine_tasks, store
+from app import credentials, engine_tasks
 from app.config import settings
 from app.main import app
+from app.store import checkpoints, runs
+from app.store.models import ScientificTask
 from tests._llm_fake_backend import install_completion_backend
 
 _SECRET = "byok-flow-secret"
@@ -39,8 +41,8 @@ def _no_background_title_network(
     monkeypatch.setattr("app.runs.crud.generate_run_title", _no_title)
 
 
-def _node_task(run_id: str) -> store.ScientificTask:
-    return store.ScientificTask(
+def _node_task(run_id: str) -> ScientificTask:
+    return ScientificTask(
         id="task-1",
         run_id=run_id,
         task_type="engine.node.generate",
@@ -152,7 +154,7 @@ def test_byok_run_is_real_backed_and_stores_the_credential(
     assert captured["api_key"] == _KEY
     assert captured["model"] == "deepseek/deepseek-v4-flash"
     assert _KEY not in json.dumps(run)
-    row = store.get_run(run["id"])
+    row = runs.get_run(run["id"])
     assert row is not None
     assert row.llm_backend == "real"
     assert row.config.get("byok_provider") == "deepseek"
@@ -168,7 +170,7 @@ def test_byok_run_is_real_backed_and_stores_the_credential(
     assert cfg.get("byok_provider") == "deepseek"
     assert resolve_offline_backend(cfg) is False
     sync_engine_llm_backend(run["id"], cfg, None)
-    refreshed = store.get_run(run["id"])
+    refreshed = runs.get_run(run["id"])
     assert refreshed is not None
     assert refreshed.llm_backend == "real"
 
@@ -249,7 +251,7 @@ async def test_byok_key_absent_from_serialized_checkpoint(
             stage="test", schema_version=1, last_event_seq=0, state=envelope
         ),
     )
-    checkpoint = store.get_latest_checkpoint(run["id"])
+    checkpoint = checkpoints.get_latest_checkpoint(run["id"])
     assert checkpoint is not None
     blob = json.dumps(checkpoint["state"])
     assert _KEY not in blob

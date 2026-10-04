@@ -3,13 +3,14 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from app import store
 from app.claims.gate import is_categorical_contradiction, is_supporting
 from app.hypothesis import record_hypothesis_block
 from app.hypothesis.safety import (
     is_blocking_status,
     review_hypothesis_safety,
 )
+from app.store import hypotheses
+from app.store import records as store
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,7 @@ def unverified_hypothesis_ids(
     rows = (
         hyps
         if hyps is not None
-        else store.list_hypotheses(run_id, db_path=db_path)
+        else hypotheses.list_hypotheses(run_id, db_path=db_path)
     )
     all_hypothesis_ids = {str(hypothesis.get("id")) for hypothesis in rows}
     return all_hypothesis_ids - supported

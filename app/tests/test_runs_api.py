@@ -6,9 +6,14 @@ from typing import cast
 import pytest
 from fastapi.testclient import TestClient
 
-from app import store
 from app.config import settings
 from app.runs.models import CreateRunRequest
+from app.store import checkpoints
+from app.store import runs as store
+from app.store.checkpoints import NewCheckpoint
+from app.store.models import DEMO_CLIENT_ID
+from app.store.models import RunStatus as StoreRunStatus
+from app.store.runs import RunCreateOptions
 from tests._client import make_client
 from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
@@ -104,14 +109,17 @@ def test_cancel_draft_run_without_handle_marks_it_cancelled() -> None:
 
 
 def test_cancel_restart_survivor_marks_it_cancelled() -> None:
-    from app import store
-    from app.store import RunStatus
+    from app.store import events as store_events
+    from app.store import runs as store_runs
+    from app.store import tasks
+    from app.store.models import RunStatus
+    from app.store.tasks import NewTask
 
     c = _client()
     rid = _new_run(c, "Restart survivor cancel")
-    store.update_run_status(rid, RunStatus.RUNNING)
-    queued = store.enqueue_task(
-        store.NewTask(
+    store_runs.update_run_status(rid, RunStatus.RUNNING)
+    queued = tasks.enqueue_task(
+        NewTask(
             run_id=rid,
             task_type="engine.node.ranking",
             inputs={},
@@ -124,10 +132,10 @@ def test_cancel_restart_survivor_marks_it_cancelled() -> None:
     assert res.status_code == 200
     assert res.json()["status"] == "cancelled"
     assert c.get(f"/api/runs/{rid}").json()["status"] == "cancelled"
-    cancelled = store.get_task(queued.id)
+    cancelled = tasks.get_task(queued.id)
     assert cancelled is not None
     assert cancelled.status == "cancelled"
-    events = store.list_events(rid)
+    events = store_events.list_events(rid)
     assert any(
         e["type"] == "status" and e["payload"].get("status") == "cancelled"
         for e in events
@@ -137,7 +145,7 @@ def test_cancel_restart_survivor_marks_it_cancelled() -> None:
 def test_engine_queue_can_pause_and_resume_without_process_handle(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from app import store
+    from app.store import tasks as store
 
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     c = _client()
@@ -227,14 +235,12 @@ def test_active_run_counts_committed_checkpoint_artifacts(
         "standard",
         "engine",
         {},
-        store.RunCreateOptions(client_id="live-owner", db_path=isolated_db),
+        RunCreateOptions(client_id="live-owner", db_path=isolated_db),
     )
-    store.update_run_status(
-        run.id, store.RunStatus.RUNNING, db_path=isolated_db
-    )
-    store.save_checkpoint(
+    store.update_run_status(run.id, StoreRunStatus.RUNNING, db_path=isolated_db)
+    checkpoints.save_checkpoint(
         run.id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage="engine_task:test",
             schema_version=1,
             last_event_seq=0,
@@ -318,9 +324,7 @@ def test_demo_route_precedes_run_id_route(isolated_db: str) -> None:
         "standard",
         "engine",
         {},
-        store.RunCreateOptions(
-            client_id=store.DEMO_CLIENT_ID, db_path=isolated_db
-        ),
+        RunCreateOptions(client_id=DEMO_CLIENT_ID, db_path=isolated_db),
     )
     client = _client()
     _new_run(client, "Private run excluded from demo list")

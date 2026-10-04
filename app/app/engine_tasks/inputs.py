@@ -3,7 +3,6 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
-from app import store
 from app.elo import INITIAL_ELO
 from app.engine_adapter import sync_engine_llm_backend
 from app.engine_tasks import runtime as engine_tasks_runtime
@@ -20,7 +19,15 @@ from app.human_input import VERDICT_REVIEW_SCORES
 from app.run_events import make_emitter
 from app.run_modes import resolved_run_config
 from app.safety import ScreenSubject, apply_safety_gate, screen_intake
-from app.store import RunRow, RunStatus, ScientificTask
+from app.store import checkpoints, events, messages, records, runs, tasks
+from app.store import hypotheses as store_hypotheses
+from app.store.models import (
+    TERMINAL_STATUSES,
+    RunRow,
+    RunStatus,
+    ScientificTask,
+)
+from app.store.tasks import NewTask
 
 
 def enqueue_bootstrap(
@@ -29,8 +36,8 @@ def enqueue_bootstrap(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> ScientificTask:
-    return store.enqueue_task(
-        store.NewTask(
+    return tasks.enqueue_task(
+        NewTask(
             run_id=run_id,
             task_type=BOOTSTRAP_TASK,
             inputs={},
@@ -50,7 +57,7 @@ def enqueue_bootstrap(
 def _bootstrap_start_status(
     task: ScientificTask, run: RunRow, db_path: str | None
 ) -> str:
-    status = store.mark_bootstrap_running(
+    status = runs.mark_bootstrap_running(
         run.id,
         task.id,
         task.lease_owner,
@@ -107,7 +114,7 @@ def reopen_for_pending_scientist_input(
     the last orchestrator boundary without reopening again after
     acknowledgement.
     """
-    pending = store.get_pending_steering(run_id, db_path=db_path)
+    pending = messages.get_pending_steering(run_id, db_path=db_path)
     if not pending:
         return None
     return enqueue_scientist_continuation(
@@ -121,23 +128,23 @@ def enqueue_scientist_continuation(
     *,
     db_path: str | None = None,
 ) -> ScientificTask | None:
-    run = store.get_run(run_id, db_path=db_path)
+    run = runs.get_run(run_id, db_path=db_path)
     if run is None or run.provider != "engine":
         return None
     if run.status != RunStatus.COMPLETED.value:
         return None
-    checkpoint = store.get_latest_checkpoint(run_id, db_path=db_path)
+    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=db_path)
     if checkpoint is None:
         return None
-    store.update_run_status(run_id, RunStatus.QUEUED, db_path=db_path)
-    store.append_event(
+    runs.update_run_status(run_id, RunStatus.QUEUED, db_path=db_path)
+    events.append_event(
         run_id,
         "lifecycle",
         {"event": "reopened_for_scientist_input", "input_id": input_id},
         db_path=db_path,
     )
-    return store.enqueue_task(
-        store.NewTask(
+    return tasks.enqueue_task(
+        NewTask(
             run_id=run_id,
             task_type=f"{NODE_TASK_PREFIX}orchestrator",
             inputs={"checkpoint_seq": int(checkpoint["seq"])},
@@ -193,7 +200,7 @@ def _merge_scientist_hypotheses(
     run_id: str,
     db_path: str | None,
 ) -> None:
-    for row in store.list_hypotheses(run_id, db_path=db_path):
+    for row in store_hypotheses.list_hypotheses(run_id, db_path=db_path):
         if row.get("created_by_agent") != "scientist_manual":
             continue
         hypothesis_id = str(row["id"])
@@ -255,7 +262,7 @@ def _merge_scientist_reviews(
     run_id: str,
     db_path: str | None,
 ) -> None:
-    for row in store.list_reviews(run_id, db_path=db_path):
+    for row in records.list_reviews(run_id, db_path=db_path):
         if row.get("reviewer_agent") != "scientist":
             continue
         hypothesis = by_id.get(str(row.get("hypothesis_id")))
@@ -300,7 +307,7 @@ def _refresh_dispositions(hypotheses: list[Any], state: dict[str, Any]) -> None:
 
 
 async def _prepare_bootstrap_state(
-    task: ScientificTask, run: store.RunRow, db_path: str | None
+    task: ScientificTask, run: RunRow, db_path: str | None
 ) -> tuple[dict[str, Any], TaskCommit]:
     """Bootstrap incorporates guidance but leaves steering pending for the
     first orchestrator decision; pause is fenced by the commit
@@ -315,7 +322,7 @@ async def _prepare_bootstrap_state(
         run_id=run.id,
     )
     commit = _task_commit(task, 0, db_path, opts, consume_steering=False)
-    refreshed = store.get_run(run.id, db_path=db_path)
+    refreshed = runs.get_run(run.id, db_path=db_path)
     if refreshed is None or refreshed.status == RunStatus.CANCELLED.value:
         raise RuntimeError("run cancelled during bootstrap")
     # Pause snapshots are advisory; the commit transaction resolves a concurrent
@@ -333,7 +340,7 @@ async def execute_bootstrap(
         return withheld
     run = _require_run(task, db_path)  # the gate may have redacted the goal
     bootstrap_status = _bootstrap_start_status(task, run, db_path)
-    if bootstrap_status in {status.value for status in store.TERMINAL_STATUSES}:
+    if bootstrap_status in {status.value for status in TERMINAL_STATUSES}:
         return {"run_id": run.id, "status": bootstrap_status, "terminal": True}
     # Persist the resolved backend before generator construction reads run
     # provenance.

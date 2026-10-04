@@ -13,7 +13,6 @@ import app.engine_adapter as engine_adapter
 import app.free_usage as free_usage
 import app.run_corpus as run_corpus
 import app.staged_documents as staged_documents
-import app.store as store
 import app.store.receipts as run_creation_receipts
 from app.auth import client_id, require_client_scope
 from app.config import byok_enabled
@@ -36,7 +35,19 @@ from app.runs.models import (
     _build_create_run_config,
 )
 from app.runs.support import _run_or_404
-from app.store import RunRow, RunStatus
+from app.store import (
+    checkpoints,
+    db,
+    documents,
+    events,
+    interviews,
+    records,
+    tasks,
+)
+from app.store import runs as store
+from app.store import runs_views as views
+from app.store.models import DEMO_CLIENT_ID, RunRow, RunStatus
+from app.store.runs import RunCreateOptions
 
 
 def _reject_campaign_byok(
@@ -79,7 +90,7 @@ def _resolve_run_interview(
 ) -> tuple[dict[str, Any] | None, CreateRunRequest]:
     if not req.interview_id:
         return None, req
-    interview = store.get_interview(req.interview_id)
+    interview = interviews.get_interview(req.interview_id)
     if (
         interview is None
         or interview["client_id"] != client_id(request)
@@ -159,7 +170,7 @@ class _PersistNewRun(Protocol):
         execution_policy: str = "standard",
         *,
         conn: sqlite3.Connection | None = None,
-    ) -> store.RunRow: ...
+    ) -> RunRow: ...
 
 
 @dataclass(frozen=True)
@@ -190,7 +201,7 @@ class RunCreationCallbacks:
     ]
     post_commit_effects: Callable[
         [
-            store.RunRow,
+            RunRow,
             CreateRunRequest,
             credentials.ByokCredential | None,
             BackgroundTasks,
@@ -202,7 +213,7 @@ class RunCreationCallbacks:
 def _receipt_replay(
     receipt: run_creation_receipts.RunCreationReceipt | None,
     request_digest: str,
-) -> store.RunRow | None:
+) -> RunRow | None:
     if receipt is None:
         return None
     if receipt.request_digest != request_digest:
@@ -221,7 +232,7 @@ def _persist_new_run_for_owner(
     *,
     owner: str,
     conn: sqlite3.Connection | None = None,
-) -> store.RunRow:
+) -> RunRow:
     interview_title = None
     if interview:
         interview_title = clean_title(interview["fields"].get("title") or "")
@@ -230,7 +241,7 @@ def _persist_new_run_for_owner(
         resolved.run_mode,
         resolved.provider,
         resolved.config,
-        store.RunCreateOptions(
+        RunCreateOptions(
             client_id=owner,
             title=interview_title,
             llm_backend=resolved.llm_backend,
@@ -245,9 +256,9 @@ def _persist_new_run_for_owner(
     event["focus"] = resolved.focus
     event["tier"] = resolved.run_mode
     if conn is None:
-        store.append_event(run.id, "lifecycle", event)
+        events.append_event(run.id, "lifecycle", event)
     else:
-        store.append_event_deferred_log(run.id, "lifecycle", event, conn)
+        events.append_event_deferred_log(run.id, "lifecycle", event, conn)
     return run
 
 
@@ -255,7 +266,7 @@ def _run_setup_documents(
     req: CreateRunRequest, interview: dict[str, Any] | None, owner: str
 ) -> list[dict[str, Any]]:
     named = staged_documents.resolve_owned_documents(req.document_ids, owner)
-    return store.merge_run_setup_documents(
+    return documents.merge_run_setup_documents(
         named, str(interview["id"]) if interview is not None else None
     )
 
@@ -351,11 +362,11 @@ def _persist_setup_transaction(
     request: Request,
     callbacks: RunCreationCallbacks,
 ) -> tuple[
-    store.RunRow | None,
+    RunRow | None,
     run_creation_receipts.RunCreationReceipt | None,
 ]:
 
-    def persist_run(conn: sqlite3.Connection) -> store.RunRow:
+    def persist_run(conn: sqlite3.Connection) -> RunRow:
         run = callbacks.persist_new_run(
             setup.request,
             request,
@@ -392,7 +403,7 @@ def _commit_setup(
     setup: _ResolvedSetup,
     request: Request,
     callbacks: RunCreationCallbacks,
-) -> tuple[store.RunRow, bool]:
+) -> tuple[RunRow, bool]:
     run, receipt = _persist_setup_transaction(
         admission, setup, request, callbacks
     )
@@ -403,7 +414,7 @@ def _commit_setup(
     if run is None:
         raise RuntimeError("run creation returned no run or receipt")
     store.log_run_created(run)
-    store.log_event_stage(
+    events.log_event_stage(
         run.id,
         "lifecycle",
         {
@@ -447,7 +458,7 @@ def _guard_deletable(run: RunRow) -> None:
     """Active or claimable leases prevent deletion, avoiding worker writes
     against a removed parent run.
     """
-    if run.client_id == store.DEMO_CLIENT_ID:
+    if run.client_id == DEMO_CLIENT_ID:
         raise HTTPException(
             status_code=403, detail="the demo run cannot be deleted"
         )
@@ -494,7 +505,7 @@ def _persist_new_run(
     execution_policy: str = "standard",
     *,
     conn: sqlite3.Connection | None = None,
-) -> store.RunRow:
+) -> RunRow:
     return _persist_new_run_for_owner(
         req,
         request,
@@ -514,7 +525,7 @@ async def _generate_run_text(
     *,
     restatement: bool = False,
 ) -> str | None:
-    run: store.RunRow | None = None
+    run: RunRow | None = None
     if execution_policy is None:
         run = store.get_run(run_id)
         if run is None:
@@ -572,7 +583,7 @@ async def _populate_goal_restatement(
 
 
 def _apply_post_commit_effects(
-    run: store.RunRow,
+    run: RunRow,
     req: CreateRunRequest,
     byok: Any,
     background_tasks: BackgroundTasks,
@@ -624,15 +635,15 @@ async def create_run(
     )
 
 
-def _runs_payload(runs: list[store.RunRow]) -> dict[str, Any]:
+def _runs_payload(runs: list[RunRow]) -> dict[str, Any]:
     # Share one connection across list progress queries rather than opening one
     # per row.
-    with store.connect() as conn:
+    with db.connect() as conn:
         return {
             "runs": [
                 {
                     **r.to_dict(),
-                    "execution_progress": store.task_progress(r.id, conn=conn),
+                    "execution_progress": tasks.task_progress(r.id, conn=conn),
                 }
                 for r in runs
             ]
@@ -653,23 +664,23 @@ async def list_runs(
     subject = client_id(request)
     if not subject:
         return {"runs": []}
-    runs = store.list_runs(client_id=subject, limit=limit)
+    runs = views.list_runs(client_id=subject, limit=limit)
     return _runs_payload(runs)
 
 
 # Literal demo paths precede /{run_id} for first-match routing.
 async def list_demo_runs() -> dict[str, Any]:
     """List the seeded demo runs, which are visible to every client."""
-    runs = store.list_runs(client_id=store.DEMO_CLIENT_ID)
+    runs = views.list_runs(client_id=DEMO_CLIENT_ID)
     return _runs_payload(runs)
 
 
 async def get_run(run_id: str) -> dict[str, Any]:
     """Return a run's details plus per-table summary counts."""
-    with store.connect() as conn:
+    with db.connect() as conn:
         run = _run_or_404(run_id, conn=conn)
         summary = store.summary_counts(run_id, conn=conn)
-        checkpoint = store.get_latest_checkpoint(run_id, conn=conn)
+        checkpoint = checkpoints.get_latest_checkpoint(run_id, conn=conn)
         if checkpoint and run.status in {
             RunStatus.QUEUED.value,
             RunStatus.RUNNING.value,
@@ -686,11 +697,11 @@ async def get_run(run_id: str) -> dict[str, Any]:
             summary["evidence"] = max(
                 summary["evidence"], len(live_state.get("articles") or [])
             )
-        progress = store.task_progress(run_id, conn=conn)
+        progress = tasks.task_progress(run_id, conn=conn)
         awaiting = _awaiting_decision_count(run, conn=conn)
         failure_kind = None
         if run.status == RunStatus.FAILED.value:
-            status_event = store.latest_status_event(run_id, conn=conn)
+            status_event = events.latest_status_event(run_id, conn=conn)
             if status_event and status_event.get("status") == run.status:
                 failure_kind = status_event.get("failure_kind")
     return {
@@ -702,15 +713,13 @@ async def get_run(run_id: str) -> dict[str, Any]:
     }
 
 
-def _awaiting_decision_count(
-    run: store.RunRow, *, conn: sqlite3.Connection
-) -> int:
+def _awaiting_decision_count(run: RunRow, *, conn: sqlite3.Connection) -> int:
     """Awaiting review derives from paused status plus unresolved decisions,
     avoiding a third state that can drift.
     """
     if run.status != RunStatus.PAUSED.value:
         return 0
-    return store.count_unresolved_review_decisions(run.id, conn=conn)
+    return records.count_unresolved_review_decisions(run.id, conn=conn)
 
 
 async def rename_run(run_id: str, body: RenameRunRequest) -> dict[str, Any]:
@@ -740,7 +749,7 @@ async def rename_run(run_id: str, body: RenameRunRequest) -> dict[str, Any]:
             rename (the same guard ``app.runs.crud`` applies).
     """
     run = _run_or_404(run_id)
-    if run.client_id == store.DEMO_CLIENT_ID:
+    if run.client_id == DEMO_CLIENT_ID:
         raise HTTPException(
             status_code=403, detail="the demo run cannot be renamed"
         )

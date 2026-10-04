@@ -4,13 +4,16 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, Response
 
-from app import store
 from app.api_contracts import SharesResponse
 from app.api_contracts.reports import SharedGoalReport
 from app.api_contracts.runs import ReportShare
 from app.auth import client_id
 from app.evidence_chunking import parent_evidence_id
 from app.report import exclude_unsafe_hypotheses, released_claim_evidence
+from app.store import hypotheses as store_hypotheses
+from app.store import records, runs
+from app.store import reports as store
+from app.store.models import RunRow
 
 router = APIRouter(tags=["shares"])
 
@@ -28,8 +31,8 @@ _PUBLIC_EVIDENCE_FIELDS = (
 )
 
 
-def _owned_run(run_id: str, request: Request) -> store.RunRow:
-    run = store.get_run(run_id)
+def _owned_run(run_id: str, request: Request) -> RunRow:
+    run = runs.get_run(run_id)
     if run is None or run.client_id != client_id(request):
         raise HTTPException(status_code=404, detail="run not found")
     return run
@@ -64,7 +67,7 @@ async def revoke_share(
     return Response(status_code=204)
 
 
-def _public_run_view(run: store.RunRow) -> dict[str, Any]:
+def _public_run_view(run: RunRow) -> dict[str, Any]:
     """Public capability access must not expose raw configuration, ownership
     or internal error state.
     """
@@ -97,12 +100,12 @@ def _released_content(
     """Shares apply the same publication gates as reports and expose only
     released ideas and their referenced sources.
     """
-    all_hypotheses = store.list_hypotheses(run_id)
-    claim_edges = store.list_claim_evidence(run_id)
+    all_hypotheses = store_hypotheses.list_hypotheses(run_id)
+    claim_edges = records.list_claim_evidence(run_id)
     hypotheses = exclude_unsafe_hypotheses(
         run_id, all_hypotheses, None, claim_edges
     )
-    evidence = store.list_evidence(run_id)
+    evidence = records.list_evidence(run_id)
     released_edges = released_claim_evidence(hypotheses, claim_edges, evidence)
     referenced = _referenced_evidence_ids(released_edges)
     released_evidence = [
@@ -120,7 +123,7 @@ async def get_shared_report(token: str) -> dict[str, Any]:
     if share is None:
         raise HTTPException(status_code=404, detail="share not found")
     shared_run_id = str(share["run_id"])
-    run = store.get_run(shared_run_id)
+    run = runs.get_run(shared_run_id)
     report = store.get_latest_report(shared_run_id)
     if run is None or report is None:
         raise HTTPException(status_code=404, detail="Goal Report not found")

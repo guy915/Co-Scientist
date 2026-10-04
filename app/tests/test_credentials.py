@@ -5,8 +5,10 @@ import logging
 import pytest
 from starlette.datastructures import Headers
 
-from app import credentials, store
+from app import credentials
 from app.config import settings
+from app.store import db, runs
+from app.store.models import RunRow
 
 _SECRET = "unit-test-byok-secret"
 _KEY = "sk-test-1234567890"
@@ -18,8 +20,8 @@ def byok_secret(monkeypatch: pytest.MonkeyPatch) -> str:
     return _SECRET
 
 
-def _make_run(goal: str = "goal") -> store.RunRow:
-    return store.create_run(goal, "express", "engine", {})
+def _make_run(goal: str = "goal") -> RunRow:
+    return runs.create_run(goal, "express", "engine", {})
 
 
 def test_encrypt_decrypt_round_trip(byok_secret: str) -> None:
@@ -91,7 +93,7 @@ def test_run_credential_deleted_with_the_run(byok_secret: str) -> None:
         provider="openai", api_key=_KEY, model="openai/gpt-4o"
     )
     credentials.store_run_credential(run.id, run.client_id, cred)
-    with store.connect() as conn:
+    with db.connect() as conn:
         conn.execute("DELETE FROM runs WHERE id=?", (run.id,))
     assert credentials.get_run_credential(run.id) is None
 
@@ -102,7 +104,7 @@ def test_stored_token_is_not_plaintext(byok_secret: str) -> None:
         provider="openai", api_key=_KEY, model="openai/gpt-4o"
     )
     credentials.store_run_credential(run.id, run.client_id, cred)
-    with store.connect() as conn:
+    with db.connect() as conn:
         row = conn.execute(
             "SELECT encrypted_key FROM run_credentials WHERE run_id=?",
             (run.id,),

@@ -16,7 +16,6 @@ from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import JSONResponse
 
 import app.engine_adapter as engine_adapter
-import app.store as store
 from app import API_VERSION
 from app.account_export import router as account_export_router
 from app.auth import Principal, auth_required, principal_for_request
@@ -38,6 +37,10 @@ from app.operator_access import is_operator
 from app.runs import router as runs_router
 from app.seed import seed_demo_runs
 from app.shares import router as shares_router
+from app.store import checkpoints as store
+from app.store import db, runs, tasks
+from app.store import runs_views as views
+from app.store.models import DEMO_CLIENT_ID
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +90,7 @@ def _reconcile_and_log_interrupted_runs() -> dict[str, list[str]]:
             "Could not materialize pending outcome-refinement intents",
             exc_info=True,
         )
-    reconciled = store.reconcile_interrupted_runs()
+    reconciled = views.reconcile_interrupted_runs()
     if reconciled["failed"]:
         logger.info(
             "Reconciled %s interrupted run(s) to failed: %s",
@@ -121,7 +124,7 @@ def _launch_embedded_recovery_workers(
         return
     import app.task_worker as task_worker
 
-    for run_id in store.list_active_engine_task_run_ids():
+    for run_id in tasks.list_active_engine_task_run_ids():
         recovery_workers.append(
             asyncio.create_task(
                 asyncio.to_thread(
@@ -230,7 +233,7 @@ async def lifespan(
         logger.info("Shutting down Co-Scientist server...")
         # Drain queued logging before the shutdown WAL merge.
         shutdown_log_capture()
-        store.checkpoint_wal()
+        db.checkpoint_wal()
 
 
 app = FastAPI(
@@ -288,8 +291,8 @@ def _run_ownership_response(
     run_id = parts[2]
     if run_id == "demo":
         return None
-    run = store.get_run(run_id)
-    if run is None or run.client_id == store.DEMO_CLIENT_ID:
+    run = runs.get_run(run_id)
+    if run is None or run.client_id == DEMO_CLIENT_ID:
         return None
     client_id = principal.subject if principal else ""
     if client_id and client_id == run.client_id:

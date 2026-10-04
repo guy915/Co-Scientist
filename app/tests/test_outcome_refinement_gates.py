@@ -8,8 +8,11 @@ from co_scientist.agents import evolution, ranking, reflection
 from co_scientist.models import Hypothesis, HypothesisOrigin, HypothesisReview
 from co_scientist.state import WorkflowState
 
-from app import store, task_worker
+from app import task_worker
 from app.config import settings
+from app.store import checkpoints, outcomes
+from app.store import events as store_events
+from app.store import tasks as store
 from tests._client import make_client
 from tests._outcome_refinement_api_support import (
     MESELSON_STAHL_OUTCOME_FIELDS,
@@ -183,7 +186,7 @@ def test_targeted_child_traverses_standard_review_safety_claim_and_elo_gates(
     assert "engine.ranking.match" in completed_types
     assert "engine.ranking.finalize" in completed_types
 
-    checkpoint = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert checkpoint is not None
     state = checkpoint["state"]["state"]
     hypotheses = [
@@ -203,7 +206,7 @@ def test_targeted_child_traverses_standard_review_safety_claim_and_elo_gates(
     assert any("gate-tested-child" in matchup for matchup in stubs.matchups)
     assert "outcome_refinement" not in child.enrichments
 
-    action = store.get_outcome_refinement_action(
+    action = outcomes.get_outcome_refinement_action(
         run_id, action_id, db_path=isolated_db
     )
     assert action is not None and action["child_hypothesis_id"] == child.id
@@ -219,7 +222,7 @@ def test_targeted_child_traverses_standard_review_safety_claim_and_elo_gates(
         and task.status in {"queued", "leased", "completed"}
         for task in tasks
     )
-    events = store.list_events(run_id, db_path=isolated_db)
+    events = store_events.list_events(run_id, db_path=isolated_db)
     assert MESELSON_STAHL_OUTCOME_FIELDS["measured_observation"] not in str(
         events
     )

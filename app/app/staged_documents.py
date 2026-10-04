@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from app import store
+from app.store import documents as store
 
 
 def resolve_owned_documents(

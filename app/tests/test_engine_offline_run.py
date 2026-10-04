@@ -7,8 +7,11 @@ import pytest
 from co_scientist.llm.request import backend
 from co_scientist.offline import llm as offline_llm
 
-from app import store, task_worker
-from app.store import RunStatus
+from app import task_worker
+from app.store import events as store_events
+from app.store import hypotheses, reports, runs
+from app.store.models import RunStatus
+from app.store.runs import RunCreateOptions
 
 from ._llm_fake_backend import load_engine_fake
 
@@ -42,12 +45,12 @@ def _persist_offline_run(isolated_db: str) -> tuple[Any, dict[str, Any]]:
         "tier": "express",
         "enable_literature_review": False,
     }
-    run = store.create_run(
+    run = runs.create_run(
         "Explain how protein X folds under crowding.",
         "express",
         "mock",
         config,
-        store.RunCreateOptions(
+        RunCreateOptions(
             client_id="offline-e2e", llm_backend="offline", db_path=isolated_db
         ),
     )
@@ -66,7 +69,7 @@ def _drive_offline_engine(
             policy=task_worker.WorkerPolicy(db_path=isolated_db),
         )
     )
-    return store.list_events(run.id, db_path=isolated_db)
+    return store_events.list_events(run.id, db_path=isolated_db)
 
 
 def test_offline_engine_run_completes_without_a_real_call(
@@ -86,11 +89,11 @@ def test_offline_engine_run_completes_without_a_real_call(
 
     types_emitted = [e["type"] for e in events]
     assert "report" in types_emitted
-    final = store.get_run(run.id, db_path=isolated_db)
+    final = runs.get_run(run.id, db_path=isolated_db)
     assert final is not None
     assert final.status == RunStatus.COMPLETED.value
     assert final.llm_backend == "offline"
-    assert store.get_latest_report(run.id, db_path=isolated_db) is not None
+    assert reports.get_latest_report(run.id, db_path=isolated_db) is not None
 
-    hyps = store.list_hypotheses(run.id, db_path=isolated_db)
+    hyps = hypotheses.list_hypotheses(run.id, db_path=isolated_db)
     assert hyps

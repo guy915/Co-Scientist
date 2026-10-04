@@ -4,7 +4,11 @@ import logging
 
 import pytest
 
-from app import store
+from app.store import events as store
+from app.store import runs
+from app.store import runs_views as views
+from app.store.models import RunStatus
+from app.store.runs import RunCreateOptions
 
 
 def _stage_records(
@@ -15,12 +19,12 @@ def _stage_records(
 
 @pytest.fixture
 def run_id(isolated_db: str) -> str:
-    run = store.create_run(
+    run = runs.create_run(
         "stage logging",
         "standard",
         "mock",
         {},
-        store.RunCreateOptions(db_path=isolated_db),
+        RunCreateOptions(db_path=isolated_db),
     )
     return str(run.id)
 
@@ -96,11 +100,9 @@ def test_stage_record_keeps_useful_scalars(
 def test_events_written_inside_transactions_are_logged(
     isolated_db: str, run_id: str, caplog: pytest.LogCaptureFixture
 ) -> None:
-    store.update_run_status(
-        run_id, store.RunStatus.RUNNING, db_path=isolated_db
-    )
+    runs.update_run_status(run_id, RunStatus.RUNNING, db_path=isolated_db)
     with caplog.at_level(logging.INFO):
-        store.reconcile_interrupted_runs(db_path=isolated_db)
+        views.reconcile_interrupted_runs(db_path=isolated_db)
     messages = [r.getMessage() for r in _stage_records(caplog)]
     assert any("status=failed" in m for m in messages), messages
 

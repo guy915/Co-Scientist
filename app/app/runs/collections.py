@@ -6,13 +6,17 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse
 
 import app.api_contracts as contracts
-from app import store
 from app.api_contracts.reports import Report
 from app.auth import require_bearer_principal
 from app.logs_api import RunLogQuery, logs_payload
 from app.report import unverified_hypothesis_ids
 from app.runs.lifecycle import adjudicate_safety
 from app.runs.support import _require_run, _run_or_404
+from app.store import hypotheses, outcomes, reports, runs, tasks
+from app.store import records as store
+from app.store import retrieval_calls as retrieval
+from app.store import supervisor_plan as plans
+from app.store.models import DEMO_CLIENT_ID
 
 router = APIRouter()
 
@@ -21,11 +25,11 @@ router = APIRouter()
 async def get_hypotheses(run_id: str) -> dict[str, Any]:
     """Return the run's hypotheses with Elo state, lineage, and verification."""
     run = _run_or_404(run_id)
-    hyps = store.list_hypotheses(run_id)
+    hyps = hypotheses.list_hypotheses(run_id)
     # Offline badges describe persisted run provenance, never the current
     # process
     # backend.
-    if store.run_used_offline(run):
+    if runs.run_used_offline(run):
         for hyp in hyps:
             hyp["unverified"] = False
     else:
@@ -76,11 +80,11 @@ async def get_hypothesis_outcomes(
 ) -> dict[str, Any]:
     """Return the run's researcher-recorded hypothesis outcomes."""
     run = _run_or_404(run_id)
-    if run.client_id != store.DEMO_CLIENT_ID:
+    if run.client_id != DEMO_CLIENT_ID:
         researcher = require_bearer_principal(request)
         if run.client_id != researcher.subject:
             raise HTTPException(status_code=404, detail="run not found")
-    return {"outcomes": store.list_hypothesis_outcomes(run_id)}
+    return {"outcomes": outcomes.list_hypothesis_outcomes(run_id)}
 
 
 def _task_payload(task: Any) -> dict[str, Any]:
@@ -102,7 +106,7 @@ def _task_payload(task: Any) -> dict[str, Any]:
 async def get_tasks(run_id: str) -> dict[str, Any]:
     """Return the run's durable tasks, including retry-attempt history."""
     _require_run(run_id)
-    return {"tasks": [_task_payload(t) for t in store.list_tasks(run_id)]}
+    return {"tasks": [_task_payload(t) for t in tasks.list_tasks(run_id)]}
 
 
 # Literal routes precede dynamic IDs because the router uses first-match
@@ -130,7 +134,7 @@ async def get_metrics(run_id: str) -> dict[str, Any]:
     its first node (e.g. still bootstrapping).
     """
     _require_run(run_id)
-    return {"metrics": store.get_run_metrics(run_id)}
+    return {"metrics": retrieval.get_run_metrics(run_id)}
 
 
 @router.get("/{run_id}/logs")
@@ -176,7 +180,7 @@ async def get_knowledge_facts(
     """
     _require_run(run_id)
     return {
-        "knowledge_facts": store.list_knowledge_facts(
+        "knowledge_facts": reports.list_knowledge_facts(
             run_id, kind=kind, entity=entity
         )
     }
@@ -195,10 +199,10 @@ async def get_supervisor_plan(run_id: str) -> dict[str, Any]:
     run finalizes; null/empty before then.
     """
     _require_run(run_id)
-    plan = store.get_supervisor_plan(run_id)
+    plan = plans.get_supervisor_plan(run_id)
     return {
         "plan": plan,
-        "allocations": store.list_supervisor_allocations(run_id),
+        "allocations": plans.list_supervisor_allocations(run_id),
     }
 
 
@@ -206,7 +210,7 @@ async def get_supervisor_plan(run_id: str) -> dict[str, Any]:
 async def get_report(run_id: str) -> dict[str, Any]:
     """Return the latest structured report, or 404 before synthesis."""
     _require_run(run_id)
-    report = store.get_latest_report(run_id)
+    report = reports.get_latest_report(run_id)
     if not report:
         raise HTTPException(status_code=404, detail="no report yet")
     return report
@@ -216,7 +220,7 @@ async def get_report(run_id: str) -> dict[str, Any]:
 async def get_report_markdown(run_id: str) -> PlainTextResponse:
     """Return the rendered Goal Report document as a file download."""
     _require_run(run_id)
-    md = store.read_report_markdown(run_id)
+    md = reports.read_report_markdown(run_id)
     if md is None:
         raise HTTPException(status_code=404, detail="no report yet")
     return PlainTextResponse(

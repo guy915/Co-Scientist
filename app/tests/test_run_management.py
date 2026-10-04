@@ -31,19 +31,16 @@ from fastapi.testclient import TestClient
 
 import app.run_modes as run_modes_attributes_mod
 import app.run_modes as run_modes_criteria
-from app import (
-    async_bridge,
-    credentials,
-    engine_tasks,
-    run_modes,
-    store,
-    task_worker,
-)
+from app import async_bridge, credentials, engine_tasks, run_modes, task_worker
 from app.config import settings
 from app.engine_adapter.opts import _generator_kwargs
 from app.run_modes import RUN_TIER_DEFAULTS
 from app.runs import crud as runs_crud
+from app.store import db, documents, logs, runs, tasks
 from app.store import receipts as store_receipts
+from app.store.models import DEMO_CLIENT_ID, RunStatus, ScientificTask
+from app.store.runs import RunCreateOptions
+from app.store.tasks import NewTask
 from tests._client import append_log_row, wait_for
 from tests._client import make_client as _deletion_make_client
 from tests._client import make_client as _idempotency_make_client
@@ -85,12 +82,12 @@ async def test_durable_auxiliary_admission_with_stored_credential(
             }
         )
     )
-    run = store.create_run(
+    run = runs.create_run(
         "public research",
         "standard",
         "engine",
         {},
-        store.RunCreateOptions(
+        RunCreateOptions(
             execution_policy=("standard" if mode == "user_byok" else "campaign")
         ),
     )
@@ -104,8 +101,8 @@ async def test_durable_auxiliary_admission_with_stored_credential(
     credentials.store_run_credential(
         run.id, "test-owner", credential, isolated_db
     )
-    task = store.enqueue_task(
-        store.NewTask(
+    task = tasks.enqueue_task(
+        NewTask(
             run_id=run.id,
             task_type="engine.node.generate",
             inputs={},
@@ -114,11 +111,11 @@ async def test_durable_auxiliary_admission_with_stored_credential(
         db_path=isolated_db,
     )
     if recovered:
-        claimed = store.claim_task(
+        claimed = tasks.claim_task(
             "lost-worker", run_id=run.id, db_path=isolated_db
         )
         assert claimed is not None
-        with store.connect(isolated_db) as conn:
+        with db.connect(isolated_db) as conn:
             conn.execute(
                 "UPDATE scientific_tasks SET lease_expires_at=0 WHERE id=?",
                 (task.id,),
@@ -170,7 +167,7 @@ async def test_durable_auxiliary_admission_with_stored_credential(
             await calls[auxiliary]()
 
     async def dispatch(
-        task: store.ScientificTask, *, db_path: str | None = None
+        task: ScientificTask, *, db_path: str | None = None
     ) -> dict[str, Any]:
         await asyncio.create_task(assess())
         await async_bridge.run_off_loop(
@@ -184,7 +181,7 @@ async def test_durable_auxiliary_admission_with_stored_credential(
     assert await task_worker.run_once(
         "fresh-worker", run_id=run.id, db_path=isolated_db
     )
-    saved = store.get_task(task.id, db_path=isolated_db)
+    saved = tasks.get_task(task.id, db_path=isolated_db)
     assert saved is not None and saved.status == "completed"
     assert saved.result == {"checked": auxiliary}
     assert saved.attempt == (2 if recovered else 1)
@@ -458,7 +455,7 @@ def test_create_route_uses_one_patched_client_scope_for_run_owner(
     response = _idempotency_post_run(client)
 
     assert response.status_code == 200
-    run = store.get_run(response.json()["id"])
+    run = runs.get_run(response.json()["id"])
     assert run is not None
     assert run.client_id == "patched-owner-scope"
     assert run.execution_policy == "campaign"
@@ -871,9 +868,9 @@ def test_late_setup_failure_rolls_back_every_effect_and_allows_retry(
         ).json()["runs"]
         == []
     )
-    document = store.get_staged_documents([document_id], _ROLLBACK_OWNER)[0]
+    document = documents.get_staged_documents([document_id], _ROLLBACK_OWNER)[0]
     assert document["run_id"] is None
-    with store.connect() as conn:
+    with db.connect() as conn:
         for table in (
             "runs",
             "run_events",
@@ -888,10 +885,12 @@ def test_late_setup_failure_rolls_back_every_effect_and_allows_retry(
     retried = client.post("/api/runs", headers=headers, json=payload)
     assert retried.status_code == 200, retried.text
     assert (
-        store.get_staged_documents([document_id], _ROLLBACK_OWNER)[0]["run_id"]
+        documents.get_staged_documents([document_id], _ROLLBACK_OWNER)[0][
+            "run_id"
+        ]
         == (retried.json()["id"])
     )
-    with store.connect() as conn:
+    with db.connect() as conn:
         digest = conn.execute(
             "SELECT request_digest FROM run_creation_receipts WHERE run_id=?",
             (retried.json()["id"],),
@@ -944,12 +943,12 @@ def test_delete_requires_a_terminal_run() -> None:
         json={"research_goal": "Active run goal"},
     )
     run_id = created.json()["id"]
-    store.update_run_status(run_id, store.RunStatus.RUNNING)
+    runs.update_run_status(run_id, RunStatus.RUNNING)
 
     response = client.delete(f"/api/runs/{run_id}", headers=_DELETION_OWNER)
 
     assert response.status_code == 409
-    assert store.run_exists(run_id)
+    assert runs.run_exists(run_id)
 
 
 def test_delete_unknown_run_404s() -> None:
@@ -972,24 +971,24 @@ def test_another_client_cannot_delete_the_run() -> None:
     response = client.delete(f"/api/runs/{run_id}", headers=_DELETION_OTHER)
 
     assert response.status_code == 404
-    assert store.run_exists(run_id)
+    assert runs.run_exists(run_id)
 
 
 def test_demo_run_cannot_be_deleted() -> None:
     client = _deletion_make_client()
-    demo = store.create_run(
+    demo = runs.create_run(
         "Demo goal",
         "standard",
         "engine",
         {},
-        store.RunCreateOptions(client_id=store.DEMO_CLIENT_ID),
+        RunCreateOptions(client_id=DEMO_CLIENT_ID),
     )
-    store.update_run_status(demo.id, store.RunStatus.COMPLETED)
+    runs.update_run_status(demo.id, RunStatus.COMPLETED)
 
     response = client.delete(f"/api/runs/{demo.id}", headers=_DELETION_OWNER)
 
     assert response.status_code == 403
-    assert store.run_exists(demo.id)
+    assert runs.run_exists(demo.id)
 
 
 def test_delete_cascades_across_every_run_scoped_table(
@@ -998,7 +997,7 @@ def test_delete_cascades_across_every_run_scoped_table(
     client = _deletion_make_client()
     run_id = _run_to_completion(client, "Cascade delete goal")
 
-    before = store.count_run_rows(run_id, db_path=isolated_db)
+    before = runs.count_run_rows(run_id, db_path=isolated_db)
     assert before["runs"] == 1
     assert before["hypotheses"] > 0
     assert before["reports"] > 0
@@ -1011,9 +1010,9 @@ def test_delete_cascades_across_every_run_scoped_table(
     assert body["deleted"] is True
     assert body["counts"] == before
 
-    after = store.count_run_rows(run_id, db_path=isolated_db)
+    after = runs.count_run_rows(run_id, db_path=isolated_db)
     assert all(count == 0 for count in after.values()), after
-    assert not store.run_exists(run_id)
+    assert not runs.run_exists(run_id)
     assert client.get(f"/api/runs/{run_id}").status_code == 404
 
 
@@ -1050,14 +1049,14 @@ def test_delete_removes_the_runs_persisted_log_rows(
     )
     app_wide_row_id = append_log_row(isolated_db, "app-wide line")
 
-    assert store.count_logs_for_run(run_id, db_path=isolated_db) == 2
+    assert logs.count_logs_for_run(run_id, db_path=isolated_db) == 2
 
     response = client.delete(f"/api/runs/{run_id}", headers=_DELETION_OWNER)
     assert response.status_code == 200, response.text
     assert response.json()["counts"]["app_logs"] == 2
 
-    assert store.count_logs_for_run(run_id, db_path=isolated_db) == 0
-    remaining = store.list_logs(db_path=isolated_db)
+    assert logs.count_logs_for_run(run_id, db_path=isolated_db) == 0
+    remaining = logs.list_logs(db_path=isolated_db)
     assert "deletion cascade probe" not in " ".join(
         row["message"] for row in remaining
     )
@@ -1095,7 +1094,7 @@ def test_delete_clears_but_does_not_remove_a_carried_document(
     response = client.delete(f"/api/runs/{run_id}", headers=_DELETION_OWNER)
     assert response.status_code == 200, response.text
 
-    remaining = store.get_staged_documents([document_id], "delete-owner")
+    remaining = documents.get_staged_documents([document_id], "delete-owner")
     assert len(remaining) == 1
     assert remaining[0]["run_id"] is None
 
@@ -1435,17 +1434,17 @@ def test_another_client_cannot_rename_it() -> None:
     )
 
     assert response.status_code == 404
-    run = store.get_run(run_id)
+    run = runs.get_run(run_id)
     assert run is not None and run.title != _TITLE
 
 
 def test_the_shared_demo_run_cannot_be_renamed() -> None:
     client: TestClient = _rename_make_client()
     demo_id = _draft_run(client)
-    with store.connect() as conn:
+    with db.connect() as conn:
         conn.execute(
             "UPDATE runs SET client_id=? WHERE id=?",
-            (store.DEMO_CLIENT_ID, demo_id),
+            (DEMO_CLIENT_ID, demo_id),
         )
 
     response = client.patch(

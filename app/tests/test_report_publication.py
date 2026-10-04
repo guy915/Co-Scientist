@@ -7,7 +7,7 @@ from typing import Any, cast
 import pytest
 from fastapi.testclient import TestClient
 
-from app import engine_tasks, store, task_worker
+from app import engine_tasks, task_worker
 from app.config import settings
 from app.engine_tasks import finalize as engine_tasks_node
 from app.engine_tasks import support as engine_tasks_support
@@ -18,6 +18,16 @@ from app.report import finalize as report_finalize
 from app.report import gates as report_gates
 from app.safety import SafetyDecision, apply_safety_gate
 from app.safety.types import REDACTED_PLACEHOLDER
+from app.store import checkpoints, db, hypotheses, records, reports, runs, tasks
+from app.store import events as store_events
+from app.store import retrieval_calls as retrieval
+from app.store import tasks_lifecycle as lifecycle
+from app.store.checkpoints import NewCheckpoint
+from app.store.hypotheses import HypothesisStateChanges, NewHypothesis
+from app.store.models import RunStatus
+from app.store.records import NewClaimEvidence, NewEvidence
+from app.store.runs import RunCreateOptions
+from app.store.tasks import NewTask
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _Generator,
@@ -115,9 +125,7 @@ def _seed_leased_finalize(
     )
     assert created.status_code == 200, created.text
     run_id = str(created.json()["id"])
-    store.update_run_status(
-        run_id, store.RunStatus.RUNNING, db_path=isolated_db
-    )
+    runs.update_run_status(run_id, RunStatus.RUNNING, db_path=isolated_db)
 
     state = _task_state(run_id)
     if monitor_halt:
@@ -131,8 +139,8 @@ def _seed_leased_finalize(
             }
         ]
     checkpoint_seq = _seed_checkpoint(run_id, state, db_path=isolated_db)
-    queued = store.enqueue_task(
-        store.NewTask(
+    queued = tasks.enqueue_task(
+        NewTask(
             run_id=run_id,
             task_type=engine_tasks_support.FINALIZE_TASK,
             inputs={"checkpoint_seq": checkpoint_seq},
@@ -140,7 +148,7 @@ def _seed_leased_finalize(
         ),
         db_path=isolated_db,
     )
-    task = store.claim_task(
+    task = tasks.claim_task(
         "final-safety-cancel-worker", run_id=run_id, db_path=isolated_db
     )
     assert task is not None and task.id == queued.id
@@ -196,10 +204,10 @@ def _assert_cancelled_task(
     task_id: str,
     db_path: str,
 ) -> list[dict[str, Any]]:
-    persisted = store.get_run(run_id, db_path=db_path)
+    persisted = runs.get_run(run_id, db_path=db_path)
     assert persisted is not None
-    assert persisted.status == store.RunStatus.CANCELLED.value
-    task = store.get_task(task_id, db_path=db_path)
+    assert persisted.status == RunStatus.CANCELLED.value
+    task = tasks.get_task(task_id, db_path=db_path)
     assert task is not None and task.status == "cancelled"
     return _owner_events(owner, headers, run_id)
 
@@ -252,7 +260,7 @@ async def test_cancel_race_does_not_block_run(
     )
     readiness = [
         item
-        for item in store.list_safety_decisions(run_id, db_path=isolated_db)
+        for item in records.list_safety_decisions(run_id, db_path=isolated_db)
         if item["stage"] == "scientific_readiness"
     ]
     statuses = [
@@ -280,13 +288,13 @@ async def test_empty_leaderboard_block_remains_auditable(
 
     result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
-    persisted = store.get_run(run_id, db_path=isolated_db)
-    assert result["status"] == store.RunStatus.BLOCKED.value
+    persisted = runs.get_run(run_id, db_path=isolated_db)
+    assert result["status"] == RunStatus.BLOCKED.value
     assert persisted is not None
-    assert persisted.status == store.RunStatus.BLOCKED.value
+    assert persisted.status == RunStatus.BLOCKED.value
     readiness = [
         item
-        for item in store.list_safety_decisions(run_id, db_path=isolated_db)
+        for item in records.list_safety_decisions(run_id, db_path=isolated_db)
         if item["stage"] == "scientific_readiness"
     ]
     assert len(readiness) == 1
@@ -304,7 +312,7 @@ async def test_empty_leaderboard_block_remains_auditable(
     )
     assert final_event["seq"] < blocked_event["seq"]
     assert not any(event["type"] == "report" for event in events)
-    assert store.get_latest_report(run_id, db_path=isolated_db) is None
+    assert reports.get_latest_report(run_id, db_path=isolated_db) is None
 
 
 @pytest.mark.asyncio
@@ -327,17 +335,17 @@ async def test_leased_finalize_redaction_audits_and_scrubs_report(
 
     result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
-    assert result["status"] == store.RunStatus.COMPLETED.value
+    assert result["status"] == RunStatus.COMPLETED.value
     final_decisions = [
         item
-        for item in store.list_safety_decisions(run_id, db_path=isolated_db)
+        for item in records.list_safety_decisions(run_id, db_path=isolated_db)
         if item["stage"] == "final"
     ]
     assert len(final_decisions) == 1
     assert final_decisions[0]["decision"] == "redact"
     assert final_decisions[0]["matches"] == ["sensitive span"]
 
-    saved = store.get_latest_report(run_id, db_path=isolated_db)
+    saved = reports.get_latest_report(run_id, db_path=isolated_db)
     assert saved is not None
     assert "sensitive span" not in repr(saved["payload"]).lower()
     assert REDACTED_PLACEHOLDER in repr(saved["payload"])
@@ -395,7 +403,7 @@ async def test_cancel_before_monitor_halt_gate_leaves_no_halt_audit(
     )
     monitor = [
         item
-        for item in store.list_safety_decisions(run_id, db_path=isolated_db)
+        for item in records.list_safety_decisions(run_id, db_path=isolated_db)
         if item["stage"] == "research_direction"
     ]
     assert monitor == []
@@ -422,13 +430,13 @@ async def test_leased_monitor_halt_remains_auditable(
 
     result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
-    persisted = store.get_run(run_id, db_path=isolated_db)
-    assert result["status"] == store.RunStatus.BLOCKED.value
+    persisted = runs.get_run(run_id, db_path=isolated_db)
+    assert result["status"] == RunStatus.BLOCKED.value
     assert persisted is not None
-    assert persisted.status == store.RunStatus.BLOCKED.value
+    assert persisted.status == RunStatus.BLOCKED.value
     monitor = [
         item
-        for item in store.list_safety_decisions(run_id, db_path=isolated_db)
+        for item in records.list_safety_decisions(run_id, db_path=isolated_db)
         if item["stage"] == "research_direction"
     ]
     assert len(monitor) == 1
@@ -482,13 +490,13 @@ async def test_cancel_during_final_screen_has_no_final_safety_audit(
     )
     final_decisions = [
         item
-        for item in store.list_safety_decisions(run_id, db_path=isolated_db)
+        for item in records.list_safety_decisions(run_id, db_path=isolated_db)
         if item["stage"] == "final"
     ]
     assert final_decisions == []
     assert not any(event["type"] == "safety.final" for event in events)
     assert not any(event["type"] == "report" for event in events)
-    assert store.get_latest_report(run_id, db_path=isolated_db) is None
+    assert reports.get_latest_report(run_id, db_path=isolated_db) is None
 
 
 @pytest.mark.asyncio
@@ -511,11 +519,11 @@ async def test_early_finalize_pause_skips_final_drain(
 
     assert result["status"] == "paused"
     assert drain_calls == []
-    checkpoint = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert checkpoint is not None
     assert checkpoint["stage"] == f"engine_task_paused:{task.id}"
-    run = store.get_run(run_id, db_path=isolated_db)
-    assert run is not None and run.status == store.RunStatus.PAUSED.value
+    run = runs.get_run(run_id, db_path=isolated_db)
+    assert run is not None and run.status == RunStatus.PAUSED.value
 
 
 @pytest.mark.asyncio
@@ -543,18 +551,18 @@ async def test_cancel_during_final_drain_keeps_cancelled_state(
     monkeypatch.setattr(
         engine_tasks_node, "persist_final_state", cancel_inside_drain
     )
-    task = store.claim_task(
+    task = tasks.claim_task(
         "cancel-during-drain-worker", run_id=run_id, db_path=isolated_db
     )
     assert task is not None
     with pytest.raises(task_worker._LeaseLostError):
         await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
-    run = store.get_run(run_id, db_path=isolated_db)
-    assert run is not None and run.status == store.RunStatus.CANCELLED.value
+    run = runs.get_run(run_id, db_path=isolated_db)
+    assert run is not None and run.status == RunStatus.CANCELLED.value
     assert cancel_responses == [{"id": run_id, "status": "cancelled"}]
-    assert store.get_latest_report(run_id, db_path=isolated_db) is None
-    checkpoint = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+    assert reports.get_latest_report(run_id, db_path=isolated_db) is None
+    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert checkpoint is not None and checkpoint["stage"] == "fixture"
     events = owner.get(
         f"/api/runs/{run_id}/events?stream=false", headers=_OWNER
@@ -579,25 +587,27 @@ async def test_resume_after_finalize_pause_read_does_not_write_stale_checkpoint(
         isolated_db, monkeypatch
     )
     _install_report_stubs(hypothesis_id, monkeypatch)
-    previous = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+    previous = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert previous is not None
     resume_state = {
         **previous["state"],
         "resume_successor": engine_tasks_support.FINALIZE_TASK,
     }
-    store.save_checkpoint(
+    checkpoints.save_checkpoint(
         run_id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage=f"engine_task:{task.id}",
             schema_version=previous["schema_version"],
-            last_event_seq=store.latest_event_seq(run_id, db_path=isolated_db),
+            last_event_seq=store_events.latest_event_seq(
+                run_id, db_path=isolated_db
+            ),
             state=resume_state,
         ),
         db_path=isolated_db,
     )
     paused = owner.post(f"/api/runs/{run_id}/pause", headers=_OWNER)
     assert paused.status_code == 200, paused.text
-    get_run = store.get_run
+    get_run = runs.get_run
     paused_reads = 0
     resume_responses: list[dict[str, Any]] = []
 
@@ -618,20 +628,20 @@ async def test_resume_after_finalize_pause_read_does_not_write_stale_checkpoint(
                 resume_responses.append(response.json())
         return run
 
-    monkeypatch.setattr(store, "get_run", resume_after_pause_snapshot)
+    monkeypatch.setattr(runs, "get_run", resume_after_pause_snapshot)
     result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
     assert paused_reads >= 2
     assert resume_responses == [{"id": run_id, "status": "queued"}]
-    assert result["status"] == store.RunStatus.COMPLETED.value
-    completed = store.get_run(run_id, db_path=isolated_db)
+    assert result["status"] == RunStatus.COMPLETED.value
+    completed = runs.get_run(run_id, db_path=isolated_db)
     assert completed is not None
-    assert completed.status == store.RunStatus.COMPLETED.value
-    checkpoint = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+    assert completed.status == RunStatus.COMPLETED.value
+    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert checkpoint is not None
     assert checkpoint["stage"] == f"engine_task:{task.id}"
-    assert store.get_latest_report(run_id, db_path=isolated_db) is not None
-    assert store.complete_task(
+    assert reports.get_latest_report(run_id, db_path=isolated_db) is not None
+    assert lifecycle.complete_task(
         task.id,
         str(task.lease_owner),
         result,
@@ -656,8 +666,8 @@ async def test_pause_during_final_drain_waits_for_explicit_resume(
             response = owner.post(f"/api/runs/{run_id}/pause", headers=_OWNER)
             assert response.status_code == 200, response.text
             pause_responses.append(response.json())
-        store.add_hypothesis(
-            store.NewHypothesis(
+        hypotheses.add_hypothesis(
+            NewHypothesis(
                 run_id=run_id,
                 hypothesis_id=hypothesis_id,
                 title="IL-6 feedback",
@@ -679,11 +689,11 @@ async def test_pause_during_final_drain_waits_for_explicit_resume(
     assert await task_worker.run_once(
         "pause-during-drain-worker", run_id=run_id, db_path=isolated_db
     )
-    paused = store.get_run(run_id, db_path=isolated_db)
+    paused = runs.get_run(run_id, db_path=isolated_db)
     assert pause_responses == [{"id": run_id, "status": "paused"}]
-    assert paused is not None and paused.status == store.RunStatus.PAUSED.value
-    assert store.get_hypothesis(hypothesis_id, db_path=isolated_db) is None
-    assert store.get_latest_report(run_id, db_path=isolated_db) is None
+    assert paused is not None and paused.status == RunStatus.PAUSED.value
+    assert hypotheses.get_hypothesis(hypothesis_id, db_path=isolated_db) is None
+    assert reports.get_latest_report(run_id, db_path=isolated_db) is None
     pre_resume_events = owner.get(
         f"/api/runs/{run_id}/events?stream=false", headers=_OWNER
     ).json()["events"]
@@ -701,18 +711,18 @@ async def test_pause_during_final_drain_waits_for_explicit_resume(
         owner.get(f"/api/runs/{run_id}/report", headers=_OWNER).status_code
         == 404
     )
-    checkpoint = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert checkpoint is not None
     assert checkpoint["stage"] == f"engine_task_paused:{original_task.id}"
     assert (
         checkpoint["state"]["resume_successor"]
         == engine_tasks_support.FINALIZE_TASK
     )
-    assert store.get_run_metrics(run_id, db_path=isolated_db) == {
+    assert retrieval.get_run_metrics(run_id, db_path=isolated_db) == {
         "llm_calls": 3
     }
     assert (
-        store.claim_task(
+        tasks.claim_task(
             "before-finalize-resume", run_id=run_id, db_path=isolated_db
         )
         is None
@@ -723,20 +733,20 @@ async def test_pause_during_final_drain_waits_for_explicit_resume(
     recovered = main._reconcile_and_log_interrupted_runs()
     assert run_id not in recovered["failed"]
     assert run_id not in recovered["resumable"]
-    assert run_id not in store.list_active_engine_task_run_ids(
+    assert run_id not in tasks.list_active_engine_task_run_ids(
         db_path=isolated_db
     )
-    assert store.get_latest_report(run_id, db_path=isolated_db) is None
+    assert reports.get_latest_report(run_id, db_path=isolated_db) is None
 
     resumed = owner.post(f"/api/runs/{run_id}/resume", headers=_OWNER)
     assert resumed.status_code == 200, resumed.text
     assert await task_worker.run_once(
         "resumed-finalize-worker", run_id=run_id, db_path=isolated_db
     )
-    completed = store.get_run(run_id, db_path=isolated_db)
+    completed = runs.get_run(run_id, db_path=isolated_db)
     assert completed is not None
-    assert completed.status == store.RunStatus.COMPLETED.value
-    assert store.get_latest_report(run_id, db_path=isolated_db) is not None
+    assert completed.status == RunStatus.COMPLETED.value
+    assert reports.get_latest_report(run_id, db_path=isolated_db) is not None
 
     events = owner.get(
         f"/api/runs/{run_id}/events?stream=false", headers=_OWNER
@@ -788,8 +798,8 @@ async def test_cancel_after_drain_commit_orders_stages_before_cancel(
     _install_runtime(monkeypatch).drain_final_state = real_drain
 
     async def fake_persist_final_state(*_: Any, **kwargs: Any) -> Any:
-        store.add_hypothesis(
-            store.NewHypothesis(
+        hypotheses.add_hypothesis(
+            NewHypothesis(
                 run_id=run_id,
                 hypothesis_id=hypothesis_id,
                 title="IL-6 feedback",
@@ -807,7 +817,7 @@ async def test_cancel_after_drain_commit_orders_stages_before_cancel(
     monkeypatch.setattr(
         engine_tasks_node, "persist_final_state", fake_persist_final_state
     )
-    task = store.claim_task(
+    task = tasks.claim_task(
         "cancel-after-drain-worker", run_id=run_id, db_path=isolated_db
     )
     assert task is not None
@@ -828,11 +838,11 @@ async def test_cancel_after_drain_commit_orders_stages_before_cancel(
     with pytest.raises(task_worker._LeaseLostError):
         await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
-    persisted = store.get_run(run_id, db_path=isolated_db)
+    persisted = runs.get_run(run_id, db_path=isolated_db)
     assert persisted is not None
-    assert persisted.status == store.RunStatus.CANCELLED.value
+    assert persisted.status == RunStatus.CANCELLED.value
     assert cancel_responses == [{"id": run_id, "status": "cancelled"}]
-    assert store.get_latest_report(run_id, db_path=isolated_db) is None
+    assert reports.get_latest_report(run_id, db_path=isolated_db) is None
     events = owner.get(
         f"/api/runs/{run_id}/events?stream=false", headers=_OWNER
     ).json()["events"]
@@ -860,14 +870,14 @@ async def test_cancel_after_drain_commit_orders_stages_before_cancel(
 
 
 def _run_with_report(isolated_db: str) -> str:
-    run = store.create_run(
+    run = runs.create_run(
         "Study a causal pathway",
         "standard",
         "mock",
         {},
-        store.RunCreateOptions(client_id="owner-a", db_path=isolated_db),
+        RunCreateOptions(client_id="owner-a", db_path=isolated_db),
     )
-    store.save_report(
+    reports.save_report(
         run.id,
         {"research_goal": run.research_goal, "leaderboard": []},
         "# Goal Report",
@@ -893,7 +903,7 @@ def test_share_link_is_unique_hashed_and_revocable(isolated_db: str) -> None:
         share = created.json()
         assert len(share["token"]) >= 32
 
-        with store.connect(isolated_db) as conn:
+        with db.connect(isolated_db) as conn:
             stored = conn.execute(
                 "SELECT token_hash FROM report_shares WHERE id=?",
                 (share["id"],),
@@ -917,87 +927,87 @@ def test_share_link_is_unique_hashed_and_revocable(isolated_db: str) -> None:
 def _run_with_blocked_and_released_content(
     isolated_db: str,
 ) -> tuple[str, str, str]:
-    run = store.create_run(
+    run = runs.create_run(
         "Map a signaling pathway",
         "standard",
         "engine",
         {"private_setting": "config-secret-value"},
-        store.RunCreateOptions(client_id="owner-b", db_path=isolated_db),
+        RunCreateOptions(client_id="owner-b", db_path=isolated_db),
     )
     run_id = run.id
 
-    released_id = store.add_hypothesis(
-        store.NewHypothesis(
+    released_id = hypotheses.add_hypothesis(
+        NewHypothesis(
             run_id=run_id,
             title="Released feedback idea",
             statement="Modulating the feedback loop improves throughput.",
         ),
         db_path=isolated_db,
     )
-    store.update_hypothesis_state(
+    hypotheses.update_hypothesis_state(
         released_id,
-        store.HypothesisStateChanges(safety_status="allow"),
+        HypothesisStateChanges(safety_status="allow"),
         db_path=isolated_db,
     )
 
-    blocked_id = store.add_hypothesis(
-        store.NewHypothesis(
+    blocked_id = hypotheses.add_hypothesis(
+        NewHypothesis(
             run_id=run_id,
             title="Safety blocked idea",
             statement="A blocked proposal kept out by the safety screen.",
         ),
         db_path=isolated_db,
     )
-    store.update_hypothesis_state(
+    hypotheses.update_hypothesis_state(
         blocked_id,
-        store.HypothesisStateChanges(safety_status="prohibited"),
+        HypothesisStateChanges(safety_status="prohibited"),
         db_path=isolated_db,
     )
 
-    rejected_id = store.add_hypothesis(
-        store.NewHypothesis(
+    rejected_id = hypotheses.add_hypothesis(
+        NewHypothesis(
             run_id=run_id,
             title="Review rejected idea",
             statement="A proposal set aside during review.",
         ),
         db_path=isolated_db,
     )
-    store.update_hypothesis_state(
+    hypotheses.update_hypothesis_state(
         rejected_id,
-        store.HypothesisStateChanges(status="rejected", safety_status="allow"),
+        HypothesisStateChanges(status="rejected", safety_status="allow"),
         db_path=isolated_db,
     )
 
-    duplicate_id = store.add_hypothesis(
-        store.NewHypothesis(
+    duplicate_id = hypotheses.add_hypothesis(
+        NewHypothesis(
             run_id=run_id,
             title="Deduplicated idea",
             statement="A proposal folded into a higher-ranked idea.",
         ),
         db_path=isolated_db,
     )
-    store.update_hypothesis_state(
+    hypotheses.update_hypothesis_state(
         duplicate_id,
-        store.HypothesisStateChanges(status="duplicate", safety_status="allow"),
+        HypothesisStateChanges(status="duplicate", safety_status="allow"),
         db_path=isolated_db,
     )
 
-    contradicted_id = store.add_hypothesis(
-        store.NewHypothesis(
+    contradicted_id = hypotheses.add_hypothesis(
+        NewHypothesis(
             run_id=run_id,
             title="Contradicted idea",
             statement="A proposal whose claims the evidence contradicts.",
         ),
         db_path=isolated_db,
     )
-    store.update_hypothesis_state(
+    hypotheses.update_hypothesis_state(
         contradicted_id,
-        store.HypothesisStateChanges(safety_status="allow"),
+        HypothesisStateChanges(safety_status="allow"),
         db_path=isolated_db,
     )
 
-    cited_id = store.add_evidence(
-        store.NewEvidence(
+    cited_id = records.add_evidence(
+        NewEvidence(
             run_id=run_id,
             title="A public pathway paper",
             source="pubmed",
@@ -1005,8 +1015,8 @@ def _run_with_blocked_and_released_content(
         ),
         db_path=isolated_db,
     )
-    store.add_evidence(
-        store.NewEvidence(
+    records.add_evidence(
+        NewEvidence(
             run_id=run_id,
             title="Private lab memo",
             source="attachment",
@@ -1015,8 +1025,8 @@ def _run_with_blocked_and_released_content(
         db_path=isolated_db,
     )
 
-    store.add_claim_evidence(
-        store.NewClaimEvidence(
+    records.add_claim_evidence(
+        NewClaimEvidence(
             run_id=run_id,
             hypothesis_id=released_id,
             claim="The feedback loop is causal",
@@ -1027,8 +1037,8 @@ def _run_with_blocked_and_released_content(
         ),
         db_path=isolated_db,
     )
-    store.add_claim_evidence(
-        store.NewClaimEvidence(
+    records.add_claim_evidence(
+        NewClaimEvidence(
             run_id=run_id,
             hypothesis_id=contradicted_id,
             claim="The loop runs backwards",
@@ -1040,7 +1050,7 @@ def _run_with_blocked_and_released_content(
         db_path=isolated_db,
     )
 
-    store.save_report(
+    reports.save_report(
         run_id,
         {"research_goal": run.research_goal},
         "# Goal Report",

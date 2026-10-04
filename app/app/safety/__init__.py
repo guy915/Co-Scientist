@@ -14,7 +14,6 @@ from co_scientist.safety import (
 )
 
 import app.process_mode as process_mode
-import app.store as store
 from app.config import settings
 from app.execution_policy import effective_execution_model
 from app.safety.semantic import (
@@ -25,8 +24,10 @@ from app.safety.semantic import (
 from app.safety.types import SafetyDecision, redact_matched_spans
 from app.safety.types import SafetyMode as SafetyMode
 from app.safety.types import redact_payload_text as redact_payload_text
-from app.store import RunStatus
-from app.store.models import ScientificTask
+from app.store import db, records, runs
+from app.store import events as store_events
+from app.store.models import RunStatus, ScientificTask
+from app.store.records import NewSafetyDecision
 
 logger = logging.getLogger(__name__)
 
@@ -43,11 +44,11 @@ def _apply_intake_redaction(
     """
     if result.stage != "intake" or result.decision != "redact":
         return
-    run = store.get_run(run_id, db_path=db_path, conn=conn)
+    run = runs.get_run(run_id, db_path=db_path, conn=conn)
     if run is None:
         return
     matches = list(result.matches)
-    store.redact_run_goal(
+    runs.redact_run_goal(
         run_id,
         redact_matched_spans(run.research_goal, matches),
         redact_matched_spans(run.title or "", matches),
@@ -68,8 +69,8 @@ def _record_safety_decision(
     db_path: str | None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
-    store.add_safety_decision(
-        store.NewSafetyDecision(
+    records.add_safety_decision(
+        NewSafetyDecision(
             run_id=run_id,
             stage=result.stage,
             decision=result.decision,
@@ -103,7 +104,7 @@ def _record_safety_decision(
 def _assert_bootstrap_intake_lease(
     run_id: str, task: ScientificTask, conn: sqlite3.Connection
 ) -> None:
-    if task.run_id == run_id and store.bootstrap_task_lease_matches(
+    if task.run_id == run_id and runs.bootstrap_task_lease_matches(
         conn, run_id, task.id, task.lease_owner, task.attempt
     ):
         return
@@ -130,13 +131,13 @@ def _commit_task_safety_events(
 
     decision_payload = result.to_dict()
     event_type = f"safety.{result.stage}"
-    with store.transaction(db_path) as conn:
+    with db.transaction(db_path) as conn:
         assert_task_commit_allowed(task, conn)
         if result.stage == "intake":
             _assert_bootstrap_intake_lease(run_id, task, conn)
         _record_safety_decision(run_id, result, db_path=db_path, conn=conn)
         _apply_intake_redaction(run_id, result, db_path=db_path, conn=conn)
-        seq = store.append_event(
+        seq = store_events.append_event(
             run_id, event_type, decision_payload, conn=conn
         )
         events = [_event_record(seq, event_type, decision_payload)]
@@ -152,10 +153,10 @@ def _commit_task_safety_events(
             }
         else:
             return events
-        store.update_run_status(
+        runs.update_run_status(
             run_id, status, error=result.reason, db_path=db_path, conn=conn
         )
-        seq = store.append_event(run_id, "status", payload, conn=conn)
+        seq = store_events.append_event(run_id, "status", payload, conn=conn)
         events.append(_event_record(seq, "status", payload))
     return events
 
@@ -179,17 +180,17 @@ def _commit_gate_status_event(
         RunStatus.PAUSED,
     )
     db_path, lease_guard = status_guard
-    with store.transaction(db_path) as conn:
-        if lease_guard is not None and not store.bootstrap_task_lease_matches(
+    with db.transaction(db_path) as conn:
+        if lease_guard is not None and not runs.bootstrap_task_lease_matches(
             conn, run_id, *lease_guard
         ):
             return None
-        changed = store.update_run_status_if_current(
+        changed = runs.update_run_status_if_current(
             conn, run_id, status, active_statuses, error
         )
         if not changed:
             return None
-        seq = store.append_event(run_id, "status", payload, conn=conn)
+        seq = store_events.append_event(run_id, "status", payload, conn=conn)
     return {"seq": seq, "type": "status", "payload": payload}
 
 
@@ -384,10 +385,10 @@ def _should_escalate_to_semantic(
     """Historical eligibility follows the persisted run backend, not current
     process mode; a deleted row uses the provider fallback.
     """
-    approved = store.safety_stage_is_approved(
+    approved = records.safety_stage_is_approved(
         run_id, stage, POLICY_VERSION, db_path=db_path
     )
-    offline = store.run_offline_backed(
+    offline = runs.run_offline_backed(
         run_id, missing_run_fallback=provider == "mock", db_path=db_path
     )
     return not offline and not approved

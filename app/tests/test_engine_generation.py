@@ -24,13 +24,18 @@ from co_scientist.state import WorkflowState
 import app.engine_tasks.fanout as engine_tasks_fanout_generation
 import app.engine_tasks.fanout as engine_tasks_fanout_items
 import app.engine_tasks.fanout as fanout
-from app import engine_tasks, store
+from app import engine_tasks
 from app.config import settings
 from app.engine_tasks import fanout_aggregates as aggregates
 from app.engine_tasks import fanout_aggregates as engine_tasks_fanout_aggregates
 from app.engine_tasks import node as engine_tasks_node
 from app.engine_tasks import support
 from app.engine_tasks import support as engine_tasks_support
+from app.store import checkpoints, runs
+from app.store import tasks as store
+from app.store import tasks_lifecycle as lifecycle
+from app.store.models import RunStatus, ScientificTask
+from app.store.tasks import NewTask
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _Generator,
@@ -84,7 +89,7 @@ async def _advance_generation_node(
     )
     checkpoint_seq = _seed_checkpoint(run_id, state)
     node = store.enqueue_task(
-        store.NewTask(
+        NewTask(
             run_id=run_id,
             task_type=f"{engine_tasks.NODE_TASK_PREFIX}generate",
             inputs={"checkpoint_seq": checkpoint_seq},
@@ -105,7 +110,9 @@ async def _advance_generation_node(
     assert leased is not None and leased.id == node.id
     planned = await engine_tasks.execute_node_task(leased, db_path=db_path)
     assert len(planned["fanout_task_ids"]) == 7
-    assert store.complete_task(leased.id, "planner", planned, db_path=db_path)
+    assert lifecycle.complete_task(
+        leased.id, "planner", planned, db_path=db_path
+    )
 
 
 def _assert_debate_fanout_carries_the_batch_shape(
@@ -175,7 +182,7 @@ async def _run_generation_strategies_and_aggregate(
         zip(strategies, strategy_results, strict=True)
     ):
         assert item is not None
-        assert store.complete_task(
+        assert lifecycle.complete_task(
             item.id, f"strategy-{index}", result, db_path=db_path
         )
     aggregate = store.claim_task("aggregate", run_id=run_id, db_path=db_path)
@@ -186,7 +193,7 @@ async def _run_generation_strategies_and_aggregate(
         )
     )
     assert aggregated["hypotheses_generated"] == 8
-    assert store.complete_task(
+    assert lifecycle.complete_task(
         aggregate.id, "aggregate", aggregated, db_path=db_path
     )
 
@@ -194,7 +201,7 @@ async def _run_generation_strategies_and_aggregate(
 def _assert_generation_committed(run_id: str, db_path: str) -> None:
     from co_scientist.checkpoint import restore_workflow_state
 
-    checkpoint = store.get_latest_checkpoint(run_id, db_path=db_path)
+    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=db_path)
     assert checkpoint is not None
     restored = restore_workflow_state(checkpoint["state"])
     methods = {
@@ -218,7 +225,7 @@ def _assert_generation_committed(run_id: str, db_path: str) -> None:
 async def test_generation_strategies_are_independently_leased_and_aggregated(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("Task-level science", "standard", "engine", {})
+    run = runs.create_run("Task-level science", "standard", "engine", {})
     await _advance_generation_node(run.id, monkeypatch, isolated_db)
     await _run_generation_strategies_and_aggregate(run.id, isolated_db)
     _assert_generation_committed(run.id, isolated_db)
@@ -237,9 +244,7 @@ async def test_generation_fanout_created_during_pause_waits_for_resume(
         )
         assert created.status_code == 200, created.text
         run_id = str(created.json()["id"])
-        store.update_run_status(
-            run_id, store.RunStatus.RUNNING, db_path=isolated_db
-        )
+        runs.update_run_status(run_id, RunStatus.RUNNING, db_path=isolated_db)
 
         async def pause_during_dispatch(
             task: Any,
@@ -268,7 +273,7 @@ async def test_generation_fanout_created_during_pause_waits_for_resume(
             if task.task_type != f"{engine_tasks.NODE_TASK_PREFIX}generate"
         ]
         assert fanout
-        saved_run = store.get_run(run_id, db_path=isolated_db)
+        saved_run = runs.get_run(run_id, db_path=isolated_db)
         assert saved_run is not None and saved_run.status == "paused"
         assert (
             store.claim_task(
@@ -339,7 +344,7 @@ async def _advance_mature_reflection_node(
     )
     checkpoint_seq = _seed_checkpoint(run_id, state)
     node = store.enqueue_task(
-        store.NewTask(
+        NewTask(
             run_id=run_id,
             task_type=f"{engine_tasks.NODE_TASK_PREFIX}comprehensive_reflection",
             inputs={"checkpoint_seq": checkpoint_seq},
@@ -361,7 +366,9 @@ async def _advance_mature_reflection_node(
     assert leased is not None and leased.id == node.id
     planned = await engine_tasks.execute_node_task(leased, db_path=db_path)
     assert len(planned["fanout_task_ids"]) == 4
-    assert store.complete_task(leased.id, "planner", planned, db_path=db_path)
+    assert lifecycle.complete_task(
+        leased.id, "planner", planned, db_path=db_path
+    )
 
 
 async def _run_mature_reflection_items_and_aggregate(
@@ -389,7 +396,7 @@ async def _run_mature_reflection_items_and_aggregate(
     }
     for index, (item, result) in enumerate(zip(items, results, strict=True)):
         assert item is not None
-        assert store.complete_task(
+        assert lifecycle.complete_task(
             item.id, f"mode-{index}", result, db_path=db_path
         )
     aggregate = store.claim_task("aggregate", run_id=run_id, db_path=db_path)
@@ -397,7 +404,7 @@ async def _run_mature_reflection_items_and_aggregate(
     execute = engine_tasks_fanout_aggregates.execute_mature_reflection_aggregate
     aggregated = await execute(aggregate, db_path=db_path)
     assert aggregated["successful_reviews"] == 4
-    assert store.complete_task(
+    assert lifecycle.complete_task(
         aggregate.id, "aggregate", aggregated, db_path=db_path
     )
 
@@ -405,7 +412,7 @@ async def _run_mature_reflection_items_and_aggregate(
 def _assert_mature_reflection_committed(run_id: str, db_path: str) -> None:
     from co_scientist.checkpoint import restore_workflow_state
 
-    checkpoint = store.get_latest_checkpoint(run_id, db_path=db_path)
+    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=db_path)
     assert checkpoint is not None
     restored = restore_workflow_state(checkpoint["state"])
     restored_fresh, restored_mature = restored["hypotheses"]
@@ -430,7 +437,7 @@ def _assert_mature_reflection_committed(run_id: str, db_path: str) -> None:
 async def test_mature_reflection_modes_are_independent_durable_tasks(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("Task-level science", "standard", "engine", {})
+    run = runs.create_run("Task-level science", "standard", "engine", {})
     await _advance_mature_reflection_node(run.id, monkeypatch, isolated_db)
     await _run_mature_reflection_items_and_aggregate(run.id, isolated_db)
     _assert_mature_reflection_committed(run.id, isolated_db)
@@ -551,10 +558,10 @@ def _generation_state(run_id: str, mode: str) -> dict[str, Any]:
 
 async def _schedule_generation(
     state: dict[str, Any], db_path: str
-) -> tuple[dict[str, Any], list[store.ScientificTask]]:
+) -> tuple[dict[str, Any], list[ScientificTask]]:
     checkpoint_seq = _seed_checkpoint(state["run_id"], state, db_path=db_path)
     node = store.enqueue_task(
-        store.NewTask(
+        NewTask(
             run_id=state["run_id"],
             task_type=f"{support.NODE_TASK_PREFIX}generate",
             inputs={"checkpoint_seq": checkpoint_seq},
@@ -567,7 +574,9 @@ async def _schedule_generation(
     planned = await fanout._enqueue_generation_fanout(
         leased, state, checkpoint_seq, db_path=db_path
     )
-    assert store.complete_task(leased.id, "planner", planned, db_path=db_path)
+    assert lifecycle.complete_task(
+        leased.id, "planner", planned, db_path=db_path
+    )
     tasks = [
         store.get_task(task_id, db_path=db_path)
         for task_id in planned["fanout_task_ids"]
@@ -580,7 +589,7 @@ async def _schedule_generation(
 async def test_graph_and_durable_contracts_keep_the_same_results(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch, mode: str
 ) -> None:
-    run = store.create_run("Generation contract", "standard", "engine", {})
+    run = runs.create_run("Generation contract", "standard", "engine", {})
     state = _generation_state(run.id, mode)
     strategies, expansion_calls = _install_strategies(monkeypatch)
     plan = await prepare_generation(state)
@@ -618,7 +627,7 @@ async def test_graph_and_durable_contracts_keep_the_same_results(
         result = await fanout.execute_generation_strategy(
             leased, db_path=isolated_db
         )
-        assert store.complete_task(
+        assert lifecycle.complete_task(
             leased.id, "strategy", result, db_path=isolated_db
         )
     durable_calls = list(strategies.calls)
@@ -628,7 +637,7 @@ async def test_graph_and_durable_contracts_keep_the_same_results(
         leased, db_path=isolated_db
     )
     assert result["failed_strategies"] == 0
-    checkpoint = store.get_latest_checkpoint(run.id, db_path=isolated_db)
+    checkpoint = checkpoints.get_latest_checkpoint(run.id, db_path=isolated_db)
     assert checkpoint is not None
     committed = restore_workflow_state(checkpoint["state"])
 
@@ -688,7 +697,7 @@ async def test_graph_and_durable_contracts_keep_the_same_results(
 async def test_durable_aggregate_preserves_successes_after_a_strategy_fails(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("Partial generation", "standard", "engine", {})
+    run = runs.create_run("Partial generation", "standard", "engine", {})
     state = _generation_state(run.id, "lit_and_tools")
     _install_strategies(monkeypatch)
 
@@ -726,7 +735,7 @@ async def test_durable_aggregate_preserves_successes_after_a_strategy_fails(
             result["model_usage"] = {
                 "generate:fixture": {"calls": 1, "prompt_tokens": 10}
             }
-            assert store.complete_task(
+            assert lifecycle.complete_task(
                 leased.id, "strategy", result, db_path=isolated_db
             )
 
@@ -741,7 +750,7 @@ async def test_durable_aggregate_preserves_successes_after_a_strategy_fails(
     )
     assert result["failed_strategies"] == 1
     assert result["hypotheses_generated"] == 5
-    checkpoint = store.get_latest_checkpoint(run.id, db_path=isolated_db)
+    checkpoint = checkpoints.get_latest_checkpoint(run.id, db_path=isolated_db)
     assert checkpoint is not None
     committed = restore_workflow_state(checkpoint["state"])
     assert [hyp.id for hyp in committed["hypotheses"]] == [
@@ -769,7 +778,7 @@ async def test_durable_aggregate_preserves_successes_after_a_strategy_fails(
 async def test_pre_diversity_tasks_still_execute_as_one_debate(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("Legacy generation task", "standard", "engine", {})
+    run = runs.create_run("Legacy generation task", "standard", "engine", {})
     state = _generation_state(run.id, "no_lit")
     strategies, _ = _install_strategies(monkeypatch)
     _, tasks = await _schedule_generation(state, isolated_db)

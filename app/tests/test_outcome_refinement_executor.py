@@ -11,9 +11,14 @@ from co_scientist.models import (
     HypothesisOrigin,
 )
 
-from app import auth, store, task_worker
+from app import auth, task_worker
 from app.config import settings
-from app.store import RunStatus
+from app.store import checkpoints, outcomes, runs, tasks
+from app.store import events as store_events
+from app.store import hypotheses as store
+from app.store.checkpoints import NewCheckpoint
+from app.store.hypotheses import NewHypothesis
+from app.store.models import RunStatus
 from tests._client import make_client
 from tests._outcome_refinement_api_support import (
     MESELSON_STAHL_OUTCOME_FIELDS,
@@ -67,7 +72,7 @@ def _setup_action(client: Any, db_path: str) -> tuple[str, str, str, str]:
     )
     sibling = _hypothesis(sibling_id, "Sibling hypothesis about pathway B.")
     store.add_hypothesis(
-        store.NewHypothesis(
+        NewHypothesis(
             run_id=run_id,
             hypothesis_id=sibling.id,
             title=sibling.title or sibling.id,
@@ -75,7 +80,7 @@ def _setup_action(client: Any, db_path: str) -> tuple[str, str, str, str]:
         ),
         db_path=db_path,
     )
-    event_seq = store.latest_event_seq(run_id, db_path=db_path)
+    event_seq = store_events.latest_event_seq(run_id, db_path=db_path)
     envelope = serialize_workflow_state(
         {
             "hypotheses": [parent, sibling],
@@ -88,9 +93,9 @@ def _setup_action(client: Any, db_path: str) -> tuple[str, str, str, str]:
         },
         last_event_seq=event_seq,
     )
-    store.save_checkpoint(
+    checkpoints.save_checkpoint(
         run_id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage="completed",
             schema_version=1,
             last_event_seq=event_seq,
@@ -98,7 +103,7 @@ def _setup_action(client: Any, db_path: str) -> tuple[str, str, str, str]:
         ),
         db_path=db_path,
     )
-    store.update_run_status(run_id, RunStatus.COMPLETED, db_path=db_path)
+    runs.update_run_status(run_id, RunStatus.COMPLETED, db_path=db_path)
     recorded = client.post(
         f"/api/runs/{run_id}/hypotheses/{parent_id}/outcomes",
         headers=headers,
@@ -115,7 +120,7 @@ def _setup_action(client: Any, db_path: str) -> tuple[str, str, str, str]:
 
 
 def _claim_action(run_id: str, worker_id: str, db_path: str) -> Any:
-    task = store.claim_task(worker_id, run_id=run_id, db_path=db_path)
+    task = tasks.claim_task(worker_id, run_id=run_id, db_path=db_path)
     assert task is not None
     assert task.task_type == "engine.outcome.refinement"
     return task
@@ -200,7 +205,7 @@ def test_worker_refines_only_linked_parent_and_persists_at_most_one_child(
         "Sibling hypothesis about pathway B." not in calls[0]["outcome_context"]
     )
 
-    action = store.get_outcome_refinement_action(
+    action = outcomes.get_outcome_refinement_action(
         run_id, action_id, db_path=isolated_db
     )
     assert action is not None
@@ -213,7 +218,9 @@ def test_worker_refines_only_linked_parent_and_persists_at_most_one_child(
     ]
     assert len(children) == 1
     assert children[0]["parent_id"] == parent_id
-    action_child = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+    action_child = checkpoints.get_latest_checkpoint(
+        run_id, db_path=isolated_db
+    )
     assert action_child is not None
     checkpoint_state = action_child["state"]["state"]
     child_state = next(
@@ -228,7 +235,7 @@ def test_worker_refines_only_linked_parent_and_persists_at_most_one_child(
     }
     review_tasks = [
         row
-        for row in store.list_tasks(run_id, db_path=isolated_db)
+        for row in tasks.list_tasks(run_id, db_path=isolated_db)
         if row.task_type == "engine.node.review"
     ]
     assert len(review_tasks) == 1
@@ -238,7 +245,7 @@ def test_worker_refines_only_linked_parent_and_persists_at_most_one_child(
     assert stored_sibling is not None
     assert stored_parent["elo_rating"] == 1200
     assert stored_sibling["elo_rating"] == 1200
-    events = store.list_events(run_id, db_path=isolated_db)
+    events = store_events.list_events(run_id, db_path=isolated_db)
     assert MESELSON_STAHL_OUTCOME_FIELDS["measured_observation"] not in str(
         events
     )
@@ -247,7 +254,7 @@ def test_worker_refines_only_linked_parent_and_persists_at_most_one_child(
         for event in events
     )
 
-    replay_task = store.claim_task(
+    replay_task = tasks.claim_task(
         "replay-worker", run_id=run_id, db_path=isolated_db
     )
     assert replay_task is not None
@@ -295,7 +302,7 @@ def test_provider_failure_retries_same_action_after_restart(
         asyncio.run(
             task_worker._execute_task_payload(first, db_path=isolated_db)
         )
-    assert store.fail_task(
+    assert tasks.fail_task(
         first.id,
         "first-worker",
         "temporary",
@@ -307,9 +314,9 @@ def test_provider_failure_retries_same_action_after_restart(
     )
 
     assert materialize_pending_outcome_refinements(db_path=isolated_db) == 0
-    failed = store.get_task(first.id, db_path=isolated_db)
+    failed = tasks.get_task(first.id, db_path=isolated_db)
     assert failed is not None and failed.status == "failed"
-    action = store.get_outcome_refinement_action(
+    action = outcomes.get_outcome_refinement_action(
         run_id, action_id, db_path=isolated_db
     )
     assert action is not None
@@ -321,13 +328,13 @@ def test_provider_failure_retries_same_action_after_restart(
     assert replay_response.status_code == 202
     assert replay_response.json()["action_id"] == action_id
     assert replay_response.json()["replayed"] is True
-    requeued = store.get_task(first.id, db_path=isolated_db)
+    requeued = tasks.get_task(first.id, db_path=isolated_db)
     assert requeued is not None and requeued.status == "queued"
 
     from app.store import db as store_db
 
     store_db._initialized.discard(isolated_db)
-    retried = store.claim_task(
+    retried = tasks.claim_task(
         "restarted-worker", run_id=run_id, db_path=isolated_db
     )
     assert retried is not None
@@ -406,7 +413,7 @@ def test_checkpointed_child_is_committed_without_repeating_evolution(
     original_add_hypothesis = store.add_hypothesis
     write_fails = True
 
-    def fail_child_once(hypothesis: store.NewHypothesis, **kwargs: Any) -> Any:
+    def fail_child_once(hypothesis: NewHypothesis, **kwargs: Any) -> Any:
         nonlocal write_fails
         if hypothesis.hypothesis_id == "checkpoint-child" and write_fails:
             write_fails = False
@@ -419,13 +426,13 @@ def test_checkpointed_child_is_committed_without_repeating_evolution(
             task_worker._execute_task_payload(task, db_path=isolated_db)
         )
     assert calls == 1
-    checkpoint = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert checkpoint is not None
     assert checkpoint["stage"] == f"engine_task:{task.id}"
     marker = checkpoint["state"]["state"]["outcome_refinement_result"]
     assert marker["action_id"] == action_id
     assert marker["child_hypothesis_id"] == "checkpoint-child"
-    assert store.fail_task(
+    assert tasks.fail_task(
         task.id,
         "checkpoint-worker",
         "simulated process restart",
@@ -435,7 +442,7 @@ def test_checkpointed_child_is_committed_without_repeating_evolution(
     from app.store import db as store_db
 
     store_db._initialized.discard(isolated_db)
-    retried = store.claim_task(
+    retried = tasks.claim_task(
         "after-restart-worker", run_id=run_id, db_path=isolated_db
     )
     assert retried is not None and retried.id == task.id
@@ -454,7 +461,7 @@ def test_checkpointed_child_is_committed_without_repeating_evolution(
     )
     assert result["child_hypothesis_id"] == "checkpoint-child"
     assert calls == 1
-    action = store.get_outcome_refinement_action(
+    action = outcomes.get_outcome_refinement_action(
         run_id, action_id, db_path=isolated_db
     )
     assert action is not None and action["status"] == "completed"

@@ -9,7 +9,7 @@ from typing import Any
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 
-from app import credentials, store
+from app import credentials
 from app.execution_policy import (
     CAMPAIGN,
     CAMPAIGN_MODEL_NAME,
@@ -17,6 +17,7 @@ from app.execution_policy import (
 )
 from app.interviews import turns
 from app.sse import sse_frame
+from app.store import interviews as store
 
 logger = logging.getLogger(__name__)
 

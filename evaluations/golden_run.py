@@ -100,8 +100,9 @@ def _persist_run(db_path: str) -> str:
     """Pin real backend so missing credentials fail rather than satisfy
     acceptance with offline artifacts.
     """
-    from app import store
     from app.run_modes import resolved_run_config, setup_config
+    from app.store import runs
+    from app.store.runs import RunCreateOptions
 
     config = resolved_run_config(
         {
@@ -111,12 +112,12 @@ def _persist_run(db_path: str) -> str:
             "enable_literature_review": True,
         }
     )
-    run = store.create_run(
+    run = runs.create_run(
         _GOAL,
         _TIER,
         "engine",
         config,
-        store.RunCreateOptions(
+        RunCreateOptions(
             client_id="golden-run",
             llm_backend="real",
             db_path=db_path,
@@ -126,21 +127,25 @@ def _persist_run(db_path: str) -> str:
 
 
 def _collect(run_id: str, db_path: str) -> dict[str, Any]:
-    from app import store
+    from app.store import hypotheses as store_hypotheses
+    from app.store import records as store
+    from app.store import reports
+    from app.store import retrieval_calls as retrieval
+    from app.store import runs as store_runs
 
     evidence = store.list_evidence(run_id, db_path=db_path)
     claim_edges = store.list_claim_evidence(run_id, db_path=db_path)
     matches = store.list_matches(run_id, db_path=db_path)
-    report = store.get_latest_report(run_id, db_path=db_path)
-    hypotheses = store.list_hypotheses(run_id, db_path=db_path)
+    report = reports.get_latest_report(run_id, db_path=db_path)
+    hypotheses = store_hypotheses.list_hypotheses(run_id, db_path=db_path)
     return {
         "evidence": evidence,
         "claim_edges": claim_edges,
         "matches": matches,
         "report": report,
         "hypotheses": hypotheses,
-        "run": store.get_run(run_id, db_path=db_path),
-        "metrics": store.get_run_metrics(run_id, db_path=db_path),
+        "run": store_runs.get_run(run_id, db_path=db_path),
+        "metrics": retrieval.get_run_metrics(run_id, db_path=db_path),
     }
 
 

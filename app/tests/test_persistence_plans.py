@@ -6,9 +6,15 @@ from typing import Any
 
 import pytest
 
-from app import store
-from app.store import db
+from app.store import checkpoints, db, reports, runs
+from app.store import db as _store_db
 from app.store import db as store_db
+from app.store import retrieval_calls as retrieval
+from app.store import runs_views as views
+from app.store import supervisor_plan as plans
+from app.store.checkpoints import NewCheckpoint
+from app.store.runs import RunCreateOptions
+from app.store.supervisor_plan import NewSupervisorPlan
 from tests._drain_helpers import (
     _final_state_with_features,
     _persist,
@@ -27,42 +33,42 @@ _METRICS = {
 
 
 def _make_run(db_path: str) -> str:
-    run = store.create_run(
+    run = runs.create_run(
         "Metrics goal",
         "default",
         "mock",
         {},
-        store.RunCreateOptions(db_path=db_path),
+        RunCreateOptions(db_path=db_path),
     )
     return run.id
 
 
 def test_metrics_roundtrip(isolated_db: str) -> None:
     run_id = _make_run(isolated_db)
-    store.save_run_metrics(run_id, _METRICS, db_path=isolated_db)
-    assert store.get_run_metrics(run_id, db_path=isolated_db) == _METRICS
+    retrieval.save_run_metrics(run_id, _METRICS, db_path=isolated_db)
+    assert retrieval.get_run_metrics(run_id, db_path=isolated_db) == _METRICS
 
 
 def test_metrics_absent_returns_none(isolated_db: str) -> None:
     run_id = _make_run(isolated_db)
-    assert store.get_run_metrics(run_id, db_path=isolated_db) is None
+    assert retrieval.get_run_metrics(run_id, db_path=isolated_db) is None
 
 
 def test_metrics_upsert_replaces_previous_row(isolated_db: str) -> None:
     run_id = _make_run(isolated_db)
-    store.save_run_metrics(run_id, _METRICS, db_path=isolated_db)
+    retrieval.save_run_metrics(run_id, _METRICS, db_path=isolated_db)
     replacement = {**_METRICS, "llm_calls": 99}
-    store.save_run_metrics(run_id, replacement, db_path=isolated_db)
-    saved = store.get_run_metrics(run_id, db_path=isolated_db)
+    retrieval.save_run_metrics(run_id, replacement, db_path=isolated_db)
+    saved = retrieval.get_run_metrics(run_id, db_path=isolated_db)
     assert saved is not None
     assert saved["llm_calls"] == 99
 
 
 def test_clear_run_derived_data_removes_metrics(isolated_db: str) -> None:
     run_id = _make_run(isolated_db)
-    store.save_run_metrics(run_id, _METRICS, db_path=isolated_db)
-    store.clear_run_derived_data(run_id, db_path=isolated_db)
-    assert store.get_run_metrics(run_id, db_path=isolated_db) is None
+    retrieval.save_run_metrics(run_id, _METRICS, db_path=isolated_db)
+    views.clear_run_derived_data(run_id, db_path=isolated_db)
+    assert retrieval.get_run_metrics(run_id, db_path=isolated_db) is None
 
 
 # Fresh schemas hide migration ordering bugs; populated legacy fixtures exercise
@@ -377,7 +383,7 @@ def _insert_legacy_report_row(
     markdown_path: str | None,
     markdown_text_ranking: str | None = None,
 ) -> None:
-    with store.connect(db_path) as conn:
+    with _store_db.connect(db_path) as conn:
         conn.execute(
             "INSERT INTO reports (id, run_id, payload_json, markdown_path, "
             "markdown_text, markdown_text_ranking, created_at) "
@@ -400,19 +406,19 @@ def test_reports_round_trip_full_markdown_through_database(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    run = store.create_run(
+    run = runs.create_run(
         "report rt",
         "default",
         "mock",
         {},
-        store.RunCreateOptions(db_path=isolated_db),
+        RunCreateOptions(db_path=isolated_db),
     )
-    saved = store.save_report(
+    saved = reports.save_report(
         run.id, {"k": "v"}, "# Hello\nbody", db_path=isolated_db
     )
-    md = store.read_report_markdown(run.id, db_path=isolated_db)
+    md = reports.read_report_markdown(run.id, db_path=isolated_db)
     assert md == "# Hello\nbody"
-    rep = store.get_latest_report(run.id, db_path=isolated_db)
+    rep = reports.get_latest_report(run.id, db_path=isolated_db)
     assert rep and rep["payload"] == {"k": "v"}
     assert rep["id"] == saved["id"]
     assert rep["markdown_text"] == "# Hello\nbody"
@@ -423,12 +429,12 @@ def test_reports_round_trip_full_markdown_through_database(
 def test_read_report_markdown_falls_back_to_disk_when_db_text_missing(
     isolated_db: str, tmp_path: pathlib.Path
 ) -> None:
-    run = store.create_run(
+    run = runs.create_run(
         "disk fallback goal",
         "default",
         "mock",
         {},
-        store.RunCreateOptions(db_path=isolated_db),
+        RunCreateOptions(db_path=isolated_db),
     )
     md_file = tmp_path / "on_disk.md"
     md_file.write_text("# From disk", encoding="utf-8")
@@ -437,48 +443,48 @@ def test_read_report_markdown_falls_back_to_disk_when_db_text_missing(
         isolated_db, run.id, "report-disk-1", str(md_file)
     )
 
-    text = store.read_report_markdown(run.id, db_path=isolated_db)
+    text = reports.read_report_markdown(run.id, db_path=isolated_db)
     assert text == "# From disk"
 
 
 def test_read_report_markdown_none_without_db_text_or_path(
     isolated_db: str,
 ) -> None:
-    run = store.create_run(
+    run = runs.create_run(
         "no source goal",
         "default",
         "mock",
         {},
-        store.RunCreateOptions(db_path=isolated_db),
+        RunCreateOptions(db_path=isolated_db),
     )
     _insert_legacy_report_row(isolated_db, run.id, "report-disk-2", None)
 
-    assert store.read_report_markdown(run.id, db_path=isolated_db) is None
+    assert reports.read_report_markdown(run.id, db_path=isolated_db) is None
 
 
 def test_get_latest_report_and_read_markdown_none_without_any_report(
     isolated_db: str,
 ) -> None:
-    run = store.create_run(
+    run = runs.create_run(
         "no report goal",
         "default",
         "mock",
         {},
-        store.RunCreateOptions(db_path=isolated_db),
+        RunCreateOptions(db_path=isolated_db),
     )
-    assert store.get_latest_report(run.id, db_path=isolated_db) is None
-    assert store.read_report_markdown(run.id, db_path=isolated_db) is None
+    assert reports.get_latest_report(run.id, db_path=isolated_db) is None
+    assert reports.read_report_markdown(run.id, db_path=isolated_db) is None
 
 
 def test_read_report_markdown_none_when_disk_file_missing(
     isolated_db: str, tmp_path: pathlib.Path
 ) -> None:
-    run = store.create_run(
+    run = runs.create_run(
         "missing file goal",
         "default",
         "mock",
         {},
-        store.RunCreateOptions(db_path=isolated_db),
+        RunCreateOptions(db_path=isolated_db),
     )
     missing_path = tmp_path / "does_not_exist.md"
 
@@ -486,22 +492,24 @@ def test_read_report_markdown_none_when_disk_file_missing(
         isolated_db, run.id, "report-disk-3", str(missing_path)
     )
 
-    assert store.read_report_markdown(run.id, db_path=isolated_db) is None
+    assert reports.read_report_markdown(run.id, db_path=isolated_db) is None
 
 
 def test_save_report_never_writes_the_legacy_ranking_column(
     isolated_db: str,
 ) -> None:
-    run = store.create_run(
+    run = runs.create_run(
         "no ranking write goal",
         "default",
         "mock",
         {},
-        store.RunCreateOptions(db_path=isolated_db),
+        RunCreateOptions(db_path=isolated_db),
     )
-    store.save_report(run.id, {"k": "v"}, "# Goal Report", db_path=isolated_db)
+    reports.save_report(
+        run.id, {"k": "v"}, "# Goal Report", db_path=isolated_db
+    )
 
-    report = store.get_latest_report(run.id, db_path=isolated_db)
+    report = reports.get_latest_report(run.id, db_path=isolated_db)
     assert report is not None
     assert report["markdown_text_ranking"] is None
 
@@ -511,12 +519,12 @@ def test_read_report_markdown_appends_a_legacy_split_window_row(
 ) -> None:
     # Legacy split reports carry ranking text in another column; merging must
     # preserve both halves.
-    run = store.create_run(
+    run = runs.create_run(
         "split window goal",
         "default",
         "mock",
         {},
-        store.RunCreateOptions(db_path=isolated_db),
+        RunCreateOptions(db_path=isolated_db),
     )
     _insert_legacy_report_row(
         isolated_db,
@@ -525,13 +533,13 @@ def test_read_report_markdown_appends_a_legacy_split_window_row(
         None,
         markdown_text_ranking="# ranking half",
     )
-    with store.connect(isolated_db) as conn:
+    with _store_db.connect(isolated_db) as conn:
         conn.execute(
             "UPDATE reports SET markdown_text=? WHERE id=?",
             ("# overview half", "report-split-window"),
         )
 
-    text = store.read_report_markdown(run.id, db_path=isolated_db)
+    text = reports.read_report_markdown(run.id, db_path=isolated_db)
     assert text == "# overview half\n\n# ranking half"
 
 
@@ -587,11 +595,11 @@ def _plan_final_state() -> dict[str, object]:
 
 
 def test_save_and_get_plan_round_trip(isolated_db: str) -> None:
-    run = store.create_run("sp goal", "standard", "mock", {})
+    run = runs.create_run("sp goal", "standard", "mock", {})
     guidance = {"workflow_plan": {"iterations": 2}}
 
-    store.save_supervisor_plan(
-        store.NewSupervisorPlan(
+    plans.save_supervisor_plan(
+        NewSupervisorPlan(
             run_id=run.id,
             guidance=guidance,
             termination_reason="satisfied_completion",
@@ -600,7 +608,7 @@ def test_save_and_get_plan_round_trip(isolated_db: str) -> None:
         ),
         db_path=isolated_db,
     )
-    plan = store.get_supervisor_plan(run.id, db_path=isolated_db)
+    plan = plans.get_supervisor_plan(run.id, db_path=isolated_db)
 
     assert plan is not None
     assert plan["plan"] == guidance
@@ -610,9 +618,9 @@ def test_save_and_get_plan_round_trip(isolated_db: str) -> None:
 
 
 def test_save_plan_upserts_rather_than_duplicates(isolated_db: str) -> None:
-    run = store.create_run("sp goal", "standard", "mock", {})
-    store.save_supervisor_plan(
-        store.NewSupervisorPlan(
+    run = runs.create_run("sp goal", "standard", "mock", {})
+    plans.save_supervisor_plan(
+        NewSupervisorPlan(
             run_id=run.id,
             guidance={"workflow_plan": {}},
             termination_reason=None,
@@ -621,8 +629,8 @@ def test_save_plan_upserts_rather_than_duplicates(isolated_db: str) -> None:
         ),
         db_path=isolated_db,
     )
-    store.save_supervisor_plan(
-        store.NewSupervisorPlan(
+    plans.save_supervisor_plan(
+        NewSupervisorPlan(
             run_id=run.id,
             guidance={"workflow_plan": {"iterations": 3}},
             termination_reason="satisfied_completion",
@@ -637,19 +645,19 @@ def test_save_plan_upserts_rather_than_duplicates(isolated_db: str) -> None:
             "SELECT COUNT(*) FROM supervisor_plan WHERE run_id=?", (run.id,)
         ).fetchone()[0]
     assert count == 1
-    plan = store.get_supervisor_plan(run.id, db_path=isolated_db)
+    plan = plans.get_supervisor_plan(run.id, db_path=isolated_db)
     assert plan is not None
     assert plan["plan"] == {"workflow_plan": {"iterations": 3}}
     assert plan["decision_provenance"] == "hard_invariant"
 
 
 def test_get_plan_returns_none_before_finalize(isolated_db: str) -> None:
-    run = store.create_run("sp goal", "standard", "mock", {})
-    assert store.get_supervisor_plan(run.id, db_path=isolated_db) is None
+    run = runs.create_run("sp goal", "standard", "mock", {})
+    assert plans.get_supervisor_plan(run.id, db_path=isolated_db) is None
 
 
 def test_replace_and_list_allocations_round_trip(isolated_db: str) -> None:
-    run = store.create_run("sp goal", "standard", "mock", {})
+    run = runs.create_run("sp goal", "standard", "mock", {})
     allocations = [
         {
             "task_type": "generate",
@@ -667,10 +675,10 @@ def test_replace_and_list_allocations_round_trip(isolated_db: str) -> None:
         },
     ]
 
-    store.replace_supervisor_allocations(
+    plans.replace_supervisor_allocations(
         run.id, allocations, db_path=isolated_db
     )
-    rows = store.list_supervisor_allocations(run.id, db_path=isolated_db)
+    rows = plans.list_supervisor_allocations(run.id, db_path=isolated_db)
 
     assert [r["task_type"] for r in rows] == ["generate", "rank"]
     assert [r["seq"] for r in rows] == [0, 1]
@@ -679,8 +687,8 @@ def test_replace_and_list_allocations_round_trip(isolated_db: str) -> None:
 
 
 def test_replace_allocations_clears_prior_rows(isolated_db: str) -> None:
-    run = store.create_run("sp goal", "standard", "mock", {})
-    store.replace_supervisor_allocations(
+    run = runs.create_run("sp goal", "standard", "mock", {})
+    plans.replace_supervisor_allocations(
         run.id,
         [
             {
@@ -692,7 +700,7 @@ def test_replace_allocations_clears_prior_rows(isolated_db: str) -> None:
         ],
         db_path=isolated_db,
     )
-    store.replace_supervisor_allocations(
+    plans.replace_supervisor_allocations(
         run.id,
         [
             {
@@ -705,14 +713,14 @@ def test_replace_allocations_clears_prior_rows(isolated_db: str) -> None:
         db_path=isolated_db,
     )
 
-    rows = store.list_supervisor_allocations(run.id, db_path=isolated_db)
+    rows = plans.list_supervisor_allocations(run.id, db_path=isolated_db)
     assert [r["task_type"] for r in rows] == ["terminate"]
 
 
 def test_allocations_are_scoped_per_run(isolated_db: str) -> None:
-    run_a = store.create_run("goal a", "standard", "mock", {})
-    run_b = store.create_run("goal b", "standard", "mock", {})
-    store.replace_supervisor_allocations(
+    run_a = runs.create_run("goal a", "standard", "mock", {})
+    run_b = runs.create_run("goal b", "standard", "mock", {})
+    plans.replace_supervisor_allocations(
         run_a.id,
         [
             {
@@ -726,18 +734,18 @@ def test_allocations_are_scoped_per_run(isolated_db: str) -> None:
     )
 
     assert (
-        store.list_supervisor_allocations(run_b.id, db_path=isolated_db) == []
+        plans.list_supervisor_allocations(run_b.id, db_path=isolated_db) == []
     )
     assert (
-        len(store.list_supervisor_allocations(run_a.id, db_path=isolated_db))
+        len(plans.list_supervisor_allocations(run_a.id, db_path=isolated_db))
         == 1
     )
 
 
 def test_run_deletion_cascades_to_supervisor_tables(isolated_db: str) -> None:
-    run = store.create_run("sp goal", "standard", "mock", {})
-    store.save_supervisor_plan(
-        store.NewSupervisorPlan(
+    run = runs.create_run("sp goal", "standard", "mock", {})
+    plans.save_supervisor_plan(
+        NewSupervisorPlan(
             run_id=run.id,
             guidance={"workflow_plan": {}},
             termination_reason=None,
@@ -746,7 +754,7 @@ def test_run_deletion_cascades_to_supervisor_tables(isolated_db: str) -> None:
         ),
         db_path=isolated_db,
     )
-    store.replace_supervisor_allocations(
+    plans.replace_supervisor_allocations(
         run.id,
         [
             {
@@ -759,23 +767,23 @@ def test_run_deletion_cascades_to_supervisor_tables(isolated_db: str) -> None:
         db_path=isolated_db,
     )
 
-    with store.connect(isolated_db) as conn:
+    with _store_db.connect(isolated_db) as conn:
         conn.execute("PRAGMA foreign_keys=ON")
         conn.execute("DELETE FROM runs WHERE id = ?", (run.id,))
 
-    assert store.get_supervisor_plan(run.id, db_path=isolated_db) is None
-    assert store.list_supervisor_allocations(run.id, db_path=isolated_db) == []
+    assert plans.get_supervisor_plan(run.id, db_path=isolated_db) is None
+    assert plans.list_supervisor_allocations(run.id, db_path=isolated_db) == []
 
 
 def test_finalize_persists_supervisor_plan_and_allocations(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("sp e2e goal", "standard", "mock", {})
+    run = runs.create_run("sp e2e goal", "standard", "mock", {})
     final_state = _plan_final_state()
 
     _persist_and_finalize(run, final_state, isolated_db)
 
-    plan = store.get_supervisor_plan(run.id, db_path=isolated_db)
+    plan = plans.get_supervisor_plan(run.id, db_path=isolated_db)
     assert plan is not None
     assert plan["plan"]["workflow_plan"] == {"iterations": 2}
     assert plan["decision_provenance"] == "model"
@@ -785,7 +793,7 @@ def test_finalize_persists_supervisor_plan_and_allocations(
         "pool_size": 4,
     }
 
-    allocations = store.list_supervisor_allocations(run.id, db_path=isolated_db)
+    allocations = plans.list_supervisor_allocations(run.id, db_path=isolated_db)
     assert [a["task_type"] for a in allocations] == [
         "generate",
         "rank",
@@ -798,15 +806,15 @@ def test_finalize_persists_supervisor_plan_and_allocations(
 def test_re_finalize_replaces_rather_than_accumulates(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("sp goal", "standard", "mock", {})
+    run = runs.create_run("sp goal", "standard", "mock", {})
     final_state = _plan_final_state()
 
     _persist_and_finalize(run, final_state, isolated_db)
-    first = store.list_supervisor_allocations(run.id, db_path=isolated_db)
+    first = plans.list_supervisor_allocations(run.id, db_path=isolated_db)
     assert len(first) == 3
 
     _persist(run_id=run.id, final_state=final_state, db_path=isolated_db)
-    second = store.list_supervisor_allocations(run.id, db_path=isolated_db)
+    second = plans.list_supervisor_allocations(run.id, db_path=isolated_db)
     assert len(second) == 3
 
 
@@ -815,9 +823,9 @@ async def test_supervisor_plan_endpoint_returns_persisted_rows(
 ) -> None:
     from app.runs.collections import get_supervisor_plan
 
-    run = store.create_run("sp goal", "standard", "mock", {})
-    store.save_supervisor_plan(
-        store.NewSupervisorPlan(
+    run = runs.create_run("sp goal", "standard", "mock", {})
+    plans.save_supervisor_plan(
+        NewSupervisorPlan(
             run_id=run.id,
             guidance={"workflow_plan": {"iterations": 1}},
             termination_reason="satisfied_completion",
@@ -826,7 +834,7 @@ async def test_supervisor_plan_endpoint_returns_persisted_rows(
         ),
         db_path=isolated_db,
     )
-    store.replace_supervisor_allocations(
+    plans.replace_supervisor_allocations(
         run.id,
         [
             {
@@ -870,7 +878,7 @@ def test_new_tables_come_up_against_a_pre_existing_database(
     finally:
         raw.close()
 
-    run = store.get_run("legacy-run", db_path=isolated_db)
+    run = runs.get_run("legacy-run", db_path=isolated_db)
     assert run is not None
 
     with store_db.connect(isolated_db) as conn:
@@ -888,8 +896,8 @@ def test_new_tables_come_up_against_a_pre_existing_database(
         }
         assert "idx_sup_alloc_run" in indexes
 
-    store.save_supervisor_plan(
-        store.NewSupervisorPlan(
+    plans.save_supervisor_plan(
+        NewSupervisorPlan(
             run_id="legacy-run",
             guidance={"workflow_plan": {}},
             termination_reason=None,
@@ -898,7 +906,7 @@ def test_new_tables_come_up_against_a_pre_existing_database(
         ),
         db_path=isolated_db,
     )
-    plan = store.get_supervisor_plan("legacy-run", db_path=isolated_db)
+    plan = plans.get_supervisor_plan("legacy-run", db_path=isolated_db)
     assert plan is not None
 
 
@@ -946,12 +954,12 @@ _GUIDANCE = {"workflow_plan": {"iterations": 2}}
 def test_save_checkpoint_persists_ledger_without_finalize(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("goal", "standard", "mock", {})
-    assert store.get_supervisor_plan(run.id, db_path=isolated_db) is None
+    run = runs.create_run("goal", "standard", "mock", {})
+    assert plans.get_supervisor_plan(run.id, db_path=isolated_db) is None
 
-    store.save_checkpoint(
+    checkpoints.save_checkpoint(
         run.id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage="engine_task:t1",
             schema_version=1,
             last_event_seq=3,
@@ -965,21 +973,21 @@ def test_save_checkpoint_persists_ledger_without_finalize(
         db_path=isolated_db,
     )
 
-    allocations = store.list_supervisor_allocations(run.id, db_path=isolated_db)
+    allocations = plans.list_supervisor_allocations(run.id, db_path=isolated_db)
     assert [a["task_type"] for a in allocations] == ["generate"]
 
-    plan = store.get_supervisor_plan(run.id, db_path=isolated_db)
+    plan = plans.get_supervisor_plan(run.id, db_path=isolated_db)
     assert plan is not None
     assert plan["plan"] == _GUIDANCE
     assert plan["termination_reason"] is None
 
 
 def test_ledger_grows_across_successive_checkpoints(isolated_db: str) -> None:
-    run = store.create_run("goal", "standard", "mock", {})
+    run = runs.create_run("goal", "standard", "mock", {})
 
-    store.save_checkpoint(
+    checkpoints.save_checkpoint(
         run.id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage="engine_task:t1",
             schema_version=1,
             last_event_seq=1,
@@ -989,9 +997,9 @@ def test_ledger_grows_across_successive_checkpoints(isolated_db: str) -> None:
         ),
         db_path=isolated_db,
     )
-    store.save_checkpoint(
+    checkpoints.save_checkpoint(
         run.id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage="engine_task:t2",
             schema_version=1,
             last_event_seq=2,
@@ -1004,7 +1012,7 @@ def test_ledger_grows_across_successive_checkpoints(isolated_db: str) -> None:
         db_path=isolated_db,
     )
 
-    allocations = store.list_supervisor_allocations(run.id, db_path=isolated_db)
+    allocations = plans.list_supervisor_allocations(run.id, db_path=isolated_db)
     assert [a["task_type"] for a in allocations] == ["generate", "rank"]
 
 
@@ -1013,10 +1021,10 @@ def test_shorter_later_checkpoint_never_shrinks_the_ledger(
 ) -> None:
     # Older out-of-order checkpoints must not erase a more complete stored
     # ledger.
-    run = store.create_run("goal", "standard", "mock", {})
-    store.save_checkpoint(
+    run = runs.create_run("goal", "standard", "mock", {})
+    checkpoints.save_checkpoint(
         run.id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage="engine_task:t1",
             schema_version=1,
             last_event_seq=1,
@@ -1028,9 +1036,9 @@ def test_shorter_later_checkpoint_never_shrinks_the_ledger(
         db_path=isolated_db,
     )
 
-    store.save_checkpoint(
+    checkpoints.save_checkpoint(
         run.id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage="engine_task:stale",
             schema_version=1,
             last_event_seq=1,
@@ -1041,27 +1049,27 @@ def test_shorter_later_checkpoint_never_shrinks_the_ledger(
         db_path=isolated_db,
     )
 
-    allocations = store.list_supervisor_allocations(run.id, db_path=isolated_db)
+    allocations = plans.list_supervisor_allocations(run.id, db_path=isolated_db)
     assert [a["task_type"] for a in allocations] == ["generate", "rank"]
 
 
 def test_equal_length_checkpoint_is_a_no_op(isolated_db: str) -> None:
     # Repeated item checkpoints carry unchanged history; ledger writes track
     # decisions rather than every commit.
-    run = store.create_run("goal", "standard", "mock", {})
+    run = runs.create_run("goal", "standard", "mock", {})
     state = _checkpoint_state(
         task_history=[_task("generate")], guidance=_GUIDANCE
     )
-    store.save_checkpoint(
+    checkpoints.save_checkpoint(
         run.id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage="t1", schema_version=1, last_event_seq=1, state=state
         ),
         db_path=isolated_db,
     )
-    store.save_checkpoint(
+    checkpoints.save_checkpoint(
         run.id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage="t2", schema_version=1, last_event_seq=2, state=state
         ),
         db_path=isolated_db,
@@ -1076,10 +1084,10 @@ def test_equal_length_checkpoint_is_a_no_op(isolated_db: str) -> None:
 
 
 def test_no_guidance_yet_persists_nothing(isolated_db: str) -> None:
-    run = store.create_run("goal", "standard", "mock", {})
-    store.save_checkpoint(
+    run = runs.create_run("goal", "standard", "mock", {})
+    checkpoints.save_checkpoint(
         run.id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage="engine.bootstrap",
             schema_version=1,
             last_event_seq=0,
@@ -1088,22 +1096,22 @@ def test_no_guidance_yet_persists_nothing(isolated_db: str) -> None:
         db_path=isolated_db,
     )
 
-    assert store.get_supervisor_plan(run.id, db_path=isolated_db) is None
-    assert store.list_supervisor_allocations(run.id, db_path=isolated_db) == []
+    assert plans.get_supervisor_plan(run.id, db_path=isolated_db) is None
+    assert plans.list_supervisor_allocations(run.id, db_path=isolated_db) == []
 
 
 def test_legacy_checkpoint_shape_is_a_no_op(isolated_db: str) -> None:
-    run = store.create_run("goal", "standard", "mock", {})
-    store.save_checkpoint(
+    run = runs.create_run("goal", "standard", "mock", {})
+    checkpoints.save_checkpoint(
         run.id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage="s", schema_version=1, last_event_seq=1, state={"round": 1}
         ),
         db_path=isolated_db,
     )
 
-    assert store.get_supervisor_plan(run.id, db_path=isolated_db) is None
-    assert store.list_supervisor_allocations(run.id, db_path=isolated_db) == []
+    assert plans.get_supervisor_plan(run.id, db_path=isolated_db) is None
+    assert plans.list_supervisor_allocations(run.id, db_path=isolated_db) == []
 
 
 def test_finalize_remains_authoritative_after_incremental_writes(
@@ -1111,10 +1119,10 @@ def test_finalize_remains_authoritative_after_incremental_writes(
 ) -> None:
     from tests._drain_helpers import _persist
 
-    run = store.create_run("goal", "standard", "mock", {})
-    store.save_checkpoint(
+    run = runs.create_run("goal", "standard", "mock", {})
+    checkpoints.save_checkpoint(
         run.id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage="engine_task:t1",
             schema_version=1,
             last_event_seq=1,
@@ -1126,7 +1134,7 @@ def test_finalize_remains_authoritative_after_incremental_writes(
         ),
         db_path=isolated_db,
     )
-    assert store.get_supervisor_plan(run.id, db_path=isolated_db) is not None
+    assert plans.get_supervisor_plan(run.id, db_path=isolated_db) is not None
 
     final_state: dict[str, Any] = {
         "hypotheses": [],
@@ -1146,9 +1154,9 @@ def test_finalize_remains_authoritative_after_incremental_writes(
     }
     _persist(run_id=run.id, final_state=final_state, db_path=isolated_db)
 
-    plan = store.get_supervisor_plan(run.id, db_path=isolated_db)
+    plan = plans.get_supervisor_plan(run.id, db_path=isolated_db)
     assert plan is not None
     assert plan["termination_reason"] == "satisfied_completion"
     assert plan["decision_provenance"] == "hard_invariant"
-    allocations = store.list_supervisor_allocations(run.id, db_path=isolated_db)
+    allocations = plans.list_supervisor_allocations(run.id, db_path=isolated_db)
     assert [a["task_type"] for a in allocations] == ["generate", "terminate"]

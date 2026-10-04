@@ -36,9 +36,15 @@ from co_scientist.research import (
 )
 from co_scientist.state import WorkflowState
 
-from app import store
 from app.engine_tasks import inputs as engine_tasks_inputs
 from app.report import gates as report_gates
+from app.store import hypotheses, records, reports, runs
+from app.store import retrieval_calls as retrieval
+from app.store import runs_views as views
+from app.store.hypotheses import NewHypothesis
+from app.store.models import RunStatus
+from app.store.records import NewClaimEvidence, NewReview
+from app.store.runs import RunCreateOptions
 from tests._drain_helpers import (
     _build_report,
     _engine_hypothesis,
@@ -127,14 +133,14 @@ def test_evidence_resolves_to_the_search_that_found_it(
 ) -> None:
     # Search ledger and evidence search link must persist together; either half
     # alone loses usable provenance.
-    run = store.create_run("provenance goal", "extended", "engine", {})
+    run = runs.create_run("provenance goal", "extended", "engine", {})
 
     _persist_and_finalize(
         run, _provenance_final_state(researched=True), isolated_db
     )
 
-    evidence = store.list_evidence(run.id, db_path=isolated_db)
-    calls = store.list_retrieval_calls(run.id, db_path=isolated_db)
+    evidence = records.list_evidence(run.id, db_path=isolated_db)
+    calls = retrieval.list_retrieval_calls(run.id, db_path=isolated_db)
     assert len(evidence) == 1
     assert len(calls) == 1
     by_id = {call["id"]: call for call in calls}
@@ -246,11 +252,11 @@ def test_cached_literature_review_keeps_provenance_through_the_report(
         "research_overview": {},
         "research_ledgers": cached.get("research_ledgers", []),
     }
-    run = store.create_run("provenance goal", "extended", "engine", {})
+    run = runs.create_run("provenance goal", "extended", "engine", {})
     _persist_and_finalize(run, final_state, isolated_db)
 
-    calls = store.list_retrieval_calls(run.id, db_path=isolated_db)
-    evidence = store.list_evidence(run.id, db_path=isolated_db)
+    calls = retrieval.list_retrieval_calls(run.id, db_path=isolated_db)
+    evidence = records.list_evidence(run.id, db_path=isolated_db)
     by_title = {row["title"]: row for row in evidence}
     assert len(calls) == 1
     assert by_title["A researched paper"]["retrieval_call_id"] == _CALL.id
@@ -263,13 +269,13 @@ def test_cached_literature_review_keeps_provenance_through_the_report(
 def test_what_was_seen_and_not_read_stays_on_record(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("coverage goal", "extended", "engine", {})
+    run = runs.create_run("coverage goal", "extended", "engine", {})
 
     _persist_and_finalize(
         run, _provenance_final_state(researched=True), isolated_db
     )
 
-    call = store.list_retrieval_calls(run.id, db_path=isolated_db)[0]
+    call = retrieval.list_retrieval_calls(run.id, db_path=isolated_db)[0]
     assert [hit["locator"] for hit in call["hits"]] == ["12345678", "99999999"]
     assert call["admitted"] == ["12345678"]
     assert call["dropped"] == ["99999999"]
@@ -279,14 +285,14 @@ def test_what_was_seen_and_not_read_stays_on_record(
 def test_a_run_that_did_no_research_writes_no_searches(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("shallow goal", "standard", "engine", {})
+    run = runs.create_run("shallow goal", "standard", "engine", {})
 
     _persist_and_finalize(
         run, _provenance_final_state(researched=False), isolated_db
     )
 
-    assert store.list_retrieval_calls(run.id, db_path=isolated_db) == []
-    evidence = store.list_evidence(run.id, db_path=isolated_db)
+    assert retrieval.list_retrieval_calls(run.id, db_path=isolated_db) == []
+    evidence = records.list_evidence(run.id, db_path=isolated_db)
     assert evidence[0]["retrieval_call_id"] is None
 
 
@@ -295,7 +301,7 @@ def test_the_run_tier_reaches_the_engine_verbatim(isolated_db: str) -> None:
     # engine cannot drift.
     from app.engine_adapter.opts import build_engine_opts
 
-    run = store.create_run("tier goal", "ultra", "engine", {})
+    run = runs.create_run("tier goal", "ultra", "engine", {})
 
     opts = build_engine_opts({"tier": "advanced"}, run.id, isolated_db)
 
@@ -348,13 +354,13 @@ def test_every_researcher_in_a_run_leaves_its_searches_on_record(
 ) -> None:
     # Literature and reflection own separate ledgers; one shared writer silently
     # replaces earlier provenance.
-    run = store.create_run("two researchers", "ultra", "engine", {})
+    run = runs.create_run("two researchers", "ultra", "engine", {})
     state = _provenance_final_state(researched=True)
     state["research_ledgers"].append(_review_ledger())
 
     _persist_and_finalize(run, state, isolated_db)
 
-    calls = store.list_retrieval_calls(run.id, db_path=isolated_db)
+    calls = retrieval.list_retrieval_calls(run.id, db_path=isolated_db)
     assert {call["query"] for call in calls} == {
         "TGF-beta blockade human fibrosis",
         "TGF-beta receptor human expression",
@@ -364,13 +370,13 @@ def test_every_researcher_in_a_run_leaves_its_searches_on_record(
 def test_the_same_search_from_two_researchers_is_one_row(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("same search twice", "ultra", "engine", {})
+    run = runs.create_run("same search twice", "ultra", "engine", {})
     state = _provenance_final_state(researched=True)
     state["research_ledgers"].append(_ledger())
 
     _persist_and_finalize(run, state, isolated_db)
 
-    assert len(store.list_retrieval_calls(run.id, db_path=isolated_db)) == 1
+    assert len(retrieval.list_retrieval_calls(run.id, db_path=isolated_db)) == 1
 
 
 def test_a_reviews_own_paper_resolves_to_the_reviews_own_search(
@@ -378,7 +384,7 @@ def test_a_reviews_own_paper_resolves_to_the_reviews_own_search(
 ) -> None:
     # Reflection provenance travels through item result and aggregate, unlike
     # literature-review ledger inputs.
-    run = store.create_run("review provenance", "ultra", "engine", {})
+    run = runs.create_run("review provenance", "ultra", "engine", {})
     state = _provenance_final_state(researched=True)
     state["research_ledgers"].append(_review_ledger())
     state["articles"].append(
@@ -394,11 +400,11 @@ def test_a_reviews_own_paper_resolves_to_the_reviews_own_search(
 
     _persist_and_finalize(run, state, isolated_db)
 
-    evidence = store.list_evidence(run.id, db_path=isolated_db)
+    evidence = records.list_evidence(run.id, db_path=isolated_db)
     by_title = {row["title"]: row for row in evidence}
     calls = {
         call["id"]: call
-        for call in store.list_retrieval_calls(run.id, db_path=isolated_db)
+        for call in retrieval.list_retrieval_calls(run.id, db_path=isolated_db)
     }
     found_by = calls[by_title["Expression atlas"]["retrieval_call_id"]]
     assert found_by["question"] == "Is the receptor expressed in humans?"
@@ -421,7 +427,7 @@ def _degradation_final_state(
 def test_the_report_carries_what_the_run_could_not_search(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("degraded goal", "extended", "engine", {})
+    run = runs.create_run("degraded goal", "extended", "engine", {})
 
     _persist_and_finalize(
         run,
@@ -435,7 +441,7 @@ def test_the_report_carries_what_the_run_could_not_search(
         isolated_db,
     )
 
-    report = store.get_latest_report(run.id, db_path=isolated_db)
+    report = reports.get_latest_report(run.id, db_path=isolated_db)
     assert report is not None
     degradation = report["payload"]["retrieval_degradation"]
     assert degradation["reason"] == "mcp_unreachable"
@@ -444,34 +450,34 @@ def test_the_report_carries_what_the_run_could_not_search(
 
 
 def test_a_healthy_run_reports_no_degradation(isolated_db: str) -> None:
-    run = store.create_run("healthy goal", "extended", "engine", {})
+    run = runs.create_run("healthy goal", "extended", "engine", {})
 
     _persist_and_finalize(run, _degradation_final_state(None), isolated_db)
 
-    report = store.get_latest_report(run.id, db_path=isolated_db)
+    report = reports.get_latest_report(run.id, db_path=isolated_db)
     assert report is not None
     assert report["payload"]["retrieval_degradation"] is None
 
 
 def _seed_gate_split(run: Any, db_path: str) -> tuple[str, str, str]:
-    supported_id = store.add_hypothesis(
-        store.NewHypothesis(
+    supported_id = hypotheses.add_hypothesis(
+        NewHypothesis(
             run_id=run.id,
             title="Supported",
             statement="Kinase X inhibition drives AML apoptosis.",
         ),
         db_path=db_path,
     )
-    unsupported_id = store.add_hypothesis(
-        store.NewHypothesis(
+    unsupported_id = hypotheses.add_hypothesis(
+        NewHypothesis(
             run_id=run.id,
             title="Unsupported",
             statement="A novel latent mechanism without any evidence yet.",
         ),
         db_path=db_path,
     )
-    contradicted_id = store.add_hypothesis(
-        store.NewHypothesis(
+    contradicted_id = hypotheses.add_hypothesis(
+        NewHypothesis(
             run_id=run.id,
             title="Contradicted",
             statement="Drug Y single-handedly cures the disease.",
@@ -485,8 +491,8 @@ def _seed_gate_split(run: Any, db_path: str) -> tuple[str, str, str]:
 def _add_gate_split_edges(
     run: Any, supported_id: str, contradicted_id: str, db_path: str
 ) -> None:
-    store.add_claim_evidence(
-        store.NewClaimEvidence(
+    records.add_claim_evidence(
+        NewClaimEvidence(
             run_id=run.id,
             hypothesis_id=supported_id,
             claim="Kinase X inhibition drives AML apoptosis.",
@@ -497,8 +503,8 @@ def _add_gate_split_edges(
         ),
         db_path=db_path,
     )
-    store.add_claim_evidence(
-        store.NewClaimEvidence(
+    records.add_claim_evidence(
+        NewClaimEvidence(
             run_id=run.id,
             hypothesis_id=contradicted_id,
             claim="Drug Y single-handedly cures the disease.",
@@ -514,7 +520,7 @@ def _add_gate_split_edges(
 def test_rank_and_publish_splits_contradicted_from_unverified(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("gate split", "standard", "engine", {})
+    run = runs.create_run("gate split", "standard", "engine", {})
     supported_id, unsupported_id, contradicted_id = _seed_gate_split(
         run, isolated_db
     )
@@ -524,7 +530,7 @@ def test_rank_and_publish_splits_contradicted_from_unverified(
     assert contradicted == {contradicted_id}
     assert unverified == {unsupported_id, contradicted_id}
 
-    hyps = store.list_hypotheses(run.id, db_path=isolated_db)
+    hyps = hypotheses.list_hypotheses(run.id, db_path=isolated_db)
     kept_ids = {
         h["id"]
         for h in report_gates.exclude_unsafe_hypotheses(
@@ -537,11 +543,9 @@ def test_rank_and_publish_splits_contradicted_from_unverified(
 
 
 def _assert_demo_run_badges_nothing(db_path: str) -> None:
-    demo = store.create_run("demo", "standard", "mock", {})
-    store.add_hypothesis(
-        store.NewHypothesis(
-            run_id=demo.id, title="Demo", statement="Demo idea."
-        ),
+    demo = runs.create_run("demo", "standard", "mock", {})
+    hypotheses.add_hypothesis(
+        NewHypothesis(run_id=demo.id, title="Demo", statement="Demo idea."),
         db_path=db_path,
     )
     assert report_gates.unverified_hypothesis_ids(demo.id, db_path) == set()
@@ -550,25 +554,25 @@ def _assert_demo_run_badges_nothing(db_path: str) -> None:
 def test_partial_edge_clears_the_unverified_badge(isolated_db: str) -> None:
     # Partial support is relevant and consistent, so it clears the Unverified
     # badge.
-    run = store.create_run("partial badge", "standard", "engine", {})
-    partial_id = store.add_hypothesis(
-        store.NewHypothesis(
+    run = runs.create_run("partial badge", "standard", "engine", {})
+    partial_id = hypotheses.add_hypothesis(
+        NewHypothesis(
             run_id=run.id,
             title="Partially supported",
             statement="Kinase X modulation influences AML growth.",
         ),
         db_path=isolated_db,
     )
-    insufficient_id = store.add_hypothesis(
-        store.NewHypothesis(
+    insufficient_id = hypotheses.add_hypothesis(
+        NewHypothesis(
             run_id=run.id,
             title="Insufficient",
             statement="An entirely unevidenced conjecture.",
         ),
         db_path=isolated_db,
     )
-    store.add_claim_evidence(
-        store.NewClaimEvidence(
+    records.add_claim_evidence(
+        NewClaimEvidence(
             run_id=run.id,
             hypothesis_id=partial_id,
             claim="Kinase X modulation influences AML growth.",
@@ -579,8 +583,8 @@ def test_partial_edge_clears_the_unverified_badge(isolated_db: str) -> None:
         ),
         db_path=isolated_db,
     )
-    store.add_claim_evidence(
-        store.NewClaimEvidence(
+    records.add_claim_evidence(
+        NewClaimEvidence(
             run_id=run.id,
             hypothesis_id=insufficient_id,
             claim="An entirely unevidenced conjecture.",
@@ -601,9 +605,9 @@ def test_gate_reports_exclusions_once_and_at_info(
 ) -> None:
     # Individual exclusions are expected narrative; warn when the gate leaves
     # nothing to synthesize.
-    run = store.create_run("gate logging", "standard", "engine", {})
+    run = runs.create_run("gate logging", "standard", "engine", {})
     _, _, contradicted_id = _seed_gate_split(run, isolated_db)
-    hyps = store.list_hypotheses(run.id, db_path=isolated_db)
+    hyps = hypotheses.list_hypotheses(run.id, db_path=isolated_db)
 
     with caplog.at_level(logging.INFO, logger="app.report.gates"):
         report_gates.exclude_unsafe_hypotheses(run.id, hyps, isolated_db)
@@ -618,16 +622,16 @@ def test_gate_reports_exclusions_once_and_at_info(
 def test_gate_warns_when_it_excludes_everything(
     isolated_db: str, caplog: pytest.LogCaptureFixture
 ) -> None:
-    run = store.create_run("gate empty", "standard", "engine", {})
-    store.add_hypothesis(
-        store.NewHypothesis(
+    run = runs.create_run("gate empty", "standard", "engine", {})
+    hypotheses.add_hypothesis(
+        NewHypothesis(
             run_id=run.id,
             title="Unsafe",
             statement="Weaponize the pathogen to enhance transmissibility.",
         ),
         db_path=isolated_db,
     )
-    hyps = store.list_hypotheses(run.id, db_path=isolated_db)
+    hyps = hypotheses.list_hypotheses(run.id, db_path=isolated_db)
 
     with caplog.at_level(logging.INFO, logger="app.report.gates"):
         kept = report_gates.exclude_unsafe_hypotheses(run.id, hyps, isolated_db)
@@ -669,11 +673,13 @@ def _drained_status(
 ) -> str:
     state = _final_state_with_lineage()
     state["hypotheses"][0]["review_disposition"] = disposition
-    run = store.create_run(goal, "standard", "engine", {})
+    run = runs.create_run(goal, "standard", "engine", {})
     _persist(run_id=run.id, final_state=state, db_path=isolated_db)
     by_id = {
         hypothesis["id"]: hypothesis
-        for hypothesis in store.list_hypotheses(run.id, db_path=isolated_db)
+        for hypothesis in hypotheses.list_hypotheses(
+            run.id, db_path=isolated_db
+        )
     }
     return str(by_id["parent-1"]["status"])
 
@@ -723,20 +729,20 @@ def test_offline_run_with_empty_leaderboard_is_blocked_like_a_real_run(
     state = _final_state_with_lineage()
     for hypothesis in state["hypotheses"]:
         hypothesis["review_disposition"] = "unsafe"
-    run = store.create_run(
+    run = runs.create_run(
         "offline empty leaderboard goal",
         "standard",
         "engine",
         {},
-        store.RunCreateOptions(llm_backend="offline", db_path=isolated_db),
+        RunCreateOptions(llm_backend="offline", db_path=isolated_db),
     )
 
     _persist_and_finalize(run, state, isolated_db)
 
-    settled = store.get_run(run.id, db_path=isolated_db)
+    settled = runs.get_run(run.id, db_path=isolated_db)
     assert settled is not None
-    assert settled.status == store.RunStatus.BLOCKED.value
-    assert store.get_latest_report(run.id, db_path=isolated_db) is None
+    assert settled.status == RunStatus.BLOCKED.value
+    assert reports.get_latest_report(run.id, db_path=isolated_db) is None
     assert settled.error is not None
     assert "peer review" in settled.error
     assert "safety review" not in settled.error
@@ -744,8 +750,8 @@ def test_offline_run_with_empty_leaderboard_is_blocked_like_a_real_run(
 
 
 def _seed_scientist_hypothesis(run_id: str, db_path: str) -> str:
-    return store.add_hypothesis(
-        store.NewHypothesis(
+    return hypotheses.add_hypothesis(
+        NewHypothesis(
             run_id=run_id,
             title="Scientist idea",
             statement="A scientist-proposed mechanism for kinase X.",
@@ -759,8 +765,8 @@ def _seed_scientist_hypothesis(run_id: str, db_path: str) -> str:
 def _seed_scientist_review(
     run_id: str, hypothesis_id: str, db_path: str
 ) -> None:
-    store.add_review(
-        store.NewReview(
+    records.add_review(
+        NewReview(
             run_id=run_id,
             hypothesis_id=hypothesis_id,
             reviewer_agent="scientist",
@@ -789,20 +795,20 @@ def _merged_final_state(run_id: str, db_path: str) -> dict[str, Any]:
 def _replay_finalize(
     run_id: str, final_state: dict[str, Any], db_path: str
 ) -> None:
-    store.clear_publication_artifacts(run_id, db_path=db_path)
+    views.clear_publication_artifacts(run_id, db_path=db_path)
     _persist(run_id=run_id, final_state=final_state, db_path=db_path)
 
 
 def test_drained_scientist_hypothesis_keeps_its_row(isolated_db: str) -> None:
     # Scientist rows survive publication resets; reconcile them instead of
     # inserting colliding copies.
-    run = store.create_run("Scientist drain", "express", "engine", {})
+    run = runs.create_run("Scientist drain", "express", "engine", {})
     hypothesis_id = _seed_scientist_hypothesis(run.id, isolated_db)
     final_state = _merged_final_state(run.id, isolated_db)
 
     _replay_finalize(run.id, final_state, isolated_db)
 
-    rows = store.list_hypotheses(run.id, isolated_db)
+    rows = hypotheses.list_hypotheses(run.id, isolated_db)
     assert [row["id"] for row in rows] == [hypothesis_id]
     assert rows[0]["author"] == "dr-who"
     assert rows[0]["created_by_agent"] == "scientist_manual"
@@ -814,7 +820,7 @@ def test_drained_scientist_hypothesis_keeps_its_row(isolated_db: str) -> None:
 def test_drained_scientist_hypothesis_keeps_tournament_counts(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("Scientist replay", "express", "engine", {})
+    run = runs.create_run("Scientist replay", "express", "engine", {})
     _seed_scientist_hypothesis(run.id, isolated_db)
     final_state = _merged_final_state(run.id, isolated_db)
     final_state["hypotheses"][0]["win_count"] = 3
@@ -823,21 +829,21 @@ def test_drained_scientist_hypothesis_keeps_tournament_counts(
     _replay_finalize(run.id, final_state, isolated_db)
     _replay_finalize(run.id, final_state, isolated_db)
 
-    rows = store.list_hypotheses(run.id, isolated_db)
+    rows = hypotheses.list_hypotheses(run.id, isolated_db)
     assert (rows[0]["win_count"], rows[0]["loss_count"]) == (3, 1)
 
 
 def test_drained_scientist_review_keeps_author_and_verdict(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("Scientist review drain", "express", "engine", {})
+    run = runs.create_run("Scientist review drain", "express", "engine", {})
     hypothesis_id = _seed_scientist_hypothesis(run.id, isolated_db)
     _seed_scientist_review(run.id, hypothesis_id, isolated_db)
     final_state = _merged_final_state(run.id, isolated_db)
 
     _replay_finalize(run.id, final_state, isolated_db)
 
-    reviews = store.list_reviews(run.id, isolated_db)
+    reviews = records.list_reviews(run.id, isolated_db)
     assert [row["reviewer_agent"] for row in reviews] == ["scientist"]
     assert reviews[0]["author"] == "dr-who"
     assert reviews[0]["verdict"] == "oppose"
@@ -850,7 +856,7 @@ def test_scientist_review_score_uses_the_engine_review_rubric(
     # misleads tournament judges.
     from co_scientist.constants import NEEDS_REVISION_SCORE, NOT_VIABLE_SCORE
 
-    run = store.create_run("Scientist rubric", "express", "engine", {})
+    run = runs.create_run("Scientist rubric", "express", "engine", {})
     hypothesis_id = _seed_scientist_hypothesis(run.id, isolated_db)
     _seed_scientist_review(run.id, hypothesis_id, isolated_db)
     state: dict[str, Any] = {"hypotheses": []}

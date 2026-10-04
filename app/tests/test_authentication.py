@@ -8,9 +8,13 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from app import auth, store
+from app import auth
 from app.config import Settings, settings
 from app.operator_access import is_operator
+from app.store import runs
+from app.store import runs_views as views
+from app.store.models import RunStatus
+from app.store.runs import RunCreateOptions
 from tests._client import make_client, wait_for
 
 _OWNER = {"X-Client-ID": "export-owner"}
@@ -139,9 +143,7 @@ def test_required_auth_exchanges_invite_and_isolates_runs(
         "https://ai-co-scientist.com"
     )
 
-    store.update_run_status(
-        run_id, store.RunStatus.COMPLETED, db_path=isolated_db
-    )
+    runs.update_run_status(run_id, RunStatus.COMPLETED, db_path=isolated_db)
     events = client.get(
         f"/api/runs/{run_id}/events",
         headers={**headers_a, "Origin": "https://ai-co-scientist.com"},
@@ -369,17 +371,17 @@ def test_headerless_caller_cannot_create_a_run(isolated_db: str) -> None:
     )
     assert response.status_code == 400
     assert "X-Client-ID" in response.json()["detail"]
-    assert store.list_runs(client_id="") == []
+    assert views.list_runs(client_id="") == []
 
 
 def test_headerless_callers_no_longer_share_a_run(isolated_db: str) -> None:
     # Legacy empty-string identities must remain unreachable to every caller.
-    legacy = store.create_run(
+    legacy = runs.create_run(
         "Pre-fix headerless goal",
         "express",
         "engine",
         {},
-        store.RunCreateOptions(client_id="", db_path=isolated_db),
+        RunCreateOptions(client_id="", db_path=isolated_db),
     )
     client = _headerless_client()
 

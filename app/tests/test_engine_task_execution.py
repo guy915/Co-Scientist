@@ -25,7 +25,7 @@ from litellm.exceptions import APIError
 import app.engine_adapter.drain.final_state as drain_claim_grounding
 import app.engine_tasks.fanout as engine_tasks_fanout_items
 import app.engine_tasks.support as engine_tasks_context
-from app import engine_tasks, safety, store, task_worker
+from app import engine_tasks, safety, task_worker
 from app.engine_tasks import fanout_aggregates as engine_tasks_fanout_aggregates
 from app.engine_tasks import finalize as engine_tasks_node
 from app.engine_tasks import node as engine_tasks_restore
@@ -36,6 +36,15 @@ from app.engine_tasks.runtime import ProductionEngineTaskRuntime
 from app.engine_tasks.support import TaskCommit
 from app.run_modes import RUN_TIER_DEFAULTS, resolved_run_config
 from app.safety import ScreenSubject
+from app.store import checkpoints, messages, records, reports, runs
+from app.store import events as store_events
+from app.store import retrieval_calls as retrieval
+from app.store import tasks as store_tasks
+from app.store import tasks_lifecycle as lifecycle
+from app.store.checkpoints import NewCheckpoint
+from app.store.messages import NewMessage
+from app.store.models import RunStatus, ScientificTask
+from app.store.tasks import NewTask
 from tests._engine_tasks_helpers import (
     FakeEngineTaskRuntime,
     _Generator,
@@ -69,9 +78,9 @@ def _priority_state(run_id: str, deferred_id: str) -> dict[str, Any]:
 
 
 def _seed_orchestrator_task(run_id: str, db_path: str) -> tuple[Any, Any]:
-    store.save_checkpoint(
+    checkpoints.save_checkpoint(
         run_id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage="seed",
             schema_version=1,
             last_event_seq=0,
@@ -79,8 +88,8 @@ def _seed_orchestrator_task(run_id: str, db_path: str) -> tuple[Any, Any]:
         ),
         db_path=db_path,
     )
-    queued = store.enqueue_task(
-        store.NewTask(
+    queued = store_tasks.enqueue_task(
+        NewTask(
             run_id=run_id,
             task_type="engine.node.orchestrator",
             inputs={"checkpoint_seq": 1},
@@ -88,10 +97,10 @@ def _seed_orchestrator_task(run_id: str, db_path: str) -> tuple[Any, Any]:
         ),
         db_path=db_path,
     )
-    task = store.claim_task("worker", run_id=run_id, db_path=db_path)
+    task = store_tasks.claim_task("worker", run_id=run_id, db_path=db_path)
     assert task is not None and task.id == queued.id
-    deferred = store.enqueue_task(
-        store.NewTask(
+    deferred = store_tasks.enqueue_task(
+        NewTask(
             run_id=run_id,
             task_type="engine.node.reflect",
             inputs={},
@@ -106,7 +115,7 @@ def _seed_orchestrator_task(run_id: str, db_path: str) -> tuple[Any, Any]:
 def test_orchestrator_priority_reaches_durable_successor(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("Priority science", "standard", "engine", {})
+    run = runs.create_run("Priority science", "standard", "engine", {})
     task, deferred = _seed_orchestrator_task(run.id, isolated_db)
 
     engine_tasks_support._save_state_and_enqueue(
@@ -115,22 +124,22 @@ def test_orchestrator_priority_reaches_durable_successor(
         "generate",
     )
 
-    successor = store.list_tasks(run.id, db_path=isolated_db)[-1]
+    successor = store_tasks.list_tasks(run.id, db_path=isolated_db)[-1]
     assert successor.task_type == "engine.node.generate"
     assert successor.priority == 97
-    updated = store.get_task(deferred.id, db_path=isolated_db)
+    updated = store_tasks.get_task(deferred.id, db_path=isolated_db)
     assert updated is not None and updated.priority == 98
 
 
 def test_node_commit_persists_live_metrics(isolated_db: str) -> None:
-    run = store.create_run("Live metrics science", "standard", "engine", {})
+    run = runs.create_run("Live metrics science", "standard", "engine", {})
     task, deferred = _seed_orchestrator_task(run.id, isolated_db)
     state = {
         **_priority_state(run.id, deferred.id),
         "metrics": ExecutionMetrics(llm_calls=7, hypothesis_count=3),
     }
 
-    assert store.get_run_metrics(run.id, db_path=isolated_db) is None
+    assert retrieval.get_run_metrics(run.id, db_path=isolated_db) is None
 
     engine_tasks_support._save_state_and_enqueue(
         engine_tasks_context.TaskCommit(task, 1, isolated_db),
@@ -138,7 +147,7 @@ def test_node_commit_persists_live_metrics(isolated_db: str) -> None:
         "generate",
     )
 
-    live = store.get_run_metrics(run.id, db_path=isolated_db)
+    live = retrieval.get_run_metrics(run.id, db_path=isolated_db)
     assert live is not None
     assert live["llm_calls"] == 7
     assert live["hypothesis_count"] == 3
@@ -147,7 +156,7 @@ def test_node_commit_persists_live_metrics(isolated_db: str) -> None:
 def test_node_commit_persists_supervisor_performance_assessment(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("Assessed science", "standard", "engine", {})
+    run = runs.create_run("Assessed science", "standard", "engine", {})
     task, deferred = _seed_orchestrator_task(run.id, isolated_db)
     assessment = {
         "generation": {"yield": "high", "notes": "productive so far"},
@@ -164,7 +173,7 @@ def test_node_commit_persists_supervisor_performance_assessment(
         "generate",
     )
 
-    live = store.get_run_metrics(run.id, db_path=isolated_db)
+    live = retrieval.get_run_metrics(run.id, db_path=isolated_db)
     assert live is not None
     assert live["performance_assessment"] == assessment
 
@@ -173,7 +182,7 @@ def test_node_commit_persists_supervisor_performance_assessment(
 async def test_worker_consumes_independent_specialist_task_chain(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("Task-level science", "standard", "engine", {})
+    run = runs.create_run("Task-level science", "standard", "engine", {})
     engine_tasks.enqueue_bootstrap(run.id, db_path=isolated_db)
     generator = _Generator(_task_state(run.id))
     _patch_generator(monkeypatch, generator, restore=True, screen=True)
@@ -188,7 +197,7 @@ async def test_worker_consumes_independent_specialist_task_chain(
 
     async def finalize(task: Any, **_: Any) -> dict[str, Any]:
         finalized.append(task.run_id)
-        store.update_run_status(task.run_id, store.RunStatus.COMPLETED)
+        runs.update_run_status(task.run_id, RunStatus.COMPLETED)
         return {"run_id": task.run_id, "status": "completed"}
 
     _patch_task_node(monkeypatch, execute)
@@ -200,7 +209,7 @@ async def test_worker_consumes_independent_specialist_task_chain(
     await task_worker.run_run_until_idle(run.id, "worker", db_path=isolated_db)
     assert finalized == [run.id]
 
-    tasks = store.list_tasks(run.id, db_path=isolated_db)
+    tasks = store_tasks.list_tasks(run.id, db_path=isolated_db)
     # Bootstrap lookahead rows remain in history when fictional fixture
     # successors supersede and cancel them.
     assert [task.task_type for task in tasks] == [
@@ -238,8 +247,8 @@ def _dispatch_seed_finalize_task(
         )
     ]
     _seed_checkpoint(run_id, state, db_path=db_path)
-    queued = store.enqueue_task(
-        store.NewTask(
+    queued = store_tasks.enqueue_task(
+        NewTask(
             run_id=run_id,
             task_type=engine_tasks_support.FINALIZE_TASK,
             inputs={},
@@ -247,7 +256,7 @@ def _dispatch_seed_finalize_task(
         ),
         db_path=db_path,
     )
-    task = store.claim_task(
+    task = store_tasks.claim_task(
         "finalize-dispatch-worker", run_id=run_id, db_path=db_path
     )
     assert task is not None and task.id == queued.id
@@ -292,15 +301,15 @@ def _assert_post_drain_counts(by_type: dict[str, Any]) -> None:
 async def test_execute_finalize_emits_post_drain_stage_events(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("Task-level science", "standard", "engine", {})
+    run = runs.create_run("Task-level science", "standard", "engine", {})
     task = _dispatch_seed_finalize_task(run.id, monkeypatch, isolated_db)
 
     result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
-    assert result["status"] == store.RunStatus.COMPLETED.value
-    assert store.get_latest_report(run.id, db_path=isolated_db) is not None
+    assert result["status"] == RunStatus.COMPLETED.value
+    assert reports.get_latest_report(run.id, db_path=isolated_db) is not None
 
-    events = store.list_events(run.id, db_path=isolated_db)
+    events = store_events.list_events(run.id, db_path=isolated_db)
     by_type = {e["type"]: e["payload"] for e in events}
     _assert_post_drain_counts(by_type)
 
@@ -370,10 +379,10 @@ async def test_generic_node_completion_emits_matching_milestone(
     extra_state: dict[str, Any],
     expected_milestone: str,
 ) -> None:
-    run = store.create_run("Task-level science", "standard", "engine", {})
+    run = runs.create_run("Task-level science", "standard", "engine", {})
     checkpoint_seq = _seed_checkpoint(run.id, _task_state(run.id))
-    node = store.enqueue_task(
-        store.NewTask(
+    node = store_tasks.enqueue_task(
+        NewTask(
             run_id=run.id,
             task_type=f"{engine_tasks.NODE_TASK_PREFIX}{node_name}",
             inputs={"checkpoint_seq": checkpoint_seq},
@@ -381,7 +390,9 @@ async def test_generic_node_completion_emits_matching_milestone(
         ),
         db_path=isolated_db,
     )
-    leased = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
+    leased = store_tasks.claim_task(
+        "worker", run_id=run.id, db_path=isolated_db
+    )
     assert leased is not None and leased.id == node.id
 
     async def execute(
@@ -391,7 +402,9 @@ async def test_generic_node_completion_emits_matching_milestone(
 
     _patch_task_node(monkeypatch, execute)
     result = await engine_tasks.execute_node_task(leased, db_path=isolated_db)
-    assert store.complete_task(leased.id, "worker", result, db_path=isolated_db)
+    assert lifecycle.complete_task(
+        leased.id, "worker", result, db_path=isolated_db
+    )
     assert _milestones(run.id, db_path=isolated_db) == [expected_milestone]
 
 
@@ -418,8 +431,8 @@ def _lease_seed_finalize_task(
         )
     ]
     _seed_checkpoint(run_id, state, db_path=db_path)
-    task = store.enqueue_task(
-        store.NewTask(
+    task = store_tasks.enqueue_task(
+        NewTask(
             run_id=run_id,
             task_type=engine_tasks_support.FINALIZE_TASK,
             inputs={},
@@ -433,13 +446,13 @@ def _lease_seed_finalize_task(
 
 def _count_lease_renewals(monkeypatch: pytest.MonkeyPatch) -> dict[str, int]:
     box = {"renewals": 0}
-    real_renew = store.renew_task_lease
+    real_renew = lifecycle.renew_task_lease
 
     def _renew(*args: Any, **kwargs: Any) -> bool:
         box["renewals"] += 1
         return real_renew(*args, **kwargs)
 
-    monkeypatch.setattr(store, "renew_task_lease", _renew)
+    monkeypatch.setattr(lifecycle, "renew_task_lease", _renew)
     return box
 
 
@@ -449,7 +462,7 @@ async def test_finalize_lease_survives_a_slow_grounding_wave(
 ) -> None:
     # A blocked loop can renew once belatedly; multiple renewals during
     # assessment prove a live heartbeat.
-    run = store.create_run("Task-level science", "standard", "engine", {})
+    run = runs.create_run("Task-level science", "standard", "engine", {})
     task = _lease_seed_finalize_task(run.id, monkeypatch, isolated_db)
     renewals = _count_lease_renewals(monkeypatch)
 
@@ -477,16 +490,16 @@ async def test_finalize_lease_survives_a_slow_grounding_wave(
         "the lease heartbeat barely renewed during the grounding wave -- "
         "the wave is blocking the task's event loop again"
     )
-    persisted_run = store.get_run(run.id, db_path=isolated_db)
+    persisted_run = runs.get_run(run.id, db_path=isolated_db)
     assert persisted_run is not None
     assert persisted_run.status == "completed"
-    saved = store.get_task(task.id, db_path=isolated_db)
+    saved = store_tasks.get_task(task.id, db_path=isolated_db)
     assert saved is not None
     assert saved.status == "completed"
 
 
-def _node_task(run_id: str) -> store.ScientificTask:
-    return store.ScientificTask(
+def _node_task(run_id: str) -> ScientificTask:
+    return ScientificTask(
         id="task-1",
         run_id=run_id,
         task_type="engine.node.generate",
@@ -513,7 +526,7 @@ def _node_task(run_id: str) -> store.ScientificTask:
 async def test_execute_engine_task_scopes_the_llm_call_ceiling(
     monkeypatch: Any,
 ) -> None:
-    run = store.create_run(
+    run = runs.create_run(
         "Budget scoping",
         "express",
         "engine",
@@ -557,7 +570,7 @@ async def test_execute_engine_task_enforces_the_ceiling(
     monkeypatch: Any,
 ) -> None:
     tier_ceiling = RUN_TIER_DEFAULTS["express"]["max_llm_calls"]
-    run = store.create_run(
+    run = runs.create_run(
         "Budget enforcement",
         "express",
         "engine",
@@ -627,8 +640,8 @@ def _seed_overview_task(
 ) -> None:
     state = _grounded_state(run_id)
     checkpoint_seq = _seed_checkpoint(run_id, state, db_path=db_path)
-    store.enqueue_task(
-        store.NewTask(
+    store_tasks.enqueue_task(
+        NewTask(
             run_id=run_id,
             task_type="engine.node.research_overview",
             inputs={"checkpoint_seq": checkpoint_seq},
@@ -648,37 +661,37 @@ def _seed_overview_task(
 async def test_degraded_overview_still_reaches_a_written_report(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("Task-level science", "standard", "engine", {})
+    run = runs.create_run("Task-level science", "standard", "engine", {})
     _seed_overview_task(run.id, monkeypatch, isolated_db)
 
     await task_worker.run_run_until_idle(run.id, "worker", db_path=isolated_db)
 
     by_type = {
         task.task_type: task.status
-        for task in store.list_tasks(run.id, db_path=isolated_db)
+        for task in store_tasks.list_tasks(run.id, db_path=isolated_db)
     }
     assert by_type["engine.node.research_overview"] == "completed"
     assert by_type[engine_tasks_support.FINALIZE_TASK] == "completed"
 
-    report = store.get_latest_report(run.id, db_path=isolated_db)
+    report = reports.get_latest_report(run.id, db_path=isolated_db)
     assert report is not None
     assert report["markdown_text"]
 
-    run_row = store.get_run(run.id, db_path=isolated_db)
+    run_row = runs.get_run(run.id, db_path=isolated_db)
     assert run_row is not None
-    assert run_row.status != store.RunStatus.FAILED.value
+    assert run_row.status != RunStatus.FAILED.value
 
 
 @pytest.mark.asyncio
 async def test_the_report_names_the_overview_as_a_degraded_section(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("Task-level science", "standard", "engine", {})
+    run = runs.create_run("Task-level science", "standard", "engine", {})
     _seed_overview_task(run.id, monkeypatch, isolated_db)
 
     await task_worker.run_run_until_idle(run.id, "worker", db_path=isolated_db)
 
-    report = store.get_latest_report(run.id, db_path=isolated_db)
+    report = reports.get_latest_report(run.id, db_path=isolated_db)
     assert report is not None
     assert "research_overview" in report["payload"]["degraded_sections"]
 
@@ -689,14 +702,14 @@ async def test_the_overview_degrades_only_once_its_retries_are_spent(
 ) -> None:
     # Degrade optional terminal sections only after exhausting durable retries
     # so recoverable failures can recover.
-    run = store.create_run("Task-level science", "standard", "engine", {})
+    run = runs.create_run("Task-level science", "standard", "engine", {})
     _seed_overview_task(run.id, monkeypatch, isolated_db)
 
     await task_worker.run_run_until_idle(run.id, "worker", db_path=isolated_db)
 
     overview = next(
         task
-        for task in store.list_tasks(run.id, db_path=isolated_db)
+        for task in store_tasks.list_tasks(run.id, db_path=isolated_db)
         if task.task_type == "engine.node.research_overview"
     )
     assert overview.status == "completed"
@@ -708,8 +721,8 @@ def _restored_state(attempt: int, run_id: str, db_path: str) -> dict[str, Any]:
     from co_scientist.checkpoint import serialize_workflow_state
 
     state = _task_state(run_id)
-    task = store.enqueue_task(
-        store.NewTask(
+    task = store_tasks.enqueue_task(
+        NewTask(
             run_id=run_id,
             task_type="engine.node.research_overview",
             inputs={},
@@ -737,7 +750,7 @@ def test_the_restored_state_names_the_task_s_last_attempt(
 ) -> None:
     # The terminal-attempt flag must use the same retry-left formula as the
     # worker.
-    run = store.create_run("Task-level science", "standard", "engine", {})
+    run = runs.create_run("Task-level science", "standard", "engine", {})
 
     first = _restored_state(1, run.id, isolated_db)
     last = _restored_state(3, run.id, isolated_db)
@@ -780,8 +793,8 @@ async def _commit_node(
     state = _task_state(run_id)
     state["mcp_available"] = mcp_available
     checkpoint_seq = _seed_checkpoint(run_id, state, db_path=db_path)
-    queued = store.enqueue_task(
-        store.NewTask(
+    queued = store_tasks.enqueue_task(
+        NewTask(
             run_id=run_id,
             task_type=f"{engine_tasks.NODE_TASK_PREFIX}{node}",
             inputs={"checkpoint_seq": checkpoint_seq},
@@ -789,12 +802,14 @@ async def _commit_node(
         ),
         db_path=db_path,
     )
-    task = store.claim_task(f"routing-{node}", run_id=run_id, db_path=db_path)
+    task = store_tasks.claim_task(
+        f"routing-{node}", run_id=run_id, db_path=db_path
+    )
     assert task is not None and task.id == queued.id
     successor_id = await _schedule_successor(
         node, TaskCommit(task, checkpoint_seq, db_path), state
     )
-    successor = store.get_task(successor_id, db_path=db_path)
+    successor = store_tasks.get_task(successor_id, db_path=db_path)
     assert successor is not None
     return successor.task_type
 
@@ -808,7 +823,7 @@ async def test_durable_successor_matches_the_engine_route_table(
     # remain authoritative.
     from co_scientist.task_runtime import next_task_type
 
-    run = store.create_run("Durable routing", "standard", "engine", {})
+    run = runs.create_run("Durable routing", "standard", "engine", {})
     scheduled = await _commit_node(run.id, node, isolated_db)
     expected = next_task_type(node, {"mcp_available": False})
     assert scheduled == f"{engine_tasks.NODE_TASK_PREFIX}{expected}"
@@ -822,7 +837,7 @@ async def test_durable_successor_follows_a_rerouted_graph(
     from co_scientist import workflow_topology
 
     monkeypatch.setitem(workflow_topology.WORKFLOW_ROUTES, node, _DIVERTED_TO)
-    run = store.create_run("Durable routing", "standard", "engine", {})
+    run = runs.create_run("Durable routing", "standard", "engine", {})
     scheduled = await _commit_node(run.id, node, isolated_db)
     assert scheduled == f"{engine_tasks.NODE_TASK_PREFIX}{_DIVERTED_TO}"
 
@@ -848,7 +863,7 @@ async def test_generate_mcp_branch_is_not_reimplemented(
     monkeypatch.setitem(
         workflow_topology.WORKFLOW_ROUTES, "generate", _INVERTED_GENERATE_ROUTE
     )
-    run = store.create_run("Durable routing", "standard", "engine", {})
+    run = runs.create_run("Durable routing", "standard", "engine", {})
     scheduled = await _commit_node(
         run.id, "generate", isolated_db, mcp_available=mcp_available
     )
@@ -919,9 +934,9 @@ async def test_dispatcher_binds_the_adapter_it_resolved_once(
         engine_tasks_support.FINALIZE_TASK,
         handler,
     )
-    run = store.create_run("Task-level science", "standard", "engine", {})
-    task = store.enqueue_task(
-        store.NewTask(
+    run = runs.create_run("Task-level science", "standard", "engine", {})
+    task = store_tasks.enqueue_task(
+        NewTask(
             run_id=run.id,
             task_type=engine_tasks_support.FINALIZE_TASK,
             inputs={},
@@ -967,8 +982,8 @@ def _seed_halted_finalize(
             }
         ]
     _seed_checkpoint(run_id, state, db_path=db_path)
-    queued = store.enqueue_task(
-        store.NewTask(
+    queued = store_tasks.enqueue_task(
+        NewTask(
             run_id=run_id,
             task_type=engine_tasks_support.FINALIZE_TASK,
             inputs={},
@@ -976,7 +991,7 @@ def _seed_halted_finalize(
         ),
         db_path=db_path,
     )
-    task = store.claim_task(
+    task = store_tasks.claim_task(
         "finalize-safety-worker", run_id=run_id, db_path=db_path
     )
     assert task is not None and task.id == queued.id
@@ -988,26 +1003,26 @@ def _seed_halted_finalize(
 async def test_a_halted_run_blocks_instead_of_publishing(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("Task-level science", "standard", "engine", {})
+    run = runs.create_run("Task-level science", "standard", "engine", {})
     task = _seed_halted_finalize(run.id, monkeypatch, isolated_db, halted=True)
 
     result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
-    assert result["status"] == store.RunStatus.BLOCKED.value
-    assert store.get_latest_report(run.id, db_path=isolated_db) is None
+    assert result["status"] == RunStatus.BLOCKED.value
+    assert reports.get_latest_report(run.id, db_path=isolated_db) is None
 
-    settled = store.get_run(run.id, db_path=isolated_db)
+    settled = runs.get_run(run.id, db_path=isolated_db)
     assert settled is not None
-    assert settled.status == store.RunStatus.BLOCKED.value
+    assert settled.status == RunStatus.BLOCKED.value
     assert settled.error
 
-    decisions = store.list_safety_decisions(run.id, db_path=isolated_db)
+    decisions = records.list_safety_decisions(run.id, db_path=isolated_db)
     monitor = [d for d in decisions if d["stage"] == "research_direction"]
     assert len(monitor) == 1
     assert monitor[0]["decision"] == "block"
     assert monitor[0]["matches"]
 
-    events = store.list_events(run.id, db_path=isolated_db)
+    events = store_events.list_events(run.id, db_path=isolated_db)
     types = [event["type"] for event in events]
     assert "safety.research_direction" in types
     assert "report" not in types
@@ -1017,14 +1032,14 @@ async def test_a_halted_run_blocks_instead_of_publishing(
 async def test_an_unhalted_run_still_publishes(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("Task-level science", "standard", "engine", {})
+    run = runs.create_run("Task-level science", "standard", "engine", {})
     task = _seed_halted_finalize(run.id, monkeypatch, isolated_db, halted=False)
     _install_runtime(monkeypatch).screen = _deterministic_final_screen
 
     result = await engine_tasks.execute_finalize(task, db_path=isolated_db)
 
-    assert result["status"] == store.RunStatus.COMPLETED.value
-    assert store.get_latest_report(run.id, db_path=isolated_db) is not None
+    assert result["status"] == RunStatus.COMPLETED.value
+    assert reports.get_latest_report(run.id, db_path=isolated_db) is not None
 
 
 _STEER = "Prioritise kinase inhibitors over metabolic routes"
@@ -1036,19 +1051,19 @@ def _seed_steered_node_task(
     db_path: str,
     *,
     node: str = "proximity",
-) -> store.ScientificTask:
+) -> ScientificTask:
     # Proximity lacks fan-out and exercises plain commit; orchestrator alone can
     # acknowledge steering.
     state = _task_state(run_id)
     checkpoint_seq = _seed_checkpoint(run_id, state, db_path=db_path)
-    store.append_message(
-        store.NewMessage(
+    messages.append_message(
+        NewMessage(
             run_id=run_id, sender="user", content=_STEER, kind="steering"
         ),
         db_path=db_path,
     )
-    store.enqueue_task(
-        store.NewTask(
+    store_tasks.enqueue_task(
+        NewTask(
             run_id=run_id,
             task_type=f"{engine_tasks.NODE_TASK_PREFIX}{node}",
             inputs={"checkpoint_seq": checkpoint_seq},
@@ -1061,7 +1076,7 @@ def _seed_steered_node_task(
         "build_generator",
         lambda *_, **__: _Generator(state),
     )
-    leased = store.claim_task("worker", run_id=run_id, db_path=db_path)
+    leased = store_tasks.claim_task("worker", run_id=run_id, db_path=db_path)
     assert leased is not None
     return leased
 
@@ -1084,7 +1099,7 @@ def _record_preferences_and_commit(seen: list[str], *, priority: bool) -> Any:
 async def test_steering_survives_a_crash_before_the_checkpoint_commits(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("Steering durability", "standard", "engine", {})
+    run = runs.create_run("Steering durability", "standard", "engine", {})
     leased = _seed_steered_node_task(run.id, monkeypatch, isolated_db)
 
     async def _crash(*_: Any, **__: Any) -> Any:
@@ -1095,7 +1110,7 @@ async def test_steering_survives_a_crash_before_the_checkpoint_commits(
     with pytest.raises(RuntimeError, match="worker died mid-node"):
         await engine_tasks.execute_node_task(leased, db_path=isolated_db)
 
-    pending = store.get_pending_steering(run.id, db_path=isolated_db)
+    pending = messages.get_pending_steering(run.id, db_path=isolated_db)
     assert [message.content for message in pending] == [_STEER]
 
 
@@ -1105,7 +1120,7 @@ async def test_a_non_orchestrator_commit_never_acknowledges_steering(
 ) -> None:
     # Only the orchestrator schedules from pending_steering; earlier
     # acknowledgment loses the decision input.
-    run = store.create_run("Steering durability", "standard", "engine", {})
+    run = runs.create_run("Steering durability", "standard", "engine", {})
     leased = _seed_steered_node_task(run.id, monkeypatch, isolated_db)
     seen: list[str] = []
     _patch_task_node(
@@ -1115,7 +1130,7 @@ async def test_a_non_orchestrator_commit_never_acknowledges_steering(
     await engine_tasks.execute_node_task(leased, db_path=isolated_db)
 
     assert _STEER in seen[0]
-    pending = store.get_pending_steering(run.id, db_path=isolated_db)
+    pending = messages.get_pending_steering(run.id, db_path=isolated_db)
     assert [message.content for message in pending] == [_STEER]
 
 
@@ -1123,7 +1138,7 @@ async def test_a_non_orchestrator_commit_never_acknowledges_steering(
 async def test_committed_orchestrator_acknowledges_its_steering_exactly_once(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("Steering durability", "standard", "engine", {})
+    run = runs.create_run("Steering durability", "standard", "engine", {})
     leased = _seed_steered_node_task(
         run.id, monkeypatch, isolated_db, node="orchestrator"
     )
@@ -1135,14 +1150,14 @@ async def test_committed_orchestrator_acknowledges_its_steering_exactly_once(
     await engine_tasks.execute_node_task(leased, db_path=isolated_db)
 
     assert _STEER in seen[0]
-    assert store.get_pending_steering(run.id, db_path=isolated_db) == []
+    assert messages.get_pending_steering(run.id, db_path=isolated_db) == []
 
 
 @pytest.mark.asyncio
 async def test_steering_reaches_the_orchestrators_retry_after_a_crash(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("Steering durability", "standard", "engine", {})
+    run = runs.create_run("Steering durability", "standard", "engine", {})
     leased = _seed_steered_node_task(
         run.id, monkeypatch, isolated_db, node="orchestrator"
     )
@@ -1164,7 +1179,7 @@ async def test_steering_reaches_the_orchestrators_retry_after_a_crash(
     await engine_tasks.execute_node_task(leased, db_path=isolated_db)
 
     assert [_STEER in text for text in seen] == [True, True]
-    assert store.get_pending_steering(run.id, db_path=isolated_db) == []
+    assert messages.get_pending_steering(run.id, db_path=isolated_db) == []
 
 
 @pytest.mark.asyncio
@@ -1173,7 +1188,7 @@ async def test_steering_text_survives_to_the_node_it_was_meant_for(
 ) -> None:
     # Applied steering must remain folded into preferences after acknowledgment
     # or the successor loses guidance.
-    run = store.create_run("Steering survives", "standard", "engine", {})
+    run = runs.create_run("Steering survives", "standard", "engine", {})
     orchestrator = _seed_steered_node_task(
         run.id, monkeypatch, isolated_db, node="orchestrator"
     )
@@ -1191,11 +1206,13 @@ async def test_steering_text_survives_to_the_node_it_was_meant_for(
     committed = await engine_tasks.execute_node_task(
         orchestrator, db_path=isolated_db
     )
-    assert store.complete_task(
+    assert lifecycle.complete_task(
         orchestrator.id, "worker", committed, db_path=isolated_db
     )
 
-    reflection = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
+    reflection = store_tasks.claim_task(
+        "worker", run_id=run.id, db_path=isolated_db
+    )
     assert reflection is not None
     assert reflection.task_type == "engine.node.reflection"
     seen: list[str] = []
@@ -1229,8 +1246,8 @@ async def _advance_review_node(
     state = _task_state(run_id)
     state["hypotheses"] = [Hypothesis(text="alpha"), Hypothesis(text="beta")]
     checkpoint_seq = _seed_checkpoint(run_id, state)
-    node = store.enqueue_task(
-        store.NewTask(
+    node = store_tasks.enqueue_task(
+        NewTask(
             run_id=run_id,
             task_type=f"{engine_tasks.NODE_TASK_PREFIX}review",
             inputs={"checkpoint_seq": checkpoint_seq},
@@ -1239,17 +1256,17 @@ async def _advance_review_node(
         db_path=db_path,
     )
     _patch_generator(monkeypatch, _Generator(state), restore=True)
-    leased = store.claim_task("node", run_id=run_id, db_path=db_path)
+    leased = store_tasks.claim_task("node", run_id=run_id, db_path=db_path)
     assert leased is not None and leased.id == node.id
     result = await engine_tasks.execute_node_task(leased, db_path=db_path)
-    assert store.complete_task(leased.id, "node", result, db_path=db_path)
+    assert lifecycle.complete_task(leased.id, "node", result, db_path=db_path)
 
 
 @pytest.mark.asyncio
 async def test_review_fanout_folds_item_telemetry_into_committed_metrics(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("Task-level science", "standard", "engine", {})
+    run = runs.create_run("Task-level science", "standard", "engine", {})
     await _advance_review_node(run.id, monkeypatch, isolated_db)
 
     import co_scientist.agents.reflection.review as review_module
@@ -1257,8 +1274,12 @@ async def test_review_fanout_folds_item_telemetry_into_committed_metrics(
     monkeypatch.setattr(
         review_module, "review_single_hypothesis", _fake_review_with_telemetry
     )
-    first = store.claim_task("child-a", run_id=run.id, db_path=isolated_db)
-    second = store.claim_task("child-b", run_id=run.id, db_path=isolated_db)
+    first = store_tasks.claim_task(
+        "child-a", run_id=run.id, db_path=isolated_db
+    )
+    second = store_tasks.claim_task(
+        "child-b", run_id=run.id, db_path=isolated_db
+    )
     assert first is not None and second is not None
     first_result = await engine_tasks_fanout_items.execute_review_item(
         first, db_path=isolated_db
@@ -1271,14 +1292,14 @@ async def test_review_fanout_folds_item_telemetry_into_committed_metrics(
             calls=1, prompt_tokens=20, completion_tokens=10
         ).as_dict()
     }
-    assert store.complete_task(
+    assert lifecycle.complete_task(
         first.id, "child-a", first_result, db_path=isolated_db
     )
-    assert store.complete_task(
+    assert lifecycle.complete_task(
         second.id, "child-b", second_result, db_path=isolated_db
     )
 
-    aggregate = store.claim_task(
+    aggregate = store_tasks.claim_task(
         "aggregate", run_id=run.id, db_path=isolated_db
     )
     assert aggregate is not None
@@ -1287,13 +1308,13 @@ async def test_review_fanout_folds_item_telemetry_into_committed_metrics(
             aggregate, db_path=isolated_db
         )
     )
-    assert store.complete_task(
+    assert lifecycle.complete_task(
         aggregate.id, "aggregate", aggregate_result, db_path=isolated_db
     )
 
     from co_scientist.checkpoint import restore_workflow_state
 
-    checkpoint = store.get_latest_checkpoint(run.id, db_path=isolated_db)
+    checkpoint = checkpoints.get_latest_checkpoint(run.id, db_path=isolated_db)
     assert checkpoint is not None
     restored = restore_workflow_state(checkpoint["state"])
     usage = restored["metrics"].model_usage["review::fixture-model"]
@@ -1318,7 +1339,7 @@ async def _fake_judge_with_telemetry(
 async def _drain_and_finalize_ranking(run_id: str, db_path: str) -> int:
     matches = 0
     while True:
-        task = store.claim_task(
+        task = store_tasks.claim_task(
             f"match-{matches}", run_id=run_id, db_path=db_path
         )
         assert task is not None
@@ -1327,7 +1348,7 @@ async def _drain_and_finalize_ranking(run_id: str, db_path: str) -> int:
         result = await engine_tasks_ranking.execute_ranking_match(
             task, db_path=db_path
         )
-        assert store.complete_task(
+        assert lifecycle.complete_task(
             task.id, f"match-{matches}", result, db_path=db_path
         )
         matches += 1
@@ -1335,7 +1356,7 @@ async def _drain_and_finalize_ranking(run_id: str, db_path: str) -> int:
     result = await engine_tasks_ranking.execute_ranking_finalize(
         task, db_path=db_path
     )
-    assert store.complete_task(
+    assert lifecycle.complete_task(
         task.id, f"match-{matches}", result, db_path=db_path
     )
     return matches
@@ -1347,7 +1368,7 @@ async def test_ranking_matches_fold_telemetry_into_finalized_metrics(
 ) -> None:
     # Sequential match usage rides successor inputs until the final checkpoint;
     # intermediate commits omit metrics.
-    run = store.create_run("Task-level science", "standard", "engine", {})
+    run = runs.create_run("Task-level science", "standard", "engine", {})
     _seed_ranking_node(
         run.id,
         monkeypatch,
@@ -1369,7 +1390,7 @@ async def test_ranking_matches_fold_telemetry_into_finalized_metrics(
 
     from co_scientist.checkpoint import restore_workflow_state
 
-    checkpoint = store.get_latest_checkpoint(run.id, db_path=isolated_db)
+    checkpoint = checkpoints.get_latest_checkpoint(run.id, db_path=isolated_db)
     assert checkpoint is not None
     restored = restore_workflow_state(checkpoint["state"])
     played = len(restored["tournament_matchups"])
@@ -1383,7 +1404,7 @@ async def test_ranking_matches_fold_telemetry_into_finalized_metrics(
 async def test_baseline_fake_judge_leaves_no_telemetry(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = store.create_run("Task-level science", "standard", "engine", {})
+    run = runs.create_run("Task-level science", "standard", "engine", {})
     _seed_ranking_node(
         run.id,
         monkeypatch,
@@ -1401,7 +1422,7 @@ async def test_baseline_fake_judge_leaves_no_telemetry(
 
     from co_scientist.checkpoint import restore_workflow_state
 
-    checkpoint = store.get_latest_checkpoint(run.id, db_path=isolated_db)
+    checkpoint = checkpoints.get_latest_checkpoint(run.id, db_path=isolated_db)
     assert checkpoint is not None
     restored = restore_workflow_state(checkpoint["state"])
     assert not any(

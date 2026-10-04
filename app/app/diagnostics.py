@@ -8,9 +8,9 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from app import store
 from app.config import any_provider_credential, settings
 from app.engine_adapter import _engine_importable
+from app.store import db
 from app.store.db import default_db_path
 from app.store.tasks import queue_health_snapshot
 
@@ -34,7 +34,7 @@ class HealthCheck:
 
 def check_store(db_path: str | None = None) -> HealthCheck:
     try:
-        with store.connect(db_path) as conn:
+        with db.connect(db_path) as conn:
             conn.execute("SELECT 1").fetchone()
         return HealthCheck(ok=True)
     except Exception as exc:

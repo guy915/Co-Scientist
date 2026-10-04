@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app import engine_adapter, store, task_worker
+from app import engine_adapter, task_worker
 from app.config import settings
 from app.engine_tasks import support as engine_tasks_support
 from app.human_input import (
@@ -22,6 +22,19 @@ from app.report import finalize as report_finalize
 from app.runs import lifecycle as runs_lifecycle
 from app.runs.lifecycle import _prepare_resume_state
 from app.safety import SafetyDecision
+from app.store import checkpoints, hypotheses, reports, runs
+from app.store import events as store_events
+from app.store import messages as store_messages
+from app.store import records as store
+from app.store import runs_views as views
+from app.store import tasks as store_tasks
+from app.store import tasks_lifecycle as lifecycle
+from app.store.checkpoints import NewCheckpoint
+from app.store.hypotheses import NewHypothesis
+from app.store.models import MessageRow
+from app.store.models import RunStatus as StoreRunStatus
+from app.store.records import NewEvidence, NewReview, NewSafetyDecision
+from app.store.tasks import NewTask
 from tests._client import fake_litellm as _fake_litellm
 from tests._client import make_client
 from tests._client import make_client as _client
@@ -342,8 +355,8 @@ def test_pasted_and_uploaded_attachments_emit_same_audit_event(
 
 
 def _seed_agent_artifacts(run_id: str) -> str:
-    agent_id = store.add_hypothesis(
-        store.NewHypothesis(
+    agent_id = hypotheses.add_hypothesis(
+        NewHypothesis(
             run_id=run_id,
             title="Agent idea",
             statement="An agent-generated hypothesis.",
@@ -351,7 +364,7 @@ def _seed_agent_artifacts(run_id: str) -> str:
         )
     )
     store.add_review(
-        store.NewReview(
+        NewReview(
             run_id=run_id,
             hypothesis_id=agent_id,
             reviewer_agent="reflection",
@@ -360,7 +373,7 @@ def _seed_agent_artifacts(run_id: str) -> str:
         )
     )
     store.add_evidence(
-        store.NewEvidence(
+        NewEvidence(
             run_id=run_id,
             title="Retrieved paper",
             source="pubmed",
@@ -371,8 +384,8 @@ def _seed_agent_artifacts(run_id: str) -> str:
 
 
 def _seed_scientist_artifacts(run_id: str) -> str:
-    manual_id = store.add_hypothesis(
-        store.NewHypothesis(
+    manual_id = hypotheses.add_hypothesis(
+        NewHypothesis(
             run_id=run_id,
             title="Human idea",
             statement="A scientist-authored hypothesis.",
@@ -381,7 +394,7 @@ def _seed_scientist_artifacts(run_id: str) -> str:
         )
     )
     store.add_review(
-        store.NewReview(
+        NewReview(
             run_id=run_id,
             hypothesis_id=manual_id,
             reviewer_agent="scientist",
@@ -390,7 +403,7 @@ def _seed_scientist_artifacts(run_id: str) -> str:
         )
     )
     store.add_evidence(
-        store.NewEvidence(
+        NewEvidence(
             run_id=run_id,
             title="Attached doc",
             source="attachment",
@@ -401,15 +414,15 @@ def _seed_scientist_artifacts(run_id: str) -> str:
 
 
 def test_resume_preserves_scientist_contributions(isolated_db: str) -> None:
-    run = store.create_run(
+    run = runs.create_run(
         "Human input survives resume", "express", "engine", {}
     )
     _seed_agent_artifacts(run.id)
     manual_id = _seed_scientist_artifacts(run.id)
 
-    store.clear_run_derived_data(run.id)
+    views.clear_run_derived_data(run.id)
 
-    hyps = store.list_hypotheses(run.id)
+    hyps = hypotheses.list_hypotheses(run.id)
     assert [h["id"] for h in hyps] == [manual_id]
     reviews = store.list_reviews(run.id)
     assert len(reviews) == 1 and reviews[0]["reviewer_agent"] == "scientist"
@@ -420,17 +433,17 @@ def test_resume_preserves_scientist_contributions(isolated_db: str) -> None:
 def test_publication_replay_preserves_task_history_and_scientist_input(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("Publication replay", "express", "engine", {})
-    manual_id = store.add_hypothesis(
-        store.NewHypothesis(
+    run = runs.create_run("Publication replay", "express", "engine", {})
+    manual_id = hypotheses.add_hypothesis(
+        NewHypothesis(
             run_id=run.id,
             title="Human idea",
             statement="Scientist idea",
             created_by_agent="scientist_manual",
         )
     )
-    store.add_hypothesis(
-        store.NewHypothesis(
+    hypotheses.add_hypothesis(
+        NewHypothesis(
             run_id=run.id,
             title="Agent idea",
             statement="Agent idea",
@@ -438,18 +451,16 @@ def test_publication_replay_preserves_task_history_and_scientist_input(
         )
     )
     store.add_evidence(
-        store.NewEvidence(
+        NewEvidence(
             run_id=run.id, title="Private", source="attachment", abstract="x"
         )
     )
     store.add_evidence(
-        store.NewEvidence(
-            run_id=run.id, title="Paper", source="pubmed", abstract="y"
-        )
+        NewEvidence(run_id=run.id, title="Paper", source="pubmed", abstract="y")
     )
-    store.append_event(run.id, "scientific_task", {"task": "ranking"})
+    store_events.append_event(run.id, "scientific_task", {"task": "ranking"})
     store.add_safety_decision(
-        store.NewSafetyDecision(
+        NewSafetyDecision(
             run_id=run.id,
             stage="intake",
             decision="allow",
@@ -457,8 +468,8 @@ def test_publication_replay_preserves_task_history_and_scientist_input(
             matches=[],
         )
     )
-    store.enqueue_task(
-        store.NewTask(
+    store_tasks.enqueue_task(
+        NewTask(
             run_id=run.id,
             task_type="engine.finalize",
             inputs={},
@@ -467,15 +478,17 @@ def test_publication_replay_preserves_task_history_and_scientist_input(
         db_path=isolated_db,
     )
 
-    store.clear_publication_artifacts(run.id, db_path=isolated_db)
+    views.clear_publication_artifacts(run.id, db_path=isolated_db)
 
-    assert [item["id"] for item in store.list_hypotheses(run.id)] == [manual_id]
+    assert [item["id"] for item in hypotheses.list_hypotheses(run.id)] == [
+        manual_id
+    ]
     assert [item["source"] for item in store.list_evidence(run.id)] == [
         "attachment"
     ]
-    assert len(store.list_events(run.id)) == 1
+    assert len(store_events.list_events(run.id)) == 1
     assert len(store.list_safety_decisions(run.id)) == 1
-    assert len(store.list_tasks(run.id, db_path=isolated_db)) == 1
+    assert len(store_tasks.list_tasks(run.id, db_path=isolated_db)) == 1
 
 
 def test_resume_reassigns_event_seqs_above_last_checkpoint(
@@ -483,24 +496,26 @@ def test_resume_reassigns_event_seqs_above_last_checkpoint(
 ) -> None:
     # Clients retain after=N cursors; resumed event sequences must exceed
     # checkpoint high-water marks.
-    run = store.create_run("Seq continuity", "express", "engine", {})
+    run = runs.create_run("Seq continuity", "express", "engine", {})
     for i in range(5):
-        store.append_event(run.id, "log", {"i": i})
-    high_water = store.latest_event_seq(run.id)
+        store_events.append_event(run.id, "log", {"i": i})
+    high_water = store_events.latest_event_seq(run.id)
     assert high_water == 5
 
-    store.save_checkpoint(
+    checkpoints.save_checkpoint(
         run.id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage="pause", schema_version=1, last_event_seq=high_water, state={}
         ),
     )
-    store.clear_run_derived_data(run.id)
-    assert store.list_events(run.id) == []
+    views.clear_run_derived_data(run.id)
+    assert store_events.list_events(run.id) == []
 
-    seq = store.append_event(run.id, "status", {"status": "resuming"})
+    seq = store_events.append_event(run.id, "status", {"status": "resuming"})
     assert seq == high_water + 1
-    assert store.list_events(run.id, after_seq=high_water)[0]["seq"] == seq
+    assert (
+        store_events.list_events(run.id, after_seq=high_water)[0]["seq"] == seq
+    )
 
 
 def test_resume_endpoint_requires_a_checkpoint(isolated_db: str) -> None:
@@ -558,7 +573,7 @@ def _pause_and_resume(client: Any, run_id: str) -> None:
 
 
 def _checkpoint_hypothesis_ids(run_id: str, db_path: str) -> set[str]:
-    checkpoint = store.get_latest_checkpoint(run_id, db_path=db_path)
+    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=db_path)
     assert checkpoint is not None
     payload = checkpoint["state"]["state"]
     return {str(h["id"]) for h in payload.get("hypotheses") or []}
@@ -589,21 +604,21 @@ async def test_two_resume_cycles_still_complete_with_pool_intact(
 
     await task_worker.run_run_until_idle(run_id, _WORKER, db_path=isolated_db)
 
-    final_run = store.get_run(run_id, db_path=isolated_db)
+    final_run = runs.get_run(run_id, db_path=isolated_db)
     assert final_run is not None
     assert final_run.status == "completed", final_run.error
-    report = store.get_latest_report(run_id, db_path=isolated_db)
+    report = reports.get_latest_report(run_id, db_path=isolated_db)
     assert report is not None
     final_ids = {
         str(row["id"])
-        for row in store.list_hypotheses(run_id, db_path=isolated_db)
+        for row in hypotheses.list_hypotheses(run_id, db_path=isolated_db)
     }
     assert pool_before <= final_ids
 
 
 def _seed_stale_mock_run(run_id: str) -> str:
-    stale_id = store.add_hypothesis(
-        store.NewHypothesis(
+    stale_id = hypotheses.add_hypothesis(
+        NewHypothesis(
             run_id=run_id,
             title="Stale agent idea",
             statement="A hypothesis from the retired mock run.",
@@ -611,7 +626,7 @@ def _seed_stale_mock_run(run_id: str) -> str:
         )
     )
     store.add_evidence(
-        store.NewEvidence(
+        NewEvidence(
             run_id=run_id, title="Old mock paper", source="pubmed", abstract="x"
         )
     )
@@ -619,12 +634,12 @@ def _seed_stale_mock_run(run_id: str) -> str:
 
 
 def _save_legacy_mock_checkpoint(run_id: str) -> None:
-    store.save_checkpoint(
+    checkpoints.save_checkpoint(
         run_id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage="iteration_1",
             schema_version=1,
-            last_event_seq=store.latest_event_seq(run_id),
+            last_event_seq=store_events.latest_event_seq(run_id),
             state={
                 "provider": "mock",
                 "run_mode": "express",
@@ -638,36 +653,36 @@ def _save_legacy_mock_checkpoint(run_id: str) -> None:
 def _save_engine_checkpoint(run_id: str) -> None:
     # The launcher inspects only the provider tag; the worker restores state
     # later.
-    store.save_checkpoint(
+    checkpoints.save_checkpoint(
         run_id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage="engine_task:node",
             schema_version=1,
-            last_event_seq=store.latest_event_seq(run_id),
+            last_event_seq=store_events.latest_event_seq(run_id),
             state={"provider": "engine", "state": {"hypotheses": []}},
         ),
     )
 
 
 def _assert_rebootstrapped_completed(run_id: str, stale_id: str) -> None:
-    final_hyps = store.list_hypotheses(run_id)
+    final_hyps = hypotheses.list_hypotheses(run_id)
     assert stale_id not in {h["id"] for h in final_hyps}
     assert any(
         task.task_type.startswith("engine.")
-        for task in store.list_tasks(run_id)
+        for task in store_tasks.list_tasks(run_id)
     )
     assert final_hyps
-    report = store.get_latest_report(run_id)
+    report = reports.get_latest_report(run_id)
     assert report is not None
     assert report["payload"]["leaderboard"]
-    final = store.get_run(run_id)
+    final = runs.get_run(run_id)
     assert final is not None
-    assert final.status == store.RunStatus.COMPLETED.value
+    assert final.status == StoreRunStatus.COMPLETED.value
 
 
 def _enqueue_paused_blocking_task(run_id: str, db_path: str) -> None:
-    store.enqueue_task(
-        store.NewTask(
+    store_tasks.enqueue_task(
+        NewTask(
             run_id=run_id,
             task_type="engine.test.blocking",
             inputs={},
@@ -675,8 +690,8 @@ def _enqueue_paused_blocking_task(run_id: str, db_path: str) -> None:
         ),
         db_path=db_path,
     )
-    store.pause_run_tasks(run_id, db_path=db_path)
-    store.update_run_status(run_id, store.RunStatus.PAUSED)
+    lifecycle.pause_run_tasks(run_id, db_path=db_path)
+    runs.update_run_status(run_id, StoreRunStatus.PAUSED)
 
 
 def _install_blocking_execute(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -709,18 +724,18 @@ def test_prepare_resume_state_keeps_derived_data_for_engine_checkpoint(
 ) -> None:
     # True engine resumes keep prior events that the restored workflow will not
     # emit again.
-    run = store.create_run("Engine checkpoint resume", "standard", "engine", {})
+    run = runs.create_run("Engine checkpoint resume", "standard", "engine", {})
     stale_id = _seed_stale_mock_run(run.id)
     _save_engine_checkpoint(run.id)
     assert engine_adapter.is_engine_checkpoint(
-        store.get_latest_checkpoint(run.id)
+        checkpoints.get_latest_checkpoint(run.id)
     )
 
     true_resume = _prepare_resume_state(run.id)
 
     assert true_resume is True
-    assert stale_id in {h["id"] for h in store.list_hypotheses(run.id)}
-    assert store.get_latest_checkpoint(run.id) is not None
+    assert stale_id in {h["id"] for h in hypotheses.list_hypotheses(run.id)}
+    assert checkpoints.get_latest_checkpoint(run.id) is not None
 
 
 async def test_launch_resume_rebootstraps_legacy_mock_checkpoint(
@@ -729,16 +744,16 @@ async def test_launch_resume_rebootstraps_legacy_mock_checkpoint(
     # Legacy mock envelopes cannot restore engine state; clear stale derived
     # data and bootstrap durably.
     _install_fake_engine_llm(monkeypatch)
-    run = store.create_run(
+    run = runs.create_run(
         "Legacy mock resume", "express", "mock", {"tier": "express"}
     )
 
     stale_id = _seed_stale_mock_run(run.id)
     _save_legacy_mock_checkpoint(run.id)
     assert not engine_adapter.is_engine_checkpoint(
-        store.get_latest_checkpoint(run.id)
+        checkpoints.get_latest_checkpoint(run.id)
     )
-    store.update_run_status(run.id, store.RunStatus.PAUSED)
+    runs.update_run_status(run.id, StoreRunStatus.PAUSED)
 
     await runs_lifecycle._launch_resume(run.id)
     await asyncio.gather(*list(runs_lifecycle._resume_tasks))
@@ -751,7 +766,7 @@ async def test_resume_does_not_execute_run_work_on_the_event_loop(
 ) -> None:
     # Resume cohorts must run off the API loop; synchronous state/SQLite work
     # otherwise starves health checks.
-    run = store.create_run("loop freedom", "standard", "engine", {})
+    run = runs.create_run("loop freedom", "standard", "engine", {})
     _enqueue_paused_blocking_task(run.id, isolated_db)
     _install_blocking_execute(monkeypatch)
 
@@ -784,12 +799,10 @@ async def test_resume_rejects_final_safety_block_after_finalize_succeeded(
     )
     assert created.status_code == 200, created.text
     run_id = str(created.json()["id"])
-    store.update_run_status(
-        run_id, store.RunStatus.RUNNING, db_path=isolated_db
-    )
+    runs.update_run_status(run_id, StoreRunStatus.RUNNING, db_path=isolated_db)
 
-    predecessor = store.enqueue_task(
-        store.NewTask(
+    predecessor = store_tasks.enqueue_task(
+        NewTask(
             run_id=run_id,
             task_type="engine.node.overview",
             inputs={},
@@ -797,11 +810,11 @@ async def test_resume_rejects_final_safety_block_after_finalize_succeeded(
         ),
         db_path=isolated_db,
     )
-    previous_claim = store.claim_task(
+    previous_claim = store_tasks.claim_task(
         "resume-safety-fixture", run_id=run_id, db_path=isolated_db
     )
     assert previous_claim is not None and previous_claim.id == predecessor.id
-    assert store.complete_task(
+    assert lifecycle.complete_task(
         predecessor.id,
         "resume-safety-fixture",
         {},
@@ -815,11 +828,11 @@ async def test_resume_rejects_final_safety_block_after_finalize_succeeded(
         stage=f"engine_task:{predecessor.id}",
         db_path=isolated_db,
     )
-    checkpoint = store.get_latest_checkpoint(run_id, db_path=isolated_db)
+    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert checkpoint is not None
-    checkpoint_seq = store.save_checkpoint(
+    checkpoint_seq = checkpoints.save_checkpoint(
         run_id,
-        store.NewCheckpoint(
+        NewCheckpoint(
             stage=f"engine_task:{predecessor.id}",
             schema_version=checkpoint["schema_version"],
             last_event_seq=checkpoint["last_event_seq"],
@@ -830,8 +843,8 @@ async def test_resume_rejects_final_safety_block_after_finalize_succeeded(
         ),
         db_path=isolated_db,
     )
-    finalizer = store.enqueue_task(
-        store.NewTask(
+    finalizer = store_tasks.enqueue_task(
+        NewTask(
             run_id=run_id,
             task_type=engine_tasks_support.FINALIZE_TASK,
             inputs={"checkpoint_seq": checkpoint_seq},
@@ -883,10 +896,10 @@ async def test_resume_rejects_final_safety_block_after_finalize_succeeded(
     assert await task_worker.run_once(
         "final-safety-worker", run_id=run_id, db_path=isolated_db
     )
-    blocked = store.get_run(run_id, db_path=isolated_db)
-    completed_finalize = store.get_task(finalizer.id, db_path=isolated_db)
+    blocked = runs.get_run(run_id, db_path=isolated_db)
+    completed_finalize = store_tasks.get_task(finalizer.id, db_path=isolated_db)
     assert (
-        blocked is not None and blocked.status == store.RunStatus.BLOCKED.value
+        blocked is not None and blocked.status == StoreRunStatus.BLOCKED.value
     )
     assert completed_finalize is not None
     assert completed_finalize.status == "completed"
@@ -896,7 +909,7 @@ async def test_resume_rejects_final_safety_block_after_finalize_succeeded(
         if item["stage"] == "final"
     ]
     assert len(final_decision) == 1 and final_decision[0]["decision"] == "block"
-    assert store.get_latest_report(run_id, db_path=isolated_db) is None
+    assert reports.get_latest_report(run_id, db_path=isolated_db) is None
 
     outsider = owner.post(
         f"/api/runs/{run_id}/resume",
@@ -907,9 +920,9 @@ async def test_resume_rejects_final_safety_block_after_finalize_succeeded(
     response = owner.post(f"/api/runs/{run_id}/resume", headers=owner_headers)
     assert response.status_code == 409
     assert response.json()["detail"] == "run was blocked; create a new run"
-    saved = store.get_run(run_id, db_path=isolated_db)
-    assert saved is not None and saved.status == store.RunStatus.BLOCKED.value
-    tasks = store.list_tasks(run_id, db_path=isolated_db)
+    saved = runs.get_run(run_id, db_path=isolated_db)
+    assert saved is not None and saved.status == StoreRunStatus.BLOCKED.value
+    tasks = store_tasks.list_tasks(run_id, db_path=isolated_db)
     assert [(task.task_type, task.status) for task in tasks] == [
         ("engine.node.overview", "completed"),
         (engine_tasks_support.FINALIZE_TASK, "completed"),
@@ -939,7 +952,8 @@ async def test_resume_rejects_final_safety_block_after_finalize_succeeded(
 def _run_with_held_decision(
     client: TestClient, headers: dict[str, str]
 ) -> tuple[str, str]:
-    from app import store
+    from app.store import records as store
+    from app.store.records import NewSafetyDecision as StoreNewSafetyDecision
 
     created = client.post(
         "/api/runs",
@@ -947,7 +961,7 @@ def _run_with_held_decision(
         json={"research_goal": "Review a sensitive research protocol"},
     ).json()
     store.add_safety_decision(
-        store.NewSafetyDecision(
+        StoreNewSafetyDecision(
             run_id=created["id"],
             stage="intake",
             decision="hold",
@@ -965,7 +979,7 @@ def _run_with_held_decision(
 def test_safety_adjudication_is_identified_and_single_use(
     isolated_db: str,
 ) -> None:
-    from app import store
+    from app.store import records as store
 
     client = _client()
     headers = {"X-Client-ID": "reviewer-1"}
@@ -1056,8 +1070,8 @@ def test_held_hypothesis_adjudication_records_without_blocking(
 def test_paused_run_with_unresolved_review_awaits_decision(
     isolated_db: str,
 ) -> None:
-    from app import store
-    from app.store import RunStatus
+    from app.store import runs as store
+    from app.store.models import RunStatus
 
     client = _client()
     headers = {"X-Client-ID": "awaiting-1"}
@@ -1072,8 +1086,8 @@ def test_paused_run_with_unresolved_review_awaits_decision(
 def test_paused_run_without_unresolved_review_awaits_nothing(
     isolated_db: str,
 ) -> None:
-    from app import store
-    from app.store import RunStatus
+    from app.store import runs as store
+    from app.store.models import RunStatus
 
     client = _client()
     headers = {"X-Client-ID": "awaiting-2"}
@@ -1104,8 +1118,8 @@ def test_non_paused_run_with_unresolved_review_awaits_nothing(
 def test_paused_run_with_resolved_review_awaits_nothing(
     isolated_db: str,
 ) -> None:
-    from app import store
-    from app.store import RunStatus
+    from app.store import runs as store
+    from app.store.models import RunStatus
 
     client = _client()
     headers = {"X-Client-ID": "awaiting-4"}
@@ -1143,8 +1157,10 @@ def _announce(run_id: str, prompt: str = "Start research") -> Any:
     )
 
 
-def _start_rows(run_id: str) -> list[store.MessageRow]:
-    return [m for m in store.list_messages(run_id) if m.kind == "start"]
+def _start_rows(run_id: str) -> list[MessageRow]:
+    return [
+        m for m in store_messages.list_messages(run_id) if m.kind == "start"
+    ]
 
 
 def test_announcement_persists_the_prompt_and_the_reply() -> None:

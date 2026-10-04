@@ -17,7 +17,6 @@ from co_scientist.models.metrics import (
 )
 from co_scientist.state import WorkflowState
 
-from app import store
 from app.engine_adapter import is_engine_checkpoint
 from app.engine_tasks.portfolio import _enqueue_after
 from app.engine_tasks.support import (
@@ -35,7 +34,11 @@ from app.outcome_refinement import (
     _result_checkpoint_state,
 )
 from app.safety import screen_intake
-from app.store import RunStatus, ScientificTask
+from app.store import checkpoints, db, events, hypotheses, runs
+from app.store import outcomes as store
+from app.store import retrieval_calls as retrieval
+from app.store.models import RunStatus, ScientificTask
+from app.store.outcomes import OutcomeRefinementConflictError
 
 _TERMINAL_ACTION_STATUSES = {"completed", "no_child", "safety_rejected"}
 _REVIEW_TASK = f"{NODE_TASK_PREFIX}review"
@@ -127,7 +130,9 @@ def _validate_intent_target(
         ),
         None,
     )
-    parent_row = store.get_hypothesis(action["hypothesis_id"], db_path=db_path)
+    parent_row = hypotheses.get_hypothesis(
+        action["hypothesis_id"], db_path=db_path
+    )
     outcome = store.get_hypothesis_outcome(
         action["run_id"], action["outcome_id"], db_path=db_path
     )
@@ -168,10 +173,10 @@ def _checkpoint_result(
 ) -> int:
     envelope = serialize_workflow_state(
         state,
-        last_event_seq=store.latest_event_seq(task.run_id, db_path=db_path),
+        last_event_seq=events.latest_event_seq(task.run_id, db_path=db_path),
     )
     envelope["state"][_RESULT_KEY] = marker
-    with store.transaction(db_path) as conn:
+    with db.transaction(db_path) as conn:
         assert_task_commit_allowed(task, conn)
         if marker["kind"] == "child":
             seq = _save_node_checkpoint(
@@ -179,7 +184,9 @@ def _checkpoint_result(
             )
         else:
             seq = _save_exact_checkpoint(task, envelope, expected_seq, conn)
-        store.save_run_metrics(task.run_id, _metrics_snapshot(state), conn=conn)
+        retrieval.save_run_metrics(
+            task.run_id, _metrics_snapshot(state), conn=conn
+        )
     return seq
 
 
@@ -192,7 +199,7 @@ def _commit_result(
     db_path: str | None,
 ) -> dict[str, Any]:
     child = _checkpointed_child(action, state, marker)
-    with store.transaction(db_path) as conn:
+    with db.transaction(db_path) as conn:
         assert_task_commit_allowed(task, conn)
         current = store.get_outcome_refinement_action(
             action["run_id"], action["action_id"], conn=conn
@@ -215,8 +222,8 @@ def _commit_child(
 ) -> dict[str, Any]:
     """Child lineage and standard review enqueue commit atomically."""
     if current.get("child_hypothesis_id") not in {None, child.id}:
-        raise store.OutcomeRefinementConflictError
-    store.add_hypothesis(_child_row(task.run_id, child), conn=conn)
+        raise OutcomeRefinementConflictError
+    hypotheses.add_hypothesis(_child_row(task.run_id, child), conn=conn)
     updated = store.update_outcome_refinement_action(
         action["action_id"],
         status="completed",
@@ -224,7 +231,7 @@ def _commit_child(
         conn=conn,
     )
     assert updated is not None
-    store.append_event(
+    events.append_event(
         task.run_id,
         "scientist.outcome_refinement_completed",
         {
@@ -252,8 +259,8 @@ def _commit_terminal_action(
         action["action_id"], status=status, conn=conn
     )
     assert updated is not None
-    store.update_run_status(task.run_id, RunStatus.COMPLETED, conn=conn)
-    store.append_event(
+    runs.update_run_status(task.run_id, RunStatus.COMPLETED, conn=conn)
+    events.append_event(
         task.run_id,
         "scientist.outcome_refinement_completed",
         {
@@ -286,14 +293,14 @@ def _load_action_and_checkpoint(
 def _active_checkpoint(
     task: ScientificTask, db_path: str | None
 ) -> dict[str, Any]:
-    run = store.get_run(task.run_id, db_path=db_path)
+    run = runs.get_run(task.run_id, db_path=db_path)
     if run is None or run.status not in {
         RunStatus.QUEUED.value,
         RunStatus.RUNNING.value,
         RunStatus.SYNTHESIZING.value,
     }:
         raise ValueError("outcome refinement run is not active")
-    checkpoint = store.get_latest_checkpoint(task.run_id, db_path=db_path)
+    checkpoint = checkpoints.get_latest_checkpoint(task.run_id, db_path=db_path)
     if checkpoint is None:
         raise ValueError("outcome refinement checkpoint is missing")
     return checkpoint
@@ -354,7 +361,7 @@ def _commit_safety_rejection(
         "hypothesis_id": action["hypothesis_id"],
     }
     _checkpoint_result(task, state, current_seq, marker, db_path=db_path)
-    latest = store.get_latest_checkpoint(task.run_id, db_path=db_path)
+    latest = checkpoints.get_latest_checkpoint(task.run_id, db_path=db_path)
     assert latest is not None
     restored, _seq = _checkpoint_state(task, latest, db_path=db_path)
     return _commit_result(task, action, restored, marker, db_path=db_path)
@@ -363,7 +370,7 @@ def _commit_safety_rejection(
 async def _evolve_targeted_parent(
     request: _TargetedEvolution,
 ) -> Hypothesis | None:
-    with store.transaction(request.db_path) as conn:
+    with db.transaction(request.db_path) as conn:
         assert_task_commit_allowed(request.task, conn)
         store.update_outcome_refinement_action(
             request.action["action_id"], status="executing", conn=conn
@@ -417,7 +424,7 @@ def _checkpoint_and_commit_refinement(
     _checkpoint_result(
         task, successor_state, current_seq, result_marker, db_path=db_path
     )
-    latest = store.get_latest_checkpoint(task.run_id, db_path=db_path)
+    latest = checkpoints.get_latest_checkpoint(task.run_id, db_path=db_path)
     assert latest is not None
     restored, _checkpoint_seq = _checkpoint_state(task, latest, db_path=db_path)
     return _commit_result(
@@ -495,7 +502,7 @@ def restore_retry_usage(
     """Attempt usage can outlive the last checkpoint and must survive retry
     recovery.
     """
-    persisted = store.get_run_metrics(run_id, db_path=db_path)
+    persisted = retrieval.get_run_metrics(run_id, db_path=db_path)
     if persisted is not None:
         state["metrics"] = ExecutionMetrics.from_dict(persisted)
 
@@ -506,9 +513,11 @@ def mark_retryable_with_usage(
     state: dict[str, Any],
     db_path: str | None,
 ) -> None:
-    with store.transaction(db_path) as conn:
+    with db.transaction(db_path) as conn:
         assert_task_commit_allowed(task, conn)
         store.update_outcome_refinement_action(
             action["action_id"], status="retryable", conn=conn
         )
-        store.save_run_metrics(task.run_id, _metrics_snapshot(state), conn=conn)
+        retrieval.save_run_metrics(
+            task.run_id, _metrics_snapshot(state), conn=conn
+        )

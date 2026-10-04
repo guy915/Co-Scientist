@@ -16,12 +16,14 @@ from fastapi import (
     UploadFile,
 )
 
-from app import document_ingest, store
+from app import document_ingest
 from app.auth import client_id, require_client_scope
 from app.staged_documents import document_summary as document_summary
 from app.staged_documents import (
     resolve_owned_documents as resolve_owned_documents,
 )
+from app.store import documents as store
+from app.store.documents import NewStagedDocument
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 
@@ -55,7 +57,7 @@ async def stage_document(
     extracted = await document_ingest.extract_upload(file)
     title = (file.filename or "Uploaded document").strip()
     document_id = store.add_staged_document(
-        store.NewStagedDocument(
+        NewStagedDocument(
             client_id=owner,
             title=title,
             text=extracted.text,

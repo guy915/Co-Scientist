@@ -4,7 +4,9 @@ import logging
 import os
 import time
 
-from app import store
+from app.store import documents as store
+from app.store import runs as store_runs
+from app.store import runs_views as views
 
 logger = logging.getLogger(__name__)
 
@@ -49,8 +51,8 @@ def sweep_expired_runs(*, now: float | None = None) -> list[str]:
         return []
     cutoff = (now or time.time()) - days * _SECONDS_PER_DAY
     deleted = []
-    for run in store.list_expired_terminal_runs(cutoff):
-        store.delete_run(run.id)
+    for run in views.list_expired_terminal_runs(cutoff):
+        store_runs.delete_run(run.id)
         deleted.append(run.id)
         logger.info("Retention swept expired run %s", run.id)
     return deleted
