@@ -380,7 +380,7 @@ def test_batch_out_of_range_passage_number_is_dropped_and_logged(
     batch_assessor, assessor_id = make_llm_batch_assessor(
         "deepseek/deepseek-chat"
     )
-    with caplog.at_level(logging.WARNING, logger="app.claims"):
+    with caplog.at_level(logging.INFO, logger="app.claims"):
         results = assess_claims_batch(
             ["Kinase X inhibition reduces tumor growth."],
             [_PASSAGE],
@@ -390,3 +390,18 @@ def test_batch_out_of_range_passage_number_is_dropped_and_logged(
     assert results[0].label is EntailmentLabel.INSUFFICIENT
     assert results[0].supporting_passages == ()
     assert "could not be located" in caplog.text
+
+
+def test_empty_batch_verdicts_spend_one_call_and_remain_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[int] = []
+
+    async def completion(**kwargs: Any) -> Any:
+        calls.append(1)
+        return completion_response('{"verdicts": []}')
+
+    install_completion_backend(monkeypatch, completion)
+    assessor, _ = make_llm_batch_assessor("deepseek/deepseek-chat")
+    assert assessor(["A claim without evidence."], [_PASSAGE]) == [None]
+    assert len(calls) == 1

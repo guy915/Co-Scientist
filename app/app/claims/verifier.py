@@ -509,7 +509,8 @@ _BATCH_SYSTEM_PROMPT = (
         "Respond with a single JSON object holding one verdict per claim, each "
         "carrying the claim's own number as its index -- never the claim's "
         "text "
-        "-- and nothing else."
+        "-- and nothing else. Return an empty verdicts array if no claim can "
+        "be assessed; missing verdicts remain unproven."
     )
 )
 
@@ -531,7 +532,6 @@ _BATCH_DRAFT_SCHEMA = obj(
     {
         "verdicts": {
             "type": "array",
-            "minItems": 1,
             "items": _BATCH_VERDICT_ITEM,
         }
     }

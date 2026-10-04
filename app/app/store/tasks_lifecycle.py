@@ -299,7 +299,15 @@ def _stop_run_after_unknown_provider_outcome(
     task_type: str,
     failure: TaskFailure,
 ) -> None:
-    cancel_run_tasks(run_id, conn=conn)
+    # Fanout aggregates explicitly admit failed siblings. Never replay the item,
+    # but preserve the rest of the run and its already-funded work.
+    if task_type not in {
+        "engine.fanout.review.item",
+        "engine.fanout.reflection.item",
+        "engine.fanout.verification.item",
+        "engine.fanout.generation.strategy",
+    }:
+        cancel_run_tasks(run_id, conn=conn)
     from app.store.runs_views import _settle_run_for_failed_task
 
     _settle_run_for_failed_task(
@@ -366,7 +374,11 @@ def _fail_ambiguous_expired_leases(conn: sqlite3.Connection, now: float) -> int:
         if task.run_id in failed_runs:
             continue
         if _fail_ambiguous_engine_lease(conn, task, failure, now):
-            failed_runs.add(task.run_id)
+            row = conn.execute(
+                "SELECT status FROM runs WHERE id=?", (task.run_id,)
+            ).fetchone()
+            if row["status"] == "failed":
+                failed_runs.add(task.run_id)
             failed_count += 1
     return failed_count
 

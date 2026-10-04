@@ -475,6 +475,14 @@ def _reshape_object_fields(
 def _reshape_value(value: Any, schema: Any, field_path: str) -> Any:
     if not isinstance(schema, dict):
         return value
+    if (
+        schema.get("type") == "array"
+        and isinstance(value, dict)
+        and len(value) == 1
+    ):
+        enclosed = next(iter(value.values()))
+        if isinstance(enclosed, list):
+            value = enclosed
     if isinstance(value, str):
         return _truncate_string_value(
             value, schema.get("maxLength"), field_path
@@ -530,45 +538,15 @@ def _validation_feedback(error: ValidationError) -> str:
     )
 
 
-def _log_first_json_error_position(text: str) -> None:
-    """Truncation usually breaks near the tail; restrict diagnostic prefixes
-    to that region.
-    """
-    for i in range(0, len(text), 100):
-        chunk = text[: i + 100]
-        try:
-            json.loads(chunk)
-        except json.JSONDecodeError as e:
-            if i > len(text) - 200:
-                logger.error("JSON error near position %s: %s", e.pos, e.msg)
-                logger.error(
-                    "Context around error: ...%s...",
-                    text[max(0, e.pos - 100) : e.pos + 100],
-                )
-                break
-
-
 def _log_json_parse_failure_diagnostics(last_response_text: str) -> None:
     logger.error("Failed to parse JSON response after all repair attempts.")
     logger.error("Response length: %s chars", len(last_response_text))
     logger.error("First 500 chars: %s", last_response_text[:500])
     logger.error("Last 500 chars: %s", last_response_text[-500:])
-
-    if len(last_response_text) > 1000:
-        mid_point = len(last_response_text) // 2
-        logger.error(
-            "Middle 500 chars (around char %s): %s",
-            mid_point,
-            last_response_text[mid_point - 250 : mid_point + 250],
-        )
-
     try:
-        open_braces = last_response_text.count("{")
-        close_braces = last_response_text.count("}")
-        logger.error("Brace count: { = %s, } = %s", open_braces, close_braces)
-        _log_first_json_error_position(last_response_text)
-    except Exception as debug_err:
-        logger.error("Error during debugging: %s", debug_err)
+        json.loads(last_response_text)
+    except json.JSONDecodeError as error:
+        logger.error("JSON error at position %s: %s", error.pos, error.msg)
 
 
 def _raise_validation_error(

@@ -698,6 +698,7 @@ def _patch_item(
         def __init__(self) -> None:
             self.inputs = inputs
             self.status = status
+            self.error = "acceptance unknown"
             self.result: dict[str, Any] | None = None
 
     monkeypatch.setattr(
@@ -744,7 +745,11 @@ def test_a_failed_recheck_item_still_records_its_attempt(
     hypothesis = _recheck_blocked_hypothesis()
     _patch_item(
         monkeypatch,
-        {"hypothesis_id": hypothesis.id, "recheck": True},
+        {
+            "hypothesis_id": hypothesis.id,
+            "recheck": True,
+            "review_mode": "recurrent",
+        },
         status="failed",
     )
 
@@ -753,6 +758,7 @@ def test_a_failed_recheck_item_still_records_its_attempt(
     )
 
     assert applied.failed == 1
+    assert hypothesis.enrichments["recurrent_review"]["verdict"] == "unreviewed"
     assert _mature_reflection_specs(_state([hypothesis])) == []
 
 
