@@ -14,8 +14,8 @@ from app.seed.scenario import (
 from app.seed.scenario import (
     _seed_curated_scenario as _seed_curated_scenario,
 )
+from app.store import db, interviews, runs
 from app.store import reports as store
-from app.store import runs
 from app.store import runs_views as views
 from app.store.models import DEMO_CLIENT_ID, RunRow
 from app.store.runs import RunCreateOptions
@@ -61,12 +61,12 @@ def _ensure_demo_run_row(
     scenario = DEMO_SCENARIOS.get(goal)
     return runs.create_run(
         goal,
-        _DEMO_TIER,
+        str(config["tier"]) if scenario else _DEMO_TIER,
         "engine",
         config,
         RunCreateOptions(
             client_id=DEMO_CLIENT_ID,
-            title=scenario.title if scenario else None,
+            title=f"Example: {scenario.title}" if scenario else None,
             llm_backend="offline",
             db_path=db_path,
         ),
@@ -90,13 +90,20 @@ def _drive_demo_run(run_id: str, db_path: str | None) -> None:
 def _scenario_report_is_current(run: RunRow, db_path: str | None) -> bool:
     report = store.get_latest_report(run.id, db_path=db_path)
     setup = run.config.get("setup") if isinstance(run.config, dict) else None
+    interview = interviews.get_interview(
+        str(run.config.get("interview_id") or ""), db_path=db_path
+    )
     return bool(
-        report
+        interview
+        and interview["client_id"] == DEMO_CLIENT_ID
+        and report
         and report["payload"].get("demo_seed_version") == DEMO_SEED_VERSION
         and run.config.get("demo_seed_version") == DEMO_SEED_VERSION
         and isinstance(setup, dict)
         and setup.get("requirements")
         and setup.get("attributes")
+        and run.config.get("interview_id")
+        and run.config.get("example_chat_version") == DEMO_SEED_VERSION
     )
 
 
@@ -114,7 +121,14 @@ async def _seed_demo_run(
     if scenario is not None:
         # Reconstructed legacy demo rows need the same setup fields as newly
         # created ones.
+        if run.config.get("interview_id"):
+            config["interview_id"] = run.config["interview_id"]
         runs.set_run_config(run.id, config, db_path=db_path)
+        run.profile = str(config["tier"])
+        with db.connect(db_path) as conn:
+            conn.execute(
+                "UPDATE runs SET profile=? WHERE id=?", (run.profile, run.id)
+            )
         await _seed_curated_scenario(run, scenario, db_path)
         logger.info("Seeded curated demo run %s (%.60s…)", run.id[:8], goal)
         return

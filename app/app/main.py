@@ -281,7 +281,15 @@ def _run_ownership_response(
     if run_id == "demo":
         return None
     run = runs.get_run(run_id)
-    if run is None or run.client_id == DEMO_CLIENT_ID:
+    if run is None:
+        return None
+    if run.client_id == DEMO_CLIENT_ID:
+        if request.method not in {"GET", "HEAD"} and not (
+            request.method == "POST" and parts[3:] == ["example-chat"]
+        ):
+            return JSONResponse(
+                {"detail": "shared examples are read-only"}, status_code=403
+            )
         return None
     client_id = principal.subject if principal else ""
     if client_id and client_id == run.client_id:

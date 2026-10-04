@@ -8,6 +8,7 @@ import {RunHistoryProvider} from './hooks/history_context';
 import {SystemStatusProvider} from './hooks/system_status_context';
 import {Layout} from './layout';
 import {ChatWorkspace} from './pages/chat_workspace';
+import {ExampleChat} from './pages/example_chat';
 import {ThemeProvider} from './theme_context';
 
 const RunDetail = lazy(() =>
@@ -46,6 +47,10 @@ function WorkbenchRoutes() {
     <Routes>
       <Route path="/" element={page('Workspace', <ChatWorkspace />)} />
       <Route path="/chats/:id" element={page('Workspace', <ChatWorkspace />)} />
+      <Route
+        path="/examples/:id"
+        element={page('Example chat', <ExampleChat />)}
+      />
       <Route path="/runs" element={<Navigate to="/" replace />} />
       <Route path="/runs/new" element={<Navigate to="/" replace />} />
       <Route

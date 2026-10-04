@@ -372,6 +372,13 @@ export function listInterviews(): Promise<ChatSummary[]> {
   return fetchJson('/api/interviews', {headers: clientHeaders()});
 }
 
+export function openExampleChat(runId: string): Promise<Interview> {
+  return fetchJson(`/api/runs/${runId}/example-chat`, {
+    method: 'POST',
+    headers: clientHeaders(),
+  });
+}
+
 export function getInterview(interviewId: string): Promise<Interview> {
   return fetchJson(`/api/interviews/${interviewId}`, {
     headers: clientHeaders(),

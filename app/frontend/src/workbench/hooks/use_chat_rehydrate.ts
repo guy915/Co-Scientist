@@ -44,6 +44,7 @@ interface RunResolutionCallbacks {
   cancelled: () => boolean;
   setLinkedRun: (linkedRun: LinkedRun | null) => void;
   setStartedSession: ChatSession['setStartedSession'];
+  setConfirmed: ChatSession['setConfirmed'];
 }
 
 async function runForRecovery(
@@ -83,6 +84,7 @@ interface ResolveLinkedRunArgs {
   startedSession: StartedSession | null;
   setLinkedRun: (linkedRun: LinkedRun | null) => void;
   setStartedSession: ChatSession['setStartedSession'];
+  setConfirmed: ChatSession['setConfirmed'];
 }
 
 function startedTitle(run: Run | undefined, fallback: string): string {
@@ -142,6 +144,16 @@ function applyResolvedRun(
     );
     return;
   }
+  if (typeof run.config.example_source_id === 'string') {
+    callbacks.setConfirmed(current =>
+      current
+        ? {
+            ...current,
+            spec: recoverySpecForRun(resolution, run, undefined),
+          }
+        : current,
+    );
+  }
   const summary = linkedRunSummary(chat, interview, chatId, runId, run);
   callbacks.setStartedSession(current =>
     current?.id === runId ? current : resumedSession(summary, run),
@@ -195,7 +207,7 @@ function resolveLinkedRun(
     args.setLinkedRun(null);
     return () => undefined;
   }
-  if (args.startedSession?.id === target.runId) {
+  if (args.startedSession?.id === target.runId && !args.interview) {
     args.setLinkedRun(null);
     return () => undefined;
   }
@@ -205,6 +217,7 @@ function resolveLinkedRun(
     cancelled: () => cancelled,
     setLinkedRun: args.setLinkedRun,
     setStartedSession: args.setStartedSession,
+    setConfirmed: args.setConfirmed,
   };
   const listedRun = args.history.find(entry => entry.id === target.runId);
   args.setLinkedRun({...target, phase: 'loading'});
@@ -308,6 +321,7 @@ export function useChatRehydration(
           startedSession: session.startedSession,
           setLinkedRun,
           setStartedSession: sessionRef.current.setStartedSession,
+          setConfirmed: sessionRef.current.setConfirmed,
         },
         lookupRetry > 0,
       ),
