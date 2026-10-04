@@ -1,5 +1,3 @@
-"""Admission for an owner-authorized, one-outcome refinement intent."""
-
 from __future__ import annotations
 
 import json
@@ -52,7 +50,6 @@ def _checkpointed_child(
     state: dict[str, Any],
     marker: dict[str, Any],
 ) -> Hypothesis | None:
-    """Resolve and validate the child carried by the action checkpoint."""
     child_id = marker.get("child_hypothesis_id")
     child = next(
         (
@@ -75,7 +72,6 @@ def _result_checkpoint_state(
     parent: Hypothesis,
     child: Hypothesis | None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Attach single-parent lineage and form the durable action marker."""
     if child is None:
         return state, {
             "kind": "no_child",
@@ -92,9 +88,8 @@ def _result_checkpoint_state(
         "parent_hypothesis_id": parent.id,
     }
     updated_state = {**state, "hypotheses": [*state["hypotheses"], child]}
-    # Function-local: importing any ``app.engine_tasks`` submodule loads the
-    # package, whose ``outcome_refinement`` imports this module, so a
-    # top-level import is a cycle when this module loads first.
+    # Import locally: engine_tasks loads outcome_refinement, so eager imports
+    # would cycle when this module is imported first.
     from app.engine_tasks.support import NODE_TASK_PREFIX
 
     updated_state["resume_successor"] = f"{NODE_TASK_PREFIX}review"
@@ -130,8 +125,6 @@ class OutcomeRefinementRequestError(ValueError):
 
 @dataclass(frozen=True)
 class OutcomeRefinementRequest:
-    """One authenticated request to admit or replay an outcome action."""
-
     run_id: str
     hypothesis_id: str
     outcome_id: str
@@ -141,8 +134,6 @@ class OutcomeRefinementRequest:
 
 @dataclass(frozen=True)
 class RefinementContext:
-    """Values frozen into the executor's complete, bounded input snapshot."""
-
     action_id: str
     task_idempotency_key: str
     run_id: str
@@ -154,8 +145,6 @@ class RefinementContext:
 
 @dataclass(frozen=True)
 class RefinementTarget:
-    """The exact outcome and checkpointed parent admitted by the request."""
-
     outcome: dict[str, Any]
     parent: Any
     checkpoint_seq: int
@@ -163,8 +152,6 @@ class RefinementTarget:
 
 @dataclass(frozen=True)
 class CheckpointedParent:
-    """An eligible parent restored from the latest engine checkpoint."""
-
     parent: Any
     checkpoint_seq: int
 
@@ -179,7 +166,9 @@ def _validate_request_key(key: str) -> str:
 def _action_payload(
     action: dict[str, Any], *, replayed: bool
 ) -> dict[str, Any]:
-    """Expose stable IDs and status without returning observation text."""
+    """Expose only stable IDs and status; private outcome observations must
+    not leak through replay metadata.
+    """
     return {
         "action_id": action["action_id"],
         "run_id": action["run_id"],
@@ -203,7 +192,6 @@ def get_owner_outcome_refinement_action(
     *,
     db_path: str | None = None,
 ) -> dict[str, Any]:
-    """Read an existing owner's action without recovering or enqueueing it."""
     action = store.get_outcome_refinement_action_for_outcome(
         run_id, outcome_id, db_path=db_path
     )
@@ -437,7 +425,6 @@ def _new_action_record(
 def _materialize_action(
     action: dict[str, Any], conn: Any, *, retry_failed: bool = True
 ) -> None:
-    """Atomically attach the saved intent to the durable engine queue."""
     if action["status"] in {"completed", "no_child", "safety_rejected"}:
         return
     run = store.get_run(action["run_id"], conn=conn)
@@ -474,7 +461,6 @@ def _materialize_action(
 def _ensure_action_task(
     action: dict[str, Any], conn: Any, *, retry_failed: bool
 ) -> bool:
-    """Create the stable task row or explicitly revive its failed attempt."""
     existing = conn.execute(
         "SELECT id, status FROM scientific_tasks "
         "WHERE run_id=? AND idempotency_key=?",
@@ -510,7 +496,6 @@ def _ensure_action_task(
 def materialize_pending_outcome_refinements(
     *, db_path: str | None = None
 ) -> int:
-    """Recover a bounded set of pre-executor intents without retrying work."""
     pending = store.list_pending_outcome_refinement_actions(
         db_path=db_path, limit=_PENDING_RECOVERY_LIMIT
     )
@@ -544,7 +529,6 @@ def request_outcome_refinement_action(
     *,
     db_path: str | None = None,
 ) -> dict[str, Any]:
-    """Atomically admit or replay one owner's refinement intent."""
     request_key = _validate_request_key(request.request_idempotency_key)
     with store.transaction(db_path) as conn:
         run = _owned_run(conn, request)

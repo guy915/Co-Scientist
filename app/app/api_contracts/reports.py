@@ -1,5 +1,3 @@
-"""Backend-owned reports wire models, also used to generate frontend types."""
-
 from __future__ import annotations
 
 from typing import Any

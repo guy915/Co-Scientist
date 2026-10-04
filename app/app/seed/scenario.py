@@ -1,5 +1,3 @@
-"""Store writers that populate one curated demo run's derived rows."""
-
 from __future__ import annotations
 
 import dataclasses
@@ -30,12 +28,9 @@ from app.seed.overview import (
 )
 from app.store import RunRow
 
-# The curated payload below is reader-facing scientific prose; keeping each
-# statement intact makes the fixture auditable.
 # ruff: noqa: E501
 
 
-# Up to three named 1-5 scoring axes per scenario (config_synthesis.attributes).
 _STRATIFICATION_ATTRIBUTES: dict[str, tuple[dict[str, str], ...]] = {
     _SCENARIO_KEYS[0]: (
         {
@@ -83,12 +78,9 @@ _STRATIFICATION_ATTRIBUTES: dict[str, tuple[dict[str, str], ...]] = {
 
 
 def _questions(*pairs: tuple[str, str]) -> list[dict[str, str]]:
-    """Build a criterion's reviewer-question list from name/question pairs."""
     return [{"name": name, "question": question} for name, question in pairs]
 
 
-# Four goal-specific critical criteria per scenario, each with a prose
-# description (R12-23b) and three named reviewer questions (R12-23).
 _CRITICAL_CRITERIA: dict[str, tuple[dict[str, Any], ...]] = {
     _SCENARIO_KEYS[0]: (
         {
@@ -316,20 +308,16 @@ _CRITICAL_CRITERIA: dict[str, tuple[dict[str, Any], ...]] = {
 
 
 def curated_stratification_attributes(key: str) -> list[dict[str, str]]:
-    """Return one scenario's Supervisor-synthesized stratification axes."""
     return [dict(item) for item in _STRATIFICATION_ATTRIBUTES[key]]
 
 
 def curated_critical_criteria(key: str) -> list[dict[str, Any]]:
-    """Return one scenario's Supervisor-synthesized evaluation criteria."""
     return [
         {**item, "questions": [dict(q) for q in item["questions"]]}
         for item in _CRITICAL_CRITERIA[key]
     ]
 
 
-# The lists are reader-facing prose; keeping each statement intact makes the
-# fixture auditable.
 # ruff: noqa: E501
 
 
@@ -494,27 +482,20 @@ _PLANNING_LISTS: dict[str, PlanningLists] = {
 
 
 def _scenario_planning_lists(scenario: DemoScenario | None) -> PlanningLists:
-    """Return the goal detail fields shown for a curated demo run."""
     if scenario is None:
         return PlanningLists()
     return _PLANNING_LISTS[scenario_key(scenario)]
 
 
-# The curated payload below is reader-facing scientific prose; keeping each
-# source-backed statement intact makes the fixture auditable.
 # ruff: noqa: E501
 
 
-# Every curated source is a real PubMed record (see demo_seed_data.supplements
-# / demo_seed_data.scenarios); the pmid rides along in the url the fixture
-# already carries rather than as a separately authored field, so the
-# run-wide bibliography section (R12-12) can show the real identifier
-# instead of inventing one.
+# Derive PMIDs from the curated PubMed URLs rather than inventing separately
+# authored identifiers.
 _PUBMED_URL_PMID = re.compile(r"pubmed\.ncbi\.nlm\.nih\.gov/(\d+)")
 
 
 def _pmid_from_url(url: str) -> str | None:
-    """Extract a PubMed id from a curated evidence url, when present."""
     match = _PUBMED_URL_PMID.search(url)
     return match.group(1) if match else None
 
@@ -524,7 +505,6 @@ def insert_scenario_evidence(
     evidence: tuple[DemoEvidence, ...],
     db_path: str | None,
 ) -> list[str]:
-    """Persist a scenario's sources and return their new row ids."""
     return [
         store.add_evidence(
             store.NewEvidence(
@@ -545,16 +525,6 @@ def insert_scenario_evidence(
 
 @dataclasses.dataclass(frozen=True)
 class _CuratedSeed:
-    """One curated scenario's inputs, grouped for the writers below.
-
-    Attributes:
-        run: The demo run row being populated.
-        scenario: The curated scenario supplying the content.
-        evidence: The scenario's full source bundle.
-        hypotheses: The scenario's multi-generation hypothesis set.
-        db_path: Optional override for the SQLite database path.
-    """
-
     run: RunRow
     scenario: DemoScenario
     evidence: tuple[DemoEvidence, ...]
@@ -564,15 +534,6 @@ class _CuratedSeed:
 
 @dataclasses.dataclass(frozen=True)
 class _ScenarioCounts:
-    """The row counts one seeded scenario reports in events and metrics.
-
-    Attributes:
-        evidence: How many sources were persisted.
-        initial_hypotheses: How many hypotheses came from generation.
-        hypotheses: How many hypotheses exist across all generations.
-        matches: How many tournament matches were recorded.
-    """
-
     evidence: int
     initial_hypotheses: int
     hypotheses: int
@@ -580,7 +541,6 @@ class _ScenarioCounts:
 
 
 def _initial_count(seed: _CuratedSeed) -> int:
-    """Return how many of the scenario's hypotheses are first generation."""
     return (
         len(seed.hypotheses)
         - seed.scenario.evolution_count
@@ -591,12 +551,6 @@ def _initial_count(seed: _CuratedSeed) -> int:
 def _lineage(
     seed: _CuratedSeed, index: int, hypothesis_ids: list[str]
 ) -> tuple[str | None, int]:
-    """Return the parent id and generation for the hypothesis at `index`.
-
-    Returns:
-        A ``(parent_id, generation)`` pair; the parent is None for the
-        generation-wave ideas, which have no ancestor.
-    """
     initial_count = _initial_count(seed)
     if index < initial_count:
         return None, 0
@@ -611,7 +565,6 @@ def _add_hypothesis(
     item: DemoHypothesis,
     lineage: tuple[str | None, int],
 ) -> str:
-    """Persist one hypothesis with its ranked state and return its id."""
     parent_id, generation = lineage
     hyp_id = store.add_hypothesis(
         store.NewHypothesis(
@@ -647,7 +600,6 @@ def _add_hypothesis(
 def _add_reviews(
     seed: _CuratedSeed, hyp_id: str, index: int, item: DemoHypothesis
 ) -> None:
-    """Persist the reflection and deep-verification reviews for one idea."""
     for reviewer, summary, critique in (
         (
             "reflection",
@@ -686,7 +638,6 @@ def _add_claim_rows(
     item: DemoHypothesis,
     evidence_ids: list[str],
 ) -> None:
-    """Persist one idea's citation and its claim-level evidence edge."""
     evidence = seed.evidence[item.evidence_index]
     evidence_id = evidence_ids[item.evidence_index]
     claim = item.statement
@@ -723,11 +674,6 @@ def _add_claim_rows(
 
 
 def _seed_hypotheses(seed: _CuratedSeed, evidence_ids: list[str]) -> list[str]:
-    """Persist every hypothesis with its lineage, reviews, and citations.
-
-    Returns:
-        The new hypothesis row ids, in the scenario's ranked order.
-    """
     key = scenario_key(seed.scenario)
     hypothesis_ids: list[str] = []
     for index, item in enumerate(seed.hypotheses):
@@ -735,11 +681,8 @@ def _seed_hypotheses(seed: _CuratedSeed, evidence_ids: list[str]) -> list[str]:
         hyp_id = _add_hypothesis(seed, index, item, lineage)
         hypothesis_ids.append(hyp_id)
         _add_reviews(seed, hyp_id, index, item)
-        # Only the scenario's highest-ranked ideas carry a curated
-        # full/simulation review row (audit E1) -- mirroring how a real
-        # run reserves the mature cascade's more expensive review types
-        # for fewer candidates (see the root AGENTS.md per-item-LLM-pass
-        # Gotcha).
+        # Only leading ideas receive expensive full/simulation reviews, matching
+        # the selective mature-review cascade.
         for review in mature_review_rows(seed.run.id, hyp_id, key, index):
             store.add_review(review, db_path=seed.db_path)
         _add_claim_rows(seed, hyp_id, item, evidence_ids)
@@ -747,12 +690,6 @@ def _seed_hypotheses(seed: _CuratedSeed, evidence_ids: list[str]) -> list[str]:
 
 
 def _matchups(count: int) -> list[tuple[int, int]]:
-    """Return the ranked index pairs the curated tournament judged.
-
-    Returns:
-        Every adjacent pair, then a second pass across the halves, so no
-        idea is shown unranked.
-    """
     matchups = list(itertools.pairwise(range(count)))
     half = count // 2
     matchups.extend(
@@ -767,7 +704,6 @@ def _match_row(
     pair: tuple[int, int],
     hypothesis_ids: list[str],
 ) -> store.NewMatch:
-    """Build the match row for one ranked pair, with its Elo movement."""
     winner_index, loser_index = pair
     scenario = seed.scenario
     winner_elo = scenario.elo_ceiling - winner_index * scenario.elo_step
@@ -796,7 +732,6 @@ def _record_match(
     pair: tuple[int, int],
     hypothesis_ids: list[str],
 ) -> None:
-    """Persist one tournament match and both competitors' win/loss counts."""
     match = _match_row(seed, iteration, pair, hypothesis_ids)
     store.add_match(match, db_path=seed.db_path)
     store.update_hypothesis_state(
@@ -814,7 +749,6 @@ def _record_match(
 def _seed_tournament(
     seed: _CuratedSeed, hypothesis_ids: list[str]
 ) -> list[tuple[int, int]]:
-    """Persist the curated tournament and return the matchups it judged."""
     matchups = _matchups(len(hypothesis_ids))
     for iteration, pair in enumerate(matchups, start=1):
         _record_match(seed, iteration, pair, hypothesis_ids)
@@ -822,7 +756,6 @@ def _seed_tournament(
 
 
 def _seed_proximity(seed: _CuratedSeed, hypothesis_ids: list[str]) -> None:
-    """Persist the curated proximity edge between the two leading ideas."""
     if len(hypothesis_ids) > 1:
         store.add_proximity_edge(
             store.NewProximityEdge(
@@ -845,7 +778,6 @@ def _scenario_report_request(
     overview: dict[str, Any],
     meta_review: dict[str, Any],
 ) -> ReportRequest:
-    """Assemble the curated report's build inputs from the seed scenario."""
     setup = (
         seed.run.config.get("setup")
         if isinstance(seed.run.config, dict)
@@ -862,9 +794,8 @@ def _scenario_report_request(
         summary=seed.scenario.summary,
         execution_time=seed.scenario.duration_seconds,
         setup=setup if isinstance(setup, dict) else None,
-        # Supervisor-synthesized guidance (R12-17/R12-18/R12-23): a
-        # different, goal-specific field from ``setup`` above -- see
-        # ``report/markdown/supervisor.py``'s vocabulary warning.
+        # Supervisor-synthesized guidance is distinct from the scientist's setup
+        # fields; reports must not conflate them.
         attributes=curated_stratification_attributes(key),
         critical_criteria=curated_critical_criteria(key),
         prepared_at=time.time(),
@@ -875,7 +806,6 @@ def _scenario_report_request(
 async def _save_scenario_report(
     seed: _CuratedSeed, hypothesis_ids: list[str]
 ) -> dict[str, Any]:
-    """Build and persist the curated report; return its meta-review payload."""
     overview = _curated_research_overview(
         seed.scenario, seed.evidence, seed.hypotheses, hypothesis_ids
     )
@@ -901,7 +831,6 @@ async def _save_scenario_report(
 def _emit_scenario_events(
     seed: _CuratedSeed, counts: _ScenarioCounts, meta_review: dict[str, Any]
 ) -> None:
-    """Append the stage events a completed run's timeline shows."""
     for event_type, event_payload in (
         ("supervisor.plan", {"summary": "Curated demo plan prepared."}),
         ("literature_review", {"evidence_count": counts.evidence}),
@@ -923,7 +852,6 @@ def _emit_scenario_events(
 
 
 def _finalize_scenario_run(seed: _CuratedSeed, counts: _ScenarioCounts) -> None:
-    """Complete the run and persist the metrics its Learning tab reads."""
     duration = seed.scenario.duration_seconds
     store.update_run_status(
         seed.run.id, store.RunStatus.COMPLETED, db_path=seed.db_path
@@ -953,7 +881,6 @@ def _finalize_scenario_run(seed: _CuratedSeed, counts: _ScenarioCounts) -> None:
 async def _seed_curated_scenario(
     run: RunRow, scenario: DemoScenario, db_path: str | None
 ) -> None:
-    """Replace one demo's derived rows with a complete illustrative scenario."""
     store.clear_run_derived_data(run.id, db_path=db_path)
     store.set_run_title(run.id, scenario.title, db_path=db_path)
     seed = _CuratedSeed(

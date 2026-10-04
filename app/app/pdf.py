@@ -1,8 +1,5 @@
-"""Recover PDF headings using bookmarks, numbering, then font styles.
-
-Signals are pooled across the document so heading levels remain consistent.
-Bookmarks take precedence over numbering and font styles; unmatched lines
-retain their extracted text. Helpers accept plain data for parser-free tests.
+"""Pool heading signals across the document to keep levels consistent;
+bookmarks take precedence over numbering and font styles.
 """
 
 from __future__ import annotations
@@ -20,36 +17,29 @@ _Rank = TypeVar("_Rank", bound=Hashable)
 
 
 def compress_to_levels(raw: dict[_Key, _Rank]) -> dict[_Key, int]:
-    """Map mutually orderable raw ranks to contiguous 1-based levels."""
     if not raw:
         return {}
-    # _Rank is bound to Hashable, not Comparable -- mypy cannot see that
-    # every rank type this cascade actually produces (int, and tuples of
-    # int/bool) supports ordering, though all of them do.
+    # mypy knows _Rank as Hashable, but every rank produced here is an orderable
+    # integer or integer/boolean tuple.
     ordered = sorted(set(raw.values()))  # type: ignore[type-var]
     rank_to_level = {rank: level for level, rank in enumerate(ordered, start=1)}
     return {key: rank_to_level[rank] for key, rank in raw.items()}
 
 
-# A confident match must clear this similarity ratio (0..1). Below it, a
-# coincidentally similar line is worse than leaving the bookmark unmatched.
+# Weak bookmark matches are worse than leaving a title unmatched.
 _MATCH_THRESHOLD = 0.72
 
-# A leading numbering marker, stripped before comparison so a bookmark
-# titled "Background" still matches an on-page "1.1 Background".
 _LEADING_MARKER = re.compile(
     r"^\s*(?:\(?[0-9]+(?:\.[0-9]+)*[).]?|\(?[A-Za-z]{1,2}[).])[\s.:)\-]*"
 )
 
 
 def _norm(text: str) -> str:
-    """Lower-case, collapse whitespace, and trim outer punctuation."""
     collapsed = re.sub(r"\s+", " ", text.lower()).strip()
     return re.sub(r"^[\W_]+|[\W_]+$", "", collapsed)
 
 
 def _match_score(line: str, title: str) -> float:
-    """Similarity in 0..1, comparing both strings with and without a marker."""
     variants_a = {_norm(line), _norm(_LEADING_MARKER.sub("", line))} - {""}
     variants_b = {_norm(title), _norm(_LEADING_MARKER.sub("", title))} - {""}
     best = 0.0
@@ -76,7 +66,6 @@ def _best_match(title: str, lines: list[str], claimed: set[int]) -> int | None:
 def raw_bookmark_matches(
     outline: list[tuple[str, int]], lines: list[str]
 ) -> dict[int, int]:
-    """Match bookmarks to unique lines, retaining their raw depths."""
     claimed: set[int] = set()
     matches: dict[int, int] = {}
     for title, depth in outline:
@@ -89,9 +78,6 @@ def raw_bookmark_matches(
     return matches
 
 
-# Precedence of numbering schemes, highest (outermost) first. ``dotted``
-# shares the ``arabic`` rank and is broken by its own segment depth, so
-# ``1.`` sits above ``1.1`` without needing a separate family slot.
 _FAMILY_ORDER = [
     "part",
     "chapter",
@@ -103,8 +89,8 @@ _FAMILY_ORDER = [
     "roman_l",
 ]
 
-# Single letters that are valid Roman numerals and so ambiguous with a
-# plain alpha marker (e.g. "I." could be Roman one or letter nine).
+# Single Roman letters can also be alphabetic markers; document context must
+# resolve the ambiguity.
 _ROMAN_SINGLES = set("IVXLCDMivxlcdm")
 
 _ROMAN_RE = re.compile(
@@ -118,8 +104,8 @@ _KW_ARTICLE = re.compile(
     r"|§+\s*\d)",
     re.IGNORECASE,
 )
-# Dotted decimal outline (1.1, 1.1.1, ...), terminated by punctuation
-# or whitespace so "1.1x" (a unit, not a marker) does not match.
+# Require punctuation or whitespace after dotted numbering so unit-like text
+# such as 1.1x is not a heading marker.
 _DOTTED = re.compile(r"^(\d+(?:\.\d+)+)(?:[.)\]\s]|$)")
 _ARABIC = re.compile(r"^(\d+)[.)]")
 _LETTER = re.compile(r"^\(?\s*([A-Za-z]+)\s*[).]")
@@ -127,8 +113,6 @@ _LETTER = re.compile(r"^\(?\s*([A-Za-z]+)\s*[).]")
 
 @dataclass
 class _Marker:
-    """A parsed leading numbering marker."""
-
     family: str
     depth: int = 1  # dotted-decimal segment count; 1 for every other kind
     token: str | None = None  # raw letter token, kept for ambiguity resolution
@@ -140,16 +124,14 @@ def _is_roman(token: str) -> bool:
 
 
 def _classify_letter(token: str) -> _Marker | None:
-    """Turn a bare letter token (``A``, ``iv``, ``i``) into a marker."""
     upper = token.isupper()
     if len(token) == 1:
         if token in _ROMAN_SINGLES:
             family = "roman_u" if upper else "roman_l"
             return _Marker(family=family, token=token, ambiguous=True)
         return _Marker(family="alpha_u" if upper else "alpha_l", token=token)
-    # A multi-letter token only counts as numbering when it is a genuine
-    # Roman numeral; otherwise it is a word ("Summary.") wearing a marker
-    # shape by coincidence.
+    # Multi-letter tokens must be genuine Roman numerals, otherwise ordinary
+    # words can masquerade as numbering.
     if _is_roman(token):
         return _Marker(family="roman_u" if upper else "roman_l", token=token)
     return None
@@ -186,7 +168,6 @@ def _match_letter(stripped: str) -> _Marker | None:
 
 
 def _parse_marker(text: str) -> _Marker | None:
-    """Extract the leading numbering marker, or None if there is none."""
     stripped = text.strip()
     if not stripped:
         return None
@@ -228,7 +209,6 @@ def _resolve_one_ambiguous(
 
 
 def _resolve_ambiguous(markers: list[_Marker | None]) -> None:
-    """Resolve single-letter Roman/alpha markers using document context."""
     upper_roman = _has_unambiguous(markers, "roman_u")
     upper_alpha = _has_unambiguous(markers, "alpha_u")
     lower_roman = _has_unambiguous(markers, "roman_l")
@@ -251,7 +231,6 @@ def _family_rank(family: str) -> int:
 
 
 def infer_numbering_levels(lines: list[str]) -> dict[int, int]:
-    """Map each numbered line's index to a 1-based heading level."""
     markers = [_parse_marker(line) for line in lines]
     _resolve_ambiguous(markers)
 
@@ -263,20 +242,17 @@ def infer_numbering_levels(lines: list[str]) -> dict[int, int]:
     return compress_to_levels(keys)
 
 
-# Sizes within this relative tolerance of each other collapse into one
-# cluster, so measurement jitter cannot manufacture a spurious heading
-# level between two lines set in the same nominal size.
+# Cluster nearly equal font sizes so measurement jitter cannot manufacture
+# heading levels.
 _SIZE_TOLERANCE = 0.08
 
-# A heading candidate line must be short: a long line at a bigger size is
-# more likely a pull quote or a table cell than a section title.
+# Long large-font text is more likely a pull quote or table cell than a section
+# heading.
 MAX_HEADING_CHARS = 120
 
 
 @dataclass(frozen=True)
 class LineStyle:
-    """The visual style of one candidate heading line."""
-
     size: float
     bold: bool
     all_caps: bool
@@ -288,7 +264,6 @@ def _is_all_caps(text: str) -> bool:
 
 
 def _is_bold(font_dict: Any) -> bool:
-    """Guess boldness from the font's own name (no embedded-font parsing)."""
     if not isinstance(font_dict, dict):
         return False
     base_font = str(font_dict.get("/BaseFont", ""))
@@ -297,16 +272,13 @@ def _is_bold(font_dict: Any) -> bool:
 
 
 def _effective_size(font_size: float, tm_matrix: list[float]) -> float:
-    """Font size actually rendered, after the text matrix's own scaling."""
     scale = math.hypot(tm_matrix[1], tm_matrix[3])
     return font_size * (scale or 1.0)
 
 
 class _LineCollector:
-    """Groups visitor callbacks into per-line style votes.
-
-    Only an embedded line break ends a line; font and positioning changes
-    do not.
+    """Only embedded line breaks end a line; font and positioning changes
+    must not fragment a heading.
     """
 
     def __init__(self) -> None:
@@ -349,7 +321,6 @@ class _LineCollector:
 
 
 def collect_line_styles(page: Any) -> dict[str, LineStyle]:
-    """Map each short candidate line's own text to its rendered style."""
     collector = _LineCollector()
     page.extract_text(visitor_text=collector)
     collector._flush_line()
@@ -366,7 +337,6 @@ def collect_line_styles(page: Any) -> dict[str, LineStyle]:
 
 
 def _cluster_sizes(sizes: set[float]) -> dict[float, int]:
-    """Group sizes into clusters, largest first; map size -> cluster index."""
     clusters: dict[float, int] = {}
     index = 0
     previous: float | None = None
@@ -382,7 +352,6 @@ def _cluster_sizes(sizes: set[float]) -> dict[float, int]:
 def rank_heading_styles(
     styles: dict[int, LineStyle], body_size: float
 ) -> dict[int, int]:
-    """Rank lines strictly larger than the body size into heading levels."""
     candidates = {
         index: style
         for index, style in styles.items()
@@ -399,16 +368,14 @@ def rank_heading_styles(
     return compress_to_levels(keys)
 
 
-# ATX only goes to h3 here: a fourth inferred level is rare enough in a
-# scientist's attached paper that flattening it into h3 costs less than
-# the added complexity of a deeper cascade would.
+# Flatten rare inferred levels beyond h3 rather than complicating the heading
+# cascade.
 _MAX_LEVEL = 3
 
 
 def _walk_outline(
     reader: Any, items: Any, depth: int, out: list[tuple[str, int, int]]
 ) -> None:
-    """Depth-first walk of pypdf's nested-list outline structure."""
     for item in items:
         if isinstance(item, list):
             _walk_outline(reader, item, depth + 1, out)
@@ -424,7 +391,6 @@ def _walk_outline(
 
 
 def flatten_outline(reader: Any) -> list[tuple[str, int, int]]:
-    """Flatten ``reader.outline`` into (title, nesting depth, page index)."""
     outline = reader.outline
     if not outline:
         return []
@@ -436,7 +402,6 @@ def flatten_outline(reader: Any) -> list[tuple[str, int, int]]:
 def _pool_bookmark_levels(
     outline: list[tuple[str, int, int]], lines_per_page: list[list[str]]
 ) -> dict[tuple[int, int], int]:
-    """Match bookmarks per page, then compress raw depths once, globally."""
     raw: dict[tuple[int, int], int] = {}
     for page_index, lines in enumerate(lines_per_page):
         page_outline = [
@@ -519,7 +484,6 @@ def _rewrite_lines(
 def apply_heading_markup(
     reader: Any, pages: list[Any], pages_text: list[str]
 ) -> list[str]:
-    """Weave inferred ATX heading markers into per-page extracted text."""
     lines_per_page = [text.split("\n") for text in pages_text]
     outline = flatten_outline(reader)
     bookmark_levels = _pool_bookmark_levels(outline, lines_per_page)

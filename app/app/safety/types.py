@@ -1,5 +1,3 @@
-"""The safety decision record, shared by the policy, model, and gate layers."""
-
 from __future__ import annotations
 
 import enum
@@ -11,16 +9,12 @@ from co_scientist.safety import POLICY_VERSION, REDACTED_PLACEHOLDER
 
 
 class SafetyMode(str, enum.Enum):
-    """How aggressively the safety filter treats dual-use content."""
-
     STANDARD = "standard"
     STRICT = "strict"
 
 
 @dataclass
 class SafetyDecision:
-    """Outcome of a safety pass."""
-
     stage: str  # "intake" | "final"
     decision: str  # "allow" | "redact" | "hold" | "block"
     reason: str = ""
@@ -32,7 +26,6 @@ class SafetyDecision:
     assessor: str = "deterministic"
 
     def to_dict(self) -> dict[str, str | list[str] | bool]:
-        """Serialize this decision for the `safety.{stage}` event payload."""
         return {
             "stage": self.stage,
             "decision": self.decision,
@@ -47,18 +40,8 @@ class SafetyDecision:
 
 
 def redact_matched_spans(text: str, matches: list[str]) -> str:
-    """Replace every occurrence of each matched span with the placeholder.
-
-    Matching is case-insensitive and literal: the spans come back from the
-    policy as the text it matched, and the same phrase elsewhere in the
-    document is the same disclosure.
-
-    Args:
-        text: The content to scrub.
-        matches: The spans the safety policy matched.
-
-    Returns:
-        The content with every matched span replaced.
+    """Matched spans are literal disclosures; scrub every case-insensitive
+    occurrence rather than only the first match.
     """
     if not text:
         return text
@@ -71,18 +54,8 @@ def redact_matched_spans(text: str, matches: list[str]) -> str:
 
 
 def redact_payload_text(value: Any, matches: list[str]) -> Any:
-    """Redact matched spans throughout a nested JSON-shaped payload.
-
-    The report payload and the report markdown are two renderings of the same
-    content, so scrubbing one and publishing the other would leave the
-    original readable through the API and the report event.
-
-    Args:
-        value: A payload value: dict, list, string, or scalar.
-        matches: The spans the safety policy matched.
-
-    Returns:
-        The value with every string leaf redacted; scalars are returned as-is.
+    """Payload and Markdown are independently readable; scrubbing only one
+    leaves the original available through API/events.
     """
     if isinstance(value, str):
         return redact_matched_spans(value, matches)

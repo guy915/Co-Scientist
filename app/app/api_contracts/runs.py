@@ -1,5 +1,3 @@
-"""Backend-owned runs wire models, also used to generate frontend types."""
-
 from __future__ import annotations
 
 from typing import Literal
@@ -120,7 +118,6 @@ class RunMessage(TypedDict):
 
     id: int
     run_id: str
-    # Manual steering persists the researcher identity as its sender.
     sender: str
     content: str
     kind: str

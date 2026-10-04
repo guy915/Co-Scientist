@@ -1,5 +1,3 @@
-"""Extraction and provenance for scientist-uploaded corpus documents."""
-
 from __future__ import annotations
 
 import csv
@@ -22,12 +20,8 @@ _TEXT_TYPES = {
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 _IMAGE_TYPES = {"image/png", "image/jpeg", "image/tiff", "image/webp"}
 
-# Leading-byte signatures for every binary type this ingester accepts. Text
-# formats (TXT/Markdown/CSV/JSON) have no reliable magic bytes, so they are
-# not sniffed here -- they are instead validated by decodability in
-# ``_extract_text_document``. WEBP's signature spans two non-adjacent
-# offsets (a RIFF container tagged WEBP at byte 8), so it is checked
-# separately rather than as a single prefix.
+# Text has no reliable magic bytes; validate decoding instead. WEBP needs both
+# RIFF and its nonadjacent WEBP tag.
 _BINARY_SIGNATURES: tuple[tuple[bytes, str], ...] = (
     (b"%PDF-", "application/pdf"),
     (b"\x89PNG\r\n\x1a\n", "image/png"),
@@ -38,12 +32,6 @@ _BINARY_SIGNATURES: tuple[tuple[bytes, str], ...] = (
 
 
 def _sniff_binary_type(data: bytes) -> str | None:
-    """Identify a binary upload's real type from its leading signature.
-
-    Returns:
-        The sniffed MIME type, or None when the bytes carry no signature
-        this ingester recognizes (including every text-family format).
-    """
     if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
         return "image/webp"
     for signature, mime in _BINARY_SIGNATURES:
@@ -53,18 +41,8 @@ def _sniff_binary_type(data: bytes) -> str | None:
 
 
 def _verify_declared_type(data: bytes, declared_type: str) -> None:
-    """Refuse an upload whose bytes contradict its declared MIME type.
-
-    This is a signature check, not a malware scanner: it catches a
-    mislabeled file (a PDF renamed to report.png, a PNG declared as
-    text/plain) by comparing the bytes' own recognizable format against
-    what the caller claimed. A polyglot file that is validly both formats,
-    or a threat embedded inside an otherwise-genuine PDF/image, is not
-    something a signature check can see.
-
-    Raises:
-        ValueError: If the bytes carry a recognizable signature for a
-            binary format other than the one declared.
+    """Signatures detect mislabeled binary uploads, not valid polyglots or
+    threats embedded in genuine documents.
     """
     sniffed = _sniff_binary_type(data)
     if sniffed is not None and sniffed != declared_type:
@@ -76,8 +54,6 @@ def _verify_declared_type(data: bytes, declared_type: str) -> None:
 
 @dataclasses.dataclass(frozen=True)
 class ExtractedDocument:
-    """Extracted document text with immutable upload provenance."""
-
     text: str
     mime_type: str
     sha256: str
@@ -86,7 +62,6 @@ class ExtractedDocument:
 
 
 async def extract_upload(file: UploadFile) -> ExtractedDocument:
-    """Read and extract one upload, raising 422 on an invalid document."""
     data = await file.read(MAX_UPLOAD_BYTES + 1)
     try:
         return extract_document(
@@ -97,19 +72,6 @@ async def extract_upload(file: UploadFile) -> ExtractedDocument:
 
 
 def extract_document(data: bytes, mime_type: str) -> ExtractedDocument:
-    """Extract supported text/PDF content without fabricating unavailable OCR.
-
-    Args:
-        data: Uploaded file bytes.
-        mime_type: Browser-reported media type.
-
-    Returns:
-        Extracted text and source provenance.
-
-    Raises:
-        ValueError: If the file is empty, oversized, unsupported, encrypted,
-            malformed, or contains no extractable text.
-    """
     if not data:
         raise ValueError("uploaded document is empty")
     if len(data) > MAX_UPLOAD_BYTES:
@@ -129,11 +91,6 @@ def extract_document(data: bytes, mime_type: str) -> ExtractedDocument:
 
 
 def _extract_by_type(data: bytes, normalized_type: str) -> tuple[str, str]:
-    """Dispatch extraction by normalized MIME type.
-
-    Raises:
-        ValueError: If the MIME type is not one of the supported types.
-    """
     if normalized_type in _TEXT_TYPES:
         return _extract_text_document(data, normalized_type)
     if normalized_type == "application/pdf":
@@ -147,11 +104,6 @@ def _extract_by_type(data: bytes, normalized_type: str) -> tuple[str, str]:
 
 
 def _extract_csv_document(decoded: str) -> tuple[str, str]:
-    """Render decoded CSV text as a header-plus-rows table summary.
-
-    Raises:
-        ValueError: If the CSV text could not be parsed.
-    """
     try:
         rows = list(csv.reader(io.StringIO(decoded)))
     except csv.Error as exc:
@@ -172,11 +124,6 @@ def _extract_csv_document(decoded: str) -> tuple[str, str]:
 
 
 def _extract_json_document(decoded: str) -> tuple[str, str]:
-    """Render decoded JSON text as pretty-printed structured content.
-
-    Raises:
-        ValueError: If the JSON text could not be parsed.
-    """
     try:
         payload = json.loads(decoded)
     except json.JSONDecodeError as exc:
@@ -189,7 +136,6 @@ def _extract_json_document(decoded: str) -> tuple[str, str]:
 
 
 def _extract_text_document(data: bytes, mime_type: str) -> tuple[str, str]:
-    """Decode text while preserving CSV tables and JSON structure."""
     try:
         decoded = data.decode("utf-8")
     except UnicodeDecodeError as exc:
@@ -202,7 +148,6 @@ def _extract_text_document(data: bytes, mime_type: str) -> tuple[str, str]:
 
 
 def _extract_pdf(data: bytes) -> str:
-    """Extract page text plus OCR for embedded figures on image-only pages."""
     try:
         from pypdf import PdfReader
     except ImportError as exc:  # Fail honestly on a broken deployment.
@@ -229,7 +174,6 @@ def _extract_pdf(data: bytes) -> str:
 
 
 def _extract_pdf_page_text(page: Any) -> str:
-    """Extract one PDF page's own text, preserving its visual layout."""
     try:
         return page.extract_text(extraction_mode="layout") or ""
     except TypeError:
@@ -239,14 +183,9 @@ def _extract_pdf_page_text(page: Any) -> str:
 def _apply_heading_markup(
     reader: Any, pages: list[Any], page_texts: list[str]
 ) -> list[str]:
-    """Infer section headings and mark them up, never failing the upload.
-
-    Heading inference reads the PDF's own outline and re-extracts each
-    page's text through a second, styling-aware pass -- either of which
-    can legitimately raise on a document (or, in tests, a stubbed
-    ``pypdf`` reader) that does not support it. A document the scientist
-    handed us is worth more than its headings, so any failure here falls
-    back to the plain per-page text already extracted above.
+    """Heading inference is optional; unsupported outlines or styling must
+    fall back to extracted text rather than reject the scientist's
+    document.
     """
     try:
         from app.pdf import apply_heading_markup
@@ -257,17 +196,14 @@ def _apply_heading_markup(
 
 
 def _assemble_pdf_page(index: int, page: Any, text: str) -> str:
-    """Join one page's (possibly heading-marked) text with its figure OCR."""
     figure_sections = _extract_pdf_page_figures(index, page)
     page_parts = [f"[Page {index}]", text, *figure_sections]
     return "\n".join(part for part in page_parts if part)
 
 
 def _extract_pdf_page_figures(index: int, page: Any) -> list[str]:
-    """OCR each substantial embedded image on one PDF page.
-
-    Embedded figures may carry experimental results even on pages that also
-    contain prose, so each substantial image is inspected.
+    """Figures can carry results even on prose-bearing pages; inspect
+    substantial embedded images rather than only image-only pages.
     """
     figure_sections = []
     for figure_index, image in enumerate(page.images, start=1):
@@ -290,7 +226,6 @@ def _extract_pdf_page_figures(index: int, page: Any) -> list[str]:
 
 
 def _extract_image_ocr(data: bytes) -> str:
-    """OCR one image through a fixed Tesseract stdin/stdout invocation."""
     executable = shutil.which("tesseract")
     if not executable:
         raise ValueError("image OCR is unavailable")

@@ -1,5 +1,3 @@
-"""Private per-run attachment retrieval using deterministic keyword scoring."""
-
 from __future__ import annotations
 
 import dataclasses
@@ -10,20 +8,15 @@ from typing import Any
 
 _TOKEN = re.compile(r"[a-z0-9]+")
 
-# Evidence `source` value marking a row as a scientist-provided attachment
-# (versus retrieved literature), so a run's private corpus is separable.
 ATTACHMENT_SOURCE = "attachment"
 
 
 def _tokenize(text: str) -> list[str]:
-    """Lowercase word/number tokens (length > 2) for retrieval scoring."""
     return [t for t in _TOKEN.findall(text.lower()) if len(t) > 2]
 
 
 @dataclasses.dataclass(frozen=True)
 class CorpusDocument:
-    """One document in a run's private corpus."""
-
     doc_id: str
     title: str
     text: str
@@ -32,23 +25,12 @@ class CorpusDocument:
 
 @dataclasses.dataclass(frozen=True)
 class RetrievedDocument:
-    """A retrieval hit with its relevance score."""
-
     document: CorpusDocument
     score: float
 
 
 class KeywordCorpusRetriever:
-    """Deterministic offline keyword (BM25-style) retriever over a corpus.
-
-    Scores documents by summed query-term weights using term frequency and an
-    inverse-document-frequency factor, so a term that appears in every document
-    contributes little and a distinctive term dominates. No embeddings or
-    network — reproducible in CI.
-    """
-
     def __init__(self, documents: list[CorpusDocument]) -> None:
-        """Index the corpus documents for keyword retrieval."""
         self._documents = documents
         self._doc_tokens = {d.doc_id: _tokenize(d.text) for d in documents}
         self._tf = {
@@ -56,7 +38,6 @@ class KeywordCorpusRetriever:
             for doc_id, tokens in self._doc_tokens.items()
         }
         n = len(documents) or 1
-        # Document frequency per term, for the idf weight.
         df: Counter[str] = Counter()
         for tokens in self._doc_tokens.values():
             df.update(set(tokens))
@@ -74,14 +55,12 @@ class KeywordCorpusRetriever:
         return score
 
     def retrieve(self, query: str, k: int = 5) -> list[RetrievedDocument]:
-        """Return the top-k documents most relevant to the query."""
         query_terms = _tokenize(query)
         scored = [
             RetrievedDocument(doc, self._score(query_terms, doc.doc_id))
             for doc in self._documents
         ]
         hits = [r for r in scored if r.score > 0.0]
-        # Sort by score desc, then doc_id for a deterministic tie-break.
         hits.sort(key=lambda r: (-r.score, r.document.doc_id))
         return hits[:k]
 
@@ -89,11 +68,6 @@ class KeywordCorpusRetriever:
 def corpus_from_evidence(
     evidence_rows: list[dict[str, Any]],
 ) -> list[CorpusDocument]:
-    """Build corpus documents from a run's attachment evidence rows.
-
-    Only rows whose source is an attachment are included, so retrieved
-    literature is not mixed into the scientist's private corpus.
-    """
     return [
         CorpusDocument(
             doc_id=str(row.get("id")),
@@ -109,12 +83,6 @@ def corpus_from_evidence(
 def _context_source(
     document: CorpusDocument, excerpt_chars: int
 ) -> dict[str, Any]:
-    """Format one private document as a bounded engine evidence source.
-
-    The excerpt is cut once and reused for both the display line and the
-    structured payload, so the two can never disagree about how much of the
-    document the engine was actually shown.
-    """
     excerpt = document.text[:excerpt_chars]
     return {
         "display": f"Private scientist source '{document.title}': {excerpt}",
@@ -136,14 +104,12 @@ def engine_context_sources(
     max_documents: int = 20,
     excerpt_chars: int = 6000,
 ) -> list[dict[str, Any]]:
-    """Retrieve private documents and format bounded engine evidence sources."""
     documents = corpus_from_evidence(evidence_rows)
     hits = KeywordCorpusRetriever(documents).retrieve(
         research_goal, k=max_documents
     )
-    # If goal vocabulary does not overlap a small scientist corpus, preserve
-    # the documents in deterministic order rather than silently discarding
-    # explicitly supplied context.
+    # No keyword overlap must not silently discard explicitly supplied context;
+    # retain the small private corpus deterministically.
     selected = [hit.document for hit in hits]
     if not selected:
         selected = sorted(documents, key=lambda item: item.doc_id)[
