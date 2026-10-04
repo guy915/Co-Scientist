@@ -4,7 +4,7 @@ import re
 import threading
 import time
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, TypedDict, Unpack
 
 import httpx
 
@@ -14,10 +14,19 @@ _CHEMBL_URL = "https://www.ebi.ac.uk/chembl/api/data"
 _UNIPROT_URL = "https://rest.uniprot.org/uniprotkb/search"
 
 
-def _response_records(
-    response: httpx.Response, field: str
-) -> list[dict[str, Any]]:
-    payload = response.json()
+class _GetOptions(TypedDict, total=False):
+    params: dict[str, str | int]
+    headers: dict[str, str]
+
+
+async def _get_json(url: str, **options: Unpack[_GetOptions]) -> Any:
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await client.get(url, **options)
+        response.raise_for_status()
+    return response.json()
+
+
+def _response_records(payload: Any, field: str) -> list[dict[str, Any]]:
     if not isinstance(payload, dict):
         raise ValueError("expected a JSON object")
     if field not in payload:
@@ -83,12 +92,10 @@ async def search_chembl(query: str, max_results: int = 10) -> dict[str, Any]:
         "format": "json",
     }
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.get(
-                f"{_CHEMBL_URL}/molecule/search.json", params=params
-            )
-            response.raise_for_status()
-        molecules = _response_records(response, "molecules")
+        payload = await _get_json(
+            f"{_CHEMBL_URL}/molecule/search.json", params=params
+        )
+        molecules = _response_records(payload, "molecules")
         records = [_chembl_record(molecule) for molecule in molecules[:limit]]
     except (
         httpx.HTTPError,
@@ -147,10 +154,8 @@ async def search_uniprot(query: str, max_results: int = 10) -> dict[str, Any]:
         "format": "json",
     }
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.get(_UNIPROT_URL, params=params)
-            response.raise_for_status()
-        results = _response_records(response, "results")[:limit]
+        payload = await _get_json(_UNIPROT_URL, params=params)
+        results = _response_records(payload, "results")[:limit]
         records = [_uniprot_record(result) for result in results]
     except (
         httpx.HTTPError,
@@ -228,10 +233,8 @@ async def search_clinical_trials(
         "format": "json",
     }
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.get(_TRIALS_URL, params=params)
-            response.raise_for_status()
-        studies = (response.json().get("studies") or [])[:limit]
+        payload = await _get_json(_TRIALS_URL, params=params)
+        studies = (payload.get("studies") or [])[:limit]
     except (httpx.HTTPError, ValueError) as exc:
         logger.warning(
             "ClinicalTrials.gov search failed for %r: %s", query, exc
@@ -268,13 +271,10 @@ async def search_ensembl_gene(
     """
     del max_results
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.get(
-                f"{_ENSEMBL_URL}/{query}",
-                headers={"Content-Type": "application/json"},
-            )
-            response.raise_for_status()
-        gene = response.json()
+        gene = await _get_json(
+            f"{_ENSEMBL_URL}/{query}",
+            headers={"Content-Type": "application/json"},
+        )
     except (httpx.HTTPError, ValueError) as exc:
         logger.warning("Ensembl lookup failed for %r: %s", query, exc)
         return _genomics_databases_empty_result("Ensembl", query)
@@ -404,10 +404,7 @@ async def search_string_interactions(
         "limit": limit,
     }
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.get(_STRING_URL, params=params)
-            response.raise_for_status()
-        partners = response.json()
+        partners = await _get_json(_STRING_URL, params=params)
     except (httpx.HTTPError, ValueError) as exc:
         logger.warning("STRING lookup failed for %r: %s", query, exc)
         return _systems_biology_empty_result("STRING", query)
