@@ -20,71 +20,6 @@ Demo: [AI Co-Scientist — early detection of Alzheimer's disease](https://youtu
 The app owns run scheduling, persistence and recovery. Internal setup lives in
 `generator/core.py`; durable nodes execute through `task_runtime.py`.
 
-## Constructor parameters
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `model_name` | `str` | `"deepseek/deepseek-v4-flash"` | LiteLLM model string |
-| `max_iterations` | `int` | `1` | Refinement iterations after initial generation |
-| `initial_hypotheses_count` | `int` | `5` | Number of hypotheses to generate initially |
-| `evolution_max_count` | `int` | `3` | Top-k hypotheses to evolve each iteration |
-| `options` | `GeneratorOptions \| None` | `None` | Everything below; see `generator/run_setup.py` |
-
-Every knob beyond the four run-size arguments lives on `GeneratorOptions`, passed as `options=`:
-
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `supervisor_model_name` | `str \| None` | `None` | Model for planning and meta-review (`None` = `model_name`) |
-| `tournament_pairs` | `int` | `12` | Elo comparisons per ranking pass |
-| `elo_k_factor` | `int` | `24` | Rating change magnitude per match |
-| `literature_review_papers_count` | `int` | `8` | Papers to read and analyze |
-| `enable_cache` | `bool \| None` | `None` | Override `COSCIENTIST_CACHE_ENABLED` env var |
-| `cache_dir` | `str \| None` | `None` | Override cache directory |
-| `tools_config` | `str \| None` | `None` | Path to a custom tools YAML config |
-| `disable_tools` | `list[str] \| None` | `None` | Tool IDs to disable from the config |
-| `budget` | `dict \| None` | `None` | Serialized scheduler `Budget` (`max_llm_calls`, `max_tasks`, ...) |
-| `api_key` | `str \| None` | `None` | Per-run provider credential; forces caching off |
-
-```python
-from co_scientist.generator.core import HypothesisGenerator
-from co_scientist.generator.run_setup import GeneratorOptions
-
-generator = HypothesisGenerator(
-    model_name="deepseek/deepseek-v4-flash",
-    options=GeneratorOptions(tools_config="path/to/tools.yaml"),
-)
-```
-
-`prepare_task_state` accepts optional `opts` dict for per-run feature flags:
-
-```python
-await generator.prepare_task_state(
-    research_goal="...",
-    opts={
-        "enable_literature_review_node": True,   # requires MCP server
-        "enable_tool_calling_generation": True,  # generate node calls lit tools directly
-    },
-)
-```
-
-Additional per-run steering goes in the same `opts` dict; user-supplied hypotheses and literature go under `opts["user_inputs"]`:
-
-```python
-await generator.prepare_task_state(
-    research_goal="...",
-    opts={
-        "preferences": "Focus on non-invasive biomarkers",
-        "attributes": ["novelty", "experimental feasibility"],
-        "constraints": ["must be testable in mouse models"],
-        "user_inputs": {
-            "starting_hypotheses": [
-                "Tau protein changes precede amyloid plaques"
-            ],
-        },
-    },
-)
-```
-
 ## Workflow
 
 Every work phase converges on the same review-through-ranking spine, then returns to the orchestrator loop point, which picks the next task from live state rather than following a fixed iteration count:
@@ -127,7 +62,7 @@ Orchestrator (the single loop point) routes to the task it picked:
 | Proximity | Semantic deduplication; removes near-duplicate hypotheses | Clusters similar hypotheses and removes high-similarity duplicates |
 | Research Overview | Terminal synthesis once the orchestrator decides to stop | Produces the research overview and roadmap |
 
-State flows through `WorkflowState` (a LangGraph `TypedDict`). The `hypotheses` field uses a custom `deduplicate_hypotheses` reducer that auto-removes duplicates on every state update.
+State flows through the `WorkflowState` typed dictionary and its declared reducers. The `hypotheses` field uses a custom `deduplicate_hypotheses` reducer that auto-removes duplicates on every state update.
 
 ## Literature review and MCP server
 
@@ -166,14 +101,10 @@ academic, biomedical and web tools. The retained examples extend it with INDRA
 CoGex guidance for oncology (`indra_cancer.yaml`) and cardiac remodeling
 (`indra_hfpef.yaml`). Use either as the starting point for a custom YAML overlay.
 
-Pass a config at construction time:
+Set the app's `TOOLS_CONFIG` to the selected YAML file:
 
-```python
-generator = HypothesisGenerator(
-    options=GeneratorOptions(
-        tools_config="src/co_scientist/config/examples/indra_cancer.yaml",
-    ),
-)
+```dotenv
+TOOLS_CONFIG=/absolute/path/to/indra_cancer.yaml
 ```
 
 See `src/co_scientist/config/schema.py` for the schema and
@@ -191,7 +122,7 @@ COSCIENTIST_CACHE_DIR=.my_cache   # change cache directory (default: .coscientis
 Cache utilities:
 
 ```python
-from co_scientist import clear_cache, get_cache_stats
+from co_scientist.cache import clear_cache, get_cache_stats
 print(get_cache_stats())
 clear_cache()
 ```
@@ -214,12 +145,7 @@ export OPENAI_API_KEY=...
 export ANTHROPIC_API_KEY=...
 ```
 
-Pass the model string to `HypothesisGenerator`:
-
-```python
-HypothesisGenerator(model_name="openai/gpt-4o")
-HypothesisGenerator(model_name="anthropic/claude-opus-4-5")
-```
+Set `MODEL_NAME` in the app configuration or choose a model in the workbench.
 
 ## Development
 

@@ -25,10 +25,10 @@ The workflow consists of specialized nodes that handle different aspects of hypo
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                           WORKFLOW GRAPH                            │
+│                           DURABLE WORKFLOW                            │
 └─────────────────────────────────────────────────────────────────────┘
 
-                              START
+                            BOOTSTRAP
                                 │
                                 ▼
                          ┌─────────────┐
