@@ -1,4 +1,5 @@
 import {useEffect, useState, useRef, type RefObject} from 'react';
+import {logModalOpen} from '@/lib/ui_logging';
 
 // One phone breakpoint prevents seams where related shell and workspace surfaces
 // disagree on interaction mode.
@@ -176,6 +177,10 @@ export function useBackgroundInert(
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    const dialog = container.matches('[role="dialog"]')
+      ? container
+      : container.querySelector('[role="dialog"]');
+    logModalOpen(dialog?.getAttribute('aria-label') ?? 'Dialog');
     const touched = inertAncestorSiblings(container);
     return () => {
       for (const element of touched) element.removeAttribute('inert');
@@ -223,10 +228,23 @@ export function useRestoreFocusOnClose(): void {
   const chainRef = useRef<HTMLElement[]>([]);
 
   useEffect(() => {
-    chainRef.current = focusChain(document.activeElement);
+    if (!chainRef.current.length) {
+      chainRef.current = focusChain(document.activeElement);
+    }
     return () => {
       const target = chainRef.current.find(el => el.isConnected);
-      if (target) focusEvenIfInert(target);
+      if (!target) return;
+      // Sibling inert cleanup may run after this effect. Restore after that
+      // cleanup rather than changing tabindex on a still-blocked opener.
+      if (target.closest('[inert]')) {
+        queueMicrotask(() => {
+          if (target.isConnected && !target.closest('[inert]')) {
+            focusEvenIfInert(target);
+          }
+        });
+      } else {
+        focusEvenIfInert(target);
+      }
     };
   }, []);
 }

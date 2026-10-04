@@ -87,7 +87,7 @@ async def test_a_recovered_call_logs_no_errors(
     _disable_cache(monkeypatch)
     _serve(monkeypatch, [_answerless(), _completion(_message('{"a":1}'))])
 
-    with caplog.at_level(logging.DEBUG, logger="co_scientist"):
+    with caplog.at_level(logging.INFO, logger="co_scientist"):
         result = await call_llm_json(
             "a prompt",
             CompletionSpec(model_name=_MODEL, json_schema=_INT_SCHEMA),
@@ -99,6 +99,11 @@ async def test_a_recovered_call_logs_no_errors(
         r.message for r in caplog.records if r.levelno >= logging.ERROR
     ] == []
     assert any(r.levelno == logging.WARNING for r in caplog.records)
+
+    assert any(
+        r.levelno == logging.INFO and "retrying llm call" in r.getMessage()
+        for r in caplog.records
+    )
 
 
 async def test_the_attempt_that_gives_up_still_logs_an_error(

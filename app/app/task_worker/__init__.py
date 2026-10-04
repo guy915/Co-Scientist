@@ -65,7 +65,30 @@ async def _execute_task_payload(
     task: ScientificTask, *, db_path: str | None
 ) -> dict[str, Any]:
     if task.task_type.startswith(engine_tasks.ENGINE_TASK_PREFIX):
-        return await engine_tasks.execute_engine_task(task, db_path=db_path)
+        started = time.perf_counter()
+        outcome = "completed"
+        stage_logger = logging.getLogger("app.run_stage")
+        with run_log_context(task.run_id):
+            stage_logger.info(
+                "stage_start task=%s attempt=%s", task.task_type, task.attempt
+            )
+            try:
+                return await engine_tasks.execute_engine_task(
+                    task, db_path=db_path
+                )
+            except asyncio.CancelledError:
+                outcome = "cancelled"
+                raise
+            except Exception:
+                outcome = "failed"
+                raise
+            finally:
+                stage_logger.info(
+                    "stage_end task=%s outcome=%s duration_seconds=%.3f",
+                    task.task_type,
+                    outcome,
+                    time.perf_counter() - started,
+                )
     if task.task_type == _EMAIL_TASK:
         return await deliver_completion_notification(task.inputs)
     raise UnsupportedTaskError(f"unsupported task type: {task.task_type}")

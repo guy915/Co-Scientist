@@ -14,6 +14,12 @@ export function logUiError(message: string, detail?: string): void {
   postBestEffort([{message: full, level: 'error', logger: 'error'}]);
 }
 
+export function logModalOpen(name: string): void {
+  postBestEffort([
+    {message: `modal_open: ${name.slice(0, 80)}`, logger: 'modal'},
+  ]);
+}
+
 const INTERACTIVE_SELECTOR =
   'button, a, select, summary, [role="button"], ' +
   'input[type="button"], input[type="submit"]';

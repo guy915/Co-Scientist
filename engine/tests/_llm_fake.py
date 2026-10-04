@@ -278,7 +278,7 @@ _LINE_KINDS: tuple[tuple[str, str], ...] = (
     ("Platform rate limit", "park"),
     ("retrying with", "escalated"),
     ("Schema validation failed", "schema"),
-    ("retrying llm call", "retry-debug"),
+    ("retrying llm call", "retry"),
     ("added validation feedback", "feedback-debug"),
 )
 
@@ -346,11 +346,16 @@ class Run:
 
     @property
     def logged(self) -> list[Line]:
-        return [line for line in self.lines if line[1] != "DEBUG"]
+        """Failure/escalation sequence; retry announcements are separate."""
+        return [
+            line
+            for line in self.lines
+            if line[1] in {"WARNING", "ERROR", "CRITICAL"}
+        ]
 
     @property
-    def retry_debug(self) -> list[Line]:
-        return [line for line in self.lines if line[0] == "retry-debug"]
+    def retry_announcements(self) -> list[Line]:
+        return [line for line in self.lines if line[0] == "retry"]
 
 
 def _classify(record: logging.LogRecord) -> Line | None:

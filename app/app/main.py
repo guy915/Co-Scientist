@@ -24,6 +24,7 @@ from app.byok_models import router as byok_models_router
 from app.config import settings
 from app.diagnostics_api import router as diagnostics_api_router
 from app.documents import router as documents_router
+from app.feedback_api import router as feedback_router
 from app.free_usage import router as free_usage_router
 from app.interviews import router as interviews_router
 from app.logging_setup import (
@@ -306,8 +307,10 @@ async def enforce_run_ownership(request: Request, call_next: Any) -> Response:
     # Authorize routed ASGI paths, not URLs reconstructed from caller-controlled
     # Host headers.
     path = request.scope["path"]
-    public_api = path.startswith("/api/auth/") or path.startswith(
-        "/api/shared/"
+    public_api = (
+        path.startswith("/api/auth/")
+        or path.startswith("/api/shared/")
+        or (path == "/api/feedback/admin" and request.method == "GET")
     )
     try:
         principal = principal_for_request(request)
@@ -346,6 +349,7 @@ app.include_router(free_usage_router)
 app.include_router(byok_models_router)
 app.include_router(auth_router)
 app.include_router(logs_router)
+app.include_router(feedback_router)
 app.include_router(diagnostics_api_router)
 
 

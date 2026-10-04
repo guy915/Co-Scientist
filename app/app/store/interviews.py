@@ -50,6 +50,9 @@ def create_interview(
         )
         result = get_interview(interview_id, conn=conn)
     assert result is not None
+    from app.diagnostic_events import log_chat_turn
+
+    log_chat_turn("user", challenge.strip(), owner=client_id)
     return result
 
 
@@ -197,6 +200,17 @@ def append_interview_turn(
         active.execute(
             "UPDATE interviews SET updated_at=? WHERE id=?", (now, interview_id)
         )
+        if turn.role == "user":
+            from app.diagnostic_events import log_chat_turn
+
+            owner = active.execute(
+                "SELECT client_id FROM interviews WHERE id=?", (interview_id,)
+            ).fetchone()
+            log_chat_turn(
+                "user",
+                turn.content,
+                owner=owner["client_id"] if owner else None,
+            )
 
 
 def rewind_interview(

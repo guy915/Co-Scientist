@@ -11,6 +11,7 @@ import {
 import {TruncatedLabel} from './components/truncated_label';
 import {CancelRunControl} from './layout_cancel_run';
 import {DiagnosticsControl} from './layout_diagnostics';
+import {FeedbackControl} from './components/feedback_dialog';
 import type {ShellPanel} from './layout';
 import {SessionSwitch, type SessionSwitchData} from './layout_session_switch';
 import {tooltipClassNames} from './classes';
@@ -108,6 +109,7 @@ export function ShellHeader({
         <CancelRunControl runId={session?.runId} status={runStatus} />
         <SessionSwitch session={session} />
         <SystemStatusIndicator />
+        <FeedbackControl runId={session?.runId} />
         <DiagnosticsControl
           open={activePanel === 'logs'}
           onToggle={() => onTogglePanel('logs')}

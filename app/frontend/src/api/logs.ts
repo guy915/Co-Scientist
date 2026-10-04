@@ -25,10 +25,17 @@ export interface AppLogsPayload {
   session_total: number;
 }
 
-export function getAppLogs(afterId = 0, limit = 1000): Promise<AppLogsPayload> {
-  return fetchJson(`/api/logs?after_id=${afterId}&limit=${limit}`, {
-    headers: clientHeaders(),
-  });
+export function getAppLogs(
+  afterId = 0,
+  limit = 1000,
+  verbose = false,
+): Promise<AppLogsPayload> {
+  return fetchJson(
+    `/api/logs?after_id=${afterId}&limit=${limit}${verbose ? '&verbose=1' : ''}`,
+    {
+      headers: clientHeaders(),
+    },
+  );
 }
 
 // Notify open panels and badges immediately after writes rather than waiting

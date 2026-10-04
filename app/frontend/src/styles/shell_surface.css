@@ -250,7 +250,6 @@
   stroke: currentColor;
 }
 
-
 /* Transform travel stays compositor-owned rather than laying out the header on
    every animation frame. */
 .ucs-session-switch-thumb {
@@ -722,7 +721,6 @@
   font-size: 0.95rem;
 }
 
-
 .ucs-side-content {
   display: grid;
   min-width: 0;
@@ -1173,5 +1171,74 @@
 
   .ucs-settings-nav-icon {
     display: none;
+  }
+}
+
+.ucs-feedback-dialog {
+  height: auto;
+  box-sizing: border-box;
+  width: min(32rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  gap: 1.25rem;
+  overflow-y: auto;
+  padding: 1.5rem;
+}
+
+.ucs-feedback-dialog label {
+  display: grid;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.ucs-feedback-dialog textarea {
+  min-height: 8rem;
+  resize: vertical;
+}
+
+.ucs-feedback-actions {
+  display: flex;
+  justify-content: end;
+  gap: 0.75rem;
+}
+
+.ucs-feedback-actions button {
+  width: auto;
+  cursor: pointer;
+}
+
+.ucs-feedback-actions button[type='submit'] {
+  background: var(--cosci-accent);
+  color: var(--cosci-accent-fg);
+}
+
+.ucs-feedback-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (max-width: 700px) {
+  .ucs-header-actions > .ucs-feedback-control,
+  .ucs-header-actions > button[aria-label^='Logs'] {
+    display: inline-flex;
+  }
+
+  .ucs-header-actions > .ucs-popover--logs {
+    display: grid;
+  }
+
+  .ucs-header-actions > .ucs-feedback-control {
+    padding-inline: 0.5rem;
+  }
+
+  .ucs-feedback-control > span {
+    display: none;
+  }
+
+  .ucs-header-action-bar .ucs-product-lockup span {
+    display: none;
+  }
+
+  .ucs-header-action-bar .ucs-product-lockup svg {
+    display: block;
   }
 }

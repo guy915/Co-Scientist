@@ -18,6 +18,7 @@ import type {
   Review,
   SafetyDecision,
 } from './wire_science';
+import {DIAGNOSTIC_EVENT} from '@/workbench/dom_events';
 
 export type * from './wire_common';
 export type * from './wire_interviews';
@@ -554,7 +555,14 @@ export async function fetchWithSession(
   init?: RequestInit,
 ): Promise<Response> {
   const authorization = new Headers(init?.headers).get('Authorization');
-  const res = await fetch(url, init);
+  let res: Response;
+  try {
+    res = await fetch(url, init);
+  } catch (error) {
+    logFetchFailure(url, init, 'network');
+    throw error;
+  }
+  if (!res.ok) logFetchFailure(url, init, res.status);
   const currentToken = getAccessToken();
   if (
     res.status === 401 &&
@@ -564,6 +572,31 @@ export async function fetchWithSession(
     clearAccessToken();
   }
   return res;
+}
+
+function logFetchFailure(
+  url: string,
+  init: RequestInit | undefined,
+  status: number | 'network',
+) {
+  if (typeof window === 'undefined') return;
+  let path = 'unknown';
+  try {
+    path = new URL(url, window.location.origin).pathname;
+  } catch {
+    // Preserve the original transport error for malformed endpoints.
+  }
+  // A failed diagnostic write must not recursively generate another one.
+  if (path.startsWith('/api/logs')) return;
+  window.dispatchEvent(
+    new CustomEvent(DIAGNOSTIC_EVENT, {
+      detail: {
+        stage: 'fetch_failed',
+        level: 'warning',
+        payload: {method: init?.method ?? 'GET', path, status},
+      },
+    }),
+  );
 }
 
 export async function parseJson<T>(res: Response): Promise<T> {

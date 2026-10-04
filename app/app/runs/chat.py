@@ -180,9 +180,13 @@ def _resolve_qa_byok(
 
 def _persist_question(run_id: str, content: str) -> MessageRow:
     """The question remains durable even if the response stream fails."""
-    return store.append_message(
+    message = store.append_message(
         NewMessage(run_id=run_id, sender="user", content=content, kind="qa")
     )
+    from app.diagnostic_events import log_chat_turn
+
+    log_chat_turn("user", content, run_id=run_id)
+    return message
 
 
 def _live_qa_response(
@@ -242,6 +246,9 @@ async def revise_question(
         question_msg = store.rewind_qa(run_id, message_id, req.question)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    from app.diagnostic_events import log_chat_turn
+
+    log_chat_turn("user", question_msg.content, run_id=run_id)
     context = _gather_qa_context(run)
     if engine_adapter.offline_mode() and byok is None:
         return _offline_qa_response(run_id, question_msg, context)

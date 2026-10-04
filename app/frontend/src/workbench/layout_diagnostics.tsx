@@ -567,6 +567,52 @@ export function sessionAfterId(): number {
   return readBaseline()?.id ?? 0;
 }
 
+// Feedback shares the panel's session anchor and exporter. Include operational
+// records hidden by the panel's noise view without changing that view.
+export async function sessionDiagnosticExport(): Promise<string> {
+  let entries: DiagnosticLogEntry[] = [];
+  let total = 0;
+  try {
+    const afterId = sessionAfterId();
+    const payload = await getAppLogs(afterId, PANEL_LIMIT, true);
+    ensureSessionBaseline(payload);
+    const loaded = buildLoadedLogs(payload, true, afterId).logs;
+    entries = loaded.entries;
+    total = loaded.total;
+  } catch {
+    entries = [
+      buildAppLogEntry(
+        {
+          id: 0,
+          created_at: Date.now() / 1000,
+          level: 'WARNING',
+          levelno: 30,
+          logger: 'ui.feedback',
+          message:
+            'Session diagnostics were unavailable when feedback was submitted.',
+          run_id: null,
+          exc_text: null,
+        },
+        1,
+      ),
+    ];
+    total = 1;
+  }
+  const format = () =>
+    formatDiagnosticExport({
+      entries,
+      total,
+      counts: summarizeDiagnosticEntries(entries),
+      context: browserExportContext(),
+    });
+  let report = format();
+  while (report.length > 100_000 && entries.length) {
+    entries.shift();
+    report = format();
+  }
+  return report;
+}
+
 // Re-anchor when clear restarts IDs. Capture before disposal guards so a
 // discarded mount cannot make later loads hide session records.
 function ensureSessionBaseline(payload: AppLogsPayload): void {

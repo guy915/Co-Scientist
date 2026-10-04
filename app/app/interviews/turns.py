@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import time
 from typing import Any
 
 from fastapi import HTTPException, Request
@@ -99,6 +100,7 @@ async def advance_turn(
 ) -> dict[str, Any]:
     interview = store.get_interview(interview_id)
     assert interview is not None
+    started = time.perf_counter()
     sink, fragments = _reasoning_capture(on_reasoning)
     response, used_fallback = await _run_interview_turn(
         interview, sink, on_prose
@@ -107,6 +109,14 @@ async def advance_turn(
         _resolved_turn(response, used_fallback, "".join(fragments))
     )
     _persist_interview_turn(interview_id, turn)
+    from app.diagnostic_events import log_chat_turn
+
+    log_chat_turn(
+        "agent",
+        turn.message,
+        owner=interview["client_id"],
+        duration_seconds=time.perf_counter() - started,
+    )
     updated = store.get_interview(interview_id)
     assert updated is not None
     return _with_documents(updated)
