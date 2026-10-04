@@ -232,8 +232,8 @@ whole-run lifecycle untouched. Intake/final decisions govern the run's hold.
 
 ## Checkpoint successors and terminal synthesis
 
-Persist each checkpoint's exact resume successor and predecessor-based
-idempotency key. Bootstrap recovery must reach supervisor guidance before
+Persist each checkpoint's exact resume successor; recovery rebuilds the same
+predecessor-based idempotency key. Bootstrap must reach supervisor guidance before
 orchestration; defaulting to the orchestrator can resume an unplanned run.
 
 Only exhausted durable retries may degrade optional terminal synthesis to an
@@ -244,5 +244,5 @@ Batch tournament progress to expose liveness without flooding the bounded
 event feed with per-match events.
 
 Bound both per-source content and total corpus size: neither cap substitutes
-for the other. The measured 130-source corpus uses about 52,000 evidence tokens;
+for the other. The 130-source cap targets about 52,000 evidence tokens;
 adding full texts requires selecting passages rather than lifting those caps.
