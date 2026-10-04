@@ -648,7 +648,7 @@ def _check_iteration_budget(
     return None
 
 
-# Task types the compiled graph's loop-point router can dispatch. Keep in
+# Task types the durable loop-point router can dispatch. Keep in
 # sync with the graph's conditional edges.
 #
 # SYNTHESIZE is the *periodic* research overview (listing 01 L65-69), which

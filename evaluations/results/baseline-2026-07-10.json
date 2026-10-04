@@ -27,8 +27,7 @@
     "status": "deferred",
     "credentials": {"DEEPSEEK_API_KEY": "present (len 35)", "GEMINI_API_KEY": "empty", "OPENAI_API_KEY": "empty", "ANTHROPIC_API_KEY": "empty"},
     "mcp_server": {"url": "http://localhost:8888/mcp", "reachable": false, "http_code": "000"},
-    "blocker": "MCP reference server not running locally; PubMed literature tools unavailable. A DeepSeek real-engine run is possible in LLM-only fallback mode. Verify command below; MCP-backed smoke requires starting mcp_server (Python 3.12 venv) first.",
-    "verify_cmd_llm_only": "cd engine && MODEL_NAME=deepseek/deepseek-chat ../.venv/bin/python examples/run.py",
+    "blocker": "MCP reference server not running locally; PubMed literature tools unavailable. A DeepSeek real-engine run is possible in LLM-only fallback mode. MCP-backed smoke requires starting mcp_server (Python 3.12 venv) first.",
     "verify_cmd_mcp": "pip install -e mcp_server/ (py3.12) && uvicorn mcp_server.server:app --port 8888, then run app with MCP_SERVER_URL set"
   },
   "reducer_probe_finding": {

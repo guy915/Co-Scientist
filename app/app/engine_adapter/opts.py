@@ -227,17 +227,8 @@ def _generator_kwargs(
     enable_cache: bool | None,
     api_key: str | None = None,
 ) -> dict[str, Any]:
-    """Build the `HypothesisGenerator` constructor kwargs for one run.
-
-    `cfg` went through `resolved_run_config` upstream, so every numeric key
-    is present -- index directly rather than re-inventing defaults here.
-    The four run-size knobs stay top-level; every other engine knob is
-    grouped into the engine's ``GeneratorOptions`` bundle. ``api_key`` is
-    a bring-your-own-key credential (see ``GeneratorOptions.api_key``):
-    it rides the options bundle into the generator instance and is never
-    part of the run config or the workflow state.
-    """
-    from co_scientist import GeneratorOptions
+    """Resolved config supplies numeric keys; BYOK stays out of run state."""
+    from co_scientist.generator.run_setup import GeneratorOptions
 
     return {
         "model_name": model_name,

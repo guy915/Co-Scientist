@@ -1,46 +1,5 @@
-"""Degrading one node when its provider cannot be reached at all.
-
-``llm.structured.validate._ENHANCEMENT_NODE_FALLBACKS`` already declares which
-nodes may publish nothing rather than stop a run -- but only
-``_handle_json_retries_exhausted`` serves those fallbacks, so they cover a model
-that answers unparseably and not a provider that does not answer. The other door
-out of ``call_llm_json`` is a raise: ``LLMTimeoutError`` (never retried, since a
-stalled provider will not answer the same request faster) and a provider error
-on the final in-call attempt both leave by it, carrying past the fallback table
-entirely.
-
-That gap cost production run 49a509b0 its whole output. 146 tasks
-committed, then the terminal ``research_overview`` node hit a provider
-that stalled twice for 600s and then reported an upstream overload; its
-three durable attempts spent, the task failed, and ``engine.finalize`` --
-enqueued only ever as that node's ``None`` successor -- was never created,
-so a run with 22 hypotheses and a full tournament published no report at
-all.
-
-This is the missing half: a node whose own synthesis is optional catches
-an unreachable provider, records the degradation where the report can
-read it, and returns the same empty result the parse path would have
-served. The two errors the durable worker answers itself
-(``TASK_CONTROL_FLOW_ERRORS``) are re-raised first, as at every other
-degrade site -- a rate-limit park is not "this call failed", it is "no
-call succeeds until the cap resets", and a spent call ceiling must stop
-the run rather than be absorbed into a blank section.
-
-Degrading is the *last* answer, not the first. A durable task carries
-its own retry budget, and spending it is what recovers a provider that
-comes back: extended run bc77950f met the same trouble as 49a509b0 and
-published a full overview on its third durable attempt. So a provider
-failure with a retry left propagates, exactly as it did before this
-module existed, and only a failure with nothing left behind it degrades
--- the state flag ``durable_retries_remain`` is how the node learns
-which it is, set per attempt by ``app.engine_tasks.restore`` from the
-same ``attempt >= max_attempts`` formula
-``app.task_worker.outcomes._is_terminal_failure`` uses. Its absence
-means degrade, which is the whole graph/streaming path (no durable task,
-so no retry to spend) and any caller that does not set it: a blank
-section is a bad outcome, but re-raising where nothing retries is the
-outage that produced no report at all.
-"""
+"""Only exhausted durable retries may degrade optional science sections;
+control-flow errors must propagate to the worker."""
 
 import logging
 from collections.abc import Awaitable, Callable

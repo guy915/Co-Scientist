@@ -9,8 +9,6 @@ from types import SimpleNamespace
 from typing import Annotated, Any
 
 import pytest
-from langgraph.channels import BinaryOperatorAggregate
-from langgraph.graph import StateGraph
 from typing_extensions import TypedDict
 
 from co_scientist import tool_effects
@@ -49,7 +47,6 @@ from co_scientist.tool_effects import (
     parse_effects,
     resolve_tool_effects,
 )
-from co_scientist.workflow_topology import WORKFLOW_ROUTES
 from tests._llm_fake import (
     make_completion,
     make_message,
@@ -57,10 +54,7 @@ from tests._llm_fake import (
     patch_acompletion,
 )
 from tests._state import (
-    ABSENT,
-    build_graph,
     decision_states,
-    graph_successor,
     make_state,
 )
 
@@ -97,21 +91,61 @@ def test_a_second_researcher_does_not_erase_the_first_one() -> None:
     ]
 
 
-@pytest.mark.parametrize("literature_review", [True, False])
-@pytest.mark.parametrize("node", sorted(WORKFLOW_ROUTES))
-def test_next_task_type_mirrors_graph_topology(
-    node: str, literature_review: bool
+@pytest.mark.parametrize("mcp_available", [True, False])
+@pytest.mark.parametrize(
+    ("node", "on", "off"),
+    [
+        ("supervisor", "literature_review", "generate"),
+        ("literature_review", "generate", "generate"),
+        ("generate", "reflection", "review"),
+        ("reflection", "review", "review"),
+        ("review", "comprehensive_reflection", "comprehensive_reflection"),
+        ("comprehensive_reflection", "safety_screen", "safety_screen"),
+        ("safety_screen", "deep_verification", "deep_verification"),
+        ("deep_verification", "ranking", "ranking"),
+        ("ranking", "orchestrator", "orchestrator"),
+        ("proximity", "orchestrator", "orchestrator"),
+        ("evolve", "review", "review"),
+    ],
+)
+def test_committed_nodes_follow_the_durable_scientific_chain(
+    node: str, on: str, off: str, mcp_available: bool
 ) -> None:
-    graph = build_graph(literature_review)
     for state in decision_states():
-        state["mcp_available"] = literature_review
-        expected = graph_successor(graph, node, state)
-        if expected == ABSENT:
-            continue
-        assert next_task_type(node, state) == expected, (
-            node,
-            state.get("next_task"),
-        )
+        state["mcp_available"] = mcp_available
+        assert next_task_type(node, state) == (on if mcp_available else off)
+
+
+@pytest.mark.parametrize(
+    ("decision", "orchestrator", "meta_review", "overview"),
+    [
+        (None, "research_overview", "research_overview", None),
+        ("not_a_task", "research_overview", "research_overview", None),
+        ("generate", "generate", "generate", None),
+        ("reflect", "review", "review", None),
+        ("rank", "safety_screen", "safety_screen", None),
+        ("evolve", "meta_review", "evolve", None),
+        ("proximity", "proximity", "proximity", None),
+        ("meta_review", "meta_review", "orchestrator", None),
+        (
+            "synthesize",
+            "research_overview",
+            "research_overview",
+            "orchestrator",
+        ),
+        ("terminate", "research_overview", "research_overview", None),
+    ],
+)
+def test_decision_routes_preserve_prefix_periodic_and_terminal_behavior(
+    decision: str | None,
+    orchestrator: str,
+    meta_review: str,
+    overview: str | None,
+) -> None:
+    state = make_state(next_task=decision)
+    assert next_task_type("orchestrator", state) == orchestrator
+    assert next_task_type("meta_review", state) == meta_review
+    assert next_task_type("research_overview", state) == overview
 
 
 async def test_execute_task_node_runs_only_named_specialist(
@@ -277,15 +311,14 @@ def test_a_non_list_channel_receives_the_existing_value_unchanged() -> None:
     assert channel_reducers(_ToyState)["total"](2, 3) == 5
 
 
-def test_workflow_state_reducers_match_the_compiled_graph() -> None:
-    compiled = StateGraph(WorkflowState).channels
-    reduced_by_langgraph = {
-        name
-        for name, channel in compiled.items()
-        if isinstance(channel, BinaryOperatorAggregate)
+def test_workflow_state_reducers_cover_every_accumulating_channel() -> None:
+    assert set(channel_reducers(WorkflowState)) == {
+        "hypotheses",
+        "tournament_matchups",
+        "metrics",
+        "messages",
+        "research_ledgers",
     }
-
-    assert set(channel_reducers(WorkflowState)) == reduced_by_langgraph
 
 
 def _call(name: str) -> SimpleNamespace:

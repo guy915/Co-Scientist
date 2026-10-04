@@ -4,10 +4,9 @@ import ast
 import itertools
 import pathlib
 from collections.abc import Iterator
-from typing import Any, cast
+from typing import Any
 
 import pytest
-from langgraph.graph import END, START, StateGraph
 from litellm.exceptions import APIError
 
 import co_scientist.llm as llm
@@ -23,18 +22,11 @@ from co_scientist.checkpoint import (
     restore_workflow_state,
     serialize_workflow_state,
 )
-from co_scientist.constants import INITIAL_ELO_RATING
 from co_scientist.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
     LLMTimeoutError,
 )
-from co_scientist.generator import GeneratorOptions, HypothesisGenerator
-from co_scientist.generator.graph import (
-    _add_workflow_edges,
-    _add_workflow_nodes,
-)
-from co_scientist.models import Hypothesis, HypothesisOrigin
 from co_scientist.scheduling import TaskType
 from co_scientist.state import WorkflowState
 from co_scientist.task_runtime import next_task_type
@@ -44,12 +36,8 @@ from co_scientist.workflow_topology import (
     LiteratureGated,
     literature_review_nodes,
 )
-from tests._llm_fake import install_fake_llm
 from tests._state import (
-    ABSENT,
-    build_graph,
     decision_states,
-    graph_successor,
     make_hypothesis,
     make_review,
     make_state,
@@ -75,22 +63,12 @@ FROZEN_DURABLE_NODE_KEYS = {
 }
 
 
-def _compiled_graph_node_keys() -> set[str]:
-    workflow = StateGraph(WorkflowState)
-    _add_workflow_nodes(workflow, enable_literature_review_node=True)
-    _add_workflow_edges(workflow, enable_literature_review_node=True)
-    compiled = workflow.compile()
-    return set(compiled.get_graph().nodes) - {"__start__", "__end__"}
-
-
 def test_registry_pins_the_frozen_durable_node_keys() -> None:
     assert set(agents.NODE_REGISTRY) == FROZEN_DURABLE_NODE_KEYS
 
 
-def test_graph_registry_and_task_runtime_agree() -> None:
-    registry_keys = set(agents.NODE_REGISTRY)
-    assert _compiled_graph_node_keys() == registry_keys
-    assert set(task_runtime.TASK_NODES) == registry_keys
+def test_registry_and_task_runtime_agree() -> None:
+    assert set(task_runtime.TASK_NODES) == set(agents.NODE_REGISTRY)
 
 
 def test_node_to_agent_is_projected_from_the_registry() -> None:
@@ -527,232 +505,6 @@ def test_every_declared_progress_constant_is_pinned() -> None:
     )
 
 
-_ADVANCED_KNOBS = frozenset(
-    {
-        "supervisor_model_name",
-        "tournament_pairs",
-        "elo_k_factor",
-        "literature_review_papers_count",
-        "enable_cache",
-        "cache_dir",
-        "tools_config",
-        "disable_tools",
-        "budget",
-    }
-)
-
-
-def _make_gen(**overrides: Any) -> HypothesisGenerator:
-    params: dict[str, Any] = {
-        "model_name": "fake/model",
-        "max_iterations": 1,
-        "initial_hypotheses_count": 2,
-        "evolution_max_count": 2,
-    }
-    options: dict[str, Any] = {"tournament_pairs": 2, "enable_cache": False}
-    for key, value in overrides.items():
-        (options if key in _ADVANCED_KNOBS else params)[key] = value
-    return HypothesisGenerator(**params, options=GeneratorOptions(**options))
-
-
-def _generations(
-    final_state: WorkflowState,
-) -> tuple[list[Hypothesis], list[Hypothesis]]:
-    hyps = final_state["hypotheses"]
-    parents = [h for h in hyps if h.generation == 0]
-    children = [h for h in hyps if h.generation >= 1]
-    return parents, children
-
-
-def _assert_iteration_children(
-    children: list[Hypothesis], parent_ids: set[str]
-) -> None:
-    for child in children:
-        assert child.origin is HypothesisOrigin.EVOLUTION
-        assert child.parent_id in parent_ids
-        assert child.generation == 1
-        assert len(child.reviews) >= 1
-        assert child.evolution_history
-
-
-def _assert_top_ranked_verified(final_state: WorkflowState) -> None:
-    ranked = sorted(
-        final_state["hypotheses"], key=lambda h: h.elo_rating, reverse=True
-    )
-    assert ranked[0].deep_verification_verdict
-    assert ranked[0].deep_verification_probes
-
-
-def _assert_meta_review_shape(final_state: WorkflowState) -> None:
-    meta_review = final_state["meta_review"]
-    assert meta_review["summary"]
-    assert "common_strengths" in meta_review
-    assert "strategic_recommendations" in meta_review
-
-
-def _assert_terminal_overview(final_state: WorkflowState) -> None:
-    overview = final_state["research_overview"]
-    assert overview is not None
-    assert overview["overview"]
-    assert overview["nih_specific_aims"]
-
-
-def _assert_execution_metrics(final_state: WorkflowState) -> None:
-    metrics = final_state["metrics"]
-    assert metrics.llm_calls > 0
-    assert metrics.reviews_count >= 2
-    assert metrics.tournaments_count >= 2
-    assert metrics.evolutions_count == 2
-
-
-async def _run_graph(
-    gen: HypothesisGenerator, research_goal: str, **opts: Any
-) -> WorkflowState:
-    initial_state = await gen.prepare_task_state(
-        research_goal,
-        opts={"enable_literature_review_node": False, **opts},
-    )
-    assert gen._graph is not None
-    final_state = await gen._graph.ainvoke(
-        initial_state, config={"recursion_limit": 100}
-    )
-    return cast(WorkflowState, final_state)
-
-
-async def test_single_iteration_pipeline_updates_cross_node_state(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    install_fake_llm(monkeypatch)
-    gen = _make_gen()
-
-    final_state = await _run_graph(gen, "Explain how protein X folds")
-
-    hypotheses = final_state["hypotheses"]
-    parents, children = _generations(final_state)
-    assert len(parents) == 2
-    assert len(children) == 2
-    assert len(hypotheses) == 4
-    texts = [h.text for h in hypotheses]
-    assert len(texts) == len(set(texts))
-
-    assert all(len(p.reviews) == 1 for p in parents)
-    _assert_iteration_children(children, {p.id for p in parents})
-
-    assert final_state["tournament_matchups"]
-    assert any(h.elo_rating != INITIAL_ELO_RATING for h in hypotheses)
-    assert final_state["evolution_details"]
-    _assert_top_ranked_verified(final_state)
-    _assert_meta_review_shape(final_state)
-    _assert_terminal_overview(final_state)
-    _assert_execution_metrics(final_state)
-
-    assert final_state["current_iteration"] == 1
-
-
-async def test_evolve_path_appends_immutable_children(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    install_fake_llm(monkeypatch)
-    gen = _make_gen(initial_hypotheses_count=3, tournament_pairs=3)
-
-    final_state = await _run_graph(gen, "Identify a synthetic-lethal target")
-
-    hypotheses = final_state["hypotheses"]
-    assert len(hypotheses) > 3
-
-    parents, children = _generations(final_state)
-    assert len(parents) == 3
-    assert children, "evolution should append at least one child"
-
-    parent_ids = {h.id for h in parents}
-    for child in children:
-        assert child.parent_id in parent_ids
-        assert child.origin is HypothesisOrigin.EVOLUTION
-        assert child.evolution_history
-        assert child.text not in [p.text for p in parents]
-
-    assert final_state["evolution_details"]
-    for detail in final_state["evolution_details"]:
-        assert detail["parent_id"] in parent_ids
-        assert detail["original"] != detail["evolved"]
-        assert detail["rationale"]
-
-
-async def test_adaptive_orchestration_schedules_generation_and_records_reasons(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    install_fake_llm(monkeypatch)
-    gen = _make_gen(max_iterations=3)
-
-    final_state = await _run_graph(gen, "Explain how protein X folds")
-
-    history = final_state["task_history"]
-    assert history, "the orchestrator should record scheduled tasks"
-    for record in history:
-        assert record["reason"], record
-
-    tasks = [r["task_type"] for r in history]
-    assert "evolve" in tasks
-    assert "generate" in tasks
-    assert tasks.index("generate") > tasks.index("evolve")
-
-    assert tasks[-1] == "terminate"
-    assert history[-1]["termination_reason"]
-    assert final_state["termination_reason"]
-
-
-async def test_budget_exhaustion_terminates_the_run(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    install_fake_llm(monkeypatch)
-    gen = HypothesisGenerator(
-        model_name="fake/model",
-        max_iterations=50,
-        initial_hypotheses_count=2,
-        evolution_max_count=2,
-        options=GeneratorOptions(
-            tournament_pairs=2,
-            enable_cache=False,
-            budget={"max_llm_calls": 12},
-        ),
-    )
-
-    final_state = await _run_graph(gen, "Explain how protein X folds")
-
-    assert final_state["termination_reason"] == "budget"
-    assert final_state["current_iteration"] < 50
-    terminate_records = [
-        r for r in final_state["task_history"] if r["task_type"] == "terminate"
-    ]
-    assert terminate_records
-    assert terminate_records[-1]["termination_reason"] == "budget"
-
-
-async def test_zero_iteration_pipeline_deep_verifies_and_skips_iterate(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    install_fake_llm(monkeypatch)
-    gen = _make_gen(max_iterations=0)
-
-    final_state = await _run_graph(
-        gen, "Repurpose an existing kinase inhibitor"
-    )
-
-    hypotheses = final_state["hypotheses"]
-    assert len(hypotheses) == 2
-
-    assert all(h.deep_verification_verdict == "holds" for h in hypotheses)
-    assert all(h.deep_verification_probes for h in hypotheses)
-
-    assert final_state["meta_review"] == {}
-    assert final_state["evolution_details"] == []
-    assert final_state["current_iteration"] == 0
-
-    overview = final_state["research_overview"]
-    assert overview is not None
-    assert overview["overview"]
-
-
 _PACKAGE = "co_scientist.llm"
 _ROOT = pathlib.Path(llm.__file__).parent
 
@@ -848,16 +600,16 @@ def _reachable(graph: dict[str, set[str]], start: str) -> set[str]:
 
 
 def _declared_edges(literature_review: bool) -> set[tuple[str, str]]:
-    absent = set() if literature_review else literature_review_nodes()
-    edges: set[tuple[str, str]] = set()
-    for node, route in WORKFLOW_ROUTES.items():
-        if node in absent:
-            continue
-        if isinstance(route, LiteratureGated):
-            edges.add((node, route.pick(literature_review)))
-        elif isinstance(route, str):
-            edges.add((node, route))
-    return edges
+    return {
+        (
+            node,
+            route.pick(literature_review)
+            if isinstance(route, LiteratureGated)
+            else route,
+        )
+        for node, route in WORKFLOW_ROUTES.items()
+        if isinstance(route, (str, LiteratureGated))
+    }
 
 
 def test_every_registered_node_declares_a_successor_and_only_those() -> None:
@@ -869,18 +621,6 @@ def test_every_registered_node_declares_a_successor_and_only_those() -> None:
         elif isinstance(route, LiteratureGated):
             named.add(route.off)
     assert named <= set(NODE_REGISTRY)
-
-
-@pytest.mark.parametrize("literature_review", [True, False])
-def test_the_graph_is_wired_from_the_declaration(
-    literature_review: bool,
-) -> None:
-    graph = build_graph(literature_review)
-    assert set(graph.edges) == _declared_edges(literature_review)
-    resolver_nodes = {
-        node for node, route in WORKFLOW_ROUTES.items() if callable(route)
-    }
-    assert set(graph.branches) == resolver_nodes | {START}
 
 
 def test_the_review_phase_runs_in_the_published_order() -> None:
@@ -911,20 +651,6 @@ def _gated(node: str) -> LiteratureGated:
 
 
 @pytest.mark.parametrize("node", ["supervisor", "generate"])
-def test_the_graph_takes_its_flow_shape_from_how_it_was_built(
-    node: str,
-) -> None:
-    """The compiled graph cannot change topology from later state flags."""
-    for literature_review in (True, False):
-        graph = build_graph(literature_review)
-        for mcp_available in (True, False):
-            state = make_state(mcp_available=mcp_available)
-            assert graph_successor(graph, node, state) == _gated(node).pick(
-                literature_review
-            )
-
-
-@pytest.mark.parametrize("node", ["supervisor", "generate"])
 def test_the_durable_path_takes_its_flow_shape_from_committed_state(
     node: str,
 ) -> None:
@@ -938,9 +664,7 @@ def test_the_gated_routes_skip_the_literature_nodes_when_the_flow_is_off() -> (
 ):
     assert _declared_edges(True) - _declared_edges(False) == {
         ("supervisor", "literature_review"),
-        ("literature_review", "generate"),
         ("generate", "reflection"),
-        ("reflection", "review"),
     }
     assert _declared_edges(False) - _declared_edges(True) == {
         ("supervisor", "generate"),
@@ -959,11 +683,10 @@ def test_a_missing_mcp_flag_is_the_simplified_flow_on_the_durable_path() -> (
 
 
 @pytest.mark.parametrize("node", ["literature_review", "reflection"])
-def test_the_durable_path_still_routes_the_nodes_the_simplified_graph_lacks(
+def test_literature_nodes_route_even_when_mcp_is_unavailable(
     node: str,
 ) -> None:
     state = make_state(mcp_available=False)
-    assert graph_successor(build_graph(False), node, state) == ABSENT
     assert next_task_type(node, state) == WORKFLOW_ROUTES[node]
 
 
@@ -971,33 +694,20 @@ def test_the_durable_path_still_routes_the_nodes_the_simplified_graph_lacks(
 def test_a_safety_halt_ends_the_durable_path_from_every_node(
     node: str,
 ) -> None:
-    graph = build_graph(True)
     for state in decision_states():
         halted = make_state(**{**state, "safety_blocked": True})
         assert next_task_type(node, halted) is None
-        assert graph_successor(graph, node, halted) == graph_successor(
-            graph, node, state
-        )
 
 
-def test_the_entry_edge_exists_only_on_the_graph() -> None:
-    graph = build_graph(True)
-    assert START not in WORKFLOW_ROUTES
-    assert graph_successor(graph, START, make_state()) == "supervisor"
-    assert graph_successor(graph, START, make_state(resume=True)) == (
-        "orchestrator"
-    )
+def test_entry_marker_is_not_a_completed_durable_node() -> None:
+    assert "__start__" not in WORKFLOW_ROUTES
     with pytest.raises(ValueError, match="unsupported completed task node"):
-        next_task_type(START, make_state())
+        next_task_type("__start__", make_state())
 
 
-def test_the_end_of_the_run_is_none_durable_and_end_on_the_graph() -> None:
+def test_terminal_overview_has_no_successor() -> None:
     state = make_state(next_task=TaskType.TERMINATE.value)
-    graph = build_graph(True)
-    branch = next(iter(graph.branches["research_overview"].values()))
     assert next_task_type("research_overview", state) is None
-    assert branch.path.invoke(state) == END
-    assert graph_successor(graph, "research_overview", state) is None
 
 
 def _evolve_with_meta_review_stacked_ahead() -> WorkflowState:
@@ -1013,14 +723,6 @@ def _evolve_with_meta_review_stacked_ahead() -> WorkflowState:
     )
 
 
-def test_the_graph_path_map_rejects_what_the_durable_path_returns() -> None:
-    """Only a scheduler-impossible state exposes the graph's rejected self-
-    edge."""
+def test_meta_review_companion_routes_to_the_evolve_prefix() -> None:
     state = _evolve_with_meta_review_stacked_ahead()
-    graph = build_graph(True)
-    branch = next(iter(graph.branches["meta_review"].values()))
-    chosen = branch.path.invoke(state)
-    assert chosen == "meta_review"
-    assert branch.ends is not None
-    assert chosen not in branch.ends
     assert next_task_type("meta_review", state) == "meta_review"

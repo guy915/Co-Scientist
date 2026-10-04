@@ -21,7 +21,8 @@ from litellm.exceptions import Timeout as LiteLLMTimeout
 from co_scientist import cache
 from co_scientist.cache import LLMCache
 from co_scientist.exceptions import LLMCallBudgetExceededError
-from co_scientist.generator import GeneratorOptions, HypothesisGenerator
+from co_scientist.generator.core import HypothesisGenerator
+from co_scientist.generator.run_setup import GeneratorOptions
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,

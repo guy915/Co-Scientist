@@ -1,12 +1,12 @@
 # Architecture
 
-Co-Scientist mirrors Google's AI Co-Scientist: a coalition of **six specialized agents** — Generation, Reflection, Ranking, Evolution, Proximity, and Meta-review — coordinated by a **Supervisor**, with **Safety** screening as a cross-cutting concern. It uses LangGraph to run them as a durable, resumable multi-stage workflow over shared state.
+Co-Scientist mirrors Google's AI Co-Scientist: a coalition of **six specialized agents** — Generation, Reflection, Ranking, Evolution, Proximity, and Meta-review — coordinated by a **Supervisor**, with **Safety** screening as a cross-cutting concern. The app schedules durable tasks over shared state and checkpoints their results.
 
 ## The Six Agents
 
-Each agent is a package under [`co_scientist.agents`](../src/co_scientist/agents/__init__.py) that holds that agent's node implementations — the canonical, Google-aligned structure of the system. Every agent's work is decomposed into one or more durable LangGraph **nodes** so the engine can checkpoint and resume at fine granularity. `co_scientist.agents.NODE_TO_AGENT` is the source-of-truth node→agent mapping:
+Each agent is a package under [`co_scientist.agents`](../src/co_scientist/agents/__init__.py) that holds that agent's node implementations — the canonical, Google-aligned structure of the system. Every agent's work is decomposed into one or more durable task **nodes** so the engine can checkpoint and resume at fine granularity. `co_scientist.agents.NODE_TO_AGENT` is the source-of-truth node→agent mapping:
 
-| Agent | Role (Google) | Durable graph nodes |
+| Agent | Role (Google) | Durable task nodes |
 |---|---|---|
 | **Supervisor** | Plans the run; picks the next task each cycle | `supervisor`, `orchestrator` |
 | **Generation** | Proposes novel, literature-grounded hypotheses | `generate`, `literature_review` |
@@ -19,18 +19,17 @@ Each agent is a package under [`co_scientist.agents`](../src/co_scientist/agents
 
 **Why more than six nodes?** The agents are the conceptual unit; the nodes are the durable-execution unit. Decomposing an agent (e.g. Reflection → `review` → `comprehensive_reflection` → `deep_verification`) lets an interrupted run resume mid-agent instead of re-running expensive LLM work. Those node key strings are persisted verbatim — as `engine.node.<key>` durable tasks, in checkpoint `resume_successor`/`next_task`, and inside idempotency keys — so collapsing them to six runtime keys would orphan any in-flight run. The node implementations live in the six-agent `agents` packages; only that runtime-key collapse is deferred, as a separate migration-guarded change.
 
-## Workflow Graph
+## Durable Workflow
 
-The workflow consists of specialized nodes that handle different aspects of hypothesis generation and refinement, declared once in `workflow_topology.py` and wired into the graph by `generator/graph.py`. Every work phase converges on the same review-through-ranking spine, and every completion path (a work phase's own end, or a maintenance task) returns to a single **orchestrator** loop point rather than following a fixed iteration count:
+The workflow consists of specialized nodes that handle different aspects of hypothesis generation and refinement, declared once in `workflow_topology.py` and resolved by `task_runtime.py`. Every work phase converges on the same review-through-ranking spine, and every completion path (a work phase's own end, or a maintenance task) returns to a single **orchestrator** loop point rather than following a fixed iteration count:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                           WORKFLOW GRAPH                            │
+│                           DURABLE WORKFLOW                          │
 └─────────────────────────────────────────────────────────────────────┘
 
-                              START
+                            BOOTSTRAP
                                 │
-                 (resume=True: re-enter at ORCHESTRATOR instead)
                                 ▼
                          ┌─────────────┐
                          │ SUPERVISOR  │  Creates research plan
@@ -103,7 +102,7 @@ The orchestrator routing table is `TASK_ROUTES` in
 
 ### Dynamic orchestration
 
-The **orchestrator node** (`agents/supervisor/orchestrator.py`) is the graph's single adaptive loop point. Each time it fires it computes `SchedulerStats` from live state (pool growth, Elo stability, tournament match coverage, proximity backlog), passes them to a deterministic scheduling policy (`scheduling/policy.py::decide_next_task`, validated by `validate_decision`), records the decision and its reason in the run's Supervisor allocation ledger, and sets `next_task`. An LLM supervisor may *recommend* a task; the policy — not the model — decides and enforces the allowed transitions and budget. A fifth route, `rank`, is omitted from the diagram above for space: it re-enters the spine directly at `safety_screen` (not at `review` or `ranking`), the same node the main pipeline reaches after `comprehensive_reflection`. Termination fires on Elo convergence (top hypothesis stable across cycles) or an exhausted iteration/task budget, never on a fixed `max_iterations` branch hard-coded after ranking. `current_iteration` only advances when the orchestrator schedules a work task (`generate`/`evolve`); scheduling a maintenance task (`reflect`/`proximity`/`rank`) does not.
+The **orchestrator node** (`agents/supervisor/orchestrator.py`) is the durable workflow's single adaptive loop point. Each time it fires it computes `SchedulerStats` from live state (pool growth, Elo stability, tournament match coverage, proximity backlog), passes them to a deterministic scheduling policy (`scheduling/policy.py::decide_next_task`, validated by `validate_decision`), records the decision and its reason in the run's Supervisor allocation ledger, and sets `next_task`. An LLM supervisor may *recommend* a task; the policy — not the model — decides and enforces the allowed transitions and budget. A fifth route, `rank`, is omitted from the diagram above for space: it re-enters the spine directly at `safety_screen` (not at `review` or `ranking`), the same node the main pipeline reaches after `comprehensive_reflection`. Termination fires on Elo convergence (top hypothesis stable across cycles) or an exhausted iteration/task budget, never on a fixed `max_iterations` branch hard-coded after ranking. `current_iteration` only advances when the orchestrator schedules a work task (`generate`/`evolve`); scheduling a maintenance task (`reflect`/`proximity`/`rank`) does not.
 
 One node commit can also enqueue more than one future task at once: `task_runtime.plan_portfolio` resolves however much of a node's successor chain is knowable without running it, and the app's durable executor chains that lookahead through the queue's existing dependency gate (`app/app/engine_tasks/portfolio.py`) rather than enqueueing one task at a time and waiting on each. This changes *when* work is queued, not what the orchestrator decides — the routing above is unaffected.
 
@@ -318,61 +317,3 @@ opts = {"enable_literature_review_node": True}
 
 See [Deployment](../../docs/DEPLOYMENT.md) for MCP hosting and
 [`config/tools.yaml`](../src/co_scientist/config/tools.yaml) for tool wiring.
-
-
-### Examples
-
-#### Example 1: Basic Usage (No Literature)
-
-```python
-from co_scientist import HypothesisGenerator
-
-generator = HypothesisGenerator(
-    model_name="gemini/gemini-2.5-flash",
-    max_iterations=1,
-    initial_hypotheses_count=5
-)
-
-result = await generator.generate_hypotheses(
-    research_goal="Develop novel cancer treatments",
-    opts={"enable_literature_review_node": False}
-)
-```
-
-#### Example 2: Literature-Informed
-
-```python
-from co_scientist import HypothesisGenerator
-
-generator = HypothesisGenerator(
-    model_name="gemini/gemini-2.5-flash",
-    max_iterations=1,
-    initial_hypotheses_count=5
-)
-
-# Auto-enables if MCP available, or explicitly enable
-result = await generator.generate_hypotheses(
-    research_goal="Develop novel cancer treatments",
-    opts={"enable_literature_review_node": True}
-)
-```
-
-#### Example 3: Generate Initial Hypotheses with Tool-Calling Mode
-
-```python
-from co_scientist import HypothesisGenerator
-
-generator = HypothesisGenerator(
-    model_name="gemini/gemini-2.5-flash",
-    max_iterations=1,
-    initial_hypotheses_count=5
-)
-
-result = await generator.generate_hypotheses(
-    research_goal="Develop novel cancer treatments",
-    opts={
-        "enable_literature_review_node": True,  # Required
-        "enable_tool_calling_generation": True
-    }
-)
-```

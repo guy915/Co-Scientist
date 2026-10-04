@@ -3,14 +3,8 @@ from __future__ import annotations
 from typing import Any, cast
 
 import pytest
-from langgraph.graph import END, START, StateGraph
 
 from co_scientist.agents.generation import generate as coordinator
-from co_scientist.generator import HypothesisGenerator
-from co_scientist.generator.graph import (
-    _add_workflow_edges,
-    _add_workflow_nodes,
-)
 from co_scientist.models import (
     Article,
     ExecutionMetrics,
@@ -208,46 +202,6 @@ def healthy_stats(**overrides: object) -> SchedulerStats:
     }
     base.update(overrides)
     return SchedulerStats(**base)  # type: ignore[arg-type]
-
-
-async def collect_stream_events(
-    gen: HypothesisGenerator, goal: str
-) -> list[tuple[str, dict[str, Any]]]:
-    events: list[tuple[str, dict[str, Any]]] = []
-    async for node_name, state_dict in gen.generate_hypotheses(
-        goal,
-        opts={"enable_literature_review_node": False},
-        stream=True,
-    ):
-        events.append((node_name, state_dict))
-    return events
-
-
-ABSENT = "<absent>"
-
-
-def build_graph(literature_review: bool) -> StateGraph[Any, Any, Any, Any]:
-    workflow = StateGraph(WorkflowState)
-    _add_workflow_nodes(workflow, literature_review)
-    _add_workflow_edges(workflow, literature_review)
-    workflow.compile()
-    return workflow
-
-
-def graph_successor(
-    graph: StateGraph[Any, Any, Any, Any], node: str, state: WorkflowState
-) -> str | None:
-    if node not in graph.nodes and node != START:
-        return ABSENT
-    fixed = [target for source, target in graph.edges if source == node]
-    branches = list(graph.branches.get(node, {}).values())
-    assert len(fixed) + len(branches) == 1, (node, fixed, branches)
-    if fixed:
-        return fixed[0]
-    branch = branches[0]
-    chosen: Any = branch.path.invoke(state)
-    target = branch.ends[chosen] if branch.ends else chosen
-    return None if target == END else str(target)
 
 
 def _stacked(*companions: str) -> list[dict[str, Any]]:

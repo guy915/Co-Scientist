@@ -22,7 +22,7 @@
 ## Overview
 
 Co-Scientist generates, reviews, ranks, and evolves research hypotheses with a
-LangGraph multi-agent pipeline and streams progress into a web workbench.
+multi-agent engine and streams progress into a web workbench.
 Researchers can attach documents, refine their goals, steer a run, inspect
 its evidence and hypothesis lineage, and share a final report.
 
@@ -44,8 +44,8 @@ Generated hypotheses need researcher review and experimental validation.
 
 ## Quick start
 
-Install Python **3.12**, Node.js **22.13+**, and Bun **1.3.14**. The standalone
-engine also supports Python 3.10+. From a checkout of this repository:
+Install Python **3.12**, Node.js **22.13+**, and Bun **1.3.14**. The internal
+engine package retains Python 3.10+ compatibility. From a checkout:
 
 ```bash
 make setup          # Python venv + locked frontend dependencies
@@ -113,7 +113,7 @@ remain explicit opt-in operations.
 | Path | Purpose |
 | --- | --- |
 | `app/` | FastAPI API, SQLite store, and React workbench |
-| `engine/` | LangGraph hypothesis-generation engine and reference MCP server |
+| `engine/` | Internal hypothesis-generation engine and reference MCP server |
 | `evaluations/` | Offline evaluation tools and release gate |
 | `e2e/` | Playwright browser tests |
 | `requirements/` | Hash-pinned Python runtime dependencies for production images |

@@ -52,7 +52,6 @@ dev = [
     "types-jsonschema",
     "python-dotenv~=1.2.1",
     "absl-py~=2.1",
-    "rich~=14.2.0",
 ]
 
 
@@ -94,9 +93,6 @@ max-args = 8
 max-complexity = 10
 
 [tool.ruff.lint.per-file-ignores]
-# dev/ and examples/ load .env files and tweak sys.path before imports.
-"dev/**" = ["E402"]
-"examples/**" = ["E402"]
 # server.py loads its co-located .env and configures logging before importing
 # tool modules, which read env vars (e.g. ENTREZ_EMAIL) at import time.
 "mcp_server/server.py" = ["E402"]
@@ -105,9 +101,8 @@ max-complexity = 10
 python_version = "3.10"
 strict = true
 # mcp_server is a separate package with its own mypy config (it needs the
-# Bio.* override); check it from its own directory. dev/ holds local
-# standalone iteration scripts that are not part of the shipped package.
-exclude = ["^(dev|mcp_server|build|dist)/"]
+# Bio.* override); check it from its own directory.
+exclude = ["^(mcp_server|build|dist)/"]
 
 [[tool.mypy.overrides]]
 module = ["jsonschema", "jsonschema.*", "yaml"]

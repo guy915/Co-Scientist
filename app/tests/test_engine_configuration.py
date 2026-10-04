@@ -8,7 +8,7 @@ import sys
 from typing import Any, ClassVar
 
 import pytest
-from co_scientist import HypothesisGenerator
+from co_scientist.generator.core import HypothesisGenerator
 
 import app.engine_adapter as provider
 from app import process_mode, store
@@ -486,7 +486,7 @@ def test_offline_generator_does_not_poison_cache_for_a_real_generator(
     # The first startup generator may be offline; later real generators must
     # retain process cache defaults.
     from co_scientist import cache as engine_cache
-    from co_scientist.generator import HypothesisGenerator
+    from co_scientist.generator.core import HypothesisGenerator
 
     monkeypatch.setenv("COSCIENTIST_CACHE_ENABLED", "true")
     monkeypatch.setattr(engine_cache, "_global_cache", None)

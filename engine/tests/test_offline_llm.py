@@ -22,7 +22,7 @@ from co_scientist.schemas.review import (
     REVIEW_BATCH_SCHEMA,
     REVIEW_SCHEMA,
 )
-from tests._mcp import isolate_offline_router, make_offline_generator
+from tests._mcp import isolate_offline_router
 
 
 @pytest.fixture
@@ -336,35 +336,6 @@ class TestOfflineLlm:
 
         assert len(calls) == 1
 
-    async def test_end_to_end_offline_generator_run_yields_hypotheses(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        escaped_calls = _install_recording_router(monkeypatch)
-
-        result = await make_offline_generator().generate_hypotheses(
-            "Explain how protein X folds",
-            opts={"enable_literature_review_node": False},
-            stream=False,
-        )
-
-        assert not escaped_calls, (
-            "a call reached the original acompletion instead of being routed "
-            f"to offline_acompletion: {escaped_calls[0].get('model')!r}"
-        )
-
-        hypotheses = result["hypotheses"]
-        assert isinstance(hypotheses, list)
-        assert len(hypotheses) >= 2
-        for hyp in hypotheses:
-            assert isinstance(hyp, dict)
-            assert hyp["text"]
-            assert isinstance(hyp["reviews"], list) and hyp["reviews"]
-
-        assert result["meta_review"]["summary"]
-        assert result["research_overview"]["overview"]
-        assert result["metrics"]["llm_calls"] > 0
-
 
 @pytest.fixture
 def _offline_optional_fields_isolate_offline_router(
@@ -506,80 +477,8 @@ def _offline_reproducibility_isolate_offline_router(
     offline_llm.install_offline_router()
 
 
-async def _run(run_id: str) -> dict[str, Any]:
-    generator = make_offline_generator()
-    return await generator.generate_hypotheses(
-        _GOAL,
-        opts={"enable_literature_review_node": False},
-        run_id=run_id,
-        stream=False,
-    )
-
-
-async def _streamed_run(run_id: str) -> dict[str, Any]:
-    generator = make_offline_generator()
-    last: dict[str, Any] = {}
-    async for _node, state in generator.generate_hypotheses(
-        _GOAL,
-        opts={"enable_literature_review_node": False},
-        run_id=run_id,
-        stream=True,
-    ):
-        last = state
-    return last
-
-
-def _ids(result: dict[str, Any]) -> list[str]:
-    return [hyp["id"] for hyp in result["hypotheses"]]
-
-
-def _texts(result: dict[str, Any]) -> list[str]:
-    return [hyp["text"] for hyp in result["hypotheses"]]
-
-
 @pytest.mark.usefixtures("_offline_reproducibility_isolate_offline_router")
 class TestOfflineReproducibility:
-    async def test_identical_offline_runs_produce_identical_ids_and_counts(
-        self,
-    ) -> None:
-        first = await _run("reproducible-run")
-        second = await _run("reproducible-run")
-
-        assert _ids(first), "the run produced no hypotheses to compare"
-        assert len(_ids(first)) == len(_ids(second))
-        assert _ids(first) == _ids(second)
-        assert _texts(first) == _texts(second)
-
-    async def test_offline_run_reproduces_its_derived_work(self) -> None:
-        first = await _run("derived-work-run")
-        second = await _run("derived-work-run")
-
-        assert first["debate_transcripts"] == second["debate_transcripts"]
-        assert first["tournament_matchups"] == second["tournament_matchups"]
-        assert first["evolution_details"] == second["evolution_details"]
-        assert first["task_history"] == second["task_history"]
-        assert first["research_overview"] == second["research_overview"]
-
-    async def test_streaming_offline_runs_reproduce_and_release_the_scope(
-        self,
-    ) -> None:
-        """Yields can cross consumer contexts; a leaked id scope shifts every
-        id in the next run."""
-        first = await _streamed_run("streamed-run")
-        second = await _streamed_run("streamed-run")
-
-        assert _ids(first), "the run produced no hypotheses to compare"
-        assert _ids(first) == _ids(second)
-        assert uuid.UUID(models.Hypothesis(text="after").id).version == 4
-
-    async def test_distinct_run_ids_never_share_a_hypothesis_id(self) -> None:
-        """A fixed global seed would give concurrent runs colliding
-        hypothesis ids."""
-        first = await _run("run-a")
-        second = await _run("run-b")
-
-        assert not set(_ids(first)) & set(_ids(second))
-
     def test_hypotheses_draw_random_ids_outside_a_run(self) -> None:
         ids = {models.Hypothesis(text=f"idea {n}").id for n in range(5)}
 
