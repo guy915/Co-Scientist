@@ -265,3 +265,7 @@ or permanent issuance markers; provider admission still caps new requests.
 The proximity edge floor bounds checkpoint size and the SQLite writer's insert
 workload, while every pair is still measured. Round before admission so the
 persisted similarity is the value compared against the floor.
+
+Size idea/match ceilings above each tier's productive steady state. Both match
+participants count toward coverage, and limits checked before work can otherwise
+terminate healthy runs after their first tournament.
