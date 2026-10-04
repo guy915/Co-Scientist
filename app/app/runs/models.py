@@ -1,10 +1,3 @@
-"""Request models and create-run config resolution for the runs router.
-
-The pydantic request bodies and the helpers that turn a create-run request into
-a resolved run configuration live here so ``runs`` keeps to route wiring.
-Callers import them from this module.
-"""
-
 from __future__ import annotations
 
 from typing import Any, Literal
@@ -27,29 +20,18 @@ class CreateRunRequest(BaseModel):
 
     research_goal: str = Field(..., min_length=1)
     interview_id: str | None = None
-    # Documents staged through /api/documents before this call. They are
-    # copied into the run's private corpus as part of creating it, so a run
-    # is grounded the moment it exists rather than by a second write that
-    # can fail on its own. Documents already attached to ``interview_id``
-    # are carried in too, without being named again.
+    # Staged and interview documents join the run atomically so private
+    # grounding cannot
+    # fail in a second write.
     document_ids: list[str] = Field(default_factory=list)
-    # Free-form planning guidance lists; defaults are filled by setup_config
-    # when omitted (direct API calls, seeded demos).
     requirements: list[str] | None = None
-    # Each entry is the legacy free-prose string, or the R12-5 structured
-    # axis shape mirroring Google's published run plan (a 1-5 ``scale``
-    # with anchor text, or a categorical ``values`` list);
-    # ``clean_attributes_list`` accepts and validates both.
+    # Attribute axes accept legacy prose and structured scale or categorical
+    # forms.
     attributes: list[str | dict[str, Any]] | None = None
-    # Each entry is the legacy free-prose string, or the R12-4
-    # ``{"name", "value"}`` pair shape mirroring Google's published run
-    # plan; ``clean_criteria_list`` accepts and validates both.
+    # Criteria accept legacy prose and structured name/value pairs.
     criteria: list[str | dict[str, str]] | None = None
-    # Regex-validated enums; invalid values are rejected with a 422 here,
-    # while None falls through to normalize_run_* defaults.
     focus: str | None = Field(None, pattern=RUN_FOCUS_PATTERN)
     tier: str | None = Field(None, pattern=RUN_TIER_PATTERN)
-    # Numeric knobs override the tier defaults (see resolved_run_config).
     initial_hypotheses_count: int | None = None
     max_iterations: int | None = None
     evolution_max_count: int | None = None
@@ -146,7 +128,6 @@ class HypothesisOutcomeRequest(BaseModel):
     )
     @classmethod
     def require_nonblank_text(cls, value: str) -> str:
-        """Reject required text fields that contain only whitespace."""
         if not value.strip():
             raise ValueError("must contain non-whitespace text")
         return value
@@ -154,7 +135,6 @@ class HypothesisOutcomeRequest(BaseModel):
     @field_validator("referenced_evidence_ids")
     @classmethod
     def validate_evidence_ids(cls, value: list[str]) -> list[str]:
-        """Bound each evidence id and reject duplicate references."""
         if any(not item.strip() or len(item) > 128 for item in value):
             raise ValueError("evidence ids must contain 1 to 128 characters")
         if len(set(value)) != len(value):
@@ -162,9 +142,9 @@ class HypothesisOutcomeRequest(BaseModel):
         return value
 
 
-# Cap on attachment text size (characters). Attachments are inert text stored
-# in SQLite (no binary, no archive extraction, so no zip-bomb/malware surface);
-# the cap bounds storage and prompt-context growth.
+# Attachments are inert text, not executable or extracted archives; the cap
+# bounds
+# storage and prompt growth.
 MAX_ATTACHMENT_CHARS = 200_000
 
 
@@ -191,27 +171,14 @@ class SafetyAdjudicationRequest(BaseModel):
 def _run_overrides_from_request(
     req: CreateRunRequest, *, focus: str, tier: str, setup: dict[str, Any]
 ) -> dict[str, Any]:
-    """Build the ``resolved_run_config`` overrides for a create-run request.
-
-    Only explicitly-sent numeric knobs become overrides; absent fields keep
-    the tier defaults applied by ``resolved_run_config``.
-
-    Args:
-        req: The validated create-run request body.
-        focus: The normalized research focus for this run.
-        tier: The normalized run tier for this run.
-        setup: The durable planning block persisted inside config_json.
-
-    Returns:
-        The overrides dict to pass to ``resolved_run_config``.
+    """Absent numeric knobs retain tier defaults; only explicitly supplied
+    values override them.
     """
     overrides: dict[str, Any] = {
         "tier": tier,
         "focus": focus,
         "setup": setup,
     }
-    # Only explicitly-sent knobs become overrides; each (key, value) pair
-    # is dropped when the request left the field unset.
     numeric_overrides: tuple[tuple[str, Any], ...] = (
         ("initial_hypotheses_count", req.initial_hypotheses_count),
         ("max_iterations", req.max_iterations),
@@ -229,10 +196,8 @@ def _run_overrides_from_request(
 def _build_create_run_config(
     req: CreateRunRequest,
 ) -> tuple[dict[str, Any], str, str]:
-    """Resolve a create-run request into its (config, focus, tier) triple."""
     focus = normalize_run_focus(req.focus)
     tier = normalize_run_tier(req.tier)
-    # `setup` is the durable planning block persisted inside config_json.
     setup = setup_config(
         research_goal=req.research_goal,
         lists=PlanningLists(

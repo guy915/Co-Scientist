@@ -1,12 +1,3 @@
-"""Run chat and interaction endpoints.
-
-Scientist steering messages (queued and drained between iterations) and the
-grounded Q&A endpoint with its streamed LLM (or deterministic offline)
-answer. Split from ``app.runs`` by concern, matching the sibling endpoint
-modules (``runs.lifecycle``, ``runs.collections``, ``runs.contrib``); the
-router here is included into ``runs.router``.
-"""
-
 from __future__ import annotations
 
 import time
@@ -41,10 +32,9 @@ router = APIRouter()
 async def send_message(run_id: str, req: SendMessageRequest) -> dict[str, Any]:
     """Queue scientist steering and continue a completed engine run."""
     _require_run(run_id)
-    # Stored with applied=0; each durable task boundary reads the pending
-    # queue (store.get_pending_steering) and acknowledges what it read only
-    # inside the transaction that commits the checkpoint honoring it, so a
-    # worker lost mid-task leaves this message claimable by the next one.
+    # Steering acknowledgement shares the checkpoint transaction so a claimable
+    # worker
+    # cannot lose the message.
     msg = store.append_message(
         store.NewMessage(
             run_id=run_id, sender="user", content=req.content, kind="steering"
@@ -67,21 +57,11 @@ async def list_messages(run_id: str) -> dict[str, Any]:
 
 
 def _gather_qa_context(run: store.RunRow) -> qa.QaRunContext:
-    """Load a run's state and build its numbered evidence manifest for Q&A.
-
-    The chat stays open for the whole life of a run, so the context is not
-    only the run's artifacts: it also carries how far the run has got while
-    it executes, and what its report concluded once it finishes. All of it
-    is read-only and bounded -- a question is asked far more often than a
-    run commits a task, and a write here would queue behind every run in
-    flight on the single SQLite writer.
-    """
-    # Every read targets the same run; share one connection.
+    """Q&A reads must not acquire SQLite's single writer."""
     with store.connect() as conn:
         hypotheses = store.list_hypotheses(run.id, conn=conn)
         reviews = store.list_reviews(run.id, conn=conn)
         matches = store.list_matches(run.id, conn=conn)
-        # [:-1] drops the question just appended above from the history.
         history = store.list_messages(run.id, conn=conn)[:-1]
         evidence = store.list_evidence(run.id, conn=conn)
         citations = store.list_citations(run.id, conn=conn)
@@ -104,9 +84,6 @@ def _gather_qa_context(run: store.RunRow) -> qa.QaRunContext:
         history=history,
         manifest=qa.build_evidence_manifest(evidence, citations),
         progress=progress,
-        # Fetched outside the shared connection, and only for a run that
-        # has finished: the report row carries the whole payload JSON, so a
-        # running run never pays to read a report it does not have.
         report=(
             None
             if progress.is_running
@@ -120,13 +97,6 @@ def _offline_qa_response(
     question_msg: store.MessageRow,
     context: qa.QaRunContext,
 ) -> StreamingResponse:
-    """Synthesize and stream a deterministic offline-mode Q&A answer.
-
-    Keyless/offline posture: with no configured provider there is no
-    language model to call, so synthesize a deterministic answer grounded in
-    the run's own artifacts rather than streaming an API-key error. The real
-    LLM path is unchanged for a configured provider.
-    """
     answer = qa.build_offline_answer(
         context.research_goal,
         context.hypotheses,
@@ -145,11 +115,6 @@ def _offline_qa_response(
 def _request_byok(
     request: Request,
 ) -> credentials.ByokCredential | None:
-    """Parse optional BYOK headers, raising 400 for a malformed pair.
-
-    A header key is only consulted by endpoints whose run has no stored
-    credential of its own; see ``_resolve_qa_byok``.
-    """
     try:
         return credentials.credential_from_headers(request.headers)
     except credentials.ByokRequestError as exc:
@@ -159,11 +124,8 @@ def _request_byok(
 def _resolve_qa_byok(
     run: store.RunRow, request: Request
 ) -> credentials.ByokCredential | None:
-    """Resolve the credential a Q&A answer runs under, if any.
-
-    The run's own stored credential wins -- Q&A must keep working on the
-    run's key across sessions; a header key only covers a run that has
-    none stored.
+    """Persisted run credentials take precedence so billing remains
+    consistent across sessions.
     """
     byok = credentials.get_run_credential(run.id)
     credential = byok if byok is not None else _request_byok(request)
@@ -176,7 +138,7 @@ def _resolve_qa_byok(
 
 
 def _persist_question(run_id: str, content: str) -> store.MessageRow:
-    """Persist a Q&A question so history survives even if streaming fails."""
+    """The question remains durable even if the response stream fails."""
     return store.append_message(
         store.NewMessage(
             run_id=run_id, sender="user", content=content, kind="qa"
@@ -191,7 +153,6 @@ def _live_qa_response(
     context: qa.QaRunContext,
     byok: credentials.ByokCredential | None,
 ) -> StreamingResponse:
-    """Stream a live LLM Q&A answer, prompted with the run's evidence."""
     return StreamingResponse(
         qa.stream_answer(
             run.id,
@@ -225,8 +186,6 @@ async def ask_question(
     byok = _resolve_qa_byok(run, request)
     question_msg = _persist_question(run_id, req.question)
 
-    # Prompt assembly and streaming are delegated to app.qa; the endpoint
-    # only gathers state and wires the SSE response.
     context = _gather_qa_context(run)
     if engine_adapter.offline_mode() and byok is None:
         return _offline_qa_response(run_id, question_msg, context)

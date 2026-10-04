@@ -1,5 +1,3 @@
-"""The interview's provider call and its deterministic recovery path."""
-
 from __future__ import annotations
 
 import dataclasses
@@ -32,15 +30,6 @@ CLOSE_MARKER = "</run_spec>"
 
 
 def _parse_spec_body(body: str) -> dict[str, Any] | None:
-    """Parse a spec block's body, or None when it is not a JSON object.
-
-    Args:
-        body: The text between the open and close markers.
-
-    Returns:
-        The parsed object, or None when the body is malformed or is valid
-        JSON of some other type (a list, a bare string).
-    """
     try:
         parsed = json.loads(body)
     except ValueError:
@@ -53,19 +42,8 @@ def _parse_spec_body(body: str) -> dict[str, Any] | None:
 
 
 def _held_back_length(buffer: str) -> int:
-    """Return how many trailing characters might begin the opening marker.
-
-    A marker split across two deltas (``"<run_"`` then ``"spec>"``) would be
-    relayed as prose and then have to be retracted, so any suffix that could
-    still grow into the marker is withheld until the next delta resolves it.
-
-    Args:
-        buffer: Prose accumulated so far and known to contain no whole
-            marker.
-
-    Returns:
-        The length of the longest suffix of ``buffer`` that is a proper
-        prefix of :data:`OPEN_MARKER`, and so must be held back.
+    """Split run-spec markers must be withheld rather than rendered and
+    later retracted.
     """
     longest = min(len(buffer), len(OPEN_MARKER) - 1)
     for size in range(longest, 0, -1):
@@ -75,34 +53,17 @@ def _held_back_length(buffer: str) -> int:
 
 
 class TurnSplitter:
-    """Splits a streamed turn into prose to relay and a spec block to parse.
-
-    Deltas go in one at a time; prose safe to show the scientist comes back
-    immediately, and everything from the opening marker onward accumulates
-    for parsing once the turn ends. Call :meth:`finish` to flush the last
-    held-back prose and read the result.
+    """A splitter belongs to one turn and cannot be reused for the next
+    response.
     """
 
     def __init__(self) -> None:
-        """Start a splitter for one turn; splitters are not reusable."""
-        # Prose whose tail might still turn out to open the spec block.
         self._pending = ""
-        # Spec-block text collected once the opening marker was seen.
         self._spec: list[str] = []
         self._in_spec = False
-        # Prose already released, kept so finish() can return the whole turn.
         self._prose: list[str] = []
 
     def feed(self, delta: str) -> str:
-        """Consume one content delta and return prose safe to relay.
-
-        Args:
-            delta: The next content fragment from the stream.
-
-        Returns:
-            Prose to show the scientist, possibly empty when the whole
-            delta was held back or belongs to the spec block.
-        """
         if self._in_spec:
             self._spec.append(delta)
             return ""
@@ -118,21 +79,11 @@ class TurnSplitter:
         return self._release(buffer[: len(buffer) - held])
 
     def _release(self, prose: str) -> str:
-        """Record and return prose being relayed to the scientist."""
         if prose:
             self._prose.append(prose)
         return prose
 
     def finish(self) -> tuple[str, str, dict[str, Any] | None]:
-        """Flush held-back prose and return the turn's resolved parts.
-
-        Returns:
-            A ``(trailing_prose, whole_prose, fields)`` triple.
-            ``trailing_prose`` is the remainder that was still held back and
-            has not been relayed yet, so a caller streaming to a scientist
-            can emit it as the turn's last fragment. ``fields`` is None when
-            the turn carried no parseable spec block.
-        """
         trailing = self._release(self._pending)
         self._pending = ""
         whole = "".join(self._prose).strip()
@@ -181,13 +132,6 @@ class InterviewFieldsRequest(BaseModel):
     title: str | None = Field(None, max_length=200)
 
 
-# The turn's shape, restated for the model. The five fields are unchanged
-# from the JSON-object format this replaced; what changed is where they
-# live -- a trailing block, after prose that is now ordinary markdown rather
-# than a string inside a JSON document. ``lab_constraints`` (K5) is optional:
-# the scientist may legitimately have none, the field is elicited when
-# relevant rather than on a fixed schedule, and normalization defaults an
-# omission to the empty list.
 _FORMAT_PROMPT = (
     "Write your reply to the scientist as ordinary markdown. Then, on its "
     "own line after the reply, emit exactly one block:\n\n"
@@ -211,9 +155,7 @@ _FORMAT_PROMPT = (
     "- Its contents MUST be valid JSON. Do not wrap it in a code fence."
 )
 
-# The clickable half of a turn's question. The scientist can always type
-# instead, so this never changes what the prose has to say -- it only saves
-# them writing out an answer the model could already enumerate.
+# Choices are typing affordances, not a separate answer channel.
 _QUESTIONS_PROMPT = r"""
 ## Offering answers to click
 
@@ -252,25 +194,9 @@ ideas be built around?", "multi_select": false, "options": [{"label":
   nothing, so there is nothing to offer.
 """
 
-# Rebased on Google's own two prompts for this product family (captured
-# 2026-06 under references/ui-ux/, since deleted -- read them out of git
-# history): the Gemini Enterprise chat system prompt supplies the
-# voice and formatting rules and the multi-turn block, and Idea Generation's
-# config-generation prompt -- the structural twin of this interview, which
-# also turns a chat into a machine-read block -- supplies the derivation
-# guidance, the self-critique pass, the singular-goal rule, and the edge
-# cases. Both are shipped Google prompts for the surfaces this one imitates,
-# so they are the baseline rather than something to invent past.
-#
-# What was deliberately not carried over: emoji on headings (Gemini
-# Enterprise itself excludes serious topics, which is most research goals);
-# mirroring slang, narrowed here to matching the scientist's register;
-# Idea Generation's NO-CONFIG sentinel, since this wire format carries the
-# whole state every turn rather than suppressing it (see _FORMAT_PROMPT);
-# and its extra Config fields -- reviewer instructions, stratification
-# attributes, and model-derived safety flags -- which would be a schema and
-# backend change, not a prompt change. This app screens safety separately
-# (app.safety, app.hypothesis.safety) and its reviewer prompts are fixed.
+# Adapted from Gemini Enterprise conversation and Idea Generation prompts;
+# contextual
+# safety remains a separate boundary.
 _GUIDE = r"""# Role
 
 You are the Agent conducting Google Hypothesis Generation's research-goal
@@ -461,13 +387,7 @@ _SYSTEM_PROMPT = f"{_GUIDE}{_FORMAT_PROMPT}\n{_QUESTIONS_PROMPT}"
 
 
 def _clean_list(raw: Any) -> list[str]:
-    """Normalize a model- or user-produced list into non-empty strings.
-
-    The interview turn carries no schema (a plain trailing JSON block), so
-    a single item can plausibly arrive as a bare string rather than
-    wrapped in a one-element list; ``coerce_json_list`` recovers that
-    shape rather than silently stranding the interview on a real answer.
-    """
+    """Schema-less trailing state blocks may encode a list as a bare string."""
     result: list[str] = coerce_json_list(
         raw, element="str", site="interviews.field_list"
     )
@@ -475,11 +395,8 @@ def _clean_list(raw: Any) -> list[str]:
 
 
 def _normalized_fields(response: dict[str, Any]) -> dict[str, Any]:
-    """Normalize the model response into the verified five-field contract.
-
-    ``lab_constraints`` (K5) defaults to the empty list when the model
-    omits it: the scientist may have none, and older turns of an in-flight
-    interview predate the field entirely.
+    """Empty laboratory constraints are valid, including legacy
+    conversations.
     """
     title = response.get("title")
     return {
@@ -494,22 +411,15 @@ def _normalized_fields(response: dict[str, Any]) -> dict[str, Any]:
 
 
 def _essentials_ready(fields: dict[str, Any]) -> bool:
-    """Whether the essential scoping fields (challenge + focus) are present.
-
-    Preferences are intentionally excluded: the interview contract treats an
-    explicit "no constraints" as a valid terminal state (see the system
-    prompt), so an empty preferences list must not block a model-confirmed
-    completion. Used to validate the model's own ``completed`` signal.
+    """Empty preferences mean no constraints and must not deadlock
+    completion.
     """
     return bool(fields["research_challenge"] and fields["focus_area"])
 
 
 def _ready(fields: dict[str, Any]) -> bool:
-    """Return whether required scoping fields contain substantive values.
-
-    Requires preferences as well, so the deterministic recovery path (which
-    fills fields from scientist answers in order) collects a preferences answer
-    before it completes, rather than finalizing after the focus-area answer.
+    """Fallback completion requires an explicit preferences answer, even
+    when that answer states no constraints.
     """
     return bool(
         fields["research_challenge"]
@@ -519,12 +429,7 @@ def _ready(fields: dict[str, Any]) -> bool:
 
 
 def _transcript_turn(turn: dict[str, Any]) -> dict[str, Any]:
-    """Render one transcript turn, carrying its reasoning when stored.
-
-    A chat's turns are few and short, so the Agent's own chain of thought
-    stays in the context it is asked to continue from -- the next question
-    follows from the reasoning as much as from the message it produced.
-    """
+    """Reasoning remains in conversation context for subsequent questions."""
     entry = {"role": turn["role"], "content": turn["content"]}
     reasoning = str(turn.get("reasoning") or "").strip()
     if reasoning:
@@ -533,14 +438,7 @@ def _transcript_turn(turn: dict[str, Any]) -> dict[str, Any]:
 
 
 def _attached_documents(interview: dict[str, Any]) -> list[dict[str, str]]:
-    """Return excerpts of the documents attached to this interview.
-
-    The upload used to be possible only after the run existed, which put
-    the scientist's own material behind the plan it was supposed to shape.
-    Reading it here is what makes the attachment do what the composer's
-    paperclip implies. Empty for an interview with none, and for the
-    synthetic rows the prompt builders are exercised with directly.
-    """
+    """Scientist-provided material shapes the plan before generation."""
     interview_id = interview.get("id")
     if not interview_id:
         return []
@@ -548,7 +446,6 @@ def _attached_documents(interview: dict[str, Any]) -> list[dict[str, str]]:
 
 
 def _prompt(interview: dict[str, Any]) -> str:
-    """Render the persisted transcript and current derivation for the model."""
     transcript = [_transcript_turn(turn) for turn in interview["turns"]]
     context: dict[str, Any] = {
         "current_fields": interview["fields"],
@@ -561,23 +458,8 @@ def _prompt(interview: dict[str, Any]) -> str:
 
 
 def _interview_request(interview: dict[str, Any]) -> tuple[str, Any]:
-    """Build the model and messages for one Agent turn.
-
-    The turn carries no ``response_format`` at all. It used to: a
-    ``json_schema`` request for providers that support it and a
-    ``json_object`` downgrade (with the schema restated in the prompt) for
-    those that do not. Both are gone with the JSON envelope they enforced --
-    the answer is now prose plus a trailing block, which no provider-side
-    format can describe. Little was lost with the branch: production runs
-    DeepSeek, which only ever got the ``json_object`` downgrade, and that
-    mode constrains the response to *some* JSON object, never to this
-    schema.
-
-    Args:
-        interview: The durable interview row being advanced.
-
-    Returns:
-        A ``(model, messages)`` pair ready for litellm.
+    """Prose followed by a state block cannot use a provider's schema-only
+    response envelope.
     """
     messages = [
         {"role": "system", "content": _SYSTEM_PROMPT},
@@ -586,58 +468,26 @@ def _interview_request(interview: dict[str, Any]) -> tuple[str, Any]:
     return settings.effective_chat_model, messages
 
 
-# Receives each chain-of-thought fragment as the model emits it.
 ReasoningSink = Callable[[str], Awaitable[None]]
-# Receives each fragment of the answer's prose as the model writes it.
 ProseSink = Callable[[str], Awaitable[None]]
 
 
 @dataclasses.dataclass(frozen=True)
 class TurnSinks:
-    """Where one streamed turn's two live channels are relayed.
-
-    Both are optional: a caller that only wants the resolved turn (the
-    non-streaming ``POST`` path, and every test that drives a turn directly)
-    passes neither and receives the same result.
-    """
-
     on_reasoning: ReasoningSink | None = None
     on_prose: ProseSink | None = None
 
 
-# Silence, not duration, is what marks an interview turn as lost. The turn
-# streams and its chain of thought is relayed to the scientist as it arrives,
-# so a long reasoning pass is visible progress, not a blank wait -- while a
-# provider that has stopped answering goes quiet immediately. Bounding the
-# total instead is what made a funded chain of thought fail the turn on the
-# clock right after it stopped failing on the token budget.
+# Silence is bounded independently of total duration because reasoning can make
+# progress
+# without answer text.
 _INTERVIEW_STALL_SECONDS = 45.0
-# Derived so the clock cannot drift below the token budget it has to admit,
-# plus room for the prompt round-trip either side of the reasoning.
 _INTERVIEW_TOTAL_SECONDS = THINKING_FLOOR_TIMEOUT_SECONDS + 60.0
 
-# What one turn's answer is given, before the thinking floor raises it.
-#
-# Thinking spends reasoning tokens against the same budget, so on a model
-# that reasons this is what remains for the prose and its spec block once
-# the floor has covered the chain of thought (see thinking_safe_max_tokens);
-# on a model that does not, it is the whole turn. Sizing it for the answer
-# alone is what leaves a run untitled and an interview turn blank.
-#
-# 3k -> 4k when the block learned to carry clickable answers (a turn
-# offering three options writes a label and a description for each on top
-# of the five fields it restates every turn). 4k -> 6k once the block
-# became mandatory on every question-asking turn: the guide asks for
-# several paragraphs and often a table before the block is even opened,
-# and the block is last, so a tight ceiling eats exactly it -- losing the
-# whole turn's state, not just the options. A ceiling is not a
-# reservation, so the headroom costs nothing on the turns that fit.
+# Answer headroom must accommodate the trailing state block without prematurely
+# exhausting the cost ceiling.
 _ANSWER_MAX_TOKENS = 6_000
 
-# Relayed through the reasoning sink when a turn that spent its whole reply
-# thinking is retried -- so the scientist watching the chain of thought
-# sees the model start over instead of the turn simply going quiet before
-# the 502 that used to follow (see _resolved_turn in app.interviews).
 _THINKING_ONLY_RETRY_NOTE = (
     "\n\n[Answered nothing after reasoning at length; retrying without "
     "extended thinking.]\n\n"
@@ -647,33 +497,12 @@ _THINKING_ONLY_RETRY_NOTE = (
 async def _stream_interview_content(
     interview: dict[str, Any], sinks: TurnSinks
 ) -> tuple[str, dict[str, Any] | None]:
-    """Stream one Agent turn, relaying it live, and return what it resolved to.
-
-    The call always streams so there is a single transport to reason about.
-    DeepSeek emits the whole chain of thought as ``reasoning_content`` deltas
-    before the first ``content`` delta, so reasoning surfaces live while the
-    answer is still being written. Content deltas are the answer's prose and
-    are relayed as they arrive, up to the trailing spec block, which is
-    withheld and parsed at the end (see ``app.interviews.model``).
-
-    A turn that spends its whole reply reasoning and writes no answer at
-    all is not a provider failure -- the stream ends clean, just empty --
-    so it is retried once with thinking off rather than surfacing as one;
-    see ``_run_interview_completion``.
-
-    Returns:
-        The turn's whole prose and its parsed fields, the latter None when
-        the turn carried no usable spec block.
+    """A thinking-only empty response retries once without thinking, while
+    preserving a clean output stream.
     """
-    # Refuse before the request is shaped, not after: the prompt carries the
-    # scientist's research goal verbatim, and forced offline means it does
-    # not leave the process. The raise lands in _call_interview_model's
-    # except branch, which is the same 503 -> scripted-turn path an absent
-    # provider already takes.
+    # Offline admission happens before goal-bearing provider requests.
     offline_guard.require_remote_chat("the interview")
     model, messages = _interview_request(interview)
-    # A scoped bring-your-own-key credential overrides both the model and
-    # the deployment credential for this turn.
     model, api_key = credentials.byok_model_and_key(model)
     prose, fields, reasoned = await _run_interview_completion(
         model, messages, api_key, sinks, thinking_enabled=True
@@ -699,17 +528,6 @@ async def _run_interview_completion(
     *,
     thinking_enabled: bool,
 ) -> tuple[str, dict[str, Any] | None, bool]:
-    """Stream one completion request and drain it.
-
-    Split out of ``_stream_interview_content`` so the thinking-only retry
-    is a second call to this, not a second copy of the request.
-
-    Returns:
-        The turn's prose, its parsed fields, and whether the model emitted
-        any reasoning at all -- the caller uses the last to tell a
-        thinking-only turn from one that simply answered with nothing to
-        say.
-    """
     import app.llm_request as llm_request
 
     thinking_kwargs = (
@@ -722,8 +540,9 @@ async def _run_interview_completion(
         messages=messages,
         temperature=0.3,
         max_tokens=thinking_safe_max_tokens(model, _ANSWER_MAX_TOKENS),
-        # Bounds establishing the stream; once chunks flow, stream_chunks
-        # below owns the clock.
+        # Connection deadlines and stream-silence deadlines protect different
+        # failure
+        # modes.
         timeout=_INTERVIEW_TOTAL_SECONDS,
         stream=True,
         **thinking_kwargs,
@@ -733,7 +552,6 @@ async def _run_interview_completion(
 
 
 async def _emit(sink: ProseSink | None, text: str) -> None:
-    """Relay ``text`` when there is both a sink and something to say."""
     if text and sink is not None:
         await sink(text)
 
@@ -741,16 +559,8 @@ async def _emit(sink: ProseSink | None, text: str) -> None:
 async def _relay_chunk(
     chunk: Any, splitter: TurnSplitter, sinks: TurnSinks
 ) -> bool:
-    """Relay one stream chunk's reasoning and prose to their sinks.
-
-    ``reasoning_content`` is absent on non-thinking models and on providers
-    that never reason. Content goes through the splitter rather than to the
-    sink directly, so the trailing spec block is withheld from the scientist
-    instead of appearing and then being retracted.
-
-    Returns:
-        Whether this chunk carried any reasoning text, so the caller can
-        tell a turn that reasoned from one that never did.
+    """Trailing state blocks are withheld; clients must never render and
+    retract them.
     """
     if not chunk.choices:
         return False
@@ -764,13 +574,6 @@ async def _relay_chunk(
 async def _collect_stream_content(
     response: Any, sinks: TurnSinks
 ) -> tuple[str, dict[str, Any] | None, bool]:
-    """Drain a streaming completion into relayed prose and parsed fields.
-
-    Returns:
-        The turn's whole prose, its parsed fields (None when the turn
-        carried no usable spec block), and whether the model emitted any
-        reasoning at all.
-    """
     splitter = TurnSplitter()
     reasoned = False
     async for chunk in stream_chunks(
@@ -787,21 +590,8 @@ async def _collect_stream_content(
 def _turn_response(
     interview: dict[str, Any], prose: str, fields: dict[str, Any] | None
 ) -> dict[str, Any]:
-    """Assemble one turn's response from its prose and its parsed fields.
-
-    A turn that carried no usable spec block keeps the interview's previous
-    fields, which is why this is not an error: the fields are cumulative
-    interview state, not a per-turn derivation, so "no block" and "this turn
-    learned nothing new" are the same claim. Callers downstream cannot tell
-    the difference, and must not -- the scientist still gets the prose.
-
-    Args:
-        interview: The durable interview row being advanced.
-        prose: The turn's whole message to the scientist.
-        fields: The parsed spec block, or None when there was none.
-
-    Returns:
-        The response object in the shape ``_resolved_turn`` reads.
+    """Missing state blocks preserve cumulative fields rather than erasing
+    earlier answers.
     """
     if fields is None:
         logger.warning(
@@ -821,22 +611,6 @@ async def _call_interview_model(
     on_reasoning: ReasoningSink | None = None,
     on_prose: ProseSink | None = None,
 ) -> dict[str, Any]:
-    """Call the configured interview model for one turn.
-
-    Args:
-        interview: The durable interview row being advanced.
-        on_reasoning: Optional sink for live chain-of-thought fragments.
-        on_prose: Optional sink for the answer's prose as it is written.
-
-    Returns:
-        The turn's response object.
-
-    Raises:
-        HTTPException: 503 on any provider or timeout failure, which
-            ``_advance`` converts into the deterministic fallback turn. A
-            missing or malformed spec block is *not* such a failure; see
-            ``_turn_response``.
-    """
     try:
         prose, fields = await _stream_interview_content(
             interview, TurnSinks(on_reasoning=on_reasoning, on_prose=on_prose)
@@ -853,17 +627,8 @@ async def _call_interview_model(
 def _fallback_interview_response(
     interview: dict[str, Any],
 ) -> dict[str, Any]:
-    """Advance the five-field interview from explicit scientist answers.
-
-    The recovery path never infers scientific content. It assigns each new
-    answer to the field the Agent most recently requested, preserving a usable
-    and resumable interview when the configured model is temporarily absent.
-    The scripted sequence completes without eliciting lab constraints (K5):
-    the field stays at its empty "none declared" state, which the engine
-    treats as "no constraints". The turns it authors are marked as fallback
-    when persisted (see ``interviews._resolved_turn``), so the UI can signal
-    them as guided questions rather than silently passing them off as model
-    output.
+    """Fallback uses explicit answers only and never invents scientific
+    information.
     """
     fields = dict(interview["fields"])
     user_turns = [

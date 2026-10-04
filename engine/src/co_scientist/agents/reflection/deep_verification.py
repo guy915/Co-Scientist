@@ -1,5 +1,3 @@
-"""Grounded assumption probing and verification of leading hypotheses."""
-
 import asyncio
 import dataclasses
 import hashlib
@@ -54,7 +52,6 @@ _VALID_VERDICTS = frozenset({"holds", "weakened", "undermined"})
 
 
 def has_valid_verification(result: Mapping[str, Any] | None) -> bool:
-    """Whether a result carries one of the verifier's usable verdicts."""
     verdict = result.get("verdict") if result is not None else None
     return isinstance(verdict, str) and verdict in _VALID_VERDICTS
 
@@ -62,12 +59,8 @@ def has_valid_verification(result: Mapping[str, Any] | None) -> bool:
 async def verify_hypothesis(
     state: WorkflowState, hypothesis: Hypothesis
 ) -> dict[str, Any] | None:
-    """Verify one idea with a fresh call-local concurrency guard.
-
-    Graph batches call the same leaf with their shared batch semaphore;
-    durable items have no shared event-loop primitives or context assembly.
-    The leaf preserves ordinary failures as None and task-control errors.
-    """
+    """Durable items need call-local guards; event-loop primitives cannot be
+    shared."""
     context = _VerificationContext(
         research_goal=state["research_goal"],
         model_name=state["model_name"],
@@ -82,31 +75,19 @@ async def verify_hypothesis(
     )
 
 
-# Enrichment key recording that this hypothesis has had its one deep
-# verification. Checkpointed with the hypothesis (see the module
-# docstring), so a resume cannot re-fire the wave.
+# Checkpointed issuance prevents resumed runs from re-firing the verification
+# wave.
 VERIFICATION_MARKER = "deep_verification_issued"
 
 
-# Bump whenever the deep-verification prompt or schema changes in a way that
-# would produce a different answer to the same question. Verifications
-# carrying an older version are re-run rather than trusted, since the stored
-# probes were produced by a prompt this code no longer sends.
-# 2: the verification gained sub-assumption decomposition and
-# decontextualization (audit E4) and a fail-closed ``unverified`` verdict
-# (audit E9). Moving the node ahead of the tournament did not bump this:
-# the prompt and schema are unchanged, only which hypotheses are asked.
+# Bump for prompt/schema answer changes; moving the node alone does not change
+# the verification inputs or require a new version.
 DEEP_VERIFICATION_PROMPT_VERSION = 2
 
 
 def _cited_evidence_identities(hypothesis: Hypothesis) -> list[str]:
-    """Return stable identities for the evidence a hypothesis cites.
-
-    Only cited sources count. The evidence context handed to the verifier
-    is assembled run-wide, so hashing all of it would make any new article
-    anywhere invalidate every hypothesis's fingerprint and re-verify the
-    whole leaderboard for evidence that never mentioned it.
-    """
+    """Only cited sources affect this claim; unrelated new papers must not
+    invalidate the whole leaderboard."""
     identities = set()
     for key, source in (hypothesis.citation_map or {}).items():
         source = source if isinstance(source, dict) else {}
@@ -122,20 +103,8 @@ def _cited_evidence_identities(hypothesis: Hypothesis) -> list[str]:
 
 
 def verification_fingerprint(hypothesis: Hypothesis, model_name: str) -> str:
-    """Digest the inputs a deep verification would be produced from.
-
-    Covers the hypothesis text, the verifier model, the prompt version, and
-    the evidence the hypothesis cites. Two verifications with the same
-    fingerprint would be asked the same question against the same material,
-    so the stored answer still holds and the call can be skipped.
-
-    Args:
-        hypothesis: The hypothesis that would be verified.
-        model_name: Verifier model the call would run on.
-
-    Returns:
-        A hex digest to compare against the hypothesis's stored value.
-    """
+    """Reuse is valid only for the same claim, model, prompt version and
+    cited evidence."""
     payload = json.dumps(
         {
             "prompt_version": DEEP_VERIFICATION_PROMPT_VERSION,
@@ -149,23 +118,14 @@ def verification_fingerprint(hypothesis: Hypothesis, model_name: str) -> str:
 
 
 def verification_issued(hypothesis: Hypothesis) -> bool:
-    """Return whether this hypothesis has already had its one attempt."""
     return bool(hypothesis.enrichments.get(VERIFICATION_MARKER))
 
 
 def mark_verification_issued(hypothesis: Hypothesis) -> None:
-    """Record the verification attempt, before its answer is known."""
     hypothesis.enrichments[VERIFICATION_MARKER] = True
 
 
 def _needs_verification(hypothesis: Hypothesis, model_name: str) -> bool:
-    """Return whether one hypothesis is owed a deep verification now.
-
-    Three conditions, in the order they eliminate the most work: an idea
-    barred from the tournament has nothing to guard, an idea that already
-    spent its one attempt gets no second, and an idea already carrying a
-    verification produced from the inputs it still has needs no repeat.
-    """
     if not hypothesis.is_rankable():
         return False
     if verification_issued(hypothesis):
@@ -179,20 +139,8 @@ def select_hypotheses_to_verify(
     hypotheses: list[Hypothesis],
     model_name: str,
 ) -> list[Hypothesis]:
-    """Picks every rankable hypothesis still owed its one verification.
-
-    Blanket over the pool rather than top-k by Elo, because verification
-    now runs *before* the tournament: there is no Elo ordering to select
-    by yet, and the published listing verifies each hypothesis on the way
-    into the tournament rather than a slice of it afterwards.
-
-    Args:
-        hypotheses: The full hypothesis pool.
-        model_name: Verifier model the batch would run on.
-
-    Returns:
-        The hypotheses to verify now, in pool order.
-    """
+    """Verification precedes ranking, so no tournament Elo ordering exists
+    yet."""
     return [
         hypothesis
         for hypothesis in hypotheses
@@ -200,23 +148,17 @@ def select_hypotheses_to_verify(
     ]
 
 
-# Compatibility for existing library callers.
 _select_hypotheses_to_verify = select_hypotheses_to_verify
 
 
-# Ceiling on the opening evidence block, before the probe block is appended
-# to it. Eight full-length sources' worth (PUBLIC_SNIPPET_CHARS), so it trims
-# a long corpus rather than competing with the per-source truncation.
+# Aggregate size bounds corpus breadth without reducing each source excerpt.
 _MAX_VERIFICATION_CONTEXT_CHARS = 8 * PUBLIC_SNIPPET_CHARS
 
 
 @dataclasses.dataclass(frozen=True)
 class _VerificationContext:
-    """Batch-invariant inputs shared by every hypothesis verification.
-
-    ``state`` is carried alongside the extracted scalars because probe
-    retrieval reads the full workflow state (search config, MCP client).
-    """
+    """Probe retrieval needs full search configuration and MCP state, not
+    just scalars."""
 
     research_goal: str
     model_name: str
@@ -229,7 +171,6 @@ async def _call_verification(
     context: _VerificationContext,
     evidence_context: str,
 ) -> dict[str, Any]:
-    """Call the verifier once against the supplied evidence snapshot."""
     prompt, schema = get_deep_verification_prompt(
         research_goal=context.research_goal,
         hypothesis_text=hypothesis.text,
@@ -253,18 +194,6 @@ async def _verify_one(
     semaphore: asyncio.Semaphore,
     evidence_context: str,
 ) -> dict[str, Any] | None:
-    """Run probing-question deep verification for one hypothesis.
-
-    Args:
-        hypothesis: The hypothesis to deep-verify.
-        context: Batch-invariant context (research goal, model, tool
-            registry, full workflow state for probe retrieval).
-        semaphore: Concurrency limiter shared across verifications.
-        evidence_context: Bounded analyzed-source excerpts.
-
-    Returns:
-        The parsed deep-verification result, or None if the call failed.
-    """
     evidence_context = _augment_evidence_context_with_meta_review(
         evidence_context, context.state
     )
@@ -279,19 +208,8 @@ async def _verify_within_semaphore(
     context: _VerificationContext,
     evidence_context: str,
 ) -> dict[str, Any] | None:
-    """Runs verification bounded by the shared semaphore, isolating failure.
-
-    Bounds concurrent verifications across the whole top-k batch. Broad
-    except by design: one hypothesis's failure should not abort the batch;
-    None means the batch records an explicit ``unverified`` verdict for it
-    (audit E9) rather than passing it silently. The two control-flow
-    errors are not one hypothesis's failure and are re-raised -- see
-    ``TASK_CONTROL_FLOW_ERRORS``.
-
-    Raises:
-        LLMRateLimitParkError: A platform cap the worker must park on.
-        LLMCallBudgetExceededError: The run's spend ceiling is exhausted.
-    """
+    """Failures become unverified without aborting peers; run-wide parking
+    and spend errors propagate."""
     async with semaphore:
         try:
             return await _verify_with_probes(
@@ -309,13 +227,8 @@ async def _verify_with_probes(
     context: _VerificationContext,
     evidence_context: str,
 ) -> dict[str, Any]:
-    """Runs the initial verification call, then a targeted probe retry.
-
-    The probe round searches once from what the first call asked about
-    and stops. Where the reviews already researched this hypothesis,
-    ``with_researched`` adds what they found, so verification answers
-    its own questions against evidence that went back a level.
-    """
+    """Reuse already-funded research; the targeted probe retry buys only one
+    search round."""
     initial = await _call_verification(hypothesis, context, evidence_context)
     queries = _probe_queries(initial)
     probed, retrieval_errors = await _retrieve_probe_evidence(
@@ -342,12 +255,8 @@ async def _verify_with_probes(
 
 
 def _verification_evidence_context(state: WorkflowState) -> str:
-    """Format bounded public and private evidence for verification prompts.
-
-    Bounded by total length rather than by source count: unlike a review,
-    verification probes whatever the run has gathered, so breadth is the
-    point and the only real limit is the prompt it has to fit in.
-    """
+    """Verification needs corpus breadth; bound total prompt size rather than
+    voices."""
     context = build_evidence_context(
         state.get("articles"),
         private_sources=state.get("context_enrichment_sources"),
@@ -356,39 +265,23 @@ def _verification_evidence_context(state: WorkflowState) -> str:
     return context or "No retrieved evidence available."
 
 
-# The verdict a verification explicitly carries when it could not be
-# produced (provider failure, or output that did not survive validation).
-# Never model output -- the schema enum has no such value -- and never
-# blocking: an unverified idea still ranks and publishes, mirroring the
-# "Unverified" badge policy for merely-unsupported claims. No verdict bars
-# ranking any more; "undermined" (audit E9) now demotes instead, sorting
-# the idea below every sound one -- see models.UNDERMINED_VERDICT.
+# This is caller-stamped, not a schema verdict; unverified still ranks and
+# publishes, while undermined demotes below sound ideas.
 VERDICT_UNVERIFIED = "unverified"
 _select_hypotheses_to_verify = select_hypotheses_to_verify
 
 
 def mark_hypothesis_unverified(hypothesis: Hypothesis) -> None:
-    """Record the explicit ``unverified`` state on one hypothesis.
-
-    The fingerprint is left stale so nothing reads the failure as a
-    stored verdict, but the once-ever marker has already been written, so
-    the idea is not re-offered -- the attempt was spent. Unverified is not
-    blocking -- the idea still ranks and publishes, as every verdict now
-    does; it just carries the explicit state, mirroring the "Unverified"
-    badge policy for merely-unsupported claims (audit E9).
-    """
+    """Failure is explicit and nonblocking; the issued attempt stays spent
+    even though its fingerprint is stale."""
     hypothesis.deep_verification_probes = []
     hypothesis.deep_verification_verdict = VERDICT_UNVERIFIED
     hypothesis.enrichments.pop("deep_verification", None)
 
 
 def _bounded_verification(result: dict[str, Any]) -> dict[str, Any]:
-    """The storable verification record, decomposition lists bounded.
-
-    The schema caps both lists already; this is the second bound on the
-    stored side, so a response that slipped a lax provider cannot grow the
-    checkpoint indefinitely.
-    """
+    """Providers may ignore schema caps; bound stored lists again to protect
+    checkpoints."""
     bounded = dict(result)
     bounded["sub_assumptions"] = list(
         (result.get("sub_assumptions") or [])[
@@ -408,30 +301,8 @@ def _apply_verification_results(
     results: list[dict[str, Any] | None],
     model_name: str,
 ) -> tuple[int, int]:
-    """Applies deep-verification results onto their hypotheses in place.
-
-    Fails closed (audit E9): a None result (provider failure, see
-    _verify_one) or one without a usable verdict (output that never
-    survived validation) records an explicit ``unverified`` verdict rather
-    than passing silently. Either failure also leaves the fingerprint
-    stale, so the next cycle retries instead of recording the failure as
-    current -- but the stale probes of the attempt being replaced are
-    cleared, since carrying them would read as a verdict this attempt
-    never produced.
-
-    The fingerprint is recomputed here rather than reused from selection:
-    probe retrieval can add citations mid-verification, and storing the
-    pre-call value would mark the hypothesis current against inputs the
-    stored answer was not actually produced from.
-
-    Args:
-        to_verify: Hypotheses that were sent for verification.
-        results: Per-hypothesis results, aligned with to_verify.
-        model_name: Verifier model the batch ran on.
-
-    Returns:
-        Counts of (verified, unverified) hypotheses.
-    """
+    """Clear failed probes; recompute successful fingerprints after retrieval
+    may change evidence."""
     verified_count = 0
     unverified_count = 0
     for hypothesis, result in zip(to_verify, results, strict=True):
@@ -453,37 +324,14 @@ def _apply_verification_results(
 
 
 async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
-    """Deep verification of every idea still owed one, before ranking.
-
-    Runs between the safety screen and the tournament, mirroring
-    ``03-reflection.md``: ``ReviewHypothesis`` verifies the hypothesis and
-    only then creates its ``AddToTournament`` task. Verification
-    decomposes each idea into sub-assumptions, probes them, and
-    decontextualizes its context-bound claims (audit E4); a verification
-    that cannot be produced records an explicit ``unverified`` verdict
-    rather than passing silently.
-
-    Blanket but incremental -- the initial pool once, then each cycle's
-    new children once, so the cost is pool-sized rather than pool x
-    cycles. ``verification`` owns that rule.
-
-    Args:
-        state: The current workflow state.
-
-    Returns:
-        A state delta with verified hypotheses, metrics, and a status
-        message.
-    """
+    """Verify each admitted idea once before ranking; new children add work,
+    but later cycles must not repeat the whole pool."""
     hypotheses = state["hypotheses"]
-    # Edge case: nothing to verify yet (e.g. called before generation).
     if not hypotheses:
         return {}
 
     to_verify = select_hypotheses_to_verify(hypotheses, state["model_name"])
 
-    # Every idea has already had its verification: the steady state from
-    # the second cycle on, and the first thing a resumed run finds. Skip
-    # the calls and return an empty delta.
     if not to_verify:
         logger.info("Deep verification: every idea already verified, reusing")
         await emit_progress(
@@ -509,7 +357,6 @@ def _deep_verification_result(
     unverified_count: int,
     llm_calls: int,
 ) -> dict[str, Any]:
-    """Builds the deep_verification_node state delta after a batch runs."""
     logger.info(
         "Deep verification complete: %s hypotheses, %s unverified",
         verified_count,
@@ -534,19 +381,6 @@ async def _run_verification_batch(
     state: WorkflowState,
     to_verify: list[Hypothesis],
 ) -> tuple[int, int, int]:
-    """Runs deep verification for a batch of hypotheses and applies results.
-
-    Verifies concurrently (semaphore-bounded), applies results in place on
-    the same Hypothesis objects, and emits progress before and after.
-
-    Args:
-        state: Current workflow state.
-        to_verify: Hypotheses to verify.
-
-    Returns:
-        Verified count, explicitly-unverified count, and actual
-        verification LLM calls.
-    """
     await emit_progress(
         state,
         "deep_verification_start",
@@ -554,9 +388,7 @@ async def _run_verification_batch(
         PROGRESS_DEEP_VERIFICATION_START,
     )
 
-    # Marked before the calls go out, never after: the attempt is spent
-    # when it is issued, so a hypothesis whose verification fails must
-    # not be re-offered next cycle (verification).
+    # Issuing spends the attempt even when verification fails.
     for hypothesis in to_verify:
         mark_verification_issued(hypothesis)
 
@@ -585,11 +417,7 @@ async def _gather_verification_results(
     tool_registry: Any | None,
     evidence_context: str,
 ) -> list[dict[str, Any] | None]:
-    """Runs _verify_one for every hypothesis concurrently, semaphore-bounded.
-
-    The semaphore is created fresh per call, local to this node, and caps
-    in-flight LLM calls across the whole batch.
-    """
+    """A fresh semaphore belongs to this batch and its event loop."""
     semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM_CALLS)
     context = _VerificationContext(
         research_goal=state["research_goal"],
@@ -610,13 +438,8 @@ def _finalize_verification_batch(
     results: list[dict[str, Any] | None],
     state: WorkflowState,
 ) -> tuple[int, int, int]:
-    """Applies results, merges retrieved articles, and tallies LLM calls.
-
-    Returns:
-        Verified count, explicitly-unverified count, and LLM calls. A
-        degraded (empty-dict) result still spent its initial call, so it
-        is billed even though it lands as unverified.
-    """
+    """An empty degraded result still spent its initial call and must be
+    billed."""
     verified_count, unverified_count = _apply_verification_results(
         to_verify, results, state["model_name"]
     )

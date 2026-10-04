@@ -1,5 +1,3 @@
-"""Tool-grounded observation, full, simulation, and recurrent reviews."""
-
 from __future__ import annotations
 
 import asyncio
@@ -62,18 +60,15 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
-# How many sources one review prompt carries. Public papers and private
-# scientist-supplied sources are capped separately so a full run corpus
-# cannot squeeze the private context out of the prompt entirely.
+# Public and private caps are separate so a full corpus cannot crowd out
+# scientist context.
 _MAX_REVIEW_ARTICLES = 12
 
 _MAX_REVIEW_PRIVATE_SOURCES = 4
 
 
-# What the simulation review is told when nothing was run. Stated
-# rather than left blank: an empty section reads as a simulation that
-# ran and observed nothing, which is a different claim from one that
-# never ran.
+# An empty section implies execution observed nothing; explicitly distinguish
+# never running.
 _NO_EXECUTION_NOTE = (
     "No simulation was executed for this review. Step through the "
     "mechanism yourself."
@@ -87,7 +82,6 @@ def _prompt_variables(
     targeted_articles: list[Article] | None = None,
     observations: str | None = None,
 ) -> dict[str, str]:
-    """Build disclosed scientific and tool context for one review task."""
     registry = state.get("tool_registry")
     tool_ids = registry.get_tools_for_workflow("reflection") if registry else []
     tool_instructions = build_tool_instructions(tool_ids, registry)
@@ -116,7 +110,6 @@ def _prompt_variables(
 def _recurrent_review_suffix(
     state: WorkflowState, hypothesis: Hypothesis
 ) -> str:
-    """Builds the tournament + meta-review context for a recurrent review."""
     tournament = {
         "elo_rating": hypothesis.elo_rating,
         "match_count": hypothesis.total_matches,
@@ -133,17 +126,11 @@ def _recurrent_review_suffix(
 def _build_domain_context(
     state: WorkflowState, targeted_articles: list[Article] | None
 ) -> str:
-    """Formats retrieved public and private evidence for a review prompt.
-
-    Bounds the block by source count rather than by total length: a review
-    weighs a handful of papers in depth, so it is the number of voices that
-    has to stay reviewable, not the character budget.
-    """
+    """Source counts bound distinct voices; reviews weigh a few papers in
+    depth."""
     evidence = [
-        # The run corpus and this review's own targeted retrieval are
-        # filtered separately because only the former has been marked
-        # analyzed; both are then capped as one list, so a full corpus
-        # crowds out the targeted sources exactly as it did before.
+        # Only corpus sources are marked analyzed; filter targeted sources
+        # separately. The shared cap preserves corpus-first selection.
         *showable_articles(state.get("articles")),
         *showable_articles(targeted_articles, require_analyzed=False),
     ]
@@ -159,16 +146,8 @@ def _build_domain_context(
 
 
 class ReviewRun(NamedTuple):
-    """One executed review, and what researching for it cost.
-
-    Attributes:
-        review_type: Which review ran.
-        result: The review payload, or None when the call failed.
-        ledger: The research this review's evidence came from, if any.
-            Returned beside the result rather than inside it because the
-            two are persisted by different writers -- the review by the
-            hypothesis, the ledger by the run.
-    """
+    """The hypothesis writer persists the review; the run writer persists its
+    ledger."""
 
     review_type: ReviewType
     result: dict[str, Any] | None
@@ -180,27 +159,8 @@ async def review_hypothesis(
     hypothesis: Hypothesis,
     review_type: ReviewType,
 ) -> ReviewRun:
-    """Execute one independently meaningful Reflection review call.
-
-    A failed call degrades to "no review" rather than raising, so one bad
-    answer does not cost the pass its other reviews -- but that answers a
-    *bad* answer, not "no answer is coming". Production run bc77950f
-    (2026-09-07, extended tier) hit the free chain's per-day cap: the
-    ranking node parked and waited it out while eleven
-    ``engine.fanout.reflection.item`` tasks caught the park here, returned
-    None, and were failed permanently at attempt 3/3 by the
-    ``RuntimeError`` the fan-out raises for an empty result -- three
-    doomed calls each against a cap that had not reset. Both control-flow
-    errors belong to the worker (only it can park a task or end a run), so
-    they leave by the door they came in. On the in-process path this is a
-    visible change -- a park now fails the node instead of degrading one
-    review -- and that is the point: every later review in that pass would
-    have failed the same way.
-
-    Raises:
-        LLMRateLimitParkError: A platform cap the worker must park on.
-        LLMCallBudgetExceededError: The run's spend ceiling is exhausted.
-    """
+    """Bad answers fail this review; worker-owned parking and spend
+    exhaustion propagate instead of spending item retries."""
     evidence = await _review_evidence_for(state, hypothesis, review_type)
     targeted_articles = evidence.articles
     observations = await _observations_for(state, hypothesis, review_type)
@@ -241,27 +201,8 @@ def _record_review_provenance(
     review_type: ReviewType,
     observations: str | None,
 ) -> None:
-    """Records what the review was given, on the review itself.
-
-    Each review persists the evidence it was handed, so the shared
-    retrieval survives the checkpoint through both of their results
-    rather than depending on the in-process cache outliving the task.
-
-    Whether a simulation was executed is stamped here -- by the caller,
-    which knows -- rather than asked of the model, which would make "did
-    this verdict come from a run or from imagination" exactly as
-    reliable as the rest of its output.
-
-    Nothing reads either field yet: no report section, tab or later node
-    consults them, so they are a record kept against the day a reader
-    weighing a ``breaks_down`` needs to tell the two apart. Recorded
-    anyway because the fact is only available here and cannot be
-    reconstructed afterwards -- but that is the whole justification, so
-    the observations are capped before they arrive
-    (``simulation_execution.MAX_OBSERVATION_CHARS``): an uncapped
-    write-only field rides into `enrichments` and from there into every
-    checkpoint envelope.
-    """
+    """Checkpoint retrieval provenance; the caller attests execution because
+    model self-report is unreliable."""
     result["retrieval_queries"] = evidence.queries
     result["retrieval_errors"] = evidence.errors
     result["retrieved_articles"] = [
@@ -277,16 +218,8 @@ def _record_review_provenance(
 async def _observations_for(
     state: WorkflowState, hypothesis: Hypothesis, review_type: ReviewType
 ) -> str | None:
-    """Runs a simulation of the mechanism, where this run may.
-
-    Gated three ways, all of which have to hold. The caller has to have
-    asked (the app asks on the deep tiers only, because this is a tool
-    loop per hypothesis and that shape has been the largest line in a
-    run's budget before); the review has to be the simulation; and the
-    host has to be able to confine a command, which
-    ``simulation_execution`` checks for itself. Anything short of all
-    three is the review that was always here.
-    """
+    """A tool loop per hypothesis multiplies cost; require tier opt-in and
+    confinement."""
     if review_type is not ReviewType.SIMULATION:
         return None
     if not state.get("enable_simulation_execution"):
@@ -301,7 +234,6 @@ def _build_review_prompt(
     targeted_articles: list[Article],
     observations: str | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
-    """Builds the review prompt/schema, adding the recurrent-review preamble."""
     template_type = (
         ReviewType.FULL if review_type is ReviewType.RECURRENT else review_type
     )
@@ -326,15 +258,7 @@ def _apply_review_results(
     iteration: int,
     results: list[ReviewRun],
 ) -> int:
-    """Store each successful review result, reconciling dispositions.
-
-    Storage goes through ``store_mature_review_result`` -- the write path
-    shared with the durable fan-out -- so a fatal finding changes the
-    review disposition on both execution paths (audit E1).
-
-    Returns:
-        The number of results that were not None.
-    """
+    """Use the durable write path so fatal findings reconcile identically."""
     successful = 0
     for run in results:
         if run.result is None:
@@ -349,13 +273,6 @@ def _apply_review_results(
 async def _review_hypothesis(
     state: WorkflowState, hypothesis: Hypothesis
 ) -> tuple[int, list[dict[str, Any]]]:
-    """Apply maturity-appropriate reviews to one viable hypothesis.
-
-    Returns:
-        How many reviews succeeded, and the ledgers of any research
-        their evidence came from -- one per hypothesis at most, since
-        the reviews share a single retrieval.
-    """
     iteration = int(state.get("current_iteration", 0))
     reviews = reviews_needed(hypothesis, iteration)
     if not reviews:
@@ -375,7 +292,6 @@ async def _review_hypothesis(
 
 
 def _distinct(ledgers: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Drop the repeats two reviews sharing one retrieval produce."""
     unique: list[dict[str, Any]] = []
     for ledger in ledgers:
         if ledger not in unique:
@@ -392,16 +308,7 @@ _run_review = review_hypothesis
 async def _recheck_hypothesis(
     state: WorkflowState, hypothesis: Hypothesis
 ) -> int:
-    """Give one blocked idea its single recurrent review for the run.
-
-    The attempt is recorded before the call, so a failure spends it too
-    (``review_recheck.mark_recheck_issued``). The result is stored
-    through the same write path as every other mature review, so the
-    disposition it changes is derived exactly as it is everywhere else.
-
-    Returns:
-        1 when the review produced a verdict, 0 when the call failed.
-    """
+    """Issuing spends the one recheck even when the call fails."""
     mark_recheck_issued(hypothesis)
     run = await review_hypothesis(state, hypothesis, RECHECK_REVIEW_TYPE)
     if run.result is None:
@@ -418,11 +325,6 @@ async def _recheck_hypothesis(
 async def _run_blocked_rechecks(
     state: WorkflowState, hypotheses: list[Hypothesis]
 ) -> int:
-    """Re-examine the blocked ideas still owed a recheck, within budget.
-
-    Returns:
-        How many rechecks produced a verdict.
-    """
     targets = recheck_targets(hypotheses)
     if not targets:
         return 0
@@ -435,7 +337,6 @@ async def _run_blocked_rechecks(
 async def _run_missing_observation_reviews(
     state: WorkflowState, hypotheses: list[Hypothesis]
 ) -> int:
-    """Apply observation review to ideas that bypass the initial node."""
     literature = state.get("articles_with_reasoning")
     if not literature:
         return 0
@@ -464,22 +365,15 @@ async def _run_missing_observation_reviews(
 
 
 async def comprehensive_reflection_node(state: WorkflowState) -> dict[str, Any]:
-    """Run the mature cascade over viable ideas, and recheck blocked ones.
-
-    The cascade selects on ``viable``, which is why the blocked ideas need
-    their own arm: without it no deeper verdict can ever reach an idea the
-    initial screen barred, and the derived disposition has nothing later to
-    derive from (``review_recheck``).
-    """
+    """Blocked ideas need their own recheck arm: the viable-only cascade
+    cannot reach them to produce a deeper verdict."""
     hypotheses = state["hypotheses"]
     viable = [
         hypothesis
         for hypothesis in hypotheses
         if hypothesis.review_disposition == "viable"
     ]
-    # The observation reviews, the full/simulation/recurrent review batch and
-    # the blocked-idea rechecks have no data dependency on each other, so
-    # overlap their LLM latency.
+    # These review arms have no data dependency; overlap their model latency.
     observation_calls, reviewed, recheck_calls = await asyncio.gather(
         _run_missing_observation_reviews(state, viable),
         asyncio.gather(*[_review_hypothesis(state, h) for h in viable]),

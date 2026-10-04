@@ -1,5 +1,3 @@
-"""Scientist-contributed input endpoints: hypotheses, reviews, attachments."""
-
 from __future__ import annotations
 
 from typing import Annotated, Any
@@ -54,7 +52,6 @@ attachments_router = APIRouter()
 def _persist_and_notify_attachment(
     run_id: str, req: HumanAttachmentRequest
 ) -> tuple[str, ScientificTask | None]:
-    """Persist the pasted document as evidence and steer the run with it."""
     ev_id = store.add_evidence(
         store.NewEvidence(
             run_id=run_id,
@@ -101,7 +98,6 @@ def _persist_and_notify_upload(
     extracted: document_ingest.ExtractedDocument,
     uploader: str,
 ) -> tuple[str, ScientificTask | None]:
-    """Persist the extracted document as evidence and steer the run with it."""
     evidence_id = store.add_evidence(
         store.NewEvidence(
             run_id=run_id,
@@ -207,10 +203,8 @@ def _outcome_refinement_http_error(exc: Exception) -> HTTPException:
 def _persist_manual_hypothesis(
     run_id: str, hyp: dict[str, Any], author: str
 ) -> str:
-    """Persist an admitted manual hypothesis and run the shared safety screen.
-
-    Same safety screen as the pipeline, so the manual hypothesis carries a
-    persisted safety_status and any blocking outcome is audited identically.
+    """Scientist-authored hypotheses must pass the same safety boundary as
+    generated ones.
     """
     hyp_id = store.add_hypothesis(
         store.NewHypothesis(
@@ -228,7 +222,6 @@ def _persist_manual_hypothesis(
 def _notify_manual_hypothesis(
     run_id: str, author: str, statement: str, hyp_id: str
 ) -> ScientificTask | None:
-    """Steer the run with the new hypothesis and audit the contribution."""
     continuation = _steer_and_continue(
         run_id,
         author,
@@ -291,7 +284,6 @@ async def add_human_hypothesis(
 
 
 def _require_run_hypothesis(run_id: str, hypothesis_id: str) -> None:
-    """Raise 404 unless hypothesis_id names a hypothesis belonging to run_id."""
     hyp = store.get_hypothesis(hypothesis_id)
     if hyp is None or hyp.get("run_id") != run_id:
         raise HTTPException(
@@ -406,7 +398,6 @@ async def get_hypothesis_outcome_refinement(
 def _build_human_review_or_422(
     req: HumanReviewRequest, author: str
 ) -> human_input.HumanReview:
-    """Validate and build the scientist review, raising 422 on a bad verdict."""
     try:
         return human_input.build_human_review(
             hypothesis_id=req.hypothesis_id,
@@ -421,7 +412,6 @@ def _build_human_review_or_422(
 def _persist_and_notify_human_review(
     run_id: str, review: human_input.HumanReview, author: str
 ) -> ScientificTask | None:
-    """Persist the review, steer the run, and audit the contribution."""
     store.add_review(
         store.NewReview(
             run_id=run_id,
@@ -429,10 +419,9 @@ def _persist_and_notify_human_review(
             reviewer_agent="scientist",
             summary=f"Scientist verdict: {review.verdict} (by {review.author})",
             critique=review.critique,
-            # The same two facts as their own columns. The summary above is
-            # for a reader; recovering the verdict by searching it for a
-            # verdict word (which is how the engine merge used to score a
-            # human review) reads authored prose as structure.
+            # Structured verdict fields remain authoritative rather than being
+            # inferred
+            # from review prose.
             author=review.author,
             verdict=review.verdict,
         )

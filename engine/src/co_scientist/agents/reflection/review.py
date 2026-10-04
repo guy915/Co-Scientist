@@ -1,5 +1,3 @@
-"""Initial hypothesis review, criteria projection and result assembly."""
-
 import asyncio
 import dataclasses
 import logging
@@ -56,13 +54,6 @@ logger = logging.getLogger(__name__)
 
 @dataclasses.dataclass(frozen=True)
 class ReviewContext:
-    """Run-level context shared by every review call this pass.
-
-    Threaded unchanged into each hypothesis review (single, batch, or
-    parallel) so the prompt sees the same research goal and guidance
-    regardless of which hypotheses are being reviewed.
-    """
-
     research_goal: str
     model_name: str
     run_id: str | None = None
@@ -74,7 +65,6 @@ class ReviewContext:
 
     @classmethod
     def from_state(cls, state: WorkflowState) -> "ReviewContext":
-        """Builds the review context from the current workflow state."""
         return cls(
             research_goal=state["research_goal"],
             model_name=state["model_name"],
@@ -89,8 +79,6 @@ class ReviewContext:
 
 @dataclasses.dataclass(frozen=True)
 class _BatchReviewCall:
-    """A prepared batch-review prompt and its token/retry budget."""
-
     prompt: str
     schema: dict[str, Any] | None
     max_tokens: int
@@ -98,23 +86,8 @@ class _BatchReviewCall:
 
 
 def _sanitize_review_scores(scores: Any) -> dict[str, int]:
-    """Keeps only rubric-valid criterion scores from an LLM payload.
-
-    The schema bounds scores to the rubric's integer range, but
-    production routes structured output through providers whose
-    json_object mode does not enforce a schema, so out-of-range or
-    non-numeric values arrive anyway. An invalid value is dropped rather
-    than clamped: the initial review gate reads a missing score as
-    neutral, and clamping a schema violation onto the rubric floor would
-    let a parse defect masquerade as the worst possible review.
-
-    Args:
-        scores: The raw ``scores`` value from a review payload (any
-            shape; a non-dict yields no scores).
-
-    Returns:
-        Criterion -> integer score, restricted to the rubric range.
-    """
+    """json_object may ignore schemas; drop invalid scores rather than clamp
+    parse defects to the rubric floor."""
     if not isinstance(scores, dict):
         return {}
     sanitized: dict[str, int] = {}
@@ -132,50 +105,23 @@ def _sanitize_review_scores(scores: Any) -> dict[str, int]:
 
 
 def _sanitize_novelty_list(value: Any) -> list[str]:
-    """Keeps only non-empty string entries from a novelty-review list.
-
-    Production routes structured output through providers whose json_object
-    mode does not enforce a schema, so a malformed or missing list must
-    degrade to empty rather than raise.
-
-    Args:
-        value: The raw ``already_explored``/``novel_aspects`` value.
-
-    Returns:
-        Non-empty, whitespace-stripped string entries, in order.
-    """
+    """json_object providers may ignore schemas; malformed lists must degrade
+    safely."""
     if not isinstance(value, list):
         return []
     return [text for item in value if (text := str(item).strip())]
 
 
 def _review_from_response(data: dict[str, Any]) -> HypothesisReview:
-    """Builds a HypothesisReview from an LLM review payload.
-
-    The overall score is calculated from the criterion scores (more
-    consistent than an LLM-provided value), falling back to the payload's
-    overall_score when no criterion scores are present.
-
-    Args:
-        data: Review payload from the LLM response
-
-    Returns:
-        HypothesisReview object
-    """
     scores = _sanitize_review_scores(data.get("scores"))
     novelty_review = data.get("novelty_review")
     if not isinstance(novelty_review, dict):
         novelty_review = {}
     if scores:
-        # Deriving overall_score as the mean of the per-criterion scores
-        # (rather than trusting an LLM-supplied overall_score) keeps the
-        # value internally consistent with the criteria shown to the user,
-        # even if the model's own aggregate judgment drifts from them.
+        # Criterion-derived averages stay consistent with the scores shown to
+        # the scientist.
         overall_score = sum(scores.values()) / len(scores)
     else:
-        # No structured criterion scores at all (e.g. a malformed
-        # response): fall back to whatever overall_score the payload
-        # provides, defaulting to 0.0 if that is also absent.
         overall_score = data.get("overall_score", 0.0)
 
     return HypothesisReview(
@@ -198,16 +144,6 @@ def _prepare_batch_review_call(
     hypotheses: list[Hypothesis],
     context: ReviewContext,
 ) -> _BatchReviewCall:
-    """Builds the batch-review prompt and derives its token/retry budget.
-
-    Args:
-        hypotheses: Hypotheses to include in the batch prompt.
-        context: Run-level review context (research goal, guidance, tool
-            registry).
-
-    Returns:
-        The prepared batch-review call (prompt, schema, token/retry budget).
-    """
     prompt, schema = get_review_batch_prompt(
         research_goal=context.research_goal,
         hypotheses_list=_build_hypotheses_list_text(hypotheses),
@@ -235,13 +171,8 @@ def _prepare_batch_review_call(
 
 
 def _build_hypotheses_list_text(hypotheses: list[Hypothesis]) -> str:
-    """Formats hypotheses as a 1-based numbered list for the batch prompt.
-
-    The numbering is load-bearing: each review entry in the response names
-    its hypothesis by this number (``hypothesis_index``), and the parser
-    maps entries back by it. 1-based, like every scientist-facing label
-    (see meta_review's identical convention) -- never count from 0.
-    """
+    """Response hypothesis_index refers to these one-based labels, not array
+    position."""
     return "\n\n".join(
         [
             f"**Hypothesis {number}:**\n{hyp.text}"
@@ -251,11 +182,6 @@ def _build_hypotheses_list_text(hypotheses: list[Hypothesis]) -> str:
 
 
 def _scaled_batch_review_budget(hypothesis_count: int) -> tuple[int, int]:
-    """Scales the batch review token budget and retry count by batch size.
-
-    Base budget covers the first REVIEW_BATCH_FREE_HYPOTHESES hypotheses;
-    more retries are allotted for large batches.
-    """
     max_tokens = scaled_max_tokens(
         THINKING_MAX_TOKENS,
         hypothesis_count,
@@ -299,21 +225,8 @@ def _match_batch_entries_to_hypotheses(
     reviews_data: list[Any],
     hypothesis_count: int,
 ) -> list[Any]:
-    """Associates batch-review entries with hypotheses by their number.
-
-    Each entry's ``hypothesis_index`` is the number the prompt assigned
-    (1-based). Entries with a valid, not-yet-claimed number land on that
-    hypothesis regardless of list order; entries whose number is absent,
-    non-integer, out of range, or duplicated fall back to filling the
-    still-empty slots in list order. Surplus entries are dropped.
-
-    Args:
-        reviews_data: the "reviews" list pulled from the batch response.
-        hypothesis_count: number of hypotheses in the batch.
-
-    Returns:
-        One entry (raw item or None) per hypothesis, in hypothesis order.
-    """
+    """Valid one-based indices outrank response order; bad or duplicate
+    indices fill only unmatched slots."""
     slots: list[Any] = [None] * hypothesis_count
     unplaced: list[Any] = []
     claimed: set[int] = set()
@@ -342,21 +255,8 @@ def _match_batch_entries_to_hypotheses(
 def _convert_matched_entry(
     entry: Any, position: int
 ) -> HypothesisReview | None:
-    """Converts one matched batch entry, isolating its parse failures.
-
-    A malformed entry (a non-dict item, an unparseable payload) is logged
-    and recorded as None rather than raised: one bad entry must not abort
-    the batch the other entries belong to (audit E15). The caller counts
-    the Nones and leaves those hypotheses for the next review pass.
-
-    Args:
-        entry: The batch entry matched to this position, or None when the
-            LLM produced no entry for it.
-        position: 1-based hypothesis number, for logging.
-
-    Returns:
-        The parsed review, or None when the entry is missing or malformed.
-    """
+    """A malformed entry must not abort valid peers; leave it unreviewed for
+    retry."""
     if entry is None:
         logger.error("No review data for hypothesis %s", position)
         return None
@@ -376,22 +276,6 @@ def _parse_batch_review_response(
     hypotheses: list[Hypothesis],
     run_id: str | None,
 ) -> list[HypothesisReview | None]:
-    """Parses a batch-review LLM response into per-hypothesis reviews.
-
-    Entries are associated with hypotheses by their ``hypothesis_index``
-    (the number the prompt assigned), not by list order; a missing or
-    malformed entry is recorded as None for its hypothesis while the rest
-    of the batch still applies (audit E15).
-
-    Args:
-        response: raw LLM JSON response from the batch review call.
-        hypotheses: hypotheses that were reviewed, in prompt order.
-        run_id: optional run ID, referenced in the mismatch log message.
-
-    Returns:
-        One review per hypothesis in hypothesis order, None where the
-        entry was missing or malformed.
-    """
     reviews_data = response.get("reviews", [])
     _log_batch_review_response_shape(response, reviews_data, hypotheses, run_id)
     matched = _match_batch_entries_to_hypotheses(reviews_data, len(hypotheses))
@@ -402,20 +286,8 @@ def _parse_batch_review_response(
 
 
 def _select_review_strategy(num_hypotheses: int) -> tuple[bool, str]:
-    """Chooses the review strategy for a batch of hypotheses.
-
-    Comparative batch review puts every hypothesis in one prompt so the
-    judge can differentiate scores relative to its peers, but a single
-    response has a token ceiling; above the threshold, parallel individual
-    review trades that relative differentiation for scalability (one
-    bounded-size call per hypothesis, no shared token budget).
-
-    Args:
-        num_hypotheses: number of hypotheses to be reviewed.
-
-    Returns:
-        Tuple of (use_comparative, strategy_name).
-    """
+    """Comparative scoring differentiates peers but shares a response
+    ceiling; large pools need independent bounded calls."""
     use_comparative = num_hypotheses <= COMPARATIVE_BATCH_THRESHOLD
     if use_comparative:
         logger.info(
@@ -438,21 +310,8 @@ def _split_reviews_by_result(
     hypotheses: list[Hypothesis],
     reviews: list[HypothesisReview | None],
 ) -> tuple[list[tuple[Hypothesis, HypothesisReview]], int]:
-    """Partitions reviewed hypotheses into successes and failures.
-
-    A None marks a hypothesis whose review failed (a missing or malformed
-    entry, or a failed individual call). Failed hypotheses get nothing
-    attached -- they stay unreviewed, so the next review pass picks them
-    up again rather than ranking them on a placeholder scored 0.0 (the
-    defect the old fail-loud placeholder validation existed to prevent).
-
-    Args:
-        hypotheses: Hypotheses that went into this review pass.
-        reviews: One review (or None) per hypothesis, same order.
-
-    Returns:
-        Tuple of (successful (hypothesis, review) pairs, failure count).
-    """
+    """Failures stay unreviewed for retry rather than entering ranking on
+    zero-score placeholders."""
     pairs = [
         (hypothesis, review)
         for hypothesis, review in zip(hypotheses, reviews, strict=True)
@@ -465,12 +324,6 @@ def _attach_reviews_to_hypotheses(
     hypotheses: list[Hypothesis],
     reviews: list[HypothesisReview],
 ) -> None:
-    """Attaches each review to its hypothesis and mirrors its overall score.
-
-    Args:
-        hypotheses: Hypotheses to update, in the same order as reviews.
-        reviews: Reviews to attach, in the same order as hypotheses.
-    """
     for hypothesis, review in zip(hypotheses, reviews, strict=True):
         hypothesis.reviews.append(review)
         hypothesis.score = review.overall_score
@@ -530,21 +383,6 @@ async def review_parallel_individual(
     hypotheses: list[Hypothesis],
     context: ReviewContext,
 ) -> list[HypothesisReview | None]:
-    """Reviews hypotheses in parallel (original approach), one call each.
-
-    Per-hypothesis failures are isolated (audit E15): gather collects
-    exceptions instead of letting one raise abort the whole batch, and a
-    failed call is recorded as None for its hypothesis while the other
-    reviews still apply.
-
-    Args:
-        hypotheses: List of hypotheses to review
-        context: Run-level review context threaded into every review
-
-    Returns:
-        One review per hypothesis (None where the call failed), aligned
-        with `hypotheses`. No concurrency semaphore is applied.
-    """
     review_tasks = _build_parallel_review_tasks(hypotheses, context)
     results = await asyncio.gather(*review_tasks, return_exceptions=True)
     return [
@@ -557,18 +395,8 @@ def _individual_review_result(
     result: HypothesisReview | BaseException,
     hypothesis_index: int,
 ) -> HypothesisReview | None:
-    """Maps one gathered individual-review result, logging failures.
-
-    ``gather(return_exceptions=True)`` collects a control-flow error as a
-    value, which swallows it exactly as a bare handler would, so it is
-    re-raised rather than recorded as a missing review: a rate-limit park
-    is the worker's to wait out and a spent call budget ends the run, and
-    neither describes *this* hypothesis (see ``TASK_CONTROL_FLOW_ERRORS``).
-
-    Raises:
-        LLMRateLimitParkError: A platform cap the worker must park on.
-        LLMCallBudgetExceededError: The run's spend ceiling is exhausted.
-    """
+    """gather returns control-flow errors as values; re-raise them so the
+    worker can park or end the run."""
     if isinstance(result, TASK_CONTROL_FLOW_ERRORS):
         raise result
     if isinstance(result, BaseException):
@@ -583,7 +411,6 @@ def _build_parallel_review_tasks(
     hypotheses: list[Hypothesis],
     context: ReviewContext,
 ) -> list[Coroutine[Any, Any, HypothesisReview]]:
-    """Builds one review_single_hypothesis coroutine per hypothesis."""
     return [
         review_single_hypothesis(
             hypothesis_text=hyp.text,
@@ -636,22 +463,9 @@ async def _run_review_strategy(
     hypotheses: list[Hypothesis],
     use_comparative: bool,
 ) -> tuple[list[HypothesisReview | None], int]:
-    """Gathers guidance from state and runs the chosen review strategy.
-
-    Args:
-        state: Current workflow state.
-        hypotheses: Hypotheses to review.
-        use_comparative: True to run comparative batch review, False to run
-            parallel individual review.
-
-    Returns:
-        Tuple of (one review or None per hypothesis, llm_calls_used).
-    """
     context = ReviewContext.from_state(state)
     if use_comparative:
-        # Single batch call.
         return await review_comparative_batch(hypotheses, context), 1
-    # One call per hypothesis.
     return (
         await review_parallel_individual(hypotheses, context),
         len(hypotheses),
@@ -659,43 +473,8 @@ async def _run_review_strategy(
 
 
 async def review_node(state: WorkflowState) -> dict[str, Any]:
-    """Reviews unreviewed hypotheses using adaptive strategy.
-
-    Only hypotheses without an existing review are sent to the LLM: evolution
-    appends immutable children to an ever-growing pool, so re-reviewing the
-    whole pool on every pass would cost O(n^2) LLM calls across a run. The
-    already-reviewed hypotheses keep their reviews and are returned unchanged.
-    Their *dispositions* are not: every pass re-derives those from the record
-    each hypothesis holds (``refresh_review_dispositions``), which costs no
-    LLM calls and is what stops one early review deciding an idea's standing
-    for the rest of the run. That has to happen before the early return
-    below, because a pass with nothing left to review is exactly when a
-    verdict recorded since the last pass is waiting to be honoured.
-
-    **Batching here is a reference-only simplification (FIX-9).**
-    ``02-generation.md`` L24-26 and ``01-supervisor.md`` L34-38 create one
-    ``Reflection / ReviewHypothesis`` task per hypothesis and queue each
-    independently, and ``03-reflection.md`` L12 then fetches that one
-    hypothesis by id. The
-    canonical mirror of that chaining is the durable path
-    (``app/app/engine_tasks/fanout.py::_enqueue_review_fanout``), which
-    materializes one leasable task per unreviewed hypothesis and is what
-    production runs. This node reviews a batch behind one synchronous
-    barrier instead: for a pool of ≤5 that is a single comparative call
-    against N, and this path carries no production cost pressure to justify
-    the 5x. The divergence is deliberate and belongs to the reference
-    engine; do not "fix" it by fanning out here.
-
-    Strategy selection (by unreviewed count):
-    - Small batches (≤5): Comparative batch review for differentiated scores
-    - Large batches (>5): Parallel individual reviews for scalability
-
-    Args:
-        state: Current workflow state
-
-    Returns:
-        Dictionary with updated state fields
-    """
+    """Review only new children to avoid quadratic spend. Refresh
+    dispositions before returning to honor later verdicts."""
     hypotheses = state["hypotheses"]
     refresh_review_dispositions(hypotheses, state.get("criteria"))
     unreviewed = [hyp for hyp in hypotheses if not has_peer_review(hyp)]
@@ -716,15 +495,6 @@ async def review_node(state: WorkflowState) -> dict[str, Any]:
 async def _run_review_phase(
     state: WorkflowState, unreviewed: list[Hypothesis]
 ) -> tuple[list[HypothesisReview], int, str, int]:
-    """Selects a strategy, runs it, and finalizes the review results.
-
-    Emits progress before and after; emit_progress is a no-op unless a
-    progress_callback was wired into state.
-
-    Returns:
-        Tuple of (successfully attached reviews, llm_calls_used,
-        strategy_name, count of hypotheses whose review failed).
-    """
     use_comparative, strategy_name = _select_review_strategy(len(unreviewed))
 
     await emit_progress(
@@ -756,7 +526,6 @@ async def _run_review_phase(
 def _log_review_intake(
     hypotheses: list[Hypothesis], unreviewed: list[Hypothesis]
 ) -> None:
-    """Logs the incoming review batch size."""
     logger.info("Starting review node")
     logger.info(
         "Reviewing %s unreviewed of %s hypotheses",
@@ -766,7 +535,6 @@ def _log_review_intake(
 
 
 def _skipped_review_result(hypotheses: list[Hypothesis]) -> dict[str, Any]:
-    """Builds the review_node result when there are no unreviewed hypotheses."""
     return {
         "hypotheses": hypotheses,
         "messages": phase_message(
@@ -783,20 +551,8 @@ def _finalize_reviews(
     strategy_name: str,
     criteria: list[str] | None = None,
 ) -> tuple[list[HypothesisReview], int]:
-    """Attaches and gates the successful reviews, counting the failures.
-
-    A hypothesis whose review failed (None) gets nothing attached and
-    keeps no disposition, so it stays unreviewed for the next review
-    pass instead of aborting the whole batch (audit E15) or entering the
-    tournament on a zero-scored placeholder.
-
-    ``criteria`` are the scientist's evaluation criteria, which select the
-    scored axes the gate consults (finding K4); absent criteria keep the
-    built-in soundness/novelty pair.
-
-    Returns:
-        Tuple of (the attached reviews, count of failed reviews).
-    """
+    """Failures remain retryable, never zero-score placeholders; criteria
+    choose axes, absent criteria retain defaults."""
     reviewed_pairs, failed_count = _split_reviews_by_result(unreviewed, reviews)
     if failed_count:
         logger.warning(
@@ -825,8 +581,6 @@ def _review_node_result(
     strategy_name: str,
     failed_count: int = 0,
 ) -> dict[str, Any]:
-    """Builds the final review_node state delta with metrics."""
-    # Update metrics (deltas only, merge_metrics will add to existing state)
     metrics = create_metrics_update(
         deltas=MetricDeltas(reviews=len(reviews), llm_calls=llm_calls)
     )

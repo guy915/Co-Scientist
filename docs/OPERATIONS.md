@@ -218,3 +218,14 @@ Owed review cannot override the provider-call ceiling: scheduler and transport
 use the same counter, so its first call would turn budget termination into a
 permanent task failure. Spend its bounded per-hypothesis marker at issuance,
 regardless of success; settlement coverage retains its separate scheduling policy.
+
+## Run capacity, interview completion and safety decisions
+
+Count concurrent runs across all tiers; per-tier counting multiplies the
+advertised allowance. Provider spend belongs to each tier's call budget.
+
+Model-confirmed completion requires challenge/focus and accepts explicit no
+constraints; fallback completion must collect a preferences answer first.
+
+Hypothesis-stage adjudication concerns an already-excluded idea and leaves the
+whole-run lifecycle untouched. Intake/final decisions govern the run's hold.

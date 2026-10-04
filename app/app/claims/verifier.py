@@ -1,5 +1,3 @@
-"""LLM (NLI) entailment assessor — the swappable semantic claim verifier."""
-
 from __future__ import annotations
 
 import dataclasses
@@ -55,12 +53,6 @@ class _EntailmentRequest:
 async def _call_claim_json_async(
     model: str, request: _EntailmentRequest, *, max_attempts: int = 3
 ) -> dict[str, Any]:
-    """Judge claims with shared credential, retry, and thinking policies.
-
-    Request thinking off for classification. The engine still funds mandatory
-    reasoning and escalates its token budget; three attempts leave a re-ask
-    for schema/parse failures. Opposition checks keep their two-attempt budget.
-    """
     import app.credentials as credentials
 
     resolved_model, api_key = credentials.byok_model_and_key(model)
@@ -85,12 +77,8 @@ async def _call_claim_json_async(
 def _call_claim_json(
     model: str, request: _EntailmentRequest
 ) -> dict[str, Any] | None:
-    """Bridge an assessor thread to the shared engine completion seam.
-
-    Provider/parse failures fall back deterministically. Call-budget exhaustion
-    must terminate the run, and platform rate limits must park its task; neither
-    may silently downgrade grounding. The bridge carries the caller's policy
-    and credential context onto its independent event loop.
+    """The bridge preserves caller policy and credentials; budget exhaustion
+    and rate parking must not become fallback success.
     """
     try:
         return run_coroutine_sync(
@@ -145,7 +133,7 @@ _PROMPT = (
 
 
 async def _verify(model: str, pairs: list[dict[str, Any]]) -> dict[str, Any]:
-    # Empty backfilled arrays must fail inside the JSON retry boundary.
+    # Empty backfilled responses fail inside the retry boundary.
     schema = deepcopy(_SCHEMA)
     schema["properties"]["verdicts"]["minItems"] = len(pairs)
     return await _call_claim_json_async(
@@ -248,7 +236,9 @@ def _valid_verdicts(data: dict[str, Any], count: int) -> list[dict[str, Any]]:
         if type(v.get("same_conditions")) is bool
         and type(v.get("mutually_exclusive")) is bool
     ]
-    # An ambiguous envelope must not shift a confirmation onto another pair.
+    # Ambiguous envelopes cannot shift the pairing of opposition and
+    # confirmation
+    # responses.
     if len(valid) != count or len(verdicts) != count:
         return []
     if {v["index"] for v in valid} != set(range(1, count + 1)):
@@ -264,7 +254,6 @@ def guard_contradictions(
     *,
     call_counter: list[int] | None = None,
 ) -> list[AssessorDraft | None]:
-    """Retain founded contradictions; verify eligible markerless quotes."""
     results = list(drafts)
     candidates = _prepare_candidates(claims, passages, results)
     if not candidates:
@@ -372,22 +361,12 @@ _SYSTEM_PROMPT = (
     )
 )
 
-# A ceiling, not a reservation: the verdict JSON is short, and the generous
-# cap only matters for an unusually long quote. The chain of thought is not
-# funded from here -- the engine's own thinking floor
-# (``co_scientist.llm.request.thinking``) raises whatever budget a thinking
-# model is sent with, so reasoning cannot eat the answer's share.
+# Answer headroom must coexist with the engine's mandatory reasoning floor.
 _MAX_TOKENS = 6000
 
-# ``passage`` is the judge's cited passage number -- the bracketed integer
-# ``_render_passages`` prints before each passage, sent back either as a
-# JSON integer or (a model formats it differently) a short numeric string
-# such as ``"3"``; ``claims.span._resolve_span`` normalizes either form the
-# same way, and also still accepts a full evidence id here for a model
-# that cites one anyway (a legacy id, not the number it was shown, is the
-# fallback path, not the contract). See the module docstring for why a
-# number replaced the id that production run bc77950f lost most of a
-# run's verdicts echoing.
+# Numeric prompt references accept integer or string forms; legacy full IDs
+# remain a
+# compatibility fallback.
 _CITATION_ITEM = obj(
     {
         "passage": {"type": ["integer", "string"]},
@@ -395,22 +374,11 @@ _CITATION_ITEM = obj(
     }
 )
 
-# Accepts a bare citation object as well as the requested array: under the
-# json_object downgrade (no server-side schema enforcement -- see the
-# gateway model note in the root AGENTS.md) a model can plausibly write a
-# single citation unwrapped rather than as a one-element list, and the
-# engine's own local schema validation runs even then (see the "Under the
-# json_object downgrade" gotcha) -- a plain ``array`` type would reject
-# that shape before ``_coerce_pairs`` below ever gets a chance to recover
-# it, silently losing a real verdict to the deterministic fallback.
+# Bare citation objects are normalized before local validation can reject them.
 _CITATION_LIST = {
     "oneOf": [{"type": "array", "items": _CITATION_ITEM}, _CITATION_ITEM]
 }
 
-# The assessor's raw verdict shape (``AssessorDraft``), enforced server-side
-# where the model supports json_schema and reshaped into conformance by the
-# engine's json_object downgrade path otherwise (see
-# llm.structured.validate.reshape_json_output).
 _ENTAILMENT_DRAFT_SCHEMA = obj(
     {
         "label": {
@@ -424,16 +392,8 @@ _ENTAILMENT_DRAFT_SCHEMA = obj(
 
 
 def _render_passages(passages: Sequence[EvidencePassage]) -> str:
-    """Render candidate passages as a bracket-numbered prompt block.
-
-    No evidence id is shown. It used to be, so the judge could cite it
-    back; production run bc77950f lost most of its entailment verdicts
-    because a 36-character id (a UUID plus ``#chunk`` suffix) is exactly
-    the kind of token a fallback model reformats in transit, and the
-    resolution step required an exact echo. The judge now cites the
-    bracketed number instead (see ``_CITATION_ITEM`` and
-    ``claims/span.py``), which is short enough to reproduce reliably, so
-    the id has nothing left to do in the prompt.
+    """Prompt positions avoid unreliable model echoes of opaque evidence
+    IDs.
     """
     return "\n\n".join(
         f"[{i}] {p.text}" for i, p in enumerate(passages, start=1)
@@ -441,18 +401,10 @@ def _render_passages(passages: Sequence[EvidencePassage]) -> str:
 
 
 def _coerce_pairs(items: Any, site: str) -> tuple[tuple[str, str], ...]:
-    """Coerce a parsed ``[{passage, quote}]``-shaped value to pairs.
-
-    ``passage`` is read as a string regardless of whether it arrived as a
-    JSON integer or a string -- ``claims.span._resolve_span`` normalizes
-    either form the same way. Even under schema enforcement, a single
-    citation can plausibly arrive as a bare object rather than wrapped in
-    a one-element list; ``coerce_json_list`` recovers that shape before
-    the per-item dict fields are read.
-    """
     if isinstance(items, dict):
-        # One citation as a bare object is the expected shape above and loses
-        # nothing, so it is wrapped here rather than logged as a coercion.
+        # Expected wrappers are accepted without silently coercing unrelated
+        # response
+        # shapes.
         items = [items]
     pairs: list[tuple[str, str]] = []
     for item in coerce_json_list(items, element="dict", site=site):
@@ -464,12 +416,8 @@ def _coerce_pairs(items: Any, site: str) -> tuple[tuple[str, str], ...]:
 
 
 def _parse_draft(data: dict[str, Any]) -> AssessorDraft | None:
-    """Parse the model's validated JSON reply into an :class:`AssessorDraft`.
-
-    Returns None when the shape is still unusable (an empty/invalid label)
-    so the caller can fall back rather than trusting a partial parse --
-    defensive even though ``call_llm_json`` has already reshaped the reply
-    to satisfy the schema.
+    """Untrusted response shapes fail to fallback rather than producing a
+    partly parsed verdict.
     """
     raw_label = str(data.get("label") or "").strip().lower()
     try:
@@ -491,22 +439,8 @@ def _parse_draft(data: dict[str, Any]) -> AssessorDraft | None:
 
 
 def _entailment_prompt(claim: str, passages: Sequence[EvidencePassage]) -> str:
-    """Build the single-string prompt the engine's LLM seam sends.
-
-    Evidence is rendered before the claim, not after. This does not help
-    the engine's own response cache -- it keys on the full prompt string
-    (``cache.llm._generate_cache_key``), so a different claim is a
-    different key regardless of where it sits. It matters for
-    provider-side prompt-prefix caching (e.g. context/prompt caching a
-    gateway model may offer), which only credits a request for the literal
-    prefix it shares with a prior one: with the claim (which changes every
-    call) first, two calls citing the exact same evidence chunks shared no
-    cacheable prefix at all, since the varying part came first. Evidence
-    chunks recur across many claims in a run (production measured a 6.9%
-    cache hit rate under claim-first ordering, though that number reflects
-    whole-article passages rather than chunks -- see
-    ``app.evidence_chunking``), so putting the stable part first is what
-    lets consecutive calls actually share one.
+    """Shared evidence precedes variable claim text for provider prefix
+    caching.
     """
     return (
         f"{_SYSTEM_PROMPT}\n\n"
@@ -515,16 +449,6 @@ def _entailment_prompt(claim: str, passages: Sequence[EvidencePassage]) -> str:
 
 
 def make_llm_assessor(model: str) -> tuple[Assessor, str]:
-    """Build a synchronous LLM entailment assessor and its provenance id.
-
-    Args:
-        model: The litellm model id (e.g. ``deepseek/deepseek-chat``).
-
-    Returns:
-        ``(assessor, assessor_id)`` where ``assessor`` matches the
-        :data:`app.claims.Assessor` protocol and ``assessor_id`` is the
-        provenance string recorded on each edge (``"llm:<model>"``).
-    """
     assessor_id = f"llm:{model}"
 
     def _assessor(
@@ -589,14 +513,6 @@ _BATCH_SYSTEM_PROMPT = (
     )
 )
 
-# A ceiling, not a reservation, sized for a full batch of claims (up to
-# ``claims._BATCH_CLAIM_SPLIT``) each carrying a label and a short quote --
-# larger than the single-claim ceiling because the reply now holds many
-# verdicts, not one, but still bounded: the schema returns only an index,
-# a label, and quotes per claim, never the claim text back (see the root
-# AGENTS.md "Structured-output schemas must not echo input back" gotcha),
-# so the reply does not scale with the *prompt's* size, only with how many
-# claims are in this one batch.
 _BATCH_MAX_TOKENS = 12000
 
 _BATCH_VERDICT_ITEM = obj(
@@ -623,19 +539,13 @@ _BATCH_DRAFT_SCHEMA = obj(
 
 
 def _render_claims(claims: Sequence[str]) -> str:
-    """Render claims as a 1-based numbered block matching the verdict index."""
     return "\n".join(f"[{i}] {c}" for i, c in enumerate(claims, start=1))
 
 
 def _batch_entailment_prompt(
     claims: Sequence[str], passages: Sequence[EvidencePassage]
 ) -> str:
-    """Build the single-string prompt for one hypothesis's batched judgement.
-
-    Evidence still precedes the variable part (now the whole claim list, not
-    one claim) for the same provider-side prefix-caching reason
-    ``claims.verifier._entailment_prompt`` documents.
-    """
+    """Shared evidence precedes variable claims for provider prefix caching."""
     return (
         f"{_BATCH_SYSTEM_PROMPT}\n\n"
         f"EVIDENCE:\n{_render_passages(passages)}\n\n"
@@ -646,15 +556,8 @@ def _batch_entailment_prompt(
 def _parse_batch_drafts(
     data: dict[str, Any], claims: Sequence[str]
 ) -> list[AssessorDraft | None]:
-    """Fan a batch reply's verdicts back out to per-claim drafts, by index.
-
-    A verdict's ``index`` is the claim's 1-based position in the prompt
-    (see ``_render_claims``); a missing, out-of-range, duplicate, or
-    unparseable verdict leaves that position ``None`` rather than raising,
-    so the caller (``claims.assess_claims_batch``) falls only that one
-    claim back to the deterministic assessor instead of losing the whole
-    batch to one bad entry. The caller then guards contradictions against
-    located source quotes, exactly like the single-claim path.
+    """Invalid or duplicate indices invalidate only their own assessment,
+    not valid neighbors.
     """
     num_claims = len(claims)
     drafts: list[AssessorDraft | None] = [None] * num_claims
@@ -692,24 +595,8 @@ def _parse_batch_drafts(
 def make_llm_batch_assessor(
     model: str, *, call_counter: list[int] | None = None
 ) -> tuple[BatchAssessor, str]:
-    """Build a batch-capable LLM entailment assessor and its provenance id.
-
-    Judges an entire group's (hypothesis's) claims in one call instead of
-    one call per claim -- see ``app.claims.assess_claims_batch`` and its
-    module-level comment for why. This is an additional, swappable path
-    alongside ``claims.verifier.make_llm_assessor``, not a replacement of
-    it: callers that only have the per-claim ``Assessor`` protocol keep
-    working unchanged.
-
-    Args:
-        model: The litellm model id (e.g. ``deepseek/deepseek-chat``).
-        call_counter: Counts logical primary and verification requests.
-            Physical retries are counted separately by completion telemetry.
-
-    Returns:
-        ``(batch_assessor, assessor_id)`` where ``assessor_id`` matches
-        ``make_llm_assessor``'s provenance string for the same model, since
-        both are the same underlying judge.
+    """Logical batch requests and physical retry attempts have separate
+    telemetry counters.
     """
     assessor_id = f"llm:{model}"
 

@@ -1,14 +1,3 @@
-"""Read-only run collection and report endpoints.
-
-Split out of ``app.runs`` (which re-exports the names callers use and mounts
-``router`` on its own, so the served route set is unchanged): the
-per-run collection getters (hypotheses, evidence, matches, proximity,
-reviews, safety, tasks, citations, metrics, logs, claim-evidence) and the
-report payload/Markdown reads. The one write on this router, safety
-adjudication, is implemented in ``runs.lifecycle_adjudication`` and only
-registered here (see below).
-"""
-
 from __future__ import annotations
 
 from typing import Annotated, Any
@@ -33,14 +22,9 @@ async def get_hypotheses(run_id: str) -> dict[str, Any]:
     """Return the run's hypotheses with Elo state, lineage, and verification."""
     run = _run_or_404(run_id)
     hyps = store.list_hypotheses(run_id)
-    # Flag ideas without an evidence-supported claim so the UI can badge them
-    # "Unverified" (they are ranked and published under the rank-and-publish
-    # policy; only contradicted/unsafe ideas are withheld from the report).
-    # Offline-backed runs (curated demos, deterministic offline engine runs)
-    # are illustrative fixtures, not assessed science, so they are never badged
-    # (they carry simulated "insufficient" claim rows that would otherwise
-    # flag every idea). Keyed on the run's persisted backend, not the process
-    # offline_mode(), so a real engine run created while offline is badged.
+    # Offline badges describe persisted run provenance, never the current
+    # process
+    # backend.
     if store.run_used_offline(run):
         for hyp in hyps:
             hyp["unverified"] = False
@@ -100,12 +84,6 @@ async def get_hypothesis_outcomes(
 
 
 def _task_payload(task: Any) -> dict[str, Any]:
-    """Shape one durable task for the diagnostics surface.
-
-    Carries the retry-attempt history (``ScientificTask.attempts``) so a
-    stalled run can be told apart -- a doomed request re-sent identically
-    versus a genuine transient -- without reading the database by hand.
-    """
     return {
         "id": task.id,
         "task_type": task.task_type,
@@ -127,10 +105,8 @@ async def get_tasks(run_id: str) -> dict[str, Any]:
     return {"tasks": [_task_payload(t) for t in store.list_tasks(run_id)]}
 
 
-# The handler lives with the lifecycle code it drives. It is registered here,
-# at the slot between /tasks and /citations, only so the served route table
-# keeps listing it where it always has: registration order is first-match-wins
-# and is the order the API docs show.
+# Literal routes precede dynamic IDs because the router uses first-match
+# ordering.
 router.post("/{run_id}/safety/{decision_id}/adjudicate")(adjudicate_safety)
 
 
@@ -243,7 +219,6 @@ async def get_report_markdown(run_id: str) -> PlainTextResponse:
     md = store.read_report_markdown(run_id)
     if md is None:
         raise HTTPException(status_code=404, detail="no report yet")
-    # Content-Disposition makes browsers save it as <run_id>.md.
     return PlainTextResponse(
         md,
         headers={

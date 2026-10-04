@@ -1,5 +1,3 @@
-"""Entailment verdict, resolvability, and publication gating for claims."""
-
 from __future__ import annotations
 
 import dataclasses
@@ -7,21 +5,9 @@ import enum
 from collections.abc import Collection, Mapping
 from typing import Any
 
-# --- Per-claim entailment verdict -------------------------------------------
-
 
 class EntailmentLabel(str, enum.Enum):
-    """Structured claim-vs-evidence verdict (not a lexical-overlap bucket).
-
-    ``PARTIAL`` is a middle support tier: the evidence bears on the claim and
-    is consistent with it but stops short of full entailment (a near-miss). It
-    counts as support for publication and the "Unverified" badge -- it means
-    "we found relevant, consistent evidence", not "we found nothing" -- while
-    staying distinct from ``SUPPORTS`` so a reader can tell full entailment
-    from a partial match. Precedence when a claim draws several verdicts is
-    contradicts > supports > partial > insufficient (see ``_entailment_label``
-    in :mod:`app.claims`).
-    """
+    """Partial support grounds claims; contradiction takes precedence."""
 
     SUPPORTS = "supports"
     PARTIAL = "partial"
@@ -30,26 +16,15 @@ class EntailmentLabel(str, enum.Enum):
 
     @property
     def is_supporting(self) -> bool:
-        """Whether this verdict counts as support: ``SUPPORTS`` or ``PARTIAL``.
-
-        The one definition of the rule; :mod:`app.claims.gate` lifts it onto
-        persisted claim-evidence edges.
-        """
         return (
             self is EntailmentLabel.SUPPORTS or self is EntailmentLabel.PARTIAL
         )
 
 
-# --- Support spans (provenance) and claim assessments -----------------------
-
-
 @dataclasses.dataclass(frozen=True)
 class SupportSpan:
-    """An exact evidence span an assessor cited for (or against) a claim.
-
-    ``quote`` is the verbatim substring ``passage.text[start:end]``, so a
-    reader can open the source and find the exact passage that grounds the
-    verdict. Records the source evidence id and url for auditability.
+    """The quote must equal passage_text[start:end], so provenance is
+    mechanically checkable.
     """
 
     evidence_id: str
@@ -60,16 +35,13 @@ class SupportSpan:
     url: str = ""
 
     def to_dict(self) -> dict[str, object]:
-        """Serialize for the ``claim_evidence`` store and the API."""
         return dataclasses.asdict(self)
 
 
 @dataclasses.dataclass(frozen=True)
 class ClaimAssessment:
-    """The entailment outcome and decision path, not scientific validation.
-
-    ``assessor`` names the requested assessor; ``verification_method`` records
-    the path actually taken. Missing historical metadata stays unknown.
+    """Requested assessor identity and actual verification method differ;
+    legacy missing metadata remains unknown.
     """
 
     claim: str
@@ -81,37 +53,18 @@ class ClaimAssessment:
 
     @property
     def is_fundamental_failure(self) -> bool:
-        """True when this claim is contradicted (a hard publication blocker)."""
         return self.label is EntailmentLabel.CONTRADICTS
 
 
-# --- Publication gate -------------------------------------------------------
-
-
 class GateDecision(str, enum.Enum):
-    """Whether a hypothesis may enter ranking / the final report."""
-
     ALLOW = "allow"
     BLOCK = "block"
 
 
 @dataclasses.dataclass(frozen=True)
 class GateResult:
-    """The publication-gate outcome plus the claims that drove it.
-
-    Attributes:
-        decision: Whether the hypothesis may publish.
-        reason: The rule that decided it, in the gate's own words.
-        contradicted_claims: Claims the evidence contradicts.
-        unsupported_claims: Claims the evidence neither supports nor
-            contradicts.
-        speculative_claims: The ``unsupported_claims`` presented as
-            speculation, which do not block on their own.
-        failed_claims: The claims the block is actually about, chosen by
-            :func:`_failed_claims`; empty on an ALLOW. Recorded verbatim as
-            the ``claim_gate`` safety decision's matches, so the gate names
-            them rather than leaving a caller to re-derive which of the
-            other three tuples the reason referred to.
+    """Failed claims come from the decisive gate rule, rather than a second
+    approximation of that rule.
     """
 
     decision: GateDecision
@@ -124,19 +77,6 @@ class GateResult:
 
 @dataclasses.dataclass(frozen=True)
 class _ClaimPartition:
-    """One hypothesis's claims, split by what the gate does with each.
-
-    Attributes:
-        contradicted: Claims the evidence contradicts.
-        unsupported: Claims the evidence neither supports nor contradicts.
-        speculative: The ``unsupported`` claims presented as speculation.
-        blocking_unsupported: The ``unsupported`` claims not covered by
-            ``speculative``, which is what actually blocks.
-        blocking_contradicted: The ``contradicted`` claims the hypothesis
-            asserts as established fact, which is the contradiction that
-            actually blocks.
-    """
-
     contradicted: tuple[str, ...]
     unsupported: tuple[str, ...]
     speculative: tuple[str, ...]
@@ -150,18 +90,8 @@ def _classify_gate_claims(
     allow_speculative: bool,
     explicitly_speculative_claims: Collection[str],
 ) -> _ClaimPartition:
-    """Split claims into contradicted, unsupported, speculative, and blocking.
-
-    Note the asymmetry between the two blocking sets. An *unsupported* claim
-    is excused by ``allow_speculative`` as well as by its declared role,
-    since that switch exists to say "this caller treats every insufficient
-    claim as speculation". A *contradicted* claim is excused only by the
-    declared role: ``allow_speculative`` is a blanket setting the pre-ranking
-    gate passes True, so honoring it here would delete contradiction blocking
-    from that call site entirely rather than make it role-aware.
-
-    Returns:
-        The :class:`_ClaimPartition` the gate's rules are applied to.
+    """Speculative allowances excuse missing support only, never categorical
+    contradictions.
     """
     contradicted = tuple(
         a.claim for a in assessments if a.label is EntailmentLabel.CONTRADICTS
@@ -194,12 +124,6 @@ def _classify_gate_claims(
 def _blocks_for_missing_support(
     assessments: list[ClaimAssessment], *, require_supported_claim: bool
 ) -> bool:
-    """Whether the gate blocks for lacking any evidence-supported claim.
-
-    A ``PARTIAL`` verdict counts as support here (as it does for the badge):
-    the claim has relevant, consistent evidence, so it does not leave the
-    hypothesis wholly unsupported.
-    """
     if not require_supported_claim:
         return False
     return not any(a.label.is_supporting for a in assessments)
@@ -212,13 +136,6 @@ def _gate_block_reason(
     *,
     require_supported_claim: bool,
 ) -> str | None:
-    """Return the reason to block, in priority order, or None to allow.
-
-    Priority order: a contradicted fundamental claim blocks first, then a
-    hypothesis with no assessable claims at all, then (when required) a
-    hypothesis with no supported claim of any kind, then any categorical
-    claim left unsupported once speculative claims are set aside.
-    """
     if blocking_contradicted:
         return f"{len(blocking_contradicted)} fundamental claim(s) contradicted"
     if not assessments:
@@ -233,16 +150,8 @@ def _gate_block_reason(
 
 
 def _failed_claims(partition: _ClaimPartition) -> tuple[str, ...]:
-    """The claims a block is about, in the order the gate's rules fire.
-
-    Mirrors :func:`_gate_block_reason`'s priority: a contradiction names the
-    contradicted claims the block was actually about -- the ones the
-    hypothesis asserts as fact, not a contradicted proposal the gate just
-    decided to tolerate -- otherwise the categorical claims left unsupported
-    once speculation is set aside, and failing both (every unsupported claim
-    was speculative, so the block was for having no supported claim at all)
-    the unsupported claims themselves. A hypothesis with no assessable claims
-    has nothing to name and yields an empty tuple.
+    """Failure priority follows the decisive gate rule, including
+    speculative contradiction allowances.
     """
     return (
         partition.blocking_contradicted
@@ -257,7 +166,6 @@ def _decide_gate(
     *,
     require_supported_claim: bool,
 ) -> GateResult:
-    """Apply the gate's blocking rules, in priority order, to the claims."""
     claims = (
         partition.contradicted,
         partition.unsupported,
@@ -280,14 +188,8 @@ def _decide_gate(
 
 
 def _allow_reason(partition: _ClaimPartition) -> str:
-    """Say what an allowing gate tolerated, not merely that it allowed.
-
-    Reached only when nothing categorical was contradicted, so any
-    contradiction left here is on a claim the hypothesis merely proposes.
-    Those pass -- the contradiction is a verdict on the proposal, which is
-    the report's business rather than grounds to hide it -- but the reason
-    has to name them, or the recorded decision reads as a clean pass over
-    evidence that pointed the other way.
+    """An allowed proposal contradiction remains a named finding, not a
+    clean pass.
     """
     notes = []
     if partition.contradicted:
@@ -308,35 +210,8 @@ def publication_gate(
     explicitly_speculative_claims: Collection[str] = (),
     require_supported_claim: bool = False,
 ) -> GateResult:
-    """Decide whether a hypothesis may be published from its claim assessments.
-
-    A hypothesis whose fundamental claims are contradicted must not rank or
-    publish (BLOCK). "Fundamental" is a claim's declared role, not any claim
-    it happens to carry: contradicting a claim the hypothesis asserts as
-    established fact -- its literature grounding and mechanism -- blocks,
-    while contradicting the idea it merely proposes is a verdict on that
-    proposal and publishes with it. Merely insufficient claims block only
-    when speculation is not explicitly permitted; with ``allow_speculative``
-    they pass so clearly labeled speculative claims are allowed under policy
-    (SSR §7). A hypothesis with no claims is treated as unsupported.
-
-    Args:
-        assessments: The per-claim assessments for the hypothesis.
-        allow_speculative: Compatibility switch treating every insufficient
-            claim as speculative. Deliberately does *not* reach
-            contradictions: it is a blanket setting the pre-ranking gate
-            passes True, so honoring it there would leave that call site
-            with no contradiction blocking at all. Only a claim named in
-            ``explicitly_speculative_claims`` may be contradicted and pass.
-        explicitly_speculative_claims: Claims whose source text explicitly
-            presents them as hypotheses/predictions/proposed experiments, so
-            they don't masquerade as categorical findings. Excuses both an
-            insufficient verdict and a contradicted one.
-        require_supported_claim: Whether at least one claim must have an
-            evidence-supporting span before the proposal can pass.
-
-    Returns:
-        The :class:`GateResult`.
+    """Categorical contradictions block publication; speculative proposals
+    can publish with explicit evidence limitations.
     """
     partition = _classify_gate_claims(
         assessments,
@@ -354,19 +229,11 @@ Edge = Mapping[str, Any]
 
 
 class ClaimRole(str, enum.Enum):
-    """How the source text presents a claim (``claim_evidence.claim_role``).
-
-    ``CATEGORICAL`` claims are asserted as established fact and must be backed
-    by evidence; ``SPECULATIVE`` ones are the idea's own proposal, where
-    insufficient evidence is expected and a contradiction does not block.
-    """
-
     CATEGORICAL = "categorical"
     SPECULATIVE = "speculative"
 
 
-# The persisted default (the DDL's ``DEFAULT 'categorical'``) and the reading
-# of a missing role: the strict one.
+# Legacy missing roles default to strict categorical treatment.
 DEFAULT_CLAIM_ROLE = ClaimRole.CATEGORICAL.value
 
 KNOWLEDGE_FACT = "fact"
@@ -387,7 +254,6 @@ _STATUS_UNSUPPORTED = "Unsupported categorical claim"
 
 
 def label_of(edge: Edge) -> EntailmentLabel | None:
-    """The edge's verdict, or ``None`` when it is missing or unrecognized."""
     try:
         return EntailmentLabel(edge.get("label"))
     except ValueError:
@@ -395,36 +261,29 @@ def label_of(edge: Edge) -> EntailmentLabel | None:
 
 
 def role_of(edge: Edge) -> str:
-    """The edge's claim role as persisted, defaulting to categorical."""
     return str(edge.get("claim_role") or DEFAULT_CLAIM_ROLE)
 
 
 def is_speculative(role: str | None) -> bool:
-    """Whether ``role`` marks a claim the idea only proposes."""
     return role == ClaimRole.SPECULATIVE
 
 
 def is_supporting(edge: Edge) -> bool:
-    """Whether the edge's evidence supports its claim (``partial`` counts)."""
     label = label_of(edge)
     return label is not None and label.is_supporting
 
 
 def is_contradicting(edge: Edge) -> bool:
-    """Whether the evidence contradicts the claim, whatever its role."""
     return label_of(edge) is EntailmentLabel.CONTRADICTS
 
 
 def is_categorical_contradiction(edge: Edge) -> bool:
-    """Whether the edge contradicts a claim presented as established fact."""
     return is_contradicting(edge) and not is_speculative(role_of(edge))
 
 
 def is_excused(edge: Edge) -> bool:
-    """Whether a lack of evidence is expected: a proposal, not a finding.
-
-    Only an explicit ``insufficient`` verdict is excused. An edge with no
-    label at all is not, though :func:`claim_status` reads it the same way.
+    """Unknown historical labels are not equivalent to explicitly
+    insufficient evidence.
     """
     return label_of(edge) is EntailmentLabel.INSUFFICIENT and is_speculative(
         role_of(edge)
@@ -432,7 +291,6 @@ def is_excused(edge: Edge) -> bool:
 
 
 def claim_status(edge: Edge) -> str:
-    """The reader-facing scientific status of one claim edge."""
     label = label_of(edge)
     if label is not None and label in _STATUS:
         return _STATUS[label]
@@ -442,10 +300,6 @@ def claim_status(edge: Edge) -> str:
 
 
 def knowledge_kind(edge: Edge) -> str | None:
-    """The knowledge-base row kind an edge becomes, or ``None`` if none.
-
-    ``supports`` is a fact and ``contradicts`` a contradiction. ``partial``
-    and ``insufficient`` assert nothing settled, so nothing is carried over.
-    """
+    """Partial support is not a settled fact."""
     label = label_of(edge)
     return None if label is None else _KNOWLEDGE_KIND.get(label)
