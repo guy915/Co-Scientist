@@ -12,12 +12,7 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
-# Maps the scheduler's chosen TaskType value (recorded by orchestrator_node in
-# state["next_task"]) to its first durable node. EVOLVE enters at
-# meta_review (its critique feeds evolve); META_REVIEW enters the same node and
-# returns to the loop point instead (see route_after_meta_review); TERMINATE
-# enters the terminal synthesis. Keep in sync with
-# scheduling.policy.ALLOWED_LOOP_TASKS.
+# EVOLVE needs critique first; keep task keys aligned with ALLOWED_LOOP_TASKS.
 TASK_ROUTES: dict[str, str] = {
     "generate": "generate",
     "reflect": "review",
@@ -25,9 +20,7 @@ TASK_ROUTES: dict[str, str] = {
     "evolve": "meta_review",
     "meta_review": "meta_review",
     "proximity": "proximity",
-    # Both firings of the terminal synthesis node: TERMINATE ends the run
-    # there, SYNTHESIZE is the periodic one that returns to the loop point
-    # (see route_after_research_overview).
+    # Periodic synthesis returns to the loop; terminal synthesis ends the run.
     "synthesize": "research_overview",
     "terminate": "research_overview",
 }
@@ -59,10 +52,7 @@ def route_next_task(state: WorkflowState) -> str:
     return node
 
 
-# Where meta-review hands over when it was *not* reached as a stacked
-# companion: EVOLVE's own prefix falls through to evolve, and a standalone
-# periodic firing returns to the loop point. Every other task value is a
-# stacked primary and resolves through TASK_ROUTES like any other.
+# Standalone critique returns to the loop; EVOLVE's critique precedes evolution.
 _AFTER_META_REVIEW: dict[str, str] = {
     "evolve": "evolve",
     "meta_review": "orchestrator",
@@ -102,14 +92,11 @@ class LiteratureGated:
         return self.on if enabled else self.off
 
 
-# A resolver is called with the committed state when the successor depends on
-# live state. It returns None where the workflow ends.
 Resolver = Callable[[WorkflowState], str | None]
 Route = str | LiteratureGated | Resolver
 
 
-# The successor of each completed node, for the full (literature-review-on)
-# flow; state-dependent routes resolve only after their node commits.
+# State-dependent successors resolve only after the producing node commits.
 WORKFLOW_ROUTES: dict[str, Route] = {
     "supervisor": LiteratureGated(on="literature_review", off="generate"),
     "literature_review": "generate",
@@ -117,23 +104,16 @@ WORKFLOW_ROUTES: dict[str, Route] = {
     "reflection": "review",
     "review": "comprehensive_reflection",
     "comprehensive_reflection": "safety_screen",
-    # Deep verification precedes tournament entry, mirroring
-    # ``03-reflection.md``: ReviewHypothesis performs the deep
-    # verification and only then creates that hypothesis's
-    # AddToTournament task, so no idea is ranked or bred from before its
-    # core assumptions have been probed.
+    # Probe core assumptions before ranking or breeding hypotheses.
     "safety_screen": "deep_verification",
     "deep_verification": "ranking",
     "ranking": "orchestrator",
     "proximity": "orchestrator",
-    # Meta-review is EVOLVE's prefix *and* a periodic task of its own
-    # (listing 01 L60-63), so its successor depends on the decision that
-    # scheduled it rather than being fixed.
+    # Meta-review's successor depends on the decision that scheduled it.
     "meta_review": route_after_meta_review,
     "evolve": "review",
     "orchestrator": route_next_task,
-    # The terminal node for a TERMINATE decision, and a loop-point return
-    # for the periodic firing (FIX-6).
+    # Periodic overview continues; terminal overview finalizes.
     "research_overview": route_after_research_overview,
 }
 

@@ -1,7 +1,5 @@
-"""Scientific skill catalogues, documents, licence notices and scoped usage.
-
-Absent COSCIENTIST_SKILLS_DIR, the catalogue is empty. Scripts execute through
-the ordinary confined workspace, and only invoked scripts receive credentials.
+"""Scripts use the confined workspace; only invoked scripts receive
+credentials.
 """
 
 from __future__ import annotations
@@ -27,22 +25,13 @@ logger = logging.getLogger(__name__)
 SKILLS_DIR_ENV = "COSCIENTIST_SKILLS_DIR"
 SKILLS_PYTHON_ENV = "COSCIENTIST_SKILLS_PYTHON"
 
-# Upstream instructions say to invoke a skill's scripts with `uv run`,
-# which resolves their PEP 723 dependencies at execution time. That
-# cannot happen inside the sandbox -- uv's cache contains a directory
-# named `.git`, which is protected metadata, so uv cannot even
-# initialise. The image resolves the closure once at build time instead
-# and this interpreter is where it landed; the scripts themselves are
-# unmodified, because a PEP 723 header is inert to a plain `python`.
+# Dependencies are baked into the image: uv's protected .git cache cannot
+# initialize in the sandbox.
 _FALLBACK_SKILLS_PYTHON = "python3"
 
-# A whole document, not an excerpt: these run to a few hundred lines and
-# the model asked for exactly one. The bound exists so a malformed or
-# hostile file cannot flood the transcript, not to trim a real skill.
+# Bound hostile documents without excerpting the skill the model requested.
 MAX_SKILL_DOCUMENT_CHARS = 60_000
 
-# How much of a description reaches the catalogue. See
-# `catalogue_section` for the measurement behind it.
 MAX_SUMMARY_CHARS = 160
 
 _DOCUMENT_NAME = "SKILL.md"
@@ -50,28 +39,14 @@ _DOCUMENT_NAME = "SKILL.md"
 
 @dataclass(frozen=True)
 class Skill:
-    """One skill the model may ask to read.
-
-    Attributes:
-        name: The skill's own name, from its frontmatter. This is what
-            the model passes back to read it.
-        description: One paragraph saying what the skill is for and,
-            usually, what it is not for.
-        directory: Where the skill lives, so its scripts can be run.
-    """
-
     name: str
     description: str
     directory: pathlib.Path
 
 
 def skills_directory() -> pathlib.Path | None:
-    """Returns the configured skills directory, or None when unset.
-
-    Returns:
-        The directory named by ``COSCIENTIST_SKILLS_DIR`` when it exists,
-        otherwise None. Unset and missing are the same answer on purpose:
-        both mean this deployment has no skills, and neither is an error.
+    """Unset and missing skills directories both mean this deployment offers
+    no skills.
     """
     raw = os.environ.get(SKILLS_DIR_ENV, "").strip()
     if not raw:
@@ -88,22 +63,12 @@ def skills_directory() -> pathlib.Path | None:
 
 
 def skills_python() -> str:
-    """Returns the interpreter a skill's scripts should be run with."""
     return os.environ.get(SKILLS_PYTHON_ENV, "").strip() or (
         _FALLBACK_SKILLS_PYTHON
     )
 
 
 def _parse_frontmatter(text: str) -> dict[str, object] | None:
-    """Extracts the YAML frontmatter block from a document.
-
-    Args:
-        text: The document's full text.
-
-    Returns:
-        The parsed mapping, or None when the document has no frontmatter
-        block or its block is not a mapping.
-    """
     if not text.startswith("---"):
         return None
     parts = text.split("---", 2)
@@ -116,28 +81,20 @@ def _parse_frontmatter(text: str) -> dict[str, object] | None:
     return parsed if isinstance(parsed, dict) else None
 
 
-# One skill's PEP 723 inline metadata block, and one dependency line
-# inside it. The bundle declares dependencies per script this way rather
-# than in a manifest, so this is the only place they are written down.
+# Upstream declares dependencies per script in PEP 723 metadata, not a shared
+# manifest.
 _METADATA_BLOCK = re.compile(r"# /// script(.*?)# ///", re.S)
 _DEPENDENCY = re.compile(r'^#\s*"([A-Za-z0-9._-]+)')
 
 
 def _normalised(name: str) -> str:
-    """Returns a distribution name in PEP 503 comparison form."""
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
 @functools.cache
 def _installed_distributions() -> frozenset[str] | None:
-    """Returns what the skills interpreter can import, or None if unknown.
-
-    Read from the interpreter's own ``site-packages`` rather than by
-    running it, since this is consulted while building a catalogue that
-    a tool loop reads on every turn. None means the layout was not
-    recognisable, which is deliberately distinct from "nothing is
-    installed": an unknown environment must not silently empty the
-    catalogue.
+    """Inspect site-packages without spawning a process each turn; unknown
+    layouts must not empty the catalogue.
     """
     interpreter = pathlib.Path(skills_python())
     if not interpreter.is_absolute():
@@ -153,17 +110,12 @@ def _installed_distributions() -> frozenset[str] | None:
 
 
 def _runnable_scripts(directory: pathlib.Path) -> list[pathlib.Path]:
-    """Returns the skill's executable scripts, newest-sorted for stability."""
     scripts = directory / "scripts"
     return sorted(scripts.glob("*.py")) if scripts.is_dir() else []
 
 
 def _unmet_dependencies(directory: pathlib.Path) -> set[str]:
-    """Returns the skill's declared dependencies that are not installed.
-
-    Empty whenever the installed set is unknown, so an unrecognised
-    environment offers every skill exactly as before this check existed.
-    """
+    """Unknown installed dependencies must not silently withhold skills."""
     installed = _installed_distributions()
     if installed is None:
         return set()
@@ -176,7 +128,6 @@ def _unmet_dependencies(directory: pathlib.Path) -> set[str]:
 
 
 def _declared_in(script: pathlib.Path) -> set[str]:
-    """Returns the dependencies one script's metadata block declares."""
     try:
         text = script.read_text(encoding="utf-8")
     except OSError:
@@ -191,15 +142,6 @@ def _declared_in(script: pathlib.Path) -> set[str]:
 
 
 def _load_skill(directory: pathlib.Path) -> Skill | None:
-    """Reads one skill directory into a catalogue entry.
-
-    Args:
-        directory: A candidate skill directory.
-
-    Returns:
-        The skill, or None when it carries no readable ``SKILL.md`` with
-        both a name and a description.
-    """
     document = directory / _DOCUMENT_NAME
     try:
         text = document.read_text(encoding="utf-8")
@@ -220,24 +162,8 @@ def _load_skill(directory: pathlib.Path) -> Skill | None:
 
 
 def _withholding_reason(directory: pathlib.Path) -> str | None:
-    """Says why this skill cannot be used here, or None if it can.
-
-    Withheld rather than offered and failed at call time, for the same
-    reason ``run_command`` is withheld when no sandbox backend exists:
-    reading a skill costs a turn and then several thousand tokens
-    re-sent on every turn after it, and neither failure below is one the
-    model can act on.
-
-    Two cases, six of the vendored 38 skills between them. A skill with
-    no script has nothing to run at all -- every step of a skill's
-    instructions is a command, so prose alone is a dead end. None of
-    those four is a data source: PyMOL needs a binary this image has no
-    reason to carry, ``uv`` and ``credentials`` describe setup the
-    harness has already done and whose instructions the ``read_skill``
-    preamble explicitly overrides, and ``workflow_skill_creator`` authors
-    new skills rather than using one. The other two declare a 695 MB
-    dependency closure this image deliberately omits, so their scripts
-    could only ever raise ImportError.
+    """Withhold unusable skills before reading them: missing scripts or
+    dependencies cannot be repaired by the model.
     """
     if not _runnable_scripts(directory):
         return "no runnable script"
@@ -249,13 +175,8 @@ def _withholding_reason(directory: pathlib.Path) -> str | None:
 
 @functools.cache
 def available_skills() -> tuple[Skill, ...]:
-    """Returns every readable skill, ordered by name.
-
-    Cached: the directory is baked into the image and cannot change while
-    the process runs, and this is read on every tool-loop turn.
-
-    Returns:
-        The catalogue, empty when no skills directory is configured.
+    """The image-baked catalogue is cached because every tool-loop turn reads
+    it.
     """
     directory = skills_directory()
     if directory is None:
@@ -273,14 +194,6 @@ def available_skills() -> tuple[Skill, ...]:
 
 
 def find_skill(name: str) -> Skill | None:
-    """Looks a skill up by the name the catalogue advertised.
-
-    Args:
-        name: The skill's name.
-
-    Returns:
-        The skill, or None when no skill carries that name.
-    """
     wanted = name.strip().lower()
     for skill in available_skills():
         if skill.name.lower() == wanted:
@@ -289,19 +202,8 @@ def find_skill(name: str) -> Skill | None:
 
 
 def _routing_summary(description: str) -> str:
-    """Reduces a description to the part that decides whether to read it.
-
-    Upstream descriptions run two to five sentences: what the skill is
-    for, then when not to use it and which sibling to use instead. All
-    of it is useful once, and the first sentence is what a routing
-    decision actually turns on -- so the rest is bought back by the
-    document, which the model reads before using the skill anyway.
-
-    Args:
-        description: The skill's full description.
-
-    Returns:
-        Its first sentence, hard-capped.
+    """The catalogue routes by the first sentence; the full document restores
+    the remaining guidance.
     """
     head = description.split(". ", 1)[0].rstrip(".")
     return (
@@ -312,18 +214,8 @@ def _routing_summary(description: str) -> str:
 
 
 def catalogue_section() -> str:
-    """Renders the catalogue for a prompt.
-
-    Every line is re-sent on every turn of a tool loop, so this is a
-    per-turn tax paid by a decision made once. Measured on a live
-    simulation review: full descriptions cost ~2.4k tokens a turn, which
-    over ten turns is a quarter of the loop's whole prompt budget --
-    more than every tool result in it put together. Hence the summary.
-
-    Returns:
-        One line per skill, or an empty string when there are none -- so
-        a caller can concatenate this unconditionally and a deployment
-        without skills renders no section at all.
+    """Catalogue text is resent each turn, so summaries avoid a recurring
+    prompt tax.
     """
     skills = available_skills()
     if not skills:
@@ -336,11 +228,8 @@ def catalogue_section() -> str:
 
 
 def _skill_file(skill: Skill, path: str) -> pathlib.Path | None:
-    """Resolves one file inside a skill directory, or None.
-
-    The model chooses this path, so it is resolved and checked to be
-    inside the skill rather than trusted: ``../`` in a tool argument is
-    a file read anywhere on the image.
+    """Resolve model-chosen paths inside the skill to prevent traversal
+    reads.
     """
     candidate = (skill.directory / path).resolve()
     root = skill.directory.resolve()
@@ -350,7 +239,6 @@ def _skill_file(skill: Skill, path: str) -> pathlib.Path | None:
 
 
 def _read_text(target: pathlib.Path | None) -> str | None:
-    """Reads a file, or returns None where there is nothing to read."""
     if target is None:
         return None
     try:
@@ -360,33 +248,9 @@ def _read_text(target: pathlib.Path | None) -> str | None:
 
 
 def read_skill_document(name: str, path: str | None = None) -> str | None:
-    """Returns one skill's instructions, or one file it points at.
-
-    The bundle's own disclosure is two levels deep, not one: 20 of the
-    38 skills give the overview in ``SKILL.md`` and put the actual
-    command syntax in ``references/*.md``, told to the model as "read
-    the following reference files based on the request". Serving only
-    the first level leaves it holding a document that names a file it
-    cannot open, and what it does then is guess the arguments -- which
-    is what a live drafting pass did, reaching STRING's CLI with no
-    subcommand and getting exit 2 back.
-
-    The preamble is the part the document does not say correctly here.
-    Upstream tells the model to use ``uv run``, which this harness
-    cannot; and several skills instruct it to stop and ask the user
-    something, which in an autonomous run stops it in front of nobody.
-    Stating both beside the document -- rather than editing the vendored
-    file -- keeps the tree byte-identical to the revision it is pinned
-    to.
-
-    Args:
-        name: The skill's name, as advertised in the catalogue.
-        path: A file inside the skill, relative to its directory, as
-            named by its own document. Defaults to ``SKILL.md``.
-
-    Returns:
-        The text, or None when no such skill or file exists, or it could
-        not be read.
+    """Expose nested references; the preamble overrides upstream uv and
+    human-confirmation instructions without changing the pinned skill
+    documents.
     """
     skill = find_skill(name)
     if skill is None:
@@ -427,10 +291,8 @@ def read_skill_document(name: str, path: str | None = None) -> str | None:
 
 LICENCES_DIRNAME = ".licenses"
 
-# The prerequisite names its own target file, so the filename is read
-# from each SKILL.md rather than derived from the directory name -- a
-# re-pin that renames one would otherwise leave the model paying the
-# toll again for a file we seeded under the old name.
+# Read licence filenames from SKILL.md so upstream renames cannot trigger
+# duplicate disclosure work.
 _TARGET = re.compile(r"\.licenses/([A-Za-z0-9_.-]+\.txt)")
 
 # The terms live at URLs the document quotes; capturing them keeps the
@@ -445,16 +307,6 @@ _NOTICE = (
 
 
 def _skill_notice(name: str, document: str) -> tuple[str, str] | None:
-    """Builds one skill's notice file, if it asks for one.
-
-    Args:
-        name: The skill's name.
-        document: Its ``SKILL.md`` text.
-
-    Returns:
-        A (filename, contents) pair, or None when the skill states no
-        licence prerequisite.
-    """
     match = _TARGET.search(document)
     if match is None:
         return None
@@ -471,12 +323,6 @@ def _skill_notice(name: str, document: str) -> tuple[str, str] | None:
 
 
 def _write_notice(directory: pathlib.Path, skill: Skill) -> bool:
-    """Writes one skill's notice, reporting whether it needed one.
-
-    Returns:
-        True when a notice was written, False when the skill states no
-        licence prerequisite or its files could not be read or written.
-    """
     try:
         document = (skill.directory / "SKILL.md").read_text(encoding="utf-8")
     except OSError:
@@ -494,18 +340,8 @@ def _write_notice(directory: pathlib.Path, skill: Skill) -> bool:
 
 
 def seed_licence_notices(root: pathlib.Path) -> int:
-    """Writes every skill's licence notice into a workspace.
-
-    Best-effort by design: a workspace that cannot hold these is a
-    workspace whose simulation is about to fail for a better reason, and
-    refusing to open it here would turn a cosmetic problem into a lost
-    review.
-
-    Args:
-        root: The workspace root the skills will run from.
-
-    Returns:
-        How many notices were written.
+    """Notice seeding is best-effort: failure must not discard a review that
+    will report its own workspace error.
     """
     skills = available_skills()
     if not skills:
@@ -522,18 +358,13 @@ def seed_licence_notices(root: pathlib.Path) -> int:
 
 
 class SkillUsage:
-    """Mutable skill-name-to-invocation-count tally for one node."""
-
     def __init__(self) -> None:
-        """Start with an empty tally."""
         self._counts: dict[str, int] = {}
 
     def record(self, name: str) -> None:
-        """Count one invocation of the named skill."""
         self._counts[name] = self._counts.get(name, 0) + 1
 
     def snapshot(self) -> dict[str, int]:
-        """Return the tally as a plain dict, safe to hand to metrics."""
         return dict(self._counts)
 
 
@@ -544,11 +375,6 @@ _current_usage: ContextVar[SkillUsage | None] = ContextVar(
 
 @contextlib.contextmanager
 def scoped_skill_usage() -> Iterator[SkillUsage]:
-    """Scope a skill tally to one node's execution.
-
-    Yields:
-        The tally every skill invocation in this scope is recorded into.
-    """
     usage = SkillUsage()
     token = _current_usage.set(usage)
     try:
@@ -558,19 +384,12 @@ def scoped_skill_usage() -> Iterator[SkillUsage]:
 
 
 def record_skill_use(name: str) -> None:
-    """Record one skill invocation into the active scope, if any.
-
-    Args:
-        name: The skill's declared name, from ``invoked_skill``.
-    """
     usage = _current_usage.get()
     if usage is not None:
         usage.record(name)
 
 
-# What a skill reads, and every host variable that may already hold it,
-# in order of preference. The skill's own name comes first so an
-# explicitly-set variable always wins over a translated one.
+# The skill-facing credential name wins over translated host aliases.
 _CREDENTIAL_ALIASES: dict[str, tuple[str, ...]] = {
     "NCBI_API_KEY": ("NCBI_API_KEY", "ENTREZ_API_KEY"),
     "USER_EMAIL": ("USER_EMAIL", "ENTREZ_EMAIL"),
@@ -582,13 +401,8 @@ _CREDENTIAL_ALIASES: dict[str, tuple[str, ...]] = {
 
 
 def skill_environment() -> dict[str, str]:
-    """Collects the credentials the vendored skills know how to read.
-
-    Returns:
-        Skill-facing variable names mapped to whatever this host holds
-        for them. Absent credentials are omitted rather than set empty:
-        several skills branch on presence to pick a rate limit, and an
-        empty string reads as present.
+    """Omit missing credentials: upstream skills distinguish absent variables
+    from present empty strings.
     """
     if campaign_free_mode():
         return {}
@@ -603,19 +417,8 @@ def skill_environment() -> dict[str, str]:
 
 
 def invoked_skill(argv: list[str]) -> str | None:
-    """Names the skill an argv runs a script of, or None.
-
-    Attribution needs the name, not the fact: the third-party terms a
-    run has to disclose are per source, and a run that queried STRING
-    owes STRING's notice and nobody else's.
-
-    Args:
-        argv: The command as the model asked for it.
-
-    Returns:
-        The skill's declared name, or None when this is not a skill
-        invocation -- which includes a model-written program handed to
-        the same interpreter, and a command that merely reads a skill.
+    """Attribute actual script invocations per source, because third-party
+    disclosure obligations differ.
     """
     directory = skills_directory()
     if directory is None or not argv:
@@ -630,10 +433,8 @@ def invoked_skill(argv: list[str]) -> str | None:
 
 
 def _is_within(argument: str, root: pathlib.Path) -> bool:
-    """Reports whether an argument is a path inside `root`.
-
-    Resolved before comparing, so neither `..` nor a symlink planted in
-    the workspace can present itself as a skill script.
+    """Resolve before checking containment so symlinks and traversal cannot
+    impersonate skill scripts.
     """
     try:
         candidate = pathlib.Path(argument).resolve()
