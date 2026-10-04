@@ -1,5 +1,3 @@
-"""Search configuration, response normalization, and query source selection."""
-
 import json
 import logging
 from dataclasses import dataclass
@@ -23,18 +21,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# =============================================================================
-# Configuration helpers
-# =============================================================================
-
 
 @dataclass
 class SearchConfig:
-    """Configuration for literature review search."""
-
-    # Resolved once per node run by literature_review.search_config_for and
-    # threaded through every phase, so call sites never re-derive config
-    # from the raw ToolRegistry/WorkflowConfig repeatedly.
     tool_registry: Optional["ToolRegistry"]
     workflow: Optional["WorkflowConfig"]
     is_multi_source: bool
@@ -43,21 +32,12 @@ class SearchConfig:
     source_name: str
     papers_to_read_count: int
     is_dev_mode: bool
-    # Threaded through for the hybrid relevance pass (relevance.py), which
-    # needs the goal to judge against and the model to judge with.
+
     research_goal: str = ""
     model_name: str = ""
-    # Whether the merged pool earns the model-judged relevance pass. The
-    # pass costs one LLM call per candidate (up to
-    # ``papers_to_read_count * 3``), which the run-level review spends
-    # once to pick the evidence every later agent reads. Targeted probe
-    # retrieval (deep verification, comprehensive reflection, evolution
-    # grounding) runs *per hypothesis*, so paying it there multiplied the
-    # same re-ranking by the pool size on every cycle -- ~18 calls per
-    # idea, in three agents, on top of the one review that already ran.
-    # A probe also has least use for it: the model already wrote the
-    # query it wants answered, so lexical ranking over those hits is what
-    # the probe asked for. Off means lexical-only, never fewer results.
+
+    # Probe retrieval runs per hypothesis; repeated semantic batching multiplies
+    # cost. Opting out preserves lexical ranking and result count.
     semantic_relevance_enabled: bool = True
 
 
@@ -66,7 +46,6 @@ def _primary_search_tool(
     workflow: "WorkflowConfig | None",
     is_multi_source: bool,
 ) -> "ToolConfig | None":
-    """Resolve a single-source tool or log the multi-source configuration."""
     if is_multi_source and workflow is not None:
         sources = workflow.get_enabled_search_sources()
         logger.info(
@@ -81,12 +60,6 @@ def _primary_search_tool(
 
 
 def search_config_for(state: WorkflowState) -> SearchConfig:
-    """Resolve this run's search tools and evidence budget from state.
-
-    Dev mode takes precedence over a per-run paper count. Multi-source
-    searches resolve each tool in Phase 2; the primary tool here is only
-    used by the single-source path, with PubMed as its no-registry fallback.
-    """
     tool_registry = state.get("tool_registry")
     workflow = (
         tool_registry.get_workflow("literature_review")
@@ -128,12 +101,8 @@ def search_config_for(state: WorkflowState) -> SearchConfig:
 
 
 def _quoted_field_mapping_source(tool_config: "ToolConfig") -> str | None:
-    """Return the literal source name from field_mapping, if present.
-
-    field_mapping["source"] holds a quoted string literal (e.g. "'pubmed'"),
-    not a field name to look up - it's how YAML tool config encodes a
-    static display label without a dedicated field.
-    """
+    """YAML field_mapping encodes static source labels as quoted literals,
+    not field names."""
     if not (
         tool_config.response_format
         and tool_config.response_format.field_mapping
@@ -146,29 +115,18 @@ def _quoted_field_mapping_source(tool_config: "ToolConfig") -> str | None:
 
 
 def extract_source_name(tool_config: Optional["ToolConfig"]) -> str:
-    """Extract source name from tool config's response_format field_mapping."""
     if not tool_config:
         return "unknown"
     literal_source = _quoted_field_mapping_source(tool_config)
     if literal_source is not None:
         return literal_source
-    # No literal source mapping configured; fall back to the tool's general
-    # source_type (e.g. "academic") as a best-effort label.
+
     return tool_config.source_type or "unknown"
 
 
-# =============================================================================
-# Response normalization
-# =============================================================================
-
-
 def _resolve_source_id_field(tool_config: "ToolConfig") -> str:
-    """Resolve the field to key each paper by.
-
-    "@..." expressions are the field_mapping transform syntax used
-    elsewhere; here it just signals "use the source's native id field"
-    rather than an actual key to look up on each paper.
-    """
+    """The @ prefix is field-mapping transform syntax, not a native response
+    key."""
     source_id_field = tool_config.response_format.field_mapping.get(
         "source_id", "source_id"
     )
@@ -180,11 +138,6 @@ def _resolve_source_id_field(tool_config: "ToolConfig") -> str:
 def _paper_id_for_rekey(
     paper: Any, source_id_field: str, fallback_index: int
 ) -> str:
-    """Pick a paper's id for re-keying.
-
-    Falls back through the configured field -> arxiv_id -> generic id ->
-    positional index, since sources disagree on the id field.
-    """
     return cast(
         str,
         paper.get(source_id_field)
@@ -198,11 +151,6 @@ def _rekey_list_response_by_id(
     papers: list[Any],
     tool_config: "ToolConfig",
 ) -> dict[str, Any]:
-    """Re-key a list-shaped response (e.g. arXiv) by each paper's id field.
-
-    Falls back through the configured id field -> arxiv_id -> generic id ->
-    positional index, since sources disagree on which field holds the id.
-    """
     source_id_field = _resolve_source_id_field(tool_config)
     normalized: dict[str, Any] = {}
     for paper in papers:
@@ -212,11 +160,6 @@ def _rekey_list_response_by_id(
 
 
 def _extract_results_path(result_data: Any, results_path: str | None) -> Any:
-    """Extract the results collection from a configured nested path.
-
-    Only applies when result_data is still a dict; a results_path of "."
-    (or unset) means the response is already the results collection.
-    """
     if results_path and results_path != "." and isinstance(result_data, dict):
         return result_data.get(results_path, result_data)
     return result_data
@@ -226,18 +169,14 @@ def _normalize_with_response_format(
     result_data: Any,
     tool_config: "ToolConfig",
 ) -> dict[str, dict[str, Any]]:
-    """Normalize a response once a response_format is known to be present."""
     response_format = tool_config.response_format
     result_data = _extract_results_path(
         result_data, response_format.results_path
     )
 
-    # Dict-keyed responses (e.g. PubMed) are already {paper_id: metadata}.
     if response_format.is_dict and isinstance(result_data, dict):
         return result_data
 
-    # List responses (e.g. arXiv) need to be re-keyed by an id field so
-    # downstream phases can address papers by a stable paper_id.
     if isinstance(result_data, list):
         return _rekey_list_response_by_id(result_data, tool_config)
 
@@ -248,33 +187,20 @@ def normalize_search_response(
     result_data: Any,
     tool_config: Optional["ToolConfig"],
 ) -> dict[str, dict[str, Any]]:
-    """Normalize search tool response to standard {paper_id: metadata} format.
-
-    Handles both dict responses (PubMed-style) and list responses (arXiv-style).
-    """
     if not isinstance(result_data, (dict, list)):
         return {}
 
-    # No config to interpret the shape; only a dict response can be trusted
-    # as already being in {paper_id: metadata} form.
     if not tool_config or not tool_config.response_format:
         return result_data if isinstance(result_data, dict) else {}
 
     return _normalize_with_response_format(result_data, tool_config)
 
 
-# =============================================================================
-# Query generation helpers
-# =============================================================================
-
-
 def parse_mcp_query_result(result: Any) -> list[str]:
-    """Parse MCP tool result into list of queries."""
     if isinstance(result, str):
         try:
             result_data = json.loads(result)
-            # A bare JSON list is a list of queries directly; otherwise
-            # expect an object with a "queries" key.
+
             if isinstance(result_data, list):
                 return result_data
             return cast(list[str], result_data.get("queries", []))
@@ -289,7 +215,6 @@ def _collect_enabled_source_types(
     workflow: "WorkflowConfig",
     tool_registry: "ToolRegistry",
 ) -> list[str]:
-    """Collect the source_type of every enabled, resolvable search source."""
     source_types = []
     for source in workflow.get_enabled_search_sources():
         tool_cfg = tool_registry.get_tool(source.tool)
@@ -302,13 +227,10 @@ def _determine_multi_source_query_type(
     workflow: "WorkflowConfig",
     tool_registry: "ToolRegistry",
 ) -> str:
-    """Determine the query source type across multiple enabled sources."""
+    """Mixed graph/academic sources share generic queries: one specialized
+    prompt cannot serve both source types."""
     source_types = _collect_enabled_source_types(workflow, tool_registry)
 
-    # A single shared query set is generated for all sources in
-    # multi-source mode, so a mix of knowledge_graph and other source
-    # types can't be served by one specialized prompt - fall back to
-    # generic academic queries rather than picking one source to favor.
     if "knowledge_graph" in source_types and len(source_types) > 1:
         logger.warning(
             "Multi-source mode with knowledge_graph detected. "
@@ -316,8 +238,7 @@ def _determine_multi_source_query_type(
             " per-source query generation."
         )
         return "academic"
-    # Only knowledge_graph sources are configured, so it's safe to use
-    # the specialized knowledge_graph query-generation prompt.
+
     if "knowledge_graph" in source_types:
         return "knowledge_graph"
     return "academic"
@@ -328,7 +249,6 @@ def _multi_source_type_if_applicable(
     workflow: Optional["WorkflowConfig"],
     tool_registry: Optional["ToolRegistry"],
 ) -> str | None:
-    """Return the multi-source query type, or None if not applicable."""
     if not is_multi_source or not workflow or not tool_registry:
         return None
     return _determine_multi_source_query_type(workflow, tool_registry)
@@ -340,7 +260,6 @@ def determine_query_source_type(
     search_tool_config: Optional["ToolConfig"],
     is_multi_source: bool,
 ) -> str:
-    """Determine the source type for query generation prompt selection."""
     multi_source_type = _multi_source_type_if_applicable(
         is_multi_source, workflow, tool_registry
     )

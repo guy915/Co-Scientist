@@ -15,9 +15,7 @@ from co_scientist.schemas import LITERATURE_RELEVANCE_BATCH_SCHEMA
 
 logger = logging.getLogger(__name__)
 
-# Identifies how a persisted retrieval_score was produced (see the module
-# docstring). A future retrieval metric registers as a new method/version
-# rather than redefining what "hybrid-lexical-semantic" version 1 meant.
+
 RETRIEVAL_METHOD = "hybrid-lexical-semantic"
 RETRIEVAL_METHOD_VERSION = "2"
 _LEXICAL_ONLY_VERSION = f"lexical-only/{RETRIEVAL_METHOD_VERSION}"
@@ -26,54 +24,27 @@ _HYBRID_VERSION = f"{RETRIEVAL_METHOD}/{RETRIEVAL_METHOD_VERSION}"
 _LEXICAL_WEIGHT = 0.5
 _SEMANTIC_WEIGHT = 0.5
 
-# Bounds how many candidates get a semantic call: an over-fetch multiplier
-# on the evidence budget, capped absolutely so a large candidate pool
-# cannot turn one literature review into dozens of extra LLM calls.
+
+# Bound semantic cost by the evidence budget and an absolute candidate cap.
 _SEMANTIC_POOL_MULTIPLIER = 3
 _SEMANTIC_POOL_CAP = 24
 
-# How many candidates one relevance call judges together. Tunable: larger
-# batches mean fewer calls but a longer prompt and a bigger blast radius
-# if one batch call fails outright (the whole batch degrades to 0.0, see
-# _judge_batch); 8-12 keeps each call's prompt small while still cutting
-# a full pool (_SEMANTIC_POOL_CAP) to a handful of calls.
+
+# Larger batches trade fewer calls for longer prompts and larger failure scope.
 _RELEVANCE_BATCH_SIZE = 10
 
-# Per-candidate abstract truncation inside a batch prompt, so a batch's
-# total prompt size scales with _RELEVANCE_BATCH_SIZE, not with however
-# long any one candidate's abstract happens to be.
+
+# Bound each candidate so long abstracts cannot dominate a batch prompt.
 _ABSTRACT_CHAR_BUDGET = 1500
 
 
 def normalize_lexical(raw_score: float) -> float:
-    """Clamp the RRF-fused rank score onto [0, 1].
-
-    ``search_support.merge_search_results`` already min-max normalizes the
-    raw RRF score onto [0, 1] over its own fused pool before this module
-    ever sees it (unlike the retired v1 heuristic, whose fixed [1.5, 5.0]
-    raw range this function used to rescale) -- so this is a defensive
-    clamp against floating-point noise, not a rescale.
-    """
+    """Fusion already normalizes to [0, 1]; this clamp only removes floating-
+    point noise."""
     return max(0.0, min(1.0, raw_score))
 
 
 def combine_hybrid_score(lexical_raw: float, semantic: float | None) -> float:
-    """Combine the lexical heuristic and the semantic judgment into one score.
-
-    Pure and deterministic: the same two inputs always yield the same
-    output, so the combination step is testable without an LLM.
-
-    Args:
-        lexical_raw: The candidate's RRF-fused rank score, already
-            normalized onto [0, 1] by
-            ``search_support.merge_search_results``.
-        semantic: The model-judged relevance in [0, 1], or None when this
-            candidate was not semantically scored (out-of-pool candidates
-            still get a normalized, lexical-only score on the same scale).
-
-    Returns:
-        The combined score in [0, 1], rounded to 4 places.
-    """
     lexical = normalize_lexical(lexical_raw)
     if semantic is None:
         return round(lexical, 4)
@@ -83,7 +54,6 @@ def combine_hybrid_score(lexical_raw: float, semantic: float | None) -> float:
 
 
 def _semantic_pool_size(candidate_count: int, budget: int) -> int:
-    """Bound how many of the ranked candidates receive a semantic call."""
     if budget <= 0:
         return 0
     cap = min(budget * _SEMANTIC_POOL_MULTIPLIER, _SEMANTIC_POOL_CAP)
@@ -94,23 +64,13 @@ _FAILED_JUDGMENT_RATIONALE = "semantic relevance scoring failed"
 
 
 def _chunked(items: list[str], size: int) -> list[list[str]]:
-    """Split ``items`` into consecutive chunks of at most ``size``."""
     return [items[i : i + size] for i in range(0, len(items), size)]
 
 
 def _build_candidates_block(
     pool_ids: list[str], ranked: dict[str, dict[str, Any]]
 ) -> str:
-    """Format one batch's candidates as a 1-based numbered list.
-
-    The numbering is load-bearing: each judgment in the response names
-    its candidate by this number (``index``), and ``_match_batch_judgments``
-    maps entries back by it -- same convention as
-    ``review_helpers._build_hypotheses_list_text``. Titles and abstracts
-    are included so the model can judge them; the abstract is truncated
-    to ``_ABSTRACT_CHAR_BUDGET`` so a batch's prompt size scales with the
-    batch size, not with any one candidate's abstract length.
-    """
+    """The prompt's 1-based indices join judgments back to candidates."""
     lines = []
     for number, paper_id in enumerate(pool_ids, start=1):
         metadata = ranked[paper_id]
@@ -125,27 +85,8 @@ def _build_candidates_block(
 def _match_batch_judgments(
     judgments: list[Any], pool_ids: list[str]
 ) -> list[Any]:
-    """Associates batch judgment entries with candidates by their index.
-
-    Same contract as ``review_helpers._match_batch_entries_to_hypotheses``:
-    each entry's ``index`` is the number the prompt assigned (1-based).
-    Entries with a valid, not-yet-claimed number land on that candidate
-    regardless of list order; entries whose number is absent, non-integer,
-    out of range, or duplicated fall back to filling the still-empty slots
-    in list order. Surplus entries are dropped. A missing slot returns
-    None there, degrading that candidate the same way a failed call does
-    (see ``_judge_batch``) -- this is also what keeps the offline backend
-    safe when its filler under-populates the array (see the "offline
-    backend under-populates" note): a short response still fills the
-    earliest candidates first rather than raising an index error.
-
-    Args:
-        judgments: The "judgments" list pulled from the batch response.
-        pool_ids: Candidate ids in this batch, in prompt order.
-
-    Returns:
-        One entry (raw dict or None) per candidate, in ``pool_ids`` order.
-    """
+    """Malformed indices fill unclaimed slots in order; short offline responses
+    must degrade missing candidates rather than abort the search."""
     count = len(pool_ids)
     slots: list[Any] = [None] * count
     unplaced: list[Any] = []
@@ -173,12 +114,6 @@ def _match_batch_judgments(
 def _score_matched_judgments(
     pool_ids: list[str], judgments: list[Any]
 ) -> list[tuple[str, float, str]]:
-    """Pairs each candidate with its matched judgment, or a failed default.
-
-    A candidate the response never named (index missing, malformed, or the
-    array simply short -- see the offline backend's own filler) degrades
-    to 0.0 the same way a raised exception does.
-    """
     matched = _match_batch_judgments(judgments, pool_ids)
     scored = []
     for paper_id, entry in zip(pool_ids, matched, strict=True):
@@ -187,14 +122,8 @@ def _score_matched_judgments(
 
 
 def _one_judgment(entry: Any) -> tuple[float, str]:
-    """Reads one matched entry's relevance/rationale, tolerant of bad types.
-
-    Under the json_object downgrade (no server-side schema enforcement) a
-    field can hold the wrong type entirely -- a non-numeric ``relevance``
-    must degrade only this one candidate, not raise out of the whole
-    batch (which would abort every sibling batch through
-    ``asyncio.gather``, the exact abort this function exists to avoid).
-    """
+    """json_object downgrade can bypass schema enforcement; bad types must
+    degrade only their candidate rather than abort sibling batches."""
     if not isinstance(entry, dict):
         return 0.0, _FAILED_JUDGMENT_RATIONALE
     try:
@@ -210,14 +139,8 @@ async def _judge_batch(
     research_goal: str,
     model_name: str,
 ) -> list[tuple[str, float, str]]:
-    """Score one batch of candidates' semantic relevance in a single call.
-
-    A failed or malformed call degrades every candidate in the batch to
-    0.0 with a rationale naming the failure (mirroring how the engine's
-    tool calls degrade to an empty result rather than raising), so a
-    re-rank still runs on the survivors rather than aborting the whole
-    search.
-    """
+    """A failed call degrades only its batch; sibling batches must still
+    finish."""
     prompt = get_literature_review_relevance_batch_prompt(
         research_goal=research_goal,
         candidates_block=_build_candidates_block(pool_ids, ranked),
@@ -234,7 +157,7 @@ async def _judge_batch(
         )
     except TASK_CONTROL_FLOW_ERRORS:
         raise
-    except Exception as exc:  # Never abort the pool over one bad call.
+    except Exception as exc:
         logger.warning(
             "Semantic relevance batch scoring failed for %s candidates: %s",
             len(pool_ids),
@@ -253,18 +176,8 @@ def _stamp_hybrid_score(
     semantic: float | None,
     rationale: str,
 ) -> None:
-    """Record the combined score and its provenance on one candidate.
-
-    ``lexical_raw`` must be the candidate's original
-    ``search_support.merge_search_results`` RRF score -- never read back
-    from ``metadata["retrieval_score"]``, which this function overwrites
-    with the *combined* [0, 1] result. Reading it back would feed an
-    already-combined score into :func:`combine_hybrid_score` a second
-    time, silently double-weighting the semantic term for every
-    candidate stamped this way: every candidate's score collapsed to
-    exactly the same ``_SEMANTIC_WEIGHT``-scaled value the one time this
-    shipped that way.
-    """
+    """Stamping overwrites retrieval_score; rereading it as lexical input
+    would double-weight semantic relevance."""
     metadata["retrieval_score"] = combine_hybrid_score(lexical_raw, semantic)
     metadata["retrieval_rationale"] = rationale
     metadata["retriever_version"] = (
@@ -275,13 +188,7 @@ def _stamp_hybrid_score(
 def _lexical_raw_scores(
     ranked: dict[str, dict[str, Any]],
 ) -> dict[str, float]:
-    """Capture every candidate's original lexical score before any stamping.
-
-    Must run before ``_stamp_hybrid_score`` touches ``ranked`` at all: that
-    function overwrites ``retrieval_score`` in place, so reading it after
-    even the lexical-only baseline pass would already return a normalized
-    value (see ``_stamp_hybrid_score``'s docstring).
-    """
+    """Capture raw scores before any stamping overwrites retrieval_score."""
     return {
         pid: float(metadata.get("retrieval_score") or 0.0)
         for pid, metadata in ranked.items()
@@ -291,7 +198,6 @@ def _lexical_raw_scores(
 def _stamp_lexical_baseline(
     ranked: dict[str, dict[str, Any]], lexical_raw: dict[str, float]
 ) -> None:
-    """Normalize every candidate's score before any semantic judgment runs."""
     for paper_id, metadata in ranked.items():
         _stamp_hybrid_score(metadata, lexical_raw[paper_id], None, "")
 
@@ -299,7 +205,6 @@ def _stamp_lexical_baseline(
 def _semantic_pool_ids(
     ranked: dict[str, dict[str, Any]], research_goal: str, budget: int
 ) -> list[str]:
-    """Return the candidate ids to semantically score, best lexical first."""
     if not research_goal:
         return []
     pool_size = _semantic_pool_size(len(ranked), budget)
@@ -309,12 +214,8 @@ def _semantic_pool_ids(
 def _resort_by_hybrid_score(
     ranked: dict[str, dict[str, Any]], scored_ids: set[str]
 ) -> dict[str, dict[str, Any]]:
-    """Re-sort the semantically-scored subset, keeping the rest in place.
-
-    The unscored tail (outside the semantic pool) keeps its original
-    lexical order and stays after every scored candidate, since it was
-    already ranked below the pool this function scored.
-    """
+    """Unscored candidates retain lexical order after the semantically ranked
+    pool."""
     scored = sorted(
         (pid for pid in ranked if pid in scored_ids),
         key=lambda pid: -float(ranked[pid]["retrieval_score"]),
@@ -329,31 +230,6 @@ async def apply_semantic_relevance(
     model_name: str,
     budget: int,
 ) -> dict[str, dict[str, Any]]:
-    """Re-rank merged search results with a bounded semantic relevance pass.
-
-    Every candidate's ``retrieval_score`` is normalized onto [0, 1] first
-    (lexical-only baseline); the best-ranked slice of the pool then gets a
-    model-judged relevance call, whose result is combined in via
-    :func:`combine_hybrid_score`. Only the top
-    ``budget * _SEMANTIC_POOL_MULTIPLIER`` (capped at
-    ``_SEMANTIC_POOL_CAP``) candidates by lexical score are judged, split
-    into batches of ``_RELEVANCE_BATCH_SIZE`` and judged one call per
-    batch (run concurrently, the same way the calls this replaced ran one
-    per candidate), so a large candidate pool costs a small, bounded
-    number of calls rather than one per candidate.
-
-    Args:
-        ranked: Merged search results, best-first by lexical score (as
-            returned by ``search_support.merge_search_results``).
-        research_goal: The goal to judge relevance against; an empty goal
-            (should not occur in a real run) skips the semantic pass.
-        model_name: Model for the semantic judgment calls.
-        budget: The run's evidence budget, used only to size the pool.
-
-    Returns:
-        The same candidates, re-sorted by combined score where judged and
-        otherwise left in their original lexical position.
-    """
     if not ranked:
         return ranked
     lexical_raw = _lexical_raw_scores(ranked)
