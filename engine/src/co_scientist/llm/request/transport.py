@@ -1,7 +1,5 @@
-"""Shared physical provider dispatch, admission, deadlines and telemetry.
-
-Streaming consumers own their silence and total deadlines. This layer bounds
-only establishment and records the physical call when consumption finishes.
+"""Streaming consumers own silence and total deadlines; this layer bounds
+establishment.
 """
 
 import asyncio
@@ -22,7 +20,9 @@ from co_scientist.llm.telemetry import (
 
 
 class _CompletionStream:
-    """Observe usage without buffering, replaying or owning stream clocks."""
+    """Consumption may finish in another context; usage belongs to the
+    initiating task.
+    """
 
     def __init__(self, response: Any, model: str, start: float) -> None:
         self._response = response
@@ -64,7 +64,6 @@ class _CompletionStream:
             )
 
     async def aclose(self) -> None:
-        """Close the upstream on cancellation or a consumer deadline."""
         self._finish(asyncio.CancelledError())
         close = getattr(self._response, "aclose", None)
         if close is not None:
@@ -95,10 +94,8 @@ async def complete_request(
     timeout_seconds: float | None,
     timeout_grace_seconds: float = 0.0,
 ) -> Any:
-    """Admit, reserve and observe exactly one provider request.
-
-    No retries occur here. Stream establishment uses the supplied deadline;
-    chunk consumption remains under the caller's silence/total policy.
+    """No retry occurs at this physical-call seam; stream clocks remain
+    caller-owned.
     """
     zero_cost = await enforce_free_request(completion_args, byok=byok)
     record_provider_request()
