@@ -1,14 +1,5 @@
-"""Citation/claim-entailment evaluation.
-
-Runs the claim-level entailment assessor (``app.claims.assess_claim``) over a
-labeled dataset and reports precision/recall per label, contradiction recall,
-abstention rate, and overall accuracy — the metrics M5 requires before
-selecting thresholds. The dataset here is small and synthetic (legally
-shareable); a human-audited representative sample and threshold calibration
-remain an external gap and are recorded as such.
-
-Run: ``python -m evaluations.citation_eval`` (writes a dated result artifact
-under ``evaluations/results/`` and prints a summary).
+"""Synthetic labels are not representative calibration; human-audited data
+remains an external gap.
 """
 
 from __future__ import annotations
@@ -27,20 +18,13 @@ _CHALLENGE_DATASET = (
     _ROOT / "evaluations" / "datasets" / "citation_entailment_challenge_v1.json"
 )
 
-# Documented production gates for the semantic (LLM/NLI) assessor on the
-# adversarial challenge panel. Contradiction recall is the safety-critical
-# metric: an unsupported claim reaching a categorical proposal is the failure
-# the publication gate exists to stop, so a missed contradiction is the most
-# dangerous error. Overall accuracy and abstention are reported and gated more
-# loosely because conservative abstention (predicting insufficient on a genuine
-# support) is safe, merely costing recall. These thresholds are the replica's
-# own reconstructed gates, not Google's undisclosed production thresholds.
+# Contradiction misses threaten publication; conservative abstention costs
+# recall. These are reconstructed gates, not Google's undisclosed thresholds.
 _PRODUCTION_GATES = {
     "contradiction_recall": 0.80,
     "accuracy": 0.75,
 }
 
-# The app package lives under app/; make it importable for the assessor.
 sys.path.insert(0, str(_ROOT / "app"))
 
 
@@ -54,11 +38,7 @@ def _predict(
     assessor: Any,
     assessor_id: str,
 ) -> list[tuple[str, str, str]]:
-    """Assess each item once, returning (expected, predicted, kind) triples.
-
-    Assessing once (rather than per metric) matters for the LLM assessor: each
-    item costs one provider call.
-    """
+    """Assess once per item: semantic judgments incur a provider call."""
     from app.claims import as_passages, assess_claim
 
     rows: list[tuple[str, str, str]] = []
@@ -75,7 +55,6 @@ def _predict(
 
 
 def _confusion(rows: list[tuple[str, str, str]]) -> dict[str, dict[str, int]]:
-    """Return a nested expected->predicted count matrix from prediction rows."""
     matrix: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     for expected, predicted, _kind in rows:
         matrix[expected][predicted] += 1
@@ -85,11 +64,8 @@ def _confusion(rows: list[tuple[str, str, str]]) -> dict[str, dict[str, int]]:
 def _accuracy_by_kind(
     rows: list[tuple[str, str, str]],
 ) -> dict[str, dict[str, Any]]:
-    """Return per-kind accuracy, isolating where lexical vs semantic differ.
-
-    The deterministic assessor is expected to score well on ``obvious``/
-    ``mixed`` and poorly on ``hard_paraphrase`` (that is the gap the LLM/NLI
-    assessor closes); reporting the split keeps that honest.
+    """Lexical/hard-paraphrase splits expose the deterministic baseline's
+    semantic gap.
     """
     counts: dict[str, list[int]] = defaultdict(lambda: [0, 0])
     for expected, predicted, kind in rows:
@@ -106,7 +82,6 @@ def _accuracy_by_kind(
 
 
 def _metrics(matrix: dict[str, dict[str, int]]) -> dict[str, Any]:
-    """Compute per-label precision/recall and overall accuracy."""
     labels = {"supports", "contradicts", "insufficient"}
     total = sum(sum(row.values()) for row in matrix.values())
     correct = sum(matrix.get(lbl, {}).get(lbl, 0) for lbl in labels)
@@ -139,7 +114,6 @@ def _metrics(matrix: dict[str, dict[str, int]]) -> dict[str, Any]:
 
 
 def _gate_report(metrics: dict[str, Any]) -> dict[str, Any]:
-    """Return a per-gate pass/fail report against the production thresholds."""
     checks = {
         name: {
             "value": metrics[name],
@@ -159,12 +133,6 @@ def run(
     use_llm: bool = False,
     dataset_path: pathlib.Path | None = None,
 ) -> dict[str, Any]:
-    """Evaluate the assessor over the dataset and return the metrics report.
-
-    The default uses the offline deterministic assessor for CI. ``use_llm``
-    selects the semantic assessor after explicit campaign configuration.
-    ``dataset_path`` selects the small v1 or adversarial challenge panel.
-    """
     assessor, assessor_id = _selected_assessor(use_llm)
     dataset = _load_dataset(dataset_path or _DATASET)
     from evaluations._identity import capture_panel
@@ -207,7 +175,6 @@ def _selected_assessor(use_llm: bool) -> tuple[Any, str]:
 
 
 def _build_llm_assessor() -> tuple[Any, str]:
-    """Build the LLM assessor from the MODEL_NAME env (for --llm runs)."""
     from evaluations._live_config import configure_live_environment
 
     model = configure_live_environment()
@@ -220,7 +187,6 @@ def _build_llm_assessor() -> tuple[Any, str]:
 def _run_selected_assessor(
     dataset_path: pathlib.Path,
 ) -> tuple[dict[str, Any], str]:
-    """Run the eval with the ``--llm``-selected assessor -> (report, tag)."""
     if "--llm" in sys.argv[1:]:
         report = run(use_llm=True, dataset_path=dataset_path)
         assessor_id = str(report["assessor"])
@@ -229,13 +195,6 @@ def _run_selected_assessor(
 
 
 def main() -> int:
-    """Run the eval, write a dated artifact, and print a summary.
-
-    ``--llm`` scores the real LLM assessor (needs a provider key); the default
-    scores the offline deterministic assessor. ``--challenge`` selects the
-    larger adversarial panel and enforces the documented production gates
-    (returning a non-zero exit if a gate fails).
-    """
     challenge = "--challenge" in sys.argv[1:]
     dataset_path = _CHALLENGE_DATASET if challenge else _DATASET
     panel = "challenge" if challenge else "v1"
@@ -254,10 +213,8 @@ def main() -> int:
     gates = report["production_gates"]
     print(f"production gates passed: {gates['passed']} ({gates['checks']})")
     print(f"wrote {out}")
-    # On the challenge panel the documented gates are enforced; the offline
-    # deterministic assessor is expected to fail them (it is a lexical baseline,
-    # not the production semantic path), so only gate the run when scoring the
-    # real assessor.
+    # The lexical baseline is expected to fail semantic gates; enforce them only
+    # for the real assessor.
     if challenge and "--llm" in sys.argv[1:] and not gates["passed"]:
         return 1
     return 0

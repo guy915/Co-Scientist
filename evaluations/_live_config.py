@@ -1,15 +1,10 @@
-"""Explicit, credential-isolated configuration for campaign live evaluations."""
-
 import os
 import sys
 
 
 def configure_live_environment(model: str | None = None) -> str:
-    """Pin model roles before app imports; transport verifies current prices.
-
-    Supply MODEL_NAME (or the model argument) and OPENROUTER_API_KEY
-    explicitly. No credential is read from disk. Live evaluators run in a fresh
-    process so previously constructed settings cannot retain paid defaults.
+    """Configure before app imports in a fresh process; live credentials must
+    be explicit, never read from disk.
     """
     model = _explicit_model(model)
     for name in list(os.environ):

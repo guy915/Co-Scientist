@@ -1,5 +1,3 @@
-"""Bounded biomedical database lookups and response normalization."""
-
 import asyncio
 import logging
 import re
@@ -19,18 +17,6 @@ _UNIPROT_URL = "https://rest.uniprot.org/uniprotkb/search"
 def _response_records(
     response: httpx.Response, field: str
 ) -> list[dict[str, Any]]:
-    """Reads a provider's list of records, rejecting malformed JSON shapes.
-
-    Args:
-        response: A successful HTTP response from a biomedical provider.
-        field: The top-level JSON key containing records.
-
-    Returns:
-        A list of record objects, or an empty list when there are no hits.
-
-    Raises:
-        ValueError: If the response is not a JSON object with a record list.
-    """
     payload = response.json()
     if not isinstance(payload, dict):
         raise ValueError("expected a JSON object")
@@ -47,17 +33,6 @@ def _response_records(
 def _failure_result(
     source: str, query: str, exc: Exception, provider_name: str
 ) -> dict[str, Any]:
-    """Returns an empty, non-fatal envelope with safe failure metadata.
-
-    Args:
-        source: The provenance stamp a successful call would carry.
-        query: The original search text.
-        exc: The HTTP or response parsing error.
-        provider_name: Human-readable name used in the warning log.
-
-    Returns:
-        The usual result envelope with a non-secret ``error`` object.
-    """
     if isinstance(exc, httpx.TimeoutException):
         error: dict[str, Any] = {"kind": "timeout"}
     elif isinstance(exc, httpx.HTTPStatusError):
@@ -79,7 +54,6 @@ def _failure_result(
 
 
 def _chembl_record(molecule: dict[str, Any]) -> dict[str, Any]:
-    """Normalize one ChEMBL molecule into a flat record."""
     chembl_id = molecule.get("molecule_chembl_id")
     return {
         "chembl_id": chembl_id,
@@ -124,23 +98,13 @@ async def search_chembl(query: str, max_results: int = 10) -> dict[str, Any]:
         KeyError,
         IndexError,
     ) as exc:
-        # Network/parsing failures degrade to no results rather than
-        # propagating, so a single failed source doesn't fail the whole
-        # literature-review step.
+        # Per-source network/parsing failure must not abort the whole literature
+        # review.
         return _failure_result("ChEMBL", query, exc, "ChEMBL")
     return {"source": "ChEMBL", "query": query, "records": records}
 
 
 def _uniprot_record(result: dict[str, Any]) -> dict[str, Any]:
-    """Normalize one UniProtKB result into a flat record.
-
-    Args:
-        result: A single entry from the UniProt search response.
-
-    Returns:
-        A record with accession, gene, protein name, organism, functional
-        summaries, and the entry URL.
-    """
     genes = result.get("genes") or []
     primary_gene = (
         (genes[0].get("geneName") or {}).get("value") if genes else None
@@ -196,9 +160,8 @@ async def search_uniprot(query: str, max_results: int = 10) -> dict[str, Any]:
         KeyError,
         IndexError,
     ) as exc:
-        # Network/parsing failures degrade to no results rather than
-        # propagating, so a single failed source doesn't fail the whole
-        # literature-review step.
+        # Per-source network/parsing failure must not abort the whole literature
+        # review.
         return _failure_result("UniProtKB/Swiss-Prot", query, exc, "UniProt")
     return {
         "source": "UniProtKB/Swiss-Prot",
@@ -211,16 +174,12 @@ _TRIALS_URL = "https://clinicaltrials.gov/api/v2/studies"
 
 
 def _clinical_trials_empty_result(query: str) -> dict[str, Any]:
-    """Builds the envelope a search returns when it cannot answer."""
     return {"source": "ClinicalTrials.gov", "query": query, "records": []}
 
 
 def _record(study: dict[str, Any]) -> dict[str, Any]:
-    """Normalizes one v2 study into a flat record.
-
-    The v2 payload nests everything under protocolSection modules, and a
-    study missing a module is ordinary rather than exceptional, so every
-    lookup tolerates absence.
+    """Missing ClinicalTrials v2 modules are ordinary, so lookups tolerate
+    absence.
     """
     protocol = study.get("protocolSection") or {}
     identification = protocol.get("identificationModule") or {}
@@ -232,9 +191,8 @@ def _record(study: dict[str, Any]) -> dict[str, Any]:
     return {
         "nct_id": nct_id,
         "title": identification.get("briefTitle"),
-        # Status carries the finding a paper never reports: a terminated
-        # or withdrawn trial is evidence about the approach, and it is
-        # the case least likely to have been published.
+        # Withdrawn/terminated trials are negative evidence least likely to
+        # appear in publications.
         "status": status.get("overallStatus"),
         "why_stopped": status.get("whyStopped"),
         "phases": design.get("phases"),
@@ -291,7 +249,6 @@ _GNOMAD_URL = "https://gnomad.broadinstitute.org/api"
 
 
 def _genomics_databases_empty_result(source: str, query: str) -> dict[str, Any]:
-    """Builds the envelope a lookup returns when it cannot answer."""
     return {"source": source, "query": query, "records": []}
 
 
@@ -391,12 +348,7 @@ async def search_gnomad_constraint(
 def _constraint_record(
     gene: dict[str, Any], constraint: dict[str, Any]
 ) -> dict[str, Any]:
-    """Flattens one gnomAD constraint result, carrying its interpretation.
-
-    The numbers are meaningless without their conventions -- pLI near 1
-    means intolerant, LOEUF *below* 0.35 means constrained -- and a model
-    reading a bare 0.23 has no way to know which direction is which.
-    """
+    """pLI near 1 means intolerant; LOEUF below 0.35 means constrained."""
     return {
         "gene_id": gene.get("gene_id"),
         "symbol": gene.get("symbol"),
@@ -425,12 +377,10 @@ _HUMAN_TAXON = 9606
 
 
 def _systems_biology_empty_result(source: str, query: str) -> dict[str, Any]:
-    """Builds the envelope a lookup returns when it cannot answer."""
     return {"source": source, "query": query, "records": []}
 
 
 def _capped(max_results: int) -> int:
-    """Clamps a caller's result count to the range these APIs are polite at."""
     return max(1, min(max_results, 25))
 
 
@@ -465,10 +415,8 @@ async def search_string_interactions(
         {
             "partner": partner.get("preferredName_B"),
             "combined_score": partner.get("score"),
-            # STRING's channels, kept separate because they mean different
-            # things: a pair supported only by text mining is a weaker
-            # claim than one with experimental support, and a single
-            # combined score hides which it is.
+            # Keep STRING evidence channels separate: text mining is not
+            # experimental support.
             "experimental_score": partner.get("escore"),
             "database_score": partner.get("dscore"),
             "coexpression_score": partner.get("ascore"),
@@ -482,7 +430,6 @@ async def search_string_interactions(
 
 
 async def _reactome_entity(client: httpx.AsyncClient, query: str) -> str | None:
-    """Resolves a gene or protein symbol to a Reactome entity id."""
     response = await client.get(
         _REACTOME_SEARCH,
         params={
@@ -568,11 +515,8 @@ query($q: String!, $n: Int!) {
 
 
 def _tractable_modalities(tractability: list[dict[str, Any]]) -> list[str]:
-    """Names the tractability buckets a target actually satisfies.
-
-    Open Targets returns every bucket with a true/false flag; the false
-    ones are the overwhelming majority and say nothing, so only the
-    satisfied ones are carried to the model.
+    """Open Targets includes false buckets; carry only satisfied modalities
+    to avoid meaningless clutter.
     """
     return [
         f"{entry.get('modality')}: {entry.get('label')}"
@@ -624,7 +568,6 @@ async def search_open_targets(
 
 
 def _open_targets_record(hit: dict[str, Any]) -> dict[str, Any]:
-    """Flattens one Open Targets search hit into a record."""
     target = hit.get("object") or {}
     associations = (target.get("associatedDiseases") or {}).get("rows") or []
     return {

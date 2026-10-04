@@ -134,17 +134,13 @@ correct and on-topic and still be useless here."""
 
 
 def load_dataset(path: pathlib.Path = _DATASET) -> dict[str, Any]:
-    """Read the panel."""
     loaded: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
     return loaded
 
 
 def deterministic_label(question: str, span: str) -> str:
-    """Label by how much of the question's vocabulary the span repeats.
-
-    The floor, and a deliberately weak one: it cannot tell a passage that
-    answers the question from one that shares its nouns, which is the
-    distinction the panel is built around.
+    """Vocabulary overlap cannot establish that a passage answers the
+    question.
     """
     wanted = _content_words(question)
     if not wanted:
@@ -156,19 +152,11 @@ def deterministic_label(question: str, span: str) -> str:
 
 
 def _content_words(text: str) -> set[str]:
-    """Lowercase alphabetic words that carry topic."""
     words = "".join(c.lower() if c.isalnum() else " " for c in text).split()
     return {w for w in words if w not in _STOPWORDS and len(w) > 2}
 
 
 def score(labelled: list[tuple[str, str, str]]) -> dict[str, Any]:
-    """Reduce (id, expected, predicted) triples to the reported metrics.
-
-    Returns:
-        Overall accuracy, per-label recall, and the rate that matters
-        most for retrieval: how often a passage the panel calls useless
-        was accepted as useful.
-    """
     total = len(labelled)
     correct = sum(1 for _, want, got in labelled if want == got)
     per_label = {
@@ -190,27 +178,23 @@ def score(labelled: list[tuple[str, str, str]]) -> dict[str, Any]:
 
 
 def _recall(labelled: list[tuple[str, str, str]], label: str) -> float:
-    """Fraction of a label's items the judge labelled that way."""
     items = [t for t in labelled if t[1] == label]
     return round(sum(1 for t in items if t[2] == label) / len(items), 4)
 
 
 def run_deterministic(dataset: dict[str, Any]) -> dict[str, Any]:
-    """Score the lexical floor over the panel."""
     return _run(dataset, "deterministic_coverage", live=False)
 
 
 def run_llm(
     dataset: dict[str, Any], model: str | None = None
 ) -> dict[str, Any]:
-    """Score a real model over the panel, one call per item."""
     from evaluations._live_config import configure_live_environment
 
     return _run(dataset, configure_live_environment(model), live=True)
 
 
 def _run(dataset: dict[str, Any], model: str, *, live: bool) -> dict[str, Any]:
-    """Capture either judge's controls and assemble the same report schema."""
     from evaluations._identity import capture_panel
 
     with capture_panel(
@@ -245,7 +229,6 @@ def _run(dataset: dict[str, Any], model: str, *, live: bool) -> dict[str, Any]:
 async def _judge_all(
     dataset: dict[str, Any], model: str
 ) -> list[tuple[str, str, str]]:
-    """Ask the model about every item, in order."""
     from co_scientist.llm import CompletionSpec, call_llm_json
 
     spec = CompletionSpec(
@@ -269,7 +252,6 @@ async def _judge_all(
 
 
 def main() -> int:
-    """Score citation usefulness, write an artifact, print a summary."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--llm",

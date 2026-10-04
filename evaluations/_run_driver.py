@@ -1,17 +1,3 @@
-"""Shared durable-run driving plumbing for the controlled-experiment drivers.
-
-L9 (budget scaling, ``scaling_budget_driver.py``) and L11 (feature ablation,
-``ablation_driver.py``) both need to persist a research goal through the real
-durable path -- ``store.create_run`` -> ``task_worker`` -> ``engine_tasks`` ->
-engine -> drain -> report -- drain it to a terminal state, and read back the
-artifacts a snapshot/record is built from. This module owns that shared
-plumbing so the two drivers differ only in which config overrides they set
-and how they shape the result.
-
-The local INDRA acceptance runner (``golden_run.py``) also shares the queue
-drain and terminal-state checks, without the controlled-comparison identity.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -24,9 +10,6 @@ from collections import defaultdict
 from typing import Any
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-# The viewer backend is a plain package under app/, imported the same way
-# the offline evals and golden_run reach it; the engine is a real installed
-# dependency and needs no path help.
 if str(_ROOT / "app") not in sys.path:
     sys.path.insert(0, str(_ROOT / "app"))
 
@@ -34,46 +17,20 @@ _SUPPORTED_CLAIM_LABELS = ("supports", "partial")
 
 
 def configure_environment(db_path: str, cache_dir: str, *, live: bool) -> None:
-    """Set process env for one controlled-experiment invocation.
-
-    Must run before any ``app``/``co_scientist`` import loads settings. A
-    disabled response cache prevents a later arm from reusing an earlier
-    arm's calls. The directory remains isolated for other cache artifacts.
-    run_arm also scopes caching off to cover an already-created singleton.
-
-    An offline invocation forces ``COSCIENTIST_FORCE_OFFLINE=1`` rather than
-    merely omitting the provider key. The per-run ``llm_backend="offline"``
-    passed to ``store.create_run`` only pins *that run's generator model* --
-    a real key present in the process environment still leaves
-    ``app.engine_adapter.offline_mode()`` (the process-level predicate
-    ``app/app/safety/``'s semantic escalation and other call sites read)
-    reporting "real", which sent a genuine provider call from a run this
-    driver believed was fully offline. Forcing it removes that ambiguity.
-
-    Args:
-        db_path: SQLite path for this invocation's runs.
-        cache_dir: Directory for this invocation's LLM response cache.
-        live: Whether this invocation may reach a real provider.
+    """Configure before settings imports; disable caches so later arms cannot
+    reuse earlier model calls.
     """
     os.environ["COSCIENTIST_DB_PATH"] = db_path
     os.environ["COSCIENTIST_CACHE_DIR"] = cache_dir
     os.environ["COSCIENTIST_CACHE_ENABLED"] = "0"
     if not live:
         os.environ["COSCIENTIST_FORCE_OFFLINE"] = "1"
-        # Forcing the flag is necessary but was not sufficient: it only
-        # reaches call sites that consult it, and a credential left in the
-        # environment is what any that do not will spend. Removing the
-        # credentials makes "offline" unspendable rather than merely
-        # intended. Matched by suffix instead of by a list, because the
-        # equivalent hand-kept list in app/tests/conftest.py had already
-        # fallen behind the app's own map once.
+        # Clear credentials as well as forcing offline so nonconsulting call
+        # sites cannot spend.
         for name in [n for n in os.environ if n.endswith("_API_KEY")]:
             del os.environ[name]
-        # Offline literature review returns generated passages, which the
-        # deterministic claim assessor cannot support a claim against, so
-        # every idea is withheld and the run ends blocked before reaching
-        # the report -- the stages an offline sweep exists to exercise. The
-        # app suite disables the node for the same reason.
+        # Synthetic literature cannot support deterministic claims; disable it
+        # to exercise downstream stages.
         os.environ["FORCE_LITERATURE_REVIEW"] = "0"
         return
     os.environ.pop("COSCIENTIST_FORCE_OFFLINE", None)
@@ -85,18 +42,6 @@ def configure_environment(db_path: str, cache_dir: str, *, live: bool) -> None:
 
 @dataclasses.dataclass(frozen=True)
 class ArmInvocation:
-    """The per-invocation identity/backend fields every arm run shares.
-
-    Bundled so ``persist_arm_run``/``run_arm`` stay within the repo's
-    5-parameter ceiling instead of threading ``client_id``/``backend``/
-    ``db_path`` through separately.
-
-    Attributes:
-        client_id: Owning client id for each arm's persisted run row.
-        backend: ``"offline"`` or ``"real"``.
-        db_path: SQLite path shared across the invocation's arms.
-    """
-
     client_id: str
     backend: str
     db_path: str
@@ -105,18 +50,6 @@ class ArmInvocation:
 def persist_arm_run(
     goal: str, tier: str, overrides: dict[str, Any], invocation: ArmInvocation
 ) -> str:
-    """Persist one arm's run row exactly as ``POST /api/runs`` would.
-
-    Args:
-        goal: The research goal text.
-        tier: The run tier (``express``/``standard``/``extended``/``ultra``).
-        overrides: Extra ``resolved_run_config`` overrides beyond the tier
-            (e.g. a connector toggle). Empty for a pure budget arm.
-        invocation: This arm's shared identity/backend/db fields.
-
-    Returns:
-        The new run's id.
-    """
     from app import store
     from app.run_modes import resolved_run_config, setup_config
 
@@ -147,14 +80,8 @@ def persist_arm_run(
 
 
 def drive_arm_run(run_id: str, db_path: str) -> tuple[int, float]:
-    """Drain one run's durable task chain; return (event count, seconds).
-
-    Mirrors the two steps ``POST /{id}/start`` performs. The cohort returns
-    once no ready task and no live lease remain, so no polling is needed.
-    Wall-clock time is measured here rather than read from the engine's own
-    ``ExecutionMetrics.total_time``, which is only ever set on the removed
-    in-process streaming path and stays 0.0 on the durable path these
-    drivers use.
+    """Measure elapsed time here: durable execution does not fill the
+    standalone total_time metric.
     """
     from co_scientist.offline.llm import install_offline_router
 
@@ -162,12 +89,8 @@ def drive_arm_run(run_id: str, db_path: str) -> tuple[int, float]:
 
     identity = validate_stored_arm(run_id, db_path)
 
-    # This driver calls ``run_run_worker_pool`` directly rather than going
-    # through the app's lifespan or the standalone ``run_forever`` loop, and
-    # neither installs the offline router for it. Idempotent and a harmless
-    # passthrough for real models (see ``task_worker.run_forever``'s own
-    # comment) -- install unconditionally rather than gate it on this
-    # arm's backend.
+    # Direct cohort driving bypasses lifespan, so explicitly install the offline
+    # router.
     install_offline_router()
     result = drain_run(run_id, db_path, worker_prefix="eval-driver")
     validate_stored_arm(run_id, db_path, identity)
@@ -177,11 +100,7 @@ def drive_arm_run(run_id: str, db_path: str) -> tuple[int, float]:
 def drain_run(
     run_id: str, db_path: str, *, worker_prefix: str
 ) -> tuple[int, float]:
-    """Enqueue and drain a durable run; return event count and elapsed seconds.
-
-    The cohort returns when no ready task or live lease remains. Callers
-    must check the persisted terminal status: a failed run also drains.
-    """
+    """A failed run also drains its queue; verify persisted terminal status."""
     from app import store, task_worker
 
     task_worker.enqueue_run_workflow(run_id, db_path=db_path)
@@ -200,13 +119,7 @@ def drain_run(
 def _claim_counts_by_hypothesis(
     claim_edges: list[dict[str, Any]],
 ) -> tuple[dict[str, int], dict[str, int]]:
-    """Return (assessed, verified) claim counts keyed by hypothesis id.
-
-    Mirrors ``app.report.gates``'s one definition of "verified" (a
-    ``supports`` or ``partial`` claim-evidence edge) at per-hypothesis
-    granularity -- the report's tile and badge share that rule, and these
-    drivers must not invent a second one.
-    """
+    """Verified claims follow the report's supports/partial edge rule."""
     assessed: dict[str, int] = defaultdict(int)
     verified: dict[str, int] = defaultdict(int)
     for edge in claim_edges:
@@ -220,16 +133,8 @@ def _claim_counts_by_hypothesis(
 def hypotheses_with_claim_counts(
     hyps: list[dict[str, Any]], claim_edges: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
-    """Return each hypothesis with its claim assessed/verified counts.
-
-    Carries ``creation_iteration``, ``generation`` and ``created_at``
-    through unchanged (all present on every row ``store.list_hypotheses``
-    returns) so ``scaling_eval.temporal_scaling_curve`` can bucket a run's
-    hypotheses by authoring cycle -- the store itself returns hypotheses
-    Elo-descending, not chronologically. ``creation_iteration`` is the
-    timeline axis; ``generation`` is its fallback for a legacy row and
-    ``created_at`` a final tie-break (see that function's docstring for why
-    neither alone suffices).
+    """Store order is Elo-descending; creation_iteration carries the
+    authoring timeline.
     """
     assessed, verified = _claim_counts_by_hypothesis(claim_edges)
     out = []
@@ -251,12 +156,8 @@ def hypotheses_with_claim_counts(
 
 
 def run_completion_status(run: Any) -> tuple[bool, bool]:
-    """Return (completed, ran_on_real_backend) for a persisted run row.
-
-    The durable cohort returns when the queue drains, which a *failed* run
-    also does; and a keyless environment answers every LLM call from the
-    deterministic offline backend. Both must be checked explicitly rather
-    than inferred from "the cohort returned".
+    """Queue drain proves neither completion nor a real backend; inspect both
+    persisted facts.
     """
     from app import store
 
@@ -269,12 +170,6 @@ def run_completion_status(run: Any) -> tuple[bool, bool]:
 def compute_arm_metrics(
     run_id: str, db_path: str, wall_clock_seconds: float, tasks_count: int
 ) -> dict[str, Any]:
-    """Return the ``{llm_calls, tasks, cost_usd, latency_seconds}`` metrics.
-
-    ``cost_usd`` sums every ``model_usage`` entry's estimated cost; it is
-    exactly 0.0 for an offline-backed run (offline/-prefixed models carry no
-    entry in the engine's pricing table).
-    """
     from app import store
 
     metrics = store.get_run_metrics(run_id, db_path=db_path) or {}
@@ -298,14 +193,6 @@ def run_arm(
     overrides: dict[str, Any],
     invocation: ArmInvocation,
 ) -> dict[str, Any]:
-    """Persist, drive, and collect one controlled-experiment arm.
-
-    Returns:
-        A plain dict carrying every field either driver needs to shape into
-        its own artifact schema: ``run_id``, ``tier``, ``overrides``,
-        ``completed``, ``used_offline``, ``events``, ``hypotheses`` (each
-        annotated with claim counts), and ``metrics``.
-    """
     from app import store
 
     db_path = invocation.db_path

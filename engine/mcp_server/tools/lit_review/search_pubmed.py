@@ -1,5 +1,3 @@
-"""PubMed metadata, availability, record parsing and cached fulltext tools."""
-
 import asyncio
 import json
 import logging
@@ -33,7 +31,6 @@ def check_pubmed_available() -> str:
 
 
 def _esearch_pubmed_ids(query: str, max_papers: int) -> list[str]:
-    """Use the same query relaxation policy as fulltext corpus search."""
 
     def search(term: str, retmax: int, _recency_years: int) -> list[str]:
         results = read_entrez(
@@ -71,53 +68,28 @@ def search_pubmed(query: str, max_papers: int = 10) -> str:
 
 @dataclass
 class Article:
-    """A literature article with extracted content and metadata."""
-
     title: str
     url: str | None = None
     authors: list[str] = field(default_factory=list)
     year: int | None = None
-    # Publication venue, e.g. journal or conference name.
     venue: str | None = None
-    # Citation count, when available from the source; 0 if unknown.
     citations: int = 0
     abstract: str | None = None
-    # Full extracted text, e.g. markdown from PMC fulltext (see
-    # text_extraction.py); None if only metadata/abstract was retrieved.
     content: str | None = None
-    # Source-specific identifier (e.g. PubMed ID), independent of url.
     source_id: str | None = None
-    # Default reflects this dataclass's shared, multi-source origin; PubMed
-    # tools in this server explicitly set "pubmed" via field_mapping.
+    # The Article default is shared across sources; PubMed tools explicitly
+    # stamp their own source.
     source: str = "google_scholar"
-    # Direct links to downloadable PDF(s), if the source exposes any.
     pdf_links: list[str] = field(default_factory=list)
-    # Set true once an agent has actually consulted this article's content,
-    # as opposed to it merely appearing in search results.
+    # Being listed in results does not mean the agent consulted article content.
     used_in_analysis: bool = False
 
     def to_dict(self) -> dict[str, Any]:
-        """Converts the article to a dictionary for serialization.
-
-        Returns:
-            Dict with all article fields.
-        """
         return asdict(self)
 
 
 def _pubmed_article_url(doi: str | None, paper_id: str) -> str:
-    """Returns the best canonical URL for a PubMed article.
-
-    Args:
-        doi: The article DOI, if known.
-        paper_id: The PubMed id, used as a fallback.
-
-    Returns:
-        The DOI resolver link when a DOI is available, otherwise the
-        PubMed record page.
-    """
-    # Prefer the DOI resolver link when available since it points at the
-    # publisher's copy; fall back to the PubMed record page otherwise.
+    # DOI resolves to the publisher's copy; PubMed is the fallback.
     return (
         f"https://doi.org/{doi}"
         if doi
@@ -126,19 +98,6 @@ def _pubmed_article_url(doi: str | None, paper_id: str) -> str:
 
 
 def _fetch_pubmed_article(paper_id: str) -> Article:
-    """Fetches and parses metadata for a single PubMed article.
-
-    Args:
-        paper_id: PubMed id to fetch.
-
-    Returns:
-        Article populated from the Entrez efetch response.
-
-    Raises:
-        Exception: Propagated from the Entrez efetch call or from an
-            unexpected response structure; the caller treats any failure
-            as a per-paper skip.
-    """
     paper_results = read_entrez(
         entrez_call(Entrez.efetch, db="pubmed", id=paper_id)
     )
@@ -147,9 +106,7 @@ def _fetch_pubmed_article(paper_id: str) -> Article:
     medline = pubmed_article["MedlineCitation"]
     article_data = medline["Article"]
 
-    # PubMed formats inside its metadata -- italics around species names,
-    # subscripts inside gene symbols -- and an agent quoting a title reads
-    # it as text.
+    # Remove metadata formatting so quoted titles remain plain citation text.
     title = clean_markup(article_data.get("ArticleTitle")) or "Unknown"
     abstract = _parse_pubmed_abstract(article_data)
     authors = _parse_pubmed_authors(article_data)
@@ -170,17 +127,7 @@ def _fetch_pubmed_article(paper_id: str) -> Article:
 
 
 def _parse_pubmed_abstract(article_data: dict[str, Any]) -> str | None:
-    """Joins a possibly multi-part PubMed abstract into one string.
-
-    PubMed abstracts are sometimes split into multiple labeled sections
-    (e.g. Background/Methods/Results); join them into one string.
-
-    Args:
-        article_data: The Entrez-parsed ``Article`` mapping.
-
-    Returns:
-        The joined abstract text, or None if unavailable/malformed.
-    """
+    """PubMed may split abstracts into labeled sections; preserve all parts."""
     try:
         abstract_parts = article_data.get("Abstract", {}).get(
             "AbstractText", []
@@ -195,15 +142,6 @@ def _parse_pubmed_abstract(article_data: dict[str, Any]) -> str | None:
 
 
 def _author_full_name(author: Any) -> str | None:
-    """Builds one "Forename Lastname" string from an AuthorList entry.
-
-    Args:
-        author: A single entry from the article's AuthorList.
-
-    Returns:
-        "Forename Lastname" if the entry is a dict with both name parts,
-        else None.
-    """
     if not isinstance(author, dict):
         return None
     first_name = author.get("ForeName", "")
@@ -212,15 +150,6 @@ def _author_full_name(author: Any) -> str | None:
 
 
 def _parse_pubmed_authors(article_data: dict[str, Any]) -> list[str]:
-    """Builds "Forename Lastname" strings for each author on an article.
-
-    Args:
-        article_data: The Entrez-parsed ``Article`` mapping.
-
-    Returns:
-        List of author display names; entries missing either name part
-        are skipped. Empty list if the author list is unavailable.
-    """
     authors = []
     try:
         author_list = article_data.get("AuthorList", [])
@@ -234,19 +163,9 @@ def _parse_pubmed_authors(article_data: dict[str, Any]) -> list[str]:
 
 
 def _parse_pubmed_doi(pubmed_article: dict[str, Any]) -> str | None:
-    """Extracts the DOI from a PubmedArticle's ArticleIdList.
-
-    Args:
-        pubmed_article: The Entrez-parsed ``PubmedArticle`` element.
-
-    Returns:
-        The DOI string, or None if not present/malformed.
-    """
     doi = None
     try:
-        # ArticleIdList mixes several id types (pubmed, doi, pii, ...);
-        # each entry carries its type as an XML attribute, so filter for
-        # "doi" specifically.
+        # ArticleIdList mixes typed identifiers; select DOI entries.
         article_ids = pubmed_article.get("PubmedData", {}).get(
             "ArticleIdList", []
         )
@@ -265,15 +184,6 @@ def _parse_pubmed_doi(pubmed_article: dict[str, Any]) -> str | None:
 def _parse_pubmed_venue_year(
     article_data: dict[str, Any],
 ) -> tuple[str | None, int | None]:
-    """Extracts the journal venue and publication year of an article.
-
-    Args:
-        article_data: The Entrez-parsed ``Article`` mapping.
-
-    Returns:
-        A (venue, year) tuple; either element is None if unavailable or
-        malformed.
-    """
     venue = None
     year = None
     try:
@@ -296,7 +206,6 @@ def _read_and_extract_fulltext(html_file: Path) -> str:
 async def _extract_fulltext(
     pmc_id: str, metadata: dict[str, Any], run_dir: Path
 ) -> bool:
-    """Attach fulltext when available, leaving metadata usable on failure."""
     try:
         html_file = run_dir / f"{pmc_id}.fulltext.html"
         if not html_file.exists():

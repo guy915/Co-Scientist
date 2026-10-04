@@ -87,10 +87,7 @@ _ARMS: dict[str, dict[str, Any]] = {
     "baseline": {},
     "no_web_search": {"enable_web_search": False},
     "no_literature_review": {"enable_literature_review": False},
-    # Periodic meta-review cadence off (the meta_review node can still run
-    # via the EVOLVE branch); forced debate-only generation strategy. Both
-    # are engine-side toggles added for this driver -- see the module
-    # docstring's Reachable arms.
+    # Disable only periodic cadence: EVOLVE still enters meta-review.
     "no_meta_review": {"enable_meta_review": False},
     "debate_only_strategy": {"generation_strategy": "no_lit"},
 }
@@ -174,7 +171,6 @@ _DEFAULT_TIER = "express"
 def _arm_record(
     arm: dict[str, Any], goal_id: str, arm_name: str
 ) -> dict[str, Any]:
-    """Shape one driven arm into the record ``ablation_summary`` reads."""
     hyps = arm["hypotheses"]
     texts = [h["text"] for h in hyps]
     total_assessed = sum(h["assessed_claims"] for h in hyps)
@@ -212,18 +208,6 @@ def _drive_every_pair(
     *,
     live: bool,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Run every (goal, arm) pair and return (driven detail, records).
-
-    Args:
-        goals: ``(goal_id, goal_text)`` pairs every arm shares.
-        tier: The shared run tier every arm executes at.
-        arm_overrides: Arm name to generator-option overrides.
-        db_path: Store the sweep's runs land in.
-        live: When True, run on the real provider backend.
-
-    Returns:
-        The per-pair run detail and the summarizable records.
-    """
     backend = "real" if live else "offline"
     driven: list[dict[str, Any]] = []
     records: list[dict[str, Any]] = []
@@ -251,22 +235,6 @@ def run_ablation_sweep(
     live: bool,
     arms: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Drive every (goal, arm) pair and return the full ablation report.
-
-    Args:
-        goals: ``(goal_id, goal_text)`` pairs every arm shares.
-        tier: The shared run tier every arm executes at.
-        live: When True, run on the real provider backend; the caller must
-            already have confirmed a provider key is available.
-        arms: Override the arm set (mainly for a smaller test sweep);
-            defaults to the module's reachable arms.
-
-    Returns:
-        A JSON-safe report: per-arm run detail, the paired records, the
-        computed ablation summary, the documented unreachable arms, and
-        Google's own published baselines for those unreachable arms
-        (reference data only -- never compared against `summary` here).
-    """
     arm_overrides = _ARMS if arms is None else arms
     tmp = pathlib.Path(tempfile.mkdtemp(prefix="ablation-sweep-"))
     db_path = str(tmp / "ablation.db")
@@ -287,10 +255,6 @@ def run_ablation_sweep(
         "published_baselines": PUBLISHED_BASELINES,
         "published_baselines_unquantified": PUBLISHED_BASELINES_UNQUANTIFIED,
         "driven": driven,
-        # "ablations" is the key evaluations.scaling_eval.main() reads
-        # (payload.get("ablations", [])); "records" is kept as a readable
-        # alias for the same list so a human skimming the artifact isn't
-        # stuck guessing what "ablations" means.
         "records": records,
         "ablations": records,
         "summary": ablation_summary(records),
@@ -309,7 +273,6 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
-    """Run the CLI: drive the sweep, write the artifact, print a summary."""
     args = _parse_args()
     report = run_ablation_sweep(_DEFAULT_GOALS, args.tier, live=args.live)
     out = write_dated_artifact(report, "ablation-sweep")

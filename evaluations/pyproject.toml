@@ -25,13 +25,7 @@ select = [
     "C4",  # flake8-comprehensions
     "SIM", # flake8-simplify
     "RUF", # ruff-specific
-    "D",   # pydocstyle
     "PLR0913", # too-many-arguments
-]
-ignore = [
-    # Google-style docstrings use descriptive-mood summaries ("Returns the
-    # ...", "Fetches rows ..."), which the imperative-mood check rejects.
-    "D401",
 ]
 
 [tool.ruff.lint.mccabe]
@@ -41,14 +35,6 @@ max-complexity = 5
 
 [tool.ruff.lint.isort]
 known-first-party = ["evaluations"]
-
-[tool.ruff.lint.pydocstyle]
-convention = "google"
-
-[tool.ruff.lint.per-file-ignores]
-# Tests are not public API; their names are self-describing, so
-# docstrings are not required.
-"tests/**" = ["D1"]
 
 [tool.mypy]
 python_version = "3.10"

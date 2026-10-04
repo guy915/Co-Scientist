@@ -1,5 +1,3 @@
-"""Bounded, opt-in provenance for maintained PubMed pilot runs."""
-
 import heapq
 import json
 import os
@@ -27,7 +25,6 @@ _MAX_PILOT_TRACE_IDS = 9
 
 
 def record_metadata_batch(batch: dict[str, Any]) -> None:
-    """Records selected PMID batch provenance within the pilot trace bounds."""
     context = _pilot_trace_context.get()
     if context is None:
         return
@@ -50,7 +47,6 @@ def record_pubmed_batch_outcome(
     batch: dict[str, Any],
     link_outcomes: dict[str, tuple[str | None, Exception | None]],
 ) -> None:
-    """Records a batch result using bounded pilot-trace semantics."""
     batch["elink_results"] = [
         _metadata_link_trace(paper_id, link_outcomes[paper_id])
         for paper_id in batch["elink_pmids"]
@@ -181,16 +177,14 @@ def _enable_study4_recovery(trace: dict[str, Any]) -> None:
 
 
 def new_pilot_trace(run_id: str | None) -> dict[str, Any] | None:
-    """Creates provenance only when an explicit pilot trace is requested."""
     trace_enabled, recovery_enabled = _pilot_trace_flags()
     if not trace_enabled:
         return None
     build_id = os.getenv("COSCIENTIST_PUBMED_PILOT_BUILD_ID")
     if not run_id or not build_id:
         raise ValueError("PubMed pilot tracing requires run_id and build_id")
-    # This environment flag denotes an isolated trace-only serving process:
-    # pin Biopython's hidden retry loop before any request and record the
-    # effective values so a pilot cannot mistake its rung count for wire calls.
+    # Disable hidden Biopython retries and sleeps before pilot requests so
+    # attested seam calls match actual wire attempts.
     Entrez.max_tries = PILOT_ENTREZ_MAX_TRIES
     Entrez.sleep_between_tries = PILOT_ENTREZ_SLEEP_BETWEEN_TRIES
     trace: dict[str, Any] = {
@@ -222,7 +216,6 @@ def new_pilot_trace(run_id: str | None) -> dict[str, Any] | None:
 def record_pool_snapshot(
     trace: dict[str, Any] | None, shared_dir: Path
 ) -> None:
-    """Records bounded shared-pool counts and pre-search identifiers."""
     if trace is None:
         return
     metadata_count = sum(1 for _ in shared_dir.glob("*.metadata.json"))
@@ -253,7 +246,6 @@ def _abstract_available(metadata: dict[str, Any] | None) -> bool:
 def record_fetched_papers(
     trace: dict[str, Any], all_details: dict[str, Any]
 ) -> None:
-    """Records fetch and availability outcomes for selected search IDs."""
     selected = trace.get("selected")
     selected_ids = selected["ids"] if isinstance(selected, dict) else []
     fetch_errors = trace.get("fetch_errors", [])
@@ -277,7 +269,6 @@ def record_fetched_papers(
 
 
 def reserve_trace_run(run_dir: Path, run_id: str, build_id: str) -> None:
-    """Exclusively reserves a clean run directory before any Entrez request."""
     if any(run_dir.iterdir()):
         raise ValueError(
             "PubMed pilot trace run_id is not empty or already reserved"
@@ -313,7 +304,6 @@ def reserve_trace_run(run_dir: Path, run_id: str, build_id: str) -> None:
 
 
 def write_trace_atomically(path: Path, trace: dict[str, Any]) -> None:
-    """Publishes a private same-directory trace without replacing prior runs."""
     descriptor, temporary_name = tempfile.mkstemp(
         dir=path.parent, prefix=".search-trace-", suffix=".tmp"
     )

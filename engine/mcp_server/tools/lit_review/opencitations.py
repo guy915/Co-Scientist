@@ -1,5 +1,3 @@
-"""Bounded citation-edge lookup through OpenCitations Index v2."""
-
 import asyncio
 import json
 import logging
@@ -39,7 +37,6 @@ _next_request_at = 0.0
 
 
 def _reserve_request_at(now: float) -> float:
-    """Reserve a process-wide request start slot at least one second apart."""
     global _next_request_at
     with _request_pacing_lock:
         reserved = max(now, _next_request_at)
@@ -48,7 +45,6 @@ def _reserve_request_at(now: float) -> float:
 
 
 async def _wait_for_request_slot() -> None:
-    """Pace upstream starts across concurrent event loops and tool calls."""
     now = time.monotonic()
     delay = _reserve_request_at(now) - now
     if delay > 0:
@@ -56,7 +52,6 @@ async def _wait_for_request_slot() -> None:
 
 
 async def _response_json(client: httpx.AsyncClient, url: str) -> Any:
-    """Fetch one JSON response, enforcing a decoded body size limit."""
     await _wait_for_request_slot()
     async with client.stream("GET", url) as response:
         response.raise_for_status()
@@ -72,7 +67,7 @@ async def _response_json(client: httpx.AsyncClient, url: str) -> Any:
 
 
 def _count(payload: Any) -> int:
-    """Read the documented count field without treating malformed data as 0."""
+    """Malformed counts cannot safely authorize an unbounded edge request."""
     rows = payload if isinstance(payload, list) else [payload]
     if len(rows) != 1 or not isinstance(rows[0], dict):
         raise ValueError("invalid OpenCitations count response")
@@ -85,7 +80,6 @@ def _count(payload: Any) -> int:
 
 
 def _identifiers(value: Any) -> list[str]:
-    """Normalize OpenCitations' whitespace-separated PIDs into a list."""
     if not isinstance(value, str):
         raise ValueError("citation edge is missing an identifier field")
     if len(value) > _MAX_IDENTIFIER_TEXT:
@@ -101,7 +95,6 @@ def _identifiers(value: Any) -> list[str]:
 
 
 def _parse_identifiers(value: str) -> list[str]:
-    """Validate and split a bounded OpenCitations identifier field."""
     identifiers = [
         identifier
         for segment in _INDEX_SEGMENT_RE.split(value)
@@ -117,7 +110,6 @@ def _parse_identifiers(value: str) -> list[str]:
 
 
 def _edge(row: dict[str, Any]) -> dict[str, Any]:
-    """Normalize one directed citation record."""
     oci = row.get("oci")
     if not isinstance(oci, str) or not _OCI_RE.fullmatch(oci):
         raise ValueError("citation edge is missing a valid OCI")
@@ -135,7 +127,6 @@ def _edge(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def _edges(payload: Any) -> list[dict[str, Any]]:
-    """Normalize directed citation records while retaining edge metadata."""
     if not isinstance(payload, list) or any(
         not isinstance(row, dict) for row in payload
     ):
@@ -146,7 +137,6 @@ def _edges(payload: Any) -> list[dict[str, Any]]:
 
 
 def _normalize_doi(doi: str) -> str:
-    """Strip an optional prefix and validate the bounded DOI input."""
     normalized_doi = doi.strip()
     if normalized_doi.lower().startswith("doi:"):
         normalized_doi = normalized_doi[4:]
@@ -158,7 +148,6 @@ def _normalize_doi(doi: str) -> str:
 
 
 def _citation_urls(doi: str) -> dict[str, str]:
-    """Build the count and edge endpoint URLs for a normalized DOI."""
     encoded_id = f"doi:{quote(doi, safe='/')}"
     return {
         "citations_count": f"{_API_URL}/citation-count/{encoded_id}",
@@ -171,7 +160,6 @@ def _citation_urls(doi: str) -> dict[str, str]:
 async def _fetch_citation_data(
     doi: str, urls: dict[str, str]
 ) -> tuple[int, int, list[dict[str, Any]], list[dict[str, Any]]]:
-    """Fetch counts first, then only edge sets within the configured bound."""
     try:
         async with asyncio.timeout(_TOTAL_TIMEOUT_SECONDS):
             async with httpx.AsyncClient(
@@ -180,8 +168,8 @@ async def _fetch_citation_data(
                 trust_env=False,
                 headers={"Accept": "application/json"},
             ) as client:
-                # Counts always precede the potentially large, unpaginated
-                # edge requests.
+                # Check counts before requesting potentially large unpaginated
+                # edge sets.
                 citation_count = _count(
                     await _response_json(client, urls["citations_count"])
                 )
@@ -217,7 +205,6 @@ def _directional_edges(
     count_url: str,
     edge_url: str,
 ) -> dict[str, Any]:
-    """Assemble edge data and fetch provenance for one direction."""
     return {
         "direction": direction,
         "count": count,
@@ -287,7 +274,6 @@ async def get_opencitations_citation_edges(doi: str) -> dict[str, Any]:
 
 
 def _fetch_status(count: int, edges: list[dict[str, Any]]) -> str:
-    """Explain why edge records are absent or whether the fetch was complete."""
     if count == 0:
         return "zero_indexed"
     if count > _MAX_EDGES:

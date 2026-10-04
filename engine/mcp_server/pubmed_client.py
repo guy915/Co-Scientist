@@ -1,5 +1,3 @@
-"""Entrez-backed PubMed query planning and per-paper metadata retrieval."""
-
 from __future__ import annotations
 
 import logging
@@ -21,59 +19,32 @@ logger = logging.getLogger(__name__)
 
 _MAX_TRACE_IDS = 9
 
-# A search returning at least this many ids is "enough"; below it the caller
-# steps to the next, broader ladder rung. Clamped to the caller's retmax so a
-# deliberately tiny retmax never forces relaxation it could not satisfy.
+# Clamp the sufficiency threshold to retmax so tiny requests cannot force
+# impossible relaxation.
 MIN_RESULTS_BEFORE_RELAX = 3
 
 _BOOLEAN_OPERATORS = frozenset({"AND", "OR", "NOT"})
 
-# An esearch runner: (query, retmax, recency_years) -> matching ids.
 EsearchFn = Callable[[str, int, int], list[str]]
 
 
 def _has_boolean_structure(query: str) -> bool:
-    """Whether the query carries an explicit uppercase Boolean operator.
-
-    PubMed reserves uppercase AND, OR, and NOT for Boolean operators; their
-    lowercase forms are ordinary search terms (NCBI PubMed Help:
-    https://pubmed.ncbi.nlm.nih.gov/help/).
+    """PubMed reserves uppercase AND/OR/NOT; lowercase forms are ordinary
+    search terms (NCBI PubMed Help).
     """
     return any(token in _BOOLEAN_OPERATORS for token in query.split())
 
 
 def _field_tagged_term(term: str) -> str:
-    """Tag one term to match either PubMed's text words or its MeSH heading.
-
-    ``[tiab]`` matches the term against the title/abstract text directly;
-    ``[mesh]`` matches it against PubMed's own indexed MeSH heading for the
-    concept. ORing the two lets the term hit either without going through
-    PubMed's automatic term mapping, whose silent fallback -- break an
-    unmatched multi-word phrase into single words, then AND them -- is the
-    root cause this module works around (see the module docstring).
-
-    Args:
-        term: A single query token (no internal whitespace).
-
-    Returns:
-        The parenthesized, field-tagged alternation for this term.
+    """Field tags bypass automatic term mapping, which silently splits
+    unmatched phrases into ANDed words.
     """
     return f"({term}[tiab] OR {term}[mesh])"
 
 
 def field_tag_terms(query: str, joiner: str) -> str:
-    """Field-tag every term of a keyword query and rejoin with ``joiner``.
-
-    Args:
-        query: The keyword query, terms separated by spaces.
-        joiner: How to recombine the tagged terms (e.g. ``" AND "`` or
-            ``" OR "``).
-
-    Returns:
-        The field-tagged query, or ``query`` unchanged when it already
-        carries explicit boolean structure (AND/OR/NOT) -- re-tokenizing and
-        re-tagging it would fight the caller's own boolean intent rather
-        than extend it -- or has no terms to tag.
+    """Retagging explicit Boolean structure would override the caller's query
+    intent.
     """
     if _has_boolean_structure(query):
         return query
@@ -83,30 +54,14 @@ def field_tag_terms(query: str, joiner: str) -> str:
     return joiner.join(_field_tagged_term(term) for term in terms)
 
 
-# Leading terms an anchored rung keeps required. Two, because one is not
-# enough to hold a topic (anchoring the same query on "PHGDH" alone
-# returns 170 hits against 18 for the leading pair) and three is the
-# arity at which these queries already AND to zero, which is the state
-# the rung exists to leave.
+# Two leading terms anchor the topic; one is broad, while three can reproduce
+# zero-hit conjunctions.
 _ANCHOR_TERMS = 2
 
 
 def anchored_relaxed_query(query: str) -> str | None:
-    """Relax a keyword query while keeping its leading terms required.
-
-    The query-writing prompt asks for the question's subject first, so the
-    leading terms are the ones a relaxation cannot drop without answering
-    a different question. They stay ANDed; everything after them becomes a
-    single OR group, which is where the recall comes from.
-
-    Args:
-        query: The distilled keyword query.
-
-    Returns:
-        The anchored query, or None when there is nothing to relax this
-        way -- the query already carries explicit boolean structure, or
-        has no terms past the anchors to loosen -- so the caller can skip
-        a redundant search.
+    """Leading terms carry the subject; relaxing them would answer a
+    different question.
     """
     if _has_boolean_structure(query):
         return None
@@ -123,19 +78,6 @@ def anchored_relaxed_query(query: str) -> str | None:
 
 
 def or_relaxed_query(query: str) -> str | None:
-    """Rewrite an implicitly-ANDed keyword query to a field-tagged OR.
-
-    Turns ``"kinase inhibition tumor growth"`` (every term required) into an
-    OR of each term's own tagged alternation, trading precision for recall
-    so a starved query returns candidates the downstream grounding step can
-    then re-filter by relevance.
-
-    Returns:
-        The OR-joined, field-tagged query, or None when it cannot be
-        broadened this way -- the query is a single term, or it already
-        carries explicit boolean structure -- so the caller can skip a
-        redundant retry.
-    """
     if _has_boolean_structure(query):
         return None
     tokens = query.split()
@@ -147,27 +89,8 @@ def or_relaxed_query(query: str) -> str | None:
 def relaxation_ladder(
     query: str, recency_years: int = 0
 ) -> list[tuple[str, int]]:
-    """Ordered ``(query, recency_years)`` attempts, most precise to broadest.
-
-    The ladder broadens along three axes in turn: first drop the recency
-    window (same terms, all years, still exactly as PubMed's own automatic
-    term mapping receives it -- see the module docstring for why this rung is
-    deliberately left untagged), then relax everything except the leading
-    terms, then field-tag and OR every term (broadest recall, all years). A
-    rung is included only when it differs from every rung before it, so the
-    caller never issues a redundant network search.
-
-    The anchored rung sits in the middle because the two rungs around it are
-    further apart than they look: the queries this ladder receives AND to
-    zero and OR to millions, with nothing in between (module docstring). It
-    is where a broadened search still answers the question it was given.
-
-    Args:
-        query: The distilled keyword query.
-        recency_years: The initial publication-date window (0 = none).
-
-    Returns:
-        The attempts to try in order.
+    """Keep the recency-only rung untagged; anchor the subject before
+    broadening every term.
     """
     ladder: list[tuple[str, int]] = [(query, recency_years)]
     if recency_years > 0:
@@ -191,11 +114,7 @@ def _relaxation_rung_type(
 def _record_attempt(
     trace: dict[str, Any] | None, attempt: dict[str, Any] | None
 ) -> None:
-    """Records one application-level ESearch rung without query text.
-
-    Bio.Entrez's internal transport retries are below this seam and are not
-    visible as separate attempts here.
-    """
+    """Application ESearch rungs exclude hidden Biopython transport retries."""
     if trace is not None and attempt is not None:
         trace.setdefault("attempts", []).append(attempt)
 
@@ -238,7 +157,6 @@ def _record_selected_rung(
     selected: tuple[int, str, str, list[str]] | None,
     threshold_met: bool,
 ) -> None:
-    """Records which relaxation rung supplied the returned identifiers."""
     if trace is None:
         return
     trace["selected"] = (
@@ -262,27 +180,8 @@ def search_with_relaxation(
     esearch: EsearchFn,
     trace: dict[str, Any] | None = None,
 ) -> list[str]:
-    """Run ``esearch`` down the relaxation ladder until results suffice.
-
-    Issues each ladder rung in turn and stops at the first whose id count meets
-    the (retmax-clamped) minimum. The ids of every rung tried are merged in
-    rung order, deduplicated and capped at ``retmax``, so a precise rung's few
-    on-target hits survive a broader rung that clears the bar. If no rung
-    clears it the merged ids are still returned -- some evidence beats none --
-    and only a query that matches nothing at any breadth yields an empty
-    list. A query
-    that returns enough on the first rung costs exactly one ``esearch`` call;
-    the extra calls are paid only by the starved queries that need them.
-
-    Args:
-        query: The distilled keyword query.
-        retmax: Maximum ids to request per attempt.
-        recency_years: The initial publication-date window (0 = none).
-        esearch: Runs one search: ``(query, retmax, recency_years) -> ids``.
-        trace: Optional bounded record of each application-level search rung.
-
-    Returns:
-        The merged ids of the rungs tried (possibly empty).
+    """Keep precise-rung hits when broader searches supply enough results;
+    some evidence beats none.
     """
     threshold = min(MIN_RESULTS_BEFORE_RELAX, retmax)
     merged: list[str] = []
@@ -322,22 +221,10 @@ PUBMED_METADATA_BATCH_ENV = "COSCIENTIST_PUBMED_METADATA_BATCH"
 PUBMED_METADATA_BATCH_SIZE = 9
 
 
-# Configure Entrez credentials at import so the source is ready to query.
 initialize_entrez()
 
 
 def _parse_authors(article: dict[str, Any]) -> list[str]:
-    """Builds "Forename Lastname" strings for each author on an article.
-
-    Args:
-        article: Entrez-parsed ``Article`` mapping (from a
-            ``PubmedArticle["MedlineCitation"]["Article"]`` node).
-
-    Returns:
-        List of author display names, dropping any entry where either name
-        part was missing rather than emitting a name with a literal
-        "<invalid>" token in it.
-    """
     names = []
     for author in article.get("AuthorList", []):
         name = (
@@ -350,18 +237,7 @@ def _parse_authors(article: dict[str, Any]) -> list[str]:
 
 
 def _extract_doi(pubmed_article: dict[str, Any]) -> str:
-    """Extracts the DOI from a PubmedArticle's ArticleIdList.
-
-    Args:
-        pubmed_article: Entrez-parsed ``PubmedArticle`` element.
-
-    Returns:
-        The DOI string, or "<not found>" if no ArticleIdList entry is
-        tagged with ``IdType="doi"``.
-    """
-    # ArticleIdList mixes several ID types (pubmed, doi, pmc, ...); filter
-    # down to the one tagged IdType="doi". The "<not found>" default covers
-    # the empty case where no DOI was assigned.
+    # ArticleIdList mixes namespaces; select only the DOI type.
     return next(
         (
             str(element)
@@ -377,19 +253,7 @@ def _extract_doi(pubmed_article: dict[str, Any]) -> str:
 
 
 def _parse_date_revised(citation: dict[str, Any]) -> str:
-    """Formats a citation's DateRevised as "YYYY/M/D".
-
-    Args:
-        citation: Entrez-parsed ``MedlineCitation`` mapping.
-
-    Returns:
-        The revision date joined as "YYYY/M/D" with no zero-padding, to
-        match the split-and-index expression this field is consumed with
-        elsewhere (e.g. field_mapping "date_revised|split:/|index:0|int" to
-        pull out just the year).
-    """
-    # Entrez.read parses DateRevised into a dict-like with separate
-    # Year/Month/Day string fields.
+    """Keep the date shape used by split/index field mappings."""
     date_revised_raw = citation["DateRevised"]
     return "{}/{}/{}".format(
         *[str(date_revised_raw[field]) for field in ["Year", "Month", "Day"]]
@@ -397,38 +261,16 @@ def _parse_date_revised(citation: dict[str, Any]) -> str:
 
 
 def _extract_publication_types(article: dict[str, Any]) -> list[str]:
-    """Extracts an article's PubMed publication types.
-
-    Includes "Retracted Publication" for a retracted article -- the field
-    the engine's shared multi-shape retraction detector
-    (``article_support._metadata_is_retracted``) already checks, so
-    surfacing it here is what lets ranking and evidence-budget selection
-    recognize a retracted PubMed paper at all.
-
-    Args:
-        article: Entrez-parsed ``Article`` mapping.
-
-    Returns:
-        The publication type strings (e.g. "Journal Article", "Retracted
-        Publication"), or an empty list if the article carries none.
+    """Publication types expose retractions to the engine's evidence/ranking
+    detector.
     """
     return [str(item) for item in article.get("PublicationTypeList", [])]
 
 
 def _extract_abstract(article: dict[str, Any]) -> str:
-    """Extracts and joins an article's abstract text.
-
-    Args:
-        article: Entrez-parsed ``Article`` mapping.
-
-    Returns:
-        The abstract text with any labeled sections joined into one string,
-        or "<not found>" when the article carries no abstract.
-    """
     try:
-        # Some articles split the abstract into multiple labeled sections
-        # (Background, Methods, ...); join them into one string. Articles
-        # with no abstract omit the key entirely.
+        # Some abstracts have multiple labeled sections; absent abstracts omit
+        # the key.
         return " ".join(article["Abstract"]["AbstractText"])
     except KeyError:
         return "<not found>"
@@ -439,7 +281,6 @@ def _parse_pubmed_article(
     pmc_full_text_id: str | None,
     doi: str | None = None,
 ) -> dict[str, Any]:
-    """Parses one PubMed record using the maintained metadata fields."""
     citation = pubmed_article["MedlineCitation"]
     article = citation["Article"]
     resolved_doi = doi if doi is not None else _extract_doi(pubmed_article)
@@ -458,23 +299,15 @@ def _parse_pubmed_article(
 def _apply_recency_filter(
     search_params: dict[str, Any], recency_years: int
 ) -> None:
-    """Adds a publication-date window to PubMed search params in place.
-
-    Args:
-        search_params: esearch parameter dict to mutate.
-        recency_years: Number of years back from the current year to keep;
-            values of 0 or less leave the params unchanged.
-    """
     if recency_years <= 0:
         return
-    # Imported locally since it is only needed for this branch.
     from datetime import datetime
 
     current_year = datetime.now().year
     min_year = current_year - recency_years
     search_params["mindate"] = f"{min_year}/01/01"
     search_params["maxdate"] = f"{current_year}/12/31"
-    search_params["datetype"] = "pdat"  # filter by publication date
+    search_params["datetype"] = "pdat"
     logger.debug(
         "applying recency filter: %s-%s (last %s years)",
         min_year,
@@ -484,36 +317,16 @@ def _apply_recency_filter(
 
 
 class _EntrezClient:
-    """PubMed source base: Entrez search and per-paper metadata primitives."""
-
     def __init__(self, qualified_path: Path):
-        """Initializes the PubMed source.
-
-        Args:
-            qualified_path: Directory where this source stores papers (the
-                ``pubmed`` subdirectory of the literature-review root).
-        """
         self.qualified_path = qualified_path
 
     def entrez_read(self, handle: Any) -> Any:
         return read_entrez(handle)
 
     def _fetch_pmc_fulltext_id(self, paper_id: str, doi: str) -> str | None:
-        """Looks up the PMC fulltext ID linked to a PubMed article.
-
-        Args:
-            paper_id: PubMed article ID.
-            doi: DOI of the article, used only for the debug log line when no
-                PMC link is found.
-
-        Returns:
-            The linked PMC ID, or None if no fulltext link exists.
-        """
         try:
-            # elink cross-references PubMed IDs to PMC IDs; a paper only has
-            # a usable PMC fulltext if this link exists. A request failure
-            # still means fulltext is unavailable for retrieval, but pilot
-            # traces must distinguish it from a successful no-link response.
+            # Failed PMC lookup and successful no-link are equally unreadable
+            # but distinct provenance.
             related = self.entrez_read(
                 entrez_call(
                     Entrez.elink, dbfrom="pubmed", db="pmc", id=paper_id
@@ -534,21 +347,10 @@ class _EntrezClient:
             return None
 
     def _fetch_paper_details(self, paper_id: str) -> dict[str, Any]:
-        """Fetches and parses one paper's metadata from Entrez (blocking).
-
-        Performs the blocking efetch/elink network calls and XML parsing for a
-        single paper. Intended to be dispatched via asyncio.to_thread so
-        callers can fetch many papers concurrently without blocking the event
+        """Blocking Entrez requests and XML parsing must run off the event
         loop.
-
-        Args:
-            paper_id: PubMed article ID.
-
-        Returns:
-            Metadata dict for the paper (title, abstract, authors, doi, etc.).
         """
-        # efetch returns a PubmedArticleSet; a single-id request still comes
-        # back as a one-element list, hence the [0] below.
+        # Even single-ID efetch returns a PubmedArticleSet list.
         results = self.entrez_read(
             entrez_call(Entrez.efetch, db="pubmed", id=paper_id)
         )
@@ -560,7 +362,6 @@ class _EntrezClient:
     def _esearch_ids(
         self, query: str, retmax: int, recency_years: int
     ) -> list[str]:
-        """Runs one esearch attempt and returns its ids (empty if none)."""
         search_params: dict[str, Any] = {
             "db": "pubmed",
             "term": query,
@@ -570,8 +371,6 @@ class _EntrezClient:
         _apply_recency_filter(search_params, recency_years)
         logger.debug("searching pubmed with sort=%s", PUBMED_SEARCH_SORT)
         results = self.entrez_read(entrez_call(Entrez.esearch, **search_params))
-        # esearch's IdList is empty (not absent) when nothing matches, so the
-        # truthiness check also covers that case, not just a missing key.
         if id_list := results.get("IdList", None):
             return [str(paper_id) for paper_id in id_list]
         return []
@@ -583,22 +382,6 @@ class _EntrezClient:
         recency_years: int = 0,
         trace: dict[str, Any] | None = None,
     ) -> list[str]:
-        """Searches PubMed and returns matching paper IDs.
-
-        PubMed ANDs every untagged term, so a distilled multi-term query
-        collapses toward zero hits; the search is issued down a relaxation
-        ladder (drop the recency window, then OR the terms) so a starved query
-        still returns candidates to ground against rather than an empty pool.
-
-        Args:
-            query: PubMed boolean query.
-            retmax: Maximum results to return.
-            recency_years: Filter to papers from last N years (0 = no filter).
-            trace: Optional bounded pilot-trace dictionary.
-
-        Returns:
-            List of PubMed IDs sorted by publication date (most recent first).
-        """
         ids = search_with_relaxation(
             query, retmax, recency_years, self._esearch_ids, trace
         )

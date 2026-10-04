@@ -1,16 +1,5 @@
-"""Europe PMC search, including the preprint servers.
-
-Europe PMC indexes PubMed's corpus plus preprints from bioRxiv, medRxiv
-and others, which is why preprint search runs through here rather than
-against biorxiv.org's own API: that API lists papers by posting date and
-cannot be queried by subject at all, so it can answer "what appeared on
-Tuesday" but never "what is known about WEE1".
-
-Two tools rather than one because they answer different questions. The
-general search wants the best evidence regardless of venue; the preprint
-search deliberately restricts to what has *not* been peer reviewed,
-which is where the last eighteen months of a fast-moving field lives and
-where a novelty claim is most often wrong.
+"""bioRxiv's own API lists posting dates, not subject queries; Europe PMC
+supplies subject search.
 """
 
 import asyncio
@@ -29,20 +18,12 @@ _EUROPEPMC_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 # the other servers it indexes).
 _PREPRINT_FILTER = "SRC:PPR"
 
-# Restricts the preprint filter above to bioRxiv specifically, for the
-# composer's separate bioRxiv connector (distinct from the "every server
-# Europe PMC indexes" preprint_search below). Verified live: the same
-# query with an unknown PUBLISHER value returns zero hits, so this is a
-# real filter Europe PMC applies, not an ignored, unrecognized field.
+# Europe PMC's PUBLISHER filter restricts bioRxiv independently of its broader
+# preprint source filter.
 _BIORXIV_FILTER = 'PUBLISHER:"bioRxiv"'
 
-# Waits before each retry of a request whose connection failed before any
-# response arrived. Europe PMC's load balancer drops a share of idle
-# keep-alive connections, which reaches us as RemoteProtocolError ("Server
-# disconnected without sending a response"); a fresh connection a moment
-# later almost always answers. Without the retry one dropped socket cost the
-# run the whole source for that query. A response with an HTTP error status
-# is not retried here: it is an answer, and the caller keeps its status.
+# Idle keep-alive drops warrant a fresh transport attempt; HTTP error answers do
+# not.
 _TRANSPORT_RETRY_DELAYS_SECONDS = (0.5, 1.5)
 
 
@@ -70,13 +51,10 @@ def _failure_detail(exc: Exception) -> str:
 
 
 def _record(result: dict[str, Any]) -> dict[str, Any]:
-    """Normalizes one Europe PMC result into a flat paper record."""
     doi = result.get("doi")
     pmid = result.get("pmid")
-    # Europe PMC's own source/id pair, which every record carries -- a DOI
-    # does not survive plenty of preprints. The engine re-keys a
-    # list-shaped response by this field, and without it two queries'
-    # results collide on list position and overwrite each other.
+    # Source/ID pairs survive missing DOIs and prevent cross-query list-position
+    # collisions.
     record_id = f"{result.get('source', 'MED')}/{result.get('id')}"
     return {
         "source_id": record_id,
@@ -108,17 +86,6 @@ def _record(result: dict[str, Any]) -> dict[str, Any]:
 async def _get_with_transport_retry(
     params: dict[str, str | int],
 ) -> httpx.Response:
-    """GET one search page, retrying a connection that failed mid-request.
-
-    Args:
-        params: The Europe PMC query parameters.
-
-    Returns:
-        The successful response.
-
-    Raises:
-        httpx.HTTPError: The last transport failure, or an HTTP error status.
-    """
     for delay in (*_TRANSPORT_RETRY_DELAYS_SECONDS, None):
         try:
             async with httpx.AsyncClient(timeout=30) as client:
@@ -140,24 +107,7 @@ async def _get_with_transport_retry(
 async def _search(
     query: str, max_results: int, source_label: str, echo: str | None = None
 ) -> dict[str, Any]:
-    """Runs one Europe PMC query and normalizes its results.
-
-    Args:
-        query: The query as Europe PMC receives it, filters included.
-        max_results: Maximum records to return, capped at 25.
-        source_label: The provenance stamp the envelope carries.
-        echo: What the envelope reports as the query, when that differs
-            from what was sent. The preprint search appends a source
-            filter the caller never wrote, and echoing it back would put
-            Europe PMC's own syntax in front of a model that then has to
-            guess whether the filter was part of its question.
-
-    Returns:
-        The normalized envelope, empty only for a successful empty search.
-
-    Raises:
-        RuntimeError: The source could not be queried or parsed.
-    """
+    """Echo the caller's question rather than source filters the tool added."""
     limit = max(1, min(max_results, 25))
     asked = echo if echo is not None else query
     params: dict[str, str | int] = {
@@ -165,9 +115,8 @@ async def _search(
         "format": "json",
         "pageSize": limit,
         "resultType": "core",
-        # Most cited first would bury anything recent, and recency is the
-        # reason to consult a preprint server at all; Europe PMC's own
-        # relevance ranking is the compromise both tools want.
+        # Citation sorting buries recent preprints; relevance balances recency
+        # and topic.
         "sort": "",
     }
     try:

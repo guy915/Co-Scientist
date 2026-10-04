@@ -1,5 +1,3 @@
-"""Campaign cost policy for the independently packaged reference server."""
-
 import contextlib
 import os
 from collections.abc import Iterator
@@ -37,7 +35,7 @@ def require_metered_search_allowed() -> None:
 
 
 POLICY = "coscientist-public-retrieval-v1"
-# Protocol surface implemented by the independently packaged reference server.
+# Keep the separately packaged server independent of engine imports.
 PUBLIC_TOOLS = frozenset(
     {
         "check_pubmed_available",

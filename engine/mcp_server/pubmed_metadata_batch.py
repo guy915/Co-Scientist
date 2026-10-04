@@ -1,5 +1,3 @@
-"""Opt-in, bounded PubMed metadata retrieval batches."""
-
 import asyncio
 import json
 import logging
@@ -119,7 +117,9 @@ def _parse_pmc_link_group(
 def _map_pmc_link_groups(
     related: Any, paper_ids: list[str]
 ) -> dict[str, tuple[str | None, Exception | None]]:
-    """Maps ELink's per-source groups without relying on response order."""
+    """ELink groups are keyed by source PMID; response order is not an
+    identity contract.
+    """
     requested = set(paper_ids)
     if not isinstance(related, list):
         error = ValueError("ELink response is not a group list")
@@ -363,7 +363,6 @@ async def gather_metadata(
     run_dir: Path | None,
     semaphore: "asyncio.Semaphore",
 ) -> dict[str, dict[str, Any]]:
-    """Retrieves bounded groups while preserving per-PMID cache semantics."""
     ordered_ids = _valid_ordered_pmids(paper_ids)
     batches = [
         ordered_ids[index : index + PUBMED_METADATA_BATCH_SIZE]

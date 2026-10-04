@@ -1,5 +1,3 @@
-"""Summaries of observed model usage, distinct from static cost estimates."""
-
 import copy
 import math
 from collections import Counter
@@ -9,12 +7,9 @@ from typing import Any
 
 
 def summarize_usage(usage: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    """Retain raw telemetry and expose missing evidence, including old records.
-
-    Estimated cost is complete only when every physical call has observed
-    model identity, reported token counts and a static pricing entry. Even
-    that is not a provider billing receipt. Empty telemetry proves neither
-    free execution nor absence of inference.
+    """Complete cost estimates need observed model, tokens and price for
+    every physical call. Empty telemetry proves neither free execution nor
+    absent inference.
     """
     calls = sum(int(row.get("calls", 0)) for row in usage.values())
     missing = _missing_evidence_counts(usage)
@@ -85,7 +80,6 @@ def _evidenced_calls(row: dict[str, Any], field: str) -> int:
 
 @contextmanager
 def capture_usage(phase: str, *, live: bool) -> Iterator[dict[str, Any]]:
-    """Capture live physical calls without labeling offline output as live."""
     evidence: dict[str, Any] = {
         "execution_mode": "live_requested" if live else "offline",
         "usage_evidence": None,

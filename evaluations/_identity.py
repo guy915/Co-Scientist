@@ -1,7 +1,5 @@
-"""Freeze evaluation controls and reject altered or incomparable evidence.
-
-Identity hashing stays independent of app and engine imports. Run and panel
-execution dependencies are loaded only when their snapshots are captured.
+"""Identity hashing avoids execution imports; snapshots load app/engine
+dependencies only when needed.
 """
 
 import hashlib
@@ -26,7 +24,6 @@ _POLICY_FILES = (
 
 
 def identity_digest(value: Any) -> str:
-    """Hash canonical JSON without depending on dict insertion order."""
     return hashlib.sha256(
         json.dumps(
             value,
@@ -38,7 +35,6 @@ def identity_digest(value: Any) -> str:
 
 
 def request_policy() -> dict[str, str]:
-    """Snapshot current request-policy bytes for execution drift checks."""
     engine = _ROOT / "engine" / "src" / "co_scientist"
     return {
         name: hashlib.sha256((engine / name).read_bytes()).hexdigest()
@@ -47,7 +43,6 @@ def request_policy() -> dict[str, str]:
 
 
 def validate_identity(value: Any) -> dict[str, Any]:
-    """Reject missing, unsupported or altered comparison evidence."""
     if not isinstance(value, dict) or value.get("version") != 1:
         raise ValueError("comparison identity is missing or unsupported")
     contents = {key: item for key, item in value.items() if key != "digest"}
@@ -121,12 +116,8 @@ def arm_identity(
     config: dict[str, Any],
     backend: str,
 ) -> dict[str, Any]:
-    """Freeze declared inputs; this is not proof of served models or evidence.
-
-    Routing is rendered by the production builder for both reasoning modes.
-    Paths/endpoints are hashed because custom values can contain credentials.
-    Retrieved evidence is an output here and needs a separately matched replay
-    when a scientific comparison requires identical source material.
+    """Hash paths/endpoints because they may contain credentials; declared
+    controls do not prove served evidence.
     """
     if os.getenv("COSCIENTIST_CACHE_ENABLED") != "0":
         raise ValueError(
@@ -165,7 +156,6 @@ def validate_stored_arm(
     db_path: str,
     expected: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Check the stored controls and current process before/after execution."""
     from app import store
 
     run = store.get_run(run_id, db_path=db_path)
@@ -232,7 +222,6 @@ def capture_panel(
     *,
     live: bool,
 ) -> Iterator[dict[str, Any]]:
-    """Capture declared controls and usage; reject input/policy drift."""
     from co_scientist.cache import scoped_cache_override
 
     from evaluations._usage_evidence import capture_usage
@@ -336,10 +325,8 @@ def validate_comparison(
     *,
     kind: str,
 ) -> dict[str, Any]:
-    """Match declared controls, not scientific quality or retrieved evidence.
-
-    Frozen baseline profiles avoid interpreting old runs through today's tier
-    defaults. These are provenance checks, not signatures against tampering.
+    """Frozen profiles avoid reinterpreting old runs through current tiers;
+    provenance checks are not signatures.
     """
     if kind not in {"scaling", "ablation"}:
         raise ValueError("unknown comparison kind")
