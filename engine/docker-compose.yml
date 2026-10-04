@@ -8,10 +8,8 @@ services:
     env_file:
       - mcp_server/.env
     environment:
-      # override or set additional environment variables
       - COSCIENTIST_MCP_PORT=8888
     volumes:
-      # persist paper cache
       - ./mcp_server/paper_cache:/app/mcp_server/paper_cache
     restart: unless-stopped
     healthcheck:

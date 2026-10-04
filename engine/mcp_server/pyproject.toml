@@ -39,12 +39,7 @@ dev = [
 ]
 
 
-# The `mcp_server` package's modules sit directly in this directory
-# (alongside pyproject.toml), not in a nested `mcp_server/mcp_server/`
-# subdirectory, so setuptools' package-discovery (which looks for a
-# subdirectory matching the package name) finds nothing here -- the
-# editable install used to report success while leaving `mcp_server`
-# unimportable. Map the package explicitly onto the project root instead.
+# The package maps to this directory rather than a nested discovery root.
 [tool.setuptools]
 packages = [
     "mcp_server",
@@ -64,9 +59,7 @@ python_version = "3.12"
 strict = true
 exclude = ["^(build|dist)/"]
 
-# Biopython ships a py.typed marker but leaves Bio.Entrez functions and
-# attributes unannotated. Skip following its imports so its untyped surface
-# does not propagate Any into typed call sites.
+# Biopython advertises typing, but Entrez remains unannotated.
 [[tool.mypy.overrides]]
 module = ["Bio.*"]
 follow_imports = "skip"

@@ -1,35 +1,16 @@
-# Co-Scientist Tool Configuration
-# Version 1.0
-#
-# This file defines available MCP servers, tools, and workflow configurations.
-# Users can override this by creating ~/.coscientist/tools.yaml
-#
-# Environment variables can be used with ${VAR} or ${VAR:-default} syntax.
+# User overrides may be a local path or URL; environment substitutions resolve at load time.
 
 version: "1.0"
 
-# MCP Server Definitions
 servers:
   default_pubmed:
     url: "${MCP_SERVER_URL:-http://localhost:8888/mcp}"
     transport: "streamable_http"
     enabled: true
 
-# Tool Definitions
-# Organized by category: search_tools, read_tools, utility_tools
-#
-# Every tool declares `effects` from the vocabulary in tool_effects.py
-# (read/write/append/network/process). Tools sharing a model turn run
-# concurrently only while none of them is a barrier (write/append/process),
-# so every tool here -- all of which are remote read-only MCP calls --
-# declares ["read", "network"] and keeps the parallelism the loop provides.
-# Omitting the key is not a shortcut to that: an undeclared tool resolves to
-# `write` and runs alone, deliberately, so that a tool which spawns a process
-# can never race its siblings just because someone forgot to describe it.
-#
+# Declared read-only tools may run in parallel; undeclared effects remain write barriers.
 tools:
   search_tools:
-    # PubMed metadata search (used in draft phase)
     pubmed_search:
       server: "default_pubmed"
       mcp_tool_name: "search_pubmed"
@@ -70,7 +51,6 @@ tools:
           default: 10
           description: "Maximum number of papers to return"
 
-    # PubMed fulltext search (used in literature review and validation)
     pubmed_fulltext:
       server: "default_pubmed"
       mcp_tool_name: "pubmed_search_with_fulltext"
@@ -97,7 +77,6 @@ tools:
           venue: "publication"
           pmc_id: "pmc_full_text_id"
 
-      # PubMed uses canonical parameter names (1:1 mapping)
       parameter_mapping:
         query: "query"
         slug: "slug"
@@ -195,10 +174,7 @@ tools:
         Use `search_uniprot` to verify protein names, gene mappings,
         organisms, and reviewed functional annotations.
 
-    # Europe PMC indexes PubMed's corpus plus preprints, so it widens
-    # coverage rather than duplicating pubmed_fulltext -- and it is the
-    # only route to preprint *search*: bioRxiv's own API lists papers by
-    # posting date and cannot be queried by subject at all.
+    # Europe PMC adds preprints that PubMed cannot search by subject.
     europepmc_search:
       server: "default_pubmed"
       mcp_tool_name: "search_europepmc"
@@ -208,13 +184,9 @@ tools:
       source_type: "literature"
       enabled: true
       effects: ["read", "network"]
-      # Europe PMC answers with an envelope -- {source, query, records} --
-      # not the {paper_id: metadata} map the pipeline consumes. Without
-      # results_path naming "records", those three envelope keys are taken
-      # for paper ids: every real record is dropped and the merge step is
-      # handed a bare string where it expects metadata.
       response_format:
         type: "json"
+        # Unwrap records: otherwise envelope keys masquerade as paper IDs and records vanish.
         results_path: "records"
         is_dict: false
         field_mapping:
@@ -225,13 +197,9 @@ tools:
           abstract: "abstract"
           source_id: "source_id"
           source: "'europepmc'"
-      # Written in the *search* path's canonical vocabulary, which is what
-      # calls this tool (literature review, validation, evolution probes) --
-      # an unmapped canonical name is passed through under its own spelling,
-      # so naming another path's parameters here sends the tool four
-      # arguments it never declared and the server rejects the whole call.
       parameter_mapping:
         query: "query"
+        # Map canonical search inputs; unmapped names pass through and the tool rejects them.
         max_papers: "max_results"
         slug: null
         recency_years: null
@@ -241,10 +209,6 @@ tools:
         carries `is_preprint`; a preprint is weaker support than a peer-
         reviewed paper, so say which you are citing.
 
-    # Deliberately separate from europepmc_search rather than a flag on
-    # it: a novelty claim is most often wrong about the last eighteen
-    # months, which is exactly the window that lives on preprint servers,
-    # and the validation path needs to search that window on purpose.
     preprint_search:
       server: "default_pubmed"
       mcp_tool_name: "search_preprints"
@@ -254,12 +218,9 @@ tools:
       source_type: "literature"
       enabled: true
       effects: ["read", "network"]
-      # Same envelope as europepmc_search above, and the same consequence
-      # if it goes unnamed -- here it fails silently rather than loudly,
-      # since the validation path skips a titleless article instead of
-      # raising, so every preprint query would report nothing found.
       response_format:
         type: "json"
+        # Unwrap records: otherwise envelope keys masquerade as paper IDs and records vanish.
         results_path: "records"
         is_dict: false
         field_mapping:
@@ -270,11 +231,9 @@ tools:
           abstract: "abstract"
           source_id: "source_id"
           source: "'preprints'"
-      # Search-path vocabulary, exactly as europepmc_search above and for
-      # the same reason: this tool is a validation-workflow search source,
-      # not an entity-enrichment tool.
       parameter_mapping:
         query: "query"
+        # Map canonical search inputs; unmapped names pass through and the tool rejects them.
         max_papers: "max_results"
         slug: null
         recency_years: null
@@ -285,7 +244,6 @@ tools:
         and it is invisible to a peer-reviewed-only search. Everything it
         returns is unreviewed, and a hypothesis resting on one must say so.
 
-    # Both preprint sources are keyless and need no provider-key gate.
     arxiv_search:
       server: "default_pubmed"
       mcp_tool_name: "search_arxiv"
@@ -295,12 +253,9 @@ tools:
       source_type: "preprint"
       enabled: true
       effects: ["read", "network"]
-      # Same envelope shape as europepmc_search/preprint_search above, and
-      # the same consequence if results_path goes unnamed: the three
-      # envelope keys would be taken for paper ids and every real record
-      # dropped.
       response_format:
         type: "json"
+        # Unwrap records: otherwise envelope keys masquerade as paper IDs and records vanish.
         results_path: "records"
         is_dict: false
         field_mapping:
@@ -311,11 +266,9 @@ tools:
           abstract: "abstract"
           source_id: "source_id"
           source: "'arxiv'"
-      # Search-path vocabulary, matching europepmc_search/preprint_search:
-      # this is a literature-review/validation search source, not an
-      # entity-enrichment tool.
       parameter_mapping:
         query: "query"
+        # Map canonical search inputs; unmapped names pass through and the tool rejects them.
         max_papers: "max_results"
         slug: null
         recency_years: null
@@ -326,14 +279,7 @@ tools:
         index barely reaches. Everything it returns is unreviewed, and a
         hypothesis resting on one must say so.
 
-    # bioRxiv-only preprint search. Distinct from preprint_search above,
-    # which spans every server Europe PMC indexes (bioRxiv, medRxiv, and
-    # others): this restricts to bioRxiv specifically, matching the
-    # composer's separate bioRxiv toggle. bioRxiv's own REST API lists
-    # papers by posting date and cannot be queried by subject at all, so
-    # this runs through Europe PMC too (see mcp_server's
-    # europepmc_search.py module docstring), just filtered to one
-    # publisher.
+    # Europe PMC can search bioRxiv by subject; bioRxiv REST only lists posting dates.
     biorxiv_search:
       server: "default_pubmed"
       mcp_tool_name: "search_biorxiv"
@@ -345,6 +291,7 @@ tools:
       effects: ["read", "network"]
       response_format:
         type: "json"
+        # Unwrap records: otherwise envelope keys masquerade as paper IDs and records vanish.
         results_path: "records"
         is_dict: false
         field_mapping:
@@ -357,6 +304,7 @@ tools:
           source: "'biorxiv'"
       parameter_mapping:
         query: "query"
+        # Map canonical search inputs; unmapped names pass through and the tool rejects them.
         max_papers: "max_results"
         slug: null
         recency_years: null
@@ -368,9 +316,8 @@ tools:
         Everything it returns is unreviewed, and a hypothesis resting on
         one must say so.
 
-    # Registered trials, including the terminated and withdrawn ones that
-    # were never written up. A gap argued from papers alone is a gap in
-    # what somebody published; this is what a registry adds to that.
+    # Trial registries include terminated or withdrawn studies absent from published
+    # literature.
     clinical_trials:
       server: "default_pubmed"
       mcp_tool_name: "search_clinical_trials"
@@ -390,17 +337,8 @@ tools:
         `why_stopped`: a terminated trial is a finding about the approach,
         and it is the case least likely to appear in the literature.
 
-    # Systems-biology grounding: what a protein interacts with, which
-    # pathways it sits in, and what its target is already associated with.
-    # Entity-keyed rather than free-text, so they are wired as context
-    # enrichment and reflection tools rather than as literature search
-    # sources -- they answer questions about a named gene or protein, not
-    # "find me papers about X".
-    #
-    # These are the sources the drafting model reached for on its own when
-    # it was given the whole 32-skill catalogue to choose from, which is
-    # what makes them worth promoting to tools every run gets rather than
-    # leaving them behind a deep-tier gate and a model's choice.
+    # Entity-keyed knowledge graphs belong in context/reflection, not free-text literature
+    # search.
     string_interactions:
       server: "default_pubmed"
       mcp_tool_name: "search_string_interactions"
@@ -508,8 +446,7 @@ tools:
         reporting a record. A statistical association or mapped gene does
         not establish causality.
 
-    # General web search (only registered when the MCP server has a
-    # provider key; absent tools are skipped by the workflow whitelist)
+    # Web search is registered only when a provider credential exists.
     web_search:
       server: "default_pubmed"
       mcp_tool_name: "search_web"
@@ -532,8 +469,7 @@ tools:
           source: "'web'"
           venue: "site"
 
-      # Web providers take neither a corpus slug nor a publication-year
-      # filter; recency is expressed in days instead.
+      # Web providers use recency days, not corpus slugs or publication-year filters.
       parameter_mapping:
         query: "query"
         slug: null
@@ -567,8 +503,7 @@ tools:
           description: "Only include results from the last N days (0 = no filter)"
 
   read_tools:
-    # Directional citation links are useful for discovery but do not
-    # establish whether a cited work supports or contradicts a claim.
+    # Citation links aid discovery but cannot establish claim support or contradiction.
     opencitations_citation_edges:
       server: "default_pubmed"
       mcp_tool_name: "get_opencitations_citation_edges"
@@ -592,7 +527,6 @@ tools:
           required: true
           description: "DOI such as 10.1234/example, optionally prefixed with doi:"
 
-    # Fetch and read an arbitrary web page or PDF
     read_url:
       server: "default_pubmed"
       mcp_tool_name: "read_url"
@@ -623,7 +557,6 @@ tools:
           description: "Maximum characters of page text to return"
 
   utility_tools:
-    # PubMed availability check
     check_pubmed:
       server: "default_pubmed"
       mcp_tool_name: "check_pubmed_available"
@@ -636,11 +569,7 @@ tools:
       response_format:
         type: "boolean_string"
 
-    # Web-search usability check. Distinct from asking whether the server
-    # registers `search_web`: it registers that whenever a provider key was
-    # set at boot, and a key the provider has since refused leaves the tool
-    # listed while every search returns nothing. Registered only alongside
-    # `search_web`, so it is absent for the same reasons that tool is.
+    # Registration does not prove usability: a refused provider key leaves the tool listed.
     check_web_search:
       server: "default_pubmed"
       mcp_tool_name: "check_web_search_available"
@@ -653,10 +582,7 @@ tools:
       response_format:
         type: "boolean_string"
 
-# Workflow Configurations
-# Define which tools are available in each phase of hypothesis generation
 workflows:
-  # Literature review phase - comprehensive paper analysis
   literature_review:
     search_sources:
       - tool: "pubmed_fulltext"
@@ -665,28 +591,19 @@ workflows:
       - tool: "openalex_search"
         papers_per_query: 4
         enabled: true
-      # Widens coverage rather than duplicating PubMed: Europe PMC indexes
-      # PubMed's corpus plus preprints, and cross-source deduplication
-      # below collapses the overlap by DOI.
+      # Europe PMC adds preprints beyond PubMed; DOI deduplication collapses overlap.
       - tool: "europepmc_search"
         papers_per_query: 3
         enabled: true
-      # Web search runs alongside the academic sources so grey literature,
-      # news, and very recent developments can reach a hypothesis. It is
-      # weighted lower than the peer-reviewed sources on purpose, and its
-      # results carry source "web" so they stay distinguishable downstream.
-      # Skipped automatically when the MCP server has no provider key (the
-      # tool is not registered) or when the run turns the connector off.
+      # Lower-weight web results retain source identity alongside academic evidence.
       - tool: "web_search"
         papers_per_query: 2
         enabled: true
-        # Web hits are snippets; fetch the page so analysis has real text.
+        # Search snippets are insufficient for analysis; fetch actual page text.
         content_tool: "read_url"
         content_url_field: "url"
-      # ArXiv and bioRxiv are narrower, single-domain sources (physics/
-      # math/CS/quantitative-biology; biology preprints specifically), so
-      # they are weighted like web search rather than the broad academic
-      # indexes above.
+      # Narrow-domain arXiv and bioRxiv sources receive lower weight than broad academic
+      # indexes.
       - tool: "arxiv_search"
         papers_per_query: 2
         enabled: true
@@ -705,15 +622,8 @@ workflows:
       - "clinical_trials"
     availability_check: "check_pubmed"
 
-  # Draft generation phase - quick metadata searches for ideation.
-  #
-  # This is the agentic browsing path: the draft node runs the LLM
-  # tool-calling loop, so the model decides for itself when to search the
-  # web and which results to open with read_url. It is active only when the
-  # run enables tool-calling generation
-  # (`enable_tool_calling_generation=True`), which also requires the MCP
-  # server and the literature-review node. Without it, the draft node uses
-  # the plain generation path and these tools sit idle.
+  # Tool-calling drafts require MCP and literature review; plain drafts retain their separate
+  # path.
   draft_generation:
     search_tools:
       - "pubmed_search"
@@ -723,24 +633,17 @@ workflows:
       - "read_url"
       - "opencitations_citation_edges"
 
-  # Validation phase - fulltext searches for novelty checking. This is a
-  # direct-call path that picks the first search-category tool in order, so
-  # web is intentionally absent: novelty checks should be grounded against
-  # the academic sources, not arbitrary web pages.
+  # Novelty validation calls the first search tool directly; arbitrary web must stay absent.
   validation:
     search_tools:
       - "pubmed_fulltext"
       - "openalex_search"
-      # A novelty claim is most often wrong about the last eighteen
-      # months, which is the window that lives on preprint servers and is
-      # invisible to a peer-reviewed-only search.
+      # Recent novelty can be invisible to peer-reviewed indexes for eighteen months.
       - "preprint_search"
       - "arxiv_search"
       - "biorxiv_search"
 
-  # Reflection phase - entity-based evidence lookup against knowledge-graph
-  # sources. Web tools do not fit this path (it queries by gene/protein
-  # entity, not free-text search), so they are intentionally absent.
+  # Reflection accepts entities, so free-text web tools do not fit its contract.
   reflection:
     search_tools:
       - "pubmed_fulltext"
@@ -754,10 +657,5 @@ workflows:
       - "gnomad_constraint"
       - "clinical_trials"
 
-# Global Settings
 settings:
-  # How to merge user config with defaults:
-  # - override: user values replace defaults for matching keys
-  # - extend: user values add to defaults
-  # - replace: user config completely replaces defaults
   merge_strategy: "override"

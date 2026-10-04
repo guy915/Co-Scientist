@@ -1,170 +1,64 @@
 # syntax=docker/dockerfile:1
-# Build from repo root: docker build -f Dockerfile.api .
-#
-# Sibling: app/docker/Dockerfile.api (docker-compose). The two are deliberately
-# divergent -- this one (Railway) bakes the engine source into the image at
-# build time, while the compose file installs the engine at startup from a
-# mounted checkout (entrypoint.sh). A change to app deps or the run command
-# here usually needs a mirrored change there.
-# Pinned by digest so the same source always builds the same base
-# image (N18) -- python:3.12-slim is a mutable tag that moves under
-# it on rebuild. Update deliberately: `docker pull python:3.12-slim`
-# then `docker inspect --format='{{index .RepoDigests 0}}' python:3.12-slim`.
+# Railway bakes engine source at build time; compose installs its mounted checkout at startup.
+# Digest pins keep base images reproducible.
 FROM python:3.12-slim@sha256:646fb0bca3dd3ea1bcc6feb72c17ed16eed6e10cffc732fcc1478bd3e7f02d7b
 
 WORKDIR /app
 
-# Install the reviewed Python 3.12/Linux runtime closure before editable
-# local packages. Source edits cannot trigger an unbounded dependency solve.
+# A reviewed runtime closure prevents unbounded dependency resolution on source changes.
 COPY requirements/api.txt /tmp/requirements-api.txt
 RUN pip install --no-cache-dir --require-hashes -r /tmp/requirements-api.txt
 
-# tesseract-ocr backs document_ingest.py's image OCR
-# ("tesseract-cli-v1") and the PDF-figure OCR fallback
-# ("pypdf-layout+tesseract-fallback-v2") -- without it, image ingestion
-# raises "image OCR is unavailable" for every upload in this image.
+# Tesseract supplies image OCR and PDF-figure OCR fallback; uploads otherwise fail.
 RUN apt-get update && apt-get install -y tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
-# Engine dependencies first, from metadata alone, so editing engine source
-# does not re-install langgraph/litellm/langchain. The editable install of a
-# src-layout project needs src/ to exist (setuptools' egg_base check), but
-# not its contents: the compat .pth records the path, and the real tree
-# arrives in the source COPY below. README.md is required because the
-# engine's pyproject declares it as the readme.
+# Editable src-layout installs need src/ and the declared README before source contents
+# arrive.
 COPY engine/pyproject.toml engine/README.md engine/LICENSE engine/NOTICE /workspace/co-scientist-engine/
 RUN mkdir -p /workspace/co-scientist-engine/src \
     && pip install --no-cache-dir --no-deps -e /workspace/co-scientist-engine
 
-# Install app deps
 COPY app/pyproject.toml app/LICENSE app/NOTICE ./
 RUN pip install --no-cache-dir --no-deps -e .
 
-# Copy the engine source (src/ only: the api imports the package and talks
-# to the MCP server over HTTP, so tests/dev/docs/mcp_server never ship).
 COPY engine/src/ /workspace/co-scientist-engine/src/
 
-# Copy app source
 COPY app/app/ ./app/
 COPY LICENSE NOTICE /usr/share/doc/co-scientist/
 
-# The vendored Google DeepMind Science Skills bundle, pinned in
-# vendor/science-skills (the NOTICE at the repo root records the upstream
-# revision). The engine executes these scripts inside a confined workspace,
-# which runs in this process, so the api image is the one that needs them --
-# not the MCP image.
+# Confined skill scripts execute in the API process, so this image needs the vendored bundle.
 COPY vendor/science-skills/ ./vendor/science-skills/
 
-# COSCIENTIST_SKILLS_DIR is the only gate -- the engine's catalogue is
-# empty unless it points somewhere -- and it is now set, which arms the
-# skills for the one consumer that asks for them. That consumer is the
-# hypothesis-drafting pass, and nothing else: WorkspaceSession.skills_enabled
-# defaults off, so installing the bundle cannot hand it to a node that was
-# measured worse with it.
-#
-# It is the drafting pass because the drafting pass is where retrieval *is*
-# the task. The simulation reviewer was tried first and rejected on
-# eighteen runs (2026-08-22, deepseek-v4-flash): it reached for the skills
-# and got real data back, but spent 85k prompt tokens over 9 turns doing it
-# and then never wrote the model it was there to write, so the review
-# degraded to no observation at all. Retrieval competed with the
-# deliverable there; here it serves it.
-#
-# Measured on the drafting pass over three research goals x four
-# hypotheses, same date and model. Successful skill commands: 0 of 1
-# before the instruction fixes in skills/catalog.py, 3 of 4 after. Draft
-# count and literature sourcing unchanged (4/4 and 12/12 in every arm),
-# latency within the no-skills spread, ~1 extra LLM call per pass. One
-# run's STRING partner query became the mechanistic scaffold for two of
-# its four hypotheses -- a gap argued from a record rather than from what
-# someone wrote up, which is the point.
-#
-# The third-party licence notices the sources require are discharged by
-# the report naming what each run queried (skills/usage.py). Turning this
-# back off is deleting the ENV line; nothing else changes.
+# Skills remain opt-in per workspace; installing the bundle does not enable every node.
+# Third-party notices must remain available for report attribution.
 ENV COSCIENTIST_SKILLS_DIR=/app/vendor/science-skills/skills
 
-# The skills declare their dependencies as PEP 723 inline metadata and their
-# SKILL.md files say to invoke them with `uv run`, which resolves those
-# dependencies at execution time. Neither half of that survives contact with
-# this harness, and both failures were found by running it rather than by
-# reading it.
-#
-# Resolving at execution time would put a package-index install inside a
-# sandboxed workspace on the request path -- third-party code fetched and
-# executed in production -- and would make a run depend on index
-# reachability that hermetic CI does not have. And `uv` cannot run inside
-# the sandbox at all: its cache layout contains a directory literally named
-# `.git` (`sdists-v9/.git`), which is in PROTECTED_METADATA_NAMES, so the
-# confinement that exists to stop a command rewriting a repository's history
-# also stops uv initialising its cache. The observed failure is
-# `Failed to initialize cache ... Operation not permitted (os error 1)`.
-#
-# So the closure is resolved once here into an ordinary venv and the scripts
-# are invoked with that interpreter directly. The PEP 723 header is inert
-# metadata to a plain `python`, so the scripts themselves stay unmodified --
-# only the invocation differs from what SKILL.md describes.
-#
-# The closure is deliberately the light one: polite-http and python-dotenv
-# cover 65 of the bundle's scripts -- every database and literature skill --
-# for 256 KB. The heavy closure the AlphaGenome and Predicting-the-Past
-# skills declare (alphagenome, jax, pandas, numpy, pyarrow, matplotlib: 52
-# packages, measured at 695 MB) is ~2700x the size for six scripts, on a
-# service whose deploy healthcheck allows a 60s start period and which pulls
-# this image on every deploy. Those skills are therefore not installed, and
-# enabling them is a separate, explicit image decision rather than a cost
-# every deploy pays by default. The catalogue notices: a skill whose
-# declared dependencies are absent from this interpreter is withheld from
-# the model rather than offered and failed at run time, so installing
-# those packages later is all it takes to make the skills appear. Four
-# more of the 38 ship no script at all -- PyMOL (needs a binary), `uv` and
-# `credentials` (setup the harness has already done), and
-# `workflow_skill_creator` (authors skills rather than using one) -- and
-# are withheld for the same reason. 32 are offered.
+# Resolve skill dependencies at build time: sandboxed requests must never install from
+# indexes.
+# The light closure withholds skills whose declared dependencies are absent.
+# uv cache contains protected .git metadata, so invoke the prebuilt interpreter directly.
 COPY requirements/skills.txt /tmp/requirements-skills.txt
 RUN python -m venv /app/skills-venv \
     && /app/skills-venv/bin/pip install --no-cache-dir --require-hashes \
         -r /tmp/requirements-skills.txt
 ENV COSCIENTIST_SKILLS_PYTHON=/app/skills-venv/bin/python
 
-# Explicit persistent-path defaults so the image is correct even when a
-# deployment forgets to set them: /app/data is where the Railway volume
-# mounts (COSCIENTIST_DB_PATH), /app/cache is a plain container path for
-# the LLM cache (deliberately not on the volume -- see AGENTS.md). Railway
-# sets both explicitly today and its values simply override these.
+# Only the SQLite store belongs on the persistent volume; the LLM cache stays container-local.
 ENV COSCIENTIST_DB_PATH=/app/data/coscientist.db
 ENV COSCIENTIST_CACHE_DIR=/app/cache
 RUN mkdir -p /app/data /app/cache
 
-# Run as a non-root user. Ownership must be set before dropping root --
-# a later `chown` from an unprivileged user would fail.
-#
-# This chown cannot reach /app/data in production, and nothing built here
-# can. Railway mounts the persistent volume over that path at *runtime*,
-# which replaces this image's directory (and its ownership) with a
-# root-owned filesystem -- so an unprivileged process cannot write the
-# SQLite database, and the app dies in its lifespan hook with "attempt to
-# write a readonly database" before it ever binds a port. The healthcheck
-# then fails for the full retry window and the deploy is rejected, which
-# took production down for ~20 hours after this USER switch first shipped.
-# Railway documents the caveat and its remedy: the api service therefore
-# sets RAILWAY_RUN_UID=0 (see AGENTS.md), which overrides this USER and
-# runs the container as root. Keep that variable and this line together --
-# removing the variable silently reintroduces the outage, and it is the
-# reason the api is *not* actually unprivileged in production despite what
-# the line below says. Making the api genuinely unprivileged needs a
-# root entrypoint that chowns the mounted volume and then drops
-# privileges; that is filed, not built.
+# Railway overlays /app/data with a root-owned volume at runtime; image chown cannot reach it.
+# RAILWAY_RUN_UID=0 is required for SQLite writes on that mount.
 RUN groupadd --system coscientist \
     && useradd --system --gid coscientist --home-dir /app coscientist \
     && chown -R coscientist:coscientist /app /workspace/co-scientist-engine
 USER coscientist
 
-# Prove imports as the runtime user: COPY can preserve owner-only source
-# permissions, including the engine tree outside /app. Explicit imports
-# prevent an unreadable namespace package's empty walk from passing; the
-# full walk also catches .dockerignore exclusions such as **/cache. The
-# app initializes its store on import, so discard that smoke database.
+# Probe explicit imports as the runtime user: unreadable namespace trees can pass an empty
+# walk.
+# Discard the import-created smoke database.
 RUN COSCIENTIST_FORCE_OFFLINE=1 PYTHON_DOTENV_DISABLED=1 \
     COSCIENTIST_DB_PATH=/tmp/coscientist-image-smoke.db \
     python -c "import app.main, co_scientist.constants, co_scientist.agents.generation; \
@@ -174,8 +68,6 @@ import importlib, pkgutil, co_scientist; \
 
 EXPOSE ${PORT:-8008}
 
-# start-period is generous: startup runs the checkpoint sweep and launches
-# recovery cohorts before the port is bound (see AGENTS.md Gotchas).
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:${PORT:-8008}/health', timeout=5)" || exit 1
 

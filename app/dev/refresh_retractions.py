@@ -1,26 +1,6 @@
-"""Refresh the offline Retraction Watch DOI extract.
-
-Downloads the current Crossref/Retraction Watch dataset and rebuilds
-``app/app/data/retractions.txt.gz``: the retraction and original-paper DOI
-of every row whose ``RetractionNature`` is exactly ``"Retraction"``,
-normalized (lowercase, no ``doi.org`` prefix), deduplicated, sorted, and
-written one per line into a gzipped file. See the repo-root ``NOTICE`` for
-the dataset's attribution.
-
-The dataset is pulled from Crossref's GitLab mirror
-(gitlab.com/crossref/retraction-watch-data), updated daily, rather than the
-``api.labs.crossref.org/data/retractionwatch`` endpoint some other tools
-still use (including the paper-qa reference this module was built from):
-Crossref's own Labs page states that endpoint "is no longer running" and
-now serves stale data, and names the GitLab CSV as its replacement.
-
-This is the only place in the app that talks to Crossref for this dataset.
-``citations.resolver`` (via ``app.retraction_set``) only ever reads the
-committed file this script produces -- runtime and CI never reach the
-network for it. Re-run this by hand periodically and commit the result;
-nothing does so automatically.
-
-Run: python app/dev/refresh_retractions.py
+"""Crossref's retired Labs endpoint serves stale data; use its daily GitLab
+mirror. Runtime and CI read only the committed extract, with attribution
+in NOTICE.
 """
 
 from __future__ import annotations
@@ -45,14 +25,12 @@ DATASET_URL = (
 )
 RETRACTION_NATURE = "Retraction"
 DOI_COLUMNS = ("RetractionDOI", "OriginalPaperDOI")
-# Keep the committed file small enough to ship in the image without a
-# second thought; if the dataset grows past this, stop and say so rather
-# than silently bloating every build.
+# Refuse oversized extracts before dataset growth silently inflates every
+# production image.
 MAX_COMPRESSED_BYTES = 5 * 1024 * 1024
 
 
 def _download_csv() -> str:
-    """Fetch the current dataset as decoded CSV text."""
     with httpx.Client(timeout=300.0) as client:
         response = client.get(DATASET_URL, follow_redirects=True)
         response.raise_for_status()
@@ -60,13 +38,8 @@ def _download_csv() -> str:
 
 
 def _extract_dois(csv_text: str) -> set[str]:
-    """Pull retraction DOIs out of genuine-retraction rows only.
-
-    The DOI columns hold the literal string "unavailable" (any casing) and
-    the occasional hand-entry typo (a stray "x"/"xx" glued onto an
-    otherwise valid DOI) for rows with no real DOI on record. A DOI always
-    starts with "10.", so that prefix is the filter rather than trying to
-    enumerate every way the column is wrong.
+    """Unavailable and mistyped DOI entries are common; require the genuine
+    10. prefix.
     """
     dois: set[str] = set()
     reader = csv.DictReader(io.StringIO(csv_text))
@@ -88,7 +61,6 @@ def _write_extract(path: Path, dois: set[str]) -> None:
 
 
 def main() -> int:
-    """Download, filter and write the extract; return the process exit code."""
     print(f"Downloading {DATASET_URL} ...")
     csv_text = _download_csv()
     row_count = csv_text.count("\n")

@@ -17,18 +17,13 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
-    # Citation reachability uses httpx directly; FastAPI does not install it.
+    # Citation fetching uses httpx directly; FastAPI does not supply it transitively.
     "httpx>=0.25.0",
     "python-multipart>=0.0.9",
     "pypdf>=5.0.0,<7.0.0",
-    # Fernet encryption of bring-your-own-key provider credentials at rest
-    # (app/credentials.py). Was already present transitively; pinned
-    # explicitly because the app now imports it directly.
+    # Run credentials require cryptography for encryption at rest.
     "cryptography>=43.0.0",
     "co-scientist-engine>=0.2.0",
-    # /metrics: renders the ops-facing Prometheus exposition text from
-    # store-derived gauges/histograms (app/ops_metrics.py). Zero further
-    # transitive dependencies.
     "prometheus-client>=0.20.0",
 ]
 
@@ -38,7 +33,6 @@ dev = [
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=7.0",
     "ruff==0.15.21",  # pinned: must match the ruff pin in .github/workflows/ci.yml
-                      # (a floating ruff reformats on release and reds `make lint`)
     "mypy>=1.5.0",
     "httpx>=0.25.0",
 ]
@@ -50,9 +44,6 @@ include = ["app*"]
 [tool.setuptools.package-data]
 app = ["py.typed", "content/*.md", "data/*.gz"]
 
-# Pixi-specific configuration (https://pixi.sh)
-# Pixi reads [project.dependencies] and [project.optional-dependencies] above automatically.
-# Only pixi-specific overrides and extras go here.
 [tool.pixi.workspace]
 channels = ["conda-forge"]
 platforms = ["osx-arm64", "linux-64"]
@@ -77,10 +68,7 @@ default = { features = ["dev"], solve-group = "default" }
 [tool.ruff]
 line-length = 80
 target-version = "py310"
-# dev/ holds offline maintenance scripts, not shipped code. build_catalog.py
-# carries published abstracts as verbatim string literals, which cannot be
-# wrapped without corrupting the text they exist to preserve. The engine
-# excludes its own dev/ for the same reason.
+# Published abstract fixtures are verbatim corpus data; formatting must not rewrite them.
 extend-exclude = ["dev"]
 
 [tool.ruff.lint]
@@ -109,19 +97,13 @@ max-complexity = 10
 known-first-party = ["app"]
 
 [tool.ruff.lint.per-file-ignores]
-# main.py must call load_dotenv() before importing app.config (and any
-# module that reads settings at import time), because pydantic-settings
-# reads os.environ when Settings() is constructed. The env-dependent
-# imports therefore intentionally sit below that call, so E402 is
-# expected here rather than a mistake to reorder away.
+# Load dotenv before importing environment-dependent settings.
 "app/main.py" = ["E402"]
 
 [tool.mypy]
 python_version = "3.10"
 strict = true
 plugins = ["pydantic.mypy"]
-# Developer utility scripts are not type-checked, matching the ruff `exclude`
-# above and the engine's own mypy config.
 exclude = ["^(dev|build|dist)/"]
 
 [[tool.mypy.overrides]]
@@ -133,11 +115,7 @@ follow_imports = "skip"
 module = ["pypdf", "pypdf.*"]
 ignore_missing_imports = true
 
-# `exclude` stops mypy crawling dev/, but a test imports dev.corpus_ingest and
-# following an import ignores exclude -- which drags in docling, deliberately
-# not a dependency (it is the offline-only corpus re-extraction backend,
-# imported lazily there and never shipped). Skip across the boundary instead,
-# the same way co_scientist is treated above.
+# Following imports can bypass exclusions; do not typecheck offline docling internals.
 [[tool.mypy.overrides]]
 module = ["dev.*"]
 ignore_missing_imports = true

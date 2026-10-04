@@ -9,11 +9,9 @@ PY    := $(VENV)/bin/python
 PIP   := $(VENV)/bin/pip
 BUN ?= bun
 BUN_VERSION := 1.3.14
-# The reference MCP server pins Python 3.12, and Homebrew pythons are
-# PEP 668 externally-managed, so it gets its own venv.
+# Homebrew Python is externally managed; the Python 3.12 MCP runtime needs its own venv.
 MCP_VENV := $(ROOT)/.venv-mcp
 
-# Default URLs printed by `make start`
 API_URL := http://localhost:8008
 UI_URL  := http://localhost:5173
 DOCS_URL := http://localhost:8008/docs
@@ -45,9 +43,6 @@ help:
 	@echo "  make clean        Remove .venv, caches, frontend dist"
 	@echo "  make reset-db     Drop the local SQLite store (coscientist.db)"
 
-# ---------------------------------------------------------------------------
-# Setup
-# ---------------------------------------------------------------------------
 setup: check-tools $(VENV)/bin/activate
 	@echo ">> Installing engine (editable)"
 	@$(PIP) install -e "$(ENGINE)[dev]"
@@ -81,12 +76,6 @@ $(VENV)/bin/activate:
 	 python3 -m venv "$(VENV)"
 	@$(PIP) install --upgrade pip setuptools wheel >/dev/null
 
-# ---------------------------------------------------------------------------
-# Dev servers
-# ---------------------------------------------------------------------------
-# `make start` is the single entry point: it installs anything missing, frees
-# the dev ports, starts MCP + API + UI together, and opens the app in the
-# browser once both the API and the UI answer. Ctrl-C stops everything.
 start: preflight
 	@echo ""
 	@echo "Co-Scientist — dev URLs"
@@ -188,9 +177,6 @@ dev-mcp:
 	echo ">> Starting reference MCP server on http://localhost:8888"; \
 	cd "$(ENGINE)" && "$(MCP_VENV)/bin/python" -m uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888
 
-# ---------------------------------------------------------------------------
-# Test / lint / typecheck / build
-# ---------------------------------------------------------------------------
 test:
 	@$(MAKE) test-app
 
@@ -200,18 +186,8 @@ test-app:
 test-engine:
 	@cd "$(ENGINE)" && "$(PY)" -m pytest -q
 
-# Sandbox suites on Linux -- the platform production actually runs on.
-#
-# The confinement backends are per-platform: macOS uses seatbelt, Linux
-# uses bubblewrap, and `make test-engine` on a Mac exercises only the
-# first. Running the escape tests here caught two real faults in the
-# Linux backend that the macOS suite could not have shown, including a
-# write that escaped the workspace.
-#
-# --privileged is required, not a convenience: an unprivileged container
-# blocks the user namespace bwrap needs, bwrap fails to launch, and the
-# escape tests then pass because nothing ran. The image's preflight
-# refuses to proceed in that state rather than reporting a false green.
+# Linux bubblewrap differs from macOS seatbelt; production confinement needs Linux coverage.
+# Privileged namespace preflight prevents denial tests passing when no sandbox can launch.
 test-sandbox-linux:
 	@docker info >/dev/null 2>&1 || { \
 		echo "Docker is not running. Start Docker Desktop and retry."; \
@@ -226,13 +202,8 @@ test-sandbox-linux:
 	@echo "== privileged (exercises the bubblewrap backend) =="
 	@docker run --rm --privileged coscientist-sandbox-linux
 
-# Reference MCP server suite. It pins Python 3.12, so it runs from the
-# dedicated $(MCP_VENV) that `make dev-mcp` also uses (created on demand).
-# pytest runs from $(ENGINE) because the mcp_server editable install exposes
-# no import map — the package resolves as a plain directory package, exactly
-# how CI's mcp-server job runs it. mypy runs from mcp_server/ where its
-# strict config lives (mypy is not in the [dev] extra, so it is installed
-# alongside).
+# MCP imports resolve from engine/; strict mypy configuration lives in mcp_server/.
+# Its dev extras omit mypy, so install it separately.
 test-mcp:
 	@command -v python3.12 >/dev/null 2>&1 || test -x "$(MCP_VENV)/bin/python" || \
 		{ echo ">> python3.12 not found — the reference MCP server pins Python 3.12"; exit 1; }
@@ -255,12 +226,7 @@ test-all:
 	@$(MAKE) test-evaluations
 	@$(MAKE) test-frontend
 
-# Browser-level end-to-end suite (Playwright). Self-contained: it installs the
-# harness deps and the Chromium browser if missing, then Playwright launches
-# its own isolated stack (FastAPI on 8108 + Vite on 5273, both non-default so
-# they never collide with `make start`) against a fresh temp SQLite store and
-# runs headless. Requires `make setup` first (the backend venv + frontend
-# node_modules the launched servers depend on).
+# Use isolated ports and a fresh store so browser tests cannot disturb a developer stack.
 E2E := $(ROOT)/e2e
 e2e: check-tools
 	@test -x "$(PY)" || { echo ">> Backend venv missing — run 'make setup' first"; exit 1; }
@@ -275,24 +241,17 @@ e2e: check-tools
 	fi
 	@cd "$(E2E)" && "$(BUN)" x playwright test
 
-# Real bundled assets and launch authentication, with a fresh offline API.
 e2e-production:
 	@COSCI_E2E_PRODUCTION=1 $(MAKE) e2e
 
 test-evaluations:
 	@cd "$(ROOT)" && "$(PY)" -m pytest evaluations/tests -q
 
-# Offline evaluation smoke suite (no LLM, no network): safety + citation evals
-# with documented regression tolerances. Expensive provider-backed suites stay
-# opt-in. See evaluations/README.md.
+# Provider-backed evaluations stay opt-in; the default smoke is offline.
 eval-smoke:
 	@cd "$(ROOT)" && "$(PY)" -m evaluations.smoke
 
-# Mirrors CI's format-lint job (ruff format --check + ruff check for all
-# three Python trees) plus its frontend job's lint step (gts), so a
-# formatting or gts-only failure cannot stay invisible until CI. Assumes
-# `make setup` has already installed the frontend's node_modules, same as
-# `make typecheck`/`test-app` assume the backend venv exists.
+# Include GTS locally so frontend-only lint failures do not first appear in CI.
 lint: check-tools
 	@cd "$(ENGINE)" && "$(PY)" -m ruff format --check .
 	@cd "$(APP)" && "$(PY)" -m ruff format --check .
@@ -304,8 +263,6 @@ lint: check-tools
 	@echo ">> Linting frontend (gts)"
 	@cd "$(FRONTEND)" && "$(BUN)" run lint
 
-# Mirrors the CI typecheck job, which covers engine/ as well as app/ and
-# evaluations/.
 typecheck:
 	@cd "$(APP)" && "$(PY)" -m mypy .
 	@cd "$(ENGINE)" && "$(PY)" -m mypy .
@@ -321,8 +278,6 @@ reset-db:
 	rm -f "$(ROOT)/coscientist.db"
 	@echo ">> Removed $(ROOT)/coscientist.db"
 
-# One local launch-validation command. Provider-backed evaluations and
-# production deployment remain separate, explicit operations.
 check:
 	@$(MAKE) lint
 	@$(MAKE) typecheck
@@ -345,8 +300,8 @@ docker-build:
 	@docker build -f Dockerfile.api -t coscientist-api-local .
 	@docker build -f Dockerfile.mcp -t coscientist-mcp-local .
 
-# Online advisory data is separate from offline implementation checks. Keep
-# every finding visible and finish all audits even when an earlier one fails.
+# Online advisories are separate from offline gates; retain all findings despite earlier
+# failures.
 audit-deps: check-tools
 	@command -v uv >/dev/null 2>&1 || { echo "uv is required; see requirements/README.md"; exit 1; }
 	@status=0; \

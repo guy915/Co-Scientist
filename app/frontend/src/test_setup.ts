@@ -1,12 +1,8 @@
-// Registers the jest-dom matchers (toBeInTheDocument, etc.) on Vitest's
-// expect and cleans up the DOM between tests.
 import '@testing-library/jest-dom/vitest';
 import {afterEach} from 'vitest';
 import {cleanup} from '@testing-library/react';
 
-// jsdom's bundled localStorage is a non-functional stub in this environment, so
-// install a working in-memory implementation for tests that persist client
-// state.
+// jsdom's localStorage is non-functional here; persistence tests need an in-memory replacement.
 class MemoryStorage implements Storage {
   private store = new Map<string, string>();
   get length(): number {

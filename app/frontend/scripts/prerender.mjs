@@ -3,9 +3,9 @@
  * workbench UI, so avoid emitting marketing pages that are not part of the
  * official product surface.
  */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import {mkdir, readFile, writeFile} from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import {fileURLToPath} from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dist = path.resolve(root, process.env.COSCI_FRONTEND_DIST || "dist");
@@ -58,78 +58,87 @@ function renderRoute(route) {
     .replace(/<title>.*?<\/title>/, `<title>${escapeHtml(route.title)}</title>`)
     .replace(
       /<meta name="description" content=".*?" \/>/,
-      `<meta name="description" content="${escapeHtml(route.description)}" />`
+      `<meta name="description" content="${escapeHtml(route.description)}" />`,
     )
-    .replace(/<link rel="canonical" href=".*?" \/>/, `<link rel="canonical" href="${canonical}" />`)
+    .replace(
+      /<link rel="canonical" href=".*?" \/>/,
+      `<link rel="canonical" href="${canonical}" />`,
+    )
     .replace(
       /<meta property="og:title" content=".*?" \/>/,
-      `<meta property="og:title" content="${escapeHtml(route.title)}" />`
+      `<meta property="og:title" content="${escapeHtml(route.title)}" />`,
     )
     .replace(
       /<meta property="og:description" content=".*?" \/>/,
-      `<meta property="og:description" content="${escapeHtml(route.description)}" />`
+      `<meta property="og:description" content="${escapeHtml(route.description)}" />`,
     )
     .replace(
       /<meta property="og:url" content=".*?" \/>/,
-      `<meta property="og:url" content="${canonical}" />`
+      `<meta property="og:url" content="${canonical}" />`,
     )
     .replace(
       /<meta name="twitter:title" content=".*?" \/>/,
-      `<meta name="twitter:title" content="${escapeHtml(route.title)}" />`
+      `<meta name="twitter:title" content="${escapeHtml(route.title)}" />`,
     )
     .replace(
       /<meta name="twitter:description" content=".*?" \/>/,
-      `<meta name="twitter:description" content="${escapeHtml(route.description)}" />`
+      `<meta name="twitter:description" content="${escapeHtml(route.description)}" />`,
     )
     .replace(
       /<noscript>[\s\S]*?<\/noscript>/,
-      `<noscript><main><h1>${escapeHtml(route.heading)}</h1><p>${escapeHtml(route.body)}</p></main></noscript>`
+      `<noscript><main><h1>${escapeHtml(route.heading)}</h1><p>${escapeHtml(route.body)}</p></main></noscript>`,
     )
-    .replace("</head>", `<script type="application/ld+json">${jsonLd}</script></head>`);
+    .replace(
+      "</head>",
+      `<script type="application/ld+json">${jsonLd}</script></head>`,
+    );
 }
 
 for (const route of routes) {
   const outputDirectory =
     route.path === "/" ? dist : path.join(dist, route.path.replace(/^\//, ""));
-  await mkdir(outputDirectory, { recursive: true });
+  await mkdir(outputDirectory, {recursive: true});
   await writeFile(path.join(outputDirectory, "index.html"), renderRoute(route));
 }
 
 const notFoundHtml = baseHtml
-  .replace(/<title>.*?<\/title>/, "<title>Page not found - AI Co-Scientist</title>")
+  .replace(
+    /<title>.*?<\/title>/,
+    "<title>Page not found - AI Co-Scientist</title>",
+  )
   .replace(
     /<meta name="description" content=".*?" \/>/,
-    '<meta name="description" content="The page you requested does not exist." />'
+    '<meta name="description" content="The page you requested does not exist." />',
   )
   .replace(
     /<meta name="robots" content=".*?" \/>/,
-    '<meta name="robots" content="noindex, nofollow" />'
+    '<meta name="robots" content="noindex, nofollow" />',
   )
   .replace(
     /<meta name="googlebot" content=".*?" \/>/,
-    '<meta name="googlebot" content="noindex, nofollow" />'
+    '<meta name="googlebot" content="noindex, nofollow" />',
   )
   .replace(
     /<meta property="og:title" content=".*?" \/>/,
-    '<meta property="og:title" content="Page not found - AI Co-Scientist" />'
+    '<meta property="og:title" content="Page not found - AI Co-Scientist" />',
   )
   .replace(
     /<meta property="og:description" content=".*?" \/>/,
-    '<meta property="og:description" content="The page you requested does not exist." />'
+    '<meta property="og:description" content="The page you requested does not exist." />',
   )
   .replace(
     /<meta name="twitter:title" content=".*?" \/>/,
-    '<meta name="twitter:title" content="Page not found - AI Co-Scientist" />'
+    '<meta name="twitter:title" content="Page not found - AI Co-Scientist" />',
   )
   .replace(
     /<meta name="twitter:description" content=".*?" \/>/,
-    '<meta name="twitter:description" content="The page you requested does not exist." />'
+    '<meta name="twitter:description" content="The page you requested does not exist." />',
   )
   .replace(/<link rel="canonical" href=".*?" \/>/, "")
   .replace(/<meta property="og:url" content=".*?" \/>/, "")
   .replace(
     /<noscript>[\s\S]*?<\/noscript>/,
-    '<noscript><main><h1>Page not found</h1><p>The page you requested does not exist.</p><p><a href="/">Return home</a></p></main></noscript>'
+    '<noscript><main><h1>Page not found</h1><p>The page you requested does not exist.</p><p><a href="/">Return home</a></p></main></noscript>',
   );
 
 await writeFile(path.join(dist, "404.html"), notFoundHtml);

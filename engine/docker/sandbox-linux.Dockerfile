@@ -1,21 +1,5 @@
-# Linux harness for exercising the sandbox on the platform production
-# actually runs on.
-#
-# Why this exists: development happens on macOS, where seatbelt is
-# exercised by real escape attempts. The bubblewrap backend had no
-# equivalent and was shipping unverified — and Linux is production, so
-# that was the wrong way round. This image runs the same escape tests
-# against bwrap.
-#
-# It must be run --privileged. That is not a shortcut: an unprivileged
-# container cannot create the user namespace bwrap needs, and bwrap then
-# fails to start. A failed launch denies the write, which looks exactly
-# like successful confinement — so without --privileged this harness
-# reports false passes.
-#
-# The same restriction is why bwrap inside the app container is very
-# likely not the production answer: production confinement is Landlock,
-# which needs no privilege, plus seccomp for the UDP it cannot reach.
+# Production bubblewrap differs from macOS seatbelt and needs Linux escape coverage.
+# Privileged namespace preflight avoids false-green denials when no sandbox can launch.
 FROM python:3.12-slim
 
 RUN apt-get update -qq \
@@ -31,12 +15,9 @@ COPY tests/ ./tests/
 COPY docker/sandbox-preflight.sh /usr/local/bin/preflight
 RUN chmod +x /usr/local/bin/preflight
 
-# The preflight refuses to run when bwrap cannot create a namespace,
-# because in that state the escape tests pass for the wrong reason.
+# Abort before escape tests when bubblewrap cannot create a namespace.
 ENTRYPOINT ["/usr/local/bin/preflight"]
 
-# Default to the suites that are platform-dependent. The rest of the
-# engine suite is platform-neutral and runs on the host.
 CMD ["python", "-m", "pytest", "-q", \
      "tests/test_sandbox.py", "tests/test_sandbox_runner.py", \
      "tests/test_workspace.py", "tests/test_workspace_output.py", \

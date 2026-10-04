@@ -1,16 +1,6 @@
 # syntax=docker/dockerfile:1
-# Build from repo root: docker build -f Dockerfile.mcp .
-#
-# Sibling: engine/mcp_server/Dockerfile (local/compose). The two are
-# deliberately divergent -- this one (Railway) builds from the repo root and
-# binds IPv6 (`--host ::`) with an [::1] healthcheck for Railway's IPv6
-# private network, while the engine-local file builds from engine/ and binds
-# 0.0.0.0. A change to the server install, bind host, or healthcheck here
-# usually needs a mirrored change there.
-# Pinned by digest so the same source always builds the same base
-# image (N18) -- python:3.12-slim is a mutable tag that moves under
-# it on rebuild. Update deliberately: `docker pull python:3.12-slim`
-# then `docker inspect --format='{{index .RepoDigests 0}}' python:3.12-slim`.
+# Railway uses IPv6 private networking; the engine-local image binds IPv4.
+# Digest pins keep base images reproducible.
 FROM python:3.12-slim@sha256:646fb0bca3dd3ea1bcc6feb72c17ed16eed6e10cffc732fcc1478bd3e7f02d7b
 
 WORKDIR /app
@@ -21,13 +11,7 @@ COPY LICENSE NOTICE /usr/share/doc/co-scientist/
 
 RUN apt-get update && apt-get install -y build-essential && rm -rf /var/lib/apt/lists/*
 
-# Dependencies from metadata alone, so editing server source does not
-# recompile biopython/lxml; the source tree lands in the next COPY. The
-# editable build maps the `mcp_server` package onto this directory
-# (pyproject.toml's `package-dir`) and lists its subpackages explicitly, so
-# setuptools' egg_info step needs those subpackage directories to exist even
-# though their contents arrive later -- same reason the engine install below
-# pre-creates an empty src/.
+# Editable package mapping needs the listed subpackage directories before source COPY.
 COPY engine/mcp_server/pyproject.toml engine/mcp_server/README.md engine/mcp_server/LICENSE engine/mcp_server/NOTICE ./mcp_server/
 RUN mkdir -p ./mcp_server/tools/indra_cogex ./mcp_server/tools/lit_review \
     && pip install --no-cache-dir --no-deps -e ./mcp_server
@@ -35,9 +19,7 @@ COPY engine/mcp_server/ ./mcp_server/
 
 ENV PYTHONUNBUFFERED=1
 
-# Run as a non-root user. Ownership must be set before dropping root -- a
-# later `chown` from an unprivileged user would fail. 8888 is unprivileged
-# so a non-root user can still bind it.
+# Set ownership before dropping root; an unprivileged user cannot chown later.
 RUN groupadd --system coscientist \
     && useradd --system --gid coscientist --home-dir /app coscientist \
     && chown -R coscientist:coscientist /app
@@ -45,13 +27,8 @@ USER coscientist
 
 EXPOSE 8888
 
-# Listen on a fixed internal port (matches the api's MCP_SERVER_URL) and bind
-# IPv6 (::) so Railway's IPv6 private network (mcp.railway.internal) can reach
-# it. Railway injects its own PORT (e.g. 8080) for public ingress, but this
-# service is private-only, so we ignore it and pin 8888 on both ends.
-# Probe the IPv6 loopback explicitly: `--host ::` is IPv6-only on some kernels
-# (not always dual-stack), so a `localhost`/127.0.0.1 healthcheck can miss the
-# socket. [::1] matches the bind regardless of dual-stack behavior.
+# Private MCP stays on 8888 despite Railway PORT; both ends must agree.
+# Probe IPv6 loopback because an IPv6 listener is not always dual-stack.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import httpx; httpx.get('http://[::1]:8888', timeout=5.0, trust_env=False).raise_for_status()" || exit 1
 
