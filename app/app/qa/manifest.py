@@ -350,11 +350,11 @@ def _score(query_tokens: frozenset[str], hyp: dict[str, Any]) -> int:
     )
 
 
-def _clip(text: str) -> str:
+def _clip(text: str, limit: int = _FIELD_MAX_CHARS) -> str:
     text = text.strip()
-    if len(text) <= _FIELD_MAX_CHARS:
+    if len(text) <= limit:
         return text
-    return text[:_FIELD_MAX_CHARS].rstrip() + "…"
+    return text[:limit].rstrip() + "…"
 
 
 def _render_idea(hyp: dict[str, Any]) -> dict[str, Any]:
@@ -527,9 +527,7 @@ def _passage(row: dict[str, Any]) -> str | None:
     abstract = (row.get("abstract") or "").strip()
     if not abstract:
         return None
-    if len(abstract) <= _PASSAGE_MAX_CHARS:
-        return abstract
-    return abstract[:_PASSAGE_MAX_CHARS].rstrip() + "…"
+    return _clip(abstract, _PASSAGE_MAX_CHARS)
 
 
 def _withhold_uncitable(
