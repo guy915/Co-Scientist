@@ -37,8 +37,8 @@ const DEFAULT_CONNECTORS: ConnectorToggleProps = {
   webSearchEnabled: true,
 };
 
-// Keep typing available while a reply is streaming. Busy gates sending;
-// stoppable lets the scientist interrupt the current reply.
+// Keep typing while replies stream; busy gates sending, while stoppable
+// permits interruption.
 export function Composer({
   input,
   setInput,
@@ -66,7 +66,7 @@ export function Composer({
       ? 'Type to edit session details'
       : 'Start a new research goal to begin');
 
-  // Re-measure programmatic fills too; the CSS min-height sets the empty floor.
+  // Measure programmatic fills as well as typing.
   useLayoutEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -156,18 +156,9 @@ export function Composer({
   );
 }
 
-/**
- * Applied to the composer form when at least one attachment is present, to
- * grow the composer's min-height/top-padding to fit the attachment strip
- * above the textarea.
- */
 export const REFERENCE_COMPOSER_ATTACHED_CLASSES =
   'has-attachments !min-h-[13.5rem] !pt-4';
 
-// Attachment strip/card styling family: the flex-wrap strip above the
-// textarea, the file-card and image-card variants inside it (name/badge/kind
-// for files, a cropped preview for images), and the hover-revealed remove
-// button shared by both variants.
 const ATTACHMENT_STRIP_CLASSES =
   'reference-attachment-strip flex min-w-0 flex-wrap gap-[0.8rem] ' +
   'pb-[1.35rem] pointer-events-auto';
@@ -215,11 +206,6 @@ const ATTACHMENT_REMOVE_BUTTON_CLASSES =
 
 const ATTACHMENT_REMOVE_ICON_CLASSES = 'text-[1.35rem]';
 
-/**
- * A locally-attached file (not yet uploaded/sent), derived from a browser
- * File by fileToAttachment. previewUrl is a revocable object URL, only set
- * for images.
- */
 export interface ComposerAttachment {
   id: string;
   file: File;
@@ -230,20 +216,15 @@ export interface ComposerAttachment {
   previewUrl: string | null;
 }
 
-// Releases an attachment's preview object URL, if it has one. Every path that
-// drops an attachment (removing one, clearing them all, unmounting) goes
-// through here, since a preview left un-revoked leaks its blob for the life of
-// the document.
+// Revoke previews on remove, clear and unmount; unreleased object URLs retain
+// blobs for the document lifetime.
 function revokePreview(attachment: ComposerAttachment): void {
   if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
 }
 
-// Revokes every remaining preview object URL on unmount, via a ref mirroring
-// `attachments`, so navigating away doesn't leak blob URLs for attachments
-// that were never explicitly removed.
+// Mirror attachments in a ref so unmount cleanup sees the latest previews
+// without resubscribing.
 function useAttachmentPreviewCleanup(attachments: ComposerAttachment[]) {
-  // Mirrors `attachments` for use inside the unmount-only effect below, which
-  // must read the latest value without re-subscribing on every change.
   const attachmentRef = useRef<ComposerAttachment[]>([]);
 
   useEffect(() => {
@@ -257,17 +238,11 @@ function useAttachmentPreviewCleanup(attachments: ComposerAttachment[]) {
   }, []);
 }
 
-/**
- * Owns the staged-attachments list: appending newly picked files and
- * removing one by id (revoking its preview object URL), plus the cleanup
- * that revokes any remaining preview object URLs on unmount.
- */
 export function useComposerAttachments() {
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   useAttachmentPreviewCleanup(attachments);
 
-  // Appends newly picked files as attachments and resets the file input so
-  // selecting the same file again still fires a change event.
+  // Reset the file input so picking the same file still fires change.
   function onFilesChanged(e: ChangeEvent<HTMLInputElement>) {
     const nextAttachments = Array.from(e.target.files ?? []).map(file =>
       fileToAttachment(file),
@@ -276,8 +251,6 @@ export function useComposerAttachments() {
     e.target.value = '';
   }
 
-  // Drops one attachment by id, revoking its preview object URL (if any) to
-  // avoid leaking blob memory.
   function removeAttachment(id: string) {
     setAttachments(current => {
       const attachment = current.find(item => item.id === id);
@@ -296,12 +269,6 @@ export function useComposerAttachments() {
   return {attachments, onFilesChanged, removeAttachment, clearAttachments};
 }
 
-/**
- * Renders the staged-attachments strip above the textarea, or nothing when
- * there are none. Two attachment-card variants render inside: an image card
- * with a cropped preview, or a file card with name + kind badge; both share
- * the hover-reveal remove button (see AttachmentCard).
- */
 export function AttachmentStrip({
   attachments,
   onRemove,
@@ -323,9 +290,6 @@ export function AttachmentStrip({
   );
 }
 
-// Renders one staged attachment: an image card with a cropped preview, or a
-// file card with name + kind badge. Both variants share the same hover-reveal
-// remove button.
 function AttachmentCard({
   attachment,
   onRemove,
@@ -352,8 +316,6 @@ function AttachmentCard({
   );
 }
 
-// Image attachment-card variant: a cropped preview plus the shared remove
-// button.
 function ImageAttachmentCard({
   name,
   previewUrl,
@@ -383,8 +345,6 @@ function ImageAttachmentCard({
   );
 }
 
-// File attachment-card variant: name + kind badge plus the shared remove
-// button.
 function FileAttachmentCard({
   attachment,
   removeButton,
@@ -416,7 +376,6 @@ function FileAttachmentCard({
   );
 }
 
-// The hover-revealed remove button shared by both attachment-card variants.
 function AttachmentRemoveButton({
   attachment,
   onRemove,
@@ -444,9 +403,6 @@ function AttachmentRemoveButton({
   );
 }
 
-// Converts a browser File into the view model rendered in the attachment
-// strip, generating an id and (for images only) a previewUrl object URL that
-// the caller is responsible for revoking.
 function fileToAttachment(file: File): ComposerAttachment {
   const extension = fileExtension(file.name);
   const isImage = file.type.startsWith('image/');
@@ -462,36 +418,25 @@ function fileToAttachment(file: File): ComposerAttachment {
   };
 }
 
-// Lower-cased extension from a filename, capped to 8 chars (defends against
-// pathological "filenames" with no real extension).
 function fileExtension(name: string) {
   const extension = name.split('.').pop()?.trim();
   return extension ? extension.slice(0, 8).toLowerCase() : '';
 }
 
-// Short badge shown on the attachment card (e.g. "PDF", "TXT"); markdown/text
-// extensions are normalized to "TXT".
 function fileBadge(extension: string) {
   if (['md', 'mkdn', 'markdown', 'txt'].includes(extension)) return 'TXT';
   return extension ? extension.slice(0, 4).toUpperCase() : 'FILE';
 }
 
-// Extensions whose label wins outright, regardless of MIME type — checked
-// before the text/ MIME check below (a markdown file can be served as
-// text/markdown, which must still read "Markdown", not "Text").
+// Markdown extensions outrank text MIME types; CSV can retain MIME-first
+// classification.
 const MARKDOWN_EXTENSIONS = ['md', 'mkdn', 'markdown'];
 
-// Extension -> label for kinds resolved only after the text/ MIME check
-// below has had first refusal (e.g. a .csv served as text/plain reads
-// "Text", matching the MIME-first precedence of the original checks).
 const EXTENSION_KIND_LABELS: Record<string, string> = {
   pdf: 'PDF',
   csv: 'CSV',
 };
 
-// Human-readable file-kind label shown next to the badge; falls back to the
-// MIME subtype (stripped of any "+xml"/"-something" suffix) when neither the
-// extension nor the MIME type matches a known kind.
 function fileKind(file: File, extension: string) {
   if (MARKDOWN_EXTENSIONS.includes(extension)) return 'Markdown';
   if (file.type.startsWith('text/') || extension === 'txt') return 'Text';
@@ -500,8 +445,6 @@ function fileKind(file: File, extension: string) {
   return mimeSubtypeLabel(file.type);
 }
 
-// Uppercased MIME subtype (e.g. "image/svg+xml" -> "SVG"), or "File" when the
-// type string doesn't parse.
 function mimeSubtypeLabel(mimeType: string): string {
   return (
     mimeType
@@ -512,22 +455,12 @@ function mimeSubtypeLabel(mimeType: string): string {
   );
 }
 
-// Shown until /status responds (and if it reports none), so the menu is never
-// empty. Only PubMed belongs here: it is the always-present literature base,
-// whereas web search exists only when the MCP server has a provider key.
-// Listing web search optimistically would flash a connector that a deployment
-// without a key does not actually have.
+// Only PubMed is always present; optimistic web-search display would advertise
+// a deployment without a provider key.
 const FALLBACK_CONNECTORS: Connector[] = [{id: 'pubmed', display: 'PubMed'}];
 
-// The connector id whose row drives the standalone web-search toggle; every
-// other id shares the literature toggle (see ConnectorsMenu).
 const WEB_SEARCH_CONNECTOR_ID = 'web_search';
 
-/**
- * The PubMed/web-search connector toggle values plus their change callbacks,
- * bundled so SourceControls/ConnectorsMenu can each take a
- * single argument instead of four.
- */
 export interface ConnectorToggleProps {
   pubmedEnabled: boolean;
   onPubmedEnabledChange?: (value: boolean) => void;
@@ -535,11 +468,6 @@ export interface ConnectorToggleProps {
   onWebSearchEnabledChange?: (value: boolean) => void;
 }
 
-/**
- * Owns the connectors-menu open flag and the outside-mousedown listener that
- * closes it; only subscribes to the document listener when the menu is
- * actually open.
- */
 export function useConnectorsMenu() {
   const sourceControlsRef = useRef<HTMLDivElement>(null);
   const [connectorsOpen, setConnectorsOpen] = useState(false);
@@ -564,8 +492,6 @@ export function useConnectorsMenu() {
   return {connectorsOpen, setConnectorsOpen, sourceControlsRef};
 }
 
-// Props for SourceControls, named at module level per the destructured
-// prop signature otherwise pushing the component past the line cap.
 interface SourceControlsProps {
   connectorsOpen: boolean;
   onToggleConnectors: () => void;
@@ -575,11 +501,6 @@ interface SourceControlsProps {
   connectors: ConnectorToggleProps;
 }
 
-/**
- * Renders the composer's file/connector toolbar row: the hidden file input
- * and its trigger button, the Connectors button, and (while open) the
- * connectors menu with its connector toggle rows.
- */
 export function SourceControls(props: SourceControlsProps) {
   const {
     connectorsOpen,
@@ -619,10 +540,7 @@ export function SourceControls(props: SourceControlsProps) {
   );
 }
 
-// One toolbar trigger button in the source-controls row (Files, Connectors):
-// an icon button with a shared tooltip/label. `expanded` is only set by the
-// Connectors button; leaving it undefined for Files omits aria-expanded
-// entirely, matching a plain non-expandable button.
+// Omit aria-expanded for the non-expandable Files button.
 function SourceToolbarButton({
   label,
   icon,
@@ -656,26 +574,19 @@ function SourceToolbarButton({
   );
 }
 
-// The available data sources come from the backend (/status), derived from
-// literature and web-search availability plus the configured tools YAML, so
-// newly configured connectors appear here automatically.
 function visibleConnectors(status: SystemStatus | null): Connector[] {
-  // No answer yet is not the same as an empty answer: the caller renders its
-  // own note for that, rather than this passing off the fallback as the
-  // deployment's real source list.
+  // Unknown availability is different from a genuine empty deployment source
+  // list.
   if (status === null) return [];
   return status.connectors?.length ? status.connectors : FALLBACK_CONNECTORS;
 }
 
-// Which toggle a connector row reads and writes, plus the icon it shows.
 interface ConnectorBehavior {
   checked: boolean;
   setChecked?: (value: boolean) => void;
   icon: IconName;
 }
 
-// The shared pubmed/literature-retrieval behavior, for every connector with
-// no entry of its own.
 function literatureBehavior(toggles: ConnectorToggleProps): ConnectorBehavior {
   return {
     checked: toggles.pubmedEnabled,
@@ -684,15 +595,8 @@ function literatureBehavior(toggles: ConnectorToggleProps): ConnectorBehavior {
   };
 }
 
-// The connectors that own an independent toggle, keyed by id. Web search
-// stands alone here; every other connector falls through to the literature
-// default above, since the engine enables that stack as one unit. This maps
-// ids that are already on screen to their behavior — which connectors are
-// shown at all is decided by visibleConnectors alone.
-//
-// Entries are selector functions, not built behaviors, so the table itself
-// lives at module scope: a per-row table meant rebuilding every connector's
-// behavior on every render just to read one of them back out.
+// Web search toggles independently; the engine enables the other literature
+// connectors as one stack.
 const STANDALONE_BEHAVIORS: Record<
   string,
   (toggles: ConnectorToggleProps) => ConnectorBehavior
@@ -704,8 +608,6 @@ const STANDALONE_BEHAVIORS: Record<
   }),
 };
 
-// One connector row's derived checked/toggle/icon state, from a single
-// lookup in the table above.
 function connectorRowState(
   connector: Connector,
   toggles: ConnectorToggleProps,
@@ -720,8 +622,6 @@ function connectorRowState(
   };
 }
 
-// One row in the connectors menu: an icon, the connector's display name, and
-// its on/off toggle pill.
 function ConnectorMenuRow({
   connector,
   toggles,
@@ -757,8 +657,6 @@ function ConnectorMenuRow({
   );
 }
 
-// A non-row line in the menu: the states that are not a connector list, and
-// must not read as one.
 function ConnectorsNote({text}: {text: string}) {
   return (
     <p
@@ -770,9 +668,6 @@ function ConnectorsNote({text}: {text: string}) {
   );
 }
 
-// The note shown in place of rows, or nothing when there are rows to show.
-// A menu with no rows and no explanation is the one outcome to avoid: it
-// looks like the list failed to load however it got there.
 function ConnectorsMenuState({
   status,
   unreachable,
@@ -794,16 +689,8 @@ function ConnectorsMenuState({
   return <ConnectorsNote text="Checking available sources…" />;
 }
 
-/**
- * The connectors menu: a header plus one ConnectorMenuRow per visible
- * connector. Closed by the outside-mousedown effect in the parent composer
- * (see useConnectorsMenu).
- *
- * The three states are kept apart on purpose. "Still checking" and "could not
- * check" both used to render the PubMed-only fallback, which is a claim about
- * the deployment -- a scientist reading it has no way to tell an unreachable
- * API from a backend that genuinely advertises one source.
- */
+// Keep checking, unreachable and empty states distinct so fallback sources
+// cannot misrepresent deployment availability.
 function ConnectorsMenu({
   connectors: toggles,
 }: {

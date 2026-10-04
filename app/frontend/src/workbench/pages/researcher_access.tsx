@@ -13,7 +13,6 @@ const PAGE_CLASSES =
   'mx-auto grid min-h-full w-[min(100%_-_2rem,34rem)] ' +
   'grid-cols-[minmax(0,1fr)] content-center gap-6 py-12';
 
-// The static heading/blurb above the access-code form.
 function AccessIntro() {
   return (
     <div>
@@ -36,8 +35,6 @@ interface AccessFormProps {
   onSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
 }
 
-// The access-code field, error message, and submit button. All state lives
-// in ResearcherAccessPage; this only renders what it is handed.
 function AccessForm({
   code,
   error,
@@ -73,7 +70,6 @@ function AccessForm({
   );
 }
 
-/** Restricted researcher-access exchange for the private workbench. */
 export function ResearcherAccessPage() {
   const navigate = useNavigate();
   const [code, setCode] = useState('');

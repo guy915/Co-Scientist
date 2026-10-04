@@ -14,30 +14,16 @@ import {
   SETUP_SECONDARY_BUTTON_CLASSES,
 } from '../classes';
 
-/**
- * What the scientist has picked so far, keyed by the question's position in
- * the turn that asked it.
- *
- * Position, not the question's text: the questions of one turn are a fixed
- * list rendered in order, and keying on their wording would break the moment
- * two turns asked the same thing.
- */
+// Key answers by question position: separate turns can ask identical text.
 export interface QuestionSelections {
-  /** Chosen option labels per question, in the order they were clicked. */
   chosen: Record<number, string[]>;
-  /** The scientist's own wording per question, when they wrote any. */
   other: Record<number, string>;
 }
 
-/** Nothing picked yet. */
 export function emptySelections(): QuestionSelections {
   return {chosen: {}, other: {}};
 }
 
-// One question's chosen labels after a click. Multi-select accumulates and
-// un-picks on a second click; single-select replaces, and a second click on
-// the same option clears it -- so a mis-click is always undoable without
-// having to dismiss the whole chooser.
 function nextChosen(
   current: string[],
   label: string,
@@ -49,7 +35,6 @@ function nextChosen(
   return multiSelect ? [...current, label] : [label];
 }
 
-/** Returns the selections with one option of one question toggled. */
 export function toggleOption(
   selections: QuestionSelections,
   index: number,
@@ -65,7 +50,6 @@ export function toggleOption(
   };
 }
 
-/** Returns the selections with one question's free-text answer replaced. */
 export function setOther(
   selections: QuestionSelections,
   index: number,
@@ -74,17 +58,14 @@ export function setOther(
   return {...selections, other: {...selections.other, [index]: text}};
 }
 
-// Everything the scientist gave for one question: what they clicked, then
-// anything they wrote themselves.
 function answerParts(selections: QuestionSelections, index: number): string[] {
   const other = (selections.other[index] ?? '').trim();
   const chosen = selections.chosen[index] ?? [];
   return other ? [...chosen, other] : chosen;
 }
 
-// One question's answer as the scientist's own turn will read it. The header
-// names what is being answered, which is what keeps a turn answering several
-// questions unambiguous; a question without one sends the answer bare.
+// Include question headers so a turn answering several questions stays
+// unambiguous.
 function answerLine(
   question: InterviewQuestion,
   selections: QuestionSelections,
@@ -96,18 +77,8 @@ function answerLine(
   return question.header ? `${question.header}: ${answer}` : answer;
 }
 
-/**
- * Composes the scientist's turn from what they picked.
- *
- * The answer is posted as an ordinary interview turn, in plain words, so the
- * Agent reads the conversation it would have read had the scientist typed
- * it -- there is no second channel for a clicked answer, and nothing about
- * the transcript records that the answer was clicked rather than written.
- *
- * @param questions The questions the turn offered, in the order asked.
- * @param selections What the scientist has picked so far.
- * @returns The turn's text, empty when nothing has been picked.
- */
+// Clicked answers use ordinary interview turns so the model sees the same
+// transcript as typed answers.
 export function answerText(
   questions: InterviewQuestion[],
   selections: QuestionSelections,
@@ -118,39 +89,23 @@ export function answerText(
     .join('\n');
 }
 
-/** The questions of one turn, still awaiting an answer. */
 export interface PendingQuestions {
-  /** The durable turn that asked them, which keys the chooser's state. */
   turnId: number;
   questions: InterviewQuestion[];
 }
 
-/**
- * The questions the scientist can still answer, if any.
- *
- * Exactly one turn is ever pending: the interview's last one, and only when
- * the Agent asked it. Anything earlier has already been answered -- the
- * scientist's reply is the next turn -- and a completed interview has
- * stopped asking, whatever its final turn happened to carry.
- *
- * @param interview The session's interview, or null before there is one.
- * @returns The pending questions, or null when nothing is being asked.
- */
+// Only the last unanswered Agent turn can be pending; completed interviews no
+// longer ask questions.
 export function pendingQuestions(
   interview: Pick<Interview, 'turns' | 'status'> | null,
 ): PendingQuestions | null {
   const last = lastPendingTurn(interview);
   if (!last) return null;
-  // Read defensively: the store fills `questions` for every turn, including
-  // those persisted before it existed, but this is the one field on the
-  // payload the composer cannot render without, and reaching into an absent
-  // one would take down the whole composer rather than just the chooser.
+  // Legacy or malformed question fields must not take down the composer.
   const questions = last.questions ?? [];
   return questions.length ? {turnId: last.id, questions} : null;
 }
 
-// The turn that could still be awaiting an answer: the last one, when the
-// Agent asked it and the interview is still taking answers.
 function lastPendingTurn(
   interview: Pick<Interview, 'turns' | 'status'> | null,
 ): InterviewTurn | null {
@@ -162,48 +117,19 @@ function lastPendingTurn(
 const QUESTION_OPTION_ROW_CLASSES =
   'relative grid min-h-[3.2rem] grid-cols-[1.6rem_minmax(0,1fr)] items-center gap-x-[0.8rem] rounded-[0.65rem] border border-transparent bg-cosci-option-bg px-[0.95rem] py-[0.7rem] text-cosci-fg hover:bg-cosci-option-hover-bg has-[:focus-visible]:border-cosci-option-hover-border has-[:focus-visible]:bg-cosci-option-hover-bg';
 
-/**
- * The answer that is not on offer.
- *
- * Every question carries it, whatever the model wrote: the options are the
- * answers the Agent could think of, and a scientist whose answer is none of
- * them must be able to say so without abandoning the chooser. It renders as
- * a typable field, not a card to click first -- writing in it is what
- * chooses it, and an empty field is a silent "skip" rather than a wrong one.
- */
+// Offer free text for answers the model did not propose; an empty field skips
+// rather than rejects a question.
 const OTHER_LABEL = 'Something else';
 
-/** How a question's answers are read back to the scientist. */
 const OTHER_PLACEHOLDER = 'Type your own answer';
 
 export interface QuestionChooserProps {
-  /** The questions the pending Agent turn offered, in the order asked. */
   questions: InterviewQuestion[];
-  /** Posts the composed answer as the scientist's next turn. */
   onAnswer: (text: string) => void;
 }
 
-/**
- * The multiple-choice answers to the turn the Agent is waiting on.
- *
- * Rendered inside the composer's own form (see chat_composer.tsx), so it
- * reads as the input box expanding upward rather than as a card floating
- * over it -- and so the composer below stays fully usable. Answering by
- * clicking is an affordance, never a gate: the scientist can type a reply
- * instead, minimize this out of the way, or dismiss it outright, and the
- * turn is answered the same way in every case.
- *
- * Local state (what is chosen, whether it is minimized or dismissed) is
- * deliberately not lifted: it belongs to one pending turn and nothing
- * outside this component reads it. The caller remounts on a new turn by
- * keying on the turn id, which is what resets all three at once.
- *
- * Choosing an answer never sends it -- clicking, checking a box, and typing
- * into "Something else" all only update what is selected. The chooser's own
- * send control (always present, inert until something is chosen) is the one
- * way to commit the turn, so the scientist can change their mind, answer
- * several questions in any order, or add their own words before sending.
- */
+// Selection never sends a turn; the chooser owns commit. Remount on turn id to
+// reset selections and dismissal.
 export function QuestionChooser({questions, onAnswer}: QuestionChooserProps) {
   const [selections, setSelections] = useState(emptySelections);
   const [minimized, setMinimized] = useState(false);
@@ -243,17 +169,12 @@ export function QuestionChooser({questions, onAnswer}: QuestionChooserProps) {
   );
 }
 
-// What the chooser calls itself while it is collapsed: the headers of what
-// it is asking about, or the questions themselves when they carry none.
 function headLabel(questions: InterviewQuestion[]): string {
   return questions
     .map(question => question.header || question.question)
     .join(' · ');
 }
 
-// The chooser's title row. The minimize control's accessible name states
-// what pressing it does, so the collapsed chooser is reachable by name
-// rather than by remembering which chevron it was.
 function ChooserHead({
   label,
   minimized,
@@ -286,9 +207,8 @@ function ChooserHead({
   );
 }
 
-// One of the chooser's two chrome controls. `type="button"` is load-bearing:
-// the chooser renders inside the composer's form, where a bare button
-// submits the message instead of minimizing anything.
+// Use type=button inside the composer form so minimizing cannot send a
+// message.
 function IconButton({
   label,
   icon,
@@ -311,21 +231,15 @@ function IconButton({
   );
 }
 
-// Props for ChooserBody, named at module level per the destructured prop
-// signature otherwise pushing the component past the line cap.
 interface ChooserBodyProps {
   questions: InterviewQuestion[];
   selections: QuestionSelections;
   setSelections: (selections: QuestionSelections) => void;
   onChoose: (index: number, label: string) => void;
-  /** Sends the composed answer. */
   send: () => void;
   answered: boolean;
 }
 
-// Every question, stacked, then the chooser's own send control -- always
-// present, so it reads as the way to commit an answer whether the scientist
-// picked one option or is still filling in several questions.
 function ChooserBody(props: ChooserBodyProps) {
   const {questions, selections, setSelections, onChoose, send, answered} =
     props;
@@ -355,8 +269,6 @@ function ChooserBody(props: ChooserBodyProps) {
   );
 }
 
-// Props for QuestionGroup, named at module level per the destructured prop
-// signature otherwise pushing the component past the line cap.
 interface QuestionGroupProps {
   question: InterviewQuestion;
   index: number;
@@ -365,8 +277,6 @@ interface QuestionGroupProps {
   onChoose: (index: number, label: string) => void;
 }
 
-// One question: its prompt, then its answers as a single-column list of
-// full-width rows, the scientist's own-words field always the last of them.
 function QuestionGroup(props: QuestionGroupProps) {
   const {question, index, selections, setSelections, onChoose} = props;
   return (
@@ -399,9 +309,6 @@ function QuestionGroup(props: QuestionGroupProps) {
   );
 }
 
-// The row standing in for "Something else": typing into it is what chooses
-// it, so unlike AnswerRow there is no click handler and no separate hidden
-// input -- the visible field itself carries the selection.
 function OtherAnswerRow({
   multiSelect,
   text,
@@ -423,11 +330,8 @@ function OtherAnswerRow({
         placeholder={OTHER_PLACEHOLDER}
         value={text}
         onChange={event => onChangeText(event.target.value)}
-        // The composer's form surrounds this field, so an unhandled Enter
-        // would send whatever is in the composer's textarea instead of
-        // this answer. Swallowed rather than repurposed: the send control
-        // is the one way to commit an answer, and typing must never submit
-        // anything on its own.
+        // Swallow Enter inside this nested field; only the chooser send
+        // control commits an answer.
         onKeyDown={event => {
           if (event.key === 'Enter') event.preventDefault();
         }}
@@ -436,8 +340,6 @@ function OtherAnswerRow({
   );
 }
 
-// The card's chosen/not-chosen mark: a radio disc when only one answer can
-// hold, a ticked box when several can.
 function AnswerMarker({
   multiSelect,
   selected,
@@ -471,8 +373,6 @@ function AnswerMarker({
   );
 }
 
-// Props for AnswerRow, named at module level per the destructured prop
-// signature otherwise pushing the component past the line cap.
 interface AnswerRowProps {
   label: string;
   description: string;
@@ -481,11 +381,8 @@ interface AnswerRowProps {
   onSelect: () => void;
 }
 
-// One clickable answer, a full-width row with its label and description
-// running side by side. A real input carries the selection so the row is
-// reachable and announced by a screen reader; `onClick` rather than
-// `onChange` drives it, since re-clicking the chosen answer un-picks it and
-// a radio input fires no change event for that.
+// Clicks can unpick a selected radio; a radio input does not fire change for
+// that.
 function AnswerRow(props: AnswerRowProps) {
   const {label, description, multiSelect, selected, onSelect} = props;
   return (

@@ -17,40 +17,19 @@ import {
   StartedSessionCard,
 } from './chat_timeline_run_spec_card';
 
-/**
- * One renderable entry in the chat timeline.
- *
- * Local chat messages, the draft/confirmed run-spec cards, and the
- * started-session card are all normalized into this shape so they can be
- * merged and sorted by time.
- */
 export interface TimelineItem {
   id: string;
   at: number;
   order: number;
   node: ReactNode;
-  /**
-   * Extra input to the scroll signature, for an item whose content grows in
-   * place rather than by another item arriving (see chat_workspace.tsx).
-   * Without it such growth is invisible to the auto-scroll, since neither the
-   * item's id nor its timestamp changes as it fills.
-   */
+  // Revision makes in-place streamed growth visible to scrolling despite
+  // unchanged item id and timestamp.
   revision?: string | number;
 }
 
-// Fixed ids of the (at most one each) run-spec card entries. The scroll hook
-// (chat_workspace.tsx) anchors these tall cards to the top when they
-// arrive, so it matches on the same constants.
 export const DRAFT_SPEC_ITEM_ID = 'draft-spec';
 export const CONFIRMED_SPEC_ITEM_ID = 'confirmed-spec';
 
-/**
- * Dependencies buildTimelineItems (and the per-category helpers below) need to
- * render each kind of timeline entry.
- *
- * See ChatWorkspace's `session` plus its own navigate/resetWorkspace/
- * focusComposer for where these come from.
- */
 export interface BuildTimelineItemsArgs {
   messages: ChatEntry[];
   handleEditMessage: (message: ChatEntry, content: string) => void;
@@ -74,13 +53,8 @@ export interface BuildTimelineItemsArgs {
   focusComposer: () => void;
 }
 
-// Each chat message becomes a ChatBubble; `order` preserves message array
-// order as a tiebreaker when timestamps collide.
-//
-// A message is revisable only when it has a durable turn behind it, no turn
-// is already in flight, and the conversation has not been committed to a run:
-// rewinding the interview after that would clear the started card off the
-// timeline while the run it points at kept going.
+// Only durable, uncommitted turns can rewind; revising after start would erase
+// the card while its run continued.
 function messageTimelineItems({
   messages,
   handleEditMessage,
@@ -114,26 +88,8 @@ function messageTimelineItems({
   }));
 }
 
-// The turn the Agent is writing, as one message: its thinking and its reply
-// in progress are parts of the same AssistantMessage the settled turn lands
-// in, so nothing about the message moves or re-spaces when the stream
-// resolves. They were two timeline entries of their own, which put the
-// column's 1.15rem gap between the disclosure and the reply -- a gap that
-// vanished the moment the turn settled into a bubble and the two became
-// siblings inside it.
-//
-// Timestamped "now" so it sorts after the just-sent user message, and gone
-// the moment the turn resolves. The thinking stays visible under the reply
-// because a thinking model has finished reasoning before its first answer
-// token, so the trail is a record of how the reply was reached rather than
-// something still filling.
-//
-// Interview-only: once a run has started, `isAwaitingAgent` covers a run
-// Q&A turn instead (see qaAnswerTimelineItems below), which renders its own
-// live reasoning disclosure the same way -- the run's Q&A stream carries a
-// `reasoning` frame too (qa/__init__.py::stream_answer), it just arrives into a
-// differently-gated timeline item since a Q&A turn has no plan or session
-// card riding along with it.
+// Keep reasoning and prose in the same row so settlement cannot change spacing
+// or their relative position.
 function thinkingTimelineItems({
   startedSession,
   isAwaitingAgent,
@@ -162,12 +118,6 @@ function thinkingTimelineItems({
   ];
 }
 
-// The run Q&A answer as it streams in, in the same message an interview
-// turn's live reply grows in -- including its "Thinking" disclosure, since
-// a Q&A turn carries reasoning too (see thinkingTimelineItems). Renders
-// nothing until either the model's reasoning or its prose starts arriving,
-// so a question in flight shows only the Stop control until there is
-// something to grow.
 function qaAnswerTimelineItems({
   startedSession,
   isAwaitingAgent,
@@ -197,8 +147,6 @@ function qaAnswerTimelineItems({
   ];
 }
 
-// Merges a partial spec edit into the pending draft, leaving a null draft
-// (already confirmed/cancelled) untouched.
 function updateDraftSpec(
   setDraft: Dispatch<SetStateAction<SpecStage | null>>,
   patch: Partial<InferredRunSpec>,
@@ -208,9 +156,6 @@ function updateDraftSpec(
   );
 }
 
-// Builds the draft RunSpecCard node: focus/tier edits write straight back
-// into draftSpec, and cancel/retry/start delegate to the session hook's
-// handlers.
 type DraftSpecCardArgs = Omit<
   Pick<
     BuildTimelineItemsArgs,
@@ -256,8 +201,6 @@ function draftSpecCardNode({
   );
 }
 
-// Editable draft run spec awaiting confirmation timeline entry, wrapping
-// draftSpecCardNode above with its TimelineItem metadata.
 function draftTimelineItems({
   draft,
   isStarting,
@@ -292,14 +235,8 @@ function draftTimelineItems({
   ];
 }
 
-// Read-only confirmed spec once the plan has been locked in (e.g. after an
-// edit round-trip): all mutation handlers are no-ops and `locked` disables
-// the option cards; retrying re-stages it as an editable draft again.
-//
-// It is the same turn the draft card was, so it renders with the same
-// closing message, thinking and fallback marker. Freezing the plan used to
-// drop all three, which read as the Agent's reply vanishing (and its
-// thinking jumping below the plan) the instant Start research was clicked.
+// Confirmed plans retain the same closing reply, reasoning and fallback
+// provenance as their draft.
 function confirmedSpecTimelineItems({
   confirmed,
   linkedDraftRecovery,
@@ -352,24 +289,14 @@ function confirmedSpecTimelineItems({
   ];
 }
 
-// How much of the started card has arrived, as one value the scroll
-// signature can compare.
-//
-// The Agent's reply and its chain of thought both stream into this card,
-// growing it a fragment at a time under a fixed id and timestamp -- so
-// neither shows up as a timeline change on its own. The announcing flag
-// rides along too, because the session block appears when it clears (see
-// StartedSessionCard), which grows the card without adding a character to
-// either.
+// Include reasoning, reply and announcing state in the signature: each can
+// grow the same fixed-id card.
 function startedCardRevision(session: StartedSession): string {
   const intro = session.intro?.length ?? 0;
   const reasoning = session.reasoning?.length ?? 0;
   return `${intro}:${reasoning}:${Boolean(session.announcing)}`;
 }
 
-// Terminal timeline entry once the backend run has actually started; the card
-// links to the run detail page (a URL, not a handler, so a middle- or
-// cmd-click opens it in a new tab).
 function startedTimelineItems({
   startedSession,
   navigate,
@@ -391,11 +318,8 @@ function startedTimelineItems({
           session={startedSession}
           href={`/runs/${startedSession.id}/details`}
           onNewTopic={() => {
-            // Leaving /chats/:id is the part that makes this stick. Clearing
-            // the session alone left the finished chat's id in the URL, and
-            // the rehydrator re-attached its run the moment the chat and run
-            // lists next resolved -- the workspace blanked and then put the
-            // same started card straight back, which reads as a dead button.
+            // Leave the old chat route when clearing; otherwise history
+            // rehydration immediately reattaches its started run.
             resetWorkspace();
             void navigate('/');
             focusComposer();
@@ -406,16 +330,6 @@ function startedTimelineItems({
   ];
 }
 
-/**
- * Merges every timeline-worthy piece of session state (messages, draft spec,
- * confirmed spec, started session) into one list of TimelineItems, each
- * carrying the rendered card/bubble node plus enough metadata to sort them,
- * and returns them in chronological order.
- *
- * @param args The session state plus navigation/reset/focus callbacks needed
- *   to render each kind of timeline entry.
- * @returns The timeline items in chronological order.
- */
 export function buildTimelineItems(
   args: BuildTimelineItemsArgs,
 ): TimelineItem[] {
@@ -427,8 +341,6 @@ export function buildTimelineItems(
     ...confirmedSpecTimelineItems(args),
     ...startedTimelineItems(args),
   ];
-  // Chronological order, with `order` breaking ties between items created in
-  // the same tick (e.g. a message and a spec card stamped at the same time).
   timelineItems.sort((a, b) => a.at - b.at || a.order - b.order);
   return timelineItems;
 }

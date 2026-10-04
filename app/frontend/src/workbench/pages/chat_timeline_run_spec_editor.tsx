@@ -1,18 +1,3 @@
-// In-place field editing for the plan card. Split out of
-// chat_timeline_run_spec_card.tsx, which sat at the repo's 500-line
-// ceiling; SpecRow/SpecList/SpecSummary moved here with the new editable
-// form because the form swaps in for exactly the summary they render, and
-// nothing outside chat_timeline_run_spec_card.tsx imported them, so there
-// is nothing left for the parent to re-export.
-//
-// The form this opens is what the card's header pencil ("Edit plan", see
-// PlanHeading) now shows: a scientist who already knows the exact wording
-// they want types it here rather than prompting for it. The pencil used to
-// re-stage the spec as a draft and hand editing back to the conversation
-// instead, which is what typing another message already does -- so the
-// header kept the affordance the composer cannot give, and the trigger
-// this form used to carry inside the plan box went away with it.
-
 import {type ReactNode, useId, useState} from 'react';
 import {editInterviewFields} from '@/api/runs';
 import {Icon} from '@/components/icon';
@@ -32,7 +17,6 @@ const SPEC_EDIT_INPUT_CLASSES =
 const SPEC_EDIT_FIELD_CLASSES = 'grid gap-[0.5rem]';
 const SPEC_EDIT_LABEL_CLASSES = 'text-[1.18rem] font-bold text-cosci-fg';
 
-// One term/detail row in the read-only spec definition list (dt/dd pair).
 function SpecRow({label, children}: {label: string; children: ReactNode}) {
   return (
     <div className="reference-spec-row block text-base">
@@ -44,8 +28,6 @@ function SpecRow({label, children}: {label: string; children: ReactNode}) {
   );
 }
 
-// A read-only spec row whose value is a bulleted list (Focus Area/
-// Preferences) rather than plain text (Research Challenge/Title).
 function SpecList({label, values}: {label: string; values: string[]}) {
   return (
     <SpecRow label={label}>
@@ -58,7 +40,6 @@ function SpecList({label, values}: {label: string; values: string[]}) {
   );
 }
 
-// The interview fields plus any extra criteria stored on the run setup.
 function SpecSummary({spec}: {spec: InferredRunSpec}) {
   return (
     <dl className="reference-setup-grid m-0 grid gap-[1.55rem]">
@@ -73,10 +54,7 @@ function SpecSummary({spec}: {spec: InferredRunSpec}) {
   );
 }
 
-// One editable list entry: a plain text input paired with a remove button.
-// The row carries no visible per-item label of its own, so both the input
-// and the remove button name the field (and, for remove, the value) through
-// aria-label instead.
+// Name unlabeled entry inputs and remove controls through aria-label.
 function EditableListRow({
   label,
   value,
@@ -114,8 +92,6 @@ function EditableListRow({
   );
 }
 
-// One editable list (Focus Area or Preferences): a fieldset of entry rows
-// plus an "Add" trigger that appends a blank row to fill in.
 function EditableList({
   label,
   values,
@@ -138,8 +114,6 @@ function EditableList({
       </legend>
       {values.map((value, index) => (
         <EditableListRow
-          // Index-keyed: rows are edited and removed by position, and this
-          // list only ever grows/shrinks by one row at a time.
           key={index}
           label={label}
           value={value}
@@ -160,8 +134,6 @@ function EditableList({
   );
 }
 
-// Props for SpecFieldsForm, named at module level per the destructured prop
-// signature otherwise pushing the component past the line cap.
 interface SpecFieldsFormProps {
   values: EditedSpecFields;
   onChange: (patch: Partial<EditedSpecFields>) => void;
@@ -172,8 +144,6 @@ interface SpecFieldsFormProps {
   error: string | null;
 }
 
-// The goal textarea, the two editable lists, and the title input -- the
-// part of the form that edits values.
 function SpecFieldsFormFields({
   values,
   onChange,
@@ -219,8 +189,7 @@ function SpecFieldsFormFields({
   );
 }
 
-// The form's error line plus its Save/Cancel row. A failed save leaves the
-// form open (and shows why) so the scientist doesn't lose what they typed.
+// Keep failed saves open so the scientist does not lose their edits.
 function SpecFieldsFormActions(
   props: Pick<
     SpecFieldsFormProps,
@@ -269,7 +238,6 @@ function SpecFieldsForm(props: SpecFieldsFormProps) {
   );
 }
 
-/** The plan card's field-editing state, as useSpecFieldsEditor returns it. */
 export type SpecFieldsEditor = ReturnType<typeof useSpecFieldsEditor>;
 
 function formValues(spec: InferredRunSpec): EditedSpecFields {
@@ -281,10 +249,6 @@ function formValues(spec: InferredRunSpec): EditedSpecFields {
   };
 }
 
-// The editor's local state and its save round trip, pulled out of
-// SpecFieldsSection so that component stays a thin render (the repo's
-// convention of keeping logic in named functions rather than component
-// closures -- see chat_session_handlers.ts's deps-bag handlers).
 export function useSpecFieldsEditor(
   spec: InferredRunSpec,
   onFieldsChange: (patch: Partial<InferredRunSpec>) => void,
@@ -332,18 +296,8 @@ export function useSpecFieldsEditor(
   };
 }
 
-/**
- * Renders the plan card's four interview-derived fields: the read-only
- * summary, or the editable form once the header's "Edit plan" pencil has
- * opened it. Saving persists through `editInterviewFields` and reports the
- * server's own updated values back to `onFieldsChange` -- the server trims
- * list entries, so the card adopts what it returns rather than the
- * locally-typed values.
- *
- * The editor's state is owned by the card (see useSpecFieldsEditor), not by
- * this section: the control that opens it sits beside the "Research plan"
- * heading, outside the box these fields are in.
- */
+// Adopt server-returned fields after saving because the server trims list
+// entries.
 export function SpecFieldsSection({
   spec,
   editor,

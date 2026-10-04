@@ -9,14 +9,10 @@ import {
 } from './home_landing_content';
 import {type MotionProps, useInView} from './home_landing_hooks';
 
-// The "How it works" system diagram, laid out after the architecture figure
-// in "Towards an AI co-scientist" (Gottweis et al., 2025): the scientist's
-// goal flows through configuration to the Supervisor, which assigns the six
-// specialist agents to workers, and the run returns a research overview.
-// Nothing moves on its own: hover, focus, or tap an agent to highlight it
-// and read what it does. Phones get the same flow as a stacked list.
+// Layout follows the architecture figure in Gottweis et al., Towards an AI co-
+// scientist (2025).
 
-// The six specialists sit in the paper's two-column grid, row by row.
+// Specialists follow the paper's two-column grid.
 const GRID: readonly (readonly [string, string])[] = [
   ['Generation', 'Proximity'],
   ['Reflection', 'Meta-review'],
@@ -41,7 +37,6 @@ interface NodeProps {
   lines: string[];
 }
 
-// A labeled box; one line of text centers, two stack.
 function DiagramNode({x, y, w, h, className, lines}: NodeProps) {
   const cy = y + h / 2 - (lines.length - 1) * 10 + 5;
   return (
@@ -91,8 +86,7 @@ function AgentCell({
   );
 }
 
-// Arrows inside the agents box: down each column, across each row, and the
-// paper's crossing links between the lower rows.
+// Crossing links follow the paper's lower-row exchanges.
 const INNER_WIRES = [
   'M400 270 V310',
   'M400 370 V410',
@@ -106,13 +100,8 @@ const INNER_WIRES = [
   'M558 372 L522 412',
 ];
 
-// The paper draws each row's pair as a two-way exchange.
 const TWO_WAY = new Set(INNER_WIRES.filter(d => d.endsWith(' H556')));
 
-// Arrows outside it: you to goal to configuration to Supervisor, Supervisor
-// down into the agents and across to the overview, out to the workers and
-// memory, the workers' results back up to the Supervisor, the overview back
-// to you, and your feedback into the agents.
 const OUTER_WIRES = [
   'M100 88 H136',
   'M310 88 H346',
@@ -197,7 +186,6 @@ function DiagramFrame() {
   );
 }
 
-// Every box outside the agents grid: [x, y, width, height, class, lines].
 const NODES: readonly (readonly [
   number,
   number,
@@ -270,7 +258,6 @@ function DiagramSvg({
   );
 }
 
-// The phone layout: the same flow, top to bottom.
 function DiagramList({
   active,
   onHold,
@@ -310,8 +297,6 @@ function DiagramList({
   );
 }
 
-// The caption under the diagram: the chosen agent's job, or a prompt to
-// choose one.
 function DiagramCaption({active}: {active: string | null}) {
   if (!active) {
     return (
@@ -329,11 +314,6 @@ function DiagramCaption({active}: {active: string | null}) {
   );
 }
 
-/**
- * The system diagram with its caption. Nothing moves on its own: the
- * highlight follows the agent last hovered, focused, or tapped, and stays
- * there so the caption can be read.
- */
 export function LandingDiagram() {
   const [active, setActive] = useState<string | null>(null);
   const choose = (name: string | null) => {
@@ -348,12 +328,6 @@ export function LandingDiagram() {
   );
 }
 
-// The Tournament section's tree: eight example ideas debate in pairs, round
-// by round, and each result moves both ratings by the real Elo rule. The
-// tree plays itself while it is on screen.
-
-// Example hypotheses for a glioblastoma drug-repurposing goal, with the
-// hidden strength that decides their debates.
 const IDEAS: readonly {title: string; strength: number}[] = [
   {title: 'Metformin sensitizes GBM stem cells', strength: 0.9},
   {title: 'Valproate reprograms tumor microglia', strength: 0.45},
@@ -373,7 +347,6 @@ const TOP = 26;
 const ROUND_X = [LEAF_W + 110, LEAF_W + 260, LEAF_W + 410];
 const CHAMP_X = LEAF_W + 470;
 
-/** One debate: two contenders (idea indexes), the winner, and its y. */
 interface Match {
   a: number;
   b: number;
@@ -383,13 +356,10 @@ interface Match {
 
 interface Bracket {
   rounds: Match[][];
-  /** elo[step][i]: idea i's rating after `step` rounds. */
   elo: number[][];
   leafY: number[];
 }
 
-// Plays the whole tree once. The stronger idea wins each debate, which is
-// what a real run's many matches converge on, and both ratings move.
 function playBracket(): Bracket {
   const leafY = IDEAS.map((_, i) => TOP + i * ROW_H + ROW_H / 2);
   const elo = [IDEAS.map(() => INITIAL_ELO)];
@@ -424,7 +394,6 @@ function xOfRound(round: number): number {
   return round < 0 ? LEAF_W : ROUND_X[round];
 }
 
-// The elbow from a contender (at the previous round's x) into its match.
 function Connector({
   fromX,
   fromY,
@@ -463,8 +432,8 @@ function RoundWires({
   return (
     <>
       {bracket.rounds[round].flatMap(match =>
-        // The loser first, so the winner's lit path draws over the shared
-        // run into the match.
+        // Draw the winner after the loser so its highlighted path remains
+        // visible.
         [match.winner === match.a ? match.b : match.a, match.winner].map(
           idea => (
             <Connector
@@ -580,9 +549,7 @@ function Champion({bracket, step}: {bracket: Bracket; step: number}) {
 
 const STEP_MS = 1600;
 
-// Plays the tree a round at a time while it is on screen, holds the
-// finished tree for two beats, then starts over. Off screen it pauses;
-// under reduced motion it shows the finished tree.
+// Pause off screen; reduced motion shows the finished tree.
 function useBracketStep(visible: boolean, reduceMotion: boolean): number {
   const [step, setStep] = useState(0);
   useEffect(() => {
@@ -596,7 +563,6 @@ function useBracketStep(visible: boolean, reduceMotion: boolean): number {
   return reduceMotion ? ROUNDS : Math.min(step, ROUNDS);
 }
 
-/** The tournament tree panel, which plays itself while on screen. */
 export function LandingBracket({reduceMotion}: MotionProps) {
   const ref = useRef<HTMLDivElement | null>(null);
   const visible = useInView(ref, {once: false, threshold: 0.3});
@@ -624,10 +590,6 @@ export function LandingBracket({reduceMotion}: MotionProps) {
     </div>
   );
 }
-
-// The Tournament section's rating chart: eight simulated ideas over 64
-// matches, computed with the real Elo update when the page loads. The lines
-// draw themselves in when the chart scrolls into view.
 
 const LO = 1100;
 const HI = 1320;
@@ -658,12 +620,11 @@ function useChartGeometry() {
   }, []);
 }
 
-/** The Elo chart panel. */
 export function LandingEloChart({reduceMotion}: MotionProps) {
   const ref = useRef<HTMLDivElement | null>(null);
   const seen = useInView(ref, {threshold: 0.35});
   const chart = useChartGeometry();
-  // The leader's line goes last so it draws on top.
+  // Draw the leader last so its line stays on top.
   const order = chart.paths
     .map((d, i) => ({d, i}))
     .sort(

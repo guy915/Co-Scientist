@@ -47,13 +47,8 @@ import {
 } from './home_landing_diagram';
 import {SUGGESTIONS} from './chat_home_stage';
 
-// The landing page below the chat home. The home still opens exactly as it
-// always has; a quiet hint under the composer (see chat_home_stage.tsx)
-// invites a scroll, and this page explains the system: a hero with the
-// wordmark, a sticky tab rail, then the sections in home_landing_sections.
-// Lazy-loaded by the home stage so none of it weighs on the first paint.
+// Lazy-load the landing section so it cannot delay chat first paint.
 
-/** The landing page's root id, which the scroll hint links to. */
 export const LANDING_ID = 'landing';
 
 const COMPOSER_SELECTOR = '.reference-composer textarea';
@@ -62,15 +57,12 @@ function scrollBehavior(reduceMotion: boolean): ScrollBehavior {
   return reduceMotion ? 'auto' : 'smooth';
 }
 
-// The home page's own scroll pane. Scrolling it directly (never with
-// scrollIntoView, which also scrolls the shell's clipped ancestors and
-// leaves the whole app shifted up) keeps the shell in place.
+// Scroll the home pane directly; scrollIntoView can shift clipped shell
+// ancestors.
 const HOME_SCROLLER = '.ucs-page--home';
 
-// Room left above a section for the sticky rail.
 const RAIL_OFFSET = 72;
 
-/** Scrolls the landing section with `id` to just under the rail. */
 export function scrollToLandingSection(id: string, reduceMotion: boolean) {
   smoothScrollToSection(
     id,
@@ -80,7 +72,6 @@ export function scrollToLandingSection(id: string, reduceMotion: boolean) {
   );
 }
 
-// Scrolls back up to the home stage and puts the caret in the composer.
 function useStartResearch(
   rootRef: RefObject<HTMLElement | null>,
   reduceMotion: boolean,
@@ -162,7 +153,6 @@ function LandingHero({
   );
 }
 
-// Follows which section is under the rail, so its tab can light up.
 function useActiveSection(): string {
   const [active, setActive] = useState(LANDING_SECTIONS[0].id);
   useEffect(() => {
@@ -183,7 +173,6 @@ function useActiveSection(): string {
   return active;
 }
 
-// Scrolls an overflowing rail so the tab for section `id` sits centered.
 function centerTab(nav: HTMLElement, id: string, reduceMotion: boolean) {
   const tab = nav.querySelector<HTMLElement>(`[data-section="${id}"]`);
   if (!tab || nav.scrollWidth <= nav.clientWidth) return;
@@ -191,8 +180,6 @@ function centerTab(nav: HTMLElement, id: string, reduceMotion: boolean) {
   nav.scrollTo?.({left, behavior: scrollBehavior(reduceMotion)});
 }
 
-// Keeps the active tab in view on a narrow rail, and fades the rail's edge
-// only while more tabs are hidden past it.
 function useRailScroll(
   navRef: RefObject<HTMLElement | null>,
   active: string,
@@ -252,7 +239,6 @@ function LandingRail({reduceMotion}: {reduceMotion: boolean}) {
   );
 }
 
-// Opening the app on /#faq (the Settings > Help link) lands on the FAQ.
 function useHashLanding(reduceMotion: boolean) {
   const {hash, key} = useLocation();
   useEffect(() => {
@@ -266,7 +252,6 @@ function useHashLanding(reduceMotion: boolean) {
   }, [hash, key, reduceMotion]);
 }
 
-/** The landing page, rendered under the home stage. */
 export default function HomeLanding() {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const reduceMotion = useReducedMotion();
@@ -290,10 +275,6 @@ export default function HomeLanding() {
   );
 }
 
-// The landing page's content sections, top to bottom after the hero and the
-// tab rail: how it works, tournament, evidence, safety, tiers, the closing
-// call to action, and the FAQ. The overview is home_landing_overview.tsx. See home_landing.tsx for the frame.
-
 function SectionHeading({title, lede}: {title: string; lede?: string}) {
   return (
     <>
@@ -303,7 +284,6 @@ function SectionHeading({title, lede}: {title: string; lede?: string}) {
   );
 }
 
-/** A Material shape with an icon centered on it. */
 function ShapeBadge({
   shape,
   tone,
@@ -410,7 +390,6 @@ export function TournamentSection({reduceMotion}: MotionProps) {
   );
 }
 
-// The sources the agents read, sliding past in display type.
 function SourcesMarquee() {
   const items = [...LANDING_SOURCES, ...LANDING_SOURCES];
   return (
@@ -478,8 +457,6 @@ export function EvidenceSection() {
   );
 }
 
-// A safety layer's card; its shape morphs to a circle on hover or focus,
-// the same response as the agent cards.
 function SafetyCard({
   layer,
   reduceMotion,
@@ -586,10 +563,6 @@ export function ClosingSection({onStart}: {onStart: () => void}): ReactNode {
   );
 }
 
-// The landing page's Overview: one run from end to end, as a worked example.
-// What you write, what the agents do with it (the stages light up in order
-// when the section comes into view), and what you get back.
-
 const STAGES: readonly {icon: IconName; label: string}[] = [
   {icon: 'menu_book', label: 'Reads the literature on your goal'},
   {icon: 'lightbulb', label: 'Writes candidate hypotheses'},
@@ -604,11 +577,8 @@ const STAGES: readonly {icon: IconName; label: string}[] = [
 
 const STAGE_MS = 700;
 
-// The first home suggestion's full prompt: its title line and the first
-// paragraph of what it asks for.
 const [GOAL_TITLE, GOAL_BODY] = SUGGESTIONS[0].prompt.split('\n\n');
 
-// Example output for that goal: the top three ideas of a finished run.
 const RANKED: readonly {title: string; elo: number}[] = [
   {
     title: 'Metformin sensitizes glioblastoma stem cells to temozolomide',
@@ -618,7 +588,6 @@ const RANKED: readonly {title: string; elo: number}[] = [
   {title: 'Disulfiram–copper targets ALDH+ cells', elo: 1226},
 ];
 
-// Lights the stages one by one once the section is seen.
 function useLitStages(seen: boolean, reduceMotion: boolean): number {
   const [lit, setLit] = useState(0);
   useEffect(() => {
@@ -724,12 +693,9 @@ export function OverviewSection({reduceMotion}: MotionProps) {
   );
 }
 
-// The Tiers section's interactive pool: a segmented control picks a tier,
-// and a field of MAX_POOL dots fills in to that tier's size, colored by the
-// evolution cycle each idea could arrive in. The numbers are the product's
-// own RUN_TIER_DEFAULTS (see home_landing_content.ts).
+// The tier visualization mirrors product RUN_TIER_DEFAULTS rather than
+// inventing pool sizes.
 
-// Seed ideas first, then each cycle's share of the remaining headroom.
 function dotGeneration(tier: LandingTier, index: number): number | null {
   if (index < tier.seeds) return 0;
   if (index >= tier.maxIdeas) return null;
@@ -792,7 +758,6 @@ function TierStats({tier}: {tier: LandingTier}) {
   );
 }
 
-/** The tier picker and its pool visualization. */
 export function LandingTiers({reduceMotion}: MotionProps) {
   const [name, setName] = useState(DEFAULT_TIER);
   const tier = LANDING_TIERS.find(t => t.name === name) ?? LANDING_TIERS[1];

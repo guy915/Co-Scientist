@@ -30,23 +30,12 @@ import {
 import {HEADER_TITLE_EVENT} from '../dom_events';
 import {useResetTimer} from '@/workbench/hooks/timers';
 
-/**
- * The fetched run row plus the live transport state of its event stream.
- * The connection state rides the row because the live-run view receives
- * only the row and the timeline: a dropped or reconnecting stream must
- * stay visible there instead of reading as healthy. Optional so consumers
- * treat a missing state (e.g. a test double with no transport field) as
- * "no signal", not as a drop.
- */
+// Carry stream transport state with the run so reconnecting cannot look
+// healthy; missing state is not evidence of a drop.
 export type RunWithStreamState = RunWithSummary & {
   stream_connection?: StreamConnectionState;
 };
 
-// Wires the live SSE event stream for a run (replayed from seq=0 on mount):
-// calls `onDataEvents` with the set of collections a coalesced batch of
-// events can change, and `onTerminal` once the stream reaches its terminal
-// sentinel. Returns `terminal` and the stream's transport `connection` so
-// callers can derive their own state from them.
 function useRunEventStream(
   id: string | undefined,
   onDataEvents: (keys: Iterable<RunDataKey>) => void,
@@ -56,9 +45,8 @@ function useRunEventStream(
   const {events, terminal, connection} = useRunStream(id ?? null);
   const previousConnection = useRef({id, connection});
 
-  // A durable checkpoint can persist the ledger before its completion event
-  // is appended. Stream replay can miss that gap, so refresh the optional
-  // ledger once when the transport first opens or reconnects.
+  // A checkpoint can persist before its completion event; refresh the optional
+  // ledger on open and reconnect.
   useEffect(() => {
     const previous = previousConnection.current;
     previousConnection.current = {id, connection};
@@ -71,11 +59,8 @@ function useRunEventStream(
     }
   }, [connection, id, onSupervisorPlanEvent]);
 
-  // The stream delivers events in coalesced batches, so scan the whole newly
-  // appended slice for data events rather than only the batch tail: a batch
-  // that ends in a 'status' event still warrants a refetch if it carried a
-  // node event earlier. The processed-count ref resets naturally when the
-  // hook clears events on a run change (length drops back toward zero).
+  // Scan every coalesced event, not only the tail, so a final status cannot
+  // hide an earlier data update.
   const processedEventCount = useRef(0);
   useEffect(() => {
     if (events.length < processedEventCount.current) {
@@ -90,8 +75,8 @@ function useRunEventStream(
     if (hasSupervisorPlanEvent(data)) onSupervisorPlanEvent();
   }, [events, onDataEvents, onSupervisorPlanEvent]);
 
-  // On stream end, refetch immediately so a pending debounce cannot leave the
-  // completed state stale.
+  // Refresh immediately on stream end so a pending debounce cannot leave
+  // terminal state stale.
   useEffect(() => {
     if (!terminal) return;
     onTerminal();
@@ -100,8 +85,6 @@ function useRunEventStream(
   return {events, terminal, connection};
 }
 
-// Toast message for a run that just reached a failed/blocked terminal state,
-// or null when the run doesn't warrant one.
 function failedRunToast(run: RunWithSummary): string {
   const guidance = runFailureGuidance(run.failure_kind);
   if (guidance) return guidance.toast;
@@ -116,9 +99,6 @@ function runEndToast(run: RunWithSummary): string | null {
   return null;
 }
 
-// Derives the toast (shown when a run ends failed/blocked) and the display
-// title (curated domain override, else the goal) from the fetched run row,
-// and dispatches the title to the shell header.
 function useRunDerivedState(run: RunWithSummary | null, terminal: boolean) {
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => {
@@ -127,10 +107,6 @@ function useRunDerivedState(run: RunWithSummary | null, terminal: boolean) {
     if (toastMessage) setToast(toastMessage);
   }, [terminal, run]);
 
-  // Full display title: the model-generated run title when present (the same
-  // value shown on the recents cards and sidebar chats), else the research
-  // goal. Shared by the shell-header dispatch and the titlebar; each host
-  // truncates to its own available width via TruncatedLabel.
   const title = useMemo(() => {
     if (!run) return 'Goal report';
     return run.title?.trim() || runGoal(run);
@@ -146,16 +122,6 @@ function useRunDerivedState(run: RunWithSummary | null, terminal: boolean) {
   return {toast, title};
 }
 
-/**
- * Fetches and keeps in sync all data backing the goal-report surface: the run
- * row plus its hypotheses/evidence/matches/reviews/report collections, wired
- * to the live SSE event stream so mid-run updates refetch just the
- * collections a given event type can change. Also derives the display title
- * and dispatches it to the shell header, and raises a toast if the run ends
- * failed/blocked. The returned run row carries the stream's transport state
- * (see RunWithStreamState) so the live-run view can surface a dropped or
- * reconnecting connection instead of reading as healthy.
- */
 export function useRunDetailData(id: string | undefined) {
   const {scheduleRefresh, ...data} = useRunDetailCollections(id);
   const supervisorPlan = useRunSupervisorPlan(id);
@@ -171,8 +137,6 @@ export function useRunDetailData(id: string | undefined) {
   );
   const {toast, title} = useRunDerivedState(data.run, terminal);
 
-  // Memoized so the augmented row keeps a stable identity between refetches
-  // and connection changes, the way the bare fetched row did.
   const run = useMemo<RunWithStreamState | null>(
     () =>
       data.run === null ? null : {...data.run, stream_connection: connection},
@@ -213,7 +177,6 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** Fetches the optional allocation ledger outside the run-detail load path. */
 function useRunSupervisorPlan(id: string | undefined) {
   const [state, setState] = useState<RunTaggedPlanState>({
     runId: id,
@@ -258,7 +221,6 @@ function useRunSupervisorPlan(id: string | undefined) {
   return {state: currentState, refresh};
 }
 
-/** User-facing next step for terminal failures with an exact known cause. */
 export function runFailureGuidance(
   failureKind: string | null | undefined,
 ): {message: string; toast: string} | null {
@@ -296,10 +258,7 @@ export type RunDataKey =
   | 'safety'
   | 'report';
 
-// Which fetched collections each canonical event type can change mid-run.
-// Event types not listed (supervisor.plan, research_overview, safety.*, ...)
-// only affect the run row itself, which every refresh re-reads; the terminal
-// full refresh is the safety net for anything persisted only at finalize.
+// Terminal full refresh covers artifacts persisted only during finalize.
 const EVENT_DATA_KEYS: Record<string, readonly RunDataKey[]> = {
   literature_review: ['evidence'],
   generate: ['hypotheses'],
@@ -319,8 +278,6 @@ const EVENT_DATA_KEYS: Record<string, readonly RunDataKey[]> = {
   report: ['report'],
 };
 
-// Collects the RunDataKey set a batch of newly-arrived events touches
-// (multiple event types can map to the same key; see EVENT_DATA_KEYS).
 export function dataKeysFromEvents(
   events: readonly StreamEvent[],
 ): Set<RunDataKey> {
@@ -344,16 +301,14 @@ function shouldRefreshOutcomes(keys?: ReadonlySet<RunDataKey>): boolean {
   return keys === undefined || keys.has('outcomes');
 }
 
-// Fetches the run row plus whichever collections `keys` selects (every
-// collection when `keys` is omitted), in parallel.
 async function fetchRunData(id: string, keys?: ReadonlySet<RunDataKey>) {
   const fetchIfWanted = <T>(
     key: RunDataKey,
     fetcher: (id: string) => Promise<T>,
   ): Promise<T> | undefined =>
     !keys || keys.has(key) ? fetcher(id) : undefined;
-  // Older compatible backends may not expose the safety-audit endpoint yet;
-  // the rest of a Goal Report must remain readable during rolling upgrades.
+  // Older backends may lack safety audit during rolling upgrades; the rest of
+  // the report must stay readable.
   const getSafetyCompatible = (runId: string) =>
     getSafety(runId).catch((): SafetyDecision[] => []);
   const [
@@ -387,9 +342,6 @@ async function fetchRunData(id: string, keys?: ReadonlySet<RunDataKey>) {
   };
 }
 
-// Fetches a run's data, reporting a failure as a message rather than
-// throwing, so the caller can decide whether the response is still wanted
-// before it touches any state.
 async function fetchRunOutcome(id: string, keys?: ReadonlySet<RunDataKey>) {
   try {
     return {data: await fetchRunData(id, keys), error: null};
@@ -435,7 +387,6 @@ function isShownRun(
   return id !== undefined && shownId === id;
 }
 
-// Merge every collection touched during one trailing debounce window.
 function useDebouncedKeyedRefresh(
   refresh: (keys?: ReadonlySet<RunDataKey>) => Promise<void>,
 ) {
@@ -490,7 +441,8 @@ function useRunCollections() {
   const applyFetched = useCallback(
     (data: RunSnapshot | null, owns: (key: SnapshotResource) => boolean) => {
       if (!data) return;
-      // Disjoint requests may both land; each key belongs to its latest read.
+      // Disjoint requests can both land; each overlapping resource belongs to
+      // its latest read.
       const updates = Object.fromEntries(
         Object.entries(data).filter(
           ([key, value]) =>
@@ -505,17 +457,11 @@ function useRunCollections() {
   return {...collections, applyFetched, reset};
 }
 
-/** Owns selective refreshes, collection state and the run-detail load lifecycle. */
 export function useRunDetailCollections(id: string | undefined) {
   const {applyFetched, reset, ...collections} = useRunCollections();
   const outcomeCollection = useRunOutcomeCollection();
-  // Which run the settled state describes, rather than a bare loaded flag and
-  // a bare error. The reset below runs in an effect, i.e. after the render
-  // that follows an id change -- so on that render bare values still describe
-  // the *previous* run, and the page paints a frame of the last run's report
-  // (tab nav, ideas and all) before the effect clears them. Matching on the
-  // current id is correct during that render, with no effect ordering to
-  // depend on.
+  // Match settled data to the current run id before effects execute, or
+  // navigation flashes the previous report.
   const [settled, setSettled] = useState<{
     id: string;
     error: string | null;
@@ -523,31 +469,23 @@ export function useRunDetailCollections(id: string | undefined) {
   const current = settled?.id === id ? settled : null;
   const loaded = current !== null;
   const error = current?.error ?? null;
-  // The run the page is currently showing, so a response can be checked
-  // against it after the await (see refresh below).
   const shownId = useRef<string | undefined>(undefined);
   const requestSequence = useRef(0);
   const resourceOwners = useRef(new Map<SnapshotResource, number>());
 
-  // With no key set, everything is refetched (initial load, terminal drain).
-  // With one, only the run row plus the named collections are, so a mid-run
-  // event burst does not fan out to all six endpoints indiscriminately.
   const refresh = useCallback(
     async (keys?: ReadonlySet<RunDataKey>) => {
       if (!isShownRun(id, shownId.current)) return;
       const request = ++requestSequence.current;
-      // A single latest-request guard would drop an older generation read
-      // merely because a review read started after it. Track each resource:
-      // disjoint collections can both land, while their shared run row and
-      // any overlapping collections always belong to the newer request.
+      // Guard requests per resource: a later review fetch must not discard an
+      // earlier generation fetch.
       claimSnapshotResources(resourceOwners.current, request, keys);
       const owns = (resource: SnapshotResource) =>
         resourceOwners.current.get(resource) === request;
       if (shouldRefreshOutcomes(keys)) void outcomeCollection.refresh(id);
       const outcome = await fetchRunOutcome(id, keys);
-      // Drop a response for a run the page has since navigated away from: the
-      // previous run's in-flight fetch can land after the switch, and applying
-      // it would repopulate the new run's view with the old run's data.
+      // Reject old-run responses after navigation so they cannot repopulate
+      // the new run's view.
       if (!isShownRun(id, shownId.current)) return;
       applyFetched(outcome.data, owns);
       if (owns('run')) setSettled({id, error: outcome.error});
@@ -568,9 +506,6 @@ export function useRunDetailCollections(id: string | undefined) {
     await outcomeCollection.refresh(id);
   }, [id, outcomeCollection.refresh]);
 
-  // Initial load (and reload when the run id changes) stays immediate. Only
-  // an id change resets: `refresh` is stable for a given id, so the SSE-driven
-  // partial refetches below never clear what is on screen -- they update it.
   useEffect(() => {
     shownId.current = id;
     resetPending();
@@ -609,7 +544,6 @@ async function fetchOutcomes(id: string) {
   }
 }
 
-/** Keeps the append-only outcome collection isolated from report fetch errors. */
 export function useRunOutcomeCollection() {
   const [outcomes, setOutcomes] = useState<HypothesisOutcome[]>([]);
   const [loading, setLoading] = useState(true);

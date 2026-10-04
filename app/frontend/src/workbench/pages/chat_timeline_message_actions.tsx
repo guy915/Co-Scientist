@@ -2,20 +2,14 @@ import {Icon, type IconName} from '@/components/icon';
 import {copyText} from '@/lib/clipboard';
 import {tooltipClassNames} from '../classes';
 
-/**
- * One icon-button entry in a {@link MessageActionRow} (e.g.
- * retry/copy/download).
- */
 export interface MessageAction {
   icon: IconName;
   label: string;
   onClick: () => void;
 }
 
-// Triggers a browser file download for arbitrary text content by wrapping it
-// in a Blob, pointing a throwaway anchor at an object URL, and programmatically
-// clicking it; the object URL is revoked immediately after since the download
-// has already been handed off to the browser.
+// Revoke the download URL after handing it to the browser so blobs do not
+// remain retained.
 function downloadText(
   filename: string,
   text: string,
@@ -30,16 +24,6 @@ function downloadText(
   URL.revokeObjectURL(url);
 }
 
-/**
- * Renders a row of icon-button actions under a message/card. `align: 'end'`
- * switches to the floating, hover-revealed treatment used for a user bubble's
- * edit/copy row (MESSAGE_ACTIONS_END_CLASSES); `align: 'start'` (default) is
- * the plain inline row used under assistant responses and cards.
- *
- * @param actions The icon-button actions to render, in order.
- * @param align Row treatment: `'end'` for the floating user-bubble row,
- *   `'start'` for the plain inline row.
- */
 export function MessageActionRow({
   actions,
   align = 'start',
@@ -79,17 +63,7 @@ export function MessageActionRow({
   );
 }
 
-/**
- * Builds the retry/copy/download action set shown under an assistant response.
- *
- * @param onRetry Handler for regenerating the response, or null when this
- *   response cannot be regenerated. Omitted rather than shown inert: a retry
- *   control that answers a click with nothing is indistinguishable from one
- *   that is broken.
- * @param text The response text to copy or download.
- * @param filename Download filename for the response.
- * @returns The action array for a MessageActionRow.
- */
+// Omit unavailable retries rather than show a control that appears broken.
 export function responseActions(
   onRetry: (() => void) | null,
   text: string,
@@ -112,14 +86,6 @@ export function responseActions(
   ];
 }
 
-/**
- * Builds the edit/copy action set shown under a user request bubble.
- *
- * @param onEdit Handler to open the message for editing, or null when this
- *   prompt has no durable turn behind it to revise.
- * @param onCopyRequest Handler to copy the message's text.
- * @returns The action array for a MessageActionRow.
- */
 export function requestActions(
   onEdit: (() => void) | null,
   onCopyRequest: () => void,

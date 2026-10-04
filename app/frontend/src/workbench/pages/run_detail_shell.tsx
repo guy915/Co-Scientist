@@ -9,9 +9,6 @@ import {runFailureGuidance} from './run_detail_data';
 import {capitalizeTerm} from '@/lib/text';
 import {joinClasses} from '../classes';
 
-// Icon and label shown per tab in the nav bar (keyed by TabName so a missing
-// entry is a compile error, not a silent blank tab). `short` is the label
-// narrow phones show: four full labels run together below ~420px.
 const TAB_META: Record<
   TabName,
   {icon: IconName; label: string; short: string}
@@ -22,14 +19,8 @@ const TAB_META: Record<
   ideas: {icon: 'lightbulb', label: 'All Ideas', short: 'Ideas'},
 };
 
-/**
- * Accessible name for a tab's content region, matching the label shown for
- * it in the nav strip. `ReportTabNav` is a `<nav>` of real, deep-linkable
- * `<Link>`s (not a tablist) so the content below carries no `aria-controls`/
- * `role="tabpanel"` relationship to it -- but a screen-reader user landing
- * in the region still needs to know which section they arrived in, hence
- * this label rather than that wiring.
- */
+// Name content regions independently: deep-linked navigation is not an ARIA
+// tab widget.
 export function reportSectionLabel(tab: TabName): string {
   return TAB_META[tab].label;
 }
@@ -59,11 +50,8 @@ const REPORT_TABS_CLASSES =
   'reference-report-tabs grid grid-cols-4 border-b border-cosci-border ' +
   'max-[700px]:min-w-0 max-[700px]:overflow-x-hidden';
 
-// The tabs are anchors (so a middle/cmd-click opens the tab in a new browser
-// tab), hence the explicit no-underline: everything else here matches the
-// buttons they replaced. `reference-report-tab` is the hook the hover/focus
-// state layer in index.css keys on -- it must stay on whatever element the
-// tab is rendered as.
+// Keep the reference-report-tab hook so link-based tabs retain hover and focus
+// styling.
 const REPORT_TAB_BUTTON_BASE_CLASSES =
   'reference-report-tab relative grid min-w-0 cursor-pointer content-center ' +
   'justify-items-center gap-[0.35rem] border-0 bg-transparent ' +
@@ -79,12 +67,8 @@ const REPORT_TAB_ICON_CLASSES =
   'text-[1.35rem] max-[700px]:text-[1.12rem] ' +
   '[@media(max-height:500px)]:hidden';
 
-// min-w-0/overflow-hidden/whitespace-nowrap constrain the axis TruncatedLabel
-// measures against (see its own docstring); without them it has nothing to
-// fit to and never truncates. A grid-cols-4 cell easily fits every label at
-// its normal width, so these apply unconditionally without visibly changing
-// anything above the phone breakpoint -- they only matter once a column
-// actually runs out of room.
+// Constrain width and overflow for TruncatedLabel; otherwise there is no axis
+// against which to measure.
 const REPORT_TAB_LABEL_CLASSES =
   'min-w-0 overflow-hidden whitespace-nowrap max-[700px]:text-[0.75rem]';
 
@@ -102,19 +86,9 @@ const REPORT_SKELETON_CLASSES =
   'max-[700px]:mt-5 max-[700px]:mb-12 ' +
   'max-[700px]:w-[min(100%_-_1.2rem,100%)] max-[700px]:max-w-none';
 
-/**
- * Tab-switch side effects. The tabs themselves are links, so the route change
- * is the browser's (or the router's) job; what is left here is the special
- * case: bumping ideasViewKey when "All Ideas" is re-tapped while already
- * active, so IdeasTab remounts and resets its mobile master-detail selection
- * back to the list. This is a second, independent escape alongside the
- * titlebar's own Back arrow (see reportBackTarget below) — MobileIdeaView
- * itself still renders no back control of its own (see MobileIdeaView in
- * ideas_tab.tsx).
- */
+// Retapping Ideas resets mobile detail to the list because that detail has no
+// back control of its own.
 export function useTabNavigation(id: string | undefined, activeTab: TabName) {
-  // Bumped when "All Ideas" is re-tapped, remounting IdeasTab to reset its
-  // mobile master-detail selection back to the list.
   const [ideasViewKey, setIdeasViewKey] = useState(0);
 
   const onTabChange = useCallback(
@@ -130,16 +104,8 @@ export function useTabNavigation(id: string | undefined, activeTab: TabName) {
   return {ideasViewKey, onTabChange};
 }
 
-// Where the titlebar's back control goes, and how it is labelled. An open
-// idea (?idea= on the ideas tab) wins: on mobile that detail view has no
-// back control of its own (see MobileIdeaView in ideas_tab.tsx), so this is
-// its only escape back to the ranked list short of the browser's own back
-// gesture. With no idea open, the control means one thing on every run --
-// leave the run for the workspace. It used to divert to the conversation a
-// run came from, which is now the shell header's session switch's job (see
-// SessionSwitch): one arrow that changed destination depending on whether a
-// chat happened to exist made "back" unpredictable, and left a run started
-// outside a conversation with no way home at all.
+// On mobile, open-idea Back returns to the list; otherwise Back leaves the run
+// for the workspace.
 function reportBackTarget(
   id: string | undefined,
   selectedIdeaId: string | null,
@@ -150,14 +116,6 @@ function reportBackTarget(
   return {to: '/', label: 'Back'};
 }
 
-/**
- * Titlebar: back link plus the run's (possibly domain-overridden) title.
- *
- * @param title The run's display title.
- * @param activeTab The currently active report tab, so the back control
- *   knows whether an `?idea=` param belongs to the ideas tab (and is thus a
- *   live detail selection) or is stale from a different tab.
- */
 export function ReportTitlebar({
   title,
   activeTab,
@@ -168,11 +126,7 @@ export function ReportTitlebar({
   const {id} = useParams<{id: string}>();
   const [searchParams] = useSearchParams();
   const isMobile = useIsMobile();
-  // Only the phone breakpoint replaces the ranked list with the detail, so
-  // only there is the list somewhere the reader needs a way back to. The
-  // desktop split-pane shows both at once and its Back control keeps
-  // meaning "leave the run" -- retargeting it there would strand a reader
-  // who pressed Back to get out.
+  // Desktop shows list and detail together, so Back must still leave the run.
   const selectedIdeaId =
     isMobile && activeTab === 'ideas' ? searchParams.get('idea') : null;
   const back = reportBackTarget(id, selectedIdeaId);
@@ -194,23 +148,8 @@ export function ReportTitlebar({
   );
 }
 
-/**
- * Tab nav: one link per TABS entry. Each tab is a real href, so a middle- or
- * cmd-click opens it in a new browser tab like any other link; onTabChange
- * still fires on a plain click for the ideas-remount side effect.
- *
- * This is deliberately a navigation landmark, not a tablist: the tabs are
- * real, deep-linkable URLs with working back/forward, so there is no
- * `role="tablist"`/`"tab"`/`"tabpanel"` triad, no `aria-selected`, and no
- * roving tabindex here -- each link is independently reachable by Tab like
- * any other link, and `aria-current="page"` (not `aria-selected`) marks the
- * active one, matching a nav rather than a widget. The content region below
- * carries its own accessible name instead of an `aria-controls` back to
- * this strip (see `reportSectionLabel`), since it is not this nav's
- * tabpanel. The app binds no keyboard shortcuts of its own, here or
- * anywhere else, so Tab and Enter are the whole keyboard story for this
- * strip.
- */
+// Use navigation landmarks and ordinary links for deep URLs, browser history
+// and keyboard semantics.
 export function ReportTabNav({
   activeTab,
   onTabChange,
@@ -218,12 +157,8 @@ export function ReportTabNav({
 }: {
   activeTab: TabName;
   onTabChange: (tab: TabName) => void;
-  // Which tabs this run has. Passed in rather than read from the
-  // module-level TABS so the nav renders exactly what the run supports.
   tabs: readonly TabName[];
 }) {
-  // Read from the route rather than a prop so the nav's own signature (and
-  // its call site) stays as it was.
   const {id} = useParams<{id: string}>();
   return (
     <nav className={REPORT_TABS_CLASSES} aria-label="Goal report sections">
@@ -257,17 +192,12 @@ export function ReportTabNav({
   );
 }
 
-// Picks the selected vs. unselected tab class variant.
 function reportTabButtonClass(selected: boolean): string {
   return `${REPORT_TAB_BUTTON_BASE_CLASSES} ${
     selected ? REPORT_TAB_SELECTED_CLASSES : 'text-cosci-muted'
   }`;
 }
 
-/**
- * Inline error banner shown above the tab content; renders nothing when
- * there is no error.
- */
 export function ReportErrorAlert({message}: {message: string | null}) {
   if (!message) return null;
   return (
@@ -277,7 +207,6 @@ export function ReportErrorAlert({message}: {message: string | null}) {
   );
 }
 
-/** Fixed-position status toast, shown when a run ends failed/blocked. */
 export function RunToast({message}: {message: string}) {
   return (
     <div role="status" className={REPORT_TOAST_CLASSES}>
@@ -286,7 +215,6 @@ export function RunToast({message}: {message: string}) {
   );
 }
 
-// Status and description for each non-completed terminal state.
 const END_STATE_COPY: Record<
   TerminalNonCompletedStatus,
   {heading: string; description: string}
@@ -305,8 +233,6 @@ const END_STATE_COPY: Record<
   },
 };
 
-// The recorded-error box: error-container tones for failed/blocked (the
-// tones the design reserves for them), a neutral panel for cancelled.
 const END_STATE_ERROR_CLASSES =
   'mt-8 rounded-md bg-th-destructive-container px-4 py-3 ' +
   'text-th-destructive-on-container';
@@ -317,11 +243,8 @@ const END_STATE_NEUTRAL_ERROR_CLASSES =
 const FAILURE_GUIDANCE_CLASSES =
   'mt-6 rounded-md border border-cosci-border bg-cosci-panel px-4 py-3';
 
-/**
- * Truthful end state for a run that terminated without completing: the
- * status and the run's recorded error, in place of report tabs whose
- * content either does not exist or would present a partial run as finished.
- */
+// Failed, blocked and cancelled runs must not present partial output as a
+// completed report.
 export function RunEndState({
   status,
   error,
@@ -374,10 +297,8 @@ const UNGROUNDED_NOTICE_CLASSES =
   'max-[700px]:mt-5 max-[700px]:w-[min(100%_-_1.2rem,100%)] ' +
   'max-[700px]:max-w-none';
 
-/**
- * Report-level notice for a completed run whose literature retrieval
- * returned nothing: the report below is not grounded in retrieved sources.
- */
+// A completed run without literature still needs an explicit ungrounded report
+// notice.
 export function ReportUngroundedNotice() {
   return (
     <div role="note" className={UNGROUNDED_NOTICE_CLASSES}>
@@ -400,15 +321,8 @@ const AWAITING_DECISION_NOTICE_CLASSES =
   'text-th-on-warning-container max-[700px]:mt-5 ' +
   'max-[700px]:w-[min(100%_-_1.2rem,100%)] max-[700px]:max-w-none';
 
-/**
- * Report-level notice that a paused run has one or more safety decisions
- * still awaiting a person -- shown above every tab's content (not folded
- * into the safety audit on Goal Details), because a run held at intake
- * produces no ideas, no overview, nothing to show on any other tab: without
- * this, the run just reads as empty rather than as waiting on a reviewer.
- * Sized and spaced like ReportUngroundedNotice, which it sits alongside
- * inside the same scrolling column (see RunDetailTabContent).
- */
+// Show pending safety review above every tab; intake holds can otherwise look
+// like an empty run.
 export function AwaitingDecisionNotice({count}: {count: number}) {
   if (count <= 0) return null;
   const decisions = count === 1 ? 'decision' : 'decisions';
@@ -428,7 +342,6 @@ export function AwaitingDecisionNotice({count}: {count: number}) {
   );
 }
 
-/** Loading placeholder shown between mount and the first successful fetch. */
 export function RunDetailSkeleton() {
   return (
     <div className={REPORT_SKELETON_CLASSES} aria-busy="true">
@@ -438,12 +351,6 @@ export function RunDetailSkeleton() {
     </div>
   );
 }
-
-// Shared Tailwind class-name constants and layout primitives for the
-// document-style report content ("details"/"learning"/"overview" tabs in
-// run_detail.tsx, plus run_detail_learning.tsx). Centralizing the classes
-// here keeps heading sizes, spacing, and list styling consistent across
-// those views.
 
 export const REPORT_DOCUMENT_CLASSES =
   'cosci-report-document mx-auto mt-9 mb-24 w-[min(100%_-_3rem,58rem)] ' +
@@ -471,13 +378,6 @@ export const REPORT_SECTION_LIST_ITEM_CLASSES =
 export const REPORT_SECTION_LIST_META_CLASSES =
   'text-[0.88rem] text-cosci-muted';
 
-/**
- * Wraps a report-style tab's content in the shared article layout, rendering
- * an H2 title above the caller-supplied body.
- *
- * @param props The document title, body content, and an optional extra
- *   className appended to the base document classes.
- */
 export function ReportDocument({
   title,
   children,
@@ -495,12 +395,6 @@ export function ReportDocument({
   );
 }
 
-/**
- * Renders a labeled bullet list within a report document, or nothing when
- * there are no values (e.g. a run with no captured requirements yet).
- *
- * @param props The list's heading text and the string values to render.
- */
 export function ReportList({title, values}: {title: string; values: string[]}) {
   if (!values.length) return null;
   return (

@@ -27,8 +27,6 @@ const UPLOAD_LABEL_CLASSES =
 
 export {attributeDisplayString};
 
-// Requirements/attributes/criteria captured in a run's durable setup config,
-// each defaulted to an empty list when the run has no setup yet.
 function goalDetailsLists(setup: RunWithSummary['config']['setup']): {
   requirements: string[];
   attributes: string[];
@@ -42,8 +40,6 @@ function goalDetailsLists(setup: RunWithSummary['config']['setup']): {
   };
 }
 
-// The run-option display labels SpecFields needs: title, tier, and focus,
-// each defaulted for a run that has not set one.
 function specRunLabels(run: RunWithSummary | null): {
   title: string;
   tier: string;
@@ -56,8 +52,6 @@ function specRunLabels(run: RunWithSummary | null): {
   };
 }
 
-// Every display value SpecFields needs, resolved up front so the component
-// itself does no defaulting or lookup of its own.
 function specDisplayValues(run: RunWithSummary | null) {
   const {requirements, attributes, criteria} = goalDetailsLists(
     run?.config.setup,
@@ -71,7 +65,6 @@ function specDisplayValues(run: RunWithSummary | null) {
   };
 }
 
-// The interview-contract fields: goal, lists, title, and run options.
 function SpecFields({run}: {run: RunWithSummary | null}) {
   const {goal, requirements, attributes, criteria, title, tier, focus} =
     specDisplayValues(run);
@@ -102,7 +95,6 @@ function SpecFields({run}: {run: RunWithSummary | null}) {
   );
 }
 
-/** Run Specifications preserves the final interview contract and run mode. */
 export function RunSpecificationsView({
   run,
   safety,
@@ -141,8 +133,6 @@ interface UploadCallbacks {
   onChanged: () => void;
 }
 
-// Uploads the chosen file into the run's private corpus, reporting progress
-// and outcome through the given callbacks.
 async function uploadCorpusFile(
   event: ChangeEvent<HTMLInputElement>,
   runId: string | undefined,
@@ -212,7 +202,6 @@ export interface AllocationLedgerState {
   onRetry: () => void;
 }
 
-/** Native details/summary disclosure for the saved Supervisor decisions. */
 export function SupervisorAllocationLedger(props: AllocationLedgerState) {
   const {response} = props;
   return (
@@ -381,14 +370,12 @@ function taskLabel(taskType: string): string {
   return capitalizeTerm(taskType.replaceAll('_', ' '));
 }
 
-// Upload failures are shown using the server's message when available.
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-// Show the latest run-wide verdict and decisions flagged for human review.
-// Routine claim-gate rows stay out of the audit. Adjudication remains an API
-// operation because approval releases held content and resumes the run.
+// Audit human-review decisions only; approval stays an API operation because
+// it releases held content and resumes work.
 function SafetyReviewSection({decisions}: {decisions: SafetyDecision[]}) {
   const summary = decisions
     .filter(decision => decision.stage === 'final')

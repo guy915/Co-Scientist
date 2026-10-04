@@ -31,12 +31,8 @@ import {RunSpecificationsView} from './run_detail_specifications';
 import {SupervisorAllocationLedger} from './run_detail_specifications';
 import {TABS, normalizeTab, type TabName} from '../run_tabs';
 
-// max-[700px]:overflow-x-auto (not overflow-hidden): the ancestor .ucs-page
-// --report was given a horizontal-scroll fallback for content that shrinks
-// below what it contains (see shell_surface.css); an unconditional
-// overflow-hidden here would keep clipping locally before that ancestor ever
-// saw the overflow. overflow-y stays hidden -- vertical scrolling is owned
-// by the inner .cosci-report-scroll region below.
+// Keep horizontal overflow available to the mobile shell fallback; inner
+// report content owns vertical scrolling.
 const REPORT_PAGE_CLASSES =
   'cosci-report-page grid h-full min-h-0 bg-cosci-bg text-cosci-fg ' +
   'max-[700px]:min-w-0 max-[700px]:overflow-x-auto ' +
@@ -49,12 +45,8 @@ const ALL_IDEAS_CLASSES = 'cosci-all-ideas h-full p-0 max-[700px]:h-auto';
 
 type RunDetailData = ReturnType<typeof useRunDetailData>;
 
-// The run's activity, known as early as possible. The fetched row wins once
-// it lands (a row that failed to load counts as settled, so an errored page
-// still offers its tabs). Before that the shell's run-history list already
-// carries the status of every listed run, so a running run opened from the
-// sidebar picks the live view on its very first paint instead of flashing the
-// previous run's report chrome for the length of a fetch.
+// Use history status before fetch completion to avoid flashing finished-report
+// chrome for a running run.
 function useRunActivity(
   id: string | undefined,
   data: RunDetailData,
@@ -64,12 +56,6 @@ function useRunActivity(
   return runActivity(history.find(run => run.id === id)?.status);
 }
 
-// The page grid: only a settled, non-active run gets the tab-nav row, since
-// ActiveRunView replaces the tabbed body entirely and an unknown activity has
-// no business painting chrome it may be about to drop. A run that ended
-// without completing gets no tab row either -- it renders its end state.
-// Phones get tighter chrome rows, and a short (landscape phone) viewport
-// tighter still, so the title and tabs don't eat half the screen.
 const REPORT_ROWS_WITH_TABS =
   'grid-rows-[3.75rem_5rem_minmax(0,1fr)] ' +
   'max-[700px]:grid-rows-[3.25rem_4.25rem_minmax(0,1fr)] ' +
@@ -86,18 +72,12 @@ function reportPageClasses(showTabs: boolean): string {
   }`;
 }
 
-// The run payload carries the persisted LLM backend the run executed on
-// ("offline" deterministic router vs "real" provider). The shared Run type
-// predates the field, so it is read through a local extension.
 type RunWithBackend = RunWithSummary & {
   llm_backend?: 'offline' | 'real' | null;
 };
 
-// Mirrors the backend's store.run_used_offline: the persisted llm_backend
-// column is authoritative; rows created before the column existed fall back
-// to the provider (the mock provider was always offline-backed). Offline
-// runs are illustrative fixtures -- the same convention get_hypotheses uses
-// to exempt them from "Unverified" badging.
+// Persisted backend is authoritative; legacy mock-provider rows were offline
+// and remain illustrative fixtures.
 function runUsedOffline(run: RunWithSummary): boolean {
   const backend = (run as RunWithBackend).llm_backend;
   if (backend === undefined || backend === null) {
@@ -115,8 +95,8 @@ function canRefineOutcomeForRun(run: RunWithSummary | null): boolean {
   );
 }
 
-// A completed run whose literature retrieval returned nothing still reads
-// categorically; flag it as ungrounded unless it was offline-backed.
+// Flag completed runs without retrieved literature as ungrounded, except
+// illustrative offline runs.
 function reportIsUngrounded(data: RunDetailData): boolean {
   const run = data.run;
   if (!data.loaded || !run || !isCompletedStatus(run.status)) return false;
@@ -124,8 +104,6 @@ function reportIsUngrounded(data: RunDetailData): boolean {
   return !runUsedOffline(run);
 }
 
-// The end-state facts of a run that terminated without completing, or null
-// for every other run (including an unloaded one).
 function terminalEndStateOf(run: RunWithSummary | null): {
   status: TerminalNonCompletedStatus;
   error: string | null;
@@ -141,21 +119,14 @@ function terminalEndStateOf(run: RunWithSummary | null): {
   return null;
 }
 
-// Before the first fetch settles (and nothing has failed), the page is
-// still guessing at what it should paint.
 function isInitialLoading(data: RunDetailData): boolean {
   return !data.loaded && !data.error;
 }
 
-// Zero for an unloaded run, matching the field's own "not paused, or
-// nothing left to review" meaning of zero (see `Run.awaiting_decision_count`).
 function awaitingDecisionCount(data: RunDetailData): number {
   return data.run?.awaiting_decision_count ?? 0;
 }
 
-/**
- * Renders the Co-Scientist goal report surface from the reference footage.
- */
 export function RunDetail() {
   const {id, tab} = useParams<{id: string; tab?: string}>();
   const activeTab = normalizeTab(tab);
@@ -165,9 +136,8 @@ export function RunDetail() {
 
   if (!id) return null;
 
-  // A run that ended without completing shows its end state (status plus
-  // recorded error) instead of report tabs: content for it either does not
-  // exist or would present a partial run as finished.
+  // Show terminal failure instead of tabs that would present partial output as
+  // a finished report.
   const showEndState = terminalEndStateOf(data.run) !== null;
   const showTabs = activity === 'inactive' && !showEndState;
   return (
@@ -203,8 +173,6 @@ interface RunDetailBodyProps {
   data: RunDetailData;
 }
 
-// Chooses the loading skeleton, the terminal end state, the live-run view,
-// or the tab content.
 function RunDetailBody({
   active,
   activeTab,
@@ -248,7 +216,6 @@ function RunDetailBody({
   );
 }
 
-// The live view of an in-flight run.
 function LiveRunSection({data}: {data: RunDetailData}) {
   if (!data.run) return null;
   return (
@@ -282,7 +249,6 @@ function RunOutcomesStatusSection({data}: {data: RunDetailData}) {
   );
 }
 
-// The Overview tab body.
 function OverviewSection({data}: {data: RunDetailData}) {
   return (
     <ResearchOverviewView
@@ -298,7 +264,6 @@ function OverviewSection({data}: {data: RunDetailData}) {
   );
 }
 
-// The Ideas tab body, remount-keyed so switching back resets its selection.
 function IdeasSection({
   ideasViewKey,
   data,
@@ -326,9 +291,6 @@ function IdeasSection({
   );
 }
 
-// One tab's content, given the loaded run data. A table rather than an
-// if-chain so adding a tab is one entry and a missing one is a compile
-// error -- the same reason TAB_META is keyed by TabName.
 const TAB_SECTIONS: Record<
   TabName,
   (ideasViewKey: number, data: RunDetailData) => React.ReactNode
@@ -359,7 +321,6 @@ const TAB_SECTIONS: Record<
   ),
 };
 
-// The active tab's content section.
 function tabSection(
   activeTab: TabName,
   ideasViewKey: number,
@@ -368,15 +329,8 @@ function tabSection(
   return TAB_SECTIONS[activeTab](ideasViewKey, data);
 }
 
-// Active tab content for a loaded run. Keying <main> by activeTab remounts it
-// on tab switch, which also resets any per-tab local UI state (e.g.
-// IdeasTab's selection, LearningView's search query). The awaiting-decision
-// and ungrounded notices ride above every tab's content because both apply
-// to the whole report -- rendered inside this scrolling region rather than
-// as a sibling of it, since `.cosci-report-page`'s grid-rows template is
-// sized for a fixed set of siblings; an extra one lands in an unsized
-// implicit track and its content overflows that track's box (see the
-// AwaitingDecisionNotice/heading overlap this replaced).
+// Remount on tab changes to reset local state; keep report-wide notices inside
+// the fixed scrolling grid track.
 function RunDetailTabContent({
   activeTab,
   ideasViewKey,

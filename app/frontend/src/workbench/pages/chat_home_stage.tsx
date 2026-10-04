@@ -22,7 +22,6 @@ import {
 import {useNowTick} from '@/workbench/hooks/timers';
 import {preferredSessionSide} from '../layout_session_switch';
 
-/** Inputs for the home composer and its recent runs. */
 export interface HomeStageProps {
   input: string;
   setInput: (value: string) => void;
@@ -33,16 +32,12 @@ export interface HomeStageProps {
   onToggleShowAll: () => void;
 }
 
-// The one line under the composer that says there is more below: the
-// landing page (home_landing.tsx), rendered after this stage. Quiet on
-// purpose, so the home still reads as the chat it opens on.
 function HomeScrollHint() {
   const onClick = () => {
     const reduce = window.matchMedia?.(
       '(prefers-reduced-motion: reduce)',
     ).matches;
-    // Scroll the home page pane itself: scrollIntoView would also scroll
-    // the shell's clipped ancestors and shift the whole app up.
+    // Scroll this pane; scrollIntoView also moves clipped shell ancestors.
     smoothScrollToSection(
       'landing',
       0,
@@ -62,24 +57,10 @@ function HomeScrollHint() {
   );
 }
 
-/**
- * Renders the session-home surface shown before any conversation has
- * started: the greeting title, the desktop onboarding timeline, the
- * suggestion prompt row, the composer (in its roomy `large` mode), and the
- * desktop-only recents panel (HomeRecentsPanel). Rendered by ChatWorkspace
- * when `hasConversation` is false.
- */
 export function HomeStage(props: HomeStageProps) {
-  // Tracks which suggestion (by its preview text, used as the identity key) is
-  // currently hovered/focused, to show that suggestion's preview bubble and its
-  // "previewed" button styling.
   const [hoveredSuggestion, setHoveredSuggestion] = useState<string | null>(
     null,
   );
-  // Mobile shows suggestions as a single-line glyph list, so the label
-  // truncates to one line (word-level, via TruncatedLabel); desktop keeps the
-  // two-line card. Tracks viewport width so the line budget follows the
-  // active layout.
   const isMobile = useIsMobile();
   const {chats} = useChatHistoryContext();
 
@@ -119,10 +100,6 @@ export function HomeStage(props: HomeStageProps) {
   );
 }
 
-// Renders the heading block above the suggestion row: the phone-only flask
-// mark (the desktop header lockup already carries the mark), the greeting
-// title, and the desktop-only 1-2-3 onboarding timeline (mobile drops it
-// entirely to free vertical space).
 function HomeGreeting({isMobile}: {isMobile: boolean}) {
   return (
     <>
@@ -156,9 +133,6 @@ function HomeGreeting({isMobile}: {isMobile: boolean}) {
   );
 }
 
-// Renders the suggestion prompt row: one SuggestionCard per entry in
-// SUGGESTIONS, wired to the shared hover/preview state and the handler that
-// fills the composer when a card is selected.
 function HomeSuggestionRow({
   isMobile,
   suggestions,
@@ -189,19 +163,13 @@ function HomeSuggestionRow({
   );
 }
 
-// The preview bubble's anchor class for a suggestion card's column position
-// (first/middle/last), so it stays roughly centered over the row rather than
-// overflowing past the viewport edge for the first/last card.
+// Anchor edge previews inward so they cannot overflow the viewport.
 function suggestionPreviewPositionClass(index: number) {
   if (index === 0) return 'reference-suggestion-preview--start';
   if (index === 1) return 'reference-suggestion-preview--center';
   return 'reference-suggestion-preview--end';
 }
 
-// Renders one suggestion card in the home-stage suggestion row: the
-// hover/focus-revealed one-sentence preview bubble (SuggestionPreviewBubble),
-// and the button that fills the composer with the suggestion's full prompt
-// when selected (SuggestionTriggerButton).
 function SuggestionCard({
   suggestion,
   index,
@@ -217,9 +185,6 @@ function SuggestionCard({
   onPreview: (preview: string | null) => void;
   onSelect: (prompt: string) => void;
 }) {
-  // The preview bubble anchors differently per column (start/center/end) so
-  // it stays roughly centered over the row rather than overflowing past the
-  // viewport edge for the first/last card.
   const previewPositionClass = suggestionPreviewPositionClass(index);
 
   return (
@@ -240,7 +205,6 @@ function SuggestionCard({
   );
 }
 
-// One-sentence preview bubble revealed above a suggestion card on hover/focus.
 function SuggestionPreviewBubble({
   text,
   isPreviewed,
@@ -264,9 +228,6 @@ function SuggestionPreviewBubble({
   );
 }
 
-// Props for SuggestionTriggerButton, named at module level per the
-// destructured prop signature otherwise pushing the component past the line
-// cap.
 interface SuggestionTriggerButtonProps {
   suggestion: Suggestion;
   isMobile: boolean;
@@ -275,10 +236,6 @@ interface SuggestionTriggerButtonProps {
   onSelect: (prompt: string) => void;
 }
 
-// The suggestion's clickable trigger: fills the composer with the
-// suggestion's full prompt when clicked, and drives the preview bubble's
-// visibility on hover/pointer/focus so touch/keyboard users get the same
-// one-sentence preview that mouse hover provides.
 function SuggestionTriggerButton(props: SuggestionTriggerButtonProps) {
   const {suggestion, isMobile, isPreviewed, onPreview, onSelect} = props;
   return (
@@ -312,14 +269,8 @@ function SuggestionTriggerButton(props: SuggestionTriggerButtonProps) {
   );
 }
 
-// Each suggestion carries two strings with distinct jobs. `preview` is a
-// one-sentence teaser shown on the card (truncated to the card width via
-// TruncatedLabel) and in the hover bubble. `prompt` is the full, well-formed
-// research goal dropped into the composer on click — modelled on the
-// Co-Scientist input anatomy (a title line, a goal with an explicit output
-// format, novelty/feasibility constraints, and the reasoning the system should
-// perform), so a scientist starts from a real prompt rather than a teaser.
-// `icon` is the leading glyph shown in the mobile list layout.
+// Suggestion teasers are not research goals; send the full prompt with output
+// and scientific constraints.
 export const SUGGESTIONS: readonly {
   preview: string;
   prompt: string;
@@ -389,8 +340,6 @@ export const SUGGESTIONS: readonly {
 
 export type Suggestion = (typeof SUGGESTIONS)[number];
 
-// Copy for the desktop-only 1-2-3 onboarding timeline rendered below the
-// title (hidden on mobile to save vertical space; see the `!isMobile` guard).
 export const SESSION_STEPS: readonly {
   n: number;
   title: string;
@@ -508,7 +457,6 @@ function RecentRunCard({
   run: Run;
   chats: readonly ChatSummary[];
 }) {
-  // Resolve the remembered Chat/Results side from the current chat list.
   const chat =
     preferredSessionSide(run.id) === 'chat'
       ? chats.find(entry => entry.run_id === run.id)
@@ -611,8 +559,7 @@ export function formatHomeRunTimeChip(run: Run, nowSeconds: number): string {
   return `Status: ${capitalizeTerm(run.status)}`;
 }
 
-// Both leased tasks and stage events name the same work. Routing between
-// agents has no phase; after tournament, the remaining work stays at step 4.
+// Routing has no phase; leased tasks and stage events describe the same work.
 const TASK_PHASE: Record<string, number | null> = {
   bootstrap: 1,
   supervisor: 1,
@@ -647,7 +594,6 @@ const STAGE_TYPES = new Set([
   'research_overview',
 ]);
 
-/** The current 1–4 phase, or null between tasks; later cycles may go backward. */
 export function homeRunStepIndex(run: Run): number | null {
   if (run.status === 'queued') return 1;
   if (run.status === 'synthesizing') return 4;
@@ -664,8 +610,6 @@ export function homeRunStepIndex(run: Run): number | null {
   return TASK_PHASE[stage === 'supervisor.plan' ? 'supervisor' : stage] ?? null;
 }
 
-// The four phases of a live run, each with the glyph it shows in the flow.
-// A run's real unit of work is mapped onto one of these by homeRunStepIndex.
 const RUN_STEPS: {icon: IconName; label: string}[] = [
   {icon: 'summarize', label: 'Exploring focus areas'},
   {icon: 'rate_review', label: 'Generating hypotheses'},
@@ -673,27 +617,12 @@ const RUN_STEPS: {icon: IconName; label: string}[] = [
   {icon: 'chess', label: 'Playing tournament'},
 ];
 
-/**
- * Renders the live flow for an active run: an "In Progress" row carrying the
- * spinner, then the phases up to the one the run is currently in.
- *
- * The phase comes from the run's own reported progress, so the flow tracks
- * real work rather than a timer. It shows the *latest* reported phase, not
- * the furthest one ever reached: a run genuinely returns to earlier phases
- * (every new work cycle re-enters generation/review, and proximity follows
- * the tournament), and retaining the furthest phase masked those backward
- * steps instead of reporting them. Rows appearing and disappearing as the
- * phase moves is the honest signal.
- *
- * @param run The active run to show progress for.
- */
+// Show the latest phase, not the furthest: later cycles legitimately return to
+// generation and review.
 export function RunStepFlow({run}: {run: Run}) {
   const phase = homeRunStepIndex(run);
-  // A run reports no phase while routing between agents and in the gaps
-  // between leased tasks. Hold the last phase actually observed so those gaps
-  // read as the work continuing, rather than snapping back to the first step.
-  // A *reported* phase replaces it outright — see the docstring for why the
-  // flow no longer retains the furthest phase seen.
+  // Hold the last observed phase through routing gaps; a reported phase
+  // replaces it even when it moves backward.
   const [currentPhase, setCurrentPhase] = useState(phase ?? 1);
   useEffect(() => {
     if (phase === null) return;
@@ -728,10 +657,6 @@ export function RunStepFlow({run}: {run: Run}) {
   );
 }
 
-// One phase's glyph and label. A row's presence is the whole signal: the flow
-// only lists phases the run has entered, and its single spinner lives in the
-// In Progress row. There is deliberately no per-row done/current marker (the
-// .reference-run-step-done check style is kept for a future one).
 function RunStepItem({icon, label}: {icon: IconName; label: string}) {
   return (
     <div className="reference-run-step">
@@ -745,10 +670,6 @@ function RunStepItem({icon, label}: {icon: IconName; label: string}) {
   );
 }
 
-// The active-task label: the humanized durable-task-lease signal
-// (`execution_progress.active_task`) when one is present, else the
-// humanized stage-event signal (`latest_stage`) when that is present
-// instead, else a neutral placeholder while neither signal has arrived yet.
 function activeTaskLabel(run: Run): string {
   const activeTask = run.execution_progress?.active_task;
   if (activeTask) return humanizeTask(activeTask);
@@ -756,8 +677,6 @@ function activeTaskLabel(run: Run): string {
   return 'Waiting for Supervisor allocation';
 }
 
-// Committed-task counts for the "N of M complete" line, only while the
-// Supervisor's progress is determinate.
 function committedTaskCounts(run: Run): {
   completed: number;
   total: number;
@@ -772,13 +691,8 @@ function committedTaskCounts(run: Run): {
   };
 }
 
-/**
- * Renders truthful task-queue progress for a live run: what it is working on
- * now, and how much of the Supervisor's committed task budget is done. Both
- * are stated in words -- a bar was removed because its fraction is only known
- * once the budget is committed, so most of a run it read as motion without
- * information.
- */
+// Only show determinate queue progress; an uncommitted task budget cannot
+// justify a progress fraction.
 export function RunExecutionProgress({run}: {run: Run}) {
   const activeTask = activeTaskLabel(run);
   const counts = committedTaskCounts(run);

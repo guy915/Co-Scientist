@@ -11,14 +11,8 @@ import {
   type AllocationLedgerState,
 } from './run_detail_specifications';
 
-// Cards shown in the activity log, not raw events -- see the comment on
-// the useMemo below for why the window moved to that unit.
 const ACTIVITY_WINDOW = 10;
 
-/**
- * Live view of an in-flight run: the execution-progress flow, the headline
- * metrics, and the streaming activity timeline.
- */
 interface ActiveRunViewProps {
   run: RunWithStreamState;
   events: StreamEvent[];
@@ -28,16 +22,12 @@ interface ActiveRunViewProps {
   outcomeStatus?: ReactNode;
 }
 
-// How long the run has been going, floored at zero to guard against clock
-// skew between the client and the server's created_at. Elapsed time is a
-// measurement rather than a projection, so unlike the estimate it replaced it
-// is honest from the first second of the run.
+// Floor elapsed time at zero to tolerate client/server clock skew.
 function elapsedLabel(run: RunWithStreamState, nowSeconds: number): string {
   const elapsedSeconds = Math.max(0, nowSeconds - run.created_at);
   return formatDurationPhrase(elapsedSeconds, {subMinute: true});
 }
 
-// The headline metrics row.
 function RunMetrics({
   elapsed,
   metrics,
@@ -45,10 +35,7 @@ function RunMetrics({
   elapsed: string;
   metrics: [string, string][];
 }) {
-  // `my-0`: a <dl> carries a 1em user-agent block margin, which stacked on
-  // top of the section's own 28px gap and separated these cards from the
-  // progress header above and the activity log below by 44px instead — the
-  // one place on the page whose vertical rhythm did not match the rest of it.
+  // Remove the default dl margin so it does not add to the section gap.
   return (
     <dl className="my-0 grid grid-cols-3 gap-3 max-[700px]:grid-cols-1">
       <RunMetric label="Time elapsed" value={elapsed} />
@@ -59,7 +46,6 @@ function RunMetrics({
   );
 }
 
-// The two cards beside the clock.
 function headlineMetrics(props: ActiveRunViewProps): [string, string][] {
   return [
     ['Sources Analyzed', String(props.evidenceCount)],
@@ -69,16 +55,10 @@ function headlineMetrics(props: ActiveRunViewProps): [string, string][] {
 
 export function ActiveRunView(props: ActiveRunViewProps) {
   const {run, events} = props;
-  // Ticks every second so the elapsed clock advances visibly even while a slow
-  // node holds the run without emitting a new event. The activity log's
-  // relative timestamps ride the same clock.
   const nowSeconds = useNowTick(1000);
   const elapsed = elapsedLabel(run, nowSeconds);
-  // Memoized on the events so the per-second clock ticks above don't re-scan
-  // the whole event list just to advance timestamps. Windowed by GROUP, not
-  // raw event, so a long run of one activity (a tournament's many matches)
-  // collapses to one card instead of consuming the whole window itself --
-  // see windowedActivityGroups for why that reversal matters.
+  // Window by activity group, not raw event, so tournament bursts cannot
+  // consume the visible history.
   const activityGroups = useMemo(
     () =>
       windowedActivityGroups(
