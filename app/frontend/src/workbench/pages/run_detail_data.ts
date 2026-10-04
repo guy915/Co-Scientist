@@ -1,3 +1,4 @@
+import {errorMessage} from '@/lib/text';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   runGoal,
@@ -171,10 +172,6 @@ function isCurrentRequest(
   request: number,
 ): boolean {
   return shownId === id && currentRequest === request;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function useRunSupervisorPlan(id: string | undefined) {

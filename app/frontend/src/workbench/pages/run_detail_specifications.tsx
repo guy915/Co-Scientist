@@ -19,7 +19,7 @@ import {
   ReportDocument,
   ReportList,
 } from './run_detail_shell';
-import {capitalizeTerm} from '@/lib/text';
+import {capitalizeTerm, errorMessage} from '@/lib/text';
 
 const UPLOAD_LABEL_CLASSES =
   'mt-3 inline-flex cursor-pointer rounded-full border border-cosci-border ' +
@@ -368,10 +368,6 @@ function TerminationNotice({value}: {value?: string | null}) {
 
 function taskLabel(taskType: string): string {
   return capitalizeTerm(taskType.replaceAll('_', ' '));
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 // Audit human-review decisions only; approval stays an API operation because

@@ -25,10 +25,6 @@ def _element_ok(item: Any, element: ElementKind) -> bool:
     return True
 
 
-def _clean_str_element(item: str) -> str:
-    return item.strip()
-
-
 def _filter_elements(
     items: list[Any], element: ElementKind
 ) -> tuple[list[Any], bool]:
@@ -39,7 +35,7 @@ def _filter_elements(
             dropped = True
             continue
         if element == "str":
-            cleaned = _clean_str_element(item)
+            cleaned = item.strip()
             if not cleaned:
                 dropped = True
                 continue

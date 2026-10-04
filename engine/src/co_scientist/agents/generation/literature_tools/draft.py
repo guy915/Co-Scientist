@@ -353,12 +353,6 @@ def _compute_draft_max_tokens(count: int, max_iterations: int) -> int:
     return draft_max_tokens
 
 
-def _count_assistant_turns(messages: list[dict[str, Any]]) -> int:
-    """Each tool-loop completion appends one assistant message; those
-    messages count real calls, including the closing turn."""
-    return sum(1 for m in messages if m.get("role") == "assistant")
-
-
 async def _call_draft_llm_with_tools(
     state: WorkflowState,
     call: _DraftCall,
@@ -384,7 +378,10 @@ async def _call_draft_llm_with_tools(
             prompt_name="generate_draft_with_tools",
         ),
     )
-    return final_response, _count_assistant_turns(messages)
+    # Count real tool-loop completions, including the closing assistant turn.
+    return final_response, sum(
+        1 for m in messages if m.get("role") == "assistant"
+    )
 
 
 async def _invoke_draft_llm(

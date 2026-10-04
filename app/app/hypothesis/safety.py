@@ -116,7 +116,6 @@ async def escalate_review(
     """
     if not review.needs_context or review.outcome != SafetyOutcome.UNCERTAIN:
         return review
-    pass
 
     return await resolve_hold(review, text, run_id=run_id, db_path=db_path)
 

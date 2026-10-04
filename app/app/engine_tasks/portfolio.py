@@ -17,7 +17,6 @@ def _cascade_cancel_downstream(
     """Cancelled predecessors poison their entire lookahead chain; queued
     dependents would otherwise keep the cohort alive forever.
     """
-    pass
     from app.engine_tasks.support import NODE_TASK_PREFIX
 
     _cancel_downstream(candidates, {task_id}, None, NODE_TASK_PREFIX, conn)
@@ -75,7 +74,6 @@ def _apply_supervisor_enqueue_actions(
     from co_scientist.scheduling import stacked_task_values
     from co_scientist.workflow_topology import TASK_ROUTES
 
-    pass
     from app.engine_tasks.support import NODE_TASK_PREFIX
 
     for value in stacked_task_values(actions)[:_MAX_STACKED_TASKS]:

@@ -203,9 +203,6 @@ def _save_paused_checkpoint(
 ) -> int:
     from co_scientist.checkpoint import CHECKPOINT_VERSION
 
-    pass
-    pass
-
     task = commit.task
     latest = store.get_latest_checkpoint(task.run_id, conn=conn)
     latest_seq = int(latest["seq"]) if latest else 0
@@ -261,8 +258,6 @@ def _save_paused_state(
     """
     from co_scientist.checkpoint import serialize_workflow_state
 
-    pass
-
     task, db_path = commit.task, commit.db_path
     envelope = serialize_workflow_state(
         state,
@@ -284,8 +279,6 @@ def _save_paused_state_if_requested(
     resume_successor: str,
 ) -> int | None:
     from co_scientist.checkpoint import serialize_workflow_state
-
-    pass
 
     task, db_path = commit.task, commit.db_path
     envelope = serialize_workflow_state(state, last_event_seq=0)

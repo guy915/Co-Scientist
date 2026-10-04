@@ -331,7 +331,6 @@ def _plan_claim_group(
     assessor_id: str,
     reuse: Mapping[str, Mapping[str, ClaimAssessment]],
 ) -> _ClaimGroupPlan:
-    pass
 
     available = reuse.get(hypothesis_id) or {}
     reused: dict[str, ClaimAssessment] = {}

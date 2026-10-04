@@ -981,3 +981,28 @@ async def test_retry_failed_synthesis_batches_seeds_context_and_retries() -> (
     assert len(all_validated) == 2
     assert len(calls) == 2
     assert calls[0] == ("1_retry_1", ["seed"])
+
+
+async def test_draft_counts_tool_loop_completions_including_closing_turn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _disable_registry(monkeypatch)
+    drafts = [{"text": "grounded draft", "gap_reasoning": "gap"}]
+
+    async def complete(**_: Any) -> tuple[str, list[dict[str, Any]]]:
+        return json.dumps({"drafts": drafts}), [
+            {"role": "user"},
+            {"role": "assistant", "tool_calls": [{"id": "lookup"}]},
+            {"role": "tool", "content": "evidence"},
+            {"role": "assistant", "content": "closing draft"},
+        ]
+
+    monkeypatch.setattr(draft_mod, "call_llm_with_tools", complete)
+    result, calls = await draft_hypotheses(
+        state=make_state(),
+        count=1,
+        mcp_client=FakeCallToolClient({}),
+        tool_registry=None,
+    )
+    assert result == drafts
+    assert calls == 2

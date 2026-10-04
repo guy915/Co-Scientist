@@ -32,20 +32,16 @@ def rank_for_publication(
     alone can put an undermined or unplayed idea first.
     """
 
-    def _played(h: dict[str, Any]) -> int:
-        return int(h.get("win_count") or 0) + int(h.get("loss_count") or 0)
-
-    def _undermined(h: dict[str, Any]) -> int:
-        return 1 if h.get("verification_verdict") == "undermined" else 0
-
     # Verification follows tournament wins, so raw Elo can lead with an
     # undermined idea; unplayed baseline ratings also must not outrank tested
     # candidates.
     return sorted(
         hyps,
         key=lambda h: (
-            _undermined(h),
-            0 if _played(h) else 1,
+            1 if h.get("verification_verdict") == "undermined" else 0,
+            0
+            if int(h.get("win_count") or 0) + int(h.get("loss_count") or 0)
+            else 1,
             -int(h.get("elo_rating", INITIAL_ELO) or INITIAL_ELO),
         ),
     )
