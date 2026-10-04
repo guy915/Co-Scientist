@@ -1,13 +1,3 @@
-"""SSE streaming helpers for the run events endpoint.
-
-Backs ``runs.stream_events``: replays the persisted event log from a client's
-last-seen sequence, then tails live events. Streams are driven by the store
-so they survive client reconnects and full backend restarts -- runs execute
-on the durable worker, so the store is the only channel between producer and
-stream. Every name is re-exported from ``app.runs`` so the
-``app.runs.<name>`` import paths stay stable.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -20,10 +10,9 @@ from app import store
 from app.sse import sse_frame
 from app.store import TERMINAL_STATUSES, RunRow, RunStatus
 
-# Statuses that end an SSE stream. PAUSED is not a terminal *run* status (a
-# paused run is resumable), but a paused run produces no further events until
-# resumed, so the stream closes instead of polling out its wall-clock cap;
-# clients reconnect with ?after= once the run is resumed.
+# Paused runs are resumable but stop producing events; close the stream until
+# clients
+# reconnect after resume.
 _STREAM_END_STATUSES: tuple[RunStatus, ...] = (
     *TERMINAL_STATUSES,
     RunStatus.PAUSED,
@@ -31,9 +20,8 @@ _STREAM_END_STATUSES: tuple[RunStatus, ...] = (
 
 
 def _terminal_frame(status: str, seq: int) -> str:
-    """Format the synthetic ``_terminal`` SSE frame that ends a stream.
-
-    This frame is never persisted; it only tells clients to close.
+    """The synthetic terminal frame closes a connection and is never
+    persisted.
     """
     return sse_frame(
         {"type": "_terminal", "payload": {"status": status}, "seq": seq}
@@ -41,7 +29,6 @@ def _terminal_frame(status: str, seq: int) -> str:
 
 
 def _terminal_status_from_event(ev: dict[str, Any]) -> str | None:
-    """Return the stream-ending run status carried by a status event, if any."""
     if ev["type"] != "status":
         return None
     payload = ev.get("payload") or {}
@@ -52,7 +39,6 @@ def _terminal_status_from_event(ev: dict[str, Any]) -> str | None:
 
 
 def _terminal_status_from_run(run_id: str) -> str | None:
-    """Return the run's current status if it should end the stream."""
     current = store.get_run(run_id)
     if current and current.status in _STREAM_END_STATUSES:
         return current.status
@@ -62,20 +48,8 @@ def _terminal_status_from_run(run_id: str) -> str | None:
 def _resolve_tick_terminal(
     terminal_status: str | None, run_id: str, tick: int
 ) -> str | None:
-    """Resolve this tick's terminal status, falling back to the safety net.
-
-    A terminal transition normally rides on a new event (all workflow paths
-    append a `status` event), so ticks without one skip the run-row query;
-    the every-10th tick check covers terminal writes that append no event.
-
-    Args:
-        terminal_status: Terminal status already found among this tick's
-            events, if any.
-        run_id: Identifier of the run being streamed.
-        tick: The current tick index within the streaming loop.
-
-    Returns:
-        The terminal status to end the stream on, or None to keep polling.
+    """Periodic run-row checks cover terminal writes that append no status
+    event without querying on every tick.
     """
     if terminal_status is not None:
         return terminal_status
@@ -88,21 +62,6 @@ def _drain_tick_frames(
     run_id: str,
     last_seq: int,
 ) -> tuple[int, str | None, list[str]]:
-    """Fetch and format one tick's new events for `_stream_live_tail`.
-
-    No `await` separates one event's formatting from the next in the
-    original inline loop, so collecting frames here and yielding them from
-    the caller afterward produces the same frames in the same order.
-
-    Args:
-        run_id: Identifier of the run being streamed.
-        last_seq: Highest sequence number already yielded.
-
-    Returns:
-        A ``(last_seq, terminal_status, frames)`` tuple: the updated highest
-        sequence number, the terminal run status carried by these events (if
-        any), and the SSE frames to yield in order.
-    """
     new_events = store.list_events(run_id, after_seq=last_seq)
     frames: list[str] = []
     terminal_status: str | None = None
@@ -118,21 +77,8 @@ async def _stream_live_tail(
     request: Request,
     last_seq: int,
 ) -> AsyncGenerator[str, None]:
-    """Poll and yield live SSE frames after replay, until terminal or gone.
-
-    Polls the store at a fixed cadence -- the durable worker producing the
-    events may be another process entirely, so the persisted log is the only
-    signal. Caps with a wall-clock so a stale connection doesn't hang
-    forever.
-
-    Args:
-        run_id: Identifier of the run being streamed.
-        request: Incoming HTTP request, used to detect client disconnects.
-        last_seq: Highest sequence number already yielded by replay.
-
-    Yields:
-        SSE-formatted frame strings, ending with a synthetic `_terminal`
-        frame once the run reaches a terminal status.
+    """The producer can live in another process; the persisted event log is
+    the only reliable signal.
     """
     for tick in range(10_000):  # 10k * 0.5s = ~83 minutes max stream
         if await request.is_disconnected():
@@ -155,16 +101,14 @@ async def _event_stream(
     after: int,
     run: RunRow,
 ) -> AsyncGenerator[str, None]:
-    """Yield SSE frames: full replay from `after`, then a live tail.
-
-    Clients reconnect with ?after= set to their last seen seq, so replay is
-    idempotent and gap-free.
+    """Reconnection resumes after the last observed sequence without replay
+    gaps.
     """
     last_seq = after
 
-    # Replay historical events first. This reads the whole persisted log from
-    # the client's last-seen seq, which can be large, so offload the blocking
-    # read to a worker thread rather than stalling the event loop on connect.
+    # Historical replay can be large; offload its blocking read rather than
+    # stalling the
+    # event loop.
     history = await asyncio.to_thread(
         store.list_events, run_id, after_seq=last_seq
     )
@@ -172,7 +116,6 @@ async def _event_stream(
         last_seq = ev["seq"]
         yield sse_frame(ev)
 
-    # If terminal (or paused) already, send a final marker and return.
     if run.status in _STREAM_END_STATUSES:
         yield _terminal_frame(run.status, last_seq)
         return

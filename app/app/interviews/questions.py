@@ -1,5 +1,3 @@
-"""Structured multiple-choice questions one interview turn may offer."""
-
 from __future__ import annotations
 
 import logging
@@ -14,30 +12,20 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# How many questions one turn may offer. The interview asks about one thing
-# at a time (see the system prompt's "Turn taking"), so the usual number is
-# one; the cap exists for the turn that splits a single decision into its
-# facets, and to bound a model that ignores the instruction outright.
+# Question count stays bounded even when model output ignores instructions.
 MAX_QUESTIONS = 3
 
-# A choice needs at least two options to be one. The upper bound keeps the
-# chooser readable without scrolling and keeps the block's contribution to
-# the turn's token budget bounded.
+# Options need readable labels while remaining within token bounds.
 MIN_OPTIONS = 2
 MAX_OPTIONS = 6
 
 
 def _text(raw: Any) -> str:
-    """Return ``raw`` as trimmed text, or empty for anything else.
-
-    Deliberately narrow: a number or a nested object where a label belongs
-    is a malformed option, not a label to stringify.
-    """
+    """Objects and numbers are not valid human-readable question labels."""
     return raw.strip() if isinstance(raw, str) else ""
 
 
 def _normalized_option(raw: Any) -> dict[str, str] | None:
-    """Return one option, or None when it carries no label to click."""
     if not isinstance(raw, dict):
         return None
     label = _text(raw.get("label"))
@@ -47,11 +35,8 @@ def _normalized_option(raw: Any) -> dict[str, str] | None:
 
 
 def _normalized_options(raw: Any) -> list[dict[str, str]]:
-    """Return the well-formed options of one question, capped.
-
-    An oversized list is truncated rather than dropped: the first options a
-    model writes are the ones it thought of first, and offering six of eight
-    answers is better than offering none.
+    """Oversized option lists are truncated rather than discarded,
+    preserving usable choices.
     """
     if not isinstance(raw, list):
         return []
@@ -60,7 +45,6 @@ def _normalized_options(raw: Any) -> list[dict[str, str]]:
 
 
 def _normalized_question(raw: Any) -> dict[str, Any] | None:
-    """Return one question, or None when it is not a usable choice."""
     if not isinstance(raw, dict):
         return None
     question = _text(raw.get("question"))
@@ -76,16 +60,6 @@ def _normalized_question(raw: Any) -> dict[str, Any] | None:
 
 
 def normalized_questions(raw: Any) -> list[dict[str, Any]]:
-    """Return the questions one turn offers, dropping anything malformed.
-
-    Args:
-        raw: The spec block's ``questions`` value, as the model wrote it.
-
-    Returns:
-        Up to :data:`MAX_QUESTIONS` well-formed questions, in the order the
-        model asked them. Empty for a turn that offered no usable choice,
-        which is the common case and never an error.
-    """
     if raw is None:
         return []
     if not isinstance(raw, list):
@@ -93,20 +67,15 @@ def normalized_questions(raw: Any) -> list[dict[str, Any]]:
         return []
     questions = [q for q in map(_normalized_question, raw) if q]
     if raw and not questions:
-        # A turn that tried to offer a choice and lost it to normalization
-        # is invisible otherwise: the scientist just sees prose. The repair
-        # pass (app.interviews.questions) recovers the click, but the
-        # count of these is how a malformed-block regression is noticed.
+        # Invalid options are logged because otherwise lost prose questions are
+        # invisible to operators.
         logger.warning(
             "Interview turn offered %d question(s), none usable", len(raw)
         )
     return questions[:MAX_QUESTIONS]
 
 
-# The repair answers one question -- the one the prose asked -- so the
-# schema describes a single question rather than the turn's whole array.
-# ``question`` empty is how the model says the prose asked nothing; the
-# normalizer then drops it, which is the outcome that path wants.
+# Repair recovers an existing question; it must never invent one.
 _QUESTION_SCHEMA = obj(
     {
         "header": {"type": "string"},
@@ -121,10 +90,7 @@ _QUESTION_SCHEMA = obj(
     }
 )
 
-# Short by construction: a header, a question restated from prose already
-# written, and at most six label/description pairs. The engine's thinking
-# floor raises this for a model that reasons, so the answer's own share is
-# never what a chain of thought spends.
+# Reasoning headroom must not consume the answer budget.
 _MAX_TOKENS = 1200
 
 _PROMPT = """\
@@ -151,22 +117,12 @@ The turn:
 
 
 def _prompt(message: str) -> str:
-    """Render the repair prompt for one turn's message."""
     return _PROMPT.format(
         min=MIN_OPTIONS, max=MAX_OPTIONS, message=message.strip()
     )
 
 
 async def repair_questions(message: str) -> list[dict[str, Any]]:
-    """Derive the clickable answers for the question ``message`` asks.
-
-    Args:
-        message: The Agent's whole message to the scientist for this turn.
-
-    Returns:
-        The turn's questions in the persisted shape, or an empty list when
-        the turn asked nothing or the call could not be completed.
-    """
     if not message.strip() or not offline_guard.remote_chat_allowed():
         return []
     model, api_key = credentials.byok_model_and_key(

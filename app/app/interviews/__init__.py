@@ -1,5 +1,3 @@
-"""Model-driven, durable research-goal interview API."""
-
 from __future__ import annotations
 
 from typing import Any
@@ -60,13 +58,6 @@ _revision_router = APIRouter()
 def _require_revisable_turn(
     interview: dict[str, Any], turn_id: int, role: str
 ) -> None:
-    """Check the turn a revision targets, or raise a 4xx explaining why not.
-
-    Raises:
-        HTTPException: 409 when the interview is closed to revision, 404 when
-            the turn is not one of its own, 409 when it is not the kind of
-            turn this revision applies to.
-    """
     if interview["status"] == "cancelled":
         raise HTTPException(status_code=409, detail="interview is cancelled")
     turn = next(
@@ -81,13 +72,8 @@ def _require_revisable_turn(
 
 
 def _reset_derivation(interview_id: str) -> None:
-    """Re-baseline the five fields after a rewind, and reopen the interview.
-
-    The stored fields are the model's derivation from a transcript that no
-    longer exists, so keeping them would feed the next turn exactly the
-    conclusions the scientist just withdrew. They are cleared back to the
-    opening challenge -- whatever the first surviving user turn says -- and
-    the model re-derives the rest from what remains.
+    """Rewinding a transcript withdraws derived fields and rebaselines the
+    surviving conversation.
     """
     interview = store.get_interview(interview_id)
     assert interview is not None
@@ -114,25 +100,8 @@ def _rewind_and_restream(
     role: str,
     replacement: str | None = None,
 ) -> StreamingResponse:
-    """Rewind an owned interview to ``turn_id`` and answer again from there.
-
-    The one revision path. Editing a scientist turn and retrying an Agent
-    turn differ only in which role they may target and whether a replacement
-    prompt takes the rewound turn's place; everything else -- ownership, the
-    revisability check, discarding the tail, re-deriving the four fields, and
-    streaming the next turn -- is the same, and has to stay the same.
-
-    Args:
-        interview_id: The interview being revised.
-        turn_id: The turn the revision targets; it and everything after it
-            are discarded.
-        request: Incoming request, used to check ownership.
-        role: The role the targeted turn must have.
-        replacement: Scientist text to append in the rewound turn's place,
-            or None to re-answer the surviving prompt unchanged.
-
-    Returns:
-        The SSE response streaming the re-derived turn.
+    """Edit and retry share ownership, revisability, rewind and derivation
+    boundaries.
     """
     interview = support.owned_interview(interview_id, request)
     byok = support.request_byok(request, str(interview["execution_policy"]))
@@ -186,7 +155,6 @@ async def retry_interview_turn(
 
 router = APIRouter(prefix="/api/interviews", tags=["interviews"])
 
-# Compatibility import path; durable advancement is owned by turns.
 _advance = advance_turn
 
 
@@ -208,7 +176,8 @@ async def create_interview(
     owner = require_client_scope(request)
     execution_policy = resolve_execution_policy(request)
     byok = _request_byok(request, execution_policy)
-    # Refused before the interview row exists, so a bad id leaves nothing.
+    # Reject invalid attachment IDs before creating a row, avoiding orphan
+    # interviews.
     staged_documents.resolve_owned_documents(body.document_ids, owner)
     interview = store.create_interview(
         owner,
@@ -297,10 +266,6 @@ async def add_interview_turn(
     )
 
 
-# The rewind/retry revision endpoints (PUT .../turns/{turn_id} and POST
-# .../turns/{turn_id}/retry) live in app.interviews and are
-# mounted here so they keep their original paths under this router's
-# "/api/interviews" prefix.
 router.include_router(_revision_router)
 
 

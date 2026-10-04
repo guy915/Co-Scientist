@@ -1,5 +1,3 @@
-"""Run lifecycle endpoints: start, cancel, pause, and resume."""
-
 from __future__ import annotations
 
 import asyncio
@@ -23,13 +21,10 @@ from app.task_worker.enqueue import is_abandoned_spent_bootstrap
 
 logger = logging.getLogger(__name__)
 
-# Keep the lifecycle log channel stable across this extraction.
-
 
 def _has_paused_engine_task(
     run_id: str, *, conn: sqlite3.Connection | None = None
 ) -> bool:
-    """Return whether the run has a paused engine-provider task queued."""
     return store.has_task_of_type(
         run_id, engine_tasks.ENGINE_TASK_PREFIX, status="paused", conn=conn
     )
@@ -38,7 +33,6 @@ def _has_paused_engine_task(
 def _has_leased_precheckpoint_bootstrap(
     run_id: str, *, conn: sqlite3.Connection | None = None
 ) -> bool:
-    """A bootstrap lease is a resumable boundary before its first checkpoint."""
     return not store.has_checkpoint(
         run_id, conn=conn
     ) and store.has_task_of_type(
@@ -49,7 +43,6 @@ def _has_leased_precheckpoint_bootstrap(
 def _has_failed_precheckpoint_bootstrap_while_paused(
     run_id: str, *, conn: sqlite3.Connection | None = None
 ) -> bool:
-    """Allow retry only when abandonment failed a bootstrap in a paused run."""
     if store.has_checkpoint(run_id, conn=conn):
         return False
     run = store.get_run(run_id, conn=conn)
@@ -62,7 +55,6 @@ def _has_failed_precheckpoint_bootstrap_while_paused(
 
 
 def lifecycle_revision(run_id: str, *, conn: sqlite3.Connection) -> int:
-    """Return the monotonic sequence of the latest lifecycle transition."""
     row = conn.execute(
         "SELECT COALESCE(MAX(seq), 0) FROM run_events "
         "WHERE run_id=? AND type IN ('status', 'lifecycle')",
@@ -72,7 +64,6 @@ def lifecycle_revision(run_id: str, *, conn: sqlite3.Connection) -> int:
 
 
 def resume_admission_snapshot(run_id: str) -> tuple[RunRow, int]:
-    """Read the run status and lifecycle revision from one SQLite snapshot."""
     with store.connect() as conn:
         conn.execute("BEGIN")
         run = _run_or_404(run_id, conn=conn)
@@ -82,11 +73,8 @@ def resume_admission_snapshot(run_id: str) -> tuple[RunRow, int]:
 
 
 def _is_resumable(run_id: str) -> bool:
-    """Report whether anything durable exists for this run to resume from.
-
-    A checkpoint restores engine state; a paused engine task resumes its
-    boundary; a leased or abandoned bootstrap survives pause before either
-    exists.
+    """A leased or abandoned bootstrap remains resumable before its first
+    checkpoint exists.
     """
     return (
         store.has_checkpoint(run_id)
@@ -99,25 +87,8 @@ def _is_resumable(run_id: str) -> bool:
 def _prepare_resume_state(
     run_id: str, *, conn: sqlite3.Connection | None = None
 ) -> bool:
-    """Clear stale derived data for a legacy resume and return true_resume.
-
-    Two resume modes, chosen by the kind of checkpoint on disk:
-
-    - Engine checkpoint (a serialized WorkflowState), an already-queued
-      paused engine task, or a leased/abandoned pre-checkpoint bootstrap: a
-      *true* resume. The engine restores or continues that state
-      and re-enters at the orchestrator, so completed LLM/tool work is not
-      repeated. Derived data is NOT cleared — the engine persists artifacts
-      only at the final drain, so a mid-run interruption left only events +
-      the checkpoint, and clearing would discard the pre-orchestrator events
-      that resume never re-emits.
-    - Legacy (pre-flip) envelope checkpoint: there is no persisted engine
-      state to restore, so the durable worker re-bootstraps the run from its
-      goal/config instead of a true resume. Derived data AND the stale
-      envelope checkpoint are cleared so the fresh run neither duplicates rows
-      or events nor trips the durable bootstrap's empty-checkpoint guard
-      (``engine_tasks.execute_bootstrap`` asserts an empty checkpoint
-      history).
+    """True engine resume retains committed artifacts and events; legacy
+    envelopes clear derived data before fresh bootstrap.
     """
     checkpoint = store.get_latest_checkpoint(run_id, conn=conn)
     true_resume = (
@@ -127,8 +98,9 @@ def _prepare_resume_state(
         or _has_failed_precheckpoint_bootstrap_while_paused(run_id, conn=conn)
     )
     if not true_resume:
-        # Preserve a sequence above every event being discarded, even when
-        # the checkpoint floor is older than trailing generated log rows.
+        # Retain a sequence above every discarded event, even when the
+        # checkpoint floor
+        # predates trailing log rows.
         store.append_event(
             run_id,
             "lifecycle",
@@ -141,7 +113,6 @@ def _prepare_resume_state(
 
 
 def _resume_detail(true_resume: bool) -> str:
-    """Name what the resume is actually re-entering from."""
     return "from specialist checkpoint" if true_resume else "from checkpoint"
 
 
@@ -152,7 +123,6 @@ def _check_resume_admission(
     *,
     conn: sqlite3.Connection,
 ) -> None:
-    """Reject a stale resume request before it changes durable state."""
     run = _run_or_404(run_id, conn=conn)
     if (
         run.status != expected_status
@@ -176,7 +146,6 @@ def _record_resume_transition(
 
 
 def _log_resume_queue_result(run_id: str, queued: ScientificTask) -> None:
-    """Record whether resume admission left a claimable task."""
     logger.info(
         "Resume for run %s landed on %s task %s (status=%s)",
         run_id,
@@ -192,7 +161,6 @@ def _queue_resume_workflow(
     expected_status: str,
     expected_lifecycle_revision: int,
 ) -> ScientificTask:
-    """Atomically admit only the run state observed by the resume caller."""
     with store.transaction() as conn:
         _check_resume_admission(
             run_id,
@@ -222,19 +190,8 @@ async def _apply_adjudication_lifecycle(
     *,
     expected_lifecycle_revision: int,
 ) -> None:
-    """Apply the run-lifecycle consequence of one adjudicated decision.
-
-    Intake/final holds gate the run's whole goal or report, so a rejection
-    blocks the run and an approval releases it. A hypothesis-stage hold
-    concerns one idea the engine already kept out of the pool and the
-    report; rejecting it confirms the exclusion, and the recorded
-    resolution is the verdict -- the run's lifecycle is untouched.
-
-    Args:
-        run: The run whose decision was adjudicated.
-        decision: The resolved decision row (carries its ``stage``).
-        resolution: ``"approved"`` or ``"rejected"``.
-        expected_lifecycle_revision: Transition revision observed at admission.
+    """Whole-run holds affect lifecycle; a rejected hypothesis hold confirms
+    exclusion without blocking the run.
     """
     if decision["stage"] == "hypothesis":
         return
@@ -253,7 +210,6 @@ async def _apply_adjudication_lifecycle(
 def _block_rejected_run_if_current(
     run: store.RunRow, *, expected_lifecycle_revision: int
 ) -> None:
-    """Block a rejected run only while its admission state is unchanged."""
     with store.transaction() as conn:
         current = store.get_run(run.id, conn=conn)
         if current is None:
@@ -280,19 +236,8 @@ async def _release_approved_hold(
     expected_status: str,
     expected_lifecycle_revision: int,
 ) -> None:
-    """Relaunch a run whose intake or final hold a reviewer just approved.
-
-    The gate that held the run parked its task rather than completing it
-    (``engine_tasks.SafetyHoldError``), so the boundary the run stopped at
-    is still on the queue waiting to be released -- which is exactly what
-    the resume path does. Approval used to only rewrite the run's status,
-    which left the queue untouched: the holding task had already succeeded,
-    re-enqueueing its boundary hit the same idempotency key and created
-    nothing, and the run sat with no claimable work forever.
-
-    The stage is not re-screened on the way back through: the escalation
-    wrapper skips a stage a reviewer approved (``screen_with_escalation``),
-    so a fresh contextual verdict cannot re-hold what a person released.
+    """Approval releases the parked boundary through resume; approved stages
+    must not be screened into another hold.
     """
     await _launch_resume(
         run_id,
@@ -333,18 +278,12 @@ async def adjudicate_safety(
     return {"resolution": body.resolution, "decision_id": decision_id}
 
 
-# Strong references to detached resume tasks so they are not garbage-collected
-# mid-run; each removes itself on completion (see _launch_resume).
+# Detached resume tasks need strong references until they complete.
 _resume_tasks: set[asyncio.Task[None]] = set()
 router = APIRouter()
 
 
 def _check_startable(run: RunRow) -> None:
-    """Raise 409 if `run` cannot be (re)started in its current status.
-
-    Only draft/failed/blocked/cancelled runs may (re)start; in-progress and
-    completed runs 409 rather than double-running.
-    """
     if run.status in (
         RunStatus.QUEUED,
         RunStatus.RUNNING,
@@ -356,17 +295,8 @@ def _check_startable(run: RunRow) -> None:
 
 
 def _reserve_capacity_or_409(run: RunRow, conn: Any) -> None:
-    """Reserve the client's concurrent-run slot, raising 409 if it is full.
-
-    One ceiling for every tier, and one ceiling *across* them. Heavier
-    tiers were previously capped harder (ultra at 1), which stopped a
-    researcher from investigating two questions at once -- precisely what
-    the deep tiers are for. The correction went too far the other way: the
-    reservation counted each tier's runs separately, so one caller held a
-    full allowance per tier and the real ceiling was four times the
-    advertised one. Bounding provider spend is the tier budget's job
-    (max_llm_calls); this only has to stop one client queueing unboundedly,
-    which it can only do if every tier draws on the same slots.
+    """All tiers share one concurrent-run allowance; provider spend is
+    bounded separately by tier budgets.
     """
     limit = settings.max_concurrent_runs
     if not store.reserve_run_capacity_in_transaction(
@@ -392,11 +322,6 @@ def _reserve_capacity_or_409(run: RunRow, conn: Any) -> None:
 def _enqueue_workflow_and_maybe_launch_worker(
     run: RunRow, background: BackgroundTasks
 ) -> ScientificTask:
-    """Reserve quota and admit work atomically, then launch if embedded.
-
-    Every run is delivered through the durable worker queue -- the engine is
-    the only provider now, so there is no in-process alternative to select.
-    """
     with store.transaction() as conn:
         _reserve_capacity_or_409(run, conn)
         store.revive_task_for_retry(
@@ -412,9 +337,9 @@ def _enqueue_workflow_and_maybe_launch_worker(
             conn=conn,
         )
     if settings.coscientist_embedded_worker:
-        # Local compatibility mode consumes the same durable lease. A
-        # production worker service runs ``python -m app.task_worker`` and
-        # sets COSCIENTIST_EMBEDDED_WORKER=0 on the API service.
+        # Embedded compatibility mode consumes the same durable lease as a
+        # separate
+        # production worker.
         background.add_task(
             task_worker.run_run_worker_pool_sync,
             run.id,
@@ -550,14 +475,8 @@ async def resume_run(run_id: str) -> dict[str, Any]:
 
 
 def _log_resume_task_result(task: asyncio.Task[None]) -> None:
-    """Drop the finished resume worker, reporting a crash rather than hiding it.
-
-    The detached task's reference used to be discarded without touching its
-    result, so an exception inside the worker was never retrieved and never
-    logged: the run just stopped.
-
-    Args:
-        task: The completed detached worker task.
+    """Detached worker exceptions must be retrieved and logged rather than
+    silently stopping a run.
     """
     _resume_tasks.discard(task)
     if not task.cancelled() and task.exception() is not None:
@@ -565,17 +484,8 @@ def _log_resume_task_result(task: asyncio.Task[None]) -> None:
 
 
 def _launch_embedded_resume_worker(run_id: str) -> None:
-    """Drive the resumed run's worker cohort in embedded-worker mode.
-
-    Same cohort, and the same thread hand-off, that starting a run gets.
-    Driving the worker with ``create_task`` ran its synchronous SQLite
-    writes and WorkflowState serialization on the API's event loop, so a
-    resumed run starved request handling -- a boot carrying interrupted
-    runs stopped answering /health and was killed mid-run, leaving one more
-    interrupted run for the next boot to inherit. Consuming the queue
-    serially also gave a resumed run a quarter of the parallelism of a
-    fresh one, which is backwards: an interrupted run is precisely the one
-    with work already queued up to overlap.
+    """Worker serialization and SQLite writes run off the API event loop;
+    resume uses the same cohort parallelism as start.
     """
     task = asyncio.create_task(
         asyncio.to_thread(
@@ -585,9 +495,6 @@ def _launch_embedded_resume_worker(run_id: str) -> None:
         )
     )
     _resume_tasks.add(task)
-    # Surface a crash in the detached worker instead of discarding it with
-    # the reference: without this the task's exception is never retrieved
-    # and the run simply stops, silently.
     task.add_done_callback(_log_resume_task_result)
 
 
@@ -597,17 +504,13 @@ async def _launch_resume(
     expected_status: str | None = None,
     expected_lifecycle_revision: int | None = None,
 ) -> None:
-    """Relaunch a run through the durable worker, on a detached task.
-
-    Shared by the resume endpoint and the startup auto-resume launcher.
-    Resume runs outside a request scope (also used at startup), so this
-    drives the worker on a detached asyncio task rather than FastAPI
-    BackgroundTasks; a strong reference is kept until it finishes so it is
-    not garbage-collected. A completed run is never relaunched by callers.
+    """Detached resume tasks need strong references until completion,
+    including startup resumes outside request scope.
     """
     if expected_status is None or expected_lifecycle_revision is None:
-        # Retain the internal helper's direct-call contract; request, hold,
-        # and startup paths pass the state they observed at admission.
+        # Direct callers retain their contract; request, hold and startup paths
+        # pass the
+        # state observed at admission.
         run, revision = resume_admission_snapshot(run_id)
         if expected_status is None:
             expected_status = run.status
@@ -623,7 +526,6 @@ async def _launch_resume(
 
 
 async def _resume_interrupted_run(run_id: str) -> None:
-    """Resume one startup candidate only if it is still active."""
     try:
         run, lifecycle_revision = resume_admission_snapshot(run_id)
     except HTTPException as exc:
@@ -647,12 +549,6 @@ async def _resume_interrupted_run(run_id: str) -> None:
 
 
 async def resume_interrupted_runs(run_ids: list[str]) -> None:
-    """Relaunch each resumable interrupted run at startup (Milestone 4).
-
-    Called from the app lifespan after ``reconcile_interrupted_runs`` finds
-    runs left non-terminal by a restart with a checkpoint to resume from.
-    Skips any run that has since completed.
-    """
     for run_id in run_ids:
         await _resume_interrupted_run(run_id)
 

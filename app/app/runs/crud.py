@@ -1,5 +1,3 @@
-"""Run create/list/read endpoints."""
-
 from __future__ import annotations
 
 import sqlite3
@@ -44,7 +42,6 @@ from app.store import RunRow, RunStatus
 def _reject_campaign_byok(
     credential: credentials.ByokCredential | None, execution_policy: str
 ) -> None:
-    """Refuse paid caller credentials for a server-funded campaign."""
     if credential is not None and execution_policy == CAMPAIGN:
         raise HTTPException(
             status_code=400,
@@ -55,23 +52,8 @@ def _reject_campaign_byok(
 async def _resolve_byok(
     request: Request, execution_policy: str = "standard"
 ) -> credentials.ByokCredential | None:
-    """Parse and validate the BYOK headers, refusing bad pairs up front.
-
-    The cheap live validation call happens here, BEFORE any database
-    write, so a rejected key costs a run row nothing and the store's
-    writer is never held across the network call.
-
-    Args:
-        request: The create-run request carrying the BYOK headers.
-        execution_policy: Trusted policy derived from the caller/interview.
-
-    Returns:
-        The validated credential, or None when no key was sent.
-
-    Raises:
-        HTTPException: 400 for a malformed pair or a key the provider
-            rejects (worded exactly as a rejection), 503 when this
-            deployment has no BYOK encryption secret configured.
+    """Live credential validation happens before database writes, so
+    rejected keys create no run and never hold the writer.
     """
     try:
         credential = credentials.credential_from_headers(request.headers)
@@ -95,11 +77,6 @@ async def _resolve_byok(
 def _resolve_run_interview(
     req: CreateRunRequest, request: Request
 ) -> tuple[dict[str, Any] | None, CreateRunRequest]:
-    """Validate req.interview_id and merge its fields into the request.
-
-    Returns the interview record (or None if unset) and the possibly
-    updated request.
-    """
     if not req.interview_id:
         return None, req
     interview = store.get_interview(req.interview_id)
@@ -126,7 +103,6 @@ def _resolve_run_interview(
 def _build_run_config(
     req: CreateRunRequest, interview: dict[str, Any] | None
 ) -> tuple[dict[str, Any], str, str]:
-    """Build the run config, folding in notification and interview settings."""
     config, focus, tier = _build_create_run_config(req)
     if req.notify_on_completion and req.completion_email:
         config["completion_notification"] = {
@@ -139,8 +115,6 @@ def _build_run_config(
 
 
 class _ResolvedRunSettings(NamedTuple):
-    """The settings a new run is persisted with, resolved from its request."""
-
     config: dict[str, Any]
     run_mode: str
     provider: str
@@ -153,23 +127,8 @@ def _resolve_run_settings(
     interview: dict[str, Any] | None,
     byok: credentials.ByokCredential | None = None,
 ) -> _ResolvedRunSettings:
-    """Resolve the provider, LLM backend, and config for a new run.
-
-    The engine is the only provider; select_provider() raises if it is not
-    importable rather than falling back to anything else. The LLM backend is
-    recorded separately: the process offline predicate decides whether this
-    run's science runs against the deterministic offline router -- except a
-    bring-your-own-key run, which is always real-backed (its validated key
-    must not be shadowed by the router) and records its provider in the
-    config so every later backend resolution sees it.
-
-    Args:
-        req: Request body with the research goal, run mode, and run config.
-        interview: The merged goal interview, when the run came from one.
-        byok: The validated bring-your-own-key credential, when sent.
-
-    Returns:
-        Everything ``_persist_new_run`` writes onto the DRAFT row.
+    """BYOK runs remain real-backed even under process-wide offline
+    defaults; credentials never enter configuration.
     """
     provider = engine_adapter.select_provider()
     if byok is not None:
@@ -178,8 +137,8 @@ def _resolve_run_settings(
         llm_backend = "offline" if engine_adapter.offline_mode() else "real"
     config, focus, tier = _build_run_config(req, interview)
     if byok is not None:
-        # A flag only -- never the key. resolve_offline_backend and the
-        # generator construction both read it to keep the run real-backed.
+        # Persist only a provider flag, never a key; both backend resolution and
+        # generator construction honor it.
         config["byok_provider"] = byok.provider
     return _ResolvedRunSettings(
         config=config,
@@ -205,8 +164,6 @@ class _PersistNewRun(Protocol):
 
 @dataclass(frozen=True)
 class RunCreationCallbacks:
-    """Patchable helpers provided by the registered route module."""
-
     require_client_scope: Callable[[Request], str]
     client_id: Callable[[Request], str]
     resolve_execution_policy: Callable[[Request, dict[str, Any] | None], str]
@@ -246,7 +203,6 @@ def _receipt_replay(
     receipt: run_creation_receipts.RunCreationReceipt | None,
     request_digest: str,
 ) -> store.RunRow | None:
-    """Return the current owned run or raise the matching replay error."""
     if receipt is None:
         return None
     if receipt.request_digest != request_digest:
@@ -266,7 +222,6 @@ def _persist_new_run_for_owner(
     owner: str,
     conn: sqlite3.Connection | None = None,
 ) -> store.RunRow:
-    """Create the DRAFT row and first event, bounding any interview title."""
     interview_title = None
     if interview:
         interview_title = clean_title(interview["fields"].get("title") or "")
@@ -299,7 +254,6 @@ def _persist_new_run_for_owner(
 def _run_setup_documents(
     req: CreateRunRequest, interview: dict[str, Any] | None, owner: str
 ) -> list[dict[str, Any]]:
-    """Resolve named and interview attachments in staged order."""
     named = staged_documents.resolve_owned_documents(req.document_ids, owner)
     return store.merge_run_setup_documents(
         named, str(interview["id"]) if interview is not None else None
@@ -330,7 +284,6 @@ def _admit_request(
     request: Request,
     callbacks: RunCreationCallbacks,
 ) -> _Admission:
-    """Validate identity and return an existing receipt before setup reads."""
     callbacks.require_client_scope(request)
     owner = callbacks.client_id(request)
     key = request.headers.get("Idempotency-Key")
@@ -364,7 +317,6 @@ async def _resolve_setup(
     owner: str,
     callbacks: RunCreationCallbacks,
 ) -> _ResolvedSetup:
-    """Resolve mutable interview, credential, document, and run settings."""
     interview, resolved_request = callbacks.resolve_run_interview(req, request)
     policy = callbacks.resolve_execution_policy(request, interview)
     with callbacks.scoped_execution_policy(policy):
@@ -380,7 +332,6 @@ async def _resolve_setup(
         )
     free = free_usage.applies(byok, policy, settings.llm_backend)
     if free and resolved_request.tier is None:
-        # Free usage defaults to the one tier it may run.
         resolved_request = resolved_request.model_copy(
             update={"tier": free_usage.FREE_TIER}
         )
@@ -403,7 +354,6 @@ def _persist_setup_transaction(
     store.RunRow | None,
     run_creation_receipts.RunCreationReceipt | None,
 ]:
-    """Write setup atomically, mapping a raced-away document to HTTP 404."""
 
     def persist_run(conn: sqlite3.Connection) -> store.RunRow:
         run = callbacks.persist_new_run(
@@ -443,7 +393,6 @@ def _commit_setup(
     request: Request,
     callbacks: RunCreationCallbacks,
 ) -> tuple[store.RunRow, bool]:
-    """Resolve a concurrent replay and mirror only newly committed logs."""
     run, receipt = _persist_setup_transaction(
         admission, setup, request, callbacks
     )
@@ -474,7 +423,6 @@ async def _create_run_with_callbacks(
     background_tasks: BackgroundTasks,
     callbacks: RunCreationCallbacks,
 ) -> dict[str, Any]:
-    """Admit, resolve, atomically persist, and serialize one new run."""
     admission = _admit_request(req, request, callbacks)
     if admission.replay is not None:
         return admission.replay
@@ -489,21 +437,15 @@ async def _create_run_with_callbacks(
 
 router = APIRouter()
 
-# Statuses with a live or claimable worker lease. Everything else -- draft
-# (never started), paused (its task is parked, not leased), and every
-# terminal status -- has no in-flight writer to race, so deletion is safe.
-# Mirrors the frontend's active phase (api/run_lifecycle.ts::isActiveStatus).
+# Live or claimable leases prevent deletion; parked and terminal runs have no
+# writer to
+# race.
 _ACTIVE_STATUSES = frozenset({"queued", "running", "synthesizing"})
 
 
 def _guard_deletable(run: RunRow) -> None:
-    """Raise 403/409 when ``run`` cannot be permanently deleted yet.
-
-    Raises:
-        HTTPException: 403 for the shared demo run (a public fixture, not
-            any one caller's data to remove); 409 when the run still has
-            an active or resumable workflow, so a worker holding a lease
-            never writes a child row for a run id that no longer exists.
+    """Active or claimable leases prevent deletion, avoiding worker writes
+    against a removed parent run.
     """
     if run.client_id == store.DEMO_CLIENT_ID:
         raise HTTPException(
@@ -553,7 +495,6 @@ def _persist_new_run(
     *,
     conn: sqlite3.Connection | None = None,
 ) -> store.RunRow:
-    """Preserve the original helper signature and bind the same owner scope."""
     return _persist_new_run_for_owner(
         req,
         request,
@@ -573,7 +514,6 @@ async def _generate_run_text(
     *,
     restatement: bool = False,
 ) -> str | None:
-    """Generate detached text under the run's policy and credential scope."""
     run: store.RunRow | None = None
     if execution_policy is None:
         run = store.get_run(run_id)
@@ -606,21 +546,8 @@ async def _populate_run_title(
     *,
     execution_policy: str | None = None,
 ) -> None:
-    """Generate a run's short session title and persist it (best-effort).
-
-    Runs after the create response as a background task, so the create call
-    isn't blocked on a model round-trip. A None result (generation
-    unavailable) leaves the title unset and surfaces fall back to a clause of
-    the goal. A bring-your-own-key run titles under its own credential.
-
-    Scheduled only for a run that has no title yet, so it never overwrites
-    one the run's interview chose (see ``create_run``).
-
-    Args:
-        run_id: The run to title.
-        goal: The run's research goal.
-        byok: The run's credential, when it was created with one.
-        execution_policy: Policy captured when the run was created.
+    """Background titling preserves interview-chosen titles and leaves goal-
+    clause fallback available when generation fails.
     """
     title = await _generate_run_text(run_id, goal, byok, execution_policy)
     if title:
@@ -634,22 +561,8 @@ async def _populate_goal_restatement(
     *,
     execution_policy: str | None = None,
 ) -> None:
-    """Generate a run's narrative goal restatement and persist it.
-
-    GOAL-RESTATEMENT-001. Runs after the create response as a background
-    task, so create isn't blocked on a model round-trip. Best-effort: a None
-    result leaves ``goal_restatement`` unset and the report omits the
-    paragraph. A bring-your-own-key run restates under its own credential.
-
-    Unlike titling, this is scheduled for every model-backed run regardless
-    of whether the run's interview named it -- the restatement is a distinct
-    report artifact, not the run's label.
-
-    Args:
-        run_id: The run to restate the goal of.
-        goal: The run's research goal.
-        byok: The run's credential, when it was created with one.
-        execution_policy: Policy captured when the run was created.
+    """Goal restatement is a distinct report artifact, independent of
+    whether the interview supplied a title.
     """
     restatement = await _generate_run_text(
         run_id, goal, byok, execution_policy, restatement=True
@@ -664,23 +577,8 @@ def _apply_post_commit_effects(
     byok: Any,
     background_tasks: BackgroundTasks,
 ) -> None:
-    """Run the effects that only make sense once the run row exists.
-
-    They all need a persisted run id, so none can move ahead of the commit
-    the way credential and document resolution do, and all need a real model
-    -- offline/keyless runs keep the goal-clause title fallback and no
-    restatement. Titling additionally skips a run its interview already
-    named: the interview chose that name with the whole conversation in
-    view, where generation sees only the goal, so regenerating would
-    overwrite the better title with the worse. The restatement carries no
-    such fallback, so it is scheduled for every model-backed run.
-
-    Args:
-        run: The freshly persisted run row.
-        req: The create request, read for the research goal.
-        byok: The caller's resolved bring-your-own-key credential, if any.
-        background_tasks: Queue used to title the run and synthesize its
-            goal restatement off the critical path.
+    """Detached generation needs a committed run ID and must preserve the
+    better-informed interview title.
     """
     model_backed = byok is not None or not engine_adapter.offline_mode()
     if run.title is None and model_backed:
@@ -691,9 +589,6 @@ def _apply_post_commit_effects(
             byok,
             execution_policy=run.execution_policy,
         )
-    # GOAL-RESTATEMENT-001: scheduled for every model-backed run (not gated on
-    # the title, which the interview may already have supplied), off the
-    # create critical path just like titling.
     if model_backed:
         background_tasks.add_task(
             _populate_goal_restatement,
@@ -730,9 +625,8 @@ async def create_run(
 
 
 def _runs_payload(runs: list[store.RunRow]) -> dict[str, Any]:
-    """Serialize runs with their per-run execution progress attached."""
-    # One connection for every per-run progress query instead of opening a
-    # fresh SQLite connection per row (up to `limit` of them on a list call).
+    # Share one connection across list progress queries rather than opening one
+    # per row.
     with store.connect() as conn:
         return {
             "runs": [
@@ -763,8 +657,7 @@ async def list_runs(
     return _runs_payload(runs)
 
 
-# app.runs registers this before /{run_id} so the literal path wins route
-# matching.
+# Literal demo paths precede /{run_id} for first-match routing.
 async def list_demo_runs() -> dict[str, Any]:
     """List the seeded demo runs, which are visible to every client."""
     runs = store.list_runs(client_id=store.DEMO_CLIENT_ID)
@@ -773,7 +666,6 @@ async def list_demo_runs() -> dict[str, Any]:
 
 async def get_run(run_id: str) -> dict[str, Any]:
     """Return a run's details plus per-table summary counts."""
-    # One connection shared across the run lookup and its summary counts.
     with store.connect() as conn:
         run = _run_or_404(run_id, conn=conn)
         summary = store.summary_counts(run_id, conn=conn)
@@ -785,8 +677,9 @@ async def get_run(run_id: str) -> dict[str, Any]:
         }:
             envelope = checkpoint.get("state") or {}
             live_state = envelope.get("state") or {}
-            # Checkpointed pools are committed scientific effects even before
-            # final publication drains them into report-facing SQL tables.
+            # Checkpoint pools are committed scientific effects before final
+            # publication
+            # drains them into SQL tables.
             summary["hypotheses"] = max(
                 summary["hypotheses"], len(live_state.get("hypotheses") or [])
             )
@@ -812,14 +705,8 @@ async def get_run(run_id: str) -> dict[str, Any]:
 def _awaiting_decision_count(
     run: store.RunRow, *, conn: sqlite3.Connection
 ) -> int:
-    """Count unresolved reviewable safety decisions blocking this run.
-
-    Derived, not persisted: a run is "awaiting a person" exactly when it is
-    paused *and* carries an unresolved ``requires_review`` decision -- both
-    facts already live elsewhere (``runs.status``, ``safety_decisions``), so
-    adding a third status value here would just let them disagree. Gated on
-    ``paused`` first so every other run (the overwhelming majority) costs
-    this endpoint nothing beyond the status check already in hand.
+    """Awaiting review derives from paused status plus unresolved decisions,
+    avoiding a third state that can drift.
     """
     if run.status != RunStatus.PAUSED.value:
         return 0
