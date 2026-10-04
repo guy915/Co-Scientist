@@ -345,29 +345,6 @@ def test_task_progress_is_monotonic_and_budget_derived(
     assert completed["completed_tasks"] == 1
 
 
-def test_monolithic_workflow_lease_is_honestly_indeterminate(
-    isolated_db: str,
-) -> None:
-    run_id = _run()
-    tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type="run.workflow",
-            inputs={},
-            idempotency_key="workflow:0:0",
-        ),
-        db_path=isolated_db,
-    )
-    assert tasks.task_progress(run_id, db_path=isolated_db) == {
-        "determinate": False,
-        "completed_tasks": 0,
-        "total_tasks": 0,
-        "fraction": None,
-        "active_task": None,
-        "queued_tasks": 0,
-    }
-
-
 def test_dynamic_engine_plan_stays_indeterminate_as_tasks_expand(
     isolated_db: str,
 ) -> None:

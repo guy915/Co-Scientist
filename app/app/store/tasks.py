@@ -155,10 +155,6 @@ def list_active_engine_task_run_ids(
     return [str(row["run_id"]) for row in rows]
 
 
-# Legacy workflow leases disclose no scientific work budget; exclude those
-# retained rows from determinate progress.
-_LEGACY_TASK_TYPE = "run.workflow"
-
 # Aggregate scalars in SQL without decoding kilobyte task payloads; literal
 # substr prefixes avoid LIKE underscore wildcards.
 _PROGRESS_QUERY = (
@@ -168,9 +164,9 @@ _PROGRESS_QUERY = (
     " COALESCE(SUM(status='queued'), 0) AS queued,"
     " COALESCE(MAX(substr(task_type,1,7)='engine.'), 0) AS dynamic_plan,"
     " (SELECT task_type FROM scientific_tasks WHERE run_id=? AND"
-    "  task_type<>? AND status IN ('leased','running')"
+    "  status IN ('leased','running')"
     "  ORDER BY created_at ASC LIMIT 1) AS active_task"
-    " FROM scientific_tasks WHERE run_id=? AND task_type<>?"
+    " FROM scientific_tasks WHERE run_id=?"
 )
 
 
@@ -183,7 +179,7 @@ def task_progress(
     with _use_conn(conn, db_path) as active:
         row = active.execute(
             _PROGRESS_QUERY,
-            (run_id, _LEGACY_TASK_TYPE, run_id, _LEGACY_TASK_TYPE),
+            (run_id, run_id),
         ).fetchone()
     total = int(row["total"])
     completed = int(row["completed"])
