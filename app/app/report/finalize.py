@@ -225,7 +225,6 @@ def _commit_leased_report_publication(
             built.markdown,
             db_path=db_path,
             conn=conn,
-            write_markdown=False,
         )
         store.replace_knowledge_facts(
             run_id, built.facts, db_path=db_path, conn=conn
@@ -273,14 +272,11 @@ async def _publish_report(
         )
         yield await emit("status", {"status": "completed"})
     else:
-        from app.store.reports import write_report_markdown
-
         saved, report_seq, report_payload, status_seq, status_payload = (
             _commit_leased_report_publication(
                 run_id, research_goal, built, task, db_path
             )
         )
-        write_report_markdown(saved["markdown_path"], built.markdown)
         # The transaction already wrote these events; yield their regular SSE
         # stubs without calling the persisting emitter a second time.
         yield {"seq": report_seq, "type": "report", "payload": report_payload}

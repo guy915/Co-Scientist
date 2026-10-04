@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import os
 from collections import Counter
-from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -212,9 +210,6 @@ def _publication_snapshot(
         "owner_markdown_status": owner.get(
             f"/api/runs/{run_id}/report.md", headers=_OWNER
         ).status_code,
-        "report_markdown_exists": Path(
-            os.environ["COSCIENTIST_REPORTS_DIR"], f"{run_id}.md"
-        ).exists(),
         "knowledge_fact_count": len(
             store.list_knowledge_facts(run_id, db_path=isolated_db)
         ),
@@ -255,7 +250,6 @@ async def test_cancel_after_final_safety_withholds_report_publication(
         "report_row_exists": False,
         "owner_report_status": 404,
         "owner_markdown_status": 404,
-        "report_markdown_exists": False,
         "knowledge_fact_count": 0,
         "report_event_count": 0,
         "completed_event_count": 0,

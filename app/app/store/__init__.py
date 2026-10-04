@@ -10,8 +10,7 @@ Design choices:
   no row is ever mutated in place. Updates that *are* allowed (Elo, status,
   scores) live in `hypothesis_state`, keyed by hypothesis id, leaving the
   original row untouched.
-- Reports are stored both as a structured JSON blob and a rendered Markdown
-  artifact on disk (path tracked in the row).
+- Reports persist structured JSON and full rendered Markdown in SQLite.
 
 The package is split by concern: ``db`` (connections, schema, migrations),
 ``models`` (row dataclasses and enums), ``runs`` (run CRUD and lifecycle),

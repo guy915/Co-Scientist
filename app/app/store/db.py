@@ -310,14 +310,6 @@ def _resolved_db_path(path: str | None = None) -> str:
     return path or default_db_path() or "./coscientist.db"
 
 
-def _reports_dir() -> Path:
-    # Directory for the on-disk Markdown report copies; overridable via env
-    # for deployments that mount a persistent volume elsewhere.
-    p = Path(os.getenv("COSCIENTIST_REPORTS_DIR") or "./reports")
-    p.mkdir(parents=True, exist_ok=True)  # No-op if the directory exists.
-    return p
-
-
 def _open_raw_connection(db_path: str) -> sqlite3.Connection:
     """Open a sqlite3 connection with the pragmas this store relies on."""
     # The parent dir only needs creating before the first connect for a path.

@@ -65,11 +65,8 @@ def _free_catalog(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
         yield
 
 
-def _apply_offline_env(
-    monkeypatch: pytest.MonkeyPatch, db_path: str, reports_dir: str
-) -> None:
+def _apply_offline_env(monkeypatch: pytest.MonkeyPatch, db_path: str) -> None:
     monkeypatch.setenv("COSCIENTIST_DB_PATH", db_path)
-    monkeypatch.setenv("COSCIENTIST_REPORTS_DIR", reports_dir)
     for key in _PROVIDER_KEYS:
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("COSCIENTIST_FORCE_OFFLINE", "1")
@@ -85,9 +82,7 @@ def isolated_db(
     monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
 ) -> Iterator[str]:
     db_path = str(tmp_path / "test.db")
-    reports_dir = str(tmp_path / "reports")
-    os.makedirs(reports_dir, exist_ok=True)
-    _apply_offline_env(monkeypatch, db_path, reports_dir)
+    _apply_offline_env(monkeypatch, db_path)
     from app.store import (
         db as _store_db,
     )

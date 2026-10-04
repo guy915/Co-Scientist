@@ -1,19 +1,14 @@
-"""Report persistence: structured JSON rows plus Markdown artifacts."""
-
 from __future__ import annotations
 
 import hashlib
 import json
-import logging
 import secrets
 import sqlite3
 import uuid
 from pathlib import Path
 from typing import Any
 
-from app.store.db import _list_by_run, _now, _reports_dir, _use_conn, connect
-
-logger = logging.getLogger(__name__)
+from app.store.db import _list_by_run, _now, _use_conn, connect
 
 
 def replace_knowledge_facts(
@@ -93,47 +88,17 @@ def list_knowledge_facts(
     return rows
 
 
-def write_report_markdown(markdown_path: str, markdown: str) -> None:
-    """Write a report's Markdown artifact after its database row commits."""
-    try:
-        Path(markdown_path).write_text(markdown, encoding="utf-8")
-    except OSError:
-        logger.warning(
-            "Could not write report markdown to disk at %s", markdown_path
-        )
-
-
 def save_report(
     run_id: str,
     payload: dict[str, Any],
     markdown: str,
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
-    write_markdown: bool = True,
 ) -> dict[str, str]:
-    """Persist a report as a JSON row plus a rendered Markdown file.
-
-    The markdown is stored in both the database (markdown_text column, for
-    durability across container restarts) and on disk (markdown_path, kept
-    for backwards-compatibility and local dev convenience).
-
-    Args:
-        run_id: Identifier of the run the report belongs to.
-        payload: Structured report payload serialized to JSON.
-        markdown: Rendered Markdown report written to disk.
-        db_path: Optional override for the SQLite database path.
-        conn: Optional open connection to reuse (e.g. from ``transaction``).
-        write_markdown: Whether to write the best-effort disk copy now.
-
-    Returns:
-        A dict with the new report 'id' and the 'markdown_path' on disk.
-    """
     report_id = str(uuid.uuid4())
-    md_path = _reports_dir() / f"{run_id}.md"
-    if write_markdown:
-        write_report_markdown(str(md_path), markdown)
     with _use_conn(conn, db_path) as active:
-        # The retired split-document column retains its NULL default.
+        # Empty paths preserve the string API contract without new files;
+        # legacy readers stay until the verified store reset.
         active.execute(
             "INSERT INTO reports "
             "(id, run_id, payload_json, markdown_path, markdown_text, "
@@ -142,12 +107,12 @@ def save_report(
                 report_id,
                 run_id,
                 json.dumps(payload),
-                str(md_path),
+                "",
                 markdown,
                 _now(),
             ),
         )
-    return {"id": report_id, "markdown_path": str(md_path)}
+    return {"id": report_id}
 
 
 def get_latest_report(
@@ -168,29 +133,15 @@ def get_latest_report(
             "payload": json.loads(row["payload_json"]),
             "markdown_path": row["markdown_path"],
             "markdown_text": row["markdown_text"],
-            # Legacy split-window column, kept for the read-side fallback
-            # below -- see this module's docstring. Always None for a row
-            # saved after the split's reversal.
+            # Older rows may split their report across both text columns.
             "markdown_text_ranking": row["markdown_text_ranking"],
             "created_at": row["created_at"],
         }
 
 
 def read_report_markdown(run_id: str, db_path: str | None = None) -> str | None:
-    """Return the markdown text for the latest report of a run.
-
-    Prefers the markdown_text column stored in the database (durable across
-    container restarts). Falls back to reading the on-disk file for rows that
-    predate the markdown_text column. A row saved during the R14-11 split
-    window gets its ranking-document half appended.
-
-    Args:
-        run_id: Identifier of the run.
-        db_path: Optional override for the SQLite database path.
-
-    Returns:
-        The markdown string, or None if no report exists.
-    """
+    # Older reports may contain only a file path or split their Markdown text.
+    # Keep both readers until production export and reset have been verified.
     latest = get_latest_report(run_id, db_path=db_path)
     if not latest:
         return None

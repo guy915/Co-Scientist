@@ -41,7 +41,6 @@ const backendServer = {
     // Fresh per-invocation stores must never touch developer data or inherit
     // earlier runs.
     COSCIENTIST_DB_PATH: `${STATE_DIR}/coscientist.db`,
-    COSCIENTIST_REPORTS_DIR: `${STATE_DIR}/reports`,
     COSCIENTIST_CACHE_DIR: `${STATE_DIR}/cache`,
     AUTH_SECRET: E2E_AUTH_SECRET,
     AUTH_MODE: PRODUCTION ? 'required' : 'compatibility',

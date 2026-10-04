@@ -104,7 +104,7 @@ Tables (SQLite, WAL):
 | `reviews` | append-only | reflection, review, meta_review |
 | `matches` | append-only | full pairwise tournament audit log |
 | `safety_decisions` | append-only | intake + final |
-| `reports` | append-only | structured JSON + path to `reports/<run>.md` |
+| `reports` | append-only | structured JSON + rendered Markdown in SQLite |
 | `messages` | append-only | steering, milestone, and Q&A chat messages |
 | `scientific_tasks` | mutable (leases/status) | the durable queue itself — every engine node, fan-out item, and tournament match is a leased, idempotent row here; this is the only path a run executes through |
 | `checkpoints` | append-only, pruned | `WorkflowState` snapshot after each committed task, the resume point |
