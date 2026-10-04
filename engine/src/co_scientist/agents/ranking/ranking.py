@@ -1,5 +1,3 @@
-"""Ranking node - Elo-based pairwise comparison of hypotheses."""
-
 import logging
 from dataclasses import replace
 from typing import Any, NamedTuple
@@ -41,8 +39,6 @@ logger = logging.getLogger(__name__)
 
 
 class _TournamentContext(NamedTuple):
-    """One tournament's round-invariant inputs, threaded into every round."""
-
     hypotheses: list[Hypothesis]
     research_goal: str
     current_iteration: int
@@ -54,7 +50,6 @@ def _build_tournament_context(
     hypotheses: list[Hypothesis],
     guidance: _TournamentGuidance,
 ) -> _TournamentContext:
-    """Capture prompt inputs once; preserve the prepared guidance snapshot."""
     prompt = prepare_ranking_prompt_context(
         state, preferences=state.get("preferences")
     )
@@ -71,23 +66,8 @@ def _select_next_pairing(
     index: int,
     judged: set[frozenset[str]],
 ) -> tuple[Hypothesis, Hypothesis] | None:
-    """Selects one round's pairing from comparisons not yet made.
-
-    A distinct deterministic seed plus updated in-memory Elo/match counts
-    makes each selection depend on every committed earlier outcome.
-
-    Returns None once every distinct pair has been judged, which ends the
-    tournament. This used to fall back to the first candidate when the only
-    ones on offer had already been judged, so a pool with a single available
-    pair re-judged it for every remaining round: production tournaments ran
-    six and twelve rounds on one matchup, ratcheting the winner's rating
-    with each replay and reporting it as a rating earned across opponents.
-
-    Only one pairing is requested because only the first is used: the
-    ``judged`` exclusion set is what keeps rounds from repeating a
-    comparison, so scheduling spare candidates here would just be weighted
-    choices thrown away.
-    """
+    """Select against committed ratings and exclude judged pairs; replaying
+    one comparison inflates Elo without adding evidence."""
     candidates = build_tournament_pairings(
         ctx.hypotheses,
         1,
@@ -105,7 +85,6 @@ async def _judge_and_commit_matchup(
     index: int,
     ctx: _TournamentContext,
 ) -> tuple[dict[str, Any], int]:
-    """Refresh the Elo context, judge, and commit one graph matchup."""
     pair = (hyp_a, hyp_b)
     context = prepare_ranking_judging_context(ctx.prompt, ctx.hypotheses)
     judgement = await judge_ranking_matchup(pair, context, index)
@@ -124,12 +103,6 @@ async def _run_one_round(
     judged: set[frozenset[str]],
     ctx: _TournamentContext,
 ) -> tuple[dict[str, Any], int, frozenset[str]] | None:
-    """Selects, judges, and commits one tournament round.
-
-    Returns:
-        Tuple of (matchup detail, debate depth used, the pair just
-        committed), or None if no unjudged pairing remained.
-    """
     pairing = _select_next_pairing(ctx, index, judged)
     if pairing is None:
         return None
@@ -143,17 +116,8 @@ async def _run_one_round(
 async def _execute_tournament_rounds(
     state: WorkflowState, tournament_rounds: int, ctx: _TournamentContext
 ) -> tuple[list[dict[str, Any]], int]:
-    """Runs every tournament round in sequence, committing as it goes.
-
-    Commits each outcome before selecting the next pairing (see
-    ``_run_one_round``), so matchmaking observes current ratings rather
-    than a stale snapshot.
-
-    Stops early once every distinct pair has been judged: a tournament with
-    more rounds than the pool has comparisons has nothing left to learn, and
-    spending the remainder re-judging pairs inflates the winner's rating
-    without evidence.
-    """
+    """Commit before selecting so matchmaking sees current ratings; distinct
+    pair exhaustion ends work rather than replaying wins."""
     details: list[dict[str, Any]] = []
     total_llm_calls = 0
     judged: set[frozenset[str]] = set()
@@ -177,18 +141,6 @@ async def _run_tournament_matchups(
     list[dict[str, Any]],
     int,
 ]:
-    """Select, judge, and commit tournament matchups sequentially.
-
-    Args:
-        state: Current workflow state.
-        hypotheses: Hypotheses sorted by review score, eligible for pairing.
-        tournament_rounds: Number of pairings to generate and judge.
-        guidance: Cross-node context threaded into every judged matchup.
-
-    Returns:
-        Tuple of (matchup details, total LLM calls); see
-        ``_execute_tournament_rounds`` for the commit ordering.
-    """
     ctx = _build_tournament_context(state, hypotheses, guidance)
     return await _execute_tournament_rounds(state, tournament_rounds, ctx)
 
@@ -196,7 +148,6 @@ async def _run_tournament_matchups(
 def _filter_eligible_hypotheses(
     hypotheses: list[Hypothesis],
 ) -> list[Hypothesis]:
-    """Filters to tournament-eligible hypotheses, with startup logging."""
     eligible = [
         hypothesis for hypothesis in hypotheses if hypothesis.is_rankable()
     ]
@@ -209,16 +160,8 @@ def _filter_eligible_hypotheses(
 
 
 def _unrankable_reasons(hypotheses: list[Hypothesis]) -> str:
-    """Return why the pool has too few rankable hypotheses to pair up.
-
-    The count alone reads as a contradiction next to a run holding a dozen
-    ideas, so the skip names the gate that removed them instead.
-
-    Only review dispositions are counted, because only they withhold an
-    idea now: a deep-verification "undermined" verdict demotes rather than
-    excludes (``Hypothesis.is_rankable``), so naming it here would blame a
-    thin pool on a gate that let every one of those ideas through.
-    """
+    """Explain review exclusions, not verification demotion: undermined ideas
+    still compete and cannot account for a thin rankable pool."""
     blocked = sum(
         1
         for h in hypotheses
@@ -232,7 +175,6 @@ async def _run_tournament(
     hypotheses: list[Hypothesis],
     eligible: list[Hypothesis],
 ) -> dict[str, Any]:
-    """Prepares, runs, and finalizes one ranking tournament round."""
     tournament_rounds, guidance = await prepare_ranking_round(state, eligible)
 
     matchup_details, total_llm_calls = await _run_tournament_matchups(
@@ -245,34 +187,11 @@ async def _run_tournament(
 
 
 async def ranking_node(state: WorkflowState) -> dict[str, Any]:
-    """Runs tournament-style pairwise comparisons with Elo rating updates.
-
-    This node schedules weighted pairwise matchups (proximity-, recency-,
-    and rank-aware; see ranking_matchmaking) and has an LLM judge which
-    hypothesis in each pairing is superior. Elo ratings are updated after
-    each matchup, and matchups involving a top-ranked hypothesis run a
-    multi-turn scientific debate instead of a single-turn comparison.
-
-    The round count comes from the run tier's tournament_pairs setting,
-    falling back to len(hypotheses) when unset. Pairings are seeded from
-    research_goal and current_iteration so identical inputs replay
-    identical tournaments, keeping LLM cache hits stable across reruns.
-
-    Args:
-        state: Current workflow state
-
-    Returns:
-        Dictionary with updated state fields (hypotheses sorted by Elo)
-    """
+    """Stable goal/iteration seeds preserve deterministic pairings and cache
+    reuse."""
     hypotheses = state["hypotheses"]
     eligible = _filter_eligible_hypotheses(hypotheses)
 
-    # Edge case: a tournament requires at least two hypotheses to pair up.
-    # With fewer, skip the tournament entirely and pass the list through
-    # unchanged (Elo ratings stay at their prior/initial values). The pool
-    # itself is usually far larger than the rankable count, so the message
-    # names both -- "need at least 2" beside a run holding eight ideas
-    # reads as a miscount rather than as the gates having emptied the pool.
     if len(eligible) < 2:
         logger.warning(
             "Tournament skipped: %s of %s hypotheses are rankable (%s)",
@@ -282,9 +201,8 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
         )
         return {"hypotheses": hypotheses}
 
-    # tournament_pairs is a whole-run budget. The scheduler asks for ranking
-    # once per cycle, so without this the run would keep buying another full
-    # tournament every cycle for the life of the run.
+    # The scheduler runs ranking each cycle; tournament_pairs must be consumed
+    # as a whole-run budget rather than repurchased per invocation.
     if remaining_ranking_rounds(state, hypotheses) < 1:
         logger.info("Tournament budget spent for this run; skipping")
         return {"hypotheses": hypotheses}

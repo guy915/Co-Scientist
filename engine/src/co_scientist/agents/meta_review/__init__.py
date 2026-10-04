@@ -1,13 +1,3 @@
-"""Meta-review agent.
-
-Google role: synthesizes recurring patterns across all reviews and debates into
-a research overview -- the roadmap, specific aims, and suggested directions.
-
-Implemented by the durable graph nodes ``meta_review`` (cross-hypothesis
-synthesis) and ``research_overview`` (terminal roadmap/NIH-aims generation);
-their key strings are preserved. See ``co_scientist.agents`` for the model.
-"""
-
 from co_scientist.agents.meta_review.meta_review import meta_review_node
 from co_scientist.agents.meta_review.research_overview import (
     research_overview_node,

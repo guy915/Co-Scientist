@@ -1,25 +1,5 @@
-"""Accuracy review/revise loop for the drafted research overview.
-
-Split out of ``research_overview.py`` to keep that module under the
-line-count ceiling; ``research_overview.py`` re-exports
-``review_research_overview`` so the two modules share one namespace for
-callers and tests.
-
-The reviewer checks the drafted overview against this run's own
-material -- the top hypotheses and evidence corpus it was synthesized
-from -- for an unsupported claim, a contradiction, an overstated
-confidence, or a citation that does not say what the prose claims. It
-never grades tone, style, or length. Its accept case costs one call and
-its schema never echoes the overview text back (see
-``schemas.synthesis.RESEARCH_OVERVIEW_REVIEW_SCHEMA``); a rejection
-carries located notes for the reviser, which regenerates the whole
-overview in the same schema the initial synthesis uses.
-
-The loop is capped at ``_MAX_OVERVIEW_REVISION_ROUNDS`` rounds so it
-terminates whatever the models do: if the reviewer still objects after
-the cap, the last revision publishes anyway, with no further review
-call to spend on a verdict that cannot change the outcome.
-"""
+"""Review scientific accuracy against the run's material, not prose style. At
+the round cap, publish the last revision without another unusable verdict."""
 
 from dataclasses import dataclass
 from typing import Any, Final
@@ -42,24 +22,12 @@ from co_scientist.prompts import (
 from co_scientist.state import WorkflowState
 
 _MAX_OVERVIEW_REVISION_ROUNDS: Final = 2
-"""Hard cap on reviewer/reviser rounds; the last revision always publishes."""
+# The last revision publishes at the cap; another verdict cannot change its
+# outcome.
 
 
 @dataclass(frozen=True)
 class OverviewReviewContext:
-    """Run material the reviewer and reviser check the draft against.
-
-    Bundled into one object so the loop functions below stay under the
-    five-parameter limit.
-
-    Attributes:
-        state: Current workflow state (supplies the supervisor model).
-        research_goal: The run's research goal.
-        hypotheses_summary: Formatted top-Elo hypothesis summary.
-        contact_candidates_text: Formatted verified-author candidates.
-        evidence_corpus_text: Formatted verified evidence corpus.
-    """
-
     state: WorkflowState
     research_goal: str
     hypotheses_summary: str
@@ -68,7 +36,6 @@ class OverviewReviewContext:
 
     @property
     def material(self) -> OverviewReviewMaterial:
-        """The subset of run material both prompt builders share."""
         return OverviewReviewMaterial(
             research_goal=self.research_goal,
             hypotheses_summary=self.hypotheses_summary,
@@ -79,17 +46,6 @@ class OverviewReviewContext:
 async def review_research_overview(
     context: OverviewReviewContext, draft_response: dict[str, Any]
 ) -> tuple[dict[str, Any], dict[str, Any], int]:
-    """Runs the accuracy review/revise cycle over a drafted overview.
-
-    Args:
-        context: The run material to check the draft against.
-        draft_response: The raw, pre-validation overview response from
-            the initial synthesis call.
-
-    Returns:
-        Tuple of (final raw response, review metadata with ``reviewed``
-        and ``rounds`` keys, total LLM calls this cycle spent).
-    """
     current = draft_response
     calls = 0
     for round_index in range(_MAX_OVERVIEW_REVISION_ROUNDS):
@@ -105,12 +61,10 @@ async def review_research_overview(
 
 
 def _review_meta(rounds: int) -> dict[str, Any]:
-    """Builds the reported review metadata for a given revision count."""
     return {"reviewed": rounds > 0, "rounds": rounds}
 
 
 def _accepted(verdict: dict[str, Any]) -> bool:
-    """True unless the reviewer explicitly rejected the draft."""
     return bool(verdict.get("accept", True))
 
 
@@ -119,12 +73,8 @@ async def _call_supervisor(
     prompt: str,
     schema: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    """Runs one schema-constrained supervisor call for this review cycle.
-
-    Recorded under its own telemetry sub-phase: this cycle and the draft
-    it reviews are both ``research_overview`` calls, and folding them
-    into one bucket is what left the draft's own budget unmeasurable.
-    """
+    """Separate telemetry keeps accuracy-review spend distinguishable from
+    draft spend."""
     with scoped_telemetry_phase("review"):
         return await call_llm_json(
             prompt=prompt,
@@ -140,7 +90,6 @@ async def _call_supervisor(
 async def _call_reviewer(
     context: OverviewReviewContext, draft_response: dict[str, Any]
 ) -> dict[str, Any]:
-    """Calls the supervisor model for one accuracy-review verdict."""
     prompt, schema = get_research_overview_review_prompt(
         context.material, _format_overview_for_review(draft_response)
     )
@@ -152,7 +101,6 @@ async def _call_reviser(
     draft_response: dict[str, Any],
     notes: list[Any],
 ) -> dict[str, Any]:
-    """Calls the supervisor model to regenerate the overview from notes."""
     prompt, schema = get_research_overview_revise_prompt(
         OverviewRevisionRequest(
             material=context.material,
@@ -165,7 +113,6 @@ async def _call_reviser(
 
 
 def _format_overview_for_review(response: dict[str, Any]) -> str:
-    """Renders a raw overview response as text the reviewer can read."""
     overview = response.get("overview") or {}
     aims = response.get("nih_specific_aims") or {}
     lines = [f"Summary: {overview.get('summary', '')}"]
@@ -190,7 +137,6 @@ def _format_overview_for_review(response: dict[str, Any]) -> str:
 
 
 def _format_knowledge_base_for_review(response: dict[str, Any]) -> list[str]:
-    """Renders the drafted knowledge-base topics for the reviewer."""
     lines = []
     for topic in response.get("knowledge_base") or []:
         evidence_ids = ", ".join(topic.get("evidence_ids") or [])
@@ -203,7 +149,6 @@ def _format_knowledge_base_for_review(response: dict[str, Any]) -> list[str]:
 
 
 def _format_review_notes(notes: list[Any]) -> str:
-    """Renders the reviewer's located notes for the reviser prompt."""
     lines = []
     for note in notes:
         if not isinstance(note, dict):

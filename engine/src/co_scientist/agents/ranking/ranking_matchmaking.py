@@ -1,5 +1,3 @@
-"""Deterministic, weighted tournament pairing and hypothesis selection."""
-
 from __future__ import annotations
 
 import dataclasses
@@ -13,7 +11,6 @@ from co_scientist.models import Hypothesis
 def _build_match_candidates(
     hypotheses: list[Hypothesis],
 ) -> list[MatchCandidate]:
-    """Reduces hypotheses to the fields matchmaking needs."""
     return [
         MatchCandidate(
             id=h.id,
@@ -32,31 +29,8 @@ def build_tournament_pairings(
     current_iteration: int,
     judged: set[frozenset[str]] | None = None,
 ) -> list[tuple[Hypothesis, Hypothesis]]:
-    """Builds deterministic weighted pairwise matchups for one tournament.
-
-    Uses proximity-, recency-, and rank-aware matchmaking (Milestone 3; paper
-    invariant SSR §4): pairings favor scientifically similar hypotheses (same
-    proximity cluster), newer hypotheses needing calibration, and top-ranked
-    hypotheses needing discrimination, while guaranteeing minimum match
-    coverage and avoiding self/immediate-duplicate matches.
-
-    The seed is derived from research_goal and current_iteration so identical
-    inputs replay identical pairings (cache consistency across iterations).
-    Uses hashlib instead of hash() so the seed is stable across processes.
-
-    Args:
-        hypotheses: All hypotheses eligible for pairing.
-        tournament_rounds: Number of pairings to generate.
-        research_goal: Research goal, used to seed the deterministic RNG.
-        current_iteration: Current workflow iteration, used to seed the RNG.
-        judged: Pairs this tournament has already judged. Never offered
-            again, so a tournament runs out of comparisons rather than
-            replaying one.
-
-    Returns:
-        List of (hypothesis_a, hypothesis_b) pairings, one per round; empty
-        once every distinct pair has been judged.
-    """
+    """Use a process-stable hash seed so repeated inputs retain pairing/cache
+    identity."""
     seed_string = f"{research_goal}_{current_iteration}"
     seed = int(hashlib.md5(seed_string.encode()).hexdigest()[:8], 16)
 
@@ -70,8 +44,6 @@ def build_tournament_pairings(
 
 @dataclasses.dataclass(frozen=True)
 class MatchCandidate:
-    """A hypothesis reduced to the fields matchmaking needs."""
-
     id: str
     elo: int
     matches: int
@@ -80,27 +52,8 @@ class MatchCandidate:
 
 @dataclasses.dataclass
 class MatchmakingWeights:
-    """Tunable weights for the pairing policy.
-
-    The defaults are clone-defined (Google leaves the exact weights
-    unspecified): recency (calibrating new hypotheses) and rank
-    (discriminating leaders) dominate the selection score, with a mild
-    low-coverage term to prevent starvation; ``elo_closeness`` rewards a
-    partner whose Elo sits close to the primary's -- the published
-    listing's "or those with similar Elo ratings" half of tournament
-    pairing, which nothing scored before this field existed;
-    ``similarity_bonus`` boosts partners in the primary's proximity
-    cluster; ``min_coverage`` is the per-hypothesis match floor reached
-    before extra discriminating matches are scheduled.
-
-    ``min_coverage`` is the shared
-    ``TOURNAMENT_MIN_MATCHES_PER_HYPOTHESIS``: a rating built from one match
-    is a coin flip, not a measurement. It is imported rather than spelled
-    again here because the ranking budget's coverage floor has to fund
-    exactly this number -- the two were written independently as 2 and 1,
-    and every idea the budget could not afford played once and landed on one
-    of the two reachable ratings.
-    """
+    """Matcher and budget share one coverage floor; independent floors leave
+    ideas at one match and its two possible ratings."""
 
     recency: float = 1.0
     rank: float = 1.0
@@ -112,14 +65,6 @@ class MatchmakingWeights:
 
 @dataclasses.dataclass(frozen=True)
 class _PairingState:
-    """Build-invariant scoring inputs threaded through every selection.
-
-    ``coverage`` (per-hypothesis match counts) is mutated in place across a
-    build as pairings are committed; ``rng`` carries deterministic RNG
-    state. ``elo_lo``/``elo_hi`` bound the fixed candidate list, so they are
-    computed once and reused for rank normalization.
-    """
-
     coverage: dict[str, int]
     weights: MatchmakingWeights
     rng: random.Random
@@ -128,18 +73,11 @@ class _PairingState:
 
 
 def _elo_range(candidates: list[MatchCandidate]) -> tuple[int, int]:
-    """Return the (min, max) Elo across candidates for rank normalization."""
     elos = [c.elo for c in candidates]
     return min(elos), max(elos)
 
 
 def _priority(candidate: MatchCandidate, state: _PairingState) -> float:
-    """Score a candidate's selection priority from recency, rank, coverage.
-
-    Higher is more likely to be picked. Recency rewards fewer prior matches
-    (newer hypotheses need calibration); rank rewards higher normalized Elo
-    (leaders need discrimination); coverage rewards under-played hypotheses.
-    """
     recency = 1.0 / (1.0 + candidate.matches)
     span = (state.elo_hi - state.elo_lo) or 1
     rank = (candidate.elo - state.elo_lo) / span
@@ -155,7 +93,6 @@ def _priority(candidate: MatchCandidate, state: _PairingState) -> float:
 def _weighted_choice(
     scored: list[tuple[MatchCandidate, float]], rng: random.Random
 ) -> MatchCandidate:
-    """Pick one candidate weighted by its score (deterministic given rng)."""
     total = sum(score for _, score in scored)
     if total <= 0:
         return rng.choice([c for c, _ in scored])
@@ -172,17 +109,8 @@ def _coverage_pool(
     candidates: list[MatchCandidate],
     state: _PairingState,
 ) -> list[MatchCandidate]:
-    """Narrows a selection pool to the hypotheses owed a match first.
-
-    Coverage is filled one level at a time: of the candidates still below
-    ``min_coverage``, only those with the *fewest* matches so far are
-    offered. Taking the whole below-floor set instead lets a hypothesis play
-    its second match while another has yet to play its first, which loses the
-    guarantee that a build with enough rounds matches everybody.
-
-    Returns the full list once every candidate has reached the floor, at
-    which point the weighted priority decides.
-    """
+    """Fill the fewest-played level first; second matches must not crowd out
+    firsts when enough rounds exist to cover everyone."""
     below = [
         c
         for c in candidates
@@ -198,12 +126,6 @@ def _select_primary(
     candidates: list[MatchCandidate],
     state: _PairingState,
 ) -> MatchCandidate:
-    """Select the first side of a match.
-
-    Under-covered hypotheses are chosen first to prevent starvation (see
-    ``_coverage_pool``); once every hypothesis has reached the floor,
-    selection is weighted by the recency/rank/coverage priority.
-    """
     scored = [
         (c, _priority(c, state)) for c in _coverage_pool(candidates, state)
     ]
@@ -215,11 +137,6 @@ def _is_eligible_partner(
     primary: MatchCandidate,
     recent_pairs: set[frozenset[str]],
 ) -> bool:
-    """Return whether candidate may pair with primary this round.
-
-    Excludes ``primary`` itself and any pair already scheduled this round
-    set (no self-matches, no immediate duplicate rematches).
-    """
     if candidate.id == primary.id:
         return False
     return frozenset({primary.id, candidate.id}) not in recent_pairs
@@ -228,15 +145,8 @@ def _is_eligible_partner(
 def _elo_closeness(
     candidate: MatchCandidate, primary: MatchCandidate, state: _PairingState
 ) -> float:
-    """Score how close candidate's Elo sits to primary's (0..1, higher closer).
-
-    Normalized against the build's Elo span so the term is comparable
-    across pools; a pool with no spread (every candidate tied) carries no
-    closeness signal at all rather than the vacuous "everyone is equally
-    close" reading a naive ``/ (span or 1)`` guard would give -- which
-    would otherwise add a flat constant to every partner score and dilute
-    every other term.
-    """
+    """A tied pool supplies no closeness signal; a flat constant would dilute
+    all other partner priorities."""
     span = state.elo_hi - state.elo_lo
     if span == 0:
         return 0.0
@@ -248,7 +158,6 @@ def _partner_score(
     primary: MatchCandidate,
     state: _PairingState,
 ) -> float:
-    """Score candidate as a partner: Elo closeness plus a cluster bonus."""
     score = _priority(candidate, state) + state.weights.elo_closeness * (
         _elo_closeness(candidate, primary, state)
     )
@@ -265,21 +174,8 @@ def _select_partner(
     recent_pairs: set[frozenset[str]],
     state: _PairingState,
 ) -> MatchCandidate | None:
-    """Select the second side of a match for ``primary``.
-
-    Excludes ``primary`` itself and any pair already scheduled this round set
-    (no self-matches, no immediate duplicate rematches). A partner with a
-    closer Elo rating scores higher, and partners in the same proximity
-    cluster get a similarity bonus on top, so both similar and
-    similarly-rated hypotheses are more likely compared. Returns None if no
-    valid partner remains.
-
-    Under-covered candidates are preferred, exactly as in ``_select_primary``.
-    Applying the floor to only one side of the match made coverage a tendency
-    rather than a guarantee: a build with enough rounds to pair everyone could
-    still spend one on an already-covered partner and leave a hypothesis
-    unmatched, which then reports its starting rating as a tournament result.
-    """
+    """Apply coverage to both sides; prioritizing only the primary can spend
+    rounds on covered partners while another idea remains unmatched."""
     eligible = [
         c for c in candidates if _is_eligible_partner(c, primary, recent_pairs)
     ]
@@ -297,17 +193,8 @@ def _select_round_partner(
     prev_pair: frozenset[str] | None,
     state: _PairingState,
 ) -> MatchCandidate | None:
-    """Selects a partner for ``primary``, relaxing forbidden pairs as needed.
-
-    Pairs already scheduled in this build are never reoffered, and the
-    immediately previous pair is forbidden on top of that so no matchup
-    repeats back to back. There is deliberately no rung that relaxes into
-    an already-scheduled pair: the build chooses every matchup from one Elo
-    snapshot, so a repeat replays a comparison instead of making one.
-
-    Returns None when ``primary`` has already faced every other candidate,
-    leaving the caller free to try a different primary.
-    """
+    """Do not relax into scheduled pairs: this build uses one Elo snapshot,
+    so repeats replay evidence instead of refreshing it."""
     prev_only: set[frozenset[str]] = (
         {prev_pair} if prev_pair is not None else set()
     )
@@ -320,7 +207,6 @@ def _commit_pairing(
     recent_pairs: set[frozenset[str]],
     state: _PairingState,
 ) -> tuple[str, str]:
-    """Records a chosen pairing against coverage and the scheduled set."""
     state.coverage[primary.id] += 1
     state.coverage[partner.id] += 1
     recent_pairs.add(frozenset({primary.id, partner.id}))
@@ -333,16 +219,7 @@ def _schedule_one_pairing(
     prev_pair: frozenset[str] | None,
     state: _PairingState,
 ) -> tuple[str, str] | None:
-    """Selects and commits one not-yet-scheduled pairing.
-
-    Retries with a freshly drawn primary when the first pick has already
-    faced every other candidate, so one exhausted hypothesis cannot end a
-    build while unplayed pairs remain elsewhere in the pool.
-
-    Returns:
-        The scheduled ``(primary_id, partner_id)`` pair, or None once every
-        distinct pair in the pool has been scheduled.
-    """
+    """An exhausted primary must not end the build while other pairs remain."""
     for _ in range(len(candidates)):
         primary = _select_primary(candidates, state)
         partner = _select_round_partner(
@@ -358,12 +235,8 @@ def _any_unscheduled_pairing(
     recent_pairs: set[frozenset[str]],
     state: _PairingState,
 ) -> tuple[str, str] | None:
-    """Deterministic sweep for any pair this build has not scheduled.
-
-    The weighted draw above is random, so on a pool where most pairs are
-    already used it can miss the few that remain. This makes exhaustion a
-    fact about the pool rather than an artifact of sampling luck.
-    """
+    """Weighted sampling can miss remaining pairs; deterministic exhaustion
+    must describe the pool rather than unlucky draws."""
     for i, primary in enumerate(candidates):
         for partner in candidates[i + 1 :]:
             if frozenset({primary.id, partner.id}) not in recent_pairs:
@@ -376,7 +249,6 @@ def _init_pairing_state(
     seed: int,
     weights: MatchmakingWeights | None,
 ) -> tuple[_PairingState, int]:
-    """Initializes the build-invariant pairing state and max-pairs bound."""
     coverage = {c.id: c.matches for c in candidates}
     elo_lo, elo_hi = _elo_range(candidates)
     state = _PairingState(
@@ -397,39 +269,8 @@ def build_weighted_pairings(
     weights: MatchmakingWeights | None = None,
     exclude: set[frozenset[str]] | None = None,
 ) -> list[tuple[str, str]]:
-    """Build up to ``rounds`` weighted, deterministic pairwise matchups.
-
-    Every matchup in one build is distinct, and ``exclude`` extends that
-    across builds: a caller judging one round at a time passes the pairs it
-    has already judged, and gets back only comparisons it has not made yet.
-
-    Repeating a pair cannot discriminate between those two hypotheses -- it
-    replays one comparison and ratchets the winner's rating for it.
-    Production ran whole tournaments this way: a pool left with two rankable
-    ideas judged the same pair six times and reported the winner at 1259 as
-    though it had beaten six opponents.
-
-    The count is therefore capped at the distinct pairs still available,
-    which for n candidates is n*(n-1)/2 less the excluded ones -- a
-    two-candidate pool yields one match however many rounds are requested,
-    and none once that match has been judged. Rematches across ranking
-    cycles stay available and meaningful, because each cycle re-pairs
-    against updated ratings.
-
-    Args:
-        candidates: The hypotheses eligible for pairing (reduced form).
-        rounds: Maximum number of matchups to schedule.
-        seed: Deterministic RNG seed (identical seed → identical schedule).
-        weights: Optional pairing weights (documented clone defaults used
-            when omitted).
-        exclude: Pairs already judged, as ``frozenset`` of the two ids.
-            Never offered again by this build.
-
-    Returns:
-        A list of distinct ``(primary_id, partner_id)`` pairs, at most
-        ``rounds`` long and excluding ``exclude``. Empty when fewer than two
-        candidates exist or every pair is already excluded.
-    """
+    """Repeated pairs inflate Elo without evidence. Cross-cycle rematches
+    remain meaningful after ratings and review context change."""
     if len(candidates) < 2:
         return []
     state, all_pairs = _init_pairing_state(candidates, seed, weights)
