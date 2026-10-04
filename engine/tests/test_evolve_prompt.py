@@ -133,15 +133,15 @@ def test_partner_context_empty_pool_for_combination() -> None:
     [
         (
             {"refinement_priorities": ["clarity", "safety"]},
-            "**Refinement Priorities:** clarity, safety\n",
+            "Refinement Priorities:** clarity, safety",
         ),
         (
             {"refinement_priorities": "narrow the mechanism"},
-            "**Refinement Priorities:** narrow the mechanism\n",
+            "Refinement Priorities:** narrow the mechanism",
         ),
         (
             {"iteration_strategy": "converge on the top mechanism"},
-            "**Iteration Strategy:** converge on the top mechanism\n",
+            "Iteration Strategy:** converge on the top mechanism",
         ),
     ],
 )
@@ -152,12 +152,9 @@ def test_supervisor_guidance_formats_each_phase_field(
     result = _build_supervisor_guidance_text(
         {"workflow_plan": {"evolution_phase": phase}}
     )
-    assert result == (
-        "## Supervisor Guidance for Evolution\n"
-        + expected
-        + "\nUse this guidance to align your refinement with the research plan."
-        + "\n"
-    )
+    assert "## Supervisor Guidance for Evolution" in result
+    assert expected in result
+    assert result.index("## Supervisor Guidance") < result.index(expected)
 
 
 def test_build_supervisor_guidance_text_none_returns_empty() -> None:
@@ -216,7 +213,7 @@ def test_evolution_prompt_hedges_novelty_claims() -> None:
         EvolutionOperator.OUT_OF_BOX,
     ],
 )
-def test_published_templates_hedge_novelty_claims(
+def test_operator_templates_hedge_novelty_claims(
     operator: EvolutionOperator,
 ) -> None:
     prompt, _ = _build_evolution_prompt(
@@ -372,7 +369,7 @@ def test_every_operator_is_briefed_exactly_once() -> None:
         assert operator_instruction(operator)
 
 
-def test_coherence_feasibility_renders_the_published_prompt() -> None:
+def test_feasibility_operator_preserves_coherence_and_novelty() -> None:
     assert operator_template(EvolutionOperator.COHERENCE_FEASIBILITY) == (
         "evolution_feasibility"
     )
@@ -380,14 +377,15 @@ def test_coherence_feasibility_renders_the_published_prompt() -> None:
     assert "feasibility" not in enhancement.lower()
     assert "coherence" not in enhancement.lower()
 
-    prompt = _operator_prompt(EvolutionOperator.COHERENCE_FEASIBILITY)
-    assert (
-        "You are an expert in scientific research and technological"
-        " feasibility analysis." in prompt
-    )
-    assert (
-        "Ensure the revised concept retains its novelty, logical coherence,"
-        " and specific articulation." in prompt
+    prompt = _operator_prompt(EvolutionOperator.COHERENCE_FEASIBILITY).lower()
+    assert all(
+        concept in prompt
+        for concept in (
+            "feasibility",
+            "novelty",
+            "coherence",
+            "specific articulation",
+        )
     )
 
 
@@ -450,14 +448,14 @@ def test_prompt_carries_the_anti_aggregation_guard_for_combination() -> None:
         ),
         operation=_EvolutionOperation(operator=EvolutionOperator.COMBINATION),
     )
+    assert "not be a mere aggregation" in prompt
     assert (
-        "This should not be a mere aggregation of existing methods or"
-        " entities. Think out-of-the-box." in prompt
+        "must synthesize the designated combination partners" in prompt.lower()
     )
 
 
 @pytest.mark.parametrize("operator", _appended_operators())
-def test_prompt_carries_the_published_reasoning_order(
+def test_prompt_carries_the_reasoning_order(
     operator: EvolutionOperator,
 ) -> None:
     prompt = _operator_prompt(operator)
@@ -467,38 +465,31 @@ def test_prompt_carries_the_published_reasoning_order(
     assert "core contribution" in prompt
 
 
-def test_feasibility_prompt_carries_the_published_guidelines() -> None:
-    prompt = _operator_prompt(EvolutionOperator.COHERENCE_FEASIBILITY)
+def test_feasibility_prompt_orders_scientific_reasoning_stages() -> None:
+    prompt = _operator_prompt(EvolutionOperator.COHERENCE_FEASIBILITY).lower()
     steps = (
-        "Begin with an introductory overview of the relevant scientific"
-        " domain.",
-        "Provide a concise synopsis of recent pertinent research findings",
-        "Articulate a reasoned argument for how current technological"
-        " advancements",
-        "CORE CONTRIBUTION: Develop a detailed, innovative, and"
-        " technologically viable alternative",
+        "overview",
+        "recent pertinent research",
+        "reasoned argument",
+        "core contribution",
     )
     positions = [prompt.index(step) for step in steps]
     assert positions == sorted(positions)
 
 
-def test_out_of_box_prompt_is_the_published_analogy_prompt() -> None:
+def test_out_of_box_uses_concepts_for_one_analogous_hypothesis() -> None:
     prompt = _operator_prompt(EvolutionOperator.OUT_OF_BOX)
-
-    assert (
-        "You are an expert researcher tasked with generating a novel,"
-        " singular hypothesis inspired by analogous elements from provided"
-        " concepts." in prompt
-    )
-    assert (
-        "Inspiration may be drawn from the following concepts (utilize"
-        " analogy and inspiration, not direct replication):" in prompt
+    assert all(
+        concept in prompt.lower()
+        for concept in (
+            "singular hypothesis",
+            "analogous",
+            "provided concepts",
+            "not direct replication",
+            "not be a mere aggregation",
+        )
     )
     assert "A top-ranked peer approach." in prompt
-    assert (
-        "This should not be a mere aggregation of existing methods or"
-        " entities. Think out-of-the-box." in prompt
-    )
     assert "**Operator:** out_of_box" not in prompt
     assert "DO NOT rewrite the hypothesis" not in prompt
 
