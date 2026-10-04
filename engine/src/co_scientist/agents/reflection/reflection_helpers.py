@@ -1,5 +1,3 @@
-"""Reflection evidence helpers and scientific-entity normalization."""
-
 import asyncio
 import json
 import logging
@@ -11,17 +9,14 @@ from co_scientist.tools.response_parser import parse_mcp_result
 logger = logging.getLogger(__name__)
 
 
-# Matches hyphenated bio names first (IL-6, YKL-40, IL-1B), then standalone
-# (KRAS, TREM2) hyphenated suffix is 1-2 digits + optional letter — avoids
-# pathway notation like RAGE-JAK2
+# The hyphenated suffix excludes pathway notation such as RAGE-JAK2.
 _HYPHENATED_RE = re.compile(r"\b([A-Z][A-Z0-9]{1,5}-[0-9]{1,2}[A-Z]?)\b")
 _STANDALONE_RE = re.compile(r"\b([A-Z][A-Z0-9]{2,5})\b")
 
-# Common false positives: english words, non-gene abbreviations, protein
-# families
+# These ordinary words, abbreviations and broad families are not specific gene
+# queries.
 _STOP = frozenset(
     {
-        # English
         "THE",
         "AND",
         "FOR",
@@ -75,7 +70,6 @@ _STOP = frozenset(
         "ONLY",
         "BOTH",
         "SOME",
-        # tech/science abbreviations (not genes)
         "MCP",
         "LLM",
         "API",
@@ -92,7 +86,6 @@ _STOP = frozenset(
         "GTP",
         "USA",
         "NIH",
-        # Biomedical non-gene abbreviations
         "CSF",
         "CNS",
         "BBB",
@@ -110,14 +103,12 @@ _STOP = frozenset(
         "MESH",
         "HGNC",
         "CHEBI",
-        # Protein families/classes (too broad for INDRA single-agent queries)
         "CYP450",
         "CSPG",
         "CSPGS",
     }
 )
 
-# Known informal → canonical mappings for common biomedical abbreviations
 _ALIAS_MAP: dict[str, str] = {
     "RAGE": "AGER",
     "MK2": "MAPKAPK2",
@@ -132,45 +123,28 @@ _ALIAS_MAP: dict[str, str] = {
 
 
 def _normalize_entity(raw: str) -> str:
-    """Normalize an extracted entity name for INDRA queries.
-
-    Strips hyphens from bio names (IL-6 → IL6, YKL-40 → YKL40),
-    applies known alias mappings (RAGE → AGER).
-    """
-    # Strip hyphen for names like IL-6, IL-15, YKL-40
+    """INDRA canonical gene names omit hyphens and use aliases such as AGER
+    for RAGE."""
     normalized = raw.replace("-", "")
     upper = normalized.upper()
     return _ALIAS_MAP.get(upper, normalized)
 
 
 def _should_skip_entity(upper: str, seen: set[str]) -> bool:
-    """True if a normalized entity name is a known stop-word or already seen."""
     return upper in _STOP or upper in seen
 
 
 def _is_mutation_notation(raw: str) -> bool:
-    """True if raw looks like a mutation notation rather than a gene name.
-
-    Mutation notations (G12C, V600E, L858R) are a single letter followed by
-    a digit; these are filtered out of the standalone-token pass.
-    """
+    """Single-letter/digit mutation labels such as V600E are not standalone
+    gene names."""
     return len(raw) >= 2 and raw[0].isupper() and raw[1].isdigit()
 
 
 def _add_hyphenated_entities(
     hyphenated: list[str], seen: set[str], result: list[str]
 ) -> None:
-    """Appends normalized hyphenated entity names to result (pass 1).
-
-    Hyphenated names (IL-6, YKL-40) are higher-signal than standalone
-    tokens, so they are processed first. Also marks each raw prefix as
-    seen so e.g. "YKL" doesn't re-match after "YKL-40" in pass 2.
-
-    Args:
-        hyphenated: Raw hyphenated regex matches.
-        seen: Upper-cased entity names already accepted; mutated in place.
-        result: Normalized entity names accepted so far; mutated in place.
-    """
+    """Hyphenated names are higher-signal; marking their prefixes prevents a
+    second standalone match for the same entity."""
     for raw in hyphenated:
         prefix = raw.split("-")[0].upper()
         seen.add(prefix)
@@ -185,14 +159,6 @@ def _add_hyphenated_entities(
 def _add_standalone_entities(
     standalone: list[str], seen: set[str], result: list[str], max_entities: int
 ) -> None:
-    """Appends normalized standalone entity names to result (pass 2).
-
-    Args:
-        standalone: Raw standalone uppercase-token regex matches.
-        seen: Upper-cased entity names already accepted; mutated in place.
-        result: Normalized entity names accepted so far; mutated in place.
-        max_entities: Stop once result reaches this length.
-    """
     for raw in standalone:
         if len(result) >= max_entities:
             break
@@ -207,11 +173,6 @@ def _add_standalone_entities(
 
 
 def extract_entity_names(text: str, max_entities: int = 3) -> list[str]:
-    """Extract likely gene/protein names from hypothesis text.
-
-    Uses two-pass heuristic: first captures hyphenated bio names (IL-6, YKL-40),
-    then standalone uppercase tokens (KRAS, TREM2). Normalizes and deduplicates.
-    """
     hyphenated = _HYPHENATED_RE.findall(text)
     standalone = _STANDALONE_RE.findall(text)
 
@@ -228,38 +189,21 @@ if TYPE_CHECKING:
     from co_scientist.config import ToolRegistry
 
 
-# Only a knowledge-graph tool can answer the entity query this path sends
-# (agent/limit/evidence_limit are INDRA's own argument names). A workflow's
-# search_tools list mixes both kinds -- the shipped config lists PubMed,
-# OpenAlex and the biomedical databases under `reflection` for the prompt
-# context, and the INDRA example config *extends* that list, so its own
-# tools arrive after them. Selecting on the declared source_type rather than
-# on list position is what keeps this path from calling a literature tool
-# with an entity name, which the server rejects outright.
+# Mixed workflow lists include literature tools; only knowledge-graph source
+# types accept the INDRA entity-query parameters.
 _KNOWLEDGE_GRAPH_SOURCE_TYPE = "knowledge_graph"
 
 
 def get_kg_tools_for_workflow(
     tool_registry: Optional["ToolRegistry"], workflow_name: str
 ) -> list[str]:
-    """Resolve the workflow's knowledge-graph MCP tool names, in order.
-
-    Returns an empty list when:
-    - no tool_registry is configured
-    - no workflow entry exists in the yaml
-    - the workflow lists no enabled knowledge-graph tool
-
-    This is the gate: if the list is empty, no tool calls happen for that
-    workflow. The shipped config declares no knowledge-graph tool at all
-    (the reference server's INDRA tools are opt-in), so the gate is closed
-    by default and this path costs nothing.
-    """
+    """Knowledge-graph tools are opt-in by workflow, even if the server
+    advertises them."""
     if tool_registry is None:
         return []
     try:
-        # tool_ids are internal registry keys; get_mcp_tool_names resolves
-        # them to the actual MCP server tool names used by has_tool()/
-        # call_tool() below.
+        # Registry IDs differ from the actual server names has_tool and
+        # call_tool require.
         tool_ids = tool_registry.get_tools_for_workflow(workflow_name)
         if not tool_ids:
             return []
@@ -267,15 +211,13 @@ def get_kg_tools_for_workflow(
             _knowledge_graph_tool_ids(tool_registry, tool_ids)
         )
     except Exception:
-        # Any registry lookup error degrades to "no KG tools" rather than
-        # failing reflection.
+        # Optional registry failures must not prevent reflection.
         return []
 
 
 def _knowledge_graph_tool_ids(
     tool_registry: "ToolRegistry", tool_ids: list[str]
 ) -> list[str]:
-    """Keep only the tool ids declaring the knowledge-graph source type."""
     kept = []
     for tool_id in tool_ids:
         tool = tool_registry.get_tool(tool_id)
@@ -290,21 +232,6 @@ async def _fetch_evidence_result(
     entities: list[str],
     max_statements: int,
 ) -> dict[str, Any] | None:
-    """Resolves an available tool, queries INDRA, and formats the results.
-
-    Returns None (rather than the shared "empty" result) if no candidate
-    tool is available on the MCP server or no statements come back, so the
-    caller can decide what "nothing found" maps to.
-
-    Args:
-        client: Shared MCP client.
-        mcp_names: Candidate MCP tool names, in preference order.
-        entities: Extracted entity names to query.
-        max_statements: Cap on statements included in the result.
-
-    Returns:
-        Dict with "prompt_text" and "enrichment_items", or None.
-    """
     tool_name = _pick_available_tool(client, mcp_names)
     if not tool_name:
         return None
@@ -315,9 +242,8 @@ async def _fetch_evidence_result(
     if not all_stmts:
         return None
 
-    # Statements from every queried entity are pooled together, then capped
-    # globally here rather than per-entity, so a prolific first entity can
-    # crowd out a second entity's statements.
+    # Pool before capping preserves the existing global evidence budget,
+    # including first-entity crowding of later entities.
     capped = all_stmts[:max_statements]
     return {
         "prompt_text": _format_evidence(capped, entities),
@@ -331,28 +257,12 @@ async def fetch_indra_evidence(
     max_statements: int = 5,
     workflow_name: str = "reflection",
 ) -> dict[str, Any]:
-    """Pre-fetch mechanistic statements relevant to a hypothesis.
-
-    Only runs if the yaml config explicitly opts in via a workflow section
-    listing the tools to use. No workflow entry → no calls, even if the MCP
-    server happens to have the tools registered.
-
-    Returns dict with:
-        - "prompt_text": formatted string for LLM prompt injection
-        - "enrichment_items": structured list of dicts for UI rendering
-    Both empty when skipped or on any failure.
-    """
     empty = {"prompt_text": "", "enrichment_items": []}
 
-    # Enforces the yaml opt-in gate: an empty tool list here means either no
-    # tool_registry, no "reflection" workflow entry, or an explicitly empty
-    # tool list for it.
     mcp_names = get_kg_tools_for_workflow(tool_registry, workflow_name)
     if not mcp_names:
         return empty
 
-    # No gene/protein-like tokens found in the hypothesis text means there
-    # is nothing meaningful to query INDRA for.
     entities = extract_entity_names(hypothesis_text)
     if not entities:
         return empty
@@ -369,18 +279,12 @@ async def _resolve_indra_result(
     entities: list[str],
     max_statements: int,
 ) -> dict[str, Any] | None:
-    """Queries INDRA via the MCP client, returning None on any failure.
-
-    Covers MCP client/connection failures, tool-call errors, etc. This is
-    best-effort enrichment, so any failure here falls back to None rather
-    than propagating into reflection_node.
-    """
+    """Optional enrichment failures must not abort the scientific review."""
     try:
         from co_scientist.mcp_client import get_mcp_client
 
-        # get_mcp_client returns a shared/global client (lazily created and
-        # cached), so this reuses the same connection across hypotheses and
-        # nodes rather than opening one per call.
+        # Reuse the shared client rather than opening another connection for
+        # each idea.
         client = await get_mcp_client(tool_registry=tool_registry)
         return await _fetch_evidence_result(
             client, mcp_names, entities, max_statements
@@ -391,15 +295,12 @@ async def _resolve_indra_result(
 
 
 def _pick_available_tool(client: Any, mcp_names: list[str]) -> str:
-    """Return the first workflow-listed tool that exists on the MCP server."""
     for name in mcp_names:
         if client.has_tool(name):
             return name
     return ""
 
 
-# Cap on evidence items fetched per INDRA statement (not statements
-# themselves); keeps individual tool responses bounded before formatting.
 _EVIDENCE_LIMIT = 25
 
 
@@ -409,10 +310,8 @@ async def _query_single_entity(
     entity: str,
     max_per_entity: int,
 ) -> list[dict[str, Any]]:
-    """Query a knowledge graph tool for one entity; returns its statements."""
     try:
-        # "agent" is the INDRA/CoGex query parameter name for the entity
-        # being queried, not a generic kwarg.
+        # agent is the INDRA/CoGex entity parameter name.
         raw = await client.call_tool(
             tool_name,
             agent=entity,
@@ -422,8 +321,7 @@ async def _query_single_entity(
         result = _parse_tool_result(raw)
         return cast("list[dict[str, Any]]", result.get("statements", []))
     except Exception as e:
-        # One entity's query failure does not block the others gathered in
-        # _query_entities below.
+        # One entity failure must not prevent evidence from its peers.
         logger.debug(
             "entity query failed for '%s' via %s: %s", entity, tool_name, e
         )
@@ -436,10 +334,6 @@ async def _query_entities(
     entities: list[str],
     max_per_entity: int,
 ) -> list[dict[str, Any]]:
-    """Query a knowledge graph tool for all entities in parallel."""
-    # Only the first 2 extracted entities are queried, even though
-    # extract_entity_names can return up to 3, to bound the number of
-    # concurrent KG calls per hypothesis.
     tasks = [
         _query_single_entity(client, tool_name, entity, max_per_entity)
         for entity in entities[:2]
@@ -449,7 +343,6 @@ async def _query_entities(
 
 
 def _parse_tool_result(raw: Any) -> dict[str, Any]:
-    """Decode an MCP tool result, coercing malformed or non-dict data to {}."""
     try:
         decoded = parse_mcp_result(raw)
     except json.JSONDecodeError:
@@ -460,10 +353,6 @@ def _parse_tool_result(raw: Any) -> dict[str, Any]:
 def _format_evidence(
     statements: list[dict[str, Any]], queried_entities: list[str]
 ) -> str:
-    """Format INDRA statements concisely for prompt injection.
-
-    Target: ~200-300 tokens for 5 statements. Each line is one relationship.
-    """
     header = (
         "Structured knowledge from the INDRA biomedical knowledge graph "
         f"(queried for: {', '.join(queried_entities)}):"
@@ -475,20 +364,15 @@ def _format_evidence(
         if line:
             lines.append(line)
 
-    # If no statement produced a renderable line, lines holds only the
-    # header; return "" (not the bare header) so callers treat this the
-    # same as "no evidence" rather than injecting an empty-looking section.
+    # A bare header would imply evidence exists; an unrenderable set is empty.
     return "\n".join(lines) if len(lines) > 1 else ""
 
 
 def _ev_count_str(ev_count: int) -> str:
-    """Format evidence count, adding '+' when capped at the fetch limit."""
     return f"{ev_count}+" if ev_count >= _EVIDENCE_LIMIT else str(ev_count)
 
 
 class IndraStatementCore(NamedTuple):
-    """Core fields shared by every INDRA statement formatter."""
-
     subj: str
     obj: str
     member_names: list[str]
@@ -498,18 +382,9 @@ class IndraStatementCore(NamedTuple):
 
 
 def parse_indra_statement(stmt: dict[str, Any]) -> IndraStatementCore:
-    """Extract the fields every INDRA statement formatter renders.
-
-    Owns the subject/object versus complex-members shape decision so the
-    formatters differ only in how they lay the values out, and absorbs the
-    shapes a knowledge-graph server can return for an endpoint that is not a
-    plain agent dict (see ``_agent_name``). Shared with the literature
-    review's context enrichment, which renders the same statements as
-    causal edges for the synthesis prompt.
-    """
-    # INDRA statements come in two shapes: simple pairwise relations
-    # (subj/obj) or "Complex"/family statements that list members instead;
-    # every formatter branches on which fields are populated below.
+    """INDRA endpoints can return non-dict agents or complex-member shapes;
+    both prompt formatters must interpret those shapes identically."""
+    # INDRA complex/family relations use members rather than pairwise subj/obj.
     members = stmt.get("members", [])
     return IndraStatementCore(
         subj=_agent_name(stmt, "subj"),
@@ -524,7 +399,6 @@ def parse_indra_statement(stmt: dict[str, Any]) -> IndraStatementCore:
 
 
 def _format_single_statement(stmt: dict[str, Any]) -> str:
-    """Format one INDRA statement as a concise line."""
     core = parse_indra_statement(stmt)
     ev_str = _ev_count_str(core.ev_count)
 
@@ -534,15 +408,12 @@ def _format_single_statement(stmt: dict[str, Any]) -> str:
             f"(belief: {core.belief:.2f}, {ev_str} papers)"
         )
 
-    # complex/family statements have members instead of subj/obj
     if core.member_names:
         return (
             f"- Complex({', '.join(core.member_names)}) [{core.rel_type}] "
             f"(belief: {core.belief:.2f}, {ev_str} papers)"
         )
 
-    # Neither shape matched (malformed statement); _format_evidence's
-    # `if line:` check drops this line rather than the caller crashing.
     return ""
 
 
@@ -550,19 +421,13 @@ def _build_enrichment_items(
     statements: list[dict[str, Any]],
     queried_entities: list[str],
 ) -> list[dict[str, str]]:
-    """Build structured items for hypothesis.enrichments (UI rendering).
-
-    Each item has display-ready string fields that map directly to
-    the customFields config in the domain JSON.
-    """
     items: list[dict[str, str]] = []
     for stmt in statements:
         item = _statement_to_enrichment_item(stmt)
         if item:
             items.append(item)
 
-    # Queried-entity context is attached to the first item only, not
-    # duplicated onto every item, since the UI renders one row per item.
+    # Attach query context only once because the UI renders each item as a row.
     if items:
         items[0]["queried_entities"] = ", ".join(queried_entities)
     return items
@@ -571,11 +436,6 @@ def _build_enrichment_items(
 def _statement_to_enrichment_item(
     stmt: dict[str, Any],
 ) -> dict[str, str] | None:
-    """Convert one INDRA statement into a flat dict for UI display."""
-    # Mirrors _format_single_statement's subj/obj vs. members branching,
-    # but returns a dict of individual fields instead of one text line.
-    # Only the relationship text differs between the two shapes, so the
-    # branch produces that string and the item is built once.
     core = parse_indra_statement(stmt)
 
     if core.subj and core.obj:
@@ -594,7 +454,6 @@ def _statement_to_enrichment_item(
 
 
 def _agent_name(stmt: dict[str, Any], role: str) -> str:
-    """Extract agent name from an INDRA statement."""
     agent = stmt.get(role, {})
     if isinstance(agent, dict):
         return cast(str, agent.get("name", ""))

@@ -1,15 +1,3 @@
-"""Reflection agent.
-
-Google role: reviews hypotheses for correctness, novelty, and quality, and
-verifies their reasoning -- the system's scientific critic.
-
-Implemented by the durable graph nodes ``review`` (initial review),
-``reflection`` (literature-grounded reflection), ``comprehensive_reflection``
-(observation/simulation/recurrent deep review), and ``deep_verification``
-(probing-question decomposition); their key strings are preserved. See
-``co_scientist.agents`` for the six-agent model.
-"""
-
 from co_scientist.agents.reflection.comprehensive_reflection import (
     ReviewRun,
     comprehensive_reflection_node,
