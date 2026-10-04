@@ -64,41 +64,6 @@ def _meta_review_markdown(meta_review: dict[str, object]) -> str:
     )
 
 
-def test_a_populated_comparison_renders_summary_and_idea_columns() -> None:
-    markdown = _meta_review_markdown(
-        {
-            "candidate_comparison": {
-                "thematic_summary": (
-                    "The ideas split into two mechanistic themes."
-                ),
-                "ideas": [
-                    {
-                        "idea": "Hypothesis 1: NHE1 blockade",
-                        "distinguishing_attribute": (
-                            "Targets an established clinical checkpoint."
-                        ),
-                        "computational_scalability": "Low compute burden.",
-                        "supporting_evidence_basis": (
-                            "Human scRNA-seq co-localization."
-                        ),
-                        "primary_novelty_parameter": (
-                            "First to link NHE1 to RSK in this context."
-                        ),
-                    }
-                ],
-            }
-        }
-    )
-
-    assert "### Comparison of candidate ideas" in markdown
-    assert "The ideas split into two mechanistic themes." in markdown
-    assert "Hypothesis 1: NHE1 blockade" in markdown
-    assert "Targets an established clinical checkpoint." in markdown
-    assert "Low compute burden." in markdown
-    assert "Human scRNA-seq co-localization." in markdown
-    assert "First to link NHE1 to RSK in this context." in markdown
-
-
 def test_comparison_a_populated_comparison_renders_domain_aware_axes() -> None:
     markdown = _meta_review_markdown(
         {
@@ -424,37 +389,6 @@ def test_a_contact_with_no_research_direction_omits_the_line() -> None:
 
     assert "Research direction" not in markdown
     assert "Ada Researcher" in markdown
-
-
-def test_a_populated_comparison_renders_summary_and_row_columns() -> None:
-    markdown = _meta_review_markdown(
-        {
-            "existing_solutions_comparison": {
-                "summary": (
-                    "Current care slows progression rather than reversing it."
-                ),
-                "rows": [
-                    {
-                        "method": "Beta-blockade (standard of care)",
-                        "approach": "Reduce afterload pharmacologically.",
-                        "sensitivity_to_novelty": (
-                            "Does not address the RSK-NHE1 axis."
-                        ),
-                        "scalability": "Widely available, low cost.",
-                    }
-                ],
-            }
-        }
-    )
-
-    assert "### Comparison to existing solutions" in markdown
-    assert (
-        "Current care slows progression rather than reversing it." in markdown
-    )
-    assert "Beta-blockade (standard of care)" in markdown
-    assert "Reduce afterload pharmacologically." in markdown
-    assert "Does not address the RSK-NHE1 axis." in markdown
-    assert "Widely available, low cost." in markdown
 
 
 def test_solutions_a_populated_comparison_renders_domain_aware_axes() -> None:

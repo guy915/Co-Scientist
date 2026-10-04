@@ -59,10 +59,9 @@ function overviewReportStats(
   return {
     overview: payload.research_overview,
     leaderboard: payload.leaderboard ?? NO_LEADERBOARD,
-    // Explored counts cover the whole pool, not released ideas; old reports
-    // fall back to live rows.
-    ideaCount: payload.idea_count ?? hypotheses.length,
-    matchCount: payload.match_count ?? matches.length,
+    // Explored counts cover the whole pool, not released ideas.
+    ideaCount: payload.idea_count ?? 0,
+    matchCount: payload.match_count ?? 0,
   };
 }
 
@@ -417,25 +416,17 @@ export function SpecificAimsSection({
   );
 }
 
-// Keep legacy unheaded introductions readable until production reset.
 const AIMS_PREAMBLE_FIELDS = [
-  ['introduction', ''],
   ['disease_description', 'Disease description'],
   ['unmet_need', 'Unmet need'],
   ['proposed_solution', 'Proposed solution'],
 ] as const;
-const AIMS_CLOSING_FIELDS = [
-  ['pilot_evaluation', 'Pilot evaluation'],
-  ['impact', ''],
-] as const;
+const AIMS_CLOSING_FIELDS = [['pilot_evaluation', 'Pilot evaluation']] as const;
 // Keep goals labeled under numbered aims, in the same field order as markdown.
 const AIM_BODY_FIELDS = [
   ['overarching_goal', 'Overarching goal'],
-  ['aim', 'Aim'],
   ['hypothesis', 'Hypothesis'],
   ['reasoning', 'Reasoning'],
-  ['rationale', 'Rationale'],
-  ['approach', 'Approach'],
 ] as const;
 
 function LabeledBlock({heading, text}: {heading: string; text: string}) {
