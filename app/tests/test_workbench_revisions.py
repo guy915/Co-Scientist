@@ -106,3 +106,21 @@ def test_revision_endpoint_checks_owner_and_streams_replacement(
     rows = messages.list_messages(run.id)
     assert [row.sender for row in rows] == ["user", "system"]
     assert rows[0].content == "Revised"
+
+
+def test_replaced_question_discards_late_streamed_answer(
+    isolated_db: str,
+) -> None:
+    run = runs.create_run("Cross-tab revision", "express", "mock", {})
+    question = messages.append_message(
+        NewMessage(run.id, "user", "Original", "qa")
+    )
+    replacement = messages.rewind_qa(run.id, question.id, "Revised")
+    messages.append_qa_reply(
+        NewMessage(run.id, "system", "Obsolete answer", "qa"), question.id
+    )
+    assert messages.list_messages(run.id) == [replacement]
+    messages.append_qa_reply(
+        NewMessage(run.id, "system", "Current answer", "qa"), replacement.id
+    )
+    assert messages.list_messages(run.id)[-1].content == "Current answer"

@@ -68,6 +68,27 @@ def list_messages(
         return [_row_to_message(r) for r in rows]
 
 
+def append_qa_reply(message: NewMessage, question_id: int) -> None:
+    """A replaced question invalidates answers still streaming in other tabs."""
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO messages "
+            "(run_id,sender,content,kind,created_at,applied,meta_json) "
+            "SELECT ?,?,?, 'qa',?,0,? WHERE EXISTS "
+            "(SELECT 1 FROM messages WHERE run_id=? AND id=? "
+            "AND kind='qa' AND sender='user')",
+            (
+                message.run_id,
+                message.sender,
+                message.content,
+                _now(),
+                json.dumps(message.meta) if message.meta is not None else None,
+                message.run_id,
+                question_id,
+            ),
+        )
+
+
 def rewind_qa(
     run_id: str,
     message_id: int,
