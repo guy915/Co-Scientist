@@ -1,5 +1,3 @@
-"""Structured research synthesis, knowledge-base and overview schemas."""
-
 from typing import Any, Final
 
 from co_scientist.schemas.builders import obj, str_array
@@ -7,99 +5,37 @@ from co_scientist.schemas.generation import (
     EVOLUTION_SCHEMA as EVOLUTION_SCHEMA,
 )
 
-# Research-overview schema
-# Shapes the "research_overview" prompt output, consumed by
-# agents/meta_review/research_overview.py at the end of a run to synthesize
-# the
-# top-ranked hypotheses into a narrative summary plus an NIH-style
-# "Specific Aims" writeup (introduction / aims / impact), mirroring the
-# structure NIH grant applications use for the Specific Aims page.
-
-# Bounds on the sub-topic layer below (MO-1). Google's published cf-PICI
-# exemplar nests exactly 4 named sub-topics per direction, each with 4
-# specific questions, consistently across all 6 directions -- these bounds
-# mirror the exemplar rather than being picked arbitrarily. Kept small on
-# purpose: this layer multiplies the response by (directions x sub-topics),
-# and this schema has already been bitten by an unbounded nesting silently
-# truncating a large run's output on every retry (see AGENTS.md). Enforced
-# again defensively in research_overview_directions.py, since json_object
-# mode (the production downgrade path) does not enforce maxItems
-# server-side.
+# Nested arrays multiply output; the exemplar uses four subtopics with four
+# questions. json_object mode also needs defensive bounds.
 RESEARCH_OVERVIEW_MAX_SUB_TOPICS: Final = 4
 RESEARCH_OVERVIEW_MAX_SUB_TOPIC_QUESTIONS: Final = 4
 
-# How many main research directions the overview asks for, and the hard
-# bound on how many it will keep. They are now the same number: the
-# published cf-PICI overview enumerates six and the ask is six.
-#
-# Four, before, because the draft call had to write every direction's
-# body itself and could not afford six. Production express run 6760ce63
-# (2026-09-06) billed its research_overview node 26,263 completion
-# tokens over two calls (draft + accuracy review), and the draft's
-# surviving answer re-tokenizes to ~14.6k, ~15.9k billed once calibrated
-# against a fully-rendered single-call node from the same run
-# (meta_review: 5,071 billed against 4,654 reconstructed, a 1.09 ratio).
-# At ~2.0k billed per direction, three directions were ~6.0k of that and
-# everything else ~9.9k, so six directions plus their example_idea
-# fields would need ~13.9k and a ~23.8k single call -- the whole 24000
-# ceiling with nothing left for the chain of thought that shares it, and
-# 643-881s of generation at this deployment's measured 27-37 tokens per
-# second against a 600s per-call ceiling. The wall clock, not the budget,
-# is what said no.
-#
-# So the ask is six and the body is written elsewhere: the draft names
-# the six and argues each in a paragraph, and one call per direction
-# develops it to the exemplar's depth
-# (``agents/meta_review/research_overview_direction_calls``), exactly as
-# the Knowledge Base is outlined once and written a theme at a time.
+# Six directions are developed in separate calls to stay within the provider
+# deadline.
 RESEARCH_OVERVIEW_TARGET_DIRECTIONS: Final = 6
 RESEARCH_OVERVIEW_MAX_DIRECTIONS: Final = 6
 
-# R12-10: bounds on open_questions/clear_patterns/unexpected_patterns
-# below, mirroring the published exemplar's "Top 10 Open Questions" list
-# and its two shorter pattern lists. Capped for the same reason as the
-# sub-topic bounds above -- this is the terminal synthesis call and its
-# output must not scale unboundedly with what the run reviewed.
+# Published open questions number ten; pattern lists are shorter and
+# independently bounded.
 RESEARCH_OVERVIEW_MAX_OPEN_QUESTIONS: Final = 10
 RESEARCH_OVERVIEW_MAX_PATTERNS: Final = 5
 
-# The terminal synthesis already uses the token ladder ceiling; new fields
-# must not scale response size with the reviewed pool.
+# Terminal synthesis already reaches the token ceiling; new fields must not
+# scale with the pool.
 RESEARCH_OVERVIEW_MAX_UNEXPECTED_DIRECTIONS: Final = 3
 
-# F8: bounds on the deep knowledge-base synthesis in this package's
-# sibling module, taken from the published MASH exemplar's own shape -- 43 named
-# subject headings under 8 themes. 8 x 8 is the smallest product that
-# covers it without inviting more themes than one call each can be
-# written for (KNOWLEDGE_BASE_THEME_MAX_TOKENS). These are ceilings, not the
-# target: the word bands and the 40-50 section total the prompt actually
-# asks for live in ``schemas.knowledge_base``, sized from the exemplar's
-# own measured distribution, and land near 9,900 words -- the product
-# here only has to leave room above that, not describe it.
+# The published knowledge base has 43 subjects under eight themes; ceilings
+# leave room above its target.
 KNOWLEDGE_BASE_MAX_THEMES: Final = 8
 KNOWLEDGE_BASE_MAX_SECTIONS: Final = 8
 
 _RESEARCH_DIRECTION_BODY: Final[dict[str, Any]] = {
     "importance": {"type": "string"},
     "suggested_experiments": str_array(),
-    # MO-12: the "what is already known" slot
-    # the ALS exemplar names "Recent Findings"
-    # (cf-PICI's own equivalent is a bullet
-    # folded under "Why Research This Area?"
-    # rather than a separate section -- the
-    # two published exemplars disagree on
-    # vocabulary here; this adds ALS's slot
-    # onto the cf-PICI pair we already mirror,
-    # rather than switching vocabularies).
+    # Published exemplars differ: recent findings may be separate or folded into
+    # the rationale.
     "recent_findings": {"type": "string"},
-    # MO-1: each direction's "What to Research
-    # in This Area?" (cf-PICI) / "Areas of
-    # Research" (ALS) is itself a list of
-    # named sub-topics, not a flat experiment
-    # list -- restored here one level below
-    # the direction. Identify sub-topics by
-    # their own content; there is no input
-    # pool to echo back by index here.
+    # Subtopics are authored content, not input hypotheses echoed by index.
     "sub_topics": {
         "type": "array",
         "maxItems": (RESEARCH_OVERVIEW_MAX_SUB_TOPICS),
@@ -108,18 +44,8 @@ _RESEARCH_DIRECTION_BODY: Final[dict[str, Any]] = {
                 "title": {"type": "string"},
                 "why": {"type": "string"},
                 "what": {"type": "string"},
-                # F7: the exemplar's own third
-                # block, between "Why research
-                # this topic?" and its
-                # "Specific questions" list.
-                # Distinct from "what": that
-                # states the topic, this works
-                # one concrete way to attack
-                # it. Authored from the
-                # sub-topic's own content --
-                # never a hypothesis quoted
-                # back, which would scale the
-                # response with the pool.
+                # The exemplar distinguishes a concrete attack from the topic
+                # and its questions.
                 "example_idea": {
                     "type": "string",
                     "description": (
@@ -142,27 +68,13 @@ _RESEARCH_DIRECTION_BODY: Final[dict[str, Any]] = {
         ),
     },
 }
-"""Everything a direction carries below its own title.
-
-Named once and shared by the two schemas that need it: the overview
-draft's ``research_directions`` items below, and
-``RESEARCH_OVERVIEW_DIRECTION_SCHEMA``, the one-direction schema the
-writing wave answers in. The draft names the directions and the wave
-develops them (see ``agents/meta_review/research_overview_direction_calls``
-for why it is two calls), so the two schemas describe the same object
-from opposite ends and must not drift apart.
-"""
+# Draft and wave direction bodies share one shape that must not drift.
 
 RESEARCH_OVERVIEW_DIRECTION_SCHEMA: dict[str, Any] = {
     "name": "research_overview_direction",
     "schema": obj(dict(_RESEARCH_DIRECTION_BODY)),
 }
-"""One drafted direction, developed to the published exemplar's depth.
-
-Carries no ``title``: the draft already chose it, and re-emitting it
-would let a writing call rename a direction the overview's own contacts
-and groups cross-reference by title.
-"""
+# Omit titles: draft titles are contact/group cross-reference identities.
 
 RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
     "name": "research_overview",
@@ -173,15 +85,8 @@ RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
                     "summary": {"type": "string"},
                     "research_directions": {
                         "type": "array",
-                        # F5: bounded at the published exemplar's own six.
-                        # Unbounded before, which is how a prompt naming
-                        # no count settled on three -- the ask now names
-                        # RESEARCH_OVERVIEW_TARGET_DIRECTIONS and this
-                        # caps what an over-producing response can cost.
-                        # Enforced again in
-                        # research_overview_directions.py, since
-                        # json_object mode does not apply maxItems
-                        # server-side.
+                        # The exemplar names six directions; json_object mode
+                        # also needs a defensive cap.
                         "maxItems": RESEARCH_OVERVIEW_MAX_DIRECTIONS,
                         "items": obj(
                             {
@@ -192,15 +97,8 @@ RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
                     },
                 }
             ),
-            # The page's sections are the ones Google's three published
-            # Specific Aims exemplars actually print (paper §A.5.3), not a
-            # generic grant outline: a Disease Description / Unmet Need /
-            # Proposed Solution preamble, the numbered aims, and a closing
-            # Pilot Evaluation. The earlier shape -- introduction / aims
-            # (aim, rationale, approach) / impact -- was a richer page than
-            # any exemplar shows, and dropped the per-aim hypothesis every
-            # exemplar states. test_published_artifact_shapes.py pins this
-            # against the exemplar files themselves.
+            # Published Specific Aims pages use Disease Description, Unmet Need,
+            # Proposed Solution, aims and Pilot Evaluation.
             "nih_specific_aims": obj(
                 {
                     "disease_description": {"type": "string"},
@@ -228,28 +126,14 @@ RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
                         "name": {"type": "string"},
                         "expertise": {"type": "string"},
                         "justification": {"type": "string"},
-                        # Ties the contact back to the direction from #2
-                        # that surfaced them (MO-7) -- free text, not
-                        # validated against the direction titles, since a
-                        # direction label is not an invented fact the way
-                        # a name or affiliation would be.
+                        # Direction labels are cross-references, unlike factual
+                        # names or affiliations.
                         "research_direction": {"type": "string"},
                     }
                 ),
             },
-            # R14-6: the published exemplar groups research_contacts under
-            # their research direction, each group carrying one shared
-            # rationale paragraph and up to two example hypotheses --
-            # richer than the flat per-contact research_direction tag
-            # above (MO-7). A separate, additive array rather than
-            # nesting contacts under it: the model already emits flat
-            # contacts tagged with research_direction, and the renderer
-            # (report/markdown/overview.py) matches a group to its
-            # contacts by that same free-text tag, so an old report (or
-            # one whose response never populates this field) still
-            # renders MO-7's flat shape unchanged. Bounded to the same 5
-            # as research_contacts, since there cannot usefully be more
-            # groups than there are contacts to put in them.
+            # Groups add shared rationale and two examples while preserving
+            # legacy flat contact rendering.
             "research_contact_groups": {
                 "type": "array",
                 "maxItems": 5,
@@ -305,12 +189,8 @@ RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
                     }
                 ),
             },
-            # R12-10: the published report's top-level "Open Questions"
-            # list and its "Clear Patterns:"/"Unexpected Patterns:" pair.
-            # Google's second exemplar (research-overview.md, R14-1)
-            # lists "Open questions" beside the research-directions
-            # summary in this same synthesis document, which is why
-            # these land here rather than on meta_review.
+            # Open questions and observed patterns belong beside the research-
+            # direction synthesis.
             "open_questions": {
                 **str_array(
                     "The most important unanswered questions this"
@@ -335,13 +215,8 @@ RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
                 ),
                 "maxItems": RESEARCH_OVERVIEW_MAX_PATTERNS,
             },
-            # Task B: the published MASH exemplar's own "Unexpected
-            # Research Directions" block -- genuinely novel strategic
-            # directions worth pursuing, surfaced by synthesis. Distinct
-            # from research_directions above (the main directions,
-            # expected and expanded) and from unexpected_patterns above
-            # (a pattern observed across the ideas, not a direction worth
-            # pursuing) -- both kept, neither merged nor repurposed.
+            # Novel strategic directions are distinct from expected directions
+            # and observed patterns.
             "unexpected_research_directions": {
                 "type": "array",
                 "maxItems": RESEARCH_OVERVIEW_MAX_UNEXPECTED_DIRECTIONS,
@@ -376,14 +251,8 @@ RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
     ),
 }
 
-# What an interim (non-terminal) firing asks for. FIX-6: the periodic
-# branch writes only the block ``interim_overview.build_interim_overview``
-# renders into the next generate cycle's prompt context -- direction
-# titles and open questions -- and discards the rest, so the schema names
-# exactly those two fields rather than the terminal document's ten. The
-# bounds match ``build_interim_overview``'s own render caps exactly: this
-# firing is never asked to write a title or question the next cycle will
-# not see.
+# Interim synthesis asks only for titles/questions the next cycle reads, with
+# matching render caps.
 RESEARCH_OVERVIEW_INTERIM_MAX_DIRECTIONS: Final = 4
 RESEARCH_OVERVIEW_INTERIM_MAX_QUESTIONS: Final = 5
 
@@ -412,22 +281,10 @@ RESEARCH_OVERVIEW_INTERIM_SCHEMA: dict[str, Any] = {
         }
     ),
 }
-"""Nested the same way ``RESEARCH_OVERVIEW_SCHEMA`` is (``overview.
-research_directions``, top-level ``open_questions``) so
-``build_interim_overview`` parses either response identically -- an
-interim firing is just a response with everything else stripped out of
-the ask.
-"""
+# Keep nesting identical so interim parsing accepts periodic and terminal
+# responses.
 
-# Research-overview review schema
-# Shapes the "research_overview_review" prompt output, consumed by
-# agents/meta_review/research_overview_review.py. A verdict over the
-# already-drafted overview above: accept it as-is, or list specific,
-# located accuracy problems for the reviser to fix. Deliberately does not
-# echo the drafted passage back -- a schema that echoes its input scales
-# output with input and truncates identically on every retry (the same
-# trap proximity clustering hit; see proximity_dedup._match_cluster_member).
-# Each note instead names the section or claim it concerns.
+# Located accuracy notes avoid echoing the draft and scaling output with input.
 RESEARCH_OVERVIEW_REVIEW_SCHEMA: dict[str, Any] = {
     "name": "research_overview_review",
     "schema": obj(
@@ -484,38 +341,17 @@ RESEARCH_OVERVIEW_REVIEW_SCHEMA: dict[str, Any] = {
 }
 
 
-# Measured targets, stated here so the prompt template and the schema
-# description cannot drift apart -- under the json_object downgrade both
-# ride with the same request, and a band written in one and not the other
-# is two instructions disagreeing.
-#
-# Section-by-section measurement of the published exemplar (2026-09-07):
-# its 43 subject sections average 218 words, median 196, with eleven above
-# 250 and a 505-word top. Production run d1273490 wrote 38 sections
-# averaging 164, median 162, and *none* above 213 -- the entire
-# distribution pinned inside the "150-250" the prompt then named, hugging
-# its floor. A stated band is a floor rather than a target, so the floor
-# is now the exemplar's own mean and the right tail is asked for
-# explicitly instead of being left to the model's own sense of emphasis.
+# Prompt and schema word bands must agree, including under json_object
+# downgrade.
 KNOWLEDGE_BASE_SECTION_WORDS: Final = (200, 300)
-"""Word band for an ordinary subsection."""
 
 KNOWLEDGE_BASE_PRINCIPAL_SECTION_WORDS: Final = (350, 500)
-"""Word band for a theme's two or three principal subjects.
-
-The exemplar's own right tail: without naming it, every section comes
-back the same length, which is the flat distribution measured above.
-"""
+# A distinct principal-subject band avoids flattening every section to the
+# same length.
 
 KNOWLEDGE_BASE_TARGET_SECTIONS: Final = (40, 50)
-"""Subject sections the finished Knowledge Base aims for, in total.
-
-The exemplar carries 43. Expressed as a range the evidence has to
-support rather than a hard floor: a thin corpus padded out to a count
-is worth less than fewer subjects written properly, and ``minItems``
-would turn a short theme into a validation failure that drops the whole
-call to the flat topics.
-"""
+# The published exemplar has 43 sections; thin evidence may justify fewer, so
+# there is no hard minimum.
 
 _ORDINARY: Final = "{}-{}".format(*KNOWLEDGE_BASE_SECTION_WORDS)
 _PRINCIPAL: Final = "{}-{}".format(*KNOWLEDGE_BASE_PRINCIPAL_SECTION_WORDS)
@@ -532,19 +368,8 @@ _THEME_TITLE = (
     " Architecture And Biomechanical Barriers')."
 )
 
-# Knowledge-base outline schema
-# Shapes the "research_overview_knowledge_base_outline" prompt output: the
-# whole Knowledge Base's structure -- themes, the subsections under each,
-# and the evidence every subsection is drawn from -- and none of its prose.
-#
-# The structure is decided once, here, because the prose is then written by
-# several independent calls that must not overlap or renumber each other
-# (agents/meta_review/research_overview_knowledge_base_calls). This answer
-# is small by construction: eight themes of eight headings is under 2,000
-# tokens however large the corpus offered to the prompt, since nothing here
-# echoes the corpus back -- a section names its sources by the opaque
-# evidence_id the prompt assigned them, the trap proximity clustering hit
-# (see proximity_dedup._match_cluster_member).
+# One outline prevents independent writers overlapping or renumbering; source
+# IDs avoid corpus echo.
 KNOWLEDGE_BASE_OUTLINE_SCHEMA: dict[str, Any] = {
     "name": "knowledge_base_outline",
     "schema": obj(
@@ -583,17 +408,8 @@ KNOWLEDGE_BASE_OUTLINE_SCHEMA: dict[str, Any] = {
     ),
 }
 
-# Knowledge-base theme schema
-# Shapes the "research_overview_knowledge_base_theme" prompt output: the
-# dense prose for the subsections one theme of the outline above names.
-#
-# One theme per call, because the whole Knowledge Base cannot be written in
-# one: the published span is ~20,000 tokens and the 600s per-call ceiling
-# buys 16,000-22,000 generated tokens at the throughput production measured
-# (see KNOWLEDGE_BASE_OUTLINE_MAX_TOKENS). "detail" carries no maxLength for
-# the same reason it never did: the shim that trims an over-long string
-# under the json_object downgrade cuts at a word boundary, and dense prose
-# is the one field where that trim would be visible to a reader.
+# One theme per call fits the provider deadline; prose has no maxLength to avoid
+# visible trimming.
 KNOWLEDGE_BASE_THEME_SCHEMA: dict[str, Any] = {
     "name": "knowledge_base_theme",
     "schema": obj(

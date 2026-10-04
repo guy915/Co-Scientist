@@ -1,5 +1,3 @@
-"""Prompt builders for the review, deep-verification, and reflection nodes."""
-
 from typing import Any
 
 from co_scientist.prompts._common import (
@@ -17,16 +15,8 @@ from co_scientist.schemas.planning import (
 
 
 def _review_sections(context: PromptRunContext) -> PromptSections:
-    """Build the shared context blocks for the two review prompts.
-
-    Deliberately excludes the meta-review's "already covered" / "open
-    directions" sections (``include_coverage_sections=False``): this
-    prompt's score feeds the sticky, never-revisited initial review gate
-    on its ``novelty`` axis (``review_gate._DEFAULT_GATE_AXES``), and
-    "this area is already covered" is a direct novelty cue that would
-    bias against an Evolution-origin refinement of a leading idea for
-    living in the area it was bred to strengthen -- see
-    ``_format_meta_review_context``'s docstring for the full reasoning.
+    """Coverage cues must not bias the sticky initial novelty gate against
+    Evolution refinements.
     """
     return PromptSections(
         supervisor_guidance=_format_supervisor_guidance_for_review(
@@ -39,25 +29,11 @@ def _review_sections(context: PromptRunContext) -> PromptSections:
     )
 
 
-# Renders prompts/review.md for the single-hypothesis review path in
-# agents/reflection/review.py (used when the batch is too large for
-# comparative review).
 def get_review_prompt(
     research_goal: str,
     hypothesis_text: str,
     context: PromptRunContext | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
-    """Get the hypothesis review prompt and schema.
-
-    Args:
-        research_goal: The run's research goal.
-        hypothesis_text: The hypothesis under review.
-        context: Run-scoped prompt context (supervisor guidance,
-            meta-review, tool registry, run setup/focus guidance).
-
-    Returns:
-        Tuple of (rendered prompt string, JSON schema dict or None).
-    """
     ctx = context or PromptRunContext()
     return _build_prompt(
         "review",
@@ -67,20 +43,14 @@ def get_review_prompt(
     )
 
 
-# Renders prompts/deep_verification.md for
-# agents/reflection/deep_verification.py, run
-# once per top-Elo hypothesis. Deliberately takes no guidance/context
-# blocks: probing should challenge the hypothesis on its own terms.
 def get_deep_verification_prompt(
     research_goal: str,
     hypothesis_text: str,
     tool_registry: Any | None = None,
     evidence_context: str = "No retrieved evidence available.",
 ) -> tuple[str, dict[str, Any] | None]:
-    """Get the deep-verification (probing questions) prompt and schema.
-
-    Takes ``tool_registry`` directly rather than a ``PromptRunContext``:
-    it uses no other field of that bundle, by design (see above).
+    """Probes challenge the hypothesis on its own terms, without supervisor
+    guidance.
     """
     return _build_prompt(
         "deep_verification",
@@ -93,26 +63,11 @@ def get_deep_verification_prompt(
     )
 
 
-# Renders prompts/review_batch.md for the comparative batch review path in
-# agents/reflection/review.py; hypotheses_list is a pre-formatted
-# text block, not a
-# Python list.
 def get_review_batch_prompt(
     research_goal: str,
     hypotheses_list: str,
     context: PromptRunContext | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
-    """Get the comparative batch hypothesis review prompt and schema.
-
-    Args:
-        research_goal: The run's research goal.
-        hypotheses_list: Pre-formatted block listing the batch's hypotheses.
-        context: Run-scoped prompt context (supervisor guidance,
-            meta-review, tool registry, run setup/focus guidance).
-
-    Returns:
-        Tuple of (rendered prompt string, JSON schema dict or None).
-    """
     ctx = context or PromptRunContext()
     return _build_prompt(
         "review_batch",
@@ -122,10 +77,6 @@ def get_review_batch_prompt(
     )
 
 
-# Helper functions to format supervisor guidance for different contexts
-# Each helper extracts only the slice of the supervisor's output relevant
-# to its node and renders it as a markdown section; all of them return ""
-# when the needed keys are absent, so guidance is strictly additive.
 def _format_critical_criterion_question(question: Any) -> str:
     """Malformed model output and old checkpoints must still render."""
     if isinstance(question, str):
@@ -141,11 +92,8 @@ def _format_critical_criterion_question(question: Any) -> str:
 
 
 def _format_critical_criterion_questions(questions: Any) -> list[str]:
-    """Format a criterion's question lines, bounded and filtered.
-
-    Bounds to ``CRITICAL_CRITERIA_MAX_QUESTIONS`` defensively -- json_object
-    mode (the production downgrade path) does not enforce the schema's own
-    maxItems.
+    """json_object mode does not enforce schema maxItems; bound the rendered
+    questions defensively.
     """
     lines = []
     items = _guidance_items(questions)[:CRITICAL_CRITERIA_MAX_QUESTIONS]
@@ -157,22 +105,8 @@ def _format_critical_criterion_questions(questions: Any) -> list[str]:
 
 
 def _format_critical_criterion(criterion: Any) -> list[str]:
-    """Format one critical criterion (name plus its named questions).
-
-    Handles both shapes a run's ``critical_criteria`` entries can carry:
-    the legacy bare string (a criterion name only, from before R12-23)
-    and the richer ``{name, questions}`` object this prompt now asks the
-    Supervisor to synthesize. Anything else (int, None, an unnamed dict)
-    renders nothing.
-
-    R12-23b adds a third field, ``description`` (a prose paragraph for
-    the report's own "Evaluation Criteria" section --
-    ``report/markdown/supervisor.py``), and it is deliberately NOT read
-    here. This function runs per hypothesis, per review; the description
-    states the same substance the questions already express
-    operationally, so injecting it would roughly double this per-
-    hypothesis guidance block for no reviewer benefit. Do not "complete"
-    this by adding ``criterion.get("description")`` below.
+    """Accept legacy criterion names; prose descriptions belong in reports, not
+    every hypothesis review.
     """
     if isinstance(criterion, str):
         name = criterion.strip()
@@ -189,17 +123,6 @@ def _format_critical_criterion(criterion: Any) -> list[str]:
 
 
 def _format_review_phase_guidance(review_phase: dict[str, Any]) -> list[str]:
-    """Format the workflow_plan.review_phase slice of supervisor guidance.
-
-    Args:
-        review_phase: The `workflow_plan.review_phase` dict from supervisor
-            guidance (may be empty).
-
-    Returns:
-        Section lines, headed by the shared "Supervisor Guidance for
-        Review" title whenever review_phase is non-empty (even if neither
-        of its known fields is present); an empty list otherwise.
-    """
     if not review_phase:
         return []
 
@@ -219,7 +142,6 @@ def _format_review_phase_guidance(review_phase: dict[str, Any]) -> list[str]:
 def _format_config_preferences_guidance(
     preferences: list[Any] | None,
 ) -> list[str]:
-    """Format the config_synthesis preferences slice of supervisor guidance."""
     items = _guidance_items(preferences)
     if not items:
         return []
@@ -231,7 +153,6 @@ def _format_config_preferences_guidance(
 def _format_config_review_instructions_guidance(
     review_instructions: list[Any] | None,
 ) -> list[str]:
-    """Format the config_synthesis review-instructions guidance slice."""
     items = _guidance_items(review_instructions)
     if not items:
         return []
@@ -246,7 +167,6 @@ def _format_config_review_instructions_guidance(
 def _format_config_attributes_guidance(
     attributes: list[Any] | None,
 ) -> list[str]:
-    """Format the config_synthesis stratification-attributes slice."""
     if not attributes:
         return []
     sections = ["\n**Stratification attributes (score each 1-5):**\n"]
@@ -259,23 +179,6 @@ def _format_config_attributes_guidance(
 def _format_config_synthesis_guidance(
     config: Any, *, needs_header: bool
 ) -> list[str]:
-    """Format the config_synthesis slice of supervisor guidance.
-
-    Synthesized config: preferences constrain what a good idea is (shared
-    with generation); review_instructions are reviewer-only comparative
-    guidance.
-
-    Args:
-        config: The `config_synthesis` value from supervisor guidance.
-        needs_header: Whether the shared "Supervisor Guidance for Review"
-            title still needs to be emitted, i.e. no earlier section already
-            added it.
-
-    Returns:
-        Section lines, headed by the shared title only when needs_header is
-        true and this slice has content; an empty list when config is not a
-        dict or carries none of the three known fields.
-    """
     if not isinstance(config, dict):
         return []
 
@@ -297,7 +200,6 @@ def _format_config_synthesis_guidance(
 def _format_supervisor_guidance_for_review(
     supervisor_guidance: dict[str, Any] | None,
 ) -> str:
-    """Format supervisor guidance for review prompts."""
     if not supervisor_guidance or not isinstance(supervisor_guidance, dict):
         return ""
 
@@ -314,28 +216,12 @@ def _format_supervisor_guidance_for_review(
     return "".join(sections)
 
 
-# Renders prompts/reflection_observations.md for
-# agents/reflection/reflection.py, run
-# per hypothesis against the literature-review synthesis; indra_evidence
-# carries optional knowledge-graph enrichment text ("" when unavailable).
 def get_reflection_prompt(
     articles_with_reasoning: str,
     hypothesis_text: str,
     indra_evidence: str = "",
     context: PromptRunContext | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
-    """Get the reflection observations prompt and schema.
-
-    Args:
-        articles_with_reasoning: The literature-review synthesis text.
-        hypothesis_text: The hypothesis being reflected on.
-        indra_evidence: Optional knowledge-graph enrichment text.
-        context: Run-scoped prompt context; only the meta-review and tool
-            registry reach this prompt.
-
-    Returns:
-        Tuple of (rendered prompt string, JSON schema dict or None).
-    """
     ctx = context or PromptRunContext()
     return _build_prompt(
         "reflection_observations",

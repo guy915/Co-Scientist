@@ -1,75 +1,13 @@
-"""Structured supervisor planning and cross-agent meta-review schemas."""
-
 from typing import Any, Final
 
 from co_scientist.schemas.builders import obj, str_array
 
-# Meta-review schema
-# Shapes the "meta_review" prompt output, consumed by
-# agents/meta_review/meta_review.py after a full review pass across
-# all hypotheses.
-# Synthesizes cross-hypothesis patterns (recurring_themes, strengths,
-# weaknesses), assesses each pipeline stage (process_assessment), and
-# proposes both concrete next-iteration guidance
-# (strategic_recommendations) and cross-hypothesis synthesis opportunities
-# (potential_connections). Downstream nodes re-inject this output as
-# guidance text for later prompts via _format_meta_review_context() in
-# prompts.py (review, ranking, reflection, research-overview, and debate
-# generation prompts all accept it).
-#
-# candidate_comparison/existing_solutions_comparison (R12-9): the
-# published report's per-idea comparison and its comparison against
-# existing solutions belong here rather than on research_overview because
-# they compare the *whole* reviewed pool (this call already sees every
-# hypothesis with a review, not just the published top-k research_overview
-# synthesizes from) and because Google's own analogous document
-# (top-ranking-hypotheses.md, R14-11) bundles these comparisons with the
-# recommendation section this schema already produces
-# (strategic_recommendations, R12-11). Ideas are identified by the same
-# hypothesis_index convention the prompt already establishes for
-# potential_connections ("Hypothesis N: <subject>"), never by echoing a
-# hypothesis's full text -- see AGENTS.md on echoing-input schemas. Both
-# arrays are capped (_MAX_CANDIDATE_COMPARISON_IDEAS/_MAX_EXISTING_
-# SOLUTIONS_ROWS) so a large reviewed pool cannot scale the response
-# unboundedly, the same caution RESEARCH_OVERVIEW_MAX_SUB_TOPICS documents.
-#
-# The comparison axes (e.g. "computational scalability") used to be a fixed
-# field set, which read as filler whenever a run's own discipline had no
-# use for one of them -- a wet-lab biology idea has no "computational
-# scalability" to report. `axes` lets the model name 2-5 axes that fit
-# *this* run's subject matter, and each idea/row's `values` rates it on
-# those same axes positionally (values[i] answers axes[i]) rather than
-# against a fixed vocabulary -- so the table's shape follows the goal, not
-# the schema. `report/markdown/meta_review.py` on the app side still
-# renders the older fixed-field shape a run persisted before this existed;
-# see its module docstring for that fallback.
 _MAX_CANDIDATE_COMPARISON_IDEAS: Final = 10
 _MAX_EXISTING_SOLUTIONS_ROWS: Final = 6
 _MAX_COMPARISON_AXES: Final = 5
 
-# MO-2: recurring_themes is a nested taxonomy, three levels deep, because
-# Google's published meta-review critique
-# (references/core/.../meta-review-critiques/als-meta-review-critique.md)
-# is one -- five Roman-numbered themes, each holding named critique points
-# ("Primary Driver vs. Consequence", "Specificity"), several of which hold
-# their own guidance sub-points. It was flattened to {theme, description,
-# frequency} in 69d10874 as an accepted adaptation; the nesting is back
-# because the published shape is the target.
-#
-# Note what the artifact does NOT carry, so this schema does not invent it:
-# a theme is a bare title (no description or frequency of its own in the
-# published text -- ours keeps both, since they were already computed and
-# rendered), a point narrates its frequency in its own prose rather than
-# in a count field, and nothing anywhere cites example reviews. A
-# sub-theme therefore has no `frequency` of its own: a second such field
-# per sub-theme grows every entry to restate what its description says.
-#
-# The caps are the artifact's own maxima, not round numbers: it carries
-# five themes, eight points under theme V ("General Advice Based on Common
-# Critiques"), and five sub-points under theme I's "Specificity". A cap
-# below any of those would have reshape_json_output silently clip a
-# taxonomy shaped exactly like the exemplar (test_meta_review_themes.py::
-# test_schema_caps_do_not_clip_the_published_taxonomy pins this).
+# The published taxonomy nests themes, points and subpoints; bounds preserve
+# that depth.
 _MAX_RECURRING_THEMES: Final = 6
 _MAX_SUB_THEMES: Final = 8
 _MAX_SUB_THEME_POINTS: Final = 5
@@ -186,12 +124,8 @@ META_REVIEW_SCHEMA: dict[str, Any] = {
                         "focus_area": {"type": "string"},
                         "recommendation": {"type": "string"},
                         "justification": {"type": "string"},
-                        # R14-8: the published roadmap's richer step
-                        # shape -- a time estimate, an optional lettered
-                        # sub-phase, and which reviewed idea a step
-                        # selects. All three are empty on most steps
-                        # (only some published phases carry a letter),
-                        # so none can be required.
+                        # Optional richer roadmap fields accommodate exemplars
+                        # that carry time, subphases or ideas.
                         "time_estimate": {
                             "type": "string",
                             "description": (
@@ -341,20 +275,8 @@ META_REVIEW_SCHEMA: dict[str, Any] = {
                     },
                 }
             ),
-            # R14-27: the report's own "Main Research Directions" section --
-            # narrative prose weaving the run's directions together, not a
-            # second copy of any itemized array. Google's published ranking
-            # report (top-ranking-hypotheses.md:24-28) carries exactly two
-            # paragraphs, cross-cutting the run's candidate ideas the way
-            # the two comparison fields above already do -- see
-            # report/markdown/meta_review.py for the render and its
-            # placement (report/markdown/__init__.py), immediately before
-            # Top hypotheses, matching the published "before Candidate
-            # Ideas" order. Required, like meta_review_summary, rather than
-            # optional: every run has directions worth naming, so there is
-            # no legitimate case for the model to leave this empty by
-            # design (contrast existing_solutions_comparison.summary
-            # above, which genuinely can be).
+            # Narrative main directions are distinct from the itemized research-
+            # direction array.
             "main_research_directions": {
                 "type": "string",
                 "description": (
@@ -379,11 +301,6 @@ META_REVIEW_SCHEMA: dict[str, Any] = {
 }
 
 
-# Re-exported so `from co_scientist.schemas.planning import
-# META_REVIEW_SCHEMA` keeps resolving after the split into
-# meta_review_schema.py (the file had grown past the 500-line cap).
-
-# The six agents the supervisor grades, each as a free-text assessment.
 _AGENTS_ASSESSED: tuple[str, ...] = (
     "generation",
     "reflection",
@@ -393,31 +310,15 @@ _AGENTS_ASSESSED: tuple[str, ...] = (
     "meta_review",
 )
 
-# Six criteria accommodate the full rubric; questions are bounded separately
-# because response size grows as criteria times questions.
+# Six criteria accommodate the full rubric; questions are bounded separately.
 CRITICAL_CRITERIA_MAX_COUNT: Final = 6
 CRITICAL_CRITERIA_MAX_QUESTIONS: Final = 4
 
-# Supervisor schema
-# Shapes the "supervisor" prompt output, consumed by
-# agents/supervisor/supervisor.py at the start (and, for
-# iterative runs, between rounds) of a run. This is the
-# largest/most structured schema in the file because the supervisor is a
-# single planning call whose output threads through nearly every later
-# node: research_goal_analysis and workflow_plan feed the various
-# "supervisor guidance" formatting helpers in prompts.py
-# (_format_supervisor_guidance_for_review/_ranking/_proximity/
-# _meta_review, format_supervisor_guidance_for_generation), while
-# config_synthesis is the normalized run configuration (preferences,
-# review_instructions, attributes) that both generation and review draw on.
 SUPERVISOR_SCHEMA: dict[str, Any] = {
     "name": "supervisor_guidance",
     "strict": False,
     "schema": obj(
         {
-            # Restates and decomposes the research goal; key_areas feeds
-            # the "Key Research Areas" guidance blocks used by ranking,
-            # proximity, and meta-review prompts.
             "research_goal_analysis": obj(
                 {
                     "goal_summary": {
@@ -431,11 +332,6 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                     "success_criteria": str_array(),
                 }
             ),
-            # Per-phase strategic guidance (generation/review/evolution).
-            # generation_phase.focus_areas is read inline by
-            # get_debate_generation_prompt; review_phase and
-            # evolution_phase are read by _format_supervisor_guidance_for_
-            # review/_meta_review in prompts.py.
             "workflow_plan": obj(
                 {
                     "generation_phase": obj(
@@ -456,20 +352,8 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                     ),
                     "review_phase": obj(
                         {
-                            # R12-23: named to mirror the published Review
-                            # summary rubric -- a criterion name plus its
-                            # own named yes/no reviewer questions, not a
-                            # bare name. Each question is identified by its
-                            # own short name/text; there is no input pool
-                            # to echo back by index here. R12-23b adds
-                            # `description`, mirroring the published
-                            # Evaluation Criteria section's own bolded-
-                            # name-plus-prose shape (line 2558) --
-                            # report-only (report/markdown/supervisor.py),
-                            # deliberately excluded from the reviewer-
-                            # prompt injection below (see
-                            # _format_critical_criterion in
-                            # prompts/review.py for why).
+                            # Criterion prose is report-only; questions supply
+                            # the per-hypothesis operational guidance.
                             "critical_criteria": {
                                 "type": "array",
                                 "maxItems": CRITICAL_CRITERIA_MAX_COUNT,
@@ -549,11 +433,6 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                     ),
                 }
             ),
-            # Read by _format_supervisor_guidance_for_review (preferences,
-            # review_instructions, attributes) and by the two generation
-            # formatters in prompts/generation_formatting.py and
-            # prompts/generation_debate.py (preferences plus that writer
-            # mode's own instruction list).
             "config_synthesis": {
                 **obj(
                     {
@@ -608,10 +487,8 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                     " instruction lists strictly separate."
                 ),
             },
-            # performance_assessment, adjustment_recommendations, and
-            # output_preparation below are stored on workflow state
-            # (agents/supervisor/supervisor.py) for observability/debugging
-            # but are not currently re-read by any prompt-formatting helper.
+            # Observability fields persist in state without becoming downstream
+            # prompt instructions.
             "performance_assessment": obj(
                 {
                     "current_status": {

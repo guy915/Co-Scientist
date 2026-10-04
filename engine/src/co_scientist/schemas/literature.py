@@ -1,5 +1,3 @@
-"""Structured literature retrieval, paper analysis and deep-research schemas."""
-
 from typing import Any
 
 from co_scientist.schemas.builders import obj, str_array
@@ -108,14 +106,8 @@ RESEARCH_COMPRESS_SCHEMA: dict[str, Any] = {
 }
 
 
-# Literature review query generation schema
-# Imported directly (not via get_schema_for_prompt) by
-# agents/generation/literature_review/queries.py, which pairs it with
-# whichever of the three
-# query-generation prompt templates
-# (literature_review_query_generation_pubmed/_indra/_generic) source-type
-# detection selects; the schema itself is source-agnostic, it just wants a
-# flat list of search-query strings.
+# Query schemas are source-agnostic; callers pair them directly with source-
+# specific templates.
 LITERATURE_QUERY_SCHEMA: dict[str, Any] = {
     "name": "pubmed_query_generation",
     "strict": False,
@@ -138,13 +130,6 @@ LITERATURE_QUERY_SCHEMA: dict[str, Any] = {
         }
     ),
 }
-# Literature review paper analysis schema
-# Imported directly (not via get_schema_for_prompt) by
-# agents/generation/literature_review/analysis.py to structure the
-# per-paper analysis produced
-# for each fetched article (used later when synthesizing the literature
-# review and, via get_literature_review_synthesis_prompt, when assembling
-# the "Papers Analyzed" section of downstream generation prompts).
 LITERATURE_PAPER_ANALYSIS_SCHEMA: dict[str, Any] = {
     "name": "paper_analysis",
     "strict": False,
@@ -180,8 +165,7 @@ LITERATURE_PAPER_ANALYSIS_SCHEMA: dict[str, Any] = {
     ),
 }
 
-# Candidate indices avoid echoing abstracts, which scales structured output
-# with the batch size.
+# Candidate indices bound response size without echoing abstracts.
 LITERATURE_RELEVANCE_BATCH_SCHEMA: dict[str, Any] = {
     "name": "literature_relevance_batch",
     "strict": False,
