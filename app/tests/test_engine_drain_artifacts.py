@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
+import pytest
+
 from app import store
 from app.engine_adapter.drain import final_state as drain_final_state
 from app.engine_adapter.drain.final_state import fold_grounding_telemetry
@@ -21,6 +23,7 @@ from tests._drain_helpers import (
     _final_state_with_lineage,
     _persist,
     _persist_and_finalize,
+    emit_event,
 )
 
 
@@ -46,8 +49,10 @@ def test_drain_result_carries_critical_criteria(isolated_db: str) -> None:
     ]
 
 
-def test_drain_result_defaults_to_no_critical_criteria(
+@pytest.mark.parametrize("key", ["critical_criteria", "attributes"])
+def test_drain_result_defaults_to_no_guidance(
     isolated_db: str,
+    key: str,
 ) -> None:
     run = store.create_run("no guidance goal", "standard", "engine", {})
 
@@ -57,7 +62,7 @@ def test_drain_result_defaults_to_no_critical_criteria(
         db_path=isolated_db,
     )
 
-    assert drained.report_inputs["critical_criteria"] == []
+    assert drained.report_inputs[key] == []
 
 
 def test_drain_result_carries_structured_critical_criteria(
@@ -425,18 +430,6 @@ def test_drain_result_carries_stratification_attributes(
     ]
 
 
-def test_drain_result_defaults_to_no_attributes(isolated_db: str) -> None:
-    run = store.create_run("no guidance goal", "standard", "engine", {})
-
-    drained = _persist(
-        run_id=run.id,
-        final_state=_final_state_with_features(),
-        db_path=isolated_db,
-    )
-
-    assert drained.report_inputs["attributes"] == []
-
-
 def test_drain_result_ignores_malformed_config_synthesis(
     isolated_db: str,
 ) -> None:
@@ -485,10 +478,6 @@ def test_a_grounding_pass_that_made_no_calls_charges_nothing() -> None:
     fold_grounding_telemetry(final_state, {})
 
     assert final_state["metrics"] == {"llm_calls": 4}
-
-
-async def _emit(type_: str, payload: dict[str, Any]) -> dict[str, Any]:
-    return {"type": type_, "payload": payload}
 
 
 def _assert_features_proximity_edge(run_id: str, db_path: str) -> None:
@@ -758,7 +747,7 @@ def test_resumed_finalize_does_not_double_publish(isolated_db: str) -> None:
                     db_path=isolated_db,
                     **drained.report_inputs,
                 ),
-                _emit,
+                emit_event,
                 resumed=resumed,
             )
         )

@@ -4,8 +4,6 @@
 from __future__ import annotations
 
 import logging
-import types
-from typing import Any
 
 import pytest
 
@@ -13,31 +11,9 @@ from app import safety
 from app.safety import screen_contextual
 from tests._process_mode_helpers import FakeProcessMode
 
-from ._llm_fake_backend import install_completion_backend
+from ._llm_fake_backend import fake_completion, install_completion_backend
 
-
-@pytest.fixture(autouse=True)
-def _disable_llm_response_cache() -> Any:
-    # Repeated prompts use different fake replies; cache isolation prevents
-    # replaying an earlier verdict.
-    from co_scientist.cache import scoped_cache_override
-
-    with scoped_cache_override(False):
-        yield
-
-
-def _fake_semantic_response(content: str) -> Any:
-
-    async def _completion(**_kwargs: Any) -> Any:
-        message = types.SimpleNamespace(content=content)
-        choice = types.SimpleNamespace(message=message)
-        return types.SimpleNamespace(choices=[choice])
-
-    return _completion
-
-
-def _install(monkeypatch: pytest.MonkeyPatch, content: str) -> None:
-    install_completion_backend(monkeypatch, _fake_semantic_response(content))
+pytestmark = pytest.mark.usefixtures("claim_llm_cache_disabled")
 
 
 async def test_missing_credential_refuses_and_warns(
@@ -73,7 +49,9 @@ async def test_model_cannot_downgrade_a_deterministic_redaction(
     monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
     fake_process_mode.online()
-    _install(monkeypatch, '{"category":"allowed","reason":"t"}')
+    install_completion_backend(
+        monkeypatch, fake_completion('{"category":"allowed","reason":"t"}')
+    )
     markdown = "# Report\nThis programme is explicitly dual-use."
     baseline = safety.screen_final(markdown)
     assert baseline.decision == "redact"
@@ -89,7 +67,9 @@ async def test_model_may_raise_the_deterministic_verdict(
     monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
     fake_process_mode.online()
-    _install(monkeypatch, '{"category":"prohibited","reason":"t"}')
+    install_completion_backend(
+        monkeypatch, fake_completion('{"category":"prohibited","reason":"t"}')
+    )
     decision = await screen_contextual("Ordinary looking text.", "final")
 
     assert decision.decision == "block"
@@ -102,9 +82,11 @@ async def test_a_markdown_fenced_answer_still_allows(
     # json_object providers can wrap JSON in fences; use the shared parser
     # rather than rejecting valid answers.
     fake_process_mode.online()
-    _install(
+    install_completion_backend(
         monkeypatch,
-        '```json\n{"category":"allowed","reason":"benign"}\n```',
+        fake_completion(
+            '```json\n{"category":"allowed","reason":"benign"}\n```'
+        ),
     )
 
     decision = await screen_contextual("A benign research goal.", "intake")
@@ -118,7 +100,10 @@ async def test_a_persistently_bad_reply_still_falls_back_to_unavailable(
 ) -> None:
     # Exhausted parse retries must produce a review hold, never raise or allow.
     fake_process_mode.online()
-    _install(monkeypatch, "not json at all, and no fence to strip either")
+    install_completion_backend(
+        monkeypatch,
+        fake_completion("not json at all, and no fence to strip either"),
+    )
 
     decision = await screen_contextual("A benign research goal.", "intake")
 

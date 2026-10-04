@@ -208,9 +208,6 @@ def _persist_and_finalize(
         db_path=db_path,
     )
 
-    async def _emit(type_: str, payload: dict[str, Any]) -> dict[str, Any]:
-        return {"type": type_, "payload": payload}
-
     _drain(
         report_finalize.finalize_report(
             run.id,
@@ -222,7 +219,7 @@ def _persist_and_finalize(
                 db_path=db_path,
                 **drained.report_inputs,
             ),
-            _emit,
+            emit_event,
         )
     )
 
@@ -301,3 +298,7 @@ def _final_state_with_lineage() -> dict[str, Any]:
         "evolution_details": [],
         "research_overview": {},
     }
+
+
+async def emit_event(type_: str, payload: dict[str, Any]) -> dict[str, Any]:
+    return {"type": type_, "payload": payload}

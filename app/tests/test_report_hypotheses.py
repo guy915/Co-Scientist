@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from app.report import content as report_content
 from app.report import markdown as report_markdown
 from app.report.build import _hypothesis_title_by_id
@@ -147,12 +149,16 @@ def test_an_idea_with_more_values_than_axes_pairs_up_to_the_shorter_side() -> (
     assert "An orphaned second value." not in markdown
 
 
-def test_no_candidate_comparison_renders_no_section() -> None:
+@pytest.mark.parametrize(
+    "heading",
+    ["Comparison of candidate ideas", "Comparison to existing solutions"],
+)
+def test_no_comparison_renders_no_section(heading: str) -> None:
     markdown = _meta_review_markdown(
         {"summary": "A synthesis with no comparison."}
     )
 
-    assert "Comparison of candidate ideas" not in markdown
+    assert heading not in markdown
 
 
 def test_a_malformed_idea_entry_is_skipped_not_stringified() -> None:
@@ -479,14 +485,6 @@ def test_solutions_a_populated_comparison_renders_domain_aware_axes() -> None:
     )
     assert "**Availability:** Widely available, low cost." in markdown
     assert "Sensitivity to novelty" not in markdown
-
-
-def test_no_existing_solutions_comparison_renders_no_section() -> None:
-    markdown = _meta_review_markdown(
-        {"summary": "A synthesis with no comparison."}
-    )
-
-    assert "Comparison to existing solutions" not in markdown
 
 
 def test_a_malformed_row_entry_is_skipped_not_stringified() -> None:

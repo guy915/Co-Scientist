@@ -3,39 +3,14 @@
 
 from __future__ import annotations
 
-import types
-from typing import Any
-
 import pytest
 
 from app.claims import EntailmentLabel, EvidencePassage, assess_claim
 from app.claims.verifier import make_llm_assessor
 
-from ._llm_fake_backend import install_completion_backend
+from ._llm_fake_backend import fake_completion, install_completion_backend
 
-
-@pytest.fixture(autouse=True)
-def _disable_llm_response_cache() -> Any:
-    # Repeated claims use different fake replies; cache isolation prevents
-    # replaying an earlier test verdict.
-    from co_scientist.cache import scoped_cache_override
-
-    with scoped_cache_override(False):
-        yield
-
-
-def _fake_completion(content: str) -> Any:
-
-    async def _completion(**_kwargs: Any) -> Any:
-        message = types.SimpleNamespace(content=content)
-        choice = types.SimpleNamespace(message=message)
-        return types.SimpleNamespace(choices=[choice])
-
-    return _completion
-
-
-def _install(monkeypatch: pytest.MonkeyPatch, completion: Any) -> None:
-    install_completion_backend(monkeypatch, completion)
+pytestmark = pytest.mark.usefixtures("claim_llm_cache_disabled")
 
 
 def test_offtarget_quote_does_not_yield_contradiction(
@@ -56,9 +31,9 @@ def test_offtarget_quote_does_not_yield_contradiction(
             "brain tissue at working concentrations."
         ),
     )
-    _install(
+    install_completion_backend(
         monkeypatch,
-        _fake_completion(
+        fake_completion(
             '{"label": "contradicts", "supporting": [], "contradicting": '
             '[{"passage": 1, "quote": "The same ligand is '
             "ineffective at blocking wild-type NaVs and does not disrupt "
@@ -91,9 +66,9 @@ def test_confirmatory_quote_does_not_yield_contradiction(
             "subpopulations."
         ),
     )
-    _install(
+    install_completion_backend(
         monkeypatch,
-        _fake_completion(
+        fake_completion(
             '{"label": "contradicts", "supporting": [], "contradicting": '
             '[{"passage": 1, "quote": "These findings identify a '
             "novel and complex compensatory interplay between glycolysis, "
@@ -119,9 +94,9 @@ def test_genuine_negation_still_yields_contradiction(
         evidence_id="ev-1",
         text="Kinase X inhibition did not reduce tumor growth in AML cells.",
     )
-    _install(
+    install_completion_backend(
         monkeypatch,
-        _fake_completion(
+        fake_completion(
             '{"label": "contradicts", "supporting": [], "contradicting": '
             '[{"passage": 1, "quote": "Kinase X inhibition did not '
             'reduce tumor growth in AML cells."}]}'

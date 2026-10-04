@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import types
 from typing import Any
 
 import pytest
@@ -8,31 +7,13 @@ import pytest
 from app.claims import EntailmentLabel, EvidencePassage, assess_claim
 from app.claims.verifier import _entailment_prompt, make_llm_assessor
 
-from ._llm_fake_backend import install_completion_backend
+from ._llm_fake_backend import (
+    completion_response,
+    fake_completion,
+    install_completion_backend,
+)
 
-
-@pytest.fixture(autouse=True)
-def _disable_llm_response_cache() -> Any:
-    # Repeated claims use different fake replies; cache isolation prevents
-    # replaying an earlier test verdict.
-    from co_scientist.cache import scoped_cache_override
-
-    with scoped_cache_override(False):
-        yield
-
-
-def _fake_completion(content: str) -> Any:
-
-    async def _completion(**_kwargs: Any) -> Any:
-        message = types.SimpleNamespace(content=content)
-        choice = types.SimpleNamespace(message=message)
-        return types.SimpleNamespace(choices=[choice])
-
-    return _completion
-
-
-def _install(monkeypatch: pytest.MonkeyPatch, completion: Any) -> None:
-    install_completion_backend(monkeypatch, completion)
+pytestmark = pytest.mark.usefixtures("claim_llm_cache_disabled")
 
 
 _PASSAGE = EvidencePassage(
@@ -51,9 +32,9 @@ def test_assessor_id_names_the_model() -> None:
 def test_valid_supports_verdict_locates_span(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _install(
+    install_completion_backend(
         monkeypatch,
-        _fake_completion(
+        fake_completion(
             '{"label": "supports", "supporting": '
             '[{"passage": 1, "quote": "reduces tumor growth"}], '
             '"contradicting": []}'
@@ -80,9 +61,9 @@ def test_valid_supports_verdict_locates_span(
 def test_partial_verdict_locates_span(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _install(
+    install_completion_backend(
         monkeypatch,
-        _fake_completion(
+        fake_completion(
             '{"label": "partial", "supporting": '
             '[{"passage": 1, "quote": "reduces tumor growth"}], '
             '"contradicting": []}'
@@ -103,9 +84,9 @@ def test_partial_verdict_locates_span(
 def test_hallucinated_quote_downgraded(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _install(
+    install_completion_backend(
         monkeypatch,
-        _fake_completion(
+        fake_completion(
             '{"label": "supports", "supporting": '
             '[{"passage": 1, "quote": "cures every disease"}], '
             '"contradicting": []}'
@@ -126,9 +107,9 @@ def test_supporting_as_single_object_not_wrapped_in_list_still_locates_span(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # json_object mode permits a single citation object instead of an array.
-    _install(
+    install_completion_backend(
         monkeypatch,
-        _fake_completion(
+        fake_completion(
             '{"label": "supports", "supporting": '
             '{"passage": 1, "quote": "reduces tumor growth"}, '
             '"contradicting": []}'
@@ -154,7 +135,7 @@ def test_provider_error_falls_back_to_deterministic(
     async def _raising(**_kwargs: Any) -> Any:
         raise RuntimeError("provider down")
 
-    _install(monkeypatch, _raising)
+    install_completion_backend(monkeypatch, _raising)
     assessor, assessor_id = make_llm_assessor("deepseek/deepseek-chat")
     result = assess_claim(
         "Kinase X inhibition reduces tumor growth in AML.",
@@ -170,7 +151,7 @@ def test_provider_error_falls_back_to_deterministic(
 def test_malformed_json_falls_back_to_deterministic(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _install(monkeypatch, _fake_completion("not json at all"))
+    install_completion_backend(monkeypatch, fake_completion("not json at all"))
     assessor, assessor_id = make_llm_assessor("deepseek/deepseek-chat")
     result = assess_claim(
         "Kinase X inhibition reduces tumor growth in AML.",
@@ -188,7 +169,7 @@ def test_no_passages_is_insufficient_without_calling_llm(
     async def _should_not_be_called(**_kwargs: Any) -> Any:
         raise AssertionError("the provider must not be called")
 
-    _install(monkeypatch, _should_not_be_called)
+    install_completion_backend(monkeypatch, _should_not_be_called)
     assessor, _ = make_llm_assessor("deepseek/deepseek-chat")
     draft = assessor("some claim", [])
     assert draft.label is EntailmentLabel.INSUFFICIENT
@@ -248,15 +229,11 @@ def test_call_reaches_the_engine_completion_boundary_with_the_model(
 
     async def _capturing_completion(**kwargs: Any) -> Any:
         seen.update(kwargs)
-        message = types.SimpleNamespace(
-            content='{"label": "insufficient", "supporting": [], '
-            '"contradicting": []}'
-        )
-        return types.SimpleNamespace(
-            choices=[types.SimpleNamespace(message=message)]
+        return completion_response(
+            '{"label": "insufficient", "supporting": [], "contradicting": []}'
         )
 
-    _install(monkeypatch, _capturing_completion)
+    install_completion_backend(monkeypatch, _capturing_completion)
     assessor, _ = make_llm_assessor("deepseek/deepseek-v4-flash")
     assessor("some claim", [_PASSAGE])
 
@@ -272,15 +249,11 @@ def test_entailment_call_disables_thinking(
 
     async def _capturing_completion(**kwargs: Any) -> Any:
         seen.update(kwargs)
-        message = types.SimpleNamespace(
-            content='{"label": "insufficient", "supporting": [], '
-            '"contradicting": []}'
-        )
-        return types.SimpleNamespace(
-            choices=[types.SimpleNamespace(message=message)]
+        return completion_response(
+            '{"label": "insufficient", "supporting": [], "contradicting": []}'
         )
 
-    _install(monkeypatch, _capturing_completion)
+    install_completion_backend(monkeypatch, _capturing_completion)
     assessor, _ = make_llm_assessor("deepseek/deepseek-v4-flash")
     assessor("some claim", [_PASSAGE])
 
@@ -302,15 +275,11 @@ def test_entailment_call_on_the_free_chain_does_not_disable_reasoning(
 
     async def _capturing_completion(**kwargs: Any) -> Any:
         seen.update(kwargs)
-        message = types.SimpleNamespace(
-            content='{"label": "insufficient", "supporting": [], '
-            '"contradicting": []}'
-        )
-        return types.SimpleNamespace(
-            choices=[types.SimpleNamespace(message=message)]
+        return completion_response(
+            '{"label": "insufficient", "supporting": [], "contradicting": []}'
         )
 
-    _install(monkeypatch, _capturing_completion)
+    install_completion_backend(monkeypatch, _capturing_completion)
     from co_scientist.constants import MODEL_PRICING
     from co_scientist.llm.admission import free_policy as free_catalog
 
@@ -356,12 +325,9 @@ def test_entailment_answerless_first_attempt_still_yields_a_real_verdict(
             '[{"passage": 1, "quote": "reduces tumor growth"}], '
             '"contradicting": []}'
         )
-        message = types.SimpleNamespace(content=content)
-        return types.SimpleNamespace(
-            choices=[types.SimpleNamespace(message=message)]
-        )
+        return completion_response(content)
 
-    _install(monkeypatch, _flaky_completion)
+    install_completion_backend(monkeypatch, _flaky_completion)
     assessor, assessor_id = make_llm_assessor("deepseek/deepseek-chat")
     result = assess_claim(
         "Kinase X inhibition reduces tumor growth.",

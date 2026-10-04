@@ -3,7 +3,8 @@ from __future__ import annotations
 import importlib.util
 import pathlib
 import sys
-from collections.abc import Callable
+import types
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import pytest
@@ -46,3 +47,22 @@ def install_completion_backend(
     engine_fake.restore_backend_at_teardown(monkeypatch)
     backend.install_backend(OfflineRouter(fake))
     return fake
+
+
+def completion_response(content: str) -> types.SimpleNamespace:
+    return types.SimpleNamespace(
+        choices=[
+            types.SimpleNamespace(
+                message=types.SimpleNamespace(content=content)
+            )
+        ]
+    )
+
+
+def fake_completion(
+    content: str,
+) -> Callable[..., Awaitable[types.SimpleNamespace]]:
+    async def completion(**_kwargs: Any) -> types.SimpleNamespace:
+        return completion_response(content)
+
+    return completion
