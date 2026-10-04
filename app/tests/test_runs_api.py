@@ -332,4 +332,4 @@ def test_demo_route_precedes_run_id_route(isolated_db: str) -> None:
     assert isinstance(runs, list)
     assert [run["id"] for run in runs] == [demo.id]
     assert runs[0]["research_goal"] == "Demo route fixture"
-    assert runs[0]["client_id"] == store.DEMO_CLIENT_ID
+    assert runs[0]["is_demo"] is True
