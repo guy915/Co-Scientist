@@ -137,3 +137,13 @@ def _fresh_health_check_cache() -> None:
     from app.diagnostics import clear_health_check_cache
 
     clear_health_check_cache()
+
+
+@pytest.fixture
+def claim_llm_cache_disabled() -> Iterator[None]:
+    # Repeated prompts use distinct fake verdicts; cached replies would cross
+    # test boundaries and bypass the model behavior each case exercises.
+    from co_scientist.cache import scoped_cache_override
+
+    with scoped_cache_override(False):
+        yield

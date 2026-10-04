@@ -4,6 +4,8 @@ import datetime
 from collections.abc import Callable
 from typing import Any
 
+import pytest
+
 from app import store
 from app.report import build as report_build
 from app.report import content as report_content
@@ -897,16 +899,13 @@ def test_the_header_still_leads_with_the_title_and_provider() -> None:
     assert "_Provider: **engine**_" in markdown
 
 
-def test_no_setup_block_renders_no_goal_details_section() -> None:
-    markdown = _header_markdown(None)
-
-    assert "Research Goal Details" not in markdown
-
-
-def test_an_empty_setup_block_renders_no_goal_details_section() -> None:
-    markdown = _header_markdown(
-        {"requirements": [], "attributes": [], "criteria": []}
-    )
+@pytest.mark.parametrize(
+    "setup", [None, {"requirements": [], "attributes": [], "criteria": []}]
+)
+def test_no_setup_block_renders_no_goal_details_section(
+    setup: dict[str, object] | None,
+) -> None:
+    markdown = _header_markdown(setup)
 
     assert "Research Goal Details" not in markdown
 

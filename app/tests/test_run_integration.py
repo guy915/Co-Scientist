@@ -40,6 +40,7 @@ from tests._drain_helpers import (
     _engine_hypothesis,
     _final_state_with_features,
     _persist,
+    emit_event,
 )
 
 
@@ -77,9 +78,6 @@ def test_report_payload_carries_degraded_sections(isolated_db: str) -> None:
 
     drained = _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
-    async def _emit(type_: str, payload: dict[str, Any]) -> dict[str, Any]:
-        return {"type": type_, "payload": payload}
-
     from tests._client import drain as _drain
 
     _drain(
@@ -93,7 +91,7 @@ def test_report_payload_carries_degraded_sections(isolated_db: str) -> None:
                 db_path=isolated_db,
                 **drained.report_inputs,
             ),
-            _emit,
+            emit_event,
         )
     )
 
@@ -113,9 +111,6 @@ def test_report_payload_degraded_sections_default_empty(
         db_path=isolated_db,
     )
 
-    async def _emit(type_: str, payload: dict[str, Any]) -> dict[str, Any]:
-        return {"type": type_, "payload": payload}
-
     from tests._client import drain as _drain
 
     _drain(
@@ -129,7 +124,7 @@ def test_report_payload_degraded_sections_default_empty(
                 db_path=isolated_db,
                 **drained.report_inputs,
             ),
-            _emit,
+            emit_event,
         )
     )
 

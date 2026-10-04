@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import types
 from typing import Any
 
 import pytest
@@ -9,31 +8,13 @@ import pytest
 from app.claims import EntailmentLabel, EvidencePassage, assess_claims_batch
 from app.claims.verifier import make_llm_assessor, make_llm_batch_assessor
 
-from ._llm_fake_backend import install_completion_backend
+from ._llm_fake_backend import (
+    completion_response,
+    fake_completion,
+    install_completion_backend,
+)
 
-
-@pytest.fixture(autouse=True)
-def _disable_llm_response_cache() -> Any:
-    # Repeated claims use different fake replies; cache isolation prevents
-    # replaying an earlier test verdict.
-    from co_scientist.cache import scoped_cache_override
-
-    with scoped_cache_override(False):
-        yield
-
-
-def _fake_completion(content: str) -> Any:
-
-    async def _completion(**_kwargs: Any) -> Any:
-        message = types.SimpleNamespace(content=content)
-        choice = types.SimpleNamespace(message=message)
-        return types.SimpleNamespace(choices=[choice])
-
-    return _completion
-
-
-def _install(monkeypatch: pytest.MonkeyPatch, completion: Any) -> None:
-    install_completion_backend(monkeypatch, completion)
+pytestmark = pytest.mark.usefixtures("claim_llm_cache_disabled")
 
 
 _PASSAGE = EvidencePassage(
@@ -55,9 +36,9 @@ def test_batch_assessor_id_matches_the_single_claim_assessor() -> None:
 def test_batch_verdicts_map_back_to_claims_by_index(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _install(
+    install_completion_backend(
         monkeypatch,
-        _fake_completion(
+        fake_completion(
             '{"verdicts": ['
             '{"index": 2, "label": "supports", "supporting": '
             '[{"passage": 1, "quote": "reduces tumor growth"}], '
@@ -87,9 +68,9 @@ def test_batch_verdicts_map_back_to_claims_by_index(
 def test_batch_missing_index_falls_back_to_deterministic_for_that_claim(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _install(
+    install_completion_backend(
         monkeypatch,
-        _fake_completion(
+        fake_completion(
             '{"verdicts": ['
             '{"index": 1, "label": "supports", "supporting": '
             '[{"passage": 1, "quote": "reduces tumor growth"}], '
@@ -124,7 +105,7 @@ def test_batch_provider_error_falls_back_every_claim_in_the_group(
     async def _raising(**_kwargs: Any) -> Any:
         raise RuntimeError("provider down")
 
-    _install(monkeypatch, _raising)
+    install_completion_backend(monkeypatch, _raising)
     batch_assessor, assessor_id = make_llm_batch_assessor(
         "deepseek/deepseek-chat"
     )
@@ -143,9 +124,9 @@ def test_batch_call_counter_increments_once_per_actual_call(
 ) -> None:
     # No-evidence groups make no provider call; telemetry must report actual
     # spend.
-    _install(
+    install_completion_backend(
         monkeypatch,
-        _fake_completion('{"verdicts": []}'),
+        fake_completion('{"verdicts": []}'),
     )
     counter: list[int] = [0]
     batch_assessor, assessor_id = make_llm_batch_assessor(
@@ -173,7 +154,7 @@ def test_batch_splits_hypotheses_with_many_claims_into_two_calls(
 ) -> None:
     # Split claim-dense hypotheses so one reply cannot grow beyond the provider
     # output budget.
-    _install(monkeypatch, _fake_completion('{"verdicts": []}'))
+    install_completion_backend(monkeypatch, fake_completion('{"verdicts": []}'))
     counter: list[int] = [0]
     batch_assessor, assessor_id = make_llm_batch_assessor(
         "deepseek/deepseek-chat", call_counter=counter
@@ -211,9 +192,9 @@ def test_batch_locates_span_in_the_chunked_parent_article(
         url="https://example.org/article-1",
     )
     chunk = next(p for p in passages if "reduces tumor growth" in p.text)
-    _install(
+    install_completion_backend(
         monkeypatch,
-        _fake_completion(
+        fake_completion(
             '{"verdicts": [{"index": 1, "label": "supports", "supporting": '
             f'[{{"passage": "{chunk.evidence_id}", '
             '"quote": "reduces tumor growth in AML cell lines"}], '
@@ -244,12 +225,9 @@ def test_batch_entailment_call_disables_thinking(
 
     async def _capturing_completion(**kwargs: Any) -> Any:
         seen.update(kwargs)
-        message = types.SimpleNamespace(content='{"verdicts": []}')
-        return types.SimpleNamespace(
-            choices=[types.SimpleNamespace(message=message)]
-        )
+        return completion_response('{"verdicts": []}')
 
-    _install(monkeypatch, _capturing_completion)
+    install_completion_backend(monkeypatch, _capturing_completion)
     batch_assessor, _ = make_llm_batch_assessor("deepseek/deepseek-v4-flash")
     batch_assessor(["some claim"], [_PASSAGE])
 
@@ -270,12 +248,9 @@ def test_batch_answerless_first_attempt_still_yields_a_real_verdict(
             '"supporting": [{"passage": 1, '
             '"quote": "reduces tumor growth"}], "contradicting": []}]}'
         )
-        message = types.SimpleNamespace(content=content)
-        return types.SimpleNamespace(
-            choices=[types.SimpleNamespace(message=message)]
-        )
+        return completion_response(content)
 
-    _install(monkeypatch, _flaky_completion)
+    install_completion_backend(monkeypatch, _flaky_completion)
     batch_assessor, assessor_id = make_llm_batch_assessor(
         "deepseek/deepseek-chat"
     )
@@ -308,9 +283,9 @@ def test_batch_offtarget_contradiction_is_downgraded(
         "concentrations of 10-30 nM, occupies sigma-1R (Ki ~14 nM) at the "
         "ER-mitochondria contact site."
     )
-    _install(
+    install_completion_backend(
         monkeypatch,
-        _fake_completion(
+        fake_completion(
             '{"verdicts": [{"index": 1, "label": "contradicts", '
             '"supporting": [], "contradicting": [{"passage": 1, '
             '"quote": "The same ligand is ineffective at blocking '
@@ -341,9 +316,9 @@ def test_batch_citation_by_passage_number_resolves_to_that_passage(
         evidence_id="ev-0",
         text="Kinase X inhibition reduces tumor growth in a different model.",
     )
-    _install(
+    install_completion_backend(
         monkeypatch,
-        _fake_completion(
+        fake_completion(
             '{"verdicts": [{"index": 1, "label": "supports", '
             '"supporting": [{"passage": "2", '
             '"quote": "reduces tumor growth"}], "contradicting": []}]}'
@@ -369,9 +344,9 @@ def test_batch_support_quote_from_a_different_named_passage_is_unproven(
         evidence_id="ev-0",
         text="Kinase X inhibition reduces tumor growth in a different model.",
     )
-    _install(
+    install_completion_backend(
         monkeypatch,
-        _fake_completion(
+        fake_completion(
             '{"verdicts": [{"index": 1, "label": "supports", '
             '"supporting": [{"passage": 1, '
             '"quote": "in AML cell lines"}], "contradicting": []}]}'
@@ -394,9 +369,9 @@ def test_batch_out_of_range_passage_number_is_dropped_and_logged(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    _install(
+    install_completion_backend(
         monkeypatch,
-        _fake_completion(
+        fake_completion(
             '{"verdicts": [{"index": 1, "label": "supports", '
             '"supporting": [{"passage": 9, '
             '"quote": "cures every disease"}], "contradicting": []}]}'

@@ -26,6 +26,7 @@ from dev.backup_db import backup_database
 from tests._client import drain as _drain
 from tests._client import make_client, wait_for_status
 from tests._client import make_client as _client
+from tests._drain_helpers import emit_event
 from tests._engine_tasks_helpers import _seed_checkpoint, _task_state
 from tests._store_helpers import _add
 
@@ -1056,10 +1057,6 @@ def test_list_events_reads_row_persisted_without_activity_key(
 _SUPPORTED = "IL-6 increases inflammation via STAT3 signaling."
 
 
-async def _emit(type_: str, payload: dict[str, Any]) -> dict[str, Any]:
-    return {"type": type_, "payload": payload}
-
-
 def _finalize(run: Any, db_path: str) -> None:
     _drain(
         report_finalize.finalize_report(
@@ -1071,7 +1068,7 @@ def _finalize(run: Any, db_path: str) -> None:
                 execution_time=1.0,
                 db_path=db_path,
             ),
-            _emit,
+            emit_event,
         )
     )
 
