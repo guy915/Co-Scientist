@@ -177,10 +177,9 @@ Compose builds `api` from `app/docker/Dockerfile.api` + `app/docker/entrypoint.s
 **Wire contracts:** edit `app/api_contracts/` for run, artifact, report and
 interview JSON shapes, then run `../.venv/bin/python -m app.api_contracts.generate`
 from `app/` and format the generated `wire_*.ts` with the frontend linter.
-`tests/test_response_contracts.py` compares generated syntax (formatting is
-ignored), checks served OpenAPI models and recursive JSON, while
-`test_architecture.py` covers legacy reports, public
-projections and every nonempty curated collection. Generated `wire_*.ts` modules
+`tests/test_architecture.py` checks generated syntax, served OpenAPI and recursive
+JSON, including legacy reports, public projections and nonempty curated
+collections. Generated `wire_*.ts` modules
 own the frontend types; `src/api/runs.ts` re-exports them. `TypedDict` response
 models retain omission
 separately from null and allow existing extra persisted fields; public shares

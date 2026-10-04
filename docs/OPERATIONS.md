@@ -205,8 +205,9 @@ Capture lexical retrieval scores before stamping hybrid scores. Reusing the
 overwritten score double-weights the semantic term and can collapse rankings.
 
 FastMCP may return an execution error as ordinary result text. Treat its error
-envelope as a permanent query failure; retrying a refused query cannot repair it.
-Transient transport failures instead use bounded, jittered retries.
+envelope and campaign-policy refusals as permanent query failures. Transient
+transport failures use bounded, jittered retries; distinguish failed queries
+from successful zero-hit responses.
 
 Owed review cannot override the provider-call ceiling: scheduler and transport
 use the same counter, so its first call would turn budget termination into a
