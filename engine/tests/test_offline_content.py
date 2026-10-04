@@ -17,10 +17,6 @@ from co_scientist.generator.initial_state import (
     RunIdentity,
     _build_initial_state,
 )
-from co_scientist.generator.streaming import (
-    _build_generation_result,
-    _initial_cumulative_stream_state,
-)
 from co_scientist.llm.structured.validate import get_fallback_response
 from co_scientist.models import ExecutionMetrics
 from co_scientist.offline import llm as offline_llm
@@ -336,35 +332,6 @@ def test_initial_state_seeds_empty_degraded_nodes() -> None:
     )
 
     assert state["degraded_nodes"] == []
-
-
-def test_streaming_cumulative_state_seeds_degraded_nodes() -> None:
-    assert _initial_cumulative_stream_state()["degraded_nodes"] == []
-
-
-def test_generation_result_carries_degraded_nodes() -> None:
-    final_state = cast(
-        WorkflowState,
-        {
-            "hypotheses": [],
-            "metrics": ExecutionMetrics(),
-            "degraded_nodes": ["proximity_analysis"],
-        },
-    )
-
-    result = _build_generation_result(final_state, execution_time=1.0)
-
-    assert result["degraded_nodes"] == ["proximity_analysis"]
-
-
-def test_generation_result_defaults_to_empty_degraded_nodes() -> None:
-    final_state = cast(
-        WorkflowState, {"hypotheses": [], "metrics": ExecutionMetrics()}
-    )
-
-    result = _build_generation_result(final_state, execution_time=1.0)
-
-    assert result["degraded_nodes"] == []
 
 
 def test_durable_commit_captures_recorded_degradation() -> None:

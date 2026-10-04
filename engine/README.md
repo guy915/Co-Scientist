@@ -1,6 +1,6 @@
 # co-scientist-engine
 
-LangGraph-based multi-agent framework for automated research hypothesis generation, adapted from Google's AI Co-Scientist.
+Internal multi-agent engine for automated research hypothesis generation, adapted from Google's AI Co-Scientist.
 
 Given a research goal, the system runs a pipeline of specialized agents — literature review, hypothesis generation, peer review, Elo tournament ranking, meta-review, and iterative evolution — to produce a ranked list of novel, grounded hypotheses.
 
@@ -12,75 +12,13 @@ Demo: [AI Co-Scientist — early detection of Alzheimer's disease](https://youtu
 - **Rich hypothesis output**: Each hypothesis includes `text`, `explanation` (layman summary), `literature_grounding` with structured `[C*]` citations, and `experiment` (suggested validation design)
 - **Literature review integration**: Optional MCP server provides access to real published research; structured citations resolve to full source metadata
 - **Domain-agnostic customization**: YAML-based configuration to bring your own MCP servers, literature sources, and domain-specific prompt guidance — no code changes needed
-- **Real-time streaming**: Stream results as they are generated
 - **Intelligent caching**: Faster development iteration with LLM response caching
 - **Elo-based tournament**: Pairwise hypothesis comparison with Elo ratings
 - **Iterative refinement**: Evolves top hypotheses while preserving diversity
 - **Post-generation enrichments**: Attach domain-specific data (e.g., related CVEs, knowledge graph statements) to each hypothesis via configurable tool calls
 
-## Installation
-
-Requires Python 3.10+.
-
-```bash
-git clone https://github.com/guy915/Co-Scientist
-cd Co-Scientist/engine
-pip install -e '.[dev]'
-```
-
-## Quick start
-
-Set an API key for your LLM provider. The constructor default model is
-`deepseek/deepseek-v4-flash`; `examples/run.py` pins `gemini/gemini-2.5-flash`.
-
-```bash
-export DEEPSEEK_API_KEY=your_key_here
-export GEMINI_API_KEY=your_key_here   # for examples/run.py and the snippets below
-```
-
-Run the interactive CLI demo:
-
-```bash
-python examples/run.py
-```
-
-Or call the library directly:
-
-```python
-import asyncio
-from co_scientist import HypothesisGenerator
-
-async def main():
-    generator = HypothesisGenerator(
-        model_name="gemini/gemini-2.5-flash",
-        max_iterations=1,
-        initial_hypotheses_count=5,
-        evolution_max_count=3,
-    )
-
-    result = await generator.generate_hypotheses(
-        research_goal="Develop novel approaches for early detection of Alzheimer's disease"
-    )
-
-    for hyp in result["hypotheses"]:
-        print(f"[{hyp['elo_rating']}] {hyp['text'][:120]}")
-
-asyncio.run(main())
-```
-
-`generate_hypotheses` returns a shaped result dict — `hypotheses`, `meta_review`, `research_overview`, `research_plan`, `execution_time`, `metrics`, plus the run ledger fields — not the raw `WorkflowState`. Each hypothesis is a plain dict, and the list comes out of the last ranking pass ordered by Elo rating descending.
-
-## Streaming
-
-Pass `stream=True` to get an async generator of `(node_name, state)` pairs, one per completed node:
-
-```python
-async for node_name, state in generator.generate_hypotheses(
-    research_goal="...",
-    stream=True,
-):
-    print(node_name, len(state["hypotheses"]))
-```
+The app owns run scheduling, persistence and recovery. Internal setup lives in
+`generator/core.py`; durable nodes execute through `task_runtime.py`.
 
 ## Constructor parameters
 
@@ -108,7 +46,8 @@ Every knob beyond the four run-size arguments lives on `GeneratorOptions`, passe
 | `api_key` | `str \| None` | `None` | Per-run provider credential; forces caching off |
 
 ```python
-from co_scientist import GeneratorOptions, HypothesisGenerator
+from co_scientist.generator.core import HypothesisGenerator
+from co_scientist.generator.run_setup import GeneratorOptions
 
 generator = HypothesisGenerator(
     model_name="deepseek/deepseek-v4-flash",
@@ -116,10 +55,10 @@ generator = HypothesisGenerator(
 )
 ```
 
-`generate_hypotheses` accepts optional `opts` dict for per-run feature flags:
+`prepare_task_state` accepts optional `opts` dict for per-run feature flags:
 
 ```python
-await generator.generate_hypotheses(
+await generator.prepare_task_state(
     research_goal="...",
     opts={
         "enable_literature_review_node": True,   # requires MCP server
@@ -131,7 +70,7 @@ await generator.generate_hypotheses(
 Additional per-run steering goes in the same `opts` dict; user-supplied hypotheses and literature go under `opts["user_inputs"]`:
 
 ```python
-await generator.generate_hypotheses(
+await generator.prepare_task_state(
     research_goal="...",
     opts={
         "preferences": "Focus on non-invasive biomarkers",
@@ -298,8 +237,7 @@ mypy .                       # typecheck
 
 ### Focused development
 
-Use `examples/run.py` for a standalone engine run and the existing
-`tests/` suites for isolated agent checks. For example:
+Use the existing `tests/` suites for isolated agent checks:
 
 ```bash
 pytest tests/test_coordinator.py tests/test_supervisor.py
@@ -307,37 +245,10 @@ pytest tests/test_coordinator.py tests/test_supervisor.py
 
 ### Code style
 
-- Docstrings: capitalized, full sentences.
+- Apply PLAN.md’s hidden-reasons documentation policy.
 - `logger.debug()` lowercase; `info` / `warning` / `error` capitalized.
 - No emojis or Unicode decoration in library code or logs.
-- `rich` only in `examples/`, never in core library code.
 - Line length: 80. Formatter: `ruff format`. Linter: `ruff check`.
-
-#### Comments
-
-Capitalize section/block comments that introduce significant logic:
-
-```python
-# Initialize Elo ratings if not already set
-for hyp in hypotheses:
-    hyp.elo_rating = INITIAL_ELO_RATING
-```
-
-Keep short inline comments lowercase:
-
-```python
-max_similarity = 0.0  # track most similar hypothesis
-removed_count = 0  # will increment in loop
-```
-
-Capitalize the first line of multi-line comment blocks:
-
-```python
-# Calculate expected scores using standard Elo formula.
-# The expected score represents the probability that a player
-# will win based on the rating difference.
-expected_winner = 1 / (1 + 10 ** ((loser_elo - winner_elo) / 400))
-```
 
 #### Logging
 
@@ -373,7 +284,7 @@ logging.getLogger("co_scientist").setLevel(logging.DEBUG)
 
 ```
 src/co_scientist/
-├── generator/          # HypothesisGenerator — public entry point, builds/runs LangGraph
+├── generator/          # Internal configuration and durable initial state
 ├── state/              # WorkflowState TypedDict + custom reducers
 ├── models/             # Hypothesis, HypothesisReview, ExecutionMetrics dataclasses
 ├── llm/                # LiteLLM dispatch: call, request, attempts, structured, tools

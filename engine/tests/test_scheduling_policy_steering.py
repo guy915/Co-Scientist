@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import cast
 
-from langgraph.graph import StateGraph
-
 from co_scientist.agents.meta_review.research_overview import (
     build_interim_overview,
     format_interim_overview,
@@ -15,11 +13,6 @@ from co_scientist.agents.supervisor.orchestrator import (
 from co_scientist.checkpoint import (
     restore_workflow_state,
     serialize_workflow_state,
-)
-from co_scientist.generator.graph import (
-    _OVERVIEW_ROUTE_NODES,
-    _add_workflow_edges,
-    _add_workflow_nodes,
 )
 from co_scientist.scheduling import (
     ALLOWED_LOOP_TASKS,
@@ -410,16 +403,6 @@ def test_a_stacked_overview_resets_its_own_cadence_anchor() -> None:
     )
     book = {"iteration_at_last_research_overview": 0}
     assert _research_overview_anchor(book, stats, decision) == 3
-
-
-def test_the_compiled_graph_accepts_every_companion_route() -> None:
-    """The explicit path map must include every router result or runs reject
-    the edge."""
-    workflow = StateGraph(WorkflowState)
-    _add_workflow_nodes(workflow, False)
-    _add_workflow_edges(workflow, False)
-    assert workflow.compile() is not None
-    assert set(_OVERVIEW_ROUTE_NODES) >= {"meta_review", "orchestrator"}
 
 
 def test_the_stacked_list_survives_a_checkpoint_round_trip() -> None:

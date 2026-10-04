@@ -1,24 +1,26 @@
 # Engine — `co-scientist-engine`
 
-LangGraph multi-agent hypothesis-generation library. Repo-wide conventions, cross-cutting Gotchas, and required environment live in the [root AGENTS.md](../AGENTS.md) — read that too.
+Internal multi-agent hypothesis-generation engine. Repo-wide conventions, cross-cutting Gotchas, and required environment live in the [root AGENTS.md](../AGENTS.md) — read that too.
 
 Package name: `co-scientist-engine`. Source under `src/co_scientist/`.
 
 **Commands** (run from `engine/`):
 ```bash
 pip install -e '.[dev]'          # install with dev deps
-python examples/run.py            # interactive CLI demo
 pytest                            # unit tests (testpaths = ["tests"])
 ruff format .                     # format (80 cols)
 ruff check .                      # lint
 mypy .                            # typecheck
 ```
 
-Use the offline unit suites to exercise individual agents. The maintained runnable example is `examples/run.py`.
+Use the offline unit suites to exercise individual agents.
 
 **Architecture**
 
-`HypothesisGenerator` (`src/co_scientist/generator/`) is the public entry point. It compiles a LangGraph `StateGraph` whose nodes are implemented across eight agent packages under `src/co_scientist/agents/`: **Supervisor plus six specialists** (Generation, Reflection, Ranking, Evolution, Proximity, Meta-review), plus a cross-cutting Safety screen that is not one of the six. The old `src/co_scientist/nodes/` shim layer has been removed — import node callables from `co_scientist.agents.*`. The graph still registers each node under its original key string (so durable-run resume is unaffected), and `co_scientist.agents.NODE_TO_AGENT` is the source-of-truth node→agent mapping:
+`HypothesisGenerator` (`generator/core.py`) prepares capabilities, registry and
+initial state for the app's durable tasks. Nodes live in `agents/`: Supervisor,
+six specialists and Safety. `agents.NODE_TO_AGENT` maps persisted node keys to
+agents; `task_runtime.execute_task_node` commits one node at a time.
 
 | Node | File |
 |---|---|
@@ -43,19 +45,19 @@ idempotency keys. Never rename them without a migration for persisted runs.
 **Generation planning and finalization have a public operation boundary.**
 `co_scientist.agents.generation` exports `GenerationPlan`, `GenerationCounts`,
 `GenerationResults`, `prepare_generation` and `finalize_generation`; their
-implementation lives in `generation/operations.py`. The coordinator owns graph
+implementation lives in `generation/operations.py`. The coordinator owns node-level
 strategy execution and expansion research; the app owns durable scheduling,
 lease guards and checkpoint commits. Finalization may call enrichment tools, so
-run it outside store transactions. Preserve the characterized graph/durable
+run it outside store transactions. Preserve the characterized node-level/durable
 assumptions-context and expansion differences when changing strategy dispatch.
 
 Ranking, Reflection and Evolution also expose supported operations from their
 agent packages. Ranking owns immutable prompt/median snapshots, per-match
-judging/Elo and round lifecycle; graph and durable callers retain their existing
+judging/Elo and round lifecycle; node-level and durable callers retain their existing
 pair-selection order and prompt inputs. Reflection owns single-item context and
 evidence assembly; durable callers own issuance markers, aggregation and retry
 conversion. Evolution owns `EvolutionContext`, its round builder and the
-selected-parent outcome projection below prompt and graph modules. Keep app
+selected-parent outcome projection below prompt and task modules. Keep app
 production consumers on public exports; `app/tests/test_architecture.py`
 rejects private engine imports and engine-to-app dependencies.
 
@@ -64,9 +66,8 @@ The internal `evidence.helpers` facade is removed; test/patch the module that
 actually consumes a collaborator rather than relying on unused re-exports.
 
 **Generator configuration and execution live in one concrete class.**
-`generator/core.py` owns graph caching, MCP availability, streaming and resume;
-there are no single-consumer mixins. `prepare_task_state` is the shared setup
-operation for graph and durable execution. Evolution prompt rendering lives in
+`generator/core.py` owns MCP availability and capability/state preparation;
+`prepare_task_state` supplies initial state for durable execution. Evolution prompt rendering lives in
 `evolution/evolve_prompt.py`, and novelty-validation stage orchestration lives
 beside its LLM calls in `generation/literature_tools/validate.py`. Private helpers
 are imported and tested from their defining modules; compatibility re-exports
@@ -74,18 +75,11 @@ are not a supported boundary. Ranking constructs each `RankingSide` directly
 from its hypothesis's review, reflection and verification evidence.
 
 **The topology is declared once.** `workflow_topology.WORKFLOW_ROUTES` names
-every node's successor -- a fixed node, a `LiteratureGated` pair, or a resolver
-over the committed state -- and both execution paths read it:
-`generator/graph.py` wires the compiled graph from it (streaming path) and
-`task_runtime.next_task_type` resolves through it (durable path, the only one
-production runs). A new node or edge is one entry there, and
-`tests/test_workflow_topology.py` fails if the registry and the table disagree.
-The paths differ only where that module's docstring says, each with a test: the
-literature-review shape (a build-time flag on the graph, `state["mcp_available"]`
-on the durable path), the durable-only `safety_blocked` halt, the graph-only
-START entry branch, the `None`/`END` terminal encoding, and the graph's path
-maps. `plan_portfolio` and `FANNING_NODES` are durable scheduling policy over
-the table, not part of it.
+each node's fixed, literature-gated or state-resolved successor.
+`task_runtime.next_task_type` uses committed state, stops on `safety_blocked`
+and returns `None` at termination. The app seeds fresh tasks and resumes its
+persisted queue. `plan_portfolio` and `FANNING_NODES` layer durable scheduling
+policy over those routes.
 
 **The simulation review can run what it simulates.** Reflection's
 `simulation` review asks the model to step through a hypothesis's mechanism
@@ -262,7 +256,7 @@ Retrying lives in exactly one place, `llm/attempts/retry.py::run_attempts`: run 
 
 **Model facts.** What depends on which model is called is one `ModelProfile` from `llm.profile.model_profile(name)` (also exported by `co_scientist.llm`): whether it reasons and how to ask it to (`reasons`, `thinking`, `reasoning_can_disable`), whether it takes a `json_schema` response format, its temperature floor, its gateway pin and fallback chain, its price, and whether it is an admitted promotional free route. A name resolves through `llm/profile/__init__.py` (substring/prefix families, e.g. DeepSeek) and then `llm/profile/__init__.py` (one entry per exact route, which overrides its family; the only place a price is stated — `constants.pricing.MODEL_PRICING` is derived from it). Add, retire or correct a model by editing that one entry; do not branch on a model-name substring at a call site. `tests/test_model_profile_snapshot.py` records every answer for every named route and fails if a regrouping changes one. `llm/request/thinking.py` is the routing *policy* applied to a profile (price multiple, upstream order, throughput floor, fallback cap); it states no per-model fact.
 
-**MCP and the web.** Literature-review tools are pulled from an external MCP server via `mcp_client/` using `langchain-mcp-adapters`, bounded independently by `COSCIENTIST_MCP_TOOL_TIMEOUT_SECONDS` (default 300s). The graph auto-detects MCP availability — without a server, the literature/reflection nodes fall back to LLM-only mode. The literature-review pre-flight gate checks **server** reachability (`check_mcp_available`), not any single source's health: gating on one source let an unreachable remote service veto sources that were otherwise fine. For conditionally-registered tools, ask `mcp_client.check_tool_available(tool_name)`.
+**MCP and the web.** Literature-review tools are pulled from an external MCP server via `mcp_client/` using `langchain-mcp-adapters`, bounded independently by `COSCIENTIST_MCP_TOOL_TIMEOUT_SECONDS` (default 300s). State preparation detects MCP availability — without a server, the literature/reflection nodes fall back to LLM-only mode. The literature-review pre-flight gate checks **server** reachability (`check_mcp_available`), not any single source's health: gating on one source let an unreachable remote service veto sources that were otherwise fine. For conditionally-registered tools, ask `mcp_client.check_tool_available(tool_name)`.
 
 **A run that reaches no source now says so.** "Falls back to LLM-only" is four silent branches, not one: both paths route around `literature_review` and `reflection` (`workflow_topology`), `run_setup._resolve_research_tier` resolves to no research, and the deep reviews' probes and evolution's grounding each refuse themselves on `mcp_available`. All four are correct, and none of them is visible — the run publishes ideas, reviews and a tournament that look exactly like a healthy run's, with nothing saying they were never checked against a paper. `retrieval_degradation.py` turns that into a fact the run carries: set at setup and again if the server is lost mid-node, drained into the report payload, and carried on every node event after it so a watcher sees it live. The only thing that survives an MCP outage is a run's own attached documents, searched in-process (`run_attachments`); without those the floor is `none`.
 
@@ -407,8 +401,8 @@ is a `scoped_telemetry`-shaped context variable -- the invocation happens in a
 tool handler and the count is wanted at the node boundary, and each durable
 run's cohort has its own loop, so a module-level total would mix runs. It
 rides `ExecutionMetrics.skills_used` through the ordinary reducer, scoped by
-`generate_node` on the streaming path and per strategy task on the durable
-one, into a report section naming only what was actually queried. This is what
+the node-level generation call and per strategy task on the durable
+path, into a report section naming only what was actually queried. This is what
 discharges the third-party licence notices; the `.licenses/` file the skills
 themselves ask for is written into a directory that is then deleted.
 
@@ -438,7 +432,7 @@ Use [`../docs/RUNNING-LOCALLY.md`](../docs/RUNNING-LOCALLY.md) for setup and
 - Apply `PLAN.md`'s hidden-reasons documentation policy; docstrings are optional.
 - `logger.debug()` lowercase; `info`/`warning`/`error` capitalized.
 - No emojis or unicode decoration in code or logs.
-- Rich library only in `examples/` and `dev/`, never in core library code.
+- Keep terminal presentation libraries outside runtime engine code.
 
 ## Reference MCP server (`engine/mcp_server/`)
 

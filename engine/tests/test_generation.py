@@ -769,35 +769,6 @@ async def test_expansion_and_wrong_assumption_context_reach_the_tree(
         assert "a prior hypothesis" in prompt
 
 
-async def test_assumptions_slice_runs_the_tree_in_the_real_graph(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from co_scientist.generator import GeneratorOptions, HypothesisGenerator
-    from tests._llm_fake import install_fake_llm
-
-    install_fake_llm(monkeypatch)
-    gen = HypothesisGenerator(
-        model_name="fake/model",
-        max_iterations=0,
-        initial_hypotheses_count=4,
-        evolution_max_count=2,
-        options=GeneratorOptions(tournament_pairs=2, enable_cache=False),
-    )
-    initial_state = await gen.prepare_task_state(
-        "Explain how protein X folds",
-        opts={"enable_literature_review_node": False},
-    )
-    assert gen._graph is not None
-    final_state = await gen._graph.ainvoke(
-        initial_state, config={"recursion_limit": 100}
-    )
-
-    parents = [h for h in final_state["hypotheses"] if h.generation == 0]
-    assert len(parents) == 4
-    methods = {h.generation_method for h in parents}
-    assert GenerationMethod.ASSUMPTIONS in methods
-
-
 async def test_offline_tree_is_deterministic(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
