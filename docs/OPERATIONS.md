@@ -72,6 +72,12 @@ Each of these was a production outage or a silent data-correctness failure. The 
 - **Under the json_object downgrade, reshape the answer to the schema — in both directions.** A model without server-side schema enforcement omits required fields *and* invents extra ones, and every object node in `schemas/builders.obj` is closed (`additionalProperties: False`), so one invented key fails the whole response. Feeding the validation error back does not help: a production `research_overview` call answered with the same three invented sections (`knowledge_base`, `nih_specific_aims`, `research_contacts`) on all five attempts — five full paid calls on a large prompt, fourteen minutes, then the empty fallback. `llm.structured.validate.reshape_json_output` removes undeclared closed-object keys, fills required fields and caps oversized arrays and strings in one traversal. It runs under the downgrade condition (`llm.attempts.json_attempt._backfill_and_validate`), keyed on `_supports_json_schema_response_format`, so where the provider does enforce the schema an extra field stays a real validation failure. The reshaper also trims what the provider over-produces: over-long `maxItems` arrays and `maxLength` strings (cut at a word boundary near the limit where one exists) — added after production run b82f9162 failed generation/validation calls on a hypothesis `title` a handful of characters over its cap, on a free gateway model whose 100-requests/day cap made every such retry cost 1% of the day's budget.
 - **Two independent wall-clock ceilings on outbound calls**, and they expire differently. `COSCIENTIST_LLM_TIMEOUT_SECONDS` (default 600s) bounds `litellm.acompletion` only; MCP tool calls are bounded by `COSCIENTIST_MCP_TOOL_TIMEOUT_SECONDS` (default 300s). Set either to `0` to disable. The two MCP call sites diverge deliberately: `call_tool` raises `MCPToolTimeoutError` (callers degrade per-source), while `execute_tool_call` returns the timeout as the tool's *result*, because it runs under an `asyncio.gather` without `return_exceptions` where raising would kill every sibling call.
 
+## Durable state reducers
+
+Derive commit reducers from every accumulating `WorkflowState` channel. A
+hand-maintained table omitted `tournament_matchups`, silently replacing prior
+cycles of Elo history instead of appending them.
+
 ## Durable node names
 
 Graph node keys persist in task types, checkpoints and idempotency keys.
