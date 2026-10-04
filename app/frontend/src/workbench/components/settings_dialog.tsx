@@ -33,37 +33,27 @@ import {
   fetchFreeUsage,
 } from '@/api/system';
 
-// Moves focus to `ref`'s element once on mount, so keyboard/screen-reader
-// users land inside a newly opened dialog rather than on whatever was
-// focused behind it.
+// Focus newly opened dialogs internally so keyboard and assistive-technology
+// users do not remain behind them.
 function useFocusOnMount(ref: RefObject<HTMLElement | null>) {
   useEffect(() => {
     ref.current?.focus();
   }, [ref]);
 }
 
-// Model section's BYOK fields: a local editable copy of the persisted key
-// (written back to storage only on blur/Enter, not every keystroke) plus
-// the provider choice (persisted on change, since a select commits whole
-// values). Saving is silent: the field showing the value it now holds is
-// the confirmation, so a toast only covered the page to repeat it.
+// Free-text credentials commit on blur/Enter; selections commit whole values
+// immediately. Saving silently avoids covering the page with redundant
+// confirmation.
 function useApiKeyField() {
-  // Local editable copy of the persisted key; only written back to storage on
-  // blur/Enter (see onSave), not on every keystroke.
   const [apiKey, setApiKey] = useState(getStoredApiKey);
   const [provider, setProvider] = useState<ByokProvider>(getStoredApiProvider);
 
-  // Persists the API key (trimmed; a blank value clears it, see
-  // setStoredApiKey) only when it actually changed, then re-syncs local
-  // state from storage.
   function onSave() {
     if (apiKey.trim() === getStoredApiKey()) return;
     setStoredApiKey(apiKey);
     setApiKey(getStoredApiKey());
   }
 
-  // Persists the provider choice immediately (a select commits whole
-  // values, unlike the free-text key field).
   function onProviderChange(next: ByokProvider) {
     if (next === getStoredApiProvider()) return;
     setStoredApiProvider(next);
@@ -79,8 +69,6 @@ function useApiKeyField() {
   };
 }
 
-// Dialog header: title plus the close button that also anchors the
-// open-focus behavior (see useFocusOnMount).
 function SettingsDialogHeader({
   onClose,
   closeRef,
@@ -104,12 +92,6 @@ function SettingsDialogHeader({
   );
 }
 
-/**
- * Centered Settings dialog with a section rail (Appearance, Model),
- * matching the reference product's settings window.
- *
- * @param props The active section and the change/close callbacks.
- */
 interface SettingsDialogProps {
   section: SettingsSection;
   onSectionChange: (section: SettingsSection) => void;
@@ -126,12 +108,11 @@ export function SettingsDialog({
   const rootRef = useRef<HTMLDivElement>(null);
   const apiKeyField = useApiKeyField();
 
-  // Declared before useFocusOnMount so its capture effect runs first and
-  // sees the real opener rather than the close button useFocusOnMount is
-  // about to focus (see useRestoreFocusOnClose's own doc comment).
+  // Capture the opener before the focus-on-open effect moves focus into the
+  // dialog.
   useRestoreFocusOnClose();
-  // Keyboard/screen-reader users can't reach the page behind the dialog
-  // (Tab is trapped) or perceive it (it's marked inert) while this is open.
+  // Background content must be inert as well as outside the Tab trap, including
+  // for assistive technology.
   useFocusTrap(rootRef);
   useBackgroundInert(rootRef);
   useFocusOnMount(closeRef);
@@ -165,25 +146,14 @@ export function SettingsDialog({
   );
 }
 
-/**
- * The dialog's section rail options; also the type of the currently-open
- * section, controlled by the parent (see the `section`/`onSectionChange`
- * props on SettingsDialog in settings_dialog.tsx).
- */
 export type SettingsSection = 'appearance' | 'model';
 
-// Options rendered in the Appearance section's theme segmented control.
-// Selecting one calls useTheme()'s setMode, which persists the choice (see
-// theme_context.tsx) and updates the resolved MD3 theme immediately.
 const THEME_MODES: {mode: Mode; icon: IconName; label: string}[] = [
   {mode: 'system', icon: 'computer', label: 'System'},
   {mode: 'light', icon: 'light_mode', label: 'Light'},
   {mode: 'dark', icon: 'dark_mode', label: 'Dark'},
 ];
 
-// Section-rail entries, in display order. Also consumed by the nav rail's
-// Settings popover menu (layout_nav_rail.tsx), so the two surfaces can't
-// drift apart.
 export const SETTINGS_SECTIONS: {
   section: SettingsSection;
   icon: IconName;
@@ -193,7 +163,6 @@ export const SETTINGS_SECTIONS: {
   {section: 'model', icon: 'neurology', label: 'Model'},
 ];
 
-// Appearance section: theme mode segmented control (system/light/dark).
 export function AppearanceSection({
   mode,
   setMode,
@@ -234,9 +203,6 @@ export function AppearanceSection({
   );
 }
 
-// Hint under the key field: where to get a key from whichever provider is
-// selected. Every provider issues keys from its own console, so the link
-// follows the choice rather than standing for one of them.
 function ApiKeyHint({provider}: {provider: ByokProvider}) {
   const {url, article} = PROVIDER_KEY_PAGES[provider];
   return (
@@ -254,9 +220,6 @@ function ApiKeyHint({provider}: {provider: ByokProvider}) {
   );
 }
 
-// Model section: bring-your-own-key provider choice and key entry, then the
-// supervisor and worker model selects side by side. The key saves on blur or
-// Enter; the provider and models persist on change.
 export function ModelSection({
   apiKey,
   onApiKeyChange,
@@ -301,9 +264,6 @@ export function ModelSection({
   );
 }
 
-// Section rail: list of nav buttons for switching between the dialog's
-// sections (see SETTINGS_SECTIONS above), highlighting whichever is
-// currently active.
 export function SettingsNav({
   section,
   onSectionChange,
@@ -345,20 +305,13 @@ const TIER_LABELS: Record<ModelTier, string> = {
   worker: 'Worker model',
 };
 
-/**
- * Display name for a litellm model id: the provider prefix is dropped, since
- * the Provider select above already names it.
- *
- * @param model A litellm model id, e.g. `deepseek/deepseek-v4-flash`.
- * @returns The id without its first path segment.
- */
+// The provider chooser already names the provider, so model labels omit its
+// repeated prefix.
 export function modelLabel(model: string): string {
   const slash = model.indexOf('/');
   return slash < 0 ? model : model.slice(slash + 1);
 }
 
-// Both model tiers use the same menu as the provider chooser; the worker
-// menu opens leftward so it stays over the dialog.
 function ModelSelect({
   tier,
   value,
@@ -398,9 +351,8 @@ function ModelSelect({
   );
 }
 
-// Fetches the provider model catalog and the caller's free usage once per
-// mount. Either may stay null: the selects then stay disabled and the free
-// usage note stays silent, rather than guessing.
+// Until catalog or quota reads succeed, disable selections and keep unknown
+// usage silent rather than guessing.
 function useModelSettingsData() {
   const [catalog, setCatalog] = useState<ByokModelCatalog | null>(null);
   const [freeUsage, setFreeUsage] = useState<FreeUsage | null>(null);
@@ -419,8 +371,6 @@ function useModelSettingsData() {
   return {catalog, freeUsage};
 }
 
-// The provider's offered models, default first; empty until the catalog
-// loads (or when it failed to).
 function providerOptions(
   catalog: ByokModelCatalog | null,
   provider: ByokProvider,
@@ -428,7 +378,6 @@ function providerOptions(
   return catalog?.[provider] ?? [];
 }
 
-// Both tiers' stored choices; blank means the provider's default.
 function storedChoices(): Record<ModelTier, string> {
   return {
     worker: getStoredModel('worker'),
@@ -436,19 +385,12 @@ function storedChoices(): Record<ModelTier, string> {
   };
 }
 
-/**
- * State for the Model section's two model selects: the provider catalog
- * (fetched once), each tier's stored choice, and the caller's free usage.
- *
- * @param provider The chosen BYOK provider; a change resets both choices to
- *   the new provider's defaults (setStoredApiProvider clears storage).
- */
 export function useModelFields(provider: ByokProvider) {
   const {catalog, freeUsage} = useModelSettingsData();
   const [choices, setChoices] = useState(storedChoices);
   useEffect(() => setChoices(storedChoices()), [provider]);
   const options = providerOptions(catalog, provider);
-  // A blank choice means the provider default: the catalog's first entry.
+  // An empty stored choice means the provider default, not a missing selection.
   const fallback = options[0] ?? '';
 
   function onModelChange(tier: ModelTier, model: string) {
@@ -465,12 +407,10 @@ export function useModelFields(provider: ByokProvider) {
   };
 }
 
-/** The Model section's model-select state (see useModelFields). */
 export type ModelFields = ReturnType<typeof useModelFields>;
 
-// What a keyless user gets: free usage, limited to express runs and a daily
-// run count. Silent until the count is known, and on an offline deployment,
-// where keyless runs spend nothing and nothing is limited.
+// Offline keyless runs spend no free allowance; hide quota text until the real-
+// backed count is known.
 function FreeUsageNote({usage}: {usage: FreeUsage | null}) {
   if (!usage?.enforced) return null;
   const count =
@@ -485,15 +425,8 @@ function FreeUsageNote({usage}: {usage: FreeUsage | null}) {
   );
 }
 
-/**
- * The Supervisor and Worker model selects, side by side, under the key.
- * Choosable without a key: the choice is stored and rides along once a key
- * is added (byokHeaders sends models only with a key). Disabled only until
- * the catalog loads.
- *
- * @param hasKey Whether an API key is stored.
- * @param fields The state from useModelFields.
- */
+// Model preferences can be chosen before a key exists; headers transmit them
+// only with a key.
 export function ModelSelectors({
   hasKey,
   fields,
@@ -521,7 +454,6 @@ export function ModelSelectors({
   );
 }
 
-/** Display names for the BYOK provider choices. */
 export const PROVIDER_LABELS: Record<ByokProvider, string> = {
   anthropic: 'Anthropic',
   deepseek: 'DeepSeek',
@@ -530,16 +462,8 @@ export const PROVIDER_LABELS: Record<ByokProvider, string> = {
   openrouter: 'OpenRouter',
 };
 
-/**
- * Where each provider issues API keys, and the article its name takes in the
- * hint under the key field.
- *
- * The article is stored rather than derived: a leading-vowel test is right
- * for these five names and wrong for the next one that starts with a
- * consonant sound. The name itself is not stored -- it comes from
- * PROVIDER_LABELS above, so renaming a provider cannot leave the link
- * calling it something else.
- */
+// Store the article because pronunciation, not the first letter, determines it;
+// derive the displayed provider name from the shared labels.
 export const PROVIDER_KEY_PAGES: Record<
   ByokProvider,
   {url: string; article: 'a' | 'an'}
@@ -557,7 +481,6 @@ export const PROVIDER_KEY_PAGES: Record<
 const TRIGGER_ID = 'cosci-settings-provider';
 const LABEL_ID = 'cosci-settings-provider-label';
 
-// Closes a chooser on outside pointerdown, with a listener only while open.
 export function useCloseOnOutsidePointer(
   open: boolean,
   container: React.RefObject<HTMLDivElement | null>,
@@ -575,25 +498,10 @@ export function useCloseOnOutsidePointer(
   }, [open, container, onClose]);
 }
 
-// Gap between a trigger and the menu it opens.
 const MENU_GAP_PX = 6;
 
-/**
- * Places an open menu under its trigger with `position: fixed`, so the
- * Settings panel's scroll box (`overflow-y: auto`) cannot clip it and the
- * menu may overflow the panel and the dialog edges.
- *
- * A fixed box's containing block is the viewport unless an ancestor has a
- * transform, and the centered dialog has one. So the hook does not assume
- * either: it first places the menu at 0,0, reads where that lands, and
- * subtracts that origin. Re-placed on any scroll or resize while open.
- *
- * @param open Whether the menu is rendered.
- * @param anchor The wrapper holding the trigger; its box sets the position.
- * @param align `start` opens rightward from the trigger's left edge, `end`
- *   leftward from its right edge.
- * @returns The menu's ref and its inline style.
- */
+// Fixed menus escape scroll clipping, but transformed ancestors change their
+// origin; measure and subtract that origin instead of assuming the viewport.
 export function useAnchoredMenu(
   open: boolean,
   anchor: React.RefObject<HTMLDivElement | null>,
@@ -633,8 +541,8 @@ export function useAnchoredMenu(
   return {menuRef: menu, menuStyle: style};
 }
 
-// Shared provider/model chooser. Real menu buttons preserve Tab and Enter
-// behavior; selecting the current value only dismisses the menu.
+// Real menu buttons preserve Tab/Enter behavior; selecting the current choice
+// only dismisses the menu.
 function SettingsSelect<T extends string>({
   value,
   options,
@@ -661,7 +569,8 @@ function SettingsSelect<T extends string>({
   useCloseOnOutsidePointer(open, container, () => setOpen(false));
   const {menuRef, menuStyle} = useAnchoredMenu(open, container, align);
 
-  // Escape dismisses the menu before the dialog's window listener sees it.
+  // Consume Escape before the dialog listener so dismissing its menu does not
+  // also close the dialog.
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === 'Escape' && open) {
       event.stopPropagation();
@@ -724,7 +633,6 @@ function SettingsSelect<T extends string>({
   );
 }
 
-/** Provider chooser for the Settings dialog's Model section. */
 export function ProviderSelect({
   provider,
   onChange,
@@ -745,7 +653,6 @@ export function ProviderSelect({
   );
 }
 
-/** The `<label>` that names the trigger; rendered by the Model section. */
 export function ProviderSelectLabel() {
   return (
     <label

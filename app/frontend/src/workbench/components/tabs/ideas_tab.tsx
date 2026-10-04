@@ -26,22 +26,8 @@ const IDEA_SPLIT_SHELL_CLASSES =
   'idea-split-shell flex h-full min-h-0 flex-col overflow-hidden ' +
   'rounded-none border-0 bg-cosci-bg';
 
-// The three-column split has a hard, non-shrinkable floor: a 24rem (384px)
-// ranked list plus a 17rem (272px) sections rail, so the detail column --
-// the one the reader is actually here for -- gets whatever is left. Measured
-// in a browser: 0px at a 701px viewport, 56px at 721px, 172px at 900px, and
-// only 296px at 1024px. Below roughly 1024 the split therefore cannot render
-// its own content, so the columns stack instead. This is deliberately NOT
-// the phone breakpoint (`MOBILE_MEDIA_QUERY`, 700px): that one chooses
-// between two interaction models (master-detail on a phone versus the split
-// pane), while this one is a pure question of whether three columns fit.
-// One number cannot answer both, and using the phone value for both is what
-// left the 701-1023 band rendering an unreadable sliver.
-//
-// The `max-[1023px]:` variants below are written out in full on purpose:
-// Tailwind scans source for literal class strings, so building them from a
-// shared constant would compile to no CSS at all and silently restore the
-// broken layout.
+// Three-column fit and phone interaction need separate breakpoints; Tailwind
+// requires literal responsive classes rather than dynamically assembled strings.
 const IDEAS_REPORT_CLASSES =
   'flex h-full min-h-0 flex-col overflow-hidden bg-cosci-bg ' +
   'max-[1023px]:h-auto max-[1023px]:overflow-visible';
@@ -51,19 +37,14 @@ const IDEA_SPLIT_GRID_CLASSES =
   'grid-cols-[minmax(24rem,0.66fr)_minmax(0,1.25fr)_17rem] ' +
   'max-[1023px]:grid-cols-1';
 
-// One `minmax(0,1fr)` column, and no horizontal scroll: an implicit `auto`
-// track sized itself to the widest card's nowrap title and chip row, so the
-// cards spilled past the column and were cropped behind a sideways scroll.
+// An auto grid track follows nowrap content width; minmax(0,1fr) prevents
+// clipped cards and sideways scrolling.
 const IDEA_RANK_LIST_CLASSES =
   'idea-rank-list m-0 grid min-w-0 grid-cols-[minmax(0,1fr)] content-start ' +
   'gap-[0.7rem] overflow-x-hidden overflow-y-auto ' +
   'border-r border-cosci-idea-list-border bg-transparent py-5 pr-6 ' +
   'pl-5 list-none';
 
-// Single column: the rank + Elo chips sit on a top row (see
-// IDEA_RANK_HEAD_CLASSES) and the title/preview run full width beneath them, so
-// the text is not indented under a rank column. The row is an anchor (each
-// idea has its own ?idea= URL), hence the explicit no-underline.
 const IDEA_RANK_ROW_CLASSES =
   'idea-rank-row grid min-h-[8.9rem] w-full min-w-0 ' +
   'grid-cols-[minmax(0,1fr)] cursor-pointer content-start ' +
@@ -74,9 +55,6 @@ const IDEA_RANK_ROW_CLASSES =
   'hover:bg-cosci-idea-row-hover-bg ' +
   'motion-reduce:transition-none';
 
-// One line, always: the head carries at most one caution chip (see
-// IdeaRankHead), and anything that still would not fit is clipped rather
-// than wrapped onto a second row.
 const IDEA_RANK_HEAD_CLASSES =
   'idea-rank-head flex min-w-0 flex-nowrap items-center gap-[0.6rem] ' +
   'overflow-hidden';
@@ -95,20 +73,14 @@ const IDEA_CHIP_CLASSES =
 const IDEA_ELO_CHIP_CLASSES =
   IDEA_CHIP_CLASSES + ' idea-elo-chip w-fit min-w-[6.35rem]';
 
-// Caution chip for an idea with no evidence-supported claim: it is still ranked
-// and published, but flagged so the reader treats it as unverified.
 const IDEA_UNVERIFIED_CHIP_CLASSES =
   'idea-unverified-chip inline-flex h-7 w-fit items-center gap-1 ' +
   'whitespace-nowrap ' +
   'rounded-full bg-cosci-idea-chip-bg px-3 text-[0.8rem] font-medium ' +
   'text-cosci-idea-chip-text';
 
-// The stronger caution: deep verification probed a fundamental assumption of
-// this idea and found it false. Wears the error tone rather than the neutral
-// chip tone -- "Unverified" means nothing was found either way, this means
-// something was found against it, and one shared look would flatten the two.
-// The idea is still listed (it sorts below every sound one); the chip is what
-// stops it reading as sound.
+// Undermined means evidence against an assumption; unverified means no verdict.
+// Distinct caution tones must not imply equal scientific standing.
 const IDEA_UNDERMINED_CHIP_CLASSES =
   'idea-undermined-chip inline-flex h-7 w-fit items-center gap-1 ' +
   'whitespace-nowrap ' +
@@ -124,10 +96,6 @@ const IDEA_RANK_PREVIEW_CLASSES =
   'idea-rank-preview line-clamp-2 overflow-hidden ' +
   'text-[0.75rem] leading-4 tracking-[0.1px] text-cosci-idea-preview-text';
 
-// Mobile master-detail: the ideas tab is a plain list that swaps to a single
-// idea's detail on tap (rather than the desktop split view). Visually hidden
-// so it reaches only assistive technology -- the titlebar arrow itself is
-// the one visible back control (see IDEA_MOBILE_BACK_HINT_CLASSES below).
 const IDEA_MOBILE_BACK_HINT_CLASSES = 'sr-only';
 
 const IDEA_MOBILE_VIEW_CLASSES =
@@ -138,9 +106,6 @@ const IDEA_MOBILE_LIST_CLASSES =
   'idea-mobile-list m-0 grid min-h-0 content-start gap-[0.7rem] ' +
   'overflow-visible bg-transparent p-4 list-none';
 
-// Default selection for the split/master-detail views: an explicit tap wins
-// (falling back to the top idea if it no longer exists), otherwise desktop
-// pre-selects the top idea while mobile opens on the bare list.
 function resolveSelectedHypothesis(
   sorted: Hypothesis[],
   selectedId: string | null,
@@ -151,27 +116,17 @@ function resolveSelectedHypothesis(
   return isMobile ? null : sorted[0];
 }
 
-// The route of one idea: the selection lives in the query string so a
-// single idea can be linked to, opened in a new tab, and shared. Only the
-// search part is set, so the link stays on whatever run/tab path it is
-// rendered under.
 function ideaSearch(id: string): {search: string} {
   return {search: `?idea=${encodeURIComponent(id)}`};
 }
 
-// Elo-ranked hypothesis list plus the currently selected one, keyed off
-// whichever layout (mobile vs. desktop) is active. `sorted` mirrors the
-// research-overview tab's "Winning ideas" ordering via the same
-// sortByEloDesc helper.
 function useIdeaSelection(hypotheses: Hypothesis[], isMobile: boolean) {
-  // Explicitly selected hypothesis id (?idea=); absent means "use the
-  // default" - see resolveSelectedHypothesis for what that resolves to. The
-  // tab links carry no search, so leaving the tab drops the param and the
-  // mobile master-detail view reopens on the list.
+  // Tab links omit selection search, so returning to the mobile ideas tab
+  // reopens the list.
   const [params] = useSearchParams();
   const selectedId = params.get('idea');
-  // Filtered before sorting, so a withdrawn idea can be neither listed nor
-  // resolved as the default selection.
+  // Exclude withdrawn ideas before selecting defaults so hidden rows cannot
+  // remain the selected detail.
   const sorted = useMemo(
     () => sortByEloDesc(presentedHypotheses(hypotheses)),
     [hypotheses],
@@ -184,9 +139,8 @@ function useIdeaSelection(hypotheses: Hypothesis[], isMobile: boolean) {
   return {sorted, selected};
 }
 
-// Two different empty states: nothing generated yet, versus everything
-// generated having been deduplicated or ruled out. Reporting the second as
-// the first would read as a run that produced nothing at all.
+// No generated ideas and all ideas excluded are different scientific outcomes,
+// not one empty result.
 function emptyIdeasNote(exploredCount: number): string {
   if (!exploredCount) {
     return 'Hypotheses appear here once the generation node runs.';
@@ -197,11 +151,6 @@ function emptyIdeasNote(exploredCount: number): string {
   );
 }
 
-/**
- * Renders generated hypotheses in the Google-style split-pane pattern.
- *
- * @param props The hypotheses, reviews, matches, and claim-evidence graph.
- */
 export function IdeasTab({
   runId,
   allowRefinement,
@@ -238,8 +187,6 @@ export function IdeasTab({
     );
   }
 
-  // Both views share the exact same prop shape, so the layout choice is just
-  // which component to render.
   const IdeaView = isMobile ? MobileIdeaView : DesktopIdeaSplit;
   return (
     <div className={IDEAS_REPORT_CLASSES}>
@@ -261,8 +208,6 @@ export function IdeasTab({
   );
 }
 
-// The mobile and desktop idea views are interchangeable (IdeasTab picks one by
-// viewport), so they share one prop shape.
 interface IdeaViewProps {
   sorted: Hypothesis[];
   selected: Hypothesis | null;
@@ -278,14 +223,8 @@ interface IdeaViewProps {
   onRefreshOutcomes?: () => Promise<void> | void;
 }
 
-// Master-detail: the list swaps to a single idea on tap. This view renders no
-// back control of its own; the visible escape is the titlebar's Back arrow,
-// which run_detail_shell.tsx's reportBackTarget retargets to the ranked list
-// while an idea is open here (a sighted reader sees that arrow regardless).
-// The sr-only hint below makes that relationship discoverable from inside
-// the view itself, since nothing else here says so. The browser's own back
-// gesture (each idea is a URL) and re-tapping the "All Ideas" tab (whose
-// link carries no ?idea= param) still work as further escapes.
+// The titlebar supplies the visible mobile Back control; this local screen-
+// reader hint makes the escape discoverable inside the view.
 function MobileIdeaView({
   sorted,
   selected,
@@ -341,7 +280,6 @@ function MobileIdeaView({
   );
 }
 
-// Desktop split view: ranked list, detail pane, and the jump-to-section rail.
 function DesktopIdeaSplit({
   sorted,
   selected,
@@ -391,28 +329,12 @@ function DesktopIdeaSplit({
   );
 }
 
-// Picks the selected vs. unselected idea-row class variant.
 function ideaRowClassName(selected: boolean): string {
   return selected
     ? `${IDEA_RANK_ROW_CLASSES} ${IDEA_RANK_SELECTED_CLASSES}`
     : IDEA_RANK_ROW_CLASSES;
 }
 
-// A single row in the ranked hypothesis list: rank badge, Elo chip, title,
-// and a truncated statement preview.
-// The rank/Elo/caution chip row heading one idea in the list.
-//
-// An idea with no matches shows why it has no rating rather than the rating
-// itself. Elo 1200 is where every hypothesis starts, so printing it for an
-// idea that never played reads as a result it earned; and "Disqualified" and
-// "Unranked" are different enough facts that one shared label for both
-// misleads (see ratingLabel).
-//
-// The two cautions say different things: "Undermined" is evidence found
-// against the idea, "Unverified" is no supporting evidence found for it.
-// The row shows only the more important one, Undermined, when both apply,
-// so the chips never wrap onto a second line; the detail pane still carries
-// the full picture.
 function IdeaRankHead({
   rank,
   hypothesis,
@@ -452,13 +374,7 @@ function IdeaListItem({
 }) {
   return (
     <li>
-      {/* No `replace`: on mobile the list is the previous entry, so the
-          browser's back gesture returns to it. A real navigation link to a
-          page-within-a-page, exactly like the report tab strip, so the
-          selected row carries `aria-current="page"` (not the vaguer "true")
-          plus `aria-controls` naming the detail pane it drives -- the
-          relationship a listbox/option pair would otherwise imply, without
-          taking on that widget's keyboard contract. */}
+      {/* Keep push navigation: mobile Back must return to the ranked list. */}
       <Link
         to={ideaSearch(hypothesis.id)}
         className={ideaRowClassName(selected)}

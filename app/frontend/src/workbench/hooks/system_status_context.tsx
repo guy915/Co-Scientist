@@ -40,7 +40,8 @@ function usePolledSystemStatus(enabled = true): SystemStatusState {
   return state;
 }
 
-// Keep one poll alive across shell controls, including the connectors menu.
+// Shell controls share one persistent poll instead of restarting it when their
+// menus open.
 export function SystemStatusProvider({children}: {children: ReactNode}) {
   const state = usePolledSystemStatus();
   return (
@@ -52,7 +53,8 @@ export function SystemStatusProvider({children}: {children: ReactNode}) {
 
 export function useSystemStatus(): SystemStatusState {
   const shared = useContext(SystemStatusContext);
-  // Isolated consumers still poll; shell consumers share the provider's read.
+  // Standalone consumers still need polling when no shell provider owns the
+  // shared read.
   const local = usePolledSystemStatus(shared === null);
   return shared ?? local;
 }

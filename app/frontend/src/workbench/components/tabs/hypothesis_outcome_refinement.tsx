@@ -24,7 +24,6 @@ const STATUS_MESSAGES: Record<
   failed: () => 'Refinement failed and remains available for owner retry.',
 };
 
-/** Discloses, requests and owner-replays one outcome refinement intent. */
 export function HypothesisOutcomeRefinement({
   runId,
   hypothesisId,

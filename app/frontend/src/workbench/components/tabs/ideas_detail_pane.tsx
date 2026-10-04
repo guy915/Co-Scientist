@@ -32,9 +32,8 @@ import {HypothesisOutcomeSection} from './hypothesis_outcomes';
 const IDEA_DETAIL_PANE_CLASSES =
   'idea-detail-pane grid min-h-0 min-w-0 flex-1 content-start gap-[1.35rem] ' +
   'overflow-x-hidden overflow-y-auto border-r-0 bg-transparent px-7 ' +
-  // Below 1024 the columns stack (see IDEA_SPLIT_GRID_CLASSES), so the pane
-  // grows with its content rather than scrolling inside a fixed height that
-  // would trap the detail in a sliver. 700px is the separate phone gutter.
+  // Stack below the three-column fit threshold so detail can grow; the separate
+  // phone breakpoint controls interaction and gutters.
   'pt-[1.45rem] pb-14 max-[1023px]:flex-none ' +
   'max-[1023px]:overflow-y-visible max-[700px]:px-4';
 
@@ -42,19 +41,11 @@ const IDEA_DETAIL_EMPTY_CLASSES =
   `${IDEA_DETAIL_PANE_CLASSES} empty place-items-center text-center ` +
   'text-th-muted-fg';
 
-/**
- * Detail pane for one hypothesis: overview/description, review summary and
- * full critique, tournament win/loss record, and the selected idea's full
- * match history. Renders an empty-state placeholder when nothing is
- * selected (e.g. no hypotheses yet).
- */
 interface HypothesisDetailProps {
   hypothesis: Hypothesis | null;
   runId?: string;
   allowRefinement?: boolean;
   isDemo?: boolean;
-  // The run's full review/match/claim sets; the detail filters them down to
-  // the hypothesis itself, so call sites just forward what they have.
   reviews: Review[];
   matches: MatchRow[];
   claimEvidence?: ClaimEvidenceRow[];
@@ -64,10 +55,8 @@ interface HypothesisDetailProps {
   onRefreshOutcomes?: () => Promise<void> | void;
 }
 
-// Memoized on their inputs so unrelated re-renders (e.g. SSE updates to
-// sibling collections) skip re-scanning the run's full review/match/claim
-// sets. Computed before the parent's empty-state return to satisfy the
-// rules of hooks, hence the null guards.
+// Keep hooks before the empty-state return; input memoization avoids rescanning
+// sibling collections on unrelated SSE updates.
 function useHypothesisRecords(
   hypothesis: Hypothesis | null,
   reviews: Review[],
@@ -144,41 +133,26 @@ export function HypothesisDetail({
   );
 }
 
-/**
- * The detail pane's jump-to-section rail and the section vocabulary it and
- * the pane both build from.
- *
- * Split out of `ideas_detail_pane.tsx` to keep that module within the repo's
- * 500-line ceiling. The section titles live here rather than in the pane
- * because both sides need them and a second copy is how a rail link and its
- * heading drift apart.
- */
+// The pane and rail share section vocabulary so links cannot drift from
+// headings.
 
 const IDEA_SECTIONS_RAIL_CLASSES =
   'idea-sections-rail m-5 min-w-0 min-w-[12.5rem] self-start ' +
-  // Stacked, the rail is beside nothing and just pushes the detail down.
   'rounded-[10px] bg-cosci-panel p-5 max-[1023px]:hidden';
 
 const IDEA_SECTIONS_LABEL_CLASSES =
   'text-[0.9rem] tracking-[0.1px] text-cosci-idea-title-text';
 
-// Reference: ul with 20px above the first link, then li+li margin-top 24px.
 const IDEA_SECTIONS_LIST_CLASSES = 'mt-5 grid gap-6';
 
-// Slightly smaller than the body so the longest link ("Tournament
-// performance >") fits on one line without widening the rail.
 const IDEA_SECTION_LINK_CLASSES =
   'block whitespace-nowrap text-[0.85rem] leading-6 font-medium ' +
   'text-cosci-blue no-underline';
 
-// The scroll pane a rail jump targets: the detail pane itself (which scrolls
-// once the columns stack, below 1024px) or its `.cosci-report-scroll`
-// ancestor (the desktop scroller, owned by run_detail.tsx), so the
-// smooth-scroll lib carries no app-specific class knowledge.
+// Rail jumps target the stacked detail pane or desktop report scroller; the
+// scroll utility stays independent of app classes.
 const IDEA_SCROLL_PANE_SELECTOR = '.idea-detail-pane, .cosci-report-scroll';
 
-// Detail section titles, in render order. Single source of truth so the
-// section headings and the rail links can't drift apart.
 export const SECTIONS = {
   overview: 'Hypothesis overview',
   description: 'Description',
@@ -190,7 +164,6 @@ export const SECTIONS = {
   matchSummary: 'Match summary',
 } as const;
 
-// The rail links every section except "Match summary" (shown inline only).
 const RAIL_SECTIONS: readonly string[] = [
   SECTIONS.overview,
   SECTIONS.description,
@@ -201,19 +174,10 @@ const RAIL_SECTIONS: readonly string[] = [
   SECTIONS.tournament,
 ];
 
-/**
- * Anchor id for a detail section, shared by the section and its rail link.
- *
- * @param title The section's visible heading.
- * @returns The slug used as both the section id and the link's hash.
- */
 export function sectionSlug(title: string): string {
   return title.toLowerCase().replaceAll(' ', '-');
 }
 
-// Intercepts a rail-link click to smooth-scroll to its section (with a 16px
-// offset) instead of the browser's default instant-jump anchor navigation.
-// Falls through to the default behavior when the target isn't found.
 function smoothSectionClick(
   event: MouseEvent<HTMLAnchorElement>,
   sectionId: string,
@@ -227,11 +191,6 @@ function smoothSectionClick(
   event.preventDefault();
 }
 
-/**
- * Right-hand jump-to-section links (hidden once the columns stack, see
- * IDEA_SECTIONS_RAIL_CLASSES). Built from RAIL_SECTIONS, so it always
- * mirrors the actual section ids without being kept in sync by hand.
- */
 export function SectionsRail() {
   return (
     <aside className={IDEA_SECTIONS_RAIL_CLASSES} aria-label="Sections">
@@ -252,19 +211,8 @@ export function SectionsRail() {
   );
 }
 
-/**
- * The detail pane's "Review critiques" section body, including each review
- * row's structured findings (R14-15/R14-22) alongside its free-text
- * critique.
- *
- * Split out of `ideas_detail_pane.tsx` to keep that module within the
- * repo's 500-line ceiling.
- */
-
-// The full/recurrent review's display-only Go/No-Go framing (R14-15).
-// Zero overlap with that row's critique text (correctness/quality/
-// literature-grounding/justification/assumptions) -- a pure complement, so
-// it renders unconditionally alongside the critique below it.
+// Go/No-Go framing is display-only and complements the critique rather than
+// replacing scientific quality assessment.
 function VerdictLines({detail}: {detail: ReviewDetail}) {
   if (!detail.goNoGo && !detail.timeToVerdict) return null;
   return (
@@ -285,23 +233,8 @@ function VerdictLines({detail}: {detail: ReviewDetail}) {
   );
 }
 
-// The simulation review's numbered failure points and decisive step
-// (R14-22), matching report.markdown.hypothesis's bolded/numbered shape.
-// The reviewer heading above this block already reads "Simulation review"
-// (reviewerLabel), mirroring the markdown's own `#### Simulation review` --
-// no second heading is needed here.
-//
-// This is the one reviewer type whose critique text already carries the
-// same failure-point/decisive-step lines, flattened into that row's prose
-// (report.markdown.hypothesis's critique formatter joins them with the
-// row's "Simulated model"/step/robustness lines). The critique stays
-// unedited below rather than having those lines stripped out of it: doing
-// so would couple this component to that prose's exact label format, which
-// is not a contract either side promises to hold still, and the critique is
-// the only surface carrying the simulated model, per-step commentary, and
-// robustness assessment this structured detail does not. The bolded list
-// leads so a scanning reader sees the named failure points first, the way
-// the report does.
+// Retain simulation prose alongside structured failures: stripping repeated
+// lines would couple rendering to labels and lose model/step/robustness context.
 function SimulationFindings({detail}: {detail: ReviewDetail}) {
   if (!detail.failurePoints.length && !detail.decisiveStep) return null;
   return (
@@ -325,9 +258,6 @@ function SimulationFindings({detail}: {detail: ReviewDetail}) {
   );
 }
 
-// One review row's structured findings, when its detail_json parsed to
-// anything -- nothing for a row that predates the column, carries no
-// structured content, or is malformed past recovery.
 function ReviewFindings({review}: {review: Review}) {
   const detail = parseReviewDetail(review);
   if (!hasReviewDetail(detail)) return null;
@@ -339,13 +269,6 @@ function ReviewFindings({review}: {review: Review}) {
   );
 }
 
-// "Review critiques" section body: every review row recorded for the idea,
-// each under its reviewer's own heading, so the initial peer review, the
-// deep verification, and the full/simulation/recurrent results stay
-// visibly distinct findings (audit E1/D13) instead of one collapsed block.
-// A row carrying structured detail_json (R14-15/R14-22) surfaces it above
-// the free-text critique -- see ReviewFindings/SimulationFindings for why
-// both render rather than one replacing the other. Props-only (no hooks).
 export function ReviewCritiquesContent({reviews}: {reviews: Review[]}) {
   if (!reviews.length) {
     return <p>{NO_REVIEW_CRITIQUES_TEXT}</p>;
@@ -363,7 +286,6 @@ export function ReviewCritiquesContent({reviews}: {reviews: Review[]}) {
   );
 }
 
-// Shared by the populated/empty pane and each rank row's aria-controls link.
 export const DETAIL_PANE_ID = 'hypothesis-detail-pane';
 
 const IDEA_DETAIL_SECTION_CLASSES =
@@ -394,8 +316,6 @@ interface DetailSectionsProps {
   onRefreshOutcomes?: () => Promise<void> | void;
 }
 
-// The ordered detail sections for a selected hypothesis. Props-only (no
-// hooks), so the parent keeps every hook above its empty-state return.
 export function HypothesisDetailSections({
   paneClasses,
   hypothesis,
@@ -461,9 +381,6 @@ export function HypothesisDetailSections({
   );
 }
 
-// "Description" section body: title plus the optional mechanism/expected-
-// effect paragraphs. Props-only (no hooks), so it is safe to render outside
-// HypothesisDetail's own scope.
 function HypothesisDescriptionContent({hypothesis}: {hypothesis: Hypothesis}) {
   return (
     <>
@@ -482,12 +399,8 @@ function HypothesisDescriptionContent({hypothesis}: {hypothesis: Hypothesis}) {
   );
 }
 
-// Renders the located evidence spans behind each supported/contradicted claim,
-// so a reader can read the exact quote that grounds the verdict and open its
-// source (Milestone 5 / P0.5). Insufficient claims remain visible even though
-// they have no source span, with their categorical/speculative role explicit.
-// A "partial" verdict is a near-miss support tier: relevant, consistent
-// evidence short of full entailment, cited from the same supporting spans.
+// Unsupported claims remain visible with categorical/speculative roles; partial
+// support is distinct from full entailment.
 function claimVerdictText(claim: ClaimEvidenceRow): string {
   if (claim.label === 'partial') return 'partial support';
   if (claim.label === 'insufficient') {
@@ -504,7 +417,6 @@ function ClaimVerdictLabel({claim}: {claim: ClaimEvidenceRow}) {
   );
 }
 
-// The located quotes behind one claim's verdict, each with its source link.
 function EvidenceSpanList({spans}: {spans: NormalizedSpan[]}) {
   if (!spans.length) return null;
   return (
@@ -534,8 +446,6 @@ function EvidenceSpanList({spans}: {spans: NormalizedSpan[]}) {
   );
 }
 
-// The located quotes a verdict rests on: a contradiction cites what
-// contradicts the claim, every other verdict what supports it.
 function claimSpans(claim: ClaimEvidenceRow): NormalizedSpan[] {
   return claim.label === 'contradicts'
     ? normalizeSpans(claim.contradicting)
@@ -558,10 +468,6 @@ function ClaimEvidenceDetail({claims}: {claims: ClaimEvidenceRow[]}) {
   );
 }
 
-// "Provenance & lineage" section body: where the hypothesis came from
-// (Milestone 1 immutable-evolution lineage), its proximity cluster
-// (Milestone 3), its safety status (Milestone 6), and a summary of its
-// claim-evidence grounding (Milestone 5).
 function ProvenanceOriginLines({hypothesis}: {hypothesis: Hypothesis}) {
   return (
     <>
@@ -612,8 +518,6 @@ function HypothesisProvenanceContent({
   );
 }
 
-// "Match summary" section body: each persisted result and its optional
-// turn-by-turn transcript, ordered newest first. Props-only (no hooks).
 function MatchSummaryContent({
   hypothesisId,
   matches,
@@ -733,8 +637,6 @@ function MatchTranscriptDisclosure({
   );
 }
 
-// One titled block within the detail pane. `id` (from sectionSlug) is the
-// anchor target for SectionsRail's links and the deep-link hash.
 function DetailSection({
   title,
   children,

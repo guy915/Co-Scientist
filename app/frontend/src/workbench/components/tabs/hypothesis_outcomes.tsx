@@ -42,7 +42,6 @@ function resolvedCollectionState({
   };
 }
 
-/** Scientist-entered observation form and list for one selected hypothesis. */
 export function HypothesisOutcomeSection({
   runId,
   hypothesis,
@@ -221,7 +220,8 @@ function OutcomeSubmissionForm({
   );
 }
 
-/** Post-publication observations kept visually separate from report claims. */
+// Post-publication observations stay distinct from evidence-backed report
+// claims.
 export function RunOutcomesReport({
   outcomes,
   hypotheses,
