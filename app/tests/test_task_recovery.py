@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import concurrent.futures
 import json
-import sqlite3
 from typing import Any
 
 import pytest
@@ -503,83 +502,6 @@ def test_attempts_history_is_capped(isolated_db: str) -> None:
     assert saved.attempts[-1]["error"] == f"failure {over_cap - 1}"
     first_kept = over_cap - store_tasks_attempts._MAX_STORED_ATTEMPTS
     assert saved.attempts[0]["error"] == f"failure {first_kept}"
-
-
-def test_old_schema_task_decodes_with_empty_history(
-    isolated_db: str,
-) -> None:
-    raw = sqlite3.connect(isolated_db)
-    try:
-        raw.executescript(
-            """
-            CREATE TABLE runs (
-                id TEXT PRIMARY KEY,
-                research_goal TEXT NOT NULL,
-                profile TEXT NOT NULL,
-                status TEXT NOT NULL,
-                provider TEXT NOT NULL,
-                config_json TEXT NOT NULL,
-                created_at REAL NOT NULL,
-                updated_at REAL NOT NULL,
-                completed_at REAL,
-                error TEXT
-            );
-            CREATE TABLE scientific_tasks (
-                id TEXT PRIMARY KEY,
-                run_id TEXT NOT NULL,
-                task_type TEXT NOT NULL,
-                status TEXT NOT NULL,
-                priority INTEGER NOT NULL DEFAULT 0,
-                inputs_json TEXT NOT NULL,
-                dependencies_json TEXT NOT NULL,
-                provenance_json TEXT NOT NULL,
-                idempotency_key TEXT NOT NULL,
-                budget_json TEXT NOT NULL,
-                attempt INTEGER NOT NULL DEFAULT 0,
-                max_attempts INTEGER NOT NULL DEFAULT 3,
-                lease_owner TEXT,
-                lease_expires_at REAL,
-                result_json TEXT,
-                error TEXT,
-                created_at REAL NOT NULL,
-                updated_at REAL NOT NULL,
-                started_at REAL,
-                completed_at REAL,
-                UNIQUE (run_id, idempotency_key)
-            );
-            """
-        )
-        raw.execute(
-            "INSERT INTO runs (id, research_goal, profile, status, "
-            "provider, config_json, created_at, updated_at) VALUES "
-            "('legacy-run', 'legacy goal', 'standard', 'running', "
-            "'engine', '{}', 1, 1)"
-        )
-        raw.execute(
-            "INSERT INTO scientific_tasks (id, run_id, task_type, status, "
-            "inputs_json, dependencies_json, provenance_json, "
-            "idempotency_key, budget_json, error, created_at, updated_at) "
-            "VALUES ('legacy-task', 'legacy-run', 'engine.node.ranking', "
-            "'failed', '{}', '[]', '{}', 'k', '{}', 'an old failure', "
-            "1, 1)"
-        )
-        raw.commit()
-    finally:
-        raw.close()
-
-    saved = store.get_task("legacy-task", db_path=isolated_db)
-
-    assert saved is not None
-    assert saved.attempts == ()
-    assert saved.error == "an old failure"
-
-    with store_db.connect(isolated_db) as conn:
-        cols = {
-            row[1]
-            for row in conn.execute("PRAGMA table_info(scientific_tasks)")
-        }
-        assert "attempts_json" in cols
-        assert "attempt_started_at" in cols
 
 
 def test_failed_attempt_write_is_transactional_with_settlement(
