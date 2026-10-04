@@ -288,3 +288,5 @@ removes `outcome_refinement_actions` and `hypothesis_outcomes`, then settles pen
 `engine.outcome.refinement` rows as completed with `{"retired": true}`. The retired
 dispatch path also returns that result without model calls. Scientific checkpoints
 and ordinary task dependencies remain intact for recovery; no retired call replays.
+A run reactivated solely for refinement returns to completed when its published
+report survives and no ordinary work is pending.

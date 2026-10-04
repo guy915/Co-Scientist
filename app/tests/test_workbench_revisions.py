@@ -124,3 +124,28 @@ def test_replaced_question_discards_late_streamed_answer(
         NewMessage(run.id, "system", "Current answer", "qa"), replacement.id
     )
     assert messages.list_messages(run.id)[-1].content == "Current answer"
+
+
+@pytest.mark.parametrize("ordinary_work", [False, True])
+def test_retirement_restores_finished_run_without_hiding_ordinary_work(
+    isolated_db: str, ordinary_work: bool
+) -> None:
+    run = runs.create_run("Already published research", "express", "mock", {})
+    tasks.enqueue_task(
+        NewTask(run.id, "engine.outcome.refinement", {}, "retired")
+    )
+    if ordinary_work:
+        tasks.enqueue_task(
+            NewTask(run.id, "engine.node.reflection", {}, "ordinary")
+        )
+    with db.connect() as conn:
+        conn.execute("UPDATE runs SET status='queued' WHERE id=?", (run.id,))
+        conn.execute(
+            "INSERT INTO reports (id,run_id,payload_json,created_at) "
+            "VALUES ('report',?,'{}',1)",
+            (run.id,),
+        )
+        conn.executescript(SCHEMA)
+    restored = runs.get_run(run.id)
+    assert restored is not None
+    assert restored.status == ("queued" if ordinary_work else "completed")

@@ -677,10 +677,27 @@ CREATE TABLE IF NOT EXISTS proximity_edges (
 CREATE INDEX IF NOT EXISTS idx_proximity_run ON proximity_edges(run_id);
 -- Retired work is explicitly settled without replay; ordinary checkpoint
 -- successors remain claimable after a rolling deployment.
+BEGIN IMMEDIATE;
+CREATE TEMP TABLE _retired_outcome_runs AS
+    SELECT DISTINCT run_id FROM scientific_tasks
+    WHERE task_type='engine.outcome.refinement'
+    AND status IN ('queued','leased','paused');
 UPDATE scientific_tasks SET status='completed', result_json='{"retired":true}',
     lease_owner=NULL, lease_expires_at=NULL, error=NULL,
     completed_at=CAST(strftime('%s','now') AS REAL),
     updated_at=CAST(strftime('%s','now') AS REAL)
     WHERE task_type='engine.outcome.refinement'
     AND status IN ('queued','leased','paused');
+-- Refinement reactivated a previously completed run. Restore that state only
+-- when its published report survives and no ordinary work remains pending.
+UPDATE runs SET status='completed',
+    updated_at=CAST(strftime('%s','now') AS REAL)
+    WHERE id IN (SELECT run_id FROM _retired_outcome_runs)
+    AND status IN ('queued','running','synthesizing')
+    AND EXISTS (SELECT 1 FROM reports WHERE reports.run_id=runs.id)
+    AND NOT EXISTS (SELECT 1 FROM scientific_tasks
+        WHERE scientific_tasks.run_id=runs.id
+        AND status IN ('queued','leased','paused'));
+DROP TABLE _retired_outcome_runs;
+COMMIT;
 """
