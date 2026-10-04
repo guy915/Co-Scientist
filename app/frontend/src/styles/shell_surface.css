@@ -1,7 +1,5 @@
-/* Workbench shell, sidebar, header, and shell popovers. */
-/* Viewport-sized boxes use dvh with a vh fallback: on iOS Safari 100vh is
-   the toolbar-collapsed height, so vh-sized boxes run under the visible
-   toolbar; dvh tracks the actual visible viewport. */
+/* iOS Safari vh includes collapsed-toolbar space; dvh tracks the visible
+   viewport while vh remains a fallback. */
 .ucs-app-shell {
   display: grid;
   min-height: 100vh;
@@ -46,12 +44,8 @@
 .ucs-page--report {
   min-height: 0;
   overflow: hidden;
-  /* Horizontal-scroll fallback: report content (titlebar, tab strip) can
-     shrink below what it contains at narrow widths, and this was the
-     ancestor whose unconditional overflow: hidden clipped that overflow away
-     with nothing to make it reachable. Vertical scrolling is unaffected --
-     it stays owned by the inner .cosci-report-scroll region -- so only the x
-     axis is relaxed here. */
+  /* Narrow report overflow must remain reachable horizontally; vertical scroll
+     stays owned by the inner report pane. */
   overflow-x: auto;
 }
 
@@ -68,9 +62,6 @@
   padding-block: 1.25rem;
 }
 
-/* Backdrop behind the mobile navigation drawer. Hidden by default (the drawer
-   is an in-grid rail on desktop); only shown at phone widths (see the
-   max-width: 700px block). Tapping it closes the drawer. */
 .ucs-scrim {
   position: fixed;
   inset: 0;
@@ -79,9 +70,6 @@
   background: rgb(0 0 0 / 45%);
 }
 
-/* Header hamburger that opens the mobile drawer. The rail's own Menu button
-   lives inside the drawer and is off-screen when it is closed, so the phone
-   header needs its own trigger. Hidden on desktop, where the rail is docked. */
 .ucs-nav-hamburger {
   display: none;
   place-items: center;
@@ -108,9 +96,8 @@
   display: grid;
 }
 
-/* The primary-navigation <nav> is kept for semantics/aria, but dissolved from
-   layout so Menu, New chat, and Search are uniform siblings of a single grid
-   (one gap source) instead of Menu sitting a level above the other two. */
+/* Keep navigation semantics while display:contents gives all controls one grid
+   gap source. */
 .ucs-nav-items {
   display: contents;
 }
@@ -127,16 +114,8 @@
   margin-top: 0;
 }
 
-/* The Menu toggle operates the rail itself; New chat is the first of the
-   navigation actions, so it starts a group rather than continuing the
-   list. The separation has to sit on the item, not on the <nav> wrapping
-   it: that wrapper is display:contents (above), which removes its box, so
-   its own gap and margin never reached the page -- the rules that used to
-   stand here declared a 1.4rem separation that has never once rendered.
-
-   Both rail states carry it identically, keeping the rule that every icon
-   holds its Y position when the rail collapses (see the responsive rules
-   below). It adds to the group gap rather than replacing it. */
+/* display:contents removes the nav wrapper’s box, so separation belongs on its
+   first item in both rail states. */
 .ucs-nav-items--open > :first-child,
 .ucs-nav-items--collapsed > :first-child {
   margin-top: 0.5rem;
@@ -219,9 +198,8 @@
 }
 
 .nav-label--collapsed {
-  /* Fully out of flow when collapsed. visibility:hidden alone kept the label
-     occupying a second grid row in the icon-only button, which pushed the icon
-     up off-center and made it jump vertically on toggle. */
+  /* visibility:hidden retains a grid row and shifts the icon; collapsed labels
+     must leave flow entirely. */
   display: none;
   width: 0;
   max-width: 0;
@@ -272,23 +250,9 @@
   stroke: currentColor;
 }
 
-/* Chat/Results switch for a session that has both (layout_session_switch.tsx).
-   Its chrome is the Logs trigger's own accent-pill recipe
-   (HEADER_ACCENT_PILL_CLASSES in layout_primitives.tsx), applied as Tailwind
-   utilities at the call site rather than as named rules here -- .ucs-session-
-   switch* below survives only as the selector hook the rules further down
-   key off of. */
 
-/* The Chat/Results switch's moving highlight. Sized to one column of the
-   track and translated a full width of itself to reach the other. Transform,
-   not left/width: it is the only pair of properties the compositor can
-   animate without laying the header out again on every frame. The track has
-   no padding, so the highlight is a full-height pill exactly the size of the
-   Logs trigger beside it -- the two are the same control at the same size,
-   which is the point of building it from the Logs pill in the first place.
-
-   Everything else about the switch is Tailwind on the element itself
-   (layout_session_switch.tsx); only the travel needs a stylesheet. */
+/* Transform travel stays compositor-owned rather than laying out the header on
+   every animation frame. */
 .ucs-session-switch-thumb {
   position: absolute;
   z-index: 0;
@@ -305,16 +269,14 @@
   transform: translateX(100%);
 }
 
-/* Matches the highlight's travel, so the label it is arriving under turns as
-   it gets there rather than a frame before it leaves. */
+/* Synchronize label color with highlight travel rather than switch color
+   before the marker arrives. */
 .ucs-session-switch-side {
   transition: color 220ms cubic-bezier(0.2, 0, 0, 1);
 }
 
-/* Scoped to the unhighlighted side so a hover never fights the accent behind
-   the other one. A tint distinct from the track in both themes -- the
-   menu-row hover colour is the track's own value, so it would read as no
-   hover at all. */
+/* Unselected hover needs its own tint: the menu-row value equals the track and
+   would show no state. */
 .ucs-session-switch-side:not(.ucs-session-switch-side--active):hover,
 .ucs-session-switch-side:not(.ucs-session-switch-side--active):focus-visible {
   background: var(--cosci-hover);
@@ -327,20 +289,13 @@
   }
 }
 
-/* The switch takes the title's place on a session route. The bar has room
-   for the lockup, one centred title and the right-hand controls and no more:
-   with the switch in that cluster, a long title painted straight through it
-   from about 1400px down. Nothing is lost -- a run's title is the titlebar
-   directly below, and a conversation's is the plan in its transcript. */
+/* Session controls replace the header title to avoid overlap; the
+   run/transcript already presents that title. */
 .ucs-header-action-bar:has(.ucs-session-switch) .ucs-header-title {
   display: none;
 }
 
 .ucs-header-title {
-  /* Absolutely centered in the header bar, independent of the brand lockup
-     (left) and the Logs actions (right, also absolute). Capped at a
-     viewport-scaled width so long titles word-truncate rather than collide
-     with the flanking controls. */
   position: absolute;
   left: 50%;
   top: 50%;
@@ -388,18 +343,9 @@
 .ucs-settings-control {
   position: relative;
   display: grid;
-  /* Icon-only rail default: shrink to the button and let the centered
-     nav-bottom track keep the gear on the same gutter as the icons above it.
-     The open/collapsed width switch below only kicks in on the desktop rail
-     (>=701px), where the panel actually widens; at mobile widths the panel is
-     a fixed icon rail, so a width:100% here would left-align the gear and make
-     it jump when the nav toggles. */
   width: auto;
   justify-items: center;
 }
-/* Shell settings menu and Settings dialog. */
-/* Settings popup menu (Appearance / Model / Help), matching the reference
-   product's compact menu that opens from the rail's Settings gear. */
 .ucs-popover--menu {
   width: min(13.5rem, calc(100vw - 4rem));
   padding: 0.5rem;
@@ -478,9 +424,6 @@
   font-size: 1rem;
 }
 
-/* Dialog-scale variant of the theme segment: the same control, sized for the
-   Settings window rather than the rail popover. Stretches to fill the panel
-   width (the base .ucs-theme-segment is a 3-column grid). */
 .ucs-theme-button--dialog {
   min-height: 2.6rem;
   font-size: 0.875rem;
@@ -491,8 +434,6 @@
   font-size: 1.15rem;
 }
 
-/* Centered Settings window (Appearance / Model), matching the reference
-   product's modal settings surface. Sits above the mobile drawer (z 60). */
 .ucs-settings-dialog-scrim {
   position: fixed;
   inset: 0;
@@ -626,9 +567,6 @@
   font-weight: 500;
 }
 
-/* Second field label in a stacked pair (e.g. the key under the provider
-   chooser): restores the inter-field gap the first label's margin-bottom
-   does not cover from the preceding control. */
 .ucs-settings-field-label--spaced {
   margin-top: 0.9rem;
 }
@@ -652,11 +590,6 @@
   outline-offset: 0;
 }
 
-/* Provider chooser (settings_dialog.tsx). Full panel width, matching
-   the API key field directly under it: the two are one stacked pair, and a
-   content-width trigger beside a full-width input read as a control that had
-   failed to lay out. The menu is placed under the trigger by
-   useAnchoredMenu (settings_dialog.tsx). */
 .ucs-provider-select {
   position: relative;
   display: grid;
@@ -692,9 +625,8 @@
 }
 
 .ucs-provider-menu {
-  /* Fixed, not absolute: the Settings panel scrolls (overflow-y: auto), and
-     an absolute menu was clipped at its edge. useAnchoredMenu sets top/left;
-     the menu may overflow the panel and the dialog. */
+  /* Absolute menus clip inside the scrolling Settings panel; fixed anchored
+     menus may escape its edges. */
   position: fixed;
   z-index: 40;
   top: 0;
@@ -733,8 +665,6 @@
   font-size: 1.05rem;
 }
 
-/* Supervisor and worker model selects (settings_dialog.tsx): two
-   equal columns under the key field, stacking on a narrow dialog. */
 .ucs-settings-model-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -792,11 +722,7 @@
   font-size: 0.95rem;
 }
 
-/* Shell popover panels, toast, and sidebar chat list. */
 
-/* One sidebar treatment for every route — the chat rail must look
-   identical on the home surface and inside a run (no home/report
-   variants). */
 .ucs-side-content {
   display: grid;
   min-width: 0;
@@ -808,11 +734,6 @@
   visibility: visible;
 }
 
-/* "Chats" section heading: on-surface (dark in light, white in dark), matching
-   the reference's section labels. The sidebar uses a single font size (the nav
-   labels' 0.875rem); the heading is only distinguished by weight and color. Its
-   text is indented to the shared 0.75rem gutter so it lines up with the nav
-   icons and the chat item labels rather than sitting flush-left. */
 .ucs-side-heading {
   margin: 1.15rem 0 0.55rem;
   padding-inline: 0.75rem;
@@ -827,16 +748,8 @@
   gap: 0.35rem;
 }
 
-/* Desktop: the chat area takes the height the rail actually has, between the
-   top actions and Settings, rather than a fixed cap that cut the list off
-   with the rail half empty. Mirrors the max-width:700px drawer rules further
-   down. The .ucs-app-shell prefix outranks tooltips.css, which forces
-   overflow:visible on these selectors at single-class specificity.
-
-   The list only becomes a scroll container when it has more chats than fit
-   (see useOverflowing): a scroll container clips its content whether or not a
-   scrollbar shows, which would cut off the chat-link tooltips that escape to
-   the right. Nothing to scroll -> no clipping -> tooltips work. */
+/* Higher specificity outranks the final tooltip sheet; scroll only overflowing
+   lists because every scroll container clips escaping tooltips. */
 @media (min-width: 701px) {
   .ucs-app-shell .ucs-nav-top--open {
     display: flex;
@@ -881,8 +794,6 @@
   text-decoration: none;
 }
 
-/* Hover/focus and the active conversation share a filled pill, so the chat
-   being viewed stays highlighted in the rail. */
 .ucs-chat-link:hover,
 .ucs-chat-link:focus-visible,
 .ucs-chat-link--active,
@@ -893,10 +804,8 @@
 }
 
 .ucs-chat-label {
-  /* Fill the link's width regardless of content so word-boundary truncation
-     measures against the full available width (flex-basis:0 grow), not the
-     truncated text — otherwise the label collapses to its own clipped
-     content. */
+  /* Measure labels against full available width, not their already-truncated
+     text, or fitting collapses the label. */
   flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
@@ -925,7 +834,6 @@
   color: var(--cosci-text);
 }
 
-/* Shell responsive breakpoints: desktop rail states and the phone drawer. */
 @media (min-width: 1181px) {
   .ucs-page--home {
     height: calc(100vh - 4.5rem);
@@ -947,9 +855,8 @@
   }
 
   .ucs-app-shell.nav-collapsed {
-    /* 4.5rem so a centered 2.5rem nav item lands its icon on the same 24px
-       gutter the open rail uses (12px panel + 12px item padding) — the nav
-       icons then don't shift when the rail collapses/expands. */
+    /* Keep the collapsed icon on the open rail’s 24px gutter so toggling
+       cannot shift it. */
     grid-template-columns: 4.5rem minmax(0, 1fr);
   }
 
@@ -971,10 +878,8 @@
     margin-top: 0.25rem;
   }
 
-  /* Collapsed uses the SAME vertical metrics as open (top margin, gap, item
-     height) so every icon keeps its exact Y position when the rail toggles;
-     only the horizontal treatment (centered icon vs. left-aligned icon+label)
-     differs between the two states. */
+  /* Preserve open/collapsed vertical metrics so toggling changes labels
+     without moving icons. */
   .ucs-nav-top--collapsed,
   .ucs-nav-items--collapsed {
     gap: 0.25rem;
@@ -994,9 +899,6 @@
     margin-top: 0;
   }
 
-  /* On the desktop rail the panel widens, so the settings control stretches to
-     fill it (matching the nav-items) when open and shrinks back when collapsed.
-     Mobile keeps the base icon-only width:auto so the gear never shifts. */
   .ucs-settings-control--open {
     width: 100%;
   }
@@ -1043,16 +945,11 @@
 }
 
 @media (max-width: 700px) {
-  /* Content fills the viewport; the rail is lifted out of the grid and becomes
-     an off-canvas drawer (see .ucs-nav-panel below), so the phone gets the full
-     width for content instead of a permanent icon strip. */
   .ucs-app-shell.nav-open,
   .ucs-app-shell.nav-collapsed {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  /* Fill the viewport edge-to-edge — no rounded corner that would reveal the
-     rail-colored shell behind it now that the content spans the full width. */
   .ucs-workspace {
     border-radius: 0;
   }
@@ -1066,10 +963,8 @@
     min-width: 0;
   }
 
-  /* Off-canvas navigation drawer: fixed, full-height, slides in from the left
-     over the content (with a backdrop) when open, and sits off-screen when
-     closed. Scoped to .ucs-app-shell so it outranks tooltips.css's single-class
-     `.ucs-nav-panel { position: relative }`, which loads later. */
+  /* Scope above the later tooltip positioning rule so mobile navigation stays
+     a fixed off-canvas drawer. */
   .ucs-app-shell .ucs-nav-panel {
     position: fixed;
     inset: 0 auto 0 0;
@@ -1077,15 +972,11 @@
     width: 21rem;
     min-width: 0;
     max-width: 85vw;
-    /* Stretch between the inset's top/bottom edges instead of sizing to
-       100vh: on iOS Safari 100vh is the toolbar-collapsed height, which
-       pushed the drawer's bottom corner under the visible toolbar. */
+    /* Stretch to inset edges; iOS Safari vh would hide the drawer’s bottom
+       under its toolbar. */
     height: auto;
     align-items: stretch;
     padding: 1rem 0.75rem;
-    /* Mirror the desktop workspace radii (1.85rem top / 1.9rem bottom): there
-       the content rounds its left edge against the rail; here the drawer
-       rounds its right edge against the scrimmed content. */
     border-radius: 0 1.85rem 1.9rem 0;
     transform: translateX(-100%);
     transition: transform 240ms cubic-bezier(0.2, 0, 0, 1);
@@ -1102,9 +993,6 @@
     }
   }
 
-  /* Inside the drawer, use the full icon+label rows and show the chat
-     history — the drawer is only ever visible when open, so it always
-     renders expanded regardless of the shared collapsed/open state. */
   .ucs-nav-top,
   .ucs-nav-items,
   .ucs-nav-bottom {
@@ -1114,13 +1002,8 @@
     gap: 0.3rem;
   }
 
-  /* Only the chat list scrolls inside the drawer — Menu, New chat, the
-     "Chats" heading, and Settings stay put. nav-top fills the space
-     between the top actions and Settings and clips (no scroll of its
-     own); the scroll lives on the chat list below. Using overflow:
-     hidden here (not overflow-y: auto) also avoids the phantom
-     horizontal scrollbar the browser synthesizes when one axis is auto
-     and the other is visible. */
+  /* Only the chat list scrolls; hiding overflow on its parent avoids the
+     phantom second-axis scrollbar synthesized from auto/visible. */
   .ucs-nav-top {
     display: flex;
     flex: 1;
@@ -1129,23 +1012,20 @@
     overflow: hidden;
   }
 
-  /* The .ucs-app-shell prefix lifts these above tooltips.css, which
-     (loading last) forces overflow: visible on .ucs-side-content /
-     .ucs-chat-list at single-class specificity — otherwise the chat
-     list can't clip or scroll. */
+  /* Outrank the final tooltip sheet’s overflow-visible rules so the mobile
+     list can clip and scroll. */
   .ucs-app-shell .ucs-side-content {
     flex: 1;
     min-height: 0;
     overflow: hidden;
   }
 
-  /* Constrain the list column to the drawer width (minmax(0,1fr) instead of the
-     default max-content) so long chat titles truncate instead of forcing the
-     list wider than the panel, and let ONLY this list scroll vertically. */
+  /* Use a shrinkable track so long titles cannot widen the drawer; only this
+     list owns vertical scrolling. */
   .ucs-app-shell .ucs-chat-list {
     grid-template-columns: minmax(0, 1fr);
-    /* Pack rows at the top; a grid's default align-content stretches auto rows
-       to fill the (flex-tall) list, which is what spread the chats apart. */
+    /* Pack rows at the top; default grid stretching spreads chats through the
+       available height. */
     align-content: start;
     min-height: 0;
     flex: 1;
@@ -1153,9 +1033,8 @@
     overflow-y: auto;
   }
 
-  /* Hover tooltips are useless on touch and their (full-goal-text)
-     pseudo pushes the list wider than the drawer — the actual source
-     of the horizontal scroll. Drop them on the phone drawer. */
+  /* Touch hover tooltips are unusable and their full-title pseudos widen the
+     drawer. */
   .ucs-chat-list [data-tooltip].ucs-tooltip-anchor::after {
     display: none;
   }
@@ -1193,8 +1072,6 @@
     width: 100%;
   }
 
-  /* The desktop title doesn't fit a phone bar; the hamburger replaces the
-     (now off-canvas) rail toggle as the way to open navigation. */
   .ucs-header-title {
     display: none;
     max-width: 0;
@@ -1202,10 +1079,8 @@
     visibility: hidden;
   }
 
-  /* The diagnostics don't fit either, but the actions box itself stays: it
-     holds the session switch, and with the run's back arrow now leaving the
-     run entirely, that switch is the only way back to a session's transcript
-     on a phone. So the cluster's other controls go, not the cluster. */
+  /* Keep the session switch on phones: it is the route back to the transcript
+     after leaving a run. */
   .ucs-header-actions > :not(.ucs-session-switch) {
     display: none;
   }
@@ -1216,18 +1091,11 @@
     padding-inline: 0.5rem;
   }
 
-  /* Labels go, not the control -- each side keeps its name through the link's
-     aria-label, so the icons stay announced. */
+  /* Hidden phone labels retain link aria-label names. */
   .ucs-session-switch-label {
     display: none;
   }
 
-  /* The bar is space-between over two in-flow items, so with the hamburger
-     showing, the lockup sits against the right edge -- where the switch's
-     cluster now is. Hand the free space to the lockup instead, which puts the
-     wordmark beside the hamburger and leaves the right edge to the switch.
-     Only on a session route: everywhere else the lockup keeps the right-edge
-     placement the margin below balances. */
   .ucs-header-action-bar:has(.ucs-session-switch) .ucs-product-lockup {
     margin-right: auto;
   }
@@ -1236,17 +1104,10 @@
     display: inline-grid;
   }
 
-  /* The flask mark is relocated above the home title on phones, so the header
-     lockup shows just the "Co-Scientist" wordmark. */
   .ucs-product-lockup svg {
     display: none;
   }
 
-  /* Balance the lockup against the hamburger: the hamburger's 24px
-     glyph sits ~8px inside its 40px tap target (which starts at the
-     8px bar padding), so the lockup gets a matching ~8px right margin
-     to land the same ~16px from its edge — otherwise the wordmark hugs
-     the right edge while the menu looks inset. */
   .ucs-product-lockup {
     margin-left: 0;
     margin-right: 0.5rem;
@@ -1268,8 +1129,6 @@
     width: min(13.5rem, calc(100vw - 1rem));
   }
 
-  /* Phone settings window: fill (almost) the viewport and stack the section
-     rail above the panel as a horizontal pill row. */
   .ucs-settings-dialog {
     width: calc(100vw - 1.5rem);
     height: calc(100dvh - 1.5rem);
@@ -1284,12 +1143,8 @@
     margin-top: 0.9rem;
   }
 
-  /* Vertical phone layout: the section options stack above the panel
-     and sit top-right rather than spanning from the left. The right push is
-     an auto margin on the first pill, not justify-content: flex-end -- an
-     overflowing flex-end row spills past the left edge where overflow-x
-     cannot scroll to it, which clipped "Appearance" on 320px phones. An auto
-     margin collapses to zero once the row overflows, so it scrolls instead. */
+  /* Auto margins collapse on overflow; flex-end would spill sections beyond
+     the unreachable left edge on narrow phones. */
   .ucs-settings-dialog-nav {
     display: flex;
     gap: 0.35rem;
@@ -1302,8 +1157,6 @@
     margin-left: auto;
   }
 
-  /* Tighter pills on mobile so the three cluster at the right with clear slack
-     on the left (rather than stretching to fill the row). */
   .ucs-settings-nav-item {
     flex: 0 0 auto;
     min-height: 2.5rem;
@@ -1313,8 +1166,6 @@
   }
 }
 
-/* The narrowest phones drop the pill icons so all three sections fit
-   without scrolling the row. */
 @media (max-width: 360px) {
   .ucs-settings-nav-item {
     padding-inline: 0.75rem;

@@ -1,18 +1,6 @@
-/**
- * Minimal, dependency-free sanitizer for untrusted HTML fragments.
- *
- * Sources such as PubMed titles and abstracts embed a small set of inline
- * formatting tags (`<i>`, `<sub>`, `<sup>`, ...) that should render as markup
- * rather than as escaped text. The rest of the fragment is untrusted (it flows
- * in from external services), so we escape the entire string first and then
- * re-introduce only the exact, attribute-less tags on the whitelist. Because
- * un-escaping happens after escaping, no attribute, event handler, URL, or
- * disallowed tag can survive: anything not literally `<i>`/`</i>` (etc.) stays
- * escaped and is rendered by the browser as plain text.
- */
+// External titles/abstracts contain inline formatting but are untrusted. Escape
+// first, then restore only exact attribute-less allowlisted tags.
 
-// Tags allowed to survive sanitization, attribute-less; anything else
-// stays escaped.
 const INLINE_TAGS = ['i', 'b', 'em', 'strong', 'sub', 'sup', 'u'] as const;
 
 const ESCAPE_MAP: Record<string, string> = {
@@ -21,23 +9,14 @@ const ESCAPE_MAP: Record<string, string> = {
   '>': '&gt;',
 };
 
-/** Escapes `&`, `<`, `>` so the input can never be interpreted as markup. */
 function escapeHtml(value: string): string {
   return value.replace(/[&<>]/g, char => ESCAPE_MAP[char]);
 }
 
-/**
- * Returns an HTML string safe to pass to `dangerouslySetInnerHTML`, preserving
- * only whitelisted inline formatting tags from the input.
- *
- * @param raw The untrusted source fragment.
- * @returns Escaped HTML with whitelisted inline tags reintroduced.
- */
 export function renderInlineHtml(raw: string): string {
   let out = escapeHtml(raw);
-  // Un-escape only exact, bare `<tag>`/`</tag>` sequences. A tag written with
-  // attributes (e.g. `<i onclick=...>`) does not match these literals, so it
-  // remains escaped text.
+  // Restore exact bare tags only; attributes, handlers and URLs must remain
+  // escaped.
   for (const tag of INLINE_TAGS) {
     out = out
       .replaceAll(`&lt;${tag}&gt;`, `<${tag}>`)

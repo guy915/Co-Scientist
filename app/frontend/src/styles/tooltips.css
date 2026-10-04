@@ -1,4 +1,4 @@
-/* Sidebar tooltip stacking fix: keep nav popups above the workspace. */
+/* Navigation popups must stack above the workspace. */
 .ucs-nav-panel {
   position: relative;
   z-index: 70;
@@ -22,13 +22,8 @@
   position: relative;
 }
 
-/* Canonical tooltip system. New tooltip affordances must use data-tooltip
-   plus these ucs-tooltip-* modifiers (via tooltipClassNames in classes.ts).
-
-   Cascade note: this file is unlayered author CSS imported last, so it wins
-   over Tailwind's @layer utilities (e.g. an overflow-hidden utility on the
-   anchor) without any !important. Placement/alignment modifiers share the
-   base selector's specificity and rely on source order below the base rule. */
+/* Unlayered final-sheet rules outrank utility layers; placement modifiers rely
+   on source order at equal specificity. */
 [data-tooltip].ucs-tooltip-anchor {
   position: relative;
   overflow: visible;
@@ -138,9 +133,8 @@
   --ucs-tooltip-open-x: 0;
 }
 
-/* Hover reveal only on devices that can actually hover: on touch screens a
-   tap sets a sticky :hover on the target, which would pop the tooltip and
-   leave it hanging until the next tap elsewhere. */
+/* Touch taps create sticky hover; reveal tooltips only on devices that can
+   hover. */
 @media (hover: hover) {
   [data-tooltip].ucs-tooltip-anchor:hover::after {
     opacity: 1;

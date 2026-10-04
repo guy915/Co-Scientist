@@ -20,7 +20,7 @@ export function logRecord(
   };
 }
 
-// jsdom performs no layout; stub the list's scroll geometry.
+// jsdom performs no layout; stub scroll geometry.
 export function stubListGeometry(list: HTMLElement): void {
   Object.defineProperty(list, 'scrollHeight', {
     configurable: true,
@@ -32,13 +32,13 @@ export function stubListGeometry(list: HTMLElement): void {
   });
 }
 
-// Settle remount-time loads so racing requests share one effect generation, not
+// Settle mount loads so race cases share one effect generation rather than
 // disposal guards.
 export async function settleMountTimeLoads(): Promise<void> {
   await waitFor(() =>
     expect(logsApiMock.getAppLogs.mock.calls.length).toBeGreaterThanOrEqual(2),
   );
   await act(async () => {
-    // let the remounted effect finish its initial load
+    // Give the remounted effect one turn to finish its initial load.
   });
 }

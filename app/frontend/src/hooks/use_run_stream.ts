@@ -13,7 +13,7 @@ export interface StreamEvent {
   created_at?: number;
 }
 
-/** A permanent auth/not-found rejection disconnects without retrying. */
+// Permanent auth/not-found rejection disconnects without retries.
 export type StreamConnectionState =
   'connecting' | 'open' | 'reconnecting' | 'disconnected';
 
@@ -25,7 +25,7 @@ export interface UseRunStreamResult {
 
 export const RECONNECT_DELAY_MS = 2000;
 
-/** Batch replay bursts into one render and dedupe reconnects by sequence. */
+// Batch replay bursts and deduplicate reconnects by sequence.
 function createEventBatcher(
   setEvents: Dispatch<SetStateAction<StreamEvent[]>>,
 ) {
@@ -58,7 +58,7 @@ function createEventBatcher(
   };
 }
 
-/** Replay from seq=0 on mount/reconnect to hydrate the complete timeline. */
+// Replay from zero on reconnect to hydrate the complete timeline.
 export function useRunStream(runId: string | null): UseRunStreamResult {
   const [events, setEvents] = useState<StreamEvent[]>([]);
   const [terminal, setTerminal] = useState(false);
@@ -105,7 +105,8 @@ export function useRunStream(runId: string | null): UseRunStreamResult {
             batcher.push(ev);
           }
         } catch {
-          // Drops and malformed frames both reconnect; replay is deduplicated.
+          // Dropped/malformed streams reconnect; sequence deduplication makes
+          // replay safe.
         } finally {
           controller.abort();
         }

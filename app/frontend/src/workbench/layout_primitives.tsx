@@ -4,70 +4,31 @@ import {tooltipClassNames} from './classes';
 
 const SHELL_POPOVER_CLASSES = 'ucs-popover';
 
-/**
- * Wraps popover content in the shell's positioned popover container,
- * naming it for assistive tech (see ShellPopover -- these panels are
- * interactive content, not a status announcement, so the name has to come
- * from a real accessible name rather than an implicit live-region role).
- */
 export type RenderPopover = (
   children: ReactNode,
   className: string,
   ariaLabel: string,
 ) => ReactNode;
 
-/**
- * The shape the header controls share: an open flag, a toggle request, and
- * the shell's popover wrapper.
- */
 export interface HeaderControlProps {
-  /** Whether the popover is shown; owned by the parent shell. */
   open: boolean;
-  /** Requests the parent flip `open`. */
   onToggle: () => void;
-  /** Wraps the panel content in the shell's positioned popover container. */
   renderPopover: RenderPopover;
 }
 
-/**
- * Icon sizing/coloring class shared by the shell's header and nav-rail
- * buttons (hamburger, rail actions).
- */
 export const NAV_ICON_CLASSES = 'ucs-nav-icon';
 
-/**
- * Shape and typography of every pill in the header: the Logs trigger and
- * the Chat/Results switch's track. Deliberately excludes colour, padding,
- * gap, and interaction states (hover, expanded) -- those differ per consumer
- * (a clickable trigger wants them across its whole hit area; the switch
- * wants them per side) and setting the same CSS property twice on one
- * element leaves Tailwind's stylesheet order, not class order, to pick the
- * winner -- which is also why `display` is not in here: the switch is a
- * two-column grid and the trigger a flex row, and an `inline-flex` here
- * silently outranked the switch's own `grid`, leaving its halves
- * content-sized and the sliding highlight aligned to neither.
- */
+// Exclude shared display/color/padding states: Tailwind stylesheet order
+// decides conflicting utilities, which can break a consumer’s grid sizing.
 export const HEADER_PILL_SHAPE_CLASSES =
   'h-[2.35rem] min-w-max items-center rounded-full ' +
   'font-[inherit] text-[0.88rem] font-semibold whitespace-nowrap';
 
-// The filled accent pill: the shape above wearing the accent. The Logs
-// trigger is one of these end to end; the switch's track is not (only its
-// active half is), which is why the fill lives here rather than in the
-// shape.
 export const HEADER_ACCENT_PILL_CLASSES =
   `inline-flex ${HEADER_PILL_SHAPE_CLASSES} ` +
   'bg-cosci-logs-accent-bg text-cosci-logs-accent-fg';
 
-/**
- * Trigger chrome shared by the header's right-side controls (the Logs
- * pill): the accent pill above, whose expanded state holds the hover tint.
- *
- * @param padding The control's padding utilities, passed as complete class
- *   names so Tailwind's scanner sees them at the call site. The Logs
- *   trigger tightens its right side around the count badge; the default
- *   is the plain pill padding.
- */
+// Pass complete utility names so Tailwind discovers them at the call site.
 export function headerControlButtonClasses(padding = 'px-[0.72rem]'): string {
   return (
     `ucs-logs-button relative cursor-pointer gap-[0.45rem] border-0 ${padding} ` +
@@ -76,30 +37,10 @@ export function headerControlButtonClasses(padding = 'px-[0.72rem]'): string {
   );
 }
 
-// The plain pill, for a control that does not tighten its own padding.
 const DEFAULT_HEADER_CONTROL_CLASSES = headerControlButtonClasses();
 
-// Leading-icon sizing, shared by every header control (and the session
-// switch, which wears the same chrome) so their icons all line up.
 export const HEADER_CONTROL_ICON_CLASSES = 'text-[1.05rem]';
 
-/**
- * The header controls' shared trigger: the accent pill above, carrying a
- * leading icon, a label, and the caller's open state.
- *
- * @param props.icon The pill's leading icon.
- * @param props.label The pill's visible label.
- * @param props.tooltip Hover text, rendered by the CSS-only tooltip.
- * @param props.open Whether this control's popover is shown.
- * @param props.onToggle Requests the parent flip `open`.
- * @param props.ariaLabel An accessible name replacing the visible label,
- *   for a control whose label alone does not name it (Logs adds its count).
- *   Left off, the label names the button.
- * @param props.className The pill's own classes, when the control needs
- *   padding other than the default; pass a complete class name so
- *   Tailwind's scanner sees it at the call site.
- * @param props.children Content after the label, e.g. the Logs count badge.
- */
 interface HeaderControlTriggerProps {
   icon: IconName;
   label: string;
@@ -141,34 +82,13 @@ export function HeaderControlTrigger({
   );
 }
 
-/**
- * Positioning/frame shared by the header controls' popovers; only the
- * width differs per control.
- *
- * @param width The control's width utility, passed as one complete class
- *   name so Tailwind's scanner sees it at the call site.
- */
+// Pass complete width utilities so Tailwind discovers them at the call site.
 export function headerControlPopoverClasses(width: string): string {
   return `ucs-popover--logs top-[calc(100%+0.45rem)] right-0 ${width} !p-0`;
 }
 
-/**
- * Shared popover shell for the Settings menu and the Logs panel; the caller
- * supplies extra positioning/sizing classes via `className`.
- *
- * Every one of these panels is interactive content the person opened on
- * purpose (a menu, a log list with its own controls, a form), not a status
- * message -- `role="status"` would make it an implicit live region, so a
- * screen reader announces the whole panel on open and again on every
- * change inside it. A caller that needs the panel named for assistive tech
- * passes `role`/`ariaLabel`; the rail's Settings menu needs neither, since
- * its own `role="menu"` child already carries the semantics.
- *
- * @param children The popover's content.
- * @param className Extra positioning/sizing classes for this popover.
- * @param role The container's accessible role, when it needs one.
- * @param ariaLabel The container's accessible name, paired with `role`.
- */
+// Interactive popovers are not status live regions; provide accessible
+// names/roles without announcing the whole panel on every change.
 export function ShellPopover({
   children,
   className,
@@ -191,11 +111,7 @@ export function ShellPopover({
   );
 }
 
-/**
- * Official Google Labs science mark used by the Co-Scientist references.
- *
- * @param props SVG attributes forwarded to the rendered icon.
- */
+// Official Google Labs science mark used in the Co-Scientist references.
 export function GoogleLabsIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -203,8 +119,6 @@ export function GoogleLabsIcon(props: SVGProps<SVGSVGElement>) {
       viewBox="0 0 14 13"
       fill="none"
       focusable="false"
-      // Spread after the fixed attributes so callers can still override any
-      // of them (e.g. className, aria-hidden) via props.
       {...props}
     >
       <path

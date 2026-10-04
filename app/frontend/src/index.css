@@ -1,5 +1,5 @@
-/* Declare layer order so hand-rolled resets in @layer base yield to utilities
-   (this project imports theme + utilities only, not Tailwind's preflight). */
+/* Base resets must yield to utilities; omit Tailwind preflight so report
+   browser spacing remains intact. */
 @layer theme, base, components, utilities;
 
 @import 'tailwindcss/theme' layer(theme);
@@ -38,10 +38,8 @@
     format('woff2');
 }
 
-/* Google Sans Text — the UI/body face the live Gemini Enterprise product uses
-   for nearly all running text; Google Sans proper is reserved for display
-   (greeting, document headings, wordmark, button labels). Vendored woff2s
-   (latin, 400/500/700), same pattern as the @fontsource Google Sans above. */
+/* Gemini Enterprise uses Google Sans Text for body/UI and Google Sans for
+   display; retain the vendored face split. */
 @font-face {
   font-family: 'Google Sans Text';
   font-display: swap;
@@ -69,8 +67,7 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme {
-  /* MD3 color bridge — actual values set at runtime by applyMd3Theme() in
-     theme.ts */
+  /* MD3 bridge values are derived at runtime from the shared seed. */
   --color-th-bg: var(--md-sys-color-background, hsl(0 0% 100%));
   --color-th-fg: var(--md-sys-color-on-background, hsl(0 0% 3.9%));
   --color-th-card: var(--md-sys-color-surface, hsl(0 0% 100%));
@@ -96,7 +93,8 @@
   --color-th-border: var(--md-sys-color-outline-variant, hsl(0 0% 89.8%));
   --color-th-input: var(--md-sys-color-outline, hsl(0 0% 89.8%));
   --color-th-ring: var(--md-sys-color-primary, hsl(0 0% 3.9%));
-  /* No MD3 equivalent — keep hardcoded */
+  /* MD3 has no success/warning role equivalents, so these retain separate
+     palettes. */
   --color-th-success: hsl(142 71% 45%);
   --color-th-success-fg: hsl(0 0% 100%);
   --color-th-success-container: var(
@@ -124,10 +122,8 @@
   --color-th-link: hsl(221 83% 53%);
   --color-th-link-hover: hsl(221 83% 43%);
 
-  /* Gemini product palette as named utilities (e.g. text-cosci-fg,
-     bg-cosci-panel). Each mirrors a --cosci-* token from tokens.css
-     so the shell/home avoid arbitrary [var(--cosci-*)] classes and match the
-     th-* utility convention. Values stay themed via the referenced token. */
+  /* Named shell utilities share paired theme tokens rather than independently
+     declaring component colors. */
   --color-cosci-fg: var(--cosci-text);
   --color-cosci-bg: var(--cosci-bg);
   --color-cosci-border: var(--cosci-border);
@@ -153,7 +149,6 @@
   --color-cosci-menu-icon: var(--cosci-muted);
   --color-cosci-menu-text: var(--cosci-text);
 
-  /* Named utilities keep component colors on the shared theme bridge. */
   --color-cosci-danger-bg: var(--cosci-danger-bg);
   --color-cosci-danger-border: var(--cosci-danger-border);
   --color-cosci-danger-fg: var(--cosci-danger-fg);
@@ -218,7 +213,6 @@
     --cosci-muted
   );
 
-  /* Ideas-surface tokens (tokens.css) as named utilities. */
   --color-cosci-idea-list-border: var(--cosci-border);
   --color-cosci-idea-row-border: var(--cosci-border);
   --color-cosci-idea-row-bg: var(--cosci-suggestion-bg);
@@ -238,9 +232,6 @@
   --color-cosci-idea-breadcrumb-text: var(--cosci-text);
   --color-cosci-idea-detail-text: var(--cosci-text);
 
-  /* Typefaces: font-gsans = display face (greeting, doc headings, wordmark);
-     font-gsans-text = UI/body face (the :root default — utility exists for
-     opting descendants back in under a display-font parent). */
   --font-gsans: 'Google Sans', system-ui, sans-serif;
   --font-gsans-text:
     'Google Sans Text', 'Google Sans', 'Roboto', system-ui, sans-serif;
@@ -248,16 +239,16 @@
   --radius: 0.5rem;
 }
 
-/* MD3 dark tokens are set by applyMd3Theme(true) at runtime */
 :root[data-theme='dark'] {
-  /* MD3 elevation — shadows read less on dark surfaces, so opacities lift. */
+  /* Dark surfaces reduce shadow contrast, requiring higher elevation
+     opacities. */
   --md-elevation-1:
     0 1px 2px 0 rgb(0 0 0 / 45%), 0 1px 3px 1px rgb(0 0 0 / 30%);
   --md-elevation-2:
     0 1px 2px 0 rgb(0 0 0 / 50%), 0 2px 6px 2px rgb(0 0 0 / 35%);
   --md-elevation-3:
     0 4px 8px 3px rgb(0 0 0 / 40%), 0 1px 3px 0 rgb(0 0 0 / 55%);
-  /* No MD3 equivalent — keep hardcoded dark overrides */
+  /* Status roles absent from MD3 need explicit paired dark values. */
   --color-th-success: hsl(142 60% 48%);
   --color-th-warning: hsl(38 90% 56%);
   --color-th-warning-fg: hsl(222 22% 7%);
@@ -275,17 +266,14 @@
 }
 
 :root {
-  /* Matches the live product: Google Sans Text for running UI text (plain),
-     Google Sans proper for display — greeting, document headings,
-     wordmark. */
   --md-ref-typeface-brand: 'Google Sans', system-ui, sans-serif;
   --md-ref-typeface-plain:
     'Google Sans Text', 'Google Sans', 'Roboto', system-ui, sans-serif;
   font-family:
     'Google Sans Text', 'Google Sans', 'Roboto', system-ui, sans-serif;
 
-  /* Elevation belongs to floating overlays; cards, inputs, and tables use
-     tonal layers and outline-variant borders. */
+  /* Reserve elevation for floating overlays; cards and inputs use tonal
+     layers. */
   --md-elevation-1:
     0 1px 2px 0 rgb(0 0 0 / 30%), 0 1px 3px 1px rgb(0 0 0 / 15%);
   --md-elevation-2:
@@ -294,7 +282,6 @@
     0 4px 8px 3px rgb(0 0 0 / 15%), 0 1px 3px 0 rgb(0 0 0 / 30%);
 }
 
-/* MD3 elevation, applied only to floating overlay surfaces. */
 .ucs-popover,
 .reference-connectors-menu {
   box-shadow: var(--md-elevation-2);
@@ -305,11 +292,8 @@
   box-shadow: var(--md-elevation-3);
 }
 
-/* MD3 state layer — a translucent overlay of the content color that fades in
-   on hover/focus/press, composited over whatever background the element
-   carries. Opacities (8% / 10% / 10%) are the MD3 spec values. Add
-   `md-state` to any interactive element; it establishes its own
-   stacking/positioning context. */
+/* MD3 content-color state layers use specification opacities of 8% hover and
+   10% focus/press. */
 .md-state {
   position: relative;
   isolation: isolate;
@@ -345,11 +329,8 @@
   }
 }
 
-/* Run-detail tabs already use ::after for the selected underline, so their MD3
-   state layer rides on ::before (which paints beneath the label + icon).
-   Keyed on the tab's own class, not on `button`: the tabs became anchors when
-   they were made real links, and an element-typed selector silently dropped
-   every hover and focus state the moment the markup changed. */
+/* Tabs reserve after for their underline; use before for state layers and
+   class selectors so anchors retain hover/focus styling. */
 .reference-report-tab {
   position: relative;
   transition: color 120ms cubic-bezier(0.2, 0, 0, 1);
@@ -381,9 +362,8 @@
   }
 }
 
-/* iOS Safari zooms the page on focus into any field under 16px and leaves it
-   zoomed, which shoves the layout sideways on a phone. Touch devices get a
-   16px floor on text fields; desktop keeps the designed sizes. */
+/* iOS Safari zooms focused fields below 16px, leaving mobile layout displaced;
+   enforce that floor on touch devices. */
 @media (pointer: coarse) {
   input:not([type='checkbox'], [type='radio'], [type='range']),
   textarea,
@@ -402,36 +382,19 @@ html {
   background-color: var(--color-th-bg);
   color: var(--color-th-fg);
   line-height: 1.5;
-  /* Prevent any child from creating horizontal scroll on mobile */
   overflow-x: hidden;
   tab-size: 4;
   -webkit-text-size-adjust: 100%;
 }
 
-/* Apply theme to body */
 body {
   background-color: var(--color-th-bg);
   color: var(--color-th-fg);
   margin: 0;
 }
 
-/* Preflight-style resets belong in @layer base so Tailwind utilities (font
-   size/weight, text color, border color) applied to elements still win.
-
-   Deliberately absent: a margin reset (`*, ::before, ::after { margin: 0 }`,
-   which is the part of preflight people miss most). Because preflight is not
-   imported, p / h1-h6 / ul / ol / blockquote keep their user-agent margins,
-   and the Goal Report depends on it: the report is sanitized markdown whose
-   paragraphs carry no classes, and there is no typography/prose plugin to
-   space them. Adding the reset measurably collapses adjacent report
-   paragraphs from a 16px gap to 0 and the document by 200px. Importing
-   preflight outright is worse still -- it zeroes padding and list-style too,
-   so the report's lists lose their indent and markers.
-
-   The cost is that a component styled only with Tailwind utilities inherits
-   those margins: zero them explicitly there (see ActivityItem in
-   pages/run_detail.tsx, whose title's 1em margins made its row 56px against a
-   34px icon disc until it got `my-0`). Prefer that over a global reset. */
+/* Do not add global margins/list resets or preflight: unclassed Goal Report
+   paragraphs/lists depend on browser spacing and markers. */
 @layer base {
   button,
   input,
@@ -441,18 +404,13 @@ body {
     font: inherit;
   }
 
-  /* Default border color */
   * {
     border-color: var(--color-th-border);
   }
 }
 
-/* Scrollbars — trackless floating thumb (Google style): no channel behind
-   the thumb, just a rounded pill on the page surface. The transparent border
-   + padding-box clip keeps the visible thumb slim inside the 14px hit area.
-   Note: we deliberately do NOT set scrollbar-width/scrollbar-color here — in
-   Chromium those standard properties suppress the ::-webkit-scrollbar pseudos
-   below. */
+/* Do not set standard scrollbar-width/color: Chromium suppresses the webkit
+   pseudos when they are present. */
 *::-webkit-scrollbar {
   width: 14px;
   height: 14px;
@@ -478,9 +436,6 @@ body {
   background-clip: padding-box;
 }
 
-/* Motion baseline — interactive surfaces ease their color/shadow changes so
-   nothing snaps. Component-specific transitions (higher specificity) still win
-   where set. */
 button,
 a,
 summary,
@@ -497,8 +452,8 @@ textarea {
     opacity 140ms cubic-bezier(0.2, 0, 0, 1);
 }
 
-/* Suppress every transition for one frame during a theme switch so toggling
-   light/dark doesn't animate the whole page. Toggled by theme_context. */
+/* Theme swaps suppress transitions until new styles are visible, avoiding
+   whole-page color animation. */
 .theme-switching *,
 .theme-switching *::before,
 .theme-switching *::after {

@@ -9,23 +9,12 @@ import {
 import {tabPath} from './run_tabs';
 import {useEffect} from 'react';
 
-/**
- * The two halves of one research session and which of them is on screen.
- *
- * A session that has started a run keeps both: the conversation it was
- * specified in, and the run's live progress/report surface. Every route into
- * the session lands on one half (the rail and the home cards both open the
- * run), so this is what carries the reader to the other.
- */
 export interface SessionSwitchData {
   chatId: string;
   runId: string;
   active: 'chat' | 'results';
 }
 
-// The chat record the current route belongs to: matched by id on a chat
-// route, by the run it started on a run route, and nothing at all on a route
-// that is neither (a run id is never matched against a null run_id).
 function sessionChat(
   chats: readonly ChatSummary[],
   activeChatId: string | undefined,
@@ -36,20 +25,6 @@ function sessionChat(
   return undefined;
 }
 
-/**
- * The session the current route is one half of, or null when there is no
- * other half to switch to.
- *
- * Resolved through the chat list either way: on a chat route by id, on a run
- * route by the run it started. A chat that has not started a run has nothing
- * to switch to, and neither does a run opened before the chat history has
- * loaded -- the switch simply appears once it does.
- *
- * @param chats The loaded chat history.
- * @param activeChatId The chat id on /chats/:id, if the route is one.
- * @param activeRunId The run id on /runs/:id, if the route is one.
- * @returns Both halves plus the active one, or null.
- */
 export function sessionSwitchData(
   chats: readonly ChatSummary[],
   activeChatId: string | undefined,
@@ -64,7 +39,6 @@ export function sessionSwitchData(
   };
 }
 
-// The switch's two sides, in display order.
 const SWITCH_SIDES: {
   side: 'chat' | 'results';
   icon: IconName;
@@ -74,31 +48,16 @@ const SWITCH_SIDES: {
   {side: 'results', icon: 'lab_profile', label: 'Results'},
 ];
 
-// The track: the Logs pill's shape (height, radius, typography) gridded into
-// two equal halves, but wearing the quiet segmented-control surface rather
-// than the accent. The accent marks *which half you are on*; spending it on
-// the whole track would leave the highlight nothing to say.
-// The track: the Logs pill's own shape (height, radius, typography) with no
-// padding of its own, so each half is a full-height pill exactly the size of
-// the Logs trigger rather than a smaller one inset inside a taller box. It
-// wears the recents card's own chip surface (--cosci-recent-meta-bg), which
-// is configured light and dark to read as a quiet raised surface on either
-// -- unlike the card's body colour, which is plain white in light mode and
-// so vanishes into the header.
+// Quiet raised track colors remain visible in both themes; accent belongs to
+// the selected half rather than the whole switch.
 const SWITCH_TRACK_CLASSES = joinClasses(
   'ucs-session-switch relative box-border inline-grid grid-cols-2 p-0',
   'bg-cosci-recent-meta-bg',
   HEADER_PILL_SHAPE_CLASSES,
 );
 
-// One side's chrome, matching the Logs trigger's own gap and padding so the
-// two are the same control at the same size. The colour is set here, on the
-// link itself, and not inherited from the track: these are real <a>
-// elements, and the user-agent rule for a visited link outranks an inherited
-// colour, which painted both halves browser-purple once either had been
-// followed. The fill is the sliding highlight behind them, never a
-// background on the side itself -- only one element can travel from where
-// the marker was to where it is going.
+// Set link color directly because visited-link browser rules beat inherited
+// color; one moving highlight owns the fill.
 const SWITCH_SIDE_BASE_CLASSES =
   'ucs-session-switch-side relative z-[1] flex h-full min-w-0 items-center ' +
   'justify-center gap-[0.45rem] rounded-full px-[0.72rem] no-underline';
@@ -108,41 +67,20 @@ const SWITCH_SIDE_CLASSES = joinClasses(
   'text-cosci-shell-icon',
 );
 
-// The side the reader is on: the text colour that reads against the
-// highlight arriving under it.
 const SWITCH_SIDE_ACTIVE_CLASSES = joinClasses(
   SWITCH_SIDE_BASE_CLASSES,
   'ucs-session-switch-side--active text-cosci-logs-accent-fg',
 );
 
-// Where each side leads. The results side always targets the run's default
-// tab rather than remembering the last one: the run page itself chooses
-// between the live view and the report, and a remembered tab would be a
-// second, staler answer to that question.
+// Results use the default tab; the run page owns live-progress/report selection.
 function sessionSideHref(session: SessionSwitchData, side: string): string {
   return side === 'chat'
     ? `/chats/${session.chatId}`
     : tabPath(session.runId, undefined);
 }
 
-/**
- * The Chat/Results switch shown in the shell header for a session that has
- * both.
- *
- * Two real links rather than a toggle button: each side is a distinct URL
- * that deep-links, opens in a new tab under a modified click, and survives a
- * reload. `aria-current="page"` (not `aria-pressed`) marks the side the
- * reader is already on, matching the navigation it is. Each side also carries
- * an explicit aria-label, because the phone breakpoint hides the visible
- * labels to fit the control into the header (see shell_surface.css)
- * and an icon-only link would otherwise have no accessible name there.
- *
- * Also records the route's current side as the last-viewed one for this
- * session (see layout_session_memory), so the chat rail and the home recents
- * card both reopen wherever this reader actually left off.
- *
- * @param session The session to switch within; renders nothing without one.
- */
+// Real links preserve deep/new-tab navigation; explicit names survive hidden
+// phone labels, and aria-current marks navigation rather than a pressed button.
 export function SessionSwitch({session}: {session: SessionSwitchData | null}) {
   useRecordSessionSide(session?.runId, session?.active);
   if (!session) return null;
@@ -152,11 +90,7 @@ export function SessionSwitch({session}: {session: SessionSwitchData | null}) {
       aria-label="Session view"
       data-active={session.active}
     >
-      {/* The moving highlight: one element the track slides between its two
-          halves, rather than a background on each side. Only a single
-          element can animate from where the marker *was* to where it is
-          going, which is the difference between it travelling and it
-          reappearing on the other side. */}
+      {/* A single highlight can travel between sides; independent backgrounds can only reappear. */}
       <span className="ucs-session-switch-thumb" aria-hidden="true" />
       {SWITCH_SIDES.map(({side, icon, label}) => {
         const active = side === session.active;
@@ -183,20 +117,14 @@ export function SessionSwitch({session}: {session: SessionSwitchData | null}) {
   );
 }
 
-/** Which half of a session was last on screen. */
 export type SessionSide = 'chat' | 'results';
 
-// One entry per session, keyed by the run id -- the one identifier both
-// entry points hold (a chat row knows its run once it has started one; a
-// recents card knows only the run).
+// Run ID is the shared identity available to both conversation rows and run
+// cards.
 const STORAGE_PREFIX = 'cosci:session-side:';
 
-// The side last viewed in *any* session. The scientist reads the control as
-// one switch with a position, not as a per-session preference: flipping to
-// Chat and then opening a different session from the recents list and
-// landing on Results reads as the switch being ignored. So a session with no
-// memory of its own inherits the switch's last position, and only a reader
-// who has never touched it gets the old defaults.
+// New sessions inherit the reader’s last switch position unless they have their
+// own memory.
 const LAST_SIDE_KEY = 'cosci:session-side';
 
 function isSide(value: unknown): value is SessionSide {
@@ -208,18 +136,10 @@ function read(key: string): SessionSide | undefined {
     const raw = window.localStorage.getItem(key);
     return isSide(raw) ? raw : undefined;
   } catch {
-    // Storage disabled (private window, quota): the memory is best-effort.
     return undefined;
   }
 }
 
-/**
- * The side to open a session on: its own memory, else wherever the switch
- * was last left, else undefined so the caller keeps its own default.
- *
- * @param runId The run the session started, or undefined for a chat that
- *   has not started one (which has no other half to open).
- */
 export function preferredSessionSide(
   runId: string | undefined,
 ): SessionSide | undefined {
@@ -227,22 +147,17 @@ export function preferredSessionSide(
   return read(STORAGE_PREFIX + runId) ?? read(LAST_SIDE_KEY);
 }
 
-/** Records the side on screen, for this session and for the switch itself. */
 export function writeSessionSide(runId: string, side: SessionSide): void {
   try {
     window.localStorage.setItem(STORAGE_PREFIX + runId, side);
     window.localStorage.setItem(LAST_SIDE_KEY, side);
   } catch {
-    // As above: best-effort.
+    // Disabled/full storage must not block session navigation.
   }
 }
 
-/**
- * Records the route's current side as it changes, so a deep link or a rail
- * click updates the memory exactly like clicking the switch would -- the
- * memory reflects wherever the reader actually lands, not only deliberate
- * switch clicks.
- */
+// Record the actual landed route, including deep links and history clicks,
+// rather than only explicit switch actions.
 export function useRecordSessionSide(
   runId: string | undefined,
   side: SessionSide | undefined,

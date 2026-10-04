@@ -1,16 +1,9 @@
-/**
- * Joins className fragments into one class string, dropping falsy entries so
- * call sites can express conditional classes inline:
- *
- *     joinClasses(BASE_CLASSES, active && ACTIVE_CLASSES)
- */
 export function joinClasses(
   ...classes: (string | false | null | undefined)[]
 ): string {
   return classes.filter(Boolean).join(' ');
 }
 
-/** Class recipe for the CSS tooltip rendered from an anchor's data-tooltip. */
 export function tooltipClassNames({
   className,
   placement,
@@ -31,7 +24,6 @@ export function tooltipClassNames({
   );
 }
 
-// Recipes shared by multiple chat components. Local styles live with their view.
 export const COMPOSER_SOURCE_ICON_CLASSES = 'text-xl';
 export const SETUP_SECONDARY_BUTTON_CLASSES =
   'min-h-[2.6rem] cursor-pointer rounded-full border border-cosci-btn-secondary-border bg-transparent px-[1.45rem] font-medium text-cosci-btn-secondary-fg hover:bg-cosci-btn-secondary-hover-bg focus-visible:bg-cosci-btn-secondary-hover-bg disabled:cursor-default disabled:border-cosci-btn-disabled-border disabled:bg-cosci-btn-disabled-bg disabled:text-cosci-btn-disabled-fg';

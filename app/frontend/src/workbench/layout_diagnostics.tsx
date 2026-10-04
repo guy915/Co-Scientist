@@ -36,11 +36,7 @@ import {Icon, type IconName} from '@/components/icon';
 import {useLocation} from 'react-router-dom';
 import {DIAGNOSTIC_EVENT} from './dom_events';
 
-// Sizing/positioning for the logs popover: the shared header-control
-// positioning prefix plus a logs-specific body capped to the viewport (dvh),
-// with a narrower width override under the 700px breakpoint. The `!`
-// overrides beat the shared .ucs-popover defaults applied by the parent's
-// ShellPopover.
+// Important sizing overrides must outrank the shared ShellPopover defaults.
 const LOGS_POPOVER_CLASSES = joinClasses(
   headerControlPopoverClasses('!w-[min(32rem,calc(100vw-2rem))]'),
   'max-h-[min(32rem,calc(100dvh-6rem))] grid-rows-[auto_auto_minmax(0,1fr)]',
@@ -49,7 +45,6 @@ const LOGS_POPOVER_CLASSES = joinClasses(
     'max-[700px]:!w-[min(18.5rem,calc(100vw-1.5rem))]',
 );
 
-// The shared pill chrome, with the right side tightened around the badge.
 const LOGS_BUTTON_CLASSES = headerControlButtonClasses(
   'px-[0.62rem] py-0 pl-[0.72rem]',
 );
@@ -62,17 +57,13 @@ const LOGS_COUNT_CLASSES =
 const DIAGNOSTIC_INTRO_CLASSES =
   'ucs-diagnostic-intro border-b border-cosci-logs-border px-4 py-3';
 
-// Never scrolls sideways: long unbroken tokens (dotted logger names, URLs)
-// are contained by the grid tracks and the wrapping code block, so the only
-// axis that can scroll is vertical.
 const DIAGNOSTIC_LIST_CLASSES =
   'ucs-diagnostic-list grid min-h-0 gap-2 overflow-x-hidden overflow-y-auto ' +
   'px-4 pt-3 pb-4';
 
 const DIAGNOSTIC_ENTRY_CLASSES = 'ucs-diagnostic-entry grid min-w-0 gap-1';
 
-// The last (stage) track is minmax(0,auto) rather than auto so a long logger
-// name shrinks and truncates instead of widening the grid past the panel.
+// Shrinkable grid tracks prevent long logger names from widening the panel.
 const DIAGNOSTIC_ENTRY_META_CLASSES =
   'ucs-diagnostic-entry-meta grid min-w-0 ' +
   'grid-cols-[auto_auto_auto_minmax(0,1fr)_minmax(0,auto)] ' +
@@ -85,8 +76,6 @@ const DIAGNOSTIC_ENTRY_RUN_CLASSES = 'truncate';
 const DIAGNOSTIC_ENTRY_STAGE_CLASSES =
   'min-w-0 truncate max-[700px]:col-start-2 max-[700px]:col-end-[-1]';
 
-// Payload blocks grow with their content: text wraps (including long
-// unbroken tokens) and nothing scrolls inside an entry.
 const DIAGNOSTIC_CODE_CLASSES =
   'm-0 rounded-[0.55rem] whitespace-pre-wrap [overflow-wrap:anywhere] ' +
   'bg-cosci-logs-panel-bg px-[0.7rem] py-[0.55rem] font-mono ' +
@@ -97,10 +86,8 @@ const DIAGNOSTIC_EMPTY_CLASSES =
   'bg-cosci-logs-panel-bg px-[0.7rem] py-[0.55rem] text-center ' +
   'text-cosci-logs-panel-fg';
 
-// Header "Logs" trigger button: the shared header-control pill, showing the
-// running entry count as a badge. Kept as its own component so the count's
-// two renderings — the badge and the accessible name, which a screen reader
-// hears instead of the badge — stay side by side.
+// Keep the badge count and accessible name together so screen readers hear the
+// same tally.
 function LogsTriggerButton({
   open,
   count,
@@ -125,16 +112,10 @@ function LogsTriggerButton({
   );
 }
 
-// How long the Copy button reads "Copied" before returning to "Copy".
-// Long enough to register as confirmation, short enough that the control
-// never looks stuck — a second copy must not have to guess whether the
-// label is stale.
 const COPIED_RESET_MS = 2_000;
 
-// Owns the transient "Copied" label: set it on a successful copy, and let
-// it expire on its own. useResetTimer supplies the unmount cleanup and the
-// replace-on-reschedule that keeps a rapid second copy from being cleared by
-// the first one's pending timeout.
+// Rescheduling replaces the prior expiry; cleanup prevents stale timers
+// clearing a later copy label.
 function useCopiedFlag() {
   const [copied, setCopied] = useState(false);
   const timer = useResetTimer();
@@ -152,8 +133,6 @@ function useCopiedFlag() {
   };
 }
 
-// Everything the Copy/Clear handlers act on, bundled so the builder stays
-// within the shared argument ceiling.
 interface DiagnosticActionDeps {
   entries: DiagnosticLogEntry[];
   total: number;
@@ -162,9 +141,6 @@ interface DiagnosticActionDeps {
   bumpVersion: () => void;
 }
 
-// Builds the Copy/Clear handlers for the popover: Copy writes the export
-// (context preamble + newest entries) to the clipboard, Clear deletes the
-// persisted log server-side. Both flip local UI state the caller owns.
 function makeDiagnosticActions({
   entries,
   total,
@@ -188,7 +164,7 @@ function makeDiagnosticActions({
     try {
       await deleteAppLogs();
     } catch {
-      // Unreachable API: leave the list as-is; the next poll re-syncs.
+      // API failure leaves the visible list intact until a later poll succeeds.
     }
     copiedFlag.resetCopied();
     bumpVersion();
@@ -197,33 +173,20 @@ function makeDiagnosticActions({
   return {onCopy, onClear};
 }
 
-/**
- * Header "Logs" button plus its diagnostics popover.
- *
- * The panel renders the persisted app-wide log — the same list on every
- * route, numbered by the store's consecutive ids. In-page diagnostic
- * events and route navigations are shipped to that log via the ingestion
- * endpoint, Clear deletes the persisted log (server-side), and Copy
- * exports a context preamble plus the newest entries (see
- * layout_diagnostics_export).
- */
 export function DiagnosticsControl({
   open,
   onToggle,
   renderPopover,
 }: HeaderControlProps) {
-  // Bumped whenever the persisted log changed (ingest, navigation, clear)
-  // so the fetch effect re-runs immediately instead of waiting for a poll.
   const [version, setVersion] = useState(0);
   const bumpVersion = () => setVersion(current => current + 1);
-  const copiedFlag = useCopiedFlag(); // Copy button shows "Copied"
-  const report = useLogReport(); // Report button shows how the send went
+  const copiedFlag = useCopiedFlag();
+  const report = useLogReport();
   const {status} = useSystemStatus();
   useDiagnosticIngest(bumpVersion);
   useNavigationLog(bumpVersion);
   const {entries, total} = usePersistedAppLogs(version, open);
-  // Memoized on the entries array, which only changes when a load applies
-  // — closed-state badge polls never pay for the tallies.
+  // Closed-state badge polls need no entry tallies until a new window applies.
   const counts = useMemo(() => summarizeDiagnosticEntries(entries), [entries]);
   const {onCopy, onClear} = makeDiagnosticActions({
     entries,
@@ -256,15 +219,10 @@ export function DiagnosticsControl({
   );
 }
 
-// How close to the bottom (px) still counts as "pinned to the newest
-// entry" for auto-follow purposes.
 const PIN_THRESHOLD_PX = 24;
 
-// Opening the panel lands on the newest entry (the list mounts pinned).
-// After that, new records only auto-scroll while the user is still at the
-// bottom — scrolling up to read must never be interrupted. `newestId` (not
-// the count) drives the effect: at the window cap the count stops changing
-// while the ids keep advancing.
+// Open on the newest entry, then respect readers scrolled upward; follow the
+// newest ID because a capped count stops changing.
 function useAutoFollowScroll(newestId: number) {
   const listRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
@@ -285,7 +243,6 @@ function useAutoFollowScroll(newestId: number) {
   return {listRef, onScroll};
 }
 
-// One entry's meta row (id/time/level/run/stage) plus its JSON payload.
 function DiagnosticLogEntryRow({entry}: {entry: DiagnosticLogEntry}) {
   return (
     <article className={DIAGNOSTIC_ENTRY_CLASSES}>
@@ -305,8 +262,6 @@ function DiagnosticLogEntryRow({entry}: {entry: DiagnosticLogEntry}) {
   );
 }
 
-// Scrolling list of log entries (each entry's id/time/run/stage meta row plus
-// its JSON payload), or an empty-state message when there are none.
 function DiagnosticLogList({entries}: {entries: DiagnosticLogEntry[]}) {
   const newestId = entries.length ? entries[entries.length - 1].id : 0;
   const {listRef, onScroll} = useAutoFollowScroll(newestId);
@@ -328,9 +283,6 @@ function DiagnosticLogList({entries}: {entries: DiagnosticLogEntry[]}) {
   );
 }
 
-// Presentational body of the popover: the header (title + Clear/Copy
-// actions), summary count chips, and the scrolling entry list. All state
-// stays in DiagnosticsControl; this only renders what it is handed.
 function DiagnosticLogsPanel({
   entries,
   total,
@@ -370,11 +322,6 @@ function DiagnosticLogsPanel({
   );
 }
 
-// The Logs popover's summary chip row: the session size, the three level
-// bands, and the number of distinct real runs behind them. Split out of
-// layout_diagnostics.tsx to keep that module under the file-length
-// ceiling; it is presentational only and owns no state.
-
 const CHIPS_ROW_CLASSES =
   'ucs-diagnostic-chips flex flex-wrap items-center gap-[0.45rem]';
 
@@ -393,21 +340,10 @@ const WARN_CHIP_CLASSES =
   'text-[0.7rem] font-semibold whitespace-nowrap ' +
   'text-cosci-logs-warn-fg';
 
-// Separates the record tallies from the run count, which is not one of
-// them (see below).
 const DIVIDER_CLASSES = 'mx-[0.15rem] h-3 w-px bg-cosci-border';
 
-/**
- * The record tallies, which are meant to be read as a sum.
- *
- * Every record shown carries exactly one level, so Errors + Warnings +
- * Info is the number of rows in the list. That identity is the whole
- * point of the row, and it only holds against the rows actually loaded:
- * `total` counts the session's entire filtered stream, of which the panel
- * fetches the newest hundred. Past that the bands stop summing to Total,
- * so a "Showing" chip appears and the bands are read against it instead
- * of silently disagreeing with the number beside them.
- */
+// Level bands sum only to the loaded window, not the uncapped session total;
+// show that window size once capped.
 function recordChips(
   total: number,
   shown: number,
@@ -429,19 +365,8 @@ function recordChips(
   ];
 }
 
-/**
- * Renders the popover's summary chips.
- *
- * The run count is deliberately set apart, after a divider and written as
- * a noun ("1 run"), because it counts runs and every chip before it
- * counts records. As a fifth "Runs 1" chip in the same ledger it read as
- * a fourth level band, and the row looked like it had failed to add up --
- * 38 + 2 + 1 against a total of 40.
- *
- * @param props.total Records added this browsing session.
- * @param props.shown Records currently loaded, which the bands tally.
- * @param props.counts Per-level tallies plus the distinct-run count.
- */
+// Distinct runs are not another record band; separate their count from level
+// tallies.
 export function DiagnosticChips({
   total,
   shown,
@@ -484,16 +409,11 @@ const DIAGNOSTIC_ACTION_BUTTON_CLASSES =
   'whitespace-nowrap text-cosci-logs-action-fg ' +
   'hover:bg-cosci-logs-action-hover ' +
   'focus-visible:bg-cosci-logs-action-hover ' +
-  // Dimmed and inert-looking when it cannot act, so "why is nothing
-  // happening" is answered before the click rather than after it. The
-  // tooltip still fires: :hover matches a disabled button, which is the
-  // whole reason the explanation can live there.
+  // Disabled buttons still match hover, so their unavailable-action explanation
+  // remains reachable.
   'disabled:cursor-default disabled:opacity-45 ' +
   'disabled:hover:bg-cosci-logs-action-bg';
 
-// One Clear/Copy/Report button in the header's actions row. A disabled
-// action keeps its tooltip so the reason it cannot be used is one hover
-// away rather than a guess.
 function DiagnosticActionButton({
   icon,
   label,
@@ -529,7 +449,6 @@ function DiagnosticActionButton({
   );
 }
 
-// One entry in the header's actions row.
 interface DiagnosticAction {
   id: string;
   icon: IconName;
@@ -539,10 +458,8 @@ interface DiagnosticAction {
   tooltip?: string;
 }
 
-// What the Report action offers, given whether the server can send mail at
-// all. Disabled rather than hidden: the way to get diagnostics to the
-// maintainer should be visible even on a deployment that cannot yet mail
-// them, with the reason attached — and Copy is right beside it.
+// Keep Report discoverable even without SMTP, with its reason and the Copy
+// alternative visible.
 function reportAction(
   status: ReportStatus,
   canReport: boolean,
@@ -560,8 +477,6 @@ function reportAction(
   };
 }
 
-// Popover header: the "Diagnostic Logs" title plus the Clear/Copy/Report
-// actions.
 export function DiagnosticLogsHeader({
   copied,
   reportStatus,
@@ -602,42 +517,22 @@ export function DiagnosticLogsHeader({
   );
 }
 
-// The last stream state applied to `logs`: whether display entries were
-// built for it (only true while the panel is open, since a closed-state
-// poll only needs the badge total). A load whose payload matches — and
-// whose entries the current open state is not missing — applies nothing,
-// so background polls of an unchanged log never re-render.
 interface AppliedLogState {
   lastId: number;
   total: number;
   withEntries: boolean;
 }
 
-// Where this browsing session began in the durable, app-wide log: the
-// log's high-water id at session start, so a record belongs to this
-// session only when its id is above it. The panel shows only those, so
-// opening the site starts on a clean panel instead of the whole retained
-// history. The anchor is all this holds — every request pages from it and
-// the server reports `session_total` for exactly that window, so nothing
-// here has to reconstruct a count by arithmetic.
-//
-// The baseline lives in sessionStorage, not in this module's memory,
-// because the two events look identical to a module-scoped variable but
-// mean opposite things to a reader: closing the tab (or the browser) ends
-// the session and should start clean, while reloading the tab is the
-// reflex for "did that just get logged?" and must not throw the log away.
-// sessionStorage draws exactly that line — it survives a reload of this
-// tab and dies with it — and it is per-tab, so two tabs keep their own
-// views of the same durable log.
+// sessionStorage preserves the log anchor across tab reloads but ends it on tab
+// close; each tab owns its view.
 const BASELINE_KEY = 'cosci-logs-session-baseline';
 
 interface SessionBaseline {
   id: number;
 }
 
-// Storage can be unavailable or full (private modes, quota); the baseline
-// is a convenience, never a reason to break the panel, so every access
-// degrades to this process's memory.
+// Private/full storage must not break diagnostics; degrade the anchor to
+// memory.
 let memoryBaseline: SessionBaseline | null = null;
 
 function readBaseline(): SessionBaseline | null {
@@ -645,7 +540,7 @@ function readBaseline(): SessionBaseline | null {
     const raw = window.sessionStorage.getItem(BASELINE_KEY);
     if (raw) return JSON.parse(raw) as SessionBaseline;
   } catch {
-    // Unreadable storage: fall back to the in-memory copy.
+    // Unavailable storage falls back to the memory anchor.
   }
   return memoryBaseline;
 }
@@ -655,35 +550,25 @@ function writeBaseline(baseline: SessionBaseline): void {
   try {
     window.sessionStorage.setItem(BASELINE_KEY, JSON.stringify(baseline));
   } catch {
-    // Unwritable storage: the in-memory copy still holds for this load.
+    // The memory anchor already retains this load’s baseline.
   }
 }
 
-// Clears the captured session baseline. For tests, which drive many
-// independent "page sessions" through one module instance.
 export function resetSessionBaselineForTest(): void {
   memoryBaseline = null;
   try {
     window.sessionStorage.removeItem(BASELINE_KEY);
   } catch {
-    // Nothing to clear.
+    // The memory anchor was cleared even if storage is unavailable.
   }
 }
 
-// The id to page from: everything at or below the session baseline is
-// pre-session and never fetched. Zero until the first load of a session
-// establishes it.
 export function sessionAfterId(): number {
   return readBaseline()?.id ?? 0;
 }
 
-// Captures the session baseline from the first payload of a session, and
-// re-captures it after a full clear restarts ids below the baseline
-// (which would otherwise hide everything forever). Called before the load
-// effect's disposed/latest guards on purpose: the baseline is a
-// session-global snapshot, and letting a disposed mount load fall through
-// without recording it would let a later load capture a baseline that
-// already includes this session's own records.
+// Re-anchor when clear restarts IDs. Capture before disposal guards so a
+// discarded mount cannot make later loads hide session records.
 function ensureSessionBaseline(payload: AppLogsPayload): void {
   const baseline = readBaseline();
   if (baseline === null || payload.last_id < baseline.id) {
@@ -691,21 +576,8 @@ function ensureSessionBaseline(payload: AppLogsPayload): void {
   }
 }
 
-// Builds the next applied-state marker and displayed logs from a fresh
-// payload, scoped to this browsing session.
-//
-// Only records added after the baseline are shown, so the establishing
-// load (whose records all predate the baseline) naturally shows nothing —
-// no special case needed. The request already pages from the baseline,
-// and the cap is re-enforced here so the panel shows at most the newest
-// PANEL_LIMIT. Numbers backwards from the session total so the newest row
-// is always `total` (a capped window shows 151..250, not 1..100).
-//
-// The count is the server's `session_total` for the window this request
-// asked for, never a subtraction off the whole-table `total`: retention
-// pruning and a scoped clear both delete rows the snapshot had counted,
-// so the difference goes negative and the badge sticks at zero while rows
-// keep rendering underneath it.
+// Use server session_total: subtracting table totals breaks after
+// retention/scoped clears. Number the newest row by that uncapped total.
 function buildLoadedLogs(
   payload: AppLogsPayload,
   open: boolean,
@@ -713,9 +585,8 @@ function buildLoadedLogs(
 ): {applied: AppliedLogState; logs: PersistedAppLogs} {
   const baseline = readBaseline() ?? {id: payload.last_id};
   const session = payload.logs.filter(record => record.id > baseline.id);
-  // A request issued before the current anchor existed — the establishing
-  // load, or one racing the re-anchor after an operator Clear restarts ids
-  // — counted pre-session rows, so it contributes nothing to this session.
+  // Responses issued before the current anchor counted pre-session rows and
+  // must contribute nothing.
   const total = requestAfterId < baseline.id ? 0 : payload.session_total;
   const shown = open ? session.slice(-PANEL_LIMIT) : [];
   const first = total - shown.length + 1;
@@ -730,8 +601,6 @@ function buildLoadedLogs(
   };
 }
 
-// True when `next` is already reflected in `applied` for the current open
-// state, so a background poll of an unchanged session never re-renders.
 function isAlreadyApplied(
   applied: AppliedLogState | null,
   next: AppliedLogState,
@@ -745,20 +614,6 @@ function isAlreadyApplied(
   );
 }
 
-// Fetches this browsing session's slice of the app-wide persisted log: on
-// mount (so the badge count is real), whenever `version` bumps (Clear
-// changed the store), whenever the api layer announces a change (a click
-// or error was just persisted), and on a steady background poll — popover
-// open or not, so the badge never depends on opening the panel. Every
-// load pages from the session baseline, so pre-session history is never
-// fetched however deep the retained log is; the session count stays cheap
-// to keep current whether the panel is open or closed. The same fetch
-// runs on every route, so navigating never changes what the panel shows.
-// Wires `load` to run once immediately, on a steady background poll at
-// `intervalMs` (a hidden tab loads nothing; foregrounding runs one
-// immediate catch-up load rather than waiting out the interval), and
-// whenever the api layer announces the persisted log changed. Returns the
-// cleanup.
 function subscribeToLogPolling(
   load: () => void,
   intervalMs: number,
@@ -777,35 +632,28 @@ function subscribeToLogPolling(
   };
 }
 
-// What one effect generation's loader writes to, bundled so the loader
-// stays a plain function rather than a closure over the hook body.
 interface LogLoaderDeps {
   open: boolean;
   applied: {current: AppliedLogState | null};
   setLogs: (logs: PersistedAppLogs) => void;
 }
 
-// Builds the loader for one effect generation, plus the `dispose` that
-// retires it. Responses of a disposed generation are dropped rather than
-// applied to a remounted panel.
+// Drop responses from disposed generations instead of applying to a remounted
+// panel.
 function makeLogLoader({open, applied, setLogs}: LogLoaderDeps) {
   let disposed = false;
-  // Requests can resolve out of order (an announce-triggered load can
-  // race the poll); only the most recently issued request may apply.
+  // Polling and write-triggered loads race; only the latest issued request may
+  // apply.
   let latestRequest = 0;
   const load = () => {
     const request = ++latestRequest;
-    // The anchor this request pages from, kept so the response is read
-    // against the anchor that was current when it was issued.
+    // Read the response against the anchor captured at issuance, even if a
+    // clear re-anchored during the request.
     const afterId = sessionAfterId();
-    // Always page the newest PANEL_LIMIT of the session (from the
-    // baseline), so the badge count is right whether the panel is open
-    // or closed; only display entries are gated on `open`.
     getAppLogs(afterId, PANEL_LIMIT)
       .then(payload => {
-        // Record the baseline before the guards: a disposed mount load
-        // must still anchor the session, or a later load anchors it to a
-        // payload that already contains this session's records.
+        // Even a disposed mount load must establish the global session anchor
+        // before a later response includes session-owned records.
         ensureSessionBaseline(payload);
         if (disposed || request !== latestRequest) return;
         const next = buildLoadedLogs(payload, open, afterId);
@@ -843,8 +691,6 @@ export function usePersistedAppLogs(
       applied: appliedRef,
       setLogs,
     });
-    // `open` is already a dependency, so flipping the panel re-subscribes
-    // at the other cadence instead of needing a second timer.
     const unsubscribe = subscribeToLogPolling(
       load,
       open ? APP_LOGS_POLL_MS.open : APP_LOGS_POLL_MS.closed,
@@ -858,10 +704,8 @@ export function usePersistedAppLogs(
   return logs;
 }
 
-// Ships `cosci-diagnostic-event` CustomEvents dispatched anywhere in the
-// app to the persisted log, then notifies the caller so the list can
-// refresh. Subscribed for the component's whole lifetime (not only while
-// the popover is open) so no event is lost.
+// Ingest throughout the shell lifetime so closing the popover cannot lose
+// diagnostic events.
 export function useDiagnosticIngest(onIngested: () => void) {
   const onIngestedRef = useRef(onIngested);
   onIngestedRef.current = onIngested;
@@ -869,11 +713,11 @@ export function useDiagnosticIngest(onIngested: () => void) {
   useEffect(() => {
     function onDiagnosticEvent(event: Event) {
       const custom = event as CustomEvent<DiagnosticLogEventDetail>;
-      if (!custom.detail?.stage) return; // ignore malformed events
+      if (!custom.detail?.stage) return;
       postAppLogs([detailToClientRecord(custom.detail)])
         .then(() => onIngestedRef.current())
         .catch(() => {
-          // Offline or API down: drop the event rather than break the page.
+          // Failed diagnostic ingestion must not break the page.
         });
     }
     window.addEventListener(DIAGNOSTIC_EVENT, onDiagnosticEvent);
@@ -883,8 +727,6 @@ export function useDiagnosticIngest(onIngested: () => void) {
   }, []);
 }
 
-// Persists page loads and route changes into the same log, so UI
-// navigation shows up next to backend records.
 export function useNavigationLog(onIngested: () => void) {
   const {pathname} = useLocation();
   const onIngestedRef = useRef(onIngested);
@@ -901,7 +743,7 @@ export function useNavigationLog(onIngested: () => void) {
     postAppLogs([{message, logger: 'navigation'}])
       .then(() => onIngestedRef.current())
       .catch(() => {
-        // Offline or API down: navigation logging is best-effort.
+        // Navigation logging must remain best-effort when the API is down.
       });
   }, [pathname]);
 }
