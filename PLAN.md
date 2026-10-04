@@ -5,8 +5,10 @@ below was settled with the owner on 3 October 2026, so the campaign runs
 unattended: the agent decides by these rules and reports at the end.
 
 **Status:** Blocked after Phase 3's independent repository work; Phases 1 and 2 complete.
-Phase 3's last-two-PR size criterion passes. Production export/reset and dependent
-legacy cleanup await usable Railway SSH/transfer access. Baseline `33ec8984`.
+Phase 3's last-two-PR size criterion passes. Step 4 was re-audited and its exact
+QA and biomedical request duplication reduced. Reviewed HTTPS maintenance is
+ready, but Railway's deployment approval gate cancelled activation. Production
+export/reset and dependent legacy cleanup remain pending. Baseline `33ec8984`.
 Runs as a `/goal` in a cloud environment (see Execution environment).
 
 ## Destination
