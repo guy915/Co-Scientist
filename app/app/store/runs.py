@@ -9,7 +9,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from app.store.db import _now, _reports_dir, _use_conn, connect, transaction
+from app.store.db import _now, _use_conn, connect, transaction
 from app.store.logs import count_logs_for_run, delete_logs_for_run
 from app.store.models import TERMINAL_STATUSES, RunRow, RunStatus, _row_to_run
 from app.store.runs_views import _ACTIVE_RUN_STATUSES
@@ -196,15 +196,6 @@ def count_run_rows(
     return counts
 
 
-def _delete_report_markdown_file(run_id: str) -> None:
-    """Best-effort remove the on-disk report Markdown copy, if any."""
-    path = _reports_dir() / f"{run_id}.md"
-    try:
-        path.unlink(missing_ok=True)
-    except OSError:
-        logger.warning("Could not delete report markdown at %s", path)
-
-
 def delete_run(run_id: str, *, db_path: str | None = None) -> dict[str, int]:
     """Permanently delete a run and every row that belongs to it.
 
@@ -224,7 +215,6 @@ def delete_run(run_id: str, *, db_path: str | None = None) -> dict[str, int]:
         )
         delete_logs_for_run(run_id, conn=conn)
         conn.execute("DELETE FROM runs WHERE id=?", (run_id,))
-    _delete_report_markdown_file(run_id)
     return before
 
 

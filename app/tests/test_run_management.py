@@ -10,7 +10,6 @@ from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from functools import partial
-from pathlib import Path
 from threading import Barrier
 from typing import Any
 
@@ -45,7 +44,6 @@ from app.engine_adapter.opts import _generator_kwargs
 from app.run_modes import RUN_TIER_DEFAULTS
 from app.runs import crud as runs_crud
 from app.store import receipts as store_receipts
-from app.store.db import _reports_dir
 from tests._client import append_log_row, wait_for
 from tests._client import make_client as _deletion_make_client
 from tests._client import make_client as _idempotency_make_client
@@ -1100,17 +1098,6 @@ def test_delete_clears_but_does_not_remove_a_carried_document(
     remaining = store.get_staged_documents([document_id], "delete-owner")
     assert len(remaining) == 1
     assert remaining[0]["run_id"] is None
-
-
-def test_deleted_run_report_markdown_file_is_removed(isolated_db: str) -> None:
-    client = _deletion_make_client()
-    run_id = _run_to_completion(client, "Report file cleanup goal")
-    md_path = _reports_dir() / f"{run_id}.md"
-    assert md_path.exists()
-
-    client.delete(f"/api/runs/{run_id}", headers=_DELETION_OWNER)
-
-    assert not Path(md_path).exists()
 
 
 def test_every_tier_caps_its_llm_call_spend() -> None:

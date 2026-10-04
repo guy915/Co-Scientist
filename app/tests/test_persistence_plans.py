@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import logging
 import pathlib
 import sqlite3
-from pathlib import Path
 from typing import Any
 
 import pytest
@@ -396,7 +394,12 @@ def _insert_legacy_report_row(
         )
 
 
-def test_reports_round_trip_markdown_to_disk(isolated_db: str) -> None:
+def test_reports_round_trip_full_markdown_through_database(
+    isolated_db: str,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
     run = store.create_run(
         "report rt",
         "default",
@@ -407,41 +410,14 @@ def test_reports_round_trip_markdown_to_disk(isolated_db: str) -> None:
     saved = store.save_report(
         run.id, {"k": "v"}, "# Hello\nbody", db_path=isolated_db
     )
-    assert saved["markdown_path"].endswith(".md")
     md = store.read_report_markdown(run.id, db_path=isolated_db)
-    assert md and "Hello" in md
+    assert md == "# Hello\nbody"
     rep = store.get_latest_report(run.id, db_path=isolated_db)
     assert rep and rep["payload"] == {"k": "v"}
-
-
-def test_save_report_logs_warning_on_disk_write_failure(
-    isolated_db: str,
-    monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    run = store.create_run(
-        "disk failure goal",
-        "default",
-        "mock",
-        {},
-        store.RunCreateOptions(db_path=isolated_db),
-    )
-
-    def _boom(self: Path, *args: object, **kwargs: object) -> None:
-        raise OSError("disk full")
-
-    monkeypatch.setattr(Path, "write_text", _boom)
-
-    with caplog.at_level(logging.WARNING, logger="app.store.reports"):
-        saved = store.save_report(
-            run.id, {"k": "v"}, "# md body", db_path=isolated_db
-        )
-
-    assert "Could not write report markdown to disk" in caplog.text
-    report = store.get_latest_report(run.id, db_path=isolated_db)
-    assert report is not None
-    assert report["id"] == saved["id"]
-    assert report["markdown_text"] == "# md body"
+    assert rep["id"] == saved["id"]
+    assert rep["markdown_text"] == "# Hello\nbody"
+    assert rep["markdown_path"] == ""
+    assert not (tmp_path / "reports").exists()
 
 
 def test_read_report_markdown_falls_back_to_disk_when_db_text_missing(
