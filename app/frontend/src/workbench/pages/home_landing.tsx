@@ -9,6 +9,7 @@ import {
   type Ref,
 } from 'react';
 import {useLocation} from 'react-router-dom';
+import {createPortal} from 'react-dom';
 import {smoothScrollToSection} from '@/lib/smooth_scroll';
 import helixArt from '../../assets/landing/helix.webp';
 import {joinClasses} from '../classes';
@@ -125,6 +126,15 @@ function LandingHero({
               See how it works
             </button>
           </div>
+          <iframe
+            className="ucs-landing-trailer"
+            title="Co-Scientist trailer"
+            src="https://www.youtube-nocookie.com/embed/Wnhe8a8kKc0"
+            loading="lazy"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            referrerPolicy="strict-origin-when-cross-origin"
+            allowFullScreen
+          />
         </div>
         <svg
           className="ucs-landing-hero-art tone-teal"
@@ -206,6 +216,41 @@ function useRailScroll(
 }
 
 function LandingRail({reduceMotion}: {reduceMotion: boolean}) {
+  const anchorRef = useRef<HTMLDivElement | null>(null);
+  const [header, setHeader] = useState<HTMLElement | null>(null);
+  const [joined, setJoined] = useState(false);
+  useEffect(() => {
+    const anchor = anchorRef.current;
+    const pane = anchor?.closest('.ucs-page--home');
+    const slot = document.getElementById('header-landing-tabs');
+    if (!anchor || !pane || !slot) return;
+    setHeader(slot);
+    const update = () =>
+      setJoined(
+        anchor.getBoundingClientRect().top <= pane.getBoundingClientRect().top,
+      );
+    update();
+    pane.addEventListener('scroll', update, {passive: true});
+    window.addEventListener('resize', update);
+    return () => {
+      pane.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
+  }, []);
+  const rail = <LandingTabs reduceMotion={reduceMotion} />;
+  return (
+    <div ref={anchorRef} className="ucs-landing-rail-anchor">
+      {joined && header
+        ? createPortal(
+            <div className="ucs-landing ucs-landing-header-tabs">{rail}</div>,
+            header,
+          )
+        : rail}
+    </div>
+  );
+}
+
+function LandingTabs({reduceMotion}: {reduceMotion: boolean}) {
   const active = useActiveSection();
   const navRef = useRef<HTMLElement | null>(null);
   const more = useRailScroll(navRef, active, reduceMotion);
@@ -380,6 +425,8 @@ export function TournamentSection({reduceMotion}: MotionProps) {
           </div>
           <img
             src={podiumArt}
+            width={1300}
+            height={1027}
             loading="lazy"
             decoding="async"
             alt="3D render: seven pedestals of falling height, the top three crowned with blue, teal and yellow spheres."
@@ -554,6 +601,8 @@ export function ClosingSection({onStart}: {onStart: () => void}): ReactNode {
         </div>
         <img
           src={flaskArt}
+          width={774}
+          height={1069}
           loading="lazy"
           decoding="async"
           alt="3D render of a glass Erlenmeyer flask holding a glowing teal liquid."
@@ -649,26 +698,28 @@ function OutputCard() {
         Ranked hypotheses, each with its reviews, Elo rating, and claims checked
         against sources, plus a report you can share.
       </p>
-      <div className="ucs-landing-ov-idea">
-        <div className="ucs-landing-ov-idea-meta">
-          <span>#1</span>
-          <span>Elo {RANKED[0].elo}</span>
+      <div className="ucs-landing-ov-output">
+        <div className="ucs-landing-ov-idea">
+          <div className="ucs-landing-ov-idea-meta">
+            <span>#1</span>
+            <span>Elo {RANKED[0].elo}</span>
+          </div>
+          <b>{RANKED[0].title}</b>
+          <div className="ucs-landing-ov-chips">
+            <span className="tone-green">Supports 3</span>
+            <span className="tone-yellow">Partial 1</span>
+          </div>
         </div>
-        <b>{RANKED[0].title}</b>
-        <div className="ucs-landing-ov-chips">
-          <span className="tone-green">Supports 3</span>
-          <span className="tone-yellow">Partial 1</span>
-        </div>
+        <ol className="ucs-landing-ov-rest" start={2}>
+          {RANKED.slice(1).map((idea, i) => (
+            <li key={idea.title}>
+              <span>#{i + 2}</span>
+              <span>{idea.title}</span>
+              <span>{idea.elo}</span>
+            </li>
+          ))}
+        </ol>
       </div>
-      <ol className="ucs-landing-ov-rest" start={2}>
-        {RANKED.slice(1).map((idea, i) => (
-          <li key={idea.title}>
-            <span>#{i + 2}</span>
-            <span>{idea.title}</span>
-            <span>{idea.elo}</span>
-          </li>
-        ))}
-      </ol>
     </div>
   );
 }

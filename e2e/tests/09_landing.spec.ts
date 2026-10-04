@@ -1,0 +1,92 @@
+import {captureViewport, expect, test} from '../support/fixtures';
+
+for (const theme of ['light', 'dark']) {
+  for (const width of [1440, 768, 375]) {
+    test(`landing trailer, joined header and panels at ${width}px in ${theme}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({width, height: 812});
+      await page.addInitScript(
+        mode => localStorage.setItem('cosci-theme', mode),
+        theme,
+      );
+      // Verify the privacy-preserving embed without relying on YouTube availability.
+      await page.route('https://www.youtube-nocookie.com/**', route =>
+        route.fulfill({
+          body: '<html><body>Trailer</body></html>',
+          contentType: 'text/html',
+        }),
+      );
+      await page.goto('/');
+      const trailer = page.locator('iframe[title="Co-Scientist trailer"]');
+      await expect(trailer).toHaveAttribute('loading', 'lazy');
+      await expect(trailer).toHaveAttribute(
+        'src',
+        'https://www.youtube-nocookie.com/embed/Wnhe8a8kKc0',
+      );
+      await trailer.scrollIntoViewIfNeeded();
+      const box = await trailer.boundingBox();
+      expect(box!.width / box!.height).toBeCloseTo(16 / 9, 1);
+      await captureViewport(page, {
+        width,
+        height: 812,
+        name: `landing-hero-${width}-${theme}.png`,
+      });
+      await page.locator('#landing-overview').evaluate(node => {
+        const pane = node.closest('.ucs-page--home')!;
+        pane.scrollTop +=
+          node.getBoundingClientRect().top - pane.getBoundingClientRect().top;
+      });
+      const header = page.locator('.ucs-header-action-bar');
+      const tabs = header.getByRole('navigation', {name: 'Landing sections'});
+      await expect(tabs).toBeVisible();
+      await expect(
+        page.getByRole('navigation', {name: 'Landing sections'}),
+      ).toHaveCount(1);
+      const tabBox = await tabs.boundingBox();
+      const headerBox = await header.boundingBox();
+      expect(headerBox!.y).toBeGreaterThanOrEqual(0);
+      expect(headerBox!.x + headerBox!.width).toBeLessThanOrEqual(width);
+      expect(tabBox!.y).toBeGreaterThanOrEqual(headerBox!.y);
+      expect(tabBox!.y + tabBox!.height).toBeLessThanOrEqual(
+        headerBox!.y + headerBox!.height + 1,
+      );
+      await expect(header.getByRole('button', {name: /^Logs/})).toBeVisible();
+      await expect(
+        header.getByRole('button', {name: /^Logs/}),
+      ).toBeInViewport();
+      if (width > 1000) {
+        const panels = await page
+          .locator('.ucs-landing-ov-card > :last-child')
+          .evaluateAll(nodes =>
+            nodes.map(node => {
+              const rect = node.getBoundingClientRect();
+              return {top: rect.top, bottom: rect.bottom, height: rect.height};
+            }),
+          );
+        for (const panel of panels.slice(1)) {
+          expect(panel.top).toBeCloseTo(panels[0].top, 0);
+          expect(panel.bottom).toBeCloseTo(panels[0].bottom, 0);
+          expect(panel.height).toBeCloseTo(panels[0].height, 0);
+        }
+      }
+      await captureViewport(page, {
+        width,
+        height: 812,
+        name: `landing-overview-${width}-${theme}.png`,
+      });
+      await tabs.getByRole('link', {name: 'FAQ'}).click();
+      await expect(page.locator('#faq')).toBeInViewport();
+      await expect(
+        header.getByRole('navigation', {name: 'Landing sections'}),
+      ).toBeVisible();
+      await page.locator('.ucs-page--home').evaluate(node => {
+        node.scrollTop = 0;
+      });
+      await expect(
+        header.getByRole('navigation', {name: 'Landing sections'}),
+      ).toHaveCount(0);
+      await expect(page.getByRole('textbox')).toBeInViewport();
+    });
+  }
+}

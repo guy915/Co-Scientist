@@ -3,8 +3,16 @@
 
 /* Landing follows a one-screen home stage; conversations retain their fixed
    layout because they never mount it. */
+.ucs-workspace:has(.ucs-page--home .ucs-landing) {
+  grid-template-columns: minmax(0, 1fr);
+  height: 100vh;
+  height: 100dvh;
+}
+
 .ucs-page--home:has(.ucs-landing) {
   display: block;
+  min-height: 0;
+  height: 100%;
   overflow-x: hidden;
   overflow-y: auto;
   /* Contain scroll at both ends so macOS rubber-banding cannot drag the shell
@@ -293,6 +301,15 @@ html:has(.ucs-landing) body {
   line-height: 1.25;
 }
 
+.ucs-landing-trailer {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  border-radius: 12px;
+  background: var(--l-surface);
+}
+
 .ucs-landing-hero-art {
   width: min(100%, 440px);
   justify-self: end;
@@ -323,9 +340,6 @@ html:has(.ucs-landing) body {
 }
 
 .ucs-landing-rail {
-  position: sticky;
-  top: 0;
-  z-index: 5;
   display: flex;
   justify-content: center;
   padding: 10px 16px;
@@ -333,9 +347,76 @@ html:has(.ucs-landing) body {
   background: var(--l-bg);
 }
 
+.ucs-landing-rail-anchor {
+  min-height: 66px;
+}
+
+.ucs-header-landing-tabs {
+  display: none;
+  min-width: 0;
+  flex: 1 1 0;
+  justify-content: center;
+}
+
+.ucs-header-landing-tabs:not(:empty) {
+  display: flex;
+}
+
+.ucs-landing-header-tabs {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+.ucs-landing-header-tabs .ucs-landing-rail {
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.ucs-header-action-bar:has(.ucs-landing-header-tabs) .ucs-header-actions {
+  position: relative;
+  top: auto;
+  right: auto;
+  flex: none;
+  transform: none;
+}
+
+.ucs-header-action-bar:has(.ucs-landing-header-tabs) .ucs-product-lockup {
+  flex: none;
+}
+
+.ucs-header-action-bar:has(.ucs-landing-header-tabs) {
+  min-width: 0;
+}
+
+@media (max-width: 1000px) {
+  .ucs-header-action-bar:has(.ucs-landing-header-tabs) {
+    gap: 8px;
+  }
+
+  .ucs-header-action-bar:has(.ucs-landing-header-tabs) .ucs-product-lockup span,
+  .ucs-header-action-bar:has(.ucs-landing-header-tabs) .ucs-system-status {
+    display: none;
+  }
+
+  .ucs-header-action-bar:has(.ucs-landing-header-tabs) .ucs-product-lockup svg {
+    display: block;
+  }
+
+  .ucs-header-action-bar:has(.ucs-landing-header-tabs)
+    .ucs-header-actions
+    > button {
+    display: inline-flex;
+  }
+}
+
 .ucs-landing-rail nav {
   position: relative;
   display: flex;
+  min-width: 0;
   max-width: 100%;
   gap: 4px;
   overflow-x: auto;
@@ -400,7 +481,8 @@ html:has(.ucs-landing) body {
 
 .ucs-landing-ov-card {
   display: grid;
-  align-content: start;
+  grid-row: span 3;
+  grid-template-rows: subgrid;
   gap: 8px;
   padding: 28px;
   border-radius: 32px;
@@ -422,13 +504,21 @@ html:has(.ucs-landing) body {
 }
 
 .ucs-landing-ov-goal {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
   gap: 10px;
   padding: 20px;
   border-radius: 24px;
   background: var(--l-bg);
   font-size: 15px;
   line-height: 1.5;
+}
+
+.ucs-landing-ov-output {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 6px;
 }
 
 .ucs-landing-ov-goal b {
@@ -470,9 +560,12 @@ html:has(.ucs-landing) body {
 
 .ucs-landing-ov-stages {
   display: grid;
+  grid-auto-rows: 1fr;
   gap: 6px;
   margin: 0;
-  padding: 0;
+  padding: 12px;
+  border-radius: 24px;
+  background: var(--l-bg);
   list-style: none;
 }
 
@@ -490,7 +583,7 @@ html:has(.ucs-landing) body {
 }
 
 .ucs-landing-ov-stages li.is-lit {
-  background: var(--l-bg);
+  background: var(--l-surface);
   color: var(--l-ink);
 }
 
@@ -507,6 +600,7 @@ html:has(.ucs-landing) body {
 
 .ucs-landing-ov-idea {
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 10px;
   padding: 20px;
   border-radius: 24px;
@@ -514,6 +608,7 @@ html:has(.ucs-landing) body {
 }
 
 .ucs-landing-ov-idea b {
+  align-self: center;
   font-family: var(--l-display);
   font-size: 19px;
   font-weight: 400;
@@ -531,6 +626,7 @@ html:has(.ucs-landing) body {
 .ucs-landing-ov-chips {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
 }
 
