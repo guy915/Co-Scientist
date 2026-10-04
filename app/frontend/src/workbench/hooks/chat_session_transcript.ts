@@ -7,38 +7,21 @@ import {interviewToRunSpec} from '../run_spec';
 import {type ChatEntry} from '../pages/chat_timeline_bubble';
 import {type HandlerDeps} from './use_chat_session';
 
-/**
- * One persisted turn as a timeline bubble.
- *
- * The Agent's reasoning rides along so a turn shows the thinking that
- * produced it exactly as it did while streaming, and the durable turn id
- * rides along so the bubble can be edited or retried in place.
- */
 export function turnToEntry(turn: InterviewTurn): ChatEntry {
   const role = turn.role === 'agent' ? 'assistant' : 'user';
   return {
-    // Keyed by the turn, not freshly generated: the log is rebuilt from the
-    // server after every turn, and a new id each time would remount every
-    // bubble on the page (losing its measured collapse state) to redraw text
-    // that did not change.
+    // Durable turn IDs stabilize React keys and keep expansion state through
+    // snapshot rebuilds.
     id: `turn-${turn.id}`,
     role,
     content: turn.content,
     reasoning: turn.reasoning ?? undefined,
     turnId: turn.id,
-    // Rides with the bubble exactly as persisted: a fallback-authored turn
-    // keeps its marker through every rebuild of the log.
     fallback: turn.fallback || undefined,
     created_at: turn.created_at,
   };
 }
 
-/**
- * Splits an interview's transcript for display: a completed interview's
- * closing Agent turn becomes the plan card's lead-in rather than a bubble of
- * its own, so the conversation reads as one response instead of a bubble
- * plus a card.
- */
 export function splitTranscript(interview: Interview): {
   entries: ChatEntry[];
   closing: InterviewTurn | null;
@@ -51,32 +34,17 @@ export function splitTranscript(interview: Interview): {
   return {entries: turns.map(turnToEntry), closing};
 }
 
-/** The session state an interview snapshot is rendered into. */
 export interface TranscriptSink extends Pick<
   HandlerDeps,
   'setInterview' | 'setDraft' | 'setConfirmed' | 'stageDraftSpec'
 > {
-  // Deliberately wider than HandlerDeps.setMessages: rendering a snapshot
-  // replaces the whole log with plain entries, so the sink accepts any
-  // replacement setter and must not require the session's stateful dispatch.
-  // Do not narrow this to Dispatch<SetStateAction<ChatEntry[]>>.
+  // Snapshot sinks accept replacement setters, not only stateful dispatch;
+  // narrowing would reject valid plain-entry consumers.
   setMessages: (entries: ChatEntry[]) => void;
 }
 
-/**
- * Renders a resolved interview into the session: its transcript, and the plan
- * it derived once it completes.
- *
- * The server's copy is the whole conversation, so this replaces the message
- * log rather than appending to it. That is what lets a revision (an edited
- * prompt, a retried answer) drop the turns it invalidated: they are simply
- * absent from the snapshot that comes back, and every surviving bubble
- * carries the durable turn id it can be revised by.
- *
- * An interview that is *not* complete cannot leave a plan on screen. Staging
- * one is the completed branch's job, so any card left over from a derivation
- * the scientist has since withdrawn is cleared here.
- */
+// Replace invalidated transcript turns from the server snapshot and clear
+// withdrawn incomplete plans; appending would retain stale derivations.
 export function applyInterview(
   sink: TranscriptSink,
   interview: Interview,
@@ -89,17 +57,10 @@ export function applyInterview(
       message: closing.content,
       reasoning: closing.reasoning ?? undefined,
       turnId: closing.id,
-      // The closing turn becomes the plan card's lead-in instead of a
-      // bubble, so its fallback marker rides with it there.
       fallback: closing.fallback || undefined,
     };
-    // A chat that already started a run has no plan left to edit. Staging
-    // one anyway put Start research live beside a card saying the run was
-    // under way -- one click from a second run on the same goal. The
-    // server's own answer is used rather than the run the workspace may or
-    // may not have looked up yet, so reopening cannot depend on which of
-    // the two loads lands first. Editing a settled plan is still offered,
-    // by the confirmed card's own Edit, which stages a draft deliberately.
+    // Use the interview’s started-run marker to avoid a duplicate Start action
+    // regardless of which independent run/chat load arrives first.
     if (interview.run_id) {
       sink.setDraft(null);
       sink.setConfirmed({
@@ -123,31 +84,18 @@ export function applyInterview(
   sink.setConfirmed(null);
 }
 
-// Converts a run's persisted message rows (GET /messages) into the pieces a
-// reopened chat rebuilds itself from: the bubbles for its Q&A exchanges and
-// its start request, and the Agent's start announcement, which is not a
-// bubble at all but the session card's lead-in. Interview turns above use
-// their own durable turn ids and reasoning.
-
-/**
- * The Agent's answer to the scientist's start request, as it is put back on
- * the session card (see run_start_announcement.py for the rows it comes
- * from). `at` is the reply's own timestamp, which is what re-anchors the card
- * *below* the request that produced it -- the run was created first, so the
- * run's own creation time would sort the card above its own prompt.
- */
+// Anchor the session card to the announcement timestamp, not run creation, so it
+// sorts below the start request that produced it.
 export interface RehydratedAnnouncement {
   intro: string;
   reasoning?: string;
   at: number;
 }
 
-/** A persisted row's sender, as a chat bubble role. */
 function qaRole(sender: RunMessage['sender']): ChatEntry['role'] {
   return sender === 'user' ? 'user' : 'assistant';
 }
 
-/** One persisted row as a timeline bubble. */
 function rowToEntry(row: RunMessage): ChatEntry {
   return {
     id: `qa-${row.id}`,
@@ -159,35 +107,17 @@ function rowToEntry(row: RunMessage): ChatEntry {
   };
 }
 
-// Whether a row belongs in the timeline as a bubble of its own: every Q&A
-// row, plus the scientist's own start request. The Agent's reply to that
-// request is deliberately absent -- it is the card's lead-in, exactly as a
-// completed interview's closing turn is the plan card's (see
-// chat_session_transcript.ts::splitTranscript).
 function isBubbleRow(row: RunMessage): boolean {
   if (row.kind === 'qa') return true;
   return row.kind === 'start' && row.sender === 'user';
 }
 
-/**
- * Builds the Q&A bubbles for one run, in the order the rows arrived --
- * matching the shape a live ask already produces (see
- * chat_session_handlers_qa.ts), so a reload renders identically to a live
- * turn. Callers pass the full `GET /messages` result; steering rows are
- * dropped, since the same endpoint returns those too.
- */
 export function qaMessagesToEntries(rows: RunMessage[]): ChatEntry[] {
   return rows.filter(isBubbleRow).map(rowToEntry);
 }
 
-/**
- * Finds the Agent's start announcement among a run's persisted rows.
- *
- * The *first* such reply, not the last: a retried start, or the same chat
- * open in two tabs, can leave more than one, and the card has one lead-in.
- * Null for a run started before the announcement existed, which is what
- * leaves the card on its standby copy.
- */
+// Use the first announcement when retries or multiple tabs produced several;
+// legacy runs retain standby copy when none exists.
 export function runStartAnnouncement(
   rows: RunMessage[],
 ): RehydratedAnnouncement | null {
@@ -202,14 +132,8 @@ export function runStartAnnouncement(
   };
 }
 
-/** The chat session's diagnostic-log categories. */
 export type DiagnosticStage = 'LIFECYCLE' | 'CHAT';
 
-/**
- * Fires a fire-and-forget diagnostic line for the shell's Logs popover
- * (DiagnosticsControl in layout_diagnostics.tsx listens for this event); a
- * window event keeps the chat session decoupled from the shell component.
- */
 export function emitDiagnosticEvent({
   stage,
   runId,
@@ -217,14 +141,9 @@ export function emitDiagnosticEvent({
   payload = {},
 }: {
   stage: DiagnosticStage;
-  /**
-   * Real run id, when one exists. Deliberately not a title: this is
-   * persisted as the record's run_id and served over the logs API, so
-   * anything goal-derived here would publish research content.
-   */
+  // Diagnostics persist run_id: use the real ID, never a goal-derived title that
+  // would disclose research content.
   runId?: string;
-  // The persisted log has no "success" band — the levels are Python's, so
-  // an emitted success was only ever stored (and counted) as info.
   level?: 'info' | 'warning' | 'error';
   payload?: Record<string, unknown>;
 }) {
@@ -235,25 +154,14 @@ export function emitDiagnosticEvent({
   );
 }
 
-/** One appended chat bubble, as its callers describe it. */
 export interface NewChatMessage {
   role: 'assistant' | 'user';
   content: string;
-  /** The Agent's chain of thought for this turn, when it produced one. */
   reasoning?: string;
-  /** Epoch seconds; defaults to now. */
   createdAt?: number;
-  /** A run Q&A answer's evidence manifest; see `ChatEntry.sources`. */
   sources?: QaSource[];
 }
 
-/**
- * Appends a chat bubble; timestamps are epoch seconds (matching the API's
- * created_at convention) and returned so callers can order follow-up entries
- * relative to this one. Takes `setMessages` as an argument instead of closing
- * over hook state so every handler that appends a message can share it without
- * each needing its own copy.
- */
 export function appendChatMessage(
   setMessages: Dispatch<SetStateAction<ChatEntry[]>>,
   message: NewChatMessage,
@@ -273,14 +181,8 @@ export function appendChatMessage(
   return createdAt;
 }
 
-/**
- * Wraps a ref holding the latest `HandlerDeps` bag in an object whose
- * enumerable getters delegate to `ref.current`. buildChatHandlers can then be
- * called ONCE (stable handler identities across renders) while every handler
- * — including spreads like `{...handlerDeps}` — still reads the current
- * render's state at call time. The key set is fixed by the initial bag, which
- * is fine: HandlerDeps is a closed interface.
- */
+// Enumerable getters preserve call-time freshness even when handlers spread
+// dependencies; the closed interface fixes the initial key set.
 export function liveHandlerDeps<T extends object>(ref: {current: T}): T {
   const live = {} as T;
   for (const key of Object.keys(ref.current) as (keyof T)[]) {
@@ -292,10 +194,8 @@ export function liveHandlerDeps<T extends object>(ref: {current: T}): T {
   return live;
 }
 
-// True for the DOMException a fetch (or its SSE body read) rejects with
-// once its AbortSignal fires -- the Stop control's own doing, never a
-// provider or network failure. Checked by name rather than
-// `instanceof Error`: a DOMException is not guaranteed to be one.
+// DOMException need not be an Error; classify scientist-requested aborts by name
+// rather than instanceof.
 export function isAbortError(error: unknown): boolean {
   return (
     typeof error === 'object' &&
@@ -304,9 +204,6 @@ export function isAbortError(error: unknown): boolean {
   );
 }
 
-// Starts (and records) the AbortController for one turn, so the composer's
-// Stop control -- which only holds the deps bag, not this call's local
-// state -- can reach it via `turnAbortRef`.
 export function beginTurnAbort(
   deps: Pick<HandlerDeps, 'turnAbortRef'>,
 ): AbortSignal {

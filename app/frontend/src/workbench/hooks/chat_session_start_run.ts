@@ -39,12 +39,8 @@ import {
   type PendingRunCreatePayload,
 } from '../run_spec';
 
-/**
- * The scientist's start request, persisted with the Agent's announcement.
- */
 export const START_RESEARCH_PROMPT = 'Start research';
 
-// Resolves and starts the run tied to this explicit action.
 interface StartResult {
   session: StartedSession;
   shouldAnnounce: boolean;
@@ -76,7 +72,6 @@ async function executeStart(deps: StartDeps): Promise<StartResult> {
       content: START_RESEARCH_PROMPT,
     });
   }
-  // Keep the completed interview turn with its confirmed plan.
   deps.setConfirmed(stage);
   deps.setDraft(null);
   if (shouldAnnounce) {
@@ -92,21 +87,17 @@ async function executeStart(deps: StartDeps): Promise<StartResult> {
     id: target.runId,
     title: conciseTitle(stage.spec.goal),
     at: Date.now() / 1000,
-    // The card waits only while this request is actually being announced.
     announcing: shouldAnnounce,
   };
   deps.setPendingAttachments([]);
-  // The server closes the interview when its run starts.
   deps.setInput('');
   deps.setStartedSession(session);
   await deps.reloadHistory();
-  // Refresh the home cards and sidebar linked to this chat.
   window.dispatchEvent(new Event(RUNS_CHANGED_EVENT));
   announceChatsChanged();
   return {session, shouldAnnounce};
 }
 
-// Merges announcement fragments into the mounted session card.
 function appendAnnouncement(
   setStartedSession: ExecuteStartDeps['setStartedSession'],
   patch: 'intro' | 'reasoning',
@@ -119,7 +110,6 @@ function appendAnnouncement(
   );
 }
 
-/** Streams the Agent's reply after a newly confirmed start. */
 async function announceStart(
   deps: ExecuteStartDeps & Pick<HandlerDeps, 'turnAbortRef'>,
   runId: string,
@@ -127,8 +117,8 @@ async function announceStart(
   deps.setStartedSession(current =>
     current ? {...current, announcing: true} : current,
   );
-  // The composer's Stop control keys off this, so a provider that hangs
-  // mid-announcement is escapable rather than minutes of blocked composer.
+  // Expose announcement cancellation to Stop so a hanging provider cannot leave
+  // the composer blocked.
   deps.setIsAwaitingAgent(true);
   try {
     const outcome = await announceRunStart(
@@ -161,16 +151,13 @@ async function announceStart(
           : 'start_announcement_failed',
       },
     });
-    // A reply that ended early persisted nothing server-side, so reopening
-    // this chat shows the standby copy. Drop whatever fragment arrived so
-    // the card on screen says the same thing rather than keeping half a
-    // sentence the reload will not have.
+    // An interrupted announcement persists nothing; drop partial text so this
+    // card matches its standby copy after reload.
     deps.setStartedSession(current =>
       current ? {...current, intro: undefined, reasoning: undefined} : current,
     );
   } finally {
     deps.turnAbortRef.current = null;
-    // An empty intro settles to the standby copy the moment this clears.
     deps.setStartedSession(current =>
       current ? {...current, announcing: false} : current,
     );
@@ -178,7 +165,6 @@ async function announceStart(
   }
 }
 
-// Runs create/start and records its lifecycle diagnostics.
 async function startDraftRun(
   deps: StartDeps &
     Pick<HandlerDeps, 'turnAbortRef'> & {
@@ -198,11 +184,8 @@ async function startDraftRun(
       runId: session.id,
       payload: {event: 'start_queued', run_id: session.id},
     });
-    // Inside the same try, and inside promoteDraftToRun's `isStarting`
-    // window: a question submitted mid-announcement would route to the run's
-    // Q&A endpoint and write into the same session state this stream is
-    // filling. The Stop control reaches it through `turnAbortRef`, so a
-    // provider that hangs is not a composer blocked for minutes.
+    // Keep announcement in the start/busy window so run Q&A cannot concurrently
+    // write the same session state; Stop still reaches its controller.
     if (outcome.shouldAnnounce) await announceStart(deps, session.id);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -215,12 +198,11 @@ async function startDraftRun(
   }
 }
 
-/** Starts or recovers a run from the explicit Start action. */
 export async function promoteDraftToRun(deps: HandlerDeps): Promise<void> {
   const stageToStart = deps.draft ?? linkedInterviewStage(deps.interview);
   if (!stageToStart || deps.startedSession) return;
-  // Snapshot the draft up front so state changes during the awaits below
-  // can't swap the stage out from under this start attempt.
+  // Snapshot the whole stage before awaits so state changes cannot replace the
+  // plan being started.
   deps.setIsStarting(true);
   deps.setError(null);
   deps.setToast(null);
@@ -280,7 +262,8 @@ export interface PendingCreateIntent<
   createdRunId?: string;
 }
 
-/** Returns one exact, owner- and credential-scoped create request per chat. */
+// Retries reuse the exact owner- and credential-scoped request rather than
+// rebuilding intent from changed browser state.
 export async function getPendingCreateIntent<T extends Record<string, unknown>>(
   chatId: string,
   payload: T,
@@ -312,7 +295,6 @@ export async function getPendingCreateIntent<T extends Record<string, unknown>>(
   return {key: intent.key, payload: JSON.parse(payloadJson) as T};
 }
 
-/** Reads the exact pending request for this chat and owner without rebuilding it. */
 export async function readPendingCreateIntent<
   T extends Record<string, unknown> = Record<string, unknown>,
 >(chatId: string): Promise<PendingCreateIntent<T> | undefined> {
@@ -355,7 +337,7 @@ function publicIntent<T extends Record<string, unknown>>(
   }
 }
 
-/** Records the known run without changing the request's idempotency key. */
+// Learning the run ID must not change the create request’s idempotency key.
 export function rememberPendingCreateRun(
   chatId: string,
   key: string,
@@ -370,7 +352,8 @@ export function rememberPendingCreateRun(
   );
 }
 
-/** Removes only the intent whose request key has reached a settled outcome. */
+// Remove only the settled request intent; a later request for the same chat must
+// survive stale cleanup.
 export function retirePendingCreateIntent(chatId: string, key: string): void {
   const storageKey = intentStorageKey(chatId);
   if (readIntent(storageKey)?.key === key) {
@@ -411,7 +394,7 @@ function readIntent(key: string): StoredIntent | undefined {
     const parsed: unknown = JSON.parse(sessionStorage.getItem(key) ?? 'null');
     return isStoredIntent(parsed) ? parsed : undefined;
   } catch {
-    // A damaged session entry is replaced by a fresh request intent.
+    // Corrupt session storage cannot authorize an intent; create a fresh one.
   }
   return undefined;
 }
@@ -480,7 +463,6 @@ function buildCreateRunPayload(deps: ExecuteStartDeps): CreateRunPayload {
       : undefined,
     enable_literature_review: deps.pubmedEnabled,
     enable_web_search: deps.webSearchEnabled,
-    // Creation copies staged documents into the run's corpus.
     document_ids: deps.pendingAttachments.map(document => document.id),
   };
 }
@@ -540,7 +522,8 @@ async function resolveDraftAfterFailedStart(
 async function cancelAndReadStatus(runId: string): Promise<string | undefined> {
   const cancellation = await cancelRun(runId).catch(() => undefined);
   if (isCancelledStatus(cancellation?.status)) return 'cancelled';
-  // A lost cancel response may mean the run started between the requests.
+  // A lost cancel response does not prove cancellation: the run may have started
+  // between requests.
   return readRunStatus(runId);
 }
 

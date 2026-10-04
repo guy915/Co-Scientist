@@ -17,11 +17,8 @@ import {
 import {CHATS_CHANGED_EVENT, RUNS_CHANGED_EVENT} from '../dom_events';
 import {useLocation} from 'react-router-dom';
 
-/**
- * Owns one history list's mount/navigation/event reload lifecycle. A loader
- * may return undefined to keep the current list after a transient failure.
- * Polling stays with the provider because only run history advances itself.
- */
+// Undefined load results preserve the current list after transient failure; only
+// self-advancing run history needs polling.
 function useHistoryList<T>(
   load: () => Promise<T[] | undefined>,
   changedEvent: string,
@@ -71,31 +68,18 @@ interface RunHistoryContextValue {
 
 const RunHistoryContext = createContext<RunHistoryContextValue | null>(null);
 
-// How often to re-read the history while a run is still executing. A run's
-// phases last minutes, so this only has to be fast enough that the recents
-// step flow does not look stuck.
 const ACTIVE_RUN_REFRESH_MS = 10_000;
 
-/**
- * Single source of truth for the run-history list, shared by the shell sidebar
- * and the home recents so the list is
- * fetched once and both surfaces stay in sync instead of holding two copies.
- *
- * Reloads on mount, on every navigation (so a run finishing elsewhere is
- * reflected without a full reload), and on the `cosci-runs-changed` signal a
- * newly created/started run dispatches -- the union of both former hooks'
- * triggers. While a run is still executing it also refreshes on a timer, since
- * none of those triggers fire as a run advances and the home recents show its
- * live progress.
- */
+// Share one fetched run list across shell and home; execution advances without
+// navigation or change signals, so active runs also need polling.
 export function RunHistoryProvider({children}: {children: ReactNode}) {
   const {items: history, reload} = useHistoryList(
     loadRunHistory,
     RUNS_CHANGED_EVENT,
   );
 
-  // Depend on the flag rather than `history` itself so the timer is not torn
-  // down and rebuilt by the state update each refresh performs.
+  // Depend on activity, not the refreshed list identity, so each poll cannot
+  // tear down and restart its own timer.
   const hasActiveRun = history.some(run => isActiveStatus(run.status));
   useEffect(() => {
     if (!hasActiveRun) return;
@@ -115,10 +99,6 @@ export function RunHistoryProvider({children}: {children: ReactNode}) {
   );
 }
 
-/**
- * Reads the shared run-history context. Throws when used outside
- * {@link RunHistoryProvider}, which wraps the whole workbench shell.
- */
 export function useRunHistoryContext(): RunHistoryContextValue {
   const ctx = useContext(RunHistoryContext);
   if (!ctx) {
@@ -140,26 +120,14 @@ async function loadChatHistory(): Promise<ChatSummary[] | undefined> {
   try {
     return await listInterviews();
   } catch {
-    // A transient list failure must not blank the rail: keep what is
-    // shown and let the next navigation or signal re-sync it.
+    // Transient failures retain visible chats until a later signal or navigation
+    // succeeds.
     return undefined;
   }
 }
 
-/**
- * Single source of truth for the sidebar's chat list.
- *
- * A chat is the durable interview behind a conversation, which exists from
- * the first turn onwards -- long before (and whether or not) a run is ever
- * started. It is deliberately a separate list from the run history: runs are
- * what the home cards show, chats are what the rail shows, and conflating
- * them is what left a conversation invisible until it produced a run.
- *
- * Reloads on mount, on every navigation, and on the `cosci-chats-changed`
- * signal the workspace dispatches when a chat is created or starts a run.
- * There is no timer: unlike a run, a chat only changes when this browser
- * changes it.
- */
+// Chats exist before any run and need a separate history; browser-authored chat
+// changes need signals, not a run-progress timer.
 export function ChatHistoryProvider({children}: {children: ReactNode}) {
   const {items: chats, reload} = useHistoryList(
     loadChatHistory,
@@ -173,10 +141,6 @@ export function ChatHistoryProvider({children}: {children: ReactNode}) {
   );
 }
 
-/**
- * Reads the shared chat-history context. Throws when used outside
- * {@link ChatHistoryProvider}, which wraps the whole workbench shell.
- */
 export function useChatHistoryContext(): ChatHistoryContextValue {
   const ctx = useContext(ChatHistoryContext);
   if (!ctx) {
@@ -187,7 +151,6 @@ export function useChatHistoryContext(): ChatHistoryContextValue {
   return ctx;
 }
 
-/** Announces a chat-list change to the shared provider. */
 export function announceChatsChanged(): void {
   window.dispatchEvent(new Event(CHATS_CHANGED_EVENT));
 }

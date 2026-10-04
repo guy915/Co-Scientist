@@ -1,4 +1,4 @@
-"""Temperature is clamped before cache lookup so equivalent calls share keys."""
+"""Clamp temperature before cache lookup so equivalent requests share keys."""
 
 import logging
 from dataclasses import replace
@@ -22,16 +22,9 @@ logger = logging.getLogger(__name__)
 
 
 def _resolve_cache(use_cache: bool) -> "LLMCache | NullCache":
-    """Resolves the cache to use for a call, honoring the disable overrides.
-
-    Campaign mode also bypasses cached completions so every evaluation
-    request reaches current-price admission.
-
-    NullCache when this call opted out, or the current task's generator was
-    constructed with enable_cache=False (see cache.scoped_cache_override) --
-    scoped to this task rather than the process-wide get_cache() singleton,
-    so it never disables caching for any other concurrently-running
-    generator.
+    """Campaigns bypass cached completions to reach current-price admission.
+    Cache opt-outs stay task-local rather than altering concurrent
+    generators.
     """
     cache_active = (
         use_cache
@@ -44,7 +37,6 @@ def _resolve_cache(use_cache: bool) -> "LLMCache | NullCache":
 def _log_cache_lookup(
     prompt: str, cached_response: dict[str, Any] | None
 ) -> None:
-    """Logs a cache miss for a lookup; a hit is logged by the call site."""
     if cached_response is None:
         logger.debug(
             "cache miss for prompt: %s%s",
@@ -64,12 +56,8 @@ async def _prepare_llm_call(
     cache = _resolve_cache(opts.use_cache)
     cached_response = cache.get(request)
     _log_cache_lookup(request.prompt, cached_response)
-    # Only a genuinely active cache is worth a hit/miss telemetry record.
-    # ``call_llm_json``'s retry loop deliberately calls back into
-    # ``call_llm`` with ``use_cache=False`` for every attempt (see that
-    # module's docstring): a NullCache lookup there always "misses" by
-    # construction, and counting it would double-count one logical request
-    # as two cache attempts for no informative reason.
+    # NullCache retries are not logical cache misses; recording them double-
+    # counts the request.
     if isinstance(cache, LLMCache):
         record_cache_result(request.model_name, hit=cached_response is not None)
     return request, cache, cached_response

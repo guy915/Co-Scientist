@@ -7,8 +7,6 @@ import type {
 } from '@/api/runs';
 import {isRecord, readableText, readableTextList} from '@/lib/text';
 
-// The first review recorded for a hypothesis, if any: the initial
-// peer-review row behind the "Review summary" section.
 export function findHypothesisReview(
   hypothesis: Hypothesis,
   reviews: Review[],
@@ -16,9 +14,6 @@ export function findHypothesisReview(
   return reviews.find(r => r.hypothesis_id === hypothesis.id);
 }
 
-// Every review row recorded for a hypothesis: the initial peer review plus
-// whichever of the deep-verification and full/simulation/recurrent reviews
-// ran. Order follows the store's creation order (audit E1/D13).
 export function findHypothesisReviews(
   hypothesis: Hypothesis,
   reviews: Review[],
@@ -26,10 +21,6 @@ export function findHypothesisReviews(
   return reviews.filter(r => r.hypothesis_id === hypothesis.id);
 }
 
-// Reader-facing labels for the reviewer agents a review row can carry, so
-// the initial, full, simulation, recurrent, and deep results stay visibly
-// distinct instead of collapsing under a single "Full review" heading
-// (finding D13). Unknown agents fall back to their raw name.
 const REVIEWER_LABELS: Readonly<Record<string, string>> = {
   review: 'Initial peer review',
   reflection: 'Reflection review',
@@ -44,7 +35,6 @@ export function reviewerLabel(reviewerAgent: string): string {
   return REVIEWER_LABELS[reviewerAgent] || reviewerAgent || 'Unknown reviewer';
 }
 
-// Every match involving a hypothesis, newest first.
 export function findHypothesisMatches(
   hypothesis: Hypothesis,
   matches: MatchRow[],
@@ -80,10 +70,8 @@ function isDebateTranscriptTurn(value: unknown): value is DebateTranscriptTurn {
   );
 }
 
-// Match rows store the published transcript document emitted by the engine:
-// each turn's argument, canonical side favored, and which side was presented
-// as Hypothesis 1. Older rows have no transcript; malformed stored JSON is
-// omitted the same way the report renderer omits it.
+// Legacy rows may lack transcripts; malformed stored JSON degrades to absence
+// rather than breaking report rendering.
 export function parseDebateTranscript(
   raw: string | null | undefined,
 ): DebateTranscript | null {
@@ -109,7 +97,6 @@ function asDebateTranscript(value: unknown): DebateTranscript | null {
   };
 }
 
-// Human-readable origin label for the agent/source that produced a hypothesis.
 export function originLabel(createdByAgent: string): string {
   switch (createdByAgent) {
     case 'evolution':
@@ -123,7 +110,6 @@ export function originLabel(createdByAgent: string): string {
   }
 }
 
-// Per-label tallies backing claimEvidenceSummary's one-line count.
 interface ClaimCounts {
   supports: number;
   partial: number;
@@ -132,9 +118,8 @@ interface ClaimCounts {
   speculative: number;
 }
 
-// Which tally a single claim belongs in. A "partial" (near-miss) verdict is a
-// support tier of its own: relevant, consistent evidence short of full
-// entailment.
+// Partial is a separate support tier: consistent, relevant evidence falls short
+// of full entailment.
 function claimCountKey(c: ClaimEvidenceRow): keyof ClaimCounts {
   if (c.label === 'supports') return 'supports';
   if (c.label === 'partial') return 'partial';
@@ -155,7 +140,6 @@ function tallyClaimCounts(claims: ClaimEvidenceRow[]): ClaimCounts {
   return counts;
 }
 
-// Tally keys in the order claimEvidenceSummary reports them.
 const CLAIM_COUNT_LABELS: readonly {
   key: keyof ClaimCounts;
   suffix: string;
@@ -175,8 +159,6 @@ function describeClaimCounts(total: number, counts: ClaimCounts): string {
   return parts.join(', ');
 }
 
-// Summarizes a hypothesis's claim-evidence edges as a one-line count by label
-// (the claim-level grounding graph, Milestone 5), or null when none exist.
 export function claimEvidenceSummary(
   claims: ClaimEvidenceRow[],
 ): string | null {
@@ -184,8 +166,7 @@ export function claimEvidenceSummary(
   return describeClaimCounts(claims.length, tallyClaimCounts(claims));
 }
 
-// A support span normalized for display: the exact quote plus (when known) a
-// link to open its source. Tolerates legacy rows that stored a bare string.
+// Legacy support spans may be bare strings rather than quoted-source objects.
 export interface NormalizedSpan {
   quote: string;
   url?: string;
@@ -202,8 +183,6 @@ export function normalizeSpans(
   );
 }
 
-// "Review summary" section text, falling back to a placeholder until the
-// review node has run.
 export function reviewSummaryText(review: Review | undefined): string {
   return (
     review?.summary ||
@@ -211,23 +190,17 @@ export function reviewSummaryText(review: Review | undefined): string {
   );
 }
 
-// Placeholder for the review-critiques section until any review has run.
 export const NO_REVIEW_CRITIQUES_TEXT =
   'No review critiques have been recorded yet.';
 
-// One review row's critique, falling back to an explicit empty marker so a
-// row with no critique text still reads as recorded-but-empty.
+// An empty critique still represents a recorded review, not a review that never
+// ran.
 export function reviewCritiqueText(review: Review): string {
   return review.critique || 'No critique text was recorded.';
 }
 
-// A review row's structured findings (R14-15/R14-22), parsed out of
-// `detail_json`: the simulation review's named failure points and decisive
-// step, or the full/recurrent review's Go/No-Go verdict framing. Mirrors
-// report.markdown.hypothesis._review_detail's tolerance on the Python side
-// -- production serves this column from a json_object-mode response with no
-// schema enforcement, so every field is coerced through the same readable-
-// text helpers the research-overview fields use rather than trusted as typed.
+// json_object responses do not enforce field schemas; coerce review findings
+// through readable-text helpers rather than trusting declared types.
 export interface ReviewDetail {
   failurePoints: string[];
   decisiveStep: string;
@@ -242,8 +215,6 @@ const EMPTY_REVIEW_DETAIL: ReviewDetail = {
   timeToVerdict: '',
 };
 
-// Parses one JSON-looking string, tolerating anything that isn't one --
-// malformed JSON, or JSON that isn't an object -- by returning null.
 function parseDetailObject(raw: string): Record<string, unknown> | null {
   try {
     const parsed: unknown = JSON.parse(raw);
@@ -275,8 +246,6 @@ export function hasReviewDetail(detail: ReviewDetail): boolean {
   );
 }
 
-// "Tournament performance" section text: the win/loss record and win rate,
-// or a placeholder when no matches have been recorded yet.
 export function tournamentSummaryText(hypothesis: Hypothesis): string {
   const totalMatches = hypothesis.win_count + hypothesis.loss_count;
   if (!totalMatches) return 'No tournament matches have been recorded yet.';
@@ -287,9 +256,8 @@ export function tournamentSummaryText(hypothesis: Hypothesis): string {
   );
 }
 
-// Human-readable debate-depth label. 1 = single-turn comparison; anything
-// greater is a multi-turn scientific debate (top-ranked matchups) — the
-// median-Elo allocation from the Google system (SSR §4, §12).
+// Google Co-Scientist allocates deeper debate to top-ranked matchups relative to
+// median Elo (SSR sections 4 and 12).
 export function debateDepthLabel(turns: number | undefined): string {
   if (turns && turns > 1) {
     return `Multi-turn scientific debate (${turns} turns)`;
