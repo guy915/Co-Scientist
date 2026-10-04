@@ -1,5 +1,3 @@
-"""Separate call budgets and usage summaries for app operations."""
-
 from __future__ import annotations
 
 import asyncio
@@ -24,19 +22,20 @@ P = ParamSpec("P")
 T = TypeVar("T")
 
 _active: ContextVar[bool] = ContextVar("app_call_scope_active", default=False)
-# asyncio holds weak task references. Keep producers alive until their stream
-# finalizers can cancel/join them, even when a consumer is collected in a cycle.
+# asyncio retains only weak task references; keep stream producers alive until
+# cancellation and cleanup join them.
 _stream_producers: set[asyncio.Task[None]] = set()
 
 
 def in_app_call_scope() -> bool:
-    """Whether the current task already belongs to an app operation."""
     return _active.get()
 
 
 @contextmanager
 def app_call_scope(surface: str) -> Iterator[None]:
-    """Count retries/tool rounds together, apart from scientific run spend."""
+    """Retries and tool rounds share one physical-call cap, separate from
+    scientific run spend.
+    """
     from app.config import settings
 
     token = _active.set(True)
@@ -62,7 +61,6 @@ def budgeted(
 ) -> Callable[
     [Callable[P, Coroutine[Any, Any, T]]], Callable[P, Coroutine[Any, Any, T]]
 ]:
-    """Scope an asynchronous app operation and all its child tasks."""
 
     def decorate(
         function: Callable[P, Coroutine[Any, Any, T]],
@@ -84,7 +82,9 @@ async def _produce(
     queue: asyncio.Queue[tuple[str, Any]],
     surface: str,
 ) -> None:
-    """Own the generator and its context on one task across every yield."""
+    """The producer owns stream context across yields so consumer task
+    changes cannot reset its credentials or budget.
+    """
     with app_call_scope(surface):
         try:
             async for value in iterator:
@@ -135,7 +135,7 @@ def budgeted_stream(
 ) -> Callable[
     [Callable[P, AsyncIterator[T]]], Callable[P, AsyncGenerator[T, None]]
 ]:
-    """Keep stream context on its producer, apart from its consumer."""
+    """Stream context belongs to its producer rather than its consumer."""
 
     def decorate(
         function: Callable[P, AsyncIterator[T]],
@@ -157,22 +157,8 @@ async def stream_chunks(
     stall_seconds: float,
     total_seconds: float,
 ) -> AsyncIterator[Any]:
-    """Yield chunks from a streaming completion under two deadlines.
-
-    Args:
-        response: The streaming completion returned by litellm.
-        stall_seconds: Longest silence tolerated between two chunks. This is
-            the real health check: a thinking model streams its chain of
-            thought continuously, so a gap this long means the provider has
-            stopped, not that it is reasoning.
-        total_seconds: Backstop on the whole stream, for the pathological
-            case of a provider that keeps emitting without ever finishing.
-
-    Yields:
-        Each chunk, in order.
-
-    Raises:
-        asyncio.TimeoutError: If either deadline passes.
+    """Bound silence separately from total duration: reasoning can make
+    progress continuously without finishing the answer.
     """
     try:
         async for chunk in _timed_chunks(
@@ -188,7 +174,6 @@ async def stream_chunks(
 async def _timed_chunks(
     response: Any, stall_seconds: float, total_seconds: float
 ) -> AsyncIterator[Any]:
-    """Apply both clocks while the outer iterator guarantees cleanup."""
     deadline = asyncio.get_running_loop().time() + total_seconds
     iterator = response.__aiter__()
     while True:

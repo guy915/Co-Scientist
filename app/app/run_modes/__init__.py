@@ -1,5 +1,3 @@
-"""Faithful run-tier and focus configuration with legacy normalization."""
-
 from __future__ import annotations
 
 import dataclasses
@@ -8,10 +6,6 @@ from typing import Any
 
 from app.elo import DEFAULT_K_FACTOR
 
-# Unlike Attributes -- a separate, goal-specific row -- these three are
-# goal-agnostic, so the default mirrors them exactly rather than adapting
-# them. Pinned against the source doc by
-# tests/test_published_plan_config_criteria.py.
 DEFAULT_CRITERIA: tuple[dict[str, str], ...] = (
     {"name": "Idea correctness", "value": "Required"},
     {"name": "Idea novelty", "value": "Required"},
@@ -20,7 +14,6 @@ DEFAULT_CRITERIA: tuple[dict[str, str], ...] = (
 
 
 def _named_criterion(item: dict[str, Any]) -> tuple[str, str] | None:
-    """Extract a name/value pair from one dict-shaped criteria item."""
     name = str(item.get("name") or "").strip()
     if not name:
         return None
@@ -28,7 +21,6 @@ def _named_criterion(item: dict[str, Any]) -> tuple[str, str] | None:
 
 
 def clean_criteria_list(values: list[Any] | None = None) -> list[Any]:
-    """Trim and validate a caller-supplied criteria list."""
     cleaned: list[Any] = []
     for item in values or []:
         if isinstance(item, dict):
@@ -43,7 +35,6 @@ def clean_criteria_list(values: list[Any] | None = None) -> list[Any]:
 
 
 def _criterion_display_line(item: Any) -> str:
-    """Render one criteria item (either stored shape) as a display line."""
     if isinstance(item, dict):
         pair = _named_criterion(item)
         if pair is None:
@@ -54,7 +45,6 @@ def _criterion_display_line(item: Any) -> str:
 
 
 def criteria_display_strings(raw_values: Any) -> list[str]:
-    """Render stored criteria as flat display/prompt lines."""
     if not isinstance(raw_values, list):
         return []
     return [
@@ -63,23 +53,16 @@ def criteria_display_strings(raw_values: Any) -> list[str]:
 
 
 def _default_criteria() -> list[dict[str, str]]:
-    """Fresh copies of ``DEFAULT_CRITERIA`` so callers never share dicts."""
+    """Return fresh baseline dictionaries so callers cannot mutate another
+    run's defaults.
+    """
     return [dict(pair) for pair in DEFAULT_CRITERIA]
 
 
 _SCALE_POINTS: tuple[str, ...] = ("1", "3", "5")
 
-# The old DEFAULT_ATTRIBUTES held three free strings ("Mechanistically
-# specific", "Evidence-grounded", "Experiment-ready"); the same three
-# concepts carry over here as scaled 1-5 axes with anchor text at every
-# point, goal-agnostic by construction. The published block's one
-# categorical axis (Target Area) is itself goal-*derived* -- its three
-# values are literally that run's own core-focus-area list from the
-# Requirements section -- so no goal-agnostic categorical default exists
-# to mirror. The categorical shape is still fully supported below
-# (``clean_attributes_list``, ``attribute_display_strings``) for any
-# producer that wants one; pinned against the published Target Area
-# bullet by tests/test_published_plan_config_attributes.py.
+# Goal-agnostic defaults cannot invent goal-derived categorical axes; caller-
+# provided categorical attributes remain supported.
 DEFAULT_ATTRIBUTES: tuple[dict[str, Any], ...] = (
     {
         "name": "Mechanistic specificity",
@@ -109,7 +92,6 @@ DEFAULT_ATTRIBUTES: tuple[dict[str, Any], ...] = (
 
 
 def _clean_scale(raw: Any) -> dict[str, str]:
-    """Trim a stored scale dict to its present, non-empty anchors."""
     if not isinstance(raw, dict):
         return {}
     cleaned: dict[str, str] = {}
@@ -121,14 +103,12 @@ def _clean_scale(raw: Any) -> dict[str, str]:
 
 
 def _clean_values(raw: Any) -> list[str]:
-    """Trim a stored categorical value list to its non-empty entries."""
     if not isinstance(raw, list):
         return []
     return [text for item in raw if (text := str(item).strip())]
 
 
 def _clean_attribute_dict(item: dict[str, Any]) -> dict[str, Any] | None:
-    """Normalize one dict-shaped attribute item, or None if unnamed."""
     name = str(item.get("name") or "").strip()
     if not name:
         return None
@@ -142,7 +122,6 @@ def _clean_attribute_dict(item: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def clean_attributes_list(values: list[Any] | None = None) -> list[Any]:
-    """Trim and validate a caller-supplied attributes list."""
     cleaned: list[Any] = []
     for item in values or []:
         if isinstance(item, dict):
@@ -157,7 +136,6 @@ def clean_attributes_list(values: list[Any] | None = None) -> list[Any]:
 
 
 def _join_with_or(values: list[str]) -> str:
-    """Join values with a trailing "or", matching the published phrasing."""
     if len(values) == 1:
         return values[0]
     if len(values) == 2:
@@ -166,7 +144,6 @@ def _join_with_or(values: list[str]) -> str:
 
 
 def _scaled_display_line(name: str, scale: dict[str, str]) -> str:
-    """Render one scaled axis, mirroring the published "1-5 scale (...)"."""
     anchors = ", ".join(
         f"{point}: {scale[point]}" for point in _SCALE_POINTS if point in scale
     )
@@ -174,12 +151,10 @@ def _scaled_display_line(name: str, scale: dict[str, str]) -> str:
 
 
 def _categorical_display_line(name: str, values: list[str]) -> str:
-    """Render one categorical axis, mirroring the published "(A, B, or C)"."""
     return f"{name} ({_join_with_or(values)})" if values else name
 
 
 def _dict_attribute_display_line(item: dict[str, Any]) -> str:
-    """Render one dict-shaped attribute item as a display line."""
     name = str(item.get("name") or "").strip()
     if not name:
         return ""
@@ -193,14 +168,12 @@ def _dict_attribute_display_line(item: dict[str, Any]) -> str:
 
 
 def _attribute_display_line(item: Any) -> str:
-    """Render one attribute item (either stored shape) as a display line."""
     if isinstance(item, dict):
         return _dict_attribute_display_line(item)
     return str(item).strip()
 
 
 def attribute_display_strings(raw_values: Any) -> list[str]:
-    """Render stored attributes as flat display/report lines."""
     if not isinstance(raw_values, list):
         return []
     return [
@@ -209,7 +182,6 @@ def attribute_display_strings(raw_values: Any) -> list[str]:
 
 
 def attribute_names(raw_values: Any) -> list[str]:
-    """Return just the bare name of each stored attribute item."""
     if not isinstance(raw_values, list):
         return []
     names: list[str] = []
@@ -225,7 +197,9 @@ def attribute_names(raw_values: Any) -> list[str]:
 
 
 def _default_attributes() -> list[dict[str, Any]]:
-    """Fresh copies of ``DEFAULT_ATTRIBUTES`` so callers never share dicts."""
+    """Return fresh baseline dictionaries so callers cannot mutate another
+    run's defaults.
+    """
     fresh: list[dict[str, Any]] = []
     for item in DEFAULT_ATTRIBUTES:
         copy: dict[str, Any] = {"name": item["name"]}
@@ -237,9 +211,6 @@ def _default_attributes() -> list[dict[str, Any]]:
     return fresh
 
 
-# Tier controls run size/depth; focus controls ranking emphasis. The
-# *_PATTERN regexes are used by the API's pydantic Field validation, so
-# invalid values 422 at the edge while None falls through to the defaults.
 DEFAULT_RUN_TIER = "standard"
 RUN_TIER_PATTERN = "^(express|standard|extended|ultra)$"
 DEFAULT_RUN_FOCUS = "balance"
@@ -251,56 +222,16 @@ RUN_FOCUS_VALUES: tuple[str, ...] = (
 )
 RUN_FOCUS_PATTERN = "^(" + "|".join(RUN_FOCUS_VALUES) + ")$"
 
-# Client-independent planning baseline. The chat UI infers a richer,
-# domain-tailored spec and sends it explicitly; when a run is created without
-# one (a direct API call, a seeded demo), setup_config falls back to these so
-# every run reaches the engine with sensible planning guidance.
+# Direct API calls and demos receive the same client-independent planning
+# baseline.
 DEFAULT_REQUIREMENTS: tuple[str, ...] = (
     "Prioritize mechanistic novelty, plausibility, and direct testability.",
     "Retrieve broader literature evidence and preserve competing mechanisms.",
     "Use tournament ranking and evolution before final synthesis.",
 )
-# DEFAULT_ATTRIBUTES, clean_attributes_list, attribute_display_strings, and
-# attribute_names live in run_modes.planning (R12-5: the attributes
-# field's structured axis shape and back-compat), imported above and
-# re-exported for existing importers.
-# DEFAULT_CRITERIA, clean_criteria_list, and criteria_display_strings live in
-# run_modes.planning (R12-4: the criteria field's named-setting shape and
-# back-compat), imported above and re-exported for existing importers.
 
-# Reconstructed compute envelopes; every knob scales up together from express
-# to ultra. Google verifies that deeper tiers do more work, but not these exact
-# numbers; provenance records them as reconstructed. resolved_run_config starts
-# from the selected tier and lets explicit user overrides raise (never lower)
-# these values.
-# ``max_llm_calls`` is a runaway backstop, not a work allowance: it is sized
-# well above what a healthy run of each tier spends, so it never truncates
-# real science, and only fires when a run stops converging. It exists because
-# ``max_iterations`` was otherwise the sole termination bound, and iterations
-# only advance on work tasks -- a run looping on maintenance work had no
-# ceiling at all. Calls (rather than the Budget's wall-clock ceiling) are the
-# right meter here: they measure work actually done, so an interrupted run is
-# not penalized for the hours it sat wedged, whereas ``elapsed_s`` counts from
-# the original ``start_time`` and would terminate a resumed run instantly.
-#
-# ``max_ideas`` and ``max_matches_per_idea`` are the Supervisor listing's own
-# two named loop predicates (``01-supervisor.md`` L17). They were implemented
-# in ``scheduling.policy_checks`` from the start and left unset on every real
-# run, so the loop actually terminated on ``max_iterations`` -- a predicate
-# the listing does not name. Both are sized here from the *same* tier numbers
-# they bound, one row above their own steady state:
-#   max_ideas            > initial_hypotheses_count
-#                          + evolution_max_count * max_iterations
-#   max_matches_per_idea > 2 * tournament_pairs * max_iterations
-#                          / initial_hypotheses_count
-# The doubling is because a judged match increments both participants'
-# tallies, and the initial pool is the denominator because it is the smallest
-# the run ever divides by (evolution only grows it, which lowers the average).
-# Sizing either at or below that steady state is the trap: the ceiling is
-# checked *above* every productive task, so an undersized value stops the run
-# immediately after its first tournament and reports it as a spent match
-# budget rather than as a misconfiguration. Pinned by
-# ``tests/test_run_modes_supervisor_budget.py``.
+# Tier envelopes are reconstructed, not published measurements; call budgets
+# bound maintenance loops without charging recovery downtime.
 RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
     "express": {
         "initial_hypotheses_count": 4,
@@ -345,14 +276,11 @@ RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
 }
 
 
-# Normalization is deliberately forgiving: unknown or missing values fall
-# back to the default rather than raising, so persisted rows from older
-# builds and loosely-validated callers keep working.
+# Unknown persisted vocabulary normalizes to defaults so older rows and loosely
+# validated callers remain readable.
 def normalize_run_tier(tier: str | None = None) -> str:
-    """Return a supported run tier, migrating legacy stored tiers.
-
-    Runs created during the two-tier period stored 'advanced' (the deep mode,
-    whose envelope matches 'ultra'); map it forward so those rows keep working.
+    """Legacy advanced rows map to their equivalent ultra envelope,
+    preserving stored run behavior.
     """
     if tier in RUN_TIER_DEFAULTS:
         return tier
@@ -364,34 +292,17 @@ def normalize_run_tier(tier: str | None = None) -> str:
 
 
 def normalize_run_focus(focus: str | None = None) -> str:
-    """Return a supported research focus, defaulting to balanced."""
     if focus in RUN_FOCUS_VALUES:
         return focus
     return DEFAULT_RUN_FOCUS
 
 
 def clean_string_list(values: list[str] | None = None) -> list[str]:
-    """Trim and drop empty strings from user-authored setup lists."""
     return [value.strip() for value in values or [] if value.strip()]
 
 
 @dataclasses.dataclass(frozen=True)
 class PlanningLists:
-    """The user-authored planning lists a run's setup block is built from.
-
-    All three are optional: a caller that omits one (a direct API call, a
-    seeded demo) gets the client-independent baseline instead.
-
-    Attributes:
-        requirements: What the run's hypotheses must satisfy.
-        attributes: The qualities a good hypothesis should show -- either
-            the legacy free-prose strings or the structured axis shape
-            (see ``clean_attributes_list``).
-        criteria: The axes hypotheses are judged on -- either the legacy
-            free-prose strings or the ``{"name", "value"}`` pair shape
-            (see ``clean_criteria_list``).
-    """
-
     requirements: list[str] | None = None
     attributes: list[Any] | None = None
     criteria: list[Any] | None = None
@@ -404,24 +315,10 @@ def setup_config(
     focus: str | None = None,
     tier: str | None = None,
 ) -> dict[str, Any]:
-    """Build the durable setup block persisted inside run config JSON.
-
-    Callers that omit the planning lists (a direct API call, a seeded demo)
-    fall back to the client-independent planning baseline so the engine
-    always receives guidance regardless of which client created the run.
-
-    Args:
-        research_goal: The run's research goal.
-        lists: The user-authored requirements/attributes/criteria.
-        focus: Requested research focus; normalized, defaulting to balanced.
-        tier: Requested run tier; normalized, defaulting to standard.
-
-    Returns:
-        The setup block persisted inside the run's config JSON.
+    """Direct API calls and demos retain a client-independent baseline when
+    planning lists are omitted.
     """
     lists = lists or PlanningLists()
-    # `or` also covers lists that become empty after cleaning, so a caller
-    # sending only blank strings still gets the baseline defaults.
     return {
         "goal": research_goal.strip(),
         "requirements": clean_string_list(lists.requirements)
@@ -435,7 +332,6 @@ def setup_config(
 
 
 def focus_guidance(focus: str | None) -> str:
-    """Return prompt guidance for the selected Co-Scientist focus."""
     focus = normalize_run_focus(focus)
     if focus == "prefer_evidence":
         return (
@@ -462,16 +358,6 @@ def focus_guidance(focus: str | None) -> str:
 
 
 def _setup_field_lines(title: str, values: list[str]) -> list[str]:
-    """Render one setup list field as bullet lines, or nothing if empty.
-
-    Args:
-        title: Human-readable label for the field, e.g. 'Requirements'.
-        values: The field's already-cleaned display strings.
-
-    Returns:
-        Bullet-point lines for the field, or an empty list when there are
-        no values to show.
-    """
     if not values:
         return []
     lines = [f"- {title}:"]
@@ -479,10 +365,8 @@ def _setup_field_lines(title: str, values: list[str]) -> list[str]:
     return lines
 
 
-# Attributes and criteria each get their own back-compat-aware coercion
-# since their stored shape may be the legacy free-prose list or a later
-# structured shape (R12-5, R12-4); requirements is always plain strings and
-# falls through to the generic branch below.
+# Attributes and criteria support legacy prose and structured shapes;
+# requirements remain plain strings.
 _SETUP_DISPLAY_COERCIONS: dict[str, Callable[[Any], list[str]]] = {
     "attributes": attribute_display_strings,
     "criteria": criteria_display_strings,
@@ -490,7 +374,6 @@ _SETUP_DISPLAY_COERCIONS: dict[str, Callable[[Any], list[str]]] = {
 
 
 def _setup_field_values(setup: dict[str, Any], key: str) -> list[str]:
-    """Return one setup list field's raw JSON value as display strings."""
     coerce = _SETUP_DISPLAY_COERCIONS.get(key)
     if coerce is not None:
         return coerce(setup.get(key))
@@ -498,9 +381,6 @@ def _setup_field_values(setup: dict[str, Any], key: str) -> list[str]:
 
 
 def setup_guidance(setup: dict[str, Any] | None) -> str:
-    """Render durable setup fields as prompt-ready run guidance."""
-    # Setup blocks come from persisted config JSON, so shape is not
-    # guaranteed; a non-dict just contributes no guidance.
     if not isinstance(setup, dict):
         return ""
     focus = focus_guidance(str(setup.get("focus") or ""))
@@ -522,16 +402,8 @@ def setup_guidance(setup: dict[str, Any] | None) -> str:
 def _apply_numeric_override(
     base: dict[str, Any], key: str, raw_value: Any
 ) -> None:
-    """Coerce and merge a numeric knob override into `base`, in place.
-
-    Non-coercible values are dropped rather than failing run creation.
-    Overrides may only raise a tier baseline, never lower it, so picking a
-    bigger tier is never undone by a small knob.
-
-    Args:
-        base: The run config being assembled; mutated with the resolved key.
-        key: The numeric knob's key, e.g. 'max_iterations'.
-        raw_value: The raw override value, as received from the caller.
+    """Overrides may raise tier baselines but never undo a selected larger
+    tier.
     """
     if raw_value is None:
         return
@@ -542,8 +414,8 @@ def _apply_numeric_override(
     base[key] = max(base[key], value) if key in base else value
 
 
-# Structured setup/discovery and BYOK flags must survive round-trips:
-# numeric coercion would silently discard them and change the run's mode.
+# Structured mode and BYOK fields must survive round-trips; numeric coercion
+# would silently discard them.
 _VERBATIM_OVERRIDES = {
     "setup",
     "byok_provider",
@@ -566,7 +438,6 @@ _OVERRIDE_COERCIONS: dict[str, Callable[[Any], Any]] = {
 def _apply_run_config_override(
     base: dict[str, Any], key: str, raw_value: Any
 ) -> None:
-    """Apply structured, toggle, or numeric overrides after selecting a tier."""
     if key == "tier":
         return
     if key in _VERBATIM_OVERRIDES:
@@ -578,11 +449,6 @@ def _apply_run_config_override(
 
 
 def _resolve_tier_override(overrides: dict[str, Any] | None) -> str:
-    """Resolve the run tier from an explicit override or the setup block.
-
-    A top-level 'tier' key wins; otherwise fall back to the tier recorded
-    in the durable setup block, then to the default.
-    """
     tier = None
     if overrides:
         tier = overrides.get("tier")
@@ -593,11 +459,6 @@ def _resolve_tier_override(overrides: dict[str, Any] | None) -> str:
 
 
 def _ensure_focus_default(base: dict[str, Any]) -> None:
-    """Guarantee a focus key in `base`, in place.
-
-    Prefers the explicit override (already applied by the caller), then the
-    setup block's focus, then the global default.
-    """
     if "focus" in base:
         return
     setup = base.get("setup")
@@ -610,28 +471,18 @@ def _ensure_focus_default(base: dict[str, Any]) -> None:
 def resolved_run_config(
     overrides: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Resolve run config defaults plus user-provided numeric overrides."""
-    # Resolve the tier first since it selects the numeric baseline.
     tier = _resolve_tier_override(overrides)
-    # Copy so tier defaults are never mutated across runs.
+    # Copy tier defaults so one run's overrides cannot mutate subsequent runs.
     base: dict[str, Any] = dict(RUN_TIER_DEFAULTS[tier])
     if overrides:
         for key, raw_value in overrides.items():
             _apply_run_config_override(base, key, raw_value)
     base["tier"] = tier
     _ensure_focus_default(base)
-    # Elo K-factor and literature review are always present in the final
-    # config so downstream consumers need no fallbacks of their own.
     base.setdefault("k_factor", DEFAULT_K_FACTOR)
     base.setdefault("enable_literature_review", True)
-    # "offline" | "real" | None; None means "let offline_mode() decide at run
-    # time" (resolved by sync_engine_llm_backend on the durable bootstrap), so
-    # a plain dict without this key still reads correctly.
     base.setdefault("llm_backend", None)
-    # Web search is on by default, matching the literature stack. It is a
-    # no-op unless the MCP server actually offers the tool.
     base.setdefault("enable_web_search", True)
-    # Periodic meta-review on by default; an ablation arm sets it False.
     base.setdefault("enable_meta_review", True)
     return base
 

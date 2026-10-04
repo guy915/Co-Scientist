@@ -1,5 +1,3 @@
-"""HTTP surface for persisted application logs (the ``app_logs`` table)."""
-
 from __future__ import annotations
 
 import dataclasses
@@ -20,54 +18,19 @@ from app.operator_access import is_operator
 
 logger = logging.getLogger(__name__)
 
-# Sliding-window counters, keyed by rate-limit key (see `_rate_limit_keys`).
-# Ingestion and reporting keep separate buckets: one is a background stream
-# of UI records, the other a deliberate click that sends mail, and a budget
-# sized for the first would be no ceiling at all on the second.
-#
-# Per-process, not shared across replicas (N13): production runs one `api`
-# process today (COSCIENTIST_EMBEDDED_WORKER, no evidence of horizontal
-# scaling -- see AGENTS.md), so a process-local budget is the whole ceiling
-# that exists. If this deployment ever scales to multiple replicas, each
-# would enforce its own budget independently, multiplying the effective
-# limit by the replica count -- move these buckets to a shared store
-# (Redis, or the SQLite store if the write volume stays low; see the
-# write-lock-across-network-I/O gotcha in AGENTS.md before choosing SQLite
-# for a per-request check) if and when that becomes true.
+# Ingest and email need separate budgets; process-local limits assume one API
+# replica and need shared storage when replicated.
 _ingest_hits: dict[str, list[float]] = {}
 _report_hits: dict[str, list[float]] = {}
 
-# Reports per client per minute. One click is one report; anything beyond a
-# handful is a mistake or an attempt to flood the operator's inbox.
+# A deliberate report click needs a far smaller ceiling than background log
+# ingestion.
 REPORTS_PER_MINUTE = 5
 
 
 def _rate_limit_keys(request: Request) -> tuple[str, str]:
-    """Return the two identities a rate limiter must check.
-
-    The client id alone is not a security boundary: in the default
-    compatibility auth mode it is a caller-supplied ``X-Client-ID`` header,
-    so a caller can spend a fresh budget on every request just by sending a
-    new one -- the id-keyed bucket by itself never fills. The connecting
-    host is what closes that: a single caller cannot cheaply rotate its
-    source IP per request the way it can a header, so it is checked as a
-    second, independent bucket. Both are enforced (see `_check_rate`
-    callers), so defeating either one alone is not enough -- only rotating
-    the source IP too would work, which is a materially different, more
-    expensive attack than sending a different header.
-
-    The id bucket is kept alongside the IP one (not replaced) because a
-    verified researcher session's id is not spoofable, and several
-    legitimate clients can share one IP behind a NAT or corporate proxy;
-    keeping both buckets means an honest client sharing an IP is not solely
-    at the mercy of a noisy neighbor's budget.
-
-    Args:
-        request: The incoming request.
-
-    Returns:
-        ``(ip_key, id_key)``, each namespaced so they can share one hits
-        dict without colliding.
+    """Caller-controlled compatibility IDs can rotate freely; independently
+    enforce connecting-host and verified identity budgets.
     """
     host = request.client.host if request.client else "unknown"
     return f"ip:{host}", f"id:{client_id(request) or 'anonymous'}"
@@ -79,16 +42,11 @@ def _check_rate(
     limit: int,
     detail: str,
 ) -> None:
-    """Raise 429 once a client exceeds a per-minute ceiling.
-
-    Raises:
-        HTTPException: 429 when this scope has spent its budget.
-    """
     if limit <= 0:
         return
     now = time.monotonic()
-    # Evict scopes whose window has gone quiet, so one-off client ids do
-    # not accumulate in this process-lifetime map.
+    # Expire inactive rate scopes so rotated one-off client IDs cannot grow the
+    # map forever.
     for stale in [
         key
         for key, times in hits_by_scope.items()
@@ -108,18 +66,12 @@ def _check_both_rates(
     limit: int,
     detail: str,
 ) -> None:
-    """Enforce both the IP-keyed and the id-keyed bucket for one request.
-
-    Raises:
-        HTTPException: 429 when either bucket has spent its budget.
-    """
     ip_key, id_key = _rate_limit_keys(request)
     _check_rate(hits_by_scope, ip_key, limit, detail)
     _check_rate(hits_by_scope, id_key, limit, detail)
 
 
 def _check_ingest_rate(request: Request) -> None:
-    """Raise 429 once a client exceeds the per-minute ingest ceiling."""
     _check_both_rates(
         _ingest_hits,
         request,
@@ -129,7 +81,6 @@ def _check_ingest_rate(request: Request) -> None:
 
 
 def _check_report_rate(request: Request) -> None:
-    """Raise 429 once a client exceeds the per-minute report ceiling."""
     _check_both_rates(
         _report_hits, request, REPORTS_PER_MINUTE, "report rate exceeded"
     )
@@ -137,23 +88,21 @@ def _check_report_rate(request: Request) -> None:
 
 router = APIRouter(tags=["logs"])
 
-# Bounds for client-submitted records: enough for a burst of UI events,
-# small enough that the open endpoint cannot be used to flood the table.
 MAX_CLIENT_BATCH = 50
 MAX_CLIENT_MESSAGE_CHARS = 2000
 
-# Ceiling on one emailed diagnostic export. The panel exports its newest
-# fifty entries plus a preamble, which lands far below this; the cap is
-# here so the endpoint cannot be turned into a mail relay for bulk text.
+# Bound emailed diagnostics so an open report endpoint cannot relay bulk text.
 MAX_REPORT_CHARS = 100_000
 
 
 def _scope_for(request: Request) -> str | None:
-    """Return the client scope to apply, or None for app-wide access."""
+    """Unidentified remote callers match no records; only operator access
+    permits the app-wide view.
+    """
     if is_operator(request):
         return None
-    # An unidentified remote caller gets a scope that matches nothing
-    # rather than the app-wide view.
+    # Unidentified remote callers match no records, never the operator-wide
+    # scope.
     return client_id(request) or "\x00-anonymous"
 
 
@@ -162,13 +111,8 @@ def _sanitize(text: str) -> str:
     return "".join(ch if ch.isprintable() else " " for ch in text).strip()
 
 
-# Rate limiting for the two open, unauthenticated endpoints below
-# (ingestion and reporting) lives in app.logs_api, re-exported
-# above.
-
-
-# verbose=1 reveals hidden records; capture filtering is separate.
-# app.run_stage preserves the narrative while engine chatter stays hidden.
+# Verbose reads reveal hidden records; capture-time dropping is a different
+# boundary.
 NOISE_LOGGERS: tuple[str, ...] = (
     "uvicorn.access",
     "ui.interaction",
@@ -177,14 +121,11 @@ NOISE_LOGGERS: tuple[str, ...] = (
     "httpcore",
     "urllib3",
     "litellm",
-    # The engine's per-call chatter, incl. its own availability probes
-    # (co_scientist.mcp_client) whose WARNINGs still surface.
     "co_scientist",
 )
 
 
 def _min_levelno(min_level: str | None) -> int:
-    """Map a level name to its numeric value; 422 on unknown names."""
     if min_level is None:
         return 0
     levelno = level_to_number(min_level)
@@ -236,7 +177,6 @@ class RunLogQuery(BaseModel):
     verbose: bool = False
 
     def for_run(self, run_id: str) -> LogQuery:
-        """Return the equivalent app-wide query pinned to one run."""
         return LogQuery(run_id=run_id, **self.model_dump())
 
 
@@ -245,28 +185,14 @@ def _query_logs_payload(
     filters: store.LogFilters,
     limit: int,
 ) -> dict[str, Any]:
-    """Run the four reads backing one logs response on an open connection.
-
-    Args:
-        conn: The open connection all four reads share.
-        filters: The window and filters of the row query.
-        limit: Maximum rows returned (the newest matches, oldest-first).
-
-    Returns:
-        The ``{"logs", "last_id", "total", "session_total"}`` payload.
-    """
     rows = store.list_logs(filters=filters, limit=limit, conn=conn)
-    # `total` counts the whole matching set (no cursor, no limit) so the
-    # UI badge shows the true size even when the window is capped.
+    # Count the full matching set so bounded display windows do not understate
+    # totals.
     total = store.count_logs(
         filters=dataclasses.replace(filters, after_id=0), conn=conn
     )
-    # `session_total` keeps the cursor, so a caller polling from a fixed
-    # anchor gets the size of its own slice as a first-class number. It is
-    # counted here rather than left to the caller to derive by subtracting
-    # a start-of-anchor snapshot from `total`: retention pruning and a
-    # scoped clear both delete rows below the anchor, which drives such a
-    # difference negative and reads as "nothing new" forever.
+    # Count rows after the session anchor; subtracting snapshots breaks when
+    # retention or scoped clears remove older rows.
     session_total = store.count_logs(filters=filters, conn=conn)
     last_id = store.latest_log_id(conn=conn)
     return {
@@ -280,23 +206,6 @@ def _query_logs_payload(
 def logs_payload(
     query: LogQuery, *, scope_client_id: str | None = None
 ) -> dict[str, Any]:
-    """Build the shared logs response for the given query.
-
-    Args:
-        query: The query window and filters, as the caller sent them.
-        scope_client_id: One client's records only; None is the app-wide,
-            operator-only view. Derived from the request, never accepted
-            as a query parameter.
-
-    Returns:
-        The ``{"logs", "last_id", "total", "session_total"}`` payload both
-        endpoints return.
-
-    Raises:
-        HTTPException: 422 when ``min_level`` is not a known level name.
-    """
-    # Validated before a connection is opened, so an unknown level name
-    # costs nothing but the 422.
     filters = store.LogFilters(
         after_id=query.after_id,
         min_levelno=_min_levelno(query.min_level),
@@ -305,7 +214,7 @@ def logs_payload(
         noise_loggers=None if query.verbose else NOISE_LOGGERS,
         scope_client_id=scope_client_id,
     )
-    # One connection for the three reads: the UI polls this continuously.
+    # Share one connection across the continuously polled response's queries.
     with store.connect() as conn:
         return _query_logs_payload(conn, filters, query.limit)
 
@@ -337,8 +246,8 @@ async def post_logs(batch: ClientLogBatch, request: Request) -> dict[str, Any]:
     """
     owner = client_id(request)
     _check_ingest_rate(request)
-    # One transaction for the whole batch: up to 50 rows per POST, and the
-    # single writer should pay one lock acquisition for them, not fifty.
+    # Batch ingestion acquires SQLite's writer once, not once per submitted
+    # record.
     with store.transaction() as conn:
         for record in batch.records:
             levelno = level_to_number(record.level) or logging.INFO
@@ -371,11 +280,8 @@ class LogReportRequest(BaseModel):
 
 
 def _report_subject(request: Request) -> str:
-    """Subject line for one report, built entirely server-side.
-
-    Nothing from the request body reaches the headers: the recipient is a
-    setting and the subject is assembled here, so a submitted report is only
-    ever a message body and cannot inject headers of its own.
+    """Request text reaches the body only; subject and recipient stay
+    server-controlled to prevent header injection.
     """
     return (
         "Co-Scientist diagnostic report "
@@ -424,7 +330,8 @@ async def report_logs(
         raise HTTPException(
             status_code=502, detail="the report could not be sent"
         ) from exc
-    # The body is not echoed into the log: it is a copy of the log.
+    # Do not echo the emailed body into logs: it already contains a copy of
+    # them.
     logger.info(
         "Diagnostic report sent to the operator (%s chars) from %s",
         len(req.report),

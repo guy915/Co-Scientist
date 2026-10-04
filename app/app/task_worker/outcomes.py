@@ -1,14 +1,3 @@
-"""Durable task outcome classification for the worker loop.
-
-Holds the worker's failure taxonomy and outcome recorders: the two
-exception types the loop keys on (``_LeaseLostError``,
-``UnsupportedTaskError``) and the helpers that durably record a settled
-task -- success, superseded-checkpoint completion, the single permanent
-failure, and the retryable default. Split from ``task_worker`` by concern;
-``task_worker`` re-exports the names tests and callers use so its namespace
-(the seam they patch/import against) keeps resolving.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -31,12 +20,12 @@ from app.store.models import UNKNOWN_PROVIDER_OUTCOME_ERROR
 
 logger = logging.getLogger(__name__)
 
-# Persist rate-limit parks beside stage records without inventing SSE progress.
+# Persist rate-limit waits beside stage records without inventing scientific SSE
+# progress.
 _stage_logger = logging.getLogger("app.run_stage")
 
-# Spreads several tasks parked at the same platform-cap reset instant
-# across a few seconds of claim polling instead of all becoming due, and
-# racing to claim, in the same tick.
+# Stagger tasks due at one platform-cap reset to avoid synchronized claim
+# contention.
 _RATE_LIMIT_PARK_JITTER_SECONDS = 15.0
 
 _FAILURE_KINDS = {
@@ -46,7 +35,6 @@ _FAILURE_KINDS = {
 
 
 def _failure_kind(exc: Exception) -> str | None:
-    """Classify only the exact provider failure types with user guidance."""
     if isinstance(exc, LLMTimeoutError):
         return (
             "llm_timeout" if exc.zero_cost_admitted else "llm_timeout_unknown"
@@ -55,7 +43,6 @@ def _failure_kind(exc: Exception) -> str | None:
 
 
 def _failure_error(exc: Exception) -> str | store.TaskFailure:
-    """Carry a typed kind and safe error text to task storage."""
     if isinstance(exc, LLMTimeoutError) and not exc.zero_cost_admitted:
         return store.TaskFailure(
             UNKNOWN_PROVIDER_OUTCOME_ERROR, "llm_timeout_unknown"
@@ -65,29 +52,20 @@ def _failure_error(exc: Exception) -> str | store.TaskFailure:
 
 
 class _LeaseLostError(RuntimeError):
-    """Signals that durable ownership ended while task code was running."""
+    """Durable ownership ended while task code was running."""
 
 
 class UnsupportedTaskError(ValueError):
-    """A task type no worker knows how to execute.
-
-    The one genuinely permanent failure a worker can hit: retrying cannot
-    teach it a task type it has no branch for. Everything else reaching the
-    worker boundary -- above all a provider returning empty content, which
-    the engine signals with a bare ValueError -- is transient and must keep
-    its retry budget. Subclasses ValueError so existing callers that catch
-    ValueError still see it.
+    """Unknown task types cannot become executable through retry; ordinary
+    provider failures remain transient.
     """
 
 
 def _complete_superseded_task(
     task: ScientificTask, worker_id: str, exc: Exception, db_path: str | None
 ) -> None:
-    """Record a superseded task as a successful idempotent outcome.
-
-    Competing durable branches can finish after another branch advances the
-    checkpoint. Obsolescence is a successful idempotent outcome, not a
-    scientific failure, and must not consume the retry budget.
+    """Checkpoint obsolescence is idempotent success, never a scientific
+    failure or spent retry.
     """
     result = {"superseded": True, "reason": str(exc)}
     if not store.complete_task(task.id, worker_id, result, db_path=db_path):
@@ -99,15 +77,8 @@ def _complete_superseded_task(
 def _park_held_task(
     task: ScientificTask, worker_id: str, exc: Exception, db_path: str | None
 ) -> None:
-    """Park a task a safety gate held, awaiting a reviewer's decision.
-
-    Not a failure: nothing this worker can do resolves a hold, so the
-    wait must not spend the retry budget. Not a success either --
-    recording it as one is what stranded the run, since a succeeded row is
-    never revived and the boundary's idempotency key cannot change while
-    the run makes no progress, so approval re-enqueued nothing. Parked,
-    the row is what ``resume_run_tasks`` releases once the hold is
-    approved.
+    """A human hold spends no retries and is not completion; park its
+    boundary so approval can release it.
     """
     if not store.park_task(task.id, worker_id, str(exc), db_path=db_path):
         logger.warning("Task %s lost its lease while held", task.id)
@@ -116,12 +87,7 @@ def _park_held_task(
 
 
 def _log_rate_limit_park(run_id: str, resume_at: float, reason: str) -> None:
-    """Mirror a rate-limit park into the app log as a run-stage record.
-
-    Imported lazily like ``store.events._log_stage``'s own helper does,
-    for the same reason: ``app.logging_setup`` imports ``app.store``, so a
-    module-level import back the other way would cycle.
-    """
+    """Import logging lazily to avoid the logging_setup/store cycle."""
     from app.logging_setup import run_log_context
 
     parked_until = datetime.fromtimestamp(
@@ -142,16 +108,8 @@ def _park_rate_limited_task(
     exc: LLMRateLimitParkError,
     db_path: str | None,
 ) -> None:
-    """Return a task to the queue until a platform rate-limit cap resets.
-
-    Neither a failure nor a retry. Not a failure: nothing this worker can
-    do makes the cap reset sooner, so the wait must not spend the retry
-    budget -- the same reasoning ``_park_held_task`` applies to a safety
-    hold, except this one resumes on its own once the clock passes rather
-    than waiting on a person. Not a retry either: the call that raised
-    this already counted itself against ``record_provider_request`` when
-    it made its one doomed attempt, and parking makes no further call, so
-    nothing here double-counts it.
+    """Waiting for a platform cap is neither failure nor retry and cannot
+    double-count the provider request already attempted.
     """
     resume_at = exc.resume_at + random.uniform(
         0, _RATE_LIMIT_PARK_JITTER_SECONDS
@@ -173,17 +131,8 @@ def _park_rate_limited_task(
 
 
 def _is_terminal_failure(task: ScientificTask, *, retryable: bool) -> bool:
-    """Mirror ``app.store.tasks.fail_task``'s own retry-left formula.
-
-    That function decides queued-for-retry versus failed from this exact
-    task snapshot and ``retryable`` flag, inside its own transaction this
-    module has no access to. Computing the same answer here, read-only,
-    lets a permanently failing task's downstream portfolio chain
-    (finding F4) be cancelled *before* ``fail_task`` commits, so its own
-    "settle the run if nothing claimable remains" check
-    (``app.store.runs_views``) sees the cancelled chain already gone
-    rather than finding a queued row and silently declining to settle --
-    its one chance to fire, since nothing revisits that decision later.
+    """Cancel poisoned lookahead before terminal settlement so queued
+    unclaimable dependents cannot keep the run alive.
     """
     return not retryable or task.attempt >= task.max_attempts
 
@@ -191,13 +140,8 @@ def _is_terminal_failure(task: ScientificTask, *, retryable: bool) -> bool:
 def _cancel_downstream_before_terminal_failure(
     task: ScientificTask, *, retryable: bool, db_path: str | None
 ) -> None:
-    """Cancel a permanently failing task's downstream chain, if any.
-
-    Skipped for an ordinary retry: cancelling ahead of one would strand
-    the chain a *successful* retry still needs to reuse, since a
-    cancelled row is never revived by a later idempotent enqueue attempt
-    (finding F4's terminal-path gap -- see ``cancel_downstream_
-    portfolio_chain``).
+    """Ordinary retries preserve reusable successors; only terminal failures
+    poison their downstream chain.
     """
     if _is_terminal_failure(task, retryable=retryable):
         cancel_downstream_portfolio_chain(task, db_path)
@@ -206,7 +150,6 @@ def _cancel_downstream_before_terminal_failure(
 def _fail_permanent_task(
     task: ScientificTask, worker_id: str, exc: Exception, db_path: str | None
 ) -> None:
-    """Fail unsupported work or an exhausted call budget without retrying."""
     _cancel_downstream_before_terminal_failure(
         task, retryable=False, db_path=db_path
     )
@@ -229,10 +172,7 @@ def _fail_permanent_task(
 def _fail_retryable_task(
     task: ScientificTask, worker_id: str, exc: Exception, db_path: str | None
 ) -> None:
-    """Fail one task while preserving its retry budget.
-
-    Worker boundary isolates one task failure from the rest of the cohort.
-    """
+    """One task failure must remain isolated from the rest of its cohort."""
     retryable = not isinstance(exc, LLMTimeoutError) or exc.zero_cost_admitted
     retry_at = None
     if isinstance(exc, LLMTimeoutError) and exc.zero_cost_admitted:
@@ -263,11 +203,8 @@ def _fail_retryable_task(
         logger.exception("Task %s failed", task.id)
 
 
-# Ordered exactly like the except-clause chain this replaced: the first
-# matching type wins, and an exception matching none of them falls through
-# to the retryable default below. A table rather than an if/elif chain
-# keeps this dispatch's own complexity flat as failure kinds are added --
-# the classification lives in the table, not in a growing branch count.
+# First matching failure type wins; unmatched exceptions retain the retryable
+# default.
 _FailureHandler = Callable[[ScientificTask, str, Any, "str | None"], None]
 _FAILURE_HANDLERS: tuple[tuple[type[Exception], _FailureHandler], ...] = (
     (engine_tasks.SupersededTaskError, _complete_superseded_task),
@@ -281,14 +218,9 @@ _FAILURE_HANDLERS: tuple[tuple[type[Exception], _FailureHandler], ...] = (
 def _handle_task_failure(
     task: ScientificTask, worker_id: str, exc: Exception, db_path: str | None
 ) -> None:
-    """Classify one task failure and record its outcome accordingly.
-
-    Preserves the original except-clause priority exactly: a superseded
-    checkpoint is a successful idempotent outcome, a safety hold is a
-    durable wait for a person, a platform rate-limit cap is a durable wait
-    for a clock, an unsupported task type or an exceeded LLM-call ceiling
-    are the two permanent failures, and everything else keeps its retry
-    budget.
+    """Supersession succeeds; holds and rate limits park; unsupported types
+    and spent budgets fail permanently; other failures retain retry
+    budgets.
     """
     for exc_type, handler in _FAILURE_HANDLERS:
         if isinstance(exc, exc_type):
@@ -303,6 +235,5 @@ def _record_success(
     result: dict[str, Any],
     db_path: str | None,
 ) -> None:
-    """Persist a task's result if this worker still owns its lease."""
     if not store.complete_task(task.id, worker_id, result, db_path=db_path):
         logger.warning("Task %s lost its lease before completion", task.id)

@@ -1,11 +1,3 @@
-"""Account-level data export (N11): GET /api/account/export.
-
-Split out of the retired pilot feedback module, which used to carry both
-concerns under one router. This one is owner-scoped the same way every
-other ``client_id``-keyed endpoint in this app is, so it rides on a plain
-(unprefixed) path style rather than adding a new top-level router.
-"""
-
 from __future__ import annotations
 
 import time
@@ -20,7 +12,6 @@ router = APIRouter(tags=["account"])
 
 
 def _run_export(run: store.RunRow) -> dict[str, Any]:
-    """One run's exportable record, including its finalized report text."""
     return {
         "id": run.id,
         "title": run.title,
@@ -35,7 +26,6 @@ def _run_export(run: store.RunRow) -> dict[str, Any]:
 
 
 def _staged_document_export(document: dict[str, Any]) -> dict[str, Any]:
-    """One staged document's exportable record, including its full text."""
     return {
         "id": document["id"],
         "title": document["title"],
