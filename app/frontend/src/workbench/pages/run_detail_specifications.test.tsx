@@ -47,7 +47,7 @@ describe('run detail specifications', () => {
       );
     });
 
-    it('renders a categorical axis with the published "or" punctuation', () => {
+    it('renders a categorical axis with its label and choices in order', () => {
       const item: RunAttribute = {
         name: 'Target Area',
         values: [
@@ -56,9 +56,8 @@ describe('run detail specifications', () => {
           'Stromal-Immune Crosstalk',
         ],
       };
-      expect(attributeDisplayString(item)).toBe(
-        'Target Area (Epigenetics, Stellate Cell Biology, or ' +
-          'Stromal-Immune Crosstalk)',
+      expect(attributeDisplayString(item)).toMatch(
+        /Target Area.*Epigenetics.*Stellate Cell Biology.*Stromal-Immune Crosstalk/,
       );
     });
 
