@@ -1,5 +1,3 @@
-"""Durable execution for one owner-authorized outcome refinement."""
-
 from __future__ import annotations
 
 import json
@@ -46,8 +44,6 @@ _RESULT_KEY = "outcome_refinement_result"
 
 @dataclass(frozen=True)
 class _TargetedEvolution:
-    """Inputs for the provider boundary of one targeted action."""
-
     task: ScientificTask
     action: dict[str, Any]
     parent: Hypothesis
@@ -217,7 +213,7 @@ def _commit_child(
     child: Hypothesis,
     conn: Any,
 ) -> dict[str, Any]:
-    """Persist child lineage and enqueue its standard review atomically."""
+    """Child lineage and standard review enqueue commit atomically."""
     if current.get("child_hypothesis_id") not in {None, child.id}:
         raise store.OutcomeRefinementConflictError
     store.add_hypothesis(_child_row(task.run_id, child), conn=conn)
@@ -249,7 +245,6 @@ def _commit_terminal_action(
     marker: dict[str, Any],
     conn: Any,
 ) -> dict[str, Any]:
-    """Settle an action that returned no child or failed its safety screen."""
     status = (
         "safety_rejected" if marker["kind"] == "safety_rejected" else "no_child"
     )
@@ -275,7 +270,6 @@ def _commit_terminal_action(
 def _load_action_and_checkpoint(
     task: ScientificTask, db_path: str | None
 ) -> tuple[dict[str, Any], dict[str, Any] | None]:
-    """Load the immutable intent and current checkpoint for this task."""
     action_id = str(task.inputs.get("action_id") or "")
     action = store.get_outcome_refinement_action(
         task.run_id, action_id, db_path=db_path
@@ -292,7 +286,6 @@ def _load_action_and_checkpoint(
 def _active_checkpoint(
     task: ScientificTask, db_path: str | None
 ) -> dict[str, Any]:
-    """Require a live run and its latest engine checkpoint."""
     run = store.get_run(task.run_id, db_path=db_path)
     if run is None or run.status not in {
         RunStatus.QUEUED.value,
@@ -312,7 +305,9 @@ def _replay_checkpointed_result(
     checkpoint: dict[str, Any],
     db_path: str | None,
 ) -> dict[str, Any] | None:
-    """Commit an already checkpointed child without repeating provider work."""
+    """A checkpointed child replays persistence without repeating paid
+    provider work.
+    """
     checkpoint_state = checkpoint["state"].get("state")
     marker = (
         checkpoint_state.get(_RESULT_KEY)
@@ -335,7 +330,9 @@ def _replay_checkpointed_result(
 def _require_expected_checkpoint(
     task: ScientificTask, checkpoint: dict[str, Any]
 ) -> None:
-    """Reject intent replay after any unrelated state advance."""
+    """Unrelated checkpoint advancement invalidates immutable refinement
+    intent rather than evolving stale state.
+    """
     expected_seq = int(task.inputs.get("checkpoint_seq", -1))
     if int(checkpoint["seq"]) != expected_seq:
         raise SupersededTaskError(
@@ -350,7 +347,6 @@ def _commit_safety_rejection(
     current_seq: int,
     db_path: str | None,
 ) -> dict[str, Any]:
-    """Checkpoint and atomically settle an outcome that fails safety screen."""
     marker = {
         "kind": "safety_rejected",
         "action_id": action["action_id"],
@@ -367,7 +363,6 @@ def _commit_safety_rejection(
 async def _evolve_targeted_parent(
     request: _TargetedEvolution,
 ) -> Hypothesis | None:
-    """Call only the selected parent's evolution operator and mark retryable."""
     with store.transaction(request.db_path) as conn:
         assert_task_commit_allowed(request.task, conn)
         store.update_outcome_refinement_action(
@@ -467,7 +462,6 @@ async def _execute_loaded_refinement(
 async def execute_outcome_refinement(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
-    """Resume or execute exactly one outcome-to-parent evolution action."""
     action, checkpoint = _load_action_and_checkpoint(task, db_path)
     if checkpoint is None:
         return _result(action, replayed=True)
@@ -479,7 +473,6 @@ async def execute_outcome_refinement(
 
 @contextmanager
 def capture_refinement_usage(state: dict[str, Any]) -> Iterator[None]:
-    """Fold Robin calls into the existing metrics reducer."""
     with scoped_telemetry("outcome_refinement") as telemetry:
         try:
             yield
@@ -499,7 +492,9 @@ def capture_refinement_usage(state: dict[str, Any]) -> Iterator[None]:
 def restore_retry_usage(
     state: dict[str, Any], run_id: str, db_path: str | None
 ) -> None:
-    """Use metrics persisted by earlier attempts beyond the last checkpoint."""
+    """Attempt usage can outlive the last checkpoint and must survive retry
+    recovery.
+    """
     persisted = store.get_run_metrics(run_id, db_path=db_path)
     if persisted is not None:
         state["metrics"] = ExecutionMetrics.from_dict(persisted)
@@ -511,7 +506,6 @@ def mark_retryable_with_usage(
     state: dict[str, Any],
     db_path: str | None,
 ) -> None:
-    """Keep a failed attempt's usage alongside its retryable action state."""
     with store.transaction(db_path) as conn:
         assert_task_commit_allowed(task, conn)
         store.update_outcome_refinement_action(

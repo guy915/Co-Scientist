@@ -1,10 +1,3 @@
-"""Engine-event translation into the canonical event vocabulary.
-
-Maps engine node names to canonical event types, projects each node's
-state snapshot into the canonical event payload shape, and formats the
-user-facing milestone messages surfaced for key events.
-"""
-
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -17,28 +10,11 @@ from app.run_events import hypothesis_stub
 
 
 def _canonical_event_type(node_name: str) -> str:
-    """Map an engine node name to the canonical event vocabulary.
-
-    Only ``supervisor`` diverges from its node name (it emits
-    ``supervisor.plan``). Every other node -- including any with no
-    payload/milestone builder, such as ``review`` -- keeps its unprefixed
-    node name, so it renders via the frontend's prettify fallback rather
-    than a legacy ``engine.`` prefix.
-
-    Args:
-        node_name: The engine graph node name the generator completed.
-
-    Returns:
-        The canonical event type used across the adapter and frontend.
-    """
     return "supervisor.plan" if node_name == "supervisor" else node_name
 
 
-# Canonical pipeline stages the real engine runs, surfaced in the
-# ``supervisor.plan`` payload's ``agents`` key so the frontend summary has a
-# fixed set of stages to render. Derived from the engine's actual graph
-# nodes rather than hand-maintained separately, so it cannot drift to name
-# a stage the engine never emits.
+# Derive advertised stages from actual engine nodes so diagnostics cannot name
+# nonexistent stages.
 _ENGINE_PIPELINE_AGENTS: list[str] = [
     "supervisor",
     "literature_review",
@@ -55,20 +31,8 @@ _ENGINE_PIPELINE_AGENTS: list[str] = [
 
 
 def _proximity_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
-    """Build the ``proximity`` node's payload keys.
-
-    ``clusters`` maps cluster id -> member count, derived from the *judged*
-    edges of ``proximity_graph`` (each carries the ``cluster_id`` its two
-    endpoints share). A hypothesis with no duplicate/near-duplicate partner
-    has no edge at all, so a true singleton cluster is not represented here
-    -- the graph only records relationships, not membership rolls, and this
-    projection does not attempt to reconstruct the latter.
-
-    The graph also carries an edge for every pair the clustering did not
-    judge, computed deterministically and belonging to no cluster. Those are
-    skipped: counted here they would all land in one "unknown" bucket
-    holding most of the pool, which reads as a giant cluster the model never
-    declared.
+    """Unjudged deterministic edges do not define clusters; counting them
+    would invent an unknown mega-cluster.
     """
     graph: dict[str, Any] = state.get("proximity_graph") or {}
     members: dict[str, set[str]] = {}
@@ -84,19 +48,12 @@ def _proximity_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
     return {"clusters": {cid: len(ids) for cid, ids in members.items()}}
 
 
-# Hypotheses considered for a ``meta_review`` event's ``top_k_ids``, ranked by
-# Elo rating. The meta-review state carries no explicit top-k list of its
-# own (see ``co_scientist.agents.meta_review``), so this reconstructs a
-# reasonable leaderboard slice rather than leaving the key empty.
+# Meta-review state has no explicit leaderboard; derive its slice from current
+# Elo ratings.
 _META_REVIEW_TOP_K = 5
 
 
 def _meta_review_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
-    """Build the ``meta_review`` node's payload keys.
-
-    ``critique`` is the LLM-authored synthesis summary; ``top_k_ids`` is the
-    current Elo leaderboard's leading hypotheses (see ``_META_REVIEW_TOP_K``).
-    """
     meta_review: dict[str, Any] = state.get("meta_review") or {}
     hyps: list[dict[str, Any]] = state.get("hypotheses") or []
     ranked = sorted(hyps, key=lambda h: h.get("elo_rating", 0), reverse=True)
@@ -110,11 +67,6 @@ def _meta_review_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
 
 
 def _deep_verification_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
-    """Build the ``deep_verification`` node's payload keys.
-
-    ``probes`` carries one entry per hypothesis that was probed, each
-    carrying its verdict and probe list.
-    """
     hyps: list[dict[str, Any]] = state.get("hypotheses") or []
     probes = [
         {
@@ -128,9 +80,6 @@ def _deep_verification_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
     return {"verified": len(probes), "probes": probes}
 
 
-# Per-node-type payload builders, keyed by the canonical event type. Nodes
-# with no entry (e.g. ``review``) get no extra payload keys beyond the common
-# ``node``/``iteration`` pair built in ``_canonical_engine_payload``.
 _PAYLOAD_BUILDERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "generate": lambda state: {
         "count": len(state.get("hypotheses") or []),
@@ -179,28 +128,8 @@ _PAYLOAD_BUILDERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
 def _canonical_engine_payload(
     node_name: str, node_type: str, state: dict[str, Any]
 ) -> dict[str, Any]:
-    """Build a canonical event payload for one completed engine node.
-
-    Per-stage keys (``count``, ``hypotheses``, ``evidence``, ``matches``,
-    ``children``, ``agents``, ``reviewed``, ``clusters``, ``critique``,
-    ``top_k_ids``, ``verified``, ``probes``, ``research_overview``) form the
-    single vocabulary that drives ``_format_milestone`` and the raw event
-    log console.
-
-    The list-shaped keys are projected to minimal stubs rather than carrying
-    raw engine-state objects: every consumer reads only their ``length``, and
-    ``store.append_event`` JSON-serializes the payload with no fallback
-    handler, so raw hypothesis/article dicts (which may carry non-serializable
-    fields such as embeddings) must never be embedded whole. This mirrors the
-    projection discipline in ``persist_final_state``.
-
-    Args:
-        node_name: The engine graph node name.
-        node_type: The canonical event type for ``node_name``.
-        state: The cumulative engine state snapshot for this node.
-
-    Returns:
-        The event payload dict (JSON-serializable; only plain dicts/lists).
+    """Project minimal JSON-safe stubs: raw engine objects can contain
+    embeddings that event serialization cannot encode.
     """
     payload: dict[str, Any] = {
         "node": node_name,
@@ -209,18 +138,13 @@ def _canonical_engine_payload(
     builder = _PAYLOAD_BUILDERS.get(node_type)
     if builder is not None:
         payload.update(builder(state))
-    # Enhancement nodes served a placeholder fallback record their schema
-    # names in state; carrying them on every later node event surfaces the
-    # degradation from the first commit that holds it (L7).
+    # Expose schema degradation from its first committed occurrence, rather than
+    # only in the final report.
     degraded = [str(name) for name in state.get("degraded_nodes") or []]
     if degraded:
         payload["degraded"] = degraded
-    # A run that can reach no literature source is routed around every
-    # node that would have used one, so the loss shows up as nodes that
-    # never emit rather than as an event of its own. Carried here for the
-    # same reason as the line above: from the first commit that holds it,
-    # on every event after, so a watcher sees it while the run is going
-    # instead of reading it off the finished report.
+    # Unavailable retrieval bypasses nodes entirely; carry the loss explicitly
+    # so watchers can distinguish missing work.
     retrieval = state.get("retrieval_degradation")
     if isinstance(retrieval, dict) and retrieval:
         payload["retrieval_degraded"] = retrieval
@@ -228,16 +152,12 @@ def _canonical_engine_payload(
 
 
 def _milestone_generate(payload: dict[str, Any]) -> str:
-    """Build the milestone text for a completed generation round."""
     count = payload.get("count", 0)
     itr = payload.get("iteration", 0)
     label = f"iteration {itr}" if itr else "initial"
     return f"{count} hypotheses generated ({label})"
 
 
-# Per-node-type milestone builders, keyed by the canonical event type. Nodes
-# with no entry (e.g. ``review``) generate no milestone, mirroring
-# ``_PAYLOAD_BUILDERS``'s dispatch shape above.
 _MILESTONE_BUILDERS: dict[str, Callable[[dict[str, Any]], str]] = {
     "supervisor.plan": lambda _: "Research plan ready — supervisor complete",
     "generate": _milestone_generate,
@@ -262,13 +182,6 @@ _MILESTONE_BUILDERS: dict[str, Callable[[dict[str, Any]], str]] = {
 
 
 def _format_milestone(node_type: str, payload: dict[str, Any]) -> str | None:
-    """Return a human-readable milestone string for key node events, or None.
-
-    Reads the single canonical payload vocabulary. Unknown or legacy types
-    (e.g. old persisted ``engine.*`` events) fall through to ``None``, so no
-    milestone is generated — the same behaviour today's code has for
-    unmatched types.
-    """
     builder = _MILESTONE_BUILDERS.get(node_type)
     return builder(payload) if builder is not None else None
 
@@ -280,18 +193,6 @@ def append_node_milestone(
     *,
     db_path: str | None = None,
 ) -> None:
-    """Persist the milestone side-message for one canonical node event.
-
-    The single home for the milestone message's shape (a ``"system"`` role,
-    ``"milestone"`` kind chat message), so no caller carries a second copy
-    of it. A no-op for node types without a milestone builder.
-
-    Args:
-        run_id: The run the milestone belongs to.
-        node_type: Canonical event type (see ``_canonical_event_type``).
-        payload: The node's canonical event payload.
-        db_path: Optional override for the SQLite database path.
-    """
     milestone = _format_milestone(node_type, payload)
     if milestone:
         store.append_message(

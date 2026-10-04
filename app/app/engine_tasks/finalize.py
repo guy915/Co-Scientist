@@ -1,5 +1,3 @@
-"""Drain and publish a completed run through its durable and safety gates."""
-
 from __future__ import annotations
 
 import time
@@ -33,7 +31,6 @@ from app.store import RunStatus, ScientificTask
 def _finalize_replay_or_none(
     run: store.RunRow, *, db_path: str | None
 ) -> dict[str, Any] | None:
-    """Return the replayed outcome when finalization already published."""
     if run.status == RunStatus.CANCELLED.value:
         raise RuntimeError("run cancelled before finalization")
     already_published = (
@@ -48,7 +45,6 @@ def _finalize_replay_or_none(
 def _settle_finalize_outcome(
     run_id: str, db_path: str | None
 ) -> dict[str, Any]:
-    """Report outcome; park unpublished work for explicit resume."""
     run = store.get_run(run_id, db_path=db_path)
     status = run.status if run else "missing"
     if (
@@ -62,7 +58,6 @@ def _settle_finalize_outcome(
 def _pause_finalize_if_requested(
     commit: TaskCommit, state: dict[str, Any]
 ) -> dict[str, Any] | None:
-    """Checkpoint a pause that arrived before finalize starts its drain."""
     run = store.get_run(commit.task.run_id, db_path=commit.db_path)
     if run is None or run.status != RunStatus.PAUSED.value:
         return None
@@ -80,7 +75,6 @@ def _commit_finalize_drain(
     drained: Any,
     metrics: dict[str, Any],
 ) -> dict[str, Any] | None:
-    """Preserve pause or enter synthesis after final drain atomically."""
     from co_scientist.checkpoint import serialize_workflow_state
 
     task, db_path = commit.task, commit.db_path
@@ -114,21 +108,14 @@ def _commit_finalize_drain(
 def _finalize_stage_events(
     drained: Any,
 ) -> Iterator[tuple[str, dict[str, Any]]]:
-    """Yield the ordered, persisted progress events for a completed drain."""
     yield "safety.hypothesis", drained.safety_counts
     yield "citation.grounding", drained.grounding_counts
     yield "citation_audit", dict(drained.report_inputs["citation_summary"])
 
 
 def _monitor_halt_decision(state: dict[str, Any]) -> SafetyDecision:
-    """Rebuild the monitor's verdict as an app-side safety decision.
-
-    The engine records the halt in the workflow state's audit trail; this
-    carries that record -- its rationale and the policy text it matched --
-    onto the run's own safety decisions, so a blocked run explains itself
-    through the same surface as an intake or final-gate block. A halt
-    whose record did not survive the checkpoint still blocks, on the
-    generic reason: the flag is the decision, the record only its detail.
+    """A missing audit record cannot undo a safety halt; the flag decides
+    admission and the record supplies detail.
     """
     from co_scientist.agents.safety import MONITOR_STAGE
 
@@ -157,17 +144,8 @@ async def _halt_finalize_if_blocked(
     task: ScientificTask,
     db_path: str | None,
 ) -> dict[str, Any] | None:
-    """Block a run the engine's safety monitor halted, instead of publishing.
-
-    The monitor halts mid-run (finding J6), and the durable runtime routes
-    straight here rather than scheduling more science. Nothing is drained
-    and no report is built: the run stopped because its direction was
-    unpublishable, so producing the document anyway only to withhold it at
-    the final gate would spend the synthesis and leave the reason implicit.
-
-    Returns:
-        The finalize result for a halted run, or ``None`` to publish as
-        usual.
+    """A monitor-halted run publishes nothing and spends no synthesis merely
+    to withhold it later.
     """
     if not state.get("safety_blocked"):
         return None
@@ -185,7 +163,6 @@ async def _drain_and_persist_final_state(
     state: dict[str, Any],
     db_path: str | None,
 ) -> tuple[Any, float, dict[str, Any]]:
-    """Persist replayable final artifacts outside a database lock."""
     final_state = _plain_final_state(state)
     store.clear_publication_artifacts(run.id, db_path=db_path)
     drained = await persist_final_state(
@@ -199,7 +176,6 @@ async def _drain_and_persist_final_state(
 def _restore_finalize_checkpoint(
     task: ScientificTask, db_path: str | None
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Restore the workflow state the run's last committed checkpoint holds."""
     checkpoint, _ = _latest_task_checkpoint(task, db_path)
     return checkpoint, restore_checkpoint_state(task, checkpoint, db_path)
 
@@ -212,7 +188,6 @@ async def _publish_finalize_report(
     emit: Any,
     db_path: str | None,
 ) -> None:
-    """Publish through the report gate after the drain commit."""
     setup = run.config.get("setup") if isinstance(run.config, dict) else None
     async for _ in finalize_report(
         run.id,
@@ -236,7 +211,6 @@ async def _publish_finalize_report(
 async def execute_finalize(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
-    """Drain the final checkpoint and publish through the shared report gate."""
     run = _require_run(task, db_path)
     replayed = _finalize_replay_or_none(run, db_path=db_path)
     if replayed is not None:
@@ -258,14 +232,16 @@ async def execute_finalize(
     await _publish_finalize_report(
         run, task, drained, execution_time, emit, db_path
     )
-    # Contributions posted during report publication have no continuation
-    # task. Reopen here; the helper no-ops unless completed with pending input.
+    # Input posted during publication has no continuation task yet; reopen
+    # completed runs with pending contributions.
     reopen_for_pending_scientist_input(run.id, db_path=db_path)
     return _settle_and_release(run.id, db_path)
 
 
 def _settle_and_release(run_id: str, db_path: str | None) -> dict[str, Any]:
-    """Settle and free call-budget tracking, including nonterminal exits."""
+    """Call-budget tracking is released on nonterminal exits as well as
+    final settlement.
+    """
     from co_scientist.llm import release_run_call_budget
 
     outcome = _settle_finalize_outcome(run_id, db_path)

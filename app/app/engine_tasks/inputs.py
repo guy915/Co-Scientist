@@ -1,12 +1,3 @@
-"""Durable run-input entry points: bootstrap and scientist input.
-
-Enqueues the first task of a node-level engine run, reopens completed
-runs for scientist-directed continuation, and merges durable manual
-hypotheses and reviews into workflow state at safe task boundaries.
-Split from ``app.engine_tasks``, which re-exports these names so it
-remains the stable import and monkeypatch surface.
-"""
-
 from __future__ import annotations
 
 import sqlite3
@@ -38,7 +29,6 @@ def enqueue_bootstrap(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> ScientificTask:
-    """Enqueue the bootstrap, optionally in its caller's transaction."""
     return store.enqueue_task(
         store.NewTask(
             run_id=run_id,
@@ -60,7 +50,6 @@ def enqueue_bootstrap(
 def _bootstrap_start_status(
     task: ScientificTask, run: RunRow, db_path: str | None
 ) -> str:
-    """Advance run status only while this bootstrap still owns its lease."""
     status = store.mark_bootstrap_running(
         run.id,
         task.id,
@@ -83,7 +72,6 @@ async def _screen_bootstrap_intake(
     db_path: str | None,
     task: ScientificTask | None = None,
 ) -> dict[str, Any] | None:
-    """Run the intake gate with the bootstrap lease as its status fence."""
     screen_with_escalation = engine_tasks_runtime.active().screen
     decision = await screen_with_escalation(
         run.id,
@@ -115,29 +103,9 @@ async def _screen_bootstrap_intake(
 def reopen_for_pending_scientist_input(
     run_id: str, *, db_path: str | None = None
 ) -> ScientificTask | None:
-    """Reopen a just-completed run when scientist input is still unread.
-
-    A contribution (a hypothesis, a review, or a bare steering message --
-    every one of them queues a steering message; see
-    ``runs.contrib._steer_and_continue``) posted after a run's last
-    orchestrator boundary -- e.g. while its final nodes are draining and
-    publishing the report -- has nowhere left to land: it is persisted
-    and screened, but ``enqueue_scientist_continuation`` only reopens an
-    already-``completed`` run, and nothing else would call it again until
-    some *later*, unrelated contribution happened to arrive. Calling this
-    the moment finalize settles closes that race for the contribution
-    that caused it, instead of leaving it stranded on the next one
-    (HITL-STEERING-001 / HITL-MANUAL-HYP-001).
-
-    Deliberately keyed on ``get_pending_steering`` alone, not on any
-    broader "does this run owe a review" scan: every contribution already
-    queues a steering message, so nothing this hook should act on can
-    exist without one, and the message empties for good once acknowledged
-    -- so this can never re-fire without new, unread input to justify it.
-
-    Returns:
-        The enqueued continuation task, or None when there is nothing
-        pending (the ordinary case) or the run never reached completed.
+    """Finalize checks unread steering to recover contributions posted after
+    the last orchestrator boundary without reopening again after
+    acknowledgement.
     """
     pending = store.get_pending_steering(run_id, db_path=db_path)
     if not pending:
@@ -153,7 +121,6 @@ def enqueue_scientist_continuation(
     *,
     db_path: str | None = None,
 ) -> ScientificTask | None:
-    """Reopen a completed engine run so new scientist input enters the loop."""
     run = store.get_run(run_id, db_path=db_path)
     if run is None or run.provider != "engine":
         return None
@@ -186,24 +153,16 @@ def enqueue_scientist_continuation(
     )
 
 
-# Where the author rides through the checkpoint. The engine's Hypothesis
-# has no author field and adding one would touch every node; enrichments is
-# the established home for a checkpointed per-hypothesis mark (see
-# ``review_recheck_issued``), and nothing renders the whole dict into a
-# prompt, so the attribution travels without leaking into model input.
+# Checkpointed author enrichments preserve attribution without adding it to
+# model input.
 SCIENTIST_AUTHOR_MARK = "scientist_author"
 
-# The column's own default, meaning "no screen has run on this row yet"
-# (``store/schema.py``). It must not be carried into engine state, because
-# there a *non-None* ``safety_status`` means "already screened, leave it"
-# (``agents/safety._screen_one_hypothesis``): copying the
-# placeholder across would tell the engine's screen to skip exactly the
-# hypothesis whose screen never completed.
+# Unscreened placeholders must not become non-null state safety status, which
+# would suppress the engine's check.
 _UNSCREENED_SAFETY_STATUS = "pending"
 
 
 def _admitted_safety_status(row: dict[str, Any]) -> str | None:
-    """The screened outcome to carry into engine state, or None."""
     status = str(row.get("safety_status") or "")
     if not status or status == _UNSCREENED_SAFETY_STATUS:
         return None
@@ -211,15 +170,8 @@ def _admitted_safety_status(row: dict[str, Any]) -> str | None:
 
 
 def _admitted_hypothesis(row: dict[str, Any]) -> Any:
-    """Build the engine hypothesis one persisted scientist row becomes.
-
-    Carries the row's own provenance rather than a bare statement: the
-    origin the tournament and the drain attribute it by, the author, and
-    the outcome the admission screen already wrote (POST time,
-    ``hypothesis.screening.screen_hypotheses``) so engine state agrees
-    with the store instead of re-screening what is already decided -- but
-    never the unscreened placeholder, which would suppress the screen
-    rather than record one.
+    """Carry screened provenance into state, but never an unscreened
+    placeholder that would suppress the engine's safety check.
     """
     from co_scientist.models import Hypothesis, HypothesisOrigin
 
@@ -241,7 +193,6 @@ def _merge_scientist_hypotheses(
     run_id: str,
     db_path: str | None,
 ) -> None:
-    """Append durable scientist-authored hypotheses not yet in state."""
     for row in store.list_hypotheses(run_id, db_path=db_path):
         if row.get("created_by_agent") != "scientist_manual":
             continue
@@ -254,13 +205,8 @@ def _merge_scientist_hypotheses(
 
 
 def _row_verdict(row: dict[str, Any]) -> str:
-    """Return a scientist review row's verdict.
-
-    Reads the stored ``verdict`` column. Rows written before that column
-    existed carry the verdict only inside their summary prose, so those fall
-    back to the original word scan; "revise" is the neutral landing for a
-    row whose verdict cannot be recovered either way, because it neither
-    endorses nor condemns the idea.
+    """Legacy reviews recover verdicts from prose; unknown verdicts default
+    to neutral revise rather than endorsement or condemnation.
     """
     verdict = str(row.get("verdict") or "").strip().lower()
     if verdict in VERDICT_REVIEW_SCORES:
@@ -273,13 +219,8 @@ def _row_verdict(row: dict[str, Any]) -> str:
 
 
 def _scientist_hypothesis_review(row: dict[str, Any]) -> Any:
-    """Build the engine-side review for one persisted scientist review row.
-
-    Authorship, the verdict, and the source row id ride in
-    ``detailed_feedback`` because the engine's ``HypothesisReview`` has no
-    fields for them -- which is why a human review used to come back out of
-    the drain as an anonymous agent review. The drain reads them back (see
-    ``drain.reviews._persist_scientist_review``).
+    """Checkpointed feedback carries author, verdict and source row identity
+    so drain restores scientist attribution.
     """
     from co_scientist.models import SCIENTIST_REVIEWER, HypothesisReview
 
@@ -299,17 +240,13 @@ def _scientist_hypothesis_review(row: dict[str, Any]) -> Any:
         },
         constructive_feedback=critique,
         overall_score=float(score),
-        # Typed authorship, not a marker to be recovered from prose: the
-        # review gate reads the verdict as a whole (a human review scores
-        # no gated axis), while the review node, the durable review
-        # fan-out and the scheduler's unreviewed backlog must all keep
-        # counting the idea as still owing the run a peer review.
+        # Scientist verdicts influence disposition but do not satisfy the
+        # outstanding peer-review requirement.
         reviewer=SCIENTIST_REVIEWER,
     )
 
 
 def _review_marker(row: dict[str, Any]) -> str:
-    """Return the summary marker identifying a merged scientist review."""
     return f"[scientist-review:{row['id']}]"
 
 
@@ -318,7 +255,6 @@ def _merge_scientist_reviews(
     run_id: str,
     db_path: str | None,
 ) -> None:
-    """Append durable scientist reviews not yet reflected on the hypothesis."""
     for row in store.list_reviews(run_id, db_path=db_path):
         if row.get("reviewer_agent") != "scientist":
             continue
@@ -340,18 +276,8 @@ def _merge_scientist_inputs(
     *,
     admit_hypotheses: bool = True,
 ) -> None:
-    """Merge durable manual hypotheses and reviews at a safe task boundary.
-
-    Reviews merge at every boundary: a verdict only ever restricts or
-    redirects the pool that is already there, and re-deriving the
-    dispositions from it costs no LLM call.
-
-    A *hypothesis* is a new competitor, so it is admitted at one boundary
-    (``admit_hypotheses``; see ``engine_tasks.node``) rather than
-    wherever the run happens to be. The pool may not grow inside a ranking
-    wave, where the newcomer's Elo would mean nothing, nor between a
-    fan-out's items and its aggregate, where the aggregate restores the
-    checkpoint and would not find the hypothesis its item reviewed.
+    """New hypotheses enter only at safe boundaries, never inside ranking or
+    between fan-out items and their aggregate.
     """
     hypotheses = list(state.get("hypotheses") or [])
     by_id = {hypothesis.id: hypothesis for hypothesis in hypotheses}
@@ -363,11 +289,8 @@ def _merge_scientist_inputs(
 
 
 def _refresh_dispositions(hypotheses: list[Any], state: dict[str, Any]) -> None:
-    """Re-derive dispositions so a merged verdict reaches the next node.
-
-    Without this a contributed review would only take effect at the next
-    review pass, and a run past its last one would never read it at all.
-    It reads reviews already paid for and spends nothing.
+    """Scientist verdicts affect the next node without waiting for another
+    paid review pass.
     """
     from co_scientist.agents.reflection.review_gate import (
         refresh_review_dispositions,
@@ -379,15 +302,9 @@ def _refresh_dispositions(hypotheses: list[Any], state: dict[str, Any]) -> None:
 async def _prepare_bootstrap_state(
     task: ScientificTask, run: store.RunRow, db_path: str | None
 ) -> tuple[dict[str, Any], TaskCommit]:
-    """Build initial state and commit target, aborting if cancelled.
-
-    Pause-versus-successor is decided by the caller's commit transaction.
-    Bootstrap never consumes steering (``consume_steering=False``): any
-    steering queued before the run even started is folded into the initial
-    preferences text same as always, but stays pending until the run's first
-    orchestrator cycle -- the one place ``pending_steering`` is actually read
-    for scheduling -- rather than being acknowledged here where nothing acts
-    on it.
+    """Bootstrap incorporates guidance but leaves steering pending for the
+    first orchestrator decision; pause is fenced by the commit
+    transaction.
     """
     generator, opts = engine_tasks_runtime.active().generator_and_opts(
         task, db_path
@@ -401,15 +318,14 @@ async def _prepare_bootstrap_state(
     refreshed = store.get_run(run.id, db_path=db_path)
     if refreshed is None or refreshed.status == RunStatus.CANCELLED.value:
         raise RuntimeError("run cancelled during bootstrap")
-    # A PAUSED snapshot is advisory only. /resume can change it to QUEUED
-    # before the commit transaction, which must choose pause vs successor.
+    # Pause snapshots are advisory; the commit transaction resolves a concurrent
+    # resume before choosing the successor.
     return state, commit
 
 
 async def execute_bootstrap(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
-    """Safety-gate a run, prepare state, and enqueue its first task."""
     run = _require_run(task, db_path)
     emit = make_emitter(run.id, db_path=db_path)
     withheld = await _screen_bootstrap_intake(run, emit, db_path, task=task)
@@ -419,9 +335,8 @@ async def execute_bootstrap(
     bootstrap_status = _bootstrap_start_status(task, run, db_path)
     if bootstrap_status in {status.value for status in store.TERMINAL_STATUSES}:
         return {"run_id": run.id, "status": bootstrap_status, "terminal": True}
-    # Sync the run row before the generator is built (_generator_and_opts
-    # reads it back via run_used_offline), so a config-pinned llm_backend
-    # takes effect on this boundary.
+    # Persist the resolved backend before generator construction reads run
+    # provenance.
     sync_engine_llm_backend(run.id, resolved_run_config(run.config), db_path)
     state, commit = await _prepare_bootstrap_state(task, run, db_path)
     checkpoint_seq, successor_id = _save_state_and_enqueue(

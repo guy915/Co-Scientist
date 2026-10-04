@@ -1,14 +1,3 @@
-"""Tools-config resolution, validation, and reporting for real runs.
-
-The engine's ``HypothesisGenerator`` accepts a ``tools_config`` (path or URL to
-a YAML tools config), but the app adapter historically never forwarded
-``settings.tools_config``, so a production ``TOOLS_CONFIG=...indra_cancer.yaml``
-was silently ignored and real runs ran the default PubMed-only tools. This
-module resolves and validates that setting so a misconfiguration fails loudly
-at startup, and reports the effective config (and its enabled tools) on
-``/status``.
-"""
-
 from __future__ import annotations
 
 import functools
@@ -19,12 +8,6 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-# User-facing data-source connectors, matched (case-insensitively) against the
-# enabled tool ids so a configured tools YAML surfaces its sources in the
-# composer's connectors menu. Add an entry here when a new connector's tools are
-# wired up so it appears in the menu automatically.
-# Order is the composer menu's top-to-bottom order: web search, then the
-# PubMed/arXiv/bioRxiv literature bases, then INDRA.
 _KNOWN_CONNECTORS: tuple[tuple[str, str], ...] = (
     ("web_search", "Web search"),
     ("pubmed", "PubMed"),
@@ -40,33 +23,8 @@ def connectors_report(
     enabled_tools: list[str] | None,
     web_search_available: bool = False,
 ) -> list[dict[str, str]]:
-    """Derive the user-facing data-source connectors for the composer menu.
-
-    A connector backed by a live probe (PubMed, web search) is listed on
-    that probe alone: being configured is not the same as being reachable,
-    and offering a source the run cannot actually query is how "the agent
-    never searched the web" becomes a mystery rather than a deployment
-    answer. Every other known connector is listed when the tools YAML
-    enables a matching tool. Falls back to PubMed so the menu is never
-    empty.
-
-    arXiv and bioRxiv are neither: they carry no credential of their own
-    to be refused (both are free, keyless APIs), but they run through the
-    same MCP process PubMed does, so an unreachable server takes them down
-    with it. Gating on ``literature_available`` alone would show them
-    whenever MCP is healthy even for a deployment whose tools YAML never
-    configured them (that probe does not know which tools a custom config
-    enables); gating on config membership alone would show them as
-    available with MCP down, the exact failure mode PubMed's own probe
-    exists to avoid. Both together are required.
-
-    Args:
-        literature_available: Whether the MCP + PubMed literature stack is up.
-        enabled_tools: Enabled tool ids from a readable tools config, or None.
-        web_search_available: Advertised only when a provider key is set.
-
-    Returns:
-        Ordered connectors, each ``{"id": ..., "display": ...}``.
+    """Advertised sources require actual reachability and configuration;
+    shared-MCP keyless sources require both.
     """
     tool_blob = " ".join(enabled_tools or []).lower()
     available_by_probe = {
@@ -87,28 +45,12 @@ def connectors_report(
 
 
 def _is_url(value: str) -> bool:
-    """True when a tools_config value is an HTTP(S) URL, not a local path.
-
-    A URL is passed through to the engine unchecked; only local paths get a
-    readability check, since a URL cannot be resolved against the filesystem.
-    """
     return value.startswith("http://") or value.startswith("https://")
 
 
 def validate_tools_config(value: str | None) -> None:
-    """Fail loudly if a configured local tools_config path is not readable.
-
-    A configured-but-unreadable path is an operator error worth surfacing at
-    startup rather than silently falling back to default tools (the bug this
-    guards against). ``None`` (unset) and URLs are accepted without a
-    filesystem check.
-
-    Args:
-        value: The configured ``settings.tools_config`` (path, URL, or None).
-
-    Raises:
-        RuntimeError: When ``value`` is a local path that does not resolve to
-            a readable file.
+    """Unreadable configured paths fail at startup rather than silently
+    selecting different scientific tools.
     """
     if value is None or _is_url(value):
         return
@@ -122,29 +64,8 @@ def validate_tools_config(value: str | None) -> None:
 
 @functools.lru_cache(maxsize=8)
 def _enabled_tools(value: str | None) -> list[str] | None:
-    """Return the sorted enabled tool ids for a config, best-effort.
-
-    Builds a throwaway ``ToolRegistry`` to enumerate the tools a real run
-    would actually enable. ``value=None`` is not "nothing to enumerate": the
-    engine ships a bundled default ``tools.yaml`` and a run with no custom
-    ``TOOLS_CONFIG`` runs on exactly that -- so this is called for the unset
-    case too, the same as for a custom path (N10: a production deployment
-    that never set ``TOOLS_CONFIG`` reported ``enabled_tools: null`` next to
-    "MCP/PubMed/literature/web up", which read as broken when it was in fact
-    running the engine's built-in default set, just not the domain-specific
-    one -- e.g. INDRA CoGex -- the operator intended). Returns None when the
-    engine is not importable or the registry cannot be built, so /status
-    degrades to reporting the path alone rather than erroring. Cached by
-    value because the config is fixed for the process's lifetime (a change
-    needs a restart, which also re-runs startup validation), so a polled
-    /status does not re-parse the YAML on every call.
-
-    Args:
-        value: A readable local tools_config path, or None for the bundled
-            default config.
-
-    Returns:
-        Sorted enabled tool ids, or None if they cannot be enumerated.
+    """Unset configuration means bundled defaults; process-lifetime caching
+    avoids reparsing YAML on every status poll.
     """
     try:
         from co_scientist.config import ToolRegistry
@@ -159,19 +80,6 @@ def _enabled_tools(value: str | None) -> list[str] | None:
 
 
 def tools_config_report(value: str | None) -> dict[str, Any]:
-    """Describe the effective tools config for the /status route.
-
-    Args:
-        value: The configured ``settings.tools_config`` (path, URL, or None).
-
-    Returns:
-        A dict with ``tools_config`` (the configured value), ``tools_config_
-        valid`` (False only for a configured-but-unreadable local path), and
-        ``enabled_tools`` (the sorted enabled tool ids actually in effect --
-        for the bundled default when unset, for a readable local config when
-        one is set, else None for a URL or an unreadable path, which cannot
-        be enumerated without a network call or do not resolve at all).
-    """
     if value is None:
         return {
             "tools_config": None,
