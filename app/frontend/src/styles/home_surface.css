@@ -42,6 +42,15 @@
   margin-top: 0;
 }
 
+/* Long interview options scroll inside the composer instead of pushing the
+   question above the phone viewport. Dynamic units follow the Safari toolbar. */
+.reference-questions-panel {
+  max-height: 50dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
 /* Dots retain width and a shared phase so the neighboring chevron cannot shift
    during thinking. */
 .reference-thinking-dots {

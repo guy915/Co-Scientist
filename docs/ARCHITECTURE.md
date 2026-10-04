@@ -105,10 +105,10 @@ Tables (SQLite, WAL):
 | `matches` | append-only | full pairwise tournament audit log |
 | `safety_decisions` | append-only | intake + final |
 | `reports` | append-only | structured JSON + rendered Markdown in SQLite |
-| `messages` | append-only | steering, milestone, and Q&A chat messages |
+| `messages` | append-only steering/milestones; Q&A can rewind | consumed run input is preserved when the scientist edits a question or retries an answer |
 | `scientific_tasks` | mutable (leases/status) | the durable queue itself — every engine node, fan-out item, and tournament match is a leased, idempotent row here; this is the only path a run executes through |
 | `checkpoints` | append-only, pruned | `WorkflowState` snapshot after each committed task, the resume point |
-| `supervisor_plan` / `supervisor_allocations` | replaced wholesale at finalize, plus synced on every checkpoint | the Supervisor's plan and terminal rationale, and an append-only-per-run ledger of every task the orchestrator scheduled with the observed stats behind each decision; readable via `GET /api/runs/{id}/supervisor-plan` |
+| `supervisor_plan` / `supervisor_allocations` | replaced wholesale at finalize, plus synced on every checkpoint | the Supervisor's plan and terminal rationale, and an append-only-per-run ledger of every task the orchestrator scheduled with the observed stats behind each decision; retained internally for checkpoint provenance |
 
 `hypothesis_state` is the critical decoupling: it holds the values that *must* change as the run progresses (Elo, win counts) without violating the rule that an original hypothesis row is the historical record of what was generated.
 
@@ -222,7 +222,7 @@ performs expansion research and grounds assumptions with literature; durable
 generation retains its current assumptions inputs and per-strategy tasks.
 Changing those differences requires an explicit grounding and spending policy.
 
-## Ranking, Reflection and outcome operations
+## Ranking, Reflection and Evolution operations
 
 The Ranking package exposes preparation, remaining-round budgets, deterministic
 pairing, immutable prompt/judging contexts, one-match judging and Elo application,
@@ -241,11 +241,9 @@ exceptions reach the worker. Agent verification bounds stored details and
 marks issuance before calls; durable aggregation retains raw results, marks issuance
 on aggregation and meters successful valid items.
 
-Evolution owns the public `EvolutionContext`, round-context assembly and the
-selected-parent outcome projection. The projection preserves run guidance and
-citation sources while limiting prompt state to the selected parent, goal,
-preferences and lab constraints. The app retains action authorization, sibling
-duplicate validation, safety, replay accounting and the one-child commit.
+Evolution owns the public `EvolutionContext` and round-context assembly,
+including guidance, citation sources, parent validation and duplicate guards.
+The app adapts checkpoints through these public operations.
 
 `app/tests/test_architecture.py` enforces that app production
 modules import public engine symbols and the engine does not import the app.

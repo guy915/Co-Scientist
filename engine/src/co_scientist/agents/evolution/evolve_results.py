@@ -252,11 +252,7 @@ def _apply_evolution_result(
         hypothesis,
         fields.refined_text,
         peers,
-        (
-            None
-            if operation.outcome_refinement is not None
-            else context.proximity_graph
-        ),
+        context.proximity_graph,
         frozenset(parent.id for parent in parents[1:]),
     )
     if max_similarity is None:

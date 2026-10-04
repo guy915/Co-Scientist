@@ -588,42 +588,6 @@ def test_re_finalize_replaces_rather_than_accumulates(
     assert len(second) == 3
 
 
-async def test_supervisor_plan_endpoint_returns_persisted_rows(
-    isolated_db: str,
-) -> None:
-    from app.runs.collections import get_supervisor_plan
-
-    run = runs.create_run("sp goal", "standard", "mock", {})
-    plans.save_supervisor_plan(
-        NewSupervisorPlan(
-            run_id=run.id,
-            guidance={"workflow_plan": {"iterations": 1}},
-            termination_reason="satisfied_completion",
-            decision_provenance="model",
-            orchestrator_state={},
-        ),
-        db_path=isolated_db,
-    )
-    plans.replace_supervisor_allocations(
-        run.id,
-        [
-            {
-                "task_type": "generate",
-                "status": "queued",
-                "reason": "r",
-                "iteration": 1,
-            }
-        ],
-        db_path=isolated_db,
-    )
-
-    result = await get_supervisor_plan(run.id)
-
-    assert result["plan"]["plan"] == {"workflow_plan": {"iterations": 1}}
-    assert len(result["allocations"]) == 1
-    assert result["allocations"][0]["task_type"] == "generate"
-
-
 # Failure/cancellation can skip finalize, so checkpoint commits must persist
 # supervisor provenance too.
 

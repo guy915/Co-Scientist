@@ -1,15 +1,15 @@
-import type {Dispatch} from 'react';
-import {makePrefixedId} from '@/lib/client_id';
-import {DIAGNOSTIC_EVENT} from '../dom_events';
 import type {QaSource} from '@/api/runs';
 import {type Interview, type InterviewTurn, type RunMessage} from '@/api/runs';
-import {interviewToRunSpec} from '../run_spec';
+import {makePrefixedId} from '@/lib/client_id';
+import type {Dispatch} from 'react';
+import {DIAGNOSTIC_EVENT} from '../dom_events';
 import {type ChatEntry} from '../pages/chat_timeline_bubble';
+import {interviewToRunSpec} from '../run_spec';
 import {
-  type HandlerDeps,
-  type SpecStage,
   type DraftIntro,
+  type HandlerDeps,
   type SessionUpdate,
+  type SpecStage,
   fieldSetter,
   stageDraftPatch,
 } from './use_chat_session';
@@ -122,6 +122,7 @@ function qaRole(sender: RunMessage['sender']): ChatEntry['role'] {
 function rowToEntry(row: RunMessage): ChatEntry {
   return {
     id: `qa-${row.id}`,
+    messageId: row.kind === 'qa' ? row.id : undefined,
     role: qaRole(row.sender),
     content: row.content,
     reasoning: row.meta?.reasoning,

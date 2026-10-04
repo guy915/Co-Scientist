@@ -1,33 +1,26 @@
-import {useMemo, type MouseEvent, type ReactNode} from 'react';
-import type {
-  ClaimEvidenceRow,
-  Hypothesis,
-  HypothesisOutcome,
-  MatchRow,
-  Review,
-} from '@/api/runs';
+import type {ClaimEvidenceRow, Hypothesis, MatchRow, Review} from '@/api/runs';
 import {Icon} from '@/components/icon';
+import {smoothScrollToSection} from '@/lib/smooth_scroll';
+import {useMemo, type MouseEvent, type ReactNode} from 'react';
 import {
+  claimEvidenceSummary,
+  debateDepthLabel,
   findHypothesisMatches,
   findHypothesisReview,
   findHypothesisReviews,
   hasReviewDetail,
   NO_REVIEW_CRITIQUES_TEXT,
+  normalizeSpans,
+  originLabel,
+  parseDebateTranscript,
   parseReviewDetail,
-  type ReviewDetail,
   reviewCritiqueText,
   reviewerLabel,
-  claimEvidenceSummary,
-  debateDepthLabel,
-  normalizeSpans,
-  parseDebateTranscript,
-  type NormalizedSpan,
-  originLabel,
   reviewSummaryText,
   tournamentSummaryText,
+  type NormalizedSpan,
+  type ReviewDetail,
 } from './ideas_detail_data';
-import {smoothScrollToSection} from '@/lib/smooth_scroll';
-import {HypothesisOutcomeSection} from './hypothesis_outcomes';
 
 const IDEA_DETAIL_PANE_CLASSES =
   'idea-detail-pane grid min-h-0 min-w-0 flex-1 content-start gap-[1.35rem] ' +
@@ -43,16 +36,9 @@ const IDEA_DETAIL_EMPTY_CLASSES =
 
 interface HypothesisDetailProps {
   hypothesis: Hypothesis | null;
-  runId?: string;
-  allowRefinement?: boolean;
-  isDemo?: boolean;
   reviews: Review[];
   matches: MatchRow[];
   claimEvidence?: ClaimEvidenceRow[];
-  outcomes?: HypothesisOutcome[];
-  outcomesLoading?: boolean;
-  outcomesError?: string | null;
-  onRefreshOutcomes?: () => Promise<void> | void;
 }
 
 // Keep hooks before the empty-state return; input memoization avoids rescanning
@@ -87,16 +73,9 @@ function useHypothesisRecords(
 
 export function HypothesisDetail({
   hypothesis,
-  runId,
-  allowRefinement,
-  isDemo,
   reviews,
   matches,
   claimEvidence = [],
-  outcomes = [],
-  outcomesLoading,
-  outcomesError,
-  onRefreshOutcomes,
 }: HypothesisDetailProps) {
   const {review, allReviews, matchHistory, claims} = useHypothesisRecords(
     hypothesis,
@@ -118,17 +97,10 @@ export function HypothesisDetail({
     <HypothesisDetailSections
       paneClasses={IDEA_DETAIL_PANE_CLASSES}
       hypothesis={hypothesis}
-      runId={runId}
-      allowRefinement={allowRefinement}
-      isDemo={isDemo}
       review={review}
       allReviews={allReviews}
       matchHistory={matchHistory}
       claims={claims}
-      outcomes={outcomes}
-      outcomesLoading={outcomesLoading}
-      outcomesError={outcomesError}
-      onRefreshOutcomes={onRefreshOutcomes}
     />
   );
 }
@@ -157,7 +129,6 @@ export const SECTIONS = {
   overview: 'Hypothesis overview',
   description: 'Description',
   provenance: 'Provenance & lineage',
-  outcomes: 'Empirical outcomes',
   reviewSummary: 'Review summary',
   reviewCritiques: 'Review critiques',
   tournament: 'Tournament performance',
@@ -168,7 +139,6 @@ const RAIL_SECTIONS: readonly string[] = [
   SECTIONS.overview,
   SECTIONS.description,
   SECTIONS.provenance,
-  SECTIONS.outcomes,
   SECTIONS.reviewSummary,
   SECTIONS.reviewCritiques,
   SECTIONS.tournament,
@@ -303,33 +273,19 @@ const IDEA_DETAIL_SECTION_CLASSES =
 interface DetailSectionsProps {
   paneClasses: string;
   hypothesis: Hypothesis;
-  runId?: string;
-  allowRefinement?: boolean;
-  isDemo?: boolean;
   review: Review | undefined;
   allReviews: Review[];
   matchHistory: MatchRow[];
   claims: ClaimEvidenceRow[];
-  outcomes: HypothesisOutcome[];
-  outcomesLoading?: boolean;
-  outcomesError?: string | null;
-  onRefreshOutcomes?: () => Promise<void> | void;
 }
 
 export function HypothesisDetailSections({
   paneClasses,
   hypothesis,
-  runId,
-  allowRefinement,
-  isDemo,
   review,
   allReviews,
   matchHistory,
   claims,
-  outcomes,
-  outcomesLoading,
-  outcomesError,
-  onRefreshOutcomes,
 }: DetailSectionsProps) {
   return (
     <section
@@ -348,20 +304,6 @@ export function HypothesisDetailSections({
       <DetailSection title={SECTIONS.provenance}>
         <HypothesisProvenanceContent hypothesis={hypothesis} claims={claims} />
       </DetailSection>
-      {runId && onRefreshOutcomes && (
-        <DetailSection title={SECTIONS.outcomes}>
-          <HypothesisOutcomeSection
-            runId={runId}
-            allowRefinement={allowRefinement}
-            hypothesis={hypothesis}
-            readOnly={isDemo}
-            outcomes={outcomes}
-            loading={outcomesLoading}
-            error={outcomesError}
-            onRefresh={onRefreshOutcomes}
-          />
-        </DetailSection>
-      )}
       <DetailSection title={SECTIONS.reviewSummary}>
         <p>{reviewSummaryText(review)}</p>
       </DetailSection>

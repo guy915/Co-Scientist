@@ -282,3 +282,11 @@ persisted similarity is the value compared against the floor.
 Size idea/match ceilings above each tier's productive steady state. Both match
 participants count toward coverage, and limits checked before work can otherwise
 terminate healthy runs after their first tournament.
+
+Empirical outcomes and their targeted refinement are retired. Schema initialization
+removes `outcome_refinement_actions` and `hypothesis_outcomes`, then settles pending
+`engine.outcome.refinement` rows as completed with `{"retired": true}`. The retired
+dispatch path also returns that result without model calls. Scientific checkpoints
+and ordinary task dependencies remain intact for recovery; no retired call replays.
+A run reactivated solely for refinement returns to completed when its published
+report survives and no ordinary work is pending.

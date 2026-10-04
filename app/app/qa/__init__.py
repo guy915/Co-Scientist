@@ -303,7 +303,7 @@ async def _framed_answer(
     async for kind, fragment in deltas:
         (reasoning if kind == "reasoning" else full).append(fragment)
         yield sse_frame({"type": kind, "content": fragment})
-    _persist_qa_answer(run_id, full, reasoning, manifest)
+    _persist_qa_answer(run_id, full, reasoning, manifest, question_id)
     yield sse_frame({"type": "done", "question_id": question_id})
 
 
@@ -344,20 +344,24 @@ def _persist_qa_answer(
     full: list[str],
     reasoning: list[str],
     manifest: list[dict[str, Any]],
+    question_id: int,
 ) -> None:
     answer = "".join(full)
-    store.append_message(
+    store.append_qa_reply(
         NewMessage(
             run_id=run_id,
             sender="system",
             content=answer,
             kind="qa",
             meta=_citation_meta(manifest, "".join(reasoning).strip()),
-        )
+        ),
+        question_id,
     )
 
 
-def _handle_qa_stream_error(run_id: str, exc: Exception) -> str:
+def _handle_qa_stream_error(
+    run_id: str, exc: Exception, question_id: int
+) -> str:
     """Persist the emitted fallback on stream failures so chat history matches
     what the user saw.
     """
@@ -366,8 +370,9 @@ def _handle_qa_stream_error(run_id: str, exc: Exception) -> str:
         "Q&A requires a language model API key "
         "(set CHAT_MODEL_NAME or MODEL_NAME)."
     )
-    store.append_message(
-        NewMessage(run_id=run_id, sender="system", content=fallback, kind="qa")
+    store.append_qa_reply(
+        NewMessage(run_id=run_id, sender="system", content=fallback, kind="qa"),
+        question_id,
     )
     return fallback
 
@@ -408,7 +413,7 @@ async def stream_answer(
             ):
                 yield frame
     except Exception as exc:
-        fallback = _handle_qa_stream_error(run_id, exc)
+        fallback = _handle_qa_stream_error(run_id, exc, question.message_id)
         yield sse_frame({"type": "error", "message": fallback})
 
 

@@ -1,9 +1,9 @@
-import {useState} from 'react';
+import type {RunEventActivity} from '@/api/wire_common';
 import {Icon, type IconName} from '@/components/icon';
 import type {StreamConnectionState, StreamEvent} from '@/hooks/use_run_stream';
-import {joinClasses} from '../classes';
-import type {RunEventActivity} from '@/api/wire_common';
 import {capitalizeTerm} from '@/lib/text';
+import {useState} from 'react';
+import {joinClasses} from '../classes';
 
 const IDLE_NOTE_CLASSES =
   'mt-4 flex items-center gap-3 rounded-md bg-cosci-hover px-4 py-3.5';
@@ -165,7 +165,7 @@ function GroupSummaryRow({
     <>
       <div className={TIMELINE_ROW_CLASSES}>
         <p className="my-0 truncate font-medium text-cosci-fg">
-          {group.meta.title} · {count} steps
+          {group.meta.title}
         </p>
         <span className="shrink-0 text-xs text-cosci-muted">{timeLabel}</span>
       </div>

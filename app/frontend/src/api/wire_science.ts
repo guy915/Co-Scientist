@@ -51,33 +51,6 @@ export interface Hypothesis {
   verification_verdict?: string | null;
 }
 
-export interface HypothesisOutcome {
-  id: string;
-  run_id: string;
-  hypothesis_id: string;
-  author: string;
-  recorded_at: number;
-  method_protocol: string;
-  conditions: string;
-  measured_observation: string;
-  units?: string | null;
-  controls: string;
-  interpretation: string;
-  referenced_evidence_ids: string[];
-  hypothesis_snapshot?: HypothesisSnapshot;
-  referenced_evidence?: ReferencedEvidence[];
-}
-
-export interface HypothesisOutcomeInput {
-  method_protocol: string;
-  conditions: string;
-  measured_observation: string;
-  units?: string;
-  controls: string;
-  interpretation: string;
-  referenced_evidence_ids: string[];
-}
-
 export interface HypothesisSnapshot {
   title: string;
   statement: string;

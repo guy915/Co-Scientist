@@ -17,7 +17,7 @@ make format / lint / typecheck   # ruff format / ruff check / mypy
 
 Use `make start` whenever a run may be in flight: `--reload` restarts the process on any edit under `app/`, dropping the embedded worker cohort mid-task and leaving the run to startup reconciliation. Tasks are mirrored under `[tool.pixi.tasks]` — `pixi run dev` etc. work identically.
 
-**Source modules** (`app/app/`) — the ones worth knowing; the package combines flat modules with the `store/`, `engine_adapter/`, `engine_tasks/`, `report/`, `runs/`, `claims/`, `citations/`, `interviews/`, `qa/`, `safety/`, `hypothesis/`, `seed/`, `demo_seed_data/`, `outcome_refinement/`, `task_worker/` and `run_modes/`, `api_contracts/` subpackages (except `store/`, a subpackage's `__init__.py` keeps the former flat module's interface, siblings drop its prefix):
+**Source modules** (`app/app/`) — the ones worth knowing; the package combines flat modules with the `store/`, `engine_adapter/`, `engine_tasks/`, `report/`, `runs/`, `claims/`, `citations/`, `interviews/`, `qa/`, `safety/`, `hypothesis/`, `seed/`, `demo_seed_data/`, `task_worker/` and `run_modes/`, `api_contracts/` subpackages (except `store/`, a subpackage's `__init__.py` keeps the former flat module's interface, siblings drop its prefix):
 
 | Module | Purpose |
 |---|---|
@@ -49,7 +49,6 @@ Use `make start` whenever a run may be in flight: `--reload` restarts the proces
 | `diagnostics.py` | `/health` checks and the cached MCP/PubMed/web-search probes behind `/status` |
 | `elo.py`, `citations/`, `safety/`, `run_modes/`, `seed/` | Elo utilities; citation classification; intake/final screening; run tier/focus normalization; demo seeder |
 | `pdf.py` | PDF heading recovery for uploaded documents, combining bookmark, numbering and font-style signals; imported lazily by `document_ingest.py` |
-| `outcome_refinement/` | Owner-authorized one-outcome refinement: admission (`__init__.py`), public engine context adaptation, lineage and telemetry |
 | `demo_seed_data/` | Curated fixtures the demo seeder (`seed/`) writes: scenarios, extra evidence, proposals and record types |
 | `logging_setup.py`, `logs_api.py` | Persistent log capture (root logger → `app_logs`) and the `/api/logs` filter/payload logic |
 
@@ -95,13 +94,12 @@ Run lifecycle (in `runs/`, mounted at `/api/runs`) — **primary API used by the
 - `GET /api/runs/{id}/hypotheses` — hypotheses with Elo + lineage.
 - `GET /api/runs/{id}/evidence`, `/reviews`, `/matches`, `/citations`, `/safety`, `/proximity`, `/metrics`, `/claim-evidence`.
 - `GET /api/runs/{id}/report` (JSON) and `/report.md` (Markdown).
-- `POST /api/runs/{id}/messages` — queue user steering message; `GET` to list. `POST /{id}/messages/ask` — Q&A with streaming LLM response (uses `chat_model_name`).
+- `POST /api/runs/{id}/messages` — queue user steering message; `GET` to list. `POST /{id}/messages/ask` — Q&A with streaming LLM response (uses `chat_model_name`). `POST /{id}/messages/{message_id}/revise` edits a user Q&A question or retries an answer; it atomically rewinds only subsequent Q&A and preserves consumed setup and steering.
 - `POST /api/runs/{id}/messages/started` — the Agent's spoken confirmation that the run has started, streamed (`reasoning`/`chunk`/`done`, no error frame). The chat's session card renders it as its lead-in, the way the plan card renders the completing interview turn.
 - `POST /api/runs/{id}/hypotheses` / `/reviews` — scientist-authored input; passes the same per-hypothesis safety screen, persists with `origin=scientist_manual`, enqueues a continuation task.
 - `POST /api/runs/{id}/attachments`, `/attachments/upload`, `GET /attachments/search` — per-run private corpus (for a run that already exists; setup-time attachments go through `/api/documents` and ride in on `document_ids` at create).
 - `POST /api/runs/{id}/safety/{decision_id}/adjudicate` — human adjudication of a safety decision.
 - `POST|GET /api/runs/{id}/shares`, `DELETE /{id}/shares/{share_id}`, `GET /api/shared/{token}` — revocable public Goal Report links.
-- `GET /api/runs/{id}/supervisor-plan` — the durable Supervisor plan and per-cycle allocation ledger (`store/supervisor_plan.py`): the plan, terminal decision provenance and termination rationale, plus one row per orchestrator-scheduled task with the observed stats behind it. Synced from `save_checkpoint` on every commit (not only at finalize), so a failed/cancelled/safety-blocked run still leaves a record.
 
 Elsewhere: `POST /api/interviews`, `GET /{iid}`, `DELETE /{iid}` (permanent, cascades to the transcript, detaches but keeps staged documents), `POST /{iid}/turns`, `PUT /{iid}/fields` (the goal interview that feeds `interview_id` on run create); `GET /api/account/export`; `POST /api/auth/exchange`.
 

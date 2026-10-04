@@ -5,7 +5,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
-from app.store.db import _now, _use_conn, connect
+from app.store.db import _now, _use_conn, connect, transaction
 from app.store.models import MessageRow, _row_to_message
 
 
@@ -66,6 +66,75 @@ def list_messages(
             (run_id,),
         ).fetchall()
         return [_row_to_message(r) for r in rows]
+
+
+def append_qa_reply(message: NewMessage, question_id: int) -> None:
+    """A replaced question invalidates answers still streaming in other tabs."""
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO messages "
+            "(run_id,sender,content,kind,created_at,applied,meta_json) "
+            "SELECT ?,?,?, 'qa',?,0,? WHERE EXISTS "
+            "(SELECT 1 FROM messages WHERE run_id=? AND id=? "
+            "AND kind='qa' AND sender='user')",
+            (
+                message.run_id,
+                message.sender,
+                message.content,
+                _now(),
+                json.dumps(message.meta) if message.meta is not None else None,
+                message.run_id,
+                question_id,
+            ),
+        )
+
+
+def rewind_qa(
+    run_id: str,
+    message_id: int,
+    question: str | None,
+    db_path: str | None = None,
+) -> MessageRow:
+    """Rewind only Q&A; run inputs and scientific state are immutable here."""
+    with transaction(db_path) as conn:
+        target = conn.execute(
+            "SELECT sender, content, kind FROM messages "
+            "WHERE run_id=? AND id=?",
+            (run_id, message_id),
+        ).fetchone()
+        if target is None or target["kind"] != "qa":
+            raise ValueError("Only Q&A turns can be revised")
+        if question is not None:
+            if target["sender"] != "user":
+                raise ValueError("Only user questions can be edited")
+            question_id = message_id
+            text = question
+        else:
+            if target["sender"] != "system":
+                raise ValueError("Only answers can be retried")
+            previous = conn.execute(
+                "SELECT id, content FROM messages WHERE run_id=? AND kind='qa' "
+                "AND sender='user' AND id<? ORDER BY id DESC LIMIT 1",
+                (run_id, message_id),
+            ).fetchone()
+            if previous is None:
+                raise ValueError("Answer has no preceding question")
+            question_id, text = previous["id"], previous["content"]
+        conn.execute(
+            "DELETE FROM messages WHERE run_id=? AND kind='qa' AND id>=?",
+            (run_id, question_id),
+        )
+        cursor = conn.execute(
+            "INSERT INTO messages "
+            "(run_id,sender,content,kind,created_at,applied) "
+            "VALUES (?,'user',?,'qa',?,0)",
+            (run_id, text, _now()),
+        )
+        row = conn.execute(
+            f"SELECT {_MESSAGE_COLUMNS} FROM messages WHERE id=?",
+            (cursor.lastrowid,),
+        ).fetchone()
+        return _row_to_message(row)
 
 
 def get_pending_steering(

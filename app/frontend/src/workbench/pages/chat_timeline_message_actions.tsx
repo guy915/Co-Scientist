@@ -5,7 +5,8 @@ import {tooltipClassNames} from '../classes';
 export interface MessageAction {
   icon: IconName;
   label: string;
-  onClick: () => void;
+  onClick?: () => void;
+  disabled?: boolean;
 }
 
 // Revoke the download URL after handing it to the browser so blobs do not
@@ -45,12 +46,13 @@ export function MessageActionRow({
           type="button"
           className={tooltipClassNames({
             className:
-              'size-8 grid cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 text-cosci-muted hover:bg-cosci-hover hover:text-cosci-fg focus-visible:bg-cosci-hover focus-visible:text-cosci-fg',
+              'size-8 grid cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 place-items-center rounded-full border-0 bg-transparent p-0 text-cosci-muted hover:bg-cosci-hover hover:text-cosci-fg focus-visible:bg-cosci-hover focus-visible:text-cosci-fg',
             placement: 'top',
           })}
           aria-label={action.label}
           data-tooltip={action.label}
           onClick={action.onClick}
+          disabled={action.disabled}
         >
           <Icon
             aria-hidden="true"
@@ -63,16 +65,19 @@ export function MessageActionRow({
   );
 }
 
-// Omit unavailable retries rather than show a control that appears broken.
+// Keep unavailable actions visible and disabled so availability is explicit.
 export function responseActions(
   onRetry: (() => void) | null,
   text: string,
   filename: string,
 ): MessageAction[] {
   return [
-    ...(onRetry
-      ? [{icon: 'refresh' as const, label: 'Retry response', onClick: onRetry}]
-      : []),
+    {
+      icon: 'refresh',
+      label: 'Retry response',
+      onClick: onRetry ?? undefined,
+      disabled: !onRetry,
+    },
     {
       icon: 'content_copy',
       label: 'Copy response',
@@ -91,9 +96,12 @@ export function requestActions(
   onCopyRequest: () => void,
 ): MessageAction[] {
   return [
-    ...(onEdit
-      ? [{icon: 'edit' as const, label: 'Edit prompt', onClick: onEdit}]
-      : []),
+    {
+      icon: 'edit',
+      label: 'Edit prompt',
+      onClick: onEdit ?? undefined,
+      disabled: !onEdit,
+    },
     {icon: 'content_copy', label: 'Copy prompt', onClick: onCopyRequest},
   ];
 }

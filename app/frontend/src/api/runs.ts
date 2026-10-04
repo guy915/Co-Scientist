@@ -1,17 +1,3 @@
-import type {Run, RunWithSummary, QaSource, RunMessage} from './wire_runs';
-import type {RunFocus, RunTier, RunStatus} from './wire_common';
-import type {
-  ClaimEvidenceRow,
-  Evidence,
-  Hypothesis,
-  HypothesisOutcome,
-  HypothesisOutcomeInput,
-  MatchRow,
-  Review,
-  SafetyDecision,
-} from './wire_science';
-import type {Report, SharedGoalReport} from './wire_reports';
-import type {ChatSummary, Interview} from './wire_interviews';
 import {
   clearAccessToken,
   getAccessToken,
@@ -20,12 +6,24 @@ import {
   getStoredApiProvider,
   getStoredModel,
 } from '@/lib/client_id';
+import type {RunFocus, RunStatus, RunTier} from './wire_common';
+import type {ChatSummary, Interview} from './wire_interviews';
+import type {Report, SharedGoalReport} from './wire_reports';
+import type {QaSource, Run, RunMessage, RunWithSummary} from './wire_runs';
+import type {
+  ClaimEvidenceRow,
+  Evidence,
+  Hypothesis,
+  MatchRow,
+  Review,
+  SafetyDecision,
+} from './wire_science';
 
 export type * from './wire_common';
-export type * from './wire_runs';
-export type * from './wire_science';
 export type * from './wire_interviews';
 export type * from './wire_reports';
+export type * from './wire_runs';
+export type * from './wire_science';
 
 export function runGoal(run: Run | null | undefined): string {
   if (!run) return '';
@@ -192,49 +190,6 @@ export function runActivity(status: StatusInput): RunActivity {
   return isActiveStatus(status) ? 'active' : 'inactive';
 }
 
-export interface OutcomeRefinementAction {
-  action_id: string;
-  run_id: string;
-  outcome_id: string;
-  hypothesis_id: string;
-  task_idempotency_key: string;
-  checkpoint_seq: number;
-  context_codepoints: number;
-  status: string;
-  child_hypothesis_id: string | null;
-  created_at: number;
-  replayed: boolean;
-}
-
-export interface SupervisorAllocation {
-  id: number;
-  run_id: string;
-  seq: number;
-  iteration: number;
-  task_type: string;
-  status: string;
-  reason: string;
-  planner_reason: string | null;
-  priority: number | null;
-  termination_reason: string | null;
-  created_at: number;
-}
-
-export interface SupervisorPlanRecord {
-  run_id: string;
-  plan: Record<string, unknown>;
-  orchestrator_state: Record<string, unknown>;
-  decision_provenance: string | null;
-  termination_reason: string | null;
-  created_at: number;
-  updated_at: number;
-}
-
-export interface SupervisorPlanResponse {
-  plan: SupervisorPlanRecord | null;
-  allocations: SupervisorAllocation[];
-}
-
 function getRunList<T>(id: string, key: string): Promise<T[]> {
   return fetchField<string, T[]>(`/api/runs/${id}/${key}`, key, {
     headers: clientHeaders(),
@@ -266,58 +221,6 @@ export function getClaimEvidence(id: string): Promise<ClaimEvidenceRow[]> {
     `/api/runs/${id}/claim-evidence`,
     'claim_evidence',
     {headers: clientHeaders()},
-  );
-}
-
-export function getSupervisorPlan(id: string): Promise<SupervisorPlanResponse> {
-  return fetchJson(`/api/runs/${id}/supervisor-plan`, {
-    headers: clientHeaders(),
-  });
-}
-
-export function getHypothesisOutcomes(
-  id: string,
-): Promise<HypothesisOutcome[]> {
-  return getRunList<HypothesisOutcome>(id, 'outcomes');
-}
-
-export function addHypothesisOutcome(
-  runId: string,
-  hypothesisId: string,
-  input: HypothesisOutcomeInput,
-): Promise<HypothesisOutcome> {
-  return fetchJson(
-    `/api/runs/${runId}/hypotheses/${hypothesisId}/outcomes`,
-    jsonRequest(input, true),
-  );
-}
-
-export function getHypothesisOutcomeRefinement(
-  runId: string,
-  hypothesisId: string,
-  outcomeId: string,
-): Promise<OutcomeRefinementAction> {
-  return fetchJson(
-    `/api/runs/${runId}/hypotheses/${hypothesisId}/outcomes/${outcomeId}/refine`,
-    {headers: clientHeaders()},
-  );
-}
-
-export function requestHypothesisOutcomeRefinement(
-  runId: string,
-  hypothesisId: string,
-  outcomeId: string,
-): Promise<OutcomeRefinementAction> {
-  const idempotencyKey = `outcome-refinement:${runId}:${hypothesisId}:${outcomeId}`;
-  return fetchJson(
-    `/api/runs/${runId}/hypotheses/${hypothesisId}/outcomes/${outcomeId}/refine`,
-    {
-      method: 'POST',
-      headers: {
-        ...clientHeaders(),
-        'Idempotency-Key': idempotencyKey,
-      },
-    },
   );
 }
 
@@ -477,7 +380,7 @@ export function getInterview(interviewId: string): Promise<Interview> {
 
 export function editInterviewFields(
   interviewId: string,
-  fields: Interview['fields'],
+  fields: Omit<Interview['fields'], 'title'>,
 ): Promise<Interview> {
   return fetchJson(`/api/interviews/${interviewId}/fields`, {
     ...jsonRequest(fields, true),
@@ -507,11 +410,14 @@ export async function askRunQuestion(
   question: string,
   sinks: QaSinks = {},
   signal?: AbortSignal,
+  revisionId?: number,
 ): Promise<number | undefined> {
   let questionId: number | undefined;
   for await (const frame of streamJson<AskFrame>(
-    `/api/runs/${runId}/messages/ask`,
-    {question},
+    revisionId === undefined
+      ? `/api/runs/${runId}/messages/ask`
+      : `/api/runs/${runId}/messages/${revisionId}/revise`,
+    {question: question || undefined},
     signal,
   )) {
     switch (frame.type) {

@@ -19,6 +19,7 @@ from app.api_contracts.runs import RunMessage
 from app.execution_policy import CAMPAIGN, campaign_model_for_config
 from app.runs.models import (
     AskRequest,
+    QaRevisionRequest,
     SendMessageRequest,
     StartAnnouncementRequest,
 )
@@ -192,6 +193,28 @@ async def ask_question(
     if engine_adapter.offline_mode() and byok is None:
         return _offline_qa_response(run_id, question_msg, context)
     return _live_qa_response(req, run, question_msg, context, byok)
+
+
+@router.post("/{run_id}/messages/{message_id}/revise")
+async def revise_question(
+    run_id: str, message_id: int, req: QaRevisionRequest, request: Request
+) -> StreamingResponse:
+    run = _run_or_404(run_id)
+    byok = _resolve_qa_byok(run, request)
+    try:
+        question_msg = store.rewind_qa(run_id, message_id, req.question)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    context = _gather_qa_context(run)
+    if engine_adapter.offline_mode() and byok is None:
+        return _offline_qa_response(run_id, question_msg, context)
+    return _live_qa_response(
+        AskRequest(question=question_msg.content),
+        run,
+        question_msg,
+        context,
+        byok,
+    )
 
 
 @router.post("/{run_id}/messages/started")

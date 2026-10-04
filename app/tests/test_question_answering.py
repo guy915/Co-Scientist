@@ -177,9 +177,12 @@ def test_handle_qa_stream_error_persists_fallback_and_logs(
         RunCreateOptions(client_id="c1", db_path=isolated_db),
     )
     run_id = views.list_runs(client_id="c1", db_path=isolated_db)[0].id
+    question = store.append_message(NewMessage(run_id, "user", "Q?", "qa"))
 
     with caplog.at_level(logging.ERROR, logger="app.qa"):
-        fallback = qa._handle_qa_stream_error(run_id, RuntimeError("boom"))
+        fallback = qa._handle_qa_stream_error(
+            run_id, RuntimeError("boom"), question.id
+        )
 
     assert "Q&A requires a language model API key" in fallback
     assert "Q&A stream error for run" in caplog.text
@@ -204,6 +207,7 @@ def test_stream_answer_happy_path_persists_and_yields_frames(
         RunCreateOptions(client_id="c1", db_path=isolated_db),
     )
     run_id = views.list_runs(client_id="c1", db_path=isolated_db)[0].id
+    question = store.append_message(NewMessage(run_id, "user", "Q?", "qa"))
     manifest = [
         {"n": 1, "evidence_id": "e1", "title": "T", "state": "verified"}
     ]
@@ -211,7 +215,7 @@ def test_stream_answer_happy_path_persists_and_yields_frames(
     frames = _drain(
         qa.stream_answer(
             run_id,
-            qa.QaQuestion(text="Q?", message_id=1),
+            qa.QaQuestion(text="Q?", message_id=question.id),
             qa.QaAnswerInputs("sys prompt", manifest),
         )
     )
@@ -219,7 +223,8 @@ def test_stream_answer_happy_path_persists_and_yields_frames(
     assert any('"type": "sources"' in f for f in frames)
     assert any('"type": "chunk"' in f and "Ans" in f for f in frames)
     assert any(
-        '"type": "done"' in f and '"question_id": 1' in f for f in frames
+        '"type": "done"' in f and f'"question_id": {question.id}' in f
+        for f in frames
     )
 
     msgs = store.list_messages(run_id, db_path=isolated_db)
@@ -239,11 +244,12 @@ def test_stream_answer_without_manifest_skips_sources_and_meta(
         RunCreateOptions(client_id="c2", db_path=isolated_db),
     )
     run_id = views.list_runs(client_id="c2", db_path=isolated_db)[0].id
+    question = store.append_message(NewMessage(run_id, "user", "Q?", "qa"))
 
     frames = _drain(
         qa.stream_answer(
             run_id,
-            qa.QaQuestion(text="Q?", message_id=2),
+            qa.QaQuestion(text="Q?", message_id=question.id),
             qa.QaAnswerInputs("sys prompt", []),
         )
     )
@@ -293,7 +299,12 @@ def test_stream_answer_relays_and_persists_reasoning(
     frames = _drain(
         qa.stream_answer(
             run_id,
-            qa.QaQuestion(text="Q?", message_id=4),
+            qa.QaQuestion(
+                text="Q?",
+                message_id=store.append_message(
+                    NewMessage(run_id, "user", "Q?", "qa")
+                ).id,
+            ),
             qa.QaAnswerInputs("sys prompt", []),
         )
     )
@@ -321,11 +332,12 @@ def test_stream_answer_error_path_persists_and_emits_fallback(
         RunCreateOptions(client_id="c3", db_path=isolated_db),
     )
     run_id = views.list_runs(client_id="c3", db_path=isolated_db)[0].id
+    question = store.append_message(NewMessage(run_id, "user", "Q?", "qa"))
 
     frames = _drain(
         qa.stream_answer(
             run_id,
-            qa.QaQuestion(text="Q?", message_id=3),
+            qa.QaQuestion(text="Q?", message_id=question.id),
             qa.QaAnswerInputs("sys prompt", []),
         )
     )
@@ -423,17 +435,21 @@ def test_stream_offline_answer_emits_sources_chunks_done_and_persists(
         RunCreateOptions(client_id="off1", db_path=isolated_db),
     )
     run_id = views.list_runs(client_id="off1", db_path=isolated_db)[0].id
+    question = store.append_message(NewMessage(run_id, "user", "Q?", "qa"))
     manifest = [
         {"n": 1, "evidence_id": "e1", "title": "T", "state": "verified"}
     ]
     answer = "First line.\nSecond line."
 
-    frames = _drain(qa.stream_offline_answer(run_id, 7, answer, manifest))
+    frames = _drain(
+        qa.stream_offline_answer(run_id, question.id, answer, manifest)
+    )
 
     assert any('"type": "sources"' in f for f in frames)
     assert any('"type": "chunk"' in f for f in frames)
     assert any(
-        '"type": "done"' in f and '"question_id": 7' in f for f in frames
+        '"type": "done"' in f and f'"question_id": {question.id}' in f
+        for f in frames
     )
     assert not any('"type": "error"' in f for f in frames)
 

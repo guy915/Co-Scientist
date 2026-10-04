@@ -1,14 +1,8 @@
+import * as runsApi from '@/api/runs';
+import {type Evidence, type RunWithSummary} from '@/api/runs';
+import {clearAccessToken} from '@/lib/client_id';
 import {fireEvent, screen, waitFor} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
-import * as runsApi from '@/api/runs';
-import {
-  type Evidence,
-  type HypothesisOutcome,
-  type OutcomeRefinementAction,
-  type RunWithSummary,
-} from '@/api/runs';
-import {clearAccessToken, setAccessToken} from '@/lib/client_id';
-import {makeHypothesis} from '@/test_fixtures';
 import {makeRun, renderAt, tab} from './run_detail_test_support';
 
 const streamMock = vi.hoisted(() => ({
@@ -35,9 +29,6 @@ vi.mock('@/api/runs', async importActual => {
     ...actual,
     getRun: vi.fn(),
     getHypotheses: vi.fn().mockResolvedValue([]),
-    getHypothesisOutcomes: vi.fn().mockResolvedValue([]),
-    getHypothesisOutcomeRefinement: vi.fn(),
-    requestHypothesisOutcomeRefinement: vi.fn(),
     getEvidence: vi.fn().mockResolvedValue([]),
     getMatches: vi.fn().mockResolvedValue([]),
     getReviews: vi.fn().mockResolvedValue([]),
@@ -53,249 +44,6 @@ vi.mock('@/api/runs', async importActual => {
       .fn()
       .mockResolvedValue({id: 'message-1', status: 'queued'}),
   };
-});
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  clearAccessToken();
-  setStream([]);
-  vi.mocked(runsApi.getRun).mockResolvedValue(makeRun('Study pathway X'));
-  // Reset collection overrides between tests.
-  vi.mocked(runsApi.getHypotheses).mockResolvedValue([]);
-  vi.mocked(runsApi.getHypothesisOutcomes).mockResolvedValue([]);
-  vi.mocked(runsApi.getHypothesisOutcomeRefinement).mockRejectedValue(
-    new runsApi.HttpError('404 run or outcome not found', 404),
-  );
-  vi.mocked(runsApi.getMatches).mockResolvedValue([]);
-  vi.mocked(runsApi.getReport).mockResolvedValue(null);
-  vi.mocked(runsApi.getSafety).mockResolvedValue([]);
-});
-
-const SAVED_OUTCOME: HypothesisOutcome = {
-  id: 'out-1',
-  run_id: 'run-1',
-  hypothesis_id: 'h1',
-  author: 'Dr. Ada',
-  recorded_at: 1_700_000_000,
-  method_protocol: 'Western blot',
-  conditions: 'Cells treated for 24 hours',
-  measured_observation: 'Signal rose by two fold',
-  controls: 'Vehicle control',
-  interpretation: 'Consistent with the hypothesis',
-  referenced_evidence_ids: [],
-};
-
-function savedRefinement(
-  overrides: Partial<OutcomeRefinementAction> = {},
-): OutcomeRefinementAction {
-  return {
-    action_id: 'action-1',
-    run_id: 'run-1',
-    outcome_id: 'out-1',
-    hypothesis_id: 'h1',
-    task_idempotency_key: 'outcome-refinement:action-1',
-    checkpoint_seq: 3,
-    context_codepoints: 850,
-    status: 'running',
-    child_hypothesis_id: null,
-    created_at: 1_700_000_000,
-    replayed: true,
-    ...overrides,
-  };
-}
-
-it('shows owner refinement status on the active run without offering a new action', async () => {
-  setAccessToken('researcher-session');
-  vi.mocked(runsApi.getRun).mockResolvedValue({
-    ...makeRun('Study pathway X'),
-    status: 'running',
-    provider: 'engine',
-  } as RunWithSummary);
-  vi.mocked(runsApi.getHypotheses).mockResolvedValue([
-    makeHypothesis({id: 'h1', title: 'Pathway hypothesis'}),
-  ]);
-  vi.mocked(runsApi.getHypothesisOutcomes).mockResolvedValue([
-    {...SAVED_OUTCOME, id: 'out-2', recorded_at: 1_800_000_000},
-    SAVED_OUTCOME,
-  ]);
-  vi.mocked(runsApi.getHypothesisOutcomeRefinement).mockImplementation(
-    (_runId, _hypothesisId, outcomeId) =>
-      outcomeId === 'out-1'
-        ? Promise.resolve(savedRefinement())
-        : Promise.reject(new runsApi.HttpError('404 no saved action', 404)),
-  );
-
-  renderAt('/runs/run-1/overview');
-
-  expect(await screen.findByRole('status')).toHaveTextContent(
-    'Refinement is running.',
-  );
-  expect(
-    screen.getByRole('button', {name: 'Check or retry refinement'}),
-  ).toBeEnabled();
-  expect(
-    screen.queryByRole('button', {
-      name: 'Use outcome to refine this hypothesis',
-    }),
-  ).not.toBeInTheDocument();
-  expect(runsApi.requestHypothesisOutcomeRefinement).not.toHaveBeenCalled();
-  expect(runsApi.getHypothesisOutcomeRefinement).toHaveBeenCalledWith(
-    'run-1',
-    'h1',
-    'out-1',
-  );
-  expect(runsApi.getHypothesisOutcomeRefinement).toHaveBeenCalledWith(
-    'run-1',
-    'h1',
-    'out-2',
-  );
-});
-
-it('keeps failed owner refinement status and retry on a terminal run', async () => {
-  setAccessToken('researcher-session');
-  vi.mocked(runsApi.getRun).mockResolvedValue({
-    ...makeRun('Study pathway X'),
-    status: 'failed',
-    error: 'worker exited',
-    provider: 'engine',
-  } as RunWithSummary);
-  vi.mocked(runsApi.getHypotheses).mockResolvedValue([
-    makeHypothesis({id: 'h1', title: 'Pathway hypothesis'}),
-  ]);
-  vi.mocked(runsApi.getHypothesisOutcomes).mockResolvedValue([SAVED_OUTCOME]);
-  vi.mocked(runsApi.getHypothesisOutcomeRefinement).mockResolvedValue(
-    savedRefinement({status: 'failed'}),
-  );
-  vi.mocked(runsApi.requestHypothesisOutcomeRefinement).mockResolvedValue(
-    savedRefinement({status: 'queued'}),
-  );
-
-  renderAt('/runs/run-1/overview');
-
-  expect(
-    await screen.findByText(
-      'Refinement failed and remains available for owner retry.',
-    ),
-  ).toHaveAttribute('role', 'status');
-  fireEvent.click(
-    screen.getByRole('button', {name: 'Check or retry refinement'}),
-  );
-  expect(
-    await screen.findByText(
-      'The saved refinement request was replayed; no second action was created. Current status: queued.',
-    ),
-  ).toHaveAttribute('role', 'status');
-  expect(runsApi.requestHypothesisOutcomeRefinement).toHaveBeenCalledWith(
-    'run-1',
-    'h1',
-    'out-1',
-  );
-  expect(
-    screen.queryByRole('button', {
-      name: 'Use outcome to refine this hypothesis',
-    }),
-  ).not.toBeInTheDocument();
-});
-
-it('does not fetch or disclose saved refinement state on active or failed runs without owner access', async () => {
-  for (const status of ['running', 'failed'] as const) {
-    vi.mocked(runsApi.getRun).mockResolvedValue({
-      ...makeRun('Study pathway X'),
-      status,
-      provider: 'engine',
-    } as RunWithSummary);
-    vi.mocked(runsApi.getHypotheses).mockResolvedValue([
-      makeHypothesis({id: 'h1', title: 'Pathway hypothesis'}),
-    ]);
-    vi.mocked(runsApi.getHypothesisOutcomes).mockResolvedValue([SAVED_OUTCOME]);
-
-    const view = renderAt('/runs/run-1/overview');
-    expect(
-      await screen.findByRole('link', {name: 'Researcher access'}),
-    ).toBeInTheDocument();
-    expect(runsApi.getHypothesisOutcomeRefinement).not.toHaveBeenCalled();
-    expect(screen.queryByText(/Refinement is running/)).not.toBeInTheDocument();
-    view.unmount();
-    vi.clearAllMocks();
-    vi.mocked(runsApi.getRun).mockResolvedValue(makeRun('Study pathway X'));
-    vi.mocked(runsApi.getHypotheses).mockResolvedValue([]);
-    vi.mocked(runsApi.getHypothesisOutcomes).mockResolvedValue([]);
-    vi.mocked(runsApi.getHypothesisOutcomeRefinement).mockRejectedValue(
-      new runsApi.HttpError('404 run or outcome not found', 404),
-    );
-  }
-});
-
-it('shows recorded outcomes after SSE refresh and after reopening the report', async () => {
-  setAccessToken('researcher-session');
-  const outcome: HypothesisOutcome = {
-    id: 'out-1',
-    run_id: 'run-1',
-    hypothesis_id: 'h1',
-    author: 'Dr. Ada',
-    recorded_at: 1_700_000_000,
-    method_protocol: 'Western blot',
-    conditions: 'Cells treated for 24 hours',
-    measured_observation: 'Signal rose by two fold',
-    units: 'fold change',
-    controls: 'Vehicle control',
-    interpretation: 'Consistent with the hypothesis',
-    referenced_evidence_ids: ['ev-17'],
-  };
-  vi.mocked(runsApi.getHypotheses).mockResolvedValue([
-    makeHypothesis({id: 'h1', title: 'Pathway hypothesis'}),
-  ]);
-  vi.mocked(runsApi.getHypothesisOutcomes)
-    .mockResolvedValueOnce([])
-    .mockResolvedValueOnce([outcome])
-    .mockResolvedValue([outcome]);
-
-  const firstView = renderAt('/runs/run-1/overview');
-  expect(
-    await screen.findByText(
-      'No scientist-recorded observations have been added to this run.',
-    ),
-  ).toBeInTheDocument();
-
-  setStream([
-    {seq: 5, type: 'scientist.outcome', payload: {hypothesis_id: 'h1'}},
-  ]);
-  fireEvent.click(tab(/All Ideas/));
-  expect(
-    await screen.findByText('Signal rose by two fold'),
-  ).toBeInTheDocument();
-  expect(runsApi.getHypothesisOutcomes).toHaveBeenCalledTimes(2);
-  expect(
-    screen.getByRole('group', {name: 'Record an observation'}),
-  ).toBeInTheDocument();
-  expect(
-    screen.getByRole('textbox', {name: 'Method or protocol'}),
-  ).toBeInTheDocument();
-
-  firstView.unmount();
-  setStream([]);
-  renderAt('/runs/run-1/overview');
-  expect(
-    await screen.findByText('Signal rose by two fold'),
-  ).toBeInTheDocument();
-  expect(runsApi.getHypothesisOutcomes).toHaveBeenCalledTimes(3);
-});
-
-it('keeps the report available and exposes a failed outcomes read locally', async () => {
-  setAccessToken('researcher-session');
-  vi.mocked(runsApi.getHypothesisOutcomes).mockRejectedValue(
-    new Error('outcomes unavailable'),
-  );
-
-  renderAt('/runs/run-1/overview');
-  expect(await screen.findByRole('heading', {name: 'Summary'})).toBeVisible();
-  expect(await screen.findByRole('alert')).toHaveTextContent(
-    'Could not load observations: outcomes unavailable',
-  );
-  expect(screen.queryByRole('alert')).not.toHaveTextContent('API unavailable');
-  expect(
-    screen.getByRole('button', {name: 'Refresh observations'}),
-  ).toBeEnabled();
 });
 
 it('renders all four report tabs', async () => {
@@ -446,4 +194,16 @@ it('exempts legacy mock-provider runs from the ungrounded notice', async () => {
 
   await screen.findByText('Run Specifications');
   expect(screen.queryByText(UNGROUNDED_NOTICE)).toBeNull();
+});
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  clearAccessToken();
+  setStream([]);
+  vi.mocked(runsApi.getRun).mockResolvedValue(makeRun('Study pathway X'));
+  // Reset collection overrides between tests.
+  vi.mocked(runsApi.getHypotheses).mockResolvedValue([]);
+  vi.mocked(runsApi.getMatches).mockResolvedValue([]);
+  vi.mocked(runsApi.getReport).mockResolvedValue(null);
+  vi.mocked(runsApi.getSafety).mockResolvedValue([]);
 });

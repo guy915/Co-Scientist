@@ -1,7 +1,7 @@
-import {fireEvent, render, screen} from '@testing-library/react';
-import {describe, expect, it, vi} from 'vitest';
 import type {ClaimEvidenceRow, MatchRow, Review} from '@/api/runs';
 import {makeHypothesis} from '@/test_fixtures';
+import {fireEvent, render, screen} from '@testing-library/react';
+import {describe, expect, it, vi} from 'vitest';
 import {HypothesisDetail, SectionsRail} from './ideas_detail_pane';
 
 vi.mock('@/lib/smooth_scroll', () => ({
@@ -447,29 +447,6 @@ describe('ideas detail pane', () => {
         screen.queryByRole('link', {name: /open source/}),
       ).not.toBeInTheDocument();
     });
-  });
-
-  it('keeps public demo outcomes readable without exposing submission controls', () => {
-    render(
-      <HypothesisDetail
-        hypothesis={fullHypothesis()}
-        runId="demo-run"
-        isDemo
-        reviews={[]}
-        matches={[]}
-        onRefreshOutcomes={vi.fn()}
-      />,
-    );
-
-    expect(
-      screen.getByRole('heading', {name: 'Scientist-recorded observations'}),
-    ).toBeVisible();
-    expect(
-      screen.getByRole('button', {name: 'Refresh observations'}),
-    ).toBeVisible();
-    expect(
-      screen.queryByRole('group', {name: 'Record an observation'}),
-    ).not.toBeInTheDocument();
   });
 });
 

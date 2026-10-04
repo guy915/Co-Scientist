@@ -1,28 +1,31 @@
-import {beginTurnAbort, isAbortError} from './chat_session_transcript';
 import {
-  appendChatMessage,
-  emitDiagnosticEvent,
-} from './chat_session_transcript';
-import type {FormEvent} from 'react';
-import {
-  addInterviewTurn,
-  createInterview,
-  stageDocument,
   type Interview,
   type InterviewSinks,
-  type StagedDocument,
-  getInterview,
-  askRunQuestion,
   type QaSource,
+  type StagedDocument,
+  addInterviewTurn,
+  askRunQuestion,
+  createInterview,
   editInterviewTurn,
+  getInterview,
+  getRunMessages,
   retryInterviewTurn,
+  stageDocument,
 } from '@/api/runs';
 import {copyText} from '@/lib/clipboard';
+import type {FormEvent} from 'react';
+import type {ChatEntry} from '../pages/chat_timeline_bubble';
+import {promoteDraftToRun} from './chat_session_start_run';
+import {
+  appendChatMessage,
+  applyInterview,
+  beginTurnAbort,
+  emitDiagnosticEvent,
+  isAbortError,
+  qaMessagesToEntries,
+} from './chat_session_transcript';
 import {announceChatsChanged} from './history_context';
 import {type HandlerDeps, clearedLifecycle} from './use_chat_session';
-import {promoteDraftToRun} from './chat_session_start_run';
-import type {ChatEntry} from '../pages/chat_timeline_bubble';
-import {applyInterview} from './chat_session_transcript';
 
 type SubmitComposerDeps = HandlerDeps & {
   files: File[];
@@ -303,14 +306,15 @@ function buildAskSinks(deps: Pick<HandlerDeps, 'update'>) {
   };
 }
 
-// Stopped Q&A persists nothing until successful completion, unlike interviews;
-// drop partial answers rather than fetching nonexistent recovery rows.
+// Refresh durable Q&A IDs after completion so fresh turns can be revised.
 async function runAskRequest(
-  deps: AskComposerDeps,
+  deps: HandlerDeps,
   runId: string,
   text: string,
+  revisionId?: number,
 ): Promise<void> {
-  appendChatMessage(deps.update, {role: 'user', content: text});
+  if (revisionId === undefined)
+    appendChatMessage(deps.update, {role: 'user', content: text});
   // Block overlapping sends or one turn loses its Stop controller while both
   // streams corrupt the same draft.
   deps.update({
@@ -322,7 +326,9 @@ async function runAskRequest(
   const {sinks, result} = buildAskSinks(deps);
   const signal = beginTurnAbort(deps);
   try {
-    await askRunQuestion(runId, text, sinks, signal);
+    if (revisionId === undefined)
+      await askRunQuestion(runId, text, sinks, signal);
+    else await askRunQuestion(runId, text, sinks, signal, revisionId);
     const {answer, reasoning, sources} = result();
     appendChatMessage(deps.update, {
       role: 'assistant',
@@ -333,6 +339,18 @@ async function runAskRequest(
   } catch (error) {
     if (!isAbortError(error)) deps.update({error: describeAskError(error)});
   } finally {
+    try {
+      const rows = await getRunMessages(runId);
+      if (rows.length)
+        deps.update(current => ({
+          messages: [
+            ...current.messages.filter(entry => entry.turnId !== undefined),
+            ...qaMessagesToEntries(rows),
+          ],
+        }));
+    } catch {
+      // Keep the visible response if the follow-up read is unavailable.
+    }
     deps.turnAbortRef.current = null;
     deps.update({isStarting: false});
     settleTurn(deps);
@@ -416,8 +434,18 @@ export function editUserMessage(
   message: ChatEntry,
   content: string,
 ): void {
-  const target = revisableTurn(deps, message);
   const text = content.trim();
+  if (deps.state.isAwaitingAgent || !text) return;
+  if (deps.state.startedSession && message.messageId !== undefined) {
+    void runAskRequest(
+      deps,
+      deps.state.startedSession.id,
+      text,
+      message.messageId,
+    );
+    return;
+  }
+  const target = revisableTurn(deps, message);
   if (!target || !text) return;
   deps.update(current => ({
     messages: truncateAtMessage(current.messages, message, text),
@@ -432,6 +460,16 @@ export function retryAssistantMessage(
   deps: HandlerDeps,
   message: ChatEntry,
 ): void {
+  if (deps.state.isAwaitingAgent) return;
+  if (deps.state.startedSession && message.messageId !== undefined) {
+    void runAskRequest(
+      deps,
+      deps.state.startedSession.id,
+      '',
+      message.messageId,
+    );
+    return;
+  }
   const target = revisableTurn(deps, message);
   if (!target) return;
   deps.update(current => ({

@@ -79,17 +79,6 @@ def _startup_engine_setup() -> None:
 
 
 def _reconcile_and_log_interrupted_runs() -> dict[str, list[str]]:
-    from app.outcome_refinement import (
-        materialize_pending_outcome_refinements,
-    )
-
-    try:
-        materialize_pending_outcome_refinements()
-    except Exception:
-        logger.warning(
-            "Could not materialize pending outcome-refinement intents",
-            exc_info=True,
-        )
     reconciled = views.reconcile_interrupted_runs()
     if reconciled["failed"]:
         logger.info(

@@ -12,12 +12,9 @@ import pytest
 import app.engine_tasks.fanout as engine_tasks_fanout_items
 from app import engine_tasks
 from app.engine_tasks import fanout_aggregates as engine_tasks_fanout_aggregates
-from app.engine_tasks import (
-    outcome_refinement as engine_tasks_outcome_refinement,
-)
 from app.engine_tasks import ranking as engine_tasks_ranking
 from app.engine_tasks import support as engine_tasks_support
-from app.store import checkpoints, runs, tasks
+from app.store import runs, tasks
 from app.store.models import ScientificTask
 from app.store.tasks import NewTask
 from tests._engine_tasks_helpers import (
@@ -131,26 +128,5 @@ async def test_handler_restores_with_the_installed_generator(
 
     with pytest.raises(_RestoredError):
         await case.handler(task, db_path=isolated_db)
-
-    assert restore_spy == [MARKER]
-
-
-def test_outcome_refinement_restores_with_the_installed_generator(
-    isolated_db: str,
-    monkeypatch: pytest.MonkeyPatch,
-    restore_spy: list[Any],
-) -> None:
-    run = runs.create_run("Task-level science", "standard", "engine", {})
-    task = _leased_task(
-        run.id, engine_tasks.OUTCOME_REFINEMENT_TASK, {}, isolated_db
-    )
-    checkpoint = checkpoints.get_latest_checkpoint(run.id, db_path=isolated_db)
-    assert checkpoint is not None
-    _patch_generator(monkeypatch, _MarkedGenerator({}), restore=True)
-
-    with pytest.raises(_RestoredError):
-        engine_tasks_outcome_refinement._checkpoint_state(
-            task, checkpoint, db_path=isolated_db
-        )
 
     assert restore_spy == [MARKER]

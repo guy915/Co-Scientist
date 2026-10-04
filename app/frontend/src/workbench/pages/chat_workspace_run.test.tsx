@@ -1,12 +1,12 @@
 import {act, fireEvent, screen, waitFor} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
+import {STARTED_SESSION_STANDBY_COPY} from './chat_timeline_run_spec_card';
 import {
   ANNOUNCEMENT_TEXT,
   apiMock,
   installChatWorkspaceMocks,
   renderWorkspace,
 } from './chat_workspace_test_helpers';
-import {STARTED_SESSION_STANDBY_COPY} from './chat_timeline_run_spec_card';
 
 beforeEach(() => {
   installChatWorkspaceMocks();
@@ -67,7 +67,7 @@ async function driveToRunSpec() {
   submitResearchGoal();
   expect(
     await screen.findByText(
-      /Review the four fields and select a focus and run type/,
+      /Review the research setup and select a focus and run type/,
     ),
   ).toBeInTheDocument();
 }
@@ -134,7 +134,7 @@ it('shows request and response controls in the transcript', async () => {
   fireEvent.click(screen.getAllByLabelText('Copy response').at(-1)!);
   await waitFor(() => {
     expect(spies.writeText).toHaveBeenCalledWith(
-      expect.stringContaining('# Cold-stress glucose homeostasis'),
+      expect.stringContaining('# Investigate glucose homeostasis'),
     );
   });
 
@@ -185,7 +185,7 @@ it('infers a run spec in chat from the research goal', async () => {
   expect(
     screen
       .getByRole('heading', {
-        name: 'Cold-stress glucose homeostasis',
+        name: 'Investigate glucose homeostasis under cold stress',
       })
       .closest('.reference-setup-document'),
   ).not.toBeNull();
@@ -214,7 +214,7 @@ it('starts the durable run on confirmation', async () => {
   ).toBeInTheDocument();
   expect(
     screen.getByRole('heading', {
-      name: 'Cold-stress glucose homeostasis',
+      name: 'Investigate glucose homeostasis under cold stress',
     }),
   ).toBeInTheDocument();
   expect(screen.getByRole('button', {name: 'Start research'})).toBeDisabled();

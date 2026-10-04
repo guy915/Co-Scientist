@@ -1,19 +1,19 @@
+import {type RunFocus, type RunTier} from '@/api/runs';
 import {type Dispatch, type ReactNode, type SetStateAction} from 'react';
 import {type NavigateFunction} from 'react-router-dom';
-import {type RunFocus, type RunTier} from '@/api/runs';
-import {type InferredRunSpec} from '../run_spec';
 import {
   type LinkedDraftRecovery,
   type SpecStage,
 } from '../hooks/use_chat_session';
+import {type InferredRunSpec} from '../run_spec';
 import {
   type ChatEntry,
-  ChatBubble,
   AssistantMessage,
+  ChatBubble,
 } from './chat_timeline_bubble';
-import {RunSpecCard} from './chat_timeline_run_spec_card';
 import {
   type StartedSession,
+  RunSpecCard,
   StartedSessionCard,
 } from './chat_timeline_run_spec_card';
 
@@ -53,8 +53,7 @@ export interface BuildTimelineItemsArgs {
   focusComposer: () => void;
 }
 
-// Only durable, uncommitted turns can rewind; revising after start would erase
-// the card while its run continued.
+// Setup turns lock after start; durable Q&A turns rewind their own transcript.
 function messageTimelineItems({
   messages,
   handleEditMessage,
@@ -71,7 +70,7 @@ function messageTimelineItems({
   | 'isAwaitingAgent'
   | 'startedSession'
 >): TimelineItem[] {
-  const revisable = !isAwaitingAgent && !startedSession;
+  const revisable = !isAwaitingAgent;
   return messages.map((message, index) => ({
     id: `local-message-${message.id}`,
     at: message.created_at,
@@ -79,7 +78,12 @@ function messageTimelineItems({
     node: (
       <ChatBubble
         message={message}
-        revisable={revisable && message.turnId !== undefined}
+        revisable={
+          revisable &&
+          (startedSession
+            ? message.messageId !== undefined
+            : message.turnId !== undefined)
+        }
         onSubmitEdit={content => handleEditMessage(message, content)}
         onCopyRequest={() => void handleCopyRequest(message)}
         onRetry={() => handleRetryMessage(message)}

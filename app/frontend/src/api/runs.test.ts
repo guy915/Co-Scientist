@@ -1,27 +1,26 @@
-import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 import {
-  createRun,
-  listRuns,
-  listDemoRuns,
-  loadRunHistory,
-  getRun,
-  startRun,
-  getHypotheses,
-  getEvidence,
-  getMatches,
-  getReviews,
-  getReport,
-  getSupervisorPlan,
-  runGoal,
+  clearAccessToken,
+  getAccessToken,
+  setAccessToken,
+} from '@/lib/client_id';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {
   createInterview,
+  createRun,
   exchangeAccessCode,
+  getEvidence,
+  getHypotheses,
+  getMatches,
+  getReport,
+  getReviews,
+  getRun,
+  listDemoRuns,
+  listRuns,
+  loadRunHistory,
+  runGoal,
+  startRun,
 } from './runs';
 import type {Run} from './wire_runs';
-import {
-  setAccessToken,
-  getAccessToken,
-  clearAccessToken,
-} from '@/lib/client_id';
 
 describe('runs', () => {
   // VITE_API_BASE_URL is captured at import; unset values produce relative
@@ -404,25 +403,6 @@ describe('runs', () => {
       await expect(createInterview('a goal')).rejects.toThrow('401');
 
       expect(getAccessToken()).toBeNull();
-    });
-  });
-
-  describe('getSupervisorPlan', () => {
-    it('fetches the owned allocation ledger using the standard client header', async () => {
-      const response = {plan: null, allocations: []};
-      fetchMock().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => response,
-      } as Response);
-
-      expect(await getSupervisorPlan('r1')).toEqual(response);
-      const [url, opts] = firstCall();
-      expect(url).toBe('/api/runs/r1/supervisor-plan');
-      expect(opts?.method).toBeUndefined();
-      expect(
-        (opts?.headers as Record<string, string>)['X-Client-ID'],
-      ).toBeTruthy();
     });
   });
 });

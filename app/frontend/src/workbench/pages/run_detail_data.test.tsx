@@ -1,10 +1,10 @@
-import {act, renderHook} from '@testing-library/react';
-import {afterEach, beforeEach, expect, it, vi} from 'vitest';
+import type {Hypothesis, RunWithSummary} from '@/api/runs';
 import * as runsApi from '@/api/runs';
-import type {Hypothesis, HypothesisOutcome, RunWithSummary} from '@/api/runs';
 import type {StreamEvent} from '@/hooks/use_run_stream';
 import {makeHypothesis, makeRun} from '@/test_fixtures';
-import {useRunDetailData, useRunOutcomeCollection} from './run_detail_data';
+import {act, renderHook} from '@testing-library/react';
+import {afterEach, beforeEach, expect, it, vi} from 'vitest';
+import {useRunDetailData} from './run_detail_data';
 
 const stream = vi.hoisted(() => ({
   events: [] as StreamEvent[],
@@ -25,8 +25,6 @@ vi.mock('@/api/runs', async importActual => {
     getClaimEvidence: vi.fn(),
     getSafety: vi.fn(),
     getReport: vi.fn(),
-    getHypothesisOutcomes: vi.fn(),
-    getSupervisorPlan: vi.fn(),
   };
 });
 
@@ -64,26 +62,6 @@ async function emit(rerender: (props: {id: string}) => void, type: string) {
   rerender({id: 'run-1'});
   await act(async () => vi.advanceTimersByTimeAsync(600));
 }
-
-beforeEach(() => {
-  vi.useFakeTimers();
-  vi.resetAllMocks();
-  stream.events = [];
-  stream.terminal = false;
-  vi.mocked(runsApi.getRun).mockResolvedValue(run());
-  vi.mocked(runsApi.getHypotheses).mockResolvedValue([]);
-  vi.mocked(runsApi.getEvidence).mockResolvedValue([]);
-  vi.mocked(runsApi.getMatches).mockResolvedValue([]);
-  vi.mocked(runsApi.getReviews).mockResolvedValue([]);
-  vi.mocked(runsApi.getClaimEvidence).mockResolvedValue([]);
-  vi.mocked(runsApi.getSafety).mockResolvedValue([]);
-  vi.mocked(runsApi.getReport).mockResolvedValue(null);
-  vi.mocked(runsApi.getHypothesisOutcomes).mockResolvedValue([]);
-  vi.mocked(runsApi.getSupervisorPlan).mockResolvedValue({
-    plan: null,
-    allocations: [],
-  });
-});
 
 afterEach(() => vi.useRealTimers());
 
@@ -210,49 +188,17 @@ it('restarts the trailing refresh window and merges separately arriving events',
   expect(runsApi.getEvidence).toHaveBeenCalledTimes(1);
 });
 
-function outcome(id: string): HypothesisOutcome {
-  return {
-    id,
-    run_id: 'run-1',
-    hypothesis_id: 'hyp-1',
-    author: 'Researcher',
-    recorded_at: 1,
-    method_protocol: 'Assay',
-    conditions: 'Standard conditions',
-    measured_observation: id,
-    controls: 'Vehicle',
-    interpretation: 'Observed',
-    referenced_evidence_ids: [],
-  };
-}
-
-it('keeps the newest same-run outcome response when GETs resolve out of order', async () => {
-  const older = deferred<HypothesisOutcome[]>();
-  const newer = deferred<HypothesisOutcome[]>();
-  vi.mocked(runsApi.getHypothesisOutcomes)
-    .mockReturnValueOnce(older.promise)
-    .mockReturnValueOnce(newer.promise);
-  const {result} = renderHook(() => useRunOutcomeCollection());
-
-  act(() => result.current.reset('run-1'));
-  let olderRequest!: Promise<void>;
-  let newerRequest!: Promise<void>;
-  act(() => {
-    olderRequest = result.current.refresh('run-1');
-    newerRequest = result.current.refresh('run-1');
-  });
-
-  await act(async () => {
-    newer.resolve([outcome('newer')]);
-    await newerRequest;
-  });
-  expect(result.current.outcomes.map(row => row.id)).toEqual(['newer']);
-  expect(result.current.loading).toBe(false);
-
-  await act(async () => {
-    older.resolve([outcome('older')]);
-    await olderRequest;
-  });
-  expect(result.current.outcomes.map(row => row.id)).toEqual(['newer']);
-  expect(result.current.loading).toBe(false);
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.resetAllMocks();
+  stream.events = [];
+  stream.terminal = false;
+  vi.mocked(runsApi.getRun).mockResolvedValue(run());
+  vi.mocked(runsApi.getHypotheses).mockResolvedValue([]);
+  vi.mocked(runsApi.getEvidence).mockResolvedValue([]);
+  vi.mocked(runsApi.getMatches).mockResolvedValue([]);
+  vi.mocked(runsApi.getReviews).mockResolvedValue([]);
+  vi.mocked(runsApi.getClaimEvidence).mockResolvedValue([]);
+  vi.mocked(runsApi.getSafety).mockResolvedValue([]);
+  vi.mocked(runsApi.getReport).mockResolvedValue(null);
 });

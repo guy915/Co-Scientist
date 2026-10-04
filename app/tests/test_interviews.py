@@ -625,7 +625,10 @@ def test_scientist_can_edit_and_finalize_fields(
         _on_reasoning: Any = None,
         _on_prose: Any = None,
     ) -> dict[str, Any]:
-        return _response("Clarify the focus area.")
+        return _response(
+            "Clarify the focus area.",
+            InterviewFields(title="Derived research title"),
+        )
 
     monkeypatch.setattr(interviews_model, "_call_interview_model", _model)
     headers = {"X-Client-ID": "editor"}
@@ -643,11 +646,11 @@ def test_scientist_can_edit_and_finalize_fields(
                 "research_challenge": "Test efflux-pump suppression",
                 "focus_area": ["AcrAB-TolC"],
                 "preferences": ["Use isogenic controls"],
-                "title": None,
             },
         )
     assert edited.status_code == 200
     assert edited.json()["status"] == "completed"
+    assert edited.json()["fields"]["title"] == "Derived research title"
 
 
 def test_turn_streams_real_reasoning_before_resolving(

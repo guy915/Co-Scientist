@@ -1,7 +1,6 @@
-import {screen} from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import {beforeEach, expect, it, vi} from 'vitest';
 import * as runsApi from '@/api/runs';
+import {screen} from '@testing-library/react';
+import {beforeEach, expect, it, vi} from 'vitest';
 import {makeRun, renderAt} from './run_detail_test_support';
 
 const streamMock = vi.hoisted(() => ({
@@ -27,7 +26,6 @@ vi.mock('@/api/runs', async importActual => {
   return {
     ...actual,
     getRun: vi.fn(),
-    getSupervisorPlan: vi.fn().mockResolvedValue({plan: null, allocations: []}),
     getHypotheses: vi.fn().mockResolvedValue([]),
     getEvidence: vi.fn().mockResolvedValue([]),
     getMatches: vi.fn().mockResolvedValue([]),
@@ -45,24 +43,6 @@ vi.mock('@/api/runs', async importActual => {
       .fn()
       .mockResolvedValue({id: 'message-1', status: 'queued'}),
   };
-});
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  // Viewport stubs must not leak into another test.
-  vi.unstubAllGlobals();
-  setStream([]);
-  vi.mocked(runsApi.getRun).mockResolvedValue(makeRun('Study pathway X'));
-  vi.mocked(runsApi.getSupervisorPlan).mockResolvedValue({
-    plan: null,
-    allocations: [],
-  });
-  // Reset collection overrides between tests.
-  vi.mocked(runsApi.getHypotheses).mockResolvedValue([]);
-  vi.mocked(runsApi.getMatches).mockResolvedValue([]);
-  vi.mocked(runsApi.getReport).mockResolvedValue(null);
-  vi.mocked(runsApi.getSafety).mockResolvedValue([]);
-  vi.mocked(runsApi.listInterviews).mockResolvedValue([]);
 });
 
 it('leaves the run for the workspace even when a chat started it', async () => {
@@ -170,116 +150,6 @@ it('shows live metrics and activity instead of report controls', async () => {
   expect(screen.queryByText('Run Specifications')).toBeNull();
 });
 
-it('shows the persisted allocation ledger after loading a completed run', async () => {
-  vi.mocked(runsApi.getRun).mockResolvedValue({
-    ...makeRun('Study pathway X'),
-    status: 'completed',
-  });
-  vi.mocked(runsApi.getSupervisorPlan).mockResolvedValue({
-    plan: {
-      run_id: 'run-1',
-      plan: {},
-      orchestrator_state: {},
-      decision_provenance: 'model',
-      termination_reason: 'satisfied_completion',
-      created_at: 1_790_000_000,
-      updated_at: 1_790_000_001,
-    },
-    allocations: [
-      {
-        id: 4,
-        run_id: 'run-1',
-        seq: 0,
-        iteration: 1,
-        task_type: 'generate',
-        status: 'queued',
-        reason: 'The pool has no generated hypotheses.',
-        planner_reason: 'Start with one focused generation pass.',
-        priority: 80,
-        termination_reason: null,
-        created_at: 1_790_000_000,
-      },
-    ],
-  });
-
-  renderAt('/runs/run-1/details');
-
-  const summary = await screen.findByText('Supervisor allocation ledger');
-  await userEvent.click(summary);
-  expect(
-    screen.getByText('The pool has no generated hypotheses.'),
-  ).toBeInTheDocument();
-  expect(screen.getByText('Model-stated rationale')).toBeInTheDocument();
-  expect(
-    screen.getByText('Most recent decision source: model'),
-  ).toBeInTheDocument();
-  expect(runsApi.getSupervisorPlan).toHaveBeenCalledWith('run-1');
-});
-
-it('keeps saved allocations available on a failed run', async () => {
-  vi.mocked(runsApi.getRun).mockResolvedValue({
-    ...makeRun('Study pathway X'),
-    status: 'failed',
-    error: 'The run stopped before report synthesis.',
-  });
-  vi.mocked(runsApi.getSupervisorPlan).mockResolvedValue({
-    plan: null,
-    allocations: [
-      {
-        id: 8,
-        run_id: 'run-1',
-        seq: 0,
-        iteration: 1,
-        task_type: 'generate',
-        status: 'completed',
-        reason: 'The first allocation committed before the failure.',
-        planner_reason: null,
-        priority: 80,
-        termination_reason: null,
-        created_at: 1_790_000_000,
-      },
-    ],
-  });
-
-  renderAt('/runs/run-1/details');
-
-  expect(await screen.findByText('Run failed')).toBeInTheDocument();
-  await userEvent.click(
-    await screen.findByText('Supervisor allocation ledger'),
-  );
-  expect(
-    screen.getByText('The first allocation committed before the failure.'),
-  ).toBeInTheDocument();
-});
-
-it('keeps run details available when the Supervisor ledger endpoint is unavailable', async () => {
-  vi.mocked(runsApi.getSupervisorPlan).mockRejectedValue(
-    new Error('404 not found'),
-  );
-
-  renderAt('/runs/run-1/details');
-
-  expect(await screen.findByText('Run Specifications')).toBeInTheDocument();
-  expect(await screen.findByRole('alert')).toHaveTextContent(
-    'Could not load the allocation ledger.',
-  );
-});
-
-it('renders run details while the optional Supervisor ledger request is pending', async () => {
-  vi.mocked(runsApi.getRun).mockResolvedValue({
-    ...makeRun('Study pathway X'),
-    status: 'completed',
-  });
-  vi.mocked(runsApi.getSupervisorPlan).mockReturnValue(new Promise(() => {}));
-
-  renderAt('/runs/run-1/details');
-
-  expect(await screen.findByText('Run Specifications')).toBeInTheDocument();
-  expect(
-    await screen.findByText('Loading the allocation ledger…'),
-  ).toBeInTheDocument();
-});
-
 it('shows a skeleton while loading, then the goal details', async () => {
   renderAt('/runs/run-1/specifications');
   expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument();
@@ -375,4 +245,18 @@ it('lets report-page content scroll horizontally on phone instead of clipping it
   expect(page?.className).toContain('max-[700px]:overflow-x-auto');
   expect(page?.className).toContain('max-[700px]:overflow-y-hidden');
   expect(page?.className).not.toContain('max-[700px]:overflow-hidden');
+});
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  // Viewport stubs must not leak into another test.
+  vi.unstubAllGlobals();
+  setStream([]);
+  vi.mocked(runsApi.getRun).mockResolvedValue(makeRun('Study pathway X'));
+  // Reset collection overrides between tests.
+  vi.mocked(runsApi.getHypotheses).mockResolvedValue([]);
+  vi.mocked(runsApi.getMatches).mockResolvedValue([]);
+  vi.mocked(runsApi.getReport).mockResolvedValue(null);
+  vi.mocked(runsApi.getSafety).mockResolvedValue([]);
+  vi.mocked(runsApi.listInterviews).mockResolvedValue([]);
 });

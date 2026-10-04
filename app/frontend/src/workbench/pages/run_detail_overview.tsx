@@ -1,22 +1,21 @@
-import {useMemo} from 'react';
 import type {
+  AgentInsights,
   Hypothesis,
-  HypothesisOutcome,
   MatchRow,
+  RecommendedDirection,
   Report,
   ReportPayload,
   ResearchOverview,
   RunWithSummary,
-  AgentInsights,
-  RecommendedDirection,
 } from '@/api/runs';
+import {sortByEloDesc} from '@/lib/hypotheses';
 import {
   formatDurationPhrase,
-  readableText,
   isRecord,
+  readableText,
   readableTextList,
 } from '@/lib/text';
-import {sortByEloDesc} from '@/lib/hypotheses';
+import {useMemo} from 'react';
 import {
   REPORT_H3_CLASSES,
   REPORT_H4_CLASSES,
@@ -26,7 +25,6 @@ import {
   REPORT_SECTION_LIST_META_CLASSES,
   ReportDocument,
 } from './run_detail_shell';
-import {RunOutcomesReport} from '../components/tabs/hypothesis_outcomes';
 
 const STAT_GRID_CLASSES = 'grid grid-cols-4 gap-3 max-[900px]:grid-cols-2';
 
@@ -117,19 +115,11 @@ export function ResearchOverviewView({
   report,
   hypotheses,
   matches,
-  outcomes,
-  outcomesLoading,
-  outcomesError,
-  onRefreshOutcomes,
 }: {
   run: RunWithSummary | null;
   report: Report | null;
   hypotheses: Hypothesis[];
   matches: MatchRow[];
-  outcomes?: HypothesisOutcome[];
-  outcomesLoading?: boolean;
-  outcomesError?: string | null;
-  onRefreshOutcomes?: () => Promise<void> | void;
 }) {
   const {overview, leaderboard, ideaCount, matchCount} = overviewReportStats(
     report,
@@ -166,14 +156,6 @@ export function ResearchOverviewView({
         <WinningIdeasSection items={winningIdeas} />
         <TournamentSummarySection matches={matches} />
       </ReportDocument>
-      <RunOutcomesReport
-        outcomes={outcomes}
-        hypotheses={hypotheses}
-        loading={outcomesLoading}
-        error={outcomesError}
-        onRefresh={onRefreshOutcomes}
-        readOnly={run?.is_demo}
-      />
     </>
   );
 }

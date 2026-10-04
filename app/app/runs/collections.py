@@ -2,21 +2,18 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 
 import app.api_contracts as contracts
 from app.api_contracts.reports import Report
-from app.auth import require_bearer_principal
 from app.logs_api import RunLogQuery, logs_payload
 from app.report import unverified_hypothesis_ids
 from app.runs.lifecycle import adjudicate_safety
 from app.runs.support import _require_run, _run_or_404
-from app.store import hypotheses, outcomes, reports, runs, tasks
+from app.store import hypotheses, reports, runs, tasks
 from app.store import records as store
 from app.store import retrieval_calls as retrieval
-from app.store import supervisor_plan as plans
-from app.store.models import DEMO_CLIENT_ID
 
 router = APIRouter()
 
@@ -72,19 +69,6 @@ async def get_safety(run_id: str) -> dict[str, Any]:
     """Return the run's intake/final safety-gate decisions."""
     _require_run(run_id)
     return {"safety": store.list_safety_decisions(run_id)}
-
-
-@router.get("/{run_id}/outcomes", response_model=contracts.OutcomesResponse)
-async def get_hypothesis_outcomes(
-    run_id: str, request: Request
-) -> dict[str, Any]:
-    """Return the run's researcher-recorded hypothesis outcomes."""
-    run = _run_or_404(run_id)
-    if run.client_id != DEMO_CLIENT_ID:
-        researcher = require_bearer_principal(request)
-        if run.client_id != researcher.subject:
-            raise HTTPException(status_code=404, detail="run not found")
-    return {"outcomes": outcomes.list_hypothesis_outcomes(run_id)}
 
 
 def _task_payload(task: Any) -> dict[str, Any]:
@@ -183,26 +167,6 @@ async def get_knowledge_facts(
         "knowledge_facts": reports.list_knowledge_facts(
             run_id, kind=kind, entity=entity
         )
-    }
-
-
-@router.get("/{run_id}/supervisor-plan")
-async def get_supervisor_plan(run_id: str) -> dict[str, Any]:
-    """Return the Supervisor's durable plan and allocation ledger (E19).
-
-    ``plan`` carries the six planning blocks from the Supervisor's initial
-    research plan; ``orchestrator_state``, ``decision_provenance``, and
-    ``termination_reason`` describe how the run's scheduling ended.
-    ``allocations`` is the append-only ledger of every task the adaptive
-    orchestrator scheduled, in the order it scheduled them, each with the
-    observable statistics behind that decision. Both are populated once the
-    run finalizes; null/empty before then.
-    """
-    _require_run(run_id)
-    plan = plans.get_supervisor_plan(run_id)
-    return {
-        "plan": plan,
-        "allocations": plans.list_supervisor_allocations(run_id),
     }
 
 
