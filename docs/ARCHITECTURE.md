@@ -48,7 +48,7 @@ This document describes the current runtime shape of the Co-Scientist workspace.
                                v
                      +----------------------+
                      | co_scientist         |
-                     | LangGraph engine     |
+                     | Scientific engine    |
                      | (offline or real LLM |
                      |  backend)            |
                      +----------+-----------+
@@ -83,9 +83,9 @@ Every run executes through the durable task queue, and the same event-log table 
 
 Events 1-2 come from the HTTP layer. Events 3-5 come from the worker: `safety.intake` is the `engine.bootstrap` task's first act (`engine_tasks/inputs.py::_screen_bootstrap_intake`, which is also where the run flips to `running`), then one `scientific_task` per node commit. Events 6-11 come from the terminal `engine.finalize` task (`report.finalize.finalize_report`), which is why the citation audit lands *after* `research_overview` rather than before it. There is no `status (running)` event — the transition into `running` is a `runs` row update, not an event.
 
-Every graph node reports under the single `scientific_task` type, carrying the node it completed in `payload.task` and the node it scheduled next in `payload.successor` (`engine_tasks/support.py::_emit_node_completion`). The engine's named stage vocabulary (`supervisor.plan`, `literature_review`, `generate`, `ranking`, …) survives only as milestone *chat messages* appended to `messages` by `engine_adapter.events.append_node_milestone`; no `run_events` row carries those types. The frontend's active-run view reads the node out of `payload.task` for exactly that reason (`run_detail_active.tsx::activityPhase`).
+Every engine node reports under the single `scientific_task` type, carrying the node it completed in `payload.task` and the node it scheduled next in `payload.successor` (`engine_tasks/support.py::_emit_node_completion`). The engine's named stage vocabulary (`supervisor.plan`, `literature_review`, `generate`, `ranking`, …) survives only as milestone *chat messages* appended to `messages` by `engine_adapter.events.append_node_milestone`; no `run_events` row carries those types. The frontend's active-run view reads the node out of `payload.task` for exactly that reason (`run_detail_active.tsx::activityPhase`).
 
-Which nodes appear, and how often, is the orchestrator's decision rather than a fixed script: `review → comprehensive_reflection → safety_screen → deep_verification → ranking → orchestrator` recurs once per cycle, `meta_review → evolve` precedes a re-review, `proximity` runs only when the pool grew since the previous pass, and `literature_review`/`reflection` are absent entirely when no MCP server is reachable (they are excluded from the graph, not skipped at runtime).
+Which nodes appear, and how often, is the orchestrator's decision rather than a fixed script: `review → comprehensive_reflection → safety_screen → deep_verification → ranking → orchestrator` recurs once per cycle, `meta_review → evolve` precedes a re-review, `proximity` runs only when the pool grew since the previous pass, and `literature_review`/`reflection` are absent entirely when no MCP server is reachable (durable routing bypasses those nodes).
 
 The SSE endpoint at `GET /api/runs/{id}/events?after=<seq>` always replays history starting at the requested sequence, then tails live. This is what makes "reopen after restart" work: the client never depends on in-memory event state.
 
@@ -106,7 +106,7 @@ Tables (SQLite, WAL):
 | `safety_decisions` | append-only | intake + final |
 | `reports` | append-only | structured JSON + path to `reports/<run>.md` |
 | `messages` | append-only | steering, milestone, and Q&A chat messages |
-| `scientific_tasks` | mutable (leases/status) | the durable queue itself — every graph node, fan-out item, and tournament match is a leased, idempotent row here; this is the only path a run executes through |
+| `scientific_tasks` | mutable (leases/status) | the durable queue itself — every engine node, fan-out item, and tournament match is a leased, idempotent row here; this is the only path a run executes through |
 | `checkpoints` | append-only, pruned | `WorkflowState` snapshot after each committed task, the resume point |
 | `supervisor_plan` / `supervisor_allocations` | replaced wholesale at finalize, plus synced on every checkpoint | the Supervisor's plan and terminal rationale, and an append-only-per-run ledger of every task the orchestrator scheduled with the observed stats behind each decision; readable via `GET /api/runs/{id}/supervisor-plan` |
 
@@ -121,7 +121,7 @@ What varies per run is the **LLM backend**, not the provider. `engine_adapter.of
 1. `COSCIENTIST_FORCE_OFFLINE=1` is set (or its deprecated alias `COSCIENTIST_FORCE_MOCK=1`), OR
 2. no supported provider key is configured.
 
-An offline-backed run still executes the real engine graph; `co_scientist.offline.llm.install_offline_router()` installs the engine's completion backend for `offline/`-prefixed models, which returns deterministic, schema-valid content instead of calling a real provider. The resolved backend (`"offline"` | `"real"`) is persisted per run as `llm_backend` and reported at `/status`; the deprecated `mock_mode` mirror of that value has since been removed from the API surface. A re-opened run remembers which backend produced it.
+An offline-backed run still executes the real durable engine; `co_scientist.offline.llm.install_offline_router()` installs the engine's completion backend for `offline/`-prefixed models, which returns deterministic, schema-valid content instead of calling a real provider. The resolved backend (`"offline"` | `"real"`) is persisted per run as `llm_backend` and reported at `/status`; the deprecated `mock_mode` mirror of that value has since been removed from the API surface. A re-opened run remembers which backend produced it.
 
 ## Frontend state
 
@@ -158,9 +158,9 @@ still holds: nothing here lets a view render without hitting the API.
 
 ## Why this shape
 
--   Original engine LangGraph workflow is preserved — every run drives the
+-   The complete scientific workflow is preserved — every run drives the
     engine through the durable task queue (`engine_tasks`), one leased task
-    per graph node, fan-out item, and tournament match; only the LLM backend
+    per engine node, fan-out item, and tournament match; only the LLM backend
     underneath (offline or real) varies with configuration.
 -   The FastAPI app is a single ASGI application composed from routers in
     `main.py` — the run router alongside the diagnostics endpoints
@@ -173,8 +173,8 @@ still holds: nothing here lets a view render without hitting the API.
     the chat home instead (`pages/home_landing*.tsx`), one scroll below the
     composer, so the app still opens on the chat.
 -   The engine's offline LLM backend exists so the system has **observable
-    behaviour without any external dependency**. The same LangGraph graph
-    runs either way; only the completion backend's answer for `offline/`
+    behaviour without any external dependency**. The same durable tasks
+    run either way; only the completion backend's answer for `offline/`
     models differs. This unlocks CI, deterministic tests, and a usable demo
     without provider keys.
 
@@ -195,8 +195,8 @@ orchestrators expose only the collaborators they actually use.
 
 ## Code organization
 
-Modules group related behavior. The generator owns its setup, availability,
-and execution directly; PubMed retrieval uses one source class instead of
+Modules group related behavior. The generator prepares state and tool
+capabilities; durable tasks own execution. PubMed retrieval uses one source class instead of
 a mixin chain. Report construction and frontend components shape their data
 where it is consumed, without pass-through payload objects or single-use
 style facades. Private helpers are imported from their defining modules.
@@ -212,12 +212,11 @@ of cohesive modules, with behavior, type, and layer boundaries checked in CI.
 `co_scientist.agents.generation` exposes `GenerationPlan`, `GenerationCounts`,
 `GenerationResults`, `prepare_generation` and `finalize_generation`.
 `operations.py` owns input validation, allocation, citation context, result
-assembly, enrichment and lineage. The graph coordinator owns parallel strategy
-execution; `app.engine_tasks` owns durable scheduling, leases, retry keys,
+assembly, enrichment and lineage. The engine node coordinates parallel strategies; `app.engine_tasks` owns durable scheduling, leases, retry keys,
 partial-failure isolation and checkpoint commits. Finalization may perform
 network work and runs before the store transaction.
 
-The interface preserves existing execution differences: graph generation
+The interface preserves existing execution differences: engine-node generation
 performs expansion research and grounds assumptions with literature; durable
 generation retains its current assumptions inputs and per-strategy tasks.
 Changing those differences requires an explicit grounding and spending policy.
@@ -226,17 +225,17 @@ Changing those differences requires an explicit grounding and spending policy.
 
 The Ranking package exposes preparation, remaining-round budgets, deterministic
 pairing, immutable prompt/judging contexts, one-match judging and Elo application,
-and finalization. The graph commits each result before selecting its next pair.
+and finalization. The engine node commits each result before selecting its next pair.
 The durable adapter selects a wave from checkpoint pool order, judges it against
 one median snapshot and commits surviving outcomes in wave order. Both meter
-reported debate turns with budgeted depth as fallback. Graph prompts retain
+reported debate turns with budgeted depth as fallback. Engine-node prompts retain
 preferences; durable prompts retain their existing criteria-only adaptation.
 
 Reflection exports initial-review gates, verification selection and one-item
 verification/observation/mature-review operations. The engine assembles evidence
 and private contexts; the app persists markers, reviews and separate research
 ledgers. Ordinary item failures preserve siblings; platform-cap and call-budget
-exceptions reach the worker. Graph verification bounds stored details and marks
+exceptions reach the worker. Engine-node verification bounds stored details and marks
 issuance before calls; durable aggregation retains raw results, marks issuance
 on aggregation and meters successful valid items.
 

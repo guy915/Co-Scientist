@@ -7,7 +7,7 @@ This file provides guidance to AI coding agents when working with code in this r
 This is a research/reference workspace organized around replicating Google's AI Co-Scientist.
 
 - `app/` — FastAPI + React workbench viewer
-- `engine/` — LangGraph-based multi-agent hypothesis-generation engine
+- `engine/` — Internal multi-agent hypothesis-generation engine
 - `evaluations/` — offline evaluation harness (`citation_eval.py`, `safety_eval.py`, `metrics.py`, `golden_run.py`, `scaling_eval.py` + `scaling_budget_driver.py`, `ablation_driver.py`, `elo_concordance_eval.py`, `release_gate.py`, `smoke.py`, plus `datasets/`, `results/`, `tests/` and its own `pyproject.toml`; see `evaluations/README.md`)
 - `e2e/` — Playwright browser end-to-end suite (`tests/*.spec.ts`, `support/` fixtures)
 - Historical research dossiers, experiments and the completed external-reference campaign are preserved at [immutable revision `33ec8984`](https://github.com/guy915/Co-Scientist/tree/33ec8984c6f9292a6653cc6a661d32210f55c688). Historical source material remains available in git.
@@ -30,7 +30,7 @@ Each project is also independently installable and runnable.
 
 Per-project detail lives beside the code and loads when you touch that subtree. Read the one you are working in:
 
-- **[`engine/AGENTS.md`](engine/AGENTS.md)** — LangGraph agent graph, node→file map, LLM dispatch/bounds, MCP + web search, tool registry, prompts, style conventions, and the reference MCP server (`engine/mcp_server/`).
+- **[`engine/AGENTS.md`](engine/AGENTS.md)** — Durable engine workflow, node→file map, LLM dispatch/bounds, MCP + web search, tool registry, prompts, style conventions, and the reference MCP server (`engine/mcp_server/`).
 - **[`app/AGENTS.md`](app/AGENTS.md)** — FastAPI backend and module map, durable task execution (the real run path), auth/ownership, persisted logs, key endpoints, the React frontend, and the Docker workflow.
 
 ## Production hosting
@@ -72,7 +72,7 @@ Read the relevant entries before editing their implementation. In particular:
 ## Required environment
 
 Use Python 3.12, Node.js 22.13+ and Bun 1.3.14 for the full application.
-The standalone engine supports Python 3.10+. Run `make setup` first.
+The internal engine package supports Python 3.10+. Run `make setup` first.
 `make check` covers lint, types, backend/frontend suites, evaluation
 smoke, the production frontend build, and isolated browser tests.
 `make e2e-production` separately serves built assets with required researcher

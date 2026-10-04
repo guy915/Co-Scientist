@@ -28,5 +28,5 @@ regenerating its lock and rebuilding both production images with
 These locks cover Python runtime packages. System packages and build tools
 are separate inputs; this does not promise byte-identical image rebuilds.
 Local development supports macOS and Linux and uses the package metadata
-and Bun locks through `make setup`. The standalone engine also supports
+and Bun locks through `make setup`. The internal engine package supports
 Python 3.10; do not apply these deployment locks to its 3.10 test matrix.
