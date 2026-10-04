@@ -54,7 +54,6 @@ cache/
 !/engine/src/co_scientist/cache/
 .cache/
 .coscientist_cache/
-.coscientist_prompts/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/

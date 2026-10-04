@@ -936,34 +936,6 @@ def _build_paper_metadata(
     }
 
 
-def _build_synthesis_prompt_metadata(
-    batch_label: str,
-    batch_size: int,
-    max_iterations: int,
-    already_validated_texts: list[str] | None,
-) -> dict[str, Any]:
-    """Build the prompt_metadata dict logged with a synthesis batch call.
-
-    Args:
-        batch_label: label identifying this batch, used in logging.
-        batch_size: number of hypotheses in this batch.
-        max_iterations: iteration budget for this synthesis call.
-        already_validated_texts: hypothesis texts already validated in
-            prior batches/retries, or None.
-
-    Returns:
-        The prompt_metadata dict for call_llm_with_tools.
-    """
-    return {
-        "batch_label": batch_label,
-        "batch_size": batch_size,
-        "max_iterations": max_iterations,
-        "retry_context_count": len(already_validated_texts)
-        if already_validated_texts
-        else 0,
-    }
-
-
 def _synthesis_tool_contract(
     tool_registry: Optional["ToolRegistry"],
 ) -> dict[str, Any] | None:
@@ -1132,11 +1104,8 @@ async def _analyze_paper_novelty(
 async def _invoke_synthesis_llm(
     call_inputs: _SynthesisCallInputs,
     batch_label: str,
-    batch_size: int,
-    already_validated_texts: list[str] | None,
     ctx: _SynthesisContext,
 ) -> tuple[str, dict[str, int]]:
-    """Call the synthesis LLM with tools for one batch and return its result."""
     tracked_executor, tool_call_counts = ctx.provider.tracked_executor(
         f"Validation batch {batch_label}"
     )
@@ -1156,12 +1125,6 @@ async def _invoke_synthesis_llm(
         options=LLMCallOptions(
             run_id=ctx.state.get("run_id"),
             prompt_name=f"validation_synthesis_batch_{batch_label}",
-            prompt_metadata=_build_synthesis_prompt_metadata(
-                batch_label,
-                batch_size,
-                ctx.max_iterations,
-                already_validated_texts,
-            ),
         ),
     )
     return final_response, tool_call_counts
@@ -1210,8 +1173,6 @@ async def _run_single_synthesis_call(
     final_response, tool_call_counts = await _invoke_synthesis_llm(
         call_inputs,
         batch_label,
-        batch_size,
-        already_validated_texts,
         ctx,
     )
     _log_synthesis_tool_call_summary(batch_label, tool_call_counts)

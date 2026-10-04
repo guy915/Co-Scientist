@@ -198,9 +198,7 @@ async def _run_reflection_llm_or_none(
     reflection_node still completes for every other hypothesis in the batch.
     """
     try:
-        response = await _call_reflection_llm(
-            call, context, hypothesis_index, total_count
-        )
+        response = await _call_reflection_llm(call, context, hypothesis_index)
         return _format_reflection_result(
             response, call.indra_data, hypothesis_index
         )
@@ -243,19 +241,7 @@ async def _call_reflection_llm(
     call: _ReflectionCall,
     context: _ReflectionContext,
     hypothesis_index: int,
-    total_count: int,
 ) -> dict[str, Any]:
-    """Calls the LLM with the reflection prompt for one hypothesis.
-
-    Args:
-        call: Prepared reflection prompt and schema.
-        context: Batch-invariant context (model name, run id).
-        hypothesis_index: Index for logging (1-based).
-        total_count: Total hypotheses count for logging.
-
-    Returns:
-        The raw LLM JSON response.
-    """
     return await call_llm_json(
         prompt=call.prompt,
         spec=CompletionSpec(
@@ -267,11 +253,6 @@ async def _call_reflection_llm(
         options=LLMCallOptions(
             run_id=context.run_id,
             prompt_name=indexed_prompt_name("reflection", hypothesis_index),
-            prompt_metadata={
-                "hypothesis_index": hypothesis_index,
-                "total_count": total_count,
-                "prompt_length_chars": len(call.prompt),
-            },
         ),
     )
 

@@ -1115,36 +1115,12 @@ def _get_ranking_semaphore() -> asyncio.Semaphore:
     return semaphore
 
 
-def _judge_call_metadata(
-    matchup_index: int | None,
-    prompt: str,
-    reflection_notes_a: str | None,
-    reflection_notes_b: str | None,
-) -> dict[str, Any]:
-    """Builds the prompt_metadata dict for one matchup judge call."""
-    return {
-        "matchup_index": matchup_index,
-        "prompt_length_chars": len(prompt),
-        "has_reflection_a": bool(reflection_notes_a),
-        "has_reflection_b": bool(reflection_notes_b),
-    }
-
-
 async def _invoke_matchup_judge_call(
     mp: _MatchupPrompt,
     ctx: _DebateContext,
     prompt_name: str,
-    metadata: dict[str, Any],
 ) -> dict[str, Any]:
-    """Calls the judge LLM for one matchup.
-
-    Thinking is on, as everywhere else. This is the run's highest-volume
-    call -- one matchup per hypothesis pair, scaling O(n^2) per cycle -- so
-    it is also where reasoning costs the most wall-clock time; the budget
-    below is ``THINKING_MAX_TOKENS`` precisely because the chain of thought
-    is drawn from it. The prompt's per-criterion rationale is now the
-    reasoning made legible for display, not a substitute for it.
-    """
+    """Quadratic matchup volume requires reasoning within the token budget."""
     return await call_llm_json(
         prompt=mp.prompt,
         spec=CompletionSpec(
@@ -1156,7 +1132,6 @@ async def _invoke_matchup_judge_call(
         options=LLMCallOptions(
             run_id=ctx.run_id,
             prompt_name=prompt_name,
-            prompt_metadata=metadata,
         ),
     )
 
@@ -1165,23 +1140,10 @@ async def _call_matchup_judge(
     mp: _MatchupPrompt,
     ctx: _DebateContext,
 ) -> dict[str, Any]:
-    """Calls the LLM judge for one matchup, bounded by the ranking semaphore.
-
-    Args:
-        mp: Rendered matchup prompt (with schema and per-side notes).
-        ctx: Debate context supplying the model, run id, and matchup index.
-
-    Returns:
-        Parsed JSON response from the LLM.
-    """
     prompt_name = indexed_prompt_name("ranking_matchup", ctx.matchup_index)
-    metadata = _judge_call_metadata(
-        ctx.matchup_index, mp.prompt, mp.notes_a, mp.notes_b
-    )
-
     # Use semaphore to limit concurrent calls (avoid rate limits)
     async with _get_ranking_semaphore():
-        return await _invoke_matchup_judge_call(mp, ctx, prompt_name, metadata)
+        return await _invoke_matchup_judge_call(mp, ctx, prompt_name)
 
 
 async def _run_debate_turn(

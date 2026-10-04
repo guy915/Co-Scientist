@@ -140,13 +140,7 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
 async def _run_meta_review_phase(
     state: WorkflowState, hypotheses: list[Hypothesis]
 ) -> dict[str, Any]:
-    """Runs the meta-review synthesis phase and builds the state delta.
-
-    Collects the complete feedback history (every review and every ranking
-    debate -- later feedback does not erase earlier failure patterns),
-    synthesizes via the LLM, and emits progress before and after. Returns a
-    minimal meta_review with no LLM call if nothing has been reviewed yet.
-    """
+    """Later reviews must not erase earlier feedback failure patterns."""
     await emit_progress(
         state,
         "meta_review_start",
@@ -167,7 +161,7 @@ async def _run_meta_review_phase(
     # attempts settles the whole run, so the report is lost either way.
     return await run_or_degrade(
         state,
-        lambda: _synthesize_and_monitor(state, all_reviews, len(hypotheses)),
+        lambda: _synthesize_and_monitor(state, all_reviews),
         schema_name="meta_review",
         fallback=_degraded_meta_review_result,
         lost="evolution and ranking continue without cross-hypothesis "
@@ -178,12 +172,8 @@ async def _run_meta_review_phase(
 async def _synthesize_and_monitor(
     state: WorkflowState,
     all_reviews: list[dict[str, Any]],
-    hypotheses_count: int,
 ) -> dict[str, Any]:
-    """Synthesize the meta-review, announce it, and screen its direction."""
-    meta_review = await _synthesize_meta_review(
-        state, all_reviews, hypotheses_count
-    )
+    meta_review = await _synthesize_meta_review(state, all_reviews)
 
     await emit_progress(
         state,
@@ -207,9 +197,7 @@ async def _synthesize_and_monitor(
 async def _synthesize_meta_review(
     state: WorkflowState,
     all_reviews: list[dict[str, Any]],
-    hypotheses_count: int,
 ) -> dict[str, Any]:
-    """Builds the prompt, calls the LLM, and assembles the meta-review."""
     prompt, schema = get_meta_review_prompt(
         research_goal=state["research_goal"],
         all_reviews=json.dumps(all_reviews, indent=2),
@@ -221,9 +209,7 @@ async def _synthesize_meta_review(
             run_focus_guidance=state.get("run_focus_guidance"),
         ),
     )
-    response = await _call_meta_review_llm(
-        state, prompt, schema, hypotheses_count, len(all_reviews)
-    )
+    response = await _call_meta_review_llm(state, prompt, schema)
     meta_review = _build_meta_review(response)
     _log_meta_review_summary(meta_review)
     return meta_review
@@ -233,27 +219,8 @@ async def _call_meta_review_llm(
     state: WorkflowState,
     prompt: str,
     schema: dict[str, Any] | None,
-    hypotheses_count: int,
-    reviews_count: int,
 ) -> dict[str, Any]:
-    """Calls the LLM to synthesize the meta-review.
-
-    Uses supervisor_model_name (the stronger strategic model), not the
-    regular worker model_name used by ranking/review -- synthesizing
-    cross-hypothesis insights that steer evolution benefits from the more
-    capable model.
-
-    Args:
-        state: Current workflow state.
-        prompt: Rendered meta-review prompt.
-        schema: JSON schema the response must conform to.
-        hypotheses_count: Total hypotheses, recorded in prompt_metadata.
-        reviews_count: Total collected reviews, recorded in
-            prompt_metadata.
-
-    Returns:
-        The raw LLM JSON response.
-    """
+    """Supervisor-model synthesis steers cross-hypothesis evolution."""
     return await call_llm_json(
         prompt=prompt,
         spec=CompletionSpec(
@@ -264,11 +231,6 @@ async def _call_meta_review_llm(
         options=LLMCallOptions(
             run_id=state.get("run_id"),
             prompt_name="meta_review",
-            prompt_metadata={
-                "prompt_length_chars": len(prompt),
-                "hypotheses_count": hypotheses_count,
-                "reviews_count": reviews_count,
-            },
         ),
     )
 

@@ -1,12 +1,4 @@
-"""The pre-call sequence every public LLM entry point runs.
-
-Saves the prompt debug artifact (when named), clamps the temperature before
-the cache key is built, and performs the cache lookup. ``call_llm`` and
-``call_llm_json`` (through ``attempts.single`` and ``call``) and
-``call_llm_with_tools`` (``tools.loop``) all start here, which is why it sits
-below all three. Note for tests: caching is stubbed by patching ``get_cache``
-on *this* module, which is where the lookup reads it.
-"""
+"""Temperature is clamped before cache lookup so equivalent calls share keys."""
 
 import logging
 from dataclasses import replace
@@ -22,7 +14,6 @@ from co_scientist.cache import (
 from co_scientist.llm.admission.free_policy import campaign_free_mode
 from co_scientist.llm.request.completion import (
     _clamp_temperature,
-    _save_prompt_if_named,
 )
 from co_scientist.llm.telemetry import record_cache_result
 from co_scientist.llm.values import LLMCallOptions
@@ -65,27 +56,6 @@ def _log_cache_lookup(
 async def _prepare_llm_call(
     request: LLMCacheRequest, opts: LLMCallOptions
 ) -> tuple[LLMCacheRequest, "LLMCache | NullCache", dict[str, Any] | None]:
-    """Runs the shared pre-call sequence for the public LLM entry points.
-
-    Saves the prompt debug artifact (when named), clamps the temperature
-    before the cache key is built so requested temperatures that execute
-    identically share one cache entry, and performs the cache lookup.
-
-    Args:
-        request: The request as the caller asked for it; its response-shape
-            fields (``json_schema``/``force_json``/``tools``) are what make
-            the cache key caller-specific.
-        opts: Cache and debug-artifact options for this call.
-
-    Returns:
-        A (clamped_request, cache, cached_response) tuple where the request
-        carries the clamped temperature the call must actually use, and
-        cached_response is None on a cache miss.
-    """
-    await _save_prompt_if_named(
-        request.prompt, opts.run_id, opts.prompt_name, opts.prompt_metadata
-    )
-
     request = replace(
         request,
         temperature=_clamp_temperature(request.model_name, request.temperature),

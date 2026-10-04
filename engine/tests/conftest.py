@@ -11,18 +11,6 @@ if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
 
-@pytest.fixture(autouse=True)
-def _no_prompt_disk_writes(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Patch the call-time prompt writer so tests cannot litter the working
-    tree."""
-    import co_scientist.prompts as prompts_mod
-
-    def _noop(**_: Any) -> None:
-        return None
-
-    monkeypatch.setattr(prompts_mod, "save_prompt_to_disk", _noop)
-
-
 @pytest.fixture
 def _patch_mcp_seam(
     monkeypatch: pytest.MonkeyPatch,

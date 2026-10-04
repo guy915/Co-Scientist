@@ -12,7 +12,6 @@
 **/.cache
 **/paper_cache
 **/.coscientist_cache
-**/.coscientist_prompts
 
 # Development tooling and generated outputs.
 .git

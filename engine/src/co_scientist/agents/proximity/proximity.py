@@ -85,9 +85,7 @@ async def _call_proximity_llm(
     state: WorkflowState,
     prompt: str,
     schema: dict[str, Any] | None,
-    hypotheses_count: int,
 ) -> dict[str, Any]:
-    """Calls the proximity LLM and returns its parsed JSON response."""
     return await call_llm_json(
         prompt=prompt,
         spec=CompletionSpec(
@@ -99,10 +97,6 @@ async def _call_proximity_llm(
         options=LLMCallOptions(
             run_id=state.get("run_id"),
             prompt_name="proximity",
-            prompt_metadata={
-                "prompt_length_chars": len(prompt),
-                "hypotheses_count": hypotheses_count,
-            },
         ),
     )
 
@@ -144,7 +138,7 @@ async def _fetch_similarity_clusters(
     )
     prompt += _meta_review_section(state)
 
-    response = await _call_proximity_llm(state, prompt, schema, len(hypotheses))
+    response = await _call_proximity_llm(state, prompt, schema)
 
     similarity_clusters: list[dict[str, Any]] = response.get(
         "similarity_clusters", []

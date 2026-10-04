@@ -183,18 +183,6 @@ async def _run_synthesis_llm(
     state: WorkflowState,
     background_context: str,
 ) -> str:
-    """Builds the synthesis prompt and calls the LLM.
-
-    Args:
-        paper_analyses: Per-paper analyses produced by Phase 3.
-        state: Current workflow state.
-        background_context: The (possibly empty) Phase 2.6 knowledge-graph
-            text; the synthesis prompt weaves it in alongside the per-paper
-            analyses so the LLM can ground statements in both.
-
-    Returns:
-        The synthesis text.
-    """
     prompt = _build_synthesis_prompt(paper_analyses, state, background_context)
 
     synthesis = await call_llm(
@@ -207,10 +195,6 @@ async def _run_synthesis_llm(
         options=LLMCallOptions(
             run_id=state.get("run_id"),
             prompt_name="literature_review_synthesis",
-            prompt_metadata={
-                "prompt_length_chars": len(prompt),
-                "papers_analyzed": len(paper_analyses),
-            },
         ),
     )
 
