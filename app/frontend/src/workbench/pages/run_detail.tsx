@@ -225,12 +225,10 @@ function IdeasSection({
     <section className={ALL_IDEAS_CLASSES}>
       <IdeasTab
         key={ideasViewKey}
-        runId={data.run?.id ?? ''}
         hypotheses={data.hypotheses}
         reviews={data.reviews}
         matches={data.matches}
         claimEvidence={data.claimEvidence}
-        isDemo={data.run?.is_demo ?? false}
       />
     </section>
   );

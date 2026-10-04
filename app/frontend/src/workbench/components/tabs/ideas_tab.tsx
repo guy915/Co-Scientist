@@ -150,8 +150,6 @@ export function IdeasTab({
   matches = [],
   claimEvidence = [],
 }: {
-  runId?: string;
-  isDemo?: boolean;
   hypotheses: Hypothesis[];
   reviews: Review[];
   matches?: MatchRow[];
@@ -188,8 +186,6 @@ interface IdeaViewProps {
   reviews: Review[];
   matches: MatchRow[];
   claimEvidence: ClaimEvidenceRow[];
-  runId?: string;
-  isDemo?: boolean;
 }
 
 // The titlebar supplies the visible mobile Back control; this local screen-
