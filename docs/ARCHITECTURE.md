@@ -123,6 +123,26 @@ What varies per run is the **LLM backend**, not the provider. `engine_adapter.of
 
 An offline-backed run still executes the real durable engine; `co_scientist.offline.llm.install_offline_router()` installs the engine's completion backend for `offline/`-prefixed models, which returns deterministic, schema-valid content instead of calling a real provider. The resolved backend (`"offline"` | `"real"`) is persisted per run as `llm_backend` and reported at `/status`; the deprecated `mock_mode` mirror of that value has since been removed from the API surface. A re-opened run remembers which backend produced it.
 
+## Run chat context
+
+Run Q&A reads a consistent SQLite snapshot without draining the engine or
+acquiring its write lock. Active runs use the latest compatible checkpoint
+for hypotheses, reviews and tournament matches. Published rows remain
+available alongside checkpoint science, interview answers, setup, supervisor
+plan, literature, evidence, safety decisions, meta-review and reports.
+`qa/snapshot.py` selects scientific channels; runtime handles, routing and
+credentials never enter chat context.
+
+The initial prompt is bounded to 24,000 characters plus grounding rules.
+`search_ideas` provides short idea bodies; `search_run_artifacts` searches or
+pages every record and its remaining text (three 2,400-character chunks per
+lookup). At most four tool calls share one lookup round, then one answer
+round under the existing Q&A spend scope. The numbered evidence manifest
+remains the sole citation namespace: checkpoint literature does not become
+verified merely because chat can read it. Finalized tables remain authoritative
+for completed runs; checkpoint-only scientific detail stays retrievable.
+Failed or cancelled runs retain their latest committed checkpoint science.
+
 ## Frontend state
 
 The workbench caches no *run or hypothesis* data in the browser — nothing
