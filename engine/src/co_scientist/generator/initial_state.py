@@ -40,7 +40,8 @@ def _initial_runtime_fields() -> dict[str, Any]:
         "task_history": [],
         "next_task": None,
         "termination_reason": None,
-        # "budget" is supplied by the generator config fields, not here.
+        # Generator configuration supplies budget, not initial state
+        # construction.
         "orchestrator_state": {},
         "supervisor_guidance": {},
         "meta_review": {},
@@ -49,10 +50,10 @@ def _initial_runtime_fields() -> dict[str, Any]:
         "proximity_graph": {},
         "tournament_matchups": [],
         "evolution_details": [],
-        # Audit and manual-review lists must exist after checkpoint restore.
+        # Audit/manual-review lists must survive checkpoint restoration.
         "safety_decisions": [],
         "held_for_review": [],
-        # Reports must distinguish degraded sections from genuine empty results.
+        # Reports must distinguish degradation from genuine empty results.
         "degraded_nodes": [],
         "metrics": ExecutionMetrics(),
         "messages": [],
@@ -93,13 +94,13 @@ def _initial_user_and_literature_fields(
 ) -> dict[str, Any]:
     return {
         "preferences": opts.get("preferences"),
-        # High-priority steering waits until the next safe boundary; the
-        # orchestrator consumes it at the next safe boundary and clears it.
+        # High-priority steering waits for the next safe boundary before
+        # consumption.
         "pending_steering": bool(opts.get("pending_steering")),
         "attributes": opts.get("attributes"),
         "constraints": opts.get("constraints"),
-        # Lab constraints come from the app's goal interview; the
-        # generation and evolution feasibility prompts render them.
+        # Goal-interview lab constraints feed generation and evolution
+        # feasibility prompts.
         "lab_constraints": opts.get("lab_constraints"),
         "criteria": opts.get("criteria"),
         "run_focus_guidance": opts.get("run_focus_guidance"),

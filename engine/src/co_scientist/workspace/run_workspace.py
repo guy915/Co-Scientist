@@ -1,27 +1,5 @@
-"""Where a run's workspace lives, and why it lives there.
-
-One function decides the directory, so that two callers asking for the
-same run get the same files. That is not tidiness -- this host kills and
-restarts workers by design (lease expiry, `--reload`, a failed
-healthcheck), and a restarted task that resolved its workspace to a fresh
-temporary directory would silently redo work whose output was sitting on
-disk a few inches away. Reopening is therefore the normal case, not an
-edge one, and `open_run_workspace` is idempotent by construction.
-
-**Off the volume, always.** Workspaces are scratch: a simulation's
-intermediate arrays, a checked-out repository, spilled command output.
-The production volume holds one SQLite file written by one process, and
-`COSCIENTIST_CACHE_DIR` was moved off it for exactly this reason -- a full
-volume takes the database down, and the database is the run. So the
-default root is the system temp directory, and an operator who overrides
-`COSCIENTIST_WORKSPACE_DIR` onto a volume is making a choice this module
-cannot make for them.
-
-**The run id is treated as untrusted.** It reaches here from a request,
-and it is being used to build a path. A run id of `../../etc` would
-otherwise resolve a "workspace" wherever it liked -- and the sandbox
-would then be handed that directory as a *writable root*, so the
-containment argument would be arguing for the escape.
+"""Stable run paths survive worker restarts; scratch stays off the database
+volume. Untrusted IDs must never grant a writable root outside their run.
 """
 
 import logging
@@ -39,42 +17,26 @@ logger = logging.getLogger(__name__)
 
 WORKSPACE_DIR_ENV = "COSCIENTIST_WORKSPACE_DIR"
 
-# Name of the directory workspaces are created under, inside whichever
-# root is resolved.
 _WORKSPACES_DIRNAME = "coscientist-workspaces"
 
-# Subdirectories for the run's separate review and drafting workspaces.
 _REVIEWS_DIRNAME = "reviews"
 _DRAFTS_DIRNAME = "drafts"
 
-# Everything else in a run id is replaced. Deliberately narrow: real ids
-# are uuids, so anything outside this set is either a bug or an attempt.
+# Run IDs are UUIDs; a narrow alphabet blocks path traversal.
 _UNSAFE_IN_RUN_ID = re.compile(r"[^A-Za-z0-9_-]")
 
-# Longest directory name built from a run id. Long ids are truncated
-# rather than rejected, but the truncation keeps the front, which is
-# where a uuid's entropy is.
+# Truncate from the back to retain UUID entropy at the front.
 _MAX_RUN_ID_CHARS = 64
 
 
 class WorkspaceIdError(ValueError):
-    """A run id that cannot be turned into a directory name."""
+    """An unusable ID must not collapse multiple runs onto the common workspace
+    root.
+    """
 
 
 def _safe_run_id(run_id: str) -> str:
-    """Reduces a run id to something safe to use as a directory name.
-
-    Args:
-        run_id: The run identifier, as it arrived.
-
-    Returns:
-        The sanitized name.
-
-    Raises:
-        WorkspaceIdError: If nothing usable survives sanitization. Empty
-            would resolve to the workspaces root itself, handing every
-            run one shared directory.
-    """
+    """An empty sanitized ID would grant every run the same workspace."""
     cleaned = _UNSAFE_IN_RUN_ID.sub("_", run_id)[:_MAX_RUN_ID_CHARS]
     if not cleaned.strip("_"):
         raise WorkspaceIdError(
@@ -88,7 +50,6 @@ def _safe_run_id(run_id: str) -> str:
 
 
 def workspaces_root() -> Path:
-    """Returns the directory all run workspaces are created under."""
     override = os.getenv(WORKSPACE_DIR_ENV)
     if override:
         return Path(override).expanduser().resolve()
@@ -96,37 +57,17 @@ def workspaces_root() -> Path:
 
 
 def workspace_path(run_id: str) -> Path:
-    """Returns one run's workspace directory, without creating it.
-
-    Args:
-        run_id: The run identifier.
-
-    Returns:
-        The absolute path this run's workspace resolves to.
-    """
     return workspaces_root() / _safe_run_id(run_id)
 
 
 def open_run_workspace(
     run_id: str, *, network_allowed: bool = False
 ) -> WorkspaceSession:
-    """Opens (creating if absent) the workspace belonging to a run.
-
-    Args:
-        run_id: The run identifier.
-        network_allowed: Whether commands may reach the network. Off by
-            default: a hypothesis test that needs the internet is a
-            deliberate decision, not the resting state.
-
-    Returns:
-        A session confined to that run's directory.
-    """
     root = workspace_path(run_id)
     existed = root.exists()
     session = WorkspaceSession(root, network_allowed=network_allowed)
-    # 0o700: the workspace holds whatever a run was given to work on.
-    # Best-effort, because a filesystem that cannot express it is not a
-    # reason to refuse the run.
+    # Owner-only permissions protect run inputs; unsupported filesystems must
+    # not reject the run.
     try:
         root.chmod(0o700)
     except OSError as exc:  # pragma: no cover - filesystem-dependent
@@ -141,42 +82,21 @@ def open_run_workspace(
 
 
 def draft_workspace_path(run_id: str, draft_id: str) -> Path:
-    """Returns one drafting pass's directory, without creating it."""
     return workspace_path(run_id) / _DRAFTS_DIRNAME / _safe_run_id(draft_id)
 
 
 def open_draft_workspace(run_id: str, draft_id: str) -> WorkspaceSession:
-    """Opens the workspace one hypothesis-drafting pass works in.
-
-    This is the generation agent's literature-exploration step, and the
-    one consumer the science skills are turned on for: retrieval is what
-    the step is for, so a skill that queries a database serves the work
-    rather than competing with it. The network comes with them and is
-    the reason they are here -- a skill that cannot reach its API is a
-    document about an API.
-
-    Per pass rather than per run because a run drafts on every
-    generation cycle, and a directory holding the previous cycle's
-    result files invites the model to read a stale one as its own.
-
-    Args:
-        run_id: The run identifier.
-        draft_id: Identifier unique to this drafting pass.
-
-    Returns:
-        A session confined to that pass's directory, with the network
-        open and the skills offered.
+    """Each drafting pass gets fresh files so a later cycle cannot mistake
+    stale results for its own.
     """
     root = draft_workspace_path(run_id, draft_id)
-    # Create and permission-restrict the run directory before opening
-    # this child directory, so its parent is never briefly
-    # world-readable.
+    # Restrict the parent before creating a child so it is never briefly world-
+    # readable.
     open_run_workspace(run_id)
     return WorkspaceSession(root, network_allowed=True, skills_enabled=True)
 
 
 def review_workspace_path(run_id: str, hypothesis_id: str) -> Path:
-    """Returns one review's directory, without creating it."""
     return (
         workspace_path(run_id) / _REVIEWS_DIRNAME / _safe_run_id(hypothesis_id)
     )
@@ -185,27 +105,12 @@ def review_workspace_path(run_id: str, hypothesis_id: str) -> Path:
 def open_review_workspace(
     run_id: str, hypothesis_id: str, *, network_allowed: bool = False
 ) -> WorkspaceSession:
-    """Opens the workspace one review of one hypothesis works in.
-
-    Each hypothesis gets its own directory because a round's reviews
-    are fanned out as separate leased tasks and run concurrently.
-    Sharing a directory would let two simulations read parts of each
-    other's models. Both could then report a plausible observation
-    about the wrong hypothesis, and the review could not expose that
-    mix-up.
-
-    Args:
-        run_id: The run identifier.
-        hypothesis_id: The hypothesis being reviewed.
-        network_allowed: Whether commands may reach the network.
-
-    Returns:
-        A session confined to that review's directory.
+    """Concurrent hypothesis reviews must never read each other's simulation
+    models.
     """
     root = review_workspace_path(run_id, hypothesis_id)
-    # Create and permission-restrict the run directory before opening
-    # this child directory, so its parent is never briefly
-    # world-readable.
+    # Restrict the parent before creating a child so it is never briefly world-
+    # readable.
     open_run_workspace(run_id, network_allowed=network_allowed)
     return WorkspaceSession(root, network_allowed=network_allowed)
 
@@ -217,19 +122,6 @@ def build_workspace_tools(
     network_allowed: bool = False,
     secrets: SecretRegistry | None = None,
 ) -> WorkspaceToolProvider:
-    """Builds the tool provider a run's agent should be handed.
-
-    Args:
-        run_id: The run identifier.
-        delegate: The run's MCP tool provider, so the model sees one
-            surface rather than two.
-        network_allowed: Whether commands may reach the network.
-        secrets: Values to mask; defaults to the host's credential-shaped
-            environment variables.
-
-    Returns:
-        A provider serving the workspace tools and delegating the rest.
-    """
     return WorkspaceToolProvider(
         open_run_workspace(run_id, network_allowed=network_allowed),
         delegate=delegate,
