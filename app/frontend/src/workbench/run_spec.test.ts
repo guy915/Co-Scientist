@@ -1,15 +1,15 @@
-import {afterEach, describe, expect, it} from 'vitest';
 import type {Interview} from '@/api/runs';
 import {setStoredApiKey} from '@/lib/client_id';
+import {makeSpec} from '@/test_fixtures';
+import {afterEach, describe, expect, it} from 'vitest';
 import {
   applyEditedInterviewFields,
   availableTierOptions,
   buildInterviewFieldsPayload,
+  interviewToRunSpec,
   isCompletionEmailValid,
   isValidCompletionEmail,
-  interviewToRunSpec,
 } from './run_spec';
-import {makeSpec} from '@/test_fixtures';
 
 afterEach(() => setStoredApiKey(''));
 
@@ -21,13 +21,11 @@ describe('interviewToRunSpec', () => {
         research_challenge: 'Explain treatment resistance.',
         focus_area: ['Tumor metabolism', 'Causal mechanisms'],
         preferences: ['Prioritize human evidence'],
-        title: 'Resistance mechanisms',
       },
     } as Interview;
 
     expect(interviewToRunSpec(interview)).toEqual({
       interviewId: 'interview-1',
-      title: 'Resistance mechanisms',
       goal: 'Explain treatment resistance.',
       requirements: ['Prioritize human evidence'],
       attributes: ['Tumor metabolism', 'Causal mechanisms'],
@@ -62,7 +60,6 @@ describe('buildInterviewFieldsPayload', () => {
     expect(
       buildInterviewFieldsPayload({
         goal: 'Explain treatment resistance.',
-        title: 'Resistance mechanisms',
         attributes: ['Tumor metabolism'],
         requirements: ['Prioritize human evidence'],
       }),
@@ -70,19 +67,7 @@ describe('buildInterviewFieldsPayload', () => {
       research_challenge: 'Explain treatment resistance.',
       focus_area: ['Tumor metabolism'],
       preferences: ['Prioritize human evidence'],
-      title: 'Resistance mechanisms',
     });
-  });
-
-  it('sends a blank title as null, matching the unedited card', () => {
-    expect(
-      buildInterviewFieldsPayload({
-        goal: 'Explain treatment resistance.',
-        title: '   ',
-        attributes: [],
-        requirements: [],
-      }).title,
-    ).toBeNull();
   });
 });
 
@@ -132,7 +117,6 @@ describe('applyEditedInterviewFields', () => {
 
     expect(applyEditedInterviewFields(interview)).toEqual({
       interviewId: 'interview-2',
-      title: null,
       goal: 'Revised challenge.',
       attributes: ['A'],
       requirements: ['B'],

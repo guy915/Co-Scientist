@@ -1,19 +1,13 @@
-import {useMemo} from 'react';
-import {Link, useSearchParams} from 'react-router-dom';
-import type {
-  ClaimEvidenceRow,
-  Hypothesis,
-  HypothesisOutcome,
-  MatchRow,
-  Review,
-} from '@/api/runs';
+import type {ClaimEvidenceRow, Hypothesis, MatchRow, Review} from '@/api/runs';
+import {Icon} from '@/components/icon';
 import {
   UNDERMINED_VERDICT,
   presentedHypotheses,
   ratingLabel,
   sortByEloDesc,
 } from '@/lib/hypotheses';
-import {Icon} from '@/components/icon';
+import {useMemo} from 'react';
+import {Link, useSearchParams} from 'react-router-dom';
 import {useIsMobile} from '../../hooks/dom';
 import {TruncatedLabel} from '../truncated_label';
 import {
@@ -139,7 +133,6 @@ function useIdeaSelection(hypotheses: Hypothesis[], isMobile: boolean) {
   return {sorted, selected};
 }
 
-// No generated ideas and all ideas excluded are different scientific outcomes,
 // not one empty result.
 function emptyIdeasNote(exploredCount: number): string {
   if (!exploredCount) {
@@ -152,29 +145,17 @@ function emptyIdeasNote(exploredCount: number): string {
 }
 
 export function IdeasTab({
-  runId,
-  allowRefinement,
-  isDemo,
   hypotheses,
   reviews,
   matches = [],
   claimEvidence = [],
-  outcomes,
-  outcomesLoading,
-  outcomesError,
-  onRefreshOutcomes,
 }: {
   runId?: string;
-  allowRefinement?: boolean;
   isDemo?: boolean;
   hypotheses: Hypothesis[];
   reviews: Review[];
   matches?: MatchRow[];
   claimEvidence?: ClaimEvidenceRow[];
-  outcomes?: HypothesisOutcome[];
-  outcomesLoading?: boolean;
-  outcomesError?: string | null;
-  onRefreshOutcomes?: () => Promise<void> | void;
 }) {
   const isMobile = useIsMobile();
   const {sorted, selected} = useIdeaSelection(hypotheses, isMobile);
@@ -196,13 +177,6 @@ export function IdeasTab({
         reviews={reviews}
         matches={matches}
         claimEvidence={claimEvidence}
-        runId={runId}
-        allowRefinement={allowRefinement}
-        isDemo={isDemo}
-        outcomes={outcomes}
-        outcomesLoading={outcomesLoading}
-        outcomesError={outcomesError}
-        onRefreshOutcomes={onRefreshOutcomes}
       />
     </div>
   );
@@ -215,12 +189,7 @@ interface IdeaViewProps {
   matches: MatchRow[];
   claimEvidence: ClaimEvidenceRow[];
   runId?: string;
-  allowRefinement?: boolean;
   isDemo?: boolean;
-  outcomes?: HypothesisOutcome[];
-  outcomesLoading?: boolean;
-  outcomesError?: string | null;
-  onRefreshOutcomes?: () => Promise<void> | void;
 }
 
 // The titlebar supplies the visible mobile Back control; this local screen-
@@ -231,13 +200,6 @@ function MobileIdeaView({
   reviews,
   matches,
   claimEvidence,
-  runId,
-  allowRefinement,
-  isDemo,
-  outcomes,
-  outcomesLoading,
-  outcomesError,
-  onRefreshOutcomes,
 }: IdeaViewProps) {
   return (
     <div className={IDEA_MOBILE_VIEW_CLASSES}>
@@ -252,13 +214,6 @@ function MobileIdeaView({
             reviews={reviews}
             matches={matches}
             claimEvidence={claimEvidence}
-            runId={runId}
-            allowRefinement={allowRefinement}
-            isDemo={isDemo}
-            outcomes={outcomes}
-            outcomesLoading={outcomesLoading}
-            outcomesError={outcomesError}
-            onRefreshOutcomes={onRefreshOutcomes}
           />
         </>
       ) : (
@@ -286,13 +241,6 @@ function DesktopIdeaSplit({
   reviews,
   matches,
   claimEvidence,
-  runId,
-  allowRefinement,
-  isDemo,
-  outcomes,
-  outcomesLoading,
-  outcomesError,
-  onRefreshOutcomes,
 }: IdeaViewProps) {
   return (
     <div className={IDEA_SPLIT_SHELL_CLASSES}>
@@ -315,13 +263,6 @@ function DesktopIdeaSplit({
           reviews={reviews}
           matches={matches}
           claimEvidence={claimEvidence}
-          runId={runId}
-          allowRefinement={allowRefinement}
-          isDemo={isDemo}
-          outcomes={outcomes}
-          outcomesLoading={outcomesLoading}
-          outcomesError={outcomesError}
-          onRefreshOutcomes={onRefreshOutcomes}
         />
         <SectionsRail />
       </div>

@@ -59,6 +59,12 @@ _revision_router = APIRouter()
 def _require_revisable_turn(
     interview: dict[str, Any], turn_id: int, role: str
 ) -> None:
+    if store.run_id_for_interview(
+        str(interview["id"]), str(interview["client_id"])
+    ):
+        raise HTTPException(
+            status_code=409, detail="setup has already been consumed by a run"
+        )
     if interview["status"] == "cancelled":
         raise HTTPException(status_code=409, detail="interview is cancelled")
     turn = next(
@@ -273,8 +279,10 @@ async def edit_interview_fields(
     interview_id: str, body: InterviewFieldsRequest, request: Request
 ) -> dict[str, Any]:
     """Persist scientist edits and finalize when required fields are ready."""
-    _owned_interview(interview_id, request)
+    interview = _owned_interview(interview_id, request)
     fields = body.model_dump()
+    if "title" not in body.model_fields_set:
+        fields["title"] = interview["fields"].get("title")
     fields["focus_area"] = _clean_list(fields["focus_area"])
     fields["preferences"] = _clean_list(fields["preferences"])
     fields["lab_constraints"] = _clean_list(fields["lab_constraints"])

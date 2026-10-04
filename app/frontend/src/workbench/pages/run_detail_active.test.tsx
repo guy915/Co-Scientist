@@ -1,10 +1,10 @@
-import {render, screen, fireEvent} from '@testing-library/react';
-import {expect, it, describe} from 'vitest';
 import type {StreamConnectionState, StreamEvent} from '@/hooks/use_run_stream';
+import {fireEvent, render, screen} from '@testing-library/react';
+import {describe, expect, it} from 'vitest';
 import {ActiveRunView} from './run_detail_active';
+import {ActivityLog, windowedActivityGroups} from './run_detail_activity_log';
 import type {RunWithStreamState} from './run_detail_data';
 import {makeRun} from './run_detail_test_support';
-import {windowedActivityGroups, ActivityLog} from './run_detail_activity_log';
 
 describe('run detail active', () => {
   function activeRun(connection?: StreamConnectionState): RunWithStreamState {
@@ -23,12 +23,6 @@ describe('run detail active', () => {
         events={[]}
         evidenceCount={0}
         ideaCount={0}
-        allocationLedger={{
-          response: null,
-          loading: false,
-          error: null,
-          onRetry: () => {},
-        }}
       />,
     );
   }
@@ -106,8 +100,8 @@ describe('run detail activity log', () => {
       event(2, {task: 'ranking', activity: 'tournament'}),
       event(3, {task: 'ranking', activity: 'tournament'}),
     ]);
-    expect(screen.getByText('Comparing ideas · 3 steps')).toBeInTheDocument();
-    expect(screen.queryByText('Comparing ideas')).toBeNull();
+    expect(screen.getByText('Comparing ideas')).toBeInTheDocument();
+    expect(screen.getAllByText('Comparing ideas')).toHaveLength(1);
   });
 
   it('splits a run into separate groups when a different activity interrupts it', () => {
@@ -117,8 +111,7 @@ describe('run detail activity log', () => {
       event(3, {task: 'review', activity: 'review'}),
       event(4, {task: 'ranking', activity: 'tournament'}),
     ]);
-    expect(screen.getByText('Comparing ideas · 2 steps')).toBeInTheDocument();
-    expect(screen.getByText('Comparing ideas')).toBeInTheDocument();
+    expect(screen.getAllByText('Comparing ideas')).toHaveLength(2);
     expect(screen.getByText('Reviewing hypotheses')).toBeInTheDocument();
   });
 

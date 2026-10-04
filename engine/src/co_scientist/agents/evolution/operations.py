@@ -1,6 +1,5 @@
 import dataclasses
-from dataclasses import replace
-from typing import Any, cast
+from typing import Any
 
 from co_scientist.agents.generation.citations import (
     ReferenceIndex,
@@ -55,37 +54,4 @@ def build_evolution_context(
         reference_index=build_reference_index(
             state.get("articles"), state.get("context_enrichment_sources")
         ),
-    )
-
-
-def prepare_outcome_refinement_context(
-    state: WorkflowState, parent: Hypothesis
-) -> EvolutionContext:
-    """Siblings belong only to duplicate validation; unrelated round signals
-    must not enter the selected-parent outcome prompt."""
-    scoped_state = cast(
-        WorkflowState,
-        {
-            **state,
-            "hypotheses": [parent],
-            "meta_review": {},
-            "supervisor_guidance": None,
-        },
-    )
-    context = build_evolution_context(scoped_state, [], None)
-    return replace(
-        context,
-        state=cast(
-            WorkflowState,
-            {
-                "research_goal": state.get("research_goal"),
-                "preferences": state.get("preferences"),
-                "lab_constraints": state.get("lab_constraints"),
-                "hypotheses": [parent],
-            },
-        ),
-        ranked_hypotheses=(parent,),
-        meta_review={},
-        removed_duplicates=[],
-        supervisor_guidance=None,
     )

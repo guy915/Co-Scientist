@@ -348,7 +348,6 @@ def test_supported_read_routes_publish_concrete_response_schemas() -> None:
         "proximity",
         "reviews",
         "safety",
-        "outcomes",
         "claim-evidence",
         "messages",
         "report",

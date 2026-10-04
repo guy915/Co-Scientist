@@ -58,39 +58,6 @@ class ReferencedEvidence(TypedDict):
 
 
 @with_config(ConfigDict(extra="allow"))
-class HypothesisOutcome(TypedDict):
-    """JSON contract; omitted fields stay omitted."""
-
-    id: str
-    run_id: str
-    hypothesis_id: str
-    author: str
-    recorded_at: float
-    method_protocol: str
-    conditions: str
-    measured_observation: str
-    units: NotRequired[str | None]
-    controls: str
-    interpretation: str
-    referenced_evidence_ids: list[str]
-    hypothesis_snapshot: NotRequired[HypothesisSnapshot]
-    referenced_evidence: NotRequired[list[ReferencedEvidence]]
-
-
-@with_config(ConfigDict(extra="allow"))
-class HypothesisOutcomeInput(TypedDict):
-    """JSON contract; omitted fields stay omitted."""
-
-    method_protocol: str
-    conditions: str
-    measured_observation: str
-    units: NotRequired[str]
-    controls: str
-    interpretation: str
-    referenced_evidence_ids: list[str]
-
-
-@with_config(ConfigDict(extra="allow"))
 class Evidence(TypedDict):
     """JSON contract; omitted fields stay omitted."""
 

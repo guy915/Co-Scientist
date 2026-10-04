@@ -1,17 +1,17 @@
-import {type ReactNode, useId, useState} from 'react';
 import {editInterviewFields} from '@/api/runs';
 import {Icon} from '@/components/icon';
+import {type ReactNode, useId, useState} from 'react';
+import {
+  SETUP_ACTIONS_CLASSES,
+  SETUP_PRIMARY_BUTTON_CLASSES,
+  SETUP_SECONDARY_BUTTON_CLASSES,
+} from '../classes';
 import {
   type EditedSpecFields,
   type InferredRunSpec,
   applyEditedInterviewFields,
   buildInterviewFieldsPayload,
 } from '../run_spec';
-import {
-  SETUP_ACTIONS_CLASSES,
-  SETUP_PRIMARY_BUTTON_CLASSES,
-  SETUP_SECONDARY_BUTTON_CLASSES,
-} from '../classes';
 const SPEC_EDIT_INPUT_CLASSES =
   'w-full rounded-[0.65rem] border border-cosci-composer-border bg-cosci-composer-bg px-[0.85rem] py-[0.6rem] text-base text-cosci-composer-text outline-none focus-visible:border-cosci-fg';
 const SPEC_EDIT_FIELD_CLASSES = 'grid gap-[0.5rem]';
@@ -49,7 +49,6 @@ function SpecSummary({spec}: {spec: InferredRunSpec}) {
       {spec.criteria.length > 0 && (
         <SpecList label="Criteria" values={spec.criteria} />
       )}
-      <SpecRow label="Title">{spec.title || 'Optional'}</SpecRow>
     </dl>
   );
 }
@@ -149,7 +148,6 @@ function SpecFieldsFormFields({
   onChange,
 }: Pick<SpecFieldsFormProps, 'values' | 'onChange'>) {
   const goalId = useId();
-  const titleId = useId();
   return (
     <>
       <div className={SPEC_EDIT_FIELD_CLASSES}>
@@ -173,18 +171,6 @@ function SpecFieldsFormFields({
         values={values.requirements}
         onChange={requirements => onChange({requirements})}
       />
-      <div className={SPEC_EDIT_FIELD_CLASSES}>
-        <label htmlFor={titleId} className={SPEC_EDIT_LABEL_CLASSES}>
-          Title
-        </label>
-        <input
-          id={titleId}
-          type="text"
-          className={SPEC_EDIT_INPUT_CLASSES}
-          value={values.title}
-          onChange={e => onChange({title: e.target.value})}
-        />
-      </div>
     </>
   );
 }
@@ -243,7 +229,6 @@ export type SpecFieldsEditor = ReturnType<typeof useSpecFieldsEditor>;
 function formValues(spec: InferredRunSpec): EditedSpecFields {
   return {
     goal: spec.goal,
-    title: spec.title ?? '',
     attributes: [...spec.attributes],
     requirements: [...spec.requirements],
   };

@@ -1,6 +1,6 @@
+import * as runsApi from '@/api/runs';
 import {screen} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
-import * as runsApi from '@/api/runs';
 import {makeRun, renderAt} from './run_detail_test_support';
 
 const streamMock = vi.hoisted(() => ({terminal: false}));
@@ -13,7 +13,6 @@ vi.mock('@/api/runs', async importActual => {
   return {
     ...actual,
     getRun: vi.fn(),
-    getSupervisorPlan: vi.fn().mockResolvedValue({plan: null, allocations: []}),
     getHypotheses: vi.fn().mockResolvedValue([]),
     getEvidence: vi.fn().mockResolvedValue([]),
     getMatches: vi.fn().mockResolvedValue([]),
@@ -32,16 +31,6 @@ function failedRun(failureKind?: string) {
     error: 'LLM call budget exhausted after 2500 requests',
   };
 }
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  streamMock.terminal = false;
-  vi.mocked(runsApi.getRun).mockResolvedValue(makeRun('Study pathway X'));
-  vi.mocked(runsApi.getSupervisorPlan).mockResolvedValue({
-    plan: null,
-    allocations: [],
-  });
-});
 
 it('shows exact call-budget guidance with an accessible label and keeps the recorded error', async () => {
   vi.mocked(runsApi.getRun).mockResolvedValue(
@@ -78,28 +67,6 @@ it('shows exact timeout guidance and keeps the recorded error', async () => {
   );
   expect(
     screen.getByText('Provider request timed out after 180 seconds'),
-  ).toBeInTheDocument();
-});
-
-it('warns before owner recovery when the timed-out outcome is unknown', async () => {
-  vi.mocked(runsApi.getRun).mockResolvedValue({
-    ...failedRun('llm_timeout_unknown'),
-    error:
-      'The provider may have accepted the request; acceptance and any charge are unconfirmed. Automatic replay was stopped.',
-  });
-
-  renderAt('/runs/run-1/details');
-
-  const guidance = await screen.findByRole('region', {
-    name: 'Suggested next step',
-  });
-  expect(guidance).toHaveTextContent(
-    'The provider may have accepted the request; acceptance and any charge are unconfirmed. The run was not retried automatically. Restarting or resuming may repeat provider work.',
-  );
-  expect(
-    screen.getByText(
-      'The provider may have accepted the request; acceptance and any charge are unconfirmed. Automatic replay was stopped.',
-    ),
   ).toBeInTheDocument();
 });
 
@@ -163,4 +130,10 @@ it('refreshes failure guidance and keeps its terminal toast aligned', async () =
   expect(
     screen.queryByText(/Run failed: LLM call budget exhausted/),
   ).not.toBeInTheDocument();
+});
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  streamMock.terminal = false;
+  vi.mocked(runsApi.getRun).mockResolvedValue(makeRun('Study pathway X'));
 });

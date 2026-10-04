@@ -1,18 +1,20 @@
+import type {QaSource} from '@/api/runs';
+import {Icon} from '@/components/icon';
+import {MarkdownMessage} from '@/components/markdown_message';
 import {
-  useState,
-  type ReactNode,
   useEffect,
+  useLayoutEffect,
   useRef,
-  type KeyboardEvent,
+  useState,
   type CSSProperties,
   type Dispatch,
+  type KeyboardEvent,
+  type ReactNode,
   type RefObject,
   type SetStateAction,
   type TransitionEvent,
-  useLayoutEffect,
 } from 'react';
-import type {QaSource} from '@/api/runs';
-import {MarkdownMessage} from '@/components/markdown_message';
+import {tooltipClassNames} from '../classes';
 import {
   MessageActionRow,
   requestActions,
@@ -20,8 +22,6 @@ import {
   type MessageAction,
 } from './chat_timeline_message_actions';
 import {ThoughtsDisclosure} from './chat_timeline_thoughts';
-import {Icon} from '@/components/icon';
-import {tooltipClassNames} from '../classes';
 
 const CHAT_BUBBLE_USER_ROW_CLASSES =
   'reference-bubble-row user group/user relative flex flex-col items-end justify-end gap-[0.35rem]';
@@ -36,6 +36,7 @@ export interface ChatEntry {
   // Optimistic and start-message bubbles lack server turns and cannot be
   // edited or retried.
   turnId?: number;
+  messageId?: number;
   // Label deterministic fallback questions so scripted text cannot pass as
   // model output.
   fallback?: boolean;

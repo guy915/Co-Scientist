@@ -7,6 +7,7 @@ import {
   retryInterviewTurn,
   editInterviewTurn,
   getInterview,
+  getRunMessages,
   type Interview,
 } from '@/api/runs';
 import {makeSpec, makeMessage} from '@/test_fixtures';
@@ -23,6 +24,7 @@ vi.mock('@/api/runs', async importOriginal => {
     editInterviewTurn: vi.fn(),
     retryInterviewTurn: vi.fn(),
     getInterview: vi.fn(),
+    getRunMessages: vi.fn(),
   };
 });
 beforeEach(() => vi.resetAllMocks());
@@ -664,3 +666,45 @@ export function makeInterview(overrides: Partial<Interview> = {}): Interview {
 export function makeDeps(overrides: Partial<SessionState> = {}) {
   return sessionRuntime(overrides);
 }
+
+test('revises post-start Q&A and adopts durable replacement IDs', async () => {
+  const deps = makeDeps({
+    startedSession: {id: 'run-1', title: 'Research', at: 1},
+  });
+  vi.mocked(getRunMessages).mockResolvedValue([
+    {
+      id: 9,
+      run_id: 'run-1',
+      sender: 'user',
+      kind: 'qa',
+      content: 'Revised',
+      created_at: 2,
+      applied: false,
+      meta: null,
+    },
+    {
+      id: 10,
+      run_id: 'run-1',
+      sender: 'system',
+      kind: 'qa',
+      content: 'Answer',
+      created_at: 3,
+      applied: false,
+      meta: null,
+    },
+  ]);
+  buildChatHandlers(deps).handleEditMessage(
+    makeMessage({messageId: 7}),
+    'Revised',
+  );
+  await vi.waitFor(() => expect(deps.state.isAwaitingAgent).toBe(false));
+  expect(askRunQuestion).toHaveBeenCalledWith(
+    'run-1',
+    'Revised',
+    expect.any(Object),
+    expect.any(AbortSignal),
+    7,
+  );
+  expect(deps.state.messages.map(row => row.messageId)).toEqual([9, 10]);
+  expect(editInterviewTurn).not.toHaveBeenCalled();
+});

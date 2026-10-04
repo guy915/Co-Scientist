@@ -1,6 +1,7 @@
-import type {ChatSummary, Run} from '@/api/runs';
 import type {
+  ChatSummary,
   Interview,
+  Run,
   RunAttribute,
   RunCriterion,
   RunFocus,
@@ -17,7 +18,6 @@ export function defaultRunTier(): RunTier {
 
 export interface InferredRunSpec {
   interviewId?: string;
-  title?: string | null;
   goal: string;
   requirements: string[];
   attributes: string[];
@@ -31,7 +31,6 @@ export interface InferredRunSpec {
 export function interviewToRunSpec(interview: Interview): InferredRunSpec {
   return {
     interviewId: interview.id,
-    title: interview.fields.title,
     goal: interview.fields.research_challenge,
     requirements: interview.fields.preferences,
     attributes: interview.fields.focus_area,
@@ -43,23 +42,19 @@ export function interviewToRunSpec(interview: Interview): InferredRunSpec {
   };
 }
 
-// Editor empty-title strings remain distinct from nullable persisted card
-// titles.
 export interface EditedSpecFields {
   goal: string;
-  title: string;
   attributes: string[];
   requirements: string[];
 }
 
 export function buildInterviewFieldsPayload(
   values: EditedSpecFields,
-): Interview['fields'] {
+): Omit<Interview['fields'], 'title'> {
   return {
     research_challenge: values.goal,
     focus_area: values.attributes,
     preferences: values.requirements,
-    title: values.title.trim() ? values.title : null,
   };
 }
 
@@ -69,11 +64,10 @@ export function applyEditedInterviewFields(
   interview: Interview,
 ): Pick<
   InferredRunSpec,
-  'interviewId' | 'title' | 'goal' | 'attributes' | 'requirements'
+  'interviewId' | 'goal' | 'attributes' | 'requirements'
 > {
   return {
     interviewId: interview.id,
-    title: interview.fields.title,
     goal: interview.fields.research_challenge,
     attributes: interview.fields.focus_area,
     requirements: interview.fields.preferences,
@@ -85,6 +79,7 @@ export interface RunTierOption {
   label: string;
   description: string;
   disabled?: boolean;
+  hint?: string;
 }
 
 export interface RunFocusOption {
@@ -128,7 +123,7 @@ export function availableTierOptions(): RunTierOption[] {
       : {
           ...option,
           disabled: true,
-          description: 'Requires your own API key (Settings > Model).',
+          hint: 'Requires your own API key (Settings > Model).',
         },
   );
 }
@@ -252,10 +247,6 @@ export function recoverySpecForRun(
   payload: PendingRunCreatePayload | undefined,
 ): InferredRunSpec {
   const setup = run.config.setup;
-  const interviewTitle = whenPresent(
-    target.interview,
-    interview => interview.fields.title,
-  );
   const interviewGoal = whenPresent(
     target.interview,
     interview => interview.fields.research_challenge,
@@ -272,10 +263,6 @@ export function recoverySpecForRun(
     interviewId: firstDefined(
       target.chatId,
       whenPresent(target.interview, interview => interview.id),
-    ),
-    title: firstDefined(
-      whenPresent(target.chat, chat => chat.title),
-      interviewTitle,
     ),
     goal: firstDefined(
       run.research_goal,

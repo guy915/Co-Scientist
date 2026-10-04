@@ -116,11 +116,31 @@ describe('chat workspace timeline', () => {
     );
   });
 
+  it('enables durable Q&A revisions after start and disables consumed setup', () => {
+    const args = baseArgs({
+      startedSession: {id: 'run-1', title: 'Research', at: 3},
+      messages: [
+        makeMessage({id: 'setup', turnId: 1}),
+        makeMessage({id: 'qa-user', messageId: 4}),
+        makeMessage({id: 'qa-answer', role: 'assistant', messageId: 5}),
+      ],
+    });
+    renderItems(buildTimelineItems(args));
+    const edits = screen.getAllByRole('button', {name: 'Edit prompt'});
+    expect(edits[0]).toBeDisabled();
+    expect(edits[1]).toBeEnabled();
+    expect(
+      screen
+        .getAllByRole('button', {name: 'Retry response'})
+        .filter(button => !button.hasAttribute('disabled')),
+    ).toHaveLength(1);
+  });
+
   it('offers no revision while a turn is in flight', () => {
     renderItems(buildTimelineItems(transcriptArgs({isAwaitingAgent: true})));
 
-    expect(screen.queryByLabelText('Edit prompt')).toBeNull();
-    expect(screen.queryByLabelText('Retry response')).toBeNull();
+    expect(screen.getByLabelText('Edit prompt')).toBeDisabled();
+    expect(screen.getByLabelText('Retry response')).toBeDisabled();
     expect(screen.getByLabelText('Copy prompt')).toBeInTheDocument();
   });
 
@@ -131,7 +151,7 @@ describe('chat workspace timeline', () => {
       ),
     );
 
-    expect(screen.queryByLabelText('Edit prompt')).toBeNull();
+    expect(screen.getByLabelText('Edit prompt')).toBeDisabled();
   });
 
   it('persists completion-notification opt-in and address in the draft', () => {
@@ -235,7 +255,7 @@ describe('chat workspace timeline', () => {
 
     const button = screen.getByRole('button', {name: 'Continue research'});
     expect(button).toBeEnabled();
-    expect(screen.queryByLabelText('Retry response')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Retry response')).toBeDisabled();
     fireEvent.click(button);
     expect(args.handleStartRun).toHaveBeenCalledOnce();
   });
@@ -332,7 +352,7 @@ describe('chat workspace timeline', () => {
       );
     }
 
-    expect(screen.queryByLabelText('Retry response')).toBeNull();
+    expect(screen.getByLabelText('Retry response')).toBeDisabled();
 
     fireEvent.click(
       screen.getByText('Start a new research goal session on a new topic'),

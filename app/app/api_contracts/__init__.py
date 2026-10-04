@@ -5,7 +5,6 @@ from app.api_contracts.science import (
     ClaimEvidenceRow,
     Evidence,
     Hypothesis,
-    HypothesisOutcome,
     MatchRow,
     ProximityEdge,
     Review,
@@ -53,12 +52,6 @@ class SafetyResponse(TypedDict):
     """Named collection envelope returned by the HTTP API."""
 
     safety: list[SafetyDecision]
-
-
-class OutcomesResponse(TypedDict):
-    """Named collection envelope returned by the HTTP API."""
-
-    outcomes: list[HypothesisOutcome]
 
 
 class ClaimsResponse(TypedDict):

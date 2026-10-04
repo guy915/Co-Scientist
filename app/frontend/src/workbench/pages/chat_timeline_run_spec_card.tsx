@@ -1,6 +1,7 @@
 import type {RunFocus, RunTier} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {conciseTitle} from '@/lib/text';
+import {Link} from 'react-router-dom';
 import {
   joinClasses,
   OPTION_GROUP_CLASSES,
@@ -14,14 +15,16 @@ import {
   SETUP_SECONDARY_BUTTON_CLASSES,
   tooltipClassNames,
 } from '../classes';
+import {TruncatedLabel} from '../components/truncated_label';
+import {useSystemStatus} from '../hooks/system_status_context';
 import {
   type InferredRunSpec,
-  FOCUS_OPTIONS,
-  TIER_OPTIONS,
   availableTierOptions,
+  FOCUS_OPTIONS,
   isCompletionEmailValid,
-  runOptionLabel,
   isValidCompletionEmail,
+  runOptionLabel,
+  TIER_OPTIONS,
 } from '../run_spec';
 import {AssistantMessage, MessageAttachment} from './chat_timeline_bubble';
 import {responseActions} from './chat_timeline_message_actions';
@@ -30,9 +33,6 @@ import {
   SpecFieldsSection,
   useSpecFieldsEditor,
 } from './chat_timeline_run_spec_editor';
-import {useSystemStatus} from '../hooks/system_status_context';
-import {Link} from 'react-router-dom';
-import {TruncatedLabel} from '../components/truncated_label';
 
 interface RunSpecCardProps {
   spec: InferredRunSpec;
@@ -69,7 +69,7 @@ function planInstructions(recoveryAction?: boolean): string {
   if (recoveryAction) {
     return 'This research setup is saved as a draft. Continue research to start the same session.';
   }
-  return 'Review the four fields and select a focus and run type. Once ready, click "Start research" to begin.';
+  return 'Review the research setup and select a focus and run type. Once ready, click "Start research" to begin.';
 }
 
 function startActionLabel(
@@ -253,7 +253,7 @@ function RunSpecDocument(props: RunSpecDocumentProps) {
   return (
     <div className="reference-setup-document grid gap-[1.15rem] rounded-2xl bg-cosci-setup-doc-bg p-[1.5rem_1.45rem]">
       <h3 className="m-0 text-[1.45rem] leading-[1.25] font-semibold">
-        {spec.title || conciseTitle(spec.goal)}
+        {conciseTitle(spec.goal)}
       </h3>
       <SpecFieldsSection spec={spec} editor={editor} />
       <SpecOptionGroups
@@ -333,7 +333,7 @@ function RunSpecActions({
 
 function formatRunSpecResponse(spec: InferredRunSpec): string {
   return [
-    `# ${spec.title || conciseTitle(spec.goal)}`,
+    `# ${conciseTitle(spec.goal)}`,
     '',
     'Agent interview-derived research setup.',
     '',
@@ -349,9 +349,6 @@ function formatRunSpecResponse(spec: InferredRunSpec): string {
     ...(spec.criteria.length
       ? ['## Criteria', ...spec.criteria.map(value => `* ${value}`), '']
       : []),
-    '## Title',
-    spec.title || 'Optional',
-    '',
     '## Setup Options',
     `* **Focus:** ${runOptionLabel(FOCUS_OPTIONS, spec.focus, spec.focus)}`,
     `* **Run type:** ${runOptionLabel(TIER_OPTIONS, spec.tier, spec.tier)}`,
@@ -363,6 +360,7 @@ interface RunOptionGroupOption {
   label: string;
   description: string;
   disabled?: boolean;
+  hint?: string;
 }
 
 interface OptionCardProps {
@@ -379,7 +377,7 @@ function OptionCard(props: OptionCardProps) {
     <label
       className={joinClasses(
         'reference-option-card relative grid min-h-[4.75rem] grid-cols-[1.6rem_minmax(0,1fr)] content-start gap-x-[0.8rem] rounded-[0.65rem] border border-transparent bg-cosci-option-bg px-[0.95rem] py-[0.85rem] text-cosci-fg hover:bg-cosci-option-hover-bg has-[:focus-visible]:border-cosci-option-hover-border has-[:focus-visible]:bg-cosci-option-hover-bg',
-        disabled ? 'cursor-default' : 'cursor-pointer',
+        disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
       )}
     >
       <input
@@ -401,6 +399,9 @@ function OptionCard(props: OptionCardProps) {
       <strong className={OPTION_LABEL_CLASSES}>{option.label}</strong>
       <small className="col-start-2 text-[0.92rem] leading-[1.3] text-cosci-muted">
         {option.description}
+        {option.hint && (
+          <span className="mt-1 block text-xs">{option.hint}</span>
+        )}
       </small>
     </label>
   );

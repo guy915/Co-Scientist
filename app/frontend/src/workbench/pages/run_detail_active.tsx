@@ -1,15 +1,10 @@
-import {useMemo, type ReactNode} from 'react';
 import type {StreamEvent} from '@/hooks/use_run_stream';
 import {formatDurationPhrase} from '@/lib/text';
 import {useNowTick} from '@/workbench/hooks/timers';
+import {useMemo} from 'react';
 import {RunExecutionProgress} from './chat_home_stage';
-import {windowedActivityGroups} from './run_detail_activity_log';
-import {ActivityLog} from './run_detail_activity_log';
+import {ActivityLog, windowedActivityGroups} from './run_detail_activity_log';
 import {type RunWithStreamState} from './run_detail_data';
-import {
-  SupervisorAllocationLedger,
-  type AllocationLedgerState,
-} from './run_detail_specifications';
 
 const ACTIVITY_WINDOW = 10;
 
@@ -18,8 +13,6 @@ interface ActiveRunViewProps {
   events: StreamEvent[];
   evidenceCount: number;
   ideaCount: number;
-  allocationLedger: AllocationLedgerState;
-  outcomeStatus?: ReactNode;
 }
 
 // Floor elapsed time at zero to tolerate client/server clock skew.
@@ -81,13 +74,11 @@ export function ActiveRunView(props: ActiveRunViewProps) {
           <RunExecutionProgress run={run} />
         </div>
         <RunMetrics elapsed={elapsed} metrics={headlineMetrics(props)} />
-        <SupervisorAllocationLedger {...props.allocationLedger} />
         <ActivityLog
           groups={activityGroups}
           connection={run.stream_connection}
           nowSeconds={nowSeconds}
         />
-        {props.outcomeStatus}
       </section>
     </main>
   );

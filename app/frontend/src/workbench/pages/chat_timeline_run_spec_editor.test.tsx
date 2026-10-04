@@ -1,14 +1,14 @@
-import {fireEvent, render, screen} from '@testing-library/react';
-import {beforeEach, expect, test, vi} from 'vitest';
 import type {Interview} from '@/api/runs';
 import {editInterviewFields} from '@/api/runs';
 import {makeSpec} from '@/test_fixtures';
+import {fireEvent, render, screen} from '@testing-library/react';
+import {beforeEach, expect, test, vi} from 'vitest';
 import type {InferredRunSpec} from '../run_spec';
+import {RunSpecCard} from './chat_timeline_run_spec_card';
 import {
   SpecFieldsSection,
   useSpecFieldsEditor,
 } from './chat_timeline_run_spec_editor';
-import {RunSpecCard} from './chat_timeline_run_spec_card';
 
 vi.mock('@/api/runs', async importOriginal => {
   const actual = await importOriginal<typeof import('@/api/runs')>();
@@ -111,7 +111,6 @@ test('entering edit mode shows the current field values', () => {
     goal: 'Study liver fibrosis',
     attributes: ['Attr A'],
     requirements: ['Req A'],
-    title: 'A title',
   });
 
   fireEvent.click(screen.getByText('Edit plan'));
@@ -119,7 +118,7 @@ test('entering edit mode shows the current field values', () => {
   expect(screen.getByLabelText('Research Challenge')).toHaveValue(
     'Study liver fibrosis',
   );
-  expect(screen.getByLabelText('Title')).toHaveValue('A title');
+  expect(screen.queryByLabelText('Title')).not.toBeInTheDocument();
   expect(screen.getByLabelText('Focus Area item 1')).toHaveValue('Attr A');
   expect(screen.getByLabelText('Preferences item 1')).toHaveValue('Req A');
 });
@@ -130,7 +129,6 @@ test('saving calls editInterviewFields with the mapped payload and applies the r
     goal: 'Study liver fibrosis',
     attributes: ['Attr A'],
     requirements: ['Req A'],
-    title: null,
   });
 
   fireEvent.click(screen.getByText('Edit plan'));
@@ -144,11 +142,9 @@ test('saving calls editInterviewFields with the mapped payload and applies the r
     research_challenge: 'Study liver fibrosis, revised',
     focus_area: ['Attr A'],
     preferences: ['Req A'],
-    title: null,
   });
   expect(onFieldsChange).toHaveBeenCalledWith({
     interviewId: 'interview-1',
-    title: null,
     goal: 'Study liver fibrosis, revised',
     attributes: ['Attr A'],
     requirements: ['Req A'],

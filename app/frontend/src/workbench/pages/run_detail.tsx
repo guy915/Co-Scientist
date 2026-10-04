@@ -1,4 +1,3 @@
-import {useParams} from 'react-router-dom';
 import {
   isCompletedStatus,
   isTerminalNonCompletedStatus,
@@ -9,8 +8,9 @@ import {
   type TerminalNonCompletedStatus,
 } from '@/api/runs';
 import {useRunHistoryContext} from '@/workbench/hooks/history_context';
+import {useParams} from 'react-router-dom';
 import {IdeasTab} from '../components/tabs/ideas_tab';
-import {RunOutcomesReport} from '../components/tabs/hypothesis_outcomes';
+import {normalizeTab, TABS, type TabName} from '../run_tabs';
 import {ActiveRunView} from './run_detail_active';
 import {useRunDetailData} from './run_detail_data';
 import {LearningView} from './run_detail_learning';
@@ -28,8 +28,6 @@ import {
   useTabNavigation,
 } from './run_detail_shell';
 import {RunSpecificationsView} from './run_detail_specifications';
-import {SupervisorAllocationLedger} from './run_detail_specifications';
-import {TABS, normalizeTab, type TabName} from '../run_tabs';
 
 // Keep horizontal overflow available to the mobile shell fallback; inner
 // report content owns vertical scrolling.
@@ -84,15 +82,6 @@ function runUsedOffline(run: RunWithSummary): boolean {
     return run.provider === 'mock';
   }
   return backend === 'offline';
-}
-
-function canRefineOutcomeForRun(run: RunWithSummary | null): boolean {
-  return Boolean(
-    run &&
-    isCompletedStatus(run.status) &&
-    run.provider === 'engine' &&
-    !run.is_demo,
-  );
 }
 
 // Flag completed runs without retrieved literature as ungrounded, except
@@ -189,20 +178,6 @@ function RunDetailBody({
           error={endState.error}
           failureKind={endState.failureKind}
         />
-        <section
-          className={
-            'mx-auto mt-6 w-[min(100%_-_3rem,58rem)] ' +
-            'max-[700px]:w-[min(100%_-_1.2rem,100%)]'
-          }
-        >
-          <SupervisorAllocationLedger
-            response={data.supervisorPlan.response}
-            loading={data.supervisorPlan.loading}
-            error={data.supervisorPlan.error}
-            onRetry={data.refreshSupervisorPlan}
-          />
-        </section>
-        <RunOutcomesStatusSection data={data} />
       </main>
     );
   }
@@ -224,27 +199,6 @@ function LiveRunSection({data}: {data: RunDetailData}) {
       events={data.events}
       evidenceCount={Math.max(data.evidence.length, data.run.summary.evidence)}
       ideaCount={Math.max(data.hypotheses.length, data.run.summary.hypotheses)}
-      allocationLedger={{
-        response: data.supervisorPlan.response,
-        loading: data.supervisorPlan.loading,
-        error: data.supervisorPlan.error,
-        onRetry: data.refreshSupervisorPlan,
-      }}
-      outcomeStatus={<RunOutcomesStatusSection data={data} />}
-    />
-  );
-}
-
-function RunOutcomesStatusSection({data}: {data: RunDetailData}) {
-  return (
-    <RunOutcomesReport
-      outcomes={data.outcomes}
-      hypotheses={data.hypotheses}
-      loading={data.outcomesLoading}
-      error={data.outcomesError}
-      onRefresh={data.refreshOutcomes}
-      readOnly={data.run?.is_demo ?? false}
-      showRefinementStatus
     />
   );
 }
@@ -256,10 +210,6 @@ function OverviewSection({data}: {data: RunDetailData}) {
       report={data.report}
       hypotheses={data.hypotheses}
       matches={data.matches}
-      outcomes={data.outcomes}
-      outcomesLoading={data.outcomesLoading}
-      outcomesError={data.outcomesError}
-      onRefreshOutcomes={data.refreshOutcomes}
     />
   );
 }
@@ -276,16 +226,11 @@ function IdeasSection({
       <IdeasTab
         key={ideasViewKey}
         runId={data.run?.id ?? ''}
-        allowRefinement={canRefineOutcomeForRun(data.run)}
         hypotheses={data.hypotheses}
         reviews={data.reviews}
         matches={data.matches}
         claimEvidence={data.claimEvidence}
-        outcomes={data.outcomes}
-        outcomesLoading={data.outcomesLoading}
-        outcomesError={data.outcomesError}
         isDemo={data.run?.is_demo ?? false}
-        onRefreshOutcomes={data.refreshOutcomes}
       />
     </section>
   );
@@ -299,12 +244,6 @@ const TAB_SECTIONS: Record<
     <RunSpecificationsView
       run={data.run}
       safety={data.safety}
-      allocationLedger={{
-        response: data.supervisorPlan.response,
-        loading: data.supervisorPlan.loading,
-        error: data.supervisorPlan.error,
-        onRetry: data.refreshSupervisorPlan,
-      }}
       onSafetyChanged={data.refreshNow}
     />
   ),

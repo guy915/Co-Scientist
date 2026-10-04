@@ -1,7 +1,7 @@
-import {screen} from '@testing-library/react';
-import {beforeEach, expect, it, vi} from 'vitest';
 import * as runsApi from '@/api/runs';
 import {makeHypothesis, makeMatch} from '@/test_fixtures';
+import {screen} from '@testing-library/react';
+import {beforeEach, expect, it, vi} from 'vitest';
 import {makeRun, renderAt} from './run_detail_test_support';
 
 const streamMock = vi.hoisted(() => ({
@@ -33,7 +33,6 @@ vi.mock('@/api/runs', async importActual => {
     getReviews: vi.fn().mockResolvedValue([]),
     getClaimEvidence: vi.fn().mockResolvedValue([]),
     getSafety: vi.fn().mockResolvedValue([]),
-    getSupervisorPlan: vi.fn().mockResolvedValue({plan: null, allocations: []}),
     adjudicateSafety: vi.fn().mockResolvedValue({
       decision_id: 1,
       resolution: 'approved',
@@ -44,21 +43,6 @@ vi.mock('@/api/runs', async importActual => {
       .fn()
       .mockResolvedValue({id: 'message-1', status: 'queued'}),
   };
-});
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  setStream([]);
-  vi.mocked(runsApi.getRun).mockResolvedValue(makeRun('Study pathway X'));
-  // Reset collection overrides between tests.
-  vi.mocked(runsApi.getHypotheses).mockResolvedValue([]);
-  vi.mocked(runsApi.getMatches).mockResolvedValue([]);
-  vi.mocked(runsApi.getReport).mockResolvedValue(null);
-  vi.mocked(runsApi.getSafety).mockResolvedValue([]);
-  vi.mocked(runsApi.getSupervisorPlan).mockResolvedValue({
-    plan: null,
-    allocations: [],
-  });
 });
 
 it('shows the run goal as the report heading', async () => {
@@ -132,4 +116,15 @@ it('shows an error alert when loading fails', async () => {
   renderAt('/runs/run-1');
   const alert = await screen.findByRole('alert');
   expect(alert).toHaveTextContent('boom');
+});
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  setStream([]);
+  vi.mocked(runsApi.getRun).mockResolvedValue(makeRun('Study pathway X'));
+  // Reset collection overrides between tests.
+  vi.mocked(runsApi.getHypotheses).mockResolvedValue([]);
+  vi.mocked(runsApi.getMatches).mockResolvedValue([]);
+  vi.mocked(runsApi.getReport).mockResolvedValue(null);
+  vi.mocked(runsApi.getSafety).mockResolvedValue([]);
 });

@@ -1,35 +1,30 @@
-import {errorMessage} from '@/lib/text';
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
-  runGoal,
-  type RunWithSummary,
-  getSupervisorPlan,
-  type SupervisorPlanResponse,
   getClaimEvidence,
   getEvidence,
   getHypotheses,
-  getHypothesisOutcomes,
   getMatches,
   getReport,
   getReviews,
   getRun,
   getSafety,
+  runGoal,
   type ClaimEvidenceRow,
   type Evidence,
   type Hypothesis,
-  type HypothesisOutcome,
   type MatchRow,
   type Report,
   type Review,
+  type RunWithSummary,
   type SafetyDecision,
 } from '@/api/runs';
 import {
-  type StreamConnectionState,
   useRunStream,
+  type StreamConnectionState,
   type StreamEvent,
 } from '@/hooks/use_run_stream';
-import {HEADER_TITLE_EVENT} from '../dom_events';
 import {useResetTimer} from '@/workbench/hooks/timers';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {HEADER_TITLE_EVENT} from '../dom_events';
 
 // Carry stream transport state with the run so reconnecting cannot look
 // healthy; missing state is not evidence of a drop.
@@ -40,26 +35,9 @@ export type RunWithStreamState = RunWithSummary & {
 function useRunEventStream(
   id: string | undefined,
   onDataEvents: (keys: Iterable<RunDataKey>) => void,
-  onSupervisorPlanEvent: () => void,
   onTerminal: () => void,
 ) {
   const {events, terminal, connection} = useRunStream(id ?? null);
-  const previousConnection = useRef({id, connection});
-
-  // A checkpoint can persist before its completion event; refresh the optional
-  // ledger on open and reconnect.
-  useEffect(() => {
-    const previous = previousConnection.current;
-    previousConnection.current = {id, connection};
-    if (
-      previous.id === id &&
-      previous.connection !== 'open' &&
-      connection === 'open'
-    ) {
-      onSupervisorPlanEvent();
-    }
-  }, [connection, id, onSupervisorPlanEvent]);
-
   // Scan every coalesced event, not only the tail, so a final status cannot
   // hide an earlier data update.
   const processedEventCount = useRef(0);
@@ -73,8 +51,7 @@ function useRunEventStream(
     if (data.length === 0) return;
     const keys = dataKeysFromEvents(data);
     if (keys.size > 0) onDataEvents(keys);
-    if (hasSupervisorPlanEvent(data)) onSupervisorPlanEvent();
-  }, [events, onDataEvents, onSupervisorPlanEvent]);
+  }, [events, onDataEvents]);
 
   // Refresh immediately on stream end so a pending debounce cannot leave
   // terminal state stale.
@@ -125,97 +102,18 @@ function useRunDerivedState(run: RunWithSummary | null, terminal: boolean) {
 
 export function useRunDetailData(id: string | undefined) {
   const {scheduleRefresh, ...data} = useRunDetailCollections(id);
-  const supervisorPlan = useRunSupervisorPlan(id);
-  const onTerminal = useCallback(() => {
-    data.refreshNow();
-    void supervisorPlan.refresh();
-  }, [data.refreshNow, supervisorPlan.refresh]);
   const {events, terminal, connection} = useRunEventStream(
     id,
     scheduleRefresh,
-    supervisorPlan.refresh,
-    onTerminal,
+    data.refreshNow,
   );
   const {toast, title} = useRunDerivedState(data.run, terminal);
-
   const run = useMemo<RunWithStreamState | null>(
     () =>
       data.run === null ? null : {...data.run, stream_connection: connection},
     [data.run, connection],
   );
-
-  return {
-    ...data,
-    run,
-    supervisorPlan: supervisorPlan.state,
-    toast,
-    title,
-    refreshSupervisorPlan: supervisorPlan.refresh,
-    events,
-  };
-}
-
-export interface SupervisorPlanLoadState {
-  response: SupervisorPlanResponse | null;
-  loading: boolean;
-  error: string | null;
-}
-
-type RunTaggedPlanState = SupervisorPlanLoadState & {
-  runId: string | undefined;
-};
-
-function isCurrentRequest(
-  shownId: string | undefined,
-  currentRequest: number,
-  id: string,
-  request: number,
-): boolean {
-  return shownId === id && currentRequest === request;
-}
-
-function useRunSupervisorPlan(id: string | undefined) {
-  const [state, setState] = useState<RunTaggedPlanState>({
-    runId: id,
-    response: null,
-    loading: Boolean(id),
-    error: null,
-  });
-  const shownId = useRef(id);
-  const requestId = useRef(0);
-
-  const refresh = useCallback(async () => {
-    if (!id) return;
-    const request = ++requestId.current;
-    setState(current => ({...current, loading: true, error: null}));
-    try {
-      const response = await getSupervisorPlan(id);
-      if (!isCurrentRequest(shownId.current, requestId.current, id, request))
-        return;
-      setState({runId: id, response, loading: false, error: null});
-    } catch (error) {
-      if (!isCurrentRequest(shownId.current, requestId.current, id, request))
-        return;
-      setState(current => ({
-        ...current,
-        loading: false,
-        error: errorMessage(error),
-      }));
-    }
-  }, [id]);
-
-  useEffect(() => {
-    shownId.current = id;
-    requestId.current += 1;
-    setState({runId: id, response: null, loading: Boolean(id), error: null});
-    void refresh();
-  }, [id, refresh]);
-
-  const currentState: SupervisorPlanLoadState =
-    state.runId === id
-      ? state
-      : {response: null, loading: Boolean(id), error: null};
-  return {state: currentState, refresh};
+  return {...data, run, toast, title, events};
 }
 
 export function runFailureGuidance(
@@ -251,7 +149,6 @@ export type RunDataKey =
   | 'matches'
   | 'reviews'
   | 'claimEvidence'
-  | 'outcomes'
   | 'safety'
   | 'report';
 
@@ -268,7 +165,6 @@ const EVENT_DATA_KEYS: Record<string, readonly RunDataKey[]> = {
   'safety.final': ['safety'],
   'scientist.hypothesis': ['hypotheses', 'safety'],
   'scientist.review': ['reviews'],
-  'scientist.outcome': ['outcomes'],
   proximity: ['hypotheses'],
   ranking: ['hypotheses', 'matches'],
   evolve: ['hypotheses', 'claimEvidence'],
@@ -283,19 +179,6 @@ export function dataKeysFromEvents(
     for (const key of EVENT_DATA_KEYS[event.type] ?? []) keys.add(key);
   }
   return keys;
-}
-
-export function hasSupervisorPlanEvent(
-  events: readonly StreamEvent[],
-): boolean {
-  return events.some(
-    event =>
-      event.type === 'scientific_task' && event.payload.task === 'orchestrator',
-  );
-}
-
-function shouldRefreshOutcomes(keys?: ReadonlySet<RunDataKey>): boolean {
-  return keys === undefined || keys.has('outcomes');
 }
 
 async function fetchRunData(id: string, keys?: ReadonlySet<RunDataKey>) {
@@ -456,118 +339,50 @@ function useRunCollections() {
 
 export function useRunDetailCollections(id: string | undefined) {
   const {applyFetched, reset, ...collections} = useRunCollections();
-  const outcomeCollection = useRunOutcomeCollection();
-  // Match settled data to the current run id before effects execute, or
-  // navigation flashes the previous report.
   const [settled, setSettled] = useState<{
     id: string;
     error: string | null;
   } | null>(null);
   const current = settled?.id === id ? settled : null;
-  const loaded = current !== null;
-  const error = current?.error ?? null;
   const shownId = useRef<string | undefined>(undefined);
   const requestSequence = useRef(0);
   const resourceOwners = useRef(new Map<SnapshotResource, number>());
-
   const refresh = useCallback(
     async (keys?: ReadonlySet<RunDataKey>) => {
       if (!isShownRun(id, shownId.current)) return;
       const request = ++requestSequence.current;
-      // Guard requests per resource: a later review fetch must not discard an
-      // earlier generation fetch.
       claimSnapshotResources(resourceOwners.current, request, keys);
       const owns = (resource: SnapshotResource) =>
         resourceOwners.current.get(resource) === request;
-      if (shouldRefreshOutcomes(keys)) void outcomeCollection.refresh(id);
       const outcome = await fetchRunOutcome(id, keys);
-      // Reject old-run responses after navigation so they cannot repopulate
-      // the new run's view.
       if (!isShownRun(id, shownId.current)) return;
       applyFetched(outcome.data, owns);
       if (owns('run')) setSettled({id, error: outcome.error});
     },
-    [id, applyFetched, outcomeCollection.refresh],
+    [id, applyFetched],
   );
-
   const {scheduleRefresh, cancelPending, resetPending} =
     useDebouncedKeyedRefresh(refresh);
-
   const refreshNow = useCallback(() => {
     cancelPending();
     void refresh();
   }, [refresh, cancelPending]);
-
-  const refreshOutcomesNow = useCallback(async () => {
-    if (shownId.current !== id) return;
-    await outcomeCollection.refresh(id);
-  }, [id, outcomeCollection.refresh]);
-
   useEffect(() => {
     shownId.current = id;
     resetPending();
     reset();
-    outcomeCollection.reset(id);
     void refresh();
     return () => {
       shownId.current = undefined;
       resourceOwners.current.clear();
       resetPending();
-      outcomeCollection.reset(undefined);
     };
-  }, [id, refresh, resetPending, reset, outcomeCollection.reset]);
-
+  }, [id, refresh, resetPending, reset]);
   return {
     ...collections,
-    outcomes: outcomeCollection.outcomes,
-    outcomesLoading: outcomeCollection.loading,
-    outcomesError: outcomeCollection.error,
-    error,
-    loaded,
+    error: current?.error ?? null,
+    loaded: current !== null,
     scheduleRefresh,
     refreshNow,
-    refreshOutcomes: refreshOutcomesNow,
   };
-}
-
-async function fetchOutcomes(id: string) {
-  try {
-    return {data: await getHypothesisOutcomes(id), error: null};
-  } catch (err) {
-    return {
-      data: null,
-      error: err instanceof Error ? err.message : String(err),
-    };
-  }
-}
-
-export function useRunOutcomeCollection() {
-  const [outcomes, setOutcomes] = useState<HypothesisOutcome[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const shownId = useRef<string | undefined>(undefined);
-  const requestGeneration = useRef(0);
-
-  const reset = useCallback((id: string | undefined) => {
-    shownId.current = id;
-    requestGeneration.current += 1;
-    setOutcomes([]);
-    setLoading(true);
-    setError(null);
-  }, []);
-
-  const refresh = useCallback(async (id: string | undefined) => {
-    if (!id) return;
-    const generation = ++requestGeneration.current;
-    setLoading(true);
-    const result = await fetchOutcomes(id);
-    if (shownId.current !== id || requestGeneration.current !== generation) {
-      return;
-    }
-    if (result.data) setOutcomes(result.data);
-    setError(result.error);
-    setLoading(false);
-  }, []);
-
-  return {outcomes, loading, error, reset, refresh};
 }

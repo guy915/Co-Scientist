@@ -6,52 +6,31 @@ from fastapi import (
     APIRouter,
     File,
     Form,
-    Header,
     HTTPException,
     Request,
     UploadFile,
 )
-from fastapi.responses import JSONResponse
-from starlette.background import BackgroundTask
 
 import app.document_ingest as document_ingest
 import app.human_input as human_input
 import app.run_corpus as run_corpus
-import app.task_worker as task_worker
-from app.api_contracts.science import HypothesisOutcome
-from app.auth import client_id, require_bearer_principal
-from app.config import settings
+from app.auth import client_id
 from app.execution_policy import (
     CAMPAIGN,
     campaign_model_for_config,
     scoped_execution_policy,
 )
 from app.hypothesis import screen_hypotheses
-from app.outcome_refinement import (
-    OutcomeRefinementContextTooLargeError,
-    OutcomeRefinementIneligibleError,
-    OutcomeRefinementNotFoundError,
-    OutcomeRefinementRequest,
-    OutcomeRefinementRequestError,
-    get_owner_outcome_refinement_action,
-    request_outcome_refinement_action,
-)
 from app.runs.models import (
     HumanAttachmentRequest,
     HumanHypothesisRequest,
     HumanReviewRequest,
-    HypothesisOutcomeRequest,
 )
-from app.runs.support import _require_run, _run_or_404, _steer_and_continue
+from app.runs.support import _require_run, _steer_and_continue
 from app.store import events as store
-from app.store import hypotheses, outcomes, records, runs
+from app.store import hypotheses, records, runs
 from app.store.hypotheses import NewHypothesis
 from app.store.models import ScientificTask
-from app.store.outcomes import (
-    InvalidOutcomeReferencesError,
-    NewHypothesisOutcome,
-    OutcomeRefinementConflictError,
-)
 from app.store.records import NewEvidence, NewReview
 
 attachments_router = APIRouter()
@@ -187,27 +166,6 @@ router = APIRouter()
 router.include_router(attachments_router)
 
 
-def _outcome_refinement_http_error(exc: Exception) -> HTTPException:
-    if isinstance(exc, OutcomeRefinementNotFoundError):
-        return HTTPException(status_code=404, detail="run or outcome not found")
-    if isinstance(exc, OutcomeRefinementIneligibleError):
-        return HTTPException(
-            status_code=409,
-            detail="run or linked hypothesis is not eligible for refinement",
-        )
-    if isinstance(exc, OutcomeRefinementContextTooLargeError):
-        return HTTPException(
-            status_code=422,
-            detail="complete outcome context exceeds the refinement limits",
-        )
-    if isinstance(exc, OutcomeRefinementRequestError):
-        return HTTPException(status_code=422, detail="invalid idempotency key")
-    return HTTPException(
-        status_code=409,
-        detail="outcome already has an action or idempotency key conflicts",
-    )
-
-
 def _persist_manual_hypothesis(
     run_id: str, hyp: dict[str, Any], author: str
 ) -> str:
@@ -297,110 +255,6 @@ def _require_run_hypothesis(run_id: str, hypothesis_id: str) -> None:
         raise HTTPException(
             status_code=404, detail="hypothesis not found in this run"
         )
-
-
-@router.post(
-    "/{run_id}/hypotheses/{hypothesis_id}/outcomes",
-    status_code=201,
-    response_model=HypothesisOutcome,
-)
-async def record_hypothesis_outcome(
-    run_id: str,
-    hypothesis_id: str,
-    req: HypothesisOutcomeRequest,
-    request: Request,
-) -> dict[str, Any]:
-    """Append a researcher-measured outcome for an existing run hypothesis."""
-    run = _run_or_404(run_id)
-    author = require_bearer_principal(request).subject
-    if run.client_id != author:
-        raise HTTPException(status_code=404, detail="run not found")
-    _require_run_hypothesis(run_id, hypothesis_id)
-    try:
-        return outcomes.add_hypothesis_outcome(
-            NewHypothesisOutcome(
-                run_id=run_id,
-                hypothesis_id=hypothesis_id,
-                method_protocol=req.method_protocol,
-                conditions=req.conditions,
-                measured_observation=req.measured_observation,
-                units=req.units,
-                controls=req.controls,
-                interpretation=req.interpretation,
-                referenced_evidence_ids=req.referenced_evidence_ids,
-                author=author,
-            )
-        )
-    except InvalidOutcomeReferencesError as exc:
-        raise HTTPException(
-            status_code=404,
-            detail="hypothesis or evidence not found in this run",
-        ) from exc
-
-
-@router.post(
-    "/{run_id}/hypotheses/{hypothesis_id}/outcomes/{outcome_id}/refine",
-    status_code=202,
-)
-async def request_hypothesis_outcome_refinement(
-    run_id: str,
-    hypothesis_id: str,
-    outcome_id: str,
-    request: Request,
-    idempotency_key: Annotated[
-        str, Header(alias="Idempotency-Key", min_length=1, max_length=200)
-    ],
-) -> JSONResponse:
-    """Queue the owner's separate, targeted use of one recorded outcome."""
-    owner = require_bearer_principal(request).subject
-    try:
-        action = request_outcome_refinement_action(
-            OutcomeRefinementRequest(
-                run_id=run_id,
-                hypothesis_id=hypothesis_id,
-                outcome_id=outcome_id,
-                owner_id=owner,
-                request_idempotency_key=idempotency_key,
-            )
-        )
-        background_task = None
-        if (
-            settings.coscientist_embedded_worker
-            and action["status"] == "queued"
-        ):
-            background_task = BackgroundTask(
-                task_worker.run_run_worker_pool_sync,
-                run_id,
-                f"embedded-api:outcome-refinement:{action['action_id'][:8]}",
-            )
-        return JSONResponse(action, status_code=202, background=background_task)
-    except (
-        OutcomeRefinementNotFoundError,
-        OutcomeRefinementIneligibleError,
-        OutcomeRefinementContextTooLargeError,
-        OutcomeRefinementRequestError,
-        OutcomeRefinementConflictError,
-    ) as exc:
-        raise _outcome_refinement_http_error(exc) from exc
-
-
-@router.get("/{run_id}/hypotheses/{hypothesis_id}/outcomes/{outcome_id}/refine")
-async def get_hypothesis_outcome_refinement(
-    run_id: str,
-    hypothesis_id: str,
-    outcome_id: str,
-    request: Request,
-) -> dict[str, Any]:
-    """Read this owner's existing refinement action without side effects."""
-    owner = require_bearer_principal(request).subject
-    try:
-        return get_owner_outcome_refinement_action(
-            run_id, hypothesis_id, outcome_id, owner
-        )
-    except OutcomeRefinementNotFoundError as exc:
-        raise HTTPException(
-            status_code=404, detail="run or outcome not found"
-        ) from exc
 
 
 def _build_human_review_or_422(

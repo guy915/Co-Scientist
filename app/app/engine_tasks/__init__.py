@@ -23,9 +23,6 @@ from app.engine_tasks.inputs import (
 )
 from app.engine_tasks.inputs import execute_bootstrap as execute_bootstrap
 from app.engine_tasks.node import execute_node_task as execute_node_task
-from app.engine_tasks.outcome_refinement import (
-    execute_outcome_refinement as execute_outcome_refinement,
-)
 from app.engine_tasks.ranking import (
     execute_ranking_finalize,
     execute_ranking_match,
@@ -48,9 +45,6 @@ from app.engine_tasks.support import (
     MATURE_REFLECTION_ITEM_TASK as MATURE_REFLECTION_ITEM_TASK,
 )
 from app.engine_tasks.support import NODE_TASK_PREFIX as NODE_TASK_PREFIX
-from app.engine_tasks.support import (
-    OUTCOME_REFINEMENT_TASK as OUTCOME_REFINEMENT_TASK,
-)
 from app.engine_tasks.support import SafetyHoldError as SafetyHoldError
 from app.engine_tasks.support import SupersededTaskError as SupersededTaskError
 from app.execution_policy import (
@@ -64,7 +58,6 @@ from app.store.models import ScientificTask
 
 _ENGINE_TASK_DISPATCH: dict[str, Callable[..., Awaitable[dict[str, Any]]]] = {
     BOOTSTRAP_TASK: execute_bootstrap,
-    OUTCOME_REFINEMENT_TASK: execute_outcome_refinement,
     REVIEW_ITEM_TASK: execute_review_item,
     REVIEW_AGGREGATE_TASK: execute_review_aggregate,
     VERIFICATION_ITEM_TASK: execute_verification_item,
@@ -82,6 +75,10 @@ _ENGINE_TASK_DISPATCH: dict[str, Callable[..., Awaitable[dict[str, Any]]]] = {
 async def _dispatch_engine_task(
     task: ScientificTask, *, db_path: str | None
 ) -> dict[str, Any]:
+    # Retired queued rows settle without issuing provider calls or losing the
+    # checkpoint that ordinary recovery resumes.
+    if task.task_type == "engine.outcome.refinement":
+        return {"retired": True}
     handler = _ENGINE_TASK_DISPATCH.get(task.task_type)
     if handler is not None:
         return await handler(task, db_path=db_path)
