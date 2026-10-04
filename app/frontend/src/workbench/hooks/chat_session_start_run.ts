@@ -23,6 +23,7 @@ import {
   type ExecuteStartDeps,
   type HandlerDeps,
   type SpecStage,
+  type SessionState,
 } from './use_chat_session';
 import {beginTurnAbort, isAbortError} from './chat_session_transcript';
 import {interviewToRunSpec} from '../run_spec';
@@ -50,11 +51,10 @@ type StartDeps = StartRecoveryDeps;
 
 function validateStartTarget(
   target: ResolvedStartTarget,
-  deps: Pick<ExecuteStartDeps, 'setDraft' | 'setConfirmed' | 'stageToStart'>,
+  deps: Pick<ExecuteStartDeps, 'update' | 'stageToStart'>,
 ): ResolvedStartTarget {
   if (isFailureStatus(target.status)) {
-    deps.setConfirmed(null);
-    deps.setDraft(deps.stageToStart);
+    deps.update({confirmed: null, draft: deps.stageToStart});
     throw runOutcomeError(target.status);
   }
   return target;
@@ -67,13 +67,12 @@ async function executeStart(deps: StartDeps): Promise<StartResult> {
   let shouldAnnounce = isDraftStatus(target.status);
 
   if (shouldAnnounce) {
-    appendChatMessage(deps.setMessages, {
+    appendChatMessage(deps.update, {
       role: 'user',
       content: START_RESEARCH_PROMPT,
     });
   }
-  deps.setConfirmed(stage);
-  deps.setDraft(null);
+  deps.update({confirmed: stage, draft: null});
   if (shouldAnnounce) {
     const disposition = await startOrSettle(
       target.runId,
@@ -89,46 +88,45 @@ async function executeStart(deps: StartDeps): Promise<StartResult> {
     at: Date.now() / 1000,
     announcing: shouldAnnounce,
   };
-  deps.setPendingAttachments([]);
-  deps.setInput('');
-  deps.setStartedSession(session);
-  await deps.reloadHistory();
+  deps.update({pendingAttachments: [], input: '', startedSession: session});
+  await deps.services.reloadHistory();
   window.dispatchEvent(new Event(RUNS_CHANGED_EVENT));
   announceChatsChanged();
   return {session, shouldAnnounce};
 }
 
 function appendAnnouncement(
-  setStartedSession: ExecuteStartDeps['setStartedSession'],
+  update: HandlerDeps['update'],
   patch: 'intro' | 'reasoning',
   fragment: string,
 ): void {
-  setStartedSession(current =>
-    current
-      ? {...current, [patch]: (current[patch] ?? '') + fragment}
-      : current,
-  );
+  update(({startedSession}) => ({
+    startedSession: startedSession
+      ? {...startedSession, [patch]: (startedSession[patch] ?? '') + fragment}
+      : startedSession,
+  }));
 }
 
 async function announceStart(
   deps: ExecuteStartDeps & Pick<HandlerDeps, 'turnAbortRef'>,
   runId: string,
 ): Promise<void> {
-  deps.setStartedSession(current =>
-    current ? {...current, announcing: true} : current,
-  );
+  deps.update(({startedSession}) => ({
+    startedSession: startedSession
+      ? {...startedSession, announcing: true}
+      : startedSession,
+  }));
   // Expose announcement cancellation to Stop so a hanging provider cannot leave
   // the composer blocked.
-  deps.setIsAwaitingAgent(true);
+  deps.update({isAwaitingAgent: true});
   try {
     const outcome = await announceRunStart(
       runId,
       START_RESEARCH_PROMPT,
       {
         onReasoning: fragment =>
-          appendAnnouncement(deps.setStartedSession, 'reasoning', fragment),
-        onChunk: fragment =>
-          appendAnnouncement(deps.setStartedSession, 'intro', fragment),
+          appendAnnouncement(deps.update, 'reasoning', fragment),
+        onChunk: fragment => appendAnnouncement(deps.update, 'intro', fragment),
       },
       beginTurnAbort(deps),
     );
@@ -153,25 +151,23 @@ async function announceStart(
     });
     // An interrupted announcement persists nothing; drop partial text so this
     // card matches its standby copy after reload.
-    deps.setStartedSession(current =>
-      current ? {...current, intro: undefined, reasoning: undefined} : current,
-    );
+    deps.update(({startedSession}) => ({
+      startedSession: startedSession
+        ? {...startedSession, intro: undefined, reasoning: undefined}
+        : startedSession,
+    }));
   } finally {
     deps.turnAbortRef.current = null;
-    deps.setStartedSession(current =>
-      current ? {...current, announcing: false} : current,
-    );
-    deps.setIsAwaitingAgent(false);
+    deps.update(({startedSession}) => ({
+      startedSession: startedSession
+        ? {...startedSession, announcing: false}
+        : startedSession,
+      isAwaitingAgent: false,
+    }));
   }
 }
 
-async function startDraftRun(
-  deps: StartDeps &
-    Pick<HandlerDeps, 'turnAbortRef'> & {
-      setError: (message: string) => void;
-    },
-): Promise<void> {
-  const {setError} = deps;
+async function startDraftRun(deps: StartDeps): Promise<void> {
   emitDiagnosticEvent({
     stage: 'LIFECYCLE',
     payload: {event: 'start_requested'},
@@ -189,7 +185,7 @@ async function startDraftRun(
     if (outcome.shouldAnnounce) await announceStart(deps, session.id);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    setError(message);
+    deps.update({error: message});
     emitDiagnosticEvent({
       stage: 'LIFECYCLE',
       level: 'error',
@@ -199,30 +195,30 @@ async function startDraftRun(
 }
 
 export async function promoteDraftToRun(deps: HandlerDeps): Promise<void> {
-  const stageToStart = deps.draft ?? linkedInterviewStage(deps.interview);
-  if (!stageToStart || deps.startedSession) return;
+  const stageToStart =
+    deps.state.draft ?? linkedInterviewStage(deps.state.interview);
+  if (!stageToStart || deps.state.startedSession) return;
   // Snapshot the whole stage before awaits so state changes cannot replace the
   // plan being started.
-  deps.setIsStarting(true);
-  deps.setError(null);
-  deps.setToast(null);
+  deps.update({isStarting: true, error: null});
+  deps.services.setToast(null);
   try {
     await startDraftRun({...deps, stageToStart});
   } finally {
-    deps.setIsStarting(false);
+    deps.update({isStarting: false});
   }
 }
 
 function linkedInterviewStage(
-  interview: HandlerDeps['interview'],
-): HandlerDeps['draft'] {
+  interview: SessionState['interview'],
+): SessionState['draft'] {
   if (!interview?.run_id) return null;
   const closing = completedInterviewClosing(interview);
   return closing ? stageFromClosing(interview, closing) : null;
 }
 
 function completedInterviewClosing(
-  interview: NonNullable<HandlerDeps['interview']>,
+  interview: NonNullable<SessionState['interview']>,
 ) {
   if (interview.status !== 'completed') return null;
   const closing = interview.turns.at(-1);
@@ -230,9 +226,9 @@ function completedInterviewClosing(
 }
 
 function stageFromClosing(
-  interview: NonNullable<HandlerDeps['interview']>,
+  interview: NonNullable<SessionState['interview']>,
   closing: NonNullable<ReturnType<typeof completedInterviewClosing>>,
-): NonNullable<HandlerDeps['draft']> {
+): NonNullable<SessionState['draft']> {
   return {
     spec: interviewToRunSpec(interview),
     createdAt: closing.created_at,
@@ -430,12 +426,8 @@ async function fingerprint(value: string): Promise<string> {
   ).join('');
 }
 
-type SettleDeps = Pick<
-  ExecuteStartDeps,
-  'setDraft' | 'setConfirmed' | 'stageToStart'
->;
-export type StartRecoveryDeps = ExecuteStartDeps &
-  Pick<HandlerDeps, 'draft' | 'interview'>;
+type SettleDeps = Pick<ExecuteStartDeps, 'update' | 'stageToStart'>;
+export type StartRecoveryDeps = ExecuteStartDeps;
 type CreateRunPayload = Parameters<typeof createRun>[0];
 type StartDisposition = 'started' | 'already-started';
 
@@ -461,9 +453,9 @@ function buildCreateRunPayload(deps: ExecuteStartDeps): CreateRunPayload {
     completion_email: spec.notifyOnCompletion
       ? spec.completionEmail
       : undefined,
-    enable_literature_review: deps.pubmedEnabled,
-    enable_web_search: deps.webSearchEnabled,
-    document_ids: deps.pendingAttachments.map(document => document.id),
+    enable_literature_review: deps.services.pubmedEnabled,
+    enable_web_search: deps.services.webSearchEnabled,
+    document_ids: deps.state.pendingAttachments.map(document => document.id),
   };
 }
 
@@ -543,8 +535,7 @@ async function readRunStatus(runId: string): Promise<string | undefined> {
 }
 
 function restoreDraft(deps: SettleDeps): void {
-  deps.setConfirmed(null);
-  deps.setDraft(deps.stageToStart);
+  deps.update({confirmed: null, draft: deps.stageToStart});
 }
 
 export function runOutcomeError(status: string): Error {
@@ -566,7 +557,7 @@ async function readStartIntent(
 
 function linkedRunId(
   intent: PendingCreateIntent<CreateRunPayload> | undefined,
-  interview: HandlerDeps['interview'],
+  interview: SessionState['interview'],
 ): string | null | undefined {
   if (intent?.createdRunId) return intent.createdRunId;
   return interview?.run_id;
@@ -579,7 +570,7 @@ export async function resolveStartTarget(
   const chatId = payload.interview_id;
   const intent = await readStartIntent(chatId);
   const linked = await getLinkedRun(
-    linkedRunId(intent, deps.interview),
+    linkedRunId(intent, deps.state.interview),
     chatId,
     intent,
     deps,
@@ -649,7 +640,7 @@ function stageForRun(
     chatId: recoveryChatId(deps, intent),
     runId: run.id,
     chat: undefined,
-    interview: deps.interview,
+    interview: deps.state.interview,
   };
   return {
     ...stage,
@@ -661,7 +652,7 @@ function recoveryChatId(
   deps: StartRecoveryDeps,
   intent: PendingCreateIntent<CreateRunPayload> | undefined,
 ): string {
-  return intent?.payload.interview_id ?? deps.interview?.id ?? '';
+  return intent?.payload.interview_id ?? deps.state.interview?.id ?? '';
 }
 
 function recoveryPayload(

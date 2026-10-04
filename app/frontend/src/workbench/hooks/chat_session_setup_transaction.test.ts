@@ -1,6 +1,6 @@
 import {beforeEach, expect, it, vi} from 'vitest';
 import {type InferredRunSpec} from '../run_spec';
-import {type HandlerDeps} from './use_chat_session';
+import {sessionRuntime, stagedDocument} from './__tests__/session_helpers';
 
 vi.mock('@/api/runs', async importActual => ({
   ...(await importActual<typeof import('@/api/runs')>()),
@@ -30,26 +30,23 @@ interface Recorded {
   drafts: unknown[];
 }
 
-function deps(
-  recorded: Recorded,
-  attachments: {id: string}[] = [],
-): HandlerDeps {
-  return {
-    draft: {spec: SPEC, createdAt: 0},
-    pubmedEnabled: false,
-    webSearchEnabled: false,
-    reloadHistory: async () => {},
-    setIsStarting: () => {},
-    setError: (message: string) => recorded.errors.push(message),
-    setToast: () => {},
-    setConfirmed: () => {},
-    setDraft: (stage: unknown) => recorded.drafts.push(stage),
-    setInput: () => {},
-    setMessages: () => {},
-    setStartedSession: () => {},
-    pendingAttachments: attachments,
-    setPendingAttachments: () => {},
-  } as unknown as HandlerDeps;
+function deps(recorded: Recorded, attachments: {id: string}[] = []) {
+  const runtime = sessionRuntime(
+    {
+      draft: {spec: SPEC, createdAt: 0},
+      pendingAttachments: attachments.map(document =>
+        stagedDocument(document.id),
+      ),
+    },
+    {pubmedEnabled: false, webSearchEnabled: false},
+  );
+  const update = runtime.update;
+  runtime.update = vi.fn(action => {
+    update(action);
+    if (runtime.state.error) recorded.errors.push(runtime.state.error);
+    recorded.drafts.push(runtime.state.draft);
+  });
+  return runtime;
 }
 
 beforeEach(() => {

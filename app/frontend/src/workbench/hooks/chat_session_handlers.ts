@@ -19,51 +19,22 @@ import {
 } from '@/api/runs';
 import {copyText} from '@/lib/clipboard';
 import {announceChatsChanged} from './history_context';
-import {
-  type ChatSessionDeps,
-  type HandlerDeps,
-  type ComposerLog,
-  type RunSpecLifecycle,
-} from './use_chat_session';
+import {type HandlerDeps, clearedLifecycle} from './use_chat_session';
 import {promoteDraftToRun} from './chat_session_start_run';
 import type {ChatEntry} from '../pages/chat_timeline_bubble';
-import {applyInterview, type TranscriptSink} from './chat_session_transcript';
+import {applyInterview} from './chat_session_transcript';
 
-type SubmitComposerDeps = Pick<
-  HandlerDeps,
-  | 'input'
-  | 'interview'
-  | 'startedSession'
-  | 'setInput'
-  | 'setError'
-  | 'setToast'
-  | 'setMessages'
-  | 'setInterview'
-  | 'onChatStarted'
-  | 'setIsStarting'
-  | 'setIsAwaitingAgent'
-  | 'setAgentReasoning'
-  | 'setAgentDraft'
-  | 'turnAbortRef'
-  | 'setPendingAttachments'
-  | 'setDraft'
-  | 'setConfirmed'
-  | 'stageDraftSpec'
-  | 'clearSessionState'
-  | 'reloadHistory'
-> & {
+type SubmitComposerDeps = HandlerDeps & {
   files: File[];
-  // A clicked answer sends its own text without destroying a half-written
-  // composer message.
+  // Choice clicks must preserve a half-written composer message.
   answer?: string;
 };
 
 function beginComposerTurn(deps: SubmitComposerDeps): string | null {
-  const text = (deps.answer ?? deps.input).trim();
+  const text = (deps.answer ?? deps.state.input).trim();
   if (!text) return null;
-  if (deps.answer === undefined) deps.setInput('');
-  deps.setError(null);
-  deps.setToast(null);
+  deps.update({...(deps.answer === undefined ? {input: ''} : {}), error: null});
+  deps.services.setToast(null);
   return text;
 }
 
@@ -74,20 +45,22 @@ async function stageTurnFiles(
 ): Promise<StagedDocument[]> {
   if (!deps.files.length) return [];
   const staged = await Promise.all(deps.files.map(file => stageDocument(file)));
-  deps.setPendingAttachments(current => [...current, ...staged]);
+  deps.update(current => ({
+    pendingAttachments: [...current.pendingAttachments, ...staged],
+  }));
   return staged;
 }
 
 function startInterviewTurn(
-  deps: Pick<SubmitComposerDeps, 'interview'>,
+  deps: Pick<HandlerDeps, 'state'>,
   text: string,
   sinks: InterviewSinks,
   documentIds: string[],
   signal: AbortSignal,
 ): Promise<Interview> {
-  if (deps.interview) {
+  if (deps.state.interview) {
     return addInterviewTurn(
-      deps.interview.id,
+      deps.state.interview.id,
       text,
       sinks,
       documentIds,
@@ -106,17 +79,17 @@ async function handleSubmitOutcome(
   text: string,
 ): Promise<void> {
   if (!isAbortError(error)) {
-    deps.setError(describeSubmitError(error));
+    deps.update({error: describeSubmitError(error)});
     return;
   }
   if (isFirstTurn) {
     // Creation reveals its ID only in the closing frame; after abort restore
     // composer text because there is no known chat ID to resync.
     clearConversation(deps, text);
-    await deps.reloadHistory();
+    await deps.services.reloadHistory();
     return;
   }
-  await recoverFromStoppedTurn(deps, deps.interview?.id);
+  await recoverFromStoppedTurn(deps, deps.state.interview?.id);
 }
 
 // Only the durable model response derives runnable setup; browser keyword
@@ -124,24 +97,28 @@ async function handleSubmitOutcome(
 async function submitComposerMessage(deps: SubmitComposerDeps): Promise<void> {
   // Run creation closes the interview; this guard also protects callers outside
   // the handler router from posting later turns.
-  if (deps.startedSession) return;
+  if (deps.state.startedSession) return;
   const text = beginComposerTurn(deps);
   if (text === null) return;
 
   // The optimistic prompt is replaced by its durable turn, including the ID
   // needed for later revisions.
-  appendChatMessage(deps.setMessages, {role: 'user', content: text});
-  deps.setIsStarting(true);
-  deps.setIsAwaitingAgent(true);
-  deps.setAgentReasoning('');
-  deps.setAgentDraft('');
+  appendChatMessage(deps.update, {role: 'user', content: text});
+  deps.update({
+    isStarting: true,
+    isAwaitingAgent: true,
+    agentReasoning: '',
+    agentDraft: '',
+  });
   const sinks = {
     onReasoning: (fragment: string) =>
-      deps.setAgentReasoning(current => current + fragment),
+      deps.update(current => ({
+        agentReasoning: current.agentReasoning + fragment,
+      })),
     onProse: (fragment: string) =>
-      deps.setAgentDraft(current => current + fragment),
+      deps.update(current => ({agentDraft: current.agentDraft + fragment})),
   };
-  const isFirstTurn = deps.interview === null;
+  const isFirstTurn = deps.state.interview === null;
   const signal = beginTurnAbort(deps);
   try {
     const staged = await stageTurnFiles(deps);
@@ -152,76 +129,60 @@ async function submitComposerMessage(deps: SubmitComposerDeps): Promise<void> {
       staged.map(document => document.id),
       signal,
     );
-    deps.setInterview(updated);
+    deps.update({interview: updated});
     announceChatsChanged();
-    if (isFirstTurn) deps.onChatStarted(updated.id);
+    if (isFirstTurn) deps.services.onChatStarted(updated.id);
     applyAgentTurn(updated, deps);
   } catch (error) {
     await handleSubmitOutcome(deps, error, isFirstTurn, text);
   } finally {
     deps.turnAbortRef.current = null;
-    deps.setIsStarting(false);
+    deps.update({isStarting: false});
     settleTurn(deps);
   }
 }
 
-type ClearConversationDeps = Pick<
-  HandlerDeps,
-  'setInput' | 'clearSessionState' | 'setMessages' | 'setError'
->;
+type ClearConversationDeps = Pick<HandlerDeps, 'update'>;
 
 function clearConversation(deps: ClearConversationDeps, input: string): void {
-  deps.clearSessionState();
-  deps.setMessages([]);
-  deps.setError(null);
-  deps.setInput(input);
+  deps.update({...clearedLifecycle, messages: [], error: null, input});
 }
 
 function cancelDraftSpec(
-  deps: ClearConversationDeps & Pick<HandlerDeps, 'setToast'>,
+  deps: ClearConversationDeps & Pick<HandlerDeps, 'services'>,
 ) {
   clearConversation(deps, '');
-  deps.setToast('The session was canceled');
+  deps.services.setToast('The session was canceled');
   emitDiagnosticEvent({
     stage: 'LIFECYCLE',
     payload: {event: 'draft_cancelled'},
   });
 }
 
-type CopyMessagePromptDeps = ClearConversationDeps &
-  Pick<HandlerDeps, 'setToast' | 'focusComposer'> & {message: ChatEntry};
+type CopyMessagePromptDeps = Pick<HandlerDeps, 'update' | 'services'> & {
+  message: ChatEntry;
+};
 
 async function copyMessagePrompt({
   message,
-  setInput,
-  clearSessionState,
-  setMessages,
-  setError,
-  setToast,
-  focusComposer,
+  update,
+  services: {setToast, focusComposer},
 }: CopyMessagePromptDeps): Promise<void> {
   const promptText = message.content;
   await copyText(promptText);
-  // The long-lived toast captures only its required setters, avoiding retention
-  // of the whole bag and staged attachment Files.
-  const clear = {setInput, clearSessionState, setMessages, setError};
-  // Copy must remain a pure utility; only the explicit toast action starts a new
-  // chat with that prompt.
+  // Only the explicit toast action starts a new chat; retain no runtime or Files.
   setToast({
     message: 'Prompt copied',
     action: {
       label: 'Start new chat',
       onClick: () => {
-        clearConversation(clear, promptText);
+        clearConversation({update}, promptText);
         setToast(null);
         focusComposer();
       },
     },
   });
-  emitDiagnosticEvent({
-    stage: 'CHAT',
-    payload: {event: 'prompt_copied'},
-  });
+  emitDiagnosticEvent({stage: 'CHAT', payload: {event: 'prompt_copied'}});
 }
 
 function stopTurn(deps: Pick<HandlerDeps, 'turnAbortRef'>): void {
@@ -243,7 +204,7 @@ export function buildChatHandlers(handlerDeps: HandlerDeps) {
     // A started run closes its interview; read current session state at call
     // time to route later submissions to run Q&A.
     handleSubmit: (e: FormEvent<HTMLFormElement>, files: File[] = []) => {
-      if (handlerDeps.startedSession) {
+      if (handlerDeps.state.startedSession) {
         return submitRunQuestion({e, ...handlerDeps});
       }
       // Question-choice clicks share the submit path but have no form event to
@@ -258,45 +219,13 @@ export function buildChatHandlers(handlerDeps: HandlerDeps) {
   };
 }
 
-export function toHandlerDeps(
-  lifecycle: RunSpecLifecycle,
-  composer: ComposerLog,
-  view: ChatSessionDeps,
-): HandlerDeps {
-  return {
-    input: composer.input,
-    setInput: composer.setInput,
-    draft: lifecycle.draft,
-    interview: lifecycle.interview,
-    startedSession: lifecycle.startedSession,
-    setInterview: lifecycle.setInterview,
-    setDraft: lifecycle.setDraft,
-    setConfirmed: lifecycle.setConfirmed,
-    setStartedSession: lifecycle.setStartedSession,
-    setIsStarting: composer.setIsStarting,
-    setIsAwaitingAgent: composer.setIsAwaitingAgent,
-    setAgentReasoning: composer.setAgentReasoning,
-    setAgentDraft: composer.setAgentDraft,
-    turnAbortRef: composer.turnAbortRef,
-    setMessages: composer.setMessages,
-    setError: composer.setError,
-    pendingAttachments: composer.pendingAttachments,
-    setPendingAttachments: composer.setPendingAttachments,
-    setToast: view.setToast,
-    clearSessionState: lifecycle.clearSessionState,
-    stageDraftSpec: lifecycle.stageDraftSpec,
-    focusComposer: view.focusComposer,
-    reloadHistory: view.reloadHistory,
-    onChatStarted: view.onChatStarted,
-    pubmedEnabled: view.pubmedEnabled,
-    webSearchEnabled: view.webSearchEnabled,
-  };
-}
-
 // Server snapshots replace the log so invalidated revisions disappear and
 // surviving bubbles retain durable turn IDs.
-export function applyAgentTurn(updated: Interview, deps: TranscriptSink): void {
-  applyInterview(deps, updated);
+export function applyAgentTurn(
+  updated: Interview,
+  deps: Pick<HandlerDeps, 'update'>,
+): void {
+  applyInterview(deps.update, updated);
   emitDiagnosticEvent(
     updated.status === 'completed'
       ? {
@@ -318,52 +247,29 @@ export function describeSubmitError(error: unknown): string {
 
 // Clear streamed text with its awaiting flag; otherwise starting research can
 // reshow the previous interview reply as a new bubble.
-export function settleTurn(
-  deps: Pick<
-    HandlerDeps,
-    'setIsAwaitingAgent' | 'setAgentReasoning' | 'setAgentDraft'
-  >,
-): void {
-  deps.setAgentReasoning('');
-  deps.setAgentDraft('');
-  deps.setIsAwaitingAgent(false);
+export function settleTurn(deps: Pick<HandlerDeps, 'update'>): void {
+  deps.update({agentReasoning: '', agentDraft: '', isAwaitingAgent: false});
 }
 
 // Stopped interview streams leave no durable draft; resync committed server
 // turns, handling aborted creation separately when its ID is still unknown.
 export async function recoverFromStoppedTurn(
-  deps: TranscriptSink &
-    Pick<HandlerDeps, 'setAgentReasoning' | 'setAgentDraft'>,
+  deps: Pick<HandlerDeps, 'update'>,
   interviewId: string | undefined,
 ): Promise<void> {
-  deps.setAgentReasoning('');
-  deps.setAgentDraft('');
+  deps.update({agentReasoning: '', agentDraft: ''});
   if (!interviewId) return;
   const updated = await getInterview(interviewId);
-  applyInterview(deps, updated);
+  applyInterview(deps.update, updated);
 }
 
-type AskComposerDeps = Pick<
-  HandlerDeps,
-  | 'input'
-  | 'startedSession'
-  | 'setInput'
-  | 'setError'
-  | 'setToast'
-  | 'setMessages'
-  | 'setIsStarting'
-  | 'setIsAwaitingAgent'
-  | 'setAgentReasoning'
-  | 'setAgentDraft'
-  | 'turnAbortRef'
-> & {e: FormEvent<HTMLFormElement>};
+type AskComposerDeps = HandlerDeps & {e: FormEvent<HTMLFormElement>};
 
 function beginAskTurn(deps: AskComposerDeps): string | null {
-  const text = deps.input.trim();
+  const text = deps.state.input.trim();
   if (!text) return null;
-  deps.setInput('');
-  deps.setError(null);
-  deps.setToast(null);
+  deps.update({input: '', error: null});
+  deps.services.setToast(null);
   return text;
 }
 
@@ -373,9 +279,7 @@ function describeAskError(error: unknown): string {
     : 'The Agent could not answer the question.';
 }
 
-function buildAskSinks(
-  deps: Pick<AskComposerDeps, 'setAgentReasoning' | 'setAgentDraft'>,
-) {
+function buildAskSinks(deps: Pick<HandlerDeps, 'update'>) {
   let answer = '';
   let reasoning = '';
   let sources: QaSource[] = [];
@@ -386,11 +290,13 @@ function buildAskSinks(
       },
       onReasoning: (fragment: string) => {
         reasoning += fragment;
-        deps.setAgentReasoning(current => current + fragment);
+        deps.update(current => ({
+          agentReasoning: current.agentReasoning + fragment,
+        }));
       },
       onChunk: (fragment: string) => {
         answer += fragment;
-        deps.setAgentDraft(current => current + fragment);
+        deps.update(current => ({agentDraft: current.agentDraft + fragment}));
       },
     },
     result: () => ({answer, reasoning, sources}),
@@ -404,36 +310,38 @@ async function runAskRequest(
   runId: string,
   text: string,
 ): Promise<void> {
-  appendChatMessage(deps.setMessages, {role: 'user', content: text});
+  appendChatMessage(deps.update, {role: 'user', content: text});
   // Block overlapping sends or one turn loses its Stop controller while both
   // streams corrupt the same draft.
-  deps.setIsStarting(true);
-  deps.setIsAwaitingAgent(true);
-  deps.setAgentReasoning('');
-  deps.setAgentDraft('');
+  deps.update({
+    isStarting: true,
+    isAwaitingAgent: true,
+    agentReasoning: '',
+    agentDraft: '',
+  });
   const {sinks, result} = buildAskSinks(deps);
   const signal = beginTurnAbort(deps);
   try {
     await askRunQuestion(runId, text, sinks, signal);
     const {answer, reasoning, sources} = result();
-    appendChatMessage(deps.setMessages, {
+    appendChatMessage(deps.update, {
       role: 'assistant',
       content: answer,
       reasoning: reasoning || undefined,
       sources,
     });
   } catch (error) {
-    if (!isAbortError(error)) deps.setError(describeAskError(error));
+    if (!isAbortError(error)) deps.update({error: describeAskError(error)});
   } finally {
     deps.turnAbortRef.current = null;
-    deps.setIsStarting(false);
+    deps.update({isStarting: false});
     settleTurn(deps);
   }
 }
 
 export async function submitRunQuestion(deps: AskComposerDeps): Promise<void> {
   deps.e.preventDefault();
-  const runId = deps.startedSession?.id;
+  const runId = deps.state.startedSession?.id;
   if (!runId) return;
   const text = beginAskTurn(deps);
   if (text === null) return;
@@ -446,18 +354,23 @@ async function reviseInterviewTurn(
   deps: HandlerDeps,
   revise: (sinks: InterviewSinks, signal: AbortSignal) => Promise<Interview>,
 ): Promise<void> {
-  deps.setError(null);
-  deps.setToast(null);
-  deps.setIsAwaitingAgent(true);
-  deps.setAgentReasoning('');
-  deps.setAgentDraft('');
+  deps.update({
+    error: null,
+    isAwaitingAgent: true,
+    agentReasoning: '',
+    agentDraft: '',
+  });
+  deps.services.setToast(null);
   const signal = beginTurnAbort(deps);
   try {
     const updated = await revise(
       {
         onReasoning: fragment =>
-          deps.setAgentReasoning(current => current + fragment),
-        onProse: fragment => deps.setAgentDraft(current => current + fragment),
+          deps.update(current => ({
+            agentReasoning: current.agentReasoning + fragment,
+          })),
+        onProse: fragment =>
+          deps.update(current => ({agentDraft: current.agentDraft + fragment})),
       },
       signal,
     );
@@ -465,9 +378,9 @@ async function reviseInterviewTurn(
     announceChatsChanged();
   } catch (error) {
     if (isAbortError(error)) {
-      await recoverFromStoppedTurn(deps, deps.interview?.id);
+      await recoverFromStoppedTurn(deps, deps.state.interview?.id);
     } else {
-      deps.setError(describeSubmitError(error));
+      deps.update({error: describeSubmitError(error)});
     }
   } finally {
     deps.turnAbortRef.current = null;
@@ -481,8 +394,8 @@ function revisableTurn(
   deps: HandlerDeps,
   message: ChatEntry,
 ): {interviewId: string; turnId: number} | null {
-  if (deps.startedSession) return null;
-  const interviewId = deps.interview?.id;
+  if (deps.state.startedSession) return null;
+  const interviewId = deps.state.interview?.id;
   if (!interviewId || !message.turnId) return null;
   return {interviewId, turnId: message.turnId};
 }
@@ -506,7 +419,9 @@ export function editUserMessage(
   const target = revisableTurn(deps, message);
   const text = content.trim();
   if (!target || !text) return;
-  deps.setMessages(current => truncateAtMessage(current, message, text));
+  deps.update(current => ({
+    messages: truncateAtMessage(current.messages, message, text),
+  }));
   void reviseInterviewTurn(deps, (sinks, signal) =>
     editInterviewTurn(target.interviewId, target.turnId, text, sinks, signal),
   );
@@ -519,7 +434,9 @@ export function retryAssistantMessage(
 ): void {
   const target = revisableTurn(deps, message);
   if (!target) return;
-  deps.setMessages(current => truncateAtMessage(current, message));
+  deps.update(current => ({
+    messages: truncateAtMessage(current.messages, message),
+  }));
   void reviseInterviewTurn(deps, (sinks, signal) =>
     retryInterviewTurn(target.interviewId, target.turnId, sinks, signal),
   );
@@ -530,8 +447,8 @@ function draftRevisionTarget(deps: HandlerDeps): {
   interviewId: string;
   turnId: number;
 } | null {
-  const interviewId = deps.interview?.id;
-  const turnId = deps.draft?.turnId;
+  const interviewId = deps.state.interview?.id;
+  const turnId = deps.state.draft?.turnId;
   if (!interviewId || !turnId) return null;
   return {interviewId, turnId};
 }
@@ -541,10 +458,10 @@ function draftRevisionTarget(deps: HandlerDeps): {
 export function retryDraftSpec(deps: HandlerDeps): void {
   // Rehydration may leave a draft beside a started session; draft presence alone
   // cannot authorize revision.
-  if (deps.startedSession) return;
+  if (deps.state.startedSession) return;
   const target = draftRevisionTarget(deps);
   if (!target) return;
-  deps.setDraft(null);
+  deps.update({draft: null});
   void reviseInterviewTurn(deps, (sinks, signal) =>
     retryInterviewTurn(target.interviewId, target.turnId, sinks, signal),
   );

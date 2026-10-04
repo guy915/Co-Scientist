@@ -1,5 +1,6 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import type {HandlerDeps} from './use_chat_session';
+import type {SessionState} from './use_chat_session';
+import {sessionRuntime, stagedDocument} from './__tests__/session_helpers';
 import {cancelRun, createRun, getRun, startRun} from '@/api/runs';
 import {
   getPendingCreateIntent,
@@ -63,17 +64,14 @@ describe('start run', () => {
       spec: {...SPEC, goal: 'edited visible plan'},
       createdAt: 10,
     };
-    const setStartedSession = vi.fn();
-
-    await promoteDraftToRun({...session, setStartedSession});
-    await promoteDraftToRun({
-      ...session,
+    await promoteDraftToRun(session);
+    session.update({
       draft: editedDraft,
-      pubmedEnabled: true,
-      webSearchEnabled: true,
-      pendingAttachments: [{id: 'changed-doc'}],
-      setStartedSession,
-    } as unknown as HandlerDeps);
+      pendingAttachments: [stagedDocument('changed-doc')],
+    });
+    session.services.pubmedEnabled = true;
+    session.services.webSearchEnabled = true;
+    await promoteDraftToRun(session);
 
     const [first, replay, edited] = vi.mocked(createRun).mock.calls;
     const keys = createKeys();
@@ -110,9 +108,7 @@ describe('start run', () => {
     expect(cancelRun).toHaveBeenCalledWith('r1');
     expect(startRun).toHaveBeenCalledTimes(1);
     expect(startRun).toHaveBeenCalledWith('r2');
-    expect(setStartedSession).toHaveBeenCalledWith(
-      expect.objectContaining({id: 'r2'}),
-    );
+    expect(session.state.startedSession?.id).toBe('r2');
   });
 
   it('clears the pending key after a confirmed start', async () => {
@@ -135,10 +131,10 @@ describe('start run', () => {
     const rejectedKey = vi.mocked(createRun).mock.calls[0][1]?.idempotencyKey;
     expect(await readPendingCreateIntent('chat-1')).toBeUndefined();
 
-    await promoteDraftToRun({
-      ...session,
+    session.update({
       draft: {spec: {...SPEC, goal: 'corrected plan'}, createdAt: 10},
     });
+    await promoteDraftToRun(session);
 
     expect(vi.mocked(createRun).mock.calls[1][0].research_goal).toBe(
       'corrected plan',
@@ -176,16 +172,16 @@ describe('start run', () => {
       id: 'r1',
       status: 'running',
     } as Awaited<ReturnType<typeof getRun>>);
-    const setStartedSession = vi.fn();
-
-    await promoteDraftToRun({...deps(), setStartedSession});
+    const session = deps();
+    await promoteDraftToRun(session);
 
     expect(vi.mocked(createRun)).toHaveBeenCalledTimes(1);
     expect(cancelRun).not.toHaveBeenCalled();
     expect(await readPendingCreateIntent('chat-1')).toBeUndefined();
-    expect(setStartedSession).toHaveBeenCalledWith(
-      expect.objectContaining({id: 'r1', announcing: false}),
-    );
+    expect(session.state.startedSession).toMatchObject({
+      id: 'r1',
+      announcing: false,
+    });
   });
 
   it.each(['failed', 'blocked'] as const)(
@@ -195,35 +191,17 @@ describe('start run', () => {
         id: 'r1',
         status,
       } as Awaited<ReturnType<typeof createRun>>);
-      vi.mocked(getRun).mockResolvedValue({
-        id: 'r1',
-        status,
-      } as Awaited<ReturnType<typeof getRun>>);
+      vi.mocked(getRun).mockResolvedValue(runRecord('r1', status, SPEC.goal));
       const session = deps();
-      const setDraft = vi.fn();
-      const setStartedSession = vi.fn();
-      const setError = vi.fn();
-
-      await promoteDraftToRun({
-        ...session,
-        setDraft,
-        setStartedSession,
-        setError,
-      });
-      await promoteDraftToRun({
-        ...session,
-        setDraft,
-        setStartedSession,
-        setError,
-      });
+      const stage = session.state.draft;
+      await promoteDraftToRun(session);
+      await promoteDraftToRun(session);
 
       expect(createRun).toHaveBeenCalledTimes(1);
       expect(startRun).not.toHaveBeenCalled();
-      expect(setStartedSession).not.toHaveBeenCalled();
-      expect(setDraft).toHaveBeenCalledWith(session.draft);
-      expect(setError).toHaveBeenCalledWith(
-        expect.stringContaining(`existing run is ${status}`),
-      );
+      expect(session.state.startedSession).toBeNull();
+      expect(session.state.draft).toBe(stage);
+      expect(session.state.error).toContain(`existing run is ${status}`);
       expect(await readPendingCreateIntent('chat-1')).toMatchObject({
         createdRunId: 'r1',
       });
@@ -253,15 +231,14 @@ describe('start run', () => {
       .mockResolvedValueOnce(runRecord('r1', 'draft', 'g'));
 
     const session = deps();
-    const stage = session.draft;
-    const setDraft = vi.fn();
-    const recoverableSession = {...session, setDraft};
+    const stage = session.state.draft;
+    const recoverableSession = session;
     await promoteDraftToRun(recoverableSession);
     expect(await readPendingCreateIntent('chat-1')).toMatchObject({
       createdRunId: 'r1',
     });
     expect(vi.mocked(startRun)).toHaveBeenCalledTimes(1);
-    expect(setDraft).toHaveBeenCalledWith(stage);
+    expect(session.state.draft).toBe(stage);
 
     await promoteDraftToRun(recoverableSession);
 
@@ -274,10 +251,7 @@ describe('start run', () => {
     vi.mocked(createRun).mockRejectedValueOnce(
       new TypeError('Failed to fetch'),
     );
-    const originalDeps = {
-      ...deps(),
-      pendingAttachments: [{id: 'doc-1'}],
-    } as unknown as HandlerDeps;
+    const originalDeps = deps({pendingAttachments: [stagedDocument('doc-1')]});
 
     await promoteDraftToRun(originalDeps);
     expect(vi.mocked(createRun).mock.calls[0][0]).toMatchObject({
@@ -293,15 +267,12 @@ describe('start run', () => {
         tier: 'express',
       }),
     );
-    const setConfirmed = vi.fn();
-    const refreshedDeps = {
-      ...deps(),
+    const refreshedDeps = deps({
       draft: null,
-      pubmedEnabled: true,
-      webSearchEnabled: true,
       interview: completedInterview('r1', 'g'),
-      setConfirmed,
-    } as unknown as HandlerDeps;
+    });
+    refreshedDeps.services.pubmedEnabled = true;
+    refreshedDeps.services.webSearchEnabled = true;
 
     await promoteDraftToRun(refreshedDeps);
 
@@ -310,16 +281,12 @@ describe('start run', () => {
     expect(cancelRun).not.toHaveBeenCalled();
     expect(startRun).toHaveBeenCalledTimes(1);
     expect(startRun).toHaveBeenCalledWith('r1');
-    expect(setConfirmed).toHaveBeenCalledWith(
-      expect.objectContaining({
-        spec: expect.objectContaining({
-          goal: 'g',
-          requirements: ['server persisted requirement'],
-          focus: 'prefer_novelty',
-          tier: 'express',
-        }),
-      }),
-    );
+    expect(refreshedDeps.state.confirmed?.spec).toMatchObject({
+      goal: 'g',
+      requirements: ['server persisted requirement'],
+      focus: 'prefer_novelty',
+      tier: 'express',
+    });
   });
 
   it('does not create a new key when an owned getRun lookup fails', async () => {
@@ -329,14 +296,12 @@ describe('start run', () => {
     });
     rememberPendingCreateRun('chat-1', intent.key, 'r1');
     vi.mocked(getRun).mockRejectedValueOnce(new Error('404 not found'));
-    const session = deps();
-    const linkedDeps = {
-      ...session,
+    const linkedDeps = deps({
       draft: null,
-      pubmedEnabled: true,
-      webSearchEnabled: true,
       interview: completedInterview('r1', 'saved exact goal'),
-    } as unknown as HandlerDeps;
+    });
+    linkedDeps.services.pubmedEnabled = true;
+    linkedDeps.services.webSearchEnabled = true;
 
     await promoteDraftToRun(linkedDeps);
 
@@ -355,28 +320,20 @@ describe('start run', () => {
     vi.mocked(createRun).mockResolvedValueOnce(
       runRecord('r1', 'running', 'saved exact goal'),
     );
-    const setConfirmed = vi.fn();
-    const setStartedSession = vi.fn();
-
-    await promoteDraftToRun({
-      ...deps(),
+    const session = deps({
       draft: {spec: {...SPEC, goal: 'edited visible plan'}, createdAt: 10},
-      setConfirmed,
-      setStartedSession,
     });
+    await promoteDraftToRun(session);
 
     expect(vi.mocked(createRun)).toHaveBeenCalledWith(intent.payload, {
       idempotencyKey: intent.key,
     });
     expect(startRun).not.toHaveBeenCalled();
-    expect(setConfirmed).toHaveBeenCalledWith(
-      expect.objectContaining({
-        spec: expect.objectContaining({goal: 'saved exact goal'}),
-      }),
-    );
-    expect(setStartedSession).toHaveBeenCalledWith(
-      expect.objectContaining({id: 'r1', title: 'saved exact goal'}),
-    );
+    expect(session.state.confirmed?.spec.goal).toBe('saved exact goal');
+    expect(session.state.startedSession).toMatchObject({
+      id: 'r1',
+      title: 'saved exact goal',
+    });
   });
 });
 
@@ -386,7 +343,6 @@ it('freezes the whole closing turn, not just its spec', async () => {
   vi.clearAllMocks();
   // The draft and confirmed card share one closing turn; retain its prose and
   // reasoning.
-  const setConfirmed = vi.fn();
   const stage = {
     spec: SPEC,
     createdAt: 12,
@@ -396,13 +352,9 @@ it('freezes the whole closing turn, not just its spec', async () => {
     fallback: true,
   };
 
-  await promoteDraftToRun({
-    ...deps(),
-    draft: stage,
-    setConfirmed,
-  } as unknown as HandlerDeps);
-
-  expect(setConfirmed).toHaveBeenCalledWith(stage);
+  const session = deps({draft: stage});
+  await promoteDraftToRun(session);
+  expect(session.state.confirmed).toBe(stage);
 });
 
 export const SPEC: InferredRunSpec = {
@@ -415,25 +367,14 @@ export const SPEC: InferredRunSpec = {
   tier: 'standard',
 };
 
-export function deps(): HandlerDeps {
-  return {
-    draft: {spec: SPEC, createdAt: 0},
-    pubmedEnabled: false,
-    webSearchEnabled: false,
-    reloadHistory: async () => undefined,
-    setIsStarting: () => undefined,
-    setError: () => undefined,
-    setToast: () => undefined,
-    setConfirmed: () => undefined,
-    setDraft: () => undefined,
-    setInput: () => undefined,
-    setMessages: () => undefined,
-    setStartedSession: () => undefined,
-    setIsAwaitingAgent: () => undefined,
-    turnAbortRef: {current: null},
-    pendingAttachments: [],
-    setPendingAttachments: () => undefined,
-  } as unknown as HandlerDeps;
+export function deps(state: Partial<SessionState> = {}) {
+  return sessionRuntime(
+    {draft: {spec: SPEC, createdAt: 0}, ...state},
+    {
+      pubmedEnabled: false,
+      webSearchEnabled: false,
+    },
+  );
 }
 
 export function createPayload(goal: string) {
@@ -511,5 +452,5 @@ export function completedInterview(runId: string, goal: string) {
         created_at: 12,
       },
     ],
-  } as unknown as NonNullable<HandlerDeps['interview']>;
+  } as unknown as NonNullable<SessionState['interview']>;
 }
