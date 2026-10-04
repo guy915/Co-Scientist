@@ -111,11 +111,16 @@ def test_mid_run_reads_committed_science_without_draining_or_writing(
 def test_interview_owner_is_checked_and_all_answers_are_retrievable() -> None:
     interview = interviews.create_interview("owner", "Initial challenge")
     run = _run(
-        {"interview_id": interview["id"], "requirements": ["No animal work"]}
+        {
+            "interview_id": interview["id"],
+            "requirements": ["No animal work"],
+            "setup": {"goal": "Study repair", "criteria": ["Replicable"]},
+        }
     )
     context = _gather_qa_context(run)
     assert context.artifacts["interview"][1]["content"] == "Initial challenge"
-    assert context.artifacts["setup"][0]["requirements"] == ["No animal work"]
+    assert context.artifacts["setup"][1]["requirements"] == ["No animal work"]
+    assert context.artifacts["setup"][0]["criteria"] == ["Replicable"]
     run.client_id = "other"
     assert "interview" not in _gather_qa_context(run).artifacts
 

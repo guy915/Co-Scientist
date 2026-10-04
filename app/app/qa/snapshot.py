@@ -86,6 +86,7 @@ def gather_artifacts(
     artifacts: dict[str, list[Any]] = {
         "goal": [run.research_goal],
         "setup": [
+            run.config.get("setup") or {},
             {
                 key: value
                 for key, value in run.config.items()
@@ -99,7 +100,7 @@ def gather_artifacts(
                     "budget",
                     "limits",
                 )
-            }
+            },
         ],
         "checkpoint_hypotheses": _items(state.get("hypotheses")),
         "supervisor_guidance": _items(state.get("supervisor_guidance")),
