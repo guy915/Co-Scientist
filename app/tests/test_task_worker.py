@@ -446,26 +446,6 @@ async def test_transient_provider_failure_keeps_its_retry_budget(
 
 
 @pytest.mark.asyncio
-async def test_unsupported_task_type_is_still_permanent(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    run = seed_run("Bad task type")
-    task = enqueue_task(
-        run.id, "engine.node.ranking", "unsupported-1", db_path=isolated_db
-    )
-
-    async def unsupported(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
-        raise task_worker.UnsupportedTaskError("unsupported task type: nope")
-
-    monkeypatch.setattr(task_worker, "_execute_task_payload", unsupported)
-    assert await task_worker.run_once("w1", run_id=run.id, db_path=isolated_db)
-
-    after = tasks.get_task(task.id, db_path=isolated_db)
-    assert after is not None
-    assert after.status == "failed", "an unknown task type is not retryable"
-
-
-@pytest.mark.asyncio
 async def test_heartbeat_writes_on_the_lease_schedule_not_the_poll_schedule(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -861,12 +861,21 @@ async def test_cohort_settles_run_when_budget_exhausts(
 
 
 @pytest.mark.asyncio
-async def test_unsupported_task_type_settles_run(isolated_db: str) -> None:
+async def test_unsupported_task_type_fails_permanently_and_settles_run(
+    isolated_db: str,
+) -> None:
     run_id = _settlement_running_run(isolated_db)
-    enqueue_task(run_id, "unknown.task", "unknown", db_path=isolated_db)
+    task = enqueue_task(
+        run_id, "unknown.task", "unknown", max_attempts=3, db_path=isolated_db
+    )
 
     assert await task_worker.run_once("w1", db_path=isolated_db)
 
+    failed = store.get_task(task.id, db_path=isolated_db)
+    assert failed is not None and failed.status == "failed"
+    assert failed.attempt < failed.max_attempts, (
+        "an unknown type is not retried"
+    )
     run = runs.get_run(run_id, db_path=isolated_db)
     assert run is not None
     assert run.status == "failed"
