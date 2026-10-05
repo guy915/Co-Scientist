@@ -71,5 +71,4 @@ export function resetRunDetailMocks() {
     vi.mocked(fetchRows).mockResolvedValue([]);
   }
   vi.mocked(runsApi.getReport).mockResolvedValue(null);
-  vi.mocked(runsApi.listInterviews).mockReset();
 }
