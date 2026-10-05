@@ -49,6 +49,8 @@ class ModelProfile:
     # Reasoning APIs reject sampling knobs and want the reasoning-aware cap.
     fixed_sampling: bool = False
     max_completion_tokens: bool = False
+    # Chat Completions refuses function calling on GPT-6 Sol and Astra.
+    responses_api: bool = False
     min_temperature: float | None = None
     price: ModelPrice | None = None
 
@@ -65,6 +67,7 @@ class Facts(TypedDict, total=False):
     pinned_effort: str | None
     fixed_sampling: bool
     max_completion_tokens: bool
+    responses_api: bool
     min_temperature: float | None
     price: ModelPrice | None
 
@@ -243,6 +246,7 @@ FAMILIES: Final[tuple[Family, ...]] = (
             "reasons": True,
             "fixed_sampling": True,
             "max_completion_tokens": True,
+            "responses_api": True,
         },
     ),
 )

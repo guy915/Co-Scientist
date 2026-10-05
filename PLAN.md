@@ -176,11 +176,12 @@ Finish each phase's exit test before starting the next.
 - **Git:** follow AGENTS.md. Keep every commit additive: make follow-up fixes in
   new commits on the branch. Run the app and engine pytest suites one after the
   other. Capture each gate's exit status on its own line.
-- **Delegation:** run independent suites in parallel with subagents when it
-  saves time: only `gpt-6-luna` at max reasoning effort, for exploration and
-  implementation alike, and no other model. Each works on its own suite and
-  branch. Give each these rules, the ratchet and the
-  coverage guard, and have it confirm its files are on disk before reporting.
+- **Delegation:** the orchestrating session runs Claude Opus 5.5 at high
+  effort and plans, reviews and merges. Implementation goes to subagents on
+  Claude Sonnet 5.5 at medium effort (`model: "sonnet"`), and no other model.
+  Run independent suites in parallel when it saves time; each works on its own
+  suite and branch. Give each these rules, the ratchet and the coverage guard,
+  and have it confirm its files are on disk before reporting.
 - **Progress:** keep each PR body current with phase, suite, theme, test lines
   removed, tests and files removed, coverage before and after, and the new
   totals. After any context compaction, re-read this file and the merged PR
@@ -202,7 +203,7 @@ finish all other work first, then report that step's concrete blocker.
 
 ## Execution environment (owner, before launch)
 
-The campaign runs in a Codex cloud environment on `main`. It needs:
+The campaign runs in a Claude Code cloud session on `main`. It needs:
 
 - **Internet access:** GitHub, the production domains and the package
   registries.
