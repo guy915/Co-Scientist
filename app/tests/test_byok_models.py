@@ -187,6 +187,13 @@ async def test_validation_probes_each_model_with_its_own_key(
     ]
 
 
+def test_every_offered_model_thinks() -> None:
+    from co_scientist.llm import model_reasons
+
+    offered = [m for p in byok_models.model_catalog().values() for m in p]
+    assert [m for m in offered if not model_reasons(m)] == []
+
+
 def test_openrouter_keys_can_choose_the_free_default_route() -> None:
     from app.config import DEFAULT_MODEL
 

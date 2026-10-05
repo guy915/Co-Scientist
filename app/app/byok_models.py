@@ -11,9 +11,7 @@ _EXTRA_PROVIDER_MODELS: dict[str, tuple[str, ...]] = {
     "anthropic": (
         "anthropic/claude-opus-5-5",
         "anthropic/claude-fable-5-1",
-        "anthropic/claude-haiku-4-5",
     ),
-    "azure": (),
     "deepseek": ("deepseek/deepseek-v4-pro",),
     "gemini": (
         "gemini/gemini-3.1-pro-preview",

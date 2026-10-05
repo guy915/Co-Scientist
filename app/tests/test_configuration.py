@@ -1507,3 +1507,13 @@ def test_install_returns_the_replaced_adapter_so_it_can_be_restored(
         process_mode.install(previous)
 
     assert process_mode.offline_mode() is True
+
+
+def test_the_free_default_route_keeps_its_highest_effort_in_chat() -> None:
+    from app.config import CONVERSATIONAL_REASONING_EFFORT, DEFAULT_MODEL
+
+    kwargs = deepseek_thinking_kwargs(
+        DEFAULT_MODEL, effort=CONVERSATIONAL_REASONING_EFFORT
+    )
+
+    assert kwargs["extra_body"]["reasoning"]["effort"] == "high"
