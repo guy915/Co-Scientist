@@ -174,14 +174,14 @@
       },
       "current": {
         "engine": {
-          "test_lines": 47517,
+          "test_lines": 47664,
           "files": 78,
-          "tests": 3061
+          "tests": 3095
         },
         "app": {
-          "test_lines": 50369,
+          "test_lines": 50533,
           "files": 92,
-          "tests": 2201
+          "tests": 2213
         },
         "mcp": {
           "test_lines": 7963,
@@ -189,9 +189,9 @@
           "tests": 386
         },
         "frontend": {
-          "test_lines": 16997,
+          "test_lines": 17237,
           "files": 89,
-          "tests": 822
+          "tests": 829
         },
         "evaluations": {
           "test_lines": 3364,
@@ -205,8 +205,8 @@
         }
       },
       "production_lines_start": 114507,
-      "production_lines_current": 114507,
-      "production_lines_deleted": 0,
+      "production_lines_current": 114977,
+      "production_lines_deleted": -470,
       "coverage_start": {
         "app": {
           "covered": 13110,
@@ -248,10 +248,22 @@
             "make coverage"
           ],
           "pull_request": 188
+        },
+        {
+          "suite": "app",
+          "theme": "coverage-guard-repair",
+          "test_lines_removed": -164,
+          "tests_removed": 1,
+          "files_removed": 0,
+          "scope_status": "restores the guard on main: root-independent licence test; tests for #192's store and BYOK branches",
+          "inventory": "pull request body",
+          "validation_location": "pull request body",
+          "pull_request": 201
         }
       ],
       "pull_requests": [
-        188
+        188,
+        201
       ]
     }
   },
@@ -275,6 +287,10 @@
     {
       "pr": 187,
       "cause": "Nested Bubblewrap child sessions survived the outer process and retained pipes after the test event loop closed; reap owned descendant groups and drain pipes before teardown."
+    },
+    {
+      "pr": 201,
+      "cause": "Under a root user chmod 0o500 does not block writes, so the unwritable-workspace licence test failed; the test now places a file where the workspace directory belongs."
     }
   ]
 }
