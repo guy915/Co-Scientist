@@ -382,13 +382,10 @@ class TestSkillsLicences:
         skills_dir = tmp_path / "skills"
         _skills_licences_install(skills_dir, "europepmc", _PREREQUISITE)
         monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(skills_dir))
+        # A file where the workspace belongs fails even for root.
         workspace = tmp_path / "ws"
-        workspace.mkdir()
-        workspace.chmod(0o500)
-        try:
-            assert licences.seed_licence_notices(workspace) == 0
-        finally:
-            workspace.chmod(0o700)
+        workspace.write_text("")
+        assert licences.seed_licence_notices(workspace) == 0
 
     def test_every_vendored_skill_that_asks_is_covered(self) -> None:
         """Repinned prerequisite wording can break notice detection."""
