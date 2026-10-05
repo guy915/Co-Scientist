@@ -1213,26 +1213,3 @@
   opacity: 0.5;
   cursor: default;
 }
-
-@media (max-width: 700px) {
-  .ucs-header-actions > button[aria-label='Feedback'],
-  .ucs-header-actions > button[aria-label^='Logs'] {
-    display: inline-flex;
-  }
-
-  .ucs-header-actions > .ucs-popover--logs {
-    display: grid;
-  }
-
-  .ucs-header-actions > button[aria-label='Feedback'] > span {
-    display: none;
-  }
-
-  .ucs-header-action-bar .ucs-product-lockup span {
-    display: none;
-  }
-
-  .ucs-header-action-bar .ucs-product-lockup svg {
-    display: block;
-  }
-}

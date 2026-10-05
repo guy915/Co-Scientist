@@ -17,6 +17,7 @@ import {
 } from 'react-router-dom';
 import {conciseTitle} from '@/lib/text';
 import {HEADER_TITLE_EVENT, NEW_CHAT_EVENT} from '../dom_events';
+import {useIsMobile} from '../hooks/dom';
 import {useToast, type ToastState} from '../hooks/timers';
 import {useRunHistoryContext} from '../hooks/history_context';
 import {
@@ -58,6 +59,7 @@ export function ChatWorkspace() {
   };
   const {toast, setToast} = useToast();
   const {history, reload: reloadHistory} = useRunHistoryContext();
+  const isMobile = useIsMobile();
   const onChatStarted = useCallback(
     (id: string) => void navigate(`/chats/${id}`, {replace: true}),
     [navigate],
@@ -115,9 +117,12 @@ export function ChatWorkspace() {
               showAllRecents={showAllRecents}
               onToggleShowAll={() => setShowAllRecents(current => !current)}
             />
-            <Suspense fallback={null}>
-              <HomeLanding />
-            </Suspense>
+            {/* Phones get the composer only; the landing is a desktop surface. */}
+            {!isMobile && (
+              <Suspense fallback={null}>
+                <HomeLanding />
+              </Suspense>
+            )}
           </>
         )}
         <ToastPortal toast={toast} />

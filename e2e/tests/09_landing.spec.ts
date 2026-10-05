@@ -1,7 +1,7 @@
 import {captureViewport, expect, test} from '../support/fixtures';
 
 for (const theme of ['light', 'dark']) {
-  for (const width of [1440, 768, 375]) {
+  for (const width of [1440, 768]) {
     test(`landing trailer, joined header and panels at ${width}px in ${theme}`, async ({
       page,
     }) => {
@@ -92,3 +92,24 @@ for (const theme of ['light', 'dark']) {
     });
   }
 }
+
+test('phones get the composer alone, without landing or header actions', async ({
+  page,
+}) => {
+  await page.setViewportSize({width: 375, height: 812});
+  await page.goto('/');
+  await expect(page.getByRole('textbox')).toBeInViewport();
+  await expect(page.locator('.ucs-landing')).toHaveCount(0);
+  await expect(
+    page.getByRole('button', {name: 'Scroll to see how Co-Scientist works'}),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole('navigation', {name: 'Example chats'}),
+  ).toHaveCount(0);
+  const header = page.locator('.ucs-header-action-bar');
+  await expect(
+    header.getByRole('button', {name: 'Feedback', exact: true}),
+  ).toBeHidden();
+  await expect(header.getByRole('button', {name: /^Logs/})).toBeHidden();
+  await expect(header.getByText('Co-Scientist', {exact: true})).toBeVisible();
+});
