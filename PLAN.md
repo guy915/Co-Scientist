@@ -176,8 +176,9 @@ Finish each phase's exit test before starting the next.
   new commits on the branch. Run the app and engine pytest suites one after the
   other. Capture each gate's exit status on its own line.
 - **Delegation:** run independent suites in parallel with subagents when it
-  saves time: `gpt-6-luna` for exploration, `gpt-6.1-sol` for implementation,
-  each on its own suite and branch. Give each these rules, the ratchet and the
+  saves time: only `gpt-6-luna` at max reasoning effort, for exploration and
+  implementation alike, and no other model. Each works on its own suite and
+  branch. Give each these rules, the ratchet and the
   coverage guard, and have it confirm its files are on disk before reporting.
 - **Progress:** keep each PR body current with phase, suite, theme, test lines
   removed, tests and files removed, coverage before and after, and the new
