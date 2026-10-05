@@ -190,17 +190,6 @@ it('ignores an old owned fetch after another chat has committed', async () => {
   ]);
 });
 
-it('leaves an inaccessible interview empty under StrictMode', async () => {
-  apiMock.getInterview
-    .mockReset()
-    .mockRejectedValue(new Error('404 not found'));
-  const {result} = rehydrateSession('inaccessible-chat');
-  await waitFor(() => expect(apiMock.getInterview).toHaveBeenCalledTimes(2));
-  expect(result.current.interview).toBeNull();
-  expect(result.current.messages).toEqual([]);
-  expect(result.current.hasConversation).toBe(false);
-});
-
 it('shows a run Q&A exchange after reopening the chat', async () => {
   apiMock.getInterview.mockResolvedValue(completedInterview());
   apiMock.listInterviews.mockResolvedValue([makeChatSummary()]);

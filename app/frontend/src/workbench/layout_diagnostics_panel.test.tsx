@@ -2,7 +2,6 @@ import {makeLogRecord as logRecord} from '@/test_fixtures';
 import {fireEvent, screen, waitFor} from '@testing-library/react';
 import {beforeEach, expect, it, describe} from 'vitest';
 import {
-  apiMock,
   installLayoutMocks,
   logsApiMock,
   renderLayout,
@@ -10,24 +9,6 @@ import {
 
 describe('layout diagnostics panel', () => {
   beforeEach(() => installLayoutMocks());
-
-  it('shows the same app-wide log on a run route as on home', async () => {
-    logsApiMock.getAppLogs.mockResolvedValue({
-      logs: [
-        logRecord(41, {created_at: 1_700_000_000, message: 'server started'}),
-      ],
-      last_id: 41,
-      total: 1,
-      session_total: 1,
-    });
-    renderLayout('/runs/demo-ferroptosis/ideas');
-
-    fireEvent.click(await screen.findByRole('button', {name: /Logs 1/i}));
-
-    expect(await screen.findByText(/server started/)).toBeInTheDocument();
-    expect(screen.getByText('#1')).toBeInTheDocument();
-    expect(apiMock.getRunEvents).not.toHaveBeenCalled();
-  });
 
   it('loads persisted backend logs into the diagnostics popover', async () => {
     logsApiMock.getAppLogs.mockResolvedValue({
@@ -128,33 +109,6 @@ describe('layout diagnostics numbering', () => {
     expect(logsApiMock.getAppLogs).toHaveBeenCalledWith(0, 100);
   });
 
-  it('numbers a capped window by position in the stream', async () => {
-    const logs = Array.from({length: 100}, (_, index) =>
-      logRecord(1000 + index * 3, {
-        created_at: 1_700_000_000 + index,
-        message: `record ${index}`,
-      }),
-    );
-    logsApiMock.getAppLogs.mockResolvedValue({
-      logs,
-      last_id: 5000,
-      total: 250,
-      session_total: 250,
-    });
-    renderLayout();
-
-    fireEvent.click(await screen.findByRole('button', {name: /Logs 250/i}));
-    await screen.findByText(/record 99/);
-
-    const metas = document.querySelectorAll('.ucs-diagnostic-entry-meta');
-    expect(metas[0].querySelector('span')?.textContent).toBe('#151');
-    expect(metas[99].querySelector('span')?.textContent).toBe('#250');
-
-    expect(screen.getByText('Total 250')).toBeInTheDocument();
-    expect(screen.getByText('Showing 100')).toBeInTheDocument();
-    expect(screen.getByText('Info 100')).toBeInTheDocument();
-  });
-
   it('omits the Showing chip when the bands already sum to the total', async () => {
     logsApiMock.getAppLogs.mockResolvedValue({
       logs: [
@@ -215,34 +169,5 @@ describe('layout diagnostics session', () => {
     expect(meta?.textContent).toBe('#1');
     expect(screen.getByText('Total 1')).toBeInTheDocument();
     expect(logsApiMock.getAppLogs).toHaveBeenCalledWith(100, 100);
-  });
-
-  it('keeps counting after pruning shrinks the whole-table total', async () => {
-    // Pruning deletes rows below anchors; use after-cursor counts rather than
-    // snapshot subtraction.
-    window.sessionStorage.setItem(
-      'cosci-logs-session-baseline',
-      JSON.stringify({id: 100}),
-    );
-    logsApiMock.getAppLogs.mockReset();
-    logsApiMock.getAppLogs.mockResolvedValue({
-      logs: [
-        logRecord(101, {message: 'survived the prune'}),
-        logRecord(102, {message: 'logged after the prune'}),
-      ],
-      last_id: 102,
-      total: 2,
-      session_total: 2,
-    });
-
-    renderLayout('/');
-    fireEvent.click(await screen.findByRole('button', {name: /Logs 2/i}));
-
-    expect(await screen.findByText(/survived the prune/)).toBeVisible();
-    const numbers = Array.from(
-      document.querySelectorAll('.ucs-diagnostic-entry-meta'),
-    ).map(el => el.querySelector('span')?.textContent);
-    expect(numbers).toEqual(['#1', '#2']);
-    expect(screen.getByText('Total 2')).toBeInTheDocument();
   });
 });

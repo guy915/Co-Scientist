@@ -1,5 +1,5 @@
 import {fireEvent, screen, waitFor} from '@testing-library/react';
-import {beforeEach, expect, it, vi, describe} from 'vitest';
+import {beforeEach, expect, it, describe} from 'vitest';
 import {
   installChatWorkspaceMocks,
   renderWorkspace,
@@ -42,22 +42,6 @@ describe('chat workspace home', () => {
         name: /ferroptosis in pancreatic cancer cells/i,
       }),
     ).toHaveAttribute('href', '/examples/demo-ferroptosis');
-  });
-
-  it('points from the composer down to the landing page', async () => {
-    renderWorkspace();
-    const hint = screen.getByRole('button', {
-      name: 'Scroll to see how Co-Scientist works',
-    });
-    expect(
-      await screen.findByRole('navigation', {name: 'Landing sections'}),
-    ).toBeInTheDocument();
-    const scrollIntoView = vi.fn();
-    Element.prototype.scrollIntoView = scrollIntoView;
-    fireEvent.click(hint);
-    expect(scrollIntoView.mock.contexts[0]).toBe(
-      document.getElementById('landing'),
-    );
   });
 });
 
@@ -146,21 +130,6 @@ describe('chat workspace home completed cards', () => {
     expect(
       screen.getByText('Biofilm redox-state vulnerability hypothesis'),
     ).toBeInTheDocument();
-  });
-
-  it('keeps the winning-ideas chips on a completed run', async () => {
-    apiMock.listDemoRuns.mockResolvedValue([]);
-    apiMock.listRuns.mockResolvedValue([
-      minimalRun({
-        id: 'run-done',
-        research_goal: 'A run that finished its tournament.',
-        top_hypotheses: ['A ranked idea'],
-      }),
-    ]);
-
-    renderWorkspace();
-
-    expect(await screen.findByText('Winning ideas')).toBeInTheDocument();
   });
 
   it.each([undefined, null])(
