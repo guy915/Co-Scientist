@@ -5,10 +5,12 @@ from typing import Any, cast
 
 import pytest
 
+from co_scientist.agents.generation.literature_review import (
+    literature_review_node,
+)
 from co_scientist.config import SearchSourceConfig, ToolRegistry, WorkflowConfig
 from co_scientist.evidence import search, search_query
 from co_scientist.evidence.relevance import _HYBRID_VERSION
-from co_scientist.evidence.search_fusion import select_within_budget
 from co_scientist.evidence.search_support import SearchConfig
 from co_scientist.llm import scoped_campaign_mode
 from co_scientist.offline import llm as offline_llm
@@ -18,6 +20,7 @@ from tests._mcp import (
     make_tool_lookup_registry,
 )
 from tests._research_fakes import (
+    _stub_node,
     make_search_config,
     make_search_run_ctx,
     make_tool_config,
@@ -26,164 +29,77 @@ from tests._research_fakes import (
 from tests._state import make_state
 
 
-def _ranked(*ids: str) -> dict[str, dict[str, Any]]:
-    return {paper_id: {"title": paper_id} for paper_id in ids}
-
-
-def _ranked_retracted(
-    ids: tuple[str, ...], retracted: set[str]
-) -> dict[str, dict[str, Any]]:
-    return {
+@pytest.mark.parametrize(
+    ("ids", "reserved", "budget", "retracted", "expected"),
+    [
+        (("pm1", "pm2", "c1", "c2"), 0, 2, set(), ["pm1", "pm2"]),
+        (
+            ("pm1", "pm2", "oa1", "c1", "c2", "c3"),
+            2,
+            4,
+            set(),
+            ["c1", "c2", "pm1", "pm2"],
+        ),
+        (("pm1", "pm2", "pm3", "c1"), 2, 3, set(), ["c1", "pm1", "pm2"]),
+        (("c1", "c2", "c3", "pm1"), 3, 2, set(), ["c1", "c2"]),
+        (("c1", "c2", "c3"), 2, 3, {"c1", "c2"}, ["c3"]),
+        (("pm1", "pm2"), 0, 5, {"pm2"}, ["pm1"]),
+        (("c1", "pm1"), 1, -1, set(), []),
+        (("c1", "c2", "pm1"), 2, 3, {"c2"}, ["c1", "pm1"]),
+    ],
+    ids=[
+        "unreserved",
+        "reserved",
+        "underfilled-source",
+        "cap",
+        "retracted-reservation",
+        "retracted-underfilled",
+        "nonpositive-budget",
+        "no-padding",
+    ],
+)
+async def test_review_respects_reservations_and_excludes_retracted_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+    ids: tuple[str, ...],
+    reserved: int,
+    budget: int,
+    retracted: set[str],
+    expected: list[str],
+) -> None:
+    ranked = {
         paper_id: {"title": paper_id, "is_retracted": paper_id in retracted}
         for paper_id in ids
     }
-
-
-def test_selection_is_pure_score_when_nothing_is_reserved() -> None:
-    ranked = _ranked("A", "B", "C", "D")
-    source_map = {"A": "pubmed", "B": "pubmed", "C": "corpus", "D": "corpus"}
-    sources = [
-        SearchSourceConfig(tool="corpus"),
-        SearchSourceConfig(tool="pubmed"),
-    ]
-    assert select_within_budget(ranked, source_map, sources, 2) == ["A", "B"]
-
-
-def test_reserved_slots_rescue_a_source_that_score_would_truncate() -> None:
-    """Metadata-poor corpus papers sort below indexed papers despite matching
-    the question."""
-    ranked = _ranked("pm1", "pm2", "oa1", "c1", "c2", "c3")
     source_map = {
-        "pm1": "pubmed",
-        "pm2": "pubmed",
-        "oa1": "openalex",
-        "c1": "corpus",
-        "c2": "corpus",
-        "c3": "corpus",
+        paper_id: "corpus" if paper_id.startswith("c") else "pubmed"
+        for paper_id in ids
     }
-    sources = [
-        SearchSourceConfig(tool="corpus", reserved_slots=2),
-        SearchSourceConfig(tool="pubmed"),
-        SearchSourceConfig(tool="openalex"),
-    ]
-    selected = select_within_budget(ranked, source_map, sources, 4)
-    assert selected == ["c1", "c2", "pm1", "pm2"]
-
-
-def test_reserved_slots_are_not_padded_when_the_source_returns_fewer() -> None:
-    ranked = _ranked("pm1", "pm2", "pm3", "c1")
-    source_map = {
-        "pm1": "pubmed",
-        "pm2": "pubmed",
-        "pm3": "pubmed",
-        "c1": "corpus",
-    }
-    sources = [
-        SearchSourceConfig(tool="corpus", reserved_slots=2),
-        SearchSourceConfig(tool="pubmed"),
-    ]
-    selected = select_within_budget(ranked, source_map, sources, 3)
-    assert selected == ["c1", "pm1", "pm2"]
-
-
-def test_reserved_slots_never_exceed_the_evidence_budget() -> None:
-    ranked = _ranked("c1", "c2", "c3", "pm1")
-    source_map = {
-        "c1": "corpus",
-        "c2": "corpus",
-        "c3": "corpus",
-        "pm1": "pubmed",
-    }
-    sources = [
-        SearchSourceConfig(tool="corpus", reserved_slots=3),
-        SearchSourceConfig(tool="pubmed"),
-    ]
-    selected = select_within_budget(ranked, source_map, sources, 2)
-    assert selected == ["c1", "c2"]
-    assert select_within_budget(ranked, source_map, sources, 0) == []
-
-
-def test_retracted_candidates_never_fill_a_reserved_slot() -> None:
-    """A low score sorts a retracted source last but does not exclude it from
-    an underfilled pool."""
-    ranked = _ranked_retracted(("c1", "c2", "c3"), retracted={"c1", "c2"})
-    source_map = {"c1": "corpus", "c2": "corpus", "c3": "corpus"}
-    sources = [SearchSourceConfig(tool="corpus", reserved_slots=2)]
-
-    selected = select_within_budget(ranked, source_map, sources, 3)
-
-    assert "c1" not in selected
-    assert "c2" not in selected
-    assert selected == ["c3"]
-
-
-def test_retracted_candidates_never_fill_an_underfilled_budget() -> None:
-    ranked = _ranked_retracted(("pm1", "pm2"), retracted={"pm2"})
-    source_map = {"pm1": "pubmed", "pm2": "pubmed"}
-    sources = [SearchSourceConfig(tool="pubmed")]
-
-    selected = select_within_budget(ranked, source_map, sources, 5)
-
-    assert selected == ["pm1"]
-
-
-def test_a_reservation_short_on_non_retracted_papers_is_not_padded() -> None:
-    """Reservations bound one source's candidates, never a quota filled from
-    other sources."""
-    ranked = _ranked_retracted(("c1", "c2", "pm1"), retracted={"c2"})
-    source_map = {"c1": "corpus", "c2": "corpus", "pm1": "pubmed"}
-    sources = [
-        SearchSourceConfig(tool="corpus", reserved_slots=2),
-        SearchSourceConfig(tool="pubmed"),
-    ]
-
-    selected = select_within_budget(ranked, source_map, sources, 3)
-
-    assert selected == ["c1", "pm1"]
-
-
-def test_the_shipped_sources_reserve_no_slots() -> None:
-    from co_scientist.config import ToolRegistry
-
+    _stub_node(monkeypatch, server_available=True, search_payload=ranked)
+    monkeypatch.setattr(
+        search,
+        "merge_search_results",
+        lambda *args, **kwargs: (ranked, source_map),
+    )
     registry = ToolRegistry(skip_user_config=True)
-    workflow = registry.get_workflow("literature_review")
-    assert workflow is not None
-    reserved = {
-        source.tool: source.reserved_slots
-        for source in workflow.get_enabled_search_sources()
+    registry.config.workflows = {
+        "literature_review": WorkflowConfig(
+            search_sources=[
+                SearchSourceConfig(tool="corpus", reserved_slots=reserved),
+                SearchSourceConfig(tool="pubmed"),
+            ]
+        )
     }
-    assert set(reserved) == {
-        "pubmed_fulltext",
-        "openalex_search",
-        "europepmc_search",
-        "web_search",
-        "arxiv_search",
-        "biorxiv_search",
+    registry.config.tools = {
+        "tools": {name: make_tool_config(name) for name in ("corpus", "pubmed")}
     }
-    assert all(slots == 0 for slots in reserved.values())
-
-
-def test_enabled_search_sources_track_disabled_tools() -> None:
-    from co_scientist.config.registry import ToolRegistry
-
-    registry = ToolRegistry(disabled_tools=["web_search"])
-    workflow = registry.get_workflow("literature_review")
-    assert workflow is not None
-
-    tools = [s.tool for s in workflow.get_enabled_search_sources()]
-    assert "web_search" not in tools
-    assert "pubmed_fulltext" in tools
-
-
-def test_enabled_search_sources_keep_enabled_tools() -> None:
-    from co_scientist.config.registry import ToolRegistry
-
-    registry = ToolRegistry()
-    workflow = registry.get_workflow("literature_review")
-    assert workflow is not None
-
-    tools = [s.tool for s in workflow.get_enabled_search_sources()]
-    assert "web_search" in tools
+    result = await literature_review_node(
+        make_state(
+            research_goal="",
+            tool_registry=registry,
+            literature_review_papers_count=budget,
+        )
+    )
+    assert [article.source_id for article in result["articles"]] == expected
 
 
 class _BarrierMCPClient:

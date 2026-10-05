@@ -7,20 +7,23 @@ from typing import Any, cast
 import pytest
 
 from co_scientist.agents.generation.literature_review import (
-    enrichment as lr_enrichment,
+    literature_review_node,
+    synthesis,
 )
+from co_scientist.agents.generation.literature_review import node as lr
 from co_scientist.agents.generation.literature_review.research_phase import (
-    _seed_questions,
     run_research_phase,
 )
+from co_scientist.config import ToolRegistry
 from co_scientist.config.schema import ToolConfig, WorkflowConfig
 from co_scientist.evidence.search_support import SearchConfig
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.research import result_from_dict
-from tests._mcp import FakeToolResultsClient, make_tool_results_client
-from tests._mcp import make_tool_lookup_registry as _registry
+from tests._llm_fake import install_fake_llm
+from tests._mcp import make_tool_results_client
 from tests._research_fakes import (
     FakeResearchClient,
+    _stub_node,
     make_search_config,
     research_registry,
     research_workflow,
@@ -28,317 +31,219 @@ from tests._research_fakes import (
 from tests._state import make_state
 
 
-async def test_call_enrichment_tool_for_entity_success() -> None:
-    client = FakeToolResultsClient(results={"kg_tool": {"statements": []}})
-    result = await lr_enrichment._call_enrichment_tool_for_entity(
-        "kg_tool", {"entity_name": "KRAS"}, cast(MCPToolClient, client)
-    )
-    assert result == {"statements": []}
-    assert client.calls == [("kg_tool", {"entity_name": "KRAS"})]
-
-
-async def test_call_enrichment_tool_for_entity_error_returns_none() -> None:
-    client = FakeToolResultsClient(error_tools={"kg_tool"})
-    result = await lr_enrichment._call_enrichment_tool_for_entity(
-        "kg_tool", {"entity_name": "KRAS"}, cast(MCPToolClient, client)
-    )
-    assert result is None
-
-
-def test_format_one_indra_statement_missing_endpoint_returns_none() -> None:
-    assert (
-        lr_enrichment._format_one_indra_statement(
-            {"subj": {}, "obj": {"name": "MAPK1"}}
+@pytest.mark.parametrize(
+    ("payload", "display", "count"),
+    [
+        (
+            {
+                "statements": [
+                    {"subj": {}, "obj": {"name": "MAPK1"}},
+                    {"subj": "KRAS", "obj": {"name": "MAPK1"}},
+                    {
+                        "subj": {"name": "EGFR"},
+                        "obj": {"name": "MAPK1"},
+                        "type": "Activation",
+                        "belief": 0.9,
+                    },
+                ]
+            },
+            "EGFR",
+            1,
+        ),
+        (
+            {
+                "statements": [
+                    {
+                        "members": [{"name": "BRCA1"}, {"name": "BARD1"}],
+                        "type": "Complex",
+                        "belief": 0.87,
+                    }
+                ]
+            },
+            "Complex(BRCA1, BARD1) [Complex] (belief: 0.87)",
+            1,
+        ),
+        ({"statements": [{"type": "Activation"}]}, None, 0),
+        ({"statements": []}, None, 0),
+        ({"results": [{"n": i} for i in range(10)]}, "{'n': 0}", 4),
+        ({"other": "value"}, "{'other': 'value'}", 1),
+        ({}, "{}", 1),
+        ([{"n": 1}, {"n": 2}], "{'n': 1}", 2),
+        (42, "42", 1),
+        ("free-form text", "free-form text", 1),
+        (None, None, 0),
+    ],
+    ids=[
+        "malformed-siblings",
+        "complex",
+        "shapeless",
+        "empty-statements",
+        "capped-results",
+        "dict",
+        "empty-dict",
+        "list",
+        "scalar",
+        "text",
+        "no-result",
+    ],
+)
+async def test_review_appends_enrichment_after_the_paper_citation_namespace(
+    monkeypatch: pytest.MonkeyPatch,
+    payload: Any,
+    display: str | None,
+    count: int,
+) -> None:
+    _stub_node(monkeypatch, server_available=True)
+    registry = ToolRegistry(skip_user_config=True)
+    registry.config.workflows = {
+        "literature_review": WorkflowConfig(
+            primary_search="search", context_enrichment_tools=["kg"]
         )
-        is None
-    )
-
-
-def test_format_indra_statements_skips_unformattable_entries() -> None:
-    stmts: list[dict[str, Any]] = [
-        {"subj": {}, "obj": {"name": "MAPK1"}},
+    }
+    registry.config.tools = {
+        "tools": {
+            "search": ToolConfig(server="s", mcp_tool_name="search"),
+            "kg": ToolConfig(
+                server="s",
+                mcp_tool_name="mcp_kg",
+                display_name="Knowledge Graph",
+            ),
+        }
+    }
+    client = make_tool_results_client(
         {
-            "subj": {"name": "KRAS"},
-            "obj": {"name": "MAPK1"},
-            "type": "Activation",
-            "belief": 0.9,
-        },
-    ]
-    text, items = lr_enrichment._format_indra_statements(stmts)
-    assert len(items) == 1
-    assert "KRAS" in text and "MAPK1" in text
-
-
-def test_format_indra_statements_survives_a_non_dict_endpoint() -> None:
-    """One malformed knowledge-graph endpoint must not discard all
-    enrichment."""
-    stmts: list[dict[str, Any]] = [
-        {"subj": "KRAS", "obj": {"name": "MAPK1"}},
-        {
-            "subj": {"name": "EGFR"},
-            "obj": {"name": "MAPK1"},
-            "type": "Activation",
-            "belief": 0.9,
-        },
-    ]
-    text, items = lr_enrichment._format_indra_statements(stmts)
-    assert len(items) == 1
-    assert "EGFR" in text
-
-
-def test_format_one_indra_statement_formats_complex_members() -> None:
-    """Complex/family statements use members rather than subject/object
-    pairs."""
-    formatted = lr_enrichment._format_one_indra_statement(
-        {
-            "members": [{"name": "BRCA1"}, {"name": "BARD1"}],
-            "type": "Complex",
-            "belief": 0.87,
+            "search": {"paper": {"title": "A", "abstract": "Evidence"}},
+            "mcp_kg": json.dumps(payload)
+            if isinstance(payload, (dict, list))
+            else payload,
         }
     )
-    assert formatted is not None
-    display, item = formatted
-    assert display == "Complex(BRCA1, BARD1) [Complex] (belief: 0.87)"
-    assert item["display"] == f"INDRA: {display}"
 
+    async def get_client(**_: Any) -> Any:
+        return client
 
-def test_format_one_indra_statement_shapeless_still_returns_none() -> None:
-    assert (
-        lr_enrichment._format_one_indra_statement({"type": "Activation"})
-        is None
+    monkeypatch.setattr(lr, "get_mcp_client", get_client)
+    result = await literature_review_node(
+        make_state(research_goal="Study KRAS in cancer", tool_registry=registry)
     )
+    sources = result.get("context_enrichment_sources", [])
+    assert len(sources) == count
+    if display is None:
+        assert (
+            "Knowledge Graph Evidence" not in result["articles_with_reasoning"]
+        )
+    else:
+        assert display in result["articles_with_reasoning"]
+        assert "[C2]" in result["articles_with_reasoning"]
+        assert all(
+            source["tool_id"] == "kg" and source["entity"] == "KRAS"
+            for source in sources
+        )
 
 
-def test_format_dict_result_falls_back_to_stringified_dict() -> None:
-    data = {"other": "value"}
-    text, items = lr_enrichment._format_dict_result(data)
-    assert text == str(data)
-    assert items == [{"display": str(data), "data": data}]
-
-
-def test_format_dict_result_empty_dict_stringifies_braces() -> None:
-    text, items = lr_enrichment._format_dict_result({})
-    assert text == "{}"
-    assert items == [{"display": "{}", "data": {}}]
-
-
-def test_parse_enrichment_result_bare_list_raw() -> None:
-    text, items = lr_enrichment._parse_enrichment_result([{"n": 1}, {"n": 2}])
-    assert len(items) == 2
-    assert text
-
-
-def test_parse_enrichment_result_scalar_raw() -> None:
-    text, items = lr_enrichment._parse_enrichment_result(42)
-    assert text == "42"
-    assert items == [{"display": "42", "data": {}}]
-
-
-async def test_call_enrichment_tool_for_entities_queries_all_in_parallel() -> (
-    None
-):
-    tool_config = ToolConfig(
-        server="s", mcp_tool_name="kg_tool", display_name="KG Tool"
-    )
+async def test_review_bounds_long_enrichment_in_the_synthesis_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _stub_node(monkeypatch, server_available=True)
+    registry = ToolRegistry(skip_user_config=True)
+    registry.config.workflows = {
+        "literature_review": WorkflowConfig(
+            primary_search="search",
+            context_enrichment_tools=["first", "second"],
+        )
+    }
+    registry.config.tools = {
+        "tools": {
+            name: ToolConfig(server="s", mcp_tool_name=name, display_name=name)
+            for name in ("search", "first", "second")
+        }
+    }
+    raw = "mechanistic evidence " * 100
     client = make_tool_results_client(
-        results={"kg_tool": json.dumps({"results": [{"n": 1}]})}
+        {
+            "search": {"paper": {"title": "A", "abstract": "Evidence"}},
+            "first": raw,
+            "second": raw,
+        }
     )
 
-    text, items = await lr_enrichment._call_enrichment_tool_for_entities(
-        tool_config, ["KRAS", "MAPK1"], client
+    async def get_client(**_: Any) -> Any:
+        return client
+
+    prompts: list[str] = []
+
+    async def complete(*, prompt: str, **_: Any) -> str:
+        prompts.append(prompt)
+        return "SYNTHESIZED REVIEW"
+
+    monkeypatch.setattr(lr, "get_mcp_client", get_client)
+    monkeypatch.setattr(synthesis, "call_llm", complete)
+    result = await literature_review_node(
+        make_state(
+            research_goal="Study KRAS EGFR BRAF in cancer",
+            tool_registry=registry,
+        )
     )
-
-    assert "[KRAS]" in text
-    assert "[MAPK1]" in text
-    assert len(items) == 2
-    assert {item["entity"] for item in items} == {"KRAS", "MAPK1"}
-    # tool_id is stamped by _aggregate_enrichment_results, from the YAML tool
-    # id rather than the MCP tool name; this stage leaves it unset.
-    assert all("tool_id" not in item for item in items)
-
-
-async def test_call_enrichment_tool_for_entities_no_result() -> None:
-    tool_config = ToolConfig(server="s", mcp_tool_name="kg_tool")
-    client = make_tool_results_client()
-
-    text, items = await lr_enrichment._call_enrichment_tool_for_entities(
-        tool_config, ["KRAS"], client
-    )
-
-    assert text == ""
-    assert items == []
-
-
-def test_resolve_enrichment_tool_configs_filters_availability() -> None:
-    available = ToolConfig(
-        server="s", mcp_tool_name="mcp_available", enabled=True
-    )
-    disabled = ToolConfig(
-        server="s", mcp_tool_name="mcp_disabled", enabled=False
-    )
-    unreachable = ToolConfig(
-        server="s", mcp_tool_name="mcp_unreachable", enabled=True
-    )
-    workflow = WorkflowConfig(
-        context_enrichment_tools=[
-            "avail",
-            "disabled",
-            "unreachable",
-            "missing_from_registry",
-        ]
-    )
-    registry = _registry(
-        {"avail": available, "disabled": disabled, "unreachable": unreachable}
-    )
-    client = make_tool_results_client(available_tools={"mcp_available"})
-
-    configs = lr_enrichment._resolve_enrichment_tool_configs(
-        workflow, registry, client
-    )
-
-    assert len(configs) == 1
-    assert configs[0].mcp_tool_name == "mcp_available"
-    assert configs[0]._yaml_tool_id == "avail"
-
-
-def test_aggregate_enrichment_results_skips_exceptions() -> None:
-    tc_ok = ToolConfig(server="s", mcp_tool_name="mcp_ok", display_name="OK")
-    tc_ok._yaml_tool_id = "ok_tool"
-    tc_failed = ToolConfig(server="s", mcp_tool_name="mcp_failed")
-    tc_failed._yaml_tool_id = "failed_tool"
-    tool_results: list[Any] = [
-        ("some evidence", [{"display": "x"}]),
-        RuntimeError("boom"),
+    sections = [
+        f"**{tool}**\n"
+        + "\n\n".join(
+            f"[{entity}]\n{raw[:300]}" for entity in ("KRAS", "EGFR", "BRAF")
+        )
+        for tool in ("first", "second")
     ]
-
-    sections, items = lr_enrichment._aggregate_enrichment_results(
-        [tc_ok, tc_failed], tool_results
+    expected = "\n\n".join(sections)[:1500] + "\n[...truncated]"
+    assert len(expected) == 1515
+    assert expected in prompts[0]
+    assert expected + raw[0] not in prompts[0]
+    assert len(result["context_enrichment_sources"]) == 6
+    assert all(
+        len(item["display"]) == 300
+        for item in result["context_enrichment_sources"]
     )
 
-    assert sections == ["**OK**\nsome evidence"]
-    assert items == [{"display": "x", "tool_id": "ok_tool"}]
 
-
-def test_aggregate_enrichment_results_empty_text_adds_no_section() -> None:
-    tc = ToolConfig(server="s", mcp_tool_name="mcp_tool")
-    tc._yaml_tool_id = "tool_id"
-
-    sections, items = lr_enrichment._aggregate_enrichment_results(
-        [tc], [("", [])]
-    )
-
-    assert sections == []
-    assert items == []
-
-
-def test_resolve_enrichment_context_no_tool_registry_returns_none() -> None:
-    workflow = WorkflowConfig(context_enrichment_tools=["kg"])
-    config = make_search_config(workflow=workflow, tool_registry=None)
-    state = make_state(research_goal="Study of KRAS in cancer")
-
-    assert lr_enrichment._resolve_enrichment_context(state, config) is None
-
-
-def test_resolve_enrichment_context_no_entities_returns_none() -> None:
-    workflow = WorkflowConfig(context_enrichment_tools=["kg"])
-    config = make_search_config(workflow=workflow, tool_registry=_registry({}))
-    state = make_state(research_goal="a plain lowercase research goal")
-
-    assert lr_enrichment._resolve_enrichment_context(state, config) is None
-
-
-def test_resolve_enrichment_context_success() -> None:
-    workflow = WorkflowConfig(context_enrichment_tools=["kg"])
-    registry = _registry({})
-    config = make_search_config(workflow=workflow, tool_registry=registry)
-    state = make_state(research_goal="Study of KRAS in cancer")
-
-    resolved = lr_enrichment._resolve_enrichment_context(state, config)
-
-    assert resolved is not None
-    resolved_workflow, resolved_registry, entities = resolved
-    assert resolved_workflow is workflow
-    assert resolved_registry is registry
-    assert entities == ["KRAS"]
-
-
-async def test_run_enrichment_tools_aggregates_across_tools() -> None:
-    tc = ToolConfig(server="s", mcp_tool_name="kg_tool", display_name="KG")
+@pytest.mark.parametrize(
+    "reason", ["disabled", "unreachable", "missing", "error", "no-entities"]
+)
+async def test_optional_enrichment_unavailability_preserves_review(
+    monkeypatch: pytest.MonkeyPatch,
+    reason: str,
+) -> None:
+    _stub_node(monkeypatch, server_available=True)
+    registry = ToolRegistry(skip_user_config=True)
+    registry.config.workflows = {
+        "literature_review": WorkflowConfig(
+            primary_search="search", context_enrichment_tools=["kg"]
+        )
+    }
+    registry.config.tools = {
+        "tools": {"search": ToolConfig(server="s", mcp_tool_name="search")}
+    }
+    if reason != "missing":
+        registry.config.tools["tools"]["kg"] = ToolConfig(
+            server="s", mcp_tool_name="kg", enabled=reason != "disabled"
+        )
     client = make_tool_results_client(
-        results={"kg_tool": json.dumps({"results": [{"n": 1}]})}
+        {"search": {"paper": {"title": "A", "abstract": "Evidence"}}},
+        available_tools={"search"} if reason == "unreachable" else None,
+        error_tools={"kg"} if reason == "error" else None,
     )
 
-    sections, items = await lr_enrichment._run_enrichment_tools(
-        ["KRAS"], [tc], client
+    async def get_client(**_: Any) -> Any:
+        return client
+
+    monkeypatch.setattr(lr, "get_mcp_client", get_client)
+    result = await literature_review_node(
+        make_state(
+            research_goal="plain lowercase goal"
+            if reason == "no-entities"
+            else "Study KRAS",
+            tool_registry=registry,
+        )
     )
-
-    assert len(sections) == 1
-    assert "**KG**" in sections[0]
-    assert len(items) == 1
-
-
-def test_cap_enrichment_text_under_limit_passes_through() -> None:
-    assert lr_enrichment._cap_enrichment_text("short text") == "short text"
-
-
-def test_cap_enrichment_text_truncates_over_limit() -> None:
-    long_text = "x" * (lr_enrichment._CONTEXT_ENRICHMENT_MAX_CHARS + 100)
-
-    result = lr_enrichment._cap_enrichment_text(long_text)
-
-    assert result.endswith("\n[...truncated]")
-    assert len(result) == (
-        lr_enrichment._CONTEXT_ENRICHMENT_MAX_CHARS + len("\n[...truncated]")
-    )
-
-
-async def test_phase2_6_no_available_tool_configs_returns_empty() -> None:
-    workflow = WorkflowConfig(context_enrichment_tools=["kg"])
-    registry = _registry({})
-    config = make_search_config(workflow=workflow, tool_registry=registry)
-    state = make_state(research_goal="Study of KRAS in cancer")
-
-    text, items = await lr_enrichment._phase2_6_fetch_context_enrichment(
-        state, config, make_tool_results_client()
-    )
-
-    assert (text, items) == ("", [])
-
-
-async def test_phase2_6_resolved_tool_yields_nothing_returns_empty() -> None:
-    tool_cfg = ToolConfig(server="s", mcp_tool_name="mcp_kg")
-    registry = _registry({"kg": tool_cfg})
-    workflow = WorkflowConfig(context_enrichment_tools=["kg"])
-    config = make_search_config(workflow=workflow, tool_registry=registry)
-    state = make_state(research_goal="Study of KRAS in cancer")
-    client = make_tool_results_client(available_tools={"mcp_kg"})
-
-    text, items = await lr_enrichment._phase2_6_fetch_context_enrichment(
-        state, config, client
-    )
-
-    assert (text, items) == ("", [])
-
-
-async def test_phase2_6_success_returns_combined_text_and_items() -> None:
-    tool_cfg = ToolConfig(
-        server="s", mcp_tool_name="mcp_kg", display_name="Knowledge Graph"
-    )
-    registry = _registry({"kg": tool_cfg})
-    workflow = WorkflowConfig(context_enrichment_tools=["kg"])
-    config = make_search_config(workflow=workflow, tool_registry=registry)
-    state = make_state(research_goal="Study of KRAS in cancer")
-    client = make_tool_results_client(
-        results={"mcp_kg": json.dumps({"results": [{"n": 1}]})},
-        available_tools={"mcp_kg"},
-    )
-
-    text, items = await lr_enrichment._phase2_6_fetch_context_enrichment(
-        state, config, client
-    )
-
-    assert "Knowledge Graph" in text
-    assert len(items) == 1
+    assert result["articles_with_reasoning"] == "SYNTHESIZED REVIEW"
+    assert result["articles"][0].used_in_analysis
+    assert not result.get("context_enrichment_sources")
 
 
 _PAPERS = {
@@ -478,37 +383,10 @@ async def test_only_papers_something_was_drawn_from_join_the_pool(
     assert outcome is not None
     assert list(outcome.records) == ["doc-a"]
     assert outcome.records["doc-a"]["title"] == "Fibrosis mechanisms"
-
-
-async def test_every_researched_paper_names_the_search_that_found_it(
-    tmp_path: Path, scripted: _ScriptedModel
-) -> None:
-    outcome = await run_research_phase(
-        make_state(research_tier="extended", run_id="run-1"),
-        _config(tmp_path),
-        _client(),
-        [],
-    )
-
-    assert outcome is not None
-    made = result_from_dict(outcome.ledger).calls
     assert outcome.records["doc-a"]["retrieval_call_id"] in {
-        call.id for call in made
+        call.id for call in result_from_dict(outcome.ledger).calls
     }
     assert outcome.records["doc-a"]["_source_name"] == "alpha"
-
-
-async def test_the_findings_reach_the_text_every_later_agent_reads(
-    tmp_path: Path, scripted: _ScriptedModel
-) -> None:
-    outcome = await run_research_phase(
-        make_state(research_tier="extended", run_id="run-1"),
-        _config(tmp_path),
-        _client(),
-        [],
-    )
-
-    assert outcome is not None
     assert "TGF-beta drives fibrosis" in outcome.section
     assert "TGF-beta is the consensus driver." in outcome.section
 
@@ -531,24 +409,29 @@ async def test_a_run_with_no_enabled_source_researches_nothing(
     assert outcome is None
 
 
-def test_seed_questions_stop_at_the_first_level_breadth() -> None:
-    analyses = [
-        {"analysis": {"gaps_identified": f"gap {n}", "unexplored_areas": ""}}
-        for n in range(6)
-    ]
-
-    assert _seed_questions(analyses, 3) == ["gap 0", "gap 1", "gap 2"]
-
-
-def test_the_same_gap_stated_twice_is_one_question() -> None:
-    """Repeated gaps must not buy duplicate searches."""
+async def test_research_seeds_are_unique_and_bounded_by_first_level_breadth(
+    tmp_path: Path,
+    scripted: _ScriptedModel,
+) -> None:
     analyses = [
         {"analysis": {"gaps_identified": "No human data"}},
         {"analysis": {"gaps_identified": "no human data  "}},
-        {"analysis": {"unexplored_areas": "Dosing is unstudied"}},
+        *[{"analysis": {"unexplored_areas": f"Gap {i}"}} for i in range(10)],
     ]
+    outcome = await run_research_phase(
+        make_state(research_tier="extended"),
+        _config(tmp_path),
+        _client(),
+        analyses,
+    )
+    assert outcome is not None
+    asked = [thread["question"]["text"] for thread in outcome.ledger["threads"]]
+    assert asked.count("No human data") == 1
+    assert "no human data  " not in asked
+    assert len(asked) <= 8
+    assert asked[0] == "No human data"
 
-    assert _seed_questions(analyses, 4) == [
-        "No human data",
-        "Dosing is unstudied",
-    ]
+
+@pytest.fixture(autouse=True)
+def _hermetic_node_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    install_fake_llm(monkeypatch)
