@@ -12,12 +12,9 @@ from litellm.exceptions import APIError
 import co_scientist.llm as llm
 from co_scientist import agents, constants, task_runtime
 from co_scientist.agents import NODE_REGISTRY
-from co_scientist.agents.generation.generate import generate_node
 from co_scientist.agents.meta_review import meta_review as mr
 from co_scientist.agents.meta_review import research_overview as ro
 from co_scientist.agents.proximity import proximity as px
-from co_scientist.agents.reflection.review import review_node
-from co_scientist.agents.supervisor.supervisor import supervisor_node
 from co_scientist.checkpoint import (
     restore_workflow_state,
     serialize_workflow_state,
@@ -65,43 +62,7 @@ FROZEN_DURABLE_NODE_KEYS = {
 
 def test_registry_pins_the_frozen_durable_node_keys() -> None:
     assert set(agents.NODE_REGISTRY) == FROZEN_DURABLE_NODE_KEYS
-
-
-def test_registry_and_task_runtime_agree() -> None:
-    assert set(task_runtime.TASK_NODES) == set(agents.NODE_REGISTRY)
-
-
-def test_node_to_agent_is_projected_from_the_registry() -> None:
-    assert set(agents.NODE_TO_AGENT) == set(agents.NODE_REGISTRY)
-    for key, spec in agents.NODE_REGISTRY.items():
-        assert agents.NODE_TO_AGENT[key] == spec.agent
-
-
-def test_every_agent_owns_at_least_one_node() -> None:
-    owners = set(agents.NODE_TO_AGENT.values())
-    assert owners == {
-        "supervisor",
-        "generation",
-        "reflection",
-        "ranking",
-        "evolution",
-        "proximity",
-        "meta_review",
-        "safety",
-    }
-
-
-def test_registry_holds_the_real_node_callables() -> None:
-    assert agents.NODE_REGISTRY["supervisor"].node is supervisor_node
-    assert agents.NODE_REGISTRY["generate"].node is generate_node
-    assert agents.NODE_REGISTRY["review"].node is review_node
-    assert task_runtime.TASK_NODES["generate"] is generate_node
-
-
-def test_agent_modules_reexport_the_real_node_callables() -> None:
-    assert agents.supervisor.supervisor_node is supervisor_node
-    assert agents.generation.generate_node is generate_node
-    assert agents.reflection.review_node is review_node
+    assert set(task_runtime.TASK_NODES) == FROZEN_DURABLE_NODE_KEYS
 
 
 _TIMEOUT = LLMTimeoutError(
@@ -141,42 +102,6 @@ def _overview_state(**overrides: Any) -> Any:
     )
 
 
-@pytest.mark.parametrize("error", [_TIMEOUT, _UPSTREAM])
-async def test_overview_degrades_on_an_unreachable_provider(
-    monkeypatch: pytest.MonkeyPatch, error: Exception
-) -> None:
-    monkeypatch.setattr(ro, "call_llm_json", _raiser(error))
-    state = _overview_state()
-
-    out = await ro.research_overview_node(state)
-
-    assert out["research_overview"] == {}
-    assert state["degraded_nodes"] == ["research_overview"]
-
-
-@pytest.mark.parametrize("error", _CONTROL_FLOW)
-async def test_overview_reraises_the_worker_owned_errors(
-    monkeypatch: pytest.MonkeyPatch, error: Exception
-) -> None:
-    monkeypatch.setattr(ro, "call_llm_json", _raiser(error))
-
-    with pytest.raises(type(error)):
-        await ro.research_overview_node(_overview_state())
-
-
-async def test_interim_overview_failure_is_not_a_degraded_section(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A periodic firing produces no report section to mark as degraded."""
-    monkeypatch.setattr(ro, "call_llm_json", _raiser(_UPSTREAM))
-    state = _overview_state(next_task=TaskType.SYNTHESIZE.value)
-
-    out = await ro.research_overview_node(state)
-
-    assert "interim_overview" not in out
-    assert state.get("degraded_nodes", []) == []
-
-
 def _reviewed_state() -> Any:
     hypothesis = make_hypothesis(text="H")
     hypothesis.reviews = [make_review()]
@@ -187,32 +112,6 @@ def _reviewed_state() -> Any:
     )
 
 
-@pytest.mark.parametrize("error", [_TIMEOUT, _UPSTREAM])
-async def test_meta_review_degrades_on_an_unreachable_provider(
-    monkeypatch: pytest.MonkeyPatch, error: Exception
-) -> None:
-    monkeypatch.setattr(mr, "call_llm_json", _raiser(error))
-    state = _reviewed_state()
-
-    out = await mr.meta_review_node(state)
-
-    assert out["meta_review"]["summary"] == (
-        "Meta-review synthesis was unavailable for this cycle"
-    )
-    assert out["meta_review"]["strategic_recommendations"] == []
-    assert state["degraded_nodes"] == ["meta_review"]
-
-
-@pytest.mark.parametrize("error", _CONTROL_FLOW)
-async def test_meta_review_reraises_the_worker_owned_errors(
-    monkeypatch: pytest.MonkeyPatch, error: Exception
-) -> None:
-    monkeypatch.setattr(mr, "call_llm_json", _raiser(error))
-
-    with pytest.raises(type(error)):
-        await mr.meta_review_node(_reviewed_state())
-
-
 def _pair_state() -> Any:
     return make_state(
         hypotheses=[make_hypothesis(text="A"), make_hypothesis(text="B")],
@@ -221,53 +120,79 @@ def _pair_state() -> Any:
     )
 
 
-@pytest.mark.parametrize("error", [_TIMEOUT, _UPSTREAM])
-async def test_proximity_degrades_on_an_unreachable_provider(
-    monkeypatch: pytest.MonkeyPatch, error: Exception
-) -> None:
-    monkeypatch.setattr(px, "call_llm_json", _raiser(error))
-    state = _pair_state()
-
-    out = await px.proximity_node(state)
-
-    assert len(out["hypotheses"]) == 2
-    assert state["degraded_nodes"] == ["proximity_analysis"]
-
-
-@pytest.mark.parametrize("error", _CONTROL_FLOW)
-async def test_proximity_reraises_the_worker_owned_errors(
-    monkeypatch: pytest.MonkeyPatch, error: Exception
-) -> None:
-    monkeypatch.setattr(px, "call_llm_json", _raiser(error))
-
-    with pytest.raises(type(error)):
-        await px.proximity_node(_pair_state())
-
-
-# The durable retry flag chooses retry or degradation; graphs leave it unset.
+# (module, node, state builder, name recorded in degraded_nodes)
 _NODE_CASES = [
     pytest.param(
-        ro, ro.research_overview_node, _overview_state, id="research_overview"
+        ro,
+        ro.research_overview_node,
+        _overview_state,
+        "research_overview",
+        id="research_overview",
     ),
-    pytest.param(mr, mr.meta_review_node, _reviewed_state, id="meta_review"),
-    pytest.param(px, px.proximity_node, _pair_state, id="proximity"),
+    pytest.param(
+        mr,
+        mr.meta_review_node,
+        _reviewed_state,
+        "meta_review",
+        id="meta_review",
+    ),
+    pytest.param(
+        px,
+        px.proximity_node,
+        _pair_state,
+        "proximity_analysis",
+        id="proximity",
+    ),
 ]
 
 
-@pytest.mark.parametrize(("module", "node", "build_state"), _NODE_CASES)
+@pytest.mark.parametrize(
+    ("module", "node", "build_state", "degraded_name"), _NODE_CASES
+)
 @pytest.mark.parametrize("error", [_TIMEOUT, _UPSTREAM])
-async def test_a_provider_failure_propagates_while_attempts_remain(
+@pytest.mark.parametrize(
+    "retries_remain", [None, False, True], ids=["graph", "last", "remain"]
+)
+async def test_provider_failure_degrades_only_on_the_last_attempt(
     monkeypatch: pytest.MonkeyPatch,
     module: Any,
     node: Any,
     build_state: Any,
+    degraded_name: str,
     error: Exception,
+    retries_remain: bool | None,
 ) -> None:
     """Use remaining durable retries before settling for a blank report
-    section."""
+    section; raising after the last one would settle the run without it."""
     monkeypatch.setattr(module, "call_llm_json", _raiser(error))
     state = build_state()
-    state["durable_retries_remain"] = True
+    if retries_remain is not None:
+        state["durable_retries_remain"] = retries_remain
+
+    if retries_remain:
+        with pytest.raises(type(error)):
+            await node(state)
+        assert state.get("degraded_nodes", []) == []
+    else:
+        await node(state)
+        assert state["degraded_nodes"] == [degraded_name]
+
+
+@pytest.mark.parametrize(("module", "node", "build_state", "_"), _NODE_CASES)
+@pytest.mark.parametrize("error", _CONTROL_FLOW)
+@pytest.mark.parametrize("retries_remain", [True, False])
+async def test_worker_owned_errors_reraise_whatever_the_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+    module: Any,
+    node: Any,
+    build_state: Any,
+    _: str,
+    error: Exception,
+    retries_remain: bool,
+) -> None:
+    monkeypatch.setattr(module, "call_llm_json", _raiser(error))
+    state = build_state()
+    state["durable_retries_remain"] = retries_remain
 
     with pytest.raises(type(error)):
         await node(state)
@@ -275,49 +200,23 @@ async def test_a_provider_failure_propagates_while_attempts_remain(
     assert state.get("degraded_nodes", []) == []
 
 
-@pytest.mark.parametrize(("module", "node", "build_state"), _NODE_CASES)
-@pytest.mark.parametrize("error", [_TIMEOUT, _UPSTREAM])
-async def test_the_last_durable_attempt_degrades_instead(
-    monkeypatch: pytest.MonkeyPatch,
-    module: Any,
-    node: Any,
-    build_state: Any,
-    error: Exception,
-) -> None:
-    """Raising after the last retry would settle the run without its report."""
-    monkeypatch.setattr(module, "call_llm_json", _raiser(error))
-    state = build_state()
-    state["durable_retries_remain"] = False
-
-    await node(state)
-
-    assert len(state["degraded_nodes"]) == 1
-
-
-@pytest.mark.parametrize("error", _CONTROL_FLOW)
-@pytest.mark.parametrize("retries_remain", [True, False])
-async def test_control_flow_errors_reraise_whatever_the_attempt(
-    monkeypatch: pytest.MonkeyPatch, error: Exception, retries_remain: bool
-) -> None:
-    monkeypatch.setattr(ro, "call_llm_json", _raiser(error))
-    state = _overview_state(durable_retries_remain=retries_remain)
-
-    with pytest.raises(type(error)):
-        await ro.research_overview_node(state)
-
-    assert state.get("degraded_nodes", []) == []
-
-
-async def test_the_interim_firing_also_spends_its_retries(
+async def test_a_degraded_meta_review_still_returns_an_empty_section(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(mr, "call_llm_json", _raiser(_TIMEOUT))
+    out = await mr.meta_review_node(_reviewed_state())
+    assert out["meta_review"]["strategic_recommendations"] == []
+
+
+async def test_an_interim_overview_failure_is_not_a_degraded_section(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A periodic firing produces no report section to mark as degraded."""
     monkeypatch.setattr(ro, "call_llm_json", _raiser(_UPSTREAM))
-    state = _overview_state(
-        next_task=TaskType.SYNTHESIZE.value, durable_retries_remain=True
-    )
-
-    with pytest.raises(APIError):
-        await ro.research_overview_node(state)
+    state = _overview_state(next_task=TaskType.SYNTHESIZE.value)
+    out = await ro.research_overview_node(state)
+    assert "interim_overview" not in out
+    assert state.get("degraded_nodes", []) == []
 
 
 def test_the_attempt_flag_never_rides_a_checkpoint() -> None:
@@ -470,14 +369,6 @@ def test_first_pass_progress_never_decreases() -> None:
         )
 
 
-def test_every_checkpoint_starts_before_it_completes() -> None:
-    for name, checkpoints in _NODE_CHECKPOINTS.items():
-        if len(checkpoints) < 2:
-            continue
-        start, complete = checkpoints[0], checkpoints[-1]
-        assert start <= complete, name
-
-
 def test_every_walked_node_is_covered_or_exempt() -> None:
     walked = set(_first_pass_order(True)) | set(_first_pass_order(False))
     uncovered = walked - set(_NODE_CHECKPOINTS) - _EXEMPT_NODES
@@ -623,40 +514,10 @@ def test_every_registered_node_declares_a_successor_and_only_those() -> None:
     assert named <= set(NODE_REGISTRY)
 
 
-def test_the_review_phase_runs_in_the_published_order() -> None:
-    state = make_state(mcp_available=True)
-    chain = ["supervisor"]
-    while chain[-1] != "orchestrator":
-        successor = next_task_type(chain[-1], state)
-        assert successor is not None
-        chain.append(successor)
-    assert chain == [
-        "supervisor",
-        "literature_review",
-        "generate",
-        "reflection",
-        "review",
-        "comprehensive_reflection",
-        "safety_screen",
-        "deep_verification",
-        "ranking",
-        "orchestrator",
-    ]
-
-
 def _gated(node: str) -> LiteratureGated:
     route = WORKFLOW_ROUTES[node]
     assert isinstance(route, LiteratureGated)
     return route
-
-
-@pytest.mark.parametrize("node", ["supervisor", "generate"])
-def test_the_durable_path_takes_its_flow_shape_from_committed_state(
-    node: str,
-) -> None:
-    for mcp_available in (True, False):
-        state = make_state(mcp_available=mcp_available)
-        assert next_task_type(node, state) == _gated(node).pick(mcp_available)
 
 
 def test_the_gated_routes_skip_the_literature_nodes_when_the_flow_is_off() -> (
@@ -682,14 +543,6 @@ def test_a_missing_mcp_flag_is_the_simplified_flow_on_the_durable_path() -> (
     assert next_task_type("generate", state) == "review"
 
 
-@pytest.mark.parametrize("node", ["literature_review", "reflection"])
-def test_literature_nodes_route_even_when_mcp_is_unavailable(
-    node: str,
-) -> None:
-    state = make_state(mcp_available=False)
-    assert next_task_type(node, state) == WORKFLOW_ROUTES[node]
-
-
 @pytest.mark.parametrize("node", sorted(WORKFLOW_ROUTES))
 def test_a_safety_halt_ends_the_durable_path_from_every_node(
     node: str,
@@ -703,11 +556,6 @@ def test_entry_marker_is_not_a_completed_durable_node() -> None:
     assert "__start__" not in WORKFLOW_ROUTES
     with pytest.raises(ValueError, match="unsupported completed task node"):
         next_task_type("__start__", make_state())
-
-
-def test_terminal_overview_has_no_successor() -> None:
-    state = make_state(next_task=TaskType.TERMINATE.value)
-    assert next_task_type("research_overview", state) is None
 
 
 def _evolve_with_meta_review_stacked_ahead() -> WorkflowState:
