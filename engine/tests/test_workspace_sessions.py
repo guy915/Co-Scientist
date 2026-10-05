@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import shutil
+import signal
+import subprocess
 import time
 from collections.abc import AsyncIterator
+from contextlib import suppress
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -44,12 +48,48 @@ def _workspace_sessions_call(name: str, arguments: Any) -> SimpleNamespace:
     return make_tool_call(f"call_{name}", name, json.dumps(arguments))
 
 
+def _owned_process_groups(registry: SessionRegistry) -> set[int]:
+    roots = {
+        session._proc.pid
+        for session in registry._sessions.values()
+        if session._proc is not None and session._proc.returncode is None
+    }
+    if not roots:
+        return set()
+    rows = subprocess.check_output(
+        ["ps", "-axo", "pid=,ppid=,pgid="], text=True
+    )
+    processes = [tuple(map(int, row.split())) for row in rows.splitlines()]
+    descendants = set(roots)
+    while True:
+        found = {pid for pid, parent, _ in processes if parent in descendants}
+        if found <= descendants:
+            break
+        descendants.update(found)
+    return {group for pid, _, group in processes if pid in descendants}
+
+
+def _reap_process_groups(groups: set[int]) -> None:
+    # Bubblewrap's inner namespace has its own session and inherits the pipes.
+    for group in groups:
+        with suppress(ProcessLookupError):
+            os.killpg(group, signal.SIGKILL)
+
+
 async def _execute(
     provider: WorkspaceToolProvider, name: str, **arguments: Any
 ) -> dict[str, Any]:
-    message = await provider.execute_tool_call(
-        _workspace_sessions_call(name, arguments)
+    groups = (
+        _owned_process_groups(provider.session.sessions)
+        if arguments.get("kill")
+        else set()
     )
+    try:
+        message = await provider.execute_tool_call(
+            _workspace_sessions_call(name, arguments)
+        )
+    finally:
+        _reap_process_groups(groups)
     parsed: dict[str, Any] = json.loads(message["content"])
     return parsed
 
@@ -80,16 +120,18 @@ async def _wait_for_output(
 
 
 async def _close_registry(registry: SessionRegistry) -> None:
-    # Finished commands retain stdin pipes after exit; close them on their loop.
-    inputs = [
-        session._proc.stdin
+    processes = [
+        session._proc
         for session in registry._sessions.values()
-        if session._proc is not None and session._proc.stdin is not None
+        if session._proc is not None
     ]
-    await registry.close()
-    for writer in inputs:
-        writer.close()
-        await writer.wait_closed()
+    groups = _owned_process_groups(registry)
+    try:
+        await registry.close()
+    finally:
+        _reap_process_groups(groups)
+        for process in processes:
+            await process.communicate()
 
 
 @pytest.fixture
