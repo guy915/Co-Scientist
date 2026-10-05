@@ -38,11 +38,31 @@ html:has(.ucs-landing) body {
   height: calc(100dvh - 4rem);
 }
 
-/* Desktop: the composer group sits low on the first screen. */
+/* Desktop: the composer's bottom edge lines up with the recents box. Both
+   columns end at the same inset, and recents also reserves the scroll cue's
+   fixed row below the composer. */
 @media (min-width: 1181px) {
+  .ucs-page--home:has(.ucs-landing) .reference-home-stage {
+    --home-bottom: clamp(0.75rem, 1.6vh, 1.25rem);
+    --home-cue: 3.25rem;
+  }
+
   .ucs-page--home:has(.ucs-landing) .reference-home-main {
-    max-height: none;
-    padding-bottom: clamp(0.75rem, 1.6vh, 1.25rem);
+    max-height: calc(100vh - 4rem);
+    max-height: calc(100dvh - 4rem);
+    padding-bottom: var(--home-bottom);
+  }
+
+  .ucs-page--home:has(.ucs-landing) .reference-home-scroll-hint {
+    box-sizing: border-box;
+    height: 2.5rem;
+  }
+
+  .ucs-page--home:has(.ucs-landing) .reference-recents-panel {
+    box-sizing: border-box;
+    max-height: calc(100vh - 4rem);
+    max-height: calc(100dvh - 4rem);
+    padding-bottom: calc(var(--home-bottom) + var(--home-cue));
   }
 }
 
