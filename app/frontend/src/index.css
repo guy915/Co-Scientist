@@ -209,9 +209,7 @@
   --color-cosci-reference-open-border: var(--cosci-border);
   --color-cosci-reference-open-fg: var(--cosci-text);
   --color-cosci-reference-open-hover-bg: var(--cosci-hover);
-  --color-cosci-reference-open-hover-border: var(
-    --cosci-muted
-  );
+  --color-cosci-reference-open-hover-border: var(--cosci-muted);
 
   --color-cosci-idea-list-border: var(--cosci-border);
   --color-cosci-idea-row-border: var(--cosci-border);
@@ -221,9 +219,7 @@
   --color-cosci-idea-row-hover-bg: var(--cosci-panel);
   --color-cosci-idea-row-selected-border: var(--cosci-blue);
   --color-cosci-idea-row-selected-bg: var(--cosci-idea-row-selected-bg);
-  --color-cosci-idea-row-selected-hover-bg: var(
-    --cosci-idea-row-selected-bg
-  );
+  --color-cosci-idea-row-selected-hover-bg: var(--cosci-idea-row-selected-bg);
   --color-cosci-idea-chip-bg: var(--cosci-idea-chip-bg);
   --color-cosci-idea-chip-text: var(--cosci-text);
   --color-cosci-idea-title-text: var(--cosci-text);
@@ -383,6 +379,8 @@ html {
   color: var(--color-th-fg);
   line-height: 1.5;
   overflow-x: hidden;
+  /* Phones must not rubber-band the page sideways. */
+  overscroll-behavior-x: none;
   tab-size: 4;
   -webkit-text-size-adjust: 100%;
 }
