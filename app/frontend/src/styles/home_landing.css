@@ -33,8 +33,9 @@ html:has(.ucs-landing) body {
 }
 
 .ucs-page--home:has(.ucs-landing) .reference-home-stage {
-  height: calc(100vh - 4.5rem);
-  height: calc(100dvh - 4.5rem);
+  /* Exactly the pane below the 4rem header, so no landing section peeks in. */
+  height: calc(100vh - 4rem);
+  height: calc(100dvh - 4rem);
 }
 
 .reference-home-scroll-hint {
@@ -42,25 +43,29 @@ html:has(.ucs-landing) body {
   align-items: center;
   justify-self: center;
   align-self: center;
-  gap: 0.25rem;
+  gap: 0.375rem;
   margin-top: 0.75rem;
-  border: 0;
-  background: none;
-  color: var(--cosci-muted);
+  border: 1px solid var(--cosci-border);
+  border-radius: 9999px;
+  background: var(--cosci-suggestion-bg);
+  color: var(--cosci-text);
   cursor: pointer;
   font: inherit;
-  font-size: 0.8125rem;
-  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 0.5rem 0.875rem 0.5rem 1.125rem;
+  transition: background-color 0.2s ease;
 }
 
 .reference-home-scroll-hint:hover,
 .reference-home-scroll-hint:focus-visible {
-  color: var(--cosci-text);
+  background: var(--cosci-hover);
 }
 
 .reference-home-scroll-hint svg {
-  width: 1.1rem;
-  height: 1.1rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  fill: var(--cosci-accent);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -76,7 +81,7 @@ html:has(.ucs-landing) body {
     transform: translateY(0);
   }
   30% {
-    transform: translateY(3px);
+    transform: translateY(4px);
   }
 }
 
@@ -479,6 +484,8 @@ html:has(.ucs-landing) body {
   margin-top: 40px;
 }
 
+/* Subgrid rows line the three headings and intros up across cards; the
+   bodies keep their natural height so no panel stretches into empty space. */
 .ucs-landing-ov-card {
   display: grid;
   grid-row: span 3;
@@ -497,136 +504,93 @@ html:has(.ucs-landing) body {
 }
 
 .ucs-landing-ov-sub {
-  margin: 0 0 12px;
+  margin: 0;
   color: var(--l-muted);
   font-size: 15px;
   line-height: 1.5;
 }
 
-.ucs-landing-ov-goal {
+.ucs-landing-ov-body {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 20px;
-  border-radius: 24px;
-  background: var(--l-bg);
-  font-size: 15px;
-  line-height: 1.5;
-}
-
-.ucs-landing-ov-output {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
-  gap: 6px;
+  align-self: start;
+  gap: 16px;
+  margin: 16px 0 0;
+  padding: 20px 0 0;
+  border-top: 1px solid var(--l-line);
 }
 
 .ucs-landing-ov-goal b {
-  font-weight: 500;
+  display: block;
+  margin-bottom: 8px;
+  font-family: var(--l-display);
+  font-size: 19px;
+  font-weight: 400;
+  line-height: 1.35;
 }
 
 .ucs-landing-ov-goal p {
   margin: 0;
   color: var(--l-muted);
+  font-size: 15px;
+  line-height: 1.55;
 }
 
-/* Stretched to the tallest card, the goal reads like a composer: text on top,
-   source chips on its bottom edge. */
-.ucs-landing-ov-goal .ucs-landing-ov-chips {
-  margin-top: auto;
-  padding-top: 12px;
-}
-
-.ucs-landing-ov-rest {
-  display: grid;
-  gap: 6px;
-  margin: 6px 0 0;
-  padding: 0;
+.ucs-landing-ov-list {
+  gap: 0;
   list-style: none;
 }
 
-.ucs-landing-ov-rest li {
+.ucs-landing-ov-list li + li {
+  border-top: 1px solid var(--l-line);
+}
+
+.ucs-landing-ov-list li:not(.ucs-landing-ov-top) {
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  border-radius: 9999px;
-  background: var(--l-bg);
-  color: var(--l-muted);
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
+  gap: 14px;
+  padding: 12px 0;
+  font-size: 15px;
+  line-height: 1.4;
 }
 
-.ucs-landing-ov-rest li span:nth-child(2) {
-  overflow: hidden;
-  color: var(--l-ink);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.ucs-landing-ov-list li:first-child {
+  padding-top: 0;
 }
 
-.ucs-landing-ov-stages {
-  display: grid;
-  grid-auto-rows: 1fr;
-  gap: 6px;
-  margin: 0;
-  padding: 12px;
-  border-radius: 24px;
-  background: var(--l-bg);
-  list-style: none;
-}
-
-.ucs-landing-ov-stages li {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 14px;
-  border-radius: 9999px;
-  color: var(--l-muted);
-  font-size: 14px;
-  transition:
-    background-color 0.4s var(--l-ease),
-    color 0.4s var(--l-ease);
-}
-
-.ucs-landing-ov-stages li.is-lit {
-  background: var(--l-surface);
-  color: var(--l-ink);
-}
-
-.ucs-landing-ov-stages svg {
-  flex: none;
+.ucs-landing-ov-list svg {
   width: 20px;
   height: 20px;
-  fill: currentColor;
-}
-
-.ucs-landing-ov-stages li.is-lit svg {
   fill: var(--l-accent);
 }
 
-.ucs-landing-ov-idea {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  gap: 10px;
-  padding: 20px;
-  border-radius: 24px;
-  background: var(--l-bg);
+.ucs-landing-ov-top {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 16px;
 }
 
-.ucs-landing-ov-idea b {
-  align-self: end;
+.ucs-landing-ov-top b {
   font-family: var(--l-display);
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 400;
   line-height: 1.3;
 }
 
-.ucs-landing-ov-idea-meta {
-  display: flex;
-  gap: 12px;
+.ucs-landing-ov-meta,
+.ucs-landing-ov-rank span:first-child,
+.ucs-landing-ov-rank span:last-child {
   color: var(--l-muted);
-  font-size: 13px;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
+}
+
+.ucs-landing-ov-rank span:nth-child(2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ucs-landing-ov-chips {
