@@ -57,7 +57,7 @@ for (const theme of ['light', 'dark']) {
       ).toBeInViewport();
       if (width > 1000) {
         const panels = await page
-          .locator('.ucs-landing-ov-card')
+          .locator('.ucs-landing-ov-card > :last-child')
           .evaluateAll(nodes =>
             nodes.map(node => {
               const rect = node.getBoundingClientRect();

@@ -642,8 +642,8 @@ function InputCard() {
         A research goal in plain language. Add your own papers and choose the
         sources to search if you like.
       </p>
-      <div className="ucs-landing-ov-body">
-        <div className="ucs-landing-ov-goal">
+      <div className="ucs-landing-ov-panel">
+        <div className="ucs-landing-ov-item ucs-landing-ov-goal">
           <b>{GOAL_TITLE}</b>
           <p>{GOAL_BODY}</p>
         </div>
@@ -664,9 +664,9 @@ function RunCard() {
       <p className="ucs-landing-ov-sub">
         Work through the goal in a loop, as many cycles as the tier allows.
       </p>
-      <ol className="ucs-landing-ov-body ucs-landing-ov-list">
+      <ol className="ucs-landing-ov-panel ucs-landing-ov-steps">
         {STAGES.map(stage => (
-          <li key={stage.label}>
+          <li key={stage.label} className="ucs-landing-ov-item">
             <Icon aria-hidden="true" name={stage.icon} />
             <span>{stage.label}</span>
           </li>
@@ -677,7 +677,6 @@ function RunCard() {
 }
 
 function OutputCard() {
-  const [top, ...rest] = RANKED;
   return (
     <div className="ucs-landing-ov-card">
       <h3>You get</h3>
@@ -685,20 +684,19 @@ function OutputCard() {
         Ranked hypotheses, each with its reviews, Elo rating, and claims checked
         against sources, plus a report you can share.
       </p>
-      <ol className="ucs-landing-ov-body ucs-landing-ov-list">
-        <li className="ucs-landing-ov-top">
-          <span className="ucs-landing-ov-meta">#1 · Elo {top.elo}</span>
-          <b>{top.title}</b>
-          <div className="ucs-landing-ov-chips">
-            <span className="tone-green">Supports 3</span>
-            <span className="tone-yellow">Partial 1</span>
-          </div>
-        </li>
-        {rest.map((idea, i) => (
-          <li key={idea.title} className="ucs-landing-ov-rank">
-            <span>#{i + 2}</span>
-            <span>{idea.title}</span>
-            <span>{idea.elo}</span>
+      <ol className="ucs-landing-ov-panel ucs-landing-ov-ranks">
+        {RANKED.map((idea, i) => (
+          <li key={idea.title} className="ucs-landing-ov-item">
+            <span className="ucs-landing-ov-meta">
+              #{i + 1} · Elo {idea.elo}
+            </span>
+            <b>{idea.title}</b>
+            {i === 0 && (
+              <div className="ucs-landing-ov-chips">
+                <span className="tone-green">Supports 3</span>
+                <span className="tone-yellow">Partial 1</span>
+              </div>
+            )}
           </li>
         ))}
       </ol>

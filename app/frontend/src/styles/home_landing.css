@@ -484,8 +484,8 @@ html:has(.ucs-landing) body {
   margin-top: 40px;
 }
 
-/* Subgrid rows line the three headings and intros up across cards; the
-   bodies keep their natural height so no panel stretches into empty space. */
+/* Subgrid rows line up headings, intros and panels across the cards; every
+   panel fills its stretched height with items, so none leaves a void. */
 .ucs-landing-ov-card {
   display: grid;
   grid-row: span 3;
@@ -504,27 +504,38 @@ html:has(.ucs-landing) body {
 }
 
 .ucs-landing-ov-sub {
-  margin: 0;
+  margin: 0 0 12px;
   color: var(--l-muted);
   font-size: 15px;
   line-height: 1.5;
 }
 
-.ucs-landing-ov-body {
+.ucs-landing-ov-panel {
   display: flex;
   flex-direction: column;
-  align-self: start;
-  gap: 16px;
-  margin: 16px 0 0;
-  padding: 20px 0 0;
-  border-top: 1px solid var(--l-line);
+  gap: 6px;
+  margin: 0;
+  padding: 12px;
+  border-radius: 24px;
+  background: var(--l-bg);
+  list-style: none;
+}
+
+.ucs-landing-ov-item {
+  padding: 14px 18px;
+  border-radius: 18px;
+  background: var(--l-surface);
+}
+
+.ucs-landing-ov-goal {
+  flex: 1;
 }
 
 .ucs-landing-ov-goal b {
   display: block;
   margin-bottom: 8px;
   font-family: var(--l-display);
-  font-size: 19px;
+  font-size: 18px;
   font-weight: 400;
   line-height: 1.35;
 }
@@ -536,61 +547,57 @@ html:has(.ucs-landing) body {
   line-height: 1.55;
 }
 
-.ucs-landing-ov-list {
-  gap: 0;
-  list-style: none;
+.ucs-landing-ov-panel > .ucs-landing-ov-chips {
+  padding: 6px 6px 2px;
 }
 
-.ucs-landing-ov-list li + li {
-  border-top: 1px solid var(--l-line);
-}
-
-.ucs-landing-ov-list li:not(.ucs-landing-ov-top) {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
+.ucs-landing-ov-steps > li {
+  display: flex;
+  flex: 1;
   align-items: center;
-  gap: 14px;
-  padding: 12px 0;
-  font-size: 15px;
-  line-height: 1.4;
+  gap: 12px;
+  border-radius: 9999px;
+  font-size: 14px;
+  line-height: 1.35;
 }
 
-.ucs-landing-ov-list li:first-child {
-  padding-top: 0;
-}
-
-.ucs-landing-ov-list svg {
+.ucs-landing-ov-steps svg {
+  flex: none;
   width: 20px;
   height: 20px;
   fill: var(--l-accent);
 }
 
-.ucs-landing-ov-top {
+.ucs-landing-ov-ranks > li {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  gap: 8px;
-  padding-bottom: 16px;
+  justify-content: center;
+  gap: 6px;
 }
 
-.ucs-landing-ov-top b {
+.ucs-landing-ov-ranks > li:first-child {
+  flex-grow: 1.7;
+  gap: 10px;
+}
+
+.ucs-landing-ov-ranks b {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.ucs-landing-ov-ranks > li:first-child b {
   font-family: var(--l-display);
   font-size: 20px;
   font-weight: 400;
   line-height: 1.3;
 }
 
-.ucs-landing-ov-meta,
-.ucs-landing-ov-rank span:first-child,
-.ucs-landing-ov-rank span:last-child {
+.ucs-landing-ov-meta {
   color: var(--l-muted);
-  font-size: 14px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
-}
-
-.ucs-landing-ov-rank span:nth-child(2) {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .ucs-landing-ov-chips {
