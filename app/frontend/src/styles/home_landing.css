@@ -66,11 +66,11 @@ html:has(.ucs-landing) body {
   }
 }
 
-/* Tablet keeps recents in flow below the first screen, so the stage grows
-   with it instead of letting recents spill over the landing hero. */
+/* Recents only shows beside the composer; where it would drop below the first
+   screen (tablet widths) the landing follows directly instead. */
 @media (min-width: 701px) and (max-width: 1180px) {
-  .ucs-page--home:has(.ucs-landing) .reference-home-stage {
-    height: auto;
+  .ucs-page--home:has(.ucs-landing) .reference-recents-panel {
+    display: none;
   }
 
   .ucs-page--home:has(.ucs-landing) .reference-home-main {
@@ -359,8 +359,8 @@ html:has(.ucs-landing) body {
 
 .ucs-landing-hero-art {
   width: min(100%, 440px);
+  align-self: center;
   justify-self: end;
-  margin-top: -2vw;
   overflow: visible;
 }
 
