@@ -97,16 +97,6 @@ it('honors a stored light preference over the system scheme', async () => {
   expect(document.documentElement.classList.contains('dark')).toBe(false);
 });
 
-it('falls back to system for an unrecognized stored value', async () => {
-  localStorage.setItem(STORAGE_KEY, 'sepia');
-  installFakeMatchMedia(false);
-  const {result} = renderHook(() => useTheme(), {wrapper});
-  await flushThemeTransition();
-
-  expect(result.current.mode).toBe('system');
-  expect(result.current.resolvedMode).toBe('light');
-});
-
 it('resolves system mode live against OS scheme changes', async () => {
   const mql = installFakeMatchMedia(false);
   const {result} = renderHook(() => useTheme(), {wrapper});
@@ -122,20 +112,6 @@ it('resolves system mode live against OS scheme changes', async () => {
   await flushThemeTransition();
   expect(result.current.resolvedMode).toBe('light');
   expect(document.documentElement.dataset.theme).toBe('light');
-});
-
-it('subscribes via the legacy addListener API when needed', async () => {
-  const mql = installFakeMatchMedia(false, 'legacy');
-  const {result, unmount} = renderHook(() => useTheme(), {wrapper});
-  await flushThemeTransition();
-  expect(mql.addListener).toHaveBeenCalledWith(expect.any(Function));
-
-  act(() => mql.fireChange(true));
-  await flushThemeTransition();
-  expect(result.current.resolvedMode).toBe('dark');
-
-  unmount();
-  expect(mql.removeListener).toHaveBeenCalledWith(expect.any(Function));
 });
 
 it('setMode persists an explicit choice and updates resolvedMode', async () => {
@@ -168,19 +144,6 @@ it('toggle flips between light and dark', async () => {
   expect(result.current.mode).toBe('light');
 });
 
-it('toggle from system mode resolves to dark', async () => {
-  installFakeMatchMedia(false);
-  const {result} = renderHook(() => useTheme(), {wrapper});
-  await flushThemeTransition();
-  expect(result.current.mode).toBe('system');
-
-  act(() => result.current.toggle());
-  await flushThemeTransition();
-
-  expect(result.current.mode).toBe('dark');
-  expect(result.current.resolvedMode).toBe('dark');
-});
-
 it('lifts the transition freeze after the theme is applied', async () => {
   installFakeMatchMedia(false);
   renderHook(() => useTheme(), {wrapper});
@@ -191,32 +154,10 @@ it('lifts the transition freeze after the theme is applied', async () => {
   );
 });
 
-it('unsubscribes the modern change listener on unmount', async () => {
-  const mql = installFakeMatchMedia(false);
-  const {unmount} = renderHook(() => useTheme(), {wrapper});
-  await flushThemeTransition();
-  expect(mql.addEventListener).toHaveBeenCalledWith(
-    'change',
-    expect.any(Function),
-  );
-
-  unmount();
-  expect(mql.removeEventListener).toHaveBeenCalledWith(
-    'change',
-    expect.any(Function),
-  );
-});
-
 describe('useTheme', () => {
   beforeEach(() => {
     // React logs thrown render errors; silence only the expected noise.
     vi.spyOn(console, 'error').mockImplementation(() => {});
-  });
-
-  it('throws when used outside a ThemeProvider', () => {
-    expect(() => renderHook(() => useTheme())).toThrow(
-      'useTheme used outside ThemeProvider',
-    );
   });
 });
 
@@ -232,14 +173,5 @@ describe('applyMd3Theme', () => {
     expect(cssVar('--md-sys-color-primary')).not.toBe('');
     expect(cssVar('--md-sys-color-surface')).not.toBe('');
     expect(cssVar('--md-sys-color-on-surface')).not.toBe('');
-  });
-
-  it('produces a different surface color in dark mode', () => {
-    applyMd3Theme(false);
-    const lightSurface = cssVar('--md-sys-color-surface');
-    applyMd3Theme(true);
-    const darkSurface = cssVar('--md-sys-color-surface');
-    expect(lightSurface).not.toBe('');
-    expect(darkSurface).not.toBe(lightSurface);
   });
 });

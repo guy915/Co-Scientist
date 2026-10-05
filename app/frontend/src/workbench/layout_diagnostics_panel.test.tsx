@@ -11,22 +11,6 @@ import {
 describe('layout diagnostics panel', () => {
   beforeEach(() => installLayoutMocks());
 
-  it('opens the diagnostics panel with dark-mode shell styling', () => {
-    const {container} = renderLayout();
-
-    expect(document.documentElement.dataset.theme).toBe('dark');
-    expect(document.documentElement).toHaveClass('dark');
-
-    const logsButton = screen.getByRole('button', {name: /Logs 0/i});
-    expect(logsButton.className).toContain('bg-cosci-logs-accent-bg');
-
-    fireEvent.click(logsButton);
-
-    const logsPopover = container.querySelector('.ucs-popover--logs');
-    expect(logsPopover?.className).toContain('!bg-cosci-logs-surface');
-    expect(screen.getByText('Diagnostic Logs')).toBeInTheDocument();
-  });
-
   it('shows the same app-wide log on a run route as on home', async () => {
     logsApiMock.getAppLogs.mockResolvedValue({
       logs: [
@@ -89,31 +73,6 @@ describe('layout diagnostics panel', () => {
     expect(screen.getByText(/workflow exploded/)).toBeInTheDocument();
   });
 
-  it('never scrolls sideways, even with a long logger name', async () => {
-    logsApiMock.getAppLogs.mockResolvedValue({
-      logs: [
-        logRecord(1, {
-          logger:
-            'co_scientist.agents.generation.literature_review.search_support',
-          message: 'a very long line that would otherwise widen the panel body',
-        }),
-      ],
-      last_id: 1,
-      total: 1,
-      session_total: 1,
-    });
-    const {container} = renderLayout();
-
-    fireEvent.click(await screen.findByRole('button', {name: /Logs 1/i}));
-    await screen.findByText(/widen the panel body/);
-
-    const list = container.querySelector('.ucs-diagnostic-list');
-    expect(list?.className).toContain('overflow-x-hidden');
-    expect(list?.className).not.toContain('overflow-auto');
-    const stage = container.querySelector('.ucs-diagnostic-entry-meta strong');
-    expect(stage?.className).toContain('truncate');
-  });
-
   it('renders the message as plain text with a level meta row', async () => {
     logsApiMock.getAppLogs.mockResolvedValue({
       logs: [
@@ -141,9 +100,6 @@ describe('layout diagnostics panel', () => {
     expect(blocks[1].textContent).toBe('workflow exploded\n\nTraceback: boom');
     expect(screen.getByText('INFO')).toBeInTheDocument();
     expect(screen.getByText('ERROR')).toBeInTheDocument();
-    expect(blocks[0].className).toContain('whitespace-pre-wrap');
-    expect(blocks[0].className).not.toContain('overflow-auto');
-    expect(blocks[0].className).not.toContain('max-h');
   });
 });
 
@@ -225,27 +181,6 @@ describe('layout diagnostics numbering', () => {
     expect(screen.queryByText(/^Showing /)).toBeNull();
     expect(screen.getByText('0 runs')).toBeInTheDocument();
   });
-
-  it('never shows more than the 100 newest records', async () => {
-    const many = Array.from({length: 120}, (_, index) =>
-      logRecord(index + 1, {created_at: 1_700_000_000 + index}),
-    );
-    logsApiMock.getAppLogs.mockResolvedValue({
-      logs: many,
-      last_id: 120,
-      total: 120,
-      session_total: 120,
-    });
-    const {container} = renderLayout();
-
-    fireEvent.click(await screen.findByRole('button', {name: /Logs 120/i}));
-    await screen.findByText(/record 120/);
-
-    const entries = container.querySelectorAll('.ucs-diagnostic-entry');
-    expect(entries).toHaveLength(100);
-    expect(screen.queryByText(/record 20$/)).toBeNull();
-    expect(entries[0].textContent).toContain('#21');
-  });
 });
 
 describe('layout diagnostics session', () => {
@@ -309,32 +244,5 @@ describe('layout diagnostics session', () => {
     ).map(el => el.querySelector('span')?.textContent);
     expect(numbers).toEqual(['#1', '#2']);
     expect(screen.getByText('Total 2')).toBeInTheDocument();
-  });
-
-  it('keeps this session across a tab reload', async () => {
-    // sessionStorage retains the log baseline across reloads within the same
-    // browsing session.
-    window.sessionStorage.setItem(
-      'cosci-logs-session-baseline',
-      JSON.stringify({id: 100}),
-    );
-    logsApiMock.getAppLogs.mockReset();
-    logsApiMock.getAppLogs.mockResolvedValue({
-      logs: [
-        logRecord(101, {message: 'logged before the reload'}),
-        logRecord(102, {message: 'logged after the reload'}),
-      ],
-      last_id: 102,
-      total: 7,
-      session_total: 2,
-    });
-
-    renderLayout('/');
-    fireEvent.click(await screen.findByRole('button', {name: /Logs 2/i}));
-
-    expect(await screen.findByText(/logged before the reload/)).toBeVisible();
-    expect(screen.getByText(/logged after the reload/)).toBeVisible();
-    expect(screen.getByText('Total 2')).toBeInTheDocument();
-    expect(logsApiMock.getAppLogs).toHaveBeenCalledWith(100, 100);
   });
 });

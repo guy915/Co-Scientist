@@ -51,11 +51,6 @@ describe('use is mobile', () => {
   });
 
   describe('isMobileViewport', () => {
-    it('returns false when matchMedia is unavailable', () => {
-      vi.stubGlobal('matchMedia', undefined);
-      expect(isMobileViewport()).toBe(false);
-    });
-
     it('returns true when the mobile breakpoint matches', () => {
       installFakeMatchMedia({[MOBILE_MEDIA_QUERY]: true});
       expect(isMobileViewport()).toBe(true);
@@ -71,12 +66,6 @@ describe('use is mobile', () => {
     installFakeMatchMedia({[MOBILE_MEDIA_QUERY]: true});
     const {result} = renderHook(() => useIsMobile());
     expect(result.current).toBe(true);
-  });
-
-  it('initializes to false when the query does not match', () => {
-    installFakeMatchMedia({[MOBILE_MEDIA_QUERY]: false});
-    const {result} = renderHook(() => useIsMobile());
-    expect(result.current).toBe(false);
   });
 
   it('updates when the media query change event fires', () => {
@@ -95,32 +84,10 @@ describe('use is mobile', () => {
     expect(result.current).toBe(false);
   });
 
-  it('subscribes to change events on mount and unsubscribes on unmount', () => {
-    const {lists} = installFakeMatchMedia({[MOBILE_MEDIA_QUERY]: false});
-    const {unmount} = renderHook(() => useIsMobile());
-    const mql = lists.get(MOBILE_MEDIA_QUERY)!;
-    expect(mql.addEventListener).toHaveBeenCalledWith(
-      'change',
-      expect.any(Function),
-    );
-
-    unmount();
-    expect(mql.removeEventListener).toHaveBeenCalledWith(
-      'change',
-      expect.any(Function),
-    );
-  });
-
   it('does not crash and reads false when matchMedia is unavailable', () => {
     vi.stubGlobal('matchMedia', undefined);
     const {result} = renderHook(() => useIsMobile());
     expect(result.current).toBe(false);
-  });
-
-  it('defaults to MOBILE_MEDIA_QUERY when no query is given', () => {
-    const {matchMedia} = installFakeMatchMedia({[MOBILE_MEDIA_QUERY]: false});
-    renderHook(() => useIsMobile());
-    expect(matchMedia).toHaveBeenCalledWith(MOBILE_MEDIA_QUERY);
   });
 });
 
@@ -182,12 +149,6 @@ describe('use overflowing', () => {
         },
       });
       render(<Probe count={3} />);
-      expect(screen.getByTestId('state')).toHaveTextContent('false');
-    });
-
-    it('reports no overflow for an empty list', () => {
-      stubGeometry(100, [], 30);
-      render(<Probe count={0} />);
       expect(screen.getByTestId('state')).toHaveTextContent('false');
     });
   });

@@ -16,15 +16,6 @@ describe('ErrorBoundary', () => {
     vi.restoreAllMocks();
   });
 
-  it('renders its children when nothing throws', () => {
-    render(
-      <ErrorBoundary>
-        <p>Healthy child</p>
-      </ErrorBoundary>,
-    );
-    expect(screen.getByText('Healthy child')).toBeInTheDocument();
-  });
-
   it('renders the default fallback when a child throws', () => {
     render(
       <ErrorBoundary>

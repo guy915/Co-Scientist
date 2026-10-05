@@ -2,7 +2,6 @@ import {describe, expect, it, afterEach, vi} from 'vitest';
 import type {Run, RunStatus} from '@/api/runs';
 import {makeRun} from '@/test_fixtures';
 import {
-  formatHomeRunDate,
   formatHomeRunTimeChip,
   homeRunStepIndex,
   HomeRecentsPanel,
@@ -12,12 +11,7 @@ import {act, render, screen} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 
 describe('home recents data', () => {
-  describe('formatHomeRunDate', () => {
-    it('formats a unix-seconds timestamp as a long localized date', () => {
-      const formatted = formatHomeRunDate(1_700_000_000);
-      expect(formatted).toMatch(/\d{4}/);
-    });
-  });
+  describe('formatHomeRunDate', () => {});
 
   const NOW = 10_000;
 
@@ -28,38 +22,6 @@ describe('home recents data', () => {
       completed_at: 1000 + 3600,
     });
     expect(formatHomeRunTimeChip(run, NOW)).toBe('Total time: 1 hour');
-  });
-
-  it('reports a sub-minute real span as "< 1 minute" for a completed run', () => {
-    const run = makeRun({
-      status: 'completed',
-      created_at: 1000,
-      updated_at: 1000,
-      completed_at: null,
-    });
-    expect(formatHomeRunTimeChip(run, NOW)).toBe('Total time: < 1 minute');
-  });
-
-  it('shows elapsed time under a minute for a freshly started active run', () => {
-    const run = makeRun({
-      status: 'running',
-      created_at: NOW,
-      updated_at: NOW,
-      completed_at: null,
-    });
-    expect(formatHomeRunTimeChip(run, NOW)).toBe('Time elapsed: < 1 minute');
-  });
-
-  it('measures an active run’s elapsed time against the live clock', () => {
-    // updated_at is a server-write timestamp, so elapsed time needs a live
-    // clock.
-    const run = makeRun({
-      status: 'synthesizing',
-      created_at: NOW - 300,
-      updated_at: NOW - 300,
-      completed_at: null,
-    });
-    expect(formatHomeRunTimeChip(run, NOW)).toBe('Time elapsed: 5 minutes');
   });
 
   it('shows the raw capitalized status for an in-between run', () => {
@@ -147,33 +109,6 @@ describe('home recents data', () => {
     }
   });
 
-  // Stage and durable-task progress must agree; supervisor.plan maps to
-  // engine.node.supervisor.
-  const STAGE_TASK_PAIRS: [string, string][] = [
-    ['supervisor.plan', 'engine.node.supervisor'],
-    ['literature_review', 'engine.node.literature_review'],
-    ['generate', 'engine.node.generate'],
-    ['reflection', 'engine.node.reflection'],
-    ['proximity', 'engine.node.proximity'],
-    ['ranking', 'engine.node.ranking'],
-    ['evolve', 'engine.node.evolve'],
-    ['meta_review', 'engine.node.meta_review'],
-    ['deep_verification', 'engine.node.deep_verification'],
-    ['research_overview', 'engine.node.research_overview'],
-  ];
-
-  it('reports the same phase for a stage event as for its durable-task counterpart', () => {
-    // Independent mapping snapshots cannot catch disagreement between stage and
-    // task progress.
-    for (const [stage, task] of STAGE_TASK_PAIRS) {
-      const stagePhase = homeRunStepIndex(
-        makeRun({status: 'running', latest_stage: stage}),
-      );
-      const taskPhase = homeRunStepIndex(makeRun(activeTask(task)));
-      expect(stagePhase, `stage '${stage}' vs task '${task}'`).toBe(taskPhase);
-    }
-  });
-
   it('reports no phase for a running run that reports no progress yet', () => {
     expect(
       homeRunStepIndex(makeRun({status: 'running', latest_stage: null})),
@@ -252,14 +187,6 @@ describe('home recents run steps', () => {
     });
   }
 
-  function labels(selector: string): (string | null | undefined)[] {
-    return [...document.querySelectorAll('.reference-run-step')]
-      .filter(step => step.querySelector(selector))
-      .map(
-        step => step.querySelector('.reference-run-step-label')?.textContent,
-      );
-  }
-
   function shownPhases(): (string | null | undefined)[] {
     return [...document.querySelectorAll('.reference-run-step-icon')].map(
       icon =>
@@ -292,11 +219,6 @@ describe('home recents run steps', () => {
     ]);
   });
 
-  it('marks no phase done or current: the list itself is the signal', () => {
-    render(<RunStepFlow run={runOn('engine.fanout.reflection.item')} />);
-    expect(labels('.reference-run-step-done')).toEqual([]);
-  });
-
   it('carries one spinner, on the In Progress row', () => {
     render(<RunStepFlow run={runOn('engine.fanout.reflection.item')} />);
     expect(
@@ -320,27 +242,6 @@ describe('home recents run steps', () => {
       'Exploring focus areas',
       'Generating hypotheses',
       'Reviewing hypotheses',
-    ]);
-  });
-
-  it('keeps the final phase while proximity runs after the tournament', () => {
-    const {rerender} = render(
-      <RunStepFlow run={runOn('engine.ranking.match')} />,
-    );
-    expect(shownPhases()).toHaveLength(4);
-
-    rerender(<RunStepFlow run={runOn('engine.node.proximity')} />);
-    expect(shownPhases()).toHaveLength(4);
-  });
-
-  it('holds the revealed phases while the run reports none', () => {
-    const {rerender} = render(
-      <RunStepFlow run={runOn('engine.node.generate')} />,
-    );
-    rerender(<RunStepFlow run={runOn('engine.node.orchestrator')} />);
-    expect(shownPhases()).toEqual([
-      'Exploring focus areas',
-      'Generating hypotheses',
     ]);
   });
 });

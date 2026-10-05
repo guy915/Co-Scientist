@@ -111,15 +111,7 @@ it('adopts the second StrictMode transcript load before appending Q&A and ignore
     .mockReturnValueOnce(owned.promise);
   apiMock.getRunMessages.mockReset().mockReturnValue(rows.promise);
   apiMock.listInterviews.mockResolvedValue([
-    {
-      id: 'interview-1',
-      title: 'A chat',
-      challenge: 'Owned research',
-      status: 'completed',
-      run_id: 'run-1',
-      created_at: 1,
-      updated_at: 3,
-    },
+    makeChatSummary({run_id: 'run-1'}),
   ]);
   apiMock.listRuns.mockResolvedValue([minimalRun({id: 'run-1'})]);
   const {result} = rehydrateSession('interview-1');
@@ -358,15 +350,7 @@ it('shows the linked draft run setup and pending notification before continuing'
     run_id: 'run-configured',
   });
   apiMock.listInterviews.mockResolvedValue([
-    {
-      id: 'interview-1',
-      title: 'Cold-stress glucose homeostasis',
-      challenge: 'Investigate glucose homeostasis.',
-      status: 'completed',
-      run_id: 'run-configured',
-      created_at: 1,
-      updated_at: 3,
-    },
+    makeChatSummary({run_id: 'run-configured'}),
   ]);
   apiMock.listRuns.mockResolvedValue([
     minimalRun({
@@ -424,15 +408,7 @@ it('checks an owned run directly when run history has not loaded it', async () =
     run_id: 'run-2',
   });
   apiMock.listInterviews.mockResolvedValue([
-    {
-      id: 'interview-1',
-      title: 'Cold-stress glucose homeostasis',
-      challenge: 'Investigate glucose homeostasis.',
-      status: 'completed',
-      run_id: 'run-2',
-      created_at: 1,
-      updated_at: 3,
-    },
+    makeChatSummary({run_id: 'run-2'}),
   ]);
   apiMock.listRuns.mockResolvedValue([]);
   apiMock.getRun.mockResolvedValue(minimalRun({id: 'run-2', status: 'draft'}));
@@ -452,15 +428,7 @@ it('keeps a linked run locked when its owned status cannot be resolved', async (
     run_id: 'run-3',
   });
   apiMock.listInterviews.mockResolvedValue([
-    {
-      id: 'interview-1',
-      title: 'Cold-stress glucose homeostasis',
-      challenge: 'Investigate glucose homeostasis.',
-      status: 'completed',
-      run_id: 'run-3',
-      created_at: 1,
-      updated_at: 3,
-    },
+    makeChatSummary({run_id: 'run-3'}),
   ]);
   apiMock.listRuns.mockResolvedValue([]);
   apiMock.getRun.mockRejectedValueOnce(new Error('not found'));
@@ -499,15 +467,7 @@ it('does not present a cancelled linked run as started or recoverable', async ()
     run_id: 'run-cancelled',
   });
   apiMock.listInterviews.mockResolvedValue([
-    {
-      id: 'interview-1',
-      title: 'Cold-stress glucose homeostasis',
-      challenge: 'Investigate glucose homeostasis.',
-      status: 'completed',
-      run_id: 'run-cancelled',
-      created_at: 1,
-      updated_at: 3,
-    },
+    makeChatSummary({run_id: 'run-cancelled'}),
   ]);
   apiMock.listRuns.mockResolvedValue([
     minimalRun({id: 'run-cancelled', status: 'cancelled'}),
