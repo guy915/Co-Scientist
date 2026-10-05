@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import logging
 import os
+import sqlite3
+from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -374,6 +378,69 @@ def test_connections_enforce_foreign_keys(db: str) -> None:
     # SQLite foreign-key enforcement is per connection.
     with store_db.connect() as conn:
         assert conn.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+
+
+class _StaleColumnView:
+    """A connection whose column listing predates another process's ALTER."""
+
+    def __init__(self, conn: sqlite3.Connection, alter_error: str) -> None:
+        self._conn = conn
+        self._alter_error = alter_error
+
+    def execute(self, sql: str, *args: Any) -> Any:
+        if sql.startswith("PRAGMA table_info"):
+            return []
+        if sql.startswith("ALTER TABLE"):
+            raise sqlite3.OperationalError(self._alter_error)
+        return self._conn.execute(sql, *args)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._conn, name)
+
+
+def _reopen_with_stale_columns(
+    monkeypatch: pytest.MonkeyPatch, db: str, alter_error: str
+) -> None:
+    with store_db.connect():
+        pass
+    store_db._initialized.discard(db)
+    real_open = store_db._open_raw_connection
+    monkeypatch.setattr(
+        store_db,
+        "_open_raw_connection",
+        lambda path: cast(
+            sqlite3.Connection, _StaleColumnView(real_open(path), alter_error)
+        ),
+    )
+
+
+def test_startup_tolerates_a_racing_process_adding_the_column(
+    db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _reopen_with_stale_columns(monkeypatch, db, "duplicate column name: x")
+    with store_db.connect():
+        pass
+    assert db in store_db._initialized
+
+
+def test_startup_surfaces_other_migration_failures(
+    db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _reopen_with_stale_columns(monkeypatch, db, "disk I/O error")
+    with (
+        pytest.raises(sqlite3.OperationalError, match="disk I/O error"),
+        store_db.connect(),
+    ):
+        pass
+    assert db not in store_db._initialized
+
+
+def test_wal_checkpoint_failure_is_logged_not_raised(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="app.store.db"):
+        store_db.checkpoint_wal(str(tmp_path))
+    assert "WAL checkpoint failed" in caplog.text
 
 
 def _seed_cascade_children(run_id: str) -> None:

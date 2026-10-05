@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -81,6 +82,33 @@ def test_credential_from_headers_unknown_provider(
         credentials.credential_from_headers(request)
 
 
+@pytest.mark.parametrize(
+    "use_secret",
+    [credentials.encrypt_api_key, credentials.idempotency_secret_fingerprint],
+)
+def test_secret_dependent_calls_require_the_deployment_secret(
+    use_secret: Callable[[str], str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "byok_encryption_key", "")
+    with pytest.raises(credentials.ByokNotConfiguredError):
+        use_secret(_KEY)
+
+
+def test_credential_from_headers_unknown_supervisor_provider(
+    byok_secret: str,
+) -> None:
+    request = Headers(
+        {
+            "X-LLM-API-Key": _KEY,
+            "X-LLM-Provider": "deepseek",
+            credentials.SUPERVISOR_PROVIDER_HEADER: "skynet",
+            credentials.SUPERVISOR_API_KEY_HEADER: _SECOND_KEY,
+        }
+    )
+    with pytest.raises(credentials.ByokRequestError, match="skynet"):
+        credentials.credential_from_headers(request)
+
+
 def test_store_and_load_run_credential(byok_secret: str) -> None:
     run = _make_run()
     cred = credentials.ByokCredential(
@@ -131,6 +159,21 @@ async def test_validation_success(monkeypatch: pytest.MonkeyPatch) -> None:
     assert seen["api_key"] == _KEY
     assert seen["model"] == "deepseek/deepseek-v4-flash"
     assert seen["max_tokens"] == 1
+
+
+async def test_validation_keeps_its_own_error_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_acompletion(**kwargs: object) -> None:
+        raise credentials.ByokValidationError("model unavailable")
+
+    monkeypatch.setattr(credentials, "_acompletion", fake_acompletion)
+    cred = credentials.ByokCredential(
+        provider="deepseek", api_key=_KEY, model="deepseek/deepseek-v4-flash"
+    )
+    with pytest.raises(credentials.ByokValidationError) as exc_info:
+        await credentials.validate_byok_credential(cred)
+    assert str(exc_info.value) == "model unavailable"
 
 
 async def test_validation_rejected_key_surfaces_as_rejected(
@@ -206,6 +249,23 @@ def test_redaction_filter_scrubs_scoped_key(
         assert redactor.filter(record)
     assert _KEY not in record.getMessage()
     assert "[REDACTED]" in record.getMessage()
+
+
+def test_redaction_filter_never_breaks_logging(
+    byok_secret: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def explode(text: str) -> str:
+        raise ValueError("redaction failed")
+
+    monkeypatch.setattr(credentials, "redact_byok_text", explode)
+    record = logging.LogRecord(
+        "test", logging.ERROR, __file__, 1, "m", (), None
+    )
+    cred = credentials.ByokCredential(
+        provider="openai", api_key=_KEY, model="openai/gpt-4o"
+    )
+    with credentials.scoped_byok(cred):
+        assert credentials.ByokRedactionFilter().filter(record)
 
 
 def _mixed() -> credentials.ByokCredential:
