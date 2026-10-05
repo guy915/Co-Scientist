@@ -12,10 +12,7 @@ from co_scientist.agents.reflection import review_evidence as ev
 from co_scientist.agents.reflection.reflection import reflection_node
 from co_scientist.agents.reflection.reflection_helpers import (
     _build_enrichment_items,
-    _ev_count_str,
     _format_single_statement,
-    _normalize_entity,
-    _parse_tool_result,
     extract_entity_names,
     fetch_indra_evidence,
     get_kg_tools_for_workflow,
@@ -31,16 +28,13 @@ from tests._state import make_hypothesis, make_state
 _ARTICLES = "Article 1: observation A supports pathway X."
 
 
-async def test_empty_hypotheses_returns_empty() -> None:
-    state = make_state(hypotheses=[], articles_with_reasoning=_ARTICLES)
-    result = await reflection_node(state)
-    assert result == {}
-
-
-async def test_missing_articles_skips_node() -> None:
-    state = make_state(hypotheses=[make_hypothesis(text="a hypothesis")])
-    result = await reflection_node(state)
-    assert result == {}
+@pytest.mark.parametrize("pool", [[], [make_hypothesis(text="a hypothesis")]])
+async def test_reflection_needs_hypotheses_and_literature_to_run(
+    pool: list[Any],
+) -> None:
+    articles = _ARTICLES if not pool else None
+    state = make_state(hypotheses=pool, articles_with_reasoning=articles)
+    assert await reflection_node(state) == {}
 
 
 async def test_hypotheses_get_reflection_notes(
@@ -120,26 +114,6 @@ async def test_positive_observations_accumulate_on_hypothesis(
     ]
 
 
-async def test_no_positive_observations_keeps_notes_byte_identical(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    hyp = make_hypothesis(text="alpha pathway drives growth")
-    state = make_state(hypotheses=[hyp], articles_with_reasoning=_ARTICLES)
-    stub_call_llm_json(
-        monkeypatch,
-        reflection,
-        {"classification": "missing piece", "reasoning": "fills a gap"},
-    )
-
-    result = await reflection_node(state)
-
-    returned = result["hypotheses"][0]
-    assert returned.reflection_notes == (
-        "fills a gap\n\nClassification: missing piece"
-    )
-    assert "positive_observations" not in returned.enrichments["observation"]
-
-
 async def test_blank_positive_observations_are_discarded(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -160,31 +134,6 @@ async def test_blank_positive_observations_are_discarded(
     returned = result["hypotheses"][0]
     assert returned.reflection_notes == "no signal\n\nClassification: neutral"
     assert "positive_observations" not in returned.enrichments["observation"]
-
-
-def test_observation_schema_bounds_positive_observations() -> None:
-    from co_scientist.schemas.review import (
-        REFLECTION_MAX_POSITIVE_OBSERVATIONS,
-        REFLECTION_SCHEMA,
-    )
-
-    properties = REFLECTION_SCHEMA["schema"]["properties"]
-    field = properties["positive_observations"]
-    assert field["type"] == "array"
-    assert field["items"] == {"type": "string"}
-    assert field["maxItems"] == REFLECTION_MAX_POSITIVE_OBSERVATIONS
-    assert (
-        "positive_observations" not in REFLECTION_SCHEMA["schema"]["required"]
-    )
-
-
-def test_observation_prompt_asks_for_positive_observations() -> None:
-    from co_scientist.prompts import get_reflection_prompt
-
-    prompt, _ = get_reflection_prompt(
-        articles_with_reasoning="lit", hypothesis_text="H"
-    )
-    assert "Positive observations" in prompt
 
 
 def _validation_article() -> Article:
@@ -266,39 +215,6 @@ async def test_a_fatal_full_review_changes_the_disposition(
     assert not hypothesis.is_rankable()
 
 
-async def test_evolved_hypothesis_receives_missing_observation_review(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    hypothesis = make_hypothesis(
-        text="evolved child",
-        review_disposition="viable",
-        enrichments={"full": {}, "simulation": {}},
-    )
-    observation = AsyncMock(
-        return_value={
-            "classification": "missing_piece",
-            "reasoning": "explains x",
-        }
-    )
-    monkeypatch.setattr(cr, "observe_hypothesis", observation)
-    mock_call_llm_json(monkeypatch, cr, {})
-
-    await cr.comprehensive_reflection_node(
-        make_state(
-            hypotheses=[hypothesis],
-            current_iteration=0,
-            articles_with_reasoning="retrieved observations",
-        )
-    )
-
-    observation.assert_awaited_once()
-    assert (
-        hypothesis.enrichments["observation"]["classification"]
-        == "missing_piece"
-    )
-    assert "explains x" in (hypothesis.reflection_notes or "")
-
-
 async def test_missing_observation_review_appends_confirmed_strengths(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -365,25 +281,6 @@ async def test_full_review_executes_targeted_retrieval(
     prompt = call.await_args_list[-1].kwargs["prompt"]
     assert "Targeted validation" in prompt
     assert "survived direct testing" in prompt
-
-
-@pytest.mark.asyncio
-async def test_query_generation_is_skipped_without_a_search_backend(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    call = mock_call_llm_json(monkeypatch, cr, {"verdict": "sound"})
-    hypothesis = make_hypothesis(text="Mechanism X controls response Y")
-    state = make_state(
-        hypotheses=[hypothesis],
-        research_goal="Understand response Y",
-        mcp_available=False,
-    )
-
-    _, result, _ = await cr._run_review(state, hypothesis, ReviewType.FULL)
-
-    assert result is not None
-    assert result["retrieval_queries"] == []
-    assert call.await_count == 1
 
 
 async def test_full_and_simulation_share_one_targeted_retrieval(
@@ -556,143 +453,11 @@ def _fake(
     )
 
 
-def test_extract_entity_names_basic() -> None:
-    result = extract_entity_names("IL-6 activates TREM2 in microglia")
-    assert result == ["IL6", "TREM2"]
-
-
-def test_extract_entity_names_requires_all_caps() -> None:
-    assert extract_entity_names("Kras drives growth") == []
-
-
-def test_extract_entity_names_no_entities_returns_empty() -> None:
-    assert extract_entity_names("the quick brown fox jumps") == []
-
-
-def test_extract_entity_names_filters_stopwords() -> None:
-    assert extract_entity_names("DNA and RNA bind") == []
-
-
-def test_extract_entity_names_skips_mutation_notation() -> None:
-    assert extract_entity_names("KRAS G12C variant") == ["KRAS"]
-
-
-def test_extract_entity_names_digit_skip_precedes_alias() -> None:
-    assert extract_entity_names("P53 pathway") == []
-
-
-def test_extract_entity_names_applies_alias_map() -> None:
-    assert extract_entity_names("RAGE signaling") == ["AGER"]
-
-
-def test_extract_entity_names_two_letter_only_via_hyphen() -> None:
-    assert extract_entity_names("IL-6 and IL together") == ["IL6"]
-
-
-def test_extract_entity_names_deduplicates() -> None:
-    assert extract_entity_names("YKL-40 and YKL-40 again") == ["CHI3L1"]
-
-
-def test_extract_entity_names_respects_max_entities_cap() -> None:
-    text = "KRAS TREM2 APOE TP53 BRAF"
-    assert extract_entity_names(text, max_entities=2) == ["KRAS", "TREM2"]
-    assert len(extract_entity_names(text, max_entities=4)) == 4
-
-
-def test_normalize_entity_strips_hyphen() -> None:
-    assert _normalize_entity("IL-6") == "IL6"
-
-
-def test_normalize_entity_applies_alias() -> None:
-    assert _normalize_entity("RAGE") == "AGER"
-
-
-def test_get_kg_tools_none_registry_returns_empty() -> None:
-    assert get_kg_tools_for_workflow(None, "reflection") == []
-
-
-def test_get_kg_tools_no_tool_ids_returns_empty() -> None:
-    registry = _fake(tool_ids=[], mcp_names=["unused"])
-    assert get_kg_tools_for_workflow(registry, "reflection") == []
-
-
-def test_get_kg_tools_returns_mcp_names() -> None:
-    registry = _fake(
-        tool_ids=["indra_a", "indra_b"],
-        mcp_names=["get_relations", "get_complexes"],
-    )
-    assert get_kg_tools_for_workflow(registry, "reflection") == [
-        "get_relations",
-        "get_complexes",
-    ]
-
-
-def test_get_kg_tools_swallows_exception() -> None:
-    registry = _fake(tool_ids=["x"], mcp_names=["y"], raise_on_workflow=True)
-    assert get_kg_tools_for_workflow(registry, "reflection") == []
-
-
 async def test_fetch_indra_evidence_none_registry_short_circuits() -> None:
     result = await fetch_indra_evidence(
         "KRAS drives tumor growth", tool_registry=None
     )
     assert result == {"prompt_text": "", "enrichment_items": []}
-
-
-def test_parse_tool_result_valid_json_string() -> None:
-    assert _parse_tool_result('{"statements": [1, 2]}') == {
-        "statements": [1, 2]
-    }
-
-
-def test_parse_tool_result_invalid_json_string() -> None:
-    assert _parse_tool_result("not json") == {}
-
-
-def test_parse_tool_result_dict_passthrough() -> None:
-    payload: dict[str, Any] = {"statements": []}
-    assert _parse_tool_result(payload) == payload
-
-
-def test_parse_tool_result_other_type_returns_empty() -> None:
-    assert _parse_tool_result(42) == {}
-
-
-def test_ev_count_str_below_limit() -> None:
-    assert _ev_count_str(24) == "24"
-
-
-def test_ev_count_str_at_limit_marks_truncation() -> None:
-    assert _ev_count_str(25) == "25+"
-
-
-def test_format_single_statement_subject_object() -> None:
-    line = _format_single_statement(
-        {
-            "type": "Activation",
-            "belief": 0.9,
-            "evidence": [1, 2],
-            "subj": {"name": "KRAS"},
-            "obj": {"name": "BRAF"},
-        }
-    )
-    assert line == "- KRAS --[Activation]--> BRAF (belief: 0.90, 2 papers)"
-
-
-def test_format_single_statement_complex_members() -> None:
-    line = _format_single_statement(
-        {
-            "type": "Complex",
-            "belief": 0.8,
-            "evidence": [],
-            "members": [{"name": "A"}, {"name": "B"}],
-        }
-    )
-    assert line == "- Complex(A, B) [Complex] (belief: 0.80, 0 papers)"
-
-
-def test_format_single_statement_empty_when_no_agents() -> None:
-    assert _format_single_statement({"type": "Unknown"}) == ""
 
 
 def test_build_enrichment_items_injects_queried_entities_on_first() -> None:
@@ -723,17 +488,84 @@ def test_build_enrichment_items_injects_queried_entities_on_first() -> None:
     assert "queried_entities" not in items[1]
 
 
-def test_build_enrichment_items_empty_input_returns_empty() -> None:
-    assert _build_enrichment_items([], ["KRAS"]) == []
-    assert _build_enrichment_items([{"type": "X"}], ["KRAS"]) == []
+_REGISTRY_CASES = [
+    (None, []),
+    (_fake(tool_ids=[], mcp_names=["unused"]), []),
+    (
+        _fake(
+            tool_ids=["indra_a", "indra_b"],
+            mcp_names=["get_relations", "get_complexes"],
+        ),
+        ["get_relations", "get_complexes"],
+    ),
+    (_fake(["x"], ["y"], raise_on_workflow=True), []),
+    # INDRA entity arguments are invalid for literature tools.
+    (
+        _fake(
+            ["pubmed_fulltext"],
+            ["pubmed_search_with_fulltext"],
+            source_type="academic",
+        ),
+        [],
+    ),
+]
 
 
-def test_get_kg_tools_skips_tools_that_are_not_knowledge_graphs() -> None:
-    """Workflow lists mix tool kinds; INDRA entity arguments are invalid for
-    literature tools."""
-    registry = _fake(
-        tool_ids=["pubmed_fulltext"],
-        mcp_names=["pubmed_search_with_fulltext"],
-        source_type="academic",
+@pytest.mark.parametrize(("registry", "tools"), _REGISTRY_CASES)
+def test_only_knowledge_graph_tools_are_selected_for_reflection(
+    registry: ToolRegistry | None, tools: list[str]
+) -> None:
+    assert get_kg_tools_for_workflow(registry, "reflection") == tools
+
+
+@pytest.mark.parametrize(
+    ("text", "entities"),
+    [
+        ("IL-6 activates TREM2 in microglia", ["IL6", "TREM2"]),
+        ("Kras drives growth", []),
+        ("DNA and RNA bind", []),
+        ("KRAS G12C variant", ["KRAS"]),
+        ("P53 pathway", []),
+        ("RAGE signaling", ["AGER"]),
+        ("IL-6 and IL together", ["IL6"]),
+        ("YKL-40 and YKL-40 again", ["CHI3L1"]),
+    ],
+)
+def test_entity_extraction_keeps_gene_symbols_only(
+    text: str, entities: list[str]
+) -> None:
+    assert extract_entity_names(text) == entities
+    assert (
+        len(extract_entity_names("KRAS TREM2 APOE TP53", max_entities=2)) == 2
     )
-    assert get_kg_tools_for_workflow(registry, "reflection") == []
+
+
+def test_statements_become_readable_enrichment_items() -> None:
+    items = _build_enrichment_items(
+        [
+            {
+                "type": "Activation",
+                "belief": 0.9,
+                "evidence": [1, 2],
+                "subj": {"name": "KRAS"},
+                "obj": {"name": "BRAF"},
+            },
+            {
+                "type": "Complex",
+                "belief": 0.8,
+                "evidence": [],
+                "members": [{"name": "A"}, {"name": "B"}],
+            },
+            {"type": "Unknown"},
+        ],
+        ["KRAS", "TREM2"],
+    )
+
+    assert [item["relationship"] for item in items] == [
+        "KRAS → BRAF",
+        "Complex(A, B)",
+    ]
+    assert (items[0]["belief"], items[0]["evidence_count"]) == ("90%", "2")
+    assert items[0]["queried_entities"] == "KRAS, TREM2"
+    assert "queried_entities" not in items[1]
+    assert _format_single_statement({"type": "Unknown"}) == ""

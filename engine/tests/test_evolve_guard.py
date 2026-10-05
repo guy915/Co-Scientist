@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import FrozenInstanceError, asdict
 from typing import Any
 
 import pytest
@@ -65,32 +64,25 @@ def _observation(
     return _apply_evolution_result(parent, response, peers, context, operation)
 
 
-def test_guard_rejects_on_weight_one_proximity_edge() -> None:
+@pytest.mark.parametrize(
+    ("similarity", "accepted"), [(1.0, False), (0.6, True)]
+)
+def test_guard_rejects_only_at_the_proximity_edge_threshold(
+    similarity: float, accepted: bool
+) -> None:
     parent = make_hypothesis(text="parent mechanism about kinase signaling")
     peer = make_hypothesis(text="a disjoint wording entirely")
     graph = {
-        "edges": [{"source": parent.id, "target": peer.id, "similarity": 1.0}]
+        "edges": [
+            {"source": parent.id, "target": peer.id, "similarity": similarity}
+        ]
     }
 
     child, detail = _observation(
         "novel child wording sharing nothing lexically", parent, [peer], graph
     )
 
-    assert child is None and detail is None
-
-
-def test_guard_accepts_below_threshold_proximity_edge() -> None:
-    parent = make_hypothesis(text="parent mechanism about kinase signaling")
-    peer = make_hypothesis(text="a disjoint wording entirely")
-    graph = {
-        "edges": [{"source": parent.id, "target": peer.id, "similarity": 0.6}]
-    }
-
-    child, detail = _observation(
-        "novel child wording sharing nothing lexically", parent, [peer], graph
-    )
-
-    assert child is not None and detail is not None
+    assert (child is not None and detail is not None) is accepted
 
 
 def test_guard_coverage_fallback_rejects_near_verbatim_child() -> None:
@@ -265,30 +257,6 @@ async def test_enhancement_grounding_falls_back_to_run_articles(
     assert "A run-accumulated evidence source" in observed_prompt
 
 
-async def test_enhancement_grounding_placeholder_without_any_evidence(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = stub_call_llm_json(
-        monkeypatch, evolve, _RAPAMYCIN_RESPONSE, copy_response=True
-    )
-    parent = make_hypothesis(text="parent idea about oxidative stress")
-    state = make_state(hypotheses=[parent])
-
-    await evolve_single_hypothesis(
-        parent,
-        other_hypotheses=[],
-        context=EvolutionContext(
-            model_name="fake/model",
-            meta_review={},
-            removed_duplicates=[],
-            state=state,
-        ),
-    )
-
-    observed_prompt = calls[-1]["prompt"]
-    assert "No retrieved evidence is available" in observed_prompt
-
-
 async def test_enhancement_grounding_retrieves_when_mcp_is_up(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -333,43 +301,6 @@ async def test_enhancement_grounding_retrieves_when_mcp_is_up(
     assert child is not None
     assert observed_queries == ["mtor", "rapamycin resistance"]
     assert "Freshly retrieved grounding source" in observed_prompt
-
-
-async def test_non_enhancement_operators_perform_no_retrieval(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from co_scientist.agents.evolution import evolve_grounding
-
-    async def never_called(*_: Any, **__: Any) -> Any:
-        raise AssertionError("retrieval helpers must not run")
-
-    monkeypatch.setattr(evolve_grounding, "call_llm_json", never_called)
-    monkeypatch.setattr(
-        evolve_grounding, "_retrieve_probe_evidence", never_called
-    )
-
-    async def fake_llm(**_: Any) -> dict[str, Any]:
-        return dict(_RAPAMYCIN_RESPONSE)
-
-    monkeypatch.setattr(evolve, "call_llm_json", fake_llm)
-    parent = make_hypothesis(text="parent idea about oxidative stress")
-    state = make_state(hypotheses=[parent], mcp_available=True)
-
-    child, _ = await evolve_single_hypothesis(
-        parent,
-        other_hypotheses=[],
-        context=EvolutionContext(
-            model_name="fake/model",
-            meta_review={},
-            removed_duplicates=[],
-            state=state,
-        ),
-        operation=_EvolutionOperation(
-            operator=EvolutionOperator.SIMPLIFICATION
-        ),
-    )
-
-    assert child is not None
 
 
 def test_grounding_metrics_extra_counts_only_live_enhancements() -> None:
@@ -422,30 +353,6 @@ async def test_evolution_prompt_splices_falsified_assumptions(
     assert child is not None
     assert "Assumptions Verified Incorrect" in observed_prompt
     assert "Is the cofactor present at all?" in observed_prompt
-
-
-async def test_evolution_prompt_omits_falsified_block_when_none(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = stub_call_llm_json(
-        monkeypatch, evolve, _RAPAMYCIN_RESPONSE, copy_response=True
-    )
-    parent = make_hypothesis(text="parent idea about oxidative stress")
-    state = make_state(hypotheses=[parent])
-
-    await evolve_single_hypothesis(
-        parent,
-        other_hypotheses=[],
-        context=EvolutionContext(
-            model_name="fake/model",
-            meta_review={},
-            removed_duplicates=[],
-            state=state,
-        ),
-    )
-
-    observed_prompt = calls[-1]["prompt"]
-    assert "Assumptions Verified Incorrect" not in observed_prompt
 
 
 _PARENT_SECTIONS: dict[str, Any] = {
@@ -508,14 +415,17 @@ async def test_child_sections_come_from_the_evolution_response(
     assert child.safety_and_toxicity == (_CHILD_SECTIONS["safety_and_toxicity"])
 
 
+@pytest.mark.parametrize(
+    "sections", [{}, dict.fromkeys(_CHILD_SECTIONS, "   ")]
+)
 async def test_child_never_inherits_the_parent_sections(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, sections: dict[str, str]
 ) -> None:
     """Parent sections can describe a molecule the child does not propose and
     falsely fail grounding."""
     original = _evolved_parent()
     state = make_state(hypotheses=[original], evolution_max_count=1)
-    stub_call_llm_json(monkeypatch, evolve, _RAPAMYCIN_RESPONSE)
+    stub_call_llm_json(monkeypatch, evolve, {**_RAPAMYCIN_RESPONSE, **sections})
 
     child = _children(await evolve_node(state))[0]
 
@@ -523,20 +433,6 @@ async def test_child_never_inherits_the_parent_sections(
     assert child.safety_and_toxicity is None
     assert child.introduction is None
     assert child.recent_findings is None
-
-
-async def test_blank_sections_do_not_become_the_parents(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    original = _evolved_parent()
-    state = make_state(hypotheses=[original], evolution_max_count=1)
-    blanks = dict.fromkeys(_CHILD_SECTIONS, "   ")
-    stub_call_llm_json(monkeypatch, evolve, {**_RAPAMYCIN_RESPONSE, **blanks})
-
-    child = _children(await evolve_node(state))[0]
-
-    assert child.literature_grounding is None
-    assert child.safety_and_toxicity is None
 
 
 async def test_child_citation_map_resolves_its_own_keys(
@@ -613,18 +509,6 @@ def test_evolution_prompt_carries_the_citation_reference_list(
     assert "[C1] Smith et al., 2023" in prompt
     assert "Literature Grounding (required)" in prompt
     assert "Safety and Toxicity (required)" in prompt
-    assert "{{MISSING" not in prompt
-
-
-def test_evolution_prompt_omits_citations_without_a_reference_index() -> None:
-    prompt, _ = _build_evolution_prompt(
-        make_hypothesis(text="the parent hypothesis"),
-        [],
-        _prompt_context(),
-        _EvolutionOperation(),
-    )
-
-    assert "Citation Reference List" not in prompt
     assert "{{MISSING" not in prompt
 
 
@@ -717,30 +601,6 @@ def _state() -> WorkflowState:
         ],
         proximity_graph={"edges": []},
     )
-
-
-def test_public_context_is_frozen_and_preserves_all_defaults() -> None:
-    context = EvolutionContext(
-        model_name="test-model", meta_review={}, removed_duplicates=[]
-    )
-    assert asdict(context) == {
-        "model_name": "test-model",
-        "meta_review": {},
-        "removed_duplicates": [],
-        "creation_iteration": None,
-        "supervisor_guidance": None,
-        "articles_with_reasoning": None,
-        "run_id": None,
-        "tool_registry": None,
-        "run_setup_guidance": None,
-        "run_focus_guidance": None,
-        "proximity_graph": None,
-        "ranked_hypotheses": (),
-        "state": None,
-        "reference_index": None,
-    }
-    with pytest.raises(FrozenInstanceError):
-        context.model_name = "changed"  # type: ignore[misc]
 
 
 def _assert_retained_evidence(

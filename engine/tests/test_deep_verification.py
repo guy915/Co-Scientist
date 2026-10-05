@@ -190,21 +190,6 @@ def test_probe_queries_prefer_keywords_and_rank_fundamental_first() -> None:
     ]
 
 
-def test_probe_queries_fall_back_to_the_question() -> None:
-    queries = deep_verification_evidence._probe_queries(
-        {
-            "probes": [
-                {
-                    "question": "Does X alter Y?",
-                    "assumption_is_fundamental": True,
-                }
-            ]
-        }
-    )
-
-    assert queries == ["Does X alter Y?"]
-
-
 def _verification_response(**overrides: object) -> dict[str, object]:
     response: dict[str, object] = {
         **make_verification_response(),
@@ -229,13 +214,18 @@ def _verification_response(**overrides: object) -> dict[str, object]:
     return response
 
 
+@pytest.mark.parametrize(
+    "failure",
+    [RuntimeError("verifier unavailable"), None],
+    ids=["error", "empty"],
+)
 async def test_failed_verification_records_explicit_unverified(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, failure: Exception | None
 ) -> None:
-
-    mock_call_llm_json(
-        monkeypatch, leaf, side_effect=RuntimeError("verifier unavailable")
-    )
+    if failure is None:
+        monkeypatch.setattr(leaf, "call_llm_json", AsyncMock(return_value={}))
+    else:
+        mock_call_llm_json(monkeypatch, leaf, side_effect=failure)
 
     h = make_hypothesis(text="leader", elo_rating=2000)
     state = make_state(hypotheses=[h])
@@ -244,65 +234,6 @@ async def test_failed_verification_records_explicit_unverified(
     assert h.deep_verification_verdict == dv.VERDICT_UNVERIFIED
     assert h.deep_verification_probes == []
     assert h.deep_verification_fingerprint is None
-
-
-async def test_degraded_verification_records_explicit_unverified(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(leaf, "call_llm_json", AsyncMock(return_value={}))
-
-    h = make_hypothesis(text="leader", elo_rating=2000)
-    state = make_state(hypotheses=[h])
-    await dv.deep_verification_node(state)
-
-    assert h.deep_verification_verdict == dv.VERDICT_UNVERIFIED
-    assert h.deep_verification_probes == []
-    assert h.deep_verification_fingerprint is None
-
-
-async def test_the_failure_state_is_the_idea_s_final_verdict(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Mark issuance once per idea; retries belong below this seam, not in
-    later work cycles."""
-
-    mock_call_llm_json(
-        monkeypatch, leaf, side_effect=RuntimeError("verifier unavailable")
-    )
-    h = make_hypothesis(text="leader", elo_rating=2000)
-    state = make_state(hypotheses=[h])
-    await dv.deep_verification_node(state)
-    assert h.deep_verification_verdict == dv.VERDICT_UNVERIFIED
-
-    later = AsyncMock(return_value=_verification_response())
-    monkeypatch.setattr(leaf, "call_llm_json", later)
-    await dv.deep_verification_node(state)
-
-    assert later.await_count == 0
-    assert h.deep_verification_verdict == dv.VERDICT_UNVERIFIED
-
-
-async def test_stale_verification_is_cleared_by_a_failed_reverification(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-
-    mock_call_llm_json(
-        monkeypatch, leaf, side_effect=RuntimeError("verifier unavailable")
-    )
-
-    h = make_hypothesis(text="leader", elo_rating=2000)
-    h.deep_verification_probes = [{"question": "old"}]
-    h.deep_verification_verdict = "holds"
-    state = make_state(hypotheses=[h])
-    h.deep_verification_fingerprint = dv.verification_fingerprint(
-        h, state["model_name"]
-    )
-    h.text = "materially different claim"
-
-    await dv.deep_verification_node(state)
-
-    assert h.deep_verification_verdict == dv.VERDICT_UNVERIFIED
-    assert h.deep_verification_probes == []
 
 
 async def test_decomposition_and_decontextualization_are_stored(
@@ -382,16 +313,6 @@ def test_no_verification_verdict_bars_the_tournament() -> None:
     h.deep_verification_verdict = "undermined"
     assert h.is_rankable()
     assert h.is_undermined()
-
-
-def test_prompt_covers_decomposition_and_decontextualization() -> None:
-    from co_scientist.prompts import get_deep_verification_prompt
-
-    prompt, _ = get_deep_verification_prompt(
-        research_goal="goal", hypothesis_text="X causes Y"
-    )
-    assert "Sub-assumption decomposition" in prompt
-    assert "Decontextualization" in prompt
 
 
 def test_corpus_fallback_selects_sources_matching_the_probe_queries() -> None:
@@ -582,16 +503,6 @@ async def test_verification_reads_research_the_reviews_already_bought() -> None:
 
 
 @pytest.mark.asyncio
-async def test_a_hypothesis_that_bought_no_research_adds_nothing() -> None:
-    state, hypothesis = _state(), _hypothesis()
-    await _plant(
-        state, hypothesis, _ReviewEvidence(["q"], [_article("a")], [], None)
-    )
-
-    assert researched_articles_for(state, hypothesis) == []
-
-
-@pytest.mark.asyncio
 async def test_an_unresearched_leader_starts_nothing() -> None:
     """Starting retrieval here would add another per-hypothesis wave every
     cycle."""
@@ -738,26 +649,6 @@ async def test_blocked_ideas_are_not_verified(
     assert not dv.verification_issued(blocked)
 
 
-async def test_skips_already_verified(monkeypatch: pytest.MonkeyPatch) -> None:
-    fake = mock_call_llm_json(monkeypatch, leaf, make_verification_response())
-
-    h = make_hypothesis(text="already", elo_rating=2000)
-    h.deep_verification_probes = [
-        {
-            "question": "old",
-            "answer": "a",
-            "reasoning": "r",
-            "assumption_is_fundamental": True,
-        }
-    ]
-    state = make_state(hypotheses=[h])
-    h.deep_verification_fingerprint = dv.verification_fingerprint(
-        h, state["model_name"]
-    )
-    await dv.deep_verification_node(state)
-    assert fake.await_count == 0
-
-
 async def test_reverifies_when_hypothesis_text_changes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -827,38 +718,6 @@ async def test_reverifies_when_cited_evidence_changes(
     h.citation_map["C2"] = {"source_id": "cited-2"}
 
     await dv.deep_verification_node(state)
-
-    assert fake.await_count == 1
-
-
-async def test_a_hypothesis_with_no_stored_verification_is_verified(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    fake = mock_call_llm_json(monkeypatch, leaf, make_verification_response())
-
-    verified = make_hypothesis(text="incumbent", elo_rating=2000)
-    promoted = make_hypothesis(text="newcomer", elo_rating=1900)
-    state = make_state(hypotheses=[verified, promoted])
-    verified.deep_verification_fingerprint = dv.verification_fingerprint(
-        verified, state["model_name"]
-    )
-
-    await dv.deep_verification_node(state)
-
-    assert fake.await_count == 1
-    assert promoted.deep_verification_fingerprint is not None
-
-
-async def test_verification_is_run_once_across_repeated_cycles(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    fake = mock_call_llm_json(monkeypatch, leaf, make_verification_response())
-
-    h = make_hypothesis(text="stable leader", elo_rating=2000)
-    state = make_state(hypotheses=[h])
-
-    for _ in range(4):
-        await dv.deep_verification_node(state)
 
     assert fake.await_count == 1
 

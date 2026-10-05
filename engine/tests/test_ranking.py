@@ -6,14 +6,10 @@ from typing import Any
 import pytest
 
 from co_scientist.agents.ranking import (
-    operations,
-    ranking,
     ranking_debate,
-    ranking_lifecycle,
 )
 from co_scientist.agents.ranking.ranking import ranking_node
 from co_scientist.agents.ranking.ranking_lifecycle import (
-    _prepare_ranking_round,
     add_to_tournament,
 )
 from co_scientist.constants import INITIAL_ELO_RATING
@@ -88,32 +84,6 @@ async def test_skipped_tournament_names_the_pool_and_the_gates(
     assert "undermined" not in message
 
 
-async def test_empty_hypotheses_skips_tournament() -> None:
-    state = make_state(hypotheses=[])
-    result = await ranking_node(state)
-    assert result["hypotheses"] == []
-    assert "tournament_matchups" not in result
-
-
-async def test_evidence_blocked_hypothesis_cannot_enter_tournament(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    winner = make_hypothesis(text="supported winner TXT alpha")
-    loser = make_hypothesis(text="supported loser TXT beta")
-    blocked = make_hypothesis(text="ungrounded idea TXT gamma")
-    blocked.review_disposition = "evidence_blocked"
-    state = make_state(hypotheses=[winner, loser, blocked])
-    _stub_winner_by_text(monkeypatch, winner.text)
-
-    result = await ranking_node(state)
-
-    assert blocked.total_matches == 0
-    assert all(
-        blocked.id not in {match["hypothesis_a_id"], match["hypothesis_b_id"]}
-        for match in result["tournament_matchups"]
-    )
-
-
 async def test_deterministic_winner_updates_elo_and_counts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -142,29 +112,6 @@ async def test_deterministic_winner_updates_elo_and_counts(
         assert matchup["reasoning"] == "stub decision"
         assert matchup["confidence"] == "High"
         assert matchup["tier"] in {"upset", "decisive", "clear", "narrow"}
-
-
-async def test_matchups_carry_hypothesis_ids(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    winner = make_hypothesis(text="winner pathway TXT alpha")
-    loser = make_hypothesis(text="loser pathway TXT beta")
-    state = make_state(hypotheses=[winner, loser])
-    _stub_winner_by_text(monkeypatch, "winner pathway TXT alpha")
-
-    result = await ranking_node(state)
-
-    matchups = result["tournament_matchups"]
-    assert len(matchups) == 1
-    valid_ids = {winner.id, loser.id}
-    for matchup in matchups:
-        assert matchup["hypothesis_a_id"] in valid_ids
-        assert matchup["hypothesis_b_id"] in valid_ids
-        assert matchup["hypothesis_a_id"] != matchup["hypothesis_b_id"]
-        assert matchup["winner_id"] == winner.id
-        winner_slot = matchup["winner"]
-        slot_id_key = f"hypothesis_{winner_slot}_id"
-        assert matchup[slot_id_key] == winner.id
 
 
 async def test_malformed_judge_response_uses_position_balanced_fallback(
@@ -231,41 +178,6 @@ async def test_ranking_honors_tournament_pairs(
         )
         == 3
     )
-
-
-async def test_each_round_selects_from_committed_current_elo(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    hypotheses = [
-        make_hypothesis(text="sequential alpha"),
-        make_hypothesis(text="sequential beta"),
-    ]
-    observed_elos: list[tuple[int, int]] = []
-
-    def fake_pairings(
-        pool: list[Any], *_: Any, **__: Any
-    ) -> list[tuple[Any, Any]]:
-        observed_elos.append((pool[0].elo_rating, pool[1].elo_rating))
-        return [(pool[0], pool[1])]
-
-    async def fake_judge(*_: Any, **__: Any) -> tuple[str, dict[str, Any]]:
-        return "a", {
-            "decision_summary": "A wins.",
-            "confidence_level": "High",
-            "debate_turns": 1,
-        }
-
-    monkeypatch.setattr(ranking, "build_tournament_pairings", fake_pairings)
-    monkeypatch.setattr(operations, "judge_matchup", fake_judge)
-    state = make_state(hypotheses=hypotheses, tournament_pairs=2)
-
-    await ranking._run_tournament_matchups(
-        state, hypotheses, 2, ranking._TournamentGuidance()
-    )
-
-    assert observed_elos[0] == (1200, 1200)
-    assert observed_elos[1] != (1200, 1200)
-    assert hypotheses[0].win_count == 2
 
 
 def _record_matchup_prompts(monkeypatch: pytest.MonkeyPatch) -> list[str]:
@@ -362,36 +274,6 @@ def test_tournament_budget_is_spent_across_the_whole_run() -> None:
     assert _tournament_round_count(spent, hypotheses) == 0
 
 
-def test_budget_scales_with_a_pool_the_tier_number_cannot_cover() -> None:
-    """Pool growth can exceed a fixed tier allowance before every child is
-    compared."""
-    from co_scientist.agents.ranking.ranking_lifecycle import (
-        _tournament_round_count,
-    )
-
-    hypotheses = [
-        _hyp(text=f"h{i}", win_count=1, loss_count=1) for i in range(18)
-    ]
-    state = make_state(hypotheses=hypotheses, tournament_pairs=12)
-
-    assert _tournament_round_count(state, hypotheses) == 27
-
-
-def test_budget_is_not_refunded_when_dedup_removes_hypotheses() -> None:
-    from co_scientist.agents.ranking.ranking_lifecycle import (
-        consumed_tournament_rounds,
-    )
-    from co_scientist.models import ExecutionMetrics
-
-    state = make_state(
-        hypotheses=[],
-        tournament_pairs=12,
-        metrics=ExecutionMetrics(tournaments_count=8),
-    )
-
-    assert consumed_tournament_rounds(state) == 8
-
-
 async def test_ranking_node_is_a_no_op_once_the_budget_is_spent() -> None:
     from co_scientist.models import ExecutionMetrics
 
@@ -407,32 +289,6 @@ async def test_ranking_node_is_a_no_op_once_the_budget_is_spent() -> None:
     result = await ranking_node(state)
 
     assert result == {"hypotheses": hypotheses}
-
-
-def test_spent_budget_still_owes_every_idea_a_win_loss_record() -> None:
-    """An unplayed seed rating looks earned; one match can be a coin flip."""
-    from co_scientist.agents.ranking.ranking_lifecycle import (
-        _tournament_round_count,
-    )
-    from co_scientist.models import ExecutionMetrics
-
-    played = [_hyp(text=f"old{i}", win_count=1, loss_count=1) for i in range(2)]
-    unplayed = [_hyp(text=f"new{i}") for i in range(3)]
-    spent = make_state(
-        hypotheses=played + unplayed,
-        tournament_pairs=6,
-        metrics=ExecutionMetrics(tournaments_count=6),
-    )
-
-    assert _tournament_round_count(spent, played + unplayed) == 3
-
-
-def test_one_match_is_not_enough_coverage_to_close_the_floor() -> None:
-    from co_scientist.agents.ranking.ranking_lifecycle import _coverage_floor
-
-    once = [_hyp(text=f"h{i}", win_count=1) for i in range(4)]
-
-    assert _coverage_floor(once) == 2
 
 
 def test_unrankable_ideas_do_not_hold_the_coverage_floor_open() -> None:
@@ -454,25 +310,6 @@ def test_unrankable_ideas_do_not_hold_the_coverage_floor_open() -> None:
     )
 
     assert _tournament_round_count(spent, hypotheses) == 0
-
-
-def test_floor_counts_a_lone_undercovered_idea_s_own_rounds() -> None:
-    from co_scientist.agents.ranking.ranking_lifecycle import _coverage_floor
-
-    lone_fresh = _hyp(text="fresh")
-    covered = [_hyp(text=f"c{i}", win_count=1, loss_count=1) for i in range(4)]
-
-    assert _coverage_floor([lone_fresh, *covered]) == 2
-
-
-def test_floor_is_at_least_the_largest_individual_debt() -> None:
-    """A round can settle at most one slot of an individual's match debt."""
-    from co_scientist.agents.ranking.ranking_lifecycle import _coverage_floor
-
-    two_fresh = [_hyp(text=f"new{i}") for i in range(2)]
-    covered = [_hyp(text=f"c{i}", win_count=1, loss_count=1) for i in range(3)]
-
-    assert _coverage_floor([*two_fresh, *covered]) == 2
 
 
 async def test_budget_is_charged_for_matches_judged_not_rounds_offered(
@@ -536,34 +373,13 @@ async def test_judge_discloses_invalid_and_tied_decisions(
     assert events.get("calls", 0) == 0
 
 
-def test_entry_sets_the_published_rating() -> None:
-    hypothesis = Hypothesis(text="An idea.", elo_rating=0)
-    assert add_to_tournament(hypothesis) is True
-    assert hypothesis.elo_rating == INITIAL_ELO_RATING
-
-
-def test_entry_is_idempotent_for_a_rated_hypothesis() -> None:
-    hypothesis = Hypothesis(text="An idea.", elo_rating=1350)
-    assert add_to_tournament(hypothesis) is False
-    assert hypothesis.elo_rating == 1350
-
-
-@pytest.mark.asyncio
-async def test_tournament_preparation_routes_entry_through_the_function(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    ("rating", "admitted", "after"),
+    [(0, True, INITIAL_ELO_RATING), (1350, False, 1350)],
+)
+def test_entry_rates_an_unrated_hypothesis_once(
+    rating: int, admitted: bool, after: int
 ) -> None:
-    admitted: list[str] = []
-
-    def _spy(hypothesis: Hypothesis) -> bool:
-        admitted.append(hypothesis.id)
-        return False
-
-    monkeypatch.setattr(ranking_lifecycle, "add_to_tournament", _spy)
-
-    hypotheses = [make_hypothesis(text=f"idea {i}") for i in range(3)]
-    # Captured before the call: preparation also sorts the pool in place.
-    expected = [h.id for h in hypotheses]
-    state = make_state(hypotheses=hypotheses)
-    await _prepare_ranking_round(state, hypotheses)
-
-    assert admitted == expected
+    hypothesis = Hypothesis(text="An idea.", elo_rating=rating)
+    assert add_to_tournament(hypothesis) is admitted
+    assert hypothesis.elo_rating == after

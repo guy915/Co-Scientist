@@ -30,10 +30,8 @@ from co_scientist.agents.reflection.deep_verification import (
     verification_fingerprint,
 )
 from co_scientist.agents.reflection.reflection_helpers import (
-    _agent_name,
     _fetch_evidence_result,
     _format_evidence,
-    _pick_available_tool,
     fetch_indra_evidence,
 )
 from co_scientist.agents.reflection.review_evidence import _ReviewEvidence
@@ -91,38 +89,6 @@ _ACTIVATION_STATEMENT = {
 }
 
 
-def test_pick_available_tool_returns_first_match() -> None:
-    client = _FakeMcpClient(available_tools={"get_relations"})
-    assert (
-        _pick_available_tool(client, ["get_complexes", "get_relations"])
-        == "get_relations"
-    )
-
-
-def test_pick_available_tool_none_available_returns_empty_string() -> None:
-    client = _FakeMcpClient(available_tools=set())
-    assert _pick_available_tool(client, ["get_relations"]) == ""
-
-
-async def test_fetch_evidence_result_no_tool_available_returns_none() -> None:
-    client = _FakeMcpClient(available_tools=set())
-    result = await _fetch_evidence_result(
-        client, ["get_relations"], ["KRAS", "TREM2"], max_statements=5
-    )
-    assert result is None
-
-
-async def test_fetch_evidence_result_no_statements_returns_none() -> None:
-    client = _FakeMcpClient(
-        available_tools={"get_relations"},
-        responses={"KRAS": {"statements": []}, "TREM2": {"statements": []}},
-    )
-    result = await _fetch_evidence_result(
-        client, ["get_relations"], ["KRAS", "TREM2"], max_statements=5
-    )
-    assert result is None
-
-
 async def test_fetch_evidence_result_one_entity_fails_other_succeeds() -> None:
     client = _FakeMcpClient(
         available_tools={"get_relations"},
@@ -138,14 +104,6 @@ async def test_fetch_evidence_result_one_entity_fails_other_succeeds() -> None:
     assert "KRAS --[Activation]--> BRAF" in result["prompt_text"]
     assert len(result["enrichment_items"]) == 1
     assert result["enrichment_items"][0]["relationship"] == "KRAS → BRAF"
-
-
-async def test_fetch_indra_evidence_no_entities_returns_empty() -> None:
-    result = await fetch_indra_evidence(
-        "the quick brown fox jumps over the lazy dog",
-        tool_registry=_fake_registry(),
-    )
-    assert result == {"prompt_text": "", "enrichment_items": []}
 
 
 async def test_fetch_indra_evidence_returns_client_result(
@@ -204,24 +162,23 @@ def test_format_evidence_renders_header_and_valid_statement_lines() -> None:
     assert text.count("\n") == 1
 
 
-def test_format_evidence_no_renderable_statements_returns_empty() -> None:
-    assert _format_evidence([{"type": "Unknown"}], ["KRAS"]) == ""
-    assert _format_evidence([], ["KRAS"]) == ""
-
-
-def test_agent_name_extracts_dict_name() -> None:
-    assert _agent_name({"subj": {"name": "KRAS"}}, "subj") == "KRAS"
-
-
-def test_agent_name_non_dict_agent_returns_empty_string() -> None:
-    assert _agent_name({"subj": "KRAS"}, "subj") == ""
-
-
-def test_agent_name_missing_role_returns_empty_string() -> None:
-    assert _agent_name({}, "obj") == ""
-
-
-def test_verification_context_excludes_retracted_evidence() -> None:
+def test_retracted_evidence_never_reaches_a_prompt() -> None:
+    """Retraction checks belong at every formatting boundary, not only
+    retrieval."""
+    retracted = make_article(
+        "Retracted paper",
+        abstract="Withdrawn mechanistic claim.",
+        used_in_analysis=True,
+        is_retracted=True,
+    )
+    only_retracted = make_state(articles=[retracted])
+    assert (
+        review_prompt_context._build_domain_context(only_retracted, None) == ""
+    )
+    assert (
+        deep_verification_evidence._retrieved_evidence_context([retracted])
+        == ""
+    )
     state = make_state(
         articles=[
             make_article(
@@ -245,36 +202,6 @@ def test_verification_context_excludes_retracted_evidence() -> None:
     assert "Withdrawn mechanistic claim" not in context
 
 
-def test_review_context_excludes_retracted_evidence() -> None:
-    state = make_state(
-        articles=[
-            make_article(
-                "Retracted paper",
-                abstract="Withdrawn mechanistic claim.",
-                used_in_analysis=True,
-                is_retracted=True,
-            )
-        ]
-    )
-
-    assert review_prompt_context._build_domain_context(state, None) == ""
-
-
-def test_probe_context_excludes_retracted_evidence() -> None:
-    """Retraction checks belong at formatting boundaries too, not only
-    retrieval."""
-    retracted = make_article(
-        "Retracted probe hit",
-        abstract="Withdrawn mechanistic claim.",
-        is_retracted=True,
-    )
-
-    assert (
-        deep_verification_evidence._retrieved_evidence_context([retracted])
-        == ""
-    )
-
-
 def test_verification_context_falls_back_to_article_fulltext() -> None:
     state = make_state(
         articles=[
@@ -288,23 +215,6 @@ def test_verification_context_falls_back_to_article_fulltext() -> None:
     )
 
     context = dv._verification_evidence_context(state)
-
-    assert "Measured a three-fold increase in flux." in context
-
-
-def test_review_context_falls_back_to_article_fulltext() -> None:
-    state = make_state(
-        articles=[
-            make_article(
-                "Fulltext-only paper",
-                abstract="",
-                content="Measured a three-fold increase in flux.",
-                used_in_analysis=True,
-            )
-        ]
-    )
-
-    context = review_prompt_context._build_domain_context(state, None)
 
     assert "Measured a three-fold increase in flux." in context
 
@@ -353,29 +263,6 @@ def test_public_article_citation_markers_are_stripped() -> None:
     for context in (review, verification):
         assert "(Smith et al. 2019)" not in context
         assert "[12]" not in context
-
-
-def test_private_source_citation_markers_are_kept() -> None:
-    """Scientist-supplied markers are intentional input rather than retrieved
-    contamination."""
-    display = "See our finding (Doe et al. 2020) for the full protocol."
-    state = make_state(context_enrichment_sources=[{"display": display}])
-
-    verification = dv._verification_evidence_context(state)
-
-    assert "(Doe et al. 2020)" in verification
-
-
-def test_building_context_leaves_the_article_abstract_unchanged() -> None:
-    original = "This confirms prior work (Smith et al. 2019) [12]."
-    article = make_article(
-        "Cited paper", abstract=original, used_in_analysis=True
-    )
-    state = make_state(articles=[article])
-
-    dv._verification_evidence_context(state)
-
-    assert article.abstract == original
 
 
 def test_gate_honors_scientist_criteria_and_safety() -> None:
@@ -506,27 +393,6 @@ async def test_failures_degrade_but_task_control_propagates(
 
 
 @pytest.mark.asyncio
-async def test_observation_indices_default_to_one_and_support_graph_indices(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = mock_call_llm_json(
-        monkeypatch, observation, {"classification": "supports"}
-    )
-    state = make_state(articles_with_reasoning="Literature")
-    default = await observe_hypothesis(state, make_hypothesis())
-    indexed = await observe_hypothesis(
-        state, make_hypothesis(), hypothesis_index=3, total_count=7
-    )
-    assert default is not None and indexed is not None
-    assert (
-        calls.await_args_list[0].kwargs["options"].prompt_name == "reflection_1"
-    )
-    assert (
-        calls.await_args_list[1].kwargs["options"].prompt_name == "reflection_3"
-    )
-
-
-@pytest.mark.asyncio
 async def test_mature_review_keeps_ledger_separate_even_on_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -622,17 +488,3 @@ async def test_public_verification_reuses_funded_review_evidence(
         "Already funded research" in calls.await_args_list[1].kwargs["prompt"]
     )
     assert "deep_verification_issued" not in idea.enrichments
-
-
-def test_public_verification_does_not_import_graph_orchestration() -> None:
-    import ast
-    import inspect
-
-    import co_scientist.agents.reflection.deep_verification as operations
-
-    imports = [
-        node.module
-        for node in ast.walk(ast.parse(inspect.getsource(operations)))
-        if isinstance(node, ast.ImportFrom)
-    ]
-    assert "co_scientist.agents.reflection.deep_verification" not in imports

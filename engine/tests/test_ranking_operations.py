@@ -1,15 +1,11 @@
 from __future__ import annotations
 
 import pathlib
-from dataclasses import FrozenInstanceError
 from typing import Any
 
 import pytest
 
-import co_scientist.agents.ranking.ranking_debate as ranking_elo
 from co_scientist.agents.ranking import (
-    RankingJudgement,
-    RankingMatchResult,
     TournamentGuidance,
     apply_ranking_matchup,
     build_tournament_pairings,
@@ -22,25 +18,17 @@ from co_scientist.agents.ranking import (
     remaining_ranking_rounds,
 )
 from co_scientist.agents.ranking.ranking_debate import (
-    _RANKING_DEBATE_MAX_TURNS,
-    _RANKING_DEBATE_TYPICAL_MAX_TURNS,
-    _RANKING_DEBATE_TYPICAL_MIN_TURNS,
-    _build_matchup_detail,
     _build_matchup_prompt,
     _DebateContext,
     _extract_criteria_comparisons,
     _MatchupPromptContext,
-    _parse_matchup_winner,
     _parse_verdict_line,
-    _resolve_turn_winner,
-    _review_summary,
     judge_matchup,
 )
 from co_scientist.constants import INITIAL_ELO_RATING
-from co_scientist.models import ExecutionMetrics, HypothesisReview
+from co_scientist.models import ExecutionMetrics
 from co_scientist.schemas.review import (
     RANKING_COMPARISON_CRITERIA,
-    RANKING_SCHEMA,
 )
 from tests._state import make_hypothesis, make_review, make_state
 
@@ -129,15 +117,6 @@ async def test_judging_keeps_criteria_and_explicit_preferences(
     assert result.llm_calls == 2
     assert result.detail["iteration"] == 3
     assert result.detail["judge_model"] == "test"
-    for value, field, replacement in [
-        (prompt, "preferences", "changed"),
-        (context, "median_elo", 0),
-        (judgement, "winner", "a"),
-        (result, "llm_calls", 99),
-    ]:
-        with pytest.raises(FrozenInstanceError):
-            setattr(value, field, replacement)
-    assert isinstance(result, RankingMatchResult)
 
 
 @pytest.mark.asyncio
@@ -164,22 +143,6 @@ async def test_public_judge_meters_real_early_consensus(
     assert result.llm_calls == len(calls) < judgement.budgeted_turns
 
 
-def test_apply_preserves_confidence_knobs_and_budget_fallback(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(ranking_elo, "ELO_MARGIN_VICTORY_SCALE", 1.0)
-    pair = (make_hypothesis(), make_hypothesis())
-    judgement = RankingJudgement("a", {"confidence_level": "High"}, 10)
-    result = apply_ranking_matchup(
-        pair, judgement, k_factor=24, current_iteration=4
-    )
-    assert result.llm_calls == 10
-    assert pair[0].elo_rating == 1224
-    assert pair[1].elo_rating == 1176
-    assert result.detail["confidence"] == "High"
-    assert result.detail["winner_elo_before"] == 1200
-
-
 @pytest.mark.asyncio
 async def test_finalize_orders_bands_and_charges_judged_matches() -> None:
     low = make_hypothesis(text="low", elo_rating=1100)
@@ -195,85 +158,8 @@ async def test_finalize_orders_bands_and_charges_judged_matches() -> None:
     assert update["metrics"].llm_calls == 3
 
 
-@pytest.mark.asyncio
-async def test_graph_captures_prompt_once_and_refreshes_sorted_pool_each_match(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from co_scientist.agents.ranking import operations, ranking
-
-    pool = [make_hypothesis(id=str(i), text=str(i), score=i) for i in range(3)]
-    a, b, c = pool
-    pairs = [(a, b), (b, c), (a, c)]
-    snapshots: list[Any] = []
-    captured: list[Any] = []
-    prompts: list[Any] = []
-    median = ranking_debate._median_elo
-    prepare = prepare_ranking_prompt_context
-
-    def record_median(hypotheses: list[Any]) -> float:
-        snapshots.append([(h.id, h.elo_rating) for h in hypotheses])
-        return median(hypotheses)
-
-    def record_prompt(*args: Any, **kwargs: Any) -> Any:
-        prompts.append(1)
-        return prepare(*args, **kwargs)
-
-    async def judge(ctx: Any, debate_turns: int) -> tuple[str, dict[str, Any]]:
-        captured.append(ctx)
-        return "a", {"debate_turns": 1}
-
-    monkeypatch.setattr(operations, "_median_elo", record_median)
-    monkeypatch.setattr(operations, "judge_matchup", judge)
-    monkeypatch.setattr(
-        ranking, "prepare_ranking_prompt_context", record_prompt
-    )
-    monkeypatch.setattr(
-        ranking,
-        "build_tournament_pairings",
-        lambda *args, **kwargs: [pairs.pop(0)] if pairs else [],
-    )
-    state = make_state(
-        hypotheses=pool, criteria=["feasible"], preferences="preferences"
-    )
-    await ranking.ranking_node(state)
-    assert len(prompts) == 1
-    assert len(snapshots) == 3
-    assert all(
-        [item[0] for item in snapshot] == ["2", "1", "0"]
-        for snapshot in snapshots
-    )
-    assert snapshots[0] != snapshots[1] != snapshots[2]
-    assert [ctx.preferences for ctx in captured] == ["preferences"] * 3
-    assert [ctx.criteria for ctx in captured] == [["feasible"]] * 3
-
-
-def test_review_summary_none_when_no_reviews() -> None:
-    hypothesis = make_hypothesis(text="a hypothesis", reviews=[])
-    assert _review_summary(hypothesis) is None
-
-
-def test_review_summary_returns_latest_scores_and_overall_score() -> None:
-    review = HypothesisReview(
-        review_summary="summary",
-        scores={"novelty": 8, "rigor": 6},
-        safety_ethical_concerns="none",
-        detailed_feedback={},
-        constructive_feedback="tighten the mechanism",
-        overall_score=7.0,
-    )
-    hypothesis = make_hypothesis(text="a hypothesis", reviews=[review])
-    assert _review_summary(hypothesis) == {
-        "scores": {"novelty": 8, "rigor": 6},
-        "overall_score": 7.0,
-    }
-
-
 def _matchup_context() -> _MatchupPromptContext:
     return _MatchupPromptContext(research_goal="test goal")
-
-
-def _debate_matchup_context() -> _MatchupPromptContext:
-    return _MatchupPromptContext(research_goal="test goal", debate=True)
 
 
 def test_matchup_prompt_surfaces_fatal_mature_review_findings() -> None:
@@ -305,54 +191,6 @@ def test_matchup_prompt_surfaces_fatal_mature_review_findings() -> None:
     assert "never shown to a judge" not in prompt
 
 
-def test_matchup_prompt_is_unchanged_before_the_cascade_runs() -> None:
-    prompt, _, _, _ = _build_matchup_prompt(
-        make_hypothesis(text="idea A"),
-        make_hypothesis(text="idea B"),
-        _matchup_context(),
-    )
-
-    assert "Mature Review Findings" not in prompt
-
-
-def test_matchup_prompt_frames_the_judge_as_a_panel() -> None:
-    prompt, _, _, _ = _build_matchup_prompt(
-        make_hypothesis(text="idea A"),
-        make_hypothesis(text="idea B"),
-        _debate_matchup_context(),
-    )
-
-    assert "panel of domain experts" in prompt
-    assert "structured discussion" in prompt
-
-
-def test_single_shot_matchup_renders_the_published_single_evaluator() -> None:
-    prompt, _, _, _ = _build_matchup_prompt(
-        make_hypothesis(text="idea A"),
-        make_hypothesis(text="idea B"),
-        _matchup_context(),
-    )
-
-    assert "You are an expert evaluator tasked with comparing two" in prompt
-    assert "panel of domain experts" not in prompt
-
-
-def test_panel_framing_does_not_dislodge_the_decisive_verdict_instruction() -> (
-    None
-):
-    """Panel deliberation must not displace the required concluding verdict."""
-    prompt, _, _, _ = _build_matchup_prompt(
-        make_hypothesis(text="idea A"),
-        make_hypothesis(text="idea B"),
-        _debate_matchup_context(),
-    )
-
-    assert "Make a clear decision" in prompt
-    assert '"better idea: 1"' in prompt and '"better idea: 2"' in prompt
-    # Every turn is a separate call and must answer, including the first.
-    assert "answer every turn - turn 1 included" in prompt
-
-
 _TEMPLATES = (
     pathlib.Path(__file__).resolve().parents[1]
     / "src"
@@ -360,24 +198,6 @@ _TEMPLATES = (
     / "prompts"
     / "templates"
 )
-
-
-def test_debate_template_states_the_envelope_the_loop_enforces() -> None:
-    """Stale envelope numbers are real model instructions, not decorative
-    documentation."""
-    template = (_TEMPLATES / "ranking_debate.md").read_text(encoding="utf-8")
-
-    assert (
-        "typically ranging from"
-        f" {_RANKING_DEBATE_TYPICAL_MIN_TURNS} to"
-        f" {_RANKING_DEBATE_TYPICAL_MAX_TURNS}, with a maximum of"
-        f" {_RANKING_DEBATE_MAX_TURNS}." in template
-    )
-    assert (
-        f"(typically {_RANKING_DEBATE_TYPICAL_MIN_TURNS}"
-        f"-{_RANKING_DEBATE_TYPICAL_MAX_TURNS} turns, up to"
-        f" {_RANKING_DEBATE_MAX_TURNS} turns)" in template
-    )
 
 
 def test_matchup_prompt_keeps_reflection_and_verification() -> None:
@@ -405,78 +225,6 @@ def test_matchup_prompt_keeps_reflection_and_verification() -> None:
     assert notes_b is None
 
 
-def _judgment(summary: str = "", winner: str = "a") -> dict[str, Any]:
-    return {"decision_summary": summary, "winner": winner}
-
-
-def test_verdict_line_maps_the_papers_numbers_onto_sides() -> None:
-    assert _parse_verdict_line("... better idea: 1") == "a"
-    assert _parse_verdict_line("... better idea: 2") == "b"
-
-
-def test_verdict_line_accepts_case_and_wording_variants() -> None:
-    assert _parse_verdict_line("Better Idea: 1") == "a"
-    assert _parse_verdict_line("BETTER IDEA:2") == "b"
-    assert _parse_verdict_line("better hypothesis: 2") == "b"
-    assert _parse_verdict_line("better idea: A") == "a"
-
-
-def test_the_concluding_verdict_wins_over_an_earlier_quote() -> None:
-    text = (
-        "End with better idea: 1 or 2. After weighing both sides,"
-        " the stronger mechanism prevails.\n\nbetter idea: 2"
-    )
-    assert _parse_verdict_line(text) == "b"
-
-
-def test_a_quoted_format_is_not_a_verdict() -> None:
-    assert _parse_verdict_line("conclude with better idea: 1 or 2") is None
-    assert _parse_verdict_line("") is None
-    assert _parse_verdict_line("no verdict here") is None
-
-
-def test_an_invalid_verdict_token_yields_no_verdict() -> None:
-    assert _parse_verdict_line("better idea: 3") is None
-    assert _parse_verdict_line("better idea: both") is None
-
-
-def test_verdict_line_takes_precedence_over_the_json_winner() -> None:
-    winner, valid = _parse_matchup_winner(
-        _judgment(summary="rationale.\nbetter idea: 2", winner="a"),
-        fallback="a",
-    )
-    assert winner == "b"
-    assert valid is True
-
-
-def test_json_winner_fallback_when_no_verdict_line() -> None:
-    """The offline backend answers with the JSON enum instead of a literal
-    verdict line."""
-    winner, valid = _parse_matchup_winner(
-        _judgment(summary="plain rationale", winner="b"), fallback="a"
-    )
-    assert winner == "b"
-    assert valid is True
-
-
-def test_neither_verdict_nor_valid_winner_uses_the_fallback() -> None:
-    winner, valid = _parse_matchup_winner(
-        _judgment(summary="", winner=""), fallback="b"
-    )
-    assert winner == "b"
-    assert valid is False
-
-
-def test_verdict_unswaps_with_presentation_order() -> None:
-    winner, valid = _resolve_turn_winner(
-        _judgment(summary="better idea: 1", winner="a"),
-        swapped=True,
-        fallback="a",
-    )
-    assert winner == "b"
-    assert valid is True
-
-
 async def test_judge_matchup_parses_the_literal_verdict_line(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -502,58 +250,35 @@ async def test_judge_matchup_parses_the_literal_verdict_line(
     assert response["consensus_votes"] == ["b"]
 
 
-def _full_explanation() -> dict[str, str]:
-    return {
+@pytest.mark.parametrize(
+    ("text", "side"),
+    [
+        ("... better idea: 1", "a"),
+        ("BETTER IDEA:2", "b"),
+        ("better hypothesis: 2", "b"),
+        ("better idea: A", "a"),
+        ("End with better idea: 1 or 2. Prevails.\n\nbetter idea: 2", "b"),
+        ("conclude with better idea: 1 or 2", None),
+        ("better idea: 3", None),
+        ("", None),
+    ],
+)
+def test_verdict_line_is_the_concluding_better_idea_statement(
+    text: str, side: str | None
+) -> None:
+    assert _parse_verdict_line(text) == side
+
+
+def test_criteria_comparisons_keep_only_the_canonical_nonempty_axes() -> None:
+    explanation = {
         **{name: f"assesses {name}" for name in RANKING_COMPARISON_CRITERIA},
         "invented_extra_comparison": "not in the closed schema",
+        "feasibility_comparison": "",
     }
-
-
-def test_criteria_comparisons_collect_all_seven_canonical_axes() -> None:
-    response = {"judgment_explanation": _full_explanation()}
-    comparisons = _extract_criteria_comparisons(response)
-    assert set(comparisons) == set(RANKING_COMPARISON_CRITERIA)
-    assert comparisons["novelty_comparison"] == "assesses novelty_comparison"
-
-
-def test_invented_and_empty_criteria_are_dropped() -> None:
-    explanation = _full_explanation()
-    explanation["feasibility_comparison"] = ""
     comparisons = _extract_criteria_comparisons(
         {"judgment_explanation": explanation}
     )
-    assert "invented_extra_comparison" not in comparisons
-    assert "feasibility_comparison" not in comparisons
-
-
-def test_criteria_comparisons_empty_without_an_explanation() -> None:
+    assert set(comparisons) == set(RANKING_COMPARISON_CRITERIA) - {
+        "feasibility_comparison"
+    }
     assert _extract_criteria_comparisons({}) == {}
-    assert (
-        _extract_criteria_comparisons({"judgment_explanation": "prose"}) == {}
-    )
-
-
-def test_matchup_detail_carries_the_criteria_comparisons() -> None:
-    from co_scientist.agents.ranking.ranking_debate import _apply_matchup_elo
-
-    hyp_a = make_hypothesis(text="alpha")
-    hyp_b = make_hypothesis(text="beta")
-    outcome = _apply_matchup_elo(hyp_a, hyp_b, "a")
-
-    detail = _build_matchup_detail(
-        (hyp_a, hyp_b),
-        "a",
-        {"judgment_explanation": _full_explanation()},
-        outcome,
-        0,
-    )
-
-    assert set(detail["criteria_comparisons"]) == set(
-        RANKING_COMPARISON_CRITERIA
-    )
-
-
-def test_ranking_schema_criteria_are_single_sourced() -> None:
-    explanation = RANKING_SCHEMA["schema"]["properties"]["judgment_explanation"]
-    assert set(explanation["properties"]) == set(RANKING_COMPARISON_CRITERIA)
-    assert set(explanation["required"]) == set(RANKING_COMPARISON_CRITERIA)

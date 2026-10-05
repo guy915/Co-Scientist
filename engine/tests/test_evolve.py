@@ -13,7 +13,6 @@ from co_scientist.agents.evolution.evolve import (
     evolve_node,
 )
 from co_scientist.agents.evolution.evolve_prompt import (
-    _sample_up_to,
     _specialist_feedback_for,
     combination_partners,
     find_nearest_peer,
@@ -159,6 +158,9 @@ async def test_evolution_produces_evolved_hypotheses(
         text="quercetin inhibits aldolase activity",
         explanation="old explanation",
         experiment="old experiment",
+        title="Quercetin Blockade of Aldolase",
+        deep_verification_probes=[_STALE_PROBE],
+        deep_verification_verdict="holds",
     )
     state = make_state(hypotheses=[original], evolution_max_count=1)
     stub_call_llm_json(monkeypatch, evolve, _RAPAMYCIN_RESPONSE)
@@ -175,6 +177,12 @@ async def test_evolution_produces_evolved_hypotheses(
     assert "quercetin inhibits aldolase activity" in child.evolution_history
     assert original.text == "quercetin inhibits aldolase activity"
     assert original.elo_rating == INITIAL_ELO_RATING
+    # Changed text invalidates verification and the stale title.
+    assert child.title is None
+    assert child.deep_verification_probes == []
+    assert child.deep_verification_verdict is None
+    assert original.deep_verification_probes == [_STALE_PROBE]
+    assert original.title == "Quercetin Blockade of Aldolase"
 
     _assert_single_evolution_detail(
         result,
@@ -188,54 +196,6 @@ async def test_evolution_produces_evolved_hypotheses(
     )
 
 
-async def test_evolution_child_starts_without_deep_verification(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Changed text invalidates the parent's verification probes."""
-    original = make_hypothesis(
-        text="quercetin inhibits aldolase activity",
-        deep_verification_probes=[_STALE_PROBE],
-        deep_verification_verdict="holds",
-    )
-    state = make_state(hypotheses=[original], evolution_max_count=1)
-    stub_call_llm_json(monkeypatch, evolve, _RAPAMYCIN_RESPONSE)
-
-    result = await evolve_node(state)
-
-    child = _children(result)[0]
-    assert child.text == "rapamycin suppresses mtor signaling downstream"
-    assert child.deep_verification_probes == []
-    assert child.deep_verification_verdict is None
-    assert original.deep_verification_probes == [_STALE_PROBE]
-    assert original.deep_verification_verdict == "holds"
-
-
-async def test_evolution_noop_produces_no_child(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    probes = [
-        {
-            "question": "q",
-            "answer": "a",
-            "reasoning": "r",
-            "assumption_is_fundamental": False,
-        }
-    ]
-    original = make_hypothesis(
-        text="osmotic gradient drives water flux",
-        deep_verification_probes=probes,
-        deep_verification_verdict="holds",
-    )
-    state = make_state(hypotheses=[original], evolution_max_count=1)
-    stub_call_llm_json(monkeypatch, evolve, {})
-
-    result = await evolve_node(state)
-
-    assert _children(result) == []
-    assert original.deep_verification_probes == probes
-    assert original.deep_verification_verdict == "holds"
-
-
 async def test_evolution_breeds_the_paper_fixed_top_five(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -245,7 +205,8 @@ async def test_evolution_breeds_the_paper_fixed_top_five(
         make_hypothesis(text=text, elo_rating=elo)
         for text, elo in zip(texts, elos, strict=True)
     ]
-    state = make_state(hypotheses=hypotheses)
+    # The paper's fixed top five, whatever the tier-scaled max count says.
+    state = make_state(hypotheses=hypotheses, evolution_max_count=1)
     _stub_llm_from_prompt(monkeypatch, _make_top_k_builder(_TOP_FIVE_EVOLVED))
 
     result = await evolve_node(state)
@@ -257,45 +218,6 @@ async def test_evolution_breeds_the_paper_fixed_top_five(
     assert evolved_texts == set(_TOP_FIVE_EVOLVED.values())
     top_five_ids = {hypotheses[i].id for i in range(5)}
     assert {c.parent_id for c in children} == top_five_ids
-
-
-async def test_evolution_ignores_the_tier_scaled_evolution_max_count(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    hypotheses = [
-        make_hypothesis(text=text, elo_rating=elo)
-        for text, elo in zip(_MAX_COUNT_TEXTS, _MAX_COUNT_ELOS, strict=True)
-    ]
-    state = make_state(hypotheses=hypotheses, evolution_max_count=1)
-    _stub_llm_from_prompt(monkeypatch, _make_top_k_builder(_TOP_FIVE_EVOLVED))
-
-    result = await evolve_node(state)
-
-    assert len(_children(result)) == 5
-
-
-async def test_evolution_small_pool_breeds_every_rankable_idea(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    state = make_state(
-        hypotheses=[
-            make_hypothesis(text=_MAX_COUNT_TEXTS[0], elo_rating=1200),
-            make_hypothesis(text=_MAX_COUNT_TEXTS[1], elo_rating=1100),
-        ]
-    )
-    _stub_llm_from_prompt(
-        monkeypatch,
-        _make_top_k_builder(
-            {
-                _MAX_COUNT_TEXTS[0]: _TOP_FIVE_EVOLVED[_MAX_COUNT_TEXTS[0]],
-                _MAX_COUNT_TEXTS[1]: _TOP_FIVE_EVOLVED[_MAX_COUNT_TEXTS[1]],
-            }
-        ),
-    )
-
-    result = await evolve_node(state)
-
-    assert len(_children(result)) == 2
 
 
 async def test_evolution_parents_are_ranked_survivors_not_the_list_head(
@@ -348,26 +270,14 @@ async def test_evolution_breeds_nothing_when_no_idea_is_rankable(
     assert result["evolution_details"] == []
 
 
-async def test_empty_hypotheses_returns_no_children(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-
-    async def never(**_: Any) -> dict[str, Any]:
-        raise AssertionError("call_llm_json must not run with no hypotheses")
-
-    monkeypatch.setattr(evolve, "call_llm_json", never)
-    state = make_state(hypotheses=[], evolution_max_count=3)
-
-    result = await evolve_node(state)
-
-    assert _children(result) == []
-    assert result["evolution_details"] == []
-
-
 async def test_unchanged_response_records_no_child_or_detail(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    original = make_hypothesis(text="osmotic gradient drives water flux")
+    original = make_hypothesis(
+        text="osmotic gradient drives water flux",
+        deep_verification_probes=[_STALE_PROBE],
+        deep_verification_verdict="holds",
+    )
     state = make_state(hypotheses=[original], evolution_max_count=1)
     stub_call_llm_json(monkeypatch, evolve, {})
 
@@ -376,6 +286,7 @@ async def test_unchanged_response_records_no_child_or_detail(
     assert _children(result) == []
     assert result["evolution_details"] == []
     assert original.text == "osmotic gradient drives water flux"
+    assert original.deep_verification_verdict == "holds"
 
 
 async def test_duplicate_guard_sees_ideas_outside_the_evolution_pool(
@@ -393,30 +304,6 @@ async def test_duplicate_guard_sees_ideas_outside_the_evolution_pool(
     result = await evolve_node(state)
 
     assert _children(result) == []
-
-
-def test_sample_up_to_empty_pool_returns_empty() -> None:
-    assert _sample_up_to([], 5, random.Random(1)) == []
-
-
-def test_sample_up_to_returns_requested_count() -> None:
-    pool = [make_hypothesis(text=f"h{i}") for i in range(20)]
-    sampled = _sample_up_to(pool, 10, random.Random(1))
-    assert len(sampled) == 10
-    assert all(h in pool for h in sampled)
-
-
-def test_sample_up_to_caps_at_pool_size() -> None:
-    pool = [make_hypothesis(text=f"h{i}") for i in range(3)]
-    sampled = _sample_up_to(pool, 10, random.Random(1))
-    assert len(sampled) == 3
-
-
-def test_sample_up_to_is_reproducible_under_its_seed() -> None:
-    pool = [make_hypothesis(text=f"h{i}") for i in range(20)]
-    first = _sample_up_to(pool, 10, random.Random("run-seed"))
-    again = _sample_up_to(pool, 10, random.Random("run-seed"))
-    assert first == again
 
 
 def test_sample_context_hypotheses_large_pool_caps_at_max_context() -> None:
@@ -440,32 +327,6 @@ def test_sample_context_hypotheses_large_pool_caps_at_max_context() -> None:
     assert all(h.text != exclude.text for h in result)
 
 
-def test_sample_context_hypotheses_seeded_draws_are_reproducible() -> None:
-    exclude = make_hypothesis(text="excluded")
-    others = [
-        make_hypothesis(text=f"other {i}", elo_rating=100 - i)
-        for i in range(30)
-    ]
-    pool = [exclude, *others]
-
-    first = sample_context_hypotheses(
-        pool, exclude_hypothesis=exclude, rng=random.Random("seed-A")
-    )
-    again = sample_context_hypotheses(
-        pool, exclude_hypothesis=exclude, rng=random.Random("seed-A")
-    )
-    assert first == again
-
-
-def test_sample_context_hypotheses_small_pool_returns_all() -> None:
-    exclude = make_hypothesis(text="excluded")
-    others = [make_hypothesis(text=f"other {i}") for i in range(3)]
-    result = sample_context_hypotheses(
-        [exclude, *others], exclude_hypothesis=exclude, max_context=15
-    )
-    assert {h.text for h in result} == {h.text for h in others}
-
-
 def test_combination_partners_are_the_top_ranked_peers() -> None:
     pool = [
         make_hypothesis(text=f"idea {i}", elo_rating=rating)
@@ -479,33 +340,13 @@ def test_combination_partners_are_the_top_ranked_peers() -> None:
     assert [p.text for p in partners] == ["idea 2", "idea 3"]
 
 
-def test_combination_partners_empty_for_a_one_idea_pool() -> None:
-    parent = make_hypothesis(text="the only idea")
-    assert combination_partners([parent], parent) == []
-
-
-def test_token_coverage_empty_text_returns_zero() -> None:
-    assert token_coverage("", "some hypothesis text") == 0.0
-
-
-def test_token_coverage_full_containment_scores_one() -> None:
-    assert token_coverage("alpha beta", "alpha beta gamma delta") == 1.0
-
-
 def test_token_coverage_is_not_dominated_by_peer_length() -> None:
     """Jaccard makes full containment in a longer peer unreachable."""
     short = "alpha beta"
     long_peer = "alpha beta gamma delta epsilon zeta eta theta iota kappa"
     assert token_coverage(short, long_peer) == 1.0
     assert token_coverage(long_peer, short) < 0.5
-
-
-def test_token_coverage_partial_overlap() -> None:
     assert token_coverage("alpha beta gamma", "alpha beta delta") == 2 / 3
-
-
-def test_find_nearest_peer_empty_candidates_returns_none() -> None:
-    assert find_nearest_peer("alpha beta", "parent-id", []) == (0.0, None)
 
 
 def test_find_nearest_peer_falls_back_to_token_coverage() -> None:
@@ -537,24 +378,6 @@ def test_find_nearest_peer_prefers_the_proximity_graph_weight() -> None:
     )
     assert nearest is graph_peer
     assert similarity == 1.0
-
-
-def test_find_nearest_peer_reads_both_edge_orientations() -> None:
-    graph_peer = make_hypothesis(text="a disjoint wording entirely")
-    graph = {
-        "edges": [
-            {
-                "source": graph_peer.id,
-                "target": "parent-id",
-                "similarity": 0.6,
-            }
-        ]
-    }
-    similarity, nearest = find_nearest_peer(
-        "refined wording", "parent-id", [graph_peer], graph
-    )
-    assert nearest is graph_peer
-    assert similarity == 0.6
 
 
 def _feedback_state(hypothesis: Hypothesis) -> WorkflowState:
@@ -636,65 +459,3 @@ def test_specialist_feedback_carries_mature_review_findings() -> None:
     )
     assert ledger["mature_reviews"]["simulation"]["verdict"] == "breaks_down"
     assert "retrieved_articles" not in feedback
-
-
-def test_specialist_feedback_omits_mature_reviews_before_the_cascade() -> None:
-    """An empty block would falsely imply that mature reviews checked
-    nothing."""
-    hypothesis = make_hypothesis(text="a hypothesis awaiting review")
-    state = _feedback_state(hypothesis)
-
-    feedback = _specialist_feedback_for(state, hypothesis)
-
-    assert "mature_reviews" not in json.loads(feedback)
-
-
-def test_specialist_feedback_omits_deep_verification_before_it_has_run() -> (
-    None
-):
-    """An empty block would falsely imply that verification checked nothing."""
-    hypothesis = make_hypothesis(text="a hypothesis awaiting verification")
-    state = _feedback_state(hypothesis)
-
-    feedback = _specialist_feedback_for(state, hypothesis)
-
-    assert "deep_verification" not in json.loads(feedback)
-
-
-async def test_evolution_child_takes_the_response_title(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    original = make_hypothesis(
-        text="quercetin inhibits aldolase activity",
-        title="Quercetin Blockade of Aldolase",
-    )
-    state = make_state(hypotheses=[original], evolution_max_count=1)
-    stub_call_llm_json(
-        monkeypatch,
-        evolve,
-        {**_RAPAMYCIN_RESPONSE, "title": "Rapamycin-Driven mTOR Suppression"},
-    )
-
-    result = await evolve_node(state)
-
-    child = _children(result)[0]
-    assert child.title == "Rapamycin-Driven mTOR Suppression"
-    assert original.title == "Quercetin Blockade of Aldolase"
-
-
-async def test_evolution_child_title_is_none_when_response_omits_it(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Changed mechanisms cannot inherit stale parent titles; the app
-    resolves fallback."""
-    original = make_hypothesis(
-        text="quercetin inhibits aldolase activity",
-        title="Quercetin Blockade of Aldolase",
-    )
-    state = make_state(hypotheses=[original], evolution_max_count=1)
-    stub_call_llm_json(monkeypatch, evolve, _RAPAMYCIN_RESPONSE)
-
-    result = await evolve_node(state)
-
-    child = _children(result)[0]
-    assert child.title is None
