@@ -1,7 +1,6 @@
-import {makeLogRecord as logRecord} from '@/test_fixtures';
+import {exportedRecords, makeLogRecord as logRecord} from '@/test_fixtures';
 import {beforeEach, expect, it, vi} from 'vitest';
 import {sessionDiagnosticExport} from './layout_diagnostics';
-import {EXPORT_LOGS_MARKER} from './layout_diagnostics_data';
 import {resetSessionBaselineForTest} from './layout_diagnostics';
 
 const logsApiMock = vi.hoisted(() => ({getAppLogs: vi.fn()}));
@@ -31,12 +30,10 @@ it('shares the existing session anchor and exports operational records with the 
   });
   const text = await sessionDiagnosticExport();
   expect(logsApiMock.getAppLogs).toHaveBeenCalledWith(10, 100, true);
-  expect(text).toContain('=== ABOUT THESE DIAGNOSTIC LOGS ===');
-  expect(text).toContain('=== SESSION DETAILS ===');
-  expect(text).toContain('=== STATISTICS (loaded window) ===');
-  const records = JSON.parse(text.split(EXPORT_LOGS_MARKER)[1]) as {
-    id: number;
-  }[];
+  expect(text).toContain('## About these logs');
+  expect(text).toContain('## Session details');
+  expect(text).toContain('## Statistics (loaded window)');
+  const records = exportedRecords<{id: number}>(text);
   expect(records.map(record => record.id)).toEqual([11]);
   expect(text).toContain('tool_call name=search');
 });
@@ -49,8 +46,8 @@ it('excludes pre-tab history when the baseline has not been initialized', async 
     session_total: 1,
   });
   const text = await sessionDiagnosticExport();
-  expect(JSON.parse(text.split(EXPORT_LOGS_MARKER)[1])).toEqual([]);
-  expect(text).toContain('Records this session: 0');
+  expect(exportedRecords<{id: number}>(text)).toEqual([]);
+  expect(text).toContain('**Records this session:** 0');
 });
 
 it('bounds a multibyte diagnostic export without losing the preamble or newest record', async () => {
@@ -69,18 +66,16 @@ it('bounds a multibyte diagnostic export without losing the preamble or newest r
   });
   const text = await sessionDiagnosticExport();
   expect(text.length).toBeLessThanOrEqual(100_000);
-  const records = JSON.parse(text.split(EXPORT_LOGS_MARKER)[1]) as {
-    id: number;
-  }[];
+  const records = exportedRecords<{id: number}>(text);
   expect(records.at(-1)?.id).toBe(100);
   expect(records.length).toBeLessThan(100);
-  expect(text).toContain('Records this session: 100');
+  expect(text).toContain('**Records this session:** 100');
 });
 
 it('preserves a useful export when fetching diagnostics fails', async () => {
   logsApiMock.getAppLogs.mockRejectedValue(new Error('API unavailable'));
   const text = await sessionDiagnosticExport();
   expect(text).toContain('Session diagnostics were unavailable');
-  expect(text).toContain('=== SESSION DETAILS ===');
-  expect(JSON.parse(text.split(EXPORT_LOGS_MARKER)[1])).toHaveLength(1);
+  expect(text).toContain('## Session details');
+  expect(exportedRecords<{id: number}>(text)).toHaveLength(1);
 });

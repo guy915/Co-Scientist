@@ -148,3 +148,11 @@ export function makeLogRecord(
     ...over,
   };
 }
+
+// The export fences its JSON in Markdown; strip the fence before parsing.
+export function exportedRecords<T = Record<string, unknown>>(
+  text: string,
+): T[] {
+  const body = text.slice(text.indexOf('```json') + '```json'.length);
+  return JSON.parse(body.slice(0, body.lastIndexOf('```'))) as T[];
+}
