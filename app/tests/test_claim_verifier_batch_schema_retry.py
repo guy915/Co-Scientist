@@ -35,35 +35,40 @@ def _install_replies(
     return requests
 
 
-def _mock_zero_price_promotion(monkeypatch: pytest.MonkeyPatch) -> None:
+def _mock_zero_price_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
     from co_scientist.llm.admission import free_policy as free_catalog
 
     free_catalog.install_catalog_reader(
         free_catalog.CatalogReader(
             lambda: {
-                "stealth/space-bunny-alpha": {
+                model: {
                     "pricing": {"prompt": "0", "completion": "0"},
                     "architecture": {
                         "input_modalities": ["text"],
                         "output_modalities": ["text"],
                     },
                 }
+                for model in (
+                    "nvidia/nemotron-3-ultra-550b-a55b:free",
+                    "dots-studio/dots-3-note-preview:free",
+                    "nvidia/nemotron-3-super-120b-a12b:free",
+                )
             }
         )
     )
 
 
-def _assert_zero_price_stealth_route(request: dict[str, Any]) -> None:
+def _assert_zero_price_route(request: dict[str, Any]) -> None:
     provider = request["extra_body"]["provider"]
-    assert request["model"] == "openrouter/stealth/space-bunny-alpha"
+    assert (
+        request["model"] == "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+    )
     assert request["api_base"] == "https://openrouter.ai/api/v1"
     assert provider["max_price"] == {
         "prompt": 0,
         "completion": 0,
         "request": 0,
     }
-    assert provider["only"] == ["Stealth"]
-    assert provider["allow_fallbacks"] is False
     assert provider["require_parameters"] is True
 
 
@@ -78,7 +83,7 @@ _PASSAGE = EvidencePassage(
 def test_pruned_typo_uses_existing_evidence_fallback_without_retry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _mock_zero_price_promotion(monkeypatch)
+    _mock_zero_price_catalog(monkeypatch)
     requests = _install_replies(
         monkeypatch,
         [
@@ -89,7 +94,7 @@ def test_pruned_typo_uses_existing_evidence_fallback_without_retry(
         ],
     )
     batch_assessor, assessor_id = make_llm_batch_assessor(
-        "openrouter/stealth/space-bunny-alpha"
+        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
     )
 
     results = assess_claims_batch(
@@ -103,17 +108,17 @@ def test_pruned_typo_uses_existing_evidence_fallback_without_retry(
     assert results[0].label is EntailmentLabel.SUPPORTS
     assert results[0].verification_method == "deterministic_lexical"
     for request in requests:
-        _assert_zero_price_stealth_route(request)
+        _assert_zero_price_route(request)
 
 
 @pytest.mark.parametrize("reply", ['{"verdests": []}', '{"verdicts": []}'])
 def test_empty_batch_uses_existing_evidence_fallback_without_retry(
     monkeypatch: pytest.MonkeyPatch, reply: str
 ) -> None:
-    _mock_zero_price_promotion(monkeypatch)
+    _mock_zero_price_catalog(monkeypatch)
     requests = _install_replies(monkeypatch, [reply] * 3)
     batch_assessor, assessor_id = make_llm_batch_assessor(
-        "openrouter/stealth/space-bunny-alpha"
+        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
     )
 
     results = assess_claims_batch(
@@ -127,7 +132,7 @@ def test_empty_batch_uses_existing_evidence_fallback_without_retry(
     assert results[0].label is EntailmentLabel.SUPPORTS
     assert results[0].verification_method == "deterministic_lexical"
     for request in requests:
-        _assert_zero_price_stealth_route(request)
+        _assert_zero_price_route(request)
 
 
 def test_valid_sparse_batch_stays_single_call_with_per_index_fallback(

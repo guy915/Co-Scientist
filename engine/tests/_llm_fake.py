@@ -599,12 +599,6 @@ _FREE: Any = [
     {"max_price": {"prompt": 0.0, "completion": 0.0, "request": 0.0}},
 ]
 _UNPRICED: Any = [None, 0.0, {}]
-_STEALTH_PIN: Any = {
-    "allow_fallbacks": False,
-    "max_price": {"prompt": 0.0, "completion": 0.0, "request": 0.0},
-    "only": ["Stealth"],
-    "order": None,
-}
 _CAP_1: Any = {"max_price": {"prompt": 0.462, "completion": 1.3860000000000001}}
 _CAP_2: Any = {"max_price": {"prompt": 1.3860000000000001, "completion": 4.158}}
 _CAP_3: Any = {
@@ -644,7 +638,6 @@ CAPABILITIES: list[tuple[tuple[str, ...], dict[str, Any]]] = [
             "openrouter/minimax/minimax-m2.7:free",
             "openrouter/dots-studio/dots-3-note-preview:free",
             "openrouter/nvidia/nemotron-3.5-lightning:free",
-            "openrouter/stealth/space-bunny-alpha",
         ),
         {
             "reasons": True,
@@ -726,6 +719,28 @@ CAPABILITIES: list[tuple[tuple[str, ...], dict[str, Any]]] = [
         },
     ),
     (
+        ("openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",),
+        {
+            "reasons": True,
+            "effort": [{}, {}],
+            "knobs": _KNOBS_1,
+            "routing": {
+                "provider": "gateway provider",
+                "models": [
+                    "dots-studio/dots-3-note-preview:free",
+                    "nvidia/nemotron-3-super-120b-a12b:free",
+                ],
+            },
+            "thinks": [True, True],
+            "floor": [18000, 18000],
+            "schema": False,
+            "temperature": [0.0, 0.7, 1.0],
+            "free": [True, False],
+            "free_row": "ok",
+            "requests": [[None, True, 18000, True], [None, False, 18000, True]],
+        },
+    ),
+    (
         ("openrouter/z-ai/glm-5.3-flash",),
         {
             "reasons": True,
@@ -788,7 +803,6 @@ CAPABILITIES: list[tuple[tuple[str, ...], dict[str, Any]]] = [
             "ollama/llama3",
             "openrouter/x/y",
             "openrouter/qwen/qwen3.8-27b",
-            "openrouter/stealth/space-bunny-alpha-2",
             "gemini/gemini-2.0-flash",
         ),
         {
@@ -868,7 +882,7 @@ CAPABILITIES: list[tuple[tuple[str, ...], dict[str, Any]]] = [
         },
     ),
     (
-        ("stealth/space-bunny-alpha", "openrouter/x/y:free"),
+        ("openrouter/x/y:free",),
         {
             "reasons": False,
             "effort": [{}, {}],
@@ -916,10 +930,7 @@ CAPABILITIES: list[tuple[tuple[str, ...], dict[str, Any]]] = [
         },
     ),
     (
-        (
-            "OpenRouter/Stealth/Space-Bunny-Alpha",
-            "OpenRouter/NEX-AGI/NEX-N2.5-PRO:FREE",
-        ),
+        ("OpenRouter/NEX-AGI/NEX-N2.5-PRO:FREE",),
         {
             "reasons": True,
             "effort": [{}, {}],
@@ -957,11 +968,7 @@ MONEY: dict[str, Any] = {
     "openrouter/minimax/minimax-m2.7:free": _FREE,
     "openrouter/dots-studio/dots-3-note-preview:free": _FREE,
     "openrouter/nvidia/nemotron-3.5-lightning:free": _FREE,
-    "openrouter/stealth/space-bunny-alpha": [
-        [0.0, 0.0, 0.0],
-        0.0,
-        _STEALTH_PIN,
-    ],
+    "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free": _FREE,
     "openrouter/z-ai/glm-5.3-flash": [
         [0.075, 0.25, 0.015],
         0.295,
@@ -1025,13 +1032,11 @@ MONEY: dict[str, Any] = {
         {"max_price": {"prompt": 3.1500000000000004, "completion": 15.75}},
     ],
     "openrouter/google/gemma-4-26b-a4b-it:free": _UNPRICED,
-    "stealth/space-bunny-alpha": _UNPRICED,
     "gpt-4o": _UNPRICED,
     "ollama/llama3": _UNPRICED,
     "openrouter/x/y": _UNPRICED,
     "openrouter/x/y:free": _UNPRICED,
     "openrouter/qwen/qwen3.8-27b": _UNPRICED,
-    "openrouter/stealth/space-bunny-alpha-2": _UNPRICED,
     "deepseek/deepseek-v5-x": _UNPRICED,
     "openrouter/deepseek/deepseek-v5-x": _UNPRICED,
     "openrouter/deepseek/deepseek-v4-flash:free": _UNPRICED,
@@ -1042,7 +1047,6 @@ MONEY: dict[str, Any] = {
     "gemini/gemini-2.0-flash": _UNPRICED,
     "openrouter/vendor/gemini-3-deepseek-hybrid": _UNPRICED,
     "DeepSeek/DeepSeek-V4-Flash": [None, 0.0, _CAP_1],
-    "OpenRouter/Stealth/Space-Bunny-Alpha": [None, 0.0, _STEALTH_PIN],
     "OpenRouter/NEX-AGI/NEX-N2.5-PRO:FREE": [
         None,
         0.0,

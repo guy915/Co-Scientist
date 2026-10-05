@@ -82,7 +82,8 @@ def _apply_schema_response_format(
     )
     shimmed_content = _inject_schema_into_prompt(prompt, json_schema)
     completion_args["messages"] = [{"role": "user", "content": shimmed_content}]
-    completion_args["response_format"] = {"type": "json_object"}
+    if model_profile(model_name).json_object:
+        completion_args["response_format"] = {"type": "json_object"}
 
 
 def _apply_response_format(
@@ -96,7 +97,7 @@ def _apply_response_format(
         _apply_schema_response_format(
             completion_args, prompt, model_name, json_schema
         )
-    elif force_json:
+    elif force_json and model_profile(model_name).json_object:
         completion_args["response_format"] = {"type": "json_object"}
 
 

@@ -64,10 +64,6 @@ def _apply_provider_pin(
         provider["only"] = [profile.verified_provider]
         provider["zdr"] = True
         provider["data_collection"] = "deny"
-    elif profile.provider_only:
-        provider.pop("order", None)
-        provider["only"] = [profile.provider_only]
-        provider["allow_fallbacks"] = False
 
 
 def _gateway_provider(model_name: str) -> dict[str, Any]:

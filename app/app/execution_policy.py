@@ -14,7 +14,7 @@ from app.config import settings
 STANDARD = "standard"
 CAMPAIGN = "campaign"
 CAMPAIGN_MODEL_CONFIG_KEY = "campaign_model_name"
-CAMPAIGN_MODEL_NAME = "openrouter/stealth/space-bunny-alpha"
+CAMPAIGN_MODEL_NAME = "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
 _campaign_model: ContextVar[str | None] = ContextVar(
     "campaign_model", default=None
 )
