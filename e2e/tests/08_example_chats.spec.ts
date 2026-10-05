@@ -12,19 +12,12 @@ for (const theme of ["light", "dark"]) {
     );
     const demos = await api.listDemoRuns();
     // Phones have no Recents; the sidebar's Chats list carries the examples.
-    // The themes share one visitor, so the second run finds the private copy
-    // the first one opened, carrying the same goal. Labels truncate, so match
-    // the goal in the tooltip.
+    // Each theme opens its own example: both share one visitor, and an opened
+    // example lists as its private copy instead.
+    const example = demos[theme === "light" ? 0 : 1];
     await page.goto("/");
     await page.getByRole("button", { name: "Open navigation" }).click();
-    const sidebarExample = page
-      .locator('a[href^="/examples/"], a[href^="/chats/"]')
-      .and(
-        page.locator(
-          `[data-tooltip=${JSON.stringify(demos[0].research_goal)}]`,
-        ),
-      )
-      .first();
+    const sidebarExample = page.locator(`a[href="/examples/${example.id}"]`);
     await expect(sidebarExample).toBeVisible();
     await sidebarExample.click();
     await expect(page).toHaveURL(/\/chats\//);
@@ -54,7 +47,7 @@ for (const theme of ["light", "dark"]) {
     await page.reload();
     await expect(page.getByText(question, { exact: true })).toBeAttached();
     await expect(composer).toBeInViewport();
-    await page.goto(`/examples/${demos[0].id}`);
+    await page.goto(`/examples/${example.id}`);
     await expect(page).toHaveURL(chatUrl);
     await expect(page.getByText(question, { exact: true })).toBeAttached();
     await captureViewport(page, {
