@@ -12,9 +12,14 @@ for (const theme of ['light', 'dark']) {
     );
     const demos = await api.listDemoRuns();
     // Phones have no Recents; the sidebar's Chats list carries the examples.
+    // The themes share one visitor, so the second run finds the private copy
+    // the first one opened, listed under the same title.
     await page.goto('/');
     await page.getByRole('button', {name: 'Open navigation'}).click();
-    const sidebarExample = page.locator(`a[href="/examples/${demos[0].id}"]`);
+    const sidebarExample = page
+      .locator(`a[href="/examples/${demos[0].id}"], a[href^="/chats/"]`)
+      .filter({hasText: demos[0].title})
+      .first();
     await expect(sidebarExample).toBeVisible();
     await sidebarExample.click();
     await expect(page).toHaveURL(/\/chats\//);

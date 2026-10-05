@@ -21,7 +21,7 @@ export interface BackendApi {
   startRun(id: string): Promise<void>;
   cancelRun(id: string): Promise<void>;
   getRun(id: string): Promise<{status: string; [k: string]: unknown}>;
-  listDemoRuns(): Promise<{id: string; research_goal: string}[]>;
+  listDemoRuns(): Promise<{id: string; title: string; research_goal: string}[]>;
   exchangeAccessCode(accessCode: string): Promise<string>;
   asResearcher(accessToken: string): BackendApi;
 }
