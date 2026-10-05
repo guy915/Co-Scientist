@@ -61,13 +61,11 @@ an `X-MCP-Shared-Secret` header or the server returns 401
 (`mcp_client/__init__.py::_resolve_server_configs`). Left unset, the check is a
 no-op. The CORS wildcard is gone regardless; MCP is server-to-server only.
 
-The desired default for the next release is exact
-`openrouter/stealth/space-bunny-alpha` on all four system roles. The gateway
-pins it to Stealth, disables provider and model fallback, checks the current
-zero-price listing before calls, and enforces a zero-price ceiling. This is the
-selected code default, not a current production readback: the values above are
-still the 23 September snapshot, and production must be read back after its
-environment update and deployment. `CLAIM_VERIFIER_MODEL` should remain unset
+The code default is `openrouter/thinkingmachines/inkling-small` on all four
+system roles: a paid route at max reasoning effort, capped at its listed price,
+with the JSON schema in the prompt because its only host accepts no response
+format. Production sets the four role variables explicitly, so a default change
+reaches production only when those variables change. `CLAIM_VERIFIER_MODEL` should remain unset
 so claim assessment inherits the worker model. Keep the process-global
 `COSCIENTIST_REQUIRE_FREE_MODELS` flag off so ordinary explicit BYOK remains
 available; campaign restrictions stay request-scoped. Record the verified

@@ -162,7 +162,7 @@ def _gateway_body(
         return body
     reasoning: dict[str, Any] = {"enabled": enabled}
     if enabled:
-        reasoning["effort"] = _REASONING_EFFORT
+        reasoning["effort"] = profile.reasoning_effort or _REASONING_EFFORT
     body["reasoning"] = reasoning
     return body
 

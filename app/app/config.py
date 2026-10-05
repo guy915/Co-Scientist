@@ -59,15 +59,14 @@ def thinking_safe_timeout(model_name: str, answer_seconds: float) -> float:
 
 
 class Settings(BaseSettings):
-    # Free defaults enforce zero-price routing and admission; app-operation
-    # physical-call caps remain separate from research budgets.
+    # App-operation physical-call caps remain separate from research budgets.
     app_llm_max_calls: int = Field(default=4, ge=1)
 
     # Production model choices are explicit hosting overrides; changing these
     # defaults alone does not change production.
-    model_name: str = "openrouter/stealth/space-bunny-alpha"
-    supervisor_model_name: str | None = "openrouter/stealth/space-bunny-alpha"
-    chat_model_name: str | None = "openrouter/stealth/space-bunny-alpha"
+    model_name: str = "openrouter/thinkingmachines/inkling-small"
+    supervisor_model_name: str | None = "openrouter/thinkingmachines/inkling-small"
+    chat_model_name: str | None = "openrouter/thinkingmachines/inkling-small"
     # LiteLLM and the engine consume provider environment variables, not this
     # Settings object.
     gemini_api_key: str = ""
@@ -94,7 +93,7 @@ class Settings(BaseSettings):
     # semantic assessment.
     semantic_safety_enabled: bool = True
     # Safety stays on the worker tier rather than the strategic supervisor tier.
-    semantic_safety_model: str | None = "openrouter/stealth/space-bunny-alpha"
+    semantic_safety_model: str | None = "openrouter/thinkingmachines/inkling-small"
 
     log_format: str = "text"
 

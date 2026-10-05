@@ -41,6 +41,10 @@ class ModelProfile:
     # Unsupported required formats hard-fail routing; registry answers can
     # drift.
     json_schema: bool | None = None
+    # False when no host accepts response_format; the schema then rides in the
+    # prompt alone.
+    json_object: bool = True
+    reasoning_effort: str | None = None
     min_temperature: float | None = None
     price: ModelPrice | None = None
     # An admitted unsuffixed promotion still needs fresh catalog/zero-price
@@ -57,6 +61,8 @@ class Facts(TypedDict, total=False):
     verified_provider: str | None
     provider_only: str | None
     json_schema: bool | None
+    json_object: bool
+    reasoning_effort: str | None
     min_temperature: float | None
     price: ModelPrice | None
     promotional_free: bool
@@ -138,6 +144,12 @@ ROUTES: Final[dict[str, Facts]] = {
     "openrouter/nvidia/nemotron-3.5-lightning:free": _gateway(_FREE),
     # The unsuffixed preview is an admitted promotion; pin Stealth and recheck
     # current prices.
+    # DeepInfra, its only paid host, rejects every response_format.
+    "openrouter/thinkingmachines/inkling-small": {
+        **_gateway(ModelPrice(0.45, 1.20, 0.10)),
+        "json_object": False,
+        "reasoning_effort": "max",
+    },
     "openrouter/stealth/space-bunny-alpha": {
         **_gateway(_FREE, provider_only="Stealth"),
         "promotional_free": True,

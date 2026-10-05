@@ -1241,7 +1241,7 @@ _MODEL_FIELDS = (
     "chat_model_name",
     "semantic_safety_model",
 )
-_SYSTEM_DEFAULT_MODEL = "openrouter/stealth/space-bunny-alpha"
+_SYSTEM_DEFAULT_MODEL = "openrouter/thinkingmachines/inkling-small"
 
 
 def _default_models() -> set[str]:
@@ -1254,7 +1254,7 @@ def _default_models() -> set[str]:
     }
 
 
-def test_all_system_default_roles_select_space_bunny() -> None:
+def test_all_system_default_roles_select_inkling_small() -> None:
     actual = {
         field: Settings.model_fields[field].default for field in _MODEL_FIELDS
     }

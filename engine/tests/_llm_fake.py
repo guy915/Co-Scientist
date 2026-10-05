@@ -726,6 +726,25 @@ CAPABILITIES: list[tuple[tuple[str, ...], dict[str, Any]]] = [
         },
     ),
     (
+        ("openrouter/thinkingmachines/inkling-small",),
+        {
+            "reasons": True,
+            "effort": [{}, {}],
+            "knobs": [
+                {"enabled": True, "effort": "max"},
+                *_KNOBS_1[1:],
+            ],
+            "routing": {"provider": "gateway provider"},
+            "thinks": [True, True],
+            "floor": [18000, 18000],
+            "schema": False,
+            "temperature": [0.0, 0.7, 1.0],
+            "free": [False, False],
+            "free_row": "zero-cost pricing is incomplete",
+            "requests": [[None, True, 18000, True], [None, False, 18000, True]],
+        },
+    ),
+    (
         ("openrouter/z-ai/glm-5.3-flash",),
         {
             "reasons": True,
@@ -961,6 +980,11 @@ MONEY: dict[str, Any] = {
         [0.0, 0.0, 0.0],
         0.0,
         _STEALTH_PIN,
+    ],
+    "openrouter/thinkingmachines/inkling-small": [
+        [0.45, 1.2, 0.1],
+        1.475,
+        {"max_price": {"prompt": 0.47250000000000003, "completion": 1.26}},
     ],
     "openrouter/z-ai/glm-5.3-flash": [
         [0.075, 0.25, 0.015],

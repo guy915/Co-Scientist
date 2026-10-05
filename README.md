@@ -63,7 +63,7 @@ and matching key. See [`.env.example`](.env.example) and
 
 ```dotenv
 OPENROUTER_API_KEY=
-MODEL_NAME=openrouter/stealth/space-bunny-alpha
+MODEL_NAME=openrouter/thinkingmachines/inkling-small
 SAFETY_MODE=standard
 ```
 

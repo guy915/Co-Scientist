@@ -588,3 +588,33 @@ class TestLlmGemmaRoute:
         }
         assert provider["require_parameters"] is True
         assert requests[0]["api_base"] == "https://openrouter.ai/api/v1"
+
+
+_INKLING = "openrouter/thinkingmachines/inkling-small"
+
+
+@pytest.mark.parametrize(
+    "shape",
+    [
+        CompletionShape(json_schema=_NESTED_SCHEMA),
+        CompletionShape(force_json=True),
+    ],
+)
+def test_a_route_without_json_mode_keeps_the_schema_in_the_prompt(
+    shape: CompletionShape,
+) -> None:
+    """Its only host rejects response_format, and require_parameters turns
+    any JSON mode into a 404."""
+    args = _build_completion_args("prompt", _INKLING, 4000, 0.5, shape)
+
+    assert "response_format" not in args
+    if shape.json_schema:
+        assert "JSON schema" in args["messages"][0]["content"]
+
+
+def test_a_route_can_raise_its_reasoning_effort() -> None:
+    args = _build_completion_args(
+        "prompt", _INKLING, 4000, 0.5, CompletionShape()
+    )
+
+    assert args["extra_body"]["reasoning"] == {"enabled": True, "effort": "max"}
