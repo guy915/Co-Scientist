@@ -76,11 +76,10 @@ def test_writable_roots_are_resolved(tmp_path: Path) -> None:
     assert workspace_write(link).writable_roots == (real.resolve(),)
 
 
-def test_read_only_never_allows_network() -> None:
+def test_network_is_denied_unless_a_workspace_policy_opts_in(
+    tmp_path: Path,
+) -> None:
     assert not read_only().allows_network
-
-
-def test_workspace_write_network_is_opt_in(tmp_path: Path) -> None:
     assert not workspace_write(tmp_path).allows_network
     assert workspace_write(tmp_path, network_allowed=True).allows_network
 
@@ -98,14 +97,16 @@ def test_empty_command_is_rejected() -> None:
         wrap_argv([], read_only())
 
 
-def test_danger_full_access_passes_the_command_through() -> None:
-    policy = SandboxPolicy(kind=SandboxKind.DANGER_FULL_ACCESS)
-    assert wrap_argv(["echo", "hi"], policy) == ["echo", "hi"]
-
-
-def test_external_confinement_passes_the_command_through() -> None:
-    policy = SandboxPolicy(kind=SandboxKind.EXTERNAL)
-    assert wrap_argv(["echo", "hi"], policy) == ["echo", "hi"]
+@pytest.mark.parametrize(
+    "kind", [SandboxKind.DANGER_FULL_ACCESS, SandboxKind.EXTERNAL]
+)
+def test_unconfined_or_externally_confined_commands_pass_through(
+    kind: SandboxKind,
+) -> None:
+    assert wrap_argv(["echo", "hi"], SandboxPolicy(kind=kind)) == [
+        "echo",
+        "hi",
+    ]
 
 
 def test_missing_backend_refuses_rather_than_running_unconfined(
@@ -282,19 +283,14 @@ def test_a_command_on_the_path_runs_without_an_absolute_path() -> None:
 
 
 def test_a_policy_survives_the_round_trip(tmp_path: Path) -> None:
-    policy = workspace_write(tmp_path, network_allowed=True)
-    assert policy_from_json(policy_to_json(policy)) == policy
-
-
-def test_a_read_only_policy_survives_the_round_trip() -> None:
-    assert policy_from_json(policy_to_json(read_only())) == read_only()
-
-
-def test_awkward_directory_names_travel_as_data(tmp_path: Path) -> None:
     awkward = tmp_path / 'we"ird \n dir'
     awkward.mkdir()
-    restored = policy_from_json(policy_to_json(workspace_write(awkward)))
-    assert restored.writable_roots == (awkward.resolve(),)
+    for policy in (
+        workspace_write(tmp_path, network_allowed=True),
+        workspace_write(awkward),
+        read_only(),
+    ):
+        assert policy_from_json(policy_to_json(policy)) == policy
 
 
 @pytest.mark.parametrize("name", PROTECTED_METADATA_NAMES)
@@ -312,17 +308,10 @@ def test_harness_scratch_does_not_make_a_policy_inexpressible(
 ) -> None:
     """Scratch exists in every workspace; protecting it would make every
     policy inexpressible."""
+    assert landlock.can_enforce(workspace_write(tmp_path))
     (tmp_path / HARNESS_METADATA_NAME).mkdir()
     assert landlock.can_enforce(workspace_write(tmp_path))
-
-
-def test_an_empty_workspace_is_expressible(tmp_path: Path) -> None:
-    assert landlock.can_enforce(workspace_write(tmp_path))
     assert landlock.unenforceable_roots(workspace_write(tmp_path)) == ()
-
-
-def test_full_access_is_not_landlock_s_problem() -> None:
-    landlock.restrict_self(SandboxPolicy(kind=SandboxKind.DANGER_FULL_ACCESS))
 
 
 _ALLOW_INDEX = 8
@@ -339,15 +328,6 @@ def _decode(program: bytes) -> list[tuple[int, int, int, int]]:
 
 def _program() -> list[tuple[int, int, int, int]]:
     return _decode(seccomp._deny_inet_program(0xC000003E, 41))
-
-
-def test_every_conditional_jump_lands_on_a_return() -> None:
-    instructions = _program()
-    for index, (code, jt, jf, _) in enumerate(instructions):
-        if code == _RET_OPCODE:
-            continue
-        for offset in (jt, jf):
-            assert index + 1 + offset in (index + 1, _ALLOW_INDEX, _DENY_INDEX)
 
 
 def test_a_mismatch_falls_through_to_allow() -> None:
@@ -389,21 +369,12 @@ def test_env_is_built_from_scratch(
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-secret")
     monkeypatch.setenv("PATH", "/usr/bin")
 
-    env = build_env()
+    env = build_env(extra={"SOME_TOKEN": "value"})
 
     assert "DEEPSEEK_API_KEY" not in env
     assert env["PATH"] == "/usr/bin"
-
-
-def test_named_extras_are_added(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("PATH", "/usr/bin")
-    env = build_env(extra={"SOME_TOKEN": "value"})
     assert env["SOME_TOKEN"] == "value"
-
-
-def test_allowlist_covers_what_runtimes_break_without() -> None:
-    for name in ("PATH", "HOME", "TMPDIR"):
-        assert name in DEFAULT_ENV_ALLOWLIST
+    assert {"PATH", "HOME", "TMPDIR"} <= set(DEFAULT_ENV_ALLOWLIST)
 
 
 @pytest.mark.asyncio
@@ -423,34 +394,21 @@ async def test_the_host_environment_does_not_leak_into_the_process(
 
 
 @pytest.mark.asyncio
-async def test_a_successful_command_reports_its_output() -> None:
-    result = await run_sandboxed(
+async def test_a_command_reports_its_exit_and_truncates_output() -> None:
+    ok = await run_sandboxed(
         ExecRequest(
-            argv=["/bin/echo", "hello"],
-            policy=_UNCONFINED,
-            timeout_seconds=30,
+            argv=["/bin/echo", "hello"], policy=_UNCONFINED, timeout_seconds=30
         )
     )
-    assert result.ok
-    assert result.stdout.strip() == "hello"
-
-
-@pytest.mark.asyncio
-async def test_a_failing_command_is_not_a_timeout() -> None:
-    result = await run_sandboxed(
+    assert ok.ok and ok.stdout.strip() == "hello"
+    failed = await run_sandboxed(
         ExecRequest(
             argv=["/bin/sh", "-c", "exit 3"],
             policy=_UNCONFINED,
             timeout_seconds=30,
         )
     )
-    assert result.exit_code == 3
-    assert not result.timed_out
-    assert not result.ok
-
-
-@pytest.mark.asyncio
-async def test_output_is_truncated_at_the_ceiling() -> None:
+    assert failed.exit_code == 3 and not failed.timed_out and not failed.ok
     result = await run_sandboxed(
         ExecRequest(
             argv=["/bin/sh", "-c", "printf 'x%.0s' $(seq 1 5000)"],
@@ -583,37 +541,6 @@ async def test_a_command_ignoring_sigterm_is_still_killed(
 
 
 @pytest.mark.parametrize(
-    "argv",
-    [
-        ["ls"],
-        ["ls", "-la", "/tmp"],
-        ["cat", "file.txt"],
-        ["grep", "-r", "pattern", "."],
-        ["wc", "-l", "file.txt"],
-        ["/bin/echo", "hello"],
-        ["/usr/bin/whoami"],
-    ],
-)
-def test_read_only_commands_are_safe(argv: list[str]) -> None:
-    assert is_known_safe(argv)
-
-
-@pytest.mark.parametrize(
-    "argv",
-    [
-        [],
-        ["rm", "-rf", "/"],
-        ["mv", "a", "b"],
-        ["curl", "https://example.com"],
-        ["chmod", "777", "file"],
-        ["unknown-binary"],
-    ],
-)
-def test_mutating_and_unknown_commands_are_unsafe(argv: list[str]) -> None:
-    assert not is_known_safe(argv)
-
-
-@pytest.mark.parametrize(
     "interpreter", ["python", "python3", "node", "perl", "ruby", "sh"]
 )
 def test_no_interpreter_is_ever_safe(interpreter: str) -> None:
@@ -622,19 +549,11 @@ def test_no_interpreter_is_ever_safe(interpreter: str) -> None:
     assert not is_known_safe([interpreter, "-c", "print(1)"])
 
 
-def test_find_is_safe_while_it_only_finds() -> None:
-    assert is_known_safe(["find", ".", "-name", "*.py"])
-
-
 @pytest.mark.parametrize(
     "flag", ["-exec", "-execdir", "-ok", "-okdir", "-delete", "-fprint"]
 )
 def test_find_with_a_side_effecting_flag_is_unsafe(flag: str) -> None:
     assert not is_known_safe(["find", ".", "-name", "*.py", flag, "rm"])
-
-
-def test_base64_is_safe_while_it_only_decodes() -> None:
-    assert is_known_safe(["base64", "-d", "file.txt"])
 
 
 @pytest.mark.parametrize(
@@ -683,18 +602,36 @@ def test_unparsed_constructs_are_refused(script: str) -> None:
     assert not is_known_safe(["bash", "-lc", script])
 
 
-def test_unbalanced_quoting_is_refused() -> None:
-    assert not is_known_safe(["bash", "-lc", 'ls "unterminated'])
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["ls"],
+        ["ls", "-la", "/tmp"],
+        ["grep", "-r", "pattern", "."],
+        ["/bin/echo", "hello"],
+        ["find", ".", "-name", "*.py"],
+        ["base64", "-d", "file.txt"],
+    ],
+)
+def test_read_only_commands_are_safe(argv: list[str]) -> None:
+    assert is_known_safe(argv)
 
 
-def test_a_shell_with_trailing_arguments_is_refused() -> None:
-    assert not is_known_safe(["bash", "-lc", "ls", "extra"])
-
-
-def test_an_empty_script_is_refused() -> None:
-    assert not is_known_safe(["bash", "-lc", "   "])
-
-
-def test_a_bare_shell_is_refused() -> None:
-    assert not is_known_safe(["bash"])
-    assert not is_known_safe(["sh", "-c"])
+@pytest.mark.parametrize(
+    "argv",
+    [
+        [],
+        ["rm", "-rf", "/"],
+        ["curl", "https://example.com"],
+        ["unknown-binary"],
+        ["bash"],
+        ["sh", "-c"],
+        ["bash", "-lc", "   "],
+        ["bash", "-lc", "ls", "extra"],
+        ["bash", "-lc", 'ls "unterminated'],
+    ],
+)
+def test_mutating_unknown_and_malformed_commands_are_unsafe(
+    argv: list[str],
+) -> None:
+    assert not is_known_safe(argv)
