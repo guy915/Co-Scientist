@@ -220,7 +220,7 @@ describe('layout diagnostics report', () => {
     );
     // Session-scoped log views cannot be reproduced by a link alone.
     const [report] = logsApiMock.reportAppLogs.mock.calls[0] as [string];
-    expect(report).toContain('=== LOGS (JSON) ===');
+    expect(report).toContain('## Logs (JSON)');
     expect(await screen.findByText('Sent')).toBeInTheDocument();
   });
 
