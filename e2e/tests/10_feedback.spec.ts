@@ -35,15 +35,18 @@ for (const theme of ['light', 'dark']) {
       await expect(
         dialog.getByRole('button', {name: 'Submit', exact: true}),
       ).toBeDisabled();
-      expect(
-        await dialog.getByLabel('Category').locator('option').allTextContents(),
-      ).toEqual([
-        'Bug',
-        'Security',
-        'Results quality',
-        'Feature request',
-        'Other',
-      ]);
+      await dialog.getByRole('button', {name: /^Category/}).click();
+      expect(await dialog.getByRole('menuitemradio').allTextContents()).toEqual(
+        ['Bug', 'Security', 'Results quality', 'Feature request', 'Other'],
+      );
+      await captureViewport(page, {
+        width,
+        height: 812,
+        name: `feedback-category-${theme}-${width}.png`,
+      });
+      await page.keyboard.press('Escape');
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByRole('menu')).toHaveCount(0);
       await page.keyboard.press('Escape');
       await expect(dialog).toHaveCount(0);
       await expect(feedback).toBeFocused();
@@ -64,7 +67,10 @@ for (const theme of ['light', 'dark']) {
       expect(box!.y + box!.height).toBeLessThanOrEqual(812);
       expect(box!.x + box!.width / 2).toBeCloseTo(width / 2, 0);
       const message = `Feedback browser verification ${theme} ${width}`;
-      await dialog.getByLabel('Category').selectOption('Results quality');
+      await dialog.getByRole('button', {name: /^Category/}).click();
+      await dialog
+        .getByRole('menuitemradio', {name: 'Results quality'})
+        .click();
       await dialog.getByLabel('Message').fill(message);
       await expect(dialog.getByText(/diagnostic|logs|attach/i)).toHaveCount(0);
       await captureViewport(page, {

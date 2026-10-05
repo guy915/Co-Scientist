@@ -6,7 +6,6 @@ import {
   submitFeedback,
   type FeedbackCategory,
 } from '@/api/feedback';
-import {Icon} from '@/components/icon';
 import {
   useBackgroundInert,
   useEscapeKey,
@@ -14,7 +13,8 @@ import {
   useRestoreFocusOnClose,
 } from '../hooks/dom';
 import {sessionDiagnosticExport} from '../layout_diagnostics';
-import {headerControlButtonClasses} from '../layout_primitives';
+import {HeaderControlTrigger} from '../layout_primitives';
+import {SettingsSelect} from './settings_dialog';
 
 export function FeedbackControl({runId}: {runId?: string}) {
   const [open, setOpen] = useState(false);
@@ -24,16 +24,15 @@ export function FeedbackControl({runId}: {runId?: string}) {
     (pathname.startsWith('/runs/') ? pathname.split('/')[2] : undefined);
   return (
     <>
-      <button
-        type="button"
-        className={headerControlButtonClasses('ucs-feedback-control')}
-        aria-label="Feedback"
-        aria-haspopup="dialog"
-        onClick={() => setOpen(true)}
-      >
-        <Icon aria-hidden="true" name="stars" />
-        <span>Feedback</span>
-      </button>
+      <HeaderControlTrigger
+        icon="stars"
+        label="Feedback"
+        tooltip="Send feedback"
+        open={open}
+        onToggle={() => setOpen(current => !current)}
+        ariaLabel="Feedback"
+        ariaHasPopup="dialog"
+      />
       {open &&
         createPortal(
           <FeedbackDialog
@@ -113,22 +112,26 @@ export function FeedbackDialog({
         onSubmit={event => void submit(event)}
       >
         <h2 className="ucs-settings-dialog-title">Feedback</h2>
-        <label>
-          Category
-          <select
-            className="ucs-settings-field-input"
-            value={category}
-            onChange={event =>
-              setCategory(event.target.value as FeedbackCategory)
-            }
-            disabled={busy}
+        <div>
+          <label
+            id="feedback-category-label"
+            className="ucs-settings-field-label"
+            htmlFor="feedback-category"
           >
-            {FEEDBACK_CATEGORIES.map(value => (
-              <option key={value}>{value}</option>
-            ))}
-          </select>
-        </label>
-        <label>
+            Category
+          </label>
+          <SettingsSelect
+            value={category}
+            options={FEEDBACK_CATEGORIES}
+            optionLabel={option => option}
+            name="Category"
+            triggerId="feedback-category"
+            labelId="feedback-category-label"
+            disabled={busy}
+            onChange={setCategory}
+          />
+        </div>
+        <label className="ucs-settings-field-label">
           Message
           <textarea
             ref={messageRef}

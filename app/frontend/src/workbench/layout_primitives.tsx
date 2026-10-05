@@ -48,6 +48,7 @@ interface HeaderControlTriggerProps {
   open: boolean;
   onToggle: () => void;
   ariaLabel?: string;
+  ariaHasPopup?: 'dialog';
   className?: string;
   children?: ReactNode;
 }
@@ -59,6 +60,7 @@ export function HeaderControlTrigger({
   open,
   onToggle,
   ariaLabel,
+  ariaHasPopup,
   className = DEFAULT_HEADER_CONTROL_CLASSES,
   children,
 }: HeaderControlTriggerProps) {
@@ -67,6 +69,7 @@ export function HeaderControlTrigger({
       type="button"
       className={tooltipClassNames({className, placement: 'left'})}
       aria-label={ariaLabel}
+      aria-haspopup={ariaHasPopup}
       data-tooltip={tooltip}
       aria-expanded={open}
       onClick={onToggle}

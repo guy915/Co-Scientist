@@ -1176,7 +1176,6 @@
 
 .ucs-feedback-dialog {
   height: auto;
-  box-sizing: border-box;
   width: min(32rem, calc(100vw - 2rem));
   max-height: calc(100dvh - 2rem);
   gap: 1.25rem;
@@ -1187,7 +1186,6 @@
 .ucs-feedback-dialog label {
   display: grid;
   gap: 0.5rem;
-  font-size: 0.9rem;
 }
 
 .ucs-feedback-dialog textarea {
@@ -1217,7 +1215,7 @@
 }
 
 @media (max-width: 700px) {
-  .ucs-header-actions > .ucs-feedback-control,
+  .ucs-header-actions > button[aria-label='Feedback'],
   .ucs-header-actions > button[aria-label^='Logs'] {
     display: inline-flex;
   }
@@ -1226,11 +1224,7 @@
     display: grid;
   }
 
-  .ucs-header-actions > .ucs-feedback-control {
-    padding-inline: 0.5rem;
-  }
-
-  .ucs-feedback-control > span {
+  .ucs-header-actions > button[aria-label='Feedback'] > span {
     display: none;
   }
 

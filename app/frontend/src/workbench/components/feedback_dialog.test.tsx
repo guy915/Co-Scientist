@@ -47,9 +47,10 @@ function open(path = '/') {
 
 it('shows the five categories in order, logs the modal and cancels without submitting', () => {
   const dialog = open();
+  fireEvent.click(within(dialog).getByRole('button', {name: /^Category/}));
   expect(
     within(dialog)
-      .getAllByRole('option')
+      .getAllByRole('menuitemradio')
       .map(option => option.textContent),
   ).toEqual(['Bug', 'Security', 'Results quality', 'Feature request', 'Other']);
   expect(within(dialog).getByRole('button', {name: 'Submit'})).toBeDisabled();
@@ -65,9 +66,10 @@ it.each(['/runs/direct-run/details', '/chats/private-chat'])(
   'silently attaches diagnostics and run context from %s',
   async path => {
     const dialog = open(path);
-    fireEvent.change(within(dialog).getByLabelText('Category'), {
-      target: {value: 'Results quality'},
-    });
+    fireEvent.click(within(dialog).getByRole('button', {name: /^Category/}));
+    fireEvent.click(
+      within(dialog).getByRole('menuitemradio', {name: 'Results quality'}),
+    );
     fireEvent.change(within(dialog).getByLabelText('Message'), {
       target: {value: '  The evidence needs a clearer explanation.  '},
     });
