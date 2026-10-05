@@ -11,8 +11,8 @@ import app.store.tasks as task_store
 from app.store import db, runs, tasks
 from app.store import tasks_lifecycle as lifecycle
 from app.store.models import RunStatus
-from app.store.tasks import NewTask
 from tests._engine_tasks_helpers import _enqueue, _run, _three_control_tasks
+from tests._store_helpers import enqueue_task
 
 # Lease contention needs real processes; allow for shared CPU contention.
 _SUBPROCESS_TIMEOUT_SECONDS = float(
@@ -56,22 +56,18 @@ def _parallel_scripts(script: str, arguments: list[list[str]]) -> list[str]:
 
 def test_enqueue_is_idempotent(isolated_db: str) -> None:
     run_id = _run()
-    first = tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type="generation.observation",
-            inputs={"branch": "a"},
-            idempotency_key="generation:a:0",
-        ),
+    first = enqueue_task(
+        run_id,
+        "generation.observation",
+        "generation:a:0",
+        inputs={"branch": "a"},
         db_path=isolated_db,
     )
-    duplicate = tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type="generation.observation",
-            inputs={"branch": "changed"},
-            idempotency_key="generation:a:0",
-        ),
+    duplicate = enqueue_task(
+        run_id,
+        "generation.observation",
+        "generation:a:0",
+        inputs={"branch": "changed"},
         db_path=isolated_db,
     )
     assert duplicate.id == first.id
@@ -81,25 +77,19 @@ def test_enqueue_is_idempotent(isolated_db: str) -> None:
 
 def test_claim_respects_priority_and_dependencies(isolated_db: str) -> None:
     run_id = _run()
-    prerequisite = tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type="retrieval.pubmed",
-            inputs={},
-            idempotency_key="retrieval:0",
-            priority=1,
-        ),
+    prerequisite = enqueue_task(
+        run_id,
+        "retrieval.pubmed",
+        "retrieval:0",
+        priority=1,
         db_path=isolated_db,
     )
-    tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type="reflection.full",
-            inputs={},
-            idempotency_key="review:0",
-            priority=100,
-            dependencies=[prerequisite.id],
-        ),
+    enqueue_task(
+        run_id,
+        "reflection.full",
+        "review:0",
+        priority=100,
+        dependencies=[prerequisite.id],
         db_path=isolated_db,
     )
     leased = tasks.claim_task("worker-a", run_id=run_id, db_path=isolated_db)
@@ -115,14 +105,8 @@ def test_claim_respects_priority_and_dependencies(isolated_db: str) -> None:
 
 def test_completion_is_exactly_once(isolated_db: str) -> None:
     run_id = _run()
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type="ranking.debate",
-            inputs={},
-            idempotency_key="match:a:b:0",
-        ),
-        db_path=isolated_db,
+    task = enqueue_task(
+        run_id, "ranking.debate", "match:a:b:0", db_path=isolated_db
     )
     leased = tasks.claim_task("worker-a", run_id=run_id, db_path=isolated_db)
     assert leased is not None and leased.id == task.id
@@ -140,14 +124,8 @@ def test_multi_process_claim_has_single_lease_winner(
     isolated_db: str,
 ) -> None:
     run_id = _run()
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type="ranking.debate",
-            inputs={},
-            idempotency_key="multi-process-claim",
-        ),
-        db_path=isolated_db,
+    task = enqueue_task(
+        run_id, "ranking.debate", "multi-process-claim", db_path=isolated_db
     )
 
     claimed_ids = _parallel_scripts(
@@ -166,13 +144,10 @@ def test_multi_process_duplicate_completion_commits_one_effect(
     isolated_db: str,
 ) -> None:
     run_id = _run()
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type="verification.deep",
-            inputs={},
-            idempotency_key="multi-process-completion",
-        ),
+    task = enqueue_task(
+        run_id,
+        "verification.deep",
+        "multi-process-completion",
         db_path=isolated_db,
     )
     leased = tasks.claim_task(
@@ -199,14 +174,11 @@ def test_crashed_process_lease_is_redelivered_after_restart(
     isolated_db: str,
 ) -> None:
     run_id = _run()
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type="evolution.combine",
-            inputs={},
-            idempotency_key="process-crash-redelivery",
-            max_attempts=2,
-        ),
+    task = enqueue_task(
+        run_id,
+        "evolution.combine",
+        "process-crash-redelivery",
+        max_attempts=2,
         db_path=isolated_db,
     )
     crash_script = _CLAIM_SCRIPT.replace(
@@ -236,14 +208,11 @@ def test_crashed_process_lease_is_redelivered_after_restart(
 
 def test_expired_lease_is_recovered(isolated_db: str) -> None:
     run_id = _run()
-    tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type="evolution.combine",
-            inputs={},
-            idempotency_key="evolve:0",
-            max_attempts=2,
-        ),
+    enqueue_task(
+        run_id,
+        "evolution.combine",
+        "evolve:0",
+        max_attempts=2,
         db_path=isolated_db,
     )
     first = tasks.claim_task(
@@ -261,14 +230,8 @@ def test_owned_lease_can_be_renewed_without_redelivery(
     isolated_db: str,
 ) -> None:
     run_id = _run()
-    queued = tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type="verification.deep",
-            inputs={},
-            idempotency_key="renew:0",
-        ),
-        db_path=isolated_db,
+    queued = enqueue_task(
+        run_id, "verification.deep", "renew:0", db_path=isolated_db
     )
     leased = tasks.claim_task(
         "worker-a", lease_seconds=0.01, run_id=run_id, db_path=isolated_db
@@ -288,14 +251,11 @@ def test_owned_lease_can_be_renewed_without_redelivery(
 
 def test_failure_retries_then_stops(isolated_db: str) -> None:
     run_id = _run()
-    tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type="verification.deep",
-            inputs={},
-            idempotency_key="verify:0",
-            max_attempts=2,
-        ),
+    enqueue_task(
+        run_id,
+        "verification.deep",
+        "verify:0",
+        max_attempts=2,
         db_path=isolated_db,
     )
     first = tasks.claim_task("worker-a", run_id=run_id, db_path=isolated_db)
@@ -349,14 +309,8 @@ def test_dynamic_engine_plan_stays_indeterminate_as_tasks_expand(
     isolated_db: str,
 ) -> None:
     run_id = _run()
-    tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type="engine.bootstrap",
-            inputs={},
-            idempotency_key="engine-bootstrap",
-        ),
-        db_path=isolated_db,
+    enqueue_task(
+        run_id, "engine.bootstrap", "engine-bootstrap", db_path=isolated_db
     )
     progress = tasks.task_progress(run_id, db_path=isolated_db)
     assert progress["determinate"] is False
@@ -368,32 +322,14 @@ def test_cancel_run_tasks_revokes_queued_leased_and_paused_work(
     isolated_db: str,
 ) -> None:
     run_id = _run()
-    first = tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type="engine.node.review",
-            inputs={},
-            idempotency_key="cancel:first",
-        ),
-        db_path=isolated_db,
+    first = enqueue_task(
+        run_id, "engine.node.review", "cancel:first", db_path=isolated_db
     )
-    tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type="engine.node.ranking",
-            inputs={},
-            idempotency_key="cancel:second",
-        ),
-        db_path=isolated_db,
+    enqueue_task(
+        run_id, "engine.node.ranking", "cancel:second", db_path=isolated_db
     )
-    tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type="engine.node.review",
-            inputs={},
-            idempotency_key="cancel:paused",
-        ),
-        db_path=isolated_db,
+    enqueue_task(
+        run_id, "engine.node.review", "cancel:paused", db_path=isolated_db
     )
     assert tasks.claim_task("worker", run_id=run_id, db_path=isolated_db)
     assert lifecycle.pause_run_tasks(run_id, db_path=isolated_db) == 2
@@ -411,14 +347,8 @@ def test_pause_and_resume_make_queued_tasks_non_claimable(
     isolated_db: str,
 ) -> None:
     run_id = _run()
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type="engine.bootstrap",
-            inputs={},
-            idempotency_key="pause-bootstrap",
-        ),
-        db_path=isolated_db,
+    task = enqueue_task(
+        run_id, "engine.bootstrap", "pause-bootstrap", db_path=isolated_db
     )
     assert lifecycle.pause_run_tasks(run_id, db_path=isolated_db) == 1
     assert (
@@ -445,13 +375,10 @@ def test_paused_run_ignores_late_queue_rows_and_cohort_work(
     isolated_db: str, task_type: str
 ) -> None:
     run_id = _run()
-    predecessor = tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type="engine.node.orchestrator",
-            inputs={},
-            idempotency_key="pause:predecessor",
-        ),
+    predecessor = enqueue_task(
+        run_id,
+        "engine.node.orchestrator",
+        "pause:predecessor",
         db_path=isolated_db,
     )
     leased = tasks.claim_task(
@@ -462,14 +389,8 @@ def test_paused_run_ignores_late_queue_rows_and_cohort_work(
         predecessor.id, "predecessor-worker", {}, db_path=isolated_db
     )
 
-    active = tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type="engine.node.ranking",
-            inputs={},
-            idempotency_key="pause:active-lease",
-        ),
-        db_path=isolated_db,
+    active = enqueue_task(
+        run_id, "engine.node.ranking", "pause:active-lease", db_path=isolated_db
     )
     leased = tasks.claim_task(
         "active-worker", run_id=run_id, db_path=isolated_db
@@ -480,23 +401,17 @@ def test_paused_run_ignores_late_queue_rows_and_cohort_work(
         lifecycle.pause_run_tasks(run_id, conn=conn)
         runs.update_run_status(run_id, RunStatus.PAUSED, conn=conn)
 
-    tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type=task_type,
-            inputs={},
-            idempotency_key=f"pause:late:{task_type}",
-            dependencies=(predecessor.id,),
-        ),
+    enqueue_task(
+        run_id,
+        task_type,
+        f"pause:late:{task_type}",
+        dependencies=(predecessor.id,),
         db_path=isolated_db,
     )
-    delayed = tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type="engine.fanout.review.aggregate",
-            inputs={},
-            idempotency_key="pause:future-due",
-        ),
+    delayed = enqueue_task(
+        run_id,
+        "engine.fanout.review.aggregate",
+        "pause:future-due",
         db_path=isolated_db,
     )
     with db.connect(isolated_db) as conn:

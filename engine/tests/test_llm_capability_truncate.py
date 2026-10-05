@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Iterator
 from typing import Any
 
 import pytest
@@ -9,9 +8,6 @@ from jsonschema.exceptions import ValidationError
 
 from co_scientist.llm import CompletionSpec, call_llm_json
 from co_scientist.llm.attempts import json_attempt
-from co_scientist.llm.request.completion import (
-    _supports_json_schema_response_format,
-)
 from co_scientist.llm.structured.validate import reshape_json_output
 from co_scientist.schemas.planning import META_REVIEW_SCHEMA
 from tests._llm_fake import disable_llm_cache as _disable_cache
@@ -476,17 +472,6 @@ class TestLlmCapabilityTruncateStrings:
         reshape_json_output({"a": 1}, "not a schema")
 
 
-@pytest.fixture
-def _llm_capability_truncate_strings_wiring_clear_capability_cache() -> (
-    Iterator[None]
-):
-    """Memoized per-model answers must not leak between patched provider
-    fixtures."""
-    _supports_json_schema_response_format.cache_clear()
-    yield
-    _supports_json_schema_response_format.cache_clear()
-
-
 _MAX_LENGTH_SCHEMA: dict[str, Any] = {
     "name": "capability_shim_max_length",
     "schema": {
@@ -501,9 +486,7 @@ _MAX_LENGTH_SCHEMA: dict[str, Any] = {
 _LONG_TITLE = json.dumps({"title": "this title runs well past the cap"})
 
 
-@pytest.mark.usefixtures(
-    "_llm_capability_truncate_strings_wiring_clear_capability_cache"
-)
+@pytest.mark.usefixtures("clear_capability_cache")
 class TestLlmCapabilityTruncateStringsWiring:
     async def test_call_llm_json_truncates_oversized_string_on_downgrade(
         self,
@@ -547,15 +530,6 @@ class TestLlmCapabilityTruncateStringsWiring:
             )
 
 
-@pytest.fixture
-def _llm_capability_truncate_wiring_clear_capability_cache() -> Iterator[None]:
-    """Memoized per-model answers must not leak between patched provider
-    fixtures."""
-    _supports_json_schema_response_format.cache_clear()
-    yield
-    _supports_json_schema_response_format.cache_clear()
-
-
 _MAX_ITEMS_SCHEMA: dict[str, Any] = {
     "name": "capability_shim_max_items",
     "schema": {
@@ -574,16 +548,12 @@ _MAX_ITEMS_SCHEMA: dict[str, Any] = {
 _SIX_STEPS = json.dumps({"steps": ["a", "b", "c", "d", "e", "f"]})
 
 
-@pytest.mark.usefixtures(
-    "_llm_capability_truncate_wiring_clear_capability_cache"
-)
+@pytest.mark.usefixtures("clear_capability_cache")
 class TestLlmCapabilityTruncateWiring:
     async def test_call_llm_json_truncates_oversized_array_on_downgrade(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """JSON-object providers can repeat the same overlong value on every
-        retry."""
         _disable_cache(monkeypatch)
         _patch_registry(monkeypatch, supported=False)
         captured = _capture_acompletion(monkeypatch, [_completion(_SIX_STEPS)])
@@ -603,8 +573,6 @@ class TestLlmCapabilityTruncateWiring:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Native schema providers reject overlong output; trimming there
-        would hide an anomaly."""
         _disable_cache(monkeypatch)
         _patch_registry(monkeypatch, supported=True)
         six_steps = _completion(_SIX_STEPS)

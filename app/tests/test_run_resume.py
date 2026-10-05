@@ -1,9 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import types
-from collections.abc import AsyncIterator
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -29,12 +26,11 @@ from app.store import records as store
 from app.store import runs_views as views
 from app.store import tasks as store_tasks
 from app.store import tasks_lifecycle as lifecycle
-from app.store.checkpoints import NewCheckpoint
 from app.store.hypotheses import NewHypothesis
 from app.store.models import MessageRow
 from app.store.models import RunStatus as StoreRunStatus
 from app.store.records import NewEvidence, NewReview, NewSafetyDecision
-from app.store.tasks import NewTask
+from tests._client import create_run as _create_run
 from tests._client import fake_litellm as _fake_litellm
 from tests._client import make_client
 from tests._client import make_client as _client
@@ -45,9 +41,11 @@ from tests._engine_tasks_helpers import (
     _patch_restore_generator,
     _seed_checkpoint,
     _task_state,
+    fake_final_drain,
 )
 from tests._llm_fake_backend import install_completion_backend
 from tests._process_mode_helpers import FakeProcessMode
+from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
 
 
 def test_admitted_human_hypothesis_carries_authorship() -> None:
@@ -111,11 +109,7 @@ def test_human_review_rejects_bad_verdict() -> None:
 
 
 def _new_run(client: Any, headers: dict[str, str] | None = None) -> str:
-    res = client.post(
-        "/api/runs",
-        headers=headers,
-        json={"research_goal": "Scientist-in-the-loop goal"},
-    )
+    res = _create_run(client, "Scientist-in-the-loop goal", headers=headers)
     return str(res.json()["id"])
 
 
@@ -414,9 +408,7 @@ def _seed_scientist_artifacts(run_id: str) -> str:
 
 
 def test_resume_preserves_scientist_contributions(isolated_db: str) -> None:
-    run = runs.create_run(
-        "Human input survives resume", "express", "engine", {}
-    )
+    run = seed_run("Human input survives resume", profile="express")
     _seed_agent_artifacts(run.id)
     manual_id = _seed_scientist_artifacts(run.id)
 
@@ -433,7 +425,7 @@ def test_resume_preserves_scientist_contributions(isolated_db: str) -> None:
 def test_publication_replay_preserves_task_history_and_scientist_input(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("Publication replay", "express", "engine", {})
+    run = seed_run("Publication replay", profile="express")
     manual_id = hypotheses.add_hypothesis(
         NewHypothesis(
             run_id=run.id,
@@ -468,14 +460,8 @@ def test_publication_replay_preserves_task_history_and_scientist_input(
             matches=[],
         )
     )
-    store_tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type="engine.finalize",
-            inputs={},
-            idempotency_key="finalize-test",
-        ),
-        db_path=isolated_db,
+    enqueue_task(
+        run.id, "engine.finalize", "finalize-test", db_path=isolated_db
     )
 
     views.clear_publication_artifacts(run.id, db_path=isolated_db)
@@ -496,18 +482,13 @@ def test_resume_reassigns_event_seqs_above_last_checkpoint(
 ) -> None:
     # Clients retain after=N cursors; resumed event sequences must exceed
     # checkpoint high-water marks.
-    run = runs.create_run("Seq continuity", "express", "engine", {})
+    run = seed_run("Seq continuity", profile="express")
     for i in range(5):
         store_events.append_event(run.id, "log", {"i": i})
     high_water = store_events.latest_event_seq(run.id)
     assert high_water == 5
 
-    checkpoints.save_checkpoint(
-        run.id,
-        NewCheckpoint(
-            stage="pause", schema_version=1, last_event_seq=high_water, state={}
-        ),
-    )
+    seed_checkpoint(run.id, {}, stage="pause", last_event_seq=high_water)
     views.clear_run_derived_data(run.id)
     assert store_events.list_events(run.id) == []
 
@@ -520,18 +501,14 @@ def test_resume_reassigns_event_seqs_above_last_checkpoint(
 
 def test_resume_endpoint_requires_a_checkpoint(isolated_db: str) -> None:
     client = _client()
-    run_id = client.post(
-        "/api/runs", json={"research_goal": "No checkpoint yet"}
-    ).json()["id"]
+    run_id = _create_run(client, "No checkpoint yet").json()["id"]
     res = client.post(f"/api/runs/{run_id}/resume")
     assert res.status_code == 409
 
 
 def test_pause_endpoint_404_when_not_active(isolated_db: str) -> None:
     client = _client()
-    run_id = client.post(
-        "/api/runs", json={"research_goal": "Not active"}
-    ).json()["id"]
+    run_id = _create_run(client, "Not active").json()["id"]
     res = client.post(f"/api/runs/{run_id}/pause")
     assert res.status_code == 404
 
@@ -587,10 +564,7 @@ async def test_two_resume_cycles_still_complete_with_pool_intact(
     # detached execution.
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client = _client()
-    created = client.post(
-        "/api/runs",
-        json={"research_goal": "Double resume coverage", "tier": "express"},
-    )
+    created = _create_run(client, "Double resume coverage", tier="express")
     assert created.status_code == 200
     run_id = created.json()["id"]
     started = client.post(f"/api/runs/{run_id}/start", json={})
@@ -634,33 +608,27 @@ def _seed_stale_mock_run(run_id: str) -> str:
 
 
 def _save_legacy_mock_checkpoint(run_id: str) -> None:
-    checkpoints.save_checkpoint(
+    seed_checkpoint(
         run_id,
-        NewCheckpoint(
-            stage="iteration_1",
-            schema_version=1,
-            last_event_seq=store_events.latest_event_seq(run_id),
-            state={
-                "provider": "mock",
-                "run_mode": "express",
-                "iteration": 1,
-                "config": {"tier": "express"},
-            },
-        ),
+        {
+            "provider": "mock",
+            "run_mode": "express",
+            "iteration": 1,
+            "config": {"tier": "express"},
+        },
+        stage="iteration_1",
+        last_event_seq=store_events.latest_event_seq(run_id),
     )
 
 
 def _save_engine_checkpoint(run_id: str) -> None:
     # The launcher inspects only the provider tag; the worker restores state
     # later.
-    checkpoints.save_checkpoint(
+    seed_checkpoint(
         run_id,
-        NewCheckpoint(
-            stage="engine_task:node",
-            schema_version=1,
-            last_event_seq=store_events.latest_event_seq(run_id),
-            state={"provider": "engine", "state": {"hypotheses": []}},
-        ),
+        {"provider": "engine", "state": {"hypotheses": []}},
+        stage="engine_task:node",
+        last_event_seq=store_events.latest_event_seq(run_id),
     )
 
 
@@ -681,15 +649,7 @@ def _assert_rebootstrapped_completed(run_id: str, stale_id: str) -> None:
 
 
 def _enqueue_paused_blocking_task(run_id: str, db_path: str) -> None:
-    store_tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type="engine.test.blocking",
-            inputs={},
-            idempotency_key="blocking:0",
-        ),
-        db_path=db_path,
-    )
+    enqueue_task(run_id, "engine.test.blocking", "blocking:0", db_path=db_path)
     lifecycle.pause_run_tasks(run_id, db_path=db_path)
     runs.update_run_status(run_id, StoreRunStatus.PAUSED)
 
@@ -724,7 +684,7 @@ def test_prepare_resume_state_keeps_derived_data_for_engine_checkpoint(
 ) -> None:
     # True engine resumes keep prior events that the restored workflow will not
     # emit again.
-    run = runs.create_run("Engine checkpoint resume", "standard", "engine", {})
+    run = seed_run("Engine checkpoint resume")
     stale_id = _seed_stale_mock_run(run.id)
     _save_engine_checkpoint(run.id)
     assert engine_adapter.is_engine_checkpoint(
@@ -744,8 +704,11 @@ async def test_launch_resume_rebootstraps_legacy_mock_checkpoint(
     # Legacy mock envelopes cannot restore engine state; clear stale derived
     # data and bootstrap durably.
     _install_fake_engine_llm(monkeypatch)
-    run = runs.create_run(
-        "Legacy mock resume", "express", "mock", {"tier": "express"}
+    run = seed_run(
+        "Legacy mock resume",
+        profile="express",
+        provider="mock",
+        config={"tier": "express"},
     )
 
     stale_id = _seed_stale_mock_run(run.id)
@@ -766,7 +729,7 @@ async def test_resume_does_not_execute_run_work_on_the_event_loop(
 ) -> None:
     # Resume cohorts must run off the API loop; synchronous state/SQLite work
     # otherwise starves health checks.
-    run = runs.create_run("loop freedom", "standard", "engine", {})
+    run = seed_run("loop freedom")
     _enqueue_paused_blocking_task(run.id, isolated_db)
     _install_blocking_execute(monkeypatch)
 
@@ -789,25 +752,20 @@ async def test_resume_rejects_final_safety_block_after_finalize_succeeded(
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     owner = make_client()
     owner_headers = {"X-Client-ID": "final-safety-block-owner"}
-    created = owner.post(
-        "/api/runs",
+    created = _create_run(
+        owner,
+        "Study a final-stage safety block",
         headers=owner_headers,
-        json={
-            "research_goal": "Study a final-stage safety block",
-            "tier": "express",
-        },
+        tier="express",
     )
     assert created.status_code == 200, created.text
     run_id = str(created.json()["id"])
     runs.update_run_status(run_id, StoreRunStatus.RUNNING, db_path=isolated_db)
 
-    predecessor = store_tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type="engine.node.overview",
-            inputs={},
-            idempotency_key="completed-overview",
-        ),
+    predecessor = enqueue_task(
+        run_id,
+        "engine.node.overview",
+        "completed-overview",
         db_path=isolated_db,
     )
     previous_claim = store_tasks.claim_task(
@@ -830,40 +788,26 @@ async def test_resume_rejects_final_safety_block_after_finalize_succeeded(
     )
     checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
     assert checkpoint is not None
-    checkpoint_seq = checkpoints.save_checkpoint(
+    checkpoint_seq = seed_checkpoint(
         run_id,
-        NewCheckpoint(
-            stage=f"engine_task:{predecessor.id}",
-            schema_version=checkpoint["schema_version"],
-            last_event_seq=checkpoint["last_event_seq"],
-            state={
-                **checkpoint["state"],
-                "resume_successor": engine_tasks_support.FINALIZE_TASK,
-            },
-        ),
+        {
+            **checkpoint["state"],
+            "resume_successor": engine_tasks_support.FINALIZE_TASK,
+        },
+        stage=f"engine_task:{predecessor.id}",
+        schema_version=checkpoint["schema_version"],
+        last_event_seq=checkpoint["last_event_seq"],
         db_path=isolated_db,
     )
-    finalizer = store_tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type=engine_tasks_support.FINALIZE_TASK,
-            inputs={"checkpoint_seq": checkpoint_seq},
-            idempotency_key=f"{engine_tasks_support.FINALIZE_TASK}:after:{predecessor.id}",
-            dependencies=(predecessor.id,),
-        ),
+    finalizer = enqueue_task(
+        run_id,
+        engine_tasks_support.FINALIZE_TASK,
+        f"{engine_tasks_support.FINALIZE_TASK}:after:{predecessor.id}",
+        inputs={"checkpoint_seq": checkpoint_seq},
+        dependencies=(predecessor.id,),
         db_path=isolated_db,
     )
     _patch_restore_generator(monkeypatch, _Generator(state))
-
-    async def fake_drain(
-        *_: Any, **__: Any
-    ) -> tuple[Any, float, dict[str, Any]]:
-        drained = SimpleNamespace(
-            safety_counts={},
-            grounding_counts={},
-            report_inputs={"citation_summary": {}},
-        )
-        return drained, 1.0, {}
 
     async def block_final_report(*_: Any, **__: Any) -> SafetyDecision:
         return SafetyDecision(
@@ -887,7 +831,7 @@ async def test_resume_rejects_final_safety_block_after_finalize_succeeded(
     async def fake_build_report(*_: Any, **__: Any) -> Any:
         return built
 
-    _install_runtime(monkeypatch).drain_final_state = fake_drain
+    _install_runtime(monkeypatch).drain_final_state = fake_final_drain
     monkeypatch.setattr(
         report_finalize, "build_report_content", fake_build_report
     )
@@ -955,10 +899,8 @@ def _run_with_held_decision(
     from app.store import records as store
     from app.store.records import NewSafetyDecision as StoreNewSafetyDecision
 
-    created = client.post(
-        "/api/runs",
-        headers=headers,
-        json={"research_goal": "Review a sensitive research protocol"},
+    created = _create_run(
+        client, "Review a sensitive research protocol", headers=headers
     ).json()
     store.add_safety_decision(
         StoreNewSafetyDecision(
@@ -1018,10 +960,8 @@ def test_held_hypothesis_adjudication_records_without_blocking(
 
     client = _client()
     headers = {"X-Client-ID": "held-reviewer"}
-    created = client.post(
-        "/api/runs",
-        headers=headers,
-        json={"research_goal": "Adjudicate hypotheses held for review"},
+    created = _create_run(
+        client, "Adjudicate hypotheses held for review", headers=headers
     ).json()
     run_id = created["id"]
     _persist(
@@ -1091,10 +1031,8 @@ def test_paused_run_without_unresolved_review_awaits_nothing(
 
     client = _client()
     headers = {"X-Client-ID": "awaiting-2"}
-    run = client.post(
-        "/api/runs",
-        headers=headers,
-        json={"research_goal": "Explore a mundane pathway"},
+    run = _create_run(
+        client, "Explore a mundane pathway", headers=headers
     ).json()
     store.update_run_status(run["id"], RunStatus.PAUSED)
 
@@ -1139,12 +1077,8 @@ def test_paused_run_with_resolved_review_awaits_nothing(
 def _started_run_id() -> str:
     c = _client()
     return str(
-        c.post(
-            "/api/runs",
-            json={
-                "research_goal": "Investigate ferroptosis in cancer",
-                "tier": "express",
-            },
+        _create_run(
+            c, "Investigate ferroptosis in cancer", tier="express"
         ).json()["id"]
     )
 
@@ -1237,23 +1171,6 @@ def test_announcement_404s_for_an_unknown_run() -> None:
     assert _announce("no-such-run").status_code == 404
 
 
-def _thinking_litellm(reasoning: str, prose: str) -> types.SimpleNamespace:
-
-    async def _chunk_stream() -> AsyncIterator[Any]:
-        for field, text in (
-            ("reasoning_content", reasoning),
-            ("content", prose),
-        ):
-            delta = SimpleNamespace(content=None, reasoning_content=None)
-            setattr(delta, field, text)
-            yield SimpleNamespace(choices=[SimpleNamespace(delta=delta)])
-
-    async def _acompletion(**_kwargs: Any) -> AsyncIterator[Any]:
-        return _chunk_stream()
-
-    return types.SimpleNamespace(acompletion=_acompletion)
-
-
 def test_reasoning_is_relayed_and_kept_with_the_reply(
     monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:
@@ -1262,8 +1179,16 @@ def test_reasoning_is_relayed_and_kept_with_the_reply(
     install_completion_backend(
         monkeypatch,
         (
-            _thinking_litellm(
-                "The run exists, so this confirms it.", "Under way."
+            _fake_litellm(
+                [
+                    {
+                        "content": None,
+                        "reasoning_content": (
+                            "The run exists, so this confirms it."
+                        ),
+                    },
+                    {"content": "Under way.", "reasoning_content": None},
+                ]
             )
         ).acompletion,
     )
@@ -1274,29 +1199,6 @@ def test_reasoning_is_relayed_and_kept_with_the_reply(
     assert body.index('"type": "reasoning"') < body.index('"type": "chunk"')
     reply = _start_rows(rid)[1]
     assert reply.meta == {"reasoning": "The run exists, so this confirms it."}
-
-
-def _thinking_only_then_answered_litellm(
-    reasoning: str, prose: str, calls: list[dict[str, Any]]
-) -> types.SimpleNamespace:
-    # The first stream has reasoning but no answer; the second represents
-    # thinking-off recovery.
-
-    async def _reasoning_only_stream() -> AsyncIterator[Any]:
-        delta = SimpleNamespace(content=None, reasoning_content=reasoning)
-        yield SimpleNamespace(choices=[SimpleNamespace(delta=delta)])
-
-    async def _answered_stream() -> AsyncIterator[Any]:
-        delta = SimpleNamespace(content=prose, reasoning_content=None)
-        yield SimpleNamespace(choices=[SimpleNamespace(delta=delta)])
-
-    async def _acompletion(**kwargs: Any) -> AsyncIterator[Any]:
-        calls.append(kwargs)
-        if len(calls) == 1:
-            return _reasoning_only_stream()
-        return _answered_stream()
-
-    return types.SimpleNamespace(acompletion=_acompletion)
 
 
 def test_thinking_only_announcement_retries_before_the_fallback(
@@ -1311,10 +1213,22 @@ def test_thinking_only_announcement_retries_before_the_fallback(
     install_completion_backend(
         monkeypatch,
         (
-            _thinking_only_then_answered_litellm(
-                "brainstorming candidates at length...",
-                "Research is under way.",
-                calls,
+            _fake_litellm(
+                [
+                    {
+                        "content": None,
+                        "reasoning_content": (
+                            "brainstorming candidates at length..."
+                        ),
+                    }
+                ],
+                retry_chunks=[
+                    {
+                        "content": "Research is under way.",
+                        "reasoning_content": None,
+                    }
+                ],
+                calls=calls,
             )
         ).acompletion,
     )

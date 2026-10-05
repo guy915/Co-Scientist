@@ -19,31 +19,15 @@ from app.store import checkpoints, runs
 from app.store import events as store_events
 from app.store import tasks as store
 from app.store import tasks_lifecycle as lifecycle
-from app.store.checkpoints import NewCheckpoint
 from app.store.models import RunRow, RunStatus, ScientificTask
-from app.store.runs import RunCreateOptions
-from app.store.tasks import NewTask
 from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
+from tests._client import create_run as _create_run
 from tests._client import drain as _drain
 from tests._client import make_client as _client
+from tests._client import start_and_complete as _start_and_complete
 from tests._client import wait_for_status as _wait_status
 from tests._engine_tasks_helpers import _seed_checkpoint, _task_state
-
-
-def _start_and_complete(
-    client: TestClient,
-    goal: str,
-    *,
-    tier: str = "express",
-    timeout: float = 30.0,
-) -> str:
-    res = client.post("/api/runs", json={"research_goal": goal, "tier": tier})
-    run_id: str = res.json()["id"]
-    assert client.post(f"/api/runs/{run_id}/start", json={}).status_code == 200
-    assert _wait_status(client, run_id, "completed", timeout=timeout), (
-        "run did not reach 'completed'"
-    )
-    return run_id
+from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
 
 
 def _run_views(client: TestClient, run_id: str) -> dict[str, Any]:
@@ -64,12 +48,7 @@ def _run_views(client: TestClient, run_id: str) -> dict[str, Any]:
 
 def test_create_run_returns_draft_status() -> None:
     client = _client()
-    res = client.post(
-        "/api/runs",
-        json={
-            "research_goal": "Explore mitochondrial dynamics in neurons",
-        },
-    )
+    res = _create_run(client, "Explore mitochondrial dynamics in neurons")
     assert res.status_code == 200
     data = res.json()
     assert data["status"] == "draft"
@@ -93,10 +72,8 @@ def test_owned_proximity_endpoint_returns_persisted_landscape(
 
     client = _client()
     headers = {"X-Client-ID": "landscape-owner"}
-    run = client.post(
-        "/api/runs",
-        headers=headers,
-        json={"research_goal": "Map a conceptual hypothesis landscape"},
+    run = _create_run(
+        client, "Map a conceptual hypothesis landscape", headers=headers
     ).json()
     source = store.add_hypothesis(
         NewHypothesis(
@@ -133,10 +110,8 @@ def test_list_runs_honors_limit_query(isolated_db: str) -> None:
     client = _client()
     headers = {"X-Client-ID": "limit-test"}
     for i in range(3):
-        res = client.post(
-            "/api/runs",
-            headers=headers,
-            json={"research_goal": f"Limit test {i}", "run_mode": "default"},
+        res = _create_run(
+            client, f"Limit test {i}", headers=headers, run_mode="default"
         )
         assert res.status_code == 200
 
@@ -179,16 +154,14 @@ def test_create_run_persists_setup_and_exact_tier_defaults(
     isolated_db: str,
 ) -> None:
     client = _client()
-    res = client.post(
-        "/api/runs",
-        json={
-            "research_goal": "Discover selective autophagy mechanisms",
-            "requirements": ["Use primary literature", ""],
-            "attributes": ["Mechanistic"],
-            "criteria": ["Testability"],
-            "focus": "prefer_novelty",
-            "tier": "standard",
-        },
+    res = _create_run(
+        client,
+        "Discover selective autophagy mechanisms",
+        requirements=["Use primary literature", ""],
+        attributes=["Mechanistic"],
+        criteria=["Testability"],
+        focus="prefer_novelty",
+        tier="standard",
     )
 
     assert res.status_code == 200
@@ -218,9 +191,7 @@ def test_create_run_without_spec_gets_baseline_planning(
     )
 
     client = _client()
-    res = client.post(
-        "/api/runs", json={"research_goal": "Map tau propagation in the brain"}
-    )
+    res = _create_run(client, "Map tau propagation in the brain")
 
     assert res.status_code == 200
     setup = res.json()["config"]["setup"]
@@ -293,13 +264,10 @@ def test_legacy_advanced_profile_maps_to_standard_tier(
     # Legacy profile is not a tier selector; only the current tier field chooses
     # run depth.
     client = _client()
-    res = client.post(
-        "/api/runs",
-        json={
-            "research_goal": "Cytokine-storm modulation via "
-            "gut-microbiome metabolites",
-            "profile": "advanced",
-        },
+    res = _create_run(
+        client,
+        "Cytokine-storm modulation via gut-microbiome metabolites",
+        profile="advanced",
     )
     run_id: str = res.json()["id"]
     client.post(f"/api/runs/{run_id}/start", json={})
@@ -316,7 +284,7 @@ def test_legacy_advanced_profile_maps_to_standard_tier(
 
 
 def _new_run(c: TestClient, goal: str, *, tier: str = "express") -> str:
-    response = c.post("/api/runs", json={"research_goal": goal, "tier": tier})
+    response = _create_run(c, goal, tier=tier)
     return cast(str, response.json()["id"])
 
 
@@ -578,13 +546,10 @@ def test_blocked_run_with_completed_finalize_requires_new_run(
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client = _client()
     rid = _new_run(client, "Do not revive a blocked finalize")
-    predecessor = store.enqueue_task(
-        NewTask(
-            run_id=rid,
-            task_type="engine.node.orchestrator",
-            inputs={},
-            idempotency_key="previous-orchestrator",
-        ),
+    predecessor = enqueue_task(
+        rid,
+        "engine.node.orchestrator",
+        "previous-orchestrator",
         db_path=isolated_db,
     )
     previous = store.claim_task("previous-worker", run_id=rid)
@@ -598,27 +563,23 @@ def test_blocked_run_with_completed_finalize_requires_new_run(
     )
     checkpoint = checkpoints.get_latest_checkpoint(rid, db_path=isolated_db)
     assert checkpoint is not None
-    checkpoint_seq = checkpoints.save_checkpoint(
+    checkpoint_seq = seed_checkpoint(
         rid,
-        NewCheckpoint(
-            stage=f"engine_task:{previous.id}",
-            schema_version=checkpoint["schema_version"],
-            last_event_seq=checkpoint["last_event_seq"],
-            state={
-                **checkpoint["state"],
-                "resume_successor": "engine.finalize",
-            },
-        ),
+        {
+            **checkpoint["state"],
+            "resume_successor": "engine.finalize",
+        },
+        stage=f"engine_task:{previous.id}",
+        schema_version=checkpoint["schema_version"],
+        last_event_seq=checkpoint["last_event_seq"],
         db_path=isolated_db,
     )
-    finalizer = store.enqueue_task(
-        NewTask(
-            run_id=rid,
-            task_type="engine.finalize",
-            inputs={"checkpoint_seq": checkpoint_seq},
-            idempotency_key=f"engine.finalize:after:{previous.id}",
-            dependencies=(previous.id,),
-        ),
+    finalizer = enqueue_task(
+        rid,
+        "engine.finalize",
+        f"engine.finalize:after:{previous.id}",
+        inputs={"checkpoint_seq": checkpoint_seq},
+        dependencies=(previous.id,),
         db_path=isolated_db,
     )
     claimed_finalizer = store.claim_task("finalize-worker", run_id=rid)
@@ -743,18 +704,14 @@ def test_terminal_status_from_run_returns_none_for_unknown_run(
 def test_terminal_status_from_run_returns_none_for_active_run(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run(
-        "g", "default", "mock", {}, RunCreateOptions(db_path=isolated_db)
-    )
+    run = seed_run("g", profile="default", provider="mock", db_path=isolated_db)
     assert runs_events._terminal_status_from_run(run.id) is None
 
 
 def test_terminal_status_from_run_returns_terminal_status(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run(
-        "g", "default", "mock", {}, RunCreateOptions(db_path=isolated_db)
-    )
+    run = seed_run("g", profile="default", provider="mock", db_path=isolated_db)
     runs.update_run_status(run.id, RunStatus.COMPLETED, db_path=isolated_db)
     assert runs_events._terminal_status_from_run(run.id) == "completed"
 
@@ -771,9 +728,7 @@ def test_resolve_tick_terminal_prefers_event_terminal_status(
 def test_resolve_tick_terminal_skips_run_query_on_non_safety_tick(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run(
-        "g", "default", "mock", {}, RunCreateOptions(db_path=isolated_db)
-    )
+    run = seed_run("g", profile="default", provider="mock", db_path=isolated_db)
     runs.update_run_status(run.id, RunStatus.COMPLETED, db_path=isolated_db)
     assert runs_events._resolve_tick_terminal(None, run.id, 3) is None
 
@@ -781,9 +736,7 @@ def test_resolve_tick_terminal_skips_run_query_on_non_safety_tick(
 def test_resolve_tick_terminal_safety_net_queries_on_tenth_tick(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run(
-        "g", "default", "mock", {}, RunCreateOptions(db_path=isolated_db)
-    )
+    run = seed_run("g", profile="default", provider="mock", db_path=isolated_db)
     runs.update_run_status(run.id, RunStatus.COMPLETED, db_path=isolated_db)
     assert runs_events._resolve_tick_terminal(None, run.id, 9) == "completed"
 
@@ -791,9 +744,7 @@ def test_resolve_tick_terminal_safety_net_queries_on_tenth_tick(
 def test_drain_tick_frames_returns_new_events_as_sse_frames(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run(
-        "g", "default", "mock", {}, RunCreateOptions(db_path=isolated_db)
-    )
+    run = seed_run("g", profile="default", provider="mock", db_path=isolated_db)
     store_events.append_event(run.id, "log", {"i": 0}, db_path=isolated_db)
     seq1 = store_events.append_event(
         run.id, "log", {"i": 1}, db_path=isolated_db
@@ -810,9 +761,7 @@ def test_drain_tick_frames_returns_new_events_as_sse_frames(
 def test_drain_tick_frames_detects_terminal_status_event(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run(
-        "g", "default", "mock", {}, RunCreateOptions(db_path=isolated_db)
-    )
+    run = seed_run("g", profile="default", provider="mock", db_path=isolated_db)
     seq = store_events.append_event(
         run.id, "status", {"status": "failed"}, db_path=isolated_db
     )
@@ -827,9 +776,7 @@ def test_drain_tick_frames_detects_terminal_status_event(
 def test_stream_live_tail_returns_immediately_on_disconnect(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run(
-        "g", "default", "mock", {}, RunCreateOptions(db_path=isolated_db)
-    )
+    run = seed_run("g", profile="default", provider="mock", db_path=isolated_db)
     request = _FakeRequest(disconnected=True)
 
     frames = _drain(
@@ -843,9 +790,7 @@ def test_stream_live_tail_returns_immediately_on_disconnect(
 
 
 def test_stream_live_tail_ends_on_terminal_event(isolated_db: str) -> None:
-    run = runs.create_run(
-        "g", "default", "mock", {}, RunCreateOptions(db_path=isolated_db)
-    )
+    run = seed_run("g", profile="default", provider="mock", db_path=isolated_db)
     seq = store_events.append_event(
         run.id, "status", {"status": "completed"}, db_path=isolated_db
     )
@@ -865,9 +810,7 @@ def test_stream_live_tail_ends_on_terminal_event(isolated_db: str) -> None:
 
 
 def test_stream_live_tail_polls_to_a_cancelled_close(isolated_db: str) -> None:
-    run = runs.create_run(
-        "g", "default", "mock", {}, RunCreateOptions(db_path=isolated_db)
-    )
+    run = seed_run("g", profile="default", provider="mock", db_path=isolated_db)
     store_events.append_event(
         run.id, "status", {"status": "cancelled"}, db_path=isolated_db
     )
@@ -887,9 +830,7 @@ def test_stream_live_tail_polls_to_a_cancelled_close(isolated_db: str) -> None:
 def test_event_stream_replays_history_then_terminal_for_finished_run(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run(
-        "g", "default", "mock", {}, RunCreateOptions(db_path=isolated_db)
-    )
+    run = seed_run("g", profile="default", provider="mock", db_path=isolated_db)
     store_events.append_event(run.id, "log", {"i": 0}, db_path=isolated_db)
     runs.update_run_status(run.id, RunStatus.COMPLETED, db_path=isolated_db)
     finished_run = runs.get_run(run.id, db_path=isolated_db)
@@ -913,9 +854,7 @@ def test_event_stream_falls_through_to_live_tail_for_active_run(
 ) -> None:
     # Append after streaming starts to exercise live-tail delivery rather than
     # replay of pre-existing history.
-    run = runs.create_run(
-        "g", "default", "mock", {}, RunCreateOptions(db_path=isolated_db)
-    )
+    run = seed_run("g", profile="default", provider="mock", db_path=isolated_db)
     request = _FakeRequest()
 
     async def _append_terminal_soon() -> None:
@@ -949,12 +888,12 @@ def test_events_endpoint_serves_json_snapshot_when_stream_false(
 ) -> None:
     from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
 
-    run = runs.create_run(
+    run = seed_run(
         "JSON events goal",
-        "default",
-        "mock",
-        {},
-        RunCreateOptions(client_id=DEFAULT_TEST_CLIENT_ID, db_path=isolated_db),
+        profile="default",
+        provider="mock",
+        client_id=DEFAULT_TEST_CLIENT_ID,
+        db_path=isolated_db,
     )
     store_events.append_event(run.id, "lifecycle", {"event": "created"})
     store_events.append_event(run.id, "status", {"status": "running"})
@@ -978,13 +917,8 @@ _OWNER = {"X-Client-ID": "pause-cohort-owner"}
 
 def _owned_running_run(db_path: str) -> tuple[TestClient, str]:
     client = make_client()
-    created = client.post(
-        "/api/runs",
-        headers=_OWNER,
-        json={
-            "research_goal": "Pause a durable engine cohort",
-            "tier": "express",
-        },
+    created = _create_run(
+        client, "Pause a durable engine cohort", headers=_OWNER, tier="express"
     )
     assert created.status_code == 200, created.text
     run_id = str(created.json()["id"])
@@ -997,13 +931,11 @@ def _leased_supervisor(
 ) -> tuple[dict[str, Any], int, ScientificTask]:
     state = _task_state(run_id)
     checkpoint_seq = _seed_checkpoint(run_id, state, db_path=db_path)
-    writer = store.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type=f"{engine_tasks.NODE_TASK_PREFIX}supervisor",
-            inputs={"checkpoint_seq": checkpoint_seq},
-            idempotency_key="pause-cohort:supervisor",
-        ),
+    writer = enqueue_task(
+        run_id,
+        f"{engine_tasks.NODE_TASK_PREFIX}supervisor",
+        "pause-cohort:supervisor",
+        inputs={"checkpoint_seq": checkpoint_seq},
         db_path=db_path,
     )
     leased = store.claim_task(
@@ -1088,15 +1020,13 @@ async def test_owned_pause_fences_late_checkpoint_successor_until_resume(
     successor_type = f"{engine_tasks.NODE_TASK_PREFIX}generate"
     assert checkpoint["state"]["resume_successor"] == successor_type
 
-    successor = store.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type=successor_type,
-            inputs={"checkpoint_seq": checkpoint["seq"]},
-            idempotency_key=f"{successor_type}:after:{leased.id}",
-            dependencies=(leased.id,),
-            provenance={"scheduled_by": leased.task_type},
-        ),
+    successor = enqueue_task(
+        run_id,
+        successor_type,
+        f"{successor_type}:after:{leased.id}",
+        inputs={"checkpoint_seq": checkpoint["seq"]},
+        dependencies=(leased.id,),
+        provenance={"scheduled_by": leased.task_type},
         db_path=isolated_db,
     )
     queued_successor = store.get_task(successor.id, db_path=isolated_db)
@@ -1195,21 +1125,18 @@ class _PausedRestart:
 
 
 def _seed_paused_restart(db_path: str) -> _PausedRestart:
-    run = runs.create_run(
+    run = seed_run(
         "Pause restart acceptance",
-        "express",
-        "engine",
-        {},
-        RunCreateOptions(client_id=DEFAULT_TEST_CLIENT_ID, db_path=db_path),
+        profile="express",
+        client_id=DEFAULT_TEST_CLIENT_ID,
+        db_path=db_path,
     )
     runs.update_run_status(run.id, RunStatus.RUNNING, db_path=db_path)
-    writer = store.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type=f"{engine_tasks.NODE_TASK_PREFIX}generate",
-            inputs={"checkpoint_seq": 0},
-            idempotency_key="pause-restart:writer",
-        ),
+    writer = enqueue_task(
+        run.id,
+        f"{engine_tasks.NODE_TASK_PREFIX}generate",
+        "pause-restart:writer",
+        inputs={"checkpoint_seq": 0},
         db_path=db_path,
     )
     claimed = store.claim_task(
@@ -1228,25 +1155,20 @@ def _append_late_successor(
     paused_seq = store_events.append_event(
         run_id, "status", {"status": "paused"}, db_path=db_path
     )
-    checkpoint_seq = checkpoints.save_checkpoint(
+    checkpoint_seq = seed_checkpoint(
         run_id,
-        NewCheckpoint(
-            stage=f"engine_task_paused:{writer.id}",
-            schema_version=1,
-            last_event_seq=paused_seq,
-            state={"provider": "engine", "resume_successor": successor_type},
-        ),
+        {"provider": "engine", "resume_successor": successor_type},
+        stage=f"engine_task_paused:{writer.id}",
+        last_event_seq=paused_seq,
         db_path=db_path,
     )
-    successor = store.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type=successor_type,
-            inputs={"checkpoint_seq": checkpoint_seq},
-            idempotency_key=f"{successor_type}:after:{writer.id}",
-            dependencies=(writer.id,),
-            provenance={"scheduled_by": writer.task_type},
-        ),
+    successor = enqueue_task(
+        run_id,
+        successor_type,
+        f"{successor_type}:after:{writer.id}",
+        inputs={"checkpoint_seq": checkpoint_seq},
+        dependencies=(writer.id,),
+        provenance={"scheduled_by": writer.task_type},
         db_path=db_path,
     )
     return successor.id, paused_seq

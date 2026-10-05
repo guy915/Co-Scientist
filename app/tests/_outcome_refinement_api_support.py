@@ -6,11 +6,12 @@ from co_scientist.checkpoint import serialize_workflow_state
 from co_scientist.models import Hypothesis
 
 from app import auth
-from app.store import checkpoints, events, records
+from app.store import events, records
 from app.store import hypotheses as store
-from app.store.checkpoints import NewCheckpoint
 from app.store.hypotheses import NewHypothesis
 from app.store.records import NewEvidence
+from tests._client import create_run as _create_run
+from tests._store_helpers import seed_checkpoint
 
 MESELSON_STAHL_PARENT_TEXT = (
     "DNA replication in E. coli is semiconservative: after replication, "
@@ -119,10 +120,8 @@ def _add_hypothesis(run_id: str, db_path: str, title: str) -> str:
 
 
 def _new_run(client: Any, owner: str) -> str:
-    response = client.post(
-        "/api/runs",
-        headers=_signed_headers(owner),
-        json={"research_goal": "Measure the proposed effect"},
+    response = _create_run(
+        client, "Measure the proposed effect", headers=_signed_headers(owner)
     )
     assert response.status_code == 200
     return str(response.json()["id"])
@@ -138,13 +137,10 @@ def _save_engine_checkpoint(
         {"hypotheses": [hypothesis]},
         last_event_seq=event_seq,
     )
-    checkpoints.save_checkpoint(
+    seed_checkpoint(
         run_id,
-        NewCheckpoint(
-            stage="completed",
-            schema_version=1,
-            last_event_seq=event_seq,
-            state={"provider": "engine", **envelope},
-        ),
+        {"provider": "engine", **envelope},
+        stage="completed",
+        last_event_seq=event_seq,
         db_path=db_path,
     )

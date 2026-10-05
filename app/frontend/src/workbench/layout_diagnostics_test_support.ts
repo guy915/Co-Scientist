@@ -1,24 +1,7 @@
+export {makeLogRecord as logRecord} from '@/test_fixtures';
 import {act, waitFor} from '@testing-library/react';
 import {expect} from 'vitest';
-import type {AppLogRecord} from '@/api/logs';
 import {logsApiMock} from './layout_test_support';
-
-export function logRecord(
-  id: number,
-  overrides: Partial<AppLogRecord> = {},
-): AppLogRecord {
-  return {
-    id,
-    created_at: 1_700_000_000 + id,
-    level: 'INFO',
-    levelno: 20,
-    logger: 'app.main',
-    message: `record ${id}`,
-    run_id: null,
-    exc_text: null,
-    ...overrides,
-  };
-}
 
 // jsdom performs no layout; stub scroll geometry.
 export function stubListGeometry(list: HTMLElement): void {
@@ -39,6 +22,6 @@ export async function settleMountTimeLoads(): Promise<void> {
     expect(logsApiMock.getAppLogs.mock.calls.length).toBeGreaterThanOrEqual(2),
   );
   await act(async () => {
-    // Give the remounted effect one turn to finish its initial load.
+    // React's pending load effects finish only after another microtask.
   });
 }

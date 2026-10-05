@@ -31,19 +31,21 @@ from app.engine_tasks import support as engine_tasks_support
 from app.report import build as report_build
 from app.report import finalize as report_finalize
 from app.seed.overview import full_review_count, simulation_review_count
-from app.store import checkpoints, db, messages, records, reports
+from app.store import db, messages, records, reports
 from app.store import events as store_events
 from app.store import hypotheses as store_hypotheses
 from app.store import retrieval_calls as retrieval
 from app.store import runs as store
 from app.store import runs_views as views
 from app.store import tasks as store_tasks
-from app.store.checkpoints import NewCheckpoint
 from app.store.messages import NewMessage
 from app.store.models import DEMO_CLIENT_ID, RunRow, RunStatus
-from app.store.runs import RunCreateOptions
-from app.store.tasks import NewTask
-from tests._client import DEFAULT_TEST_CLIENT_ID, wait_for_status
+from tests._client import (
+    DEFAULT_TEST_CLIENT_ID,
+    start_and_complete,
+    wait_for_status,
+)
+from tests._client import create_run as _create_run
 from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
 from tests._drain_helpers import (
@@ -52,10 +54,11 @@ from tests._drain_helpers import (
     _persist,
     emit_event,
 )
+from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
 
 
 def test_drain_result_carries_degraded_sections(isolated_db: str) -> None:
-    run = store.create_run("degraded goal", "standard", "engine", {})
+    run = seed_run("degraded goal")
     state = _final_state_with_features()
     state["degraded_nodes"] = ["meta_review", "research_overview"]
 
@@ -70,7 +73,7 @@ def test_drain_result_carries_degraded_sections(isolated_db: str) -> None:
 def test_drain_result_defaults_to_no_degraded_sections(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("clean goal", "standard", "engine", {})
+    run = seed_run("clean goal")
 
     drained = _persist(
         run_id=run.id,
@@ -82,7 +85,7 @@ def test_drain_result_defaults_to_no_degraded_sections(
 
 
 def test_report_payload_carries_degraded_sections(isolated_db: str) -> None:
-    run = store.create_run("degraded goal", "standard", "engine", {})
+    run = seed_run("degraded goal")
     state = _final_state_with_features()
     state["degraded_nodes"] = ["meta_review"]
 
@@ -113,7 +116,7 @@ def test_report_payload_carries_degraded_sections(isolated_db: str) -> None:
 def test_report_payload_degraded_sections_default_empty(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("clean goal", "standard", "engine", {})
+    run = seed_run("clean goal")
 
     drained = _persist(
         run_id=run.id,
@@ -167,13 +170,7 @@ def test_node_event_payload_omits_degraded_when_clean() -> None:
 
 
 def _make_run(goal: str, isolated_db: str) -> str:
-    run = store.create_run(
-        goal,
-        "default",
-        "engine",
-        {},
-        RunCreateOptions(client_id="c1", db_path=isolated_db),
-    )
+    run = seed_run(goal, profile="default", client_id="c1", db_path=isolated_db)
     return run.id
 
 
@@ -204,21 +201,13 @@ def test_reconcile_fails_interrupted_runs(isolated_db: str) -> None:
 def test_active_engine_tasks_are_discoverable_before_lease_expiry(
     isolated_db: str,
 ) -> None:
-    run = store.create_run(
-        "recover leased science",
-        "standard",
-        "engine",
-        {},
-        RunCreateOptions(db_path=isolated_db),
-    )
+    run = seed_run("recover leased science", db_path=isolated_db)
     store.update_run_status(run.id, RunStatus.RUNNING, db_path=isolated_db)
-    store_tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type="engine.node.review",
-            inputs={"checkpoint_seq": 1},
-            idempotency_key="recover-review",
-        ),
+    enqueue_task(
+        run.id,
+        "engine.node.review",
+        "recover-review",
+        inputs={"checkpoint_seq": 1},
         db_path=isolated_db,
     )
     assert (
@@ -236,14 +225,11 @@ def test_active_engine_tasks_are_discoverable_before_lease_expiry(
 def test_reconcile_marks_checkpointed_run_resumable(isolated_db: str) -> None:
     rid = _make_run("g", isolated_db)
     store.update_run_status(rid, RunStatus.RUNNING, db_path=isolated_db)
-    checkpoints.save_checkpoint(
+    seed_checkpoint(
         rid,
-        NewCheckpoint(
-            stage="post_ranking",
-            schema_version=1,
-            last_event_seq=7,
-            state={"round": 1},
-        ),
+        {"round": 1},
+        stage="post_ranking",
+        last_event_seq=7,
         db_path=isolated_db,
     )
 
@@ -300,13 +286,7 @@ def test_checkpoint_wal_runs_cleanly(isolated_db: str) -> None:
 
 
 def test_headerless_run_survives_restart(isolated_db: str) -> None:
-    run = store.create_run(
-        "g",
-        "default",
-        "engine",
-        {},
-        RunCreateOptions(client_id="", db_path=isolated_db),
-    )
+    run = seed_run("g", profile="default", client_id="", db_path=isolated_db)
     db._initialized.discard(isolated_db)
     with db.connect(isolated_db):
         pass
@@ -396,12 +376,11 @@ def test_evolution_creates_new_rows_with_parent_lineage(
 ) -> None:
     # Offline near-duplicate guards may produce no child; deterministic drain
     # fixtures test actual lineage guarantees.
-    run = store.create_run(
+    run = seed_run(
         "Targeted apoptosis in glioma stem cells",
-        "express",
-        "engine",
-        {},
-        RunCreateOptions(client_id=DEFAULT_TEST_CLIENT_ID, db_path=isolated_db),
+        profile="express",
+        client_id=DEFAULT_TEST_CLIENT_ID,
+        db_path=isolated_db,
     )
     _persist(
         run_id=run.id,
@@ -427,12 +406,8 @@ def test_evolution_runs_between_ranking_rounds(isolated_db: str) -> None:
     from app.store import events as store
 
     client = _client()
-    rid = client.post(
-        "/api/runs",
-        json={
-            "research_goal": "Lipid raft remodelling in viral entry",
-            "tier": "express",
-        },
+    rid = _create_run(
+        client, "Lipid raft remodelling in viral entry", tier="express"
     ).json()["id"]
     client.post(f"/api/runs/{rid}/start", json={})
     _wait_completed(client, rid)
@@ -482,17 +457,6 @@ async def _await_condition(
     raise AssertionError("condition not met before timeout")
 
 
-def _start_express_run(client: Any, goal: str) -> str:
-    res = client.post(
-        "/api/runs", json={"research_goal": goal, "tier": "express"}
-    )
-    run_id: str = res.json()["id"]
-    start = client.post(f"/api/runs/{run_id}/start", json={})
-    assert start.status_code == 200
-    assert _wait_status(client, run_id, "completed", timeout=20.0)
-    return run_id
-
-
 async def _drive_replay_then_live_run(
     isolated_db: str,
 ) -> tuple[str, httpx.Response, httpx.Response, int]:
@@ -532,9 +496,10 @@ def test_full_run_flow_persists_events_matching_store_and_api(
     isolated_db: str,
 ) -> None:
     client = _client()
-    run_id = _start_express_run(
+    run_id = start_and_complete(
         client,
         "Integration flow: dissect ferroptosis resistance in melanoma",
+        timeout=20.0,
     )
 
     stored = store_events.list_events(run_id, db_path=isolated_db)
@@ -592,15 +557,13 @@ def test_completion_notification_is_opt_in_and_durable(
     monkeypatch.setattr(settings, "smtp_from_email", "noreply@example.org")
     headers = {"X-Client-ID": "notification-scientist"}
     with _client() as client:
-        created = client.post(
-            "/api/runs",
+        created = _create_run(
+            client,
+            "Study notification fidelity",
             headers=headers,
-            json={
-                "research_goal": "Study notification fidelity",
-                "tier": "express",
-                "notify_on_completion": True,
-                "completion_email": "scientist@example.org",
-            },
+            tier="express",
+            notify_on_completion=True,
+            completion_email="scientist@example.org",
         )
         run_id = created.json()["id"]
         assert (
@@ -635,15 +598,13 @@ def test_completion_notification_is_skipped_without_an_smtp_transport(
     monkeypatch.setattr(settings, "smtp_from_email", "")
     headers = {"X-Client-ID": "unconfigured-scientist"}
     with caplog.at_level("WARNING"), _client() as client:
-        run_id = client.post(
-            "/api/runs",
+        run_id = _create_run(
+            client,
+            "Study notification fidelity",
             headers=headers,
-            json={
-                "research_goal": "Study notification fidelity",
-                "tier": "express",
-                "notify_on_completion": True,
-                "completion_email": "scientist@example.org",
-            },
+            tier="express",
+            notify_on_completion=True,
+            completion_email="scientist@example.org",
         ).json()["id"]
         client.post(f"/api/runs/{run_id}/start", headers=headers, json={})
         _wait_status(client, run_id, "completed", timeout=20.0, interval=0.1)
@@ -657,16 +618,14 @@ _STEER = "Prioritise chaperone co-expression over temperature shifts"
 
 
 def _persist_offline_run(isolated_db: str) -> Any:
-    return store.create_run(
+    return seed_run(
         "Explain how protein X folds under crowding.",
-        "express",
-        "mock",
-        {"tier": "express", "enable_literature_review": False},
-        RunCreateOptions(
-            client_id="steering-e2e",
-            llm_backend="offline",
-            db_path=isolated_db,
-        ),
+        profile="express",
+        provider="mock",
+        config={"tier": "express", "enable_literature_review": False},
+        client_id="steering-e2e",
+        llm_backend="offline",
+        db_path=isolated_db,
     )
 
 
@@ -804,12 +763,12 @@ def test_one_failed_matchup_leaves_the_rest_of_the_run_intact(
 def _run_offline_workflow(
     goal: str, db_path: str
 ) -> tuple[str, list[dict[str, Any]]]:
-    run = store.create_run(
+    run = seed_run(
         goal,
-        "express",
-        "engine",
-        {"tier": "express"},
-        RunCreateOptions(llm_backend="offline", db_path=db_path),
+        profile="express",
+        config={"tier": "express"},
+        llm_backend="offline",
+        db_path=db_path,
     )
     task_worker.enqueue_run_workflow(run.id, db_path=db_path)
     asyncio.run(
@@ -1090,12 +1049,12 @@ def test_seed_demo_runs_is_idempotent_when_reports_exist(
 
 def test_seed_demo_runs_reseeds_run_missing_report(isolated_db: str) -> None:
     goal = seed._DEMO_GOALS[0]
-    run = store.create_run(
+    run = seed_run(
         goal,
-        "default",
-        "mock",
-        {},
-        RunCreateOptions(client_id=DEMO_CLIENT_ID, db_path=isolated_db),
+        profile="default",
+        provider="mock",
+        client_id=DEMO_CLIENT_ID,
+        db_path=isolated_db,
     )
     assert reports.read_report_markdown(run.id, db_path=isolated_db) is None
 
@@ -1113,12 +1072,8 @@ def test_seed_demo_runs_reseeds_run_missing_report(isolated_db: str) -> None:
 
 def test_seed_demo_runs_replaces_legacy_demo_content(isolated_db: str) -> None:
     goal = seed._DEMO_GOALS[0]
-    run = store.create_run(
-        goal,
-        "express",
-        "engine",
-        {},
-        RunCreateOptions(client_id=DEMO_CLIENT_ID, db_path=isolated_db),
+    run = seed_run(
+        goal, profile="express", client_id=DEMO_CLIENT_ID, db_path=isolated_db
     )
     reports.save_report(
         run.id, {"legacy": True}, "# Legacy", db_path=isolated_db
@@ -1134,13 +1089,7 @@ def test_seed_demo_runs_replaces_legacy_demo_content(isolated_db: str) -> None:
 
 def test_seed_demo_runs_backfills_goal_detail_config(isolated_db: str) -> None:
     goal = seed._DEMO_GOALS[0]
-    run = store.create_run(
-        goal,
-        "standard",
-        "engine",
-        {},
-        RunCreateOptions(client_id=DEMO_CLIENT_ID, db_path=isolated_db),
-    )
+    run = seed_run(goal, client_id=DEMO_CLIENT_ID, db_path=isolated_db)
     reports.save_report(
         run.id,
         {"demo_seed_version": DEMO_SEED_VERSION},
@@ -1198,13 +1147,7 @@ def test_seed_demo_run_creates_new_run_when_none_given(
 def test_custom_goal_is_reseeded_only_when_report_missing(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch, has_report: bool
 ) -> None:
-    run = store.create_run(
-        "custom goal",
-        "express",
-        "engine",
-        {},
-        RunCreateOptions(db_path=isolated_db),
-    )
+    run = seed_run("custom goal", profile="express", db_path=isolated_db)
     if has_report:
         reports.save_report(run.id, {"k": "v"}, "# md", db_path=isolated_db)
     reseeded: list[str] = []

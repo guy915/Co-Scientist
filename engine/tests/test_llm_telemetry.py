@@ -40,6 +40,7 @@ from tests._llm_fake import (
     make_message,
     make_usage,
     patch_acompletion,
+    scripted_backend,
 )
 from tests._llm_fake import make_completion as _completion
 from tests._llm_fake import make_message as _message
@@ -70,15 +71,7 @@ def _answerless() -> Any:
 
 
 def _serve(monkeypatch: pytest.MonkeyPatch, responses: list[Any]) -> None:
-    remaining = list(responses)
-
-    async def fake(**_kwargs: Any) -> Any:
-        item = remaining.pop(0) if len(remaining) > 1 else remaining[0]
-        if isinstance(item, Exception):
-            raise item
-        return item
-
-    install_fake_backend(monkeypatch, fake)
+    scripted_backend(monkeypatch, responses, repeat_last=True)
 
 
 async def test_a_recovered_call_logs_no_errors(

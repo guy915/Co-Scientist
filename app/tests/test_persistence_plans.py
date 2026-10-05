@@ -8,13 +8,12 @@ from typing import Any
 
 import pytest
 
-from app.store import checkpoints, db, hypotheses, records, reports, runs
+from app.store import db, hypotheses, records, reports
 from app.store import db as _store_db
 from app.store import db as store_db
 from app.store import retrieval_calls as retrieval
 from app.store import runs_views as views
 from app.store import supervisor_plan as plans
-from app.store.checkpoints import NewCheckpoint
 from app.store.hypotheses import NewHypothesis
 from app.store.records import (
     NewEvidence,
@@ -22,7 +21,6 @@ from app.store.records import (
     NewReview,
     NewSafetyDecision,
 )
-from app.store.runs import RunCreateOptions
 from app.store.schema import SCHEMA
 from app.store.supervisor_plan import NewSupervisorPlan
 from tests._drain_helpers import (
@@ -30,6 +28,7 @@ from tests._drain_helpers import (
     _persist,
     _persist_and_finalize,
 )
+from tests._store_helpers import seed_checkpoint, seed_run
 
 _METRICS = {
     "total_time": 12.5,
@@ -43,12 +42,8 @@ _METRICS = {
 
 
 def _make_run(db_path: str) -> str:
-    run = runs.create_run(
-        "Metrics goal",
-        "default",
-        "mock",
-        {},
-        RunCreateOptions(db_path=db_path),
+    run = seed_run(
+        "Metrics goal", profile="default", provider="mock", db_path=db_path
     )
     return run.id
 
@@ -279,12 +274,8 @@ def test_reports_round_trip_full_markdown_through_database(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    run = runs.create_run(
-        "report rt",
-        "default",
-        "mock",
-        {},
-        RunCreateOptions(db_path=isolated_db),
+    run = seed_run(
+        "report rt", profile="default", provider="mock", db_path=isolated_db
     )
     saved = reports.save_report(
         run.id, {"k": "v"}, "# Hello\nbody", db_path=isolated_db
@@ -302,12 +293,11 @@ def test_reports_round_trip_full_markdown_through_database(
 def test_get_latest_report_and_read_markdown_none_without_any_report(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run(
+    run = seed_run(
         "no report goal",
-        "default",
-        "mock",
-        {},
-        RunCreateOptions(db_path=isolated_db),
+        profile="default",
+        provider="mock",
+        db_path=isolated_db,
     )
     assert reports.get_latest_report(run.id, db_path=isolated_db) is None
     assert reports.read_report_markdown(run.id, db_path=isolated_db) is None
@@ -365,7 +355,7 @@ def _plan_final_state() -> dict[str, object]:
 
 
 def test_save_and_get_plan_round_trip(isolated_db: str) -> None:
-    run = runs.create_run("sp goal", "standard", "mock", {})
+    run = seed_run("sp goal", provider="mock")
     guidance = {"workflow_plan": {"iterations": 2}}
 
     plans.save_supervisor_plan(
@@ -388,7 +378,7 @@ def test_save_and_get_plan_round_trip(isolated_db: str) -> None:
 
 
 def test_save_plan_upserts_rather_than_duplicates(isolated_db: str) -> None:
-    run = runs.create_run("sp goal", "standard", "mock", {})
+    run = seed_run("sp goal", provider="mock")
     plans.save_supervisor_plan(
         NewSupervisorPlan(
             run_id=run.id,
@@ -422,12 +412,12 @@ def test_save_plan_upserts_rather_than_duplicates(isolated_db: str) -> None:
 
 
 def test_get_plan_returns_none_before_finalize(isolated_db: str) -> None:
-    run = runs.create_run("sp goal", "standard", "mock", {})
+    run = seed_run("sp goal", provider="mock")
     assert plans.get_supervisor_plan(run.id, db_path=isolated_db) is None
 
 
 def test_replace_and_list_allocations_round_trip(isolated_db: str) -> None:
-    run = runs.create_run("sp goal", "standard", "mock", {})
+    run = seed_run("sp goal", provider="mock")
     allocations = [
         {
             "task_type": "generate",
@@ -457,7 +447,7 @@ def test_replace_and_list_allocations_round_trip(isolated_db: str) -> None:
 
 
 def test_replace_allocations_clears_prior_rows(isolated_db: str) -> None:
-    run = runs.create_run("sp goal", "standard", "mock", {})
+    run = seed_run("sp goal", provider="mock")
     plans.replace_supervisor_allocations(
         run.id,
         [
@@ -488,8 +478,8 @@ def test_replace_allocations_clears_prior_rows(isolated_db: str) -> None:
 
 
 def test_allocations_are_scoped_per_run(isolated_db: str) -> None:
-    run_a = runs.create_run("goal a", "standard", "mock", {})
-    run_b = runs.create_run("goal b", "standard", "mock", {})
+    run_a = seed_run("goal a", provider="mock")
+    run_b = seed_run("goal b", provider="mock")
     plans.replace_supervisor_allocations(
         run_a.id,
         [
@@ -513,7 +503,7 @@ def test_allocations_are_scoped_per_run(isolated_db: str) -> None:
 
 
 def test_run_deletion_cascades_to_supervisor_tables(isolated_db: str) -> None:
-    run = runs.create_run("sp goal", "standard", "mock", {})
+    run = seed_run("sp goal", provider="mock")
     plans.save_supervisor_plan(
         NewSupervisorPlan(
             run_id=run.id,
@@ -548,7 +538,7 @@ def test_run_deletion_cascades_to_supervisor_tables(isolated_db: str) -> None:
 def test_finalize_persists_supervisor_plan_and_allocations(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("sp e2e goal", "standard", "mock", {})
+    run = seed_run("sp e2e goal", provider="mock")
     final_state = _plan_final_state()
 
     _persist_and_finalize(run, final_state, isolated_db)
@@ -576,7 +566,7 @@ def test_finalize_persists_supervisor_plan_and_allocations(
 def test_re_finalize_replaces_rather_than_accumulates(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("sp goal", "standard", "mock", {})
+    run = seed_run("sp goal", provider="mock")
     final_state = _plan_final_state()
 
     _persist_and_finalize(run, final_state, isolated_db)
@@ -632,22 +622,19 @@ _GUIDANCE = {"workflow_plan": {"iterations": 2}}
 def test_save_checkpoint_persists_ledger_without_finalize(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("goal", "standard", "mock", {})
+    run = seed_run("goal", provider="mock")
     assert plans.get_supervisor_plan(run.id, db_path=isolated_db) is None
 
-    checkpoints.save_checkpoint(
+    seed_checkpoint(
         run.id,
-        NewCheckpoint(
-            stage="engine_task:t1",
-            schema_version=1,
-            last_event_seq=3,
-            state=_checkpoint_state(
-                task_history=[_task("generate")],
-                guidance=_GUIDANCE,
-                orchestrator_state={"pool_size": 4},
-                decision_provenance="model",
-            ),
+        _checkpoint_state(
+            task_history=[_task("generate")],
+            guidance=_GUIDANCE,
+            orchestrator_state={"pool_size": 4},
+            decision_provenance="model",
         ),
+        stage="engine_task:t1",
+        last_event_seq=3,
         db_path=isolated_db,
     )
 
@@ -661,32 +648,24 @@ def test_save_checkpoint_persists_ledger_without_finalize(
 
 
 def test_ledger_grows_across_successive_checkpoints(isolated_db: str) -> None:
-    run = runs.create_run("goal", "standard", "mock", {})
+    run = seed_run("goal", provider="mock")
 
-    checkpoints.save_checkpoint(
+    seed_checkpoint(
         run.id,
-        NewCheckpoint(
-            stage="engine_task:t1",
-            schema_version=1,
-            last_event_seq=1,
-            state=_checkpoint_state(
-                task_history=[_task("generate")], guidance=_GUIDANCE
-            ),
-        ),
+        _checkpoint_state(task_history=[_task("generate")], guidance=_GUIDANCE),
+        stage="engine_task:t1",
+        last_event_seq=1,
         db_path=isolated_db,
     )
-    checkpoints.save_checkpoint(
+    seed_checkpoint(
         run.id,
-        NewCheckpoint(
-            stage="engine_task:t2",
-            schema_version=1,
-            last_event_seq=2,
-            state=_checkpoint_state(
-                task_history=[_task("generate"), _task("rank")],
-                guidance=_GUIDANCE,
-                decision_provenance="model",
-            ),
+        _checkpoint_state(
+            task_history=[_task("generate"), _task("rank")],
+            guidance=_GUIDANCE,
+            decision_provenance="model",
         ),
+        stage="engine_task:t2",
+        last_event_seq=2,
         db_path=isolated_db,
     )
 
@@ -699,31 +678,23 @@ def test_shorter_later_checkpoint_never_shrinks_the_ledger(
 ) -> None:
     # Older out-of-order checkpoints must not erase a more complete stored
     # ledger.
-    run = runs.create_run("goal", "standard", "mock", {})
-    checkpoints.save_checkpoint(
+    run = seed_run("goal", provider="mock")
+    seed_checkpoint(
         run.id,
-        NewCheckpoint(
-            stage="engine_task:t1",
-            schema_version=1,
-            last_event_seq=1,
-            state=_checkpoint_state(
-                task_history=[_task("generate"), _task("rank")],
-                guidance=_GUIDANCE,
-            ),
+        _checkpoint_state(
+            task_history=[_task("generate"), _task("rank")],
+            guidance=_GUIDANCE,
         ),
+        stage="engine_task:t1",
+        last_event_seq=1,
         db_path=isolated_db,
     )
 
-    checkpoints.save_checkpoint(
+    seed_checkpoint(
         run.id,
-        NewCheckpoint(
-            stage="engine_task:stale",
-            schema_version=1,
-            last_event_seq=1,
-            state=_checkpoint_state(
-                task_history=[_task("generate")], guidance=_GUIDANCE
-            ),
-        ),
+        _checkpoint_state(task_history=[_task("generate")], guidance=_GUIDANCE),
+        stage="engine_task:stale",
+        last_event_seq=1,
         db_path=isolated_db,
     )
 
@@ -734,23 +705,15 @@ def test_shorter_later_checkpoint_never_shrinks_the_ledger(
 def test_equal_length_checkpoint_is_a_no_op(isolated_db: str) -> None:
     # Repeated item checkpoints carry unchanged history; ledger writes track
     # decisions rather than every commit.
-    run = runs.create_run("goal", "standard", "mock", {})
+    run = seed_run("goal", provider="mock")
     state = _checkpoint_state(
         task_history=[_task("generate")], guidance=_GUIDANCE
     )
-    checkpoints.save_checkpoint(
-        run.id,
-        NewCheckpoint(
-            stage="t1", schema_version=1, last_event_seq=1, state=state
-        ),
-        db_path=isolated_db,
+    seed_checkpoint(
+        run.id, state, stage="t1", last_event_seq=1, db_path=isolated_db
     )
-    checkpoints.save_checkpoint(
-        run.id,
-        NewCheckpoint(
-            stage="t2", schema_version=1, last_event_seq=2, state=state
-        ),
-        db_path=isolated_db,
+    seed_checkpoint(
+        run.id, state, stage="t2", last_event_seq=2, db_path=isolated_db
     )
 
     with store_db.connect(isolated_db) as conn:
@@ -762,15 +725,11 @@ def test_equal_length_checkpoint_is_a_no_op(isolated_db: str) -> None:
 
 
 def test_no_guidance_yet_persists_nothing(isolated_db: str) -> None:
-    run = runs.create_run("goal", "standard", "mock", {})
-    checkpoints.save_checkpoint(
+    run = seed_run("goal", provider="mock")
+    seed_checkpoint(
         run.id,
-        NewCheckpoint(
-            stage="engine.bootstrap",
-            schema_version=1,
-            last_event_seq=0,
-            state=_checkpoint_state(),
-        ),
+        _checkpoint_state(),
+        stage="engine.bootstrap",
         db_path=isolated_db,
     )
 
@@ -779,13 +738,9 @@ def test_no_guidance_yet_persists_nothing(isolated_db: str) -> None:
 
 
 def test_legacy_checkpoint_shape_is_a_no_op(isolated_db: str) -> None:
-    run = runs.create_run("goal", "standard", "mock", {})
-    checkpoints.save_checkpoint(
-        run.id,
-        NewCheckpoint(
-            stage="s", schema_version=1, last_event_seq=1, state={"round": 1}
-        ),
-        db_path=isolated_db,
+    run = seed_run("goal", provider="mock")
+    seed_checkpoint(
+        run.id, {"round": 1}, stage="s", last_event_seq=1, db_path=isolated_db
     )
 
     assert plans.get_supervisor_plan(run.id, db_path=isolated_db) is None
@@ -797,19 +752,16 @@ def test_finalize_remains_authoritative_after_incremental_writes(
 ) -> None:
     from tests._drain_helpers import _persist
 
-    run = runs.create_run("goal", "standard", "mock", {})
-    checkpoints.save_checkpoint(
+    run = seed_run("goal", provider="mock")
+    seed_checkpoint(
         run.id,
-        NewCheckpoint(
-            stage="engine_task:t1",
-            schema_version=1,
-            last_event_seq=1,
-            state=_checkpoint_state(
-                task_history=[_task("generate")],
-                guidance=_GUIDANCE,
-                decision_provenance="model",
-            ),
+        _checkpoint_state(
+            task_history=[_task("generate")],
+            guidance=_GUIDANCE,
+            decision_provenance="model",
         ),
+        stage="engine_task:t1",
+        last_event_seq=1,
         db_path=isolated_db,
     )
     assert plans.get_supervisor_plan(run.id, db_path=isolated_db) is not None

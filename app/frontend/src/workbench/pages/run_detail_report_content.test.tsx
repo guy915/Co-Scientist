@@ -1,49 +1,9 @@
+import {resetRunDetailMocks} from './run_detail_api_test_support';
 import * as runsApi from '@/api/runs';
 import {makeHypothesis, makeMatch} from '@/test_fixtures';
 import {screen} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
 import {makeRun, renderAt} from './run_detail_test_support';
-
-const streamMock = vi.hoisted(() => ({
-  state: {events: [] as {seq: number; type: string; payload: object}[]},
-}));
-vi.mock('@/hooks/use_run_stream', () => ({
-  useRunStream: () => ({events: streamMock.state.events, terminal: false}),
-}));
-
-vi.mock('@/workbench/hooks/timers', async importOriginal => {
-  const actual =
-    await importOriginal<typeof import('@/workbench/hooks/timers')>();
-  const timer = {schedule: (run: () => void) => run(), cancel: () => {}};
-  return {...actual, useResetTimer: () => timer};
-});
-
-function setStream(events: {seq: number; type: string; payload: object}[]) {
-  streamMock.state = {events};
-}
-
-vi.mock('@/api/runs', async importActual => {
-  const actual = await importActual<typeof import('@/api/runs')>();
-  return {
-    ...actual,
-    getRun: vi.fn(),
-    getHypotheses: vi.fn().mockResolvedValue([]),
-    getEvidence: vi.fn().mockResolvedValue([]),
-    getMatches: vi.fn().mockResolvedValue([]),
-    getReviews: vi.fn().mockResolvedValue([]),
-    getClaimEvidence: vi.fn().mockResolvedValue([]),
-    getSafety: vi.fn().mockResolvedValue([]),
-    adjudicateSafety: vi.fn().mockResolvedValue({
-      decision_id: 1,
-      resolution: 'approved',
-    }),
-    getCitations: vi.fn().mockResolvedValue([]),
-    getReport: vi.fn().mockResolvedValue(null),
-    sendRunSteering: vi
-      .fn()
-      .mockResolvedValue({id: 'message-1', status: 'queued'}),
-  };
-});
 
 it('shows the run goal as the report heading', async () => {
   vi.mocked(runsApi.getRun).mockResolvedValue(
@@ -119,12 +79,5 @@ it('shows an error alert when loading fails', async () => {
 });
 
 beforeEach(() => {
-  vi.clearAllMocks();
-  setStream([]);
-  vi.mocked(runsApi.getRun).mockResolvedValue(makeRun('Study pathway X'));
-  // Reset collection overrides between tests.
-  vi.mocked(runsApi.getHypotheses).mockResolvedValue([]);
-  vi.mocked(runsApi.getMatches).mockResolvedValue([]);
-  vi.mocked(runsApi.getReport).mockResolvedValue(null);
-  vi.mocked(runsApi.getSafety).mockResolvedValue([]);
+  resetRunDetailMocks();
 });

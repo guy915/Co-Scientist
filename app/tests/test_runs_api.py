@@ -8,31 +8,30 @@ from fastapi.testclient import TestClient
 
 from app.config import settings
 from app.runs.models import CreateRunRequest
-from app.store import checkpoints
 from app.store import runs as store
-from app.store.checkpoints import NewCheckpoint
 from app.store.models import DEMO_CLIENT_ID
 from app.store.models import RunStatus as StoreRunStatus
-from app.store.runs import RunCreateOptions
+from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
+from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
 
 
 def _new_run(c: TestClient, goal: str, *, tier: str = "express") -> str:
-    res = c.post("/api/runs", json={"research_goal": goal, "tier": tier})
+    res = _create_run(c, goal, tier=tier)
     return cast(str, res.json()["id"])
 
 
 def test_create_run_rejects_empty_goal() -> None:
     c = _client()
-    res = c.post("/api/runs", json={"research_goal": "", "profile": "standard"})
+    res = _create_run(c, "", profile="standard")
     assert res.status_code == 422
 
 
 def test_create_run_defaults_run_mode() -> None:
     c = _client()
-    res = c.post("/api/runs", json={"research_goal": "x"})
+    res = _create_run(c, "x")
     assert res.status_code == 200
     assert res.json()["run_mode"] == "standard"
 
@@ -40,26 +39,20 @@ def test_create_run_defaults_run_mode() -> None:
 @pytest.mark.parametrize("tier", ["express", "standard", "extended", "ultra"])
 def test_create_run_accepts_every_tier(tier: str) -> None:
     client = _client()
-    response = client.post(
-        "/api/runs", json={"research_goal": "x", "tier": tier}
-    )
+    response = _create_run(client, "x", tier=tier)
     assert response.status_code == 200
     assert response.json()["run_mode"] == tier
 
 
 def test_create_run_rejects_unknown_tier() -> None:
     client = _client()
-    response = client.post(
-        "/api/runs", json={"research_goal": "x", "tier": "gigantic"}
-    )
+    response = _create_run(client, "x", tier="gigantic")
     assert response.status_code == 422
 
 
 def test_concurrency_ceiling_is_uniform_and_per_client(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Per-client concurrency limits apply independently to each owner at every
-    # tier.
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     monkeypatch.setattr(settings, "max_concurrent_runs", 2)
     client = _client()
@@ -68,10 +61,8 @@ def test_concurrency_ceiling_is_uniform_and_per_client(
         headers = {"X-Client-ID": scientist}
         codes = []
         for index in range(count):
-            run_id = client.post(
-                "/api/runs",
-                headers=headers,
-                json={"research_goal": f"{tier} {index}", "tier": tier},
+            run_id = _create_run(
+                client, f"{tier} {index}", headers=headers, tier=tier
             ).json()["id"]
             codes.append(
                 client.post(
@@ -113,19 +104,11 @@ def test_cancel_restart_survivor_marks_it_cancelled() -> None:
     from app.store import runs as store_runs
     from app.store import tasks
     from app.store.models import RunStatus
-    from app.store.tasks import NewTask
 
     c = _client()
     rid = _new_run(c, "Restart survivor cancel")
     store_runs.update_run_status(rid, RunStatus.RUNNING)
-    queued = tasks.enqueue_task(
-        NewTask(
-            run_id=rid,
-            task_type="engine.node.ranking",
-            inputs={},
-            idempotency_key="cancel-api-task",
-        )
-    )
+    queued = enqueue_task(rid, "engine.node.ranking", "cancel-api-task")
 
     res = c.post(f"/api/runs/{rid}/cancel")
 
@@ -230,28 +213,18 @@ def test_active_run_counts_committed_checkpoint_artifacts(
     isolated_db: str,
 ) -> None:
     client = _client()
-    run = store.create_run(
-        "Live summary",
-        "standard",
-        "engine",
-        {},
-        RunCreateOptions(client_id="live-owner", db_path=isolated_db),
-    )
+    run = seed_run("Live summary", client_id="live-owner", db_path=isolated_db)
     store.update_run_status(run.id, StoreRunStatus.RUNNING, db_path=isolated_db)
-    checkpoints.save_checkpoint(
+    seed_checkpoint(
         run.id,
-        NewCheckpoint(
-            stage="engine_task:test",
-            schema_version=1,
-            last_event_seq=0,
-            state={
-                "provider": "engine",
-                "state": {
-                    "hypotheses": [{"id": "h1"}, {"id": "h2"}],
-                    "articles": [{"id": "a1"}],
-                },
+        {
+            "provider": "engine",
+            "state": {
+                "hypotheses": [{"id": "h1"}, {"id": "h2"}],
+                "articles": [{"id": "a1"}],
             },
-        ),
+        },
+        stage="engine_task:test",
         db_path=isolated_db,
     )
 
@@ -296,10 +269,8 @@ def test_ceiling_is_configurable() -> None:
 
 
 def _start(client: TestClient, headers: dict[str, str], tier: str) -> int:
-    run_id = client.post(
-        "/api/runs",
-        headers=headers,
-        json={"research_goal": f"{tier} question", "tier": tier},
+    run_id = _create_run(
+        client, f"{tier} question", headers=headers, tier=tier
     ).json()["id"]
     started = client.post(f"/api/runs/{run_id}/start", headers=headers, json={})
     return int(started.status_code)
@@ -319,12 +290,8 @@ def test_ceiling_is_one_total_across_tiers(
 
 
 def test_demo_route_precedes_run_id_route(isolated_db: str) -> None:
-    demo = store.create_run(
-        "Demo route fixture",
-        "standard",
-        "engine",
-        {},
-        RunCreateOptions(client_id=DEMO_CLIENT_ID, db_path=isolated_db),
+    demo = seed_run(
+        "Demo route fixture", client_id=DEMO_CLIENT_ID, db_path=isolated_db
     )
     client = _client()
     _new_run(client, "Private run excluded from demo list")

@@ -1,3 +1,4 @@
+import {makeChatSummary, makeRunMessage} from '@/test_fixtures';
 import {act, fireEvent, screen, waitFor} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
 import {STARTED_SESSION_STANDBY_COPY} from './chat_timeline_run_spec_card';
@@ -235,40 +236,21 @@ it('starts the durable run on confirmation', async () => {
 });
 
 it('does not repeat the start exchange the live tab already shows', async () => {
-  // Fetching newly linked persisted exchanges must not duplicate their live
-  // copies.
-  apiMock.listInterviews.mockResolvedValue([
-    {
-      id: 'interview-1',
-      title: 'Cold-stress glucose homeostasis',
-      challenge: 'Investigate glucose homeostasis.',
-      status: 'completed',
-      run_id: 'run-1',
-      created_at: 1,
-      updated_at: 3,
-    },
-  ]);
+  apiMock.listInterviews.mockResolvedValue([makeChatSummary()]);
   apiMock.getRunMessages.mockResolvedValue([
-    {
+    makeRunMessage({
       id: 8,
-      run_id: 'run-1',
-      sender: 'user',
       content: 'Start research',
       kind: 'start',
       created_at: 8,
-      applied: false,
-      meta: null,
-    },
-    {
+    }),
+    makeRunMessage({
       id: 9,
-      run_id: 'run-1',
       sender: 'system',
       content: ANNOUNCEMENT_TEXT,
       kind: 'start',
       created_at: 9,
-      applied: false,
-      meta: null,
-    },
+    }),
   ]);
 
   await driveToRunSpec();

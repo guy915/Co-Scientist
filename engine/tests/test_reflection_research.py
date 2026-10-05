@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
@@ -23,7 +23,6 @@ from co_scientist.agents.reflection.review_gate import ReviewType
 from co_scientist.evidence import search
 from co_scientist.evidence.search_support import SearchConfig
 from co_scientist.generator import run_setup
-from co_scientist.mcp_client import MCPToolClient
 from co_scientist.models import Hypothesis
 from co_scientist.research import result_from_dict
 from co_scientist.research_adapter import (
@@ -32,9 +31,10 @@ from co_scientist.research_adapter import (
 )
 from co_scientist.workspace.session import WorkspaceSession
 from tests._research_fakes import (
-    _PAPERS,
     FakeResearchClient,
     _ScriptedModel,
+    install_research_client,
+    make_search_config,
     research_registry,
 )
 from tests._state import make_hypothesis, make_state
@@ -49,21 +49,7 @@ def scripted(monkeypatch: pytest.MonkeyPatch) -> _ScriptedModel:
 
 @pytest.fixture
 def client(monkeypatch: pytest.MonkeyPatch) -> FakeResearchClient:
-    fake = FakeResearchClient(
-        {
-            "search_alpha": _PAPERS,
-            "read_pdf": {
-                "content": "TGF-beta blockade reduced fibrosis in a"
-                " human cohort."
-            },
-        }
-    )
-
-    async def get_client(**_: Any) -> MCPToolClient:
-        return cast(MCPToolClient, fake)
-
-    monkeypatch.setattr("co_scientist.mcp_client.get_mcp_client", get_client)
-    return fake
+    return install_research_client(monkeypatch)
 
 
 def _reflection_research_evidence_state(
@@ -654,15 +640,10 @@ def test_the_simulation_loop_carries_its_own_spend_ceiling() -> None:
 
 
 def _config(*, semantic_relevance_enabled: bool) -> SearchConfig:
-    return SearchConfig(
-        tool_registry=None,
-        workflow=None,
-        is_multi_source=False,
+    return make_search_config(
         search_tool_name="search_pubmed",
-        search_tool_config=None,
         source_name="pubmed",
         papers_to_read_count=6,
-        is_dev_mode=False,
         research_goal="a research goal",
         model_name="offline/deterministic",
         semantic_relevance_enabled=semantic_relevance_enabled,
@@ -721,8 +702,6 @@ async def test_enabled_pass_still_runs_for_the_run_level_review(
 async def test_probe_retrieval_opts_out_of_the_relevance_pass(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Shared probe retrieval opts out once instead of repeating relevance
-    policy in each agent."""
     seen: list[SearchConfig] = []
 
     async def _collect(

@@ -11,11 +11,12 @@ from langchain_core.tools import ToolException
 from co_scientist.cache import scoped_cache_override
 from co_scientist.evidence import relevance, search, search_query
 from co_scientist.evidence.relevance import _HYBRID_VERSION
-from co_scientist.evidence.search_support import SearchConfig
 from co_scientist.mcp_client import CampaignToolUnavailableError, MCPToolClient
 from co_scientist.offline import llm as offline_llm
 from co_scientist.tools.response_parser import parse_mcp_result
+from tests._llm_fake import mock_call_llm_json, stub_call_llm_json
 from tests._mcp import isolate_offline_router
+from tests._research_fakes import make_search_config
 
 
 @pytest.fixture
@@ -226,19 +227,18 @@ class TestLiteratureReviewRelevance:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
 
-        async def fake_call_llm_json(
-            *, prompt: str, spec: Any
-        ) -> dict[str, Any]:
-            # Reversal distinguishes candidate indices from list positions.
-            return {
+        # Reversal distinguishes candidate indices from list positions.
+        stub_call_llm_json(
+            monkeypatch,
+            relevance,
+            {
                 "judgments": [
                     {"index": 3, "relevance": 0.3, "rationale": "third"},
                     {"index": 1, "relevance": 0.9, "rationale": "first"},
                     {"index": 2, "relevance": 0.1, "rationale": "second"},
                 ]
-            }
-
-        monkeypatch.setattr(relevance, "call_llm_json", fake_call_llm_json)
+            },
+        )
 
         ranked = _pool(3)
         result = await relevance.apply_semantic_relevance(
@@ -254,10 +254,11 @@ class TestLiteratureReviewRelevance:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
 
-        async def failing_call_llm_json(*, prompt: str, spec: Any) -> Any:
-            raise RuntimeError("provider exploded")
-
-        monkeypatch.setattr(relevance, "call_llm_json", failing_call_llm_json)
+        mock_call_llm_json(
+            monkeypatch,
+            relevance,
+            side_effect=RuntimeError("provider exploded"),
+        )
 
         ranked = _pool(2)
         result = await relevance.apply_semantic_relevance(
@@ -276,17 +277,16 @@ class TestLiteratureReviewRelevance:
     ) -> None:
         """One malformed field must not abort sibling batches through gather."""
 
-        async def fake_call_llm_json(
-            *, prompt: str, spec: Any
-        ) -> dict[str, Any]:
-            return {
+        stub_call_llm_json(
+            monkeypatch,
+            relevance,
+            {
                 "judgments": [
                     {"index": 1, "relevance": "n/a", "rationale": "bad type"},
                     {"index": 2, "relevance": 0.8, "rationale": "fine"},
                 ]
-            }
-
-        monkeypatch.setattr(relevance, "call_llm_json", fake_call_llm_json)
+            },
+        )
 
         ranked = _pool(2)
         result = await relevance.apply_semantic_relevance(
@@ -303,14 +303,11 @@ class TestLiteratureReviewRelevance:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
 
-        async def fake_call_llm_json(
-            *, prompt: str, spec: Any
-        ) -> dict[str, Any]:
-            return {
-                "judgments": [{"index": 1, "relevance": 0.7, "rationale": "ok"}]
-            }
-
-        monkeypatch.setattr(relevance, "call_llm_json", fake_call_llm_json)
+        stub_call_llm_json(
+            monkeypatch,
+            relevance,
+            {"judgments": [{"index": 1, "relevance": 0.7, "rationale": "ok"}]},
+        )
 
         ranked = _pool(3)
         result = await relevance.apply_semantic_relevance(
@@ -412,15 +409,10 @@ class TestLiteratureReviewSearchSingleSource:
             "_search_all_queries",
             _recording_search_all_queries(observed),
         )
-        config = SearchConfig(
-            tool_registry=None,
-            workflow=None,
-            is_multi_source=False,
+        config = make_search_config(
             search_tool_name="pubmed_fulltext",
-            search_tool_config=None,
             source_name="pubmed",
             papers_to_read_count=3,
-            is_dev_mode=False,
         )
 
         papers, source_map = await search._phase2_collect_papers_single_source(
@@ -450,15 +442,10 @@ class TestLiteratureReviewSearchSingleSource:
             "_search_all_queries",
             _recording_search_all_queries(observed),
         )
-        config = SearchConfig(
-            tool_registry=None,
-            workflow=None,
-            is_multi_source=False,
+        config = make_search_config(
             search_tool_name="pubmed_fulltext",
-            search_tool_config=None,
             source_name="pubmed",
             papers_to_read_count=3,
-            is_dev_mode=False,
             research_goal="a research goal",
             model_name=offline_llm.DEFAULT_OFFLINE_MODEL,
         )
@@ -480,8 +467,6 @@ class TestLiteratureReviewSearchSingleSource:
 
 
 class _FlakyClient:
-    """Fails a set number of times, then returns a payload."""
-
     def __init__(self, failures: int, payload: Any = None) -> None:
         self.failures = failures
         self.payload = payload if payload is not None else {"papers": []}
@@ -506,8 +491,6 @@ def _no_real_sleep(monkeypatch: pytest.MonkeyPatch) -> list[float]:
 
 
 class _ToolErrorClient:
-    """Returns the MCP server's own tool-error envelope, every call."""
-
     def __init__(self, payload: str) -> None:
         self.payload = payload
         self.calls = 0

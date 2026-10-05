@@ -2,16 +2,14 @@ import {render} from '@testing-library/react';
 import {MemoryRouter, Route, Routes, useLocation} from 'react-router-dom';
 import {vi} from 'vitest';
 import type {ChatSummary, Run} from '@/api/runs';
-import {makeHypothesis, makeRun} from '@/test_fixtures';
+import {makeHypothesis, makeRunWithSummary} from '@/test_fixtures';
 import {ChatHistoryProvider} from '../hooks/history_context';
 import {RunHistoryProvider} from '../hooks/history_context';
 import {ChatWorkspace} from './chat_workspace';
 
-// Hoist the factory's mock before imports bind the real network module.
 const apiMock = vi.hoisted(() => {
   const listDemoRuns = vi.fn();
   const listRuns = vi.fn();
-  // Keep the real history merge policy while replacing only network methods.
   const loadRunHistory = vi.fn(async () => {
     const [owned, demo] = await Promise.all([
       listRuns().catch(() => []),
@@ -87,19 +85,17 @@ export function stubStatusConnectors(
 }
 
 export function minimalRun(overrides = {}) {
-  return {
-    ...makeRun({
-      id: 'run-1',
-      research_goal: 'Investigate glucose homeostasis.',
-      provider: 'mock',
-      created_at: 1,
-      updated_at: 2,
-      completed_at: 3,
-    }),
+  return makeRunWithSummary({
+    id: 'run-1',
+    research_goal: 'Investigate glucose homeostasis.',
+    provider: 'mock',
+    created_at: 1,
+    updated_at: 2,
+    completed_at: 3,
     top_elo: 1200,
     summary: {events: 4, hypotheses: 1, evidence: 1, matches: 1, reviews: 1},
     ...overrides,
-  };
+  });
 }
 
 export const hypothesis = makeHypothesis({

@@ -210,15 +210,11 @@ def test_a_query_already_short_enough_is_left_alone() -> None:
 
 
 class _QueryScriptedClient:
-    """Fake MCP client returning a scripted response per exact query."""
-
     def __init__(self, responses: dict[str, Any]) -> None:
-        """Map each exact query string to its response or exception."""
         self._responses = responses
         self.queries: list[str] = []
 
     async def call_tool(self, tool_name: str, **kwargs: Any) -> Any:
-        """Record the query and return (or raise) its scripted outcome."""
         query = str(kwargs["query"])
         self.queries.append(query)
         outcome = self._responses[query]
@@ -308,15 +304,10 @@ async def test_a_failed_search_is_not_retried_broader() -> None:
 
 
 def _single_source_config() -> SearchConfig:
-    return SearchConfig(
-        tool_registry=None,
-        workflow=None,
-        is_multi_source=False,
+    return make_search_config(
         search_tool_name="search_pubmed",
-        search_tool_config=None,
         source_name="pubmed",
         papers_to_read_count=4,
-        is_dev_mode=False,
     )
 
 

@@ -1,13 +1,19 @@
-# Narrow optional results only after creating their rows.
-
 from __future__ import annotations
 
-from typing import Any
+import sqlite3
+from collections.abc import Iterable, Mapping
+from typing import Any, TypedDict
 
+from typing_extensions import Unpack
+
+from app.store import checkpoints, reports, runs, tasks
+from app.store import db as store_db
 from app.store import hypotheses as store
-from app.store import reports, runs
+from app.store.checkpoints import NewCheckpoint
 from app.store.hypotheses import NewHypothesis
-from app.store.models import RunRow
+from app.store.models import RunRow, ScientificTask
+from app.store.runs import RunCreateOptions
+from app.store.tasks import NewTask
 
 
 def _existing_run(run_id: str) -> RunRow:
@@ -34,4 +40,123 @@ def _add(
             run_id=run_id, title=title, statement=statement, mechanism=mechanism
         ),
         db_path=db,
+    )
+
+
+def seed_run(
+    goal: str,
+    *,
+    profile: str = "standard",
+    provider: str = "engine",
+    config: dict[str, Any] | None = None,
+    client_id: str = "",
+    llm_backend: str | None = None,
+    db_path: str | None = None,
+    options: RunCreateOptions | None = None,
+) -> RunRow:
+    return runs.create_run(
+        goal,
+        profile,
+        provider,
+        {} if config is None else config,
+        options
+        or RunCreateOptions(
+            client_id=client_id, llm_backend=llm_backend, db_path=db_path
+        ),
+    )
+
+
+def seed_checkpoint(
+    run_id: str,
+    state: dict[str, Any],
+    *,
+    stage: str,
+    schema_version: int = 1,
+    last_event_seq: int = 0,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> int:
+    return checkpoints.save_checkpoint(
+        run_id,
+        NewCheckpoint(
+            stage=stage,
+            schema_version=schema_version,
+            last_event_seq=last_event_seq,
+            state=state,
+        ),
+        db_path=db_path,
+        conn=conn,
+    )
+
+
+class _TaskFields(TypedDict, total=False):
+    priority: int
+    dependencies: Iterable[str]
+    provenance: Mapping[str, Any] | None
+    budget: Mapping[str, Any] | None
+    max_attempts: int
+
+
+def enqueue_task(
+    run_id: str,
+    task_type: str,
+    key: str,
+    *,
+    inputs: Mapping[str, Any] | None = None,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+    **fields: Unpack[_TaskFields],
+) -> ScientificTask:
+    return tasks.enqueue_task(
+        NewTask(
+            run_id=run_id,
+            task_type=task_type,
+            inputs={} if inputs is None else inputs,
+            idempotency_key=key,
+            **fields,
+        ),
+        db_path=db_path,
+        conn=conn,
+    )
+
+
+def mark_task_leased(
+    task_id: str,
+    db: str,
+    *,
+    owner: str,
+    expires_at: float,
+    spend_budget: bool,
+) -> None:
+    extra = ", attempt=max_attempts" if spend_budget else ""
+    with store_db.connect(db) as conn:
+        conn.execute(
+            "UPDATE scientific_tasks SET status='leased', lease_owner=?, "
+            f"lease_expires_at=?{extra} WHERE id=?",
+            (owner, expires_at, task_id),
+        )
+
+
+def leased_node_task(run_id: str) -> ScientificTask:
+    return ScientificTask(
+        id="task-1",
+        run_id=run_id,
+        task_type="engine.node.generate",
+        status="leased",
+        priority=90,
+        inputs={},
+        dependencies=(),
+        provenance={},
+        idempotency_key="engine.node.generate:0",
+        budget={},
+        attempt=1,
+        max_attempts=3,
+        lease_owner="test",
+        lease_expires_at=None,
+        result=None,
+        error=None,
+        created_at=0.0,
+        updated_at=0.0,
+        started_at=None,
+        completed_at=None,
     )

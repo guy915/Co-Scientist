@@ -1,4 +1,13 @@
-import type {Hypothesis, MatchRow, Run} from '@/api/runs';
+import type {
+  ChatSummary,
+  Hypothesis,
+  InterviewQuestion,
+  MatchRow,
+  Run,
+  RunMessage,
+  RunWithSummary,
+} from '@/api/runs';
+import type {AppLogRecord} from '@/api/logs';
 import type {InferredRunSpec} from '@/workbench/run_spec';
 import {type ChatEntry} from '@/workbench/pages/chat_timeline_bubble';
 
@@ -42,7 +51,17 @@ export function makeRun(over: Partial<Run> = {}): Run {
     completed_at: null,
     error: null,
     ...over,
-  } as Run;
+  };
+}
+
+export function makeRunWithSummary(
+  over: Partial<RunWithSummary> = {},
+): RunWithSummary {
+  return {
+    ...makeRun(),
+    summary: {events: 0, hypotheses: 0, evidence: 0, matches: 0, reviews: 0},
+    ...over,
+  };
 }
 
 export function makeSpec(over: Partial<InferredRunSpec> = {}): InferredRunSpec {
@@ -69,4 +88,63 @@ export function makeMessage(over: Partial<ChatEntry> = {}): ChatEntry {
 
 export function makeMatch(id: number, over: Partial<MatchRow> = {}): MatchRow {
   return {id, ...over} as unknown as MatchRow;
+}
+
+export function makeChatSummary(over: Partial<ChatSummary> = {}): ChatSummary {
+  return {
+    id: 'interview-1',
+    title: 'Cold-stress glucose homeostasis',
+    challenge: 'Investigate glucose homeostasis.',
+    status: 'completed',
+    run_id: 'run-1',
+    created_at: 1,
+    updated_at: 3,
+    ...over,
+  };
+}
+
+export function makeRunMessage(over: Partial<RunMessage> = {}): RunMessage {
+  return {
+    id: 1,
+    run_id: 'run-1',
+    sender: 'user',
+    content: 'Hello',
+    kind: 'qa',
+    created_at: 1,
+    applied: false,
+    meta: null,
+    ...over,
+  };
+}
+
+export function makeQuestion(
+  over: Partial<InterviewQuestion> = {},
+): InterviewQuestion {
+  return {
+    header: 'Model system',
+    question: 'Which model system should the ideas be built around?',
+    multi_select: false,
+    options: [
+      {label: 'Primary human cells', description: 'Closest to patient biology'},
+      {label: 'iPSC-derived line', description: 'Renewable and editable'},
+    ],
+    ...over,
+  };
+}
+
+export function makeLogRecord(
+  id: number,
+  over: Partial<AppLogRecord> = {},
+): AppLogRecord {
+  return {
+    id,
+    created_at: 1_700_000_000 + id,
+    level: 'INFO',
+    levelno: 20,
+    logger: 'app.main',
+    message: `record ${id}`,
+    run_id: null,
+    exc_text: null,
+    ...over,
+  };
 }

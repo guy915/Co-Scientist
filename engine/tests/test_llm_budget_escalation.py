@@ -43,10 +43,10 @@ from co_scientist.llm.attempts.escalation import (
 )
 from co_scientist.state import WorkflowState
 from tests._llm_fake import disable_llm_cache as _disable_cache
-from tests._llm_fake import install_fake_backend
 from tests._llm_fake import make_completion as _completion
 from tests._llm_fake import make_message as _message
 from tests._llm_fake import make_usage as _usage
+from tests._llm_fake import scripted_backend
 
 
 async def test_call_llm_recovers_on_a_raised_budget(
@@ -158,18 +158,7 @@ def _record(
     monkeypatch: pytest.MonkeyPatch,
     responses: list[SimpleNamespace | Exception],
 ) -> list[dict[str, Any]]:
-    calls: list[dict[str, Any]] = []
-    queue = iter(responses)
-
-    async def fake(*_args: Any, **kwargs: Any) -> SimpleNamespace:
-        calls.append(kwargs)
-        item = next(queue)
-        if isinstance(item, Exception):
-            raise item
-        return item
-
-    install_fake_backend(monkeypatch, fake)
-    return calls
+    return scripted_backend(monkeypatch, responses).requests
 
 
 def _flaky(
@@ -481,15 +470,7 @@ def _provider_error(reasoning: int) -> SimpleNamespace:
 def _record_acompletion(
     monkeypatch: pytest.MonkeyPatch, responses: list[SimpleNamespace]
 ) -> list[dict[str, Any]]:
-    calls: list[dict[str, Any]] = []
-
-    async def fake_acompletion(*_args: Any, **kwargs: Any) -> SimpleNamespace:
-        calls.append(kwargs)
-        index = min(len(calls) - 1, len(responses) - 1)
-        return responses[index]
-
-    install_fake_backend(monkeypatch, fake_acompletion)
-    return calls
+    return scripted_backend(monkeypatch, responses, repeat_last=True).requests
 
 
 async def test_budget_exhaustion_is_its_own_error(
@@ -539,8 +520,6 @@ async def test_an_empty_response_with_no_reasoning_stays_ordinary(
 async def test_a_mid_stream_provider_error_is_not_thinking_only(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """More room cannot fix thinking-only output; recovery must change
-    reasoning."""
     _disable_cache(monkeypatch)
     _record_acompletion(monkeypatch, [_provider_error(519)])
 
@@ -682,8 +661,6 @@ async def test_a_call_already_sized_at_the_constant_still_gets_more_room(
 async def test_thinking_only_skips_straight_to_disabling_thinking(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """More room cannot fix thinking-only output; recovery must change
-    reasoning."""
     _disable_cache(monkeypatch)
     calls = _record_acompletion(monkeypatch, [_thinking_only(1149)])
 
@@ -703,8 +680,6 @@ async def test_thinking_only_skips_straight_to_disabling_thinking(
 async def test_disabling_thinking_recovers_a_thinking_only_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """More room cannot fix thinking-only output; recovery must change
-    reasoning."""
     _disable_cache(monkeypatch)
     calls = _record_acompletion(
         monkeypatch, [_thinking_only(1149), _completion(_message('{"a":2}'))]
@@ -726,7 +701,6 @@ async def test_disabling_thinking_recovers_a_thinking_only_call(
 async def test_a_provider_error_recovers_without_disabling_thinking(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Transport failures must not be mistaken for reasoning exhaustion."""
     _disable_cache(monkeypatch)
     calls = _record_acompletion(
         monkeypatch, [_provider_error(519), _completion(_message('{"a":3}'))]

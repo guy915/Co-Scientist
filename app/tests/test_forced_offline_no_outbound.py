@@ -9,8 +9,9 @@ import pytest
 
 from app import credentials, goal_text, qa, run_start_announcement
 from app.store import messages as store
-from app.store import runs
+from tests._client import create_run as _create_run
 from tests._client import make_client
+from tests._store_helpers import seed_run
 
 from ._interviews_helpers import _interview_payload
 
@@ -23,7 +24,6 @@ def _forced_offline_with_a_key(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture
 def attempts(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
-    # Only non-offline models count as outbound attempts.
     import litellm
     from co_scientist.offline.llm import is_offline_model
 
@@ -62,7 +62,7 @@ def test_qa_answer_makes_no_outbound_request(
     attempts: list[dict[str, Any]],
 ) -> None:
     with make_client() as client:
-        created = client.post("/api/runs", json={"research_goal": _GOAL})
+        created = _create_run(client, _GOAL)
         assert created.status_code == 200
         run_id = created.json()["id"]
         answered = client.post(
@@ -104,7 +104,7 @@ def test_qa_dispatch_stays_on_the_offline_answer(
     attempts: list[dict[str, Any]],
 ) -> None:
     with make_client() as client:
-        created = client.post("/api/runs", json={"research_goal": _GOAL})
+        created = _create_run(client, _GOAL)
         run_id = created.json()["id"]
         answered = client.post(
             f"/api/runs/{run_id}/messages/ask",
@@ -113,8 +113,6 @@ def test_qa_dispatch_stays_on_the_offline_answer(
     assert "offline mode" in answered.text
     assert attempts == []
     assert store.list_messages(run_id)
-    # Read the installed module through sys.modules rather than a private
-    # package attribute.
     assert sys.modules["app.runs.chat"].qa is qa
 
 
@@ -134,7 +132,7 @@ async def test_announcement_makes_no_outbound_request(
 
     with pytest.raises(OfflineModeError):
         async for _ in run_start_announcement._stream_model_fragments(
-            runs.create_run(_GOAL, "express", "engine", {})
+            seed_run(_GOAL, profile="express")
         ):
             pass
     assert attempts == []

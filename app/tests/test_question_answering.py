@@ -19,13 +19,14 @@ from app.store import messages as store
 from app.store import runs_views as views
 from app.store.messages import NewMessage
 from app.store.models import RunRow, RunStatus
-from app.store.runs import RunCreateOptions
+from tests._client import create_run as _create_run
 from tests._client import drain as _drain
 from tests._client import fake_litellm as _fake_litellm
 from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
 from tests._llm_fake_backend import install_completion_backend
 from tests._process_mode_helpers import FakeProcessMode
+from tests._store_helpers import seed_run
 
 
 def test_manifest_skips_citation_without_evidence_id() -> None:
@@ -169,12 +170,12 @@ def test_stream_llm_deltas_yields_only_nonempty_chunks(
 def test_handle_qa_stream_error_persists_fallback_and_logs(
     isolated_db: str, caplog: pytest.LogCaptureFixture
 ) -> None:
-    runs.create_run(
+    seed_run(
         "goal",
-        "default",
-        "mock",
-        {},
-        RunCreateOptions(client_id="c1", db_path=isolated_db),
+        profile="default",
+        provider="mock",
+        client_id="c1",
+        db_path=isolated_db,
     )
     run_id = views.list_runs(client_id="c1", db_path=isolated_db)[0].id
     question = store.append_message(NewMessage(run_id, "user", "Q?", "qa"))
@@ -199,12 +200,12 @@ def test_stream_answer_happy_path_persists_and_yields_frames(
     install_completion_backend(
         monkeypatch, (_fake_litellm(["Ans", "wer"])).acompletion
     )
-    runs.create_run(
+    seed_run(
         "goal",
-        "default",
-        "mock",
-        {},
-        RunCreateOptions(client_id="c1", db_path=isolated_db),
+        profile="default",
+        provider="mock",
+        client_id="c1",
+        db_path=isolated_db,
     )
     run_id = views.list_runs(client_id="c1", db_path=isolated_db)[0].id
     question = store.append_message(NewMessage(run_id, "user", "Q?", "qa"))
@@ -236,12 +237,12 @@ def test_stream_answer_without_manifest_skips_sources_and_meta(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     install_completion_backend(monkeypatch, (_fake_litellm(["Ok"])).acompletion)
-    runs.create_run(
+    seed_run(
         "goal",
-        "default",
-        "mock",
-        {},
-        RunCreateOptions(client_id="c2", db_path=isolated_db),
+        profile="default",
+        provider="mock",
+        client_id="c2",
+        db_path=isolated_db,
     )
     run_id = views.list_runs(client_id="c2", db_path=isolated_db)[0].id
     question = store.append_message(NewMessage(run_id, "user", "Q?", "qa"))
@@ -287,12 +288,12 @@ def test_stream_answer_relays_and_persists_reasoning(
             _thinking_litellm("Checking the evidence first.", "Answer.")
         ).acompletion,
     )
-    runs.create_run(
+    seed_run(
         "goal",
-        "default",
-        "mock",
-        {},
-        RunCreateOptions(client_id="c4", db_path=isolated_db),
+        profile="default",
+        provider="mock",
+        client_id="c4",
+        db_path=isolated_db,
     )
     run_id = views.list_runs(client_id="c4", db_path=isolated_db)[0].id
 
@@ -324,12 +325,12 @@ def test_stream_answer_error_path_persists_and_emits_fallback(
         monkeypatch,
         (_fake_litellm([], raise_exc=RuntimeError("no key"))).acompletion,
     )
-    runs.create_run(
+    seed_run(
         "goal",
-        "default",
-        "mock",
-        {},
-        RunCreateOptions(client_id="c3", db_path=isolated_db),
+        profile="default",
+        provider="mock",
+        client_id="c3",
+        db_path=isolated_db,
     )
     run_id = views.list_runs(client_id="c3", db_path=isolated_db)[0].id
     question = store.append_message(NewMessage(run_id, "user", "Q?", "qa"))
@@ -427,12 +428,12 @@ def test_build_offline_answer_handles_a_run_with_no_hypotheses() -> None:
 def test_stream_offline_answer_emits_sources_chunks_done_and_persists(
     isolated_db: str,
 ) -> None:
-    runs.create_run(
+    seed_run(
         "goal",
-        "default",
-        "mock",
-        {},
-        RunCreateOptions(client_id="off1", db_path=isolated_db),
+        profile="default",
+        provider="mock",
+        client_id="off1",
+        db_path=isolated_db,
     )
     run_id = views.list_runs(client_id="off1", db_path=isolated_db)[0].id
     question = store.append_message(NewMessage(run_id, "user", "Q?", "qa"))
@@ -460,12 +461,8 @@ def test_stream_offline_answer_emits_sources_chunks_done_and_persists(
 
 def _completed_run_id() -> str:
     c = _client()
-    rid = c.post(
-        "/api/runs",
-        json={
-            "research_goal": "Investigate ferroptosis in cancer",
-            "tier": "express",
-        },
+    rid = _create_run(
+        c, "Investigate ferroptosis in cancer", tier="express"
     ).json()["id"]
     c.post(f"/api/runs/{rid}/start", json={})
     assert _wait_status(c, rid, "completed", timeout=30.0)
@@ -539,10 +536,7 @@ def test_the_prompt_carries_the_runs_progress_and_its_report() -> None:
 
 def test_a_running_run_carries_no_final_report_section() -> None:
     c = _client()
-    rid = c.post(
-        "/api/runs",
-        json={"research_goal": "Investigate X", "tier": "express"},
-    ).json()["id"]
+    rid = _create_run(c, "Investigate X", tier="express").json()["id"]
     runs.update_run_status(rid, RunStatus.RUNNING)
 
     prompt = _prompt_for(rid)
@@ -580,8 +574,6 @@ def test_manifest_lists_cited_evidence_first() -> None:
 
 
 def test_system_prompt_enforces_grounding_only() -> None:
-    # Q&A must use only run artifacts and numbered evidence, declining
-    # unsupported outside knowledge.
     prompt = build_system_prompt(
         QaRunContext(
             research_goal="A goal",
@@ -674,13 +666,7 @@ def test_manifest_ignores_citations_to_unknown_evidence() -> None:
 
 
 def test_message_meta_round_trips(isolated_db: str) -> None:
-    runs.create_run(
-        "rg",
-        "default",
-        "engine",
-        {},
-        RunCreateOptions(client_id="c1", db_path=isolated_db),
-    )
+    seed_run("rg", profile="default", client_id="c1", db_path=isolated_db)
     run_id = views.list_runs(client_id="c1", db_path=isolated_db)[0].id
 
     sources = [{"n": 1, "evidence_id": "e1", "title": "T", "state": "verified"}]
@@ -702,13 +688,7 @@ def test_message_meta_round_trips(isolated_db: str) -> None:
 
 
 def test_message_without_meta_is_none(isolated_db: str) -> None:
-    runs.create_run(
-        "rg",
-        "default",
-        "engine",
-        {},
-        RunCreateOptions(client_id="c1", db_path=isolated_db),
-    )
+    seed_run("rg", profile="default", client_id="c1", db_path=isolated_db)
     run_id = views.list_runs(client_id="c1", db_path=isolated_db)[0].id
     store.append_message(
         NewMessage(run_id=run_id, sender="user", content="hi", kind="steering"),
@@ -777,7 +757,7 @@ def test_status_events_are_not_steps() -> None:
 
 
 def _seed_running_run() -> RunRow:
-    run = runs.create_run("A goal", "standard", "engine", {})
+    run = seed_run("A goal")
     runs.update_run_status(run.id, RunStatus.RUNNING)
     return dataclasses.replace(run, status="running")
 

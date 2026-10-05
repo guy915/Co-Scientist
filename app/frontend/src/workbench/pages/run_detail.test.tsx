@@ -1,49 +1,9 @@
+import {stubViewport} from '@/browser_test_support';
+import {resetRunDetailMocks, setStream} from './run_detail_api_test_support';
 import * as runsApi from '@/api/runs';
 import {screen} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
 import {makeRun, renderAt} from './run_detail_test_support';
-
-const streamMock = vi.hoisted(() => ({
-  state: {events: [] as {seq: number; type: string; payload: object}[]},
-}));
-vi.mock('@/hooks/use_run_stream', () => ({
-  useRunStream: () => ({events: streamMock.state.events, terminal: false}),
-}));
-
-vi.mock('@/workbench/hooks/timers', async importOriginal => {
-  const actual =
-    await importOriginal<typeof import('@/workbench/hooks/timers')>();
-  const timer = {schedule: (run: () => void) => run(), cancel: () => {}};
-  return {...actual, useResetTimer: () => timer};
-});
-
-function setStream(events: {seq: number; type: string; payload: object}[]) {
-  streamMock.state = {events};
-}
-
-vi.mock('@/api/runs', async importActual => {
-  const actual = await importActual<typeof import('@/api/runs')>();
-  return {
-    ...actual,
-    getRun: vi.fn(),
-    getHypotheses: vi.fn().mockResolvedValue([]),
-    getEvidence: vi.fn().mockResolvedValue([]),
-    getMatches: vi.fn().mockResolvedValue([]),
-    getReviews: vi.fn().mockResolvedValue([]),
-    getClaimEvidence: vi.fn().mockResolvedValue([]),
-    getSafety: vi.fn().mockResolvedValue([]),
-    adjudicateSafety: vi.fn().mockResolvedValue({
-      decision_id: 1,
-      resolution: 'approved',
-    }),
-    getCitations: vi.fn().mockResolvedValue([]),
-    listInterviews: vi.fn().mockResolvedValue([]),
-    getReport: vi.fn().mockResolvedValue(null),
-    sendRunSteering: vi
-      .fn()
-      .mockResolvedValue({id: 'message-1', status: 'queued'}),
-  };
-});
 
 it('leaves the run for the workspace even when a chat started it', async () => {
   vi.mocked(runsApi.listInterviews).mockResolvedValue([
@@ -74,18 +34,6 @@ it('falls back to the workspace when no conversation started the run', async () 
     '/',
   );
 });
-
-// jsdom lacks matchMedia; unstubbed tests silently exercise desktop behavior.
-function stubViewport(mobile: boolean) {
-  vi.stubGlobal(
-    'matchMedia',
-    vi.fn(() => ({
-      matches: mobile,
-      addEventListener: () => {},
-      removeEventListener: () => {},
-    })),
-  );
-}
 
 // The mobile titlebar is the detail view's only route back to the ranked list.
 it('returns to the ranked ideas list when an idea is open', async () => {
@@ -248,15 +196,6 @@ it('lets report-page content scroll horizontally on phone instead of clipping it
 });
 
 beforeEach(() => {
-  vi.clearAllMocks();
-  // Viewport stubs must not leak into another test.
+  resetRunDetailMocks();
   vi.unstubAllGlobals();
-  setStream([]);
-  vi.mocked(runsApi.getRun).mockResolvedValue(makeRun('Study pathway X'));
-  // Reset collection overrides between tests.
-  vi.mocked(runsApi.getHypotheses).mockResolvedValue([]);
-  vi.mocked(runsApi.getMatches).mockResolvedValue([]);
-  vi.mocked(runsApi.getReport).mockResolvedValue(null);
-  vi.mocked(runsApi.getSafety).mockResolvedValue([]);
-  vi.mocked(runsApi.listInterviews).mockResolvedValue([]);
 });

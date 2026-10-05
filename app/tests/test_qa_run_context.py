@@ -8,19 +8,18 @@ import pytest
 from app import qa
 from app.qa import artifacts, snapshot
 from app.runs.chat import _gather_qa_context
-from app.store import checkpoints, db, hypotheses, interviews, runs
-from app.store.checkpoints import NewCheckpoint
+from app.store import db, hypotheses, interviews, runs
 from app.store.models import RunRow, RunStatus
-from app.store.runs import RunCreateOptions
+from tests._store_helpers import seed_checkpoint, seed_run
 
 
 def _run(config: dict[str, Any] | None = None) -> RunRow:
-    run = runs.create_run(
+    run = seed_run(
         "Test scientific goal",
-        "express",
-        "mock",
-        config or {},
-        options=RunCreateOptions(client_id="owner"),
+        profile="express",
+        provider="mock",
+        config=config or {},
+        client_id="owner",
     )
     runs.update_run_status(run.id, RunStatus.RUNNING)
     result = runs.get_run(run.id)
@@ -29,14 +28,11 @@ def _run(config: dict[str, Any] | None = None) -> RunRow:
 
 
 def _checkpoint(run: Any, state: dict[str, Any], version: int = 1) -> None:
-    checkpoints.save_checkpoint(
+    seed_checkpoint(
         run.id,
-        NewCheckpoint(
-            stage="reflection",
-            schema_version=version,
-            last_event_seq=0,
-            state={"version": version, "state": state},
-        ),
+        {"version": version, "state": state},
+        stage="reflection",
+        schema_version=version,
     )
 
 

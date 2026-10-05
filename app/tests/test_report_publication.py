@@ -22,12 +22,10 @@ from app.store import checkpoints, db, hypotheses, records, reports, runs, tasks
 from app.store import events as store_events
 from app.store import retrieval_calls as retrieval
 from app.store import tasks_lifecycle as lifecycle
-from app.store.checkpoints import NewCheckpoint
 from app.store.hypotheses import HypothesisStateChanges, NewHypothesis
 from app.store.models import RunStatus
 from app.store.records import NewClaimEvidence, NewEvidence
-from app.store.runs import RunCreateOptions
-from app.store.tasks import NewTask
+from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _Generator,
@@ -35,7 +33,9 @@ from tests._engine_tasks_helpers import (
     _patch_restore_generator,
     _seed_checkpoint,
     _task_state,
+    fake_final_drain,
 )
+from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
 from tests.test_report_cancel_publication import (
     _OWNER,
     _install_report_stubs,
@@ -115,13 +115,11 @@ def _seed_leased_finalize(
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     owner = make_client()
     headers = {"X-Client-ID": client_id}
-    created = owner.post(
-        "/api/runs",
+    created = _create_run(
+        owner,
+        "Study final safety cancellation",
         headers=headers,
-        json={
-            "research_goal": "Study final safety cancellation",
-            "tier": "express",
-        },
+        tier="express",
     )
     assert created.status_code == 200, created.text
     run_id = str(created.json()["id"])
@@ -139,13 +137,11 @@ def _seed_leased_finalize(
             }
         ]
     checkpoint_seq = _seed_checkpoint(run_id, state, db_path=isolated_db)
-    queued = tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type=engine_tasks_support.FINALIZE_TASK,
-            inputs={"checkpoint_seq": checkpoint_seq},
-            idempotency_key="final-safety-cancel-readiness",
-        ),
+    queued = enqueue_task(
+        run_id,
+        engine_tasks_support.FINALIZE_TASK,
+        "final-safety-cancel-readiness",
+        inputs={"checkpoint_seq": checkpoint_seq},
         db_path=isolated_db,
     )
     task = tasks.claim_task(
@@ -155,17 +151,7 @@ def _seed_leased_finalize(
     assert task.status == "leased"
     _patch_restore_generator(monkeypatch, _Generator(state))
 
-    async def fake_drain(
-        *_: Any, **__: Any
-    ) -> tuple[Any, float, dict[str, Any]]:
-        drained = SimpleNamespace(
-            safety_counts={},
-            grounding_counts={},
-            report_inputs={"citation_summary": {}},
-        )
-        return drained, 1.0, {}
-
-    _install_runtime(monkeypatch).drain_final_state = fake_drain
+    _install_runtime(monkeypatch).drain_final_state = fake_final_drain
     return owner, headers, run_id, task
 
 
@@ -593,15 +579,13 @@ async def test_resume_after_finalize_pause_read_does_not_write_stale_checkpoint(
         **previous["state"],
         "resume_successor": engine_tasks_support.FINALIZE_TASK,
     }
-    checkpoints.save_checkpoint(
+    seed_checkpoint(
         run_id,
-        NewCheckpoint(
-            stage=f"engine_task:{task.id}",
-            schema_version=previous["schema_version"],
-            last_event_seq=store_events.latest_event_seq(
-                run_id, db_path=isolated_db
-            ),
-            state=resume_state,
+        resume_state,
+        stage=f"engine_task:{task.id}",
+        schema_version=previous["schema_version"],
+        last_event_seq=store_events.latest_event_seq(
+            run_id, db_path=isolated_db
         ),
         db_path=isolated_db,
     )
@@ -870,12 +854,11 @@ async def test_cancel_after_drain_commit_orders_stages_before_cancel(
 
 
 def _run_with_report(isolated_db: str) -> str:
-    run = runs.create_run(
+    run = seed_run(
         "Study a causal pathway",
-        "standard",
-        "mock",
-        {},
-        RunCreateOptions(client_id="owner-a", db_path=isolated_db),
+        provider="mock",
+        client_id="owner-a",
+        db_path=isolated_db,
     )
     reports.save_report(
         run.id,
@@ -927,12 +910,11 @@ def test_share_link_is_unique_hashed_and_revocable(isolated_db: str) -> None:
 def _run_with_blocked_and_released_content(
     isolated_db: str,
 ) -> tuple[str, str, str]:
-    run = runs.create_run(
+    run = seed_run(
         "Map a signaling pathway",
-        "standard",
-        "engine",
-        {"private_setting": "config-secret-value"},
-        RunCreateOptions(client_id="owner-b", db_path=isolated_db),
+        config={"private_setting": "config-secret-value"},
+        client_id="owner-b",
+        db_path=isolated_db,
     )
     run_id = run.id
 
@@ -1062,8 +1044,6 @@ def _run_with_blocked_and_released_content(
 def test_shared_payload_is_filtered_to_release_artifact(
     isolated_db: str,
 ) -> None:
-    # Shared views filter blocked ideas, private attachments, and private
-    # configuration.
     run_id, released_id, cited_id = _run_with_blocked_and_released_content(
         isolated_db
     )

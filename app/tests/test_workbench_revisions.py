@@ -5,16 +5,14 @@ import pytest
 from app.store import db, messages, runs, tasks
 from app.store.messages import NewMessage
 from app.store.schema import SCHEMA
-from app.store.tasks import NewTask
+from tests._store_helpers import enqueue_task, seed_run
 
 
 def test_retirement_drops_tables_and_settles_pending_tasks(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("Retirement test", "express", "engine", {})
-    retired = tasks.enqueue_task(
-        NewTask(run.id, "engine.outcome.refinement", {}, "retired")
-    )
+    run = seed_run("Retirement test", profile="express")
+    retired = enqueue_task(run.id, "engine.outcome.refinement", "retired")
     with db.connect() as conn:
         conn.execute("CREATE TABLE hypothesis_outcomes (id TEXT PRIMARY KEY)")
         conn.execute(
@@ -39,7 +37,7 @@ def test_retirement_drops_tables_and_settles_pending_tasks(
 def test_qa_revisions_preserve_consumed_input_and_steering(
     isolated_db: str, retry: bool
 ) -> None:
-    run = runs.create_run("Keep scientific state", "express", "engine", {})
+    run = seed_run("Keep scientific state", profile="express")
     start = messages.append_message(
         NewMessage(run.id, "user", "Start", "start")
     )
@@ -80,10 +78,9 @@ def test_revision_endpoint_checks_owner_and_streams_replacement(
     from fastapi.testclient import TestClient
 
     from app.main import app
-    from app.store.runs import RunCreateOptions
 
-    run = runs.create_run(
-        "Q&A API", "express", "mock", {}, RunCreateOptions(client_id="qa-owner")
+    run = seed_run(
+        "Q&A API", profile="express", provider="mock", client_id="qa-owner"
     )
     question = messages.append_message(
         NewMessage(run.id, "user", "Original", "qa")
@@ -111,7 +108,7 @@ def test_revision_endpoint_checks_owner_and_streams_replacement(
 def test_replaced_question_discards_late_streamed_answer(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("Cross-tab revision", "express", "mock", {})
+    run = seed_run("Cross-tab revision", profile="express", provider="mock")
     question = messages.append_message(
         NewMessage(run.id, "user", "Original", "qa")
     )
@@ -130,14 +127,12 @@ def test_replaced_question_discards_late_streamed_answer(
 def test_retirement_restores_finished_run_without_hiding_ordinary_work(
     isolated_db: str, ordinary_work: bool
 ) -> None:
-    run = runs.create_run("Already published research", "express", "mock", {})
-    tasks.enqueue_task(
-        NewTask(run.id, "engine.outcome.refinement", {}, "retired")
+    run = seed_run(
+        "Already published research", profile="express", provider="mock"
     )
+    enqueue_task(run.id, "engine.outcome.refinement", "retired")
     if ordinary_work:
-        tasks.enqueue_task(
-            NewTask(run.id, "engine.node.reflection", {}, "ordinary")
-        )
+        enqueue_task(run.id, "engine.node.reflection", "ordinary")
     with db.connect() as conn:
         conn.execute("UPDATE runs SET status='queued' WHERE id=?", (run.id,))
         conn.execute(

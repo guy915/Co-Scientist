@@ -10,8 +10,11 @@ from app import credentials, goal_text, run_start_announcement
 from app.config import settings
 from app.execution_policy import scoped_execution_policy
 from app.interviews import model as interviews_model
-from app.store import runs
-from tests._llm_fake_backend import install_completion_backend
+from tests._llm_fake_backend import (
+    completion_response,
+    install_completion_backend,
+)
+from tests._store_helpers import seed_run
 
 MODEL = "openrouter/campaign/chat:free"
 KINDS = ["interview", "qa", "announcement", "title", "restatement", "probe"]
@@ -33,7 +36,7 @@ async def _stream_call(kind: str, model: str) -> Any:
                 model, "system", "question", []
             )
         ]
-    run = runs.create_run("Public research", "express", "engine", {})
+    run = seed_run("Public research", profile="express")
     return [
         item
         async for item in run_start_announcement._stream_model_fragments(run)
@@ -93,9 +96,7 @@ def captured(
         calls.append(kwargs)
         if kwargs.get("stream"):
             return chunks()
-        return SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content="answer"))]
-        )
+        return completion_response("answer")
 
     install_completion_backend(monkeypatch, complete)
     return calls

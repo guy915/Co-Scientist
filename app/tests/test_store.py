@@ -18,6 +18,7 @@ from app.store.records import (
     NewReview,
     NewSafetyDecision,
 )
+from tests._store_helpers import seed_run
 
 
 @pytest.fixture
@@ -26,7 +27,7 @@ def db(isolated_db: str) -> str:
 
 
 def test_event_log_is_append_only_and_strictly_increasing(db: str) -> None:
-    run = runs.create_run("test", "standard", "mock", {})
+    run = seed_run("test", provider="mock")
     seqs = []
     for i in range(5):
         seqs.append(store_events.append_event(run.id, "log", {"i": i}))
@@ -36,7 +37,7 @@ def test_event_log_is_append_only_and_strictly_increasing(db: str) -> None:
 
 
 def test_list_events_filters_after_seq(db: str) -> None:
-    run = runs.create_run("filter test", "standard", "mock", {})
+    run = seed_run("filter test", provider="mock")
     for i in range(4):
         store_events.append_event(run.id, "log", {"i": i})
     half = store_events.list_events(run.id)[1]["seq"]
@@ -47,7 +48,7 @@ def test_list_events_filters_after_seq(db: str) -> None:
 
 
 def test_list_runs_reports_top_elo(db: str) -> None:
-    run = runs.create_run("top-elo", "standard", "mock", {})
+    run = seed_run("top-elo", provider="mock")
     for rating in (1240, 1310, 1180):
         hid = store.add_hypothesis(
             NewHypothesis(
@@ -60,7 +61,7 @@ def test_list_runs_reports_top_elo(db: str) -> None:
         store.update_hypothesis_state(
             hid, HypothesisStateChanges(elo_rating=rating)
         )
-    runs.create_run("no-hyps", "standard", "mock", {})
+    seed_run("no-hyps", provider="mock")
 
     by_goal = {r.research_goal: r for r in views.list_runs()}
     assert by_goal["top-elo"].top_elo == 1310
@@ -70,7 +71,7 @@ def test_list_runs_reports_top_elo(db: str) -> None:
 
 
 def test_list_runs_reports_top_hypotheses_by_elo(db: str) -> None:
-    run = runs.create_run("top-hyps", "standard", "mock", {})
+    run = seed_run("top-hyps", provider="mock")
     for title, rating in (("Low", 1180), ("High", 1320), ("Mid", 1250)):
         hid = store.add_hypothesis(
             NewHypothesis(
@@ -83,7 +84,7 @@ def test_list_runs_reports_top_hypotheses_by_elo(db: str) -> None:
         store.update_hypothesis_state(
             hid, HypothesisStateChanges(elo_rating=rating)
         )
-    runs.create_run("no-hyps", "standard", "mock", {})
+    seed_run("no-hyps", provider="mock")
 
     by_goal = {r.research_goal: r for r in views.list_runs()}
     assert by_goal["top-hyps"].top_hypotheses == ["High", "Mid", "Low"]
@@ -94,7 +95,7 @@ def test_list_runs_reports_top_hypotheses_by_elo(db: str) -> None:
 
 
 def test_list_runs_caps_top_hypotheses_at_three(db: str) -> None:
-    run = runs.create_run("many-hyps", "standard", "mock", {})
+    run = seed_run("many-hyps", provider="mock")
     for rating in (1300, 1290, 1280, 1270, 1260):
         hid = store.add_hypothesis(
             NewHypothesis(
@@ -113,12 +114,12 @@ def test_list_runs_caps_top_hypotheses_at_three(db: str) -> None:
 
 
 def test_list_runs_reports_latest_pipeline_stage(db: str) -> None:
-    run = runs.create_run("staged", "standard", "mock", {})
+    run = seed_run("staged", provider="mock")
     store_events.append_event(run.id, "supervisor.plan", {})
     store_events.append_event(run.id, "generate", {})
     store_events.append_event(run.id, "ranking", {})
     store_events.append_event(run.id, "status", {"status": "running"})
-    runs.create_run("unstaged", "standard", "mock", {})
+    seed_run("unstaged", provider="mock")
 
     by_goal = {r.research_goal: r for r in views.list_runs()}
     assert by_goal["staged"].latest_stage == "ranking"
@@ -129,7 +130,7 @@ def test_list_runs_reports_latest_pipeline_stage(db: str) -> None:
 
 
 def test_hypothesis_state_decoupled_from_hypothesis_row(db: str) -> None:
-    run = runs.create_run("decoupling test", "standard", "mock", {})
+    run = seed_run("decoupling test", provider="mock")
     hid = store.add_hypothesis(
         NewHypothesis(
             run_id=run.id,
@@ -156,7 +157,7 @@ def test_hypothesis_state_decoupled_from_hypothesis_row(db: str) -> None:
 
 
 def test_hypothesis_row_carries_scene_setting(db: str) -> None:
-    run = runs.create_run("scene-setting test", "standard", "mock", {})
+    run = seed_run("scene-setting test", provider="mock")
     hid = store.add_hypothesis(
         NewHypothesis(
             run_id=run.id,
@@ -180,7 +181,7 @@ def test_hypothesis_row_carries_scene_setting(db: str) -> None:
 
 
 def test_hypothesis_row_carries_safety_and_toxicity(db: str) -> None:
-    run = runs.create_run("safety test", "standard", "mock", {})
+    run = seed_run("safety test", provider="mock")
     hid = store.add_hypothesis(
         NewHypothesis(
             run_id=run.id,
@@ -196,7 +197,7 @@ def test_hypothesis_row_carries_safety_and_toxicity(db: str) -> None:
 
 
 def test_evolved_hypothesis_has_parent_and_higher_generation(db: str) -> None:
-    run = runs.create_run("lineage", "standard", "mock", {})
+    run = seed_run("lineage", provider="mock")
     parent = store.add_hypothesis(
         NewHypothesis(
             run_id=run.id,
@@ -224,7 +225,7 @@ def test_evolved_hypothesis_has_parent_and_higher_generation(db: str) -> None:
 
 
 def test_multi_parent_hypothesis_records_every_parent(db: str) -> None:
-    run = runs.create_run("multi-parent", "standard", "mock", {})
+    run = seed_run("multi-parent", provider="mock")
     primary = store.add_hypothesis(
         NewHypothesis(
             run_id=run.id, title="P1", statement="p1", hypothesis_id="p1"
@@ -258,7 +259,7 @@ def test_multi_parent_hypothesis_records_every_parent(db: str) -> None:
 
 
 def test_redact_hypothesis_fields_overwrites_detail_columns(db: str) -> None:
-    run = runs.create_run("redact", "standard", "mock", {})
+    run = seed_run("redact", provider="mock")
     hid = store.add_hypothesis(
         NewHypothesis(
             run_id=run.id,
@@ -281,7 +282,7 @@ def test_redact_hypothesis_fields_overwrites_detail_columns(db: str) -> None:
 def test_redact_hypothesis_fields_rejects_non_redactable_column(
     db: str,
 ) -> None:
-    run = runs.create_run("redact", "standard", "mock", {})
+    run = seed_run("redact", provider="mock")
     hid = store.add_hypothesis(
         NewHypothesis(run_id=run.id, title="H", statement="s")
     )
@@ -290,7 +291,7 @@ def test_redact_hypothesis_fields_rejects_non_redactable_column(
 
 
 def test_safety_decision_persists_matches_array(db: str) -> None:
-    run = runs.create_run("safety", "standard", "mock", {})
+    run = seed_run("safety", provider="mock")
     records.add_safety_decision(
         NewSafetyDecision(
             run_id=run.id,
@@ -306,7 +307,7 @@ def test_safety_decision_persists_matches_array(db: str) -> None:
 
 
 def test_match_log_preserves_pre_post_elo(db: str) -> None:
-    run = runs.create_run("matches", "standard", "mock", {})
+    run = seed_run("matches", provider="mock")
     records.add_match(
         NewMatch(
             run_id=run.id,
@@ -328,7 +329,7 @@ def test_match_log_preserves_pre_post_elo(db: str) -> None:
 
 
 def test_match_log_records_debate_turns(db: str) -> None:
-    run = runs.create_run("matches", "standard", "mock", {})
+    run = seed_run("matches", provider="mock")
     records.add_match(
         NewMatch(
             run_id=run.id,
@@ -409,7 +410,7 @@ def _seed_cascade_children(run_id: str) -> None:
 
 
 def test_deleting_a_run_cascades_to_child_rows(db: str) -> None:
-    run = runs.create_run("cascade", "standard", "mock", {})
+    run = seed_run("cascade", provider="mock")
     _seed_cascade_children(run.id)
 
     with store_db.connect() as conn:

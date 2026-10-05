@@ -47,13 +47,14 @@ from app.safety.types import (
 )
 from app.store import events as store_events
 from app.store import hypotheses as store
-from app.store import records, reports, runs
+from app.store import records, reports
 from app.store.hypotheses import NewHypothesis
-from app.store.runs import RunCreateOptions
+from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._client import wait_for_status as _wait_status
+from tests._llm_fake_backend import completion_response
 from tests._process_mode_helpers import FakeProcessMode
-from tests._store_helpers import _add
+from tests._store_helpers import _add, seed_run
 
 from ._llm_fake_backend import install_completion_backend
 
@@ -154,7 +155,7 @@ def test_review_serializes_for_audit() -> None:
 
 
 def test_screen_persists_status_and_blocks_unsafe(isolated_db: str) -> None:
-    run = runs.create_run("safety goal", "standard", "mock", {})
+    run = seed_run("safety goal", provider="mock")
     safe_id = _add(
         run.id,
         "Safe",
@@ -190,7 +191,7 @@ def test_screen_persists_status_and_blocks_unsafe(isolated_db: str) -> None:
 
 
 def test_screen_flags_mechanism_not_just_statement(isolated_db: str) -> None:
-    run = runs.create_run("safety goal", "standard", "mock", {})
+    run = seed_run("safety goal", provider="mock")
     hyp_id = _add(
         run.id,
         "Benign headline",
@@ -211,7 +212,7 @@ def test_screen_redacts_detail_fields_of_redact_outcome(
 ) -> None:
     from app.hypothesis.safety import REDACTED_PLACEHOLDER
 
-    run = runs.create_run("safety goal", "standard", "mock", {})
+    run = seed_run("safety goal", provider="mock")
     hyp_id = store.add_hypothesis(
         NewHypothesis(
             run_id=run.id,
@@ -248,7 +249,7 @@ def test_rescreen_does_not_downgrade_a_redacted_hypothesis(
 ) -> None:
     # Re-screening wiped content must retain REDACT; an empty field is not
     # evidence of a safe original.
-    run = runs.create_run("safety goal", "standard", "mock", {})
+    run = seed_run("safety goal", provider="mock")
     store.add_hypothesis(
         NewHypothesis(
             run_id=run.id,
@@ -364,17 +365,9 @@ async def test_contextual_screen_holds_ambiguous_risk(
 ) -> None:
 
     async def fake_completion(**_: object) -> SimpleNamespace:
-        return SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(
-                        content=(
-                            '{"category":"uncertain","reason":"Ambiguous '
-                            'operational intent.","risk_domains":["biology"]}'
-                        )
-                    )
-                )
-            ]
+        return completion_response(
+            '{"category":"uncertain","reason":"Ambiguous '
+            'operational intent.","risk_domains":["biology"]}'
         )
 
     # CI is pinned offline; this case deliberately exercises a configured
@@ -499,16 +492,13 @@ def test_unredactable_redaction_holds_for_review() -> None:
 
 
 def _seed_dual_use_run(db_path: str) -> Any:
-    return runs.create_run(
+    return seed_run(
         _DUAL_USE_GOAL,
-        "express",
-        "engine",
-        {"tier": "express"},
-        RunCreateOptions(
-            client_id="redaction-test",
-            llm_backend="offline",
-            db_path=db_path,
-        ),
+        profile="express",
+        config={"tier": "express"},
+        client_id="redaction-test",
+        llm_backend="offline",
+        db_path=db_path,
     )
 
 
@@ -734,9 +724,7 @@ def _drift_meta_review(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _start_express_run(client: TestClient, goal: str) -> str:
-    create = client.post(
-        "/api/runs", json={"research_goal": goal, "tier": "express"}
-    )
+    create = _create_run(client, goal, tier="express")
     assert create.status_code == 200
     run_id: str = create.json()["id"]
     start = client.post(f"/api/runs/{run_id}/start", json={})

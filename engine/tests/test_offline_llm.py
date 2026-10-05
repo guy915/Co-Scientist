@@ -37,8 +37,6 @@ def _offline_llm_isolate_offline_router(
 def _install_recording_router(
     monkeypatch: pytest.MonkeyPatch,
 ) -> list[dict[str, Any]]:
-    """Record passthrough calls to prove offline runs never escape to another
-    provider."""
     escaped_calls: list[dict[str, Any]] = []
 
     async def _recording_original(**kwargs: Any) -> Any:
@@ -337,15 +335,6 @@ class TestOfflineLlm:
         assert len(calls) == 1
 
 
-@pytest.fixture
-def _offline_optional_fields_isolate_offline_router(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The installed router is process-wide and must be restored between
-    tests."""
-    isolate_offline_router(monkeypatch)
-
-
 def _optional_property_names(schema: dict[str, Any]) -> set[str]:
     names: set[str] = set()
     schema_type = schema.get("type", "object")
@@ -361,7 +350,7 @@ def _optional_property_names(schema: dict[str, Any]) -> set[str]:
     return names
 
 
-@pytest.mark.usefixtures("_offline_optional_fields_isolate_offline_router")
+@pytest.mark.usefixtures("_offline_llm_isolate_offline_router")
 class TestOfflineOptionalFields:
     async def test_offline_full_review_fills_the_go_no_go_verdict_fields(
         self,
@@ -471,8 +460,6 @@ _GOAL = "Identify repurposable drugs for hepatic fibrosis"
 def _offline_reproducibility_isolate_offline_router(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The installed router is process-wide and must be restored between
-    tests."""
     isolate_offline_router(monkeypatch)
     offline_llm.install_offline_router()
 

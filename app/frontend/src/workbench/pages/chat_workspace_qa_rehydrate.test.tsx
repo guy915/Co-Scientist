@@ -1,5 +1,4 @@
-// Rehydration must recover persisted run Q&A rather than only in-memory
-// exchanges.
+import {makeChatSummary, makeRunMessage} from '@/test_fixtures';
 
 import {act, renderHook, screen, waitFor, within} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
@@ -134,16 +133,14 @@ it('adopts the second StrictMode transcript load before appending Q&A and ignore
   );
   await act(async () => {
     rows.resolve([
-      {
+      makeRunMessage({
         id: 11,
-        run_id: 'run-1',
         sender: 'system',
         content: 'Owned Q&A answer',
-        kind: 'qa',
         created_at: 11,
         applied: true,
         meta: {reasoning: 'Owned evidence'},
-      },
+      }),
     ]);
   });
   expect(result.current.messages.map(message => message.content)).toEqual([
@@ -213,49 +210,29 @@ it('leaves an inaccessible interview empty under StrictMode', async () => {
 
 it('shows a run Q&A exchange after reopening the chat', async () => {
   apiMock.getInterview.mockResolvedValue(completedInterview());
-  apiMock.listInterviews.mockResolvedValue([
-    {
-      id: 'interview-1',
-      title: 'Cold-stress glucose homeostasis',
-      challenge: 'Investigate glucose homeostasis.',
-      status: 'completed',
-      run_id: 'run-1',
-      created_at: 1,
-      updated_at: 3,
-    },
-  ]);
+  apiMock.listInterviews.mockResolvedValue([makeChatSummary()]);
   apiMock.listRuns.mockResolvedValue([minimalRun({id: 'run-1'})]);
   apiMock.getRunMessages.mockResolvedValue([
-    {
+    makeRunMessage({
       id: 10,
-      run_id: 'run-1',
-      sender: 'user',
       content: 'Which hypothesis ranked highest?',
-      kind: 'qa',
       created_at: 10,
       applied: true,
-      meta: null,
-    },
-    {
+    }),
+    makeRunMessage({
       id: 11,
-      run_id: 'run-1',
       sender: 'system',
       content: 'The mitochondrial feedback hypothesis, at Elo 1240.',
-      kind: 'qa',
       created_at: 11,
       applied: true,
       meta: {sources: []},
-    },
-    {
+    }),
+    makeRunMessage({
       id: 12,
-      run_id: 'run-1',
-      sender: 'user',
       content: 'Focus more on the cold-stress pathway.',
       kind: 'steering',
       created_at: 12,
-      applied: false,
-      meta: null,
-    },
+    }),
   ]);
 
   renderWorkspace('/chats/interview-1');
@@ -273,39 +250,23 @@ it('shows a run Q&A exchange after reopening the chat', async () => {
 
 it('shows the reasoning a rehydrated Q&A answer persisted', async () => {
   apiMock.getInterview.mockResolvedValue(completedInterview());
-  apiMock.listInterviews.mockResolvedValue([
-    {
-      id: 'interview-1',
-      title: 'Cold-stress glucose homeostasis',
-      challenge: 'Investigate glucose homeostasis.',
-      status: 'completed',
-      run_id: 'run-1',
-      created_at: 1,
-      updated_at: 3,
-    },
-  ]);
+  apiMock.listInterviews.mockResolvedValue([makeChatSummary()]);
   apiMock.listRuns.mockResolvedValue([minimalRun({id: 'run-1'})]);
   apiMock.getRunMessages.mockResolvedValue([
-    {
+    makeRunMessage({
       id: 20,
-      run_id: 'run-1',
-      sender: 'user',
       content: 'Why does that hypothesis rank highest?',
-      kind: 'qa',
       created_at: 20,
       applied: true,
-      meta: null,
-    },
-    {
+    }),
+    makeRunMessage({
       id: 21,
-      run_id: 'run-1',
       sender: 'system',
       content: 'Its Elo rating leads because it won every match.',
-      kind: 'qa',
       created_at: 21,
       applied: true,
       meta: {reasoning: 'Checking the tournament record first.'},
-    },
+    }),
   ]);
 
   renderWorkspace('/chats/interview-1');
@@ -324,41 +285,25 @@ it('restores the start exchange onto the session card', async () => {
     ...completedInterview(),
     run_id: 'run-1',
   });
-  apiMock.listInterviews.mockResolvedValue([
-    {
-      id: 'interview-1',
-      title: 'Cold-stress glucose homeostasis',
-      challenge: 'Investigate glucose homeostasis.',
-      status: 'completed',
-      run_id: 'run-1',
-      created_at: 1,
-      updated_at: 3,
-    },
-  ]);
+  apiMock.listInterviews.mockResolvedValue([makeChatSummary()]);
   apiMock.listRuns.mockResolvedValue([
     minimalRun({id: 'run-1', status: 'running'}),
   ]);
   apiMock.getRunMessages.mockResolvedValue([
-    {
+    makeRunMessage({
       id: 8,
-      run_id: 'run-1',
-      sender: 'user',
       content: 'Start research',
       kind: 'start',
       created_at: 8,
-      applied: false,
-      meta: null,
-    },
-    {
+    }),
+    makeRunMessage({
       id: 9,
-      run_id: 'run-1',
       sender: 'system',
       content: 'Cold-stress glucose work is under way.',
       kind: 'start',
       created_at: 9,
-      applied: false,
       meta: {reasoning: 'The run exists, so this confirms it.'},
-    },
+    }),
   ]);
 
   renderWorkspace('/chats/interview-1');
@@ -391,17 +336,7 @@ it('keeps a linked draft recoverable without treating it as started', async () =
     ...completedInterview(),
     run_id: 'run-1',
   });
-  apiMock.listInterviews.mockResolvedValue([
-    {
-      id: 'interview-1',
-      title: 'Cold-stress glucose homeostasis',
-      challenge: 'Investigate glucose homeostasis.',
-      status: 'completed',
-      run_id: 'run-1',
-      created_at: 1,
-      updated_at: 3,
-    },
-  ]);
+  apiMock.listInterviews.mockResolvedValue([makeChatSummary()]);
   apiMock.listRuns.mockResolvedValue([
     minimalRun({id: 'run-1', status: 'draft'}),
   ]);

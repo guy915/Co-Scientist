@@ -266,6 +266,25 @@ def _record(
     }
 
 
+def _ablation_record(
+    tmp_path: Path,
+    arm: str,
+    *,
+    goal: str = "Public goal",
+    goal_id: str = "public",
+    overrides: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    record = _record(tmp_path, goal, overrides=overrides)
+    record.update(
+        goal_id=goal_id,
+        arm=arm,
+        diversity=0.0,
+        cost_usd=0.0,
+        latency_seconds=0.0,
+    )
+    return record
+
+
 @pytest.mark.parametrize("fault", ["missing", "goal", "model"])
 def test_comparison_cli_rejects_incompatible_scaling_inputs(
     tmp_path: Path,
@@ -295,10 +314,10 @@ def test_ablation_cli_allows_only_declared_config_changes(
     monkeypatch: pytest.MonkeyPatch,
     declared: bool,
 ) -> None:
-    baseline = _record(tmp_path)
-    candidate = _record(tmp_path, overrides={"enable_web_search": False})
-    for record, arm in ((baseline, "baseline"), (candidate, "no_web_search")):
-        record.update(arm=arm, diversity=0.0, cost_usd=0.0, latency_seconds=0.0)
+    baseline = _ablation_record(tmp_path, "baseline")
+    candidate = _ablation_record(
+        tmp_path, "no_web_search", overrides={"enable_web_search": False}
+    )
     if not declared:
         candidate["overrides"] = {}
     path = tmp_path / "ablations.json"
@@ -329,10 +348,10 @@ def test_ablation_cli_rejects_unbalanced_replicates(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    baseline = _record(tmp_path)
-    candidate = _record(tmp_path, overrides={"enable_web_search": False})
-    for record, arm in ((baseline, "baseline"), (candidate, "no_web_search")):
-        record.update(arm=arm, diversity=0.0, cost_usd=0.0, latency_seconds=0.0)
+    baseline = _ablation_record(tmp_path, "baseline")
+    candidate = _ablation_record(
+        tmp_path, "no_web_search", overrides={"enable_web_search": False}
+    )
     path = tmp_path / "unbalanced.json"
     path.write_text(json.dumps({"ablations": [baseline, candidate, candidate]}))
     monkeypatch.setattr("sys.argv", ["scaling_eval", str(path)])
@@ -350,13 +369,8 @@ def test_ablation_cli_rejects_one_goal_counted_under_two_labels(
             ("baseline", {}),
             ("no_web", {"enable_web_search": False}),
         ):
-            record = _record(tmp_path, overrides=overrides)
-            record.update(
-                goal_id=label,
-                arm=arm,
-                diversity=0.0,
-                cost_usd=0.0,
-                latency_seconds=0.0,
+            record = _ablation_record(
+                tmp_path, arm, goal_id=label, overrides=overrides
             )
             records.append(record)
     path = tmp_path / "repeated-goal.json"
@@ -370,9 +384,8 @@ def test_ablation_cli_rejects_a_baseline_relabeled_as_an_intervention(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    baseline, candidate = _record(tmp_path), _record(tmp_path)
-    for record, arm in ((baseline, "baseline"), (candidate, "no_web_search")):
-        record.update(arm=arm, diversity=0.0, cost_usd=0.0, latency_seconds=0.0)
+    baseline = _ablation_record(tmp_path, "baseline")
+    candidate = _ablation_record(tmp_path, "no_web_search")
     candidate["overrides"] = {"enable_web_search": False}
     path = tmp_path / "unapplied.json"
     path.write_text(json.dumps({"ablations": [baseline, candidate]}))
@@ -391,13 +404,12 @@ def test_ablation_cli_matches_interventions_across_goals(
         if index and not same_intervention:
             intervention = {"enable_meta_review": False}
         for arm, overrides in (("baseline", {}), ("no_feature", intervention)):
-            record = _record(tmp_path, goal, overrides=overrides)
-            record.update(
+            record = _ablation_record(
+                tmp_path,
+                arm,
+                goal=goal,
                 goal_id=str(index),
-                arm=arm,
-                diversity=0.0,
-                cost_usd=0.0,
-                latency_seconds=0.0,
+                overrides=overrides,
             )
             records.append(record)
     path = tmp_path / "interventions.json"

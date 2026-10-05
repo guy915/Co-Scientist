@@ -9,10 +9,10 @@ import pytest
 from app import engine_tasks, task_worker
 from app.diagnostic_events import log_chat_turn
 from app.logging_setup import configure_log_capture, shutdown_log_capture
-from app.store import logs, runs, tasks
+from app.store import logs
 from app.store.logs import LogFilters
 from app.store.models import ScientificTask
-from app.store.tasks import NewTask
+from tests._store_helpers import enqueue_task, seed_run
 
 
 def test_chat_metadata_is_owned_and_excludes_text(
@@ -48,15 +48,8 @@ def test_stage_span_records_duration_and_preserves_execution_outcome(
     caplog: pytest.LogCaptureFixture,
     outcome: str,
 ) -> None:
-    run = runs.create_run("goal", "express", "engine", {})
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type="engine.generate",
-            inputs={},
-            idempotency_key="test-span",
-        )
-    )
+    run = seed_run("goal", profile="express")
+    task = enqueue_task(run.id, "engine.generate", "test-span")
     called: list[str] = []
 
     async def execute(

@@ -200,18 +200,16 @@ def test_combination_invalid_indices_degrade_to_single_parent() -> None:
 async def test_partner_selection_flows_from_ranked_pool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    observed_prompt = ""
-
-    async def fake_llm(*, prompt: str, **_: Any) -> dict[str, Any]:
-        nonlocal observed_prompt
-        observed_prompt = prompt
-        return {
+    calls = stub_call_llm_json(
+        monkeypatch,
+        evolve,
+        {
             "hypothesis": "a merged mechanism with a distinct readout",
             "refinement_summary": "combined",
             "combined_partners": [1],
-        }
-
-    monkeypatch.setattr(evolve, "call_llm_json", fake_llm)
+        },
+        copy_response=True,
+    )
     parent = make_hypothesis(text="parent idea", elo_rating=1500)
     partner = make_hypothesis(
         text="strongest peer idea",
@@ -231,6 +229,7 @@ async def test_partner_selection_flows_from_ranked_pool(
         ),
     )
 
+    observed_prompt = calls[-1]["prompt"]
     assert "## Combination Partners" in observed_prompt
     assert "strongest peer idea" in observed_prompt
     assert "peer experiment" in observed_prompt
@@ -243,14 +242,9 @@ async def test_partner_selection_flows_from_ranked_pool(
 async def test_enhancement_grounding_falls_back_to_run_articles(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    observed_prompt = ""
-
-    async def fake_llm(*, prompt: str, **_: Any) -> dict[str, Any]:
-        nonlocal observed_prompt
-        observed_prompt = prompt
-        return dict(_RAPAMYCIN_RESPONSE)
-
-    monkeypatch.setattr(evolve, "call_llm_json", fake_llm)
+    calls = stub_call_llm_json(
+        monkeypatch, evolve, _RAPAMYCIN_RESPONSE, copy_response=True
+    )
     parent = make_hypothesis(text="parent idea about oxidative stress")
     article = make_article(title="A run-accumulated evidence source")
     state = make_state(hypotheses=[parent], articles=[article])
@@ -266,6 +260,7 @@ async def test_enhancement_grounding_falls_back_to_run_articles(
         ),
     )
 
+    observed_prompt = calls[-1]["prompt"]
     assert child is not None
     assert "A run-accumulated evidence source" in observed_prompt
 
@@ -273,14 +268,9 @@ async def test_enhancement_grounding_falls_back_to_run_articles(
 async def test_enhancement_grounding_placeholder_without_any_evidence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    observed_prompt = ""
-
-    async def fake_llm(*, prompt: str, **_: Any) -> dict[str, Any]:
-        nonlocal observed_prompt
-        observed_prompt = prompt
-        return dict(_RAPAMYCIN_RESPONSE)
-
-    monkeypatch.setattr(evolve, "call_llm_json", fake_llm)
+    calls = stub_call_llm_json(
+        monkeypatch, evolve, _RAPAMYCIN_RESPONSE, copy_response=True
+    )
     parent = make_hypothesis(text="parent idea about oxidative stress")
     state = make_state(hypotheses=[parent])
 
@@ -295,6 +285,7 @@ async def test_enhancement_grounding_placeholder_without_any_evidence(
         ),
     )
 
+    observed_prompt = calls[-1]["prompt"]
     assert "No retrieved evidence is available" in observed_prompt
 
 
@@ -398,14 +389,9 @@ def test_grounding_metrics_extra_counts_only_live_enhancements() -> None:
 async def test_evolution_prompt_splices_falsified_assumptions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    observed_prompt = ""
-
-    async def fake_llm(*, prompt: str, **_: Any) -> dict[str, Any]:
-        nonlocal observed_prompt
-        observed_prompt = prompt
-        return dict(_RAPAMYCIN_RESPONSE)
-
-    monkeypatch.setattr(evolve, "call_llm_json", fake_llm)
+    calls = stub_call_llm_json(
+        monkeypatch, evolve, _RAPAMYCIN_RESPONSE, copy_response=True
+    )
     parent = make_hypothesis(text="parent idea about oxidative stress")
     weakened = make_hypothesis(
         text="a weakened leader idea",
@@ -432,6 +418,7 @@ async def test_evolution_prompt_splices_falsified_assumptions(
         ),
     )
 
+    observed_prompt = calls[-1]["prompt"]
     assert child is not None
     assert "Assumptions Verified Incorrect" in observed_prompt
     assert "Is the cofactor present at all?" in observed_prompt
@@ -440,14 +427,9 @@ async def test_evolution_prompt_splices_falsified_assumptions(
 async def test_evolution_prompt_omits_falsified_block_when_none(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    observed_prompt = ""
-
-    async def fake_llm(*, prompt: str, **_: Any) -> dict[str, Any]:
-        nonlocal observed_prompt
-        observed_prompt = prompt
-        return dict(_RAPAMYCIN_RESPONSE)
-
-    monkeypatch.setattr(evolve, "call_llm_json", fake_llm)
+    calls = stub_call_llm_json(
+        monkeypatch, evolve, _RAPAMYCIN_RESPONSE, copy_response=True
+    )
     parent = make_hypothesis(text="parent idea about oxidative stress")
     state = make_state(hypotheses=[parent])
 
@@ -462,6 +444,7 @@ async def test_evolution_prompt_omits_falsified_block_when_none(
         ),
     )
 
+    observed_prompt = calls[-1]["prompt"]
     assert "Assumptions Verified Incorrect" not in observed_prompt
 
 

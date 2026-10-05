@@ -64,16 +64,21 @@ from app.store import db, interviews, runs, tasks
 from app.store import runs_views as views
 from app.store.models import RunRow, ScientificTask
 from app.store.runs import RunCreateOptions
-from app.store.tasks import NewTask
+from tests._client import create_run as _create_run
 from tests._client import make_client
+from tests._engine_tasks_helpers import small_run_config as _cfg
 from tests._interviews_helpers import (
     InterviewFields,
     _interview_payload,
     _patch_model_sequence,
     _response,
 )
-from tests._llm_fake_backend import install_completion_backend
+from tests._llm_fake_backend import (
+    completion_response,
+    install_completion_backend,
+)
 from tests._process_mode_helpers import FakeProcessMode
+from tests._store_helpers import enqueue_task, seed_run
 
 # Shared response caches can replay earlier-code results before the offline
 # router.
@@ -89,20 +94,6 @@ def test_the_suite_resolves_its_own_cache_directory() -> None:
         pathlib.Path(tempfile.gettempdir()).resolve()
     ), resolved
     assert not resolved.is_relative_to(pathlib.Path.cwd()), resolved
-
-
-def _cfg() -> dict[str, Any]:
-    return {
-        "max_iterations": 1,
-        "initial_hypotheses_count": 4,
-        "evolution_max_count": 4,
-        "tournament_pairs": 6,
-        "evidence_count": 4,
-        "k_factor": 36,
-        "max_llm_calls": 100,
-        "max_ideas": 12,
-        "max_matches_per_idea": 4,
-    }
 
 
 class _Generator:
@@ -398,24 +389,19 @@ async def test_recovery_restores_saved_campaign_model_and_leaves_standard_state(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     saved_model = "openrouter/stealth/space-bunny-alpha"
-    campaign = runs.create_run(
+    campaign = seed_run(
         "Campaign goal",
-        "standard",
-        "engine",
-        {"campaign_model_name": saved_model},
-        RunCreateOptions(
+        config={"campaign_model_name": saved_model},
+        options=RunCreateOptions(
             client_id="campaign-owner",
             execution_policy=CAMPAIGN,
             llm_backend="real",
             db_path=isolated_db,
         ),
     )
-    standard = runs.create_run(
+    standard = seed_run(
         "Standard goal",
-        "standard",
-        "engine",
-        {},
-        RunCreateOptions(
+        options=RunCreateOptions(
             client_id="standard-owner",
             execution_policy=STANDARD,
             llm_backend="real",
@@ -467,12 +453,9 @@ async def test_legacy_campaign_recovery_keeps_checkpoint_route_and_byok(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(settings, "byok_encryption_key", "test-encryption-key")
-    run = runs.create_run(
+    run = seed_run(
         "Legacy campaign goal",
-        "standard",
-        "engine",
-        {},
-        RunCreateOptions(
+        options=RunCreateOptions(
             client_id="legacy-campaign-owner",
             execution_policy=CAMPAIGN,
             llm_backend="real",
@@ -548,9 +531,7 @@ def _paid_catalog() -> dict[str, Any]:
 def _transport_spy(sent: list[dict[str, Any]]) -> Any:
     async def transport(**kwargs: Any) -> Any:
         sent.append(kwargs)
-        return SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))]
-        )
+        return completion_response("ok")
 
     return transport
 
@@ -560,13 +541,10 @@ async def _no_background_model(*_args: Any, **_kwargs: Any) -> None:
 
 
 def _expire_claimed_task(run_id: str, db_path: str) -> str:
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type="engine.node.generate",
-            inputs={},
-            idempotency_key=f"recovered-admission:{run_id}",
-        ),
+    task = enqueue_task(
+        run_id,
+        "engine.node.generate",
+        f"recovered-admission:{run_id}",
         db_path=db_path,
     )
     claimed = tasks.claim_task(f"dead-{run_id}", run_id=run_id, db_path=db_path)
@@ -635,10 +613,10 @@ async def test_recovered_campaign_blocks_paid_transport_while_byok_runs(
     )
 
     token = auth.create_session_token("campaign-user")
-    campaign_response = make_client().post(
-        "/api/runs",
+    campaign_response = _create_run(
+        make_client(),
+        "Public campaign recovery",
         headers={"Authorization": f"Bearer {token}"},
-        json={"research_goal": "Public campaign recovery"},
     )
     assert campaign_response.status_code == 200, campaign_response.text
     campaign_id = campaign_response.json()["id"]
@@ -649,14 +627,14 @@ async def test_recovered_campaign_blocks_paid_transport_while_byok_runs(
         "openrouter/stealth/space-bunny-alpha"
     )
 
-    ordinary_response = make_client().post(
-        "/api/runs",
+    ordinary_response = _create_run(
+        make_client(),
+        "Ordinary BYOK recovery",
         headers={
             "X-Client-ID": "ordinary-user",
             "X-LLM-Provider": "openrouter",
             "X-LLM-API-Key": _PAID_KEY,
         },
-        json={"research_goal": "Ordinary BYOK recovery"},
     )
     assert ordinary_response.status_code == 200, ordinary_response.text
     ordinary_id = ordinary_response.json()["id"]
@@ -732,10 +710,10 @@ async def test_recovered_new_campaign_sends_zero_price_stealth_request(
     install_completion_backend(monkeypatch, _transport_spy(sent))
 
     token = auth.create_session_token("campaign-user")
-    response = make_client().post(
-        "/api/runs",
+    response = _create_run(
+        make_client(),
+        "Public campaign recovery",
         headers={"Authorization": f"Bearer {token}"},
-        json={"research_goal": "Public campaign recovery"},
     )
     assert response.status_code == 200, response.text
     run_id = response.json()["id"]
@@ -834,14 +812,12 @@ def test_campaign_interview_survives_restart_and_cannot_downgrade_linked_run(
     )
     assert resumed.json()["execution_policy"] == "campaign"
 
-    run = make_client().post(
-        "/api/runs",
+    run = _create_run(
+        make_client(),
+        "client placeholder",
         headers=headers,
-        json={
-            "research_goal": "client placeholder",
-            "interview_id": interview["id"],
-            "execution_policy": "standard",
-        },
+        interview_id=interview["id"],
+        execution_policy="standard",
     )
     assert run.status_code == 200
     assert run.json()["execution_policy"] == "campaign"
@@ -872,13 +848,11 @@ def test_unsigned_identity_and_body_cannot_originate_campaign(
     interview = _interview_payload(interview_response)
     assert interview["execution_policy"] == "standard"
 
-    run = client.post(
-        "/api/runs",
+    run = _create_run(
+        client,
+        "Map treatment resistance",
         headers=headers,
-        json={
-            "research_goal": "Map treatment resistance",
-            "execution_policy": "campaign",
-        },
+        execution_policy="campaign",
     )
     assert run.status_code == 200
     assert run.json()["execution_policy"] == "standard"
@@ -914,10 +888,8 @@ async def test_campaign_run_rejects_byok_before_transport(
     assert "campaign" in interview_response.json()["detail"].lower()
     assert interviews.list_interviews("researcher-a") == []
 
-    response = make_client().post(
-        "/api/runs",
-        headers=headers,
-        json={"research_goal": "Map treatment resistance"},
+    response = _create_run(
+        make_client(), "Map treatment resistance", headers=headers
     )
 
     assert response.status_code == 400
@@ -927,41 +899,13 @@ async def test_campaign_run_rejects_byok_before_transport(
 
 
 def _run(policy: str, *, owner: str = "owner") -> RunRow:
-    return runs.create_run(
+    return seed_run(
         f"{policy} research",
-        "standard",
-        "engine",
-        {},
-        RunCreateOptions(
+        options=RunCreateOptions(
             client_id=owner,
             execution_policy=policy,
             llm_backend="real",
         ),
-    )
-
-
-def _scope_task(run_id: str) -> ScientificTask:
-    return ScientificTask(
-        id=f"task-{run_id}",
-        run_id=run_id,
-        task_type="engine.node.generate",
-        status="leased",
-        priority=90,
-        inputs={},
-        dependencies=(),
-        provenance={},
-        idempotency_key=f"generate:{run_id}",
-        budget={},
-        attempt=1,
-        max_attempts=3,
-        lease_owner="test",
-        lease_expires_at=None,
-        result=None,
-        error=None,
-        created_at=0.0,
-        updated_at=0.0,
-        started_at=None,
-        completed_at=None,
     )
 
 
@@ -1228,8 +1172,8 @@ async def test_durable_dispatch_reloads_policy_for_recovery_and_resets(
         return {"ok": True}
 
     monkeypatch.setattr(engine_tasks, "_dispatch_engine_task", dispatch)
-    await engine_tasks.execute_engine_task(_scope_task(campaign.id))
-    await engine_tasks.execute_engine_task(_scope_task(standard.id))
+    await engine_tasks.execute_engine_task(_route_task(campaign.id))
+    await engine_tasks.execute_engine_task(_route_task(standard.id))
 
     assert seen == {campaign.id: True, standard.id: False}
     assert campaign_free_mode() is False
@@ -1252,7 +1196,7 @@ async def test_durable_dispatch_aborts_when_run_was_deleted(
     runs.delete_run(campaign.id)
 
     with pytest.raises(LookupError, match="run not found for task dispatch"):
-        await engine_tasks.execute_engine_task(_scope_task(campaign.id))
+        await engine_tasks.execute_engine_task(_route_task(campaign.id))
 
     assert dispatched is False
 

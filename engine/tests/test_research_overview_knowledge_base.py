@@ -310,17 +310,6 @@ _THEME_SECTIONS: dict[str, dict[str, Any]] = {
 }
 
 
-def _research_overview_knowledge_base_split_funded_state(
-    **overrides: Any,
-) -> Any:
-    return make_state(
-        research_goal="g",
-        supervisor_model_name="test/model",
-        budget={"max_iterations": 3, "max_llm_calls": 7000},
-        **overrides,
-    )
-
-
 class _Responder:
     def __init__(self, failing_theme: str | None = None) -> None:
         self.failing_theme = failing_theme
@@ -353,7 +342,7 @@ async def test_the_synthesis_is_one_outline_call_plus_one_call_per_theme(
     monkeypatch.setattr(kbc, "call_llm_json", responder)
 
     topics, calls = await kb.synthesize_knowledge_base(
-        _research_overview_knowledge_base_split_funded_state(),
+        _research_overview_knowledge_base_funded_state(),
         "1. (Elo 1200) an idea",
         _RESEARCH_OVERVIEW_KNOWLEDGE_BASE_SPLIT_CORPUS,
     )
@@ -372,7 +361,7 @@ async def test_no_part_asks_for_more_output_than_the_clock_can_serve(
     monkeypatch.setattr(kbc, "call_llm_json", responder)
 
     await kb.synthesize_knowledge_base(
-        _research_overview_knowledge_base_split_funded_state(),
+        _research_overview_knowledge_base_funded_state(),
         "1. (Elo 1200) an idea",
         _RESEARCH_OVERVIEW_KNOWLEDGE_BASE_SPLIT_CORPUS,
     )
@@ -391,7 +380,7 @@ async def test_every_part_bounds_its_own_chain_of_thought(
     monkeypatch.setattr(kbc, "call_llm_json", responder)
 
     await kb.synthesize_knowledge_base(
-        _research_overview_knowledge_base_split_funded_state(),
+        _research_overview_knowledge_base_funded_state(),
         "1. (Elo 1200) an idea",
         _RESEARCH_OVERVIEW_KNOWLEDGE_BASE_SPLIT_CORPUS,
     )
@@ -409,7 +398,7 @@ async def test_the_assembled_topics_keep_the_outline_order_and_grounding(
     monkeypatch.setattr(kbc, "call_llm_json", responder)
 
     topics, _ = await kb.synthesize_knowledge_base(
-        _research_overview_knowledge_base_split_funded_state(),
+        _research_overview_knowledge_base_funded_state(),
         "1. (Elo 1200) an idea",
         _RESEARCH_OVERVIEW_KNOWLEDGE_BASE_SPLIT_CORPUS,
     )
@@ -434,7 +423,7 @@ async def test_a_theme_that_does_not_answer_drops_only_its_own_sections(
     monkeypatch.setattr(kbc, "call_llm_json", responder)
 
     topics, calls = await kb.synthesize_knowledge_base(
-        _research_overview_knowledge_base_split_funded_state(),
+        _research_overview_knowledge_base_funded_state(),
         "1. (Elo 1200) an idea",
         _RESEARCH_OVERVIEW_KNOWLEDGE_BASE_SPLIT_CORPUS,
     )
@@ -452,7 +441,7 @@ async def test_a_failed_outline_never_spends_the_writing_calls(
     monkeypatch.setattr(kbc, "call_llm_json", fake)
 
     topics, calls = await kb.synthesize_knowledge_base(
-        _research_overview_knowledge_base_split_funded_state(),
+        _research_overview_knowledge_base_funded_state(),
         "1. (Elo 1200) an idea",
         _RESEARCH_OVERVIEW_KNOWLEDGE_BASE_SPLIT_CORPUS,
     )
@@ -475,7 +464,7 @@ async def test_an_outline_with_no_themes_stops_before_the_writing_calls(
     monkeypatch.setattr(kbc, "call_llm_json", fake)
 
     topics, calls = await kb.synthesize_knowledge_base(
-        _research_overview_knowledge_base_split_funded_state(),
+        _research_overview_knowledge_base_funded_state(),
         "1. (Elo 1200) an idea",
         _RESEARCH_OVERVIEW_KNOWLEDGE_BASE_SPLIT_CORPUS,
     )
@@ -519,7 +508,7 @@ async def test_a_writer_that_cites_nothing_falls_back_to_the_outline_ids(
     monkeypatch.setattr(kbc, "call_llm_json", responder)
 
     topics, _ = await kb.synthesize_knowledge_base(
-        _research_overview_knowledge_base_split_funded_state(),
+        _research_overview_knowledge_base_funded_state(),
         "1. (Elo 1200) an idea",
         _RESEARCH_OVERVIEW_KNOWLEDGE_BASE_SPLIT_CORPUS,
     )
@@ -535,7 +524,7 @@ async def test_each_writer_is_shown_the_whole_outline(
     monkeypatch.setattr(kbc, "call_llm_json", responder)
 
     await kb.synthesize_knowledge_base(
-        _research_overview_knowledge_base_split_funded_state(),
+        _research_overview_knowledge_base_funded_state(),
         "1. (Elo 1200) an idea",
         _RESEARCH_OVERVIEW_KNOWLEDGE_BASE_SPLIT_CORPUS,
     )
@@ -560,7 +549,7 @@ async def test_the_parts_are_attributed_to_their_own_telemetry_sub_phase(
     with scoped_telemetry("research_overview") as accumulator:
         record_call("test/model", ModelCallStats(calls=1))
         _, calls = await kb.synthesize_knowledge_base(
-            _research_overview_knowledge_base_split_funded_state(),
+            _research_overview_knowledge_base_funded_state(),
             "1. (Elo 1200) an idea",
             _RESEARCH_OVERVIEW_KNOWLEDGE_BASE_SPLIT_CORPUS,
         )

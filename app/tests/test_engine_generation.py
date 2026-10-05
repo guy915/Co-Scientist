@@ -35,7 +35,7 @@ from app.store import checkpoints, runs
 from app.store import tasks as store
 from app.store import tasks_lifecycle as lifecycle
 from app.store.models import RunStatus, ScientificTask
-from app.store.tasks import NewTask
+from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _Generator,
@@ -45,6 +45,7 @@ from tests._engine_tasks_helpers import (
     _task_events,
     _task_state,
 )
+from tests._store_helpers import enqueue_task, seed_run
 
 _debate_calls: list[dict[str, Any]] = []
 
@@ -88,13 +89,11 @@ async def _advance_generation_node(
         }
     )
     checkpoint_seq = _seed_checkpoint(run_id, state)
-    node = store.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type=f"{engine_tasks.NODE_TASK_PREFIX}generate",
-            inputs={"checkpoint_seq": checkpoint_seq},
-            idempotency_key="generation-node",
-        ),
+    node = enqueue_task(
+        run_id,
+        f"{engine_tasks.NODE_TASK_PREFIX}generate",
+        "generation-node",
+        inputs={"checkpoint_seq": checkpoint_seq},
         db_path=db_path,
     )
     _patch_generator(monkeypatch, _Generator(state), restore=True)
@@ -208,7 +207,6 @@ def _assert_generation_committed(run_id: str, db_path: str) -> None:
         hypothesis.generation_method for hypothesis in restored["hypotheses"]
     }
     assert methods == {GenerationMethod.DEBATE, GenerationMethod.ASSUMPTIONS}
-    # Aggregate folding must retain real usage.
     assert restored["metrics"].llm_calls == 8
     assert _milestones(run_id, db_path=db_path) == [
         "3 hypotheses generated (initial)"
@@ -225,7 +223,7 @@ def _assert_generation_committed(run_id: str, db_path: str) -> None:
 async def test_generation_strategies_are_independently_leased_and_aggregated(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = runs.create_run("Task-level science", "standard", "engine", {})
+    run = seed_run("Task-level science")
     await _advance_generation_node(run.id, monkeypatch, isolated_db)
     await _run_generation_strategies_and_aggregate(run.id, isolated_db)
     _assert_generation_committed(run.id, isolated_db)
@@ -239,9 +237,7 @@ async def test_generation_fanout_created_during_pause_waits_for_resume(
     original_dispatch = engine_tasks_node._dispatch_node_fanout
 
     with make_client() as client:
-        created = client.post(
-            "/api/runs", json={"research_goal": "Paused generation fan-out"}
-        )
+        created = _create_run(client, "Paused generation fan-out")
         assert created.status_code == 200, created.text
         run_id = str(created.json()["id"])
         runs.update_run_status(run_id, RunStatus.RUNNING, db_path=isolated_db)
@@ -343,13 +339,11 @@ async def _advance_mature_reflection_node(
         }
     )
     checkpoint_seq = _seed_checkpoint(run_id, state)
-    node = store.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type=f"{engine_tasks.NODE_TASK_PREFIX}comprehensive_reflection",
-            inputs={"checkpoint_seq": checkpoint_seq},
-            idempotency_key="mature-reflection-node",
-        ),
+    node = enqueue_task(
+        run_id,
+        f"{engine_tasks.NODE_TASK_PREFIX}comprehensive_reflection",
+        "mature-reflection-node",
+        inputs={"checkpoint_seq": checkpoint_seq},
         db_path=db_path,
     )
     _patch_generator(monkeypatch, _Generator(state), restore=True)
@@ -437,7 +431,7 @@ def _assert_mature_reflection_committed(run_id: str, db_path: str) -> None:
 async def test_mature_reflection_modes_are_independent_durable_tasks(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = runs.create_run("Task-level science", "standard", "engine", {})
+    run = seed_run("Task-level science")
     await _advance_mature_reflection_node(run.id, monkeypatch, isolated_db)
     await _run_mature_reflection_items_and_aggregate(run.id, isolated_db)
     _assert_mature_reflection_committed(run.id, isolated_db)
@@ -560,13 +554,11 @@ async def _schedule_generation(
     state: dict[str, Any], db_path: str
 ) -> tuple[dict[str, Any], list[ScientificTask]]:
     checkpoint_seq = _seed_checkpoint(state["run_id"], state, db_path=db_path)
-    node = store.enqueue_task(
-        NewTask(
-            run_id=state["run_id"],
-            task_type=f"{support.NODE_TASK_PREFIX}generate",
-            inputs={"checkpoint_seq": checkpoint_seq},
-            idempotency_key="generation-contract",
-        ),
+    node = enqueue_task(
+        state["run_id"],
+        f"{support.NODE_TASK_PREFIX}generate",
+        "generation-contract",
+        inputs={"checkpoint_seq": checkpoint_seq},
         db_path=db_path,
     )
     leased = store.claim_task("planner", run_id=node.run_id, db_path=db_path)
@@ -589,7 +581,7 @@ async def _schedule_generation(
 async def test_graph_and_durable_contracts_keep_the_same_results(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch, mode: str
 ) -> None:
-    run = runs.create_run("Generation contract", "standard", "engine", {})
+    run = seed_run("Generation contract")
     state = _generation_state(run.id, mode)
     strategies, expansion_calls = _install_strategies(monkeypatch)
     plan = await prepare_generation(state)
@@ -697,7 +689,7 @@ async def test_graph_and_durable_contracts_keep_the_same_results(
 async def test_durable_aggregate_preserves_successes_after_a_strategy_fails(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = runs.create_run("Partial generation", "standard", "engine", {})
+    run = seed_run("Partial generation")
     state = _generation_state(run.id, "lit_and_tools")
     _install_strategies(monkeypatch)
 
@@ -778,7 +770,7 @@ async def test_durable_aggregate_preserves_successes_after_a_strategy_fails(
 async def test_pre_diversity_tasks_still_execute_as_one_debate(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = runs.create_run("Legacy generation task", "standard", "engine", {})
+    run = seed_run("Legacy generation task")
     state = _generation_state(run.id, "no_lit")
     strategies, _ = _install_strategies(monkeypatch)
     _, tasks = await _schedule_generation(state, isolated_db)

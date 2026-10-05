@@ -16,8 +16,10 @@ from app.store import db, records, reports, runs, tasks
 from app.store import events as store_events
 from app.store.runs import RunCreateOptions
 from app.task_worker.outcomes import _LeaseLostError
+from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._engine_tasks_helpers import _install_runtime
+from tests._store_helpers import seed_run
 
 _STRICT_GOAL = "Assess select agent stockpile resilience across regions."
 
@@ -28,12 +30,11 @@ def _strict_intake(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _persist_run(db_path: str) -> Any:
-    return runs.create_run(
+    return seed_run(
         _STRICT_GOAL,
-        "express",
-        "engine",
-        {"tier": "express", "enable_literature_review": False},
-        RunCreateOptions(
+        profile="express",
+        config={"tier": "express", "enable_literature_review": False},
+        options=RunCreateOptions(
             client_id="intake-redaction",
             title=f"Study of {_STRICT_GOAL}",
             llm_backend="offline",
@@ -83,7 +84,7 @@ async def test_cancelled_bootstrap_cannot_commit_intake_redaction(
 ) -> None:
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     owner = make_client()
-    created = owner.post("/api/runs", json={"research_goal": _STRICT_GOAL})
+    created = _create_run(owner, _STRICT_GOAL)
     assert created.status_code == 200, created.text
     run_id = str(created.json()["id"])
     runs.set_run_title(run_id, f"Study {_STRICT_GOAL}", db_path=isolated_db)
@@ -142,9 +143,7 @@ async def test_expired_bootstrap_lease_cannot_commit_intake_allow(
 ) -> None:
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     owner = make_client()
-    created = owner.post(
-        "/api/runs", json={"research_goal": "Study a benign topic"}
-    )
+    created = _create_run(owner, "Study a benign topic")
     assert created.status_code == 200, created.text
     run_id = str(created.json()["id"])
     assert owner.post(f"/api/runs/{run_id}/start", json={}).status_code == 200

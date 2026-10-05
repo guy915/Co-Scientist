@@ -1,3 +1,4 @@
+import {makeLogRecord as logRecord} from '@/test_fixtures';
 import {act, fireEvent, screen, waitFor} from '@testing-library/react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import {COPY_LIMIT} from './layout_diagnostics_data';
@@ -22,16 +23,7 @@ function copiedEntries(text: string): Record<string, unknown>[] {
 it('clears the persisted log from the Clear action', async () => {
   logsApiMock.getAppLogs.mockResolvedValue({
     logs: [
-      {
-        id: 1,
-        created_at: 1_700_000_000,
-        level: 'INFO',
-        levelno: 20,
-        logger: 'app.main',
-        message: 'server started',
-        run_id: null,
-        exc_text: null,
-      },
+      logRecord(1, {created_at: 1_700_000_000, message: 'server started'}),
     ],
     last_id: 1,
     total: 1,
@@ -57,16 +49,9 @@ it('clears the persisted log from the Clear action', async () => {
 });
 
 it('copies the newest COPY_LIMIT entries, not the whole session', async () => {
-  const many = Array.from({length: 140}, (_, index) => ({
-    id: index + 1,
-    created_at: 1_700_000_000 + index,
-    level: 'INFO',
-    levelno: 20,
-    logger: 'app.main',
-    message: `record ${index + 1}`,
-    run_id: null,
-    exc_text: null,
-  }));
+  const many = Array.from({length: 140}, (_, index) =>
+    logRecord(index + 1, {created_at: 1_700_000_000 + index}),
+  );
   logsApiMock.getAppLogs.mockResolvedValue({
     logs: many,
     last_id: 140,
@@ -92,16 +77,7 @@ it('copies the newest COPY_LIMIT entries, not the whole session', async () => {
 
 it('copies the real store ids, not the display numbers', async () => {
   logsApiMock.getAppLogs.mockResolvedValue({
-    logs: [12, 30].map(id => ({
-      id,
-      created_at: 1_700_000_000 + id,
-      level: 'INFO',
-      levelno: 20,
-      logger: 'app.main',
-      message: `record ${id}`,
-      run_id: null,
-      exc_text: null,
-    })),
+    logs: [12, 30].map(id => logRecord(id)),
     last_id: 33,
     total: 2,
     session_total: 2,
@@ -127,16 +103,7 @@ it('copies the real store ids, not the display numbers', async () => {
 function oneRecordPayload() {
   return {
     logs: [
-      {
-        id: 1,
-        created_at: 1_700_000_000,
-        level: 'INFO',
-        levelno: 20,
-        logger: 'app.main',
-        message: 'server started',
-        run_id: null,
-        exc_text: null,
-      },
+      logRecord(1, {created_at: 1_700_000_000, message: 'server started'}),
     ],
     last_id: 1,
     total: 1,

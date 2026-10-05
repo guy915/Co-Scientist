@@ -1,3 +1,5 @@
+import {makeRunMessage} from '@/test_fixtures';
+import {FakeSseBody, streamingResponse, fetchMock} from '@/http_test_support';
 import {beforeEach, afterEach, describe, expect, it, vi} from 'vitest';
 import {
   askRunQuestion,
@@ -7,41 +9,6 @@ import {
 } from './runs';
 
 describe('runs qa', () => {
-  class FakeSseBody {
-    private controller: ReadableStreamDefaultController<Uint8Array> | null =
-      null;
-    readonly stream = new ReadableStream<Uint8Array>({
-      start: c => {
-        this.controller = c;
-      },
-    });
-    private readonly encoder = new TextEncoder();
-
-    push(frame: unknown): void {
-      this.controller?.enqueue(
-        this.encoder.encode(`data: ${JSON.stringify(frame)}\n\n`),
-      );
-    }
-
-    end(): void {
-      this.controller?.close();
-    }
-  }
-
-  function streamingResponse(body: FakeSseBody): Response {
-    return {
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      body: body.stream,
-      text: async () => '',
-    } as unknown as Response;
-  }
-
-  function fetchMock() {
-    return globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
-  }
-
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn());
   });
@@ -112,18 +79,7 @@ describe('runs qa', () => {
         ok: true,
         status: 200,
         json: async () => ({
-          messages: [
-            {
-              id: 1,
-              run_id: 'run-1',
-              sender: 'user',
-              content: 'Why?',
-              kind: 'qa',
-              created_at: 1,
-              applied: true,
-              meta: null,
-            },
-          ],
+          messages: [makeRunMessage({content: 'Why?', applied: true})],
         }),
         text: async () => '',
       });
@@ -137,41 +93,6 @@ describe('runs qa', () => {
 });
 
 describe('runs start', () => {
-  class FakeSseBody {
-    private controller: ReadableStreamDefaultController<Uint8Array> | null =
-      null;
-    readonly stream = new ReadableStream<Uint8Array>({
-      start: c => {
-        this.controller = c;
-      },
-    });
-    private readonly encoder = new TextEncoder();
-
-    push(frame: unknown): void {
-      this.controller?.enqueue(
-        this.encoder.encode(`data: ${JSON.stringify(frame)}\n\n`),
-      );
-    }
-
-    end(): void {
-      this.controller?.close();
-    }
-  }
-
-  function streamingResponse(body: FakeSseBody): Response {
-    return {
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      body: body.stream,
-      text: async () => '',
-    } as unknown as Response;
-  }
-
-  function fetchMock() {
-    return globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
-  }
-
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn());
   });

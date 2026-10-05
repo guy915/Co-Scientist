@@ -44,7 +44,6 @@ from app.store import runs_views as views
 from app.store.hypotheses import NewHypothesis
 from app.store.models import RunStatus
 from app.store.records import NewClaimEvidence, NewReview
-from app.store.runs import RunCreateOptions
 from tests._drain_helpers import (
     _build_report,
     _engine_hypothesis,
@@ -53,6 +52,7 @@ from tests._drain_helpers import (
     _persist,
     _persist_and_finalize,
 )
+from tests._store_helpers import seed_run
 
 _CALL = SearchCall(
     question="What blocks TGF-beta signalling in humans?",
@@ -133,7 +133,7 @@ def test_evidence_resolves_to_the_search_that_found_it(
 ) -> None:
     # Search ledger and evidence search link must persist together; either half
     # alone loses usable provenance.
-    run = runs.create_run("provenance goal", "extended", "engine", {})
+    run = seed_run("provenance goal", profile="extended")
 
     _persist_and_finalize(
         run, _provenance_final_state(researched=True), isolated_db
@@ -252,7 +252,7 @@ def test_cached_literature_review_keeps_provenance_through_the_report(
         "research_overview": {},
         "research_ledgers": cached.get("research_ledgers", []),
     }
-    run = runs.create_run("provenance goal", "extended", "engine", {})
+    run = seed_run("provenance goal", profile="extended")
     _persist_and_finalize(run, final_state, isolated_db)
 
     calls = retrieval.list_retrieval_calls(run.id, db_path=isolated_db)
@@ -269,7 +269,7 @@ def test_cached_literature_review_keeps_provenance_through_the_report(
 def test_what_was_seen_and_not_read_stays_on_record(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("coverage goal", "extended", "engine", {})
+    run = seed_run("coverage goal", profile="extended")
 
     _persist_and_finalize(
         run, _provenance_final_state(researched=True), isolated_db
@@ -285,7 +285,7 @@ def test_what_was_seen_and_not_read_stays_on_record(
 def test_a_run_that_did_no_research_writes_no_searches(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("shallow goal", "standard", "engine", {})
+    run = seed_run("shallow goal")
 
     _persist_and_finalize(
         run, _provenance_final_state(researched=False), isolated_db
@@ -301,7 +301,7 @@ def test_the_run_tier_reaches_the_engine_verbatim(isolated_db: str) -> None:
     # engine cannot drift.
     from app.engine_adapter.opts import build_engine_opts
 
-    run = runs.create_run("tier goal", "ultra", "engine", {})
+    run = seed_run("tier goal", profile="ultra")
 
     opts = build_engine_opts({"tier": "advanced"}, run.id, isolated_db)
 
@@ -354,7 +354,7 @@ def test_every_researcher_in_a_run_leaves_its_searches_on_record(
 ) -> None:
     # Literature and reflection own separate ledgers; one shared writer silently
     # replaces earlier provenance.
-    run = runs.create_run("two researchers", "ultra", "engine", {})
+    run = seed_run("two researchers", profile="ultra")
     state = _provenance_final_state(researched=True)
     state["research_ledgers"].append(_review_ledger())
 
@@ -370,7 +370,7 @@ def test_every_researcher_in_a_run_leaves_its_searches_on_record(
 def test_the_same_search_from_two_researchers_is_one_row(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("same search twice", "ultra", "engine", {})
+    run = seed_run("same search twice", profile="ultra")
     state = _provenance_final_state(researched=True)
     state["research_ledgers"].append(_ledger())
 
@@ -384,7 +384,7 @@ def test_a_reviews_own_paper_resolves_to_the_reviews_own_search(
 ) -> None:
     # Reflection provenance travels through item result and aggregate, unlike
     # literature-review ledger inputs.
-    run = runs.create_run("review provenance", "ultra", "engine", {})
+    run = seed_run("review provenance", profile="ultra")
     state = _provenance_final_state(researched=True)
     state["research_ledgers"].append(_review_ledger())
     state["articles"].append(
@@ -427,7 +427,7 @@ def _degradation_final_state(
 def test_the_report_carries_what_the_run_could_not_search(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("degraded goal", "extended", "engine", {})
+    run = seed_run("degraded goal", profile="extended")
 
     _persist_and_finalize(
         run,
@@ -450,7 +450,7 @@ def test_the_report_carries_what_the_run_could_not_search(
 
 
 def test_a_healthy_run_reports_no_degradation(isolated_db: str) -> None:
-    run = runs.create_run("healthy goal", "extended", "engine", {})
+    run = seed_run("healthy goal", profile="extended")
 
     _persist_and_finalize(run, _degradation_final_state(None), isolated_db)
 
@@ -520,7 +520,7 @@ def _add_gate_split_edges(
 def test_rank_and_publish_splits_contradicted_from_unverified(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("gate split", "standard", "engine", {})
+    run = seed_run("gate split")
     supported_id, unsupported_id, contradicted_id = _seed_gate_split(
         run, isolated_db
     )
@@ -543,7 +543,7 @@ def test_rank_and_publish_splits_contradicted_from_unverified(
 
 
 def _assert_demo_run_badges_nothing(db_path: str) -> None:
-    demo = runs.create_run("demo", "standard", "mock", {})
+    demo = seed_run("demo", provider="mock")
     hypotheses.add_hypothesis(
         NewHypothesis(run_id=demo.id, title="Demo", statement="Demo idea."),
         db_path=db_path,
@@ -554,7 +554,7 @@ def _assert_demo_run_badges_nothing(db_path: str) -> None:
 def test_partial_edge_clears_the_unverified_badge(isolated_db: str) -> None:
     # Partial support is relevant and consistent, so it clears the Unverified
     # badge.
-    run = runs.create_run("partial badge", "standard", "engine", {})
+    run = seed_run("partial badge")
     partial_id = hypotheses.add_hypothesis(
         NewHypothesis(
             run_id=run.id,
@@ -605,7 +605,7 @@ def test_gate_reports_exclusions_once_and_at_info(
 ) -> None:
     # Individual exclusions are expected narrative; warn when the gate leaves
     # nothing to synthesize.
-    run = runs.create_run("gate logging", "standard", "engine", {})
+    run = seed_run("gate logging")
     _, _, contradicted_id = _seed_gate_split(run, isolated_db)
     hyps = hypotheses.list_hypotheses(run.id, db_path=isolated_db)
 
@@ -622,7 +622,7 @@ def test_gate_reports_exclusions_once_and_at_info(
 def test_gate_warns_when_it_excludes_everything(
     isolated_db: str, caplog: pytest.LogCaptureFixture
 ) -> None:
-    run = runs.create_run("gate empty", "standard", "engine", {})
+    run = seed_run("gate empty")
     hypotheses.add_hypothesis(
         NewHypothesis(
             run_id=run.id,
@@ -673,7 +673,7 @@ def _drained_status(
 ) -> str:
     state = _final_state_with_lineage()
     state["hypotheses"][0]["review_disposition"] = disposition
-    run = runs.create_run(goal, "standard", "engine", {})
+    run = seed_run(goal)
     _persist(run_id=run.id, final_state=state, db_path=isolated_db)
     by_id = {
         hypothesis["id"]: hypothesis
@@ -729,12 +729,10 @@ def test_offline_run_with_empty_leaderboard_is_blocked_like_a_real_run(
     state = _final_state_with_lineage()
     for hypothesis in state["hypotheses"]:
         hypothesis["review_disposition"] = "unsafe"
-    run = runs.create_run(
+    run = seed_run(
         "offline empty leaderboard goal",
-        "standard",
-        "engine",
-        {},
-        RunCreateOptions(llm_backend="offline", db_path=isolated_db),
+        llm_backend="offline",
+        db_path=isolated_db,
     )
 
     _persist_and_finalize(run, state, isolated_db)
@@ -802,7 +800,7 @@ def _replay_finalize(
 def test_drained_scientist_hypothesis_keeps_its_row(isolated_db: str) -> None:
     # Scientist rows survive publication resets; reconcile them instead of
     # inserting colliding copies.
-    run = runs.create_run("Scientist drain", "express", "engine", {})
+    run = seed_run("Scientist drain", profile="express")
     hypothesis_id = _seed_scientist_hypothesis(run.id, isolated_db)
     final_state = _merged_final_state(run.id, isolated_db)
 
@@ -820,7 +818,7 @@ def test_drained_scientist_hypothesis_keeps_its_row(isolated_db: str) -> None:
 def test_drained_scientist_hypothesis_keeps_tournament_counts(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("Scientist replay", "express", "engine", {})
+    run = seed_run("Scientist replay", profile="express")
     _seed_scientist_hypothesis(run.id, isolated_db)
     final_state = _merged_final_state(run.id, isolated_db)
     final_state["hypotheses"][0]["win_count"] = 3
@@ -836,7 +834,7 @@ def test_drained_scientist_hypothesis_keeps_tournament_counts(
 def test_drained_scientist_review_keeps_author_and_verdict(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("Scientist review drain", "express", "engine", {})
+    run = seed_run("Scientist review drain", profile="express")
     hypothesis_id = _seed_scientist_hypothesis(run.id, isolated_db)
     _seed_scientist_review(run.id, hypothesis_id, isolated_db)
     final_state = _merged_final_state(run.id, isolated_db)
@@ -856,7 +854,7 @@ def test_scientist_review_score_uses_the_engine_review_rubric(
     # misleads tournament judges.
     from co_scientist.constants import NEEDS_REVISION_SCORE, NOT_VIABLE_SCORE
 
-    run = runs.create_run("Scientist rubric", "express", "engine", {})
+    run = seed_run("Scientist rubric", profile="express")
     hypothesis_id = _seed_scientist_hypothesis(run.id, isolated_db)
     _seed_scientist_review(run.id, hypothesis_id, isolated_db)
     state: dict[str, Any] = {"hypotheses": []}

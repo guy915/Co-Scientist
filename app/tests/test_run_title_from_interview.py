@@ -1,5 +1,3 @@
-# A completed interview title takes precedence over a goal-derived title.
-
 from __future__ import annotations
 
 from typing import Any
@@ -9,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.runs import crud as runs_crud
+from tests._client import create_run as _create_run
 from tests._process_mode_helpers import FakeProcessMode
 
 from ._interviews_helpers import (
@@ -43,10 +42,8 @@ def _generated_titles(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 def _create_run_from_interview(
     client: TestClient, headers: dict[str, str], interview_id: str
 ) -> dict[str, Any]:
-    response = client.post(
-        "/api/runs",
-        headers=headers,
-        json={"research_goal": "placeholder", "interview_id": interview_id},
+    response = _create_run(
+        client, "placeholder", headers=headers, interview_id=interview_id
     )
     assert response.status_code == 200
     return dict(response.json())
@@ -87,7 +84,6 @@ def test_overlong_interview_title_falls_through_to_generation(
     monkeypatch: pytest.MonkeyPatch,
     _generated_titles: list[str],
 ) -> None:
-    # Accepted interview titles share the generated-title length cap.
     _patch_model_sequence(monkeypatch, _overlong_title_responses())
     headers = {"X-Client-ID": "scientist-a"}
     with TestClient(app) as client:

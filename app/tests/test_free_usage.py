@@ -10,6 +10,7 @@ from app.config import settings
 from app.execution_policy import CAMPAIGN
 from app.main import app
 from app.store.db import connect
+from tests._client import create_run as _create_run
 from tests._process_mode_helpers import FakeProcessMode
 
 _CLIENT = {"X-Client-ID": "free-usage-scientist"}
@@ -57,9 +58,7 @@ def test_free_run_without_a_tier_defaults_to_express(
     real_backend: None,
 ) -> None:
     with TestClient(app) as client:
-        response = client.post(
-            "/api/runs", json={"research_goal": "free goal"}, headers=_CLIENT
-        )
+        response = _create_run(client, "free goal", headers=_CLIENT)
     assert response.status_code == 200, response.text
     assert response.json()["config"]["tier"] == "express"
 

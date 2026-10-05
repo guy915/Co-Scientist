@@ -40,6 +40,7 @@ from co_scientist.workspace import (
 )
 from co_scientist.workspace import tools as workspace_tools
 from co_scientist.workspace.checks import MAX_FINDINGS, check_paths
+from tests._llm_fake import make_tool_call
 
 _requires_sandbox = pytest.mark.skipif(
     sandbox_backend() is None, reason="no sandbox backend on this platform"
@@ -342,10 +343,7 @@ class TestRunWorkspace:
 
 
 def _call(name: str, arguments: Any = "{}") -> SimpleNamespace:
-    return SimpleNamespace(
-        id=f"call_{name}",
-        function=SimpleNamespace(name=name, arguments=arguments),
-    )
+    return make_tool_call(f"call_{name}", name, arguments)
 
 
 def _provider(tmp_path: Path, **kwargs: Any) -> WorkspaceToolProvider:
@@ -471,8 +469,6 @@ def test_an_unknown_tool_without_a_delegate_is_answered(
 
 
 class _StubDelegate:
-    """Stands in for the run's MCPToolProvider."""
-
     def __init__(self) -> None:
         self.seen: list[str] = []
 

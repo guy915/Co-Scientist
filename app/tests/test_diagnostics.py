@@ -34,12 +34,12 @@ from app.diagnostics import (
 from app.run_modes import DEFAULT_RUN_TIER, RUN_TIER_DEFAULTS
 from app.store import checkpoints, runs
 from app.store import runs_views as views
-from app.store.checkpoints import NewCheckpoint
 from app.store.models import DEMO_CLIENT_ID, RunStatus
-from app.store.runs import RunCreateOptions
+from tests._client import create_run as _create_run
 from tests._client import make_client, make_operator_client
 from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
+from tests._store_helpers import seed_checkpoint, seed_run
 
 
 def test_check_store_ok_against_isolated_db(isolated_db: str) -> None:
@@ -454,24 +454,16 @@ _INDRA_CONFIG = str(
 
 
 def _seed_interrupted_engine_run(isolated_db: str) -> str:
-    interrupted = runs.create_run(
-        "interrupted goal",
-        "default",
-        "engine",
-        {},
-        RunCreateOptions(db_path=isolated_db),
+    interrupted = seed_run(
+        "interrupted goal", profile="default", db_path=isolated_db
     )
     runs.update_run_status(
         interrupted.id, RunStatus.RUNNING, db_path=isolated_db
     )
-    checkpoints.save_checkpoint(
+    seed_checkpoint(
         interrupted.id,
-        NewCheckpoint(
-            stage="engine_task:test",
-            schema_version=1,
-            last_event_seq=0,
-            state={"provider": "engine", "state": {"hypotheses": []}},
-        ),
+        {"provider": "engine", "state": {"hypotheses": []}},
+        stage="engine_task:test",
         db_path=isolated_db,
     )
     return interrupted.id
@@ -537,12 +529,11 @@ def test_lifespan_reconciles_interrupted_runs_and_seeds_demo_data(
     # does not exercise startup.
     import app.main as main_module
 
-    interrupted = runs.create_run(
+    interrupted = seed_run(
         "interrupted goal",
-        "default",
-        "mock",
-        {},
-        RunCreateOptions(db_path=isolated_db),
+        profile="default",
+        provider="mock",
+        db_path=isolated_db,
     )
     runs.update_run_status(
         interrupted.id, RunStatus.RUNNING, db_path=isolated_db
@@ -765,9 +756,7 @@ def _assert_diagnostics(client: TestClient) -> None:
 
 
 def _create_and_complete(client: TestClient, goal: str) -> str:
-    create = client.post(
-        "/api/runs", json={"research_goal": goal, "tier": "express"}
-    )
+    create = _create_run(client, goal, tier="express")
     assert create.status_code == 200
     run_id: str = create.json()["id"]
     assert create.json()["status"] == "draft"
@@ -778,9 +767,7 @@ def _create_and_complete(client: TestClient, goal: str) -> str:
 
 
 def _create_and_block(client: TestClient, goal: str) -> str:
-    create = client.post(
-        "/api/runs", json={"research_goal": goal, "tier": "express"}
-    )
+    create = _create_run(client, goal, tier="express")
     assert create.status_code == 200
     run_id: str = create.json()["id"]
     start = client.post(f"/api/runs/{run_id}/start", json={})

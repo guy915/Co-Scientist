@@ -4,11 +4,12 @@ import asyncio
 import logging
 import time
 import types
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Mapping, Sequence
 from types import SimpleNamespace
 from typing import Any, TypeVar
 
 from fastapi.testclient import TestClient
+from httpx2 import Response
 
 _T = TypeVar("_T")
 
@@ -27,10 +28,21 @@ def drain(gen: AsyncIterator[_T]) -> list[_T]:
 
 
 def make_client() -> TestClient:
-    # Stable client identity survives reconnections and restarts.
     from app.main import app
 
     return TestClient(app, headers=_DEFAULT_HEADERS)
+
+
+def create_run(
+    client: TestClient,
+    goal: str,
+    *,
+    headers: dict[str, str] | None = None,
+    **fields: Any,
+) -> Response:
+    return client.post(
+        "/api/runs", headers=headers, json={"research_goal": goal, **fields}
+    )
 
 
 def make_operator_client() -> TestClient:
@@ -89,21 +101,57 @@ def wait_for_status(
     return wait_for(_reached, timeout=timeout, interval=interval)
 
 
+def start_and_complete(
+    client: TestClient,
+    goal: str,
+    *,
+    tier: str = "express",
+    timeout: float = 30.0,
+) -> str:
+    response = create_run(client, goal, tier=tier)
+    run_id: str = response.json()["id"]
+    assert client.post(f"/api/runs/{run_id}/start", json={}).status_code == 200
+    assert wait_for_status(client, run_id, "completed", timeout=timeout), (
+        "run did not complete in time"
+    )
+    return run_id
+
+
+_StreamChunk = str | Mapping[str, str | None]
+
+
 def fake_litellm(
-    chunks: list[str], *, raise_exc: Exception | None = None
+    chunks: Sequence[_StreamChunk],
+    *,
+    raise_exc: Exception | None = None,
+    retry_chunks: Sequence[_StreamChunk] | None = None,
+    calls: list[dict[str, Any]] | None = None,
 ) -> types.SimpleNamespace:
+    attempts = 0
 
-    async def _chunk_stream() -> AsyncIterator[Any]:
-        for content in chunks:
-            yield SimpleNamespace(
-                choices=[
-                    SimpleNamespace(delta=SimpleNamespace(content=content))
-                ]
+    async def _chunk_stream(
+        response: Sequence[_StreamChunk],
+    ) -> AsyncIterator[Any]:
+        for chunk in response:
+            delta = (
+                SimpleNamespace(content=chunk)
+                if isinstance(chunk, str)
+                else SimpleNamespace(**chunk)
             )
+            yield SimpleNamespace(choices=[SimpleNamespace(delta=delta)])
 
-    async def _acompletion(**_kwargs: Any) -> AsyncIterator[Any]:
+    async def _acompletion(**kwargs: Any) -> AsyncIterator[Any]:
+        nonlocal attempts
+        attempts += 1
+        if calls is not None:
+            calls.append(kwargs)
         if raise_exc is not None:
             raise raise_exc
-        return _chunk_stream()
+        response = (
+            retry_chunks
+            if attempts > 1 and retry_chunks is not None
+            else chunks
+        )
+        return _chunk_stream(response)
 
     return types.SimpleNamespace(acompletion=_acompletion)

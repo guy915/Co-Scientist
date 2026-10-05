@@ -27,7 +27,8 @@ from co_scientist.exceptions import GenerationError
 from co_scientist.models import GenerationMethod
 from co_scientist.prompts.generation_debate import _DEBATE_MAX_DISCUSSION_TURNS
 from co_scientist.prompts.loading import load_prompt_with_schema
-from tests._state import make_hypothesis, make_state
+from tests._llm_fake import stub_call_llm_json
+from tests._state import make_generation_response, make_hypothesis, make_state
 
 
 def _stub_debate_llm(monkeypatch: pytest.MonkeyPatch, final_text: str) -> None:
@@ -36,16 +37,7 @@ def _stub_debate_llm(monkeypatch: pytest.MonkeyPatch, final_text: str) -> None:
         return "a debate turn argument"
 
     async def fake_call_llm_json(**_: Any) -> dict[str, Any]:
-        return {
-            "hypotheses": [
-                {
-                    "hypothesis": final_text,
-                    "explanation": "because the mechanism fits",
-                    "literature_grounding": None,
-                    "experiment": "run the assay",
-                }
-            ]
-        }
+        return make_generation_response(final_text)
 
     monkeypatch.setattr(debate, "call_llm", fake_call_llm)
     monkeypatch.setattr(debate, "call_llm_json", fake_call_llm_json)
@@ -73,16 +65,7 @@ def _stub_debate_llm_counting(
 
     async def fake_call_llm_json(**_: Any) -> dict[str, Any]:
         finals.append(1)
-        return {
-            "hypotheses": [
-                {
-                    "hypothesis": "converged idea",
-                    "explanation": "because the mechanism fits",
-                    "literature_grounding": None,
-                    "experiment": "run the assay",
-                }
-            ]
-        }
+        return make_generation_response("converged idea")
 
     monkeypatch.setattr(debate, "call_llm", fake_call_llm)
     monkeypatch.setattr(debate, "call_llm_json", fake_call_llm_json)
@@ -201,16 +184,9 @@ async def test_parallel_debates_receive_distinct_focus_prompts(
         prompt = str(kwargs["prompt"])
         final_prompts.append(prompt)
         debate_number = len(final_prompts)
-        return {
-            "hypotheses": [
-                {
-                    "hypothesis": f"hypothesis from debate {debate_number}",
-                    "explanation": "because the mechanism fits",
-                    "literature_grounding": None,
-                    "experiment": "run the assay",
-                }
-            ]
-        }
+        return make_generation_response(
+            f"hypothesis from debate {debate_number}"
+        )
 
     monkeypatch.setattr(debate, "call_llm", fake_call_llm)
     monkeypatch.setattr(debate, "call_llm_json", fake_call_llm_json)
@@ -241,16 +217,9 @@ async def test_single_debate_of_a_larger_batch_gets_its_own_angle(
 
     async def fake_call_llm_json(**kwargs: Any) -> dict[str, Any]:
         final_prompts.append(str(kwargs["prompt"]))
-        return {
-            "hypotheses": [
-                {
-                    "hypothesis": "the angled hypothesis",
-                    "explanation": "because",
-                    "literature_grounding": None,
-                    "experiment": "run the assay",
-                }
-            ]
-        }
+        return make_generation_response(
+            "the angled hypothesis", explanation="because"
+        )
 
     monkeypatch.setattr(debate, "call_llm", fake_call_llm)
     monkeypatch.setattr(debate, "call_llm_json", fake_call_llm_json)
@@ -280,16 +249,9 @@ async def test_a_lone_debate_still_gets_no_angle(
 
     async def fake_call_llm_json(**kwargs: Any) -> dict[str, Any]:
         final_prompts.append(str(kwargs["prompt"]))
-        return {
-            "hypotheses": [
-                {
-                    "hypothesis": "the lone hypothesis",
-                    "explanation": "because",
-                    "literature_grounding": None,
-                    "experiment": "run the assay",
-                }
-            ]
-        }
+        return make_generation_response(
+            "the lone hypothesis", explanation="because"
+        )
 
     monkeypatch.setattr(debate, "call_llm", fake_call_llm)
     monkeypatch.setattr(debate, "call_llm_json", fake_call_llm_json)
@@ -314,16 +276,7 @@ async def test_debate_prompts_carry_starting_hypotheses(
 
     async def fake_call_llm_json(**kwargs: Any) -> dict[str, Any]:
         prompts.append(str(kwargs["prompt"]))
-        return {
-            "hypotheses": [
-                {
-                    "hypothesis": "refined seed hypothesis",
-                    "explanation": "because the mechanism fits",
-                    "literature_grounding": None,
-                    "experiment": "run the assay",
-                }
-            ]
-        }
+        return make_generation_response("refined seed hypothesis")
 
     monkeypatch.setattr(debate, "call_llm", fake_call_llm)
     monkeypatch.setattr(debate, "call_llm_json", fake_call_llm_json)
@@ -383,16 +336,12 @@ async def test_generate_node_attaches_metrics_and_passes_through(
 
 
 def _one_hypothesis_payload() -> dict[str, Any]:
-    return {
-        "hypotheses": [
-            {
-                "hypothesis": "A testable claim",
-                "explanation": "why",
-                "literature_grounding": "This builds on prior work [C1].",
-                "experiment": "how",
-            }
-        ]
-    }
+    return make_generation_response(
+        "A testable claim",
+        explanation="why",
+        literature_grounding="This builds on prior work [C1].",
+        experiment="how",
+    )
 
 
 def _c1_reference_index() -> Any:
@@ -423,13 +372,9 @@ async def test_assumptions_grounds_in_supplied_literature(
 ) -> None:
     from co_scientist.agents.generation import assumptions as assumptions_mod
 
-    captured: dict[str, str] = {}
-
-    async def _fake_call_llm_json(prompt: str, *_a: Any, **_k: Any) -> Any:
-        captured["prompt"] = prompt
-        return _one_hypothesis_payload()
-
-    monkeypatch.setattr(assumptions_mod, "call_llm_json", _fake_call_llm_json)
+    calls = stub_call_llm_json(
+        monkeypatch, assumptions_mod, _one_hypothesis_payload()
+    )
 
     reference_index = _c1_reference_index()
     state = make_state(
@@ -443,7 +388,7 @@ async def test_assumptions_grounds_in_supplied_literature(
         reference_index=reference_index,
     )
 
-    assert "[C1]" in captured["prompt"]
+    assert "[C1]" in calls[-1]["prompt"]
     assert result[0].citation_map
     assert "C1" in result[0].citation_map
 
@@ -453,13 +398,9 @@ async def test_assumptions_live_prompt_hedges_and_threads_constraints(
 ) -> None:
     from co_scientist.agents.generation import assumptions as assumptions_mod
 
-    captured: dict[str, str] = {}
-
-    async def _fake_call_llm_json(prompt: str, *_a: Any, **_k: Any) -> Any:
-        captured["prompt"] = prompt
-        return _one_hypothesis_payload()
-
-    monkeypatch.setattr(assumptions_mod, "call_llm_json", _fake_call_llm_json)
+    calls = stub_call_llm_json(
+        monkeypatch, assumptions_mod, _one_hypothesis_payload()
+    )
 
     await assumptions_mod.generate_with_assumptions(
         make_state(
@@ -470,9 +411,9 @@ async def test_assumptions_live_prompt_hedges_and_threads_constraints(
         1,
     )
 
-    assert "Novelty claims must be hedged" in captured["prompt"]
-    assert "## Scientist's Lab Constraints" in captured["prompt"]
-    assert "Zebrafish facility only" in captured["prompt"]
+    assert "Novelty claims must be hedged" in calls[-1]["prompt"]
+    assert "## Scientist's Lab Constraints" in calls[-1]["prompt"]
+    assert "Zebrafish facility only" in calls[-1]["prompt"]
 
 
 async def test_assumptions_generation_is_never_cached(
@@ -482,19 +423,15 @@ async def test_assumptions_generation_is_never_cached(
     the pool through dedup."""
     from co_scientist.agents.generation import assumptions as assumptions_mod
 
-    captured: dict[str, Any] = {}
-
-    async def _fake_call_llm_json(_prompt: str, *_a: Any, **kwargs: Any) -> Any:
-        captured["options"] = kwargs["options"]
-        return _one_hypothesis_payload()
-
-    monkeypatch.setattr(assumptions_mod, "call_llm_json", _fake_call_llm_json)
+    calls = stub_call_llm_json(
+        monkeypatch, assumptions_mod, _one_hypothesis_payload()
+    )
 
     await assumptions_mod.generate_with_assumptions(
         make_state(research_goal="A goal", model_name="fake-model"), 1
     )
 
-    assert captured["options"].use_cache is False
+    assert calls[-1]["options"].use_cache is False
 
 
 def _tree_response(
@@ -521,16 +458,12 @@ def _sub_response(*entries: tuple[int, list[str]]) -> dict[str, Any]:
 
 
 def _final_response(text: str = "a challenging hypothesis") -> dict[str, Any]:
-    return {
-        "hypotheses": [
-            {
-                "hypothesis": text,
-                "explanation": "why",
-                "literature_grounding": "grounding",
-                "experiment": "how",
-            }
-        ]
-    }
+    return make_generation_response(
+        text,
+        explanation="why",
+        literature_grounding="grounding",
+        experiment="how",
+    )
 
 
 def _install_sequence(

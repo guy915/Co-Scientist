@@ -20,6 +20,7 @@ from co_scientist.agents.evolution.evolve_prompt import (
 )
 from co_scientist.models import HypothesisReview
 from co_scientist.offline.llm import subject_terms
+from tests._llm_fake import stub_call_llm_json
 from tests._state import make_hypothesis, make_state
 
 
@@ -85,8 +86,6 @@ def test_combination_diversity_instruction_exempts_partners() -> None:
 
 
 def test_non_combination_diversity_instruction_keeps_blanket_rule() -> None:
-    """Synthesis requires overlap with designated partners while staying
-    distinct from other peers."""
     result = _format_diversity_instruction(
         ["a peer hypothesis"], [], EvolutionOperator.ENHANCEMENT
     )
@@ -497,14 +496,12 @@ def test_out_of_box_uses_concepts_for_one_analogous_hypothesis() -> None:
 async def test_out_of_box_task_draws_partners_from_the_ranked_pool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    observed_prompt = ""
-
-    async def fake_llm(*, prompt: str, **_: Any) -> dict[str, Any]:
-        nonlocal observed_prompt
-        observed_prompt = prompt
-        return _operator_child_payload(EvolutionOperator.OUT_OF_BOX)
-
-    monkeypatch.setattr(evolve, "call_llm_json", fake_llm)
+    calls = stub_call_llm_json(
+        monkeypatch,
+        evolve,
+        _operator_child_payload(EvolutionOperator.OUT_OF_BOX),
+        copy_response=True,
+    )
     parent = make_hypothesis("Parent mechanism.", elo_rating=1500)
     peer = make_hypothesis("Strongest peer approach.", elo_rating=1400)
     state = make_state(hypotheses=[parent, peer])
@@ -519,6 +516,7 @@ async def test_out_of_box_task_draws_partners_from_the_ranked_pool(
         state, 0, parent, context, EvolutionOperator.OUT_OF_BOX
     )
 
+    observed_prompt = calls[-1]["prompt"]
     assert child is not None
     assert "## Provided Concepts" in observed_prompt
     assert "Strongest peer approach." in observed_prompt
@@ -530,14 +528,12 @@ async def test_every_operator_executes_as_a_distinct_evolution_task(
     monkeypatch: pytest.MonkeyPatch,
     operator: EvolutionOperator,
 ) -> None:
-    observed_prompt = ""
-
-    async def fake_llm(*, prompt: str, **_: Any) -> dict[str, Any]:
-        nonlocal observed_prompt
-        observed_prompt = prompt
-        return _operator_child_payload(operator)
-
-    monkeypatch.setattr(evolve, "call_llm_json", fake_llm)
+    calls = stub_call_llm_json(
+        monkeypatch,
+        evolve,
+        _operator_child_payload(operator),
+        copy_response=True,
+    )
     parent = make_hypothesis(
         "A parent proposal links metabolic state to recovery kinetics."
     )
@@ -554,6 +550,7 @@ async def test_every_operator_executes_as_a_distinct_evolution_task(
         operation=_EvolutionOperation(operator=operator),
     )
 
+    observed_prompt = calls[-1]["prompt"]
     assert child is not None
     assert detail is not None
     if operator_template(operator) == "evolution":

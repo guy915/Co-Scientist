@@ -20,6 +20,7 @@ from app.run_corpus import (
 )
 from app.store import interviews as store
 from app.store import messages, records
+from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._interviews_helpers import (
     _fake_stream,
@@ -87,7 +88,7 @@ def test_delete_unknown_document_404s() -> None:
 
 def _client_with_run(goal: str) -> tuple[TestClient, str]:
     client = make_client()
-    run_id = client.post("/api/runs", json={"research_goal": goal}).json()["id"]
+    run_id = _create_run(client, goal).json()["id"]
     return client, run_id
 
 
@@ -469,14 +470,12 @@ def test_interview_payload_lists_its_attached_documents() -> None:
 def test_create_run_carries_staged_documents_into_its_corpus() -> None:
     client = make_client()
     document_id = _stage_id(client)
-    created = client.post(
-        "/api/runs",
+    created = _create_run(
+        client,
+        "Cardiac regeneration",
         headers=_HEADERS,
-        json={
-            "research_goal": "Cardiac regeneration",
-            "tier": "express",
-            "document_ids": [document_id],
-        },
+        tier="express",
+        document_ids=[document_id],
     )
     assert created.status_code == 200, created.text
     run_id = created.json()["id"]
@@ -492,13 +491,11 @@ def test_create_run_with_an_unknown_document_creates_no_run() -> None:
     # ungrounded draft.
     client = make_client()
     before = client.get("/api/runs", headers=_HEADERS).json()["runs"]
-    response = client.post(
-        "/api/runs",
+    response = _create_run(
+        client,
+        "Cardiac regeneration",
         headers=_HEADERS,
-        json={
-            "research_goal": "Cardiac regeneration",
-            "document_ids": ["not-a-real-document"],
-        },
+        document_ids=["not-a-real-document"],
     )
     assert response.status_code == 404
     after = client.get("/api/runs", headers=_HEADERS).json()["runs"]
@@ -526,10 +523,8 @@ def test_run_created_from_a_chat_inherits_the_chat_documents() -> None:
         None,
         completed=True,
     )
-    created = client.post(
-        "/api/runs",
-        headers=_HEADERS,
-        json={"research_goal": "goal", "interview_id": interview_id},
+    created = _create_run(
+        client, "goal", headers=_HEADERS, interview_id=interview_id
     )
     assert created.status_code == 200, created.text
     evidence = client.get(

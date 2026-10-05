@@ -454,18 +454,6 @@ _RESEARCH_OVERVIEW_CONTACTS_OVERVIEW_RESPONSE: dict[str, Any] = {
 }
 
 
-def _research_overview_contacts_grounded_articles() -> list[Article]:
-    return [
-        make_article(
-            title="Fibrosis mechanisms",
-            authors=["Ada Researcher"],
-            source_id="PMID:123",
-            url="https://pubmed.ncbi.nlm.nih.gov/123/",
-            used_in_analysis=True,
-        )
-    ]
-
-
 async def test_research_contact_groups_resolve_indices_to_real_ids(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -493,7 +481,7 @@ async def test_research_contact_groups_resolve_indices_to_real_ids(
         research_goal="g",
         supervisor_model_name="test/model",
         meta_review={},
-        articles=_research_overview_contacts_grounded_articles(),
+        articles=_research_overview_grounded_articles(),
     )
     out = await ro.research_overview_node(state)
 
@@ -520,7 +508,7 @@ async def test_research_contact_groups_default_to_empty(
         research_goal="g",
         supervisor_model_name="test/model",
         meta_review={},
-        articles=_research_overview_contacts_grounded_articles(),
+        articles=_research_overview_grounded_articles(),
     )
     out = await ro.research_overview_node(state)
 

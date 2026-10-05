@@ -23,9 +23,9 @@ from co_scientist.agents.reflection.reflection_helpers import (
 from co_scientist.agents.reflection.review_evidence import ReviewResearch
 from co_scientist.agents.reflection.review_gate import ReviewType
 from co_scientist.config import ToolRegistry
-from co_scientist.config.schema import ToolConfig
 from co_scientist.models import Article
-from tests._llm_fake import stub_call_llm_json
+from tests._llm_fake import mock_call_llm_json, stub_call_llm_json
+from tests._mcp import WorkflowToolRegistry
 from tests._state import make_hypothesis, make_state
 
 _ARTICLES = "Article 1: observation A supports pathway X."
@@ -123,8 +123,6 @@ async def test_positive_observations_accumulate_on_hypothesis(
 async def test_no_positive_observations_keeps_notes_byte_identical(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Strengths precede the classification suffix that downstream ranking
-    parses."""
     hyp = make_hypothesis(text="alpha pathway drives growth")
     state = make_state(hypotheses=[hyp], articles_with_reasoning=_ARTICLES)
     stub_call_llm_json(
@@ -145,8 +143,6 @@ async def test_no_positive_observations_keeps_notes_byte_identical(
 async def test_blank_positive_observations_are_discarded(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Strengths precede the classification suffix that downstream ranking
-    parses."""
     hyp = make_hypothesis(text="alpha pathway drives growth")
     state = make_state(hypotheses=[hyp], articles_with_reasoning=_ARTICLES)
     stub_call_llm_json(
@@ -167,8 +163,6 @@ async def test_blank_positive_observations_are_discarded(
 
 
 def test_observation_schema_bounds_positive_observations() -> None:
-    """Strengths precede the classification suffix that downstream ranking
-    parses."""
     from co_scientist.schemas.review import (
         REFLECTION_MAX_POSITIVE_OBSERVATIONS,
         REFLECTION_SCHEMA,
@@ -185,8 +179,6 @@ def test_observation_schema_bounds_positive_observations() -> None:
 
 
 def test_observation_prompt_asks_for_positive_observations() -> None:
-    """Strengths precede the classification suffix that downstream ranking
-    parses."""
     from co_scientist.prompts import get_reflection_prompt
 
     prompt, _ = get_reflection_prompt(
@@ -207,8 +199,7 @@ def _validation_article() -> Article:
 async def test_full_and_simulation_run_for_every_viable_hypothesis(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    fake = AsyncMock(return_value={"verdict": "sound"})
-    monkeypatch.setattr(cr, "call_llm_json", fake)
+    fake = mock_call_llm_json(monkeypatch, cr, {"verdict": "sound"})
     viable = [make_hypothesis(text="a"), make_hypothesis(text="b")]
     for hypothesis in viable:
         hypothesis.review_disposition = "viable"
@@ -230,8 +221,7 @@ async def test_full_and_simulation_run_for_every_viable_hypothesis(
 async def test_later_cycle_runs_recurrent_review_with_tournament_context(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    fake = AsyncMock(return_value={"verdict": "needs_revision"})
-    monkeypatch.setattr(cr, "call_llm_json", fake)
+    fake = mock_call_llm_json(monkeypatch, cr, {"verdict": "needs_revision"})
     hypothesis = make_hypothesis(text="mature", elo_rating=1337)
     hypothesis.review_disposition = "viable"
     hypothesis.enrichments.update({"full": {}, "simulation": {}})
@@ -263,7 +253,7 @@ async def test_a_fatal_full_review_changes_the_disposition(
             return {"verdict": "holds"}
         return {"verdict": "rejected", "justification": "circular mechanism"}
 
-    monkeypatch.setattr(cr, "call_llm_json", AsyncMock(side_effect=fake_llm))
+    mock_call_llm_json(monkeypatch, cr, side_effect=fake_llm)
     hypothesis = make_hypothesis(text="idea")
     hypothesis.review_disposition = "viable"
 
@@ -279,9 +269,11 @@ async def test_a_fatal_full_review_changes_the_disposition(
 async def test_evolved_hypothesis_receives_missing_observation_review(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    hypothesis = make_hypothesis(text="evolved child")
-    hypothesis.review_disposition = "viable"
-    hypothesis.enrichments.update({"full": {}, "simulation": {}})
+    hypothesis = make_hypothesis(
+        text="evolved child",
+        review_disposition="viable",
+        enrichments={"full": {}, "simulation": {}},
+    )
     observation = AsyncMock(
         return_value={
             "classification": "missing_piece",
@@ -289,7 +281,7 @@ async def test_evolved_hypothesis_receives_missing_observation_review(
         }
     )
     monkeypatch.setattr(cr, "observe_hypothesis", observation)
-    monkeypatch.setattr(cr, "call_llm_json", AsyncMock(return_value={}))
+    mock_call_llm_json(monkeypatch, cr, {})
 
     await cr.comprehensive_reflection_node(
         make_state(
@@ -310,9 +302,11 @@ async def test_evolved_hypothesis_receives_missing_observation_review(
 async def test_missing_observation_review_appends_confirmed_strengths(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    hypothesis = make_hypothesis(text="evolved child")
-    hypothesis.review_disposition = "viable"
-    hypothesis.enrichments.update({"full": {}, "simulation": {}})
+    hypothesis = make_hypothesis(
+        text="evolved child",
+        review_disposition="viable",
+        enrichments={"full": {}, "simulation": {}},
+    )
     observation = AsyncMock(
         return_value={
             "classification": "missing_piece",
@@ -321,7 +315,7 @@ async def test_missing_observation_review_appends_confirmed_strengths(
         }
     )
     monkeypatch.setattr(cr, "observe_hypothesis", observation)
-    monkeypatch.setattr(cr, "call_llm_json", AsyncMock(return_value={}))
+    mock_call_llm_json(monkeypatch, cr, {})
 
     await cr.comprehensive_reflection_node(
         make_state(
@@ -347,9 +341,8 @@ async def test_full_review_executes_targeted_retrieval(
 ) -> None:
     """Literature search ANDs terms; querying hypothesis prose would retrieve
     nothing."""
-    call = AsyncMock(return_value={"verdict": "sound"})
+    call = mock_call_llm_json(monkeypatch, cr, {"verdict": "sound"})
     retrieve = AsyncMock(return_value=([_validation_article()], []))
-    monkeypatch.setattr(cr, "call_llm_json", call)
     monkeypatch.setattr(
         ev,
         "call_llm_json",
@@ -378,8 +371,7 @@ async def test_full_review_executes_targeted_retrieval(
 async def test_query_generation_is_skipped_without_a_search_backend(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    call = AsyncMock(return_value={"verdict": "sound"})
-    monkeypatch.setattr(cr, "call_llm_json", call)
+    call = mock_call_llm_json(monkeypatch, cr, {"verdict": "sound"})
     hypothesis = make_hypothesis(text="Mechanism X controls response Y")
     state = make_state(
         hypotheses=[hypothesis],
@@ -480,20 +472,17 @@ async def test_research_adds_to_the_probe_round_rather_than_replacing_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
 
-    async def _retrieve(
-        _state: object, _queries: list[str]
-    ) -> tuple[list[Article], list[str]]:
-        return [_validation_article()], []
-
-    monkeypatch.setattr(ev, "_retrieve_probe_evidence", _retrieve)
+    monkeypatch.setattr(
+        ev,
+        "_retrieve_probe_evidence",
+        AsyncMock(return_value=([_validation_article()], [])),
+    )
     monkeypatch.setattr(
         ev,
         "_call_hypothesis_query_llm",
         AsyncMock(return_value={"queries": ["targeted query"]}),
     )
-    monkeypatch.setattr(
-        cr, "call_llm_json", AsyncMock(return_value={"verdict": "sound"})
-    )
+    mock_call_llm_json(monkeypatch, cr, {"verdict": "sound"})
     _stub_review_research(monkeypatch)
     hypothesis = make_hypothesis(text="a mechanism worth reviewing")
     state = make_state(hypotheses=[hypothesis], mcp_available=True)
@@ -513,20 +502,17 @@ async def test_a_review_whose_research_broke_is_still_a_review(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
 
-    async def _retrieve(
-        _state: object, _queries: list[str]
-    ) -> tuple[list[Article], list[str]]:
-        return [_validation_article()], []
-
-    monkeypatch.setattr(ev, "_retrieve_probe_evidence", _retrieve)
+    monkeypatch.setattr(
+        ev,
+        "_retrieve_probe_evidence",
+        AsyncMock(return_value=([_validation_article()], [])),
+    )
     monkeypatch.setattr(
         ev,
         "_call_hypothesis_query_llm",
         AsyncMock(return_value={"queries": ["targeted query"]}),
     )
-    monkeypatch.setattr(
-        cr, "call_llm_json", AsyncMock(return_value={"verdict": "sound"})
-    )
+    mock_call_llm_json(monkeypatch, cr, {"verdict": "sound"})
     _stub_review_research(monkeypatch, fails=True)
     hypothesis = make_hypothesis(text="a mechanism worth reviewing")
     state = make_state(hypotheses=[hypothesis], mcp_available=True)
@@ -543,9 +529,7 @@ async def test_the_node_carries_every_hypothesis_ledger_out(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Ledgers kept inside reviews never reach the persistence drain."""
-    monkeypatch.setattr(
-        cr, "call_llm_json", AsyncMock(return_value={"verdict": "sound"})
-    )
+    mock_call_llm_json(monkeypatch, cr, {"verdict": "sound"})
     _stub_review_research(monkeypatch)
     viable = [make_hypothesis(text="a"), make_hypothesis(text="b")]
     for hypothesis in viable:
@@ -558,37 +542,6 @@ async def test_the_node_carries_every_hypothesis_ledger_out(
     assert len(result["research_ledgers"]) == 2
 
 
-class _FakeRegistry:
-    def __init__(
-        self,
-        tool_ids: list[str],
-        mcp_names: list[str],
-        raise_on_workflow: bool = False,
-        source_type: str = "knowledge_graph",
-    ) -> None:
-        self._tool_ids = tool_ids
-        self._mcp_names = mcp_names
-        self._raise_on_workflow = raise_on_workflow
-        self._source_type = source_type
-
-    def get_tool(self, tool_id: str) -> ToolConfig:
-        return ToolConfig(
-            server="default_pubmed",
-            mcp_tool_name=tool_id,
-            source_type=self._source_type,
-        )
-
-    def get_tools_for_workflow(self, workflow_name: str) -> list[str]:
-        del workflow_name
-        if self._raise_on_workflow:
-            raise RuntimeError("boom")
-        return self._tool_ids
-
-    def get_mcp_tool_names(self, tool_ids: list[str]) -> list[str]:
-        names = dict(zip(self._tool_ids, self._mcp_names, strict=False))
-        return [names[tool_id] for tool_id in tool_ids if tool_id in names]
-
-
 def _fake(
     tool_ids: list[str],
     mcp_names: list[str],
@@ -597,7 +550,9 @@ def _fake(
 ) -> ToolRegistry:
     return cast(
         ToolRegistry,
-        _FakeRegistry(tool_ids, mcp_names, raise_on_workflow, source_type),
+        WorkflowToolRegistry(
+            tool_ids, mcp_names, raise_on_workflow, source_type
+        ),
     )
 
 

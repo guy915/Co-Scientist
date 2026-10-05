@@ -17,52 +17,31 @@ from app.store import checkpoints, runs, tasks
 from app.store import db as _store_db
 from app.store import db as store_db
 from app.store import tasks_lifecycle as lifecycle
-from app.store.checkpoints import NewCheckpoint
 from app.store.models import RunStatus, ScientificTask
-from app.store.tasks import NewTask
 from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
-
-
-def _mark_leased(
-    task_id: str,
-    db: str,
-    *,
-    owner: str,
-    expires_at: float,
-    spend_budget: bool,
-) -> None:
-    extra = ", attempt=max_attempts" if spend_budget else ""
-    with _store_db.connect(db) as conn:
-        conn.execute(
-            "UPDATE scientific_tasks SET status='leased', lease_owner=?, "
-            f"lease_expires_at=?{extra} WHERE id=?",
-            (owner, expires_at, task_id),
-        )
+from tests._client import create_run as _create_run
+from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
+from tests._store_helpers import mark_task_leased as _mark_leased
 
 
 def _commit_checkpoint_successor(
     db: str, run_id: str, writer: ScientificTask, successor_type: str
 ) -> None:
     with _store_db.transaction(db) as conn:
-        checkpoint_seq = checkpoints.save_checkpoint(
+        checkpoint_seq = seed_checkpoint(
             run_id,
-            NewCheckpoint(
-                stage=f"engine_task:{writer.id}",
-                schema_version=1,
-                last_event_seq=2,
-                state={"resume_successor": successor_type},
-            ),
+            {"resume_successor": successor_type},
+            stage=f"engine_task:{writer.id}",
+            last_event_seq=2,
             conn=conn,
         )
-        tasks.enqueue_task(
-            NewTask(
-                run_id=run_id,
-                task_type=successor_type,
-                inputs={"checkpoint_seq": checkpoint_seq},
-                idempotency_key=f"{successor_type}:after:{writer.id}",
-                dependencies=(writer.id,),
-                provenance={"scheduled_by": writer.task_type},
-            ),
+        enqueue_task(
+            run_id,
+            successor_type,
+            f"{successor_type}:after:{writer.id}",
+            inputs={"checkpoint_seq": checkpoint_seq},
+            dependencies=(writer.id,),
+            provenance={"scheduled_by": writer.task_type},
             conn=conn,
         )
     assert lifecycle.complete_task(writer.id, "ranking-worker", {}, db_path=db)
@@ -117,15 +96,13 @@ class _CheckpointReadInterleaver:
 def test_resume_reuses_live_checkpoint_writer_lease(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("paused live commit", "standard", "engine", {})
+    run = seed_run("paused live commit")
     successor_type = f"{engine_tasks.NODE_TASK_PREFIX}ranking"
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type=f"{engine_tasks.NODE_TASK_PREFIX}generate",
-            inputs={"checkpoint_seq": 0},
-            idempotency_key="pause:ranking-parent",
-        ),
+    task = enqueue_task(
+        run.id,
+        f"{engine_tasks.NODE_TASK_PREFIX}generate",
+        "pause:ranking-parent",
+        inputs={"checkpoint_seq": 0},
         db_path=isolated_db,
     )
     _mark_leased(
@@ -136,25 +113,20 @@ def test_resume_reuses_live_checkpoint_writer_lease(
         spend_budget=False,
     )
     runs.update_run_status(run.id, RunStatus.PAUSED, db_path=isolated_db)
-    checkpoints.save_checkpoint(
+    seed_checkpoint(
         run.id,
-        NewCheckpoint(
-            stage=f"engine_task:{task.id}",
-            schema_version=1,
-            last_event_seq=1,
-            state={"provider": "engine", "resume_successor": successor_type},
-        ),
+        {"provider": "engine", "resume_successor": successor_type},
+        stage=f"engine_task:{task.id}",
+        last_event_seq=1,
         db_path=isolated_db,
     )
-    child = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type=successor_type,
-            inputs={"checkpoint_seq": 1},
-            idempotency_key=f"{successor_type}:after:{task.id}",
-            dependencies=(task.id,),
-            provenance={"scheduled_by": "engine.node.generate"},
-        ),
+    child = enqueue_task(
+        run.id,
+        successor_type,
+        f"{successor_type}:after:{task.id}",
+        inputs={"checkpoint_seq": 1},
+        dependencies=(task.id,),
+        provenance={"scheduled_by": "engine.node.generate"},
         db_path=isolated_db,
     )
     runs.update_run_status(run.id, RunStatus.QUEUED, db_path=isolated_db)
@@ -180,15 +152,13 @@ def test_resume_reuses_live_checkpoint_writer_lease(
 def test_resume_paused_stage_reuses_recorded_successor_not_writer(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("paused checkpoint", "standard", "engine", {})
+    run = seed_run("paused checkpoint")
     successor_type = f"{engine_tasks.NODE_TASK_PREFIX}ranking"
-    writer = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type=f"{engine_tasks.NODE_TASK_PREFIX}generate",
-            inputs={"checkpoint_seq": 0},
-            idempotency_key="pause:paused-writer",
-        ),
+    writer = enqueue_task(
+        run.id,
+        f"{engine_tasks.NODE_TASK_PREFIX}generate",
+        "pause:paused-writer",
+        inputs={"checkpoint_seq": 0},
         db_path=isolated_db,
     )
     _mark_leased(
@@ -199,14 +169,11 @@ def test_resume_paused_stage_reuses_recorded_successor_not_writer(
         spend_budget=False,
     )
     runs.update_run_status(run.id, RunStatus.PAUSED, db_path=isolated_db)
-    checkpoints.save_checkpoint(
+    seed_checkpoint(
         run.id,
-        NewCheckpoint(
-            stage=f"engine_task_paused:{writer.id}",
-            schema_version=1,
-            last_event_seq=1,
-            state={"provider": "engine", "resume_successor": successor_type},
-        ),
+        {"provider": "engine", "resume_successor": successor_type},
+        stage=f"engine_task_paused:{writer.id}",
+        last_event_seq=1,
         db_path=isolated_db,
     )
     runs.update_run_status(run.id, RunStatus.QUEUED, db_path=isolated_db)
@@ -234,15 +201,13 @@ def test_resume_paused_stage_reuses_recorded_successor_not_writer(
 def test_resume_explicitly_requeues_retryable_expired_checkpoint_writer(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("paused expired commit", "standard", "engine", {})
+    run = seed_run("paused expired commit")
     successor_type = f"{engine_tasks.NODE_TASK_PREFIX}ranking"
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type=f"{engine_tasks.NODE_TASK_PREFIX}generate",
-            inputs={"checkpoint_seq": 0},
-            idempotency_key="pause:expired-generate-parent",
-        ),
+    task = enqueue_task(
+        run.id,
+        f"{engine_tasks.NODE_TASK_PREFIX}generate",
+        "pause:expired-generate-parent",
+        inputs={"checkpoint_seq": 0},
         db_path=isolated_db,
     )
     runs.update_run_status(run.id, RunStatus.QUEUED, db_path=isolated_db)
@@ -257,25 +222,20 @@ def test_resume_explicitly_requeues_retryable_expired_checkpoint_writer(
             (time.time() - 3600, task.id),
         )
     runs.update_run_status(run.id, RunStatus.PAUSED, db_path=isolated_db)
-    checkpoints.save_checkpoint(
+    seed_checkpoint(
         run.id,
-        NewCheckpoint(
-            stage=f"engine_task:{task.id}",
-            schema_version=1,
-            last_event_seq=1,
-            state={"provider": "engine", "resume_successor": successor_type},
-        ),
+        {"provider": "engine", "resume_successor": successor_type},
+        stage=f"engine_task:{task.id}",
+        last_event_seq=1,
         db_path=isolated_db,
     )
-    child = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type=successor_type,
-            inputs={"checkpoint_seq": 1},
-            idempotency_key=f"{successor_type}:after:{task.id}",
-            dependencies=(task.id,),
-            provenance={"scheduled_by": "engine.node.generate"},
-        ),
+    child = enqueue_task(
+        run.id,
+        successor_type,
+        f"{successor_type}:after:{task.id}",
+        inputs={"checkpoint_seq": 1},
+        dependencies=(task.id,),
+        provenance={"scheduled_by": "engine.node.generate"},
         db_path=isolated_db,
     )
     runs.update_run_status(run.id, RunStatus.QUEUED, db_path=isolated_db)
@@ -302,15 +262,13 @@ def test_resume_explicitly_requeues_retryable_expired_checkpoint_writer(
 def test_resume_revives_spent_expired_checkpoint_writer_before_child(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("paused spent commit", "standard", "engine", {})
+    run = seed_run("paused spent commit")
     successor_type = f"{engine_tasks.NODE_TASK_PREFIX}ranking"
-    writer = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type=f"{engine_tasks.NODE_TASK_PREFIX}generate",
-            inputs={"checkpoint_seq": 0},
-            idempotency_key="pause:spent-writer",
-        ),
+    writer = enqueue_task(
+        run.id,
+        f"{engine_tasks.NODE_TASK_PREFIX}generate",
+        "pause:spent-writer",
+        inputs={"checkpoint_seq": 0},
         db_path=isolated_db,
     )
     _mark_leased(
@@ -321,25 +279,20 @@ def test_resume_revives_spent_expired_checkpoint_writer_before_child(
         spend_budget=True,
     )
     runs.update_run_status(run.id, RunStatus.PAUSED, db_path=isolated_db)
-    checkpoints.save_checkpoint(
+    seed_checkpoint(
         run.id,
-        NewCheckpoint(
-            stage=f"engine_task:{writer.id}",
-            schema_version=1,
-            last_event_seq=1,
-            state={"provider": "engine", "resume_successor": successor_type},
-        ),
+        {"provider": "engine", "resume_successor": successor_type},
+        stage=f"engine_task:{writer.id}",
+        last_event_seq=1,
         db_path=isolated_db,
     )
-    child = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type=successor_type,
-            inputs={"checkpoint_seq": 1},
-            idempotency_key=f"{successor_type}:after:{writer.id}",
-            dependencies=(writer.id,),
-            provenance={"scheduled_by": "engine.node.generate"},
-        ),
+    child = enqueue_task(
+        run.id,
+        successor_type,
+        f"{successor_type}:after:{writer.id}",
+        inputs={"checkpoint_seq": 1},
+        dependencies=(writer.id,),
+        provenance={"scheduled_by": "engine.node.generate"},
         db_path=isolated_db,
     )
     runs.update_run_status(run.id, RunStatus.QUEUED, db_path=isolated_db)
@@ -371,14 +324,12 @@ def test_resume_serializes_checkpoint_discovery_with_writer_commit(
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    run = runs.create_run("resume commit race", "standard", "engine", {})
-    writer = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type="engine.node.ranking",
-            inputs={"checkpoint_seq": 0},
-            idempotency_key="resume:ranking-writer",
-        ),
+    run = seed_run("resume commit race")
+    writer = enqueue_task(
+        run.id,
+        "engine.node.ranking",
+        "resume:ranking-writer",
+        inputs={"checkpoint_seq": 0},
         db_path=isolated_db,
     )
     _mark_leased(
@@ -388,14 +339,11 @@ def test_resume_serializes_checkpoint_discovery_with_writer_commit(
         expires_at=time.time() + 3600,
         spend_budget=False,
     )
-    checkpoints.save_checkpoint(
+    seed_checkpoint(
         run.id,
-        NewCheckpoint(
-            stage=f"engine_task:{writer.id}",
-            schema_version=1,
-            last_event_seq=1,
-            state={"provider": "engine"},
-        ),
+        {"provider": "engine"},
+        stage=f"engine_task:{writer.id}",
+        last_event_seq=1,
         db_path=isolated_db,
     )
     runs.update_run_status(run.id, RunStatus.QUEUED, db_path=isolated_db)
@@ -466,9 +414,7 @@ async def test_byok_timeout_waits_for_explicit_owner_restart(
     )
 
     with make_client() as client:
-        created = client.post(
-            "/api/runs", json={"research_goal": "ambiguous BYOK timeout"}
-        )
+        created = _create_run(client, "ambiguous BYOK timeout")
         assert created.status_code == 200
         run_id = created.json()["id"]
         credentials.store_run_credential(
@@ -484,13 +430,11 @@ async def test_byok_timeout_waits_for_explicit_owner_restart(
         assert (
             client.post(f"/api/runs/{run_id}/start", json={}).status_code == 200
         )
-        sibling = tasks.enqueue_task(
-            NewTask(
-                run_id=run_id,
-                task_type="engine.node.generate",
-                inputs={"checkpoint_seq": 0},
-                idempotency_key="engine.node.generate:0",
-            ),
+        sibling = enqueue_task(
+            run_id,
+            "engine.node.generate",
+            "engine.node.generate:0",
+            inputs={"checkpoint_seq": 0},
             db_path=isolated_db,
         )
         assert await task_worker.run_once("timeout-worker", db_path=isolated_db)
@@ -539,9 +483,7 @@ async def test_expired_byok_lease_requires_owner_restart(
         engine_tasks, "_dispatch_engine_task", _would_accept_again
     )
     with make_client() as client:
-        created = client.post(
-            "/api/runs", json={"research_goal": "BYOK lease loss"}
-        )
+        created = _create_run(client, "BYOK lease loss")
         run_id = created.json()["id"]
         credentials.store_run_credential(
             run_id,
@@ -554,35 +496,28 @@ async def test_expired_byok_lease_requires_owner_restart(
             db_path=isolated_db,
         )
         runs.update_run_status(run_id, RunStatus.RUNNING, db_path=isolated_db)
-        checkpoints.save_checkpoint(
+        seed_checkpoint(
             run_id,
-            NewCheckpoint(
-                stage="post_generation",
-                schema_version=1,
-                last_event_seq=1,
-                state={
-                    "provider": "engine",
-                    "resume_successor": "engine.node.generate",
-                },
-            ),
+            {
+                "provider": "engine",
+                "resume_successor": "engine.node.generate",
+            },
+            stage="post_generation",
+            last_event_seq=1,
             db_path=isolated_db,
         )
-        target = tasks.enqueue_task(
-            NewTask(
-                run_id=run_id,
-                task_type="engine.node.generate",
-                inputs={"checkpoint_seq": 1},
-                idempotency_key="engine.node.generate:1",
-            ),
+        target = enqueue_task(
+            run_id,
+            "engine.node.generate",
+            "engine.node.generate:1",
+            inputs={"checkpoint_seq": 1},
             db_path=isolated_db,
         )
-        sibling = tasks.enqueue_task(
-            NewTask(
-                run_id=run_id,
-                task_type="engine.node.verify",
-                inputs={"checkpoint_seq": 1},
-                idempotency_key="engine.node.verify:1",
-            ),
+        sibling = enqueue_task(
+            run_id,
+            "engine.node.verify",
+            "engine.node.verify:1",
+            inputs={"checkpoint_seq": 1},
             db_path=isolated_db,
         )
         leased = tasks.claim_task(
@@ -650,40 +585,31 @@ async def test_expired_lease_fails_closed_after_paid_to_free_route_change(
     )
 
     with make_client() as client:
-        created = client.post(
-            "/api/runs", json={"research_goal": "route changed after lease"}
-        )
+        created = _create_run(client, "route changed after lease")
         run_id = created.json()["id"]
         runs.update_run_status(run_id, RunStatus.RUNNING, db_path=isolated_db)
-        checkpoints.save_checkpoint(
+        seed_checkpoint(
             run_id,
-            NewCheckpoint(
-                stage="post_generation",
-                schema_version=1,
-                last_event_seq=1,
-                state={
-                    "provider": "engine",
-                    "resume_successor": "engine.node.generate",
-                },
-            ),
+            {
+                "provider": "engine",
+                "resume_successor": "engine.node.generate",
+            },
+            stage="post_generation",
+            last_event_seq=1,
             db_path=isolated_db,
         )
-        target = tasks.enqueue_task(
-            NewTask(
-                run_id=run_id,
-                task_type="engine.node.generate",
-                inputs={"checkpoint_seq": 1},
-                idempotency_key="engine.node.generate:1",
-            ),
+        target = enqueue_task(
+            run_id,
+            "engine.node.generate",
+            "engine.node.generate:1",
+            inputs={"checkpoint_seq": 1},
             db_path=isolated_db,
         )
-        sibling = tasks.enqueue_task(
-            NewTask(
-                run_id=run_id,
-                task_type="engine.node.verify",
-                inputs={"checkpoint_seq": 1},
-                idempotency_key="engine.node.verify:1",
-            ),
+        sibling = enqueue_task(
+            run_id,
+            "engine.node.verify",
+            "engine.node.verify:1",
+            inputs={"checkpoint_seq": 1},
             db_path=isolated_db,
         )
         leased = tasks.claim_task(
@@ -756,16 +682,10 @@ async def test_expired_nonfree_system_route_requires_owner_recovery(
         return {"unexpected_replay": True}
 
     monkeypatch.setattr(engine_tasks, "_dispatch_engine_task", _must_not_call)
-    run = runs.create_run("Paid route lease loss", "standard", "engine", {})
+    run = seed_run("Paid route lease loss")
     runs.update_run_status(run.id, RunStatus.RUNNING, db_path=isolated_db)
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type="engine.node.generate",
-            inputs={},
-            idempotency_key="generate:seed",
-        ),
-        db_path=isolated_db,
+    task = enqueue_task(
+        run.id, "engine.node.generate", "generate:seed", db_path=isolated_db
     )
     leased = tasks.claim_task(
         "old-paid-worker", run_id=run.id, lease_seconds=1, db_path=isolated_db
@@ -800,16 +720,10 @@ async def test_exact_zero_cost_timeout_uses_bounded_delayed_retry(
         return {"recovered": True}
 
     monkeypatch.setattr(engine_tasks, "_dispatch_engine_task", _timeout_once)
-    run = runs.create_run("Exact free timeout", "standard", "engine", {})
+    run = seed_run("Exact free timeout")
     runs.update_run_status(run.id, RunStatus.RUNNING, db_path=isolated_db)
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type="engine.node.generate",
-            inputs={},
-            idempotency_key="generate:seed",
-        ),
-        db_path=isolated_db,
+    task = enqueue_task(
+        run.id, "engine.node.generate", "generate:seed", db_path=isolated_db
     )
 
     assert await task_worker.run_once(
@@ -869,37 +783,26 @@ async def test_unknown_fanout_outcome_preserves_siblings_and_aggregate(
 
     monkeypatch.setattr(engine_tasks, "_dispatch_engine_task", dispatch)
     with make_client() as client:
-        run_id = client.post(
-            "/api/runs", json={"research_goal": "isolated reflection"}
-        ).json()["id"]
+        run_id = _create_run(client, "isolated reflection").json()["id"]
         runs.update_run_status(run_id, RunStatus.RUNNING, db_path=isolated_db)
-        item = tasks.enqueue_task(
-            NewTask(
-                run_id=run_id,
-                task_type=f"engine.fanout.{family}.{kind}",
-                inputs={},
-                idempotency_key="item",
-            ),
+        item = enqueue_task(
+            run_id,
+            f"engine.fanout.{family}.{kind}",
+            "item",
             db_path=isolated_db,
         )
-        sibling = tasks.enqueue_task(
-            NewTask(
-                run_id=run_id,
-                task_type=f"engine.fanout.{family}.{kind}",
-                inputs={},
-                idempotency_key="sibling",
-            ),
+        sibling = enqueue_task(
+            run_id,
+            f"engine.fanout.{family}.{kind}",
+            "sibling",
             db_path=isolated_db,
         )
-        aggregate = tasks.enqueue_task(
-            NewTask(
-                run_id=run_id,
-                task_type=f"engine.fanout.{family}.aggregate",
-                inputs={},
-                idempotency_key="aggregate",
-                dependencies=(item.id, sibling.id),
-                provenance={"allow_failed_dependencies": True},
-            ),
+        aggregate = enqueue_task(
+            run_id,
+            f"engine.fanout.{family}.aggregate",
+            "aggregate",
+            dependencies=(item.id, sibling.id),
+            provenance={"allow_failed_dependencies": True},
             db_path=isolated_db,
         )
         if expired:

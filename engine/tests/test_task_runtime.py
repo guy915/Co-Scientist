@@ -50,6 +50,7 @@ from co_scientist.tool_effects import (
 from tests._llm_fake import (
     make_completion,
     make_message,
+    make_tool_call,
     make_usage,
     patch_acompletion,
 )
@@ -322,9 +323,7 @@ def test_workflow_state_reducers_cover_every_accumulating_channel() -> None:
 
 
 def _call(name: str) -> SimpleNamespace:
-    return SimpleNamespace(
-        id=f"call_{name}", function=SimpleNamespace(name=name, arguments="{}")
-    )
+    return make_tool_call(f"call_{name}", name, "{}")
 
 
 def test_parse_effects_combines_known_tokens() -> None:

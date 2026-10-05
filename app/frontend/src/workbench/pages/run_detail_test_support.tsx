@@ -1,6 +1,6 @@
 import {render, screen} from '@testing-library/react';
 import {MemoryRouter, Route, Routes, useLocation} from 'react-router-dom';
-import type {RunWithSummary} from '@/api/runs';
+import {makeRunWithSummary, makeSpec} from '@/test_fixtures';
 import {ChatHistoryProvider} from '@/workbench/hooks/history_context';
 import {RunHistoryProvider} from '@/workbench/hooks/history_context';
 import {RunDetail} from './run_detail';
@@ -8,22 +8,20 @@ import {RunDetail} from './run_detail';
 export const makeRun = (
   goal: string,
   timing?: {created_at: number; completed_at: number},
-): RunWithSummary =>
-  ({
+) =>
+  makeRunWithSummary({
     id: 'run-1',
     research_goal: goal,
-    status: 'completed',
-    summary: {events: 0, hypotheses: 0, evidence: 0, matches: 0, reviews: 0},
     config: {
-      setup: {
+      setup: makeSpec({
         goal,
         requirements: ['Testable'],
         attributes: ['Novel'],
         criteria: ['Feasible'],
-      },
+      }),
     },
     ...timing,
-  }) as unknown as RunWithSummary;
+  });
 
 export function LocationDisplay() {
   const location = useLocation();

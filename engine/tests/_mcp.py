@@ -6,6 +6,7 @@ from typing import Any, ClassVar, cast
 import pytest
 from langchain_core.tools import StructuredTool
 
+from co_scientist.config.schema import ToolConfig
 from co_scientist.generator.core import HypothesisGenerator
 from co_scientist.generator.run_setup import GeneratorOptions
 from co_scientist.offline import llm as offline_llm
@@ -96,6 +97,39 @@ class ToolLookupRegistry:
 
 def make_tool_lookup_registry(tools: dict[str, Any]) -> Any:
     return cast(Any, ToolLookupRegistry(tools))
+
+
+class WorkflowToolRegistry:
+    def __init__(
+        self,
+        tool_ids: list[str],
+        mcp_names: list[str],
+        raise_on_workflow: bool = False,
+        source_type: str = "knowledge_graph",
+        tool_mcp_names: dict[str, str] | None = None,
+    ) -> None:
+        self._tool_ids = tool_ids
+        self._mcp_names = mcp_names
+        self._raise_on_workflow = raise_on_workflow
+        self._source_type = source_type
+        self._tool_mcp_names = tool_mcp_names or {}
+
+    def get_tool(self, tool_id: str) -> ToolConfig:
+        return ToolConfig(
+            server="default_pubmed",
+            mcp_tool_name=self._tool_mcp_names.get(tool_id, tool_id),
+            source_type=self._source_type,
+        )
+
+    def get_tools_for_workflow(self, workflow_name: str) -> list[str]:
+        del workflow_name
+        if self._raise_on_workflow:
+            raise RuntimeError("boom")
+        return self._tool_ids
+
+    def get_mcp_tool_names(self, tool_ids: list[str]) -> list[str]:
+        names = dict(zip(self._tool_ids, self._mcp_names, strict=False))
+        return [names[tool_id] for tool_id in tool_ids if tool_id in names]
 
 
 class FakeToolRegistry:

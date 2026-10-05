@@ -11,9 +11,7 @@ from app.engine_tasks.support import SupersededTaskError, TaskCommit
 from app.store import checkpoints, db, runs
 from app.store import tasks as store
 from app.store import tasks_lifecycle as lifecycle
-from app.store.checkpoints import NewCheckpoint
 from app.store.models import RunStatus, ScientificTask
-from app.store.tasks import NewTask
 from app.task_worker import outcomes as task_worker_outcomes
 from tests._engine_tasks_helpers import (
     _Generator,
@@ -22,20 +20,13 @@ from tests._engine_tasks_helpers import (
     _seed_checkpoint,
     _task_state,
 )
+from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
 
 
 def _portfolio_seed_predecessor(
     run_id: str, db_path: str, task_type: str = "engine.node.generate"
 ) -> ScientificTask:
-    store.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type=task_type,
-            inputs={},
-            idempotency_key=f"{task_type}:seed",
-        ),
-        db_path=db_path,
-    )
+    enqueue_task(run_id, task_type, f"{task_type}:seed", db_path=db_path)
     leased = store.claim_task("worker", run_id=run_id, db_path=db_path)
     assert leased is not None
     return leased
@@ -57,18 +48,15 @@ def _seed_resume_checkpoint(
     )
 
     envelope = serialize_workflow_state(state, last_event_seq=0)
-    return checkpoints.save_checkpoint(
+    return seed_checkpoint(
         run_id,
-        NewCheckpoint(
-            stage=stage,
-            schema_version=CHECKPOINT_VERSION,
-            last_event_seq=0,
-            state={
-                "provider": "engine",
-                "resume_successor": resume_successor,
-                **envelope,
-            },
-        ),
+        {
+            "provider": "engine",
+            "resume_successor": resume_successor,
+            **envelope,
+        },
+        stage=stage,
+        schema_version=CHECKPOINT_VERSION,
         db_path=db_path,
     )
 
@@ -77,7 +65,7 @@ def _seed_resume_checkpoint(
 async def test_commit_plans_the_resolvable_tail_behind_the_successor(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("Portfolio lookahead", "standard", "engine", {})
+    run = seed_run("Portfolio lookahead")
     predecessor = _portfolio_seed_predecessor(run.id, isolated_db)
     checkpoint_seq = _seed_checkpoint(
         run.id, _task_state(run.id), db_path=isolated_db
@@ -112,7 +100,7 @@ async def test_resume_from_a_pre_portfolio_checkpoint_settles_the_run(
 ) -> None:
     # Legacy checkpoint-sequence tasks must still progress across edge-key
     # changes even if recovery creates a new row.
-    run = runs.create_run("Pre-portfolio resume", "standard", "engine", {})
+    run = seed_run("Pre-portfolio resume")
     # Checkpoint restore supplies next_task_priority; fixtures need an int
     # rather than a restored None.
     state = {**_task_state(run.id), "next_task_priority": 90}
@@ -134,13 +122,11 @@ async def test_resume_from_a_pre_portfolio_checkpoint_settles_the_run(
         resume_successor=old_successor_type,
         db_path=isolated_db,
     )
-    dead = store.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type=old_successor_type,
-            inputs={"checkpoint_seq": checkpoint_seq},
-            idempotency_key=f"{old_successor_type}:{checkpoint_seq}",
-        ),
+    dead = enqueue_task(
+        run.id,
+        old_successor_type,
+        f"{old_successor_type}:{checkpoint_seq}",
+        inputs={"checkpoint_seq": checkpoint_seq},
         db_path=isolated_db,
     )
     with db.connect(isolated_db) as conn:
@@ -190,54 +176,31 @@ async def test_resume_from_a_pre_portfolio_checkpoint_settles_the_run(
 # prevent cohort settlement.
 
 
-def _cancel_seed_predecessor(
-    run_id: str, db_path: str, task_type: str = "engine.node.generate"
-) -> ScientificTask:
-    store.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type=task_type,
-            inputs={},
-            idempotency_key=f"{task_type}:seed",
-        ),
-        db_path=db_path,
-    )
-    leased = store.claim_task("worker", run_id=run_id, db_path=db_path)
-    assert leased is not None
-    return leased
-
-
 @pytest.mark.asyncio
 async def test_a_supervisor_cancel_of_a_mid_chain_row_cascades_downstream(
     isolated_db: str,
 ) -> None:
     # Supervisor cancellation must unwind dependent portfolios or impossible
     # prerequisites strand queued work.
-    run = runs.create_run("Supervisor cancel cascade", "standard", "engine", {})
-    predecessor = _cancel_seed_predecessor(
+    run = seed_run("Supervisor cancel cascade")
+    predecessor = _portfolio_seed_predecessor(
         run.id, isolated_db, task_type="engine.node.orchestrator"
     )
     checkpoint_seq = _seed_checkpoint(
         run.id, _task_state(run.id), db_path=isolated_db
     )
-    evolve = store.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type="engine.node.evolve",
-            inputs={},
-            idempotency_key=f"engine.node.evolve:after:{predecessor.id}",
-            dependencies=(predecessor.id,),
-        ),
+    evolve = enqueue_task(
+        run.id,
+        "engine.node.evolve",
+        f"engine.node.evolve:after:{predecessor.id}",
+        dependencies=(predecessor.id,),
         db_path=isolated_db,
     )
-    review = store.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type="engine.node.review",
-            inputs={},
-            idempotency_key=f"engine.node.review:after:{evolve.id}",
-            dependencies=(evolve.id,),
-        ),
+    review = enqueue_task(
+        run.id,
+        "engine.node.review",
+        f"engine.node.review:after:{evolve.id}",
+        dependencies=(evolve.id,),
         db_path=isolated_db,
     )
 
@@ -289,8 +252,8 @@ async def test_a_diverging_outcome_cancels_the_whole_downstream_tail(
 ) -> None:
     # Use multi-hop divergence; single-hop fixtures cannot expose orphaned
     # descendants.
-    run = runs.create_run("Portfolio deep divergence", "standard", "engine", {})
-    predecessor = _cancel_seed_predecessor(
+    run = seed_run("Portfolio deep divergence")
+    predecessor = _portfolio_seed_predecessor(
         run.id, isolated_db, task_type="engine.node.orchestrator"
     )
     decided = {**_task_state(run.id), "next_task": "evolve"}
@@ -348,8 +311,8 @@ async def test_a_diverging_outcome_cancels_the_superseded_plan(
 ) -> None:
     # Real outcomes invalidate planned guesses; cancel stale successors in the
     # same checkpoint commit.
-    run = runs.create_run("Portfolio divergence", "standard", "engine", {})
-    predecessor = _cancel_seed_predecessor(run.id, isolated_db)
+    run = seed_run("Portfolio divergence")
+    predecessor = _portfolio_seed_predecessor(run.id, isolated_db)
     checkpoint_seq = _seed_checkpoint(
         run.id, _task_state(run.id), db_path=isolated_db
     )
@@ -401,18 +364,13 @@ def test_a_permanent_failure_cancels_the_downstream_chain(
 ) -> None:
     # Permanent failure must cancel dependent chains within settlement's
     # transaction or the run stays nonterminal.
-    run = runs.create_run(
-        "Portfolio permanent failure", "standard", "engine", {}
-    )
+    run = seed_run("Portfolio permanent failure")
     runs.update_run_status(run.id, RunStatus.RUNNING, db_path=isolated_db)
-    evolve = store.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type="engine.node.evolve",
-            inputs={},
-            idempotency_key="evolve:seed",
-            max_attempts=1,
-        ),
+    evolve = enqueue_task(
+        run.id,
+        "engine.node.evolve",
+        "evolve:seed",
+        max_attempts=1,
         db_path=isolated_db,
     )
     leased_evolve = store.claim_task(
@@ -420,14 +378,11 @@ def test_a_permanent_failure_cancels_the_downstream_chain(
     )
     assert leased_evolve is not None and leased_evolve.id == evolve.id
 
-    review = store.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type="engine.node.review",
-            inputs={},
-            idempotency_key=f"engine.node.review:after:{evolve.id}",
-            dependencies=(evolve.id,),
-        ),
+    review = enqueue_task(
+        run.id,
+        "engine.node.review",
+        f"engine.node.review:after:{evolve.id}",
+        dependencies=(evolve.id,),
         db_path=isolated_db,
     )
     assert review.status == "queued"
@@ -462,14 +417,8 @@ _FINALIZE = "engine.finalize"
 
 
 def _seed_orchestrator(run_id: str, db_path: str) -> ScientificTask:
-    store.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type=_ORCHESTRATOR,
-            inputs={},
-            idempotency_key=f"{_ORCHESTRATOR}:seed",
-        ),
-        db_path=db_path,
+    enqueue_task(
+        run_id, _ORCHESTRATOR, f"{_ORCHESTRATOR}:seed", db_path=db_path
     )
     leased = store.claim_task("worker", run_id=run_id, db_path=db_path)
     assert leased is not None
@@ -500,7 +449,7 @@ async def test_one_commit_queues_the_companion_and_the_primary(
 ) -> None:
     # Chain stacked companions serially; siblings under one predecessor fork the
     # single-writer checkpoint path.
-    run = runs.create_run("Stacked pass", "standard", "engine", {})
+    run = seed_run("Stacked pass")
     orchestrator = _seed_orchestrator(run.id, isolated_db)
     state = _stacked_state(run.id, "reflect")
     seq = _seed_checkpoint(run.id, state, db_path=isolated_db)
@@ -527,7 +476,7 @@ async def test_the_companion_row_is_keyed_for_collision(
 ) -> None:
     # Edge-derived idempotency makes planned and reactive enqueue resolve to the
     # same row.
-    run = runs.create_run("Stacked key", "standard", "engine", {})
+    run = seed_run("Stacked key")
     orchestrator = _seed_orchestrator(run.id, isolated_db)
     state = _stacked_state(run.id, "proximity")
     seq = _seed_checkpoint(run.id, state, db_path=isolated_db)
@@ -549,7 +498,7 @@ async def test_the_companion_row_is_keyed_for_collision(
 async def test_an_unstacked_commit_queues_only_its_own_successor(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("Unstacked pass", "standard", "engine", {})
+    run = seed_run("Unstacked pass")
     orchestrator = _seed_orchestrator(run.id, isolated_db)
     state = {
         **_task_state(run.id),
@@ -575,7 +524,7 @@ async def test_two_companions_chain_rather_than_fork(
 ) -> None:
     # Only one stacked head can be claimable so checkpoint commits remain
     # single-writer.
-    run = runs.create_run("Two companions", "extended", "engine", {})
+    run = seed_run("Two companions", profile="extended")
     orchestrator = _seed_orchestrator(run.id, isolated_db)
     state = _stacked_state(run.id, "reflect", "meta_review", "synthesize")
     seq = _seed_checkpoint(run.id, state, db_path=isolated_db)
@@ -597,7 +546,7 @@ async def test_two_companions_chain_rather_than_fork(
 async def test_the_companion_edge_collides_with_its_reactive_enqueue(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("Companion edge", "extended", "engine", {})
+    run = seed_run("Companion edge", profile="extended")
     orchestrator = _seed_orchestrator(run.id, isolated_db)
     state = _stacked_state(run.id, "reflect", "meta_review", "synthesize")
     seq = _seed_checkpoint(run.id, state, db_path=isolated_db)
@@ -637,7 +586,7 @@ async def test_the_companion_edge_collides_with_its_reactive_enqueue(
 async def test_the_terminal_decision_writes_an_overview_then_a_report(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("Terminal pass", "extended", "engine", {})
+    run = seed_run("Terminal pass", profile="extended")
     orchestrator = _seed_orchestrator(run.id, isolated_db)
     state = {
         **_task_state(run.id),
@@ -682,7 +631,7 @@ async def test_a_stacked_task_cannot_run_before_its_inputs(
 ) -> None:
     # Dependency edges enforce data ordering, not enqueue order; overview
     # consumes feedback before the primary.
-    run = runs.create_run("Stacked claim", "extended", "engine", {})
+    run = seed_run("Stacked claim", profile="extended")
     orchestrator = _seed_orchestrator(run.id, isolated_db)
     state = _stacked_state(run.id, "reflect", "meta_review", "synthesize")
     seq = _seed_checkpoint(run.id, state, db_path=isolated_db)

@@ -1,19 +1,19 @@
 import {render} from '@testing-library/react';
+import type {ComponentProps} from 'react';
+import {makeRunWithSummary} from '@/test_fixtures';
 import type {Report, ResearchOverview, RunWithSummary} from '@/api/runs';
 import {ResearchOverviewView} from './run_detail_overview';
 
 export function makeRun(
   overrides: Partial<RunWithSummary> = {},
 ): RunWithSummary {
-  return {
+  return makeRunWithSummary({
     id: 'run-1',
     research_goal: 'Study pathway X',
-    status: 'completed',
-    config: {},
     created_at: 1_700_000_000,
     completed_at: 1_700_000_000 + 3 * 3600,
     ...overrides,
-  } as unknown as RunWithSummary;
+  });
 }
 
 export function makeReport(overrides: Partial<Report['payload']> = {}): Report {
@@ -28,7 +28,7 @@ export function makeReport(overrides: Partial<Report['payload']> = {}): Report {
       leaderboard: [],
       ...overrides,
     },
-  } as unknown as Report;
+  };
 }
 
 export function makeFullOverviewSection(): ResearchOverview['overview'] {
@@ -121,12 +121,19 @@ export function makeFullReport(): Report {
 }
 
 export function renderFullReport() {
-  render(
+  return renderOverview({report: makeFullReport()});
+}
+
+export function renderOverview(
+  props: Partial<ComponentProps<typeof ResearchOverviewView>> = {},
+) {
+  return render(
     <ResearchOverviewView
       run={makeRun()}
-      report={makeFullReport()}
+      report={null}
       hypotheses={[]}
       matches={[]}
+      {...props}
     />,
   );
 }

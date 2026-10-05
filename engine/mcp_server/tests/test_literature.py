@@ -6,14 +6,14 @@ import httpx
 import pytest
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
-from httpx import ASGITransport, AsyncClient
 from mcp_server.campaign import PUBLIC_TOOLS
 from mcp_server.server import mcp
 from mcp_server.tests._httpx import (
-    StubClient,
     StubResponse,
+    asgi_client_factory,
     stub_failure,
     stub_responses,
+    transport_responses,
 )
 from mcp_server.tools.lit_review import (
     arxiv_search,
@@ -356,21 +356,11 @@ class TestEuropepmcSearch:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        responses: list[object] = [
+        client = stub_responses(
+            monkeypatch,
             httpx.RemoteProtocolError("Server disconnected"),
             _payload(),
-        ]
-
-        class _FlakyClient(StubClient):
-            def _serve(self, url: str, payload: object) -> StubResponse:
-                self.calls.append((url, payload))
-                outcome = responses.pop(0)
-                if isinstance(outcome, Exception):
-                    raise outcome
-                return StubResponse(outcome)
-
-        client = _FlakyClient()
-        monkeypatch.setattr(httpx, "AsyncClient", lambda **_: client)
+        )
 
         result = await europepmc_search.search_biorxiv("PKMYT1")
 
@@ -454,55 +444,8 @@ def test_normalize_handles_garbage() -> None:
     assert normalize_works({"results": [None, 7]}, 10) == {}
 
 
-class _FakeResp:
-    def __init__(self, data: Any, raise_exc: Exception | None = None) -> None:
-        self._data = data
-        self._raise = raise_exc
-
-    def raise_for_status(self) -> None:
-        if self._raise is not None:
-            raise self._raise
-
-    def json(self) -> Any:
-        return self._data
-
-
-class _FakeClient:
-    def __init__(self, resp: _FakeResp) -> None:
-        self._resp = resp
-
-    async def __aenter__(self) -> "_FakeClient":
-        return self
-
-    async def __aexit__(self, *_: Any) -> bool:
-        return False
-
-    async def get(self, _url: str, params: Any = None) -> _FakeResp:
-        return self._resp
-
-
-class _PagedClient:
-    def __init__(self, pages: list[dict[str, Any]]) -> None:
-        self._pages = iter(pages)
-        self.cursors: list[str] = []
-
-    async def __aenter__(self) -> "_PagedClient":
-        return self
-
-    async def __aexit__(self, *_: Any) -> bool:
-        return False
-
-    async def get(self, _url: str, params: Any = None) -> _FakeResp:
-        self.cursors.append(str(params["cursor"]))
-        return _FakeResp(next(self._pages))
-
-
 def test_search_openalex_returns_normalized(monkeypatch: Any) -> None:
-    monkeypatch.setattr(
-        httpx,
-        "AsyncClient",
-        lambda **_: _FakeClient(_FakeResp(_SAMPLE)),
-    )
+    stub_responses(monkeypatch, _SAMPLE)
     out = asyncio.run(search_openalex("nitrogen fixation", max_papers=5))
     assert "W123" in out
     assert out["W123"]["source"] == "openalex"
@@ -514,11 +457,7 @@ def test_search_openalex_raises_when_it_cannot_be_asked(
     """Source refusal is not a successful empty search and must preserve
     failure provenance."""
     err = httpx.HTTPError("boom")
-    monkeypatch.setattr(
-        httpx,
-        "AsyncClient",
-        lambda **_: _FakeClient(_FakeResp(None, raise_exc=err)),
-    )
+    stub_responses(monkeypatch, StubResponse(None, error=err))
 
     with pytest.raises(OpenAlexUnavailableError, match="could not be"):
         asyncio.run(search_openalex("q"))
@@ -534,11 +473,7 @@ def test_a_rate_limit_says_how_long_and_why(monkeypatch: Any) -> None:
     err = httpx.HTTPStatusError(
         "429", request=response.request, response=response
     )
-    monkeypatch.setattr(
-        httpx,
-        "AsyncClient",
-        lambda **_: _FakeClient(_FakeResp(None, raise_exc=err)),
-    )
+    stub_responses(monkeypatch, StubResponse(None, error=err))
 
     with pytest.raises(OpenAlexUnavailableError) as raised:
         asyncio.run(search_openalex("q"))
@@ -550,11 +485,7 @@ def test_a_rate_limit_says_how_long_and_why(monkeypatch: Any) -> None:
 
 
 def test_no_match_is_still_an_empty_result(monkeypatch: Any) -> None:
-    monkeypatch.setattr(
-        httpx,
-        "AsyncClient",
-        lambda **_: _FakeClient(_FakeResp({"results": [], "meta": {}})),
-    )
+    stub_responses(monkeypatch, {"results": [], "meta": {}})
 
     assert asyncio.run(search_openalex("q")) == {}
 
@@ -570,13 +501,15 @@ def test_search_openalex_uses_cursor_pagination(monkeypatch: Any) -> None:
         "meta": {"next_cursor": None},
     }
     first = {**_SAMPLE, "meta": {"next_cursor": "cursor-2"}}
-    client = _PagedClient([first, second])
-    monkeypatch.setattr(httpx, "AsyncClient", lambda **_: client)
+    client = stub_responses(monkeypatch, first, second)
 
     out = asyncio.run(search_openalex("nitrogen fixation", max_papers=3))
 
     assert set(out) == {"W123", "W456", "W789"}
-    assert client.cursors == ["*", "cursor-2"]
+    assert [str(params["cursor"]) for _, params in client.calls] == [
+        "*",
+        "cursor-2",
+    ]
 
 
 def test_search_params_exclude_retractions_and_support_api_key(
@@ -616,26 +549,12 @@ def test_a_clean_query_is_untouched() -> None:
     assert params["search"] == '"exact phrase" AND glioblastoma'
 
 
-_REAL_ASYNC_CLIENT = httpx.AsyncClient
-_MOCK_TRANSPORT = httpx.MockTransport
 _DOI = "10.1108/jd-12-2013-0166"
 
 
 async def _no_wait_for_slot() -> None:
     """Fake HTTP responses must not wait for the process-wide real-network
     pacer."""
-
-
-def _client_factory(app: Any):  # type: ignore[no-untyped-def]
-    def factory(**kwargs: Any) -> AsyncClient:
-        kwargs.pop("follow_redirects", None)
-        return AsyncClient(
-            **kwargs,
-            transport=ASGITransport(app=app),
-            base_url="http://test",
-        )
-
-    return factory
 
 
 async def test_citation_edges_is_available_on_the_mcp_surface(
@@ -660,19 +579,7 @@ async def test_citation_edges_is_available_on_the_mcp_surface(
             }
         ],
     ]
-    requests: list[str] = []
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        requests.append(str(request.url))
-        return httpx.Response(200, json=responses.pop(0))
-
-    monkeypatch.setattr(
-        httpx,
-        "AsyncClient",
-        lambda **kwargs: _REAL_ASYNC_CLIENT(
-            transport=_MOCK_TRANSPORT(handler), **kwargs
-        ),
-    )
+    requests = transport_responses(monkeypatch, *responses)
     monkeypatch.setattr(
         opencitations, "_wait_for_request_slot", _no_wait_for_slot
     )
@@ -680,7 +587,7 @@ async def test_citation_edges_is_available_on_the_mcp_surface(
     app = Starlette(lifespan=mcp_app.lifespan)
     app.mount("/", mcp_app)
     transport = StreamableHttpTransport(
-        "http://test/mcp", httpx_client_factory=_client_factory(app)
+        "http://test/mcp", httpx_client_factory=asgi_client_factory(app)
     )
 
     async with app.router.lifespan_context(app), Client(transport) as client:
@@ -700,33 +607,16 @@ async def test_citation_edges_is_available_on_the_mcp_surface(
         "omid:br/3",
     ]
     assert result.data["source"] == "OpenCitations Index v2"
-    assert result.data["citations"]["edge_request_url"] == requests[2]
-    assert result.data["references"]["edge_request_url"] == requests[3]
+    assert result.data["citations"]["edge_request_url"] == str(requests[2].url)
+    assert result.data["references"]["edge_request_url"] == str(requests[3].url)
     assert "do not establish" in result.data["interpretation_note"]
     assert len(requests) == 4
 
 
 def _install_responses(
     monkeypatch: pytest.MonkeyPatch, responses: list[Any]
-) -> list[str]:
-    requests: list[str] = []
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        requests.append(str(request.url))
-        response = responses.pop(0)
-        if isinstance(response, Exception):
-            raise response
-        if isinstance(response, httpx.Response):
-            return response
-        return httpx.Response(200, json=response)
-
-    monkeypatch.setattr(
-        httpx,
-        "AsyncClient",
-        lambda **kwargs: _REAL_ASYNC_CLIENT(
-            transport=_MOCK_TRANSPORT(handler), **kwargs
-        ),
-    )
+) -> list[httpx.Request]:
+    requests = transport_responses(monkeypatch, *responses)
     monkeypatch.setattr(
         opencitations, "_wait_for_request_slot", _no_wait_for_slot
     )
@@ -746,8 +636,8 @@ async def test_zero_counts_are_reported_without_fetching_edges(
     assert result["citation_count"] == result["reference_count"] == 0
     assert result["citations"]["edge_fetch_status"] == "zero_indexed"
     assert result["references"]["edge_fetch_status"] == "zero_indexed"
-    assert result["citations"]["count_request_url"] == requests[0]
-    assert result["references"]["count_request_url"] == requests[1]
+    assert result["citations"]["count_request_url"] == str(requests[0].url)
+    assert result["references"]["count_request_url"] == str(requests[1].url)
 
 
 @pytest.mark.parametrize(
@@ -904,7 +794,8 @@ async def test_counts_precede_fetch_and_large_direction_is_skipped(
     result = await opencitations.get_opencitations_citation_edges(_DOI)
 
     assert [
-        url.partition("/index/v2/")[2].split("/", 1)[0] for url in requests
+        str(request.url).partition("/index/v2/")[2].split("/", 1)[0]
+        for request in requests
     ] == [
         "citation-count",
         "reference-count",
@@ -915,7 +806,7 @@ async def test_counts_precede_fetch_and_large_direction_is_skipped(
     )
     assert result["citations"]["edges"] == []
     assert result["citations"]["edge_request_url"] is None
-    assert result["references"]["edge_request_url"] == requests[2]
+    assert result["references"]["edge_request_url"] == str(requests[2].url)
     assert result["accessed_at"].endswith("+00:00")
 
 

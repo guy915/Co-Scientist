@@ -1,3 +1,7 @@
+import {
+  resetRunDetailMocks,
+  setConnection,
+} from './run_detail_api_test_support';
 import type {Run} from '@/api/runs';
 import * as runsApi from '@/api/runs';
 import {
@@ -11,52 +15,6 @@ import {beforeEach, expect, it, vi} from 'vitest';
 import {RunDetail} from './run_detail';
 import {useRunDetailData} from './run_detail_data';
 import {makeRun} from './run_detail_test_support';
-
-const streamMock = vi.hoisted(() => ({
-  state: {
-    events: [] as {seq: number; type: string; payload: object}[],
-    connection: 'open' as
-      'connecting' | 'open' | 'reconnecting' | 'disconnected',
-  },
-}));
-vi.mock('@/hooks/use_run_stream', () => ({
-  useRunStream: () => ({
-    events: streamMock.state.events,
-    terminal: false,
-    connection: streamMock.state.connection,
-  }),
-}));
-
-function setStream(events: {seq: number; type: string; payload: object}[]) {
-  streamMock.state = {...streamMock.state, events};
-}
-
-function setConnection(connection: typeof streamMock.state.connection) {
-  streamMock.state = {...streamMock.state, connection};
-}
-
-vi.mock('@/workbench/hooks/timers', async importOriginal => {
-  const actual =
-    await importOriginal<typeof import('@/workbench/hooks/timers')>();
-  const timer = {schedule: (run: () => void) => run(), cancel: () => {}};
-  return {...actual, useResetTimer: () => timer};
-});
-
-vi.mock('@/api/runs', async importActual => {
-  const actual = await importActual<typeof import('@/api/runs')>();
-  return {
-    ...actual,
-    loadRunHistory: vi.fn().mockResolvedValue([]),
-    getRun: vi.fn(),
-    getHypotheses: vi.fn().mockResolvedValue([]),
-    getEvidence: vi.fn().mockResolvedValue([]),
-    getMatches: vi.fn().mockResolvedValue([]),
-    getReviews: vi.fn().mockResolvedValue([]),
-    getClaimEvidence: vi.fn().mockResolvedValue([]),
-    getSafety: vi.fn().mockResolvedValue([]),
-    getReport: vi.fn().mockResolvedValue(null),
-  };
-});
 
 const TAB_NAV = 'Goal report sections';
 
@@ -152,9 +110,6 @@ it('shows the report tabs while a settled run loads', async () => {
 });
 
 beforeEach(() => {
-  vi.clearAllMocks();
-  vi.mocked(runsApi.loadRunHistory).mockResolvedValue([]);
-  vi.mocked(runsApi.getRun).mockResolvedValue(makeRun('Study pathway X'));
-  setStream([]);
+  resetRunDetailMocks();
   setConnection('open');
 });

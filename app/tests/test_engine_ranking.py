@@ -38,6 +38,7 @@ from app.store import events as store_events
 from app.store import retrieval_calls as retrieval
 from app.store import tasks_lifecycle as lifecycle
 from app.store.models import RunStatus, ScientificTask
+from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _add_fixture_review,
@@ -49,6 +50,7 @@ from tests._engine_tasks_helpers import (
     _running_ranking_events,
     _seed_ranking_node,
 )
+from tests._store_helpers import seed_run
 
 from ._llm_fake_backend import install_completion_backend
 
@@ -194,8 +196,6 @@ async def test_pre_ranking_gate_labels_novel_proposal_as_speculative() -> None:
 
 @pytest.mark.asyncio
 async def test_pre_ranking_gate_grounds_claims_in_private_corpus() -> None:
-    # Uploaded private documents are admissible support alongside retrieved
-    # literature.
     hypothesis = Hypothesis(
         text="Astrocyte lactate accelerates synaptic ATP recovery.",
         literature_grounding=(
@@ -468,31 +468,6 @@ def _seam_install_counting_assessor(
     return calls
 
 
-def _seam_multi_claim_state() -> dict[str, Any]:
-    hypothesis = Hypothesis(
-        text=(
-            "Astrocyte lactate accelerates synaptic ATP recovery. "
-            "Neuronal mitochondria buffer the resulting calcium influx."
-        ),
-        literature_grounding=(
-            "Astrocytes participate in neuronal energy support. "
-            "Lactate shuttling is documented in cortical slices."
-        ),
-        explanation="Glycolytic flux rises before the ATP rebound.",
-        experiment="Measure ATP recovery under lactate blockade.",
-    )
-    hypothesis.review_disposition = "viable"
-    return {
-        "hypotheses": [hypothesis],
-        "articles": [
-            Article(
-                title="Astrocyte energetics",
-                abstract="Astrocytes participate in neuronal energy support.",
-            )
-        ],
-    }
-
-
 @pytest.mark.asyncio
 async def test_pre_ranking_gate_skips_hypotheses_review_already_rejected(
     monkeypatch: pytest.MonkeyPatch,
@@ -573,7 +548,7 @@ async def test_pre_ranking_gate_calls_are_visible_to_the_run_budget(
     from co_scientist.llm import scoped_llm_call_budget
 
     _install_fake_acompletion(monkeypatch)
-    state = _seam_multi_claim_state()
+    state = _tasks_gate_multi_claim_state()
 
     with (
         pytest.raises(LLMCallBudgetExceededError),
@@ -592,7 +567,7 @@ async def test_pre_ranking_gate_telemetry_is_attributed_and_not_double_counted(
     from co_scientist.cache import scoped_cache_override
 
     _install_fake_acompletion(monkeypatch)
-    state = _seam_multi_claim_state()
+    state = _tasks_gate_multi_claim_state()
 
     with scoped_cache_override(False):
         await engine_tasks_gate._apply_pre_ranking_evidence_gate(state)
@@ -700,7 +675,7 @@ async def test_long_tournament_reports_progress_between_its_matches(
 ) -> None:
     # Periodic progress prevents long healthy tournaments looking frozen without
     # flooding the activity feed.
-    run = runs.create_run("Task-level science", "standard", "engine", {})
+    run = seed_run("Task-level science")
     runs.update_run_status(run.id, RunStatus.RUNNING, db_path=isolated_db)
     _seed_ranking_node(
         run.id,
@@ -735,7 +710,7 @@ async def test_tournament_judges_a_wave_of_matchups_concurrently(
 ) -> None:
     # Parallel judging must use the engine semaphore rather than serializing one
     # matchup per task.
-    run = runs.create_run("Wave science", "standard", "engine", {})
+    run = seed_run("Wave science")
     _seed_ranking_node(
         run.id,
         monkeypatch,
@@ -768,7 +743,7 @@ async def test_tournament_wave_fills_to_the_configured_size(
 ) -> None:
     # Candidate supply must reach wave size; a smaller inherited pool silently
     # serializes tournaments.
-    run = runs.create_run("Wave size", "standard", "engine", {})
+    run = seed_run("Wave size")
     _seed_ranking_node(
         run.id,
         monkeypatch,
@@ -820,7 +795,7 @@ async def test_spent_budget_schedules_no_tournament(
 ) -> None:
     # Opening an empty tournament erases prior matches; spent budgets must
     # preserve already judged work.
-    run = runs.create_run("Spent budget", "standard", "engine", {})
+    run = seed_run("Spent budget")
     _seed_ranking_node(
         run.id,
         monkeypatch,
@@ -849,7 +824,7 @@ async def test_partial_budget_schedules_only_what_is_left(
 ) -> None:
     # The pool is already covered so no first-match obligation overrides
     # remaining budget.
-    run = runs.create_run("Partial budget", "standard", "engine", {})
+    run = seed_run("Partial budget")
     _seed_ranking_node(
         run.id,
         monkeypatch,
@@ -1029,13 +1004,11 @@ _OWNER = {"X-Client-ID": "ranking-pause-owner"}
 
 def _owned_running_run(db_path: str) -> tuple[Any, str]:
     client = make_client()
-    created = client.post(
-        "/api/runs",
+    created = _create_run(
+        client,
+        "Pause during a durable ranking match",
         headers=_OWNER,
-        json={
-            "research_goal": "Pause during a durable ranking match",
-            "tier": "standard",
-        },
+        tier="standard",
     )
     assert created.status_code == 200, created.text
     run_id = str(created.json()["id"])

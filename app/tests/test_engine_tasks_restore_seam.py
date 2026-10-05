@@ -1,6 +1,3 @@
-# Patch the actual lookup seam; the marker proves the handler restored the
-# fixture registry.
-
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
@@ -14,15 +11,14 @@ from app import engine_tasks
 from app.engine_tasks import fanout_aggregates as engine_tasks_fanout_aggregates
 from app.engine_tasks import ranking as engine_tasks_ranking
 from app.engine_tasks import support as engine_tasks_support
-from app.store import runs, tasks
 from app.store.models import ScientificTask
-from app.store.tasks import NewTask
 from tests._engine_tasks_helpers import (
     _Generator,
     _patch_generator,
     _seed_checkpoint,
     _task_state,
 )
+from tests._store_helpers import enqueue_task, seed_run
 
 Handler = Callable[..., Awaitable[dict[str, Any]]]
 MARKER = object()
@@ -58,13 +54,11 @@ def _leased_task(
     run_id: str, task_type: str, extra_inputs: dict[str, Any], db_path: str
 ) -> ScientificTask:
     seq = _seed_checkpoint(run_id, _task_state(run_id), db_path=db_path)
-    queued = tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type=task_type,
-            inputs={"checkpoint_seq": seq, **extra_inputs},
-            idempotency_key=task_type,
-        ),
+    queued = enqueue_task(
+        run_id,
+        task_type,
+        task_type,
+        inputs={"checkpoint_seq": seq, **extra_inputs},
         db_path=db_path,
     )
     return queued
@@ -122,7 +116,7 @@ async def test_handler_restores_with_the_installed_generator(
     monkeypatch: pytest.MonkeyPatch,
     restore_spy: list[Any],
 ) -> None:
-    run = runs.create_run("Task-level science", "standard", "engine", {})
+    run = seed_run("Task-level science")
     task = _leased_task(run.id, case.task_type, case.extra_inputs, isolated_db)
     _patch_generator(monkeypatch, _MarkedGenerator({}), restore=True)
 

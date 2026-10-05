@@ -1,3 +1,4 @@
+import {makeQuestion} from '@/test_fixtures';
 import {fireEvent, screen, waitFor} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
 import type {Interview, InterviewQuestion} from '@/api/runs';
@@ -7,15 +8,7 @@ import {
   renderWorkspace,
 } from './chat_workspace_test_helpers';
 
-const MODEL_SYSTEM: InterviewQuestion = {
-  header: 'Model system',
-  question: 'Which model system should the ideas be built around?',
-  multi_select: false,
-  options: [
-    {label: 'Primary human cells', description: 'Closest to patient biology'},
-    {label: 'iPSC-derived line', description: 'Renewable and editable'},
-  ],
-};
+const MODEL_SYSTEM: InterviewQuestion = makeQuestion();
 
 function asking(questions: InterviewQuestion[]): Interview {
   return {
