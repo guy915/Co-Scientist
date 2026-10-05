@@ -101,7 +101,10 @@ it('stores a chosen supervisor model with its provider', async () => {
     provider: 'deepseek',
     model: 'deepseek/deepseek-v4-pro',
   });
-  expect(getStoredModel('worker')).toBeNull();
+  expect(getStoredModel('worker')).toEqual({
+    provider: 'deepseek',
+    model: 'deepseek/deepseek-flash',
+  });
 });
 
 it('keeps both selects choosable and explains free usage without a key', async () => {
@@ -133,7 +136,22 @@ it('offers the models of every provider with a saved key, grouped', async () => 
     provider: 'gemini',
     model: 'gemini/gemini-3.1-pro-preview',
   });
-  expect(getStoredModel('worker')).toBeNull();
+  expect(getStoredModel('worker')).toEqual({
+    provider: 'deepseek',
+    model: 'deepseek/deepseek-flash',
+  });
+});
+
+it('keeps the shown supervisor when the worker moves provider', async () => {
+  const user = userEvent.setup();
+  renderSection('sk-d', 'deepseek', ['deepseek', 'gemini']);
+  await screen.findAllByText('deepseek-flash');
+  await user.click(trigger(/Worker model/));
+  const menu = screen.getByRole('menu', {name: 'Worker model'});
+  await user.click(
+    within(menu).getByRole('menuitemradio', {name: 'gemini-3.8-flash'}),
+  );
+  expect(trigger(/Supervisor model/)).toHaveTextContent('deepseek-flash');
 });
 
 it('shows each provider its own saved key and marks the keyed ones', async () => {

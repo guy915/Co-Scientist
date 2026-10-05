@@ -440,13 +440,26 @@ export function useModelFields(
     worker?.provider ?? fallbackProvider(savedProviders, provider);
   const supervisor = usable(choices.supervisor);
   const defaultOf = (name: ByokProvider) => catalog?.[name]?.[0] ?? '';
+  const shown: Record<ModelTier, string> = {
+    worker: worker?.model ?? defaultOf(workerProvider),
+    supervisor:
+      supervisor?.model ?? defaultOf(supervisor?.provider ?? workerProvider),
+  };
 
+  // An unchosen tier only displays a fallback that follows the worker, so
+  // pin what it shows before the other tier moves provider.
   function onModelChange(tier: ModelTier, model: string) {
     const owner = groupFor(model);
     if (!owner) return;
-    const choice = {provider: owner, model};
-    setStoredModel(tier, choice);
-    setChoices(current => ({...current, [tier]: choice}));
+    const next = {...choices, [tier]: {provider: owner, model}};
+    for (const name of ['worker', 'supervisor'] as const) {
+      const pinned = shown[name] && groupFor(shown[name]);
+      if (!usable(next[name]) && pinned) {
+        next[name] = {provider: pinned, model: shown[name]};
+      }
+      setStoredModel(name, next[name]);
+    }
+    setChoices(next);
   }
 
   return {
@@ -455,9 +468,7 @@ export function useModelFields(
       groups.length > 1
         ? (model: string) => PROVIDER_LABELS[groupFor(model) ?? provider]
         : undefined,
-    worker: worker?.model ?? defaultOf(workerProvider),
-    supervisor:
-      supervisor?.model ?? defaultOf(supervisor?.provider ?? workerProvider),
+    ...shown,
     freeUsage,
     onModelChange,
   };
