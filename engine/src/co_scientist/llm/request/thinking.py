@@ -64,10 +64,6 @@ def _apply_provider_pin(
         provider["only"] = [profile.verified_provider]
         provider["zdr"] = True
         provider["data_collection"] = "deny"
-    elif profile.provider_only:
-        provider.pop("order", None)
-        provider["only"] = [profile.provider_only]
-        provider["allow_fallbacks"] = False
 
 
 def _gateway_provider(model_name: str) -> dict[str, Any]:
@@ -162,7 +158,7 @@ def _gateway_body(
         return body
     reasoning: dict[str, Any] = {"enabled": enabled}
     if enabled:
-        reasoning["effort"] = profile.reasoning_effort or _REASONING_EFFORT
+        reasoning["effort"] = _REASONING_EFFORT
     body["reasoning"] = reasoning
     return body
 

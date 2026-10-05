@@ -89,9 +89,9 @@ temporary state directory, leaving normal frontend `dist/` untouched.
 `make docker-build` builds both production images without deploying them.
 
 The app's current system model defaults are declared in `app/app/config.py`:
-`openrouter/thinkingmachines/inkling-small` for worker, supervisor, chat and
-semantic safety. Set its provider credential to use it. It is a paid route at
-max reasoning effort with a listed-price ceiling and no response format.
+`openrouter/nvidia/nemotron-3-ultra-550b-a55b:free` for worker, supervisor, chat and
+semantic safety. Set its provider credential to use it. It is a free route with
+free-only fallbacks, a checked zero-price ceiling and no response format.
 Explicit production environment overrides take precedence; an old deployment
 snapshot is not evidence of the current configuration. Do not append paid
 fallbacks under free routes. Every model fact (capabilities, routing pin and

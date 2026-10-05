@@ -12,6 +12,7 @@ from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 CONVERSATIONAL_REASONING_EFFORT = "medium"
+DEFAULT_MODEL = "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
 THINKING_FLOOR_TIMEOUT_SECONDS = float(THINKING_FLOOR_MAX_TOKENS) / 75.0
 
 
@@ -64,9 +65,9 @@ class Settings(BaseSettings):
 
     # Production model choices are explicit hosting overrides; changing these
     # defaults alone does not change production.
-    model_name: str = "openrouter/thinkingmachines/inkling-small"
-    supervisor_model_name: str | None = "openrouter/thinkingmachines/inkling-small"
-    chat_model_name: str | None = "openrouter/thinkingmachines/inkling-small"
+    model_name: str = DEFAULT_MODEL
+    supervisor_model_name: str | None = DEFAULT_MODEL
+    chat_model_name: str | None = DEFAULT_MODEL
     # LiteLLM and the engine consume provider environment variables, not this
     # Settings object.
     gemini_api_key: str = ""
@@ -93,7 +94,7 @@ class Settings(BaseSettings):
     # semantic assessment.
     semantic_safety_enabled: bool = True
     # Safety stays on the worker tier rather than the strategic supervisor tier.
-    semantic_safety_model: str | None = "openrouter/thinkingmachines/inkling-small"
+    semantic_safety_model: str | None = DEFAULT_MODEL
 
     log_format: str = "text"
 

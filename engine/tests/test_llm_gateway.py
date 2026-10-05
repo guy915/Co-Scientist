@@ -590,7 +590,7 @@ class TestLlmGemmaRoute:
         assert requests[0]["api_base"] == "https://openrouter.ai/api/v1"
 
 
-_INKLING = "openrouter/thinkingmachines/inkling-small"
+_NEMOTRON_ULTRA = "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
 
 
 @pytest.mark.parametrize(
@@ -605,16 +605,8 @@ def test_a_route_without_json_mode_keeps_the_schema_in_the_prompt(
 ) -> None:
     """Its only host rejects response_format, and require_parameters turns
     any JSON mode into a 404."""
-    args = _build_completion_args("prompt", _INKLING, 4000, 0.5, shape)
+    args = _build_completion_args("prompt", _NEMOTRON_ULTRA, 4000, 0.5, shape)
 
     assert "response_format" not in args
     if shape.json_schema:
         assert "JSON schema" in args["messages"][0]["content"]
-
-
-def test_a_route_can_raise_its_reasoning_effort() -> None:
-    args = _build_completion_args(
-        "prompt", _INKLING, 4000, 0.5, CompletionShape()
-    )
-
-    assert args["extra_body"]["reasoning"] == {"enabled": True, "effort": "max"}

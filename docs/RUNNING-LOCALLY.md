@@ -53,7 +53,7 @@ and [DEPLOYMENT.md](DEPLOYMENT.md) for authenticated hosting.
 
 ## Model and retrieval configuration
 
-The default system model is `openrouter/thinkingmachines/inkling-small` and needs
+The default system model is `openrouter/nvidia/nemotron-3-ultra-550b-a55b:free` and needs
 `OPENROUTER_API_KEY`. Setting only another provider's key does not select its
 model: set the appropriate `MODEL_NAME` and role overrides too.
 Inspect `/status` for the selected backend and retrieval availability.

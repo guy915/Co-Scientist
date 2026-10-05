@@ -63,7 +63,7 @@ and matching key. See [`.env.example`](.env.example) and
 
 ```dotenv
 OPENROUTER_API_KEY=
-MODEL_NAME=openrouter/thinkingmachines/inkling-small
+MODEL_NAME=openrouter/nvidia/nemotron-3-ultra-550b-a55b:free
 SAFETY_MODE=standard
 ```
 
