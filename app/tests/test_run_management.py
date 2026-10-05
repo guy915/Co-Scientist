@@ -774,6 +774,7 @@ def test_rename_and_delete_refuse_foreign_demo_and_unknown_runs() -> None:
             [{"name": "Target Area", "values": ["A", "B", "C"]}],
             "Target Area (A, B, or C)",
         ),
+        ("attributes", [{"name": "Impact"}], "Impact"),
         ("criteria", ["Scientific soundness"], None),
         (
             "criteria",

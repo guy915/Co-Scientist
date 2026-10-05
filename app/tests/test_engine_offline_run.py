@@ -49,7 +49,11 @@ def test_offline_engine_run_completes_without_a_real_call(
         "Explain how protein X folds under crowding.",
         profile="express",
         provider="mock",
-        config={"tier": "express", "enable_literature_review": False},
+        config={
+            "tier": "express",
+            "enable_literature_review": False,
+            "llm_backend": "offline",
+        },
         client_id="offline-e2e",
         llm_backend="offline",
         db_path=isolated_db,
