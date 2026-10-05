@@ -246,8 +246,12 @@
             "make check",
             "make e2e-production",
             "make coverage"
-          ]
+          ],
+          "pull_request": 188
         }
+      ],
+      "pull_requests": [
+        188
       ]
     }
   },
