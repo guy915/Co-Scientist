@@ -1,4 +1,4 @@
-import {makeLogRecord as logRecord} from '@/test_fixtures';
+import {exportedRecords, makeLogRecord as logRecord} from '@/test_fixtures';
 import {act, fireEvent, screen, waitFor} from '@testing-library/react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import {COPY_LIMIT} from './layout_diagnostics_data';
@@ -11,14 +11,6 @@ import {
 
 beforeEach(() => installLayoutMocks());
 afterEach(() => vi.useRealTimers());
-
-function copiedEntries(text: string): Record<string, unknown>[] {
-  const json = text.slice(text.indexOf(EXPORT_LOGS_MARKER));
-  return JSON.parse(json.slice(EXPORT_LOGS_MARKER.length)) as Record<
-    string,
-    unknown
-  >[];
-}
 
 it('clears the persisted log from the Clear action', async () => {
   logsApiMock.getAppLogs.mockResolvedValue({
@@ -67,7 +59,7 @@ it('copies the newest COPY_LIMIT entries, not the whole session', async () => {
   fireEvent.click(screen.getByRole('button', {name: 'Copy'}));
 
   await waitFor(() => expect(writeText).toHaveBeenCalled());
-  const copied = copiedEntries(writeText.mock.calls[0][0] as string) as {
+  const copied = exportedRecords(writeText.mock.calls[0][0] as string) as {
     payload: {message: string};
   }[];
   expect(copied).toHaveLength(COPY_LIMIT);
@@ -91,7 +83,7 @@ it('copies the real store ids, not the display numbers', async () => {
   fireEvent.click(screen.getByRole('button', {name: 'Copy'}));
 
   await waitFor(() => expect(writeText).toHaveBeenCalled());
-  const copied = copiedEntries(writeText.mock.calls[0][0] as string) as {
+  const copied = exportedRecords(writeText.mock.calls[0][0] as string) as {
     id: number;
     number: number;
   }[];
@@ -123,14 +115,19 @@ it('prefixes the copied logs with an explanatory preamble', async () => {
 
   await waitFor(() => expect(writeText).toHaveBeenCalled());
   const text = writeText.mock.calls[0][0] as string;
-  expect(text).toContain('=== ABOUT THESE DIAGNOSTIC LOGS ===');
-  expect(text).toContain('=== WHAT THIS TRACKS ===');
-  expect(text).toContain('=== SESSION DETAILS ===');
-  expect(text).toContain('=== FIELD LEGEND ===');
-  expect(text).toContain('Records this session: 1');
-  expect(text).toContain('In this export: 1');
+  expect(text).toMatch(/^# Co-Scientist diagnostic export$/m);
+  expect(text).toContain('## About these logs');
+  expect(text).toContain('## What this tracks');
+  expect(text).toContain('## Session details');
+  expect(text).toContain('## Field legend');
+  expect(text).toContain('**Records this session:** 1');
+  expect(text).toContain('**In this export:** 1');
+  // Prose is one line per paragraph so it reflows wherever it is pasted.
+  expect(text).toMatch(
+    /^Co-Scientist workbench diagnostic export\..*guess at\.$/m,
+  );
   expect(text.indexOf(EXPORT_LOGS_MARKER)).toBeGreaterThan(0);
-  expect(copiedEntries(text)).toHaveLength(1);
+  expect(exportedRecords(text)).toHaveLength(1);
 });
 
 it('returns the Copy button to "Copy" after the confirmation', async () => {
