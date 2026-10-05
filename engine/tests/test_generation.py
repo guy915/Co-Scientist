@@ -7,26 +7,21 @@ import pytest
 
 from co_scientist.agents.generation import assumptions as assumptions_mod
 from co_scientist.agents.generation import debate
-from co_scientist.agents.generation import generate as generate_mod
 from co_scientist.agents.generation.assumptions import (
     ASSUMPTION_TREE_MAX_LOAD_BEARING,
     ASSUMPTION_TREE_MAX_SUB_PER_PARENT,
     ASSUMPTION_TREE_MAX_TOP,
     MAX_FALSIFIED_ASSUMPTION_LINES,
-    build_falsified_assumptions_section,
-    falsified_nonfundamental_assumptions,
     generate_with_assumptions,
 )
 from co_scientist.agents.generation.debate import (
     DebateBatchPosition,
-    _debate_converged,
     generate_with_debate,
 )
 from co_scientist.agents.generation.generate import generate_node
 from co_scientist.exceptions import GenerationError
 from co_scientist.models import GenerationMethod
 from co_scientist.prompts.generation_debate import _DEBATE_MAX_DISCUSSION_TURNS
-from co_scientist.prompts.loading import load_prompt_with_schema
 from tests._llm_fake import stub_call_llm_json
 from tests._state import make_generation_response, make_hypothesis, make_state
 
@@ -52,105 +47,55 @@ async def test_count_zero_returns_empty() -> None:
     assert llm_calls == 0
 
 
-def _stub_debate_llm_counting(
-    monkeypatch: pytest.MonkeyPatch, turn_texts: list[str]
-) -> tuple[list[str], list[int]]:
-    free_form: list[str] = []
-    finals: list[int] = []
+@pytest.mark.parametrize(
+    ("turn_text", "converges"),
+    [
+        ("HYPOTHESIS: the panel agrees", True),
+        ("HYPOTHESIS. The panel agrees", True),
+        ("we conclude: HYPOTHESIS — inhibition of E", True),
+        ("Hypothesis: the panel agrees", True),
+        ("hypothesis:\nthe panel agrees", True),
+        ("**HYPOTHESIS**: the panel agrees", True),
+        ("- HYPOTHESIS: the panel agrees", True),
+        ("HYPOTHESIS\nthe panel agrees", True),
+        ("the hypothesis is weak", False),
+        ("Hypothesis 1: a direct causal mechanism", False),
+        ("Hypothesis 2: an upstream regulator", False),
+        ("Hypotheses: three candidates remain", False),
+        ('we will write "HYPOTHESIS" once we agree', False),
+        ("The hypothesis states that E inhibits R", False),
+        ("the panel still disagrees", False),
+    ],
+)
+async def test_generation_retires_converged_debates_and_caps_discussion(
+    monkeypatch: pytest.MonkeyPatch,
+    turn_text: str,
+    converges: bool,
+) -> None:
+    turns: list[str] = []
 
-    async def fake_call_llm(**_: Any) -> str:
-        text = turn_texts[len(free_form)]
-        free_form.append(text)
+    async def discuss(**_: Any) -> str:
+        text = "still arguing" if not turns else turn_text
+        turns.append(text)
         return text
 
-    async def fake_call_llm_json(**_: Any) -> dict[str, Any]:
-        finals.append(1)
-        return make_generation_response("converged idea")
-
-    monkeypatch.setattr(debate, "call_llm", fake_call_llm)
-    monkeypatch.setattr(debate, "call_llm_json", fake_call_llm_json)
-    return free_form, finals
-
-
-async def test_declared_convergence_ends_the_debate_early(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Free-form turns are serial provider calls; an explicit conclusion
-    retires unused turns."""
-    free_form, finals = _stub_debate_llm_counting(
-        monkeypatch,
-        ["still arguing", "HYPOTHESIS: the panel agrees", "unreached"],
+    monkeypatch.setattr(debate, "call_llm", discuss)
+    stub_call_llm_json(
+        monkeypatch, debate, make_generation_response("converged idea")
     )
-
-    hyps, _, llm_calls = await generate_with_debate(make_state(), count=1)
-
-    assert len(hyps) == 1
-    assert hyps[0].text == "converged idea"
-    assert len(free_form) == 2
-    assert len(finals) == 1
-    assert llm_calls == 3
-
-
-async def test_lowercase_hypothesis_prose_does_not_end_the_debate(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    turns = ["the hypothesis is weak"] * _DEBATE_MAX_DISCUSSION_TURNS
-    free_form, finals = _stub_debate_llm_counting(monkeypatch, turns)
-
-    await generate_with_debate(make_state(), count=1)
-
-    assert len(free_form) == _DEBATE_MAX_DISCUSSION_TURNS
-    assert len(finals) == 1
-
-
-async def test_a_debate_that_never_converges_stops_at_the_envelope_cap(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    turns = ["the panel still disagrees"] * _DEBATE_MAX_DISCUSSION_TURNS
-    free_form, finals = _stub_debate_llm_counting(monkeypatch, turns)
-
-    await generate_with_debate(make_state(), count=1)
-
-    assert len(free_form) == _DEBATE_MAX_DISCUSSION_TURNS == 10
-    assert len(finals) == 1
-
-
-@pytest.mark.parametrize(
-    "turn_text",
-    [
-        "HYPOTHESIS: the panel agrees on this mechanism",
-        "HYPOTHESIS. The panel agrees on this mechanism",
-        "we conclude: HYPOTHESIS — partial inhibition of E",
-        "Hypothesis: the panel agrees on this mechanism",
-        "hypothesis:\nthe panel agrees on this mechanism",
-        "**HYPOTHESIS**: the panel agrees on this mechanism",
-        "- HYPOTHESIS: the panel agrees on this mechanism",
-        "HYPOTHESIS\nthe panel agrees on this mechanism",
-    ],
-)
-def test_convergence_token_variants_end_the_debate(turn_text: str) -> None:
-    """Panels vary marker casing or decoration; strict spelling buys
-    unnecessary debate turns."""
-    assert _debate_converged(turn_text)
-
-
-@pytest.mark.parametrize(
-    "turn_text",
-    [
-        "the hypothesis is weak",
-        "Hypothesis 1: a direct causal mechanism",
-        "Hypothesis 2: an upstream regulator",
-        "Hypotheses: three candidates remain",
-        'we will write "HYPOTHESIS" once we agree',
-        "The hypothesis states that E inhibits R",
-    ],
-)
-def test_ordinary_hypothesis_prose_does_not_end_the_debate(
-    turn_text: str,
-) -> None:
-    """Enumeration and quoted instructions are discussion, not conclusion
-    markers."""
-    assert not _debate_converged(turn_text)
+    result = await generate_node(
+        make_state(
+            initial_hypotheses_count=1,
+            supervisor_guidance={"key_areas": ["mechanism"]},
+        )
+    )
+    expected_turns = 2 if converges else _DEBATE_MAX_DISCUSSION_TURNS
+    assert (
+        result["debate_transcripts"][0]["transcript"].count("Turn ")
+        == expected_turns
+    )
+    assert result["metrics"].llm_calls == expected_turns + 1
+    assert result["hypotheses"].items[0].text == "converged idea"
 
 
 async def test_debate_produces_one_hypothesis_per_debate(
@@ -315,125 +260,6 @@ async def test_empty_final_response_raises_generation_error(
         await generate_with_debate(make_state(), count=1)
 
 
-async def test_generate_node_attaches_metrics_and_passes_through(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-
-    async def fake_coordinator(_: Any) -> dict[str, Any]:
-        return {
-            "hypotheses": [
-                make_hypothesis(text="h1"),
-                make_hypothesis(text="h2"),
-            ],
-            "hypothesis_count": 2,
-            "message": "generated 2 hypotheses",
-        }
-
-    monkeypatch.setattr(generate_mod, "generate_hypotheses", fake_coordinator)
-    result = await generate_node(make_state())
-    assert len(result["hypotheses"]) == 2
-    assert result["metrics"].hypothesis_count == 2
-
-
-def _one_hypothesis_payload() -> dict[str, Any]:
-    return make_generation_response(
-        "A testable claim",
-        explanation="why",
-        literature_grounding="This builds on prior work [C1].",
-        experiment="how",
-    )
-
-
-def _c1_reference_index() -> Any:
-    from co_scientist.agents.generation.citations import ReferenceIndex
-
-    return ReferenceIndex(
-        text="[C1] Author et al. (2020). A relevant paper.",
-        sources={"C1": {"title": "A relevant paper", "type": "paper"}},
-    )
-
-
-def test_assumptions_technique_produces_hypotheses() -> None:
-    _, schema = load_prompt_with_schema(
-        "generation_assumptions",
-        {
-            "research_goal": "A goal",
-            "domain_context": "",
-            "meta_review_context": "",
-            "num_hypotheses": 2,
-        },
-    )
-    assert schema is not None
-    assert "hypotheses" in schema["schema"]["properties"]
-
-
-async def test_assumptions_grounds_in_supplied_literature(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from co_scientist.agents.generation import assumptions as assumptions_mod
-
-    calls = stub_call_llm_json(
-        monkeypatch, assumptions_mod, _one_hypothesis_payload()
-    )
-
-    reference_index = _c1_reference_index()
-    state = make_state(
-        research_goal="A goal",
-        model_name="fake-model",
-    )
-    result, _ = await assumptions_mod.generate_with_assumptions(
-        state,
-        1,
-        articles_with_reasoning="literature synthesis text",
-        reference_index=reference_index,
-    )
-
-    assert "[C1]" in calls[-1]["prompt"]
-    assert result[0].citation_map
-    assert "C1" in result[0].citation_map
-
-
-async def test_assumptions_live_prompt_hedges_and_threads_constraints(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from co_scientist.agents.generation import assumptions as assumptions_mod
-
-    calls = stub_call_llm_json(
-        monkeypatch, assumptions_mod, _one_hypothesis_payload()
-    )
-
-    await assumptions_mod.generate_with_assumptions(
-        make_state(
-            research_goal="A goal",
-            model_name="fake-model",
-            lab_constraints=["Zebrafish facility only"],
-        ),
-        1,
-    )
-
-    assert "Novelty claims must be hedged" in calls[-1]["prompt"]
-    assert "## Scientist's Lab Constraints" in calls[-1]["prompt"]
-    assert "Zebrafish facility only" in calls[-1]["prompt"]
-
-
-async def test_assumptions_generation_is_never_cached(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Identical generation prompts rely on sampling; cache replay collapses
-    the pool through dedup."""
-    from co_scientist.agents.generation import assumptions as assumptions_mod
-
-    calls = stub_call_llm_json(
-        monkeypatch, assumptions_mod, _one_hypothesis_payload()
-    )
-
-    await assumptions_mod.generate_with_assumptions(
-        make_state(research_goal="A goal", model_name="fake-model"), 1
-    )
-
-    assert calls[-1]["options"].use_cache is False
-
-
 def _tree_response(
     count: int = 2, load_bearing_from: int = 0
 ) -> dict[str, Any]:
@@ -503,26 +329,10 @@ async def test_tree_makes_three_bounded_calls(
     assert len(result) == 1
     assert result[0].generation_method is GenerationMethod.ASSUMPTIONS
     assert llm_calls == 3
-
-
-async def test_tree_section_reaches_the_final_prompt(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = _install_sequence(
-        monkeypatch,
-        [
-            _tree_response(2),
-            _sub_response((0, ["sub A"])),
-            _final_response(),
-        ],
-    )
-    await generate_with_assumptions(make_state(), 1)
-
-    final_prompt = calls[-1]["prompt"]
-    assert "assumption 0" in final_prompt
-    assert "(load-bearing)" in final_prompt
-    assert "sub A" in final_prompt
-    assert "assumption 1" in final_prompt
+    assert all(call["options"].use_cache is False for call in calls)
+    final = calls[-1]["prompt"]
+    assert "assumption 0" in final and "assumption 1" in final
+    assert "(load-bearing)" in final and "sub A" in final
 
 
 async def test_sub_call_lists_parents_positionally(
@@ -624,21 +434,6 @@ async def test_empty_tree_degrades_to_single_final_call(
     assert "Assumption Tree" not in final_prompt
 
 
-async def test_tree_levels_are_never_cached(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = _install_sequence(
-        monkeypatch,
-        [
-            _tree_response(1),
-            _sub_response((0, ["sub"])),
-            _final_response(),
-        ],
-    )
-    await generate_with_assumptions(make_state(), 1)
-    assert all(call["options"].use_cache is False for call in calls)
-
-
 async def test_literature_context_grounds_every_level(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -649,14 +444,16 @@ async def test_literature_context_grounds_every_level(
         [
             _tree_response(1),
             _sub_response((0, ["sub"])),
-            _final_response(),
+            make_generation_response(
+                "grounded", literature_grounding="Prior work [C1]."
+            ),
         ],
     )
     reference_index = ReferenceIndex(
         text="[C1] Author et al. (2020). A relevant paper.",
         sources={"C1": {"title": "A relevant paper", "type": "paper"}},
     )
-    await generate_with_assumptions(
+    result, _ = await generate_with_assumptions(
         make_state(),
         1,
         articles_with_reasoning="synthesis text",
@@ -664,6 +461,8 @@ async def test_literature_context_grounds_every_level(
     )
     for call in calls:
         assert "[C1]" in call["prompt"]
+    assert result[0].generation_method is GenerationMethod.ASSUMPTIONS
+    assert result[0].citation_map["C1"]["title"] == "A relevant paper"
 
 
 async def test_expansion_and_wrong_assumption_context_reach_the_tree(
@@ -742,80 +541,68 @@ def _probe(
     return probe
 
 
-def test_weakened_hypothesis_contributes_nonfundamental_probes() -> None:
+@pytest.mark.parametrize(
+    ("verdict", "flag", "fundamental", "included"),
+    [
+        ("weakened", None, False, True),
+        ("holds", None, False, False),
+        ("undermined", None, False, False),
+        ("holds", False, False, True),
+        ("weakened", True, False, False),
+        ("weakened", None, True, False),
+    ],
+)
+async def test_generation_reworks_only_falsified_nonfundamental_assumptions(
+    monkeypatch: pytest.MonkeyPatch,
+    verdict: str,
+    flag: bool | None,
+    fundamental: bool,
+    included: bool,
+) -> None:
+    _stub_debate_llm(monkeypatch, "debated")
+    calls = _install_sequence(
+        monkeypatch, [{"assumptions": []}, _final_response()]
+    )
+    probe = _probe(question="Does efflux matter?", fundamental=fundamental)
+    if flag is not None:
+        probe["assumption_holds"] = flag
     hyp = make_hypothesis(
-        deep_verification_probes=[
-            _probe(question="Is acrB essential here?"),
-            _probe(question="Is the core mechanism sound?", fundamental=True),
-        ],
+        deep_verification_probes=[probe], deep_verification_verdict=verdict
+    )
+    await generate_node(
+        make_state(
+            hypotheses=[hyp],
+            initial_hypotheses_count=4,
+            supervisor_guidance={"key_areas": ["mechanism"]},
+        )
+    )
+    final = calls[-1]["prompt"]
+    assert ("Verified Incorrect" in final) == included
+    assert ("Does efflux matter?" in final) == included
+    if included:
+        assert "Evidence shows X does not hold." in final
+        assert "avoid" in final.lower()
+        assert "rework" in final.lower()
+
+
+async def test_generation_caps_falsified_assumption_guidance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _stub_debate_llm(monkeypatch, "debated")
+    calls = _install_sequence(
+        monkeypatch, [{"assumptions": []}, _final_response()]
+    )
+    hyp = make_hypothesis(
+        deep_verification_probes=[_probe(question=f"Q{i}?") for i in range(10)],
         deep_verification_verdict="weakened",
     )
-    lines = falsified_nonfundamental_assumptions([hyp])
-    assert len(lines) == 1
-    assert "Is acrB essential here?" in lines[0]
-    assert "Evidence shows X does not hold." in lines[0]
-
-
-def test_holds_verdict_contributes_nothing() -> None:
-    hyp = make_hypothesis(
-        deep_verification_probes=[_probe()],
-        deep_verification_verdict="holds",
+    await generate_node(
+        make_state(
+            hypotheses=[hyp],
+            initial_hypotheses_count=4,
+            supervisor_guidance={"key_areas": ["mechanism"]},
+        )
     )
-    assert falsified_nonfundamental_assumptions([hyp]) == []
-
-
-def test_undermined_verdict_contributes_nothing() -> None:
-    hyp = make_hypothesis(
-        deep_verification_probes=[_probe()],
-        deep_verification_verdict="undermined",
-    )
-    assert falsified_nonfundamental_assumptions([hyp]) == []
-
-
-def test_explicit_assumption_holds_false_is_admitted_alone() -> None:
-    hyp = make_hypothesis(
-        deep_verification_probes=[_probe(assumption_holds=False)],
-        deep_verification_verdict="holds",
-    )
-    lines = falsified_nonfundamental_assumptions([hyp])
-    assert len(lines) == 1
-
-
-def test_explicit_assumption_holds_true_overrides_weakened() -> None:
-    hyp = make_hypothesis(
-        deep_verification_probes=[_probe(assumption_holds=True)],
-        deep_verification_verdict="weakened",
-    )
-    assert falsified_nonfundamental_assumptions([hyp]) == []
-
-
-def test_guidance_is_capped() -> None:
-    probes = [_probe(question=f"Q{i}?") for i in range(10)]
-    hyp = make_hypothesis(
-        deep_verification_probes=probes,
-        deep_verification_verdict="weakened",
-    )
-    lines = falsified_nonfundamental_assumptions([hyp])
-    assert len(lines) == MAX_FALSIFIED_ASSUMPTION_LINES
-
-
-def test_section_empty_until_something_is_falsified() -> None:
-    assert build_falsified_assumptions_section(None) == ""
-    assert build_falsified_assumptions_section([]) == ""
-    clean = make_hypothesis(
-        deep_verification_probes=[_probe()],
-        deep_verification_verdict="holds",
-    )
-    assert build_falsified_assumptions_section([clean]) == ""
-
-
-def test_section_carries_the_avoid_or_rework_instruction() -> None:
-    hyp = make_hypothesis(
-        deep_verification_probes=[_probe(question="Does efflux matter?")],
-        deep_verification_verdict="weakened",
-    )
-    section = build_falsified_assumptions_section([hyp])
-    assert "Verified Incorrect" in section
-    assert "avoid" in section.lower()
-    assert "rework" in section.lower()
-    assert "Does efflux matter?" in section
+    final = calls[-1]["prompt"]
+    assert all(f"Q{i}?" in final for i in range(MAX_FALSIFIED_ASSUMPTION_LINES))
+    assert f"Q{MAX_FALSIFIED_ASSUMPTION_LINES}?" not in final

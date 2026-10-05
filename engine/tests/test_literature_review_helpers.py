@@ -1,437 +1,341 @@
 from __future__ import annotations
 
-import json
 from typing import Any
 
 import pytest
 
 from co_scientist.agents.generation.literature_review import (
-    enrichment as lr_enrichment,
+    literature_review_node,
+    synthesis,
 )
 from co_scientist.agents.generation.literature_review import node as lr
 from co_scientist.config import ToolRegistry
-from co_scientist.config.schema import ResponseFormat, ToolConfig
+from co_scientist.config.schema import ResponseFormat
 from co_scientist.constants import LITERATURE_REVIEW_PAPERS_COUNT_DEV
-from co_scientist.evidence import (
-    article_support,
-    retrieval_support,
-    search_support,
-)
+from co_scientist.evidence import article_support, search_support
 from co_scientist.evidence import retrieval_support as errors
-from co_scientist.models import Article
-from tests._research_fakes import make_tool_config
+from co_scientist.generator.core import HypothesisGenerator
+from tests._llm_fake import install_fake_llm
+from tests._mcp import stub_mcp_availability
+from tests._research_fakes import _stub_node, make_tool_config
 from tests._state import make_state
 
 
-def _tool_config(
-    response_format: ResponseFormat | None = None,
-    source_type: str = "academic",
-) -> ToolConfig:
-    return make_tool_config(
-        "t",
-        source_type=source_type,
-        response_format=response_format or ResponseFormat(),
+@pytest.mark.parametrize(
+    ("response_format", "payload", "ids"),
+    [
+        (ResponseFormat(), {"p1": {"title": "A"}}, ["p1"]),
+        (ResponseFormat(is_dict=True), {"p1": {"title": "A"}}, ["p1"]),
+        (
+            ResponseFormat(results_path="results", is_dict=True),
+            {"results": {"p1": {"title": "A"}}},
+            ["p1"],
+        ),
+        (
+            ResponseFormat(field_mapping={"source_id": "pmid"}),
+            [{"pmid": "111", "title": "A"}, {"pmid": "222", "title": "B"}],
+            ["111", "222"],
+        ),
+        (
+            ResponseFormat(field_mapping={"source_id": "@id"}),
+            [{"arxiv_id": "2401.0001", "title": "A"}],
+            ["2401.0001"],
+        ),
+        (ResponseFormat(), [{"title": "A"}, {"title": "B"}], ["0", "1"]),
+    ],
+    ids=[
+        "keyed",
+        "declared-dict",
+        "nested",
+        "pubmed-list",
+        "arxiv-list",
+        "positional",
+    ],
+)
+async def test_review_preserves_provider_identifiers(
+    monkeypatch: pytest.MonkeyPatch,
+    response_format: ResponseFormat,
+    payload: Any,
+    ids: list[str],
+) -> None:
+    _stub_node(monkeypatch, server_available=True, search_payload=payload)
+    registry = ToolRegistry(skip_user_config=True)
+    registry.config.workflows["literature_review"].search_sources = []
+    registry.config.workflows["literature_review"].primary_search = "provider"
+    registry.config.tools = {
+        "search": {
+            "provider": make_tool_config(
+                "provider", response_format=response_format
+            )
+        }
+    }
+    result = await literature_review_node(make_state(tool_registry=registry))
+    assert sorted(article.source_id for article in result["articles"]) == ids
+    assert all(not article.used_in_analysis for article in result["articles"])
+
+
+@pytest.mark.parametrize(
+    ("mapping", "source_type", "expected"),
+    [
+        ({"source": "'pubmed'"}, "academic", "pubmed"),
+        ({"source": "paper.source"}, "preprint", "preprint"),
+        ({}, "arxiv", "arxiv"),
+    ],
+)
+async def test_review_retains_the_configured_source_label(
+    monkeypatch: pytest.MonkeyPatch,
+    mapping: dict[str, str],
+    source_type: str,
+    expected: str,
+) -> None:
+    _stub_node(
+        monkeypatch,
+        server_available=True,
+        search_payload={"p1": {"title": "A"}},
     )
+    registry = ToolRegistry(skip_user_config=True)
+    registry.config.workflows["literature_review"].search_sources = []
+    registry.config.workflows["literature_review"].primary_search = "provider"
+    registry.config.tools = {
+        "search": {
+            "provider": make_tool_config(
+                "provider",
+                source_type=source_type,
+                response_format=ResponseFormat(field_mapping=mapping),
+            )
+        }
+    }
+    result = await literature_review_node(make_state(tool_registry=registry))
+    assert result["articles"][0].source == expected
 
 
-def test_extract_source_name_none_returns_unknown() -> None:
+@pytest.mark.parametrize("payload", ["not a collection", 42, [{"title": "A"}]])
+def test_legacy_unconfigured_response_cannot_invent_paper_records(
+    payload: Any,
+) -> None:
+    assert search_support.normalize_search_response(payload, None) == {}
     assert search_support.extract_source_name(None) == "unknown"
 
 
-def test_extract_source_name_from_quoted_field_mapping() -> None:
-    tc = _tool_config(ResponseFormat(field_mapping={"source": "'pubmed'"}))
-    assert search_support.extract_source_name(tc) == "pubmed"
+async def test_review_publishes_metadata_and_keeps_metadata_only_papers_unused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    papers = {
+        "PMID42": {
+            "title": "Cancer signaling",
+            "authors": ["Smith J", "Doe A"],
+            "year": "2020",
+            "publication": "Nature",
+            "abstract": "An abstract.",
+            "fulltext": "Full body text.",
+            "url": "https://example.com/article",
+            "doi": "10.1000/example",
+        },
+        "metadata": {},
+        "preprint": {"publication_types": ["Preprint"], "venue": "JMLR"},
+        "explicit": {
+            "publication_type": "Journal Article",
+            "publication_types": ["x"],
+        },
+    }
+    _stub_node(monkeypatch, server_available=True, search_payload=papers)
+    result = await literature_review_node(make_state())
+    articles = {article.source_id: article for article in result["articles"]}
+    published = articles["PMID42"]
+    assert (
+        published.title,
+        published.url,
+        published.authors,
+        published.year,
+        published.venue,
+    ) == (
+        "Cancer signaling",
+        "https://example.com/article",
+        ["Smith J", "Doe A"],
+        2020,
+        "Nature",
+    )
+    assert (
+        published.abstract,
+        published.content,
+        published.source,
+        published.doi,
+        published.used_in_analysis,
+    ) == (
+        "An abstract.",
+        "Full body text.",
+        "pubmed",
+        "10.1000/example",
+        True,
+    )
+    empty = articles["metadata"]
+    assert (
+        empty.title,
+        empty.authors,
+        empty.year,
+        empty.venue,
+        empty.abstract,
+        empty.content,
+        empty.used_in_analysis,
+    ) == (
+        "unknown",
+        [],
+        None,
+        None,
+        None,
+        None,
+        False,
+    )
+    assert articles["preprint"].publication_type == "Preprint"
+    assert articles["preprint"].venue == "JMLR"
+    assert articles["explicit"].publication_type == "Journal Article"
+    assert empty.publication_type is None
 
 
-def test_extract_source_name_unquoted_mapping_falls_back_to_source_type() -> (
+@pytest.mark.parametrize(
+    ("paper_id", "source", "metadata", "url", "year"),
+    [
+        (
+            "999",
+            "pubmed",
+            {"url": "https://custom.example/x", "year": "2019"},
+            "https://custom.example/x",
+            2019,
+        ),
+        (
+            "12345",
+            "pubmed",
+            {"year": 2007},
+            "https://pubmed.ncbi.nlm.nih.gov/12345/",
+            2007,
+        ),
+        (
+            "10.1000/xyz123",
+            "crossref",
+            {"date_revised": "2021/03/01"},
+            "https://doi.org/10.1000/xyz123",
+            2021,
+        ),
+        (
+            "arxiv:2401.0001",
+            "arxiv",
+            {"year": "not-a-year"},
+            "arxiv:2401.0001",
+            None,
+        ),
+        ("empty", "arxiv", {}, "empty", None),
+        (
+            "date",
+            "arxiv",
+            {"year": "", "date_revised": "1998/12/31"},
+            "date",
+            1998,
+        ),
+    ],
+)
+async def test_review_publishes_source_locators_and_dates(
+    monkeypatch: pytest.MonkeyPatch,
+    paper_id: str,
+    source: str,
+    metadata: dict[str, Any],
+    url: str,
+    year: int | None,
+) -> None:
+    _stub_node(
+        monkeypatch, server_available=True, search_payload={paper_id: metadata}
+    )
+    registry = ToolRegistry(skip_user_config=True)
+    registry.config.workflows["literature_review"].search_sources = []
+    registry.config.workflows["literature_review"].primary_search = "provider"
+    registry.config.tools = {
+        "search": {"provider": make_tool_config("provider", source_type=source)}
+    }
+    result = await literature_review_node(make_state(tool_registry=registry))
+    article = result["articles"][0]
+    assert (article.source_id, article.url, article.year) == (
+        paper_id,
+        url,
+        year,
+    )
+
+
+def test_published_retraction_metadata_is_explicit_even_outside_search() -> (
     None
 ):
-    tc = _tool_config(
-        ResponseFormat(field_mapping={"source": "paper.source"}),
-        source_type="preprint",
-    )
-    assert search_support.extract_source_name(tc) == "preprint"
-
-
-def test_extract_source_name_no_mapping_uses_source_type() -> None:
-    tc = _tool_config(ResponseFormat(), source_type="arxiv")
-    assert search_support.extract_source_name(tc) == "arxiv"
-
-
-def test_normalize_non_collection_returns_empty() -> None:
-    assert (
-        search_support.normalize_search_response("not a collection", None) == {}
-    )
-    assert search_support.normalize_search_response(42, None) == {}
-
-
-def test_normalize_no_tool_config_passes_through_dict() -> None:
-    data = {"123": {"title": "A"}}
-    assert search_support.normalize_search_response(data, None) == data
-
-
-def test_normalize_no_tool_config_list_returns_empty() -> None:
-    assert (
-        search_support.normalize_search_response([{"title": "A"}], None) == {}
-    )
-
-
-def test_normalize_dict_response_default_format() -> None:
-    tc = _tool_config(ResponseFormat())
-    data = {"p1": {"title": "A"}, "p2": {"title": "B"}}
-    assert search_support.normalize_search_response(data, tc) == data
-
-
-def test_normalize_is_dict_returns_dict() -> None:
-    tc = _tool_config(ResponseFormat(is_dict=True))
-    data = {"p1": {"title": "A"}}
-    assert search_support.normalize_search_response(data, tc) == data
-
-
-def test_normalize_results_path_extracts_nested() -> None:
-    tc = _tool_config(ResponseFormat(results_path="results", is_dict=True))
-    nested = {"p1": {"title": "A"}}
-    data = {"results": nested, "meta": "ignored"}
-    assert search_support.normalize_search_response(data, tc) == nested
-
-
-def test_normalize_list_response_keys_by_source_id() -> None:
-    tc = _tool_config(ResponseFormat(field_mapping={"source_id": "pmid"}))
-    data = [
-        {"pmid": "111", "title": "A"},
-        {"pmid": "222", "title": "B"},
-    ]
-    result = search_support.normalize_search_response(data, tc)
-    assert set(result) == {"111", "222"}
-    assert result["111"]["title"] == "A"
-
-
-def test_normalize_list_at_prefixed_source_id_uses_arxiv_id() -> None:
-    tc = _tool_config(ResponseFormat(field_mapping={"source_id": "@id"}))
-    data = [{"arxiv_id": "2401.0001", "title": "A"}]
-    result = search_support.normalize_search_response(data, tc)
-    assert list(result) == ["2401.0001"]
-
-
-def test_normalize_list_missing_ids_uses_positional_index() -> None:
-    tc = _tool_config(ResponseFormat())
-    data = [{"title": "A"}, {"title": "B"}]
-    result = search_support.normalize_search_response(data, tc)
-    assert list(result) == ["0", "1"]
-    assert result["0"]["title"] == "A"
-
-
-def test_build_article_maps_all_fields() -> None:
-    metadata: dict[str, Any] = {
-        "title": "Cancer signaling",
-        "authors": ["Smith J", "Doe A"],
-        "year": "2020",
-        "publication": "Nature",
-        "abstract": "An abstract.",
-        "fulltext": "Full body text.",
-        "url": "https://example.com/article",
-        "doi": "10.1000/example",
-        "is_retracted": True,
-        "correction_status": "retracted",
-    }
-    article = article_support.build_article_from_metadata(
-        "PMID42", metadata, source_name="pubmed", used_in_analysis=True
-    )
-    assert isinstance(article, Article)
-    assert article.title == "Cancer signaling"
-    assert article.url == "https://example.com/article"
-    assert article.authors == ["Smith J", "Doe A"]
-    assert article.year == 2020
-    assert article.venue == "Nature"
-    assert article.abstract == "An abstract."
-    assert article.content == "Full body text."
-    assert article.source_id == "PMID42"
-    assert article.source == "pubmed"
-    assert article.doi == "10.1000/example"
-    assert article.is_retracted is True
-    assert article.correction_status == "retracted"
-    assert article.used_in_analysis is True
-
-
-def test_build_article_detects_retracted_publication_type() -> None:
-    article = article_support.build_article_from_metadata(
-        "PMID43",
-        {"publication_types": ["Journal Article", "Retracted Publication"]},
-    )
-
-    assert article.is_retracted is True
-    assert article.correction_status == "retracted"
-
-
-def test_build_article_carries_the_declared_publication_type() -> None:
-    preprint = article_support.build_article_from_metadata(
-        "PMID44", {"publication_types": ["Preprint"]}
-    )
-    assert preprint.publication_type == "Preprint"
-
-    explicit = article_support.build_article_from_metadata(
-        "PMID45",
-        {"publication_type": "Journal Article", "publication_types": ["x"]},
-    )
-    assert explicit.publication_type == "Journal Article"
-
-    assert (
-        article_support.build_article_from_metadata("x", {}).publication_type
-        is None
-    )
-
-
-def test_build_article_defaults_for_missing_fields() -> None:
-    article = article_support.build_article_from_metadata(
-        "x1", {}, source_name="arxiv", used_in_analysis=False
-    )
-    assert article.title == "unknown"
-    assert article.authors == []
-    assert article.year is None
-    assert article.venue is None
-    assert article.abstract is None
-    assert article.content is None
-    assert article.used_in_analysis is False
-
-
-def test_build_articles_marks_metadata_only_record_unanalyzed() -> None:
+    # Search excludes withdrawn records; attachments and probes also project
+    # articles through this shared publishing boundary.
     articles = article_support.build_articles_from_metadata(
         {
-            "abstract": {"title": "A", "abstract": "Evidence passage"},
-            "metadata": {"title": "B", "url": "https://example.test/b"},
+            "flag": {"is_retracted": True, "correction_status": "retracted"},
+            "type": {
+                "publication_types": [
+                    "Journal Article",
+                    "Retracted Publication",
+                ]
+            },
         },
-        "openalex",
+        "pubmed",
+    )
+    assert all(
+        article.is_retracted and article.correction_status == "retracted"
+        for article in articles
     )
 
-    assert [article.used_in_analysis for article in articles] == [True, False]
 
-
-def test_build_article_venue_falls_back_to_venue_key() -> None:
-    article = article_support.build_article_from_metadata(
-        "x1", {"venue": "JMLR"}, source_name="arxiv"
+@pytest.mark.parametrize(
+    ("metadata", "expected"),
+    [
+        ({"fulltext": "full", "abstract": "abs"}, "full"),
+        ({"abstract": "abs"}, "abs"),
+        (
+            {"fulltext": "This was shown before (Smith et al. 2019) [12]."},
+            "This was shown before  .",
+        ),
+    ],
+)
+async def test_review_analyzes_a_sanitized_copy_of_available_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+    metadata: dict[str, Any],
+    expected: str,
+) -> None:
+    _stub_node(
+        monkeypatch,
+        server_available=True,
+        search_payload={"paper": {"title": "A", **metadata}},
     )
-    assert article.venue == "JMLR"
+    prompts: list[str] = []
+
+    async def analyze(*, prompt: str, **_: Any) -> dict[str, Any]:
+        prompts.append(prompt)
+        return {"key_findings": "Evidence"}
+
+    monkeypatch.setattr(synthesis, "call_llm_json", analyze)
+    result = await literature_review_node(make_state())
+    assert expected in prompts[0]
+    assert "(Smith et al. 2019)" not in prompts[0]
+    assert "[12]" not in prompts[0]
+    if "fulltext" in metadata:
+        assert result["articles"][0].content == str(metadata["fulltext"])
 
 
-def test_build_url_prefers_metadata_url() -> None:
-    url = article_support._build_article_url(
-        "999", {"url": "https://custom.example/x"}, "pubmed"
-    )
-    assert url == "https://custom.example/x"
-
-
-def test_build_url_pubmed_construction() -> None:
-    url = article_support._build_article_url("12345", {}, "pubmed")
-    assert url == "https://pubmed.ncbi.nlm.nih.gov/12345/"
-
-
-def test_build_url_doi_construction() -> None:
-    url = article_support._build_article_url("10.1000/xyz123", {}, "crossref")
-    assert url == "https://doi.org/10.1000/xyz123"
-
-
-def test_build_url_fallback_returns_paper_id() -> None:
-    url = article_support._build_article_url("arxiv:2401.0001", {}, "arxiv")
-    assert url == "arxiv:2401.0001"
-
-
-def test_parse_year_from_year_field() -> None:
-    assert article_support.parse_year_from_metadata({"year": "2019"}) == 2019
-
-
-def test_parse_year_from_year_field_int() -> None:
-    assert article_support.parse_year_from_metadata({"year": 2007}) == 2007
-
-
-def test_parse_year_from_date_revised() -> None:
+def test_analysis_copy_obeys_the_callers_text_limit() -> None:
+    # The node uses the default cap; other evidence callers supply shorter
+    # budgets through this shared interface.
+    assert article_support.get_paper_content_for_analysis({}) == ""
     assert (
-        article_support.parse_year_from_metadata({"date_revised": "2021/03/01"})
-        == 2021
+        article_support.get_paper_content_for_analysis({"fulltext": 12345})
+        == "12345"
     )
-
-
-def test_parse_year_garbage_returns_none() -> None:
     assert (
-        article_support.parse_year_from_metadata({"year": "not-a-year"}) is None
+        article_support.get_paper_content_for_analysis(
+            {"fulltext": "short"}, max_chars=100
+        )
+        == "short"
     )
-
-
-def test_parse_year_missing_returns_none() -> None:
-    assert article_support.parse_year_from_metadata({}) is None
-
-
-def test_parse_year_falls_back_to_date_revised_when_year_empty() -> None:
-    meta = {"year": "", "date_revised": "1998/12/31"}
-    assert article_support.parse_year_from_metadata(meta) == 1998
-
-
-def test_count_papers_with_fulltext_mixed() -> None:
-    metadata: dict[str, dict[str, Any]] = {
-        "a": {"fulltext": "body"},
-        "b": {"pmc_full_text_id": "PMC1"},
-        "c": {"has_fulltext": True},
-        "d": {"pdf_url": "http://x/p.pdf"},
-        "e": {"title": "no content"},
-        "f": {"abstract": "only abstract"},
-    }
-    with_ft, without_ft = article_support.count_papers_with_fulltext(metadata)
-    assert with_ft == 4
-    assert without_ft == 2
-
-
-def test_count_papers_with_fulltext_ignores_non_dicts() -> None:
-    metadata: dict[str, Any] = {
-        "a": {"fulltext": "body"},
-        "b": "not a dict",
-    }
-    with_ft, without_ft = article_support.count_papers_with_fulltext(metadata)
-    assert with_ft == 1
-    assert without_ft == 1
-
-
-def test_count_papers_with_fulltext_empty() -> None:
-    assert article_support.count_papers_with_fulltext({}) == (0, 0)
-
-
-def test_parse_content_result_json_content_key() -> None:
-    result = json.dumps({"content": "the body", "text": "ignored"})
-    assert retrieval_support.parse_content_result(result) == "the body"
-
-
-def test_parse_content_result_json_text_key() -> None:
-    result = json.dumps({"text": "from text"})
-    assert retrieval_support.parse_content_result(result) == "from text"
-
-
-def test_parse_content_result_non_json_string_returns_raw() -> None:
-    assert (
-        retrieval_support.parse_content_result("just plain text")
-        == "just plain text"
-    )
-
-
-def test_parse_content_result_json_without_keys_returns_raw() -> None:
-    result = json.dumps({"other": "x"})
-    assert retrieval_support.parse_content_result(result) == result
-
-
-def test_parse_content_result_dict_content_key() -> None:
-    assert (
-        retrieval_support.parse_content_result({"content": "dict body"})
-        == "dict body"
-    )
-
-
-def test_parse_content_result_dict_without_keys_stringifies() -> None:
-    payload = {"other": "x"}
-    assert retrieval_support.parse_content_result(payload) == str(payload)
-
-
-def test_parse_content_result_none_returns_none() -> None:
-    assert retrieval_support.parse_content_result(None) is None
-    assert retrieval_support.parse_content_result(0) is None
-
-
-def test_parse_content_result_other_type_stringifies() -> None:
-    assert retrieval_support.parse_content_result(123) == "123"
-
-
-def test_get_content_prefers_fulltext() -> None:
-    meta = {"fulltext": "full", "abstract": "abs"}
-    assert article_support.get_paper_content_for_analysis(meta) == "full"
-
-
-def test_get_content_falls_back_to_abstract() -> None:
-    assert (
-        article_support.get_paper_content_for_analysis({"abstract": "abs"})
-        == "abs"
-    )
-
-
-def test_abstract_only_paper_is_selected_for_analysis() -> None:
-    papers = {
-        "openalex-1": {"title": "A", "abstract": "Explicit abstract"},
-        "metadata-only": {"title": "B"},
-    }
-
-    selected = article_support.get_papers_with_content(papers)
-
-    assert list(selected) == ["openalex-1"]
-
-
-def test_get_content_empty_returns_empty_string() -> None:
-    out = article_support.get_paper_content_for_analysis({})
-    assert out == ""
-    assert isinstance(out, str)
-
-
-def test_get_content_non_string_coerced_to_string() -> None:
-    out = article_support.get_paper_content_for_analysis({"fulltext": 12345})
-    assert out == "12345"
-    assert isinstance(out, str)
-
-
-def test_get_content_truncates_at_max_chars() -> None:
-    long_text = "x" * 500
     out = article_support.get_paper_content_for_analysis(
-        {"fulltext": long_text}, max_chars=100
+        {"fulltext": "x" * 500}, max_chars=100
     )
-    assert out.startswith("x" * 100)
-    assert out.endswith("[... truncated for length ...]")
-    assert "x" * 101 not in out
-    assert isinstance(out, str)
-
-
-def test_get_content_no_truncation_under_limit() -> None:
-    text = "short"
-    out = article_support.get_paper_content_for_analysis(
-        {"fulltext": text}, max_chars=100
-    )
-    assert out == text
-
-
-def test_get_content_strips_citation_markers() -> None:
-    """Source citations copied into model prose can misattribute generated
-    claims."""
-    meta = {"fulltext": "This was shown before (Smith et al. 2019) [12]."}
-    out = article_support.get_paper_content_for_analysis(meta)
-    assert "(Smith et al. 2019)" not in out
-    assert "[12]" not in out
-
-
-def test_get_content_leaves_stored_metadata_unchanged() -> None:
-    """Citation readers need the published source; only prompt copies are
-    stripped."""
-    original = "This was shown before (Smith et al. 2019) [12]."
-    meta = {"fulltext": original}
-    article_support.get_paper_content_for_analysis(meta)
-    assert meta["fulltext"] == original
-
-
-def test_parse_mcp_query_result_json_list() -> None:
-    result = json.dumps(["q1", "q2"])
-    assert search_support.parse_mcp_query_result(result) == ["q1", "q2"]
-
-
-def test_parse_mcp_query_result_json_queries_key() -> None:
-    result = json.dumps({"queries": ["a", "b"]})
-    assert search_support.parse_mcp_query_result(result) == ["a", "b"]
-
-
-def test_parse_mcp_query_result_json_object_without_queries() -> None:
-    assert search_support.parse_mcp_query_result(json.dumps({"x": 1})) == []
-
-
-def test_parse_mcp_query_result_invalid_json_returns_empty() -> None:
-    assert search_support.parse_mcp_query_result("not json") == []
-
-
-def test_parse_mcp_query_result_list_passthrough() -> None:
-    assert search_support.parse_mcp_query_result(["x", "y"]) == ["x", "y"]
-
-
-def test_parse_mcp_query_result_other_type_returns_empty() -> None:
-    assert search_support.parse_mcp_query_result({"queries": ["a"]}) == []
+    assert out == "x" * 100 + "\n\n[... truncated for length ...]"
 
 
 def test_merge_search_results_combines_and_maps_sources() -> None:
@@ -550,59 +454,6 @@ def test_merge_search_results_accumulates_cross_source_agreement() -> None:
     assert source_map["shared_a"] == "source_a_tool"
 
 
-def test_parse_pdf_discovery_json_list_first_element() -> None:
-    result = json.dumps(["http://x/p.pdf", "http://y/p.pdf"])
-    assert (
-        retrieval_support.parse_pdf_discovery_result(result) == "http://x/p.pdf"
-    )
-
-
-def test_parse_pdf_discovery_json_dict_pdf_links() -> None:
-    result = json.dumps({"pdf_links": ["http://x/a.pdf"]})
-    assert (
-        retrieval_support.parse_pdf_discovery_result(result) == "http://x/a.pdf"
-    )
-
-
-def test_parse_pdf_discovery_json_dict_links_with_url() -> None:
-    result = json.dumps({"links": [{"url": "http://x/b.pdf"}]})
-    assert (
-        retrieval_support.parse_pdf_discovery_result(result) == "http://x/b.pdf"
-    )
-
-
-def test_parse_pdf_discovery_bare_http_string() -> None:
-    assert (
-        retrieval_support.parse_pdf_discovery_result("http://x/c.pdf")
-        == "http://x/c.pdf"
-    )
-
-
-def test_parse_pdf_discovery_non_url_string_returns_none() -> None:
-    assert retrieval_support.parse_pdf_discovery_result("nope") is None
-
-
-def test_parse_pdf_discovery_list_input_string() -> None:
-    assert (
-        retrieval_support.parse_pdf_discovery_result(["http://x/d.pdf"])
-        == "http://x/d.pdf"
-    )
-
-
-def test_parse_pdf_discovery_list_input_dict() -> None:
-    assert (
-        retrieval_support.parse_pdf_discovery_result(
-            [{"url": "http://x/e.pdf"}]
-        )
-        == "http://x/e.pdf"
-    )
-
-
-def test_parse_pdf_discovery_empty_returns_none() -> None:
-    assert retrieval_support.parse_pdf_discovery_result([]) is None
-    assert retrieval_support.parse_pdf_discovery_result(None) is None
-
-
 class _FakeExceptionGroupError(Exception):
     """Duck-typed stand-in for ``ExceptionGroup`` (portable to Python 3.10).
 
@@ -712,56 +563,95 @@ def test_a_tier_that_researches_cannot_replay_one_that_did_not() -> None:
     ) != lr._literature_cache_params(deep, lr.search_config_for(deep))
 
 
-def test_format_kg_section_empty_returns_empty_string() -> None:
-    assert lr_enrichment._format_kg_section_with_keys([], 0) == ""
+async def test_review_threads_goal_and_user_literature_into_each_model_phase(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from co_scientist.agents.generation.literature_review import queries
 
-
-def test_format_kg_section_keys_start_after_paper_count() -> None:
-    sources = [{"display": "Gene X -> Gene Y"}, {"display": "Gene Y -> Gene Z"}]
-    section = lr_enrichment._format_kg_section_with_keys(sources, 2)
-    assert "## Knowledge Graph Evidence" in section
-    assert "[C3] Gene X -> Gene Y" in section
-    assert "[C4] Gene Y -> Gene Z" in section
-
-
-def test_format_kg_section_missing_display_uses_default() -> None:
-    section = lr_enrichment._format_kg_section_with_keys([{}], 0)
-    assert "[C1] External source" in section
-
-
-def test_parse_enrichment_indra_empty_statements() -> None:
-    text, items = lr_enrichment._parse_enrichment_result({"statements": []})
-    assert text == ""
-    assert items == []
-
-
-def test_parse_enrichment_indra_statements_formatted() -> None:
-    raw = {
-        "statements": [
-            {
-                "subj": {"name": "KRAS"},
-                "obj": {"name": "MAPK1"},
-                "type": "Activation",
-                "belief": 0.97,
+    _stub_node(
+        monkeypatch,
+        server_available=True,
+        search_payload={
+            "paper": {
+                "title": "Measured signaling",
+                "authors": ["Scientist Author"],
+                "year": 2024,
+                "fulltext": "A specific measured mechanism.",
             }
-        ]
-    }
-    text, items = lr_enrichment._parse_enrichment_result(raw)
-    assert "KRAS" in text and "MAPK1" in text
-    assert "Activation" in text
-    assert len(items) == 1
-    assert items[0]["display"].startswith("INDRA:")
+        },
+    )
+    captured: dict[str, str] = {}
+
+    async def query(*, prompt: str, **_: Any) -> dict[str, Any]:
+        captured["query"] = prompt
+        return {"queries": ["specific signaling"]}
+
+    async def analyze(*, prompt: str, **_: Any) -> dict[str, Any]:
+        captured["analysis"] = prompt
+        return {"key_findings": "A measured finding to synthesize"}
+
+    async def synthesize(*, prompt: str, **_: Any) -> str:
+        captured["synthesis"] = prompt
+        return "Completed synthesis"
+
+    monkeypatch.setattr(queries, "call_llm_json", query)
+    monkeypatch.setattr(synthesis, "call_llm_json", analyze)
+    monkeypatch.setattr(synthesis, "call_llm", synthesize)
+    result = await literature_review_node(
+        make_state(
+            research_goal="Explain specific signaling",
+            literature=["User supplied signaling literature"],
+        )
+    )
+    assert "User supplied signaling literature" in captured["query"]
+    assert all(
+        "Explain specific signaling" in prompt for prompt in captured.values()
+    )
+    assert all(
+        text in captured["analysis"]
+        for text in (
+            "Measured signaling",
+            "Scientist Author",
+            "2024",
+            "A specific measured mechanism.",
+        )
+    )
+    assert "A measured finding to synthesize" in captured["synthesis"]
+    assert "{{MISSING" not in captured["query"]
+    assert "{{MISSING" not in captured["synthesis"]
+    assert result["articles_with_reasoning"] == "Completed synthesis"
 
 
-def test_parse_enrichment_results_list_caps_items() -> None:
-    raw = {"results": [{"n": i} for i in range(10)]}
-    text, items = lr_enrichment._parse_enrichment_result(raw)
-    cap = lr_enrichment._CONTEXT_ENRICHMENT_RESULTS_PER_ENTITY
-    assert len(items) == cap
-    assert text
+async def test_review_publishes_private_context_with_a_missing_display(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Initial task options accept plain enrichment records, including private
+    # catalog entries whose label has not been supplied.
+    stub_mcp_availability(monkeypatch, available=True)
+    state = await HypothesisGenerator(
+        model_name="test-model"
+    ).prepare_task_state(
+        "Private evidence",
+        opts={
+            "context_enrichment_sources": [{}, {"display": "Private finding"}],
+        },
+    )
+    _stub_node(
+        monkeypatch,
+        server_available=True,
+        search_payload={
+            "paper": {"title": "A", "abstract": "Evidence"},
+        },
+    )
+    result = await literature_review_node(state)
+    assert "[C2] External source" in result["articles_with_reasoning"]
+    assert "[C3] Private finding" in result["articles_with_reasoning"]
+    assert result["context_enrichment_sources"][:2] == [
+        {},
+        {"display": "Private finding"},
+    ]
 
 
-def test_parse_enrichment_plain_string_non_json() -> None:
-    text, items = lr_enrichment._parse_enrichment_result("free-form text")
-    assert text == "free-form text"
-    assert items == [{"display": "free-form text", "data": {}}]
+@pytest.fixture(autouse=True)
+def _hermetic_node_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    install_fake_llm(monkeypatch)
