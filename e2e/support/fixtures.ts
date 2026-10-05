@@ -21,7 +21,7 @@ export interface BackendApi {
   startRun(id: string): Promise<void>;
   cancelRun(id: string): Promise<void>;
   getRun(id: string): Promise<{status: string; [k: string]: unknown}>;
-  listDemoRuns(): Promise<{id: string; title: string; research_goal: string}[]>;
+  listDemoRuns(): Promise<{id: string; research_goal: string}[]>;
   exchangeAccessCode(accessCode: string): Promise<string>;
   asResearcher(accessToken: string): BackendApi;
 }
@@ -70,7 +70,7 @@ function makeBackendApi(
     async listDemoRuns() {
       const res = await send('listDemoRuns', () => ctx.get('/api/runs/demo'));
       const payload = (await res.json()) as {
-        runs: {id: string; title: string; research_goal: string}[];
+        runs: {id: string; research_goal: string}[];
       };
       return payload.runs;
     },
