@@ -37,15 +37,14 @@ class ModelProfile:
     gateway: bool = False
     fallbacks: tuple[str, ...] = ()
     verified_provider: str | None = None
-    provider_only: str | None = None
     # Unsupported required formats hard-fail routing; registry answers can
     # drift.
     json_schema: bool | None = None
+    # False when no host accepts response_format; the schema then rides in the
+    # prompt alone.
+    json_object: bool = True
     min_temperature: float | None = None
     price: ModelPrice | None = None
-    # An admitted unsuffixed promotion still needs fresh catalog/zero-price
-    # checks.
-    promotional_free: bool = False
 
 
 class Facts(TypedDict, total=False):
@@ -55,11 +54,10 @@ class Facts(TypedDict, total=False):
     gateway: bool
     fallbacks: tuple[str, ...]
     verified_provider: str | None
-    provider_only: str | None
     json_schema: bool | None
+    json_object: bool
     min_temperature: float | None
     price: ModelPrice | None
-    promotional_free: bool
 
 
 @dataclass(frozen=True)
@@ -82,7 +80,6 @@ def _gateway(
     fallbacks: tuple[str, ...] = (),
     json_schema: bool = False,
     verified_provider: str | None = None,
-    provider_only: str | None = None,
 ) -> Facts:
     """A required unsupported response format hard-fails routing; use proven
     endpoint capabilities.
@@ -96,7 +93,6 @@ def _gateway(
         "price": price,
         "fallbacks": fallbacks,
         "verified_provider": verified_provider,
-        "provider_only": provider_only,
     }
 
 
@@ -136,11 +132,16 @@ ROUTES: Final[dict[str, Facts]] = {
     "openrouter/minimax/minimax-m2.7:free": _gateway(_FREE),
     "openrouter/dots-studio/dots-3-note-preview:free": _gateway(_FREE),
     "openrouter/nvidia/nemotron-3.5-lightning:free": _gateway(_FREE),
-    # The unsuffixed preview is an admitted promotion; pin Stealth and recheck
-    # current prices.
-    "openrouter/stealth/space-bunny-alpha": {
-        **_gateway(_FREE, provider_only="Stealth"),
-        "promotional_free": True,
+    # Its only host, Nvidia, rejects every response_format.
+    "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free": {
+        **_gateway(
+            _FREE,
+            fallbacks=(
+                "dots-studio/dots-3-note-preview:free",
+                "nvidia/nemotron-3-super-120b-a12b:free",
+            ),
+        ),
+        "json_object": False,
     },
     # Historical promotional rates need revalidation before selecting this paid
     # route.
@@ -244,13 +245,6 @@ def priced_routes() -> dict[str, ModelPrice]:
     }
 
 
-def promotional_free_route(route: str) -> bool:
-    """Admission uses exact catalog IDs, unlike case-folded capability
-    lookup.
-    """
-    return bool(ROUTES.get(f"openrouter/{route}", {}).get("promotional_free"))
-
-
 __all__ = [
     "ModelPrice",
     "ModelProfile",
@@ -258,5 +252,4 @@ __all__ = [
     "gateway_routes",
     "model_profile",
     "priced_routes",
-    "promotional_free_route",
 ]
