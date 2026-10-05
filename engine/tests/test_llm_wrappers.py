@@ -735,3 +735,21 @@ def test_claude_structured_calls_avoid_a_forced_tool_call() -> None:
     )
 
     assert args["response_format"] == {"type": "json_object"}
+
+
+@pytest.mark.parametrize("model", ["openai/gpt-6.1-sol", "openai/gpt-6-astra"])
+def test_gpt6_calls_go_through_the_responses_api(model: str) -> None:
+    """Chat Completions refuses function calling on these models, and the
+    literature drafting loop needs tools."""
+    args = _wire_args(model)
+
+    assert args["model"] == model.replace("openai/", "openai/responses/", 1)
+
+
+def test_a_retried_gpt6_request_is_routed_once() -> None:
+    from co_scientist.llm.request.thinking import apply_provider_constraints
+
+    args = _wire_args("openai/gpt-6.1-sol")
+    apply_provider_constraints(args, "openai/gpt-6.1-sol")
+
+    assert args["model"] == "openai/responses/gpt-6.1-sol"
