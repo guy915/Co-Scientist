@@ -107,10 +107,10 @@ for (const theme of ['light', 'dark']) {
       expect(row.run_id).toBe(runId);
       expect(row.url).toBe(page.url());
       for (const marker of [
-        '=== ABOUT THESE DIAGNOSTIC LOGS ===',
-        '=== SESSION DETAILS ===',
-        '=== STATISTICS (loaded window) ===',
-        '=== LOGS (JSON) ===',
+        '## About these logs',
+        '## Session details',
+        '## Statistics (loaded window)',
+        '## Logs (JSON)',
       ])
         expect(row.diagnostics).toContain(marker);
       expect(row.diagnostics).toContain('modal_open: Feedback');
