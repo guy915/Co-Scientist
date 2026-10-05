@@ -461,7 +461,12 @@ CAPABILITIES: list[tuple[tuple[str, ...], dict[str, Any]]] = [
     (
         (
             "openrouter/nex-agi/nex-n2.5-pro:free",
+            "openrouter/nex-agi/nex-n2.5-mini:free",
+            "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
+            "openrouter/google/gemma-4-31b-it:free",
             "openrouter/minimax/minimax-m2.7:free",
+            "openrouter/dots-studio/dots-3-note-preview:free",
+            "openrouter/nvidia/nemotron-3.5-lightning:free",
         ),
         _row(_FREE_REASONING),
     ),
@@ -520,6 +525,10 @@ CAPABILITIES: list[tuple[tuple[str, ...], dict[str, Any]]] = [
     (
         (
             "deepseek/deepseek-v4-flash",
+            "deepseek/deepseek-flash",
+            "deepseek/deepseek-v4-pro",
+            "deepseek/deepseek-chat",
+            "deepseek/deepseek-reasoner",
             "deepseek/deepseek-v5-x",
             "vendor/mydeepseek-r9",
             "DeepSeek/DeepSeek-V4-Flash",
@@ -540,9 +549,18 @@ CAPABILITIES: list[tuple[tuple[str, ...], dict[str, Any]]] = [
     (
         (
             "gemini/gemini-2.5-flash",
+            "gemini/gemini-2.5-flash-lite",
+            "gemini/gemini-2.5-pro",
             "openai/gpt-4o",
+            "azure/gpt-4o",
+            "openai/gpt-4o-mini",
+            "anthropic/claude-sonnet-4-5",
+            "anthropic/claude-haiku-4-5",
+            "gpt-4o",
             "ollama/llama3",
+            "openrouter/x/y",
             "openrouter/qwen/qwen3.8-27b",
+            "gemini/gemini-2.0-flash",
         ),
         _row(),
     ),
@@ -553,6 +571,8 @@ CAPABILITIES: list[tuple[tuple[str, ...], dict[str, Any]]] = [
     (
         (
             "openrouter/deepseek/deepseek-v4-flash",
+            "openrouter/deepseek/deepseek-v4-flash-0731",
+            "openrouter/deepseek/deepseek-v4-pro",
             "openrouter/deepseek/deepseek-v5-x",
         ),
         _row(_DEEPSEEK_GATEWAY),
@@ -586,27 +606,29 @@ CAPABILITIES: list[tuple[tuple[str, ...], dict[str, Any]]] = [
         _row(_FREE_REASONING, free=[False, False], free_row=_INCOMPLETE),
     ),
     (
-        ("openai/gpt-6.1-sol", "openai/gpt-6-astra"),
+        ("openai/gpt-6.1-sol", "openai/gpt-6-astra", "openai/gpt-6-luna"),
         _row(_ALWAYS_THINKS),
     ),
     (
         (
             "gemini/gemini-3.1-flash-lite",
+            "gemini/gemini-3.8-flash",
+            "gemini/gemini-3.1-pro-preview",
+            "gemini/gemini-3-x",
             "gemini/gemini-3.5-flash",
             "Gemini/Gemini-3.1-Flash-Lite",
         ),
         _row(_ALWAYS_THINKS, temperature=[1.0, 1.0, 1.0]),
     ),
     (
-        ("anthropic/claude-sonnet-5-5", "anthropic/claude-fable-5-1"),
+        (
+            "anthropic/claude-sonnet-5-5",
+            "anthropic/claude-opus-5-5",
+            "anthropic/claude-fable-5-1",
+        ),
         _row(_ALWAYS_THINKS, schema=False, requests=_JSON_OBJECT_THINKING),
     ),
 ]
-
-
-def _direct_money(prompt: float, completion: float) -> list[Any]:
-    cap = {"prompt": prompt * 1.05, "completion": completion * 1.05}
-    return [[prompt, completion, 0.0], prompt + completion, {"max_price": cap}]
 
 
 _FREE: Any = [
@@ -616,13 +638,21 @@ _FREE: Any = [
 ]
 _UNPRICED: Any = [None, 0.0, {}]
 _CAP_1: Any = {"max_price": {"prompt": 0.462, "completion": 1.3860000000000001}}
+_CAP_2: Any = {"max_price": {"prompt": 1.3860000000000001, "completion": 4.158}}
 _CAP_3: Any = {
     "max_price": {"prompt": 0.2625, "completion": 1.5750000000000002}
 }
+_CAP_4: Any = {"max_price": {"prompt": 2.625, "completion": 10.5}}
+
+
+def _direct_money(prompt: float, completion: float) -> list[Any]:
+    cap = {"prompt": prompt * 1.05, "completion": completion * 1.05}
+    return [[prompt, completion, 0.0], prompt + completion, {"max_price": cap}]
+
 
 MONEY: dict[str, Any] = {
     "openrouter/nex-agi/nex-n2.5-pro:free": _FREE,
-    "openrouter/minimax/minimax-m2.7:free": _FREE,
+    "openrouter/nex-agi/nex-n2.5-mini:free": _FREE,
     "openrouter/qwen/qwen3.8-27b:free": [
         [0.0, 0.0, 0.0],
         0.0,
@@ -636,17 +666,40 @@ MONEY: dict[str, Any] = {
     ],
     "openrouter/z-ai/glm-5.2:free": _FREE,
     "openrouter/minimax/minimax-m3:free": _FREE,
-    _ULTRA: _FREE,
+    "openrouter/nvidia/nemotron-3-super-120b-a12b:free": _FREE,
+    "openrouter/google/gemma-4-31b-it:free": _FREE,
+    "openrouter/minimax/minimax-m2.7:free": _FREE,
+    "openrouter/dots-studio/dots-3-note-preview:free": _FREE,
+    "openrouter/nvidia/nemotron-3.5-lightning:free": _FREE,
+    "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free": _FREE,
     "openrouter/z-ai/glm-5.3-flash": [
         [0.15, 0.5, 0.015],
         0.5825,
         {"max_price": {"prompt": 0.1575, "completion": 0.525}},
     ],
     "deepseek/deepseek-v4-flash": [[0.44, 1.32, 0.0], 1.76, _CAP_1],
+    "deepseek/deepseek-v4-pro": [[1.32, 3.96, 0.0], 5.28, _CAP_2],
+    "deepseek/deepseek-chat": [[0.44, 1.32, 0.0], 1.76, _CAP_1],
+    "deepseek/deepseek-reasoner": [[1.32, 3.96, 0.0], 5.28, _CAP_2],
     "gemini/gemini-2.5-flash": [
         [0.3, 2.5, 0.0],
         2.8,
         {"max_price": {"prompt": 0.315, "completion": 2.625}},
+    ],
+    "gemini/gemini-2.5-flash-lite": [
+        [0.1, 0.4, 0.0],
+        0.5,
+        {
+            "max_price": {
+                "prompt": 0.10500000000000001,
+                "completion": 0.42000000000000004,
+            }
+        },
+    ],
+    "gemini/gemini-2.5-pro": [
+        [1.25, 10.0, 0.0],
+        11.25,
+        {"max_price": {"prompt": 1.3125, "completion": 10.5}},
     ],
     "gemini/gemini-3.1-flash-lite": [[0.25, 1.5, 0.0], 1.75, _CAP_3],
     "openrouter/deepseek/deepseek-v4-flash": [
@@ -654,36 +707,63 @@ MONEY: dict[str, Any] = {
         0.21500000000000002,
         {"max_price": {"prompt": 0.08715, "completion": 0.17325000000000002}},
     ],
-    "openai/gpt-4o": [
-        [2.5, 10.0, 0.0],
-        12.5,
-        {"max_price": {"prompt": 2.625, "completion": 10.5}},
+    "openrouter/deepseek/deepseek-v4-flash-0731": [
+        [0.13, 0.28, 0.028],
+        0.35900000000000004,
+        {"max_price": {"prompt": 0.1365, "completion": 0.29400000000000004}},
+    ],
+    "openrouter/deepseek/deepseek-v4-pro": [
+        [1.6, 3.2, 0.13],
+        4.065,
+        {
+            "max_price": {
+                "prompt": 1.6800000000000002,
+                "completion": 3.3600000000000003,
+            }
+        },
+    ],
+    "openai/gpt-4o": [[2.5, 10.0, 0.0], 12.5, _CAP_4],
+    "azure/gpt-4o": [[2.5, 10.0, 0.0], 12.5, _CAP_4],
+    "openai/gpt-4o-mini": [
+        [0.15, 0.6, 0.0],
+        0.75,
+        {"max_price": {"prompt": 0.1575, "completion": 0.63}},
+    ],
+    "anthropic/claude-sonnet-4-5": [
+        [3.0, 15.0, 0.0],
+        18.0,
+        {"max_price": {"prompt": 3.1500000000000004, "completion": 15.75}},
     ],
     **{
         name: _direct_money(prompt, completion)
         for name, (prompt, completion) in {
             "anthropic/claude-sonnet-5-5": (2.0, 10.0),
+            "anthropic/claude-opus-5-5": (4.0, 20.0),
             "anthropic/claude-fable-5-1": (10.0, 50.0),
+            "anthropic/claude-haiku-4-5": (1.0, 5.0),
+            "gemini/gemini-3.8-flash": (0.75, 3.75),
+            "gemini/gemini-3.1-pro-preview": (2.0, 12.0),
             "openai/gpt-6.1-sol": (2.0, 10.0),
             "openai/gpt-6-astra": (10.0, 50.0),
+            "openai/gpt-6-luna": (0.1, 0.5),
+            "deepseek/deepseek-flash": (0.3, 1.2),
         }.items()
     },
-    **dict.fromkeys(
-        (
-            "openrouter/google/gemma-4-26b-a4b-it:free",
-            "ollama/llama3",
-            "openrouter/x/y:free",
-            "openrouter/qwen/qwen3.8-27b",
-            "deepseek/deepseek-v5-x",
-            "openrouter/deepseek/deepseek-v5-x",
-            "openrouter/deepseek/deepseek-v4-flash:free",
-            "vendor/mydeepseek-r9",
-            "gemini/gemini-3.5-flash",
-            "openrouter/google/gemini-3-x",
-            "openrouter/vendor/gemini-3-deepseek-hybrid",
-        ),
-        _UNPRICED,
-    ),
+    "openrouter/google/gemma-4-26b-a4b-it:free": _UNPRICED,
+    "gpt-4o": _UNPRICED,
+    "ollama/llama3": _UNPRICED,
+    "openrouter/x/y": _UNPRICED,
+    "openrouter/x/y:free": _UNPRICED,
+    "openrouter/qwen/qwen3.8-27b": _UNPRICED,
+    "deepseek/deepseek-v5-x": _UNPRICED,
+    "openrouter/deepseek/deepseek-v5-x": _UNPRICED,
+    "openrouter/deepseek/deepseek-v4-flash:free": _UNPRICED,
+    "vendor/mydeepseek-r9": _UNPRICED,
+    "gemini/gemini-3-x": _UNPRICED,
+    "gemini/gemini-3.5-flash": _UNPRICED,
+    "openrouter/google/gemini-3-x": _UNPRICED,
+    "gemini/gemini-2.0-flash": _UNPRICED,
+    "openrouter/vendor/gemini-3-deepseek-hybrid": _UNPRICED,
     "DeepSeek/DeepSeek-V4-Flash": [None, 0.0, _CAP_1],
     "OpenRouter/NEX-AGI/NEX-N2.5-PRO:FREE": [
         None,
@@ -723,7 +803,9 @@ class TestModelProfileSnapshot:
         assert _money(model) == row
 
     def test_every_model_has_both_rows(self) -> None:
-        assert {model for model, _ in _CAPABILITY_ROWS} == set(MONEY)
+        capability_models = {model for model, _ in _CAPABILITY_ROWS}
+        assert capability_models == set(MONEY)
+        assert set(MODEL_PRICING) <= capability_models
 
 
 def test_cost_is_billed_by_tokens_with_cached_prefixes_at_the_cache_rate() -> (
