@@ -227,6 +227,22 @@ production images separately. Production Python runtime closures are
 hash-pinned under `requirements/`; review and regenerate their locks with
 runtime metadata changes. Development/test extras still use package metadata.
 
+`make coverage` runs app, engine, MCP and frontend tests serially with offline
+models and dotenv loading disabled. Install MCP dev extras in `.venv-mcp`
+before running it. It prints production line coverage for every module,
+including modules tests never import, and writes raw reports plus `report.json`
+under `.cache/test-campaign/coverage/`. The committed
+`docs/test-campaign/coverage-baseline.json` records the fixed campaign baseline:
+each suite may lose at most 0.5 percentage points; listed protected modules may
+lose none. Deleted protected source files no longer need module coverage.
+
+After the opening measurement, record its fixed baseline with
+`.venv/bin/python evaluations/tests/_coverage.py --report-only --record-baseline
+--protect path/to/module.py`, repeating `--protect` for each protected module.
+Recording refuses to overwrite an existing baseline. Select protected modules
+from the behavior inventory before any test reductions.
+Subsequent `make coverage` runs enforce the committed baseline automatically.
+
 Changes to shared setup actions and the root Ruff configuration trigger their
 consuming Python jobs. Runtime source, dependency locks, vendored skills, and
 Docker exclusion files trigger image builds. `workflow_dispatch` permits a

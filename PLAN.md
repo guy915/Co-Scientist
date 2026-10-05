@@ -5,7 +5,9 @@ keeping every behavior they protect. Every decision below was settled with the
 owner on 4 October 2026, so the campaign runs unattended: the agent decides by
 these rules and reports at the end.
 
-**Status:** Not started.
+**Status:** Phase 1 in progress. Opening instruments and baseline: PR #185.
+The improvements campaign is preserved in merged history; PR #184 deliberately
+retired `IMPROVEMENTS.md` when it opened this campaign.
 
 ## Destination
 
@@ -17,19 +19,24 @@ name what broke.
 
 ## Baseline and expected outcome
 
-Measured at `07fdfb0c`. The improvements campaign changes these numbers, so the
-opening PR re-measures them and records the real baseline. Outcomes are
-estimates, not targets.
+Re-measured on `f3faefae` before the opening instruments. Outcomes are estimates,
+not targets. Counts include shared helpers and both browser suites; tests are
+collected cases, including four platform-dependent engine skips. The ratchet
+formerly counted 706 lines of frontend test helpers as production; the opening
+PR corrects that classification. The actual production baseline is 114,507
+lines. The instruments and deterministic fixture fixes add 345 test lines,
+three files and eight collected cases, making the opening totals 132,043 lines,
+293 files and 6,863 cases.
 
 | Suite | Test lines | Files | Tests | Test lines per production line | Expected test lines |
 |---|---:|---:|---:|---:|---:|
-| `app/tests` | 52,799 | 93 | 1,829 | 1.36 | ~20k |
-| `engine/tests` | 49,759 | 77 | 2,728 | 1.25 | ~20k |
-| `app/frontend` | 18,209 | 77 | 808 | 0.65 | ~9k |
-| `engine/mcp_server/tests` | 8,232 | 11 | 286 | 1.42 | ~3.5k |
-| `evaluations/tests` | 3,079 | 14 | 162 | | ~1.5k |
-| `e2e` | 1,610 | 8 | 22 | | unchanged |
-| **Total** | **133,688** | **280** | **5,835** | **1.14** | **45–65k, 120–160 files, 2,000–3,000 tests** |
+| `app/tests` | 51,617 | 91 | 2,201 | 1.36 | ~20k |
+| `engine/tests` | 49,714 | 78 | 3,211 | 1.25 | ~20k |
+| `app/frontend` | 17,536 | 85 | 822 | 0.66 | ~9k |
+| `engine/mcp_server/tests` | 8,232 | 11 | 386 | 1.42 | ~3.5k |
+| `evaluations/tests` | 3,079 | 14 | 200 | | ~1.5k |
+| `e2e` | 1,520 | 11 | 35 | | unchanged |
+| **Total** | **131,698** | **290** | **6,855** | **1.15** | **45–65k, 120–160 files, 2,000–3,000 tests** |
 
 ## What stays tested
 
@@ -56,6 +63,13 @@ and the files named here are where they live today:
 ## Coverage guard
 
 Line coverage proves the cuts keep protection.
+
+The fixed baseline and each production module's numerator and denominator live
+in `docs/test-campaign/coverage-baseline.json`. Suite baselines are app 96.5248%,
+engine 96.1331%, MCP 92.6262% and frontend 93.1354%. Protected Python modules
+were selected from the named behavior tests and surviving improvements tests;
+all frontend production modules are protected. The selection is recorded in
+`docs/test-campaign/protection-inventory.json`.
 
 - The opening PR adds `make coverage`: it runs the app, engine and MCP suites
   under `pytest-cov` and the frontend under `@vitest/coverage-v8`, offline and

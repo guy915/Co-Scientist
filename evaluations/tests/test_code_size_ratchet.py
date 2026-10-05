@@ -5,7 +5,8 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 # Lower the production ceiling after reductions; never raise it.
-CODE_SIZE_CEILING = 115_213
+CODE_SIZE_CEILING = 114_507
+TEST_SIZE_CEILING = 132_043
 SOURCE_SUFFIXES = {".py", ".ts", ".tsx", ".css"}
 EXCLUDED_DIRECTORIES = {
     "vendor",
@@ -23,7 +24,9 @@ def _is_production_source(path: Path) -> bool:
         and not EXCLUDED_DIRECTORIES.intersection(path.parts)
         and ".test." not in path.name
         and ".spec." not in path.name
-        and not (path.suffix == ".py" and path.name.startswith("test_"))
+        and not path.name.startswith("test_")
+        and "_test_support." not in path.name
+        and "_test_helpers." not in path.name
     )
 
 
@@ -60,6 +63,12 @@ def test_code_size_ratchet() -> None:
         f"ceiling: {CODE_SIZE_CEILING:,}. Remove code and lower the ceiling "
         "in the same PR; never raise it or compress code to meet it."
     )
+    test_count = totals["test"]
+    assert test_count <= TEST_SIZE_CEILING, (
+        f"Test code size: {test_count:,} lines; "
+        f"ceiling: {TEST_SIZE_CEILING:,}. Remove tests and lower the ceiling "
+        "in the same PR; never raise it or compress tests to meet it."
+    )
 
 
 @pytest.mark.parametrize(
@@ -74,6 +83,10 @@ def test_code_size_ratchet() -> None:
         "app/frontend/widget.test.tsx",
         "engine/example.spec.py",
         "app/test_helpers.py",
+        "app/frontend/src/test_fixtures.ts",
+        "app/frontend/src/test_setup.ts",
+        "app/frontend/src/workbench/layout_test_support.tsx",
+        "app/frontend/src/workbench/pages/chat_workspace_test_helpers.tsx",
         "README.md",
     ],
 )

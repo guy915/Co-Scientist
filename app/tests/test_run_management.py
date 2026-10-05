@@ -333,12 +333,31 @@ def test_unkeyed_legacy_calls_still_create_distinct_runs() -> None:
     }
 
 
-def test_concurrent_exact_retries_create_one_run() -> None:
+def test_concurrent_exact_retries_create_one_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     client = _idempotency_make_client()
-    start_together = Barrier(2)
+    admitted_together = Barrier(2)
+    lookup = store_receipts.lookup_run_creation_receipt
+
+    def synchronize_admission(
+        owner: str,
+        key: str,
+        *,
+        db_path: str | None = None,
+        conn: sqlite3.Connection | None = None,
+    ) -> store_receipts.RunCreationReceipt | None:
+        receipt = lookup(owner, key, db_path=db_path, conn=conn)
+        # Synchronize after both unlocked lookups, before either writer commits.
+        if conn is None:
+            admitted_together.wait(timeout=5)
+        return receipt
+
+    monkeypatch.setattr(
+        store_receipts, "lookup_run_creation_receipt", synchronize_admission
+    )
 
     def submit() -> Any:
-        start_together.wait(timeout=5)
         return _idempotency_post_run(client)
 
     with ThreadPoolExecutor(max_workers=2) as pool:
