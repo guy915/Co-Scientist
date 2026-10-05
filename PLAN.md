@@ -5,7 +5,8 @@ keeping every behavior they protect. Every decision below was settled with the
 owner on 4 October 2026, so the campaign runs unattended: the agent decides by
 these rules and reports at the end.
 
-**Status:** Phase 1 in progress. Opening instruments and baseline: PR #185.
+**Status:** Phase 1 in progress. Opening instruments and baseline: PR #185;
+shared builders and fixtures: PR #187, awaiting the merge gates.
 The improvements campaign is preserved in merged history; PR #184 deliberately
 retired `IMPROVEMENTS.md` when it opened this campaign.
 
