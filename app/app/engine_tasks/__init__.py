@@ -114,7 +114,10 @@ async def execute_engine_task(
     with (
         engine_tasks_runtime.bound(engine_tasks_runtime.active()),
         scoped_byok(credential),
-        scoped_api_key(credential.api_key if credential else None),
+        scoped_api_key(
+            credential.api_key if credential else None,
+            by_model=credential.keys_by_model() if credential else None,
+        ),
         scoped_llm_call_budget(task.run_id, ceiling),
         scoped_execution_policy(
             run.execution_policy, campaign_model_name=campaign_model

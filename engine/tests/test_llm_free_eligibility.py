@@ -810,3 +810,33 @@ class TestFreeCatalog:
                 assert free_catalog.current_catalog() == {"inner": {}}
                 raise ValueError("scope failed")
             assert free_catalog.current_catalog() == {"outer": {}}
+
+
+async def test_each_model_is_billed_to_the_key_scoped_for_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from co_scientist.llm import scoped_api_key
+
+    requests: list[dict[str, Any]] = []
+
+    async def completion(**kwargs: Any) -> SimpleNamespace:
+        requests.append(kwargs)
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))]
+        )
+
+    install_fake_backend(monkeypatch, completion)
+    keys = {"gemini/pro": "supervisor-key"}
+    with scoped_api_key("worker-key", by_model=keys):
+        for spec in (
+            CompletionSpec("openai/worker"),
+            CompletionSpec("gemini/pro"),
+            CompletionSpec("gemini/pro", api_key="explicit-key"),
+        ):
+            await call_llm("probe", spec, options=_NO_CACHE)
+
+    assert [r["api_key"] for r in requests] == [
+        "worker-key",
+        "supervisor-key",
+        "explicit-key",
+    ]

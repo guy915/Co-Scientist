@@ -1,5 +1,9 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {setStoredApiKey, setStoredApiProvider} from '@/lib/client_id';
+import {
+  setStoredApiKey,
+  setStoredApiProvider,
+  setStoredModel,
+} from '@/lib/client_id';
 import {clearAccessToken, setAccessToken} from '@/lib/client_id';
 import {
   getPendingCreateIntent,
@@ -23,8 +27,8 @@ beforeEach(() => {
 describe('pending create intent', () => {
   it('reuses the same key and exact payload after the helper is reloaded', async () => {
     setAccessToken('bearer-secret-one');
-    setStoredApiKey('sk-secret-one');
     setStoredApiProvider('openai');
+    setStoredApiKey('sk-secret-one');
     const first = await getPendingCreateIntent('chat-1', PAYLOAD);
     const storedRecord = sessionStorage.getItem(
       'co_scientist_pending_run_create:chat-1',
@@ -113,8 +117,8 @@ describe('pending create intent', () => {
   });
 
   it('rotates the key when the explicit BYOK credential changes', async () => {
-    setStoredApiKey('sk-secret-one');
     setStoredApiProvider('openai');
+    setStoredApiKey('sk-secret-one');
     const first = await getPendingCreateIntent('chat-1', PAYLOAD);
     setStoredApiKey('sk-secret-two');
 
@@ -128,11 +132,16 @@ describe('pending create intent', () => {
     expect(stored).not.toContain('sk-secret-two');
   });
 
-  it('rotates the key when the BYOK provider changes', async () => {
-    setStoredApiKey('sk-secret');
+  it('rotates the key when the supervisor credential changes', async () => {
     setStoredApiProvider('openai');
+    setStoredApiKey('sk-worker');
+    setStoredApiKey('sk-supervisor-one', 'gemini');
+    setStoredModel('supervisor', {
+      provider: 'gemini',
+      model: 'gemini/gemini-3.8-flash',
+    });
     const first = await getPendingCreateIntent('chat-1', PAYLOAD);
-    setStoredApiProvider('anthropic');
+    setStoredApiKey('sk-supervisor-two', 'gemini');
 
     const second = await getPendingCreateIntent('chat-1', PAYLOAD);
 

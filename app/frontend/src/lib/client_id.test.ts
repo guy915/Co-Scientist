@@ -4,8 +4,11 @@ import {
   DEFAULT_BYOK_PROVIDER,
   getStoredApiKey,
   getStoredApiProvider,
+  getStoredModel,
+  keyedProviders,
   setStoredApiKey,
   setStoredApiProvider,
+  setStoredModel,
 } from './client_id';
 
 describe('client id', () => {
@@ -35,71 +38,65 @@ describe('client id', () => {
   });
 });
 
-describe('api key', () => {
-  const STORAGE_KEY = 'cosci-api-key';
+describe('api keys', () => {
   const PROVIDER_KEY = 'cosci-api-provider';
 
-  afterEach(() => {
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(PROVIDER_KEY);
+  beforeEach(() => localStorage.clear());
+  afterEach(() => localStorage.clear());
+
+  it('keeps one trimmed key per provider', () => {
+    setStoredApiKey('  sk-a  ', 'anthropic');
+    setStoredApiKey('sk-g', 'gemini');
+    expect(getStoredApiKey('anthropic')).toBe('sk-a');
+    expect(getStoredApiKey('gemini')).toBe('sk-g');
+    expect(getStoredApiKey('openai')).toBe('');
+    expect(keyedProviders()).toEqual(['anthropic', 'gemini']);
   });
 
-  describe('getStoredApiKey', () => {
-    it('returns an empty string when unset', () => {
-      expect(getStoredApiKey()).toBe('');
-    });
+  it('reads and writes the viewed provider by default', () => {
+    setStoredApiProvider('openai');
+    setStoredApiKey('sk-o');
+    expect(getStoredApiKey()).toBe('sk-o');
+    setStoredApiProvider('gemini');
+    expect(getStoredApiKey()).toBe('');
+  });
 
-    it('returns the stored key', () => {
-      localStorage.setItem(STORAGE_KEY, 'sk-abc123');
-      expect(getStoredApiKey()).toBe('sk-abc123');
+  it('clearing a key leaves other keys and drops its model choices', () => {
+    setStoredApiKey('sk-a', 'anthropic');
+    setStoredApiKey('sk-g', 'gemini');
+    setStoredModel('worker', {provider: 'gemini', model: 'gemini/x'});
+    setStoredModel('supervisor', {provider: 'anthropic', model: 'anthropic/y'});
+    setStoredApiKey('   ', 'gemini');
+    expect(keyedProviders()).toEqual(['anthropic']);
+    expect(getStoredModel('worker')).toBeNull();
+    expect(getStoredModel('supervisor')?.model).toBe('anthropic/y');
+  });
+
+  it('migrates the single legacy key to its stored provider once', () => {
+    localStorage.setItem('cosci-api-key', 'sk-old');
+    localStorage.setItem(PROVIDER_KEY, 'openai');
+    expect(getStoredApiKey('openai')).toBe('sk-old');
+    expect(getStoredApiKey('anthropic')).toBe('');
+    expect(localStorage.getItem('cosci-api-key')).toBeNull();
+    setStoredApiKey('', 'openai');
+    expect(keyedProviders()).toEqual([]);
+  });
+
+  it('migrates a legacy model name to the legacy provider', () => {
+    localStorage.setItem(PROVIDER_KEY, 'openai');
+    localStorage.setItem('cosci-api-model', 'openai/gpt-6-luna');
+    setStoredApiProvider('gemini');
+    expect(getStoredModel('worker')).toEqual({
+      provider: 'openai',
+      model: 'openai/gpt-6-luna',
     });
   });
 
-  describe('setStoredApiKey', () => {
-    it('persists a trimmed key', () => {
-      setStoredApiKey('  sk-xyz  ');
-      expect(localStorage.getItem(STORAGE_KEY)).toBe('sk-xyz');
-    });
-
-    it('removes the entry for an empty value', () => {
-      localStorage.setItem(STORAGE_KEY, 'sk-existing');
-      setStoredApiKey('');
-      expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
-    });
-
-    it('removes the entry for a whitespace-only value', () => {
-      localStorage.setItem(STORAGE_KEY, 'sk-existing');
-      setStoredApiKey('   ');
-      expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
-    });
-  });
-
-  describe('getStoredApiProvider', () => {
-    it('defaults when unset', () => {
-      expect(getStoredApiProvider()).toBe(DEFAULT_BYOK_PROVIDER);
-    });
-
-    it('returns the stored provider', () => {
-      localStorage.setItem(PROVIDER_KEY, 'openai');
-      expect(getStoredApiProvider()).toBe('openai');
-    });
-
-    it('falls back to the default for an unknown stored value', () => {
-      localStorage.setItem(PROVIDER_KEY, 'skynet');
-      expect(getStoredApiProvider()).toBe(DEFAULT_BYOK_PROVIDER);
-    });
-  });
-
-  describe('setStoredApiProvider', () => {
-    it('persists a known provider', () => {
-      setStoredApiProvider('gemini');
-      expect(localStorage.getItem(PROVIDER_KEY)).toBe('gemini');
-    });
-
-    it('persists the default for an unknown provider', () => {
-      // The guard accepts values arriving outside the declared type.
-      setStoredApiProvider('not-a-provider' as never);
-      expect(localStorage.getItem(PROVIDER_KEY)).toBe(DEFAULT_BYOK_PROVIDER);
-    });
+  it('defaults the viewed provider and ignores unknown values', () => {
+    expect(getStoredApiProvider()).toBe(DEFAULT_BYOK_PROVIDER);
+    localStorage.setItem(PROVIDER_KEY, 'skynet');
+    expect(getStoredApiProvider()).toBe(DEFAULT_BYOK_PROVIDER);
+    setStoredApiProvider('not-a-provider' as never);
+    expect(localStorage.getItem(PROVIDER_KEY)).toBe(DEFAULT_BYOK_PROVIDER);
   });
 });

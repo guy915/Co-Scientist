@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import sqlite3
+from pathlib import Path
 
 import pytest
 from starlette.datastructures import Headers
@@ -13,6 +15,7 @@ from tests._store_helpers import seed_run
 
 _SECRET = "unit-test-byok-secret"
 _KEY = "sk-test-1234567890"
+_SECOND_KEY = "sk-second-0987654321"
 
 
 @pytest.fixture
@@ -55,7 +58,7 @@ def test_credential_from_headers_maps_provider_model(
     assert cred is not None
     assert cred.provider == "deepseek"
     assert cred.api_key == _KEY
-    assert cred.model == "deepseek/deepseek-v4-flash"
+    assert cred.model == "deepseek/deepseek-flash"
 
 
 def test_credential_from_headers_absent() -> None:
@@ -203,3 +206,75 @@ def test_redaction_filter_scrubs_scoped_key(
         assert redactor.filter(record)
     assert _KEY not in record.getMessage()
     assert "[REDACTED]" in record.getMessage()
+
+
+def _mixed() -> credentials.ByokCredential:
+    return credentials.ByokCredential(
+        provider="openai",
+        api_key=_KEY,
+        model="openai/gpt-6.1-sol",
+        supervisor_model="gemini/gemini-3.8-flash",
+        supervisor_provider="gemini",
+        supervisor_api_key=_SECOND_KEY,
+    )
+
+
+def test_redaction_scrubs_both_keys(byok_secret: str) -> None:
+    message = f"{_KEY} then {_SECOND_KEY}"
+    record = logging.LogRecord(
+        "test", logging.ERROR, __file__, 1, message, (), None
+    )
+    with credentials.scoped_byok(_mixed()):
+        assert credentials.ByokRedactionFilter().filter(record)
+    assert record.getMessage() == "[REDACTED] then [REDACTED]"
+
+
+async def test_validation_error_never_echoes_the_supervisor_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_acompletion(**kwargs: object) -> None:
+        raise RuntimeError(f"exploded using {kwargs['api_key']}")
+
+    monkeypatch.setattr(credentials, "_acompletion", fake_acompletion)
+    with pytest.raises(credentials.ByokValidationError) as exc_info:
+        await credentials.validate_byok_credential(_mixed())
+    assert _KEY not in str(exc_info.value)
+    assert _SECOND_KEY not in str(exc_info.value)
+
+
+def test_idempotency_digest_covers_the_supervisor_credential(
+    byok_secret: str,
+) -> None:
+    def digest(**extra: str) -> str:
+        return credentials.run_creation_request_digest(
+            {"goal": "g"}, api_key=_KEY, provider="openai", **extra
+        )
+
+    sup = digest(supervisor_api_key=_SECOND_KEY, supervisor_provider="gemini")
+    assert sup != digest()
+    assert sup != digest(
+        supervisor_api_key="sk-other", supervisor_provider="gemini"
+    )
+    assert sup != digest(
+        supervisor_api_key=_SECOND_KEY, supervisor_provider="anthropic"
+    )
+
+
+def test_existing_database_gains_the_supervisor_columns(
+    byok_secret: str, tmp_path: Path
+) -> None:
+    path = str(tmp_path / "old.db")
+    legacy = sqlite3.connect(path)
+    legacy.execute(
+        "CREATE TABLE run_credentials (run_id TEXT PRIMARY KEY, client_id "
+        "TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL, "
+        "supervisor_model TEXT, encrypted_key TEXT NOT NULL, "
+        "created_at REAL NOT NULL)"
+    )
+    legacy.close()
+
+    run = seed_run("goal", profile="express", db_path=path)
+    credentials.store_run_credential(
+        run.id, run.client_id, _mixed(), db_path=path
+    )
+    assert credentials.get_run_credential(run.id, db_path=path) == _mixed()

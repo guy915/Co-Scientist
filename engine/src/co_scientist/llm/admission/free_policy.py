@@ -3,11 +3,12 @@ import contextlib
 import os
 import threading
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
+from types import MappingProxyType
 from typing import Any
 
 import httpx
@@ -17,21 +18,34 @@ from co_scientist._context import _bind_contextvar
 from co_scientist.exceptions import FreeModelEligibilityError
 
 _byok_api_key: ContextVar[str | None] = ContextVar("byok_api_key", default=None)
+_byok_keys_by_model: ContextVar[Mapping[str, str]] = ContextVar(
+    "byok_keys_by_model", default=MappingProxyType({})
+)
 
 
 def current_api_key() -> str | None:
     return _byok_api_key.get()
 
 
+def api_key_for_model(model_name: str) -> str | None:
+    """A run mixing providers bills each model to its own provider's key."""
+    return _byok_keys_by_model.get().get(model_name) or _byok_api_key.get()
+
+
 @contextlib.contextmanager
-def scoped_api_key(api_key: str | None) -> Iterator[None]:
+def scoped_api_key(
+    api_key: str | None, by_model: Mapping[str, str] | None = None
+) -> Iterator[None]:
     """None preserves the ambient task credential; explicit scopes restore it
-    on every exit.
+    on every exit. An explicit key without a mapping shadows an ambient one.
     """
     if api_key is None:
         yield
         return
-    with _bind_contextvar(_byok_api_key, api_key):
+    with (
+        _bind_contextvar(_byok_api_key, api_key),
+        _bind_contextvar(_byok_keys_by_model, dict(by_model or {})),
+    ):
         yield
 
 

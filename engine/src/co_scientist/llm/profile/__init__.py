@@ -146,7 +146,7 @@ ROUTES: Final[dict[str, Facts]] = {
     # Historical promotional rates need revalidation before selecting this paid
     # route.
     "openrouter/z-ai/glm-5.3-flash": _gateway(
-        ModelPrice(0.075, 0.25, 0.015),
+        ModelPrice(0.15, 0.50, 0.015),
         fallbacks=(
             "minimax/minimax-m3:free",
             "nvidia/nemotron-3.5-lightning:free",
@@ -156,6 +156,8 @@ ROUTES: Final[dict[str, Facts]] = {
     # family defaults.
     "openrouter/google/gemma-4-26b-a4b-it:free": {"json_schema": False},
     "deepseek/deepseek-v4-flash": {"price": ModelPrice(0.44, 1.32)},
+    # Peak-hour rate; off-peak billing is lower.
+    "deepseek/deepseek-flash": {"price": ModelPrice(0.30, 1.20)},
     "deepseek/deepseek-v4-pro": {"price": ModelPrice(1.32, 3.96)},
     "deepseek/deepseek-chat": {"price": ModelPrice(0.44, 1.32)},
     "deepseek/deepseek-reasoner": {"price": ModelPrice(1.32, 3.96)},
@@ -163,6 +165,8 @@ ROUTES: Final[dict[str, Facts]] = {
     "gemini/gemini-2.5-flash-lite": {"price": ModelPrice(0.10, 0.40)},
     "gemini/gemini-2.5-pro": {"price": ModelPrice(1.25, 10.00)},
     "gemini/gemini-3.1-flash-lite": {"price": ModelPrice(0.25, 1.50)},
+    "gemini/gemini-3.1-pro-preview": {"price": ModelPrice(2.00, 12.00)},
+    "gemini/gemini-3.8-flash": {"price": ModelPrice(0.75, 3.75)},
     # Gateway-host rates differ from first-party rates; prices estimate capped
     # hosts, not a bill.
     "openrouter/deepseek/deepseek-v4-flash": {
@@ -181,7 +185,14 @@ ROUTES: Final[dict[str, Facts]] = {
     # usage.
     "azure/gpt-4o": {"price": ModelPrice(2.50, 10.00)},
     "openai/gpt-4o-mini": {"price": ModelPrice(0.15, 0.60)},
+    "openai/gpt-6.1-sol": {"price": ModelPrice(2.00, 10.00)},
+    "openai/gpt-6-astra": {"price": ModelPrice(10.00, 50.00)},
+    "openai/gpt-6-luna": {"price": ModelPrice(0.10, 0.50)},
     "anthropic/claude-sonnet-4-5": {"price": ModelPrice(3.00, 15.00)},
+    "anthropic/claude-sonnet-5-5": {"price": ModelPrice(2.00, 10.00)},
+    "anthropic/claude-opus-5-5": {"price": ModelPrice(4.00, 20.00)},
+    "anthropic/claude-fable-5-1": {"price": ModelPrice(10.00, 50.00)},
+    "anthropic/claude-haiku-4-5": {"price": ModelPrice(1.00, 5.00)},
 }
 
 

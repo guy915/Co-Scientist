@@ -664,6 +664,20 @@
   font-size: 1.05rem;
 }
 
+.ucs-provider-option-note,
+.ucs-provider-group-label {
+  color: var(--cosci-muted);
+  font-size: 0.75rem;
+}
+
+.ucs-provider-group-label {
+  padding: 0.4rem 0.7rem 0.1rem;
+}
+
+.ucs-provider-option-note {
+  margin-left: auto;
+}
+
 .ucs-settings-model-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

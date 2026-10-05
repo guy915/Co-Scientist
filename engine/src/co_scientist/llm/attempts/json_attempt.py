@@ -7,10 +7,7 @@ from jsonschema.exceptions import ValidationError
 
 from co_scientist.cache import LLMCache, LLMCacheRequest, NullCache
 from co_scientist.exceptions import short_error_text
-from co_scientist.llm.admission.free_policy import (
-    current_api_key,
-    scoped_api_key,
-)
+from co_scientist.llm.admission.free_policy import scoped_api_key
 from co_scientist.llm.attempts.escalation import _JsonCallSpec
 from co_scientist.llm.attempts.retry import Accepted, Attempt, Rejected
 from co_scientist.llm.precall import _prepare_llm_call
@@ -101,7 +98,7 @@ async def _call_llm_and_cache(
             enable_thinking=enable_thinking,
         ),
     )
-    _apply_api_key(completion_args, current_api_key())
+    _apply_api_key(completion_args)
     response = await _acompletion_within_timeout(
         completion_args, request.model_name
     )
