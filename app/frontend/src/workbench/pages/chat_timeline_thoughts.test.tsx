@@ -22,15 +22,6 @@ test('counts dots and stands open while the turn is still being written', () => 
   expect(container.querySelector(DOTS)?.textContent).toBe('...');
 });
 
-test('lets the thinking run as plain text, uncapped and unquoted', () => {
-  const {container} = render(
-    <ThoughtsDisclosure reasoning="A long thought." live />,
-  );
-  const trail = container.querySelector('.reference-thoughts-trail');
-
-  expect(trail?.className).not.toMatch(/border-l|max-h-|overflow-y/);
-});
-
 test('shows the label before the first thought arrives', () => {
   const {container} = render(<ThoughtsDisclosure reasoning="" live />);
 

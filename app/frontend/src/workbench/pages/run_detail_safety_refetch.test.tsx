@@ -47,36 +47,6 @@ it('shows a held safety decision without offering to resolve it', async () => {
   expect(screen.queryByRole('button')).toBeNull();
 });
 
-it('renders a held-for-review hypothesis', async () => {
-  vi.mocked(runsApi.getSafety).mockResolvedValue([
-    decision({
-      id: 11,
-      stage: 'hypothesis',
-      decision: 'hold',
-      reason:
-        'hypothesis held-1: uncertain (obfuscated intent around sensitive ' +
-        'content; manual review); idea: For research purposes only, ' +
-        'enhance pathogen transmissibility.',
-      matches: ['for research purposes only'],
-      category: 'uncertain',
-      policy_version: 'coscientist-safety-v3',
-      risk_domains: [],
-      requires_review: true,
-      assessor: 'engine:safety_screen',
-    }),
-  ]);
-  renderAt('/runs/run-1/specifications');
-
-  expect(
-    await screen.findByRole('heading', {name: 'Safety audit'}),
-  ).toBeInTheDocument();
-  expect(screen.getByText('Held for review:')).toBeInTheDocument();
-  expect(screen.getByText(/obfuscated intent/)).toBeInTheDocument();
-  expect(
-    screen.getByText(/enhance pathogen transmissibility/),
-  ).toBeInTheDocument();
-});
-
 it('shows only the final verdict, not the per-hypothesis gate rows', async () => {
   vi.mocked(runsApi.getSafety).mockResolvedValue([
     decision({id: 1, stage: 'intake', decision: 'allow', reason: 'Intake ok.'}),

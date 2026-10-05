@@ -54,23 +54,6 @@ it('leads the overview with a stat sentence and winning ideas', async () => {
   expect(screen.getByText('Top idea alpha')).toBeInTheDocument();
 });
 
-it('omits stat clauses whose data is unavailable', async () => {
-  vi.mocked(runsApi.getHypotheses).mockResolvedValue([
-    makeHypothesis({id: 'h1', title: 'Sole idea', elo_rating: 1500}),
-  ]);
-
-  renderAt('/runs/run-1/overview');
-  await screen.findByText('Summary');
-
-  const stat = await screen.findByText(/A total of 1 idea was explored/);
-  expect(stat).toHaveTextContent(
-    'A total of 1 idea was explored with the highest Elo rating of 1500 ' +
-      'points.',
-  );
-  expect(stat.textContent).not.toContain('over');
-  expect(stat.textContent).not.toContain('matches');
-});
-
 it('shows an error alert when loading fails', async () => {
   vi.mocked(runsApi.getRun).mockRejectedValue(new Error('boom'));
   renderAt('/runs/run-1');

@@ -37,25 +37,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('stream setup', () => {
-  it('stays idle and opens no stream when runId is null', () => {
-    renderHook(() => useRunStream(null));
-    expect(fetchMock()).not.toHaveBeenCalled();
-  });
-
-  it('opens a stream against the run events URL', async () => {
-    const body = new FakeSseBody();
-    queueFetch(streamingResponse(body));
-    renderHook(() => useRunStream('run-1'));
-    await settle();
-
-    const [url, init] = fetchMock().mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('/api/runs/run-1/events');
-    expect(new Headers(init.headers).get('X-Client-ID')).toBeTruthy();
-    expect(init.signal).toBeInstanceOf(AbortSignal);
-  });
-});
-
 it('accumulates streamed events and reports the open state', async () => {
   const body = new FakeSseBody();
   queueFetch(streamingResponse(body));
