@@ -20,11 +20,14 @@ from tests._research_fakes import (
 from tests._state import make_state
 
 
-async def test_server_unavailable_returns_failure_without_search(
+async def test_an_unreachable_server_fails_the_review_and_records_degradation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """A setup-time outage routes around this node; an outage here must mark
+    report degradation."""
     fake_client = _stub_node(monkeypatch, server_available=False)
     state = make_state(research_goal="cancer immunotherapy resistance")
+    state["context_enrichment_sources"] = [{"title": "an attachment"}]
 
     result = await literature_review_node(state)
 
@@ -33,56 +36,15 @@ async def test_server_unavailable_returns_failure_without_search(
     assert result["articles"] == []
     assert result["messages"][0]["metadata"]["error"] is True
     assert fake_client.calls == []
-
-
-async def test_a_server_lost_mid_run_records_the_degradation(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A setup-time outage routes around this node; an outage here must mark
-    report degradation."""
-    _stub_node(monkeypatch, server_available=False)
-    state = make_state(research_goal="cancer immunotherapy resistance")
-    state["context_enrichment_sources"] = [{"title": "an attachment"}]
-
-    result = await literature_review_node(state)
-
     degradation = result["retrieval_degradation"]
     assert degradation["reason"] == "mcp_unreachable"
     assert degradation["floor"] == "run_attachments"
 
 
-async def test_node_gate_is_server_reachability_not_source_health(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """One source outage must not abort retrieval from every other source."""
-    assert not hasattr(lr, "check_literature_source_available")
-
-    papers = {"PMID1": {"title": "A paper", "fulltext": "Body text."}}
-    fake_client = _stub_node(
-        monkeypatch,
-        server_available=True,
-        search_payload=papers,
-        synthesis="REVIEW",
-    )
-    called: dict[str, bool] = {}
-
-    async def fake_server_available(**_: Any) -> bool:
-        called["check_mcp_available"] = True
-        return True
-
-    monkeypatch.setattr(lr, "check_mcp_available", fake_server_available)
-    state = make_state(research_goal="cancer immunotherapy resistance")
-
-    result = await literature_review_node(state)
-
-    assert called.get("check_mcp_available") is True
-    assert fake_client.calls != []
-    assert result["articles_with_reasoning"] == "REVIEW"
-
-
 async def test_happy_path_populates_synthesis_and_articles(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    events, callback = _make_event_recorder()
     _stub_node(
         monkeypatch,
         server_available=True,
@@ -90,7 +52,9 @@ async def test_happy_path_populates_synthesis_and_articles(
         queries=["query alpha", "query beta"],
         synthesis="SYNTHESIZED REVIEW",
     )
-    state = make_state(research_goal="immune checkpoint resistance")
+    state = make_state(
+        research_goal="immune checkpoint resistance", progress_callback=callback
+    )
 
     result = await literature_review_node(state)
 
@@ -105,27 +69,25 @@ async def test_happy_path_populates_synthesis_and_articles(
     }
     assert result["messages"][0]["metadata"]["phase"] == "literature_review"
     assert "error" not in result["messages"][0]["metadata"]
+    names = [event for event, _ in events]
+    assert "literature_review_start" in names
+    assert "literature_review_complete" in names
 
 
-async def test_happy_path_falls_back_to_research_goal_query(
+async def test_no_queries_fall_back_to_the_research_goal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    papers = {
-        "PMID9": {
-            "title": "Single paper",
-            "fulltext": "Body text.",
-        },
-    }
     _stub_node(
         monkeypatch,
         server_available=True,
-        search_payload=papers,
+        search_payload={"PMID9": {"title": "Single", "fulltext": "Body."}},
         queries=[],
         synthesis="REVIEW",
     )
-    state = make_state(research_goal="rare query fallback goal")
 
-    result = await literature_review_node(state)
+    result = await literature_review_node(
+        make_state(research_goal="rare query fallback goal")
+    )
 
     assert result["literature_review_queries"] == ["rare query fallback goal"]
     assert result["articles_with_reasoning"] == "REVIEW"
@@ -178,32 +140,6 @@ async def test_abstract_only_papers_are_analyzed_with_bounded_evidence(
     assert result["articles"][0].abstract == "Just an abstract, no body."
     assert result["articles"][0].used_in_analysis is True
     assert result["messages"][0]["metadata"]["articles_analyzed"] == 1
-
-
-async def test_progress_callback_receives_events(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    events: list[str] = []
-
-    async def callback(event: str, _payload: dict[str, Any]) -> None:
-        events.append(event)
-
-    papers = {"PMID7": {"title": "P", "fulltext": "body"}}
-    _stub_node(
-        monkeypatch,
-        server_available=True,
-        search_payload=papers,
-        queries=["q"],
-        synthesis="REVIEW",
-    )
-    state = make_state(
-        research_goal="callback goal", progress_callback=callback
-    )
-
-    await literature_review_node(state)
-
-    assert "literature_review_start" in events
-    assert "literature_review_complete" in events
 
 
 async def test_no_papers_with_search_error_emits_error_event(

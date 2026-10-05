@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 
 from co_scientist.agents.generation.expansion_research import (
+    EXPANSION_EXTRA_DRAFT_ITERATIONS,
     EXPANSION_POOL_ITEM_CHARS,
     EXPANSION_POOL_SAMPLE_SIZE,
     ExpansionResearch,
@@ -14,7 +15,11 @@ from co_scientist.agents.generation.expansion_research import (
     is_research_expansion,
     research_for_expansion,
 )
+from co_scientist.agents.generation.literature_tools.draft import (
+    _compute_draft_iteration_budget,
+)
 from co_scientist.agents.reflection.review_evidence import research_for_review
+from co_scientist.constants import get_draft_max_iterations
 from co_scientist.generator.run_setup import _resolve_research_tier
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.prompts import DraftPromptRequest, get_draft_prompt_with_tools
@@ -436,6 +441,15 @@ def test_draft_prompt_renders_the_expansion_and_falsified_sections() -> None:
     assert "Research Expansion Cycle" not in plain
     assert "Verified Incorrect" not in plain
     assert "{{MISSING" not in plain
+
+
+def test_expansion_draft_budget_gets_extra_retrieval_rounds() -> None:
+    base = _compute_draft_iteration_budget(3)
+
+    assert base == get_draft_max_iterations(3)
+    assert _compute_draft_iteration_budget(3, is_expansion=True) == (
+        base + EXPANSION_EXTRA_DRAFT_ITERATIONS
+    )
 
 
 @pytest.mark.parametrize(

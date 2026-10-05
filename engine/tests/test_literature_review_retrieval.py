@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import json
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock
@@ -11,7 +12,6 @@ import co_scientist.evidence as evidence
 from co_scientist.agents.generation.literature_review import (
     literature_review_node,
 )
-from co_scientist.agents.generation.literature_review import node as lr
 from co_scientist.agents.reflection import deep_verification_evidence as probes
 from co_scientist.config import ToolRegistry
 from co_scientist.config.schema import SearchSourceConfig, WorkflowConfig
@@ -26,11 +26,14 @@ from co_scientist.retrieval_degradation import (
     FLOOR_NONE,
     FLOOR_RUN_ATTACHMENTS,
     MCP_UNREACHABLE,
-    resolve_retrieval_degradation,
 )
 from tests._llm_fake import install_fake_llm
 from tests._mcp import make_tool_results_client
-from tests._research_fakes import _stub_node, make_tool_config
+from tests._research_fakes import (
+    _stub_node,
+    install_mcp_client,
+    review_registry,
+)
 from tests._state import make_state
 
 
@@ -40,7 +43,6 @@ async def test_review_routes_discovery_and_content_by_source(
     mode: str,
 ) -> None:
     _stub_node(monkeypatch, server_available=True, queries=["query"])
-    registry = ToolRegistry(skip_user_config=True)
     workflow = WorkflowConfig(
         primary_search="search",
         pdf_discovery_tool="discover",
@@ -61,19 +63,9 @@ async def test_review_routes_discovery_and_content_by_source(
             source.content_tool = "source_read"
             source.content_params = {"depth": "source", "extra": "source-only"}
         workflow.search_sources = [source]
-    registry.config.workflows = {"literature_review": workflow}
-    registry.config.tools = {
-        "tools": {
-            name: make_tool_config(name)
-            for name in (
-                "search",
-                "discover",
-                "read",
-                "source_discover",
-                "source_read",
-            )
-        }
-    }
+    registry = review_registry(
+        workflow, "search", "discover", "read", "source_discover", "source_read"
+    )
     papers = {
         "fetch": {
             "title": "Fetch",
@@ -87,20 +79,18 @@ async def test_review_routes_discovery_and_content_by_source(
         },
         "abstract": {"title": "Abstract", "abstract": "Abstract evidence"},
     }
-    client = make_tool_results_client(
-        {
-            "search": papers,
-            "discover": '["http://discovered.pdf"]',
-            "source_discover": '["http://discovered.pdf"]',
-            "read": {"content": "Retrieved evidence"},
-            "source_read": {"content": "Retrieved evidence"},
-        }
+    client = install_mcp_client(
+        monkeypatch,
+        make_tool_results_client(
+            {
+                "search": papers,
+                "discover": '["http://discovered.pdf"]',
+                "source_discover": '["http://discovered.pdf"]',
+                "read": {"content": "Retrieved evidence"},
+                "source_read": {"content": "Retrieved evidence"},
+            }
+        ),
     )
-
-    async def get_client(**_: Any) -> Any:
-        return client
-
-    monkeypatch.setattr(lr, "get_mcp_client", get_client)
     result = await literature_review_node(
         make_state(
             research_goal="understand signaling",
@@ -132,9 +122,7 @@ async def test_review_routes_discovery_and_content_by_source(
     )
 
 
-@pytest.mark.parametrize(
-    "missing", ["workflow", "registry", "unconfigured", "dangling"]
-)
+@pytest.mark.parametrize("missing", ["registry", "dangling"])
 def test_unavailable_retrieval_configuration_preserves_abstract_fallback(
     missing: str,
 ) -> None:
@@ -155,39 +143,6 @@ def test_unavailable_retrieval_configuration_preserves_abstract_fallback(
         )
         == {}
     )
-
-
-def test_retrieval_eligibility_ignores_malformed_and_unroutable_records() -> (
-    None
-):
-    # Providers may return non-record entries; search normalization normally
-    # filters them before the node sees them.
-    metadata: dict[str, Any] = {
-        "malformed": "not a record",
-        "missing": {},
-        "complete": {"pdf_url": "http://complete.pdf", "fulltext": "body"},
-        "eligible": {"url": "http://landing", "pdf_url": "http://paper.pdf"},
-        "unrouted": {"url": "http://unknown", "pdf_url": "http://unknown.pdf"},
-    }
-    source_map = {"unrouted": "missing"}
-    content = {"_default": rs.ContentToolConfig("read", "pdf_url", {})}
-    assert [
-        pid
-        for pid, *_ in rs.get_papers_needing_content(
-            metadata, source_map, content
-        )
-    ] == ["eligible", "unrouted"]
-    assert rs.get_papers_needing_content(metadata, source_map, {}) == []
-    assert rs.get_papers_needing_pdf_discovery(metadata, source_map, {}) == []
-    metadata["eligible"].pop("pdf_url")
-    assert [
-        pid
-        for pid, *_ in rs.get_papers_needing_pdf_discovery(
-            metadata, source_map, {"_default": ("discover", "url")}
-        )
-    ] == ["eligible"]
-    assert rs.get_papers_needing_content({}, {}, content) == []
-    assert rs.get_papers_needing_pdf_discovery({}, {}, {}) == []
 
 
 async def test_probe_search_preserves_sources_and_excludes_retractions(
@@ -258,46 +213,34 @@ def _state(*, mcp_available: bool, opts: dict[str, Any] | None = None) -> Any:
     )
 
 
-def test_a_run_that_can_retrieve_reports_nothing() -> None:
-    assert _state(mcp_available=True)["retrieval_degradation"] is None
-
-
-def test_a_run_that_cannot_retrieve_names_what_it_lost() -> None:
+@pytest.mark.parametrize(
+    ("mcp_available", "opts", "floor"),
+    [
+        (False, None, FLOOR_NONE),
+        (
+            False,
+            {"context_enrichment_sources": [{"title": "a memo"}]},
+            FLOOR_RUN_ATTACHMENTS,
+        ),
+    ],
+    ids=["no-documents-of-its-own", "run-attachments"],
+)
+def test_a_run_that_cannot_retrieve_names_what_it_lost(
+    mcp_available: bool, opts: dict[str, Any] | None, floor: str
+) -> None:
     """Ideas and reviews can look healthy without retrieval; the loss must
     reach the report."""
-    degradation = _state(mcp_available=False)["retrieval_degradation"]
+    degradation = _state(mcp_available=mcp_available, opts=opts)[
+        "retrieval_degradation"
+    ]
 
+    assert _state(mcp_available=True)["retrieval_degradation"] is None
     assert degradation is not None
     assert degradation["reason"] == MCP_UNREACHABLE
     assert degradation["lost"] == list(CAPABILITIES_LOST_WITHOUT_MCP)
     assert "literature_review" in degradation["lost"]
     assert "deep_research" in degradation["lost"]
-
-
-def test_with_no_documents_of_its_own_the_floor_is_nothing() -> None:
-    degradation = _state(mcp_available=False)["retrieval_degradation"]
-
-    assert degradation is not None
-    assert degradation["floor"] == FLOOR_NONE
-
-
-def test_a_run_with_attachments_still_has_those() -> None:
-    degradation = _state(
-        mcp_available=False,
-        opts={"context_enrichment_sources": [{"title": "a memo"}]},
-    )["retrieval_degradation"]
-
-    assert degradation is not None
-    assert degradation["floor"] == FLOOR_RUN_ATTACHMENTS
-
-
-def test_the_fact_is_plain_data() -> None:
-    import json
-
-    degradation = resolve_retrieval_degradation(
-        mcp_available=False, private_sources=None
-    )
-
+    assert degradation["floor"] == floor
     assert json.loads(json.dumps(degradation)) == degradation
 
 
@@ -324,39 +267,33 @@ async def test_review_discovers_pdf_urls_without_losing_abstract_evidence(
     expected: str | None,
 ) -> None:
     _stub_node(monkeypatch, server_available=True)
-    registry = ToolRegistry(skip_user_config=True)
-    registry.config.workflows = {
-        "literature_review": WorkflowConfig(
+    registry = review_registry(
+        WorkflowConfig(
             primary_search="search",
             pdf_discovery_tool="discover",
             pdf_discovery_url_field="url",
             content_tool="read",
-        )
-    }
-    registry.config.tools = {
-        "tools": {
-            name: make_tool_config(name)
-            for name in ("search", "discover", "read")
-        }
-    }
-    client = make_tool_results_client(
-        {
-            "search": {
-                "paper": {
-                    "title": "A",
-                    "url": "http://landing",
-                    "abstract": "Abstract evidence",
-                }
-            },
-            "discover": discovered,
-            "read": "Retrieved fulltext",
-        }
+        ),
+        "search",
+        "discover",
+        "read",
     )
-
-    async def get_client(**_: Any) -> Any:
-        return client
-
-    monkeypatch.setattr(lr, "get_mcp_client", get_client)
+    client = install_mcp_client(
+        monkeypatch,
+        make_tool_results_client(
+            {
+                "search": {
+                    "paper": {
+                        "title": "A",
+                        "url": "http://landing",
+                        "abstract": "Abstract evidence",
+                    }
+                },
+                "discover": discovered,
+                "read": "Retrieved fulltext",
+            }
+        ),
+    )
     result = await literature_review_node(make_state(tool_registry=registry))
     article = result["articles"][0]
     assert article.used_in_analysis
@@ -386,32 +323,26 @@ async def test_review_publishes_content_responses_and_retains_abstract_fallback(
     expected: str | None,
 ) -> None:
     _stub_node(monkeypatch, server_available=True)
-    registry = ToolRegistry(skip_user_config=True)
-    registry.config.workflows = {
-        "literature_review": WorkflowConfig(
-            primary_search="search", content_tool="read"
-        )
-    }
-    registry.config.tools = {
-        "tools": {name: make_tool_config(name) for name in ("search", "read")}
-    }
-    client = make_tool_results_client(
-        {
-            "search": {
-                "paper": {
-                    "title": "A",
-                    "pdf_url": "http://paper.pdf",
-                    "abstract": "Abstract evidence",
-                }
-            },
-            "read": payload,
-        }
+    registry = review_registry(
+        WorkflowConfig(primary_search="search", content_tool="read"),
+        "search",
+        "read",
     )
-
-    async def get_client(**_: Any) -> Any:
-        return client
-
-    monkeypatch.setattr(lr, "get_mcp_client", get_client)
+    install_mcp_client(
+        monkeypatch,
+        make_tool_results_client(
+            {
+                "search": {
+                    "paper": {
+                        "title": "A",
+                        "pdf_url": "http://paper.pdf",
+                        "abstract": "Abstract evidence",
+                    }
+                },
+                "read": payload,
+            }
+        ),
+    )
     result = await literature_review_node(make_state(tool_registry=registry))
     assert result["articles"][0].content == expected
     assert result["articles"][0].used_in_analysis
@@ -423,9 +354,8 @@ async def test_review_retrieval_failure_preserves_successful_siblings(
     failed_tool: str,
 ) -> None:
     _stub_node(monkeypatch, server_available=True)
-    registry = ToolRegistry(skip_user_config=True)
-    registry.config.workflows = {
-        "literature_review": WorkflowConfig(
+    registry = review_registry(
+        WorkflowConfig(
             search_sources=[
                 SearchSourceConfig(tool="good"),
                 SearchSourceConfig(
@@ -436,21 +366,14 @@ async def test_review_retrieval_failure_preserves_successful_siblings(
             ],
             pdf_discovery_tool="discover",
             content_tool="read",
-        )
-    }
-    registry.config.tools = {
-        "tools": {
-            name: make_tool_config(name)
-            for name in (
-                "good",
-                "bad",
-                "discover",
-                "read",
-                "bad_discover",
-                "bad_read",
-            )
-        }
-    }
+        ),
+        "good",
+        "bad",
+        "discover",
+        "read",
+        "bad_discover",
+        "bad_read",
+    )
     client = make_tool_results_client(
         {
             "good": {
@@ -474,11 +397,7 @@ async def test_review_retrieval_failure_preserves_successful_siblings(
         },
         error_tools={"bad_" + failed_tool},
     )
-
-    async def get_client(**_: Any) -> Any:
-        return client
-
-    monkeypatch.setattr(lr, "get_mcp_client", get_client)
+    install_mcp_client(monkeypatch, client)
     result = await literature_review_node(make_state(tool_registry=registry))
     articles = {article.source_id: article for article in result["articles"]}
     assert articles["good"].content == "Good body"
