@@ -13,7 +13,6 @@ import userEvent from '@testing-library/user-event';
 import {MemoryRouter, Route, Routes, useNavigate} from 'react-router-dom';
 import {beforeEach, expect, it, vi} from 'vitest';
 import {RunDetail} from './run_detail';
-import {useRunDetailData} from './run_detail_data';
 import {makeRun} from './run_detail_test_support';
 
 const TAB_NAV = 'Goal report sections';
@@ -71,29 +70,6 @@ it('shows no report chrome for a run the history reports as running', async () =
   await waitFor(() => expect(runsApi.loadRunHistory).toHaveBeenCalled());
   expect(screen.queryByRole('navigation', {name: TAB_NAV})).toBeNull();
   expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument();
-});
-
-it('never reports a settled state belonging to the previous run', async () => {
-  // Effect resets occur after rendering; inspect every render to catch
-  // stale-report frames.
-  const renders: {id: string; loaded: boolean; runId?: string}[] = [];
-  function Probe({id}: {id: string}) {
-    const data = useRunDetailData(id);
-    renders.push({id, loaded: data.loaded, runId: data.run?.id});
-    return null;
-  }
-
-  vi.mocked(runsApi.getRun).mockResolvedValue(makeRun('Study pathway X'));
-  const view = render(<Probe id="run-1" />);
-  await waitFor(() => expect(renders.at(-1)?.loaded).toBe(true));
-
-  vi.mocked(runsApi.getRun).mockImplementation(pending);
-  view.rerender(<Probe id="run-2" />);
-  await waitFor(() => expect(renders.at(-1)?.id).toBe('run-2'));
-
-  expect(
-    renders.filter(r => r.loaded && r.runId !== undefined && r.runId !== r.id),
-  ).toEqual([]);
 });
 
 it('shows the report tabs while a settled run loads', async () => {

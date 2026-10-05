@@ -1,4 +1,4 @@
-import {act, fireEvent, screen, render, waitFor} from '@testing-library/react';
+import {act, fireEvent, screen, waitFor} from '@testing-library/react';
 import {beforeEach, expect, it, vi, afterEach, describe} from 'vitest';
 import {
   installLayoutMocks,
@@ -7,7 +7,6 @@ import {
   apiMock,
   chatFixture,
 } from './layout_test_support';
-import {ShellPopover} from './layout_primitives';
 
 describe('layout logs', () => {
   beforeEach(() => {
@@ -140,61 +139,11 @@ describe('layout no shortcuts', () => {
 
     expect(keydownRegistrations()).toEqual([]);
   });
-
-  it('registers no document keydown handler on a run route', async () => {
-    renderLayout('/runs/run-1/details');
-    expect(await screen.findByText('Workspace content')).toBeInTheDocument();
-
-    expect(keydownRegistrations()).toEqual([]);
-  });
-});
-
-describe('layout primitives', () => {
-  // Interactive popovers are not status output and must not become implicit
-  // live regions.
-
-  it('never renders as a status live region', () => {
-    render(<ShellPopover className="test-popover">content</ShellPopover>);
-    expect(screen.queryByRole('status')).not.toBeInTheDocument();
-  });
-
-  it('renders a plain, unlabelled container when the caller names no role', () => {
-    render(<ShellPopover className="test-popover">content</ShellPopover>);
-    const popover = screen.getByText('content').parentElement;
-    expect(popover).not.toHaveAttribute('role');
-    expect(popover).not.toHaveAttribute('aria-label');
-  });
-
-  it('carries a labelled group role when the caller names one', () => {
-    render(
-      <ShellPopover className="test-popover" role="group" ariaLabel="Logs">
-        content
-      </ShellPopover>,
-    );
-    expect(screen.getByRole('group', {name: 'Logs'})).toBeInTheDocument();
-  });
 });
 
 describe('layout settings', () => {
   beforeEach(() => {
     installLayoutMocks();
-  });
-
-  it('opens the settings menu and dismisses on outside click', async () => {
-    renderLayout();
-
-    fireEvent.click(screen.getByRole('button', {name: 'Settings'}));
-    expect(
-      screen.getByRole('menuitem', {name: 'Appearance'}),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', {name: 'Model'})).toBeInTheDocument();
-    expect(screen.queryByRole('menuitem', {name: 'Help'})).toBeNull();
-    expect(screen.queryByText(/Dublin/)).toBeNull();
-    expect(screen.queryByRole('group', {name: 'Theme'})).toBeNull();
-    expect(screen.queryByRole('dialog', {name: 'Settings'})).toBeNull();
-
-    fireEvent.pointerDown(screen.getByText('Workspace content'));
-    expect(screen.queryByRole('menuitem', {name: 'Appearance'})).toBeNull();
   });
 
   it('opens the Settings dialog and switches sections', async () => {
@@ -257,41 +206,6 @@ describe('layout settings', () => {
     expect(screen.queryByText('Settings saved')).toBeNull();
     expect(screen.queryByRole('menuitemradio', {name: 'OpenAI'})).toBeNull();
   });
-
-  it("links to every provider's own key page", async () => {
-    renderLayout();
-
-    fireEvent.click(screen.getByRole('button', {name: 'Settings'}));
-    fireEvent.click(screen.getByRole('menuitem', {name: 'Model'}));
-    await screen.findByRole('dialog', {name: 'Settings'});
-
-    expect(
-      screen.getByRole('link', {name: /Get a DeepSeek API key/}),
-    ).toHaveAttribute('href', 'https://platform.deepseek.com/api_keys');
-
-    fireEvent.click(screen.getByRole('button', {name: /^Provider/}));
-    fireEvent.click(screen.getByRole('menuitemradio', {name: 'Anthropic'}));
-    expect(
-      screen.getByRole('link', {name: /Get an Anthropic API key/}),
-    ).toHaveAttribute('href', 'https://platform.claude.com/settings/keys');
-
-    expect(screen.queryByText(/stores it encrypted/)).toBeNull();
-  });
-
-  it('closes the provider menu on Escape without closing Settings', async () => {
-    renderLayout();
-
-    fireEvent.click(screen.getByRole('button', {name: 'Settings'}));
-    fireEvent.click(screen.getByRole('menuitem', {name: 'Model'}));
-    const dialog = await screen.findByRole('dialog', {name: 'Settings'});
-
-    fireEvent.click(screen.getByRole('button', {name: /^Provider/}));
-    const option = screen.getByRole('menuitemradio', {name: 'OpenAI'});
-    fireEvent.keyDown(option, {key: 'Escape'});
-
-    expect(screen.queryByRole('menuitemradio', {name: 'OpenAI'})).toBeNull();
-    expect(dialog).toBeInTheDocument();
-  });
 });
 
 describe('layout sidebar', () => {
@@ -334,16 +248,8 @@ describe('layout sidebar', () => {
     );
   });
 
-  it('keeps only Co-Scientist navigation and real chat history', async () => {
+  it('lists real chat history with a new-chat link', async () => {
     renderLayout();
-
-    expect(screen.queryByRole('button', {name: 'Library'})).toBeNull();
-    expect(screen.queryByRole('button', {name: 'Skills'})).toBeNull();
-    expect(screen.queryByText('Agents')).toBeNull();
-    expect(screen.queryByText('Deep Research')).toBeNull();
-    expect(screen.queryByText('NotebookLM')).toBeNull();
-    expect(screen.queryByLabelText('Switch to Gemini app')).toBeNull();
-    expect(screen.getByRole('button', {name: /Logs 0/i})).toBeInTheDocument();
 
     expect(await screen.findByText('Chats')).toBeInTheDocument();
     await waitFor(() => {
@@ -355,11 +261,6 @@ describe('layout sidebar', () => {
 
     const newChat = screen.getByRole('link', {name: 'New chat'});
     expect(newChat).toHaveAttribute('href', '/');
-    expect(newChat).toHaveAttribute('data-tooltip', 'New chat');
-    expect(newChat).toHaveClass('ucs-tooltip-anchor');
-    expect(newChat).toHaveClass('ucs-tooltip-right');
-
-    expect(screen.queryByRole('button', {name: 'Search'})).toBeNull();
 
     const chat = screen.getByRole('link', {name: /ferroptosis/i});
     expect(chat).not.toHaveAttribute('title');

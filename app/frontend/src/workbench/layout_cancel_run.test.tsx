@@ -34,29 +34,18 @@ function stopButton() {
   return screen.getByRole('button', {name: /stop/i});
 }
 
-it('offers the control while the run is executing', () => {
-  renderControl('running');
+it.each(['running', 'paused'])('offers the control for a %s run', status => {
+  renderControl(status);
   expect(stopButton()).toBeInTheDocument();
 });
 
-it('offers nothing once the run has finished', () => {
-  renderControl('completed');
+it.each([
+  ['finished', 'completed', 'run-1'],
+  ['never started a run', undefined, undefined],
+  ['never started (draft)', 'draft', 'run-1'],
+])('offers nothing for a session that %s', (_name, status, runId) => {
+  renderControl(status, runId);
   expect(screen.queryByRole('button', {name: /stop/i})).toBeNull();
-});
-
-it('offers nothing for a session that never started a run', () => {
-  renderControl(undefined, undefined);
-  expect(screen.queryByRole('button', {name: /stop/i})).toBeNull();
-});
-
-it('offers nothing for a draft that was never started', () => {
-  renderControl('draft');
-  expect(screen.queryByRole('button', {name: /stop/i})).toBeNull();
-});
-
-it('offers the control for a paused run too', () => {
-  renderControl('paused');
-  expect(stopButton()).toBeInTheDocument();
 });
 
 it('asks twice before stopping, since stopping cannot be undone', async () => {
