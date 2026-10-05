@@ -70,7 +70,7 @@ function makeBackendApi(
     async listDemoRuns() {
       const res = await send('listDemoRuns', () => ctx.get('/api/runs/demo'));
       const payload = (await res.json()) as {
-        runs: {id: string; research_goal: string}[];
+        runs: {id: string; title: string; research_goal: string}[];
       };
       return payload.runs;
     },
