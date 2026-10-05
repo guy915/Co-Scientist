@@ -4,7 +4,6 @@ from typing import Any
 import httpx
 import pytest
 from mcp_server.tests._httpx import stub_failure, stub_responses
-from mcp_server.tools import web_providers as providers
 from mcp_server.tools.web_fetch import (
     UrlNotFetchableError,
     check_fetchable,
@@ -315,31 +314,6 @@ async def test_brave_buckets_recency_into_its_freshness_codes(
     assert client.calls[0][1].get("freshness") == freshness
 
 
-@pytest.mark.parametrize(
-    ("requested", "recency", "max_results", "recency_days"),
-    [(500, 5, 20, 5), (0, 0, 1, 0), (-3, -10, 1, 0), (8, 0, 8, 0)],
-)
-async def test_search_web_clamps_its_limits(
-    monkeypatch: pytest.MonkeyPatch,
-    requested: int,
-    recency: int,
-    max_results: int,
-    recency_days: int,
-) -> None:
-    seen: list[tuple[int, int]] = []
-
-    async def fake_search(query: str, limit: int, days: int) -> dict[str, Any]:
-        seen.append((limit, days))
-        return {}
-
-    monkeypatch.setattr(
-        providers, "candidate_providers", lambda: [("brave", fake_search)]
-    )
-    await search_web("q", max_results=requested, recency_days=recency)
-
-    assert seen == [(max_results, recency_days)]
-
-
 @pytest.fixture
 def keys(monkeypatch: pytest.MonkeyPatch) -> Any:
     def configure(
@@ -477,43 +451,59 @@ class TestWebSearchProviders:
         assert await check_web_search_available() is False
 
     @pytest.mark.parametrize(
-        ("brave_refuses", "expected", "calls"),
+        ("brave_answer", "found", "asked"),
         [
+            (_status_error(402), True, ["brave", "tavily"]),
             # An empty answer is an answer; only refusal justifies spending
             # another provider's quota.
-            (False, {}, ["brave"]),
-            (True, {"t1": {"title": "found"}}, ["brave", "tavily"]),
+            ({"web": {"results": []}}, False, ["brave"]),
         ],
     )
     async def test_search_web_falls_through_only_when_a_provider_refuses(
         self,
         monkeypatch: pytest.MonkeyPatch,
         keys: Any,
-        brave_refuses: bool,
-        expected: dict[str, Any],
-        calls: list[str],
+        brave_answer: Any,
+        found: bool,
+        asked: list[str],
     ) -> None:
         keys(brave=True, tavily=True)
-        seen: list[str] = []
+        tavily_answer = {
+            "results": [{"title": "found", "url": "https://e.com"}]
+        }
+        client = stub_responses(monkeypatch, brave_answer, tavily_answer)
 
-        async def brave(*_: Any) -> dict[str, Any]:
-            seen.append("brave")
-            if brave_refuses:
-                _record_credential_error("brave", 402, "quota gone")
-            return {}
+        results = await search_web("anything")
 
-        async def tavily(*_: Any) -> dict[str, Any]:
-            seen.append("tavily")
-            return {"t1": {"title": "found"}}
+        assert bool(results) is found
+        assert [
+            "brave" if "brave" in url else "tavily" for url, _ in client.calls
+        ] == asked
 
-        monkeypatch.setattr(
-            providers,
-            "_PROVIDERS",
-            {
-                "brave": (brave, "BRAVE_API_KEY"),
-                "tavily": (tavily, "TAVILY_API_KEY"),
-            },
-        )
 
-        assert await search_web("anything") == expected
-        assert seen == calls
+@pytest.mark.usefixtures("_clear_credential_state")
+@pytest.mark.parametrize(
+    ("requested", "recency", "count", "freshness"),
+    [
+        (500, 5, "20", "pw"),
+        (0, 0, "1", None),
+        (-3, -10, "1", None),
+        (8, 0, "8", None),
+    ],
+)
+async def test_search_web_clamps_its_limits(
+    monkeypatch: pytest.MonkeyPatch,
+    keys: Any,
+    requested: int,
+    recency: int,
+    count: str,
+    freshness: str | None,
+) -> None:
+    keys(brave=True)
+    client = stub_responses(monkeypatch, {})
+
+    await search_web("q", max_results=requested, recency_days=recency)
+
+    params = client.calls[0][1]
+    assert params["count"] == count
+    assert params.get("freshness") == freshness

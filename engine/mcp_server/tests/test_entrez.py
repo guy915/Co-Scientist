@@ -90,13 +90,13 @@ def test_campaign_requests_omit_the_service_key_and_standard_ones_keep_it(
         )
 
     (request,) = requests
-    wire = request.full_url.encode() + (request.data or b"")
+    wire = request.full_url + str(request.data or "")
     if campaign:
-        assert b"api_key=" not in wire
-        assert b"service-held-key" not in wire
-        assert b"caller-override" not in wire
+        assert "api_key=" not in wire
+        assert "service-held-key" not in wire
+        assert "caller-override" not in wire
     else:
-        assert b"api_key=service-held-key" in wire
+        assert "api_key=service-held-key" in wire
 
 
 _TEST_INTERVAL = 0.05

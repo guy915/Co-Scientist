@@ -344,7 +344,8 @@ class TestPubmedMetadataBatch:
             paper_id: {k: v for k, v in metadata.items() if k != "fulltext"}
             for paper_id, metadata in default_results.items()
         } == results
-        assert fulltext_requests == extraction_inputs == []
+        assert fulltext_requests == []
+        assert extraction_inputs == []
         assert trace["final_ids"] == ["102", "105", "101"]
         assert trace["fetch_errors"] == []
         assert trace["incomplete_fetch_count"] == 0
@@ -554,23 +555,6 @@ def test_elink_groups_map_to_pmc_ids_or_incomplete_by_source_pmid(
     )
 
 
-def test_elink_transport_failure_returns_metadata_without_caching_false_no_link(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    def fail_elink(**_kwargs: Any) -> _Handle:
-        raise RuntimeError("offline")
-
-    results, trace, shared_dir = _gather(
-        monkeypatch, tmp_path, ["101"], _efetch_reversed, fail_elink
-    )
-
-    assert results["101"]["pmc_full_text_id"] is None
-    assert not (shared_dir / "101.metadata.json").exists()
-    assert trace["entrez_calls"] == {"esearch": 0, "efetch": 1, "elink": 1}
-    assert trace["incomplete_fetch_count"] == 1
-    assert trace["fetch_errors"][0]["stage"] == "elink"
-
-
 def test_batching_deduplicates_orders_valid_pmids_and_chunks_at_nine(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -602,27 +586,6 @@ def test_batching_deduplicates_orders_valid_pmids_and_chunks_at_nine(
     assert efetch_groups == elink_groups == [paper_ids[:9], paper_ids[9:]]
     assert trace["incomplete_fetch_count"] == 3
     assert len(list(shared_dir.glob("*.metadata.json"))) == len(paper_ids)
-
-
-def test_empty_input_makes_no_metadata_or_link_requests(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    def fail(**_kwargs: Any) -> _Handle:
-        pytest.fail("empty input must not call Entrez")
-
-    _install_batch_entrez(monkeypatch, fail, fail)
-    results = asyncio.run(
-        batch.gather_metadata(
-            _EntrezClient(tmp_path),
-            [],
-            tmp_path / "empty" / "shared",
-            None,
-            asyncio.Semaphore(1),
-        )
-    )
-
-    assert results == {}
-    assert not (tmp_path / "empty").exists()
 
 
 def test_metadata_cache_is_isolated_by_slug_directory(

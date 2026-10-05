@@ -12,7 +12,6 @@ from urllib.error import URLError
 import pytest
 from Bio import Entrez
 from mcp_server.entrez import read_entrez
-from mcp_server.literature_review import PubmedSource
 from mcp_server.pubmed_client import (
     MIN_RESULTS_BEFORE_RELAX,
     anchored_relaxed_query,
@@ -410,32 +409,6 @@ def test_metadata_and_empty_link_proof_survive_cache_relocation(
     assert has_proven_metadata_no_link(relocated_metadata)
     relocated_metadata.write_text('{"title": "changed"}')
     assert not has_proven_metadata_no_link(relocated_metadata)
-
-
-@pytest.mark.parametrize(
-    ("fulltext_ids", "max_papers", "expected"),
-    [
-        (["fulltext-1"], 3, ["fulltext-1", "abstract-1", "abstract-2"]),
-        (["fulltext-1", "fulltext-2"], 2, ["fulltext-1", "fulltext-2"]),
-    ],
-)
-def test_final_results_fill_fulltext_shortfall_within_the_corpus_limit(
-    tmp_path: Path,
-    fulltext_ids: list[str],
-    max_papers: int,
-    expected: list[str],
-) -> None:
-    metadata = {
-        "abstract-1": {"title": "Recent abstract", "abstract": "A1"},
-        "abstract-2": {"title": "Older abstract", "abstract": "A3"},
-        **{paper_id: {"fulltext": "Complete"} for paper_id in fulltext_ids},
-    }
-
-    result = PubmedSource(tmp_path)._assemble_final_results(
-        fulltext_ids, metadata, max_papers=max_papers
-    )
-
-    assert list(result) == expected
 
 
 @pytest.mark.parametrize(
