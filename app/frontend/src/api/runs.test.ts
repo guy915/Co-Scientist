@@ -9,6 +9,7 @@ import {
 } from '@/lib/client_id';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {
+  cancelRun,
   createInterview,
   createRun,
   exchangeAccessCode,
@@ -115,6 +116,18 @@ describe('runs api', () => {
     expect(
       (started[1].headers as Record<string, string>)['X-Client-ID'],
     ).toBeTruthy();
+  });
+
+  it('cancels a run with a POST to its cancel route', async () => {
+    fetchMock().mockResolvedValue(
+      jsonResponse({id: 'r1', status: 'cancelled'}),
+    );
+
+    expect(await cancelRun('r1')).toEqual({id: 'r1', status: 'cancelled'});
+
+    const [url, opts] = firstCall();
+    expect(url).toBe('/api/runs/r1/cancel');
+    expect(opts?.method).toBe('POST');
   });
 
   it('merges owned and demo runs de-duped with demo winning, newest first', async () => {
