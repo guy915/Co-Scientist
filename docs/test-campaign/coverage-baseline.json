@@ -1,0 +1,2279 @@
+{
+  "protected_modules": [
+    "app/app/account_export.py",
+    "app/app/api_contracts/generate.py",
+    "app/app/async_bridge.py",
+    "app/app/auth.py",
+    "app/app/byok_models.py",
+    "app/app/citations/__init__.py",
+    "app/app/claims/__init__.py",
+    "app/app/claims/assessor.py",
+    "app/app/claims/gate.py",
+    "app/app/claims/grounding.py",
+    "app/app/claims/verifier.py",
+    "app/app/config.py",
+    "app/app/credentials.py",
+    "app/app/demo_seed_data/__init__.py",
+    "app/app/diagnostic_events.py",
+    "app/app/diagnostics.py",
+    "app/app/diagnostics_api.py",
+    "app/app/document_ingest.py",
+    "app/app/documents.py",
+    "app/app/elo.py",
+    "app/app/engine_adapter/__init__.py",
+    "app/app/engine_adapter/drain/final_state.py",
+    "app/app/engine_adapter/drain/hypotheses.py",
+    "app/app/engine_adapter/drain/matches.py",
+    "app/app/engine_adapter/drain/reviews.py",
+    "app/app/engine_adapter/events.py",
+    "app/app/engine_adapter/opts.py",
+    "app/app/engine_adapter/tools.py",
+    "app/app/engine_tasks/__init__.py",
+    "app/app/engine_tasks/fanout.py",
+    "app/app/engine_tasks/fanout_aggregates.py",
+    "app/app/engine_tasks/finalize.py",
+    "app/app/engine_tasks/gate.py",
+    "app/app/engine_tasks/inputs.py",
+    "app/app/engine_tasks/node.py",
+    "app/app/engine_tasks/portfolio.py",
+    "app/app/engine_tasks/ranking.py",
+    "app/app/engine_tasks/runtime.py",
+    "app/app/engine_tasks/support.py",
+    "app/app/evidence_chunking.py",
+    "app/app/execution_policy.py",
+    "app/app/feedback_api.py",
+    "app/app/free_usage.py",
+    "app/app/goal_text.py",
+    "app/app/hypothesis/__init__.py",
+    "app/app/hypothesis/safety.py",
+    "app/app/interviews/__init__.py",
+    "app/app/interviews/model.py",
+    "app/app/interviews/questions.py",
+    "app/app/interviews/stream.py",
+    "app/app/interviews/turns.py",
+    "app/app/llm_request.py",
+    "app/app/llm_scope.py",
+    "app/app/logging_setup.py",
+    "app/app/logs_api.py",
+    "app/app/main.py",
+    "app/app/notifications.py",
+    "app/app/offline_guard.py",
+    "app/app/operator_access.py",
+    "app/app/process_mode.py",
+    "app/app/qa/__init__.py",
+    "app/app/qa/artifacts.py",
+    "app/app/qa/manifest.py",
+    "app/app/qa/snapshot.py",
+    "app/app/report/build.py",
+    "app/app/report/content.py",
+    "app/app/report/finalize.py",
+    "app/app/report/gates.py",
+    "app/app/report/markdown/__init__.py",
+    "app/app/report/markdown/document.py",
+    "app/app/report/markdown/hypothesis.py",
+    "app/app/report/markdown/overview.py",
+    "app/app/retention.py",
+    "app/app/run_corpus.py",
+    "app/app/run_events.py",
+    "app/app/run_modes/__init__.py",
+    "app/app/runs/__init__.py",
+    "app/app/runs/chat.py",
+    "app/app/runs/collections.py",
+    "app/app/runs/crud.py",
+    "app/app/runs/events.py",
+    "app/app/runs/lifecycle.py",
+    "app/app/runs/models.py",
+    "app/app/runs/support.py",
+    "app/app/safety/__init__.py",
+    "app/app/safety/semantic.py",
+    "app/app/safety/types.py",
+    "app/app/seed/__init__.py",
+    "app/app/seed/chat.py",
+    "app/app/seed/overview.py",
+    "app/app/seed/scenario.py",
+    "app/app/shares.py",
+    "app/app/sse.py",
+    "app/app/staged_documents.py",
+    "app/app/store/checkpoints.py",
+    "app/app/store/db.py",
+    "app/app/store/documents.py",
+    "app/app/store/events.py",
+    "app/app/store/examples.py",
+    "app/app/store/feedback.py",
+    "app/app/store/hypotheses.py",
+    "app/app/store/interviews.py",
+    "app/app/store/logs.py",
+    "app/app/store/messages.py",
+    "app/app/store/models.py",
+    "app/app/store/receipts.py",
+    "app/app/store/records.py",
+    "app/app/store/reports.py",
+    "app/app/store/retrieval_calls.py",
+    "app/app/store/runs.py",
+    "app/app/store/runs_views.py",
+    "app/app/store/supervisor_plan.py",
+    "app/app/store/tasks.py",
+    "app/app/store/tasks_lifecycle.py",
+    "app/app/task_worker/__init__.py",
+    "app/app/task_worker/enqueue.py",
+    "app/app/task_worker/outcomes.py",
+    "app/app/text_utils.py",
+    "app/frontend/src/api/feedback.ts",
+    "app/frontend/src/api/logs.ts",
+    "app/frontend/src/api/runs.ts",
+    "app/frontend/src/api/system.ts",
+    "app/frontend/src/api/wire_common.ts",
+    "app/frontend/src/api/wire_interviews.ts",
+    "app/frontend/src/api/wire_reports.ts",
+    "app/frontend/src/api/wire_runs.ts",
+    "app/frontend/src/api/wire_science.ts",
+    "app/frontend/src/components/error_boundary.tsx",
+    "app/frontend/src/components/icon.tsx",
+    "app/frontend/src/components/markdown_message.tsx",
+    "app/frontend/src/components/markdown_message_renderer.tsx",
+    "app/frontend/src/hooks/use_run_stream.ts",
+    "app/frontend/src/lib/client_id.ts",
+    "app/frontend/src/lib/clipboard.ts",
+    "app/frontend/src/lib/hypotheses.ts",
+    "app/frontend/src/lib/sanitize_html.ts",
+    "app/frontend/src/lib/smooth_scroll.ts",
+    "app/frontend/src/lib/text.ts",
+    "app/frontend/src/lib/ui_logging.ts",
+    "app/frontend/src/main.tsx",
+    "app/frontend/src/public/page.tsx",
+    "app/frontend/src/workbench/classes.ts",
+    "app/frontend/src/workbench/components/feedback_dialog.tsx",
+    "app/frontend/src/workbench/components/settings_dialog.tsx",
+    "app/frontend/src/workbench/components/tabs/ideas_detail_data.ts",
+    "app/frontend/src/workbench/components/tabs/ideas_detail_pane.tsx",
+    "app/frontend/src/workbench/components/tabs/ideas_tab.tsx",
+    "app/frontend/src/workbench/components/truncated_label.tsx",
+    "app/frontend/src/workbench/dom_events.ts",
+    "app/frontend/src/workbench/hooks/chat_session_handlers.ts",
+    "app/frontend/src/workbench/hooks/chat_session_start_run.ts",
+    "app/frontend/src/workbench/hooks/chat_session_transcript.ts",
+    "app/frontend/src/workbench/hooks/dom.ts",
+    "app/frontend/src/workbench/hooks/history_context.tsx",
+    "app/frontend/src/workbench/hooks/system_status_context.tsx",
+    "app/frontend/src/workbench/hooks/timers.ts",
+    "app/frontend/src/workbench/hooks/use_chat_rehydrate.ts",
+    "app/frontend/src/workbench/hooks/use_chat_session.ts",
+    "app/frontend/src/workbench/layout.tsx",
+    "app/frontend/src/workbench/layout_cancel_run.tsx",
+    "app/frontend/src/workbench/layout_diagnostics.tsx",
+    "app/frontend/src/workbench/layout_diagnostics_data.ts",
+    "app/frontend/src/workbench/layout_header.tsx",
+    "app/frontend/src/workbench/layout_nav_rail.tsx",
+    "app/frontend/src/workbench/layout_primitives.tsx",
+    "app/frontend/src/workbench/layout_session_switch.tsx",
+    "app/frontend/src/workbench/pages/chat_composer.tsx",
+    "app/frontend/src/workbench/pages/chat_home_stage.tsx",
+    "app/frontend/src/workbench/pages/chat_questions.tsx",
+    "app/frontend/src/workbench/pages/chat_timeline_bubble.tsx",
+    "app/frontend/src/workbench/pages/chat_timeline_message_actions.tsx",
+    "app/frontend/src/workbench/pages/chat_timeline_run_spec_card.tsx",
+    "app/frontend/src/workbench/pages/chat_timeline_run_spec_editor.tsx",
+    "app/frontend/src/workbench/pages/chat_timeline_thoughts.tsx",
+    "app/frontend/src/workbench/pages/chat_workspace.tsx",
+    "app/frontend/src/workbench/pages/chat_workspace_timeline.tsx",
+    "app/frontend/src/workbench/pages/example_chat.tsx",
+    "app/frontend/src/workbench/pages/home_landing.tsx",
+    "app/frontend/src/workbench/pages/home_landing_content.ts",
+    "app/frontend/src/workbench/pages/home_landing_diagram.tsx",
+    "app/frontend/src/workbench/pages/home_landing_hooks.tsx",
+    "app/frontend/src/workbench/pages/researcher_access.tsx",
+    "app/frontend/src/workbench/pages/run_detail.tsx",
+    "app/frontend/src/workbench/pages/run_detail_active.tsx",
+    "app/frontend/src/workbench/pages/run_detail_activity_log.tsx",
+    "app/frontend/src/workbench/pages/run_detail_data.ts",
+    "app/frontend/src/workbench/pages/run_detail_learning.tsx",
+    "app/frontend/src/workbench/pages/run_detail_overview.tsx",
+    "app/frontend/src/workbench/pages/run_detail_shell.tsx",
+    "app/frontend/src/workbench/pages/run_detail_specifications.tsx",
+    "app/frontend/src/workbench/pages/shared_goal_report.tsx",
+    "app/frontend/src/workbench/run_spec.ts",
+    "app/frontend/src/workbench/run_tabs.ts",
+    "app/frontend/src/workbench/theme_context.tsx",
+    "app/frontend/src/workbench/workbench_app.tsx",
+    "engine/mcp_server/campaign.py",
+    "engine/mcp_server/entrez.py",
+    "engine/mcp_server/literature_review.py",
+    "engine/mcp_server/pubmed_client.py",
+    "engine/mcp_server/pubmed_pilot_trace.py",
+    "engine/mcp_server/pubmed_storage.py",
+    "engine/mcp_server/text_extraction.py",
+    "engine/mcp_server/tools/lit_review/search_pubmed.py",
+    "engine/mcp_server/tools/web_fetch.py",
+    "engine/mcp_server/tools/web_providers.py",
+    "engine/src/co_scientist/_context.py",
+    "engine/src/co_scientist/agents/evolution/evolve.py",
+    "engine/src/co_scientist/agents/evolution/evolve_grounding.py",
+    "engine/src/co_scientist/agents/evolution/evolve_prompt.py",
+    "engine/src/co_scientist/agents/evolution/evolve_results.py",
+    "engine/src/co_scientist/agents/evolution/operations.py",
+    "engine/src/co_scientist/agents/generation/assumptions.py",
+    "engine/src/co_scientist/agents/generation/citations.py",
+    "engine/src/co_scientist/agents/proximity/proximity_graph.py",
+    "engine/src/co_scientist/agents/ranking/ranking_lifecycle.py",
+    "engine/src/co_scientist/agents/reflection/deep_verification_evidence.py",
+    "engine/src/co_scientist/agents/reflection/owed_review.py",
+    "engine/src/co_scientist/agents/reflection/review.py",
+    "engine/src/co_scientist/agents/reflection/review_gate.py",
+    "engine/src/co_scientist/agents/supervisor/orchestrator.py",
+    "engine/src/co_scientist/backoff.py",
+    "engine/src/co_scientist/cache/__init__.py",
+    "engine/src/co_scientist/checkpoint.py",
+    "engine/src/co_scientist/config/env_vars.py",
+    "engine/src/co_scientist/config/registry.py",
+    "engine/src/co_scientist/config/schema.py",
+    "engine/src/co_scientist/constants/__init__.py",
+    "engine/src/co_scientist/exceptions.py",
+    "engine/src/co_scientist/llm/admission/call_budget.py",
+    "engine/src/co_scientist/llm/admission/free_policy.py",
+    "engine/src/co_scientist/llm/attempts/escalation.py",
+    "engine/src/co_scientist/llm/attempts/json_attempt.py",
+    "engine/src/co_scientist/llm/attempts/retry.py",
+    "engine/src/co_scientist/llm/call.py",
+    "engine/src/co_scientist/llm/precall.py",
+    "engine/src/co_scientist/llm/profile/__init__.py",
+    "engine/src/co_scientist/llm/request/backend.py",
+    "engine/src/co_scientist/llm/request/completion.py",
+    "engine/src/co_scientist/llm/request/response.py",
+    "engine/src/co_scientist/llm/request/thinking.py",
+    "engine/src/co_scientist/llm/request/transport.py",
+    "engine/src/co_scientist/llm/structured/validate.py",
+    "engine/src/co_scientist/llm/telemetry.py",
+    "engine/src/co_scientist/llm/tools/loop.py",
+    "engine/src/co_scientist/llm/tools/policy.py",
+    "engine/src/co_scientist/llm/tools/transcript.py",
+    "engine/src/co_scientist/llm/values.py",
+    "engine/src/co_scientist/models/__init__.py",
+    "engine/src/co_scientist/models/metrics.py",
+    "engine/src/co_scientist/offline/llm.py",
+    "engine/src/co_scientist/patch/__init__.py",
+    "engine/src/co_scientist/progress.py",
+    "engine/src/co_scientist/prompts/_common.py",
+    "engine/src/co_scientist/prompts/generation_draft.py",
+    "engine/src/co_scientist/prompts/literature.py",
+    "engine/src/co_scientist/prompts/loading.py",
+    "engine/src/co_scientist/sandbox/argv.py",
+    "engine/src/co_scientist/sandbox/bwrap.py",
+    "engine/src/co_scientist/sandbox/command_safety.py",
+    "engine/src/co_scientist/sandbox/confine_exec.py",
+    "engine/src/co_scientist/sandbox/landlock.py",
+    "engine/src/co_scientist/sandbox/policy.py",
+    "engine/src/co_scientist/sandbox/runner.py",
+    "engine/src/co_scientist/sandbox/seccomp.py",
+    "engine/src/co_scientist/scheduling/policy.py",
+    "engine/src/co_scientist/schemas/__init__.py",
+    "engine/src/co_scientist/state/__init__.py",
+    "engine/src/co_scientist/tool_effects.py",
+    "engine/src/co_scientist/tools/provider.py",
+    "engine/src/co_scientist/workspace/checks.py",
+    "engine/src/co_scientist/workspace/output.py",
+    "engine/src/co_scientist/workspace/run_workspace.py",
+    "engine/src/co_scientist/workspace/session.py",
+    "engine/src/co_scientist/workspace/tool_schemas.py",
+    "engine/src/co_scientist/workspace/tools.py"
+  ],
+  "suites": {
+    "app": {
+      "covered": 13110,
+      "modules": {
+        "app/app/__init__.py": {
+          "covered": 5,
+          "percent": 100.0,
+          "total": 5
+        },
+        "app/app/account_export.py": {
+          "covered": 20,
+          "percent": 100.0,
+          "total": 20
+        },
+        "app/app/api_contracts/__init__.py": {
+          "covered": 23,
+          "percent": 100.0,
+          "total": 23
+        },
+        "app/app/api_contracts/common.py": {
+          "covered": 49,
+          "percent": 100.0,
+          "total": 49
+        },
+        "app/app/api_contracts/generate.py": {
+          "covered": 102,
+          "percent": 93.57798165137615,
+          "total": 109
+        },
+        "app/app/api_contracts/interviews.py": {
+          "covered": 58,
+          "percent": 100.0,
+          "total": 58
+        },
+        "app/app/api_contracts/reports.py": {
+          "covered": 133,
+          "percent": 100.0,
+          "total": 133
+        },
+        "app/app/api_contracts/runs.py": {
+          "covered": 84,
+          "percent": 100.0,
+          "total": 84
+        },
+        "app/app/api_contracts/science.py": {
+          "covered": 129,
+          "percent": 100.0,
+          "total": 129
+        },
+        "app/app/async_bridge.py": {
+          "covered": 60,
+          "percent": 92.3076923076923,
+          "total": 65
+        },
+        "app/app/auth.py": {
+          "covered": 92,
+          "percent": 91.08910891089108,
+          "total": 101
+        },
+        "app/app/byok_models.py": {
+          "covered": 25,
+          "percent": 96.15384615384616,
+          "total": 26
+        },
+        "app/app/citations/__init__.py": {
+          "covered": 162,
+          "percent": 93.64161849710983,
+          "total": 173
+        },
+        "app/app/claims/__init__.py": {
+          "covered": 139,
+          "percent": 97.88732394366197,
+          "total": 142
+        },
+        "app/app/claims/assessor.py": {
+          "covered": 110,
+          "percent": 97.34513274336283,
+          "total": 113
+        },
+        "app/app/claims/gate.py": {
+          "covered": 134,
+          "percent": 100.0,
+          "total": 134
+        },
+        "app/app/claims/grounding.py": {
+          "covered": 201,
+          "percent": 97.10144927536231,
+          "total": 207
+        },
+        "app/app/claims/verifier.py": {
+          "covered": 175,
+          "percent": 93.08510638297872,
+          "total": 188
+        },
+        "app/app/config.py": {
+          "covered": 118,
+          "percent": 100.0,
+          "total": 118
+        },
+        "app/app/credentials.py": {
+          "covered": 147,
+          "percent": 96.71052631578948,
+          "total": 152
+        },
+        "app/app/demo_seed_data/__init__.py": {
+          "covered": 63,
+          "percent": 98.4375,
+          "total": 64
+        },
+        "app/app/diagnostic_events.py": {
+          "covered": 8,
+          "percent": 100.0,
+          "total": 8
+        },
+        "app/app/diagnostics.py": {
+          "covered": 113,
+          "percent": 97.41379310344827,
+          "total": 116
+        },
+        "app/app/diagnostics_api.py": {
+          "covered": 92,
+          "percent": 100.0,
+          "total": 92
+        },
+        "app/app/document_ingest.py": {
+          "covered": 108,
+          "percent": 75.52447552447552,
+          "total": 143
+        },
+        "app/app/documents.py": {
+          "covered": 25,
+          "percent": 96.15384615384616,
+          "total": 26
+        },
+        "app/app/elo.py": {
+          "covered": 14,
+          "percent": 100.0,
+          "total": 14
+        },
+        "app/app/engine_adapter/__init__.py": {
+          "covered": 54,
+          "percent": 98.18181818181819,
+          "total": 55
+        },
+        "app/app/engine_adapter/drain/__init__.py": {
+          "covered": 5,
+          "percent": 100.0,
+          "total": 5
+        },
+        "app/app/engine_adapter/drain/final_state.py": {
+          "covered": 181,
+          "percent": 98.3695652173913,
+          "total": 184
+        },
+        "app/app/engine_adapter/drain/hypotheses.py": {
+          "covered": 170,
+          "percent": 98.83720930232558,
+          "total": 172
+        },
+        "app/app/engine_adapter/drain/matches.py": {
+          "covered": 56,
+          "percent": 98.24561403508773,
+          "total": 57
+        },
+        "app/app/engine_adapter/drain/reviews.py": {
+          "covered": 275,
+          "percent": 97.86476868327402,
+          "total": 281
+        },
+        "app/app/engine_adapter/events.py": {
+          "covered": 60,
+          "percent": 100.0,
+          "total": 60
+        },
+        "app/app/engine_adapter/opts.py": {
+          "covered": 80,
+          "percent": 100.0,
+          "total": 80
+        },
+        "app/app/engine_adapter/tools.py": {
+          "covered": 39,
+          "percent": 97.5,
+          "total": 40
+        },
+        "app/app/engine_tasks/__init__.py": {
+          "covered": 47,
+          "percent": 95.91836734693878,
+          "total": 49
+        },
+        "app/app/engine_tasks/fanout.py": {
+          "covered": 174,
+          "percent": 98.86363636363636,
+          "total": 176
+        },
+        "app/app/engine_tasks/fanout_aggregates.py": {
+          "covered": 221,
+          "percent": 96.08695652173913,
+          "total": 230
+        },
+        "app/app/engine_tasks/finalize.py": {
+          "covered": 110,
+          "percent": 97.34513274336283,
+          "total": 113
+        },
+        "app/app/engine_tasks/gate.py": {
+          "covered": 139,
+          "percent": 97.88732394366197,
+          "total": 142
+        },
+        "app/app/engine_tasks/inputs.py": {
+          "covered": 133,
+          "percent": 97.08029197080292,
+          "total": 137
+        },
+        "app/app/engine_tasks/node.py": {
+          "covered": 91,
+          "percent": 92.85714285714286,
+          "total": 98
+        },
+        "app/app/engine_tasks/portfolio.py": {
+          "covered": 90,
+          "percent": 95.74468085106383,
+          "total": 94
+        },
+        "app/app/engine_tasks/ranking.py": {
+          "covered": 180,
+          "percent": 98.36065573770492,
+          "total": 183
+        },
+        "app/app/engine_tasks/runtime.py": {
+          "covered": 30,
+          "percent": 100.0,
+          "total": 30
+        },
+        "app/app/engine_tasks/support.py": {
+          "covered": 228,
+          "percent": 95.39748953974896,
+          "total": 239
+        },
+        "app/app/evidence_chunking.py": {
+          "covered": 57,
+          "percent": 98.27586206896552,
+          "total": 58
+        },
+        "app/app/execution_policy.py": {
+          "covered": 36,
+          "percent": 100.0,
+          "total": 36
+        },
+        "app/app/feedback_api.py": {
+          "covered": 39,
+          "percent": 100.0,
+          "total": 39
+        },
+        "app/app/free_usage.py": {
+          "covered": 49,
+          "percent": 100.0,
+          "total": 49
+        },
+        "app/app/goal_text.py": {
+          "covered": 72,
+          "percent": 98.63013698630137,
+          "total": 73
+        },
+        "app/app/human_input.py": {
+          "covered": 43,
+          "percent": 100.0,
+          "total": 43
+        },
+        "app/app/hypothesis/__init__.py": {
+          "covered": 94,
+          "percent": 95.91836734693878,
+          "total": 98
+        },
+        "app/app/hypothesis/safety.py": {
+          "covered": 63,
+          "percent": 100.0,
+          "total": 63
+        },
+        "app/app/interviews/__init__.py": {
+          "covered": 114,
+          "percent": 97.43589743589743,
+          "total": 117
+        },
+        "app/app/interviews/model.py": {
+          "covered": 185,
+          "percent": 99.46236559139786,
+          "total": 186
+        },
+        "app/app/interviews/questions.py": {
+          "covered": 57,
+          "percent": 95.0,
+          "total": 60
+        },
+        "app/app/interviews/stream.py": {
+          "covered": 54,
+          "percent": 84.375,
+          "total": 64
+        },
+        "app/app/interviews/turns.py": {
+          "covered": 97,
+          "percent": 96.03960396039604,
+          "total": 101
+        },
+        "app/app/llm_request.py": {
+          "covered": 17,
+          "percent": 100.0,
+          "total": 17
+        },
+        "app/app/llm_scope.py": {
+          "covered": 97,
+          "percent": 98.9795918367347,
+          "total": 98
+        },
+        "app/app/logging_setup.py": {
+          "covered": 191,
+          "percent": 91.38755980861244,
+          "total": 209
+        },
+        "app/app/logs_api.py": {
+          "covered": 125,
+          "percent": 98.4251968503937,
+          "total": 127
+        },
+        "app/app/main.py": {
+          "covered": 197,
+          "percent": 95.63106796116504,
+          "total": 206
+        },
+        "app/app/notifications.py": {
+          "covered": 39,
+          "percent": 86.66666666666667,
+          "total": 45
+        },
+        "app/app/offline_guard.py": {
+          "covered": 12,
+          "percent": 100.0,
+          "total": 12
+        },
+        "app/app/operator_access.py": {
+          "covered": 12,
+          "percent": 100.0,
+          "total": 12
+        },
+        "app/app/ops_metrics.py": {
+          "covered": 83,
+          "percent": 100.0,
+          "total": 83
+        },
+        "app/app/pdf.py": {
+          "covered": 273,
+          "percent": 95.1219512195122,
+          "total": 287
+        },
+        "app/app/process_mode.py": {
+          "covered": 26,
+          "percent": 100.0,
+          "total": 26
+        },
+        "app/app/qa/__init__.py": {
+          "covered": 186,
+          "percent": 97.89473684210526,
+          "total": 190
+        },
+        "app/app/qa/artifacts.py": {
+          "covered": 30,
+          "percent": 96.7741935483871,
+          "total": 31
+        },
+        "app/app/qa/manifest.py": {
+          "covered": 296,
+          "percent": 97.36842105263158,
+          "total": 304
+        },
+        "app/app/qa/snapshot.py": {
+          "covered": 32,
+          "percent": 100.0,
+          "total": 32
+        },
+        "app/app/report/__init__.py": {
+          "covered": 5,
+          "percent": 100.0,
+          "total": 5
+        },
+        "app/app/report/build.py": {
+          "covered": 69,
+          "percent": 100.0,
+          "total": 69
+        },
+        "app/app/report/content.py": {
+          "covered": 147,
+          "percent": 98.65771812080537,
+          "total": 149
+        },
+        "app/app/report/finalize.py": {
+          "covered": 98,
+          "percent": 98.98989898989899,
+          "total": 99
+        },
+        "app/app/report/gates.py": {
+          "covered": 103,
+          "percent": 99.03846153846153,
+          "total": 104
+        },
+        "app/app/report/markdown/__init__.py": {
+          "covered": 197,
+          "percent": 98.99497487437186,
+          "total": 199
+        },
+        "app/app/report/markdown/document.py": {
+          "covered": 119,
+          "percent": 98.34710743801652,
+          "total": 121
+        },
+        "app/app/report/markdown/hypothesis.py": {
+          "covered": 387,
+          "percent": 98.47328244274809,
+          "total": 393
+        },
+        "app/app/report/markdown/overview.py": {
+          "covered": 431,
+          "percent": 94.51754385964912,
+          "total": 456
+        },
+        "app/app/retention.py": {
+          "covered": 42,
+          "percent": 80.76923076923077,
+          "total": 52
+        },
+        "app/app/retraction_set.py": {
+          "covered": 25,
+          "percent": 96.15384615384616,
+          "total": 26
+        },
+        "app/app/run_corpus.py": {
+          "covered": 56,
+          "percent": 100.0,
+          "total": 56
+        },
+        "app/app/run_events.py": {
+          "covered": 13,
+          "percent": 100.0,
+          "total": 13
+        },
+        "app/app/run_modes/__init__.py": {
+          "covered": 212,
+          "percent": 92.5764192139738,
+          "total": 229
+        },
+        "app/app/run_start_announcement.py": {
+          "covered": 85,
+          "percent": 97.70114942528735,
+          "total": 87
+        },
+        "app/app/runs/__init__.py": {
+          "covered": 32,
+          "percent": 100.0,
+          "total": 32
+        },
+        "app/app/runs/chat.py": {
+          "covered": 101,
+          "percent": 93.51851851851852,
+          "total": 108
+        },
+        "app/app/runs/collections.py": {
+          "covered": 86,
+          "percent": 100.0,
+          "total": 86
+        },
+        "app/app/runs/contrib.py": {
+          "covered": 95,
+          "percent": 97.9381443298969,
+          "total": 97
+        },
+        "app/app/runs/crud.py": {
+          "covered": 266,
+          "percent": 95.0,
+          "total": 280
+        },
+        "app/app/runs/events.py": {
+          "covered": 63,
+          "percent": 100.0,
+          "total": 63
+        },
+        "app/app/runs/lifecycle.py": {
+          "covered": 194,
+          "percent": 93.26923076923077,
+          "total": 208
+        },
+        "app/app/runs/models.py": {
+          "covered": 61,
+          "percent": 100.0,
+          "total": 61
+        },
+        "app/app/runs/support.py": {
+          "covered": 19,
+          "percent": 100.0,
+          "total": 19
+        },
+        "app/app/safety/__init__.py": {
+          "covered": 149,
+          "percent": 87.13450292397661,
+          "total": 171
+        },
+        "app/app/safety/semantic.py": {
+          "covered": 64,
+          "percent": 98.46153846153847,
+          "total": 65
+        },
+        "app/app/safety/types.py": {
+          "covered": 39,
+          "percent": 97.5,
+          "total": 40
+        },
+        "app/app/seed/__init__.py": {
+          "covered": 71,
+          "percent": 98.61111111111111,
+          "total": 72
+        },
+        "app/app/seed/chat.py": {
+          "covered": 26,
+          "percent": 96.29629629629629,
+          "total": 27
+        },
+        "app/app/seed/overview.py": {
+          "covered": 83,
+          "percent": 100.0,
+          "total": 83
+        },
+        "app/app/seed/scenario.py": {
+          "covered": 146,
+          "percent": 100.0,
+          "total": 146
+        },
+        "app/app/shares.py": {
+          "covered": 63,
+          "percent": 92.6470588235294,
+          "total": 68
+        },
+        "app/app/sse.py": {
+          "covered": 5,
+          "percent": 100.0,
+          "total": 5
+        },
+        "app/app/staged_documents.py": {
+          "covered": 13,
+          "percent": 100.0,
+          "total": 13
+        },
+        "app/app/store/__init__.py": {
+          "covered": 0,
+          "percent": 100.0,
+          "total": 0
+        },
+        "app/app/store/checkpoints.py": {
+          "covered": 50,
+          "percent": 100.0,
+          "total": 50
+        },
+        "app/app/store/db.py": {
+          "covered": 74,
+          "percent": 97.36842105263158,
+          "total": 76
+        },
+        "app/app/store/documents.py": {
+          "covered": 78,
+          "percent": 97.5,
+          "total": 80
+        },
+        "app/app/store/events.py": {
+          "covered": 118,
+          "percent": 100.0,
+          "total": 118
+        },
+        "app/app/store/examples.py": {
+          "covered": 62,
+          "percent": 93.93939393939394,
+          "total": 66
+        },
+        "app/app/store/feedback.py": {
+          "covered": 55,
+          "percent": 98.21428571428571,
+          "total": 56
+        },
+        "app/app/store/hypotheses.py": {
+          "covered": 87,
+          "percent": 96.66666666666667,
+          "total": 90
+        },
+        "app/app/store/interviews.py": {
+          "covered": 90,
+          "percent": 96.7741935483871,
+          "total": 93
+        },
+        "app/app/store/logs.py": {
+          "covered": 97,
+          "percent": 100.0,
+          "total": 97
+        },
+        "app/app/store/messages.py": {
+          "covered": 55,
+          "percent": 94.82758620689656,
+          "total": 58
+        },
+        "app/app/store/models.py": {
+          "covered": 100,
+          "percent": 98.03921568627452,
+          "total": 102
+        },
+        "app/app/store/receipts.py": {
+          "covered": 52,
+          "percent": 96.29629629629629,
+          "total": 54
+        },
+        "app/app/store/records.py": {
+          "covered": 179,
+          "percent": 99.44444444444444,
+          "total": 180
+        },
+        "app/app/store/reports.py": {
+          "covered": 54,
+          "percent": 94.73684210526316,
+          "total": 57
+        },
+        "app/app/store/retrieval_calls.py": {
+          "covered": 55,
+          "percent": 100.0,
+          "total": 55
+        },
+        "app/app/store/runs.py": {
+          "covered": 140,
+          "percent": 92.10526315789474,
+          "total": 152
+        },
+        "app/app/store/runs_views.py": {
+          "covered": 116,
+          "percent": 100.0,
+          "total": 116
+        },
+        "app/app/store/schema.py": {
+          "covered": 1,
+          "percent": 100.0,
+          "total": 1
+        },
+        "app/app/store/supervisor_plan.py": {
+          "covered": 58,
+          "percent": 100.0,
+          "total": 58
+        },
+        "app/app/store/tasks.py": {
+          "covered": 132,
+          "percent": 95.65217391304348,
+          "total": 138
+        },
+        "app/app/store/tasks_lifecycle.py": {
+          "covered": 186,
+          "percent": 96.875,
+          "total": 192
+        },
+        "app/app/task_worker/__init__.py": {
+          "covered": 157,
+          "percent": 89.20454545454545,
+          "total": 176
+        },
+        "app/app/task_worker/__main__.py": {
+          "covered": 0,
+          "percent": 0.0,
+          "total": 3
+        },
+        "app/app/task_worker/enqueue.py": {
+          "covered": 111,
+          "percent": 97.36842105263158,
+          "total": 114
+        },
+        "app/app/task_worker/outcomes.py": {
+          "covered": 81,
+          "percent": 94.18604651162791,
+          "total": 86
+        },
+        "app/app/text_utils.py": {
+          "covered": 29,
+          "percent": 100.0,
+          "total": 29
+        }
+      },
+      "percent": 96.52481225150935,
+      "total": 13582
+    },
+    "engine": {
+      "covered": 13922,
+      "modules": {
+        "engine/src/co_scientist/__init__.py": {
+          "covered": 0,
+          "percent": 100.0,
+          "total": 0
+        },
+        "engine/src/co_scientist/_context.py": {
+          "covered": 11,
+          "percent": 100.0,
+          "total": 11
+        },
+        "engine/src/co_scientist/agents/__init__.py": {
+          "covered": 13,
+          "percent": 100.0,
+          "total": 13
+        },
+        "engine/src/co_scientist/agents/evolution/__init__.py": {
+          "covered": 3,
+          "percent": 100.0,
+          "total": 3
+        },
+        "engine/src/co_scientist/agents/evolution/evolve.py": {
+          "covered": 93,
+          "percent": 98.93617021276596,
+          "total": 94
+        },
+        "engine/src/co_scientist/agents/evolution/evolve_grounding.py": {
+          "covered": 41,
+          "percent": 85.41666666666667,
+          "total": 48
+        },
+        "engine/src/co_scientist/agents/evolution/evolve_prompt.py": {
+          "covered": 192,
+          "percent": 97.46192893401015,
+          "total": 197
+        },
+        "engine/src/co_scientist/agents/evolution/evolve_results.py": {
+          "covered": 103,
+          "percent": 99.03846153846153,
+          "total": 104
+        },
+        "engine/src/co_scientist/agents/evolution/operations.py": {
+          "covered": 23,
+          "percent": 100.0,
+          "total": 23
+        },
+        "engine/src/co_scientist/agents/generation/__init__.py": {
+          "covered": 4,
+          "percent": 100.0,
+          "total": 4
+        },
+        "engine/src/co_scientist/agents/generation/assumptions.py": {
+          "covered": 145,
+          "percent": 96.02649006622516,
+          "total": 151
+        },
+        "engine/src/co_scientist/agents/generation/citations.py": {
+          "covered": 95,
+          "percent": 100.0,
+          "total": 95
+        },
+        "engine/src/co_scientist/agents/generation/debate.py": {
+          "covered": 102,
+          "percent": 99.02912621359224,
+          "total": 103
+        },
+        "engine/src/co_scientist/agents/generation/expansion_research.py": {
+          "covered": 78,
+          "percent": 97.5,
+          "total": 80
+        },
+        "engine/src/co_scientist/agents/generation/generate.py": {
+          "covered": 44,
+          "percent": 88.0,
+          "total": 50
+        },
+        "engine/src/co_scientist/agents/generation/literature_review/__init__.py": {
+          "covered": 2,
+          "percent": 100.0,
+          "total": 2
+        },
+        "engine/src/co_scientist/agents/generation/literature_review/enrichment.py": {
+          "covered": 171,
+          "percent": 100.0,
+          "total": 171
+        },
+        "engine/src/co_scientist/agents/generation/literature_review/node.py": {
+          "covered": 134,
+          "percent": 99.25925925925925,
+          "total": 135
+        },
+        "engine/src/co_scientist/agents/generation/literature_review/orchestration.py": {
+          "covered": 193,
+          "percent": 91.9047619047619,
+          "total": 210
+        },
+        "engine/src/co_scientist/agents/generation/literature_review/queries.py": {
+          "covered": 79,
+          "percent": 97.53086419753086,
+          "total": 81
+        },
+        "engine/src/co_scientist/agents/generation/literature_review/research_phase.py": {
+          "covered": 59,
+          "percent": 95.16129032258064,
+          "total": 62
+        },
+        "engine/src/co_scientist/agents/generation/literature_review/synthesis.py": {
+          "covered": 75,
+          "percent": 89.28571428571429,
+          "total": 84
+        },
+        "engine/src/co_scientist/agents/generation/literature_tools/__init__.py": {
+          "covered": 49,
+          "percent": 100.0,
+          "total": 49
+        },
+        "engine/src/co_scientist/agents/generation/literature_tools/draft.py": {
+          "covered": 148,
+          "percent": 93.67088607594937,
+          "total": 158
+        },
+        "engine/src/co_scientist/agents/generation/literature_tools/validate.py": {
+          "covered": 255,
+          "percent": 95.14925373134328,
+          "total": 268
+        },
+        "engine/src/co_scientist/agents/generation/operations.py": {
+          "covered": 198,
+          "percent": 99.49748743718592,
+          "total": 199
+        },
+        "engine/src/co_scientist/agents/meta_review/__init__.py": {
+          "covered": 3,
+          "percent": 100.0,
+          "total": 3
+        },
+        "engine/src/co_scientist/agents/meta_review/meta_review.py": {
+          "covered": 88,
+          "percent": 100.0,
+          "total": 88
+        },
+        "engine/src/co_scientist/agents/meta_review/research_overview.py": {
+          "covered": 137,
+          "percent": 96.47887323943662,
+          "total": 142
+        },
+        "engine/src/co_scientist/agents/meta_review/research_overview_direction_calls.py": {
+          "covered": 82,
+          "percent": 93.18181818181819,
+          "total": 88
+        },
+        "engine/src/co_scientist/agents/meta_review/research_overview_evidence.py": {
+          "covered": 100,
+          "percent": 93.45794392523365,
+          "total": 107
+        },
+        "engine/src/co_scientist/agents/meta_review/research_overview_knowledge_base.py": {
+          "covered": 124,
+          "percent": 92.53731343283582,
+          "total": 134
+        },
+        "engine/src/co_scientist/agents/meta_review/research_overview_review.py": {
+          "covered": 65,
+          "percent": 92.85714285714286,
+          "total": 70
+        },
+        "engine/src/co_scientist/agents/node_degradation.py": {
+          "covered": 20,
+          "percent": 100.0,
+          "total": 20
+        },
+        "engine/src/co_scientist/agents/proximity/__init__.py": {
+          "covered": 2,
+          "percent": 100.0,
+          "total": 2
+        },
+        "engine/src/co_scientist/agents/proximity/proximity.py": {
+          "covered": 76,
+          "percent": 100.0,
+          "total": 76
+        },
+        "engine/src/co_scientist/agents/proximity/proximity_dedup.py": {
+          "covered": 65,
+          "percent": 100.0,
+          "total": 65
+        },
+        "engine/src/co_scientist/agents/proximity/proximity_graph.py": {
+          "covered": 87,
+          "percent": 98.86363636363636,
+          "total": 88
+        },
+        "engine/src/co_scientist/agents/ranking/__init__.py": {
+          "covered": 5,
+          "percent": 100.0,
+          "total": 5
+        },
+        "engine/src/co_scientist/agents/ranking/operations.py": {
+          "covered": 43,
+          "percent": 100.0,
+          "total": 43
+        },
+        "engine/src/co_scientist/agents/ranking/ranking.py": {
+          "covered": 76,
+          "percent": 100.0,
+          "total": 76
+        },
+        "engine/src/co_scientist/agents/ranking/ranking_debate.py": {
+          "covered": 300,
+          "percent": 99.66777408637874,
+          "total": 301
+        },
+        "engine/src/co_scientist/agents/ranking/ranking_lifecycle.py": {
+          "covered": 74,
+          "percent": 100.0,
+          "total": 74
+        },
+        "engine/src/co_scientist/agents/ranking/ranking_matchmaking.py": {
+          "covered": 119,
+          "percent": 92.96875,
+          "total": 128
+        },
+        "engine/src/co_scientist/agents/reflection/__init__.py": {
+          "covered": 6,
+          "percent": 100.0,
+          "total": 6
+        },
+        "engine/src/co_scientist/agents/reflection/comprehensive_reflection.py": {
+          "covered": 135,
+          "percent": 97.12230215827338,
+          "total": 139
+        },
+        "engine/src/co_scientist/agents/reflection/deep_verification.py": {
+          "covered": 156,
+          "percent": 99.36305732484077,
+          "total": 157
+        },
+        "engine/src/co_scientist/agents/reflection/deep_verification_evidence.py": {
+          "covered": 121,
+          "percent": 93.7984496124031,
+          "total": 129
+        },
+        "engine/src/co_scientist/agents/reflection/owed_review.py": {
+          "covered": 24,
+          "percent": 100.0,
+          "total": 24
+        },
+        "engine/src/co_scientist/agents/reflection/reflection.py": {
+          "covered": 133,
+          "percent": 95.0,
+          "total": 140
+        },
+        "engine/src/co_scientist/agents/reflection/reflection_helpers.py": {
+          "covered": 168,
+          "percent": 100.0,
+          "total": 168
+        },
+        "engine/src/co_scientist/agents/reflection/review.py": {
+          "covered": 193,
+          "percent": 99.48453608247422,
+          "total": 194
+        },
+        "engine/src/co_scientist/agents/reflection/review_evidence.py": {
+          "covered": 138,
+          "percent": 90.78947368421052,
+          "total": 152
+        },
+        "engine/src/co_scientist/agents/reflection/review_gate.py": {
+          "covered": 208,
+          "percent": 99.52153110047847,
+          "total": 209
+        },
+        "engine/src/co_scientist/agents/reflection/simulation_execution.py": {
+          "covered": 56,
+          "percent": 98.24561403508773,
+          "total": 57
+        },
+        "engine/src/co_scientist/agents/safety.py": {
+          "covered": 112,
+          "percent": 100.0,
+          "total": 112
+        },
+        "engine/src/co_scientist/agents/supervisor/__init__.py": {
+          "covered": 3,
+          "percent": 100.0,
+          "total": 3
+        },
+        "engine/src/co_scientist/agents/supervisor/orchestrator.py": {
+          "covered": 212,
+          "percent": 99.06542056074767,
+          "total": 214
+        },
+        "engine/src/co_scientist/agents/supervisor/supervisor.py": {
+          "covered": 46,
+          "percent": 100.0,
+          "total": 46
+        },
+        "engine/src/co_scientist/agents/supervisor/supervisor_decision.py": {
+          "covered": 85,
+          "percent": 98.83720930232558,
+          "total": 86
+        },
+        "engine/src/co_scientist/backoff.py": {
+          "covered": 6,
+          "percent": 100.0,
+          "total": 6
+        },
+        "engine/src/co_scientist/cache/__init__.py": {
+          "covered": 238,
+          "percent": 97.94238683127573,
+          "total": 243
+        },
+        "engine/src/co_scientist/checkpoint.py": {
+          "covered": 57,
+          "percent": 98.27586206896552,
+          "total": 58
+        },
+        "engine/src/co_scientist/config/__init__.py": {
+          "covered": 3,
+          "percent": 100.0,
+          "total": 3
+        },
+        "engine/src/co_scientist/config/env_vars.py": {
+          "covered": 43,
+          "percent": 100.0,
+          "total": 43
+        },
+        "engine/src/co_scientist/config/registry.py": {
+          "covered": 170,
+          "percent": 96.5909090909091,
+          "total": 176
+        },
+        "engine/src/co_scientist/config/schema.py": {
+          "covered": 230,
+          "percent": 100.0,
+          "total": 230
+        },
+        "engine/src/co_scientist/constants/__init__.py": {
+          "covered": 115,
+          "percent": 100.0,
+          "total": 115
+        },
+        "engine/src/co_scientist/evidence/__init__.py": {
+          "covered": 4,
+          "percent": 100.0,
+          "total": 4
+        },
+        "engine/src/co_scientist/evidence/article_support.py": {
+          "covered": 107,
+          "percent": 93.04347826086956,
+          "total": 115
+        },
+        "engine/src/co_scientist/evidence/relevance.py": {
+          "covered": 115,
+          "percent": 99.13793103448276,
+          "total": 116
+        },
+        "engine/src/co_scientist/evidence/retrieval_support.py": {
+          "covered": 141,
+          "percent": 100.0,
+          "total": 141
+        },
+        "engine/src/co_scientist/evidence/search.py": {
+          "covered": 82,
+          "percent": 98.79518072289157,
+          "total": 83
+        },
+        "engine/src/co_scientist/evidence/search_fusion.py": {
+          "covered": 94,
+          "percent": 96.90721649484536,
+          "total": 97
+        },
+        "engine/src/co_scientist/evidence/search_query.py": {
+          "covered": 104,
+          "percent": 99.04761904761905,
+          "total": 105
+        },
+        "engine/src/co_scientist/evidence/search_support.py": {
+          "covered": 108,
+          "percent": 87.09677419354838,
+          "total": 124
+        },
+        "engine/src/co_scientist/exceptions.py": {
+          "covered": 30,
+          "percent": 100.0,
+          "total": 30
+        },
+        "engine/src/co_scientist/generator/__init__.py": {
+          "covered": 0,
+          "percent": 100.0,
+          "total": 0
+        },
+        "engine/src/co_scientist/generator/core.py": {
+          "covered": 69,
+          "percent": 94.52054794520548,
+          "total": 73
+        },
+        "engine/src/co_scientist/generator/initial_state.py": {
+          "covered": 33,
+          "percent": 100.0,
+          "total": 33
+        },
+        "engine/src/co_scientist/generator/run_setup.py": {
+          "covered": 107,
+          "percent": 95.53571428571429,
+          "total": 112
+        },
+        "engine/src/co_scientist/llm/__init__.py": {
+          "covered": 13,
+          "percent": 100.0,
+          "total": 13
+        },
+        "engine/src/co_scientist/llm/admission/call_budget.py": {
+          "covered": 76,
+          "percent": 100.0,
+          "total": 76
+        },
+        "engine/src/co_scientist/llm/admission/free_policy.py": {
+          "covered": 182,
+          "percent": 96.80851063829788,
+          "total": 188
+        },
+        "engine/src/co_scientist/llm/attempts/escalation.py": {
+          "covered": 84,
+          "percent": 98.82352941176471,
+          "total": 85
+        },
+        "engine/src/co_scientist/llm/attempts/json_attempt.py": {
+          "covered": 93,
+          "percent": 93.93939393939394,
+          "total": 99
+        },
+        "engine/src/co_scientist/llm/attempts/retry.py": {
+          "covered": 203,
+          "percent": 98.06763285024155,
+          "total": 207
+        },
+        "engine/src/co_scientist/llm/call.py": {
+          "covered": 68,
+          "percent": 98.55072463768116,
+          "total": 69
+        },
+        "engine/src/co_scientist/llm/precall.py": {
+          "covered": 23,
+          "percent": 100.0,
+          "total": 23
+        },
+        "engine/src/co_scientist/llm/profile/__init__.py": {
+          "covered": 64,
+          "percent": 100.0,
+          "total": 64
+        },
+        "engine/src/co_scientist/llm/request/backend.py": {
+          "covered": 34,
+          "percent": 100.0,
+          "total": 34
+        },
+        "engine/src/co_scientist/llm/request/completion.py": {
+          "covered": 66,
+          "percent": 100.0,
+          "total": 66
+        },
+        "engine/src/co_scientist/llm/request/response.py": {
+          "covered": 53,
+          "percent": 100.0,
+          "total": 53
+        },
+        "engine/src/co_scientist/llm/request/thinking.py": {
+          "covered": 108,
+          "percent": 99.08256880733946,
+          "total": 109
+        },
+        "engine/src/co_scientist/llm/request/transport.py": {
+          "covered": 67,
+          "percent": 94.36619718309859,
+          "total": 71
+        },
+        "engine/src/co_scientist/llm/structured/validate.py": {
+          "covered": 274,
+          "percent": 95.13888888888889,
+          "total": 288
+        },
+        "engine/src/co_scientist/llm/telemetry.py": {
+          "covered": 93,
+          "percent": 100.0,
+          "total": 93
+        },
+        "engine/src/co_scientist/llm/tools/loop.py": {
+          "covered": 152,
+          "percent": 98.06451612903226,
+          "total": 155
+        },
+        "engine/src/co_scientist/llm/tools/policy.py": {
+          "covered": 40,
+          "percent": 100.0,
+          "total": 40
+        },
+        "engine/src/co_scientist/llm/tools/transcript.py": {
+          "covered": 138,
+          "percent": 96.5034965034965,
+          "total": 143
+        },
+        "engine/src/co_scientist/llm/values.py": {
+          "covered": 20,
+          "percent": 100.0,
+          "total": 20
+        },
+        "engine/src/co_scientist/mcp_client/__init__.py": {
+          "covered": 344,
+          "percent": 92.97297297297297,
+          "total": 370
+        },
+        "engine/src/co_scientist/models/__init__.py": {
+          "covered": 181,
+          "percent": 100.0,
+          "total": 181
+        },
+        "engine/src/co_scientist/models/metrics.py": {
+          "covered": 62,
+          "percent": 100.0,
+          "total": 62
+        },
+        "engine/src/co_scientist/offline/llm.py": {
+          "covered": 180,
+          "percent": 98.36065573770492,
+          "total": 183
+        },
+        "engine/src/co_scientist/patch/__init__.py": {
+          "covered": 246,
+          "percent": 96.09375,
+          "total": 256
+        },
+        "engine/src/co_scientist/progress.py": {
+          "covered": 37,
+          "percent": 94.87179487179488,
+          "total": 39
+        },
+        "engine/src/co_scientist/prompts/__init__.py": {
+          "covered": 9,
+          "percent": 100.0,
+          "total": 9
+        },
+        "engine/src/co_scientist/prompts/_common.py": {
+          "covered": 93,
+          "percent": 100.0,
+          "total": 93
+        },
+        "engine/src/co_scientist/prompts/generation_debate.py": {
+          "covered": 100,
+          "percent": 100.0,
+          "total": 100
+        },
+        "engine/src/co_scientist/prompts/generation_draft.py": {
+          "covered": 121,
+          "percent": 95.2755905511811,
+          "total": 127
+        },
+        "engine/src/co_scientist/prompts/literature.py": {
+          "covered": 71,
+          "percent": 95.94594594594595,
+          "total": 74
+        },
+        "engine/src/co_scientist/prompts/loading.py": {
+          "covered": 57,
+          "percent": 95.0,
+          "total": 60
+        },
+        "engine/src/co_scientist/prompts/planning.py": {
+          "covered": 96,
+          "percent": 98.96907216494846,
+          "total": 97
+        },
+        "engine/src/co_scientist/prompts/ranking.py": {
+          "covered": 106,
+          "percent": 98.14814814814815,
+          "total": 108
+        },
+        "engine/src/co_scientist/prompts/review.py": {
+          "covered": 98,
+          "percent": 97.02970297029702,
+          "total": 101
+        },
+        "engine/src/co_scientist/research/__init__.py": {
+          "covered": 4,
+          "percent": 100.0,
+          "total": 4
+        },
+        "engine/src/co_scientist/research/artifacts.py": {
+          "covered": 162,
+          "percent": 97.59036144578313,
+          "total": 166
+        },
+        "engine/src/co_scientist/research/loop.py": {
+          "covered": 155,
+          "percent": 95.67901234567901,
+          "total": 162
+        },
+        "engine/src/co_scientist/research/serialization.py": {
+          "covered": 47,
+          "percent": 100.0,
+          "total": 47
+        },
+        "engine/src/co_scientist/research_adapter/__init__.py": {
+          "covered": 169,
+          "percent": 96.57142857142857,
+          "total": 175
+        },
+        "engine/src/co_scientist/retrieval_degradation.py": {
+          "covered": 11,
+          "percent": 100.0,
+          "total": 11
+        },
+        "engine/src/co_scientist/safety.py": {
+          "covered": 123,
+          "percent": 98.4,
+          "total": 125
+        },
+        "engine/src/co_scientist/sandbox/__init__.py": {
+          "covered": 5,
+          "percent": 100.0,
+          "total": 5
+        },
+        "engine/src/co_scientist/sandbox/argv.py": {
+          "covered": 33,
+          "percent": 73.33333333333333,
+          "total": 45
+        },
+        "engine/src/co_scientist/sandbox/bwrap.py": {
+          "covered": 29,
+          "percent": 100.0,
+          "total": 29
+        },
+        "engine/src/co_scientist/sandbox/command_safety.py": {
+          "covered": 61,
+          "percent": 96.82539682539682,
+          "total": 63
+        },
+        "engine/src/co_scientist/sandbox/confine_exec.py": {
+          "covered": 20,
+          "percent": 37.03703703703704,
+          "total": 54
+        },
+        "engine/src/co_scientist/sandbox/landlock.py": {
+          "covered": 40,
+          "percent": 48.78048780487805,
+          "total": 82
+        },
+        "engine/src/co_scientist/sandbox/policy.py": {
+          "covered": 42,
+          "percent": 100.0,
+          "total": 42
+        },
+        "engine/src/co_scientist/sandbox/runner.py": {
+          "covered": 69,
+          "percent": 94.52054794520548,
+          "total": 73
+        },
+        "engine/src/co_scientist/sandbox/seatbelt.py": {
+          "covered": 14,
+          "percent": 34.146341463414636,
+          "total": 41
+        },
+        "engine/src/co_scientist/sandbox/seccomp.py": {
+          "covered": 28,
+          "percent": 71.7948717948718,
+          "total": 39
+        },
+        "engine/src/co_scientist/scheduling/__init__.py": {
+          "covered": 3,
+          "percent": 100.0,
+          "total": 3
+        },
+        "engine/src/co_scientist/scheduling/models.py": {
+          "covered": 115,
+          "percent": 100.0,
+          "total": 115
+        },
+        "engine/src/co_scientist/scheduling/policy.py": {
+          "covered": 194,
+          "percent": 98.9795918367347,
+          "total": 196
+        },
+        "engine/src/co_scientist/schemas/__init__.py": {
+          "covered": 10,
+          "percent": 100.0,
+          "total": 10
+        },
+        "engine/src/co_scientist/schemas/builders.py": {
+          "covered": 8,
+          "percent": 100.0,
+          "total": 8
+        },
+        "engine/src/co_scientist/schemas/generation.py": {
+          "covered": 23,
+          "percent": 100.0,
+          "total": 23
+        },
+        "engine/src/co_scientist/schemas/literature.py": {
+          "covered": 10,
+          "percent": 100.0,
+          "total": 10
+        },
+        "engine/src/co_scientist/schemas/planning.py": {
+          "covered": 13,
+          "percent": 100.0,
+          "total": 13
+        },
+        "engine/src/co_scientist/schemas/review.py": {
+          "covered": 30,
+          "percent": 100.0,
+          "total": 30
+        },
+        "engine/src/co_scientist/schemas/synthesis.py": {
+          "covered": 29,
+          "percent": 100.0,
+          "total": 29
+        },
+        "engine/src/co_scientist/skills/__init__.py": {
+          "covered": 224,
+          "percent": 91.80327868852459,
+          "total": 244
+        },
+        "engine/src/co_scientist/state/__init__.py": {
+          "covered": 139,
+          "percent": 100.0,
+          "total": 139
+        },
+        "engine/src/co_scientist/task_runtime.py": {
+          "covered": 81,
+          "percent": 96.42857142857143,
+          "total": 84
+        },
+        "engine/src/co_scientist/tool_effects.py": {
+          "covered": 64,
+          "percent": 100.0,
+          "total": 64
+        },
+        "engine/src/co_scientist/tools/__init__.py": {
+          "covered": 3,
+          "percent": 100.0,
+          "total": 3
+        },
+        "engine/src/co_scientist/tools/provider.py": {
+          "covered": 67,
+          "percent": 100.0,
+          "total": 67
+        },
+        "engine/src/co_scientist/tools/response_parser.py": {
+          "covered": 172,
+          "percent": 88.65979381443299,
+          "total": 194
+        },
+        "engine/src/co_scientist/workflow_topology.py": {
+          "covered": 51,
+          "percent": 100.0,
+          "total": 51
+        },
+        "engine/src/co_scientist/workspace/__init__.py": {
+          "covered": 7,
+          "percent": 100.0,
+          "total": 7
+        },
+        "engine/src/co_scientist/workspace/checks.py": {
+          "covered": 67,
+          "percent": 93.05555555555556,
+          "total": 72
+        },
+        "engine/src/co_scientist/workspace/output.py": {
+          "covered": 88,
+          "percent": 100.0,
+          "total": 88
+        },
+        "engine/src/co_scientist/workspace/run_workspace.py": {
+          "covered": 52,
+          "percent": 98.11320754716981,
+          "total": 53
+        },
+        "engine/src/co_scientist/workspace/session.py": {
+          "covered": 163,
+          "percent": 98.19277108433735,
+          "total": 166
+        },
+        "engine/src/co_scientist/workspace/tool_schemas.py": {
+          "covered": 28,
+          "percent": 100.0,
+          "total": 28
+        },
+        "engine/src/co_scientist/workspace/tools.py": {
+          "covered": 189,
+          "percent": 86.69724770642202,
+          "total": 218
+        }
+      },
+      "percent": 96.13313078304101,
+      "total": 14482
+    },
+    "frontend": {
+      "covered": 3921,
+      "modules": {
+        "app/frontend/src/api/feedback.ts": {
+          "covered": 1,
+          "percent": 50.0,
+          "total": 2
+        },
+        "app/frontend/src/api/logs.ts": {
+          "covered": 9,
+          "percent": 90.0,
+          "total": 10
+        },
+        "app/frontend/src/api/runs.ts": {
+          "covered": 115,
+          "percent": 79.3103448275862,
+          "total": 145
+        },
+        "app/frontend/src/api/system.ts": {
+          "covered": 3,
+          "percent": 100.0,
+          "total": 3
+        },
+        "app/frontend/src/api/wire_common.ts": {
+          "covered": 0,
+          "percent": 100.0,
+          "total": 0
+        },
+        "app/frontend/src/api/wire_interviews.ts": {
+          "covered": 0,
+          "percent": 100.0,
+          "total": 0
+        },
+        "app/frontend/src/api/wire_reports.ts": {
+          "covered": 0,
+          "percent": 100.0,
+          "total": 0
+        },
+        "app/frontend/src/api/wire_runs.ts": {
+          "covered": 0,
+          "percent": 100.0,
+          "total": 0
+        },
+        "app/frontend/src/api/wire_science.ts": {
+          "covered": 0,
+          "percent": 100.0,
+          "total": 0
+        },
+        "app/frontend/src/components/error_boundary.tsx": {
+          "covered": 21,
+          "percent": 87.5,
+          "total": 24
+        },
+        "app/frontend/src/components/icon.tsx": {
+          "covered": 2,
+          "percent": 100.0,
+          "total": 2
+        },
+        "app/frontend/src/components/markdown_message.tsx": {
+          "covered": 4,
+          "percent": 80.0,
+          "total": 5
+        },
+        "app/frontend/src/components/markdown_message_renderer.tsx": {
+          "covered": 67,
+          "percent": 87.01298701298701,
+          "total": 77
+        },
+        "app/frontend/src/hooks/use_run_stream.ts": {
+          "covered": 62,
+          "percent": 100.0,
+          "total": 62
+        },
+        "app/frontend/src/lib/client_id.ts": {
+          "covered": 37,
+          "percent": 100.0,
+          "total": 37
+        },
+        "app/frontend/src/lib/clipboard.ts": {
+          "covered": 15,
+          "percent": 100.0,
+          "total": 15
+        },
+        "app/frontend/src/lib/hypotheses.ts": {
+          "covered": 14,
+          "percent": 100.0,
+          "total": 14
+        },
+        "app/frontend/src/lib/sanitize_html.ts": {
+          "covered": 7,
+          "percent": 100.0,
+          "total": 7
+        },
+        "app/frontend/src/lib/smooth_scroll.ts": {
+          "covered": 20,
+          "percent": 100.0,
+          "total": 20
+        },
+        "app/frontend/src/lib/text.ts": {
+          "covered": 74,
+          "percent": 93.67088607594937,
+          "total": 79
+        },
+        "app/frontend/src/lib/ui_logging.ts": {
+          "covered": 55,
+          "percent": 100.0,
+          "total": 55
+        },
+        "app/frontend/src/main.tsx": {
+          "covered": 0,
+          "percent": 0.0,
+          "total": 6
+        },
+        "app/frontend/src/public/page.tsx": {
+          "covered": 19,
+          "percent": 100.0,
+          "total": 19
+        },
+        "app/frontend/src/workbench/classes.ts": {
+          "covered": 12,
+          "percent": 100.0,
+          "total": 12
+        },
+        "app/frontend/src/workbench/components/feedback_dialog.tsx": {
+          "covered": 38,
+          "percent": 100.0,
+          "total": 38
+        },
+        "app/frontend/src/workbench/components/settings_dialog.tsx": {
+          "covered": 123,
+          "percent": 100.0,
+          "total": 123
+        },
+        "app/frontend/src/workbench/components/tabs/ideas_detail_data.ts": {
+          "covered": 58,
+          "percent": 93.54838709677419,
+          "total": 62
+        },
+        "app/frontend/src/workbench/components/tabs/ideas_detail_pane.tsx": {
+          "covered": 79,
+          "percent": 100.0,
+          "total": 79
+        },
+        "app/frontend/src/workbench/components/tabs/ideas_tab.tsx": {
+          "covered": 43,
+          "percent": 100.0,
+          "total": 43
+        },
+        "app/frontend/src/workbench/components/truncated_label.tsx": {
+          "covered": 64,
+          "percent": 100.0,
+          "total": 64
+        },
+        "app/frontend/src/workbench/dom_events.ts": {
+          "covered": 5,
+          "percent": 71.42857142857143,
+          "total": 7
+        },
+        "app/frontend/src/workbench/hooks/chat_session_handlers.ts": {
+          "covered": 164,
+          "percent": 97.61904761904762,
+          "total": 168
+        },
+        "app/frontend/src/workbench/hooks/chat_session_start_run.ts": {
+          "covered": 191,
+          "percent": 90.52132701421802,
+          "total": 211
+        },
+        "app/frontend/src/workbench/hooks/chat_session_transcript.ts": {
+          "covered": 47,
+          "percent": 100.0,
+          "total": 47
+        },
+        "app/frontend/src/workbench/hooks/dom.ts": {
+          "covered": 134,
+          "percent": 97.10144927536231,
+          "total": 138
+        },
+        "app/frontend/src/workbench/hooks/history_context.tsx": {
+          "covered": 45,
+          "percent": 95.74468085106383,
+          "total": 47
+        },
+        "app/frontend/src/workbench/hooks/system_status_context.tsx": {
+          "covered": 18,
+          "percent": 90.0,
+          "total": 20
+        },
+        "app/frontend/src/workbench/hooks/timers.ts": {
+          "covered": 22,
+          "percent": 100.0,
+          "total": 22
+        },
+        "app/frontend/src/workbench/hooks/use_chat_rehydrate.ts": {
+          "covered": 134,
+          "percent": 96.40287769784173,
+          "total": 139
+        },
+        "app/frontend/src/workbench/hooks/use_chat_session.ts": {
+          "covered": 26,
+          "percent": 100.0,
+          "total": 26
+        },
+        "app/frontend/src/workbench/layout.tsx": {
+          "covered": 86,
+          "percent": 93.47826086956522,
+          "total": 92
+        },
+        "app/frontend/src/workbench/layout_cancel_run.tsx": {
+          "covered": 27,
+          "percent": 96.42857142857143,
+          "total": 28
+        },
+        "app/frontend/src/workbench/layout_diagnostics.tsx": {
+          "covered": 170,
+          "percent": 98.26589595375722,
+          "total": 173
+        },
+        "app/frontend/src/workbench/layout_diagnostics_data.ts": {
+          "covered": 49,
+          "percent": 100.0,
+          "total": 49
+        },
+        "app/frontend/src/workbench/layout_header.tsx": {
+          "covered": 22,
+          "percent": 95.65217391304348,
+          "total": 23
+        },
+        "app/frontend/src/workbench/layout_nav_rail.tsx": {
+          "covered": 62,
+          "percent": 96.875,
+          "total": 64
+        },
+        "app/frontend/src/workbench/layout_primitives.tsx": {
+          "covered": 11,
+          "percent": 100.0,
+          "total": 11
+        },
+        "app/frontend/src/workbench/layout_session_switch.tsx": {
+          "covered": 30,
+          "percent": 96.7741935483871,
+          "total": 31
+        },
+        "app/frontend/src/workbench/pages/chat_composer.tsx": {
+          "covered": 113,
+          "percent": 96.58119658119658,
+          "total": 117
+        },
+        "app/frontend/src/workbench/pages/chat_home_stage.tsx": {
+          "covered": 82,
+          "percent": 95.34883720930233,
+          "total": 86
+        },
+        "app/frontend/src/workbench/pages/chat_questions.tsx": {
+          "covered": 61,
+          "percent": 100.0,
+          "total": 61
+        },
+        "app/frontend/src/workbench/pages/chat_timeline_bubble.tsx": {
+          "covered": 121,
+          "percent": 94.53125,
+          "total": 128
+        },
+        "app/frontend/src/workbench/pages/chat_timeline_message_actions.tsx": {
+          "covered": 15,
+          "percent": 100.0,
+          "total": 15
+        },
+        "app/frontend/src/workbench/pages/chat_timeline_run_spec_card.tsx": {
+          "covered": 95,
+          "percent": 100.0,
+          "total": 95
+        },
+        "app/frontend/src/workbench/pages/chat_timeline_run_spec_editor.tsx": {
+          "covered": 48,
+          "percent": 97.95918367346938,
+          "total": 49
+        },
+        "app/frontend/src/workbench/pages/chat_timeline_thoughts.tsx": {
+          "covered": 19,
+          "percent": 100.0,
+          "total": 19
+        },
+        "app/frontend/src/workbench/pages/chat_workspace.tsx": {
+          "covered": 128,
+          "percent": 96.2406015037594,
+          "total": 133
+        },
+        "app/frontend/src/workbench/pages/chat_workspace_timeline.tsx": {
+          "covered": 41,
+          "percent": 91.11111111111111,
+          "total": 45
+        },
+        "app/frontend/src/workbench/pages/example_chat.tsx": {
+          "covered": 0,
+          "percent": 0.0,
+          "total": 22
+        },
+        "app/frontend/src/workbench/pages/home_landing.tsx": {
+          "covered": 113,
+          "percent": 68.48484848484848,
+          "total": 165
+        },
+        "app/frontend/src/workbench/pages/home_landing_content.ts": {
+          "covered": 32,
+          "percent": 100.0,
+          "total": 32
+        },
+        "app/frontend/src/workbench/pages/home_landing_diagram.tsx": {
+          "covered": 116,
+          "percent": 91.33858267716535,
+          "total": 127
+        },
+        "app/frontend/src/workbench/pages/home_landing_hooks.tsx": {
+          "covered": 55,
+          "percent": 62.5,
+          "total": 88
+        },
+        "app/frontend/src/workbench/pages/researcher_access.tsx": {
+          "covered": 20,
+          "percent": 95.23809523809524,
+          "total": 21
+        },
+        "app/frontend/src/workbench/pages/run_detail.tsx": {
+          "covered": 48,
+          "percent": 100.0,
+          "total": 48
+        },
+        "app/frontend/src/workbench/pages/run_detail_active.tsx": {
+          "covered": 14,
+          "percent": 100.0,
+          "total": 14
+        },
+        "app/frontend/src/workbench/pages/run_detail_activity_log.tsx": {
+          "covered": 54,
+          "percent": 88.52459016393442,
+          "total": 61
+        },
+        "app/frontend/src/workbench/pages/run_detail_data.ts": {
+          "covered": 115,
+          "percent": 96.63865546218487,
+          "total": 119
+        },
+        "app/frontend/src/workbench/pages/run_detail_learning.tsx": {
+          "covered": 82,
+          "percent": 98.79518072289157,
+          "total": 83
+        },
+        "app/frontend/src/workbench/pages/run_detail_overview.tsx": {
+          "covered": 139,
+          "percent": 100.0,
+          "total": 139
+        },
+        "app/frontend/src/workbench/pages/run_detail_shell.tsx": {
+          "covered": 63,
+          "percent": 98.4375,
+          "total": 64
+        },
+        "app/frontend/src/workbench/pages/run_detail_specifications.tsx": {
+          "covered": 21,
+          "percent": 61.76470588235294,
+          "total": 34
+        },
+        "app/frontend/src/workbench/pages/shared_goal_report.tsx": {
+          "covered": 25,
+          "percent": 86.20689655172414,
+          "total": 29
+        },
+        "app/frontend/src/workbench/run_spec.ts": {
+          "covered": 54,
+          "percent": 100.0,
+          "total": 54
+        },
+        "app/frontend/src/workbench/run_tabs.ts": {
+          "covered": 6,
+          "percent": 100.0,
+          "total": 6
+        },
+        "app/frontend/src/workbench/theme_context.tsx": {
+          "covered": 47,
+          "percent": 100.0,
+          "total": 47
+        },
+        "app/frontend/src/workbench/workbench_app.tsx": {
+          "covered": 9,
+          "percent": 90.0,
+          "total": 10
+        }
+      },
+      "percent": 93.1353919239905,
+      "total": 4210
+    },
+    "mcp": {
+      "covered": 2349,
+      "modules": {
+        "engine/mcp_server/__init__.py": {
+          "covered": 1,
+          "percent": 100.0,
+          "total": 1
+        },
+        "engine/mcp_server/auth_middleware.py": {
+          "covered": 31,
+          "percent": 96.875,
+          "total": 32
+        },
+        "engine/mcp_server/campaign.py": {
+          "covered": 25,
+          "percent": 96.15384615384616,
+          "total": 26
+        },
+        "engine/mcp_server/entrez.py": {
+          "covered": 314,
+          "percent": 94.57831325301204,
+          "total": 332
+        },
+        "engine/mcp_server/literature_review.py": {
+          "covered": 154,
+          "percent": 94.47852760736197,
+          "total": 163
+        },
+        "engine/mcp_server/pubmed_client.py": {
+          "covered": 168,
+          "percent": 96.55172413793103,
+          "total": 174
+        },
+        "engine/mcp_server/pubmed_metadata_batch.py": {
+          "covered": 211,
+          "percent": 95.47511312217195,
+          "total": 221
+        },
+        "engine/mcp_server/pubmed_pilot_trace.py": {
+          "covered": 131,
+          "percent": 89.72602739726027,
+          "total": 146
+        },
+        "engine/mcp_server/pubmed_storage.py": {
+          "covered": 29,
+          "percent": 100.0,
+          "total": 29
+        },
+        "engine/mcp_server/server.py": {
+          "covered": 53,
+          "percent": 89.83050847457628,
+          "total": 59
+        },
+        "engine/mcp_server/text_extraction.py": {
+          "covered": 52,
+          "percent": 86.66666666666667,
+          "total": 60
+        },
+        "engine/mcp_server/tool_logging.py": {
+          "covered": 69,
+          "percent": 94.52054794520548,
+          "total": 73
+        },
+        "engine/mcp_server/tools/__init__.py": {
+          "covered": 0,
+          "percent": 100.0,
+          "total": 0
+        },
+        "engine/mcp_server/tools/biomedical_databases.py": {
+          "covered": 269,
+          "percent": 97.46376811594203,
+          "total": 276
+        },
+        "engine/mcp_server/tools/indra_cogex/__init__.py": {
+          "covered": 144,
+          "percent": 100.0,
+          "total": 144
+        },
+        "engine/mcp_server/tools/lit_review/__init__.py": {
+          "covered": 0,
+          "percent": 100.0,
+          "total": 0
+        },
+        "engine/mcp_server/tools/lit_review/arxiv_search.py": {
+          "covered": 53,
+          "percent": 100.0,
+          "total": 53
+        },
+        "engine/mcp_server/tools/lit_review/europepmc_search.py": {
+          "covered": 55,
+          "percent": 98.21428571428571,
+          "total": 56
+        },
+        "engine/mcp_server/tools/lit_review/openalex_search.py": {
+          "covered": 108,
+          "percent": 96.42857142857143,
+          "total": 112
+        },
+        "engine/mcp_server/tools/lit_review/opencitations.py": {
+          "covered": 113,
+          "percent": 89.68253968253968,
+          "total": 126
+        },
+        "engine/mcp_server/tools/lit_review/search_pubmed.py": {
+          "covered": 106,
+          "percent": 72.10884353741497,
+          "total": 147
+        },
+        "engine/mcp_server/tools/web_fetch.py": {
+          "covered": 112,
+          "percent": 75.67567567567568,
+          "total": 148
+        },
+        "engine/mcp_server/tools/web_providers.py": {
+          "covered": 151,
+          "percent": 95.56962025316456,
+          "total": 158
+        }
+      },
+      "percent": 92.62618296529969,
+      "total": 2536
+    }
+  }
+}
