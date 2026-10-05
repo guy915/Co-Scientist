@@ -1,5 +1,5 @@
 import {fireEvent, screen, waitFor} from '@testing-library/react';
-import {beforeEach, expect, it, describe} from 'vitest';
+import {beforeEach, expect, it, describe, vi} from 'vitest';
 import {
   installChatWorkspaceMocks,
   renderWorkspace,
@@ -42,6 +42,22 @@ describe('chat workspace home', () => {
         name: /ferroptosis in pancreatic cancer cells/i,
       }),
     ).toHaveAttribute('href', '/examples/demo-ferroptosis');
+  });
+
+  it('points from the composer down to the landing page', async () => {
+    renderWorkspace();
+    const hint = screen.getByRole('button', {
+      name: 'Scroll to see how Co-Scientist works',
+    });
+    await screen.findByRole('navigation', {name: 'Landing sections'});
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+
+    fireEvent.click(hint);
+
+    expect(scrollIntoView.mock.contexts[0]).toBe(
+      document.getElementById('landing'),
+    );
   });
 });
 
