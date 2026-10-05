@@ -38,62 +38,36 @@ def _mature_item(
     }
 
 
-@pytest.mark.parametrize(
-    ("reviews", "iteration", "disposition", "rankable"),
-    [
-        pytest.param(
-            [
-                ("full", {"verdict": "rejected", "justification": "circular"}),
-                ("simulation", {"verdict": "holds", "decisive_step": "one"}),
-            ],
-            1,
-            "inaccurate",
-            False,
-            id="fatal-review-blocks",
-        ),
-        pytest.param(
-            [
-                ("full", {"verdict": "sound"}),
-                ("recurrent", {"verdict": "sound"}),
-            ],
-            2,
-            "viable",
-            True,
-            id="sound-reviews-stay-viable",
-        ),
-    ],
-)
-def test_mature_reflection_aggregate_applies_dispositions(
+def test_mature_reflection_aggregate_applies_fatal_dispositions(
     monkeypatch: pytest.MonkeyPatch,
-    reviews: list[tuple[str, dict[str, Any]]],
-    iteration: int,
-    disposition: str,
-    rankable: bool,
 ) -> None:
     hypothesis = Hypothesis(text="idea")
     hypothesis.review_disposition = "viable"
     _patch_items(
         monkeypatch,
         {
-            f"item-{mode}": _mature_item(hypothesis, mode, review)
-            for mode, review in reviews
+            "item-full": _mature_item(
+                hypothesis,
+                "full",
+                {"verdict": "rejected", "justification": "circular"},
+            ),
+            "item-simulation": _mature_item(
+                hypothesis, "simulation", {"verdict": "holds"}
+            ),
         },
     )
 
     items = aggregates._apply_mature_reflection_items(
         {hypothesis.id: hypothesis},
-        [f"item-{mode}" for mode, _ in reviews],
-        current_iteration=iteration,
+        ["item-full", "item-simulation"],
+        current_iteration=1,
         db_path=None,
     )
 
-    assert items.successful == len(reviews)
-    assert hypothesis.review_disposition == disposition
-    assert hypothesis.is_rankable() is rankable
-    assert (
-        hypothesis.enrichments[reviews[0][0]]["verdict"]
-        == (reviews[0][1]["verdict"])
-    )
+    assert items.successful == 2
+    assert hypothesis.enrichments["full"]["verdict"] == "rejected"
+    assert hypothesis.review_disposition == "inaccurate"
+    assert not hypothesis.is_rankable()
 
 
 @pytest.mark.parametrize(

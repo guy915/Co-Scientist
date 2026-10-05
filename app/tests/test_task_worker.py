@@ -389,8 +389,12 @@ async def test_worker_cancels_execution_after_lease_revocation(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("worker_count", "task_count", "sleep", "lease_seconds"),
-    [pytest.param(4, 4, 0.03, 1, id="explicit-pool"), (None, 12, 0.05, 5)],
+    ("worker_count", "task_count", "sleep", "lease_seconds", "min_overlap"),
+    [
+        pytest.param(4, 4, 0.03, 1, 4, id="explicit-pool"),
+        # The default cohort must be wider than the old four-lease cap.
+        pytest.param(None, 12, 0.05, 5, 5, id="default-pool"),
+    ],
 )
 async def test_worker_cohort_executes_fanout_concurrently(
     isolated_db: str,
@@ -399,6 +403,7 @@ async def test_worker_cohort_executes_fanout_concurrently(
     task_count: int,
     sleep: float,
     lease_seconds: float,
+    min_overlap: int,
 ) -> None:
     run = seed_run("parallel goal")
     _enqueue_test_tasks(run.id, task_count, "parallel", isolated_db)
@@ -413,8 +418,7 @@ async def test_worker_cohort_executes_fanout_concurrently(
         run.id, "embedded-test", policy=policy, **kwargs
     )
 
-    # The default cohort must be wider than the old four-lease cap.
-    assert probe.max_active == 4 if worker_count else probe.max_active > 4
+    assert probe.max_active >= min_overlap
     _assert_all_completed(run.id, isolated_db)
 
 
@@ -669,11 +673,13 @@ def _save_resume_checkpoint(
     )
 
 
-def test_resume_uses_recorded_successor_not_orchestrator_default(
-    isolated_db: str,
+@pytest.mark.parametrize("recorded", [True, False])
+def test_resume_follows_the_recorded_successor_else_the_orchestrator(
+    isolated_db: str, recorded: bool
 ) -> None:
-    # Bootstrap checkpoints precede supervisor guidance; their successor must be
-    # supervisor, with the original idempotency key.
+    # Bootstrap checkpoints precede supervisor guidance, so their recorded
+    # successor must win; unrecorded legacy and fan-out planning checkpoints
+    # already have guidance and re-enter at the orchestrator.
     supervisor_type = f"{engine_tasks.NODE_TASK_PREFIX}supervisor"
     run = seed_run("worker goal")
     enqueued = enqueue_task(
@@ -683,43 +689,36 @@ def test_resume_uses_recorded_successor_not_orchestrator_default(
         inputs={"checkpoint_seq": 1},
         db_path=isolated_db,
     )
-    _save_resume_checkpoint(
-        run.id,
-        supervisor_type,
-        isolated_db,
-        _ResumeShape(
-            stage="engine_task:bootstrap",
-            last_event_seq=0,
-            provider="engine",
-        ),
-    )
+    if recorded:
+        _save_resume_checkpoint(
+            run.id,
+            supervisor_type,
+            isolated_db,
+            _ResumeShape(
+                stage="engine_task:bootstrap",
+                last_event_seq=0,
+                provider="engine",
+            ),
+        )
+    else:
+        seed_checkpoint(
+            run.id,
+            {"provider": "engine"},
+            stage="engine_task:orchestrator",
+            db_path=isolated_db,
+        )
 
     resumed = task_worker.enqueue_run_workflow(
         run.id, resume=True, db_path=isolated_db
     )
 
-    assert resumed.task_type == supervisor_type
-    assert resumed.id == enqueued.id, "must resolve to the already-queued task"
-
-
-def test_resume_defaults_to_orchestrator_when_successor_unrecorded(
-    isolated_db: str,
-) -> None:
-    # Legacy and fan-out planning checkpoints already have supervisor guidance,
-    # so orchestrator re-entry remains valid.
-    run = seed_run("worker goal")
-    seed_checkpoint(
-        run.id,
-        {"provider": "engine"},
-        stage="engine_task:orchestrator",
-        db_path=isolated_db,
-    )
-
-    resumed = task_worker.enqueue_run_workflow(
-        run.id, resume=True, db_path=isolated_db
-    )
-
-    assert resumed.task_type == f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
+    if recorded:
+        assert resumed.id == enqueued.id, "must resolve to the queued task"
+        assert resumed.task_type == supervisor_type
+    else:
+        assert (
+            resumed.task_type == f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
+        )
 
 
 def test_resume_reuses_post_pause_fanout_rows_for_latest_checkpoint(

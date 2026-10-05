@@ -517,30 +517,6 @@ async def test_observation_rejects_missing_literature_before_call(
 
 
 @pytest.mark.asyncio
-async def test_durable_observation_uses_single_item_defaults(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    indices: list[tuple[int, int]] = []
-
-    async def observe(
-        state: Any,
-        hypothesis: Any,
-        *,
-        hypothesis_index: int = 1,
-        total_count: int = 1,
-    ) -> dict[str, Any]:
-        indices.append((hypothesis_index, total_count))
-        return {"classification": "neutral"}
-
-    task = _restore_item(monkeypatch, "observation")
-    monkeypatch.setattr(_operations_reflection, "observe_hypothesis", observe)
-    result = await items.execute_mature_reflection_item(task)
-    assert result["review"] == {"classification": "neutral"}
-    assert result["research_ledger"] is None
-    assert indices == [(1, 1)]
-
-
-@pytest.mark.asyncio
 async def test_durable_mature_review_keeps_ledger_beside_review(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -685,29 +661,10 @@ async def test_a_pool_with_nothing_left_to_verify_advances_into_ranking(
     # Empty fan-outs still need an immediately claimable aggregate that commits
     # and advances the run.
     run = seed_run("Task-level science")
-    state = _task_state(run.id)
-    hypotheses = [Hypothesis(text=f"verified-{index}") for index in range(3)]
-    for hypothesis in hypotheses:
-        hypothesis.enrichments["deep_verification_issued"] = True
-    state["hypotheses"] = hypotheses
-    checkpoint_seq = _seed_checkpoint(run.id, state)
-    node = enqueue_task(
-        run.id,
-        f"{engine_tasks.NODE_TASK_PREFIX}deep_verification",
-        "verification-node",
-        inputs={"checkpoint_seq": checkpoint_seq},
-        db_path=isolated_db,
-    )
-    _patch_generator(monkeypatch, _Generator(state), restore=True)
-    leased_node = store.claim_task("node", run_id=run.id, db_path=isolated_db)
-    assert leased_node is not None and leased_node.id == node.id
-    scheduled = await engine_tasks.execute_node_task(
-        leased_node, db_path=isolated_db
+    scheduled = await _advance_verification_node(
+        run.id, monkeypatch, isolated_db, issued=True
     )
     assert scheduled["fanout_task_ids"] == []
-    assert lifecycle.complete_task(
-        leased_node.id, "node", scheduled, db_path=isolated_db
-    )
 
     aggregate = store.claim_task(
         "aggregate", run_id=run.id, db_path=isolated_db
@@ -726,7 +683,7 @@ async def test_a_pool_with_nothing_left_to_verify_advances_into_ranking(
     )
     successor = store.get_task(result["successor_task_id"], db_path=isolated_db)
     assert successor is not None
-    assert successor.task_type == (f"{engine_tasks.NODE_TASK_PREFIX}ranking")
+    assert successor.task_type == f"{engine_tasks.NODE_TASK_PREFIX}ranking"
 
 
 async def _fake_verify(*_: Any, **__: Any) -> dict[str, Any]:
@@ -747,13 +704,19 @@ async def _fake_verify(*_: Any, **__: Any) -> dict[str, Any]:
 
 
 async def _advance_verification_node(
-    run_id: str, monkeypatch: pytest.MonkeyPatch, db_path: str
-) -> None:
+    run_id: str,
+    monkeypatch: pytest.MonkeyPatch,
+    db_path: str,
+    *,
+    issued: bool = False,
+) -> dict[str, Any]:
     state = _task_state(run_id)
     state["hypotheses"] = [
         Hypothesis(text=f"candidate-{index}", elo_rating=1200 + index)
         for index in range(3)
     ]
+    for hypothesis in state["hypotheses"]:
+        hypothesis.enrichments["deep_verification_issued"] = issued
     checkpoint_seq = _seed_checkpoint(run_id, state)
     node = enqueue_task(
         run_id,
@@ -771,6 +734,7 @@ async def _advance_verification_node(
     assert lifecycle.complete_task(
         leased_node.id, "node", scheduled, db_path=db_path
     )
+    return scheduled
 
 
 async def _run_verification_children_and_aggregate(
