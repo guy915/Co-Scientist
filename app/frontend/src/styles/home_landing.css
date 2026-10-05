@@ -38,6 +38,28 @@ html:has(.ucs-landing) body {
   height: calc(100dvh - 4rem);
 }
 
+/* Desktop: the composer group sits low on the first screen. */
+@media (min-width: 1181px) {
+  .ucs-page--home:has(.ucs-landing) .reference-home-main {
+    max-height: none;
+    padding-bottom: clamp(0.75rem, 1.6vh, 1.25rem);
+  }
+}
+
+/* Tablet keeps recents in flow below the first screen, so the stage grows
+   with it instead of letting recents spill over the landing hero. */
+@media (min-width: 701px) and (max-width: 1180px) {
+  .ucs-page--home:has(.ucs-landing) .reference-home-stage {
+    height: auto;
+  }
+
+  .ucs-page--home:has(.ucs-landing) .reference-home-main {
+    height: calc(100vh - 4rem);
+    height: calc(100dvh - 4rem);
+    padding-bottom: clamp(0.75rem, 1.6vh, 1.25rem);
+  }
+}
+
 .reference-home-scroll-hint {
   display: inline-flex;
   align-items: center;
