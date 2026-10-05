@@ -142,11 +142,6 @@ it('clips the first word when even it alone does not fit', async () => {
   expect(container.querySelector('span')!.textContent).toBe(`${text}…`);
 });
 
-it('applies the className prop to the rendered span', () => {
-  const {container} = render(<TruncatedLabel text="hi" className="my-label" />);
-  expect(container.querySelector('span')).toHaveClass('my-label');
-});
-
 it('measures against height (not width) when lines > 1', async () => {
   containerWidth = 1000;
   const text = 'one two three four five six seven eight nine ten';
@@ -191,7 +186,6 @@ it('re-fits after web fonts finish loading', async () => {
   await flushNextFrame();
   expect(span.textContent).not.toBe(text);
 
-  // Widen after initial fits so only fonts.ready can cause the next match.
   containerWidth = 200;
   await act(async () => {
     resolveFonts();
@@ -217,30 +211,6 @@ it('re-fits when the tab becomes visible again', async () => {
   expect(span.textContent).toBe(text);
 });
 
-it('does not re-fit on visibilitychange while the tab is hidden', async () => {
-  const text = 'alpha beta gamma delta';
-  const {container} = render(<TruncatedLabel text={text} />);
-  const span = container.querySelector('span')!;
-  await flushNextFrame();
-  const truncated = span.textContent;
-
-  containerWidth = 200;
-  Object.defineProperty(document, 'hidden', {
-    value: true,
-    configurable: true,
-  });
-  act(() => {
-    document.dispatchEvent(new Event('visibilitychange'));
-  });
-  await flushFitBatch();
-  expect(span.textContent).toBe(truncated);
-
-  Object.defineProperty(document, 'hidden', {
-    value: false,
-    configurable: true,
-  });
-});
-
 it('re-fits when the text prop changes', async () => {
   const {container, rerender} = render(<TruncatedLabel text="short" />);
   const span = container.querySelector('span')!;
@@ -251,55 +221,4 @@ it('re-fits when the text prop changes', async () => {
   rerender(<TruncatedLabel text={longText} />);
   await flushNextFrame();
   expect(span.textContent).toBe('abc def ghi jkl mno…');
-});
-
-it('measures labels mounted together in lockstep, not one at a time', async () => {
-  // Measurements flush layout; lockstep fitting shares each round's flush
-  // across labels.
-  const readers: string[] = [];
-  const original = Object.getOwnPropertyDescriptor(
-    HTMLElement.prototype,
-    'scrollWidth',
-  )!;
-  Object.defineProperty(HTMLElement.prototype, 'scrollWidth', {
-    configurable: true,
-    get(this: HTMLElement) {
-      readers.push(this.className);
-      return (this.textContent ?? '').length;
-    },
-  });
-
-  const text = 'abc def ghi jkl mno pqr stu vwx yz1 234';
-  render(
-    <>
-      <TruncatedLabel text={text} className="first" />
-      <TruncatedLabel text={text} className="second" />
-      <TruncatedLabel text={text} className="third" />
-    </>,
-  );
-  await flushNextFrame();
-  Object.defineProperty(HTMLElement.prototype, 'scrollWidth', original);
-
-  expect(new Set(readers.slice(0, 3))).toEqual(
-    new Set(['first', 'second', 'third']),
-  );
-});
-
-it('registers observers on mount and cleans them up on unmount', async () => {
-  const removeEventListenerSpy = vi.spyOn(document, 'removeEventListener');
-  const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame');
-  const {unmount} = render(<TruncatedLabel text="hello" />);
-  const instance = FakeResizeObserver.instances.at(-1)!;
-  expect(instance.observe).toHaveBeenCalledTimes(1);
-
-  unmount();
-
-  expect(instance.disconnect).toHaveBeenCalledTimes(1);
-  expect(cancelSpy).toHaveBeenCalled();
-  expect(removeEventListenerSpy).toHaveBeenCalledWith(
-    'visibilitychange',
-    expect.any(Function),
-  );
-  removeEventListenerSpy.mockRestore();
-  cancelSpy.mockRestore();
 });

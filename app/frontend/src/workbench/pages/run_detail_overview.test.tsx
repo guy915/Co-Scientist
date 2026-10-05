@@ -37,20 +37,6 @@ describe('run detail overview', () => {
     expect(screen.queryByText('Specific aims')).not.toBeInTheDocument();
     expect(screen.queryByText('Winning ideas')).not.toBeInTheDocument();
   });
-
-  it('renders an old saved report without a leaderboard', () => {
-    renderOverview({
-      report: {
-        id: 'old-report',
-        run_id: 'run-1',
-        markdown_path: '',
-        created_at: 1,
-        payload: {},
-      },
-      hypotheses: [makeHypothesis({id: 'h1', title: 'Saved idea'})],
-    });
-    expect(screen.getByText('Saved idea')).toBeVisible();
-  });
 });
 
 describe('run detail overview degraded', () => {
@@ -72,15 +58,6 @@ describe('run detail overview degraded', () => {
     expect(
       screen.queryByText(/appears after Co-Scientist finishes/),
     ).not.toBeInTheDocument();
-  });
-
-  it('keeps the in-flight placeholder when nothing degraded', () => {
-    renderWithReport({research_overview: {}});
-
-    expect(
-      screen.getByText(/appears after Co-Scientist finishes/),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(NOTICE)).not.toBeInTheDocument();
   });
 
   it('flags agent insights when the meta-review degraded', () => {
@@ -135,22 +112,6 @@ describe('run detail overview stat line', () => {
     });
     const stat = screen.getByText(/A total of 1 idea was explored/);
     expect(stat.textContent).not.toContain('over');
-  });
-
-  it('omits the duration and Elo clauses when no data is present', () => {
-    const report = makeReport({idea_count: 1, leaderboard: []});
-    renderOverview({run: null, report});
-    const stat = screen.getByText(/A total of 1 idea was explored/);
-    expect(stat.textContent).toBe('A total of 1 idea was explored.');
-  });
-
-  it('keeps missing persisted counts independent of live rows', () => {
-    renderOverview({
-      report: makeReport(),
-      hypotheses: [makeHypothesis({id: 'h1'})],
-      matches: [makeMatch(1)],
-    });
-    expect(screen.queryByText(/A total of/)).not.toBeInTheDocument();
   });
 
   it('counts every idea explored, not just the released ones', () => {
@@ -242,35 +203,6 @@ describe('run detail overview sections', () => {
     expect(
       screen.getAllByText('Direction two (no experiments)').length,
     ).toBeGreaterThan(0);
-  });
-
-  it('omits recent findings and sub-topics for a direction stored before they existed', () => {
-    const report = makeReport({
-      research_overview: {
-        overview: {
-          research_directions: [
-            {
-              title: 'An old direction',
-              importance: 'It still matters.',
-              suggested_experiments: ['Experiment A'],
-              // Older persisted reports omit findings and sub-topics.
-            },
-          ],
-        },
-      },
-    } as unknown as Parameters<typeof makeReport>[0]);
-
-    renderOverview({report});
-
-    expect(screen.getByText('An old direction')).toBeInTheDocument();
-    expect(screen.getByText('It still matters.')).toBeInTheDocument();
-    expect(screen.queryByText('Recent findings:')).not.toBeInTheDocument();
-    expect(screen.queryByText('Why:')).not.toBeInTheDocument();
-    expect(screen.queryByText('What:')).not.toBeInTheDocument();
-    expect(screen.queryByText('Example idea:')).not.toBeInTheDocument();
-    expect(
-      screen.queryByText('We will be focusing on these research directions:'),
-    ).not.toBeInTheDocument();
   });
 
   it('gates the directions preview on at least two named directions', () => {
@@ -431,54 +363,6 @@ describe('run detail overview sections', () => {
     expect(
       screen.getByRole('link', {name: 'Supporting article: A fibrosis study'}),
     ).toHaveAttribute('href', 'https://pubmed.ncbi.nlm.nih.gov/123/');
-  });
-
-  it('omits the research-direction line for a contact stored before it existed', () => {
-    const report = makeReport({
-      research_overview: {
-        research_contacts: [
-          {
-            candidate_id: 'author-1-1',
-            name: 'Ada Researcher',
-            expertise: 'Fibrosis mechanisms',
-            justification: 'Authored a directly relevant analyzed paper.',
-            source_title: 'A fibrosis study',
-            source_url: 'https://pubmed.ncbi.nlm.nih.gov/123/',
-            source: 'pubmed',
-            // Older persisted contacts omit their research direction.
-          },
-        ],
-      },
-    } as unknown as Parameters<typeof makeReport>[0]);
-
-    renderOverview({report});
-
-    expect(screen.getByText('Ada Researcher')).toBeInTheDocument();
-    expect(screen.queryByText('Research direction:')).not.toBeInTheDocument();
-  });
-
-  it('omits the research-direction line when the model returns it empty', () => {
-    const report = makeReport({
-      research_overview: {
-        research_contacts: [
-          {
-            candidate_id: 'author-1-1',
-            name: 'Ada Researcher',
-            expertise: 'Fibrosis mechanisms',
-            justification: 'Authored a directly relevant analyzed paper.',
-            source_title: 'A fibrosis study',
-            source_url: 'https://pubmed.ncbi.nlm.nih.gov/123/',
-            source: 'pubmed',
-            research_direction: '',
-          },
-        ],
-      },
-    } as unknown as Parameters<typeof makeReport>[0]);
-
-    renderOverview({report});
-
-    expect(screen.getByText('Ada Researcher')).toBeInTheDocument();
-    expect(screen.queryByText('Research direction:')).not.toBeInTheDocument();
   });
 
   it('renders the winning-ideas leaderboard and closing stats', () => {

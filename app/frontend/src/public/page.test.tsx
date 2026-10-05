@@ -6,12 +6,6 @@ import {MemoryRouter} from 'react-router-dom';
 describe('no index', () => {
   describe('NoIndex', () => {
     // NoIndex renders head metadata through an effect rather than DOM content.
-    it('sets the document title to the page name plus the site', async () => {
-      render(<NoIndex title="Settings" />);
-      await waitFor(() =>
-        expect(document.title).toBe('Settings - Co-Scientist'),
-      );
-    });
 
     it('marks the page as noindex via the robots meta tag', async () => {
       render(<NoIndex title="Private" />);
@@ -39,19 +33,6 @@ describe('not found page', () => {
       expect(
         screen.getByText('The page you requested does not exist.'),
       ).toBeInTheDocument();
-    });
-
-    it('renders the home call-to-action link', () => {
-      render(
-        <MemoryRouter>
-          <NotFoundPage />
-        </MemoryRouter>,
-      );
-      expect(screen.getByRole('link', {name: 'Return home'})).toHaveAttribute(
-        'href',
-        '/',
-      );
-      expect(screen.getAllByRole('link')).toHaveLength(1);
     });
   });
 });

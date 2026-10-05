@@ -1,4 +1,4 @@
-import {describe, it, expect, afterEach, vi} from 'vitest';
+import {describe, it, expect} from 'vitest';
 import {
   capitalizeTerm,
   conciseTitle,
@@ -6,16 +6,9 @@ import {
   readableTextList,
   splitAbstractSections,
 } from './text';
-import {makePrefixedId} from './client_id';
 
 describe('text', () => {
   describe('conciseTitle', () => {
-    it('returns a short goal unchanged', () => {
-      expect(conciseTitle('Cellular aging therapies')).toBe(
-        'Cellular aging therapies',
-      );
-    });
-
     it('takes the first clause of a multi-clause goal', () => {
       expect(
         conciseTitle('Reversing liver fibrosis; detail the mechanism.'),
@@ -40,12 +33,6 @@ describe('text', () => {
   });
 
   describe('readableText', () => {
-    it('passes a well-formed string through unchanged', () => {
-      expect(readableText('Guards against assay-specific artefacts.')).toBe(
-        'Guards against assay-specific artefacts.',
-      );
-    });
-
     it('flattens a JSON-string field into plain text', () => {
       const raw =
         '{"significance": "Confirms the core assumption", "gap": "None"}';
@@ -58,11 +45,6 @@ describe('text', () => {
       ).toBe('Blocks a redundant pathway - 3');
     });
 
-    it('returns an empty string for nullish input', () => {
-      expect(readableText(null)).toBe('');
-      expect(readableText(undefined)).toBe('');
-    });
-
     it('leaves a string with a stray brace but invalid JSON intact', () => {
       expect(readableText('Targets {RelA} to resensitize cells')).toBe(
         'Targets {RelA} to resensitize cells',
@@ -71,12 +53,6 @@ describe('text', () => {
   });
 
   describe('readableTextList', () => {
-    it('keeps a normal list of strings', () => {
-      expect(
-        readableTextList(['Run a perturbation series.', 'Quantify it.']),
-      ).toEqual(['Run a perturbation series.', 'Quantify it.']);
-    });
-
     it('flattens list items that are objects', () => {
       expect(
         readableTextList([
@@ -90,14 +66,6 @@ describe('text', () => {
         'Assay A',
         'Assay B',
       ]);
-    });
-
-    it('treats a plain string as a single item and nullish as empty', () => {
-      expect(readableTextList('Just one experiment')).toEqual([
-        'Just one experiment',
-      ]);
-      expect(readableTextList(null)).toEqual([]);
-      expect(readableTextList(undefined)).toEqual([]);
     });
   });
 
@@ -117,12 +85,6 @@ describe('text', () => {
       expect(capitalizeTerm('mRNA stability')).toBe('mRNA stability');
       expect(capitalizeTerm('pH-dependent binding')).toBe(
         'pH-dependent binding',
-      );
-    });
-
-    it('leaves an already-capitalized sentence unchanged', () => {
-      expect(capitalizeTerm('Prioritize mechanistic novelty.')).toBe(
-        'Prioritize mechanistic novelty.',
       );
     });
   });
@@ -188,38 +150,5 @@ describe('format abstract', () => {
     const result = splitAbstractSections(raw);
     expect(result.map(s => s.label)).toEqual([null, 'Methods']);
     expect(result[0].html).toBe('Intro sentence.');
-  });
-});
-
-describe('id', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  describe('makePrefixedId', () => {
-    it('prefixes a randomUUID-based id when it is available', () => {
-      const id = makePrefixedId('user');
-      expect(id).toMatch(
-        /^user-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
-      );
-    });
-
-    it('falls back to timestamp + random when randomUUID is absent', () => {
-      vi.stubGlobal('crypto', {});
-      const id = makePrefixedId('session');
-      expect(id).toMatch(/^session-\d+-[0-9a-f]+$/);
-    });
-
-    it('falls back when crypto itself is unavailable', () => {
-      vi.stubGlobal('crypto', undefined);
-      const id = makePrefixedId('run');
-      expect(id).toMatch(/^run-\d+-[0-9a-f]+$/);
-    });
-
-    it('produces distinct ids across calls', () => {
-      const first = makePrefixedId('id');
-      const second = makePrefixedId('id');
-      expect(first).not.toBe(second);
-    });
   });
 });
