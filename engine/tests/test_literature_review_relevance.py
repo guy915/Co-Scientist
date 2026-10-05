@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Iterator
 from typing import Any, cast
 
 import pytest
 from langchain_core.tools import ToolException
 
+from co_scientist.cache import scoped_cache_override
 from co_scientist.evidence import relevance, search, search_query
 from co_scientist.evidence.relevance import _HYBRID_VERSION
 from co_scientist.evidence.search_support import SearchConfig
@@ -19,9 +21,12 @@ from tests._mcp import isolate_offline_router
 @pytest.fixture
 def _literature_review_relevance_isolate_offline_router(
     monkeypatch: pytest.MonkeyPatch,
-) -> None:
+) -> Iterator[None]:
     isolate_offline_router(monkeypatch)
     offline_llm.install_offline_router()
+    # Warm disk entries would bypass the judgments these tests exercise.
+    with scoped_cache_override(False):
+        yield
 
 
 def _candidate(title: str, lexical_score: float) -> dict[str, object]:
