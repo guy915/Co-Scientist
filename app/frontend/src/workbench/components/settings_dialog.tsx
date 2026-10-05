@@ -35,6 +35,7 @@ import {
   fetchByokModelCatalog,
   fetchFreeUsage,
 } from '@/api/system';
+import {SlidingPill, useSlidingIndicator} from '../hooks/sliding_indicator';
 
 // Focus newly opened dialogs internally so keyboard and assistive-technology
 // users do not remain behind them.
@@ -177,14 +178,18 @@ export function AppearanceSection({
   mode: Mode;
   setMode: (mode: Mode) => void;
 }) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const pill = useSlidingIndicator(trackRef, '[aria-pressed="true"]', mode);
   return (
     <section className="ucs-settings-card">
       <h3 className="ucs-settings-card-title">Theme</h3>
       <div
+        ref={trackRef}
         className="ucs-theme-segment ucs-theme-segment--dialog"
         role="group"
         aria-label="Theme"
       >
+        <SlidingPill box={pill} className="ucs-theme-slider" />
         {THEME_MODES.map(option => (
           <button
             key={option.mode}
@@ -498,11 +503,10 @@ function FreeUsageNote({usage}: {usage: FreeUsage | null}) {
   const count =
     usage.limit === null
       ? ''
-      : ` ${usage.remaining} of ${usage.limit} free runs left today.`;
+      : `, ${usage.remaining} of ${usage.limit} left today`;
   return (
     <p className="ucs-settings-field-hint" role="status">
-      No API key: you are on free usage. Only Express runs are available.
-      {count} Add a key to use the chosen models and other run types.
+      Free usage: Express runs only{count}.
     </p>
   );
 }
@@ -582,6 +586,7 @@ export function useCloseOnOutsidePointer(
 }
 
 const MENU_GAP_PX = 6;
+const MENU_EDGE_PX = 16;
 
 // Fixed menus escape scroll clipping, but transformed ancestors change their
 // origin; measure and subtract that origin instead of assuming the viewport.
@@ -600,17 +605,30 @@ export function useAnchoredMenu(
       if (!el || !trigger) return;
       el.style.top = '0px';
       el.style.left = '0px';
+      el.style.maxHeight = '';
       const box = trigger.getBoundingClientRect();
       el.style.minWidth = `${box.width}px`;
       const origin = el.getBoundingClientRect();
       const left = align === 'end' ? box.right - origin.width : box.left;
+      // A long menu flips above its trigger when that side has more room, and
+      // scrolls rather than running off the window.
+      const below =
+        window.innerHeight - box.bottom - MENU_GAP_PX - MENU_EDGE_PX;
+      const above = box.top - MENU_GAP_PX - MENU_EDGE_PX;
+      const up = origin.height > below && above > below;
+      const room = Math.max(up ? above : below, 0);
+      const top = up
+        ? box.top - MENU_GAP_PX - Math.min(origin.height, room)
+        : box.bottom + MENU_GAP_PX;
       const next = {
-        top: box.bottom + MENU_GAP_PX - origin.top,
+        top: top - origin.top,
         left: left - origin.left,
         minWidth: box.width,
+        maxHeight: room,
       };
       el.style.top = `${next.top}px`;
       el.style.left = `${next.left}px`;
+      el.style.maxHeight = `${room}px`;
       setStyle(next);
     }
     place();

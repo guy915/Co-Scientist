@@ -44,6 +44,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
   window.localStorage.clear();
 });
@@ -109,10 +110,8 @@ it('stores a chosen supervisor model with its provider', async () => {
 
 it('keeps both selects choosable and explains free usage without a key', async () => {
   renderSection('', 'deepseek');
-  expect(
-    await screen.findByText(/2 of 3 free runs left today/),
-  ).toBeInTheDocument();
-  expect(screen.getByText(/Only Express runs/)).toBeInTheDocument();
+  expect(await screen.findByText(/2 of 3 left today/)).toBeInTheDocument();
+  expect(screen.getByText(/Express runs only/)).toBeInTheDocument();
   expect(await screen.findAllByText('deepseek-flash')).toHaveLength(2);
   expect(trigger(/Supervisor model/)).toBeEnabled();
   expect(trigger(/Worker model/)).toBeEnabled();
@@ -252,4 +251,33 @@ it('keeps the provider and the model choices in separate boxes', async () => {
   expect(
     await within(models).findByRole('button', {name: /Worker model/}),
   ).toBeTruthy();
+});
+
+it('opens a long menu upward when the window has no room below', async () => {
+  const user = userEvent.setup();
+  vi.stubGlobal('innerHeight', 800);
+  const rect = (top: number, height: number) =>
+    ({
+      top,
+      bottom: top + height,
+      left: 0,
+      right: 200,
+      width: 200,
+      height,
+    }) as DOMRect;
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+    function (this: HTMLElement) {
+      if (this.getAttribute('role') === 'menu') return rect(0, 400);
+      return this.classList.contains('ucs-provider-select')
+        ? rect(700, 40)
+        : rect(0, 0);
+    },
+  );
+  renderSection('sk-d', 'deepseek', ['deepseek', 'gemini', 'openai']);
+  await screen.findAllByText('deepseek-flash');
+  await user.click(trigger(/Worker model/));
+  const menu = screen.getByRole('menu', {name: 'Worker model'});
+
+  expect(parseFloat(menu.style.maxHeight)).toBeLessThanOrEqual(700);
+  expect(parseFloat(menu.style.top) + 400).toBeLessThanOrEqual(700);
 });

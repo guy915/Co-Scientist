@@ -185,3 +185,9 @@ async def test_validation_probes_each_model_with_its_own_key(
         ("deepseek/deepseek-flash", _KEY),
         ("gemini/gemini-3.1-pro-preview", _SUPERVISOR_KEY),
     ]
+
+
+def test_openrouter_keys_can_choose_the_free_default_route() -> None:
+    from app.config import DEFAULT_MODEL
+
+    assert DEFAULT_MODEL in byok_models.provider_models("openrouter")
