@@ -5,9 +5,10 @@ keeping every behavior they protect. Every decision below was settled with the
 owner on 4 October 2026, so the campaign runs unattended: the agent decides by
 these rules and reports at the end.
 
-**Status:** Phase 1 complete in PRs #185 and #187. The ratchets, fixed coverage
-baseline and shared scaffolding pass the merge gates. Phase 2 starts with the
-engine after PR #187 merges. Phase counts and verification are recorded in
+**Status:** Phase 1 complete in PRs #185 and #187. Phase 2 is in progress,
+starting with generation and literature node outcomes in the engine. The fixed
+coverage baseline and shared scaffolding remain the campaign guards. Phase
+counts and verification are recorded in
 `docs/test-campaign/progress.json`.
 The improvements campaign is preserved in merged history; PR #184 deliberately
 retired `IMPROVEMENTS.md` when it opened this campaign.

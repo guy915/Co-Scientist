@@ -137,6 +137,118 @@
           "percent": 92.62618296529969
         }
       }
+    },
+    "2": {
+      "status": "in_progress",
+      "start": {
+        "engine": {
+          "test_lines": 49434,
+          "files": 78,
+          "tests": 3211
+        },
+        "app": {
+          "test_lines": 50369,
+          "files": 92,
+          "tests": 2201
+        },
+        "mcp": {
+          "test_lines": 7963,
+          "files": 12,
+          "tests": 386
+        },
+        "frontend": {
+          "test_lines": 16997,
+          "files": 89,
+          "tests": 822
+        },
+        "evaluations": {
+          "test_lines": 3364,
+          "files": 16,
+          "tests": 208
+        },
+        "browser": {
+          "test_lines": 1520,
+          "files": 11,
+          "tests": 35
+        }
+      },
+      "current": {
+        "engine": {
+          "test_lines": 47517,
+          "files": 78,
+          "tests": 3061
+        },
+        "app": {
+          "test_lines": 50369,
+          "files": 92,
+          "tests": 2201
+        },
+        "mcp": {
+          "test_lines": 7963,
+          "files": 12,
+          "tests": 386
+        },
+        "frontend": {
+          "test_lines": 16997,
+          "files": 89,
+          "tests": 822
+        },
+        "evaluations": {
+          "test_lines": 3364,
+          "files": 16,
+          "tests": 208
+        },
+        "browser": {
+          "test_lines": 1520,
+          "files": 11,
+          "tests": 35
+        }
+      },
+      "production_lines_start": 114507,
+      "production_lines_current": 114507,
+      "production_lines_deleted": 0,
+      "coverage_start": {
+        "app": {
+          "covered": 13110,
+          "total": 13582,
+          "percent": 96.52481225150935
+        },
+        "engine": {
+          "covered": 13922,
+          "total": 14482,
+          "percent": 96.13313078304101
+        },
+        "frontend": {
+          "covered": 3921,
+          "total": 4210,
+          "percent": 93.1353919239905
+        },
+        "mcp": {
+          "covered": 2349,
+          "total": 2536,
+          "percent": 92.62618296529969
+        }
+      },
+      "themes": [
+        {
+          "suite": "engine",
+          "theme": "generation-and-literature-node-outcomes",
+          "source_commit": "60fb5e2181841df904ba816f0dbf57cf3c9a7682",
+          "test_lines_removed": 1917,
+          "tests_removed": 150,
+          "files_removed": 0,
+          "removed_test_functions": 311,
+          "added_test_functions": 46,
+          "inventory": "docs/test-campaign/phase2-engine-generation.json",
+          "scope_status": "partial; remaining direct boundaries require later engine themes",
+          "validation_location": "pull request body",
+          "required_merge_gates": [
+            "make check",
+            "make e2e-production",
+            "make coverage"
+          ]
+        }
+      ]
     }
   },
   "load_bearing_distinctions": [
