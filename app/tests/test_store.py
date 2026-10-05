@@ -241,7 +241,7 @@ def test_safety_decision_persists_matches_array(db: str) -> None:
 
 def test_match_log_preserves_elo_and_debate_turns(db: str) -> None:
     run = seed_run("matches", provider="mock")
-    for before, after, turns in ((1200, 1212, None), (1212, 1230, 3)):
+    for before, after, turns in ((1200, 1212, 1), (1212, 1230, 3)):
         records.add_match(
             NewMatch(
                 run_id=run.id,
@@ -253,7 +253,7 @@ def test_match_log_preserves_elo_and_debate_turns(db: str) -> None:
                 loser_before=2400 - before,
                 loser_after=2400 - after,
                 rationale="rationale",
-                **({} if turns is None else {"debate_turns": turns}),
+                debate_turns=turns,
             )
         )
     first, second = records.list_matches(run.id)
