@@ -1,8 +1,11 @@
 import type {ClaimEvidenceRow, MatchRow, Review} from '@/api/runs';
 import {makeHypothesis} from '@/test_fixtures';
 import {fireEvent, render, screen} from '@testing-library/react';
-import {describe, expect, it} from 'vitest';
-import {HypothesisDetail} from './ideas_detail_pane';
+import {describe, expect, it, vi} from 'vitest';
+import {smoothScrollToSection} from '@/lib/smooth_scroll';
+import {HypothesisDetail, SectionsRail} from './ideas_detail_pane';
+
+vi.mock('@/lib/smooth_scroll', () => ({smoothScrollToSection: vi.fn()}));
 
 function review(over: Partial<Review>): Review {
   return {
@@ -371,5 +374,18 @@ describe('structured review findings (detail_json)', () => {
     expect(
       screen.getByText('An object instead of a string'),
     ).toBeInTheDocument();
+  });
+});
+
+describe('sections rail', () => {
+  it('scrolls smoothly when the section exists and leaves the link alone otherwise', () => {
+    render(<SectionsRail />);
+    const link = screen.getByRole('link', {name: /Description/});
+
+    vi.mocked(smoothScrollToSection).mockReturnValue(true);
+    expect(fireEvent.click(link)).toBe(false);
+
+    vi.mocked(smoothScrollToSection).mockReturnValue(false);
+    expect(fireEvent.click(link)).toBe(true);
   });
 });

@@ -1,5 +1,5 @@
 import {fireEvent, screen} from '@testing-library/react';
-import {beforeEach, expect, it, describe} from 'vitest';
+import {beforeEach, expect, it, describe, vi} from 'vitest';
 import {
   installChatWorkspaceMocks,
   renderWorkspace,
@@ -125,6 +125,33 @@ describe('chat workspace composer attachments', () => {
     expect(
       screen.getByRole('button', {name: 'Remove deep-research-report.md'}),
     ).toHaveAttribute('data-tooltip', 'Remove deep-research-report.md');
+  });
+
+  it('previews an uploaded image and releases the preview when it is removed', () => {
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL: vi.fn(() => 'blob:preview-image'),
+      revokeObjectURL,
+    });
+    renderWorkspace();
+
+    fireEvent.change(screen.getByLabelText('Upload files'), {
+      target: {
+        files: [new File(['image'], 'reference-shot.png', {type: 'image/png'})],
+      },
+    });
+    expect(screen.getByAltText('reference-shot.png')).toHaveAttribute(
+      'src',
+      'blob:preview-image',
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', {name: 'Remove reference-shot.png'}),
+    );
+
+    expect(screen.queryByAltText('reference-shot.png')).toBeNull();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:preview-image');
   });
 });
 

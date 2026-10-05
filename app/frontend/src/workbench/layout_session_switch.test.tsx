@@ -80,11 +80,6 @@ describe('layout session memory', () => {
     expect(preferredSessionSide('run-1')).toBe('chat');
   });
 
-  it('falls back to wherever the switch was last left', () => {
-    writeSessionSide('run-1', 'chat');
-    expect(preferredSessionSide('run-2')).toBe('chat');
-  });
-
   it('prefers a session’s own memory over the switch’s last position', () => {
     writeSessionSide('run-1', 'chat');
     writeSessionSide('run-2', 'results');

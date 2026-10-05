@@ -105,6 +105,14 @@ test('a keystroke never sends the free-text answer, even for a single question',
   expect(screen.getByRole('button', {name: /send/i})).toBeTruthy();
 });
 
+test('pressing Enter in the free-text field does not submit anything', () => {
+  const {onAnswer} = renderChooser();
+  const field = screen.getByLabelText(/Something else/);
+  fireEvent.change(field, {target: {value: 'A decellularized scaffold'}});
+  expect(fireEvent.keyDown(field, {key: 'Enter'})).toBe(false);
+  expect(onAnswer).not.toHaveBeenCalled();
+});
+
 test('dismissing the chooser leaves nothing of it on screen', () => {
   renderChooser();
   fireEvent.click(screen.getByRole('button', {name: /dismiss/i}));

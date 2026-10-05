@@ -373,6 +373,20 @@ describe('run detail insights', () => {
     expect(screen.getByRole('heading', {name: 'Key findings'})).toBeVisible();
   });
 
+  it('still renders a recommendation from an older persisted report', () => {
+    render(
+      <AgentInsightsSection
+        insights={makeInsights({
+          recommended_directions: ['Measure binding directly by SPR.'],
+        })}
+      />,
+    );
+
+    expect(
+      screen.getByText('Measure binding directly by SPR.'),
+    ).toBeInTheDocument();
+  });
+
   it('flags a meta-review that degraded to a fallback', () => {
     render(<AgentInsightsSection insights={makeInsights()} degraded />);
 

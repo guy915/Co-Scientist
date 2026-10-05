@@ -25,6 +25,7 @@ vi.mock('../hooks/chat_session_start_run', async importOriginal => ({
 
 beforeEach(() => {
   installChatWorkspaceMocks();
+  vi.clearAllMocks();
   pendingIntentMock.mockReset();
   pendingIntentMock.mockResolvedValue(undefined);
 });
@@ -335,13 +336,17 @@ it('keeps a linked draft recoverable without treating it as started', async () =
 
   renderWorkspace('/chats/interview-1');
 
-  expect(
-    await screen.findByRole('button', {name: 'Continue research'}),
-  ).toBeEnabled();
+  const resume = await screen.findByRole('button', {name: 'Continue research'});
+  expect(resume).toBeEnabled();
   expect(
     screen.queryByRole('region', {name: 'Started research session'}),
   ).not.toBeInTheDocument();
   expect(apiMock.startRun).not.toHaveBeenCalled();
+
+  apiMock.getRun.mockResolvedValue(minimalRun({id: 'run-1', status: 'draft'}));
+  resume.click();
+
+  await waitFor(() => expect(apiMock.startRun).toHaveBeenCalledWith('run-1'));
 });
 
 it('shows the linked draft run setup and pending notification before continuing', async () => {

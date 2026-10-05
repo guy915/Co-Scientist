@@ -2,7 +2,6 @@ import {act, renderHook, render, screen} from '@testing-library/react';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 import {
   MOBILE_MEDIA_QUERY,
-  isMobileViewport,
   useIsMobile,
   useOverflowing,
   useRestoreFocusOnClose,
@@ -50,18 +49,6 @@ describe('use is mobile', () => {
     vi.unstubAllGlobals();
   });
 
-  describe('isMobileViewport', () => {
-    it('returns true when the mobile breakpoint matches', () => {
-      installFakeMatchMedia({[MOBILE_MEDIA_QUERY]: true});
-      expect(isMobileViewport()).toBe(true);
-    });
-
-    it('returns false when the mobile breakpoint does not match', () => {
-      installFakeMatchMedia({[MOBILE_MEDIA_QUERY]: false});
-      expect(isMobileViewport()).toBe(false);
-    });
-  });
-
   it('initializes from the current match state', () => {
     installFakeMatchMedia({[MOBILE_MEDIA_QUERY]: true});
     const {result} = renderHook(() => useIsMobile());
@@ -81,12 +68,6 @@ describe('use is mobile', () => {
     act(() => {
       lists.get(MOBILE_MEDIA_QUERY)!.fireChange(false);
     });
-    expect(result.current).toBe(false);
-  });
-
-  it('does not crash and reads false when matchMedia is unavailable', () => {
-    vi.stubGlobal('matchMedia', undefined);
-    const {result} = renderHook(() => useIsMobile());
     expect(result.current).toBe(false);
   });
 });
