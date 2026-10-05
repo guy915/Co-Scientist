@@ -13,6 +13,7 @@ from co_scientist.exceptions import LLMTimeoutError
 from co_scientist.llm.admission.call_budget import record_provider_request
 from co_scientist.llm.admission.free_policy import enforce_free_request
 from co_scientist.llm.request.backend import active_backend
+from co_scientist.llm.request.thinking import apply_provider_constraints
 from co_scientist.llm.telemetry import (
     record_completion_failure,
     record_completion_response,
@@ -97,6 +98,7 @@ async def complete_request(
     """No retry occurs at this physical-call seam; stream clocks remain
     caller-owned.
     """
+    apply_provider_constraints(completion_args, model_name)
     zero_cost = await enforce_free_request(completion_args, byok=byok)
     record_provider_request()
     start = time.monotonic()

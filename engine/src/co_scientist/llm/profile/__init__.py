@@ -43,6 +43,12 @@ class ModelProfile:
     # False when no host accepts response_format; the schema then rides in the
     # prompt alone.
     json_object: bool = True
+    # A free route spends no money, so it reasons at its highest effort even
+    # where a caller asks for less.
+    pinned_effort: str | None = None
+    # Reasoning APIs reject sampling knobs and want the reasoning-aware cap.
+    fixed_sampling: bool = False
+    max_completion_tokens: bool = False
     min_temperature: float | None = None
     price: ModelPrice | None = None
 
@@ -56,6 +62,9 @@ class Facts(TypedDict, total=False):
     verified_provider: str | None
     json_schema: bool | None
     json_object: bool
+    pinned_effort: str | None
+    fixed_sampling: bool
+    max_completion_tokens: bool
     min_temperature: float | None
     price: ModelPrice | None
 
@@ -142,6 +151,7 @@ ROUTES: Final[dict[str, Facts]] = {
             ),
         ),
         "json_object": False,
+        "pinned_effort": "high",
     },
     # Historical promotional rates need revalidation before selecting this paid
     # route.
@@ -217,6 +227,24 @@ FAMILIES: Final[tuple[Family, ...]] = (
     ),
     # Gemini 3 degrades below temperature 1.0.
     Family(contains="gemini-3", facts={"min_temperature": 1.0}),
+    # These think by default at the provider's effort; nothing here sends an
+    # effort knob, but their thinking still spends the output cap.
+    Family(prefix="gemini/", contains="gemini-3", facts={"reasons": True}),
+    Family(
+        prefix="anthropic/claude-",
+        contains="-5-",
+        # LiteLLM forces a tool call for native schemas, which thinking
+        # rejects.
+        facts={"reasons": True, "fixed_sampling": True, "json_schema": False},
+    ),
+    Family(
+        prefix="openai/gpt-6",
+        facts={
+            "reasons": True,
+            "fixed_sampling": True,
+            "max_completion_tokens": True,
+        },
+    ),
 )
 
 

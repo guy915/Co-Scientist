@@ -185,3 +185,10 @@ async def test_validation_probes_each_model_with_its_own_key(
         ("deepseek/deepseek-flash", _KEY),
         ("gemini/gemini-3.1-pro-preview", _SUPERVISOR_KEY),
     ]
+
+
+def test_every_offered_model_thinks() -> None:
+    from co_scientist.llm import model_reasons
+
+    offered = [m for p in byok_models.model_catalog().values() for m in p]
+    assert [m for m in offered if not model_reasons(m)] == []

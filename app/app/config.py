@@ -6,6 +6,7 @@ from co_scientist.constants import (
 )
 from co_scientist.llm import deepseek_thinking_extra_body as _thinking_body
 from co_scientist.llm import effective_max_tokens as _effective_max_tokens
+from co_scientist.llm import model_profile as _model_profile
 from co_scientist.llm import model_reasons as _model_reasons
 from co_scientist.llm import reasoning_effort_args as _effort_args
 from pydantic import Field, field_validator, model_validator
@@ -31,7 +32,7 @@ def deepseek_thinking_kwargs(
         "extra_body": extra_body,
         **_effort_args(model_name, enabled=True),
     }
-    if effort is not None:
+    if effort is not None and not _model_profile(model_name).pinned_effort:
         if "reasoning_effort" in kwargs:
             kwargs["reasoning_effort"] = effort
         reasoning = kwargs["extra_body"].get("reasoning")
@@ -239,9 +240,6 @@ def any_provider_credential() -> bool:
 
 BYOK_PROVIDER_DEFAULT_MODELS: dict[str, str] = {
     "anthropic": "anthropic/claude-sonnet-5-5",
-    # Azure also needs deployment routing not carried by BYOK headers;
-    # credentials alone are insufficient.
-    "azure": "azure/gpt-4o",
     "deepseek": "deepseek/deepseek-flash",
     "gemini": "gemini/gemini-3.8-flash",
     "openai": "openai/gpt-6.1-sol",
