@@ -26,7 +26,11 @@ from co_scientist.patch import (
     parse_patch,
     seek_anchor,
 )
-from co_scientist.state import AppendHypotheses, deduplicate_hypotheses
+from co_scientist.state import (
+    AppendHypotheses,
+    accumulate_matchups,
+    deduplicate_hypotheses,
+)
 from tests._state import make_hypothesis
 
 
@@ -402,6 +406,46 @@ def test_repeated_anchors_resolve_in_order_and_missing_ones_do_not() -> None:
     assert seek_anchor(lines, ("absent",), 0) is None
 
 
+@pytest.mark.parametrize(
+    ("body", "message"),
+    [
+        ([], "no file operations"),
+        (["stray"], "expected a file operation"),
+        (["*** Update File: a.py", "@@", "?bad marker"], "unrecognized line"),
+        (["*** Update File: a.py"], "contains no changes"),
+        (["*** Add File: a.py", "bad"], "added file must start with"),
+        (["*** Delete File: absent.py"], "does not exist"),
+    ],
+)
+def test_a_malformed_patch_is_refused_with_the_reason(
+    tmp_path: Path, body: list[str], message: str
+) -> None:
+    with pytest.raises(PatchError, match=message):
+        _apply(_envelope(*body), tmp_path)
+
+
+def test_a_blank_context_line_and_the_eof_marker_are_tolerated(
+    tmp_path: Path,
+) -> None:
+    """Trailing-whitespace stripping turns a blank context line from " " into
+    "" somewhere between the model and the parser."""
+    target = tmp_path / "a.py"
+    target.write_text("keep\n\ndrop\n")
+    patch = "\n" + _envelope(
+        "*** Update File: a.py",
+        "@@",
+        " keep",
+        "",
+        "-drop",
+        "+kept",
+        "*** End of File",
+    )
+    _apply(patch, tmp_path)
+    assert target.read_text() == "keep\n\nkept\n"
+    assert seek_anchor(["a"], (), 3) is not None
+    assert seek_anchor(["a"], ("a", "b"), 0) is None
+
+
 def test_a_patch_adds_moves_and_deletes_files(tmp_path: Path) -> None:
     (tmp_path / "old.py").write_text("keep\nold\n")
     (tmp_path / "gone.py").write_text("x\n")
@@ -425,6 +469,17 @@ def test_a_patch_adds_moves_and_deletes_files(tmp_path: Path) -> None:
     assert not (tmp_path / "gone.py").exists()
     assert not (tmp_path / "old.py").exists()
     assert (tmp_path / "moved.py").read_text() == "keep\nnew\n"
+
+
+def test_replaying_or_skipping_a_ranking_update_keeps_the_history() -> None:
+    """Last-write-wins would erase persisted Elo history, and a replayed
+    commit must not double-count it."""
+    first = [_matchup("a", "b")]
+    second = [_matchup("c", "d")]
+
+    assert accumulate_matchups(first, second) == first + second
+    assert accumulate_matchups(first + second, list(second)) == first + second
+    assert accumulate_matchups(first, []) == first
 
 
 def test_state_pool_reducer_replaces_or_appends_without_duplicates() -> None:

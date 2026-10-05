@@ -11,12 +11,14 @@ from co_scientist.agents.generation.literature_tools.validate import (
     _search_papers_via_tool_config,
 )
 from co_scientist.config import ToolConfig, ToolRegistry
+from co_scientist.config import registry as config_registry
 from co_scientist.config.registry import (
     get_tool_registry,
     reset_tool_registry,
     substitute_env_vars,
 )
 from co_scientist.evidence.search_support import normalize_search_response
+from co_scientist.exceptions import ConfigError
 from tests._mcp import FakeCallToolClient
 from tests._research_fakes import REPLACE_CONFIG as _REPLACE_CONFIG
 from tests._research_fakes import write_config as _write_config
@@ -99,6 +101,74 @@ def test_override_merge_keeps_defaults_and_adds_custom(tmp_path: Path) -> None:
     assert custom_tool is not None
     assert custom_tool.mcp_tool_name == "search_custom"
     assert _config_registry_registry.get_tool("pubmed_search") is not None
+
+
+def test_registry_lookups_over_a_loaded_config(
+    _config_registry_registry: ToolRegistry,
+) -> None:
+    registry = _config_registry_registry
+    assert registry.get_server_configs_for_langchain() == {
+        "myserver": {
+            "transport": "streamable_http",
+            "url": "http://example.test/mcp",
+        }
+    }
+    assert set(registry.get_enabled_servers()) == {"myserver"}
+    alpha = registry.get_tool_by_mcp_name("search_alpha")
+    assert alpha is not None and alpha.display_name == "Alpha Search"
+    assert registry.get_tool("pubmed_search") is None
+    assert registry.get_tools_for_workflow("does_not_exist") == []
+    assert registry.get_prompts_config().domain_context == (
+        "test domain context"
+    )
+    assert [e.output_key for e in registry.get_enrichment_configs("all")] == [
+        "gamma_out",
+        "alpha_out",
+    ]
+    registry._config = None
+    with pytest.raises(ConfigError):
+        _ = registry.config
+
+
+def test_user_config_sits_between_the_defaults_and_the_custom_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user = tmp_path / "user.yaml"
+    user.write_text(
+        textwrap.dedent("""
+        tools:
+          search_tools:
+            user_search:
+              server: "default_pubmed"
+              mcp_tool_name: "search_user"
+        """)
+    )
+    monkeypatch.setattr(config_registry, "USER_CONFIG_PATHS", [user])
+    custom = _write_config(
+        tmp_path,
+        textwrap.dedent("""
+        tools:
+          search_tools:
+            custom_search:
+              server: "default_pubmed"
+              mcp_tool_name: "search_custom"
+        """),
+    )
+
+    registry = ToolRegistry(config_path=custom)
+
+    for tool_id in ("pubmed_search", "user_search", "custom_search"):
+        assert registry.get_tool(tool_id) is not None
+
+
+def test_a_missing_default_config_leaves_an_empty_registry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        config_registry, "DEFAULT_CONFIG_PATH", tmp_path / "absent.yaml"
+    )
+    registry = ToolRegistry(skip_user_config=True)
+    assert registry.get_enabled_tools() == {}
 
 
 def test_extend_merge_strategy_appends_to_default_lists(

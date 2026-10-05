@@ -308,6 +308,7 @@ def test_harness_scratch_does_not_make_a_policy_inexpressible(
 ) -> None:
     """Scratch exists in every workspace; protecting it would make every
     policy inexpressible."""
+    landlock.restrict_self(SandboxPolicy(kind=SandboxKind.DANGER_FULL_ACCESS))
     assert landlock.can_enforce(workspace_write(tmp_path))
     (tmp_path / HARNESS_METADATA_NAME).mkdir()
     assert landlock.can_enforce(workspace_write(tmp_path))

@@ -121,6 +121,8 @@ def test_the_global_cache_reads_enablement_and_ttl_from_the_environment(
 
 def test_scoped_cache_override_nests_and_resets_even_on_error() -> None:
     assert cache.cache_enabled_override() is None
+    with cache.scoped_cache_override(None):
+        assert cache.cache_enabled_override() is None
     with cache.scoped_cache_override(True):
         with cache.scoped_cache_override(False):
             assert cache.cache_enabled_override() is False
@@ -128,6 +130,46 @@ def test_scoped_cache_override_nests_and_resets_even_on_error() -> None:
     with pytest.raises(ValueError), cache.scoped_cache_override(False):
         raise ValueError("boom")
     assert cache.cache_enabled_override() is None
+
+
+def test_the_documented_admin_api_reports_and_clears_both_caches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("COSCIENTIST_CACHE_DIR", str(tmp_path))
+    monkeypatch.setenv("COSCIENTIST_CACHE_ENABLED", "true")
+    monkeypatch.setattr(cache, "_global_cache", None)
+    monkeypatch.setattr(cache, "_global_node_cache", None)
+
+    cache.get_cache().set(_REQUEST, _RESPONSE)
+    stats = cache.get_cache_stats()
+    assert stats["cache_files"] == 1
+    assert stats["cache_dir"] == str(tmp_path)
+    assert cache.clear_cache() == 1
+
+    cache.get_node_cache().set("node", _NODE_OUTPUT, research_goal="cancer")
+    assert cache.get_node_cache_stats()["cache_files"] == 1
+    assert cache.clear_node_cache() == 1
+
+    disabled = LLMCache(cache_dir=str(tmp_path / "off"), enabled=False)
+    assert disabled.get_stats() == {
+        "enabled": False,
+        "cache_files": 0,
+        "total_size_mb": 0.0,
+    }
+    assert disabled.clear() == 0
+
+
+def test_a_failed_cache_write_never_breaks_the_run(tmp_path: Path) -> None:
+    llm_cache = LLMCache(cache_dir=str(tmp_path / "gone"), enabled=True)
+    (tmp_path / "gone").rmdir()
+    llm_cache.set(_REQUEST, _RESPONSE)
+    (tmp_path / "gone").mkdir()
+    llm_cache.set(_REQUEST, {"content": object()})
+    assert llm_cache.get(_REQUEST) is None
+
+    node = NodeCache(cache_dir=str(tmp_path), enabled=True)
+    node.set("node", {"unpicklable": lambda: None}, research_goal="x")
+    assert node.get("node", research_goal="x") is None
 
 
 def test_node_cache_keys_on_node_and_params(tmp_path: Path) -> None:
