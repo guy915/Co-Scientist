@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from typing import Any
+
+import pytest
+
 from co_scientist.scheduling import (
-    ALLOWED_LOOP_TASKS,
     Budget,
     SchedulerStats,
     SupervisorDecision,
@@ -10,558 +13,440 @@ from co_scientist.scheduling import (
     decide_next_task,
     validate_decision,
 )
-from co_scientist.scheduling.policy import _check_meta_review_cadence
 from co_scientist.task_runtime import next_task_type
 from co_scientist.workflow_topology import TASK_ROUTES, route_after_meta_review
 from tests._state import BUDGET, healthy_stats, make_state
 
+_G, _E = TaskType.GENERATE, TaskType.EVOLVE
+_REFLECT, _RANK = TaskType.REFLECT, TaskType.RANK
+_CONTINUES = "continues"
+_NOT_RANK = "not rank"
+_R = TerminationReason
 
-def test_generation_heavy_state_generates() -> None:
-    stats = healthy_stats(generation_yield=0.9, evolution_yield=0.1)
-    decision = decide_next_task(stats, BUDGET)
-    assert decision.next_task is TaskType.GENERATE
-    assert not decision.terminate
-
-
-def test_evolution_heavy_state_evolves() -> None:
-    stats = healthy_stats(generation_yield=0.1, evolution_yield=0.8)
-    decision = decide_next_task(stats, BUDGET)
-    assert decision.next_task is TaskType.EVOLVE
-
-
-def test_verification_backlogged_state_reviews() -> None:
-    stats = healthy_stats(unreviewed_count=3)
-    decision = decide_next_task(stats, BUDGET)
-    assert decision.next_task is TaskType.REFLECT
+_OWED_COVERAGE = {
+    "rankable_count": 3,
+    "unmatched_rankable_count": 1,
+    "owed_coverage_rounds": 1,
+}
+_EXHAUSTED = {"llm_calls": 1000}
 
 
-def test_converged_state_terminates() -> None:
-    stats = healthy_stats(
-        rank_stable_cycles=2, iteration=2, evolved_since_stable=True
-    )
-    decision = decide_next_task(stats, BUDGET, convergence_cycles=2)
-    assert decision.terminate
-    assert decision.termination_reason is TerminationReason.CONVERGED
+def _budget(**limits: Any) -> Budget:
+    return Budget(max_iterations=100, **limits)
 
 
-def test_convergence_held_off_until_min_cycles() -> None:
-    stats = healthy_stats(rank_stable_cycles=5, iteration=1)
-    decision = decide_next_task(
-        stats, BUDGET, convergence_cycles=2, min_cycles_before_convergence=2
-    )
-    assert not decision.terminate
+# (stats overrides, budget, decide_next_task kwargs, expected outcome)
+_DECISIONS: dict[str, tuple[dict[str, Any], Budget, dict[str, Any], Any]] = {
+    "generation_heavy_generates": (
+        {"generation_yield": 0.9, "evolution_yield": 0.1},
+        BUDGET,
+        {},
+        _G,
+    ),
+    "evolution_heavy_evolves": (
+        {"generation_yield": 0.1, "evolution_yield": 0.8},
+        BUDGET,
+        {},
+        _E,
+    ),
+    "review_backlog_reflects": ({"unreviewed_count": 3}, BUDGET, {}, _REFLECT),
+    "small_pool_generates_despite_evolution_yield": (
+        {"pool_size": 1, "reviewed_count": 1, "evolution_yield": 0.9},
+        BUDGET,
+        {},
+        _G,
+    ),
+    "low_coverage_ranks": (
+        {"match_coverage": 0.0},
+        BUDGET,
+        {"min_match_coverage": 1.0},
+        _RANK,
+    ),
+    "pool_growth_refreshes_proximity": (
+        {"pool_grew_since_proximity": True},
+        BUDGET,
+        {},
+        TaskType.PROXIMITY,
+    ),
+    "failed_task_is_retried": (
+        {"last_task_failed": _RANK, "retries_remaining": 1},
+        BUDGET,
+        {},
+        _RANK,
+    ),
+    "yield_tie_without_stagnation_generates": (
+        {
+            "generation_yield": 0.0,
+            "evolution_yield": 0.0,
+            "last_work_task": _E,
+        },
+        BUDGET,
+        {},
+        _G,
+    ),
+    "yield_tie_with_stagnation_evolves": (
+        {
+            "generation_yield": 0.0,
+            "evolution_yield": 0.0,
+            "rank_stable_cycles": 1,
+            "last_work_task": _G,
+        },
+        BUDGET,
+        {},
+        _E,
+    ),
+    # Repeated breeding of a narrow pool would starve generation.
+    "yield_tie_with_standing_stagnation_generates": (
+        {
+            "generation_yield": 0.0,
+            "evolution_yield": 0.0,
+            "rank_stable_cycles": 3,
+            "last_work_task": _E,
+        },
+        BUDGET,
+        {},
+        _G,
+    ),
+    "stale_cancel_flag_is_the_executors_business": (
+        {"cancelled": True},
+        BUDGET,
+        {},
+        _CONTINUES,
+    ),
+    "llm_budget_terminates": (
+        {"llm_calls": 50},
+        _budget(max_llm_calls=50),
+        {},
+        _R.BUDGET,
+    ),
+    "task_budget_terminates": (
+        {"tasks_run": 20},
+        _budget(max_tasks=20),
+        {},
+        _R.MAX_TASKS,
+    ),
+    "wall_clock_terminates": (
+        {"elapsed_s": 61.0},
+        _budget(max_wall_clock_s=60.0),
+        {},
+        _R.WALL_CLOCK,
+    ),
+    "max_ideas_terminates": (
+        {"pool_size": 10},
+        _budget(max_ideas=10),
+        {},
+        _R.MAX_IDEAS,
+    ),
+    # Stopping before the backlog would strand already generated ideas.
+    "max_ideas_defers_to_the_review_backlog": (
+        {"pool_size": 10, "unreviewed_count": 2},
+        _budget(max_ideas=10),
+        {},
+        _REFLECT,
+    ),
+    "max_matches_per_idea_terminates": (
+        {"rankable_count": 6, "match_coverage": 3.0},
+        _budget(max_matches_per_idea=3.0),
+        {},
+        _R.MAX_MATCHES_PER_IDEA,
+    ),
+    "below_max_matches_per_idea_continues": (
+        {"rankable_count": 6, "match_coverage": 2.0},
+        _budget(max_matches_per_idea=3.0),
+        {},
+        _CONTINUES,
+    ),
+    "iteration_budget_completes": (
+        {"iteration": 5},
+        Budget(max_iterations=5),
+        {},
+        _R.COMPLETED,
+    ),
+    # Failed growth still consumes iterations, avoiding the recursion limit.
+    "starved_generation_completes_at_the_iteration_budget": (
+        {"pool_size": 1, "reviewed_count": 1, "iteration": 5},
+        Budget(max_iterations=5),
+        {},
+        _R.COMPLETED,
+    ),
+    # Gated ideas cannot earn tournament coverage or hold its floor open.
+    "unrankable_pool_does_not_loop_on_ranking": (
+        {"rankable_count": 0, "match_coverage": 0.0},
+        BUDGET,
+        {"min_match_coverage": 1.0},
+        _NOT_RANK,
+    ),
+    "unrankable_pool_completes_at_the_iteration_budget": (
+        {"rankable_count": 0, "match_coverage": 0.0, "iteration": 5},
+        Budget(max_iterations=5),
+        {},
+        _R.COMPLETED,
+    ),
+    "convergence_terminates": (
+        {
+            "rank_stable_cycles": 2,
+            "iteration": 2,
+            "evolved_since_stable": True,
+        },
+        BUDGET,
+        {"convergence_cycles": 2},
+        _R.CONVERGED,
+    ),
+    "convergence_waits_for_min_cycles": (
+        {"rank_stable_cycles": 5, "iteration": 1},
+        BUDGET,
+        {"convergence_cycles": 2, "min_cycles_before_convergence": 2},
+        _CONTINUES,
+    ),
+    "stagnation_evolves_before_it_terminates": (
+        {"rank_stable_cycles": 2, "iteration": 2},
+        Budget(max_iterations=4),
+        {"convergence_cycles": 2},
+        _E,
+    ),
+    # The iteration ceiling still bounds convergence's evolution opportunity.
+    "the_extra_evolve_cycle_cannot_outlive_the_iteration_budget": (
+        {"rank_stable_cycles": 5, "iteration": 4},
+        Budget(max_iterations=4),
+        {"convergence_cycles": 2},
+        _R.COMPLETED,
+    ),
+    "spent_tournament_budget_stops_asking_to_rank": (
+        {"match_coverage": 0.0, "tournament_rounds_remaining": 0},
+        BUDGET,
+        {"min_match_coverage": 1.0},
+        _NOT_RANK,
+    ),
+    "remaining_tournament_budget_still_ranks": (
+        {"match_coverage": 0.0, "tournament_rounds_remaining": 4},
+        BUDGET,
+        {"min_match_coverage": 1.0},
+        _RANK,
+    ),
+    # Precedence: safety > steering > owed coverage > owed review > budget.
+    "safety_block_terminates": (
+        {"safety_blocked": True},
+        BUDGET,
+        {},
+        _R.SAFETY,
+    ),
+    "safety_outranks_budget_and_backlog": (
+        {"safety_blocked": True, "llm_calls": 100, "unreviewed_count": 5},
+        Budget(max_iterations=100, max_llm_calls=1),
+        {},
+        _R.SAFETY,
+    ),
+    "budget_outranks_an_ordinary_backlog": (
+        {"llm_calls": 10, "unreviewed_count": 5},
+        _budget(max_llm_calls=10),
+        {},
+        _R.BUDGET,
+    ),
+    "steering_generates": (
+        {"pending_steering": True, "evolution_yield": 0.9},
+        BUDGET,
+        {},
+        _G,
+    ),
+    # Pending steering intentionally buys a cycle above spent budget ceilings.
+    "steering_outranks_budget_exhaustion": (
+        {"llm_calls": 10, "pending_steering": True},
+        _budget(max_llm_calls=10),
+        {},
+        _G,
+    ),
+    "steering_outranks_owed_coverage": (
+        {**_OWED_COVERAGE, **_EXHAUSTED, "pending_steering": True},
+        BUDGET,
+        {},
+        _G,
+    ),
+    "steering_outranks_owed_review": (
+        {"owed_review_count": 1, "tasks_run": 100, "pending_steering": True},
+        BUDGET,
+        {},
+        _G,
+    ),
+    "uncompared_idea_ranks_despite_a_healthy_average": (
+        {**_OWED_COVERAGE, "match_coverage": 1.33},
+        BUDGET,
+        {},
+        _RANK,
+    ),
+    # The ceiling is a runaway backstop; the allowance bounds the overshoot.
+    "owed_coverage_outranks_budget_termination": (
+        {**_OWED_COVERAGE, **_EXHAUSTED},
+        BUDGET,
+        {},
+        _RANK,
+    ),
+    "owed_coverage_outranks_max_matches_per_idea": (
+        {**_OWED_COVERAGE, "match_coverage": 1.0},
+        Budget(max_iterations=5, max_matches_per_idea=1.0),
+        {},
+        _RANK,
+    ),
+    "safety_outranks_owed_coverage": (
+        {**_OWED_COVERAGE, "safety_blocked": True},
+        BUDGET,
+        {},
+        _R.SAFETY,
+    ),
+    "a_spent_allowance_stops_overriding_the_budget": (
+        {**_OWED_COVERAGE, **_EXHAUSTED, "settlement_allowance": 0},
+        BUDGET,
+        {},
+        _R.BUDGET,
+    ),
+    # A round that did not shrink the backlog will not next time either.
+    "a_stalled_settlement_stops_overriding_the_budget": (
+        {
+            "rankable_count": 3,
+            "unmatched_rankable_count": 2,
+            "owed_coverage_rounds": 2,
+            "settlement_allowance": 5,
+            "owed_at_last_settlement": 2,
+            **_EXHAUSTED,
+        },
+        BUDGET,
+        {},
+        _R.BUDGET,
+    ),
+    "settlement_continues_while_the_backlog_shrinks": (
+        {
+            **_OWED_COVERAGE,
+            "settlement_allowance": 5,
+            "owed_at_last_settlement": 3,
+            **_EXHAUSTED,
+        },
+        BUDGET,
+        {},
+        _RANK,
+    ),
+    "a_single_rankable_idea_never_settles": (
+        {
+            "pool_size": 1,
+            "rankable_count": 1,
+            "unmatched_rankable_count": 1,
+            "owed_coverage_rounds": 1,
+            **_EXHAUSTED,
+        },
+        BUDGET,
+        {},
+        _NOT_RANK,
+    ),
+    "a_fully_compared_pool_is_unaffected": (
+        {
+            "rankable_count": 3,
+            "unmatched_rankable_count": 0,
+            **_EXHAUSTED,
+        },
+        BUDGET,
+        {},
+        _R.BUDGET,
+    ),
+    "owed_review_outranks_task_budget_termination": (
+        {"owed_review_count": 1, "tasks_run": 100},
+        BUDGET,
+        {},
+        _REFLECT,
+    ),
+    # A spent physical-call ceiling cannot fund forced reflection.
+    "owed_review_refuses_to_override_the_llm_ceiling": (
+        {"owed_review_count": 1, **_EXHAUSTED},
+        BUDGET,
+        {},
+        _R.BUDGET,
+    ),
+    # The permanent override marker must not be spent by a healthy cycle.
+    "owed_review_is_inert_while_the_budget_has_room": (
+        {"owed_review_count": 1},
+        BUDGET,
+        {},
+        _G,
+    ),
+    "safety_outranks_owed_review": (
+        {"owed_review_count": 1, "tasks_run": 100, "safety_blocked": True},
+        BUDGET,
+        {},
+        _R.SAFETY,
+    ),
+    "owed_coverage_outranks_owed_review": (
+        {**_OWED_COVERAGE, "owed_review_count": 1, "tasks_run": 100},
+        BUDGET,
+        {},
+        _RANK,
+    ),
+}
 
 
-def test_budget_exhausted_state_terminates() -> None:
-    budget = Budget(max_iterations=100, max_llm_calls=50)
-    stats = healthy_stats(llm_calls=50)
-    decision = decide_next_task(stats, budget)
-    assert decision.terminate
-    assert decision.termination_reason is TerminationReason.BUDGET
+@pytest.mark.parametrize("case", _DECISIONS)
+def test_policy_decides_by_precedence(case: str) -> None:
+    overrides, budget, kwargs, expected = _DECISIONS[case]
+    decision = decide_next_task(healthy_stats(**overrides), budget, **kwargs)
+
+    if expected == _CONTINUES:
+        assert not decision.terminate
+    elif expected == _NOT_RANK:
+        assert decision.next_task is not _RANK
+    elif isinstance(expected, TerminationReason):
+        assert decision.terminate
+        assert decision.termination_reason is expected
+    else:
+        assert not decision.terminate
+        assert decision.next_task is expected
 
 
-def test_task_budget_exhausted_terminates() -> None:
-    budget = Budget(max_iterations=100, max_tasks=20)
-    stats = healthy_stats(tasks_run=20)
-    decision = decide_next_task(stats, budget)
-    assert decision.terminate
-    assert decision.termination_reason is TerminationReason.MAX_TASKS
+@pytest.mark.parametrize(
+    ("case", "words"),
+    [
+        ("steering_generates", "steering"),
+        ("failed_task_is_retried", "retry"),
+        ("yield_tie_with_stagnation_evolves", "stagnant"),
+        (
+            "yield_tie_with_standing_stagnation_generates",
+            "already had its turn",
+        ),
+        ("owed_review_outranks_task_budget_termination", "review"),
+    ],
+)
+def test_a_decision_states_why(case: str, words: str) -> None:
+    overrides, budget, kwargs, _ = _DECISIONS[case]
+    decision = decide_next_task(healthy_stats(**overrides), budget, **kwargs)
+    assert words in decision.reason.lower()
 
 
-def test_wall_clock_exhausted_terminates() -> None:
-    budget = Budget(max_iterations=100, max_wall_clock_s=60.0)
-    stats = healthy_stats(elapsed_s=61.0)
-    decision = decide_next_task(stats, budget)
-    assert decision.terminate
-    assert decision.termination_reason is TerminationReason.WALL_CLOCK
-
-
-def test_max_ideas_exhausted_terminates() -> None:
-    budget = Budget(max_iterations=100, max_ideas=10)
-    stats = healthy_stats(pool_size=10, unreviewed_count=0)
-    decision = decide_next_task(stats, budget)
-    assert decision.terminate
-    assert decision.termination_reason is TerminationReason.MAX_IDEAS
-
-
-def test_max_ideas_defers_to_review_backlog() -> None:
-    """Stopping before the backlog would strand already generated ideas."""
-    budget = Budget(max_iterations=100, max_ideas=10)
-    stats = healthy_stats(pool_size=10, unreviewed_count=2)
-    decision = decide_next_task(stats, budget)
-    assert not decision.terminate
-    assert decision.next_task is TaskType.REFLECT
-
-
-def test_max_matches_per_idea_exhausted_terminates() -> None:
-    budget = Budget(max_iterations=100, max_matches_per_idea=3.0)
-    stats = healthy_stats(rankable_count=6, match_coverage=3.0)
-    decision = decide_next_task(stats, budget)
-    assert decision.terminate
-    assert decision.termination_reason is TerminationReason.MAX_MATCHES_PER_IDEA
-
-
-def test_max_matches_per_idea_below_threshold_continues() -> None:
-    budget = Budget(max_iterations=100, max_matches_per_idea=3.0)
-    stats = healthy_stats(rankable_count=6, match_coverage=2.0)
-    decision = decide_next_task(stats, budget)
-    assert not decision.terminate
-
-
-def test_steered_state_generates() -> None:
-    stats = healthy_stats(pending_steering=True, evolution_yield=0.9)
-    decision = decide_next_task(stats, BUDGET)
-    assert decision.next_task is TaskType.GENERATE
-    assert "steering" in decision.reason
-
-
-def test_retry_state_reschedules_failed_task() -> None:
-    stats = healthy_stats(last_task_failed=TaskType.RANK, retries_remaining=1)
-    decision = decide_next_task(stats, BUDGET)
-    assert decision.next_task is TaskType.RANK
-    assert "retry" in decision.reason.lower()
-
-
-def test_stale_cancelled_flag_does_not_terminate() -> None:
-    """The durable executor owns cancellation, not the scheduling policy."""
-    stats = healthy_stats(cancelled=True)
-    decision = decide_next_task(stats, BUDGET)
-    assert not decision.terminate
-
-
-def test_safety_block_terminates() -> None:
-    stats = healthy_stats(safety_blocked=True)
-    decision = decide_next_task(stats, BUDGET)
-    assert decision.terminate
-    assert decision.termination_reason is TerminationReason.SAFETY
-
-
-def test_yield_tie_without_stagnation_generates() -> None:
-    stats = healthy_stats(
-        generation_yield=0.0,
-        evolution_yield=0.0,
-        rank_stable_cycles=0,
-        last_work_task=TaskType.EVOLVE,
-    )
-    decision = decide_next_task(stats, BUDGET)
-    assert decision.next_task is TaskType.GENERATE
-
-
-def test_yield_tie_with_stagnation_evolves() -> None:
-    stats = healthy_stats(
-        generation_yield=0.0,
-        evolution_yield=0.0,
-        rank_stable_cycles=1,
-        last_work_task=TaskType.GENERATE,
-    )
-    decision = decide_next_task(stats, BUDGET)
-    assert decision.next_task is TaskType.EVOLVE
-    assert "stagnant" in decision.reason
-
-
-def test_yield_tie_with_standing_stagnation_generates() -> None:
-    """Repeated breeding of a narrow pool would starve generation."""
-    stats = healthy_stats(
-        generation_yield=0.0,
-        evolution_yield=0.0,
-        rank_stable_cycles=3,
-        last_work_task=TaskType.EVOLVE,
-    )
-    decision = decide_next_task(stats, BUDGET)
-    assert decision.next_task is TaskType.GENERATE
-    assert "already had its turn" in decision.reason
-
-
-def test_safety_outranks_budget_and_backlog() -> None:
-    budget = Budget(max_iterations=100, max_llm_calls=1)
-    stats = healthy_stats(
-        safety_blocked=True, llm_calls=100, unreviewed_count=5
-    )
-    decision = decide_next_task(stats, budget)
-    assert decision.termination_reason is TerminationReason.SAFETY
-
-
-def test_budget_outranks_backlog() -> None:
-    budget = Budget(max_iterations=100, max_llm_calls=10)
-    stats = healthy_stats(llm_calls=10, unreviewed_count=5)
-    decision = decide_next_task(stats, budget)
-    assert decision.termination_reason is TerminationReason.BUDGET
-
-
-def test_small_pool_generates_even_when_evolution_yield_high() -> None:
-    stats = healthy_stats(pool_size=1, reviewed_count=1, evolution_yield=0.9)
-    decision = decide_next_task(stats, BUDGET)
-    assert decision.next_task is TaskType.GENERATE
-
-
-def test_low_coverage_ranks() -> None:
-    stats = healthy_stats(match_coverage=0.0)
-    decision = decide_next_task(stats, BUDGET, min_match_coverage=1.0)
-    assert decision.next_task is TaskType.RANK
-
-
-def test_pool_growth_refreshes_proximity() -> None:
-    stats = healthy_stats(pool_grew_since_proximity=True)
-    decision = decide_next_task(stats, BUDGET)
-    assert decision.next_task is TaskType.PROXIMITY
-
-
-def test_iteration_budget_reached_completes() -> None:
-    stats = healthy_stats(iteration=5)
-    decision = decide_next_task(stats, Budget(max_iterations=5))
-    assert decision.terminate
-    assert decision.termination_reason is TerminationReason.COMPLETED
-
-
-def test_starved_generation_terminates_at_iteration_budget() -> None:
-    """Failed growth still consumes iterations, avoiding the graph recursion
-    limit."""
-    stats = healthy_stats(pool_size=1, reviewed_count=1, iteration=5)
-    decision = decide_next_task(stats, Budget(max_iterations=5))
-    assert decision.terminate
-    assert decision.termination_reason is TerminationReason.COMPLETED
-
-
-def test_unrankable_pool_does_not_loop_on_ranking() -> None:
-    """Gated ideas cannot earn tournament coverage and must not hold its
-    floor open."""
-    stats = healthy_stats(rankable_count=0, match_coverage=0.0, iteration=1)
-    decision = decide_next_task(stats, BUDGET, min_match_coverage=1.0)
-    assert decision.next_task is not TaskType.RANK
-    assert not decision.terminate
-    at_budget = healthy_stats(rankable_count=0, match_coverage=0.0, iteration=5)
-    end = decide_next_task(at_budget, Budget(max_iterations=5))
-    assert end.terminate
-    assert end.termination_reason is TerminationReason.COMPLETED
-
-
-def test_validate_rejects_rank_on_tiny_pool() -> None:
-    stats = healthy_stats(pool_size=1, rankable_count=1)
-    recommended = SupervisorDecision(TaskType.RANK, "llm said rank")
-    validated = validate_decision(recommended, stats)
-    assert validated.next_task is TaskType.GENERATE
-    assert "corrected" in validated.reason
-
-
-def test_validate_rejects_evolve_without_reviews() -> None:
-    stats = healthy_stats(reviewed_count=0, unreviewed_count=3)
-    recommended = SupervisorDecision(TaskType.EVOLVE, "llm said evolve")
-    validated = validate_decision(recommended, stats)
-    assert validated.next_task is TaskType.REFLECT
-
-    stats2 = healthy_stats(reviewed_count=0, unreviewed_count=0, pool_size=2)
-    validated2 = validate_decision(
-        SupervisorDecision(TaskType.EVOLVE, "llm said evolve"), stats2
-    )
-    assert validated2.next_task is TaskType.GENERATE
-
-
-def test_correction_carries_queue_actions_through() -> None:
-    """Failed rows have no other revival path; corrections must retain queue
+@pytest.mark.parametrize(
+    ("proposed", "stats", "corrected_to"),
+    [
+        (_RANK, {"pool_size": 1, "rankable_count": 1}, _G),
+        (_RANK, {"pending_steering": True}, _G),
+        (_E, {"reviewed_count": 0, "unreviewed_count": 3}, _REFLECT),
+        (
+            _E,
+            {"reviewed_count": 0, "unreviewed_count": 0, "pool_size": 2},
+            _G,
+        ),
+    ],
+)
+def test_validation_corrects_an_unfit_proposal_and_keeps_queue_actions(
+    proposed: TaskType, stats: dict[str, Any], corrected_to: TaskType
+) -> None:
+    """Failed rows have no other revival path, so corrections retain queue
     actions."""
     retry = ({"action": "retry", "task_id": "t-9", "reason": "transient"},)
-
-    steered = validate_decision(
-        SupervisorDecision(TaskType.RANK, "llm said rank", queue_actions=retry),
-        healthy_stats(pending_steering=True),
+    validated = validate_decision(
+        SupervisorDecision(proposed, "llm said so", queue_actions=retry),
+        healthy_stats(**stats),
     )
-    assert steered.next_task is TaskType.GENERATE
-    assert steered.queue_actions == retry
+    assert validated.next_task is corrected_to
+    assert "corrected" in validated.reason
+    assert validated.queue_actions == retry
 
-    ranked = validate_decision(
-        SupervisorDecision(TaskType.RANK, "llm said rank", queue_actions=retry),
-        healthy_stats(pool_size=1, rankable_count=1),
-    )
-    assert ranked.next_task is TaskType.GENERATE
-    assert ranked.queue_actions == retry
 
-    evolved = validate_decision(
-        SupervisorDecision(
-            TaskType.EVOLVE, "llm said evolve", queue_actions=retry
-        ),
-        healthy_stats(reviewed_count=0, unreviewed_count=3),
-    )
-    assert evolved.next_task is TaskType.REFLECT
-    assert evolved.queue_actions == retry
-
-    assert frozenset(TaskType) == ALLOWED_LOOP_TASKS
-
-
-def test_validate_passes_valid_decision_unchanged() -> None:
-    stats = healthy_stats()
-    decision = SupervisorDecision(TaskType.EVOLVE, "evolve leaders")
-    assert validate_decision(decision, stats) is decision
-
-
-def test_validate_passes_terminate_unchanged() -> None:
-    stats = healthy_stats(pool_size=0)
-    decision = SupervisorDecision(
-        TaskType.TERMINATE,
-        "done",
-        terminate=True,
-        termination_reason=TerminationReason.COMPLETED,
-    )
-    assert validate_decision(decision, stats) is decision
-
-
-def test_decision_and_stats_round_trip_to_dict() -> None:
-    stats = healthy_stats(last_task_failed=TaskType.RANK)
-    stats_dict = stats.to_dict()
-    assert stats_dict["last_task_failed"] == "rank"
-
-    decision = _terminate_decision()
-    d = decision.to_dict()
-    assert d["next_task"] == "terminate"
-    assert d["termination_reason"] == "converged"
-
-
-def _terminate_decision() -> SupervisorDecision:
-    return SupervisorDecision(
-        TaskType.TERMINATE,
-        "stable",
-        terminate=True,
-        termination_reason=TerminationReason.CONVERGED,
-    )
-
-
-def test_budget_from_dict_tolerates_a_pre_f11_checkpoint() -> None:
-    pre_f11_payload = {
-        "max_iterations": 5,
-        "max_llm_calls": 1000,
-        "max_tasks": 100,
-        "max_wall_clock_s": None,
-    }
-    budget = Budget.from_dict(pre_f11_payload)
-    assert budget.max_ideas is None
-    assert budget.max_matches_per_idea is None
-    stats = healthy_stats(tasks_run=100)
-    decision = decide_next_task(stats, budget)
-    assert decision.termination_reason is TerminationReason.MAX_TASKS
-
-
-def test_stale_cancelled_termination_reason_string_is_inert_data() -> None:
-    """Stored termination reasons are opaque strings, not reparsed enums."""
-    stale_history_entry = {
-        "task_type": "generate",
-        "status": "completed",
-        "reason": "done",
-        "iteration": 3,
-        "termination_reason": "cancelled",
-    }
-    # Nothing in the scheduling module parses this back into an enum; it is
-    # opaque data that a resumed run only ever carries forward or displays.
-    assert stale_history_entry["termination_reason"] == "cancelled"
-    assert "cancelled" not in {r.value for r in TerminationReason}
-    stats = healthy_stats()
-    decision = decide_next_task(stats, BUDGET)
-    assert decision.termination_reason != "cancelled"
-
-
-def test_stagnation_evolves_before_it_terminates() -> None:
-    stats = healthy_stats(
-        rank_stable_cycles=2, iteration=2, evolved_since_stable=False
-    )
-    decision = decide_next_task(
-        stats, Budget(max_iterations=4), convergence_cycles=2
-    )
-    assert not decision.terminate
-    assert decision.next_task is TaskType.EVOLVE
-
-
-def test_stagnation_terminates_once_evolution_has_answered_it() -> None:
-    stats = healthy_stats(
-        rank_stable_cycles=2, iteration=2, evolved_since_stable=True
-    )
-    decision = decide_next_task(
-        stats, Budget(max_iterations=4), convergence_cycles=2
-    )
-    assert decision.terminate
-    assert decision.termination_reason is TerminationReason.CONVERGED
-
-
-def test_the_extra_evolve_cycle_cannot_outlive_the_iteration_budget() -> None:
-    """The iteration ceiling still bounds convergence's evolution
-    opportunity."""
-    stats = healthy_stats(
-        rank_stable_cycles=5, iteration=4, evolved_since_stable=False
-    )
-    decision = decide_next_task(
-        stats, Budget(max_iterations=4), convergence_cycles=2
-    )
-    assert decision.terminate
-    assert decision.termination_reason is TerminationReason.COMPLETED
-
-
-def test_spent_tournament_budget_stops_asking_to_rank() -> None:
-    stats = healthy_stats(match_coverage=0.0, tournament_rounds_remaining=0)
-
-    decision = decide_next_task(stats, BUDGET, min_match_coverage=1.0)
-
-    assert decision.next_task is not TaskType.RANK
-
-
-def test_remaining_tournament_budget_still_ranks() -> None:
-    stats = healthy_stats(match_coverage=0.0, tournament_rounds_remaining=4)
-
-    decision = decide_next_task(stats, BUDGET, min_match_coverage=1.0)
-
-    assert decision.next_task is TaskType.RANK
-
-
-def test_uncompared_idea_ranks_despite_healthy_average() -> None:
-    # Average coverage can hide an individual idea that has never played.
-    stats = healthy_stats(
-        rankable_count=3,
-        match_coverage=1.33,
-        unmatched_rankable_count=1,
-        owed_coverage_rounds=1,
-    )
-
-    decision = decide_next_task(stats, BUDGET)
-
-    assert decision.next_task is TaskType.RANK
-
-
-def test_owed_coverage_outranks_budget_termination() -> None:
-    # A spent budget must not strand an idea that never played. The ceiling
-    # is a runaway backstop, and the allowance bounds the overshoot.
-    stats = healthy_stats(
-        rankable_count=3,
-        unmatched_rankable_count=1,
-        owed_coverage_rounds=1,
-        llm_calls=1000,
-    )
-
-    decision = decide_next_task(stats, BUDGET)
-
-    assert decision.next_task is TaskType.RANK
-
-
-def test_owed_coverage_outranks_max_matches_per_idea() -> None:
-    budget = Budget(max_iterations=5, max_matches_per_idea=1.0)
-    stats = healthy_stats(
-        rankable_count=3,
-        match_coverage=1.0,
-        unmatched_rankable_count=1,
-        owed_coverage_rounds=1,
-    )
-
-    decision = decide_next_task(stats, budget)
-
-    assert decision.next_task is TaskType.RANK
-
-
-def test_safety_block_outranks_owed_coverage() -> None:
-    stats = healthy_stats(
-        rankable_count=3,
-        unmatched_rankable_count=1,
-        owed_coverage_rounds=1,
-        safety_blocked=True,
-    )
-
-    decision = decide_next_task(stats, BUDGET)
-
-    assert decision.next_task is TaskType.TERMINATE
-    assert decision.termination_reason is TerminationReason.SAFETY
-
-
-def test_steering_outranks_owed_coverage() -> None:
-    # Steering is cleared when observed; settlement would lose it without new
-    # work.
-    # Pending steering intentionally buys a cycle above exhausted budget
-    # ceilings.
-    stats = healthy_stats(
-        rankable_count=3,
-        unmatched_rankable_count=2,
-        owed_coverage_rounds=2,
-        pending_steering=True,
-        llm_calls=1000,
-    )
-
-    decision = decide_next_task(stats, BUDGET)
-
-    assert decision.next_task is TaskType.GENERATE
-    assert "steering" in decision.reason
-
-
-def test_spent_allowance_stops_overriding_the_budget() -> None:
-    stats = healthy_stats(
-        rankable_count=3,
-        unmatched_rankable_count=1,
-        owed_coverage_rounds=1,
-        settlement_allowance=0,
-        llm_calls=1000,
-    )
-
-    decision = decide_next_task(stats, BUDGET)
-
-    assert decision.next_task is TaskType.TERMINATE
-    assert decision.termination_reason is TerminationReason.BUDGET
-
-
-def test_stalled_settlement_stops_overriding_the_budget() -> None:
-    # A round that did not reduce the backlog will not reduce it next time
-    # either; spending the rest of the allowance on it wastes real debates.
-    stats = healthy_stats(
-        rankable_count=3,
-        unmatched_rankable_count=2,
-        owed_coverage_rounds=2,
-        settlement_allowance=5,
-        owed_at_last_settlement=2,
-        llm_calls=1000,
-    )
-
-    decision = decide_next_task(stats, BUDGET)
-
-    assert decision.next_task is TaskType.TERMINATE
-
-
-def test_settlement_continues_while_backlog_shrinks() -> None:
-    stats = healthy_stats(
-        rankable_count=3,
-        unmatched_rankable_count=1,
-        owed_coverage_rounds=1,
-        settlement_allowance=5,
-        owed_at_last_settlement=3,
-        llm_calls=1000,
-    )
-
-    decision = decide_next_task(stats, BUDGET)
-
-    assert decision.next_task is TaskType.RANK
-
-
-def test_single_rankable_hypothesis_never_settles() -> None:
-    # Inconsistent owed rounds exercise the guard independently of floor
-    # calculation.
-    stats = healthy_stats(
-        pool_size=1,
-        rankable_count=1,
-        unmatched_rankable_count=1,
-        owed_coverage_rounds=1,
-        llm_calls=1000,
-    )
-
-    decision = decide_next_task(stats, BUDGET)
-
-    assert decision.next_task is not TaskType.RANK
-
-
-def test_fully_compared_pool_is_unaffected() -> None:
-    stats = healthy_stats(
-        rankable_count=3,
-        unmatched_rankable_count=0,
-        owed_coverage_rounds=0,
-        llm_calls=1000,
-    )
-
-    decision = decide_next_task(stats, BUDGET)
-
-    assert decision.next_task is TaskType.TERMINATE
-    assert decision.termination_reason is TerminationReason.BUDGET
-
-
-_BUDGET = Budget(max_iterations=4)
+def test_validation_passes_a_fit_decision_through_unchanged() -> None:
+    decision = SupervisorDecision(_E, "evolve leaders")
+    assert validate_decision(decision, healthy_stats()) is decision
 
 
 def _settled_stats(**overrides: object) -> SchedulerStats:
@@ -580,46 +465,36 @@ def _settled_stats(**overrides: object) -> SchedulerStats:
     return SchedulerStats(**base)  # type: ignore[arg-type]
 
 
-def test_meta_review_is_a_dispatchable_loop_task() -> None:
-    assert TaskType.META_REVIEW in ALLOWED_LOOP_TASKS
+@pytest.mark.parametrize(
+    ("overrides", "fires"),
+    [
+        ({}, True),
+        # No completed work cycle yet, or nothing new to synthesize: a second
+        # pass would buy no new information.
+        ({"iterations_since_meta_review": 0}, False),
+        ({"feedback_since_meta_review": 0}, False),
+        ({"unreviewed_count": 3}, False),
+    ],
+)
+def test_meta_review_fires_once_new_critique_material_exists(
+    overrides: dict[str, Any], fires: bool
+) -> None:
+    stats = _settled_stats(**overrides)
     decision = validate_decision(
-        decide_next_task(_settled_stats(), _BUDGET), _settled_stats()
+        decide_next_task(stats, Budget(max_iterations=4)), stats
     )
-    assert decision.next_task is TaskType.META_REVIEW
+    assert (decision.next_task is TaskType.META_REVIEW) is fires
 
 
-def test_cadence_fires_once_new_critique_material_exists() -> None:
-    assert _check_meta_review_cadence(_settled_stats()) is not None
-
-
-def test_cadence_holds_without_a_completed_work_cycle() -> None:
-    stats = _settled_stats(iterations_since_meta_review=0)
-    assert _check_meta_review_cadence(stats) is None
-
-
-def test_cadence_holds_without_new_reviews_or_matches() -> None:
-    """A second synthesis with no new material buys no new information."""
-    stats = _settled_stats(feedback_since_meta_review=0)
-    assert _check_meta_review_cadence(stats) is None
-
-
-def test_cadence_never_outranks_a_review_backlog() -> None:
-    stats = _settled_stats(unreviewed_count=3)
-    assert decide_next_task(stats, _BUDGET).next_task is TaskType.REFLECT
-
-
-def test_a_run_that_never_evolves_still_reaches_meta_review() -> None:
+def test_meta_review_and_evolve_both_route_through_the_meta_review_node() -> (
+    None
+):
     assert TASK_ROUTES[TaskType.META_REVIEW.value] == "meta_review"
     assert TASK_ROUTES[TaskType.EVOLVE.value] == "meta_review"
-
-
-def test_meta_review_returns_to_the_loop_point_when_standalone() -> None:
-    state = make_state(next_task=TaskType.META_REVIEW.value)
-    assert route_after_meta_review(state) == "orchestrator"
-    assert next_task_type("meta_review", state) == "orchestrator"
-
-
-def test_meta_review_still_prefixes_evolve() -> None:
-    state = make_state(next_task=TaskType.EVOLVE.value)
-    assert route_after_meta_review(state) == "evolve"
-    assert next_task_type("meta_review", state) == "evolve"
+    for task, successor in (
+        (TaskType.META_REVIEW, "orchestrator"),
+        (TaskType.EVOLVE, "evolve"),
+    ):
+        state = make_state(next_task=task.value)
+        assert route_after_meta_review(state) == successor
+        assert next_task_type("meta_review", state) == successor
