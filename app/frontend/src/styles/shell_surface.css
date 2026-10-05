@@ -546,6 +546,11 @@
   padding-right: 0.25rem;
 }
 
+.ucs-settings-cards {
+  display: grid;
+  gap: 1rem;
+}
+
 .ucs-settings-card {
   border-radius: 1rem;
   background: var(--cosci-settings-card-bg);
@@ -672,6 +677,11 @@
 
 .ucs-provider-group-label {
   padding: 0.4rem 0.7rem 0.1rem;
+}
+
+/* Options must stretch like direct menu children so highlights span the row. */
+.ucs-provider-group {
+  display: grid;
 }
 
 .ucs-provider-option-note {

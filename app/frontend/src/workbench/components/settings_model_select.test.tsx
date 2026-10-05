@@ -1,4 +1,4 @@
-import {render, screen, within} from '@testing-library/react';
+import {render, screen, waitFor, within} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import {
@@ -162,13 +162,13 @@ it('shows each provider its own saved key and marks the keyed ones', async () =>
   const key = () => screen.getByPlaceholderText(/API key/);
   expect(key()).toHaveValue('');
 
-  await user.click(trigger('Provider'));
+  await user.click(trigger(/^Provider/));
   const menu = screen.getByRole('menu', {name: 'Provider'});
   expect(within(menu).getAllByText('Saved')).toHaveLength(2);
   await user.click(within(menu).getByRole('menuitemradio', {name: /Gemini/}));
   expect(key()).toHaveValue('sk-gemini');
 
-  await user.click(trigger('Provider'));
+  await user.click(trigger(/^Provider/));
   await user.click(screen.getByRole('menuitemradio', {name: /OpenAI/}));
   expect(key()).toHaveValue('sk-openai');
 });
@@ -179,7 +179,7 @@ it('removes only the cleared provider key from the model lists', async () => {
   setStoredApiKey('sk-gemini', 'gemini');
   renderDialog();
   await screen.findAllByText('deepseek-flash');
-  await user.click(trigger('Provider'));
+  await user.click(trigger(/^Provider/));
   await user.click(screen.getByRole('menuitemradio', {name: /Gemini/}));
   await user.clear(screen.getByLabelText('Gemini API key'));
   await user.tab();
@@ -199,8 +199,8 @@ it('drops a stored model the catalog no longer offers', async () => {
     model: 'deepseek/deepseek-v4-flash',
   });
   renderDialog();
-  await screen.findAllByText('deepseek-flash');
-  expect(getStoredModel('worker')).toBeNull();
+  // Pruning runs in an effect after the catalog renders, not with it.
+  await waitFor(() => expect(getStoredModel('worker')).toBeNull());
 });
 
 it('keeps model choices when the viewed provider changes', () => {
@@ -219,7 +219,7 @@ it.each(['Provider', 'Supervisor model', 'Worker model'])(
     const onClose = vi.fn();
     renderDialog(onClose);
     await screen.findAllByText('deepseek-flash');
-    const chooser = screen.getByRole('button', {name});
+    const chooser = screen.getByRole('button', {name: new RegExp(`^${name}`)});
 
     await user.click(chooser);
     await user.keyboard('{Escape}');
@@ -242,3 +242,14 @@ it.each(['Provider', 'Supervisor model', 'Worker model'])(
     expect(onClose).not.toHaveBeenCalled();
   },
 );
+
+it('keeps the provider and the model choices in separate boxes', async () => {
+  renderSection('sk-key', 'deepseek');
+  const keys = screen.getByRole('region', {name: 'Provider'});
+  const models = screen.getByRole('region', {name: 'Model'});
+  expect(within(keys).getByRole('button', {name: /Provider/})).toBeTruthy();
+  expect(within(keys).queryByRole('button', {name: /Worker model/})).toBeNull();
+  expect(
+    await within(models).findByRole('button', {name: /Worker model/}),
+  ).toBeTruthy();
+});
