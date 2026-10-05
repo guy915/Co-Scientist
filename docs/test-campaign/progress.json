@@ -1,7 +1,7 @@
 {
   "phases": {
     "1": {
-      "status": "awaiting_merge_gates",
+      "status": "complete",
       "start": {
         "engine": {
           "test_lines": 49714,
@@ -107,7 +107,36 @@
       ],
       "inventory": "docs/test-campaign/phase1-inventory.json",
       "coverage_baseline": "docs/test-campaign/coverage-baseline.json",
-      "validation": {}
+      "validation": {
+        "make_check_exit_status": 0,
+        "make_e2e_production_exit_status": 0,
+        "make_coverage_exit_status": 0,
+        "protected_modules": 275,
+        "coverage_guard": "passed",
+        "pull_request": "https://github.com/guy915/Co-Scientist/pull/187"
+      },
+      "coverage_end": {
+        "app": {
+          "covered": 13110,
+          "total": 13582,
+          "percent": 96.52481225150935
+        },
+        "engine": {
+          "covered": 13922,
+          "total": 14482,
+          "percent": 96.13313078304101
+        },
+        "frontend": {
+          "covered": 3921,
+          "total": 4210,
+          "percent": 93.1353919239905
+        },
+        "mcp": {
+          "covered": 2349,
+          "total": 2536,
+          "percent": 92.62618296529969
+        }
+      }
     }
   },
   "load_bearing_distinctions": [
