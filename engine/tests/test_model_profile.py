@@ -33,11 +33,9 @@ from co_scientist.llm.profile import (
     FAMILIES,
     ROUTES,
     Facts,
-    ModelPrice,
     Thinking,
     gateway_routes,
     priced_routes,
-    promotional_free_route,
 )
 from co_scientist.llm.request.completion import (
     CompletionShape,
@@ -217,7 +215,7 @@ def test_generator_api_key_stays_out_of_initial_state() -> None:
     assert "api_key" not in fields
 
 
-_STEALTH = "openrouter/stealth/space-bunny-alpha"
+_ULTRA = "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
 
 
 def test_a_table_entry_and_a_profile_list_the_same_fields() -> None:
@@ -238,7 +236,7 @@ def test_capabilities_resolve_without_regard_to_case() -> None:
     assert model_profile("DeepSeek/DeepSeek-V4-Flash") == model_profile(
         "deepseek/deepseek-v4-flash"
     )
-    assert model_profile(_STEALTH.upper()) == model_profile(_STEALTH)
+    assert model_profile(_ULTRA.upper()) == model_profile(_ULTRA)
 
 
 @pytest.mark.parametrize(
@@ -247,7 +245,7 @@ def test_capabilities_resolve_without_regard_to_case() -> None:
         ("deepseek/deepseek-v5-x", Thinking.NATIVE, False),
         ("vendor/mydeepseek-r9", Thinking.NATIVE, False),
         ("openrouter/deepseek/deepseek-v5-x", Thinking.GATEWAY, True),
-        (_STEALTH, Thinking.GATEWAY, True),
+        (_ULTRA, Thinking.GATEWAY, True),
         ("openrouter/vendor/gemini-3-x", Thinking.NONE, False),
     ],
 )
@@ -315,21 +313,6 @@ def test_the_price_table_is_the_profile_prices() -> None:
     assert priced_routes() == MODEL_PRICING
     for name, price in MODEL_PRICING.items():
         assert model_profile(name).price == price, name
-
-
-def test_the_default_route_is_pinned_free_with_no_fallback() -> None:
-    profile = model_profile(_STEALTH)
-    assert profile.provider_only == "Stealth"
-    assert profile.fallbacks == ()
-    assert profile.price == ModelPrice(0.0, 0.0)
-    assert profile.promotional_free
-
-
-def test_promotion_is_matched_exactly_as_the_catalog_spells_the_id() -> None:
-    assert promotional_free_route("stealth/space-bunny-alpha")
-    assert not promotional_free_route("Stealth/Space-Bunny-Alpha")
-    assert not promotional_free_route(_STEALTH)
-    assert not promotional_free_route("nex-agi/nex-n2.5-pro:free")
 
 
 _SCHEMA = {"type": "object", "properties": {"a": {"type": "string"}}}

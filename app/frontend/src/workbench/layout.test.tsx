@@ -224,7 +224,9 @@ describe('layout settings', () => {
     const input = screen.getByLabelText('DeepSeek API key');
     fireEvent.change(input, {target: {value: 'sk-test-123'}});
     fireEvent.keyDown(input, {key: 'Enter'});
-    expect(window.localStorage.getItem('cosci-api-key')).toBe('sk-test-123');
+    expect(window.localStorage.getItem('cosci-api-keys')).toBe(
+      JSON.stringify({deepseek: 'sk-test-123'}),
+    );
     expect(screen.queryByText('Settings saved')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', {name: 'Close settings'}));
@@ -240,7 +242,7 @@ describe('layout settings', () => {
 
     expect(screen.getByLabelText('DeepSeek API key')).toBeInTheDocument();
 
-    const trigger = screen.getByRole('button', {name: 'Provider'});
+    const trigger = screen.getByRole('button', {name: /^Provider/});
     expect(screen.queryByRole('menuitemradio', {name: 'OpenAI'})).toBeNull();
     fireEvent.click(trigger);
 
@@ -267,7 +269,7 @@ describe('layout settings', () => {
       screen.getByRole('link', {name: /Get a DeepSeek API key/}),
     ).toHaveAttribute('href', 'https://platform.deepseek.com/api_keys');
 
-    fireEvent.click(screen.getByRole('button', {name: 'Provider'}));
+    fireEvent.click(screen.getByRole('button', {name: /^Provider/}));
     fireEvent.click(screen.getByRole('menuitemradio', {name: 'Anthropic'}));
     expect(
       screen.getByRole('link', {name: /Get an Anthropic API key/}),
@@ -283,7 +285,7 @@ describe('layout settings', () => {
     fireEvent.click(screen.getByRole('menuitem', {name: 'Model'}));
     const dialog = await screen.findByRole('dialog', {name: 'Settings'});
 
-    fireEvent.click(screen.getByRole('button', {name: 'Provider'}));
+    fireEvent.click(screen.getByRole('button', {name: /^Provider/}));
     const option = screen.getByRole('menuitemradio', {name: 'OpenAI'});
     fireEvent.keyDown(option, {key: 'Escape'});
 

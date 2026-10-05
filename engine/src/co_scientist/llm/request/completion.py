@@ -5,7 +5,10 @@ from dataclasses import dataclass
 from typing import Any, Final
 
 from co_scientist.config.env_vars import parse_timeout_env
-from co_scientist.llm.admission.free_policy import current_api_key
+from co_scientist.llm.admission.free_policy import (
+    api_key_for_model,
+    current_api_key,
+)
 from co_scientist.llm.profile import model_profile
 from co_scientist.llm.request.backend import (
     active_backend,
@@ -82,7 +85,8 @@ def _apply_schema_response_format(
     )
     shimmed_content = _inject_schema_into_prompt(prompt, json_schema)
     completion_args["messages"] = [{"role": "user", "content": shimmed_content}]
-    completion_args["response_format"] = {"type": "json_object"}
+    if model_profile(model_name).json_object:
+        completion_args["response_format"] = {"type": "json_object"}
 
 
 def _apply_response_format(
@@ -96,7 +100,7 @@ def _apply_response_format(
         _apply_schema_response_format(
             completion_args, prompt, model_name, json_schema
         )
-    elif force_json:
+    elif force_json and model_profile(model_name).json_object:
         completion_args["response_format"] = {"type": "json_object"}
 
 
@@ -180,12 +184,11 @@ def _base_completion_args(
     return completion_args
 
 
-def _apply_api_key(
-    completion_args: dict[str, Any], api_key: str | None
-) -> None:
+def _apply_api_key(completion_args: dict[str, Any]) -> None:
     """Omitting an absent key preserves provider environment resolution
     without shared mutation.
     """
+    api_key = api_key_for_model(completion_args["model"])
     if api_key:
         completion_args["api_key"] = api_key
 

@@ -46,6 +46,8 @@ CREATE TABLE IF NOT EXISTS run_credentials (
     supervisor_model TEXT,           -- supervisor tier; NULL = model
     encrypted_key TEXT NOT NULL,     -- Fernet token, never plaintext
     created_at REAL NOT NULL,
+    supervisor_provider TEXT,        -- NULL = supervisor shares worker key
+    encrypted_supervisor_key TEXT,   -- Fernet token for that provider
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
 
@@ -727,3 +729,11 @@ UPDATE runs SET status='completed',
 DROP TABLE _retired_outcome_runs;
 COMMIT;
 """
+
+# CREATE TABLE IF NOT EXISTS never alters a table a deployed database already
+# has, so each column added after first release is also listed here and added
+# idempotently at startup.
+ADDED_COLUMNS = (
+    ("run_credentials", "supervisor_provider", "TEXT"),
+    ("run_credentials", "encrypted_supervisor_key", "TEXT"),
+)

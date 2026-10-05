@@ -3,6 +3,9 @@ import {
   clearAccessToken,
   getAccessToken,
   setAccessToken,
+  setStoredApiKey,
+  setStoredApiProvider,
+  setStoredModel,
 } from '@/lib/client_id';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {
@@ -398,10 +401,90 @@ describe('runs byok', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    localStorage.removeItem('cosci-api-key');
-    localStorage.removeItem('cosci-api-provider');
-    localStorage.removeItem('cosci-api-model');
-    localStorage.removeItem('cosci-api-supervisor-model');
+    for (const key of [
+      'cosci-api-key',
+      'cosci-api-keys',
+      'cosci-api-provider',
+      'cosci-api-model',
+      'cosci-api-supervisor-model',
+    ]) {
+      localStorage.removeItem(key);
+    }
+  });
+
+  async function sentHeaders(): Promise<Record<string, string>> {
+    fetchMock().mockResolvedValue(jsonResponse({id: 'r1'}));
+    await createRun({research_goal: 'g'});
+    return firstCall()[1]?.headers as Record<string, string>;
+  }
+
+  describe('keys for several providers', () => {
+    beforeEach(() => {
+      setStoredApiKey('sk-deepseek', 'deepseek');
+      setStoredApiKey('sk-gemini', 'gemini');
+    });
+
+    it('sends a supervisor on another provider with its own key', async () => {
+      setStoredModel('worker', {
+        provider: 'deepseek',
+        model: 'deepseek/deepseek-flash',
+      });
+      setStoredModel('supervisor', {
+        provider: 'gemini',
+        model: 'gemini/gemini-3.1-pro-preview',
+      });
+
+      const headers = await sentHeaders();
+
+      expect(headers['X-LLM-Provider']).toBe('deepseek');
+      expect(headers['X-LLM-API-Key']).toBe('sk-deepseek');
+      expect(headers['X-LLM-Supervisor-Provider']).toBe('gemini');
+      expect(headers['X-LLM-Supervisor-API-Key']).toBe('sk-gemini');
+      expect(headers['X-LLM-Supervisor-Model']).toBe(
+        'gemini/gemini-3.1-pro-preview',
+      );
+    });
+
+    it('omits the supervisor provider and key when it matches the worker', async () => {
+      setStoredModel('supervisor', {
+        provider: 'deepseek',
+        model: 'deepseek/deepseek-v4-pro',
+      });
+
+      const headers = await sentHeaders();
+
+      expect(headers['X-LLM-Supervisor-Model']).toBe(
+        'deepseek/deepseek-v4-pro',
+      );
+      expect(headers['X-LLM-Supervisor-Provider']).toBeUndefined();
+      expect(headers['X-LLM-Supervisor-API-Key']).toBeUndefined();
+    });
+
+    it('lets the worker use a provider other than the viewed one', async () => {
+      setStoredApiProvider('deepseek');
+      setStoredModel('worker', {
+        provider: 'gemini',
+        model: 'gemini/gemini-3.8-flash',
+      });
+
+      const headers = await sentHeaders();
+
+      expect(headers['X-LLM-Provider']).toBe('gemini');
+      expect(headers['X-LLM-API-Key']).toBe('sk-gemini');
+      expect(headers['X-LLM-Model']).toBe('gemini/gemini-3.8-flash');
+    });
+
+    it('ignores a model whose provider has no saved key', async () => {
+      setStoredModel('worker', {
+        provider: 'openai',
+        model: 'openai/gpt-6-luna',
+      });
+
+      const headers = await sentHeaders();
+
+      expect(headers['X-LLM-Provider']).toBe('deepseek');
+      expect(headers['X-LLM-Model']).toBeUndefined();
+    });
   });
 
   describe('createRun BYOK transport', () => {

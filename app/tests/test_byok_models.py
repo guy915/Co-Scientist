@@ -36,9 +36,9 @@ def test_every_provider_lists_its_default_first() -> None:
 def test_omitted_models_resolve_to_the_provider_default() -> None:
     cred = credentials.credential_from_headers(_headers())
     assert cred is not None
-    assert cred.model == "deepseek/deepseek-v4-flash"
-    assert cred.supervisor_model == "deepseek/deepseek-v4-flash"
-    assert cred.models == ("deepseek/deepseek-v4-flash",)
+    assert cred.model == "deepseek/deepseek-flash"
+    assert cred.supervisor_model == "deepseek/deepseek-flash"
+    assert cred.models == ("deepseek/deepseek-flash",)
 
 
 def test_chosen_models_ride_the_headers() -> None:
@@ -46,10 +46,10 @@ def test_chosen_models_ride_the_headers() -> None:
         _headers(**{"X-LLM-Supervisor-Model": "deepseek/deepseek-v4-pro"})
     )
     assert cred is not None
-    assert cred.model == "deepseek/deepseek-v4-flash"
+    assert cred.model == "deepseek/deepseek-flash"
     assert cred.supervisor_model == "deepseek/deepseek-v4-pro"
     assert cred.models == (
-        "deepseek/deepseek-v4-flash",
+        "deepseek/deepseek-flash",
         "deepseek/deepseek-v4-pro",
     )
 
@@ -122,3 +122,79 @@ def test_catalog_endpoint_lists_every_provider() -> None:
             "/api/byok-models", headers={"X-Client-ID": "catalog"}
         ).json()
     assert body["providers"] == byok_models.model_catalog()
+
+
+_SUPERVISOR_KEY = "sk-gemini-supervisor-987654"
+_MIXED = {
+    "X-LLM-Supervisor-Provider": "gemini",
+    "X-LLM-Supervisor-API-Key": _SUPERVISOR_KEY,
+    "X-LLM-Supervisor-Model": "gemini/gemini-3.1-pro-preview",
+}
+
+
+def _mixed_credential() -> credentials.ByokCredential:
+    cred = credentials.credential_from_headers(_headers(**_MIXED))
+    assert cred is not None
+    return cred
+
+
+def test_a_supervisor_on_another_provider_carries_its_own_key() -> None:
+    cred = _mixed_credential()
+    assert (cred.provider, cred.api_key) == ("deepseek", _KEY)
+    assert cred.supervisor_provider == "gemini"
+    assert cred.supervisor_api_key == _SUPERVISOR_KEY
+    assert cred.keys_by_model() == {
+        "deepseek/deepseek-flash": _KEY,
+        "gemini/gemini-3.1-pro-preview": _SUPERVISOR_KEY,
+    }
+
+
+@pytest.mark.parametrize("missing", list(_MIXED)[:2])
+def test_supervisor_provider_and_key_travel_together(missing: str) -> None:
+    extra = {k: v for k, v in _MIXED.items() if k != missing}
+    with pytest.raises(credentials.ByokRequestError, match="together"):
+        credentials.credential_from_headers(_headers(**extra))
+
+
+def test_supervisor_model_must_belong_to_its_own_provider() -> None:
+    extra = {**_MIXED, "X-LLM-Supervisor-Model": "deepseek/deepseek-v4-pro"}
+    with pytest.raises(credentials.ByokRequestError):
+        credentials.credential_from_headers(_headers(**extra))
+
+
+def test_mixed_credential_round_trips_through_storage(
+    byok_secret: None,
+) -> None:
+    run = seed_run("goal", profile="express")
+    cred = _mixed_credential()
+    credentials.store_run_credential(run.id, run.client_id, cred)
+    assert credentials.get_run_credential(run.id) == cred
+
+
+async def test_validation_probes_each_model_with_its_own_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[tuple[object, object]] = []
+
+    async def fake_acompletion(**kwargs: object) -> None:
+        seen.append((kwargs["model"], kwargs["api_key"]))
+
+    monkeypatch.setattr(credentials, "_acompletion", fake_acompletion)
+    await credentials.validate_byok_credential(_mixed_credential())
+    assert seen == [
+        ("deepseek/deepseek-flash", _KEY),
+        ("gemini/gemini-3.1-pro-preview", _SUPERVISOR_KEY),
+    ]
+
+
+def test_every_offered_model_thinks() -> None:
+    from co_scientist.llm import model_reasons
+
+    offered = [m for p in byok_models.model_catalog().values() for m in p]
+    assert [m for m in offered if not model_reasons(m)] == []
+
+
+def test_openrouter_keys_can_choose_the_free_default_route() -> None:
+    from app.config import DEFAULT_MODEL
+
+    assert DEFAULT_MODEL in byok_models.provider_models("openrouter")

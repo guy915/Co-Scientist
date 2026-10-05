@@ -6,12 +6,14 @@ from co_scientist.constants import (
 )
 from co_scientist.llm import deepseek_thinking_extra_body as _thinking_body
 from co_scientist.llm import effective_max_tokens as _effective_max_tokens
+from co_scientist.llm import model_profile as _model_profile
 from co_scientist.llm import model_reasons as _model_reasons
 from co_scientist.llm import reasoning_effort_args as _effort_args
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 CONVERSATIONAL_REASONING_EFFORT = "medium"
+DEFAULT_MODEL = "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
 THINKING_FLOOR_TIMEOUT_SECONDS = float(THINKING_FLOOR_MAX_TOKENS) / 75.0
 
 
@@ -30,7 +32,7 @@ def deepseek_thinking_kwargs(
         "extra_body": extra_body,
         **_effort_args(model_name, enabled=True),
     }
-    if effort is not None:
+    if effort is not None and not _model_profile(model_name).pinned_effort:
         if "reasoning_effort" in kwargs:
             kwargs["reasoning_effort"] = effort
         reasoning = kwargs["extra_body"].get("reasoning")
@@ -59,15 +61,14 @@ def thinking_safe_timeout(model_name: str, answer_seconds: float) -> float:
 
 
 class Settings(BaseSettings):
-    # Free defaults enforce zero-price routing and admission; app-operation
-    # physical-call caps remain separate from research budgets.
+    # App-operation physical-call caps remain separate from research budgets.
     app_llm_max_calls: int = Field(default=4, ge=1)
 
     # Production model choices are explicit hosting overrides; changing these
     # defaults alone does not change production.
-    model_name: str = "openrouter/stealth/space-bunny-alpha"
-    supervisor_model_name: str | None = "openrouter/stealth/space-bunny-alpha"
-    chat_model_name: str | None = "openrouter/stealth/space-bunny-alpha"
+    model_name: str = DEFAULT_MODEL
+    supervisor_model_name: str | None = DEFAULT_MODEL
+    chat_model_name: str | None = DEFAULT_MODEL
     # LiteLLM and the engine consume provider environment variables, not this
     # Settings object.
     gemini_api_key: str = ""
@@ -94,7 +95,7 @@ class Settings(BaseSettings):
     # semantic assessment.
     semantic_safety_enabled: bool = True
     # Safety stays on the worker tier rather than the strategic supervisor tier.
-    semantic_safety_model: str | None = "openrouter/stealth/space-bunny-alpha"
+    semantic_safety_model: str | None = DEFAULT_MODEL
 
     log_format: str = "text"
 
@@ -238,15 +239,10 @@ def any_provider_credential() -> bool:
 
 
 BYOK_PROVIDER_DEFAULT_MODELS: dict[str, str] = {
-    "anthropic": "anthropic/claude-sonnet-4-5",
-    # Azure also needs deployment routing not carried by BYOK headers;
-    # credentials alone are insufficient.
-    "azure": "azure/gpt-4o",
-    "deepseek": "deepseek/deepseek-v4-flash",
-    "gemini": "gemini/gemini-2.5-flash",
-    # This default avoids reasoning-token spend that downstream caller budgets
-    # did not fund.
-    "openai": "openai/gpt-4o",
+    "anthropic": "anthropic/claude-sonnet-5-5",
+    "deepseek": "deepseek/deepseek-flash",
+    "gemini": "gemini/gemini-3.8-flash",
+    "openai": "openai/gpt-6.1-sol",
     "openrouter": "openrouter/z-ai/glm-5.3-flash",
 }
 # A local default per provider avoids guessing which other models a key covers.

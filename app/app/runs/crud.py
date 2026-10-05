@@ -312,6 +312,12 @@ def _admit_request(
                 req.model_dump(mode="json"),
                 api_key=request.headers.get(credentials.API_KEY_HEADER),
                 provider=request.headers.get(credentials.PROVIDER_HEADER),
+                supervisor_api_key=request.headers.get(
+                    credentials.SUPERVISOR_API_KEY_HEADER
+                ),
+                supervisor_provider=request.headers.get(
+                    credentials.SUPERVISOR_PROVIDER_HEADER
+                ),
             )
         except credentials.ByokNotConfiguredError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc

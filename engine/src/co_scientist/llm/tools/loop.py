@@ -12,10 +12,7 @@ from co_scientist.exceptions import (
     FreeModelEligibilityError,
     LLMCallBudgetExceededError,
 )
-from co_scientist.llm.admission.free_policy import (
-    current_api_key,
-    scoped_api_key,
-)
+from co_scientist.llm.admission.free_policy import scoped_api_key
 from co_scientist.llm.attempts.escalation import (
     BudgetEscalation,
     escalated_max_tokens,
@@ -116,7 +113,7 @@ def _build_tool_loop_completion_args(
         enable_thinking=escalation is not BudgetEscalation.NO_THINKING,
     )
     _apply_timeout(completion_args)
-    _apply_api_key(completion_args, current_api_key())
+    _apply_api_key(completion_args)
     return completion_args
 
 

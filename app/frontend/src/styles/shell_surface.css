@@ -392,6 +392,7 @@
 }
 
 .ucs-theme-segment {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.3rem;
@@ -402,6 +403,7 @@
 }
 
 .ucs-theme-button {
+  position: relative;
   display: flex;
   min-width: 0;
   min-height: 2.2rem;
@@ -524,7 +526,36 @@
   text-align: left;
 }
 
-.ucs-theme-button.selected,
+.ucs-theme-button.selected {
+  color: var(--cosci-selected-row-fg);
+}
+
+/* The selected theme's fill slides between options instead of jumping. */
+.ucs-theme-slider {
+  position: absolute;
+  top: 0.18rem;
+  bottom: 0.18rem;
+  left: 0;
+  border-radius: 9999px;
+  background: var(--cosci-toggle-on-track);
+  pointer-events: none;
+}
+
+.ucs-theme-slider.is-animated,
+/* Theme switches suppress every transition (index.css); the slide is motion,
+   not a color change, so it stays. */
+.theme-switching .ucs-theme-slider.is-animated {
+  transition:
+    transform 0.3s ease,
+    width 0.3s ease !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ucs-theme-slider.is-animated {
+    transition: none;
+  }
+}
+
 .ucs-settings-nav-item--active,
 .ucs-settings-nav-item--active:hover,
 .ucs-settings-nav-item--active:focus-visible {
@@ -544,6 +575,11 @@
   min-height: 0;
   overflow-y: auto;
   padding-right: 0.25rem;
+}
+
+.ucs-settings-cards {
+  display: grid;
+  gap: 1rem;
 }
 
 .ucs-settings-card {
@@ -634,6 +670,7 @@
   display: grid;
   width: max-content;
   min-width: 100%;
+  overflow-y: auto;
   gap: 0.15rem;
   border: 1px solid var(--cosci-border);
   border-radius: 0.75rem;
@@ -662,6 +699,25 @@
   flex: 0 0 auto;
   color: var(--cosci-blue);
   font-size: 1.05rem;
+}
+
+.ucs-provider-option-note,
+.ucs-provider-group-label {
+  color: var(--cosci-muted);
+  font-size: 0.75rem;
+}
+
+.ucs-provider-group-label {
+  padding: 0.4rem 0.7rem 0.1rem;
+}
+
+/* Options must stretch like direct menu children so highlights span the row. */
+.ucs-provider-group {
+  display: grid;
+}
+
+.ucs-provider-option-note {
+  margin-left: auto;
 }
 
 .ucs-settings-model-grid {

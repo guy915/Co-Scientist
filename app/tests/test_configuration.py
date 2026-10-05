@@ -174,7 +174,7 @@ async def test_campaign_run_saves_route_and_standard_does_not() -> None:
     )
 
     assert campaign.settings.config["campaign_model_name"] == (
-        "openrouter/stealth/space-bunny-alpha"
+        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
     )
     assert "campaign_model_name" not in standard.settings.config
 
@@ -227,7 +227,7 @@ async def test_campaign_interview_request_uses_selected_model(
         await turn()
 
     assert models == [
-        "openrouter/stealth/space-bunny-alpha",
+        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
         "configured-chat-role",
     ]
 
@@ -252,7 +252,7 @@ async def test_campaign_chat_request_uses_selected_model_and_keeps_standard(
             pass
 
     assert models == [
-        "openrouter/stealth/space-bunny-alpha",
+        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
         "configured-chat-role",
     ]
 
@@ -270,10 +270,13 @@ def test_generator_uses_campaign_worker_and_supervisor_and_isolates_standard(
     ):
         build_generator(_Generator, _cfg())
     campaign = _Generator.last_kwargs
-    assert campaign["model_name"] == "openrouter/stealth/space-bunny-alpha"
+    assert (
+        campaign["model_name"]
+        == "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+    )
     assert (
         campaign["options"].supervisor_model_name
-        == "openrouter/stealth/space-bunny-alpha"
+        == "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
     )
 
     monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
@@ -314,8 +317,8 @@ async def test_semantic_safety_selects_campaign_before_credential_check(
         await safety.screen_contextual("A benign research goal.", "intake")
 
     assert models == [
-        ("credential", "openrouter/stealth/space-bunny-alpha"),
-        ("request", "openrouter/stealth/space-bunny-alpha"),
+        ("credential", "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"),
+        ("request", "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"),
         ("credential", "configured/safety"),
         ("request", "configured/safety"),
     ]
@@ -374,10 +377,10 @@ async def test_claim_gate_and_finalize_grounding_use_campaign_assessor(
         await drain_claim_grounding._assess_claims([], [])
 
     assert models == [
-        "openrouter/stealth/space-bunny-alpha",
-        "openrouter/stealth/space-bunny-alpha",
-        "openrouter/stealth/space-bunny-alpha",
-        "openrouter/stealth/space-bunny-alpha",
+        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
         "configured/claims",
         "configured/claims",
         "configured/claims",
@@ -388,7 +391,7 @@ async def test_claim_gate_and_finalize_grounding_use_campaign_assessor(
 async def test_recovery_restores_saved_campaign_model_and_leaves_standard_state(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    saved_model = "openrouter/stealth/space-bunny-alpha"
+    saved_model = "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
     campaign = seed_run(
         "Campaign goal",
         config={"campaign_model_name": saved_model},
@@ -624,7 +627,7 @@ async def test_recovered_campaign_blocks_paid_transport_while_byok_runs(
     campaign_run = runs.get_run(campaign_id, db_path=isolated_db)
     assert campaign_run is not None
     assert campaign_run.config["campaign_model_name"] == (
-        "openrouter/stealth/space-bunny-alpha"
+        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
     )
 
     ordinary_response = _create_run(
@@ -679,7 +682,7 @@ async def test_recovered_campaign_blocks_paid_transport_while_byok_runs(
     assert current_api_key() is None
 
 
-async def test_recovered_new_campaign_sends_zero_price_stealth_request(
+async def test_recovered_new_campaign_sends_zero_price_request(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from co_scientist.llm import CompletionSpec, LLMCallOptions, call_llm
@@ -696,13 +699,18 @@ async def test_recovered_new_campaign_sends_zero_price_stealth_request(
     free_catalog.install_catalog_reader(
         free_catalog.CatalogReader(
             lambda: {
-                "stealth/space-bunny-alpha": {
+                model: {
                     "pricing": {"prompt": "0", "completion": "0"},
                     "architecture": {
                         "input_modalities": ["text"],
                         "output_modalities": ["text"],
                     },
                 }
+                for model in (
+                    "nvidia/nemotron-3-ultra-550b-a55b:free",
+                    "dots-studio/dots-3-note-preview:free",
+                    "nvidia/nemotron-3-super-120b-a12b:free",
+                )
             }
         )
     )
@@ -720,7 +728,7 @@ async def test_recovered_new_campaign_sends_zero_price_stealth_request(
     run = runs.get_run(run_id, db_path=isolated_db)
     assert run is not None
     assert run.config["campaign_model_name"] == (
-        "openrouter/stealth/space-bunny-alpha"
+        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
     )
     task_id = _expire_claimed_task(run_id, isolated_db)
 
@@ -728,7 +736,7 @@ async def test_recovered_new_campaign_sends_zero_price_stealth_request(
         task: ScientificTask, *, db_path: str | None = None
     ) -> dict[str, Any]:
         model = effective_execution_model("configured/worker-role")
-        assert model == "openrouter/stealth/space-bunny-alpha"
+        assert model == "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
         await call_llm(
             "Return a brief readiness acknowledgement.",
             CompletionSpec(model_name=model, max_tokens=1),
@@ -743,14 +751,14 @@ async def test_recovered_new_campaign_sends_zero_price_stealth_request(
     )
 
     assert len(sent) == 1
-    assert sent[0]["model"] == "openrouter/stealth/space-bunny-alpha"
+    assert (
+        sent[0]["model"] == "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+    )
     assert sent[0]["extra_body"]["provider"]["max_price"] == {
         "prompt": 0,
         "completion": 0,
         "request": 0,
     }
-    assert sent[0]["extra_body"]["provider"]["only"] == ["Stealth"]
-    assert sent[0]["extra_body"]["provider"]["allow_fallbacks"] is False
     _assert_completed(task_id, "campaign recovery", isolated_db)
 
 
@@ -1241,7 +1249,7 @@ _MODEL_FIELDS = (
     "chat_model_name",
     "semantic_safety_model",
 )
-_SYSTEM_DEFAULT_MODEL = "openrouter/stealth/space-bunny-alpha"
+_SYSTEM_DEFAULT_MODEL = "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
 
 
 def _default_models() -> set[str]:
@@ -1254,7 +1262,7 @@ def _default_models() -> set[str]:
     }
 
 
-def test_all_system_default_roles_select_space_bunny() -> None:
+def test_all_system_default_roles_select_nemotron_ultra() -> None:
     actual = {
         field: Settings.model_fields[field].default for field in _MODEL_FIELDS
     }
@@ -1499,3 +1507,13 @@ def test_install_returns_the_replaced_adapter_so_it_can_be_restored(
         process_mode.install(previous)
 
     assert process_mode.offline_mode() is True
+
+
+def test_the_free_default_route_keeps_its_highest_effort_in_chat() -> None:
+    from app.config import CONVERSATIONAL_REASONING_EFFORT, DEFAULT_MODEL
+
+    kwargs = deepseek_thinking_kwargs(
+        DEFAULT_MODEL, effort=CONVERSATIONAL_REASONING_EFFORT
+    )
+
+    assert kwargs["extra_body"]["reasoning"]["effort"] == "high"

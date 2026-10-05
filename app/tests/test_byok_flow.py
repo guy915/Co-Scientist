@@ -113,7 +113,7 @@ def test_byok_run_is_real_backed_and_stores_the_credential(
         run = _create_byok_run(client)
 
     assert captured["api_key"] == _KEY
-    assert captured["model"] == "deepseek/deepseek-v4-flash"
+    assert captured["model"] == "deepseek/deepseek-flash"
     assert _KEY not in json.dumps(run)
     row = runs.get_run(run["id"])
     assert row is not None
@@ -139,7 +139,7 @@ def test_byok_run_is_real_backed_and_stores_the_credential(
     assert stored is not None
     assert stored.api_key == _KEY
     assert stored.provider == "deepseek"
-    assert stored.model == "deepseek/deepseek-v4-flash"
+    assert stored.model == "deepseek/deepseek-flash"
 
 
 def test_generator_for_a_byok_run_uses_the_runs_key(
@@ -153,8 +153,8 @@ def test_generator_for_a_byok_run_uses_the_runs_key(
 
     task = _node_task(run["id"])
     generator, _opts = _generator_and_opts(task, None)
-    assert generator.model_name == "deepseek/deepseek-v4-flash"
-    assert generator.supervisor_model_name == "deepseek/deepseek-v4-flash"
+    assert generator.model_name == "deepseek/deepseek-flash"
+    assert generator.supervisor_model_name == "deepseek/deepseek-flash"
     assert generator.api_key == _KEY
     # BYOK calls must not share cached replies; credentials are not cache keys.
     assert generator.enable_cache is False
@@ -163,11 +163,20 @@ def test_generator_for_a_byok_run_uses_the_runs_key(
 async def test_execute_engine_task_scopes_the_credential(
     byok_deployment: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from co_scientist.llm import current_api_key
+    from co_scientist.llm import api_key_for_model, current_api_key
 
     _fake_validation(monkeypatch)
     with TestClient(app) as client:
         run = _create_byok_run(client)
+    mixed = credentials.ByokCredential(
+        provider="deepseek",
+        api_key=_KEY,
+        model="deepseek/deepseek-flash",
+        supervisor_model="gemini/gemini-3.8-flash",
+        supervisor_provider="gemini",
+        supervisor_api_key="sk-supervisor",
+    )
+    credentials.store_run_credential(run["id"], "byok-flow-scientist", mixed)
 
     seen: dict[str, Any] = {}
 
@@ -175,12 +184,14 @@ async def test_execute_engine_task_scopes_the_credential(
         task: Any, *, db_path: str | None = None
     ) -> dict[str, Any]:
         seen["engine_key"] = current_api_key()
+        seen["supervisor_key"] = api_key_for_model("gemini/gemini-3.8-flash")
         seen["app_credential"] = credentials.current_byok()
         return {"status": "completed"}
 
     monkeypatch.setattr(engine_tasks, "execute_node_task", fake_node_task)
     await engine_tasks.execute_engine_task(_node_task(run["id"]))
     assert seen["engine_key"] == _KEY
+    assert seen["supervisor_key"] == "sk-supervisor"
     assert seen["app_credential"] is not None
     assert seen["app_credential"].api_key == _KEY
     assert current_api_key() is None
@@ -284,7 +295,7 @@ def test_qa_answers_with_the_runs_stored_key(
         )
     assert response.status_code == 200
     assert captured["api_key"] == _KEY
-    assert captured["model"] == "deepseek/deepseek-v4-flash"
+    assert captured["model"] == "deepseek/deepseek-flash"
 
 
 def test_interview_turn_scopes_the_header_credential(

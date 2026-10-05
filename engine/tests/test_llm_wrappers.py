@@ -667,3 +667,71 @@ def test_a_budget_failure_is_not_read_as_a_rejected_cap() -> None:
         escalation_for_error(error, BudgetEscalation.NONE)
         is BudgetEscalation.RAISED_BUDGET
     )
+
+
+def _wire_args(model: str, *, enable_thinking: bool = True) -> dict[str, Any]:
+    from co_scientist.llm.request.completion import (
+        CompletionShape,
+        _build_completion_args,
+    )
+    from co_scientist.llm.request.thinking import apply_provider_constraints
+
+    shape = CompletionShape(enable_thinking=enable_thinking)
+    args = _build_completion_args("prompt", model, 4000, 0.5, shape)
+    apply_provider_constraints(args, model)
+    return args
+
+
+_DIRECT_THINKING_MODELS = [
+    "anthropic/claude-opus-5-5",
+    "anthropic/claude-sonnet-5-5",
+    "anthropic/claude-fable-5-1",
+    "openai/gpt-6.1-sol",
+    "openai/gpt-6-luna",
+    "gemini/gemini-3.8-flash",
+    "gemini/gemini-3.1-pro-preview",
+]
+
+
+@pytest.mark.parametrize("model", _DIRECT_THINKING_MODELS)
+@pytest.mark.parametrize("enable_thinking", [True, False])
+def test_direct_models_think_at_their_default_effort_within_the_floor(
+    model: str, enable_thinking: bool
+) -> None:
+    """They think by default and that thinking spends the output cap, so even
+    calls that ask for no thinking get the floor."""
+    args = _wire_args(model, enable_thinking=enable_thinking)
+
+    assert not {"output_config", "reasoning_effort", "thinking"} & args.keys()
+    cap = args.get("max_completion_tokens") or args["max_tokens"]
+    assert cap >= THINKING_FLOOR_MAX_TOKENS
+
+
+@pytest.mark.parametrize(
+    "model", ["anthropic/claude-opus-5-5", "openai/gpt-6-astra"]
+)
+def test_models_that_reject_sampling_knobs_never_get_them(model: str) -> None:
+    assert "temperature" not in _wire_args(model)
+
+
+def test_openai_reasoning_models_cap_completion_tokens_by_name() -> None:
+    args = _wire_args("openai/gpt-6.1-sol")
+
+    assert "max_tokens" not in args
+    assert args["max_completion_tokens"] >= THINKING_FLOOR_MAX_TOKENS
+
+
+def test_claude_structured_calls_avoid_a_forced_tool_call() -> None:
+    """LiteLLM turns a native schema into a forced tool call, which Claude
+    refuses while thinking; the schema rides in the prompt instead."""
+    from co_scientist.llm.request.completion import (
+        CompletionShape,
+        _build_completion_args,
+    )
+
+    shape = CompletionShape(json_schema={"type": "object"})
+    args = _build_completion_args(
+        "prompt", "anthropic/claude-opus-5-5", 4000, 0.5, shape
+    )
+
+    assert args["response_format"] == {"type": "json_object"}

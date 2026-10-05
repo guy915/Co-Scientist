@@ -239,7 +239,7 @@
           "files_removed": 0,
           "removed_test_functions": 311,
           "added_test_functions": 46,
-          "inventory": "docs/test-campaign/phase2-engine-generation.json",
+          "inventory": "pull request body",
           "scope_status": "partial; remaining direct boundaries require later engine themes",
           "validation_location": "pull request body",
           "required_merge_gates": [

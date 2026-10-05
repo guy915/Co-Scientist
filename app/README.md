@@ -115,10 +115,10 @@ All backend settings are read from `.env` (or environment variables). See `.env.
 |---|---|---|
 | `OPENROUTER_API_KEY` / `GEMINI_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `DEEPSEEK_API_KEY` | — | Optional provider keys. If none are set, the app uses the offline LLM backend. The default models need the OpenRouter one. |
 | `COSCIENTIST_FORCE_OFFLINE` | `0` | Force the offline LLM backend even when a provider key is set (deprecated alias: `COSCIENTIST_FORCE_MOCK`) |
-| `MODEL_NAME` | `openrouter/stealth/space-bunny-alpha` | LiteLLM worker model ID |
-| `SUPERVISOR_MODEL_NAME` | `openrouter/stealth/space-bunny-alpha` | Model for supervisor and meta-review |
-| `CHAT_MODEL_NAME` | `openrouter/stealth/space-bunny-alpha` | Model for chat-workspace Q&A; falls back to `MODEL_NAME` |
-| `SEMANTIC_SAFETY_MODEL` | `openrouter/stealth/space-bunny-alpha` | Model for contextual safety screening |
+| `MODEL_NAME` | `openrouter/nvidia/nemotron-3-ultra-550b-a55b:free` | LiteLLM worker model ID |
+| `SUPERVISOR_MODEL_NAME` | `openrouter/nvidia/nemotron-3-ultra-550b-a55b:free` | Model for supervisor and meta-review |
+| `CHAT_MODEL_NAME` | `openrouter/nvidia/nemotron-3-ultra-550b-a55b:free` | Model for chat-workspace Q&A; falls back to `MODEL_NAME` |
+| `SEMANTIC_SAFETY_MODEL` | `openrouter/nvidia/nemotron-3-ultra-550b-a55b:free` | Model for contextual safety screening |
 | `MCP_SERVER_URL` | `http://localhost:8888/mcp` | MCP server for literature review tools (optional) |
 | `COSCIENTIST_CACHE_ENABLED` | `true` | Enable LLM response caching |
 | `COSCIENTIST_CACHE_DIR` | `./cache` | Cache directory path |
@@ -130,9 +130,9 @@ All backend settings are read from `.env` (or environment variables). See `.env.
 | `RESEARCHER_ACCESS_CODES` | `{}` | JSON mapping of researcher IDs to unique high-entropy invite codes |
 | `AUTH_EXCHANGE_PER_MINUTE` | `20` | Invite-exchange attempt limit per connecting IP and API process |
 
-The default Space Bunny route pins the Stealth provider, disables provider
-and model fallback, checks the free listing, and enforces a zero-price request
-ceiling. Explicit environment and BYOK model choices remain supported.
+The default free Nemotron 3 Ultra route falls back only to free models, keeps
+the JSON schema in the prompt because its host accepts no response format, and
+enforces a zero-price request ceiling. Explicit environment and BYOK model choices remain supported.
 See [deployment](../docs/DEPLOYMENT.md) and [launch guidance](../docs/LAUNCH.md) before
 hosting the service publicly.
 

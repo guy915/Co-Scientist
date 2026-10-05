@@ -7,13 +7,13 @@ import type {
   RunFocus,
   RunTier,
 } from '@/api/runs';
-import {getStoredApiKey} from '@/lib/client_id';
+import {keyedProviders} from '@/lib/client_id';
 
 // The backend permits only express for keyless free runs.
 export const FREE_RUN_TIER: RunTier = 'express';
 
 export function defaultRunTier(): RunTier {
-  return getStoredApiKey() ? 'standard' : FREE_RUN_TIER;
+  return keyedProviders().length > 0 ? 'standard' : FREE_RUN_TIER;
 }
 
 export interface InferredRunSpec {
@@ -116,7 +116,7 @@ export const TIER_OPTIONS: RunTierOption[] = [
 ];
 
 export function availableTierOptions(): RunTierOption[] {
-  if (getStoredApiKey()) return TIER_OPTIONS;
+  if (keyedProviders().length > 0) return TIER_OPTIONS;
   return TIER_OPTIONS.map(option =>
     option.id === FREE_RUN_TIER
       ? option

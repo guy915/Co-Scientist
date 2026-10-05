@@ -28,8 +28,7 @@ import {
 import {beginTurnAbort, isAbortError} from './chat_session_transcript';
 import {interviewToRunSpec} from '../run_spec';
 import {
-  getStoredApiKey,
-  getStoredApiProvider,
+  resolveByokRoutes,
   getAccessToken,
   getClientId,
   makePrefixedId,
@@ -366,9 +365,13 @@ function ownerMaterial(): string {
   return token ? `researcher:${token}` : `client:${getClientId()}`;
 }
 
+// Both tiers' credentials identify the intent, exactly as the headers send them.
 function credentialMaterial(): string {
-  const apiKey = getStoredApiKey();
-  return apiKey ? `${getStoredApiProvider()}\u0000${apiKey}` : '';
+  const routes = resolveByokRoutes();
+  if (!routes) return '';
+  return [routes.worker, routes.supervisor]
+    .map(({provider, apiKey}) => `${provider}\u0000${apiKey}`)
+    .join('\u0001');
 }
 
 function matchesIntent(

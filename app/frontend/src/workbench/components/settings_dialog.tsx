@@ -10,14 +10,17 @@ import {
 import {Icon, type IconName} from '@/components/icon';
 import {
   type ByokProvider,
+  type ModelChoice,
+  type ModelTier,
+  BYOK_PROVIDERS,
+  fallbackProvider,
   getStoredApiKey,
   getStoredApiProvider,
+  getStoredModel,
+  keyedProviders,
   setStoredApiKey,
   setStoredApiProvider,
-  type ModelTier,
-  getStoredModel,
   setStoredModel,
-  BYOK_PROVIDERS,
 } from '@/lib/client_id';
 import {
   useBackgroundInert,
@@ -32,6 +35,7 @@ import {
   fetchByokModelCatalog,
   fetchFreeUsage,
 } from '@/api/system';
+import {SlidingPill, useSlidingIndicator} from '../hooks/sliding_indicator';
 
 // Focus newly opened dialogs internally so keyboard and assistive-technology
 // users do not remain behind them.
@@ -43,21 +47,24 @@ function useFocusOnMount(ref: RefObject<HTMLElement | null>) {
 
 // Free-text credentials commit on blur/Enter; selections commit whole values
 // immediately. Saving silently avoids covering the page with redundant
-// confirmation.
+// confirmation. The field edits the key of the provider being viewed.
 function useApiKeyField() {
-  const [apiKey, setApiKey] = useState(getStoredApiKey);
   const [provider, setProvider] = useState<ByokProvider>(getStoredApiProvider);
+  const [apiKey, setApiKey] = useState(() => getStoredApiKey(provider));
+  const [savedProviders, setSavedProviders] = useState(keyedProviders);
 
   function onSave() {
-    if (apiKey.trim() === getStoredApiKey()) return;
-    setStoredApiKey(apiKey);
-    setApiKey(getStoredApiKey());
+    if (apiKey.trim() === getStoredApiKey(provider)) return;
+    setStoredApiKey(apiKey, provider);
+    setApiKey(getStoredApiKey(provider));
+    setSavedProviders(keyedProviders());
   }
 
   function onProviderChange(next: ByokProvider) {
-    if (next === getStoredApiProvider()) return;
+    if (next === provider) return;
     setStoredApiProvider(next);
-    setProvider(getStoredApiProvider());
+    setProvider(next);
+    setApiKey(getStoredApiKey(next));
   }
 
   return {
@@ -66,6 +73,7 @@ function useApiKeyField() {
     provider,
     onProviderChange,
     onSave,
+    savedProviders,
   };
 }
 
@@ -170,14 +178,18 @@ export function AppearanceSection({
   mode: Mode;
   setMode: (mode: Mode) => void;
 }) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const pill = useSlidingIndicator(trackRef, '[aria-pressed="true"]', mode);
   return (
     <section className="ucs-settings-card">
       <h3 className="ucs-settings-card-title">Theme</h3>
       <div
+        ref={trackRef}
         className="ucs-theme-segment ucs-theme-segment--dialog"
         role="group"
         aria-label="Theme"
       >
+        <SlidingPill box={pill} className="ucs-theme-slider" />
         {THEME_MODES.map(option => (
           <button
             key={option.mode}
@@ -226,41 +238,62 @@ export function ModelSection({
   provider,
   onProviderChange,
   onSave,
+  savedProviders,
 }: {
   apiKey: string;
   onApiKeyChange: (value: string) => void;
   provider: ByokProvider;
   onProviderChange: (value: ByokProvider) => void;
   onSave: () => void;
+  savedProviders: ByokProvider[];
 }) {
-  const modelFields = useModelFields(provider);
+  const modelFields = useModelFields(provider, savedProviders);
   return (
-    <section className="ucs-settings-card">
-      <h3 className="ucs-settings-card-title">Model</h3>
-      <ProviderSelectLabel />
-      <ProviderSelect provider={provider} onChange={onProviderChange} />
-      <label
-        className="ucs-settings-field-label ucs-settings-field-label--spaced"
-        htmlFor="cosci-settings-api-key"
+    <div className="ucs-settings-cards">
+      <section className="ucs-settings-card" aria-labelledby={LABEL_ID}>
+        {/* The heading also names the provider menu. */}
+        <h3 id={LABEL_ID} className="ucs-settings-card-title">
+          Provider
+        </h3>
+        <ProviderSelect
+          provider={provider}
+          savedProviders={savedProviders}
+          onChange={onProviderChange}
+        />
+        <label
+          className="ucs-settings-field-label ucs-settings-field-label--spaced"
+          htmlFor="cosci-settings-api-key"
+        >
+          {PROVIDER_LABELS[provider]} API key
+        </label>
+        <input
+          id="cosci-settings-api-key"
+          className="ucs-settings-field-input"
+          type="password"
+          autoComplete="off"
+          placeholder={`Paste your ${PROVIDER_LABELS[provider]} API key`}
+          value={apiKey}
+          onChange={event => onApiKeyChange(event.target.value)}
+          onBlur={onSave}
+          onKeyDown={event => {
+            if (event.key === 'Enter') onSave();
+          }}
+        />
+        <ApiKeyHint provider={provider} />
+      </section>
+      <section
+        className="ucs-settings-card"
+        aria-labelledby="cosci-models-title"
       >
-        {PROVIDER_LABELS[provider]} API key
-      </label>
-      <input
-        id="cosci-settings-api-key"
-        className="ucs-settings-field-input"
-        type="password"
-        autoComplete="off"
-        placeholder={`Paste your ${PROVIDER_LABELS[provider]} API key`}
-        value={apiKey}
-        onChange={event => onApiKeyChange(event.target.value)}
-        onBlur={onSave}
-        onKeyDown={event => {
-          if (event.key === 'Enter') onSave();
-        }}
-      />
-      <ApiKeyHint provider={provider} />
-      <ModelSelectors hasKey={apiKey.trim() !== ''} fields={modelFields} />
-    </section>
+        <h3 id="cosci-models-title" className="ucs-settings-card-title">
+          Model
+        </h3>
+        <ModelSelectors
+          hasKey={savedProviders.length > 0}
+          fields={modelFields}
+        />
+      </section>
+    </div>
   );
 }
 
@@ -316,12 +349,14 @@ function ModelSelect({
   tier,
   value,
   options,
+  groupOf,
   disabled,
   onChange,
 }: {
   tier: ModelTier;
   value: string;
   options: string[];
+  groupOf?: (model: string) => string;
   disabled: boolean;
   onChange: (model: string) => void;
 }) {
@@ -340,6 +375,7 @@ function ModelSelect({
         value={value}
         options={options}
         optionLabel={modelLabel}
+        groupOf={groupOf}
         name={TIER_LABELS[tier]}
         triggerId={triggerId}
         labelId={labelId}
@@ -371,37 +407,88 @@ function useModelSettingsData() {
   return {catalog, freeUsage};
 }
 
-function providerOptions(
-  catalog: ByokModelCatalog | null,
-  provider: ByokProvider,
-): string[] {
-  return catalog?.[provider] ?? [];
+interface ModelGroup {
+  provider: ByokProvider;
+  models: string[];
 }
 
-function storedChoices(): Record<ModelTier, string> {
+function storedChoices(): Record<ModelTier, ModelChoice | null> {
   return {
     worker: getStoredModel('worker'),
     supervisor: getStoredModel('supervisor'),
   };
 }
 
-export function useModelFields(provider: ByokProvider) {
+// Choices naming a model the catalog no longer offers would be refused by the
+// backend, so drop them once the catalog is known.
+function pruneRetiredChoices(catalog: ByokModelCatalog) {
+  for (const tier of ['worker', 'supervisor'] as const) {
+    const choice = getStoredModel(tier);
+    if (choice && !catalog[choice.provider]?.includes(choice.model)) {
+      setStoredModel(tier, null);
+    }
+  }
+}
+
+// Every provider with a saved key contributes its models; without keys the
+// viewed provider's models can still be chosen ahead of time.
+export function useModelFields(
+  provider: ByokProvider,
+  savedProviders: ByokProvider[],
+) {
   const {catalog, freeUsage} = useModelSettingsData();
   const [choices, setChoices] = useState(storedChoices);
-  useEffect(() => setChoices(storedChoices()), [provider]);
-  const options = providerOptions(catalog, provider);
-  // An empty stored choice means the provider default, not a missing selection.
-  const fallback = options[0] ?? '';
+  useEffect(() => {
+    if (catalog) pruneRetiredChoices(catalog);
+    setChoices(storedChoices());
+  }, [catalog, savedProviders]);
+  const groups: ModelGroup[] = (
+    savedProviders.length > 0 ? savedProviders : [provider]
+  )
+    .map(name => ({provider: name, models: catalog?.[name] ?? []}))
+    .filter(group => group.models.length > 0);
+  const options = groups.flatMap(group => group.models);
+  const groupFor = (model: string) =>
+    groups.find(group => group.models.includes(model))?.provider;
 
+  // An unusable or empty choice means the provider default, not a missing
+  // selection; the supervisor then follows the worker's provider.
+  const usable = (choice: ModelChoice | null) =>
+    choice && groupFor(choice.model) === choice.provider ? choice : null;
+  const worker = usable(choices.worker);
+  const workerProvider =
+    worker?.provider ?? fallbackProvider(savedProviders, provider);
+  const supervisor = usable(choices.supervisor);
+  const defaultOf = (name: ByokProvider) => catalog?.[name]?.[0] ?? '';
+  const shown: Record<ModelTier, string> = {
+    worker: worker?.model ?? defaultOf(workerProvider),
+    supervisor:
+      supervisor?.model ?? defaultOf(supervisor?.provider ?? workerProvider),
+  };
+
+  // An unchosen tier only displays a fallback that follows the worker, so
+  // pin what it shows before the other tier moves provider.
   function onModelChange(tier: ModelTier, model: string) {
-    setStoredModel(tier, model);
-    setChoices(current => ({...current, [tier]: model}));
+    const owner = groupFor(model);
+    if (!owner) return;
+    const next = {...choices, [tier]: {provider: owner, model}};
+    for (const name of ['worker', 'supervisor'] as const) {
+      const pinned = shown[name] && groupFor(shown[name]);
+      if (!usable(next[name]) && pinned) {
+        next[name] = {provider: pinned, model: shown[name]};
+      }
+      setStoredModel(name, next[name]);
+    }
+    setChoices(next);
   }
 
   return {
     options,
-    worker: choices.worker || fallback,
-    supervisor: choices.supervisor || fallback,
+    groupOf:
+      groups.length > 1
+        ? (model: string) => PROVIDER_LABELS[groupFor(model) ?? provider]
+        : undefined,
+    ...shown,
     freeUsage,
     onModelChange,
   };
@@ -416,11 +503,10 @@ function FreeUsageNote({usage}: {usage: FreeUsage | null}) {
   const count =
     usage.limit === null
       ? ''
-      : ` ${usage.remaining} of ${usage.limit} free runs left today.`;
+      : `, ${usage.remaining} of ${usage.limit} left today`;
   return (
     <p className="ucs-settings-field-hint" role="status">
-      No API key: you are on free usage. Only Express runs are available.
-      {count} Add a key to use the chosen models and other run types.
+      Free usage: Express runs only{count}.
     </p>
   );
 }
@@ -444,6 +530,7 @@ export function ModelSelectors({
             tier={tier}
             value={fields[tier]}
             options={fields.options}
+            groupOf={fields.groupOf}
             disabled={disabled}
             onChange={model => fields.onModelChange(tier, model)}
           />
@@ -499,6 +586,7 @@ export function useCloseOnOutsidePointer(
 }
 
 const MENU_GAP_PX = 6;
+const MENU_EDGE_PX = 16;
 
 // Fixed menus escape scroll clipping, but transformed ancestors change their
 // origin; measure and subtract that origin instead of assuming the viewport.
@@ -517,17 +605,30 @@ export function useAnchoredMenu(
       if (!el || !trigger) return;
       el.style.top = '0px';
       el.style.left = '0px';
+      el.style.maxHeight = '';
       const box = trigger.getBoundingClientRect();
       el.style.minWidth = `${box.width}px`;
       const origin = el.getBoundingClientRect();
       const left = align === 'end' ? box.right - origin.width : box.left;
+      // A long menu flips above its trigger when that side has more room, and
+      // scrolls rather than running off the window.
+      const below =
+        window.innerHeight - box.bottom - MENU_GAP_PX - MENU_EDGE_PX;
+      const above = box.top - MENU_GAP_PX - MENU_EDGE_PX;
+      const up = origin.height > below && above > below;
+      const room = Math.max(up ? above : below, 0);
+      const top = up
+        ? box.top - MENU_GAP_PX - Math.min(origin.height, room)
+        : box.bottom + MENU_GAP_PX;
       const next = {
-        top: box.bottom + MENU_GAP_PX - origin.top,
+        top: top - origin.top,
         left: left - origin.left,
         minWidth: box.width,
+        maxHeight: room,
       };
       el.style.top = `${next.top}px`;
       el.style.left = `${next.left}px`;
+      el.style.maxHeight = `${room}px`;
       setStyle(next);
     }
     place();
@@ -541,12 +642,29 @@ export function useAnchoredMenu(
   return {menuRef: menu, menuStyle: style};
 }
 
+function groupOptions<T extends string>(
+  options: readonly T[],
+  groupOf?: (option: T) => string,
+): {label: string | null; items: T[]}[] {
+  if (!groupOf) return [{label: null, items: [...options]}];
+  const sections: {label: string | null; items: T[]}[] = [];
+  for (const option of options) {
+    const label = groupOf(option);
+    const last = sections[sections.length - 1];
+    if (last?.label === label) last.items.push(option);
+    else sections.push({label, items: [option]});
+  }
+  return sections;
+}
+
 // Real menu buttons preserve Tab/Enter behavior; selecting the current choice
 // only dismisses the menu.
 export function SettingsSelect<T extends string>({
   value,
   options,
   optionLabel,
+  optionNote,
+  groupOf,
   name,
   triggerId,
   labelId,
@@ -557,6 +675,9 @@ export function SettingsSelect<T extends string>({
   value: T;
   options: readonly T[];
   optionLabel: (option: T) => string;
+  // Small trailing text, and headings over consecutive options sharing a group.
+  optionNote?: (option: T) => string | null;
+  groupOf?: (option: T) => string;
   name: string;
   triggerId: string;
   labelId: string;
@@ -605,27 +726,46 @@ export function SettingsSelect<T extends string>({
           role="menu"
           aria-label={name}
         >
-          {options.map(option => (
-            <button
-              key={option}
-              type="button"
-              role="menuitemradio"
-              aria-checked={option === value}
-              className="ucs-provider-option"
-              onClick={() => {
-                setOpen(false);
-                if (option !== value) onChange(option);
-              }}
+          {groupOptions(options, groupOf).map(section => (
+            <div
+              key={section.label ?? ''}
+              className="ucs-provider-group"
+              role={section.label ? 'group' : undefined}
+              aria-label={section.label ?? undefined}
             >
-              <span>{optionLabel(option)}</span>
-              {option === value && (
-                <Icon
-                  aria-hidden="true"
-                  className="ucs-provider-option-check"
-                  name="check"
-                />
+              {section.label && (
+                <div className="ucs-provider-group-label" aria-hidden="true">
+                  {section.label}
+                </div>
               )}
-            </button>
+              {section.items.map(option => (
+                <button
+                  key={option}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={option === value}
+                  className="ucs-provider-option"
+                  onClick={() => {
+                    setOpen(false);
+                    if (option !== value) onChange(option);
+                  }}
+                >
+                  <span>{optionLabel(option)}</span>
+                  {optionNote?.(option) && (
+                    <span className="ucs-provider-option-note">
+                      {optionNote(option)}
+                    </span>
+                  )}
+                  {option === value && (
+                    <Icon
+                      aria-hidden="true"
+                      className="ucs-provider-option-check"
+                      name="check"
+                    />
+                  )}
+                </button>
+              ))}
+            </div>
           ))}
         </div>
       )}
@@ -635,9 +775,11 @@ export function SettingsSelect<T extends string>({
 
 export function ProviderSelect({
   provider,
+  savedProviders,
   onChange,
 }: {
   provider: ByokProvider;
+  savedProviders: ByokProvider[];
   onChange: (provider: ByokProvider) => void;
 }) {
   return (
@@ -645,22 +787,11 @@ export function ProviderSelect({
       value={provider}
       options={BYOK_PROVIDERS}
       optionLabel={option => PROVIDER_LABELS[option]}
+      optionNote={option => (savedProviders.includes(option) ? 'Saved' : null)}
       name="Provider"
       triggerId={TRIGGER_ID}
       labelId={LABEL_ID}
       onChange={onChange}
     />
-  );
-}
-
-export function ProviderSelectLabel() {
-  return (
-    <label
-      id={LABEL_ID}
-      className="ucs-settings-field-label"
-      htmlFor={TRIGGER_ID}
-    >
-      Provider
-    </label>
   );
 }

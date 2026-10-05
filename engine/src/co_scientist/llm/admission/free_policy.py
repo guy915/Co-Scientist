@@ -3,11 +3,12 @@ import contextlib
 import os
 import threading
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
+from types import MappingProxyType
 from typing import Any
 
 import httpx
@@ -15,24 +16,36 @@ import litellm
 
 from co_scientist._context import _bind_contextvar
 from co_scientist.exceptions import FreeModelEligibilityError
-from co_scientist.llm.profile import promotional_free_route
 
 _byok_api_key: ContextVar[str | None] = ContextVar("byok_api_key", default=None)
+_byok_keys_by_model: ContextVar[Mapping[str, str]] = ContextVar(
+    "byok_keys_by_model", default=MappingProxyType({})
+)
 
 
 def current_api_key() -> str | None:
     return _byok_api_key.get()
 
 
+def api_key_for_model(model_name: str) -> str | None:
+    """A run mixing providers bills each model to its own provider's key."""
+    return _byok_keys_by_model.get().get(model_name) or _byok_api_key.get()
+
+
 @contextlib.contextmanager
-def scoped_api_key(api_key: str | None) -> Iterator[None]:
+def scoped_api_key(
+    api_key: str | None, by_model: Mapping[str, str] | None = None
+) -> Iterator[None]:
     """None preserves the ambient task credential; explicit scopes restore it
-    on every exit.
+    on every exit. An explicit key without a mapping shadows an ambient one.
     """
     if api_key is None:
         yield
         return
-    with _bind_contextvar(_byok_api_key, api_key):
+    with (
+        _bind_contextvar(_byok_api_key, api_key),
+        _bind_contextvar(_byok_keys_by_model, dict(by_model or {})),
+    ):
         yield
 
 
@@ -196,8 +209,7 @@ def _verify_expiration(row: dict[str, Any]) -> None:
 def _verify_pricing(model: str, pricing: Any) -> None:
     if not isinstance(pricing, dict):
         raise FreeModelEligibilityError("zero-cost pricing is missing")
-    # Absent ancillary rates prove no zero price except for explicitly admitted
-    # variants/promotions.
+    # Absent ancillary rates prove no zero price except on ":free" variants.
     ancillary = {
         "request",
         "internal_reasoning",
@@ -205,9 +217,7 @@ def _verify_pricing(model: str, pricing: Any) -> None:
         "input_cache_write",
     }
     required = {"prompt", "completion"} | (
-        set()
-        if model.endswith(":free") or promotional_free_route(model)
-        else ancillary
+        set() if model.endswith(":free") else ancillary
     )
     if not required <= pricing.keys():
         raise FreeModelEligibilityError("zero-cost pricing is incomplete")
@@ -239,13 +249,7 @@ def scoped_campaign_mode(enabled: bool) -> Iterator[None]:
 
 def _requires_free(args: dict[str, Any], byok: bool) -> bool:
     model = str(args.get("model", ""))
-    return campaign_free_mode() or (
-        not byok
-        and (
-            ":free" in model
-            or promotional_free_route(model.removeprefix("openrouter/"))
-        )
-    )
+    return campaign_free_mode() or (not byok and ":free" in model)
 
 
 def _request_body(args: dict[str, Any]) -> dict[str, Any]:

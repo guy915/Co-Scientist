@@ -579,70 +579,6 @@ class TestLlmFreeEligibility:
         assert requests[0]["max_tokens"] >= THINKING_FLOOR_MAX_TOKENS
 
 
-_LLM_FREE_PROMOTIONAL_ROUTE_MODEL = "openrouter/stealth/space-bunny-alpha"
-_LLM_FREE_PROMOTIONAL_ROUTE_OPTIONS = LLMCallOptions(use_cache=False)
-
-
-def _promotion(pricing: dict[str, str]) -> dict[str, Any]:
-    catalog = _catalog(pricing)
-    catalog["data"][0]["id"] = _LLM_FREE_PROMOTIONAL_ROUTE_MODEL.removeprefix(
-        "openrouter/"
-    )
-    return catalog
-
-
-@pytest.mark.usefixtures("_isolated_catalog")
-class TestLlmFreePromotionalRoute:
-    async def test_current_free_promotion_pins_provider_and_zero_token_price(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "0")
-        _mock_catalog(
-            monkeypatch, _promotion({"prompt": "0", "completion": "0"})
-        )
-        requests: list[dict[str, Any]] = []
-        patch_acompletion(
-            monkeypatch,
-            [make_completion(make_message('{"answer": "ready"}'))],
-            requests,
-        )
-
-        result = await call_llm_json(
-            "Return ready as JSON",
-            CompletionSpec(_LLM_FREE_PROMOTIONAL_ROUTE_MODEL),
-            options=_LLM_FREE_PROMOTIONAL_ROUTE_OPTIONS,
-        )
-
-        assert result == {"answer": "ready"}
-        assert len(requests) == 1
-        assert requests[0]["extra_body"]["provider"]["max_price"] == {
-            "prompt": 0,
-            "completion": 0,
-            "request": 0,
-        }
-        assert requests[0]["extra_body"]["provider"]["only"] == ["Stealth"]
-        assert requests[0]["extra_body"]["provider"]["allow_fallbacks"] is False
-
-    async def test_promotion_price_change_fails_before_transport(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        _mock_catalog(
-            monkeypatch, _promotion({"prompt": "0.01", "completion": "0"})
-        )
-        requests: list[dict[str, Any]] = []
-        patch_acompletion(monkeypatch, [], requests)
-
-        with pytest.raises(RuntimeError, match="zero-cost"):
-            await call_llm_json(
-                "Return ready as JSON",
-                CompletionSpec(_LLM_FREE_PROMOTIONAL_ROUTE_MODEL),
-                options=_LLM_FREE_PROMOTIONAL_ROUTE_OPTIONS,
-            )
-        assert requests == []
-
-
 _FREE_MODEL = "openrouter/minimax/minimax-m3:free"
 _NO_CACHE = LLMCallOptions(use_cache=False)
 
@@ -874,3 +810,33 @@ class TestFreeCatalog:
                 assert free_catalog.current_catalog() == {"inner": {}}
                 raise ValueError("scope failed")
             assert free_catalog.current_catalog() == {"outer": {}}
+
+
+async def test_each_model_is_billed_to_the_key_scoped_for_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from co_scientist.llm import scoped_api_key
+
+    requests: list[dict[str, Any]] = []
+
+    async def completion(**kwargs: Any) -> SimpleNamespace:
+        requests.append(kwargs)
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))]
+        )
+
+    install_fake_backend(monkeypatch, completion)
+    keys = {"gemini/pro": "supervisor-key"}
+    with scoped_api_key("worker-key", by_model=keys):
+        for spec in (
+            CompletionSpec("openai/worker"),
+            CompletionSpec("gemini/pro"),
+            CompletionSpec("gemini/pro", api_key="explicit-key"),
+        ):
+            await call_llm("probe", spec, options=_NO_CACHE)
+
+    assert [r["api_key"] for r in requests] == [
+        "worker-key",
+        "supervisor-key",
+        "explicit-key",
+    ]
