@@ -24,19 +24,22 @@ vi.mock('@/workbench/hooks/timers', async importOriginal => {
   return {...actual, useResetTimer: () => timer};
 });
 
-vi.mock('@/api/runs', async importActual => ({
-  ...(await importActual<typeof import('@/api/runs')>()),
-  getRun: vi.fn(),
-  getHypotheses: vi.fn(),
-  getEvidence: vi.fn(),
-  getMatches: vi.fn(),
-  getReviews: vi.fn(),
-  getClaimEvidence: vi.fn(),
-  getSafety: vi.fn(),
-  getReport: vi.fn(),
-  loadRunHistory: vi.fn(),
-  listInterviews: vi.fn(),
-}));
+vi.mock('@/api/runs', async importActual => {
+  const actual = await importActual<typeof import('@/api/runs')>();
+  return {
+    ...actual,
+    getRun: vi.fn(),
+    getHypotheses: vi.fn(),
+    getEvidence: vi.fn(),
+    getMatches: vi.fn(),
+    getReviews: vi.fn(),
+    getClaimEvidence: vi.fn(),
+    getSafety: vi.fn(),
+    getReport: vi.fn(),
+    loadRunHistory: vi.fn(),
+    listInterviews: vi.fn(actual.listInterviews),
+  };
+});
 
 export function setStream(events: Event[]) {
   stream.events = events;
@@ -51,7 +54,7 @@ export function setConnection(connection: StreamConnectionState) {
 }
 
 export function resetRunDetailMocks() {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
   stream.events = [];
   stream.terminal = false;
   stream.connection = undefined;
@@ -64,9 +67,9 @@ export function resetRunDetailMocks() {
     runsApi.getClaimEvidence,
     runsApi.getSafety,
     runsApi.loadRunHistory,
-    runsApi.listInterviews,
   ]) {
     vi.mocked(fetchRows).mockResolvedValue([]);
   }
   vi.mocked(runsApi.getReport).mockResolvedValue(null);
+  vi.mocked(runsApi.listInterviews).mockReset();
 }

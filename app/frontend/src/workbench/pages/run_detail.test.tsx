@@ -197,5 +197,6 @@ it('lets report-page content scroll horizontally on phone instead of clipping it
 
 beforeEach(() => {
   resetRunDetailMocks();
+  vi.mocked(runsApi.listInterviews).mockResolvedValue([]);
   vi.unstubAllGlobals();
 });
