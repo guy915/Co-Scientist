@@ -13,7 +13,6 @@ from tests._process_mode_helpers import FakeProcessMode
 from ._interviews_helpers import (
     InterviewFields,
     _antibiotic_responses,
-    _interview_payload,
     _patch_model_sequence,
     _response,
     _run_antibiotic_interview,
@@ -49,23 +48,6 @@ def _create_run_from_interview(
     return dict(response.json())
 
 
-def test_interview_title_is_kept_and_generation_never_runs(
-    isolated_db: str,
-    monkeypatch: pytest.MonkeyPatch,
-    _generated_titles: list[str],
-) -> None:
-    _patch_model_sequence(monkeypatch, _antibiotic_responses())
-    headers = {"X-Client-ID": "scientist-a"}
-    with TestClient(app) as client:
-        interview_id, *_ = _run_antibiotic_interview(client, headers)
-        run = _create_run_from_interview(client, headers, interview_id)
-        settled = client.get(f"/api/runs/{run['id']}", headers=headers).json()
-
-    assert run["title"] == "Restoring Antibiotic Susceptibility"
-    assert _generated_titles == []
-    assert settled["title"] == "Restoring Antibiotic Susceptibility"
-
-
 def _overlong_title_responses() -> list[dict[str, Any]]:
     responses = _antibiotic_responses()
     responses[-1] = _response(
@@ -79,20 +61,28 @@ def _overlong_title_responses() -> list[dict[str, Any]]:
     return responses
 
 
-def test_overlong_interview_title_falls_through_to_generation(
+@pytest.mark.parametrize("overlong", [False, True])
+def test_interview_title_is_kept_unless_overlong(
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
     _generated_titles: list[str],
+    overlong: bool,
 ) -> None:
-    _patch_model_sequence(monkeypatch, _overlong_title_responses())
+    _patch_model_sequence(
+        monkeypatch,
+        _overlong_title_responses() if overlong else _antibiotic_responses(),
+    )
     headers = {"X-Client-ID": "scientist-a"}
     with TestClient(app) as client:
-        interview_id, *_, final = _run_antibiotic_interview(client, headers)
-        fields = _interview_payload(final)["fields"]
+        interview_id, *_ = _run_antibiotic_interview(client, headers)
         run = _create_run_from_interview(client, headers, interview_id)
         settled = client.get(f"/api/runs/{run['id']}", headers=headers).json()
 
-    assert len(fields["title"]) > 80
-    assert run["title"] is None
-    assert _generated_titles == [run["research_goal"]]
-    assert settled["title"] == "Generated Replacement Title"
+    if overlong:
+        assert run["title"] is None
+        assert _generated_titles == [run["research_goal"]]
+        assert settled["title"] == "Generated Replacement Title"
+    else:
+        assert run["title"] == "Restoring Antibiotic Susceptibility"
+        assert _generated_titles == []
+        assert settled["title"] == "Restoring Antibiotic Susceptibility"

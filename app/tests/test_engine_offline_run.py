@@ -1,17 +1,15 @@
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 
 import pytest
 from co_scientist.llm.request import backend
 from co_scientist.offline import llm as offline_llm
 
-from app import task_worker
 from app.store import events as store_events
 from app.store import hypotheses, reports, runs
 from app.store.models import RunStatus
-from tests._store_helpers import seed_run
+from tests._store_helpers import drive_offline_run, seed_run
 
 from ._llm_fake_backend import load_engine_fake
 
@@ -40,38 +38,6 @@ def _install_recording_router(
     return escaped_calls
 
 
-def _persist_offline_run(isolated_db: str) -> tuple[Any, dict[str, Any]]:
-    config: dict[str, Any] = {
-        "tier": "express",
-        "enable_literature_review": False,
-    }
-    run = seed_run(
-        "Explain how protein X folds under crowding.",
-        profile="express",
-        provider="mock",
-        config=config,
-        client_id="offline-e2e",
-        llm_backend="offline",
-        db_path=isolated_db,
-    )
-    return run, config
-
-
-def _drive_offline_engine(
-    run: Any, config: dict[str, Any], isolated_db: str
-) -> list[dict[str, Any]]:
-    _ = config
-    task_worker.enqueue_run_workflow(run.id, db_path=isolated_db)
-    asyncio.run(
-        task_worker.run_run_worker_pool(
-            run.id,
-            "offline-e2e-test",
-            policy=task_worker.WorkerPolicy(db_path=isolated_db),
-        )
-    )
-    return store_events.list_events(run.id, db_path=isolated_db)
-
-
 def test_offline_engine_run_completes_without_a_real_call(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -79,21 +45,27 @@ def test_offline_engine_run_completes_without_a_real_call(
 
     monkeypatch.setattr(settings, "semantic_safety_enabled", False)
     escaped_calls = _install_recording_router(monkeypatch)
-    run, config = _persist_offline_run(isolated_db)
-    events = _drive_offline_engine(run, config, isolated_db)
+    run = seed_run(
+        "Explain how protein X folds under crowding.",
+        profile="express",
+        provider="mock",
+        config={"tier": "express", "enable_literature_review": False},
+        client_id="offline-e2e",
+        llm_backend="offline",
+        db_path=isolated_db,
+    )
+
+    drive_offline_run(run, db_path=isolated_db, worker="offline-e2e-test")
 
     assert not escaped_calls, (
         "a call reached the wrapped backend instead of the offline "
         f"router: {escaped_calls[0].get('model')!r}"
     )
-
-    types_emitted = [e["type"] for e in events]
-    assert "report" in types_emitted
+    events = store_events.list_events(run.id, db_path=isolated_db)
+    assert "report" in [e["type"] for e in events]
     final = runs.get_run(run.id, db_path=isolated_db)
     assert final is not None
     assert final.status == RunStatus.COMPLETED.value
     assert final.llm_backend == "offline"
     assert reports.get_latest_report(run.id, db_path=isolated_db) is not None
-
-    hyps = hypotheses.list_hypotheses(run.id, db_path=isolated_db)
-    assert hyps
+    assert hypotheses.list_hypotheses(run.id, db_path=isolated_db)

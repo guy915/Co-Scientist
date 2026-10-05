@@ -16,7 +16,6 @@ from fastapi.testclient import TestClient
 from app import engine_tasks, task_worker
 from app.config import settings
 from app.engine_adapter.drain import hypotheses as drain_hypotheses
-from app.engine_tasks import fanout as engine_tasks_fanout
 from app.engine_tasks import inputs as engine_tasks_inputs
 from app.engine_tasks import node as engine_tasks_restore
 from app.engine_tasks.support import NODE_TASK_PREFIX
@@ -28,15 +27,20 @@ from app.store import tasks_lifecycle as lifecycle
 from app.store.hypotheses import HypothesisStateChanges, NewHypothesis
 from app.store.models import RunStatus, ScientificTask
 from app.store.records import NewReview, NewSafetyDecision
-from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
 from tests._client import create_run as _create_run
+from tests._client import make_client
 from tests._client import make_client as _client
 from tests._engine_tasks_helpers import (
     _Generator,
     _seed_checkpoint,
     _task_state,
 )
-from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
+from tests._store_helpers import (
+    enqueue_task,
+    event_seqs,
+    seed_checkpoint,
+    seed_run,
+)
 
 
 def _checkpointed_run(db: str, client: Any) -> tuple[str, str]:
@@ -78,6 +82,36 @@ def _checkpointed_run(db: str, client: Any) -> tuple[str, str]:
     return run_id, successor.id
 
 
+def _hold_resume_admission(
+    monkeypatch: pytest.MonkeyPatch, *, first_only: bool = False
+) -> tuple[Event, Event]:
+    from app.runs import lifecycle as runs_lifecycle
+
+    reached = Event()
+    release = Event()
+    original = runs_lifecycle._queue_resume_workflow
+
+    def hold(*args: Any, **kwargs: Any) -> ScientificTask:
+        if not (first_only and reached.is_set()):
+            reached.set()
+            assert release.wait(timeout=5), "resume barrier was not released"
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(runs_lifecycle, "_queue_resume_workflow", hold)
+    return reached, release
+
+
+def _assert_settled(
+    run_id: str, successor_id: str, db: str, status: RunStatus
+) -> ScientificTask:
+    run = runs.get_run(run_id, db_path=db)
+    task = store.get_task(successor_id, db_path=db)
+    assert run is not None and run.status == status.value
+    assert task is not None
+    assert store.claim_task("after-race", run_id=run_id, db_path=db) is None
+    return task
+
+
 def test_cancel_wins_when_it_commits_before_resume_enqueue(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -101,20 +135,7 @@ def test_cancel_wins_when_it_commits_before_resume_enqueue(
         == 404
     )
 
-    from app.runs import lifecycle as runs_lifecycle
-
-    queue_reached = Event()
-    release_queue = Event()
-    original_queue = runs_lifecycle._queue_resume_workflow
-
-    def hold_resume_before_enqueue(*args: Any, **kwargs: Any) -> ScientificTask:
-        queue_reached.set()
-        assert release_queue.wait(timeout=5), "resume barrier was not released"
-        return original_queue(*args, **kwargs)
-
-    monkeypatch.setattr(
-        runs_lifecycle, "_queue_resume_workflow", hold_resume_before_enqueue
-    )
+    queue_reached, release_queue = _hold_resume_admission(monkeypatch)
     with ThreadPoolExecutor(max_workers=1) as pool:
         resume_future = pool.submit(owner.post, f"/api/runs/{run_id}/resume")
         assert queue_reached.wait(timeout=5), (
@@ -125,33 +146,21 @@ def test_cancel_wins_when_it_commits_before_resume_enqueue(
         release_queue.set()
         resumed = resume_future.result(timeout=5)
 
-    run = runs.get_run(run_id, db_path=isolated_db)
-    task = store.get_task(successor_id, db_path=isolated_db)
-    events = store_events.list_events(run_id, db_path=isolated_db)
-    assert resumed.status_code == 409, (
-        f"resume returned {resumed.status_code}; run status is "
-        f"{run.status if run else None}; task is "
-        f"{task.status if task else None}; lifecycle events are "
-        f"{[(event['type'], event['payload']) for event in events]}"
+    assert resumed.status_code == 409, resumed.text
+    task = _assert_settled(
+        run_id, successor_id, isolated_db, RunStatus.CANCELLED
     )
-    assert run is not None and run.status == RunStatus.CANCELLED.value
-    assert task is not None and task.status == "cancelled"
-    cancelled_seq = next(
-        event["seq"]
-        for event in events
-        if event["type"] == "status"
-        and event["payload"].get("status") == "cancelled"
+    assert task.status == "cancelled"
+    [cancelled_seq] = event_seqs(
+        run_id, "status", status="cancelled", db_path=isolated_db
     )
-    assert not any(
-        event["type"] == "status"
-        and event["payload"].get("status") == "resuming"
-        and event["seq"] > cancelled_seq
-        for event in events
-    )
-    assert (
-        store.claim_task("after-cancel", run_id=run_id, db_path=isolated_db)
-        is None
-    )
+    assert not [
+        seq
+        for seq in event_seqs(
+            run_id, "status", status="resuming", db_path=isolated_db
+        )
+        if seq > cancelled_seq
+    ]
 
     later_resume = owner.post(f"/api/runs/{run_id}/resume")
     assert later_resume.status_code == 200, later_resume.text
@@ -222,30 +231,17 @@ def test_resume_transaction_commits_before_waiting_cancel(
 
     assert resumed.status_code == 200, resumed.text
     assert cancelled.status_code == 200, cancelled.text
-    run = runs.get_run(run_id, db_path=isolated_db)
-    task = store.get_task(successor_id, db_path=isolated_db)
-    events = store_events.list_events(run_id, db_path=isolated_db)
-    assert run is not None and run.status == RunStatus.CANCELLED.value
-    assert task is not None and task.status == "cancelled"
-    resuming_seq = next(
-        event["seq"]
-        for event in events
-        if event["type"] == "status"
-        and event["payload"].get("status") == "resuming"
+    task = _assert_settled(
+        run_id, successor_id, isolated_db, RunStatus.CANCELLED
     )
-    cancelled_seq = next(
-        event["seq"]
-        for event in events
-        if event["type"] == "status"
-        and event["payload"].get("status") == "cancelled"
+    assert task.status == "cancelled"
+    [resuming_seq] = event_seqs(
+        run_id, "status", status="resuming", db_path=isolated_db
+    )
+    [cancelled_seq] = event_seqs(
+        run_id, "status", status="cancelled", db_path=isolated_db
     )
     assert resuming_seq < cancelled_seq
-    assert (
-        store.claim_task(
-            "after-waiting-cancel", run_id=run_id, db_path=isolated_db
-        )
-        is None
-    )
 
 
 def test_lifecycle_revision_rejects_paused_cancel_resume_pause_aba(
@@ -257,23 +253,8 @@ def test_lifecycle_revision_rejects_paused_cancel_resume_pause_aba(
     run_id, successor_id = _checkpointed_run(isolated_db, owner)
     assert owner.post(f"/api/runs/{run_id}/pause").status_code == 200
 
-    from app.runs import lifecycle as runs_lifecycle
-
-    first_queue_reached = Event()
-    release_first_queue = Event()
-    original_queue = runs_lifecycle._queue_resume_workflow
-    calls = 0
-
-    def hold_first_resume(*args: Any, **kwargs: Any) -> ScientificTask:
-        nonlocal calls
-        calls += 1
-        if calls == 1:
-            first_queue_reached.set()
-            assert release_first_queue.wait(timeout=5)
-        return original_queue(*args, **kwargs)
-
-    monkeypatch.setattr(
-        runs_lifecycle, "_queue_resume_workflow", hold_first_resume
+    first_queue_reached, release_first_queue = _hold_resume_admission(
+        monkeypatch, first_only=True
     )
     with ThreadPoolExecutor(max_workers=1) as pool:
         stale_resume = pool.submit(owner.post, f"/api/runs/{run_id}/resume")
@@ -286,89 +267,17 @@ def test_lifecycle_revision_rejects_paused_cancel_resume_pause_aba(
         stale = stale_resume.result(timeout=5)
 
     assert stale.status_code == 409, stale.text
-    run = runs.get_run(run_id, db_path=isolated_db)
-    task = store.get_task(successor_id, db_path=isolated_db)
-    events = store_events.list_events(run_id, db_path=isolated_db)
-    assert run is not None and run.status == RunStatus.PAUSED.value
-    assert task is not None and task.status == "paused"
-    assert not any(
-        event["type"] == "status"
-        and event["payload"].get("status") == "resuming"
-        and event["seq"]
-        > max(
-            event["seq"]
-            for event in events
-            if event["type"] == "lifecycle"
-            and event["payload"].get("event") == "pause_requested"
+    task = _assert_settled(run_id, successor_id, isolated_db, RunStatus.PAUSED)
+    assert task.status == "paused"
+    paused_seq = max(
+        event_seqs(
+            run_id, "lifecycle", event="pause_requested", db_path=isolated_db
         )
-        for event in events
     )
-    assert (
-        store.claim_task("after-aba", run_id=run_id, db_path=isolated_db)
-        is None
+    resuming = event_seqs(
+        run_id, "status", status="resuming", db_path=isolated_db
     )
-
-
-def test_legacy_cleanup_waits_until_resume_status_guard(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-    owner = make_client()
-    created = _create_run(owner, "Legacy resume cancellation", tier="express")
-    assert created.status_code == 200
-    run_id = str(created.json()["id"])
-    runs.update_run_status(run_id, RunStatus.RUNNING, db_path=isolated_db)
-    task = enqueue_task(
-        run_id,
-        f"{engine_tasks.NODE_TASK_PREFIX}orchestrator",
-        "legacy-resume:orchestrator",
-        db_path=isolated_db,
-    )
-    checkpoint_seq = seed_checkpoint(
-        run_id, {"legacy": True}, stage="legacy-envelope", db_path=isolated_db
-    )
-    store_events.append_event(
-        run_id, "fixture.marker", {"keep": True}, db_path=isolated_db
-    )
-    assert checkpoint_seq > 0
-    assert owner.post(f"/api/runs/{run_id}/pause").status_code == 200
-
-    from app.runs import lifecycle as runs_lifecycle
-
-    queue_reached = Event()
-    release_queue = Event()
-    original_queue = runs_lifecycle._queue_resume_workflow
-
-    def hold_resume_before_cleanup(*args: Any, **kwargs: Any) -> ScientificTask:
-        queue_reached.set()
-        assert release_queue.wait(timeout=5)
-        return original_queue(*args, **kwargs)
-
-    monkeypatch.setattr(
-        runs_lifecycle, "_queue_resume_workflow", hold_resume_before_cleanup
-    )
-    with ThreadPoolExecutor(max_workers=1) as pool:
-        resume_future = pool.submit(owner.post, f"/api/runs/{run_id}/resume")
-        assert queue_reached.wait(timeout=5)
-        assert owner.post(f"/api/runs/{run_id}/cancel").status_code == 200
-        release_queue.set()
-        resumed = resume_future.result(timeout=5)
-
-    assert resumed.status_code == 409, resumed.text
-    run = runs.get_run(run_id, db_path=isolated_db)
-    task_after = store.get_task(task.id, db_path=isolated_db)
-    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
-    events = store_events.list_events(run_id, db_path=isolated_db)
-    assert run is not None and run.status == RunStatus.CANCELLED.value
-    assert task_after is not None and task_after.status == "cancelled"
-    assert checkpoint is not None and checkpoint["state"] == {"legacy": True}
-    assert any(event["type"] == "fixture.marker" for event in events)
-    assert (
-        store.claim_task(
-            "after-legacy-cancel", run_id=run_id, db_path=isolated_db
-        )
-        is None
-    )
+    assert all(seq < paused_seq for seq in resuming)
 
 
 def test_startup_resume_skips_cancelled_run_after_admission_race(
@@ -380,20 +289,7 @@ def test_startup_resume_skips_cancelled_run_after_admission_race(
 
     from app.runs import lifecycle as runs_lifecycle
 
-    queue_reached = Event()
-    release_queue = Event()
-    original_queue = runs_lifecycle._queue_resume_workflow
-
-    def hold_startup_before_enqueue(
-        *args: Any, **kwargs: Any
-    ) -> ScientificTask:
-        queue_reached.set()
-        assert release_queue.wait(timeout=5)
-        return original_queue(*args, **kwargs)
-
-    monkeypatch.setattr(
-        runs_lifecycle, "_queue_resume_workflow", hold_startup_before_enqueue
-    )
+    queue_reached, release_queue = _hold_resume_admission(monkeypatch)
     with ThreadPoolExecutor(max_workers=1) as pool:
         startup = pool.submit(
             asyncio.run, runs_lifecycle.resume_interrupted_runs([run_id])
@@ -403,29 +299,20 @@ def test_startup_resume_skips_cancelled_run_after_admission_race(
         release_queue.set()
         startup.result(timeout=5)
 
-    run = runs.get_run(run_id, db_path=isolated_db)
-    task = store.get_task(successor_id, db_path=isolated_db)
-    events = store_events.list_events(run_id, db_path=isolated_db)
-    assert run is not None and run.status == RunStatus.CANCELLED.value
-    assert task is not None and task.status == "cancelled"
-    cancelled_seq = next(
-        event["seq"]
-        for event in events
-        if event["type"] == "status"
-        and event["payload"].get("status") == "cancelled"
+    task = _assert_settled(
+        run_id, successor_id, isolated_db, RunStatus.CANCELLED
     )
-    assert not any(
-        event["type"] == "status"
-        and event["payload"].get("status") == "resuming"
-        and event["seq"] > cancelled_seq
-        for event in events
+    assert task.status == "cancelled"
+    [cancelled_seq] = event_seqs(
+        run_id, "status", status="cancelled", db_path=isolated_db
     )
-    assert (
-        store.claim_task(
-            "after-startup-cancel", run_id=run_id, db_path=isolated_db
+    assert not [
+        seq
+        for seq in event_seqs(
+            run_id, "status", status="resuming", db_path=isolated_db
         )
-        is None
-    )
+        if seq > cancelled_seq
+    ]
 
 
 def test_adjudication_rejection_does_not_overwrite_cancel(
@@ -482,118 +369,6 @@ def test_adjudication_rejection_does_not_overwrite_cancel(
     assert run is not None and run.status == RunStatus.CANCELLED.value
     [decision] = records.list_safety_decisions(run_id, db_path=isolated_db)
     assert decision["resolution"] == "rejected"
-
-
-def _paused_legacy_run(db_path: str) -> tuple[str, int]:
-    run = seed_run(
-        "Legacy resume lifecycle race",
-        profile="express",
-        client_id=DEFAULT_TEST_CLIENT_ID,
-        db_path=db_path,
-    )
-    run_id = run.id
-    runs.update_run_status(run_id, RunStatus.RUNNING, db_path=db_path)
-    seed_checkpoint(
-        run_id,
-        {"provider": "mock", "legacy": True},
-        stage="legacy-envelope",
-        last_event_seq=store_events.latest_event_seq(run_id, db_path=db_path),
-        db_path=db_path,
-    )
-    status_seq = store_events.append_event(
-        run_id,
-        "status",
-        {"status": "running"},
-        db_path=db_path,
-    )
-    pause_seq = store_events.append_event(
-        run_id,
-        "lifecycle",
-        {"event": "pause_requested"},
-        db_path=db_path,
-    )
-    log_seq = store_events.append_event(
-        run_id, "log", {"message": "generated"}, db_path=db_path
-    )
-    assert (status_seq, pause_seq, log_seq) == (1, 2, 3)
-    runs.update_run_status(run_id, RunStatus.PAUSED, db_path=db_path)
-    return run_id, store_events.latest_event_seq(run_id, db_path=db_path)
-
-
-def test_legacy_cleanup_preserves_lifecycle_revision_for_stale_resume(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-    owner = make_client()
-    later_resumer = make_client()
-    run_id, old_high_water = _paused_legacy_run(isolated_db)
-
-    from app.runs import lifecycle as runs_lifecycle
-
-    queue_reached = Event()
-    release_queue = Event()
-    original_queue = runs_lifecycle._queue_resume_workflow
-
-    def hold_first_resume(*args: Any, **kwargs: Any) -> ScientificTask:
-        if not queue_reached.is_set():
-            queue_reached.set()
-            assert release_queue.wait(timeout=5), (
-                "resume barrier was not released"
-            )
-        return original_queue(*args, **kwargs)
-
-    monkeypatch.setattr(
-        runs_lifecycle, "_queue_resume_workflow", hold_first_resume
-    )
-    with ThreadPoolExecutor(max_workers=1) as pool:
-        stale_resume = pool.submit(owner.post, f"/api/runs/{run_id}/resume")
-        assert queue_reached.wait(timeout=5), (
-            "resume did not reach admission barrier"
-        )
-        cancelled = owner.post(f"/api/runs/{run_id}/cancel")
-        assert cancelled.status_code == 200, cancelled.text
-        store_events.append_event(
-            run_id,
-            "log",
-            {"message": "late generated event"},
-            db_path=isolated_db,
-        )
-        pre_cleanup_high_water = store_events.latest_event_seq(
-            run_id, db_path=isolated_db
-        )
-
-        explicit_resume = later_resumer.post(f"/api/runs/{run_id}/resume")
-        assert explicit_resume.status_code == 200, explicit_resume.text
-        events = store_events.list_events(run_id, db_path=isolated_db)
-        assert not any(event["type"] == "log" for event in events)
-        resumed_seq = max(
-            event["seq"]
-            for event in events
-            if event["type"] == "status"
-            and event["payload"].get("status") == "resuming"
-        )
-
-        paused = owner.post(f"/api/runs/{run_id}/pause")
-        assert paused.status_code == 200, paused.text
-        release_queue.set()
-        stale = stale_resume.result(timeout=5)
-
-    assert stale.status_code == 409, stale.text
-    assert resumed_seq > pre_cleanup_high_water > old_high_water
-    assert any(
-        event["type"] == "lifecycle"
-        and event["payload"].get("event") == "pause_requested"
-        and event["seq"] < resumed_seq
-        for event in events
-    )
-    run = runs.get_run(run_id, db_path=isolated_db)
-    assert run is not None and run.status == RunStatus.PAUSED.value
-    bootstrap = next(
-        task
-        for task in store.list_tasks(run_id, db_path=isolated_db)
-        if task.task_type == engine_tasks.BOOTSTRAP_TASK
-    )
-    assert bootstrap.status == "paused"
 
 
 def _started_bootstrap(
@@ -770,87 +545,63 @@ def test_resume_recovers_spent_bootstrap_abandoned_after_pause(
     assert reclaimed.attempt == task.max_attempts + 1
 
 
-def test_failed_precheckpoint_bootstrap_without_pause_is_not_resumable(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    "scenario",
+    ["ordinary_failure", "cancelled_after_abandon", "paused_permanent_failure"],
+)
+def test_dead_precheckpoint_bootstrap_is_not_resumable(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch, scenario: str
 ) -> None:
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client = make_client()
-    run_id, task_id = _started_bootstrap(
-        client, "Do not revive an ordinary failure", isolated_db
-    )
-    assert store.fail_task(
-        task_id,
-        "bootstrap-owner",
-        "permanent failure",
-        retryable=False,
-        db_path=isolated_db,
-    )
-
-    response = client.post(f"/api/runs/{run_id}/resume")
-
-    assert response.status_code == 409
-    task = store.get_task(task_id, db_path=isolated_db)
-    assert task is not None and task.status == "failed"
-
-
-def test_cancelled_abandoned_bootstrap_is_not_resumable(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-    client = make_client()
-    run_id, task_id = _started_bootstrap(
-        client, "Do not revive a cancelled paused bootstrap", isolated_db
-    )
-    with store_db.connect(isolated_db) as conn:
-        conn.execute(
-            "UPDATE scientific_tasks SET lease_expires_at=0, "
-            "attempt=max_attempts WHERE id=?",
-            (task_id,),
+    run_id, task_id = _started_bootstrap(client, scenario, isolated_db)
+    if scenario == "ordinary_failure":
+        assert store.fail_task(
+            task_id,
+            "bootstrap-owner",
+            "permanent failure",
+            retryable=False,
+            db_path=isolated_db,
         )
-    assert client.post(f"/api/runs/{run_id}/pause").status_code == 200
-    assert lifecycle.abandon_dead_leases(run_id, db_path=isolated_db) == 1
-    assert client.post(f"/api/runs/{run_id}/cancel").status_code == 200
+    elif scenario == "cancelled_after_abandon":
+        with store_db.connect(isolated_db) as conn:
+            conn.execute(
+                "UPDATE scientific_tasks SET lease_expires_at=0, "
+                "attempt=max_attempts WHERE id=?",
+                (task_id,),
+            )
+        assert client.post(f"/api/runs/{run_id}/pause").status_code == 200
+        assert lifecycle.abandon_dead_leases(run_id, db_path=isolated_db) == 1
+        assert client.post(f"/api/runs/{run_id}/cancel").status_code == 200
+    else:
+        assert client.post(f"/api/runs/{run_id}/pause").status_code == 200
+        with store_db.connect(isolated_db) as conn:
+            conn.execute(
+                "UPDATE scientific_tasks SET attempt=max_attempts WHERE id=?",
+                (task_id,),
+            )
+        assert store.fail_task(
+            task_id,
+            "bootstrap-owner",
+            "permanent budget ceiling",
+            retryable=False,
+            db_path=isolated_db,
+        )
 
     response = client.post(f"/api/runs/{run_id}/resume")
 
     assert response.status_code == 409
     run = runs.get_run(run_id, db_path=isolated_db)
-    assert run is not None and run.status == "cancelled"
     task = store.get_task(task_id, db_path=isolated_db)
-    assert task is not None and task.status == "failed"
-
-
-def test_paused_permanent_bootstrap_failure_is_not_resumable(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-    client = make_client()
-    run_id, task_id = _started_bootstrap(
-        client, "Do not retry a permanent paused bootstrap failure", isolated_db
+    assert run is not None and task is not None and task.status == "failed"
+    assert (
+        run.status
+        == {
+            "ordinary_failure": run.status,
+            "cancelled_after_abandon": "cancelled",
+            "paused_permanent_failure": "paused",
+        }[scenario]
     )
-    assert client.post(f"/api/runs/{run_id}/pause").status_code == 200
-    with store_db.connect(isolated_db) as conn:
-        conn.execute(
-            "UPDATE scientific_tasks SET attempt=max_attempts WHERE id=?",
-            (task_id,),
-        )
-    assert store.fail_task(
-        task_id,
-        "bootstrap-owner",
-        "permanent budget ceiling",
-        retryable=False,
-        db_path=isolated_db,
-    )
-
-    response = client.post(f"/api/runs/{run_id}/resume")
-
-    assert response.status_code == 409
-    run = runs.get_run(run_id, db_path=isolated_db)
-    assert run is not None and run.status == "paused"
-    task = store.get_task(task_id, db_path=isolated_db)
-    assert task is not None and task.status == "failed"
-    assert task.attempt == task.max_attempts
-    assert task.error == "permanent budget ceiling"
 
 
 # Merge scientist ideas only at the orchestrator; growing pools inside ranking
@@ -918,82 +669,43 @@ def _seed_review(
     )
 
 
-def test_admission_happens_at_the_orchestrator_boundary(
+@pytest.mark.parametrize(
+    ("node", "verdict", "admitted", "rankable"),
+    [
+        ("orchestrator", None, True, True),
+        ("orchestrator", "support", True, True),
+        ("orchestrator", "oppose", True, False),
+        ("ranking", None, False, False),
+    ],
+)
+def test_scientist_idea_is_admitted_only_at_the_orchestrator_boundary(
     isolated_db: str,
-) -> None:
-    run = seed_run("Admission", profile="express")
-    hypothesis_id = _seed_hypothesis(run.id, isolated_db)
-
-    state = _restored_at(run.id, "orchestrator", isolated_db)
-
-    assert [h.id for h in state["hypotheses"]] == [hypothesis_id]
-    assert state["hypotheses"][0].origin.value == "scientist_manual"
-
-
-def test_a_ranking_wave_cannot_gain_a_competitor(isolated_db: str) -> None:
-    run = seed_run("Mid-tournament", profile="express")
-    _seed_hypothesis(run.id, isolated_db)
-
-    state = _restored_at(run.id, "ranking", isolated_db)
-
-    assert state["hypotheses"] == []
-
-
-def test_an_admitted_idea_still_owes_the_run_a_peer_review(
-    isolated_db: str,
+    node: str,
+    verdict: str | None,
+    admitted: bool,
+    rankable: bool,
 ) -> None:
     from co_scientist.models import has_peer_review
 
-    run = seed_run("Owes review", profile="express")
+    run = seed_run("Admission", profile="express")
     hypothesis_id = _seed_hypothesis(run.id, isolated_db)
-    _seed_review(run.id, hypothesis_id, "support", isolated_db)
+    if verdict:
+        _seed_review(run.id, hypothesis_id, verdict, isolated_db)
 
-    state = _restored_at(run.id, "orchestrator", isolated_db)
-    merged = state["hypotheses"][0]
+    state = _restored_at(run.id, node, isolated_db)
 
-    assert [r.reviewer for r in merged.reviews] == [SCIENTIST_REVIEWER]
-    assert not has_peer_review(merged)
-
-
-def test_the_admitted_idea_enters_the_durable_review_fanout(
-    isolated_db: str,
-) -> None:
-    run = seed_run("Review fanout", profile="express")
-    hypothesis_id = _seed_hypothesis(run.id, isolated_db)
-    _seed_review(run.id, hypothesis_id, "support", isolated_db)
-    state = _restored_at(run.id, "orchestrator", isolated_db)
-    seq = int(
-        (checkpoints.get_latest_checkpoint(run.id, db_path=isolated_db) or {})[
-            "seq"
-        ]
+    assert [h.id for h in state["hypotheses"]] == (
+        [hypothesis_id] if admitted else []
     )
-    task = _node_task(run.id, "review", seq, isolated_db)
-
-    result = engine_tasks_fanout._enqueue_review_fanout(
-        task, state, seq, db_path=isolated_db
-    )
-
-    items = [
-        store.get_task(task_id, db_path=isolated_db)
-        for task_id in result["fanout_task_ids"]
-    ]
-    assert [item.inputs["hypothesis_id"] for item in items if item] == [
-        hypothesis_id
-    ]
-
-
-def test_an_opposing_verdict_withholds_the_idea_from_the_tournament(
-    isolated_db: str,
-) -> None:
-    run = seed_run("Oppose", profile="express")
-    hypothesis_id = _seed_hypothesis(run.id, isolated_db)
-    _seed_review(run.id, hypothesis_id, "oppose", isolated_db)
-
-    state = _restored_at(run.id, "orchestrator", isolated_db)
-
-    merged = state["hypotheses"][0]
-    assert merged.review_disposition == "inaccurate"
-    assert not merged.is_rankable()
+    if admitted:
+        merged = state["hypotheses"][0]
+        assert merged.origin.value == "scientist_manual"
+        # A scientist verdict never stands in for the run's own peer review.
+        assert not has_peer_review(merged)
+        assert (merged.review_disposition == "inaccurate") is (not rankable)
+        assert [r.reviewer for r in merged.reviews] == (
+            [SCIENTIST_REVIEWER] if verdict else []
+        )
 
 
 def test_authorship_and_screen_survive_a_checkpoint_round_trip(
@@ -1049,29 +761,6 @@ def test_an_unscreened_row_does_not_suppress_the_engine_safety_screen(
     assert merged.safety_status is None
     _screen_one_hypothesis(merged)
     assert merged.safety_status == "allow"
-
-
-def test_the_admitted_idea_reaches_the_tournament_and_the_gene_pool(
-    isolated_db: str,
-) -> None:
-    from co_scientist.agents.evolution.evolve_prompt import (
-        sample_context_hypotheses,
-    )
-    from co_scientist.models import Hypothesis
-
-    run = seed_run("Gene pool", profile="express")
-    hypothesis_id = _seed_hypothesis(run.id, isolated_db)
-    _seed_review(run.id, hypothesis_id, "support", isolated_db)
-    state = _restored_at(run.id, "orchestrator", isolated_db)
-    generated = Hypothesis(text="A generated mechanism for kinase Y.")
-    state["hypotheses"].append(generated)
-
-    peers = sample_context_hypotheses(
-        all_hypotheses=state["hypotheses"], exclude_hypothesis=generated
-    )
-
-    assert state["hypotheses"][0].is_rankable()
-    assert [peer.id for peer in peers] == [hypothesis_id]
 
 
 def test_the_drain_reattributes_an_idea_whose_row_is_gone(

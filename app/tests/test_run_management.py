@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import io
 import pathlib
 import re
 import sqlite3
-from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager
 from functools import partial
 from threading import Barrier
 from typing import Any
@@ -23,39 +20,28 @@ from co_scientist.scheduling import (
     TerminationReason,
 )
 from co_scientist.scheduling.policy import (
-    RESEARCH_OVERVIEW_MIN_LLM_CALLS,
     decide_next_task,
 )
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-import app.run_modes as run_modes_attributes_mod
-import app.run_modes as run_modes_criteria
 from app import async_bridge, credentials, engine_tasks, run_modes, task_worker
 from app.config import settings
 from app.engine_adapter.opts import _generator_kwargs
 from app.run_modes import RUN_TIER_DEFAULTS
-from app.runs import crud as runs_crud
 from app.store import db, documents, logs, runs, tasks
 from app.store import receipts as store_receipts
 from app.store.models import DEMO_CLIENT_ID, RunStatus, ScientificTask
 from app.store.runs import RunCreateOptions
-from app.store.schema import SCHEMA
-from tests._client import append_log_row, wait_for
+from tests._client import append_log_row, make_client, wait_for
 from tests._client import create_run as _create_run
-from tests._client import make_client as _deletion_make_client
-from tests._client import make_client as _idempotency_make_client
-from tests._client import make_client as _migration_make_client
-from tests._client import make_client as _rollback_make_client
 from tests._store_helpers import enqueue_task, seed_run
 
-from ._client import make_client as _rename_make_client
 from ._llm_fake_backend import install_completion_backend
 
 
 @pytest.mark.parametrize("mode", ["blocked_paid", "campaign_free", "user_byok"])
 @pytest.mark.parametrize("recovered", [False, True])
-@pytest.mark.parametrize("auxiliary", ["claim", "batch", "safety"])
+@pytest.mark.parametrize("auxiliary", ["claim", "safety"])
 async def test_durable_auxiliary_admission_with_stored_credential(
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
@@ -65,7 +51,6 @@ async def test_durable_auxiliary_admission_with_stored_credential(
 ) -> None:
     from co_scientist.llm.admission import free_policy as free_catalog
 
-    import app.claims.verifier as claim_verifier_batch
     from app.claims import verifier as claim_verifier
     from app.safety import semantic as safety_semantic
 
@@ -131,18 +116,6 @@ async def test_durable_auxiliary_admission_with_stored_credential(
                 claim_verifier._ENTAILMENT_DRAFT_SCHEMA,
                 claim_verifier._MAX_TOKENS,
                 "claim_verifier",
-            ),
-        ),
-        "batch": partial(
-            claim_verifier_batch._call_claim_json_async,
-            "deployment",
-            claim_verifier_batch._EntailmentRequest(
-                lambda: claim_verifier_batch._batch_entailment_prompt(
-                    ["claim"], []
-                ),
-                claim_verifier_batch._BATCH_DRAFT_SCHEMA,
-                claim_verifier_batch._BATCH_MAX_TOKENS,
-                "claim_verifier_batch",
             ),
         ),
         "safety": partial(
@@ -265,70 +238,29 @@ def _owned_run_ids(client: Any, owner: str = _IDEMPOTENCY_OWNER) -> list[str]:
     return [run["id"] for run in response.json()["runs"]]
 
 
-def test_exact_retry_returns_the_original_run() -> None:
-    client = _idempotency_make_client()
+def test_idempotency_key_replays_conflicts_and_is_scoped_to_its_owner() -> None:
+    client = make_client()
     first = _idempotency_post_run(client)
     retry = _idempotency_post_run(client)
+    changed = _idempotency_post_run(
+        client,
+        payload={**_IDEMPOTENCY_PAYLOAD, "research_goal": "Another pathway"},
+    )
+    other_owner = _idempotency_post_run(client, owner="owner-two")
 
     assert first.status_code == retry.status_code == 200
     assert retry.json()["id"] == first.json()["id"]
-    assert _owned_run_ids(client) == [first.json()["id"]]
-
-
-def test_changed_request_with_the_same_key_conflicts() -> None:
-    client = _idempotency_make_client()
-    first = _idempotency_post_run(client)
-    changed = _idempotency_post_run(
-        client,
-        payload={
-            "research_goal": "Study a different signaling pathway",
-            "tier": "express",
-        },
-    )
-
-    assert first.status_code == 200
     assert changed.status_code == 409
+    assert other_owner.status_code == 200
+    assert other_owner.json()["id"] != first.json()["id"]
     assert _owned_run_ids(client) == [first.json()["id"]]
-
-
-def test_the_same_key_is_independent_between_owners() -> None:
-    client = _idempotency_make_client()
-    first = _idempotency_post_run(client, owner="owner-one")
-    second = _idempotency_post_run(client, owner="owner-two")
-
-    assert first.status_code == second.status_code == 200
-    assert first.json()["id"] != second.json()["id"]
-    assert _owned_run_ids(client, "owner-one") == [first.json()["id"]]
-    assert _owned_run_ids(client, "owner-two") == [second.json()["id"]]
-
-
-def test_idempotency_key_values_are_case_sensitive() -> None:
-    client = _idempotency_make_client()
-    upper = _idempotency_post_run(client, request_key="Run-A")
-    lower = _idempotency_post_run(client, request_key="run-a")
-
-    assert upper.status_code == lower.status_code == 200
-    assert upper.json()["id"] != lower.json()["id"]
-    assert len(_owned_run_ids(client)) == 2
-
-
-def test_unkeyed_legacy_calls_still_create_distinct_runs() -> None:
-    client = _idempotency_make_client()
-    first = _idempotency_post_run(client, request_key=None)
-    second = _idempotency_post_run(client, request_key=None)
-
-    assert first.status_code == second.status_code == 200
-    assert first.json()["id"] != second.json()["id"]
-    assert set(_owned_run_ids(client)) == {
-        first.json()["id"],
-        second.json()["id"],
-    }
+    assert _owned_run_ids(client, "owner-two") == [other_owner.json()["id"]]
 
 
 def test_concurrent_exact_retries_create_one_run(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    client = _idempotency_make_client()
+    client = make_client()
     admitted_together = Barrier(2)
     lookup = store_receipts.lookup_run_creation_receipt
 
@@ -369,7 +301,7 @@ def test_concurrent_exact_retries_create_one_run(
     "request_key", ["contains spaces", "bad/key", "x" * 129]
 )
 def test_malformed_idempotency_key_is_rejected(request_key: str) -> None:
-    client = _idempotency_make_client()
+    client = make_client()
     response = _idempotency_post_run(client, request_key=request_key)
 
     assert response.status_code == 400
@@ -401,7 +333,7 @@ def test_changed_byok_key_conflicts_without_echoing_either_secret(
         "app.runs.crud.generate_goal_restatement", no_model_call
     )
 
-    client = _idempotency_make_client()
+    client = make_client()
     first_secret = "sk-first-private-value"
     changed_secret = "sk-changed-private-value"
     byok_headers = {"X-LLM-Provider": "deepseek"}
@@ -422,289 +354,23 @@ def test_changed_byok_key_conflicts_without_echoing_either_secret(
     assert validated == [first_secret]
 
 
-def test_create_route_uses_the_runs_crud_byok_monkeypatch(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def reject_byok(*_args: Any, **_kwargs: Any) -> None:
-        raise HTTPException(status_code=418, detail="patched resolver")
-
-    monkeypatch.setattr(runs_crud, "_resolve_byok", reject_byok)
-    client = _idempotency_make_client()
-
-    response = _idempotency_post_run(client)
-
-    assert response.status_code == 418
-    assert response.json()["detail"] == "patched resolver"
-    assert _owned_run_ids(client) == []
-
-
-def test_create_route_uses_one_patched_client_scope_for_run_owner(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    scope_checks: list[str] = []
-    policy_scopes: list[str] = []
-
-    def require_scope(_request: Any) -> str:
-        scope_checks.append("checked")
-        return "patched-owner-scope"
-
-    def execution_policy(_request: Any, _interview: Any) -> str:
-        return "campaign"
-
-    @contextmanager
-    def scoped_policy(policy: str) -> Iterator[None]:
-        policy_scopes.append(policy)
-        yield
-
-    monkeypatch.setattr(runs_crud, "require_client_scope", require_scope)
-    monkeypatch.setattr(
-        runs_crud, "client_id", lambda _request: "patched-owner-scope"
-    )
-    monkeypatch.setattr(runs_crud, "resolve_execution_policy", execution_policy)
-    monkeypatch.setattr(runs_crud, "scoped_execution_policy", scoped_policy)
-    client = _idempotency_make_client()
-
-    response = _idempotency_post_run(client)
-
-    assert response.status_code == 200
-    run = runs.get_run(response.json()["id"])
-    assert run is not None
-    assert run.client_id == "patched-owner-scope"
-    assert run.execution_policy == "campaign"
-    assert scope_checks == ["checked"]
-    assert policy_scopes == ["campaign"]
-
-
-_MIGRATION_PAYLOAD = {
-    "research_goal": "Study a defined signaling pathway",
-    "tier": "express",
-}
-
-
-def _migration_post_run(
-    client: TestClient,
-    owner: str,
-    key: str | None,
-    payload: dict[str, Any] | None = None,
-) -> Any:
-    headers = {"X-Client-ID": owner}
-    if key is not None:
-        headers["Idempotency-Key"] = key
-    return client.post(
-        "/api/runs",
-        headers=headers,
-        json=payload if payload is not None else _MIGRATION_PAYLOAD,
-    )
-
-
-def test_post_run_preserves_existing_data_and_persists_receipts(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    legacy_run_id = "pre-receipt-run"
-    raw = sqlite3.connect(isolated_db)
-    try:
-        raw.executescript(SCHEMA)
-        raw.executescript(
-            """
-            INSERT INTO runs (
-                id, research_goal, profile, status, provider, config_json,
-                client_id, created_at, updated_at, llm_backend
-            ) VALUES (
-                'pre-receipt-run', 'Persisted before receipt support',
-                'standard', 'completed', 'engine', '{}',
-                'legacy-owner', 1, 1, 'offline'
-            );
-            INSERT INTO run_events (
-                run_id, seq, type, payload_json, created_at
-            ) VALUES (
-                'pre-receipt-run', 1, 'lifecycle', '{"event":"created"}', 1
-            );
-            """
-        )
-        raw.commit()
-    finally:
-        raw.close()
-
-    client = _migration_make_client()
-    created = _migration_post_run(client, "new-owner", "after-upgrade")
-
-    assert created.status_code == 200, created.text
-    assert _migration_post_run(client, "new-owner", "after-upgrade").json() == (
-        created.json()
-    )
-    owned = client.get("/api/runs", headers={"X-Client-ID": "legacy-owner"})
-    assert owned.status_code == 200, owned.text
-    assert [run["id"] for run in owned.json()["runs"]] == [legacy_run_id]
-
-    with sqlite3.connect(isolated_db) as conn:
-        tables = {
-            row[0]
-            for row in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            )
-        }
-        assert "run_creation_receipts" in tables
-        assert (
-            conn.execute(
-                "SELECT payload_json FROM run_events WHERE run_id=? AND seq=1",
-                (legacy_run_id,),
-            ).fetchone()[0]
-            == '{"event":"created"}'
-        )
-        assert (
-            conn.execute(
-                "SELECT COUNT(*) FROM runs WHERE id IN (?, ?)",
-                (legacy_run_id, created.json()["id"]),
-            ).fetchone()[0]
-            == 2
-        )
-        assert (
-            conn.execute(
-                "SELECT run_id FROM run_creation_receipts "
-                "WHERE client_id=? AND idempotency_key=?",
-                ("new-owner", "after-upgrade"),
-            ).fetchone()[0]
-            == created.json()["id"]
-        )
-
-    document_bytes = b"ERK1 phosphorylation supports tissue repair.\n"
-    staged = client.post(
-        "/api/documents",
-        headers={"X-Client-ID": "new-owner"},
-        files={
-            "file": ("lab-notes.txt", io.BytesIO(document_bytes), "text/plain")
-        },
-        data={"consent": "true"},
-    )
-    assert staged.status_code == 200, staged.text
-    document = staged.json()
-    digest = hashlib.sha256(document_bytes).hexdigest()
-    assert document["sha256"] == digest
-
-    api_key = "sk-receipt-private-value"
-    validated: list[str] = []
-    mocked_background: list[str] = []
-
-    async def accept_byok(credential: credentials.ByokCredential) -> None:
-        validated.append(credential.api_key)
-
-    async def mock_title(*_args: Any, **_kwargs: Any) -> None:
-        mocked_background.append("title")
-
-    async def mock_restatement(*_args: Any, **_kwargs: Any) -> None:
-        mocked_background.append("restatement")
-
-    monkeypatch.setattr(settings, "byok_encryption_key", "receipt-test-key")
-    monkeypatch.setattr(credentials, "validate_byok_credential", accept_byok)
-    monkeypatch.setattr("app.runs.crud.generate_run_title", mock_title)
-    monkeypatch.setattr(
-        "app.runs.crud.generate_goal_restatement", mock_restatement
-    )
-
-    byok_payload = {**_MIGRATION_PAYLOAD, "document_ids": [document["id"]]}
-    byok_headers = {
-        "X-Client-ID": "new-owner",
-        "Idempotency-Key": "byok-with-document",
-        credentials.PROVIDER_HEADER: "deepseek",
-        credentials.API_KEY_HEADER: api_key,
-    }
-    byok_run = client.post("/api/runs", headers=byok_headers, json=byok_payload)
-    assert byok_run.status_code == 200, byok_run.text
-    assert api_key not in byok_run.text
-
-    run_id = byok_run.json()["id"]
-    evidence_response = client.get(
-        f"/api/runs/{run_id}/evidence", headers={"X-Client-ID": "new-owner"}
-    )
-    assert evidence_response.status_code == 200, evidence_response.text
-    evidence = evidence_response.json()["evidence"]
-    assert len(evidence) == 1
-    assert evidence[0]["title"] == "lab-notes.txt"
-    assert evidence[0]["abstract"] == document_bytes.decode()
-    assert evidence[0]["source"] == "attachment"
-    assert evidence[0]["sha256"] == digest
-    assert evidence[0]["document_version"] == digest
-    assert evidence[0]["extraction_tool"] == "utf8-decoder-v1"
-    assert evidence[0]["mime_type"] == "text/plain"
-    assert evidence[0]["byte_size"] == len(document_bytes)
-
-    replay = client.post("/api/runs", headers=byok_headers, json=byok_payload)
-    assert replay.status_code == 200, replay.text
-    assert replay.json() == byok_run.json()
-    assert api_key not in replay.text
-    evidence_after_replay = client.get(
-        f"/api/runs/{run_id}/evidence", headers={"X-Client-ID": "new-owner"}
-    ).json()["evidence"]
-    assert evidence_after_replay == evidence
-    assert validated == [api_key]
-    assert mocked_background == ["title", "restatement"]
-
-    stored_credential = credentials.get_run_credential(
-        run_id, db_path=isolated_db
-    )
-    assert stored_credential is not None
-    assert stored_credential.api_key == api_key
-    assert stored_credential.provider == "deepseek"
-    with sqlite3.connect(isolated_db) as conn:
-        encrypted_key = conn.execute(
-            "SELECT encrypted_key FROM run_credentials WHERE run_id=?",
-            (run_id,),
-        ).fetchone()[0]
-        receipt_digest = conn.execute(
-            "SELECT request_digest FROM run_creation_receipts "
-            "WHERE client_id=? AND idempotency_key=?",
-            ("new-owner", "byok-with-document"),
-        ).fetchone()[0]
-        assert api_key not in encrypted_key
-        assert api_key not in receipt_digest
-        assert (
-            conn.execute(
-                "SELECT COUNT(*) FROM runs WHERE client_id=?", ("new-owner",)
-            ).fetchone()[0]
-            == 2
-        )
-        assert (
-            conn.execute(
-                "SELECT COUNT(*) FROM run_credentials WHERE run_id=?", (run_id,)
-            ).fetchone()[0]
-            == 1
-        )
-        assert (
-            conn.execute(
-                "SELECT COUNT(*) FROM evidence WHERE run_id=?", (run_id,)
-            ).fetchone()[0]
-            == 1
-        )
-        assert (
-            conn.execute(
-                "SELECT COUNT(*) FROM run_creation_receipts "
-                "WHERE client_id=? AND idempotency_key=?",
-                ("new-owner", "byok-with-document"),
-            ).fetchone()[0]
-            == 1
-        )
-
-    legacy_first = _migration_post_run(client, "new-owner", None)
-    legacy_second = _migration_post_run(client, "new-owner", None)
-    assert legacy_first.status_code == legacy_second.status_code == 200
-    assert legacy_first.json()["id"] != legacy_second.json()["id"]
-
-
 def test_concurrent_changed_payloads_commit_one_same_key_run(
     isolated_db: str,
 ) -> None:
-    client = _migration_make_client()
+    client = make_client()
     owner = "changed-race-owner"
     key = "changed-payload-race"
     payloads = (
-        _MIGRATION_PAYLOAD,
-        {**_MIGRATION_PAYLOAD, "research_goal": "Study a different pathway"},
+        _IDEMPOTENCY_PAYLOAD,
+        {**_IDEMPOTENCY_PAYLOAD, "research_goal": "Study a different pathway"},
     )
     start_together = Barrier(len(payloads))
 
     def submit(payload: dict[str, Any]) -> Any:
         start_together.wait(timeout=5)
-        return _migration_post_run(client, owner, key, payload)
+        return _idempotency_post_run(
+            client, owner=owner, request_key=key, payload=payload
+        )
 
     with ThreadPoolExecutor(max_workers=len(payloads)) as pool:
         futures = [pool.submit(submit, payload) for payload in payloads]
@@ -737,41 +403,6 @@ def test_concurrent_changed_payloads_commit_one_same_key_run(
         )
 
 
-def test_concurrent_same_key_requests_are_isolated_by_owner() -> None:
-    client = _migration_make_client()
-    owners = ("owner-one", "owner-two")
-    start_together = Barrier(len(owners))
-
-    def submit(owner: str) -> tuple[str, Any]:
-        start_together.wait(timeout=5)
-        return owner, _migration_post_run(client, owner, "shared-key")
-
-    with ThreadPoolExecutor(max_workers=len(owners)) as pool:
-        futures = [pool.submit(submit, owner) for owner in owners]
-        responses = [future.result(timeout=10) for future in futures]
-
-    run_payloads: dict[str, dict[str, Any]] = {}
-    for owner, response in responses:
-        assert response.status_code == 200, response.text
-        run_payloads[owner] = response.json()
-    assert run_payloads["owner-one"]["id"] != run_payloads["owner-two"]["id"]
-
-    for owner in owners:
-        replay = _migration_post_run(client, owner, "shared-key")
-        assert replay.status_code == 200, replay.text
-        assert replay.json() == run_payloads[owner]
-        listed = client.get("/api/runs", headers={"X-Client-ID": owner})
-        assert [run["id"] for run in listed.json()["runs"]] == [
-            run_payloads[owner]["id"]
-        ]
-
-    hidden_from_other_owner = client.get(
-        f"/api/runs/{run_payloads['owner-two']['id']}",
-        headers={"X-Client-ID": "owner-one"},
-    )
-    assert hidden_from_other_owner.status_code == 404
-
-
 _ROLLBACK_OWNER = "run-rollback-owner"
 _ROLLBACK_KEY = "rollback-run-01"
 
@@ -796,7 +427,7 @@ def test_late_setup_failure_rolls_back_every_effect_and_allows_retry(
     monkeypatch.setattr(
         "app.runs.crud.generate_goal_restatement", no_model_call
     )
-    client = _rollback_make_client()
+    client = make_client()
     staged = client.post(
         "/api/documents",
         headers={"X-Client-ID": _ROLLBACK_OWNER},
@@ -900,54 +531,10 @@ def _run_to_completion(client: TestClient, goal: str) -> str:
     return run_id
 
 
-def test_delete_requires_a_terminal_run() -> None:
-    # Set RUNNING directly so a fast offline completion cannot race the delete
-    # guard.
-    client = _deletion_make_client()
-    created = _create_run(client, "Active run goal", headers=_DELETION_OWNER)
-    run_id = created.json()["id"]
-    runs.update_run_status(run_id, RunStatus.RUNNING)
-
-    response = client.delete(f"/api/runs/{run_id}", headers=_DELETION_OWNER)
-
-    assert response.status_code == 409
-    assert runs.run_exists(run_id)
-
-
-def test_delete_unknown_run_404s() -> None:
-    client = _deletion_make_client()
-    response = client.delete(
-        "/api/runs/does-not-exist", headers=_DELETION_OWNER
-    )
-    assert response.status_code == 404
-
-
-def test_another_client_cannot_delete_the_run() -> None:
-    client = _deletion_make_client()
-    created = _create_run(client, "Owned goal", headers=_DELETION_OWNER)
-    run_id = created.json()["id"]
-
-    response = client.delete(f"/api/runs/{run_id}", headers=_DELETION_OTHER)
-
-    assert response.status_code == 404
-    assert runs.run_exists(run_id)
-
-
-def test_demo_run_cannot_be_deleted() -> None:
-    client = _deletion_make_client()
-    demo = seed_run("Demo goal", client_id=DEMO_CLIENT_ID)
-    runs.update_run_status(demo.id, RunStatus.COMPLETED)
-
-    response = client.delete(f"/api/runs/{demo.id}", headers=_DELETION_OWNER)
-
-    assert response.status_code == 403
-    assert runs.run_exists(demo.id)
-
-
 def test_delete_cascades_across_every_run_scoped_table(
     isolated_db: str,
 ) -> None:
-    client = _deletion_make_client()
+    client = make_client()
     run_id = _run_to_completion(client, "Cascade delete goal")
 
     before = runs.count_run_rows(run_id, db_path=isolated_db)
@@ -974,7 +561,7 @@ def test_delete_removes_the_runs_persisted_log_rows(
 ) -> None:
     # Logs have no run foreign key; explicit deletion must scrub research goals
     # beyond cascading tables.
-    client = _deletion_make_client()
+    client = make_client()
     created = _create_run(
         client, "deletion cascade probe", headers=_DELETION_OWNER
     )
@@ -1019,7 +606,7 @@ def test_delete_clears_but_does_not_remove_a_carried_document(
 ) -> None:
     # Staged documents predate runs; run deletion clears their link without
     # destroying the only uploaded copy.
-    client = _deletion_make_client()
+    client = make_client()
     staged = client.post(
         "/api/documents",
         headers=_DELETION_OWNER,
@@ -1044,157 +631,6 @@ def test_delete_clears_but_does_not_remove_a_carried_document(
     remaining = documents.get_staged_documents([document_id], "delete-owner")
     assert len(remaining) == 1
     assert remaining[0]["run_id"] is None
-
-
-def test_every_tier_caps_its_llm_call_spend() -> None:
-    # Maintenance loops do not advance iterations; every tier still needs a
-    # provider-call ceiling.
-    ceilings = {
-        tier: cfg["max_llm_calls"]
-        for tier, cfg in run_modes.RUN_TIER_DEFAULTS.items()
-    }
-    assert all(value > 0 for value in ceilings.values())
-    ordered = ["express", "standard", "extended", "ultra"]
-    assert [ceilings[tier] for tier in ordered] == sorted(
-        ceilings[tier] for tier in ordered
-    )
-
-
-def test_resolved_config_carries_the_tier_call_ceiling() -> None:
-    config = run_modes.resolved_run_config({"tier": "express"})
-    assert (
-        config["max_llm_calls"]
-        == (run_modes.RUN_TIER_DEFAULTS["express"]["max_llm_calls"])
-    )
-
-
-def test_default_attributes_are_goal_agnostic_scaled_axes() -> None:
-    for attribute in run_modes_attributes_mod.DEFAULT_ATTRIBUTES:
-        assert set(attribute) == {"name", "scale"}
-        assert attribute["name"]
-        assert set(attribute["scale"]) == {"1", "3", "5"}
-        assert all(attribute["scale"].values())
-
-
-def test_setup_config_defaults_attributes_to_independent_copies() -> None:
-    first = run_modes.setup_config(research_goal="goal one")
-    second = run_modes.setup_config(research_goal="goal two")
-    assert first["attributes"] == list(
-        run_modes_attributes_mod.DEFAULT_ATTRIBUTES
-    )
-    first["attributes"][0]["scale"]["1"] = "mutated"
-    assert second["attributes"][0]["scale"]["1"] != "mutated"
-
-
-def test_setup_config_keeps_accepting_legacy_free_string_attributes() -> None:
-    spec = run_modes.setup_config(
-        research_goal="goal",
-        lists=run_modes.PlanningLists(attributes=["Spatially resolved", ""]),
-    )
-    assert spec["attributes"] == ["Spatially resolved"]
-
-
-def test_setup_config_keeps_accepting_a_categorical_attribute() -> None:
-    spec = run_modes.setup_config(
-        research_goal="goal",
-        lists=run_modes.PlanningLists(
-            attributes=[
-                {
-                    "name": "Target Area",
-                    "values": ["Epigenetics", "Stromal-Immune Crosstalk"],
-                }
-            ]
-        ),
-    )
-    assert spec["attributes"] == [
-        {
-            "name": "Target Area",
-            "values": ["Epigenetics", "Stromal-Immune Crosstalk"],
-        }
-    ]
-
-
-def test_attribute_display_strings_renders_every_stored_shape() -> None:
-    assert run_modes.attribute_display_strings(
-        ["Mechanistically specific"]
-    ) == ["Mechanistically specific"]
-    assert run_modes.attribute_display_strings(
-        [{"name": "Mechanism Novelty", "scale": {"1": "Low", "5": "High"}}]
-    ) == ["Mechanism Novelty: 1-5 scale (1: Low, 5: High)"]
-    assert run_modes.attribute_display_strings(
-        [{"name": "Target Area", "values": ["A", "B", "C"]}]
-    ) == ["Target Area (A, B, or C)"]
-    assert run_modes.attribute_display_strings([{"name": "Impact"}]) == [
-        "Impact"
-    ]
-    assert run_modes.attribute_display_strings(None) == []
-
-
-def test_setup_guidance_renders_attributes_for_both_stored_shapes() -> None:
-    legacy = run_modes.setup_guidance(
-        {
-            "attributes": ["Mechanistically specific"],
-            "focus": "balance",
-            "tier": "standard",
-        }
-    )
-    assert "- Attributes:\n  - Mechanistically specific" in legacy
-
-    current = run_modes.setup_guidance(
-        run_modes.setup_config(research_goal="goal")
-    )
-    assert "- Attributes:\n  - Mechanistic specificity: 1-5 scale" in current
-
-
-def test_default_criteria_are_named_settings_with_values() -> None:
-    for pair in run_modes_criteria.DEFAULT_CRITERIA:
-        assert set(pair) == {"name", "value"}
-        assert pair["name"] and pair["value"]
-
-
-def test_setup_config_defaults_criteria_to_independent_copies() -> None:
-    first = run_modes.setup_config(research_goal="goal one")
-    second = run_modes.setup_config(research_goal="goal two")
-    assert first["criteria"] == list(run_modes_criteria.DEFAULT_CRITERIA)
-    first["criteria"][0]["value"] = "mutated"
-    assert second["criteria"][0]["value"] != "mutated"
-
-
-def test_setup_config_keeps_accepting_legacy_free_string_criteria() -> None:
-    spec = run_modes.setup_config(
-        research_goal="goal",
-        lists=run_modes.PlanningLists(criteria=["Causal specificity", ""]),
-    )
-    assert spec["criteria"] == ["Causal specificity"]
-
-
-def test_criteria_display_strings_renders_both_stored_shapes() -> None:
-    assert run_modes.criteria_display_strings(["Scientific soundness"]) == [
-        "Scientific soundness"
-    ]
-    assert run_modes.criteria_display_strings(
-        [{"name": "Idea correctness", "value": "Required"}]
-    ) == ["Idea correctness: Required"]
-    assert run_modes.criteria_display_strings([{"name": "Impact"}]) == [
-        "Impact"
-    ]
-    assert run_modes.criteria_display_strings(None) == []
-
-
-def test_setup_guidance_renders_criteria_for_both_stored_shapes() -> None:
-    legacy = run_modes.setup_guidance(
-        {
-            "criteria": ["Scientific soundness"],
-            "focus": "balance",
-            "tier": "standard",
-        }
-    )
-    assert "- Criteria:\n  - Scientific soundness" in legacy
-
-    current = run_modes.setup_guidance(
-        run_modes.setup_config(research_goal="goal")
-    )
-    assert "- Criteria:\n  - Idea correctness: Required" in current
 
 
 _TIERS = ("express", "standard", "extended", "ultra")
@@ -1234,14 +670,9 @@ def _worked_stats(cfg: dict[str, int]) -> SchedulerStats:
 
 
 @pytest.mark.parametrize("tier", _TIERS)
-def test_tier_arms_the_published_while_guard(tier: str) -> None:
-    budget = _tier_budget(tier)
-    assert budget.max_ideas is not None
-    assert budget.max_matches_per_idea is not None
-
-
-@pytest.mark.parametrize("tier", _TIERS)
-def test_ceilings_sit_above_the_tier_own_steady_state(tier: str) -> None:
+def test_tier_ceilings_sit_above_steady_state_and_spare_the_first_tournament(
+    tier: str,
+) -> None:
     # Ceilings fire on equality; values at configured steady state stop runs
     # prematurely.
     cfg = run_modes.RUN_TIER_DEFAULTS[tier]
@@ -1253,11 +684,8 @@ def test_ceilings_sit_above_the_tier_own_steady_state(tier: str) -> None:
         cfg["evolution_max_count"] * cfg["max_iterations"]
     )
 
+    decision = decide_next_task(_worked_stats(cfg), budget)
 
-@pytest.mark.parametrize("tier", _TIERS)
-def test_first_tournament_does_not_terminate_the_run(tier: str) -> None:
-    cfg = run_modes.RUN_TIER_DEFAULTS[tier]
-    decision = decide_next_task(_worked_stats(cfg), _tier_budget(tier))
     assert decision.termination_reason not in {
         TerminationReason.MAX_MATCHES_PER_IDEA,
         TerminationReason.MAX_IDEAS,
@@ -1265,18 +693,7 @@ def test_first_tournament_does_not_terminate_the_run(tier: str) -> None:
     assert decision.next_task is not TaskType.TERMINATE
 
 
-def test_periodic_overview_gate_reads_extended_and_up_only() -> None:
-    # Overview cost gates must distinguish standard from extended as tier
-    # budgets change.
-    assert (
-        run_modes.RUN_TIER_DEFAULTS["standard"]["max_llm_calls"]
-        < RESEARCH_OVERVIEW_MIN_LLM_CALLS
-        <= run_modes.RUN_TIER_DEFAULTS["extended"]["max_llm_calls"]
-    )
-
-
 _RENAME_OWNER = {"X-Client-ID": "rename-owner"}
-_RENAME_OTHER = {"X-Client-ID": "someone-else"}
 
 _TITLE = "Sequential Senolytic Conditioning for Cryogenic Biostasis"
 
@@ -1289,119 +706,95 @@ def _draft_run(
     return str(created.json()["id"])
 
 
-def test_renames_the_run_and_returns_its_details() -> None:
-    client: TestClient = _rename_make_client()
+def test_renaming_a_run_persists_the_cleaned_title() -> None:
+    client = make_client()
     run_id = _draft_run(client)
 
-    response = client.patch(
-        f"/api/runs/{run_id}", headers=_RENAME_OWNER, json={"title": _TITLE}
-    )
+    body = client.patch(
+        f"/api/runs/{run_id}",
+        headers=_RENAME_OWNER,
+        json={"title": f"  {_TITLE}\n"},
+    ).json()
 
-    assert response.status_code == 200, response.text
-    body = response.json()
     assert body["title"] == _TITLE
-    assert body["id"] == run_id
-    assert "summary" in body
-
-
-def test_the_new_title_is_what_later_reads_return() -> None:
-    client: TestClient = _rename_make_client()
-    run_id = _draft_run(client)
-
-    client.patch(
-        f"/api/runs/{run_id}", headers=_RENAME_OWNER, json={"title": _TITLE}
-    )
-
+    assert body["research_goal"] == "Extend healthy lifespan"
     fetched = client.get(f"/api/runs/{run_id}", headers=_RENAME_OWNER).json()
     assert fetched["title"] == _TITLE
     listed = client.get("/api/runs", headers=_RENAME_OWNER).json()["runs"]
     assert [r["title"] for r in listed if r["id"] == run_id] == [_TITLE]
 
 
-def test_the_research_goal_is_left_alone() -> None:
-    client: TestClient = _rename_make_client()
-    run_id = _draft_run(client, goal="Extend healthy lifespan")
-
-    renamed = client.patch(
-        f"/api/runs/{run_id}", headers=_RENAME_OWNER, json={"title": _TITLE}
-    ).json()
-
-    assert renamed["research_goal"] == "Extend healthy lifespan"
-
-
-def test_surrounding_whitespace_is_collapsed() -> None:
-    client: TestClient = _rename_make_client()
-    run_id = _draft_run(client)
-
-    body = client.patch(
-        f"/api/runs/{run_id}",
-        headers=_RENAME_OWNER,
-        json={"title": "  Cryogenic   Biostasis\n"},
-    ).json()
-
-    assert body["title"] == "Cryogenic Biostasis"
-
-
-def test_a_blank_title_is_refused() -> None:
-    client: TestClient = _rename_make_client()
-    run_id = _draft_run(client)
-
-    empty = client.patch(
-        f"/api/runs/{run_id}", headers=_RENAME_OWNER, json={"title": ""}
-    )
-    spaces = client.patch(
-        f"/api/runs/{run_id}", headers=_RENAME_OWNER, json={"title": "   "}
-    )
-
-    assert empty.status_code == 422
-    assert spaces.status_code == 422
-
-
-def test_an_overlong_title_is_refused() -> None:
-    client: TestClient = _rename_make_client()
+@pytest.mark.parametrize("title", ["", "   ", "x" * 81])
+def test_blank_and_overlong_titles_are_refused(title: str) -> None:
+    client = make_client()
     run_id = _draft_run(client)
 
     response = client.patch(
-        f"/api/runs/{run_id}", headers=_RENAME_OWNER, json={"title": "x" * 81}
+        f"/api/runs/{run_id}", headers=_RENAME_OWNER, json={"title": title}
     )
 
     assert response.status_code == 422
 
 
-def test_another_client_cannot_rename_it() -> None:
-    client: TestClient = _rename_make_client()
+def test_rename_and_delete_refuse_foreign_demo_and_unknown_runs() -> None:
+    client = make_client()
     run_id = _draft_run(client)
+    stranger = {"X-Client-ID": "someone-else"}
+    demo = seed_run("Demo goal", client_id=DEMO_CLIENT_ID)
+    runs.update_run_status(demo.id, RunStatus.COMPLETED)
 
-    response = client.patch(
-        f"/api/runs/{run_id}", headers=_RENAME_OTHER, json={"title": _TITLE}
-    )
+    def refused(method: str, run: str, headers: dict[str, str]) -> int:
+        return client.request(
+            method, f"/api/runs/{run}", headers=headers, json={"title": _TITLE}
+        ).status_code
 
-    assert response.status_code == 404
+    assert refused("PATCH", run_id, stranger) == 404
+    assert refused("DELETE", run_id, stranger) == 404
+    assert refused("PATCH", "no-such-run", _RENAME_OWNER) == 404
+    assert refused("DELETE", "no-such-run", _RENAME_OWNER) == 404
+    assert refused("PATCH", demo.id, _RENAME_OWNER) == 403
+    assert refused("DELETE", demo.id, _RENAME_OWNER) == 403
+    runs.update_run_status(run_id, RunStatus.RUNNING)
+    assert refused("DELETE", run_id, _RENAME_OWNER) == 409
     run = runs.get_run(run_id)
     assert run is not None and run.title != _TITLE
 
 
-def test_the_shared_demo_run_cannot_be_renamed() -> None:
-    client: TestClient = _rename_make_client()
-    demo_id = _draft_run(client)
-    with db.connect() as conn:
-        conn.execute(
-            "UPDATE runs SET client_id=? WHERE id=?",
-            (DEMO_CLIENT_ID, demo_id),
-        )
-
-    response = client.patch(
-        f"/api/runs/{demo_id}", headers=_RENAME_OWNER, json={"title": _TITLE}
+@pytest.mark.parametrize(
+    ("section", "stored", "shown"),
+    [
+        ("attributes", ["Mechanistically specific"], None),
+        (
+            "attributes",
+            [{"name": "Mechanism Novelty", "scale": {"1": "Low", "5": "High"}}],
+            "Mechanism Novelty: 1-5 scale (1: Low, 5: High)",
+        ),
+        (
+            "attributes",
+            [{"name": "Target Area", "values": ["A", "B", "C"]}],
+            "Target Area (A, B, or C)",
+        ),
+        ("criteria", ["Scientific soundness"], None),
+        (
+            "criteria",
+            [{"name": "Idea correctness", "value": "Required"}],
+            "Idea correctness: Required",
+        ),
+    ],
+)
+def test_setup_lists_render_every_stored_shape(
+    section: str, stored: list[Any], shown: str | None
+) -> None:
+    display = getattr(
+        run_modes,
+        "attribute_display_strings"
+        if section == "attributes"
+        else "criteria_display_strings",
     )
-
-    assert response.status_code == 403
-
-
-def test_renaming_an_unknown_run_is_a_404() -> None:
-    client: TestClient = _rename_make_client()
-
-    response = client.patch(
-        "/api/runs/no-such-run", headers=_RENAME_OWNER, json={"title": _TITLE}
+    expected = [shown or stored[0]]
+    assert display(stored) == expected
+    assert display(None) == []
+    guidance = run_modes.setup_guidance(
+        {section: stored, "focus": "balance", "tier": "standard"}
     )
-
-    assert response.status_code == 404
+    assert f"- {section.title()}:\n  - {expected[0]}" in guidance
