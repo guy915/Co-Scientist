@@ -108,7 +108,7 @@ def python_suites(
     args: argparse.Namespace, root: Path, output: Path, env: dict[str, str]
 ) -> dict[str, Suite]:
     config = output / "pytest.coveragerc"
-    config.write_text("[run]\nomit = */tests/*\n[json]\nshow_contexts = True\n")
+    config.write_text("[run]\nomit = */tests/*\n")
     suites = {}
     for name, cwd, source, tests, interpreter in (
         ("app", root / "app", "app", "tests", args.python),
@@ -137,7 +137,6 @@ def python_suites(
                 "-q",
                 f"--cov={source}",
                 f"--cov-config={config}",
-                "--cov-context=test",
                 "--cov-report=term",
                 f"--cov-report=json:{raw_path}",
             ],
@@ -163,7 +162,7 @@ def measure(args: argparse.Namespace, root: Path, output: Path) -> Report:
             "run",
             "test",
             "--config",
-            "vitest.test.config.ts",
+            "src/__tests__/coverage_config.ts",
             "--coverage",
             f"--coverage.reportsDirectory={output / 'frontend'}",
         ],

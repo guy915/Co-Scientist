@@ -239,8 +239,8 @@ lose none. Deleted protected source files no longer need module coverage.
 After the opening measurement, record its fixed baseline with
 `.venv/bin/python evaluations/tests/_coverage.py --report-only --record-baseline
 --protect path/to/module.py`, repeating `--protect` for each protected module.
-Recording refuses to overwrite an existing baseline. Raw Python JSON includes
-test contexts to identify which production modules the protected tests reach.
+Recording refuses to overwrite an existing baseline. Select protected modules
+from the behavior inventory before any test reductions.
 Subsequent `make coverage` runs enforce the committed baseline automatically.
 
 Changes to shared setup actions and the root Ruff configuration trigger their
