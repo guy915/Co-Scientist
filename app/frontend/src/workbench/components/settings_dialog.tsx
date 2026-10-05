@@ -543,7 +543,7 @@ export function useAnchoredMenu(
 
 // Real menu buttons preserve Tab/Enter behavior; selecting the current choice
 // only dismisses the menu.
-function SettingsSelect<T extends string>({
+export function SettingsSelect<T extends string>({
   value,
   options,
   optionLabel,
