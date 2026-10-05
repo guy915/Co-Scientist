@@ -265,9 +265,34 @@ describe('answer state and pending questions', () => {
       toggleOption(emptySelections(), 0, 'Gene therapy', true),
       0,
       '  anything needing a BSL-3 suite  ',
+      true,
     );
     expect(answerText([EXCLUSIONS], selections)).toBe(
       'Gene therapy, anything needing a BSL-3 suite',
+    );
+  });
+
+  test('a single-select question sends own wording instead of the clicked answer', () => {
+    const selections = setOther(
+      toggleOption(emptySelections(), 0, 'Primary human cells', false),
+      0,
+      'organoids',
+      false,
+    );
+    expect(answerText([MODEL_SYSTEM], selections)).toBe(
+      'Model system: organoids',
+    );
+  });
+
+  test('a single-select click replaces own wording', () => {
+    const selections = toggleOption(
+      setOther(emptySelections(), 0, 'organoids', false),
+      0,
+      'Primary human cells',
+      false,
+    );
+    expect(answerText([MODEL_SYSTEM], selections)).toBe(
+      'Model system: Primary human cells',
     );
   });
 

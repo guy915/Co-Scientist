@@ -125,7 +125,6 @@ body {
   --cosci-toast-fg: #f2f2f2;
   --cosci-toast-action: #a8c7fa;
 
-
   --cosci-logs-accent-hover: color-mix(
     in srgb,
     var(--cosci-accent) 88%,
@@ -158,13 +157,10 @@ body {
      equals their background. */
   --cosci-user-bubble-hover: #dbe2ee;
 
-
   --cosci-scrollbar-thumb: #bdc1c6;
-
 
   --cosci-settings-segment-bg: #f8fafd;
   --cosci-settings-card-bg: #f8fafd;
-
 
   --cosci-run-step-done: #1e8e3e;
 
@@ -185,11 +181,9 @@ body {
   --cosci-warning-bg: #3a2113;
   --cosci-warning-fg: #ffb787;
 
-
   --cosci-toast-bg: #e3e3e3;
   --cosci-toast-fg: #303030;
   --cosci-toast-action: #0b57d0;
-
 
   --cosci-option-marker: #8e918f;
 
@@ -206,7 +200,6 @@ body {
   --cosci-user-bubble-hover: #34363a;
 
   --cosci-scrollbar-thumb: #444746;
-
 
   --cosci-settings-segment-bg: #1b1b1b;
   --cosci-settings-card-bg: #1e1f20;

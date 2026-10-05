@@ -35,14 +35,19 @@ function nextChosen(
   return multiSelect ? [...current, label] : [label];
 }
 
+// A single-select question holds one answer, so a click and the scientist's
+// own wording replace each other.
 export function toggleOption(
   selections: QuestionSelections,
   index: number,
   label: string,
   multiSelect: boolean,
 ): QuestionSelections {
+  const other = multiSelect
+    ? selections.other
+    : {...selections.other, [index]: ''};
   return {
-    ...selections,
+    other,
     chosen: {
       ...selections.chosen,
       [index]: nextChosen(selections.chosen[index] ?? [], label, multiSelect),
@@ -54,8 +59,13 @@ export function setOther(
   selections: QuestionSelections,
   index: number,
   text: string,
+  multiSelect: boolean,
 ): QuestionSelections {
-  return {...selections, other: {...selections.other, [index]: text}};
+  const chosen =
+    multiSelect || !text.trim()
+      ? selections.chosen
+      : {...selections.chosen, [index]: []};
+  return {chosen, other: {...selections.other, [index]: text}};
 }
 
 function answerParts(selections: QuestionSelections, index: number): string[] {
@@ -114,8 +124,14 @@ function lastPendingTurn(
   return last?.role === 'agent' ? last : null;
 }
 
-const QUESTION_OPTION_ROW_CLASSES =
-  'relative grid min-h-[3.2rem] grid-cols-[1.6rem_minmax(0,1fr)] items-center gap-x-[0.8rem] rounded-[0.65rem] border border-transparent bg-cosci-option-bg px-[0.95rem] py-[0.7rem] text-cosci-fg hover:bg-cosci-option-hover-bg has-[:focus-visible]:border-cosci-option-hover-border has-[:focus-visible]:bg-cosci-option-hover-bg';
+const ROW_BASE_CLASSES =
+  'relative grid min-h-[3.2rem] grid-cols-[1.6rem_minmax(0,1fr)] items-center gap-x-[0.8rem] rounded-[0.65rem] border border-transparent bg-cosci-option-bg px-[0.95rem] py-[0.7rem] text-cosci-fg hover:bg-cosci-option-hover-bg';
+
+const QUESTION_OPTION_ROW_CLASSES = `${ROW_BASE_CLASSES} has-[:focus-visible]:border-cosci-option-hover-border has-[:focus-visible]:bg-cosci-option-hover-bg`;
+
+// A text field matches :focus-visible on every focus, so the row would draw
+// a second outline around the field's own.
+const OTHER_ROW_CLASSES = ROW_BASE_CLASSES;
 
 // Offer free text for answers the model did not propose; an empty field skips
 // rather than rejects a question.
@@ -301,7 +317,9 @@ function QuestionGroup(props: QuestionGroupProps) {
           multiSelect={question.multi_select}
           text={selections.other[index] ?? ''}
           onChangeText={text =>
-            setSelections(setOther(selections, index, text))
+            setSelections(
+              setOther(selections, index, text, question.multi_select),
+            )
           }
         />
       </div>
@@ -319,13 +337,13 @@ function OtherAnswerRow({
   onChangeText: (text: string) => void;
 }) {
   return (
-    <div className={QUESTION_OPTION_ROW_CLASSES}>
+    <div className={OTHER_ROW_CLASSES}>
       <AnswerMarker
         multiSelect={multiSelect}
         selected={text.trim().length > 0}
       />
       <input
-        className="w-full rounded-[0.65rem] border border-cosci-composer-border bg-transparent px-[0.85rem] py-[0.6rem] text-base text-cosci-fg outline-none placeholder:text-cosci-composer-label focus:border-cosci-option-hover-border"
+        className="w-full rounded-[0.65rem] border border-cosci-composer-border bg-cosci-composer-bg px-[0.85rem] py-[0.6rem] text-base text-cosci-fg outline-none placeholder:text-cosci-composer-label focus:border-cosci-option-hover-border"
         aria-label={OTHER_LABEL}
         placeholder={OTHER_PLACEHOLDER}
         value={text}

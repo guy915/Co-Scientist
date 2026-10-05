@@ -352,8 +352,9 @@ const REFERENCE_LIST_CLASSES = 'm-0 grid list-none gap-0 p-0';
 
 const REFERENCE_LIST_ITEM_CLASSES =
   'grid min-h-[3.8rem] grid-cols-[2.2rem_minmax(0,1fr)_auto] items-center ' +
-  'gap-[0.8rem] border-b border-cosci-border text-[0.86rem] ' +
-  'max-[700px]:grid-cols-[2rem_minmax(0,1fr)]';
+  'gap-[0.8rem] border-b border-cosci-border py-[0.7rem] text-[0.86rem] ' +
+  'max-[700px]:grid-cols-[2rem_minmax(0,1fr)] max-[700px]:gap-y-[0.55rem] ' +
+  'max-[700px]:py-[0.9rem]';
 
 const REFERENCE_LIST_INDEX_CLASSES = 'text-cosci-muted';
 
