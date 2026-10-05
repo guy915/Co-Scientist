@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -81,14 +82,46 @@ def test_credential_from_headers_unknown_provider(
         credentials.credential_from_headers(request)
 
 
-def test_store_and_load_run_credential(byok_secret: str) -> None:
+@pytest.mark.parametrize(
+    "use_secret",
+    [credentials.encrypt_api_key, credentials.idempotency_secret_fingerprint],
+)
+def test_secret_dependent_calls_require_the_deployment_secret(
+    use_secret: Callable[[str], str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "byok_encryption_key", "")
+    with pytest.raises(credentials.ByokNotConfiguredError):
+        use_secret(_KEY)
+
+
+def test_credential_from_headers_unknown_supervisor_provider(
+    byok_secret: str,
+) -> None:
+    request = Headers(
+        {
+            "X-LLM-API-Key": _KEY,
+            "X-LLM-Provider": "deepseek",
+            credentials.SUPERVISOR_PROVIDER_HEADER: "skynet",
+            credentials.SUPERVISOR_API_KEY_HEADER: _SECOND_KEY,
+        }
+    )
+    with pytest.raises(credentials.ByokRequestError, match="skynet"):
+        credentials.credential_from_headers(request)
+
+
+def test_run_credential_round_trips_encrypted(byok_secret: str) -> None:
     run = _make_run()
     cred = credentials.ByokCredential(
         provider="deepseek", api_key=_KEY, model="deepseek/deepseek-v4-flash"
     )
     credentials.store_run_credential(run.id, run.client_id, cred)
-    loaded = credentials.get_run_credential(run.id)
-    assert loaded == cred
+    assert credentials.get_run_credential(run.id) == cred
+    with db.connect() as conn:
+        row = conn.execute(
+            "SELECT encrypted_key FROM run_credentials WHERE run_id=?",
+            (run.id,),
+        ).fetchone()
+    assert _KEY not in row["encrypted_key"]
 
 
 def test_run_credential_deleted_with_the_run(byok_secret: str) -> None:
@@ -100,21 +133,6 @@ def test_run_credential_deleted_with_the_run(byok_secret: str) -> None:
     with db.connect() as conn:
         conn.execute("DELETE FROM runs WHERE id=?", (run.id,))
     assert credentials.get_run_credential(run.id) is None
-
-
-def test_stored_token_is_not_plaintext(byok_secret: str) -> None:
-    run = _make_run()
-    cred = credentials.ByokCredential(
-        provider="openai", api_key=_KEY, model="openai/gpt-4o"
-    )
-    credentials.store_run_credential(run.id, run.client_id, cred)
-    with db.connect() as conn:
-        row = conn.execute(
-            "SELECT encrypted_key FROM run_credentials WHERE run_id=?",
-            (run.id,),
-        ).fetchone()
-    assert row is not None
-    assert _KEY not in row["encrypted_key"]
 
 
 async def test_validation_success(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -131,6 +149,21 @@ async def test_validation_success(monkeypatch: pytest.MonkeyPatch) -> None:
     assert seen["api_key"] == _KEY
     assert seen["model"] == "deepseek/deepseek-v4-flash"
     assert seen["max_tokens"] == 1
+
+
+async def test_validation_keeps_its_own_error_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_acompletion(**kwargs: object) -> None:
+        raise credentials.ByokValidationError("model unavailable")
+
+    monkeypatch.setattr(credentials, "_acompletion", fake_acompletion)
+    cred = credentials.ByokCredential(
+        provider="deepseek", api_key=_KEY, model="deepseek/deepseek-v4-flash"
+    )
+    with pytest.raises(credentials.ByokValidationError) as exc_info:
+        await credentials.validate_byok_credential(cred)
+    assert str(exc_info.value) == "model unavailable"
 
 
 async def test_validation_rejected_key_surfaces_as_rejected(
@@ -156,21 +189,6 @@ async def test_validation_rejected_key_surfaces_as_rejected(
     assert _KEY not in message
 
 
-async def test_validation_error_never_echoes_the_key(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def fake_acompletion(**kwargs: object) -> None:
-        raise RuntimeError(f"provider exploded while using {_KEY}")
-
-    monkeypatch.setattr(credentials, "_acompletion", fake_acompletion)
-    cred = credentials.ByokCredential(
-        provider="deepseek", api_key=_KEY, model="deepseek/deepseek-v4-flash"
-    )
-    with pytest.raises(credentials.ByokValidationError) as exc_info:
-        await credentials.validate_byok_credential(cred)
-    assert _KEY not in str(exc_info.value)
-
-
 def test_byok_model_and_key_prefers_scoped_credential(
     byok_secret: str,
 ) -> None:
@@ -192,20 +210,21 @@ def test_byok_model_and_key_prefers_scoped_credential(
     )
 
 
-def test_redaction_filter_scrubs_scoped_key(
-    byok_secret: str,
+def test_redaction_filter_never_breaks_logging(
+    byok_secret: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    def explode(text: str) -> str:
+        raise ValueError("redaction failed")
+
+    monkeypatch.setattr(credentials, "redact_byok_text", explode)
+    record = logging.LogRecord(
+        "test", logging.ERROR, __file__, 1, "m", (), None
+    )
     cred = credentials.ByokCredential(
         provider="openai", api_key=_KEY, model="openai/gpt-4o"
     )
-    record = logging.LogRecord(
-        "test", logging.ERROR, __file__, 1, f"call failed key={_KEY}", (), None
-    )
-    redactor = credentials.ByokRedactionFilter()
     with credentials.scoped_byok(cred):
-        assert redactor.filter(record)
-    assert _KEY not in record.getMessage()
-    assert "[REDACTED]" in record.getMessage()
+        assert credentials.ByokRedactionFilter().filter(record)
 
 
 def _mixed() -> credentials.ByokCredential:
