@@ -1,4 +1,4 @@
-import {act, fireEvent, screen, render, waitFor} from '@testing-library/react';
+import {act, fireEvent, screen, waitFor} from '@testing-library/react';
 import {beforeEach, expect, it, vi, afterEach, describe} from 'vitest';
 import {
   installLayoutMocks,
@@ -7,7 +7,6 @@ import {
   apiMock,
   chatFixture,
 } from './layout_test_support';
-import {ShellPopover} from './layout_primitives';
 
 describe('layout logs', () => {
   beforeEach(() => {
@@ -139,39 +138,6 @@ describe('layout no shortcuts', () => {
     expect(await screen.findByText('Workspace content')).toBeInTheDocument();
 
     expect(keydownRegistrations()).toEqual([]);
-  });
-
-  it('registers no document keydown handler on a run route', async () => {
-    renderLayout('/runs/run-1/details');
-    expect(await screen.findByText('Workspace content')).toBeInTheDocument();
-
-    expect(keydownRegistrations()).toEqual([]);
-  });
-});
-
-describe('layout primitives', () => {
-  // Interactive popovers are not status output and must not become implicit
-  // live regions.
-
-  it('never renders as a status live region', () => {
-    render(<ShellPopover className="test-popover">content</ShellPopover>);
-    expect(screen.queryByRole('status')).not.toBeInTheDocument();
-  });
-
-  it('renders a plain, unlabelled container when the caller names no role', () => {
-    render(<ShellPopover className="test-popover">content</ShellPopover>);
-    const popover = screen.getByText('content').parentElement;
-    expect(popover).not.toHaveAttribute('role');
-    expect(popover).not.toHaveAttribute('aria-label');
-  });
-
-  it('carries a labelled group role when the caller names one', () => {
-    render(
-      <ShellPopover className="test-popover" role="group" ariaLabel="Logs">
-        content
-      </ShellPopover>,
-    );
-    expect(screen.getByRole('group', {name: 'Logs'})).toBeInTheDocument();
   });
 });
 

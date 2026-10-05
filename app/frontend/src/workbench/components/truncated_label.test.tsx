@@ -170,6 +170,31 @@ it('re-fits when the ResizeObserver reports a size change', async () => {
   expect(span.textContent).toBe(text);
 });
 
+it('re-fits after web fonts finish loading', async () => {
+  let resolveFonts: () => void = () => {};
+  const fontsReady = new Promise<void>(resolve => {
+    resolveFonts = resolve;
+  });
+  Object.defineProperty(document, 'fonts', {
+    value: {ready: fontsReady},
+    configurable: true,
+  });
+
+  const text = 'alpha beta gamma delta';
+  const {container} = render(<TruncatedLabel text={text} />);
+  const span = container.querySelector('span')!;
+  await flushNextFrame();
+  expect(span.textContent).not.toBe(text);
+
+  containerWidth = 200;
+  await act(async () => {
+    resolveFonts();
+    await fontsReady;
+  });
+
+  expect(span.textContent).toBe(text);
+});
+
 it('re-fits when the tab becomes visible again', async () => {
   const text = 'alpha beta gamma delta';
   const {container} = render(<TruncatedLabel text={text} />);

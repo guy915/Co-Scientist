@@ -1,4 +1,4 @@
-import type {Interview} from '@/api/runs';
+import type {Interview, QaSource} from '@/api/runs';
 import {makeRunMessage} from '@/test_fixtures';
 import {fireEvent, screen, waitFor} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
@@ -296,10 +296,14 @@ it('keeps reasoning on a settled run answer and revises its question by durable 
       _id: string,
       _q: string,
       sinks: {
+        onSources?: (sources: QaSource[]) => void;
         onReasoning?: (text: string) => void;
         onChunk?: (text: string) => void;
       },
     ) => {
+      sinks.onSources?.([
+        {n: 1, evidence_id: 'ev-1', title: 'A paper', state: 'verified'},
+      ]);
       sinks.onReasoning?.('Checking the evidence first.');
       sinks.onChunk?.('Yes, because of the evidence.');
       return 9;
@@ -337,4 +341,86 @@ it('keeps reasoning on a settled run answer and revises its question by durable 
     ),
   );
   expect(apiMock.editInterviewTurn).not.toHaveBeenCalled();
+});
+
+it('streams the interview reply and its reasoning live, then settles on the saved turn', async () => {
+  let finish!: (interview: Interview) => void;
+  apiMock.createInterview.mockImplementation(
+    (
+      _goal: string,
+      sinks: {
+        onReasoning: (text: string) => void;
+        onProse: (text: string) => void;
+      },
+    ) => {
+      sinks.onReasoning('Ask about the mechanism.');
+      sinks.onProse('Which mechanisms');
+      return new Promise<Interview>(resolve => (finish = resolve));
+    },
+  );
+  renderWorkspace();
+  send(GOAL);
+  expect(await screen.findByText('Ask about the mechanism.')).toBeVisible();
+  expect(screen.getByText(/Which mechanisms/)).toBeInTheDocument();
+
+  finish(activeInterview());
+
+  expect(await screen.findByText(QUESTION)).toBeInTheDocument();
+  expect(screen.queryByText('Ask about the mechanism.')).toBeNull();
+});
+
+it('carries a chosen focus and completion email into the created run', async () => {
+  renderWorkspace();
+  send(GOAL);
+  await screen.findByRole('heading', {name: 'Research plan'});
+
+  fireEvent.click(screen.getByLabelText(/Prefer novelty/i));
+  fireEvent.change(
+    screen.getByLabelText('Email me when the Goal Report is ready'),
+    {target: {value: 'scientist@example.com'}},
+  );
+  fireEvent.click(screen.getByText('Start research'));
+
+  await waitFor(() =>
+    expect(apiMock.createRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        focus: 'prefer_novelty',
+        notify_on_completion: true,
+        completion_email: 'scientist@example.com',
+      }),
+      expect.any(Object),
+    ),
+  );
+});
+
+it('revises a prompt that is stopped or fails without losing the saved transcript', async () => {
+  await openInterview();
+  apiMock.getInterview.mockResolvedValue(activeInterview());
+  apiMock.editInterviewTurn.mockImplementationOnce(
+    (
+      _id: string,
+      _turn: number,
+      _text: string,
+      _sinks: unknown,
+      signal: AbortSignal,
+    ) => abortWhenStopped(signal),
+  );
+
+  fireEvent.click(screen.getByLabelText('Edit prompt'));
+  fireEvent.change(screen.getByLabelText('Edit prompt'), {
+    target: {value: 'Revised goal'},
+  });
+  fireEvent.click(screen.getByLabelText('Send edited prompt'));
+  fireEvent.click(await screen.findByRole('button', {name: 'Stop'}));
+
+  await waitFor(() =>
+    expect(apiMock.getInterview).toHaveBeenCalledWith('interview-1'),
+  );
+  expect(await screen.findByText(GOAL)).toBeInTheDocument();
+  expect(screen.queryByText(/aborted/i)).toBeNull();
+
+  apiMock.retryInterviewTurn.mockRejectedValue(new Error('provider down'));
+  fireEvent.click(screen.getAllByLabelText('Retry response').at(-1)!);
+
+  expect(await screen.findByText('provider down')).toBeInTheDocument();
 });

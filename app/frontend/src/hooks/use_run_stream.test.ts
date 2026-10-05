@@ -37,8 +37,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('stream setup', () => {});
-
 it('accumulates streamed events and reports the open state', async () => {
   const body = new FakeSseBody();
   queueFetch(streamingResponse(body));

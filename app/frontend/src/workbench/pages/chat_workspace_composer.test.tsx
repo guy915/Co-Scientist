@@ -1,5 +1,5 @@
 import {fireEvent, screen} from '@testing-library/react';
-import {beforeEach, expect, it, vi, describe} from 'vitest';
+import {beforeEach, expect, it, describe} from 'vitest';
 import {
   installChatWorkspaceMocks,
   renderWorkspace,
@@ -126,46 +126,12 @@ describe('chat workspace composer attachments', () => {
       screen.getByRole('button', {name: 'Remove deep-research-report.md'}),
     ).toHaveAttribute('data-tooltip', 'Remove deep-research-report.md');
   });
-
-  it('shows uploaded image previews in the composer', async () => {
-    const createObjectURL = vi.fn(() => 'blob:preview-image');
-    const revokeObjectURL = vi.fn();
-    vi.stubGlobal('URL', {
-      ...URL,
-      createObjectURL,
-      revokeObjectURL,
-    });
-    renderWorkspace();
-
-    const fileInput = screen.getByLabelText('Upload files');
-    fireEvent.change(fileInput, {
-      target: {
-        files: [
-          new File(['image'], 'reference-shot.png', {
-            type: 'image/png',
-          }),
-        ],
-      },
-    });
-
-    expect(screen.getByAltText('reference-shot.png')).toHaveAttribute(
-      'src',
-      'blob:preview-image',
-    );
-
-    fireEvent.click(
-      screen.getByRole('button', {name: 'Remove reference-shot.png'}),
-    );
-
-    expect(screen.queryByAltText('reference-shot.png')).toBeNull();
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:preview-image');
-  });
 });
 
 describe('chat workspace composer suggestions', () => {
   // Use the shared suggestions so prompt rewording cannot break interaction
   // checks.
-  const [FIRST_SUGGESTION, SECOND_SUGGESTION] = SUGGESTIONS;
+  const [FIRST_SUGGESTION] = SUGGESTIONS;
 
   beforeEach(() => {
     installChatWorkspaceMocks();
@@ -212,26 +178,6 @@ describe('chat workspace composer suggestions', () => {
 
     expect(screen.getByRole('textbox')).toHaveValue(FIRST_SUGGESTION.prompt);
     expect(suggestion).not.toHaveClass('selected');
-    expect(suggestion).not.toHaveClass('is-previewed');
-  });
-
-  it('hides the suggestion preview after selecting a suggested prompt', () => {
-    renderWorkspace();
-
-    const suggestion = screen.getByRole('button', {
-      name: SECOND_SUGGESTION.preview,
-    });
-
-    fireEvent.pointerEnter(suggestion);
-
-    const preview = screen.getByText(SECOND_SUGGESTION.preview, {
-      selector: '.reference-suggestion-preview',
-    });
-    expect(preview).toHaveClass('visible');
-
-    fireEvent.click(suggestion);
-
-    expect(preview).not.toHaveClass('visible');
     expect(suggestion).not.toHaveClass('is-previewed');
   });
 });

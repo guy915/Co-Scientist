@@ -114,6 +114,19 @@ it('resolves system mode live against OS scheme changes', async () => {
   expect(document.documentElement.dataset.theme).toBe('light');
 });
 
+it('subscribes via the legacy addListener API when needed', async () => {
+  const mql = installFakeMatchMedia(false, 'legacy');
+  const {result, unmount} = renderHook(() => useTheme(), {wrapper});
+  await flushThemeTransition();
+
+  act(() => mql.fireChange(true));
+  await flushThemeTransition();
+  expect(result.current.resolvedMode).toBe('dark');
+
+  unmount();
+  expect(mql.removeListener).toHaveBeenCalledWith(expect.any(Function));
+});
+
 it('setMode persists an explicit choice and updates resolvedMode', async () => {
   installFakeMatchMedia(false);
   const {result} = renderHook(() => useTheme(), {wrapper});
@@ -152,13 +165,6 @@ it('lifts the transition freeze after the theme is applied', async () => {
   expect(document.documentElement.classList.contains('theme-switching')).toBe(
     false,
   );
-});
-
-describe('useTheme', () => {
-  beforeEach(() => {
-    // React logs thrown render errors; silence only the expected noise.
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-  });
 });
 
 function cssVar(name: string): string {

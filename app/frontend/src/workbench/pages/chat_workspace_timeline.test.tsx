@@ -1,5 +1,5 @@
 import type {ReactElement} from 'react';
-import {screen, render} from '@testing-library/react';
+import {fireEvent, screen, render} from '@testing-library/react';
 import {expect, it, vi, describe} from 'vitest';
 import {
   buildTimelineItems,
@@ -97,6 +97,32 @@ describe('chat workspace timeline', () => {
     );
 
     expect(screen.queryByLabelText('Edit prompt')).toBeNull();
+  });
+
+  it('renders a confirmed plan read-only, retryable, with inert actions', () => {
+    const spec = makeSpec({goal: 'Confirmed goal'});
+    const args = baseArgs({confirmed: {spec, createdAt: 9}});
+    const items = buildTimelineItems(args);
+    renderItems(items);
+
+    expect(screen.queryByText('Cancel')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Edit plan')).not.toBeInTheDocument();
+    expect(screen.getByText('Start research')).toBeDisabled();
+
+    fireEvent.click(screen.getByLabelText('Retry response'));
+    expect(args.stageDraftSpec).toHaveBeenCalledWith(spec);
+
+    const card = items[0].node as ReactElement<Record<string, () => void>>;
+    for (const inert of [
+      'onFocusChange',
+      'onTierChange',
+      'onNotificationChange',
+      'onFieldsChange',
+      'onCancel',
+      'onStart',
+    ]) {
+      expect(() => card.props[inert]()).not.toThrow();
+    }
   });
 
   it('sorts chronologically, breaking ties on the `order` field', () => {

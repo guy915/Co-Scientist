@@ -46,7 +46,3 @@ describe('availableTierOptions', () => {
     expect(availableTierOptions().some(option => option.disabled)).toBe(false);
   });
 });
-
-describe('isValidCompletionEmail', () => {});
-
-describe('isCompletionEmailValid', () => {});

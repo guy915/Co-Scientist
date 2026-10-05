@@ -11,8 +11,6 @@ import {act, render, screen} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 
 describe('home recents data', () => {
-  describe('formatHomeRunDate', () => {});
-
   const NOW = 10_000;
 
   it('shows total time for a completed run with valid timestamps', () => {

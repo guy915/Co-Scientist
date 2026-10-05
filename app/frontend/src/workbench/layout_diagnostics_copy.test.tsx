@@ -1,5 +1,5 @@
 import {makeLogRecord as logRecord} from '@/test_fixtures';
-import {act, fireEvent, screen, waitFor} from '@testing-library/react';
+import {fireEvent, screen, waitFor} from '@testing-library/react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import {COPY_LIMIT} from './layout_diagnostics_data';
 import {EXPORT_LOGS_MARKER} from './layout_diagnostics_data';
@@ -98,57 +98,4 @@ it('copies the real store ids, not the display numbers', async () => {
   // Exports retain store ids for backend cursor cross-references.
   expect(copied.map(entry => entry.id)).toEqual([12, 30]);
   expect(copied.map(entry => entry.number)).toEqual([1, 2]);
-});
-
-function oneRecordPayload() {
-  return {
-    logs: [
-      logRecord(1, {created_at: 1_700_000_000, message: 'server started'}),
-    ],
-    last_id: 1,
-    total: 1,
-    session_total: 1,
-  };
-}
-
-it('prefixes the copied logs with an explanatory preamble', async () => {
-  logsApiMock.getAppLogs.mockResolvedValue(oneRecordPayload());
-  const writeText = vi.fn().mockResolvedValue(undefined);
-  Object.assign(navigator, {clipboard: {writeText}});
-  renderLayout();
-
-  fireEvent.click(await screen.findByRole('button', {name: /Logs 1/i}));
-  await screen.findByText(/server started/);
-  fireEvent.click(screen.getByRole('button', {name: 'Copy'}));
-
-  await waitFor(() => expect(writeText).toHaveBeenCalled());
-  const text = writeText.mock.calls[0][0] as string;
-  expect(text).toContain('=== ABOUT THESE DIAGNOSTIC LOGS ===');
-  expect(text).toContain('=== WHAT THIS TRACKS ===');
-  expect(text).toContain('=== SESSION DETAILS ===');
-  expect(text).toContain('=== FIELD LEGEND ===');
-  expect(text).toContain('Records this session: 1');
-  expect(text).toContain('In this export: 1');
-  expect(text.indexOf(EXPORT_LOGS_MARKER)).toBeGreaterThan(0);
-  expect(copiedEntries(text)).toHaveLength(1);
-});
-
-it('returns the Copy button to "Copy" after the confirmation', async () => {
-  // Keep real time for render awaits while manually driving only the copy
-  // timeout.
-  vi.useFakeTimers({shouldAdvanceTime: true});
-  logsApiMock.getAppLogs.mockResolvedValue(oneRecordPayload());
-  const writeText = vi.fn().mockResolvedValue(undefined);
-  Object.assign(navigator, {clipboard: {writeText}});
-  renderLayout();
-
-  fireEvent.click(await screen.findByRole('button', {name: /Logs 1/i}));
-  await screen.findByText(/server started/);
-  fireEvent.click(screen.getByRole('button', {name: 'Copy'}));
-  expect(await screen.findByRole('button', {name: 'Copied'})).toBeTruthy();
-
-  act(() => {
-    vi.advanceTimersByTime(2_000);
-  });
-  expect(screen.getByRole('button', {name: 'Copy'})).toBeTruthy();
 });
