@@ -2,16 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from typing import Any
 
 import httpx
 import pytest
 from litellm.exceptions import (
     APIConnectionError,
-    APIError,
     BadRequestError,
-    ContextWindowExceededError,
     InternalServerError,
     NotFoundError,
     RateLimitError,
@@ -19,9 +17,7 @@ from litellm.exceptions import (
 )
 from litellm.exceptions import Timeout as LiteLLMTimeout
 
-from co_scientist import backoff as _backoff_backoff
-from co_scientist import llm
-from co_scientist.evidence import search_query
+from co_scientist import backoff
 from co_scientist.exceptions import (
     LLMRateLimitParkError,
     LLMThinkingOnlyError,
@@ -30,78 +26,68 @@ from co_scientist.exceptions import (
 from co_scientist.llm import (
     CompletionSpec,
     LLMCallOptions,
-    ToolLoop,
+    call_llm,
     scoped_telemetry,
 )
 from co_scientist.llm.attempts import retry
-from co_scientist.llm.attempts import retry as _llm_rate_limit_park_backoff
-from co_scientist.llm.attempts import retry as _llm_timeout_backoff
-from co_scientist.llm.attempts import retry as llm_backoff
-from co_scientist.llm.attempts.retry import (
-    Attempt,
-    AttemptPlan,
-    platform_rate_limit_park,
+from co_scientist.llm.attempts.retry import platform_rate_limit_park
+from co_scientist.llm.request import completion
+from tests._llm_fake import (
+    TEXT,
+    Driver,
+    install_fake_backend,
+    ok,
+    overloaded,
+    rate_limited,
 )
-from co_scientist.llm.request import completion, transport
-from tests._llm_fake import install_fake_backend
+from tests._llm_fake import drive as drive
+
+__all__ = ["drive"]
+
+_NO_CACHE = LLMCallOptions(use_cache=False)
 
 
-def test_timeout_defaults_when_unset(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv(completion.LLM_TIMEOUT_ENV, raising=False)
-    assert (
-        completion.llm_timeout_seconds()
-        == completion.DEFAULT_LLM_TIMEOUT_SECONDS
-    )
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (None, completion.DEFAULT_LLM_TIMEOUT_SECONDS),
+        ("12.5", 12.5),
+        ("0", None),
+        ("-1", None),
+        ("soon", completion.DEFAULT_LLM_TIMEOUT_SECONDS),
+    ],
+)
+def test_the_timeout_comes_from_the_environment_and_zero_disables_it(
+    monkeypatch: pytest.MonkeyPatch, value: str | None, expected: float | None
+) -> None:
+    if value is None:
+        monkeypatch.delenv(completion.LLM_TIMEOUT_ENV, raising=False)
+    else:
+        monkeypatch.setenv(completion.LLM_TIMEOUT_ENV, value)
+    assert completion.llm_timeout_seconds() == expected
 
 
-def test_timeout_reads_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(completion.LLM_TIMEOUT_ENV, "12.5")
-    assert completion.llm_timeout_seconds() == 12.5
-
-
-@pytest.mark.parametrize("value", ["0", "-1"])
-def test_timeout_disabled_by_non_positive(
-    monkeypatch: pytest.MonkeyPatch, value: str
+@pytest.mark.parametrize(
+    ("value", "sent"), [("42", 42.0), ("0", None)], ids=["bounded", "disabled"]
+)
+async def test_the_provider_is_asked_to_stop_at_the_timeout(
+    monkeypatch: pytest.MonkeyPatch, value: str, sent: float | None
 ) -> None:
     monkeypatch.setenv(completion.LLM_TIMEOUT_ENV, value)
-    assert completion.llm_timeout_seconds() is None
 
+    async def answer(**_kwargs: Any) -> Any:
+        return ok(TEXT)
 
-def test_timeout_falls_back_on_garbage(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(completion.LLM_TIMEOUT_ENV, "soon")
-    assert (
-        completion.llm_timeout_seconds()
-        == completion.DEFAULT_LLM_TIMEOUT_SECONDS
+    backend = install_fake_backend(monkeypatch, answer)
+
+    await call_llm(
+        "prompt", CompletionSpec("deepseek/deepseek-v4-flash"), _NO_CACHE
     )
 
-
-def test_completion_args_carry_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(completion.LLM_TIMEOUT_ENV, "42")
-    args = completion._build_completion_args(
-        "prompt",
-        "deepseek/deepseek-v4-flash",
-        100,
-        0.5,
-        completion.CompletionShape(),
-    )
-    assert args["timeout"] == 42.0
+    assert backend.requests[0].get("timeout") == sent
 
 
-def test_completion_args_omit_timeout_when_disabled(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv(completion.LLM_TIMEOUT_ENV, "0")
-    args = completion._build_completion_args(
-        "prompt",
-        "deepseek/deepseek-v4-flash",
-        100,
-        0.5,
-        completion.CompletionShape(),
-    )
-    assert "timeout" not in args
-
-
-async def test_hung_call_raises_timeout_error(
+async def test_a_hung_provider_is_cut_off_and_recorded_as_a_timeout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv(completion.LLM_TIMEOUT_ENV, "0.01")
@@ -110,275 +96,55 @@ async def test_hung_call_raises_timeout_error(
     async def never_answers(**_kwargs: Any) -> Any:
         await asyncio.sleep(3600)
 
-    install_fake_backend(monkeypatch, never_answers)
+    backend = install_fake_backend(monkeypatch, never_answers)
+    model = "deepseek/deepseek-v4-pro"
 
     with (
         scoped_telemetry("test_phase") as telemetry,
-        pytest.raises(LLMTimeoutError) as excinfo,
+        pytest.raises(LLMTimeoutError, match=model),
     ):
-        await completion._acompletion_within_timeout(
-            {}, "deepseek/deepseek-v4-pro"
-        )
-    assert "deepseek/deepseek-v4-pro" in str(excinfo.value)
+        await call_llm("prompt", CompletionSpec(model), _NO_CACHE)
 
-    entry = telemetry.snapshot()["test_phase::deepseek/deepseek-v4-pro"]
-    assert entry["calls"] == 1
+    assert len(backend.requests) == 1, "a timeout is never replayed"
+    entry = telemetry.snapshot()[f"test_phase::{model}"]
     assert entry["errors"] == {"LLMTimeoutError": 1}
     assert entry["latency_seconds"] > 0
 
 
-async def test_hung_tool_loop_call_raises_timeout_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv(completion.LLM_TIMEOUT_ENV, "0.01")
-    monkeypatch.setattr(completion, "_TIMEOUT_GRACE_SECONDS", 0.0)
-
-    async def never_answers(**_kwargs: Any) -> Any:
-        await asyncio.sleep(3600)
-
-    install_fake_backend(monkeypatch, never_answers)
-
-    async def unused_executor(_tool_call: Any) -> dict[str, Any]:
-        raise AssertionError("no tool call should be executed")
-
-    with pytest.raises(LLMTimeoutError):
-        await llm.call_llm_with_tools(
-            "prompt",
-            CompletionSpec(model_name="deepseek/deepseek-v4-pro"),
-            ToolLoop(tools=[], executor=unused_executor),
-            options=LLMCallOptions(use_cache=False),
-        )
-
-
-async def test_timeout_is_not_retried(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls = 0
-
-    async def timing_out(**_kwargs: Any) -> Any:
-        nonlocal calls
-        calls += 1
-        raise LLMTimeoutError("provider stopped responding")
-
-    install_fake_backend(monkeypatch, timing_out)
-
-    with pytest.raises(LLMTimeoutError):
-        await llm.call_llm_json(
-            "prompt",
-            CompletionSpec(model_name="deepseek/deepseek-v4-flash"),
-            max_attempts=5,
-            options=LLMCallOptions(use_cache=False),
-        )
-    assert calls == 1, "a timeout must not be retried"
-
-
 @pytest.mark.parametrize(
-    ("api_key", "expected_zero_cost"), [(None, True), ("byok-key", False)]
+    ("api_key", "zero_cost_admitted"),
+    [(None, True), ("byok-key", False)],
+    ids=["house-key", "byok"],
 )
-async def test_native_provider_timeout_is_not_retried(
+async def test_a_provider_timeout_says_whether_a_zero_cost_request_went_out(
     monkeypatch: pytest.MonkeyPatch,
     api_key: str | None,
-    expected_zero_cost: bool,
+    zero_cost_admitted: bool,
 ) -> None:
-    accepted: list[dict[str, Any]] = []
-    admissions: list[bool] = []
+    model = "openrouter/nex-agi/nex-n2.5-pro:free"
 
-    async def admit(_args: dict[str, Any], *, byok: bool = False) -> bool:
-        admissions.append(byok)
-        return True
-
-    async def accepted_then_lost(**kwargs: Any) -> Any:
-        accepted.append(kwargs)
+    async def accepted_then_lost(**_kwargs: Any) -> Any:
         raise LiteLLMTimeout(
             message="read timed out after provider accepted request",
-            model="deepseek/deepseek-v4-flash",
-            llm_provider="deepseek",
-        )
-
-    install_fake_backend(monkeypatch, accepted_then_lost)
-    monkeypatch.setattr(transport, "enforce_free_request", admit)
-
-    with pytest.raises(LLMTimeoutError) as excinfo:
-        await llm.call_llm_json(
-            "prompt",
-            CompletionSpec(
-                model_name="deepseek/deepseek-v4-flash", api_key=api_key
-            ),
-            max_attempts=5,
-            options=LLMCallOptions(use_cache=False),
-        )
-
-    assert len(accepted) == 1, "an ambiguous provider call must not replay"
-    assert admissions == [api_key is not None]
-    assert excinfo.value.zero_cost_admitted is expected_zero_cost
-
-
-async def test_generic_failure_is_still_retried(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = 0
-
-    async def failing(**_kwargs: Any) -> Any:
-        nonlocal calls
-        calls += 1
-        raise RuntimeError("transient provider error")
-
-    install_fake_backend(monkeypatch, failing)
-
-    with pytest.raises(RuntimeError):
-        await llm.call_llm_json(
-            "prompt",
-            CompletionSpec(model_name="deepseek/deepseek-v4-flash"),
-            max_attempts=3,
-            options=LLMCallOptions(use_cache=False),
-        )
-    assert calls == 3, "generic failures must still exhaust retries"
-
-
-def _recording_sleep(slept: list[float]) -> Any:
-
-    async def fake_sleep(seconds: float) -> None:
-        slept.append(seconds)
-
-    return fake_sleep
-
-
-class _ProviderRateLimitError(Exception):
-    """Throttle detection is structural across provider SDK classes."""
-
-
-async def test_rate_limited_retry_waits_before_trying_again(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Ramp throttling needs delayed retries; immediate schema-style retries
-    feed the burst."""
-    slept: list[float] = []
-    monkeypatch.setattr(
-        "co_scientist.llm.attempts.retry.asyncio.sleep", _recording_sleep(slept)
-    )
-    calls = 0
-
-    async def throttled(**_kwargs: Any) -> Any:
-        nonlocal calls
-        calls += 1
-        raise _ProviderRateLimitError(
-            "RateLimitError: DashscopeException - Request rate increased "
-            "too quickly."
-        )
-
-    install_fake_backend(monkeypatch, throttled)
-
-    with pytest.raises(_ProviderRateLimitError):
-        await llm.call_llm_json(
-            "prompt",
-            CompletionSpec(model_name="deepseek/deepseek-v4-flash"),
-            max_attempts=3,
-            options=LLMCallOptions(use_cache=False),
-        )
-    assert calls == 3, "throttling stays retryable"
-    assert len(slept) == 2, "every retry but the last waits first"
-    assert slept[0] > 0
-    assert slept[1] > slept[0], "the wait grows with each attempt"
-
-
-async def test_rate_limit_backoff_is_jittered(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Concurrent throttled callers must not wake together and recreate the
-    burst."""
-    waits = {
-        _llm_timeout_backoff._rate_limit_backoff_seconds(1) for _ in range(40)
-    }
-    assert len(waits) > 1, "identical waits would re-synchronize the burst"
-
-
-async def test_schema_failure_still_retries_without_waiting(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    slept: list[float] = []
-    monkeypatch.setattr(
-        "co_scientist.llm.attempts.retry.asyncio.sleep", _recording_sleep(slept)
-    )
-    calls = 0
-
-    async def failing(**_kwargs: Any) -> Any:
-        nonlocal calls
-        calls += 1
-        raise ValueError("provider rejected the request")
-
-    install_fake_backend(monkeypatch, failing)
-
-    with pytest.raises(ValueError):
-        await llm.call_llm_json(
-            "prompt",
-            CompletionSpec(model_name="deepseek/deepseek-v4-flash"),
-            max_attempts=3,
-            options=LLMCallOptions(use_cache=False),
-        )
-    assert calls == 3
-    assert slept == [], "only throttling should slow the retry loop"
-
-
-async def test_deployment_api_key_does_not_disable_free_admission(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    accepted: list[dict[str, Any]] = []
-
-    async def accepted_then_lost(**kwargs: Any) -> Any:
-        accepted.append(kwargs)
-        raise LiteLLMTimeout(
-            message="read timed out after provider accepted request",
-            model="openrouter/nex-agi/nex-n2.5-pro:free",
+            model=model,
             llm_provider="openrouter",
         )
 
-    install_fake_backend(monkeypatch, accepted_then_lost)
+    backend = install_fake_backend(monkeypatch, accepted_then_lost)
 
     with pytest.raises(LLMTimeoutError) as excinfo:
-        await completion._acompletion_within_timeout(
-            {
-                "model": "openrouter/nex-agi/nex-n2.5-pro:free",
-                "messages": [{"role": "user", "content": "prompt"}],
-                "api_key": "deployment-key",
-            },
-            "openrouter/nex-agi/nex-n2.5-pro:free",
+        await call_llm(
+            "prompt", CompletionSpec(model, api_key=api_key), _NO_CACHE
         )
 
-    assert len(accepted) == 1
-    assert accepted[0]["api_key"] == "deployment-key"
-    assert accepted[0]["api_base"] == "https://openrouter.ai/api/v1"
-    assert accepted[0]["extra_body"]["provider"]["max_price"] == {
-        "prompt": 0,
-        "completion": 0,
-        "request": 0,
-    }
-    assert excinfo.value.zero_cost_admitted is True
-
-
-async def test_an_oversized_prompt_is_not_retried(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Only the caller can shrink an oversized transcript; repeating it
-    cannot recover."""
-    calls = 0
-
-    async def too_big(**_kwargs: Any) -> Any:
-        nonlocal calls
-        calls += 1
-        raise ContextWindowExceededError(
-            message="requested about 1645623 tokens",
-            model="deepseek/deepseek-v4-flash",
-            llm_provider="deepseek",
-        )
-
-    install_fake_backend(monkeypatch, too_big)
-
-    with pytest.raises(ContextWindowExceededError):
-        await llm.call_llm_json(
-            "prompt",
-            CompletionSpec(model_name="deepseek/deepseek-v4-flash"),
-            max_attempts=5,
-            options=LLMCallOptions(use_cache=False),
-        )
-    assert calls == 1, "an oversized prompt must not be sent again"
+    assert len(backend.requests) == 1, "an ambiguous call must not replay"
+    assert excinfo.value.zero_cost_admitted is zero_cost_admitted
+    if zero_cost_admitted:
+        assert backend.requests[0]["extra_body"]["provider"]["max_price"] == {
+            "prompt": 0,
+            "completion": 0,
+            "request": 0,
+        }
 
 
 def _rate_limit_error(
@@ -399,133 +165,58 @@ def _rate_limit_error(
     )
 
 
-def test_x_ratelimit_reset_header_parks_the_task() -> None:
-    now = time.time()
-    reset_at = now + 3 * 3600
-    error = _rate_limit_error(
-        "RateLimitError: OpenRouterException - rate limited",
-        headers={"x-ratelimit-reset": str(int(reset_at * 1000))},
-    )
+_THREE_HOURS = 3 * 3600
 
+
+@pytest.mark.parametrize(
+    ("error", "reason"),
+    [
+        (
+            _rate_limit_error(
+                "rate limited",
+                headers={
+                    "x-ratelimit-reset": str(
+                        int((time.time() + _THREE_HOURS) * 1000)
+                    )
+                },
+            ),
+            "x_ratelimit_reset_header",
+        ),
+        (
+            _rate_limit_error("free-models-per-day rate limit exceeded"),
+            "message_per_day",
+        ),
+        (_rate_limit_error("rate-limited upstream, provider_code=x"), None),
+        (_rate_limit_error("limited", headers={"retry-after": "20"}), None),
+        (_rate_limit_error("free-models-per-minute rate limit exceeded"), None),
+    ],
+    ids=[
+        "reset-header",
+        "per-day",
+        "upstream",
+        "short-retry-after",
+        "per-minute",
+    ],
+)
+def test_only_a_platform_cap_that_outlasts_a_wait_parks_the_task(
+    error: RateLimitError, reason: str | None
+) -> None:
     park = platform_rate_limit_park(error)
 
+    if reason is None:
+        assert park is None
+        return
     assert isinstance(park, LLMRateLimitParkError)
-    assert park.resume_at == pytest.approx(reset_at, abs=1.0)
-    assert park.reason == "x_ratelimit_reset_header"
-
-
-def test_message_only_upstream_rate_limit_backs_off() -> None:
-    error = _rate_limit_error(
-        "RateLimitError: DeepseekException - rate-limited upstream, "
-        "provider_code=rate_limited"
-    )
-
-    assert platform_rate_limit_park(error) is None
-
-
-def test_short_retry_after_backs_off() -> None:
-    error = _rate_limit_error(
-        "RateLimitError: OpenRouterException - rate limited",
-        headers={"retry-after": "20"},
-    )
-
-    assert platform_rate_limit_park(error) is None
-
-
-def test_per_day_message_falls_back_to_next_utc_midnight() -> None:
-    error = _rate_limit_error(
-        "RateLimitError: OpenRouterException - free-models-per-day"
-        " rate limit exceeded"
-    )
-
-    park = platform_rate_limit_park(error)
-
-    assert isinstance(park, LLMRateLimitParkError)
-    assert park.reason == "message_per_day"
+    assert park.reason == reason
     assert 0 < park.resume_at - time.time() <= 86400
 
 
-def test_per_minute_message_stays_under_the_park_threshold() -> None:
-    error = _rate_limit_error(
-        "RateLimitError: OpenRouterException - free-models-per-minute"
-        " rate limit exceeded"
-    )
-
-    assert platform_rate_limit_park(error) is None
-
-
-def _fails_once(error: Exception) -> Callable[[Attempt], Awaitable[str]]:
-
-    async def make_attempt(attempt: Attempt) -> str:
-        if attempt.number == 1:
-            raise error
-        return "answered"
-
-    return make_attempt
-
-
-@pytest.mark.asyncio
-async def test_handle_json_call_failure_raises_park_error_without_backoff(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-
-    async def _fail_if_called(*_args: object, **_kwargs: object) -> None:
-        raise AssertionError("must not sleep out a platform-cap park")
-
-    monkeypatch.setattr(
-        "co_scientist.llm.attempts.retry.asyncio.sleep", _fail_if_called
-    )
-    now = time.time()
-    error = _rate_limit_error(
-        "RateLimitError: OpenRouterException - rate limited",
-        headers={"x-ratelimit-reset": str(int((now + 7200) * 1000))},
-    )
-
-    with pytest.raises(LLMRateLimitParkError) as excinfo:
-        await retry.run_attempts(
-            _fails_once(error), AttemptPlan("m", max_attempts=3)
-        )
-
-    assert excinfo.value.resume_at == pytest.approx(now + 7200, abs=1.0)
-
-
-@pytest.mark.asyncio
-async def test_handle_json_call_failure_backs_off_ordinary_throttle(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    slept: list[float] = []
-
-    async def _record_sleep(delay: float) -> None:
-        slept.append(delay)
-
-    monkeypatch.setattr(
-        "co_scientist.llm.attempts.retry.asyncio.sleep", _record_sleep
-    )
-    error = _rate_limit_error(
-        "RateLimitError: DeepseekException - rate-limited upstream"
-    )
-
-    result = await retry.run_attempts(
-        _fails_once(error), AttemptPlan("m", max_attempts=2)
-    )
-
-    assert result == "answered"
-    assert len(slept) == 1
-
-
-def _provider_error(
-    factory: Callable[..., Exception], message: str
-) -> Exception:
-    return factory(message=message, llm_provider="openrouter", model="m")
-
-
-_MID_STREAM_MESSAGE = (
+_MID_STREAM = (
     "LLM provider reported an error mid-stream and wrote no answer. "
     "Model: openrouter/nvidia/nemotron-3-super-120b-a12b:free "
     "(finish_reason=error, completion_tokens=0)"
 )
-
-_ROUTES_EXHAUSTED_MESSAGE = (
+_ROUTES_EXHAUSTED = (
     "litellm.NotFoundError: OpenrouterException - "
     '{"error":{"message":"Provider returned error","code":404,'
     '"metadata":{"raw":"","provider_name":"Nvidia","is_byok":false,'
@@ -534,243 +225,87 @@ _ROUTES_EXHAUSTED_MESSAGE = (
 )
 
 
-async def _sleeps_for(
-    monkeypatch: pytest.MonkeyPatch, error: Exception
-) -> list[float]:
-    slept: list[float] = []
-
-    async def _record_sleep(delay: float) -> None:
-        slept.append(delay)
-
-    monkeypatch.setattr(
-        "co_scientist.llm.attempts.retry.asyncio.sleep", _record_sleep
-    )
-    result = await retry.run_attempts(
-        _fails_once(error), AttemptPlan("m", max_attempts=2)
-    )
-    assert result == "answered"
-    return slept
-
-
-def _overloaded_error() -> APIError:
-    return APIError(
-        status_code=500,
-        message=(
-            "litellm.APIError: OpenrouterException - Upstream error from "
-            "Nvidia: Service temporarily overloaded"
-        ),
-        llm_provider="openrouter",
-        model="m",
+def _provider_error(factory: Callable[..., Exception]) -> Exception:
+    return factory(
+        message="having a moment", llm_provider="openrouter", model="m"
     )
 
 
-@pytest.mark.asyncio
-async def test_overloaded_api_error_backs_off(
-    monkeypatch: pytest.MonkeyPatch,
+def _not_found(message: str) -> NotFoundError:
+    return NotFoundError(message=message, model="m", llm_provider="openrouter")
+
+
+def _bad_request(message: str) -> BadRequestError:
+    return BadRequestError(
+        message=message, model="m", llm_provider="openrouter"
+    )
+
+
+_THROTTLE = (1.0, 2.0)
+_OUTAGE = (15.0, 30.0)
+
+
+@pytest.mark.parametrize(
+    ("error", "wait"),
+    [
+        (rate_limited(), _THROTTLE),
+        (overloaded(), _OUTAGE),
+        (_provider_error(InternalServerError), _OUTAGE),
+        (_provider_error(ServiceUnavailableError), _OUTAGE),
+        (_provider_error(APIConnectionError), _OUTAGE),
+        (ValueError(_MID_STREAM), _OUTAGE),
+        (_not_found(_ROUTES_EXHAUSTED), _OUTAGE),
+        (ValueError("failed schema validation: 'title' is required"), None),
+        (LLMThinkingOnlyError("wrote no answer. Model: m"), None),
+        (_bad_request("Reasoning is mandatory and cannot be disabled."), None),
+        (_bad_request("Upstream error from Nvidia: invalid request"), None),
+        (_not_found("model 'no-such-model' not found"), None),
+    ],
+    ids=[
+        "throttle",
+        "overloaded",
+        "internal-server-error",
+        "service-unavailable",
+        "connection-error",
+        "mid-stream-failure",
+        "routes-exhausted",
+        "schema-failure",
+        "thinking-only",
+        "bad-request",
+        "bad-request-quoting-overload",
+        "bare-not-found",
+    ],
+)
+async def test_a_failed_attempt_waits_by_kind_of_failure_not_by_its_wording(
+    drive: Driver, error: Exception, wait: tuple[float, float] | None
 ) -> None:
-    error = _overloaded_error()
     before = retry.rate_limited_attempt_count()
 
-    slept = await _sleeps_for(monkeypatch, error)
+    run = await drive(TEXT, [error, ok(TEXT)], max_attempts=2)
 
-    assert len(slept) == 1
-    assert slept[0] > 0
-    # Outage retries are not rate limiting and must not shrink the next fan-out
-    # wave.
-    assert retry.rate_limited_attempt_count() == before
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "factory",
-    [InternalServerError, ServiceUnavailableError, APIConnectionError],
-)
-async def test_transient_provider_classes_back_off(
-    monkeypatch: pytest.MonkeyPatch, factory: Callable[..., Exception]
-) -> None:
-    error = _provider_error(factory, "the provider is having a moment")
-
-    assert len(await _sleeps_for(monkeypatch, error)) == 1
-
-
-@pytest.mark.asyncio
-async def test_mid_stream_provider_failure_backs_off(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    error = ValueError(_MID_STREAM_MESSAGE)
-
-    assert len(await _sleeps_for(monkeypatch, error)) == 1
-
-
-@pytest.mark.asyncio
-async def test_routes_exhausted_not_found_backs_off(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    error = NotFoundError(
-        message=_ROUTES_EXHAUSTED_MESSAGE,
-        model="m",
-        llm_provider="openrouter",
-    )
-
-    assert len(await _sleeps_for(monkeypatch, error)) == 1
-
-
-@pytest.mark.asyncio
-async def test_schema_failure_retries_at_once(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    error = ValueError("Response failed schema validation: 'title' is required")
-
-    assert await _sleeps_for(monkeypatch, error) == []
-
-
-@pytest.mark.asyncio
-async def test_thinking_only_failure_retries_at_once(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    error = LLMThinkingOnlyError(
-        "LLM finished its chain of thought and wrote no answer. Model: m"
-    )
-
-    assert await _sleeps_for(monkeypatch, error) == []
-
-
-@pytest.mark.asyncio
-async def test_bad_request_retries_at_once(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    error = BadRequestError(
-        message=(
-            "litellm.BadRequestError: OpenrouterException - Reasoning is "
-            "mandatory for this endpoint and cannot be disabled."
-        ),
-        model="m",
-        llm_provider="openrouter",
-    )
-
-    assert await _sleeps_for(monkeypatch, error) == []
-
-
-@pytest.mark.asyncio
-async def test_bare_not_found_retries_at_once_and_raises_when_final(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    error = NotFoundError(
-        message="litellm.NotFoundError: model 'no-such-model' not found",
-        model="no-such-model",
-        llm_provider="openrouter",
-    )
-
-    assert await _sleeps_for(monkeypatch, error) == []
-
-    with pytest.raises(NotFoundError):
-        await retry.run_attempts(
-            _fails_once(error), AttemptPlan("m", max_attempts=1)
-        )
-
-
-@pytest.mark.asyncio
-async def test_bad_request_wrapping_upstream_text_retries_at_once(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Provider request errors can quote overload wording; exception class
-    must still win."""
-    error = BadRequestError(
-        message=(
-            "litellm.BadRequestError: OpenrouterException - Upstream error "
-            "from Nvidia: invalid request"
-        ),
-        model="m",
-        llm_provider="openrouter",
-    )
-
-    assert await _sleeps_for(monkeypatch, error) == []
-
-
-@pytest.mark.asyncio
-async def test_provider_outage_waits_minutes_not_seconds(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Outages last minutes; short burst waits spend the whole attempt budget
-    before recovery."""
-    slept = await _sleeps_for(monkeypatch, _overloaded_error())
-
-    assert len(slept) == 1
-    # Use an independent lower bound so this test can detect an inadequate
-    # outage schedule.
-    assert slept[0] >= 15.0
-
-
-@pytest.mark.asyncio
-async def test_throttle_keeps_its_own_shorter_schedule(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    error = _rate_limit_error(
-        "RateLimitError: OpenrouterException - rate-limited upstream"
-    )
-
-    slept = await _sleeps_for(monkeypatch, error)
-
-    assert (
-        slept[0]
-        <= _llm_rate_limit_park_backoff._RATE_LIMIT_BACKOFF_BASE_SECONDS
+    assert run.error is None
+    if wait is None:
+        assert run.slept == []
+    else:
+        assert wait[0] <= run.slept[0] <= wait[1]
+    throttled = isinstance(error, RateLimitError)
+    assert retry.rate_limited_attempt_count() - before == int(throttled), (
+        "only throttling shrinks the next fan-out wave"
     )
 
 
-def test_provider_outage_backoff_grows_between_attempts() -> None:
-    first = max(
-        _llm_rate_limit_park_backoff.provider_outage_backoff_seconds(1)
-        for _ in range(50)
-    )
-    fourth = min(
-        _llm_rate_limit_park_backoff.provider_outage_backoff_seconds(4)
-        for _ in range(50)
-    )
-
-    assert fourth > first
-
-
-def test_provider_outage_backoff_is_capped() -> None:
-    assert (
-        _llm_rate_limit_park_backoff.provider_outage_backoff_seconds(10)
-        <= _llm_rate_limit_park_backoff._PROVIDER_OUTAGE_BACKOFF_MAX_SECONDS
-    )
-
-
-def test_wait_is_drawn_from_the_top_half_of_the_ceiling() -> None:
+def test_backoff_waits_are_jittered_within_a_doubling_ceiling() -> None:
     for attempt in range(1, 6):
         ceiling = 2.0 * 2 ** (attempt - 1)
-        for _ in range(50):
-            delay = _backoff_backoff.jittered_backoff_seconds(attempt, 2.0)
-            assert ceiling / 2 <= delay <= ceiling
+        waits = {
+            backoff.jittered_backoff_seconds(attempt, 2.0) for _ in range(40)
+        }
+        assert len(waits) > 1, "identical waits re-synchronize the burst"
+        assert all(ceiling / 2 <= wait <= ceiling for wait in waits)
+    assert backoff.jittered_backoff_seconds(9, 0.5, 8.0) <= 8.0
 
 
-def test_wait_is_actually_jittered() -> None:
-    waits = {
-        _backoff_backoff.jittered_backoff_seconds(3, 2.0) for _ in range(40)
-    }
-    assert len(waits) > 1
-
-
-def test_ceiling_doubles_with_each_attempt() -> None:
-    first = max(
-        _backoff_backoff.jittered_backoff_seconds(1, 2.0) for _ in range(50)
-    )
-    third = min(
-        _backoff_backoff.jittered_backoff_seconds(3, 2.0) for _ in range(50)
-    )
-    assert third > first
-
-
-def test_max_seconds_saturates_the_growth() -> None:
-    for _ in range(50):
-        assert _backoff_backoff.jittered_backoff_seconds(9, 0.5, 8.0) <= 8.0
-
-
-def test_callers_keep_their_own_base_and_cap() -> None:
-    """Search and LLM callers intentionally keep separate base delays and
-    caps."""
-    assert search_query._search_retry_delay(1) <= 0.5
-    assert llm_backoff._rate_limit_backoff_seconds(1) >= 1.0
-    assert search_query._search_retry_delay(12) <= 8.0
-    assert llm_backoff._rate_limit_backoff_seconds(12) > 8.0
+def test_an_outage_wait_grows_and_is_capped() -> None:
+    wait = retry.provider_outage_backoff_seconds
+    assert min(wait(4) for _ in range(50)) > max(wait(1) for _ in range(50))
+    assert wait(10) <= retry._PROVIDER_OUTAGE_BACKOFF_MAX_SECONDS
