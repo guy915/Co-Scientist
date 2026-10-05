@@ -416,22 +416,24 @@ def test_configured_search_and_enrichment_tools_accept_their_params(
     validation = registry.get_tools_for_workflow("validation")
     assert validation, "the default config must configure validation tools"
     for tool_id in validation:
-        tool_config = registry.get_tool(tool_id)
-        assert tool_config is not None
-        if tool_config.category in ("search", "search_with_content"):
+        validation_tool = registry.get_tool(tool_id)
+        assert validation_tool is not None
+        if validation_tool.category in ("search", "search_with_content"):
             _assert_callable(
-                tool_config, tool_config.map_parameters(canonical), accepted
+                validation_tool,
+                validation_tool.map_parameters(canonical),
+                accepted,
             )
 
     workflow = registry.get_workflow("literature_review")
     assert workflow is not None
     assert workflow.context_enrichment_tools
     for tool_id in workflow.context_enrichment_tools:
-        tool_config = registry.get_tool(tool_id)
-        assert tool_config is not None
+        enrichment_tool = registry.get_tool(tool_id)
+        assert enrichment_tool is not None
         entity = _build_enrichment_canonical_params("MCR-1")
         _assert_callable(
-            tool_config, tool_config.map_parameters(entity), accepted
+            enrichment_tool, enrichment_tool.map_parameters(entity), accepted
         )
 
 

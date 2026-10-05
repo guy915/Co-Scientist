@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
+from functools import partial
 from typing import Any
 
 import pytest
@@ -165,7 +166,8 @@ _BUILDERS: dict[str, tuple[Callable[[], Any], list[str]]] = {
     ),
     **{
         f"query_{source}": (
-            lambda source=source: get_literature_review_query_generation_prompt(
+            partial(
+                get_literature_review_query_generation_prompt,
                 research_goal="find biomarkers for sepsis",
                 source_type=source,
                 inputs=LiteratureQueryInputs(
