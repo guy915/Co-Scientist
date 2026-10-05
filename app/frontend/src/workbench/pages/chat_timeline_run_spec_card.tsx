@@ -210,7 +210,7 @@ function SpecOptionGroups({
         name="focus"
         value={spec.focus}
         options={FOCUS_OPTIONS}
-        disabled={locked}
+        locked={locked}
         onChange={value => onFocusChange(value as RunFocus)}
       />
       <RunOptionGroup
@@ -218,7 +218,7 @@ function SpecOptionGroups({
         name="tier"
         value={spec.tier}
         options={availableTierOptions()}
-        disabled={locked}
+        locked={locked}
         onChange={value => onTierChange(value as RunTier)}
       />
     </>
@@ -368,17 +368,26 @@ interface OptionCardProps {
   option: RunOptionGroupOption;
   name: string;
   selected: boolean;
-  disabled: boolean;
+  locked: boolean;
   onChange: (value: string) => void;
 }
 
+// A saved plan is a record, so it reads at full contrast without hover
+// affordances; only an option unavailable to choose is faded.
+function optionCardState(locked: boolean, unavailable: boolean): string {
+  if (locked) return 'cursor-default';
+  if (unavailable) return 'cursor-not-allowed opacity-50';
+  return 'cursor-pointer hover:bg-cosci-option-hover-bg has-[:focus-visible]:border-cosci-option-hover-border has-[:focus-visible]:bg-cosci-option-hover-bg';
+}
+
 function OptionCard(props: OptionCardProps) {
-  const {option, name, selected, disabled, onChange} = props;
+  const {option, name, selected, locked, onChange} = props;
+  const unavailable = Boolean(option.disabled);
   return (
     <label
       className={joinClasses(
-        'reference-option-card relative grid min-h-[4.75rem] grid-cols-[1.6rem_minmax(0,1fr)] content-start gap-x-[0.8rem] rounded-[0.65rem] border border-transparent bg-cosci-option-bg px-[0.95rem] py-[0.85rem] text-cosci-fg hover:bg-cosci-option-hover-bg has-[:focus-visible]:border-cosci-option-hover-border has-[:focus-visible]:bg-cosci-option-hover-bg',
-        disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
+        'reference-option-card relative grid min-h-[4.75rem] grid-cols-[1.6rem_minmax(0,1fr)] content-start gap-x-[0.8rem] rounded-[0.65rem] border border-transparent bg-cosci-option-bg px-[0.95rem] py-[0.85rem] text-cosci-fg',
+        optionCardState(locked, unavailable),
       )}
     >
       <input
@@ -387,7 +396,7 @@ function OptionCard(props: OptionCardProps) {
         name={name}
         value={option.id}
         checked={selected}
-        disabled={disabled}
+        disabled={locked || unavailable}
         onChange={() => onChange(option.id)}
       />
       <span
@@ -413,14 +422,14 @@ function RunOptionGroup({
   name,
   value,
   options,
-  disabled = false,
+  locked,
   onChange,
 }: {
   label: string;
   name: string;
   value: string;
   options: readonly RunOptionGroupOption[];
-  disabled?: boolean;
+  locked: boolean;
   onChange: (value: string) => void;
 }) {
   return (
@@ -433,7 +442,7 @@ function RunOptionGroup({
             option={option}
             name={name}
             selected={option.id === value}
-            disabled={disabled || Boolean(option.disabled)}
+            locked={locked}
             onChange={onChange}
           />
         ))}

@@ -319,7 +319,7 @@ function TimelineSection({
   return (
     <section
       ref={scrollRef}
-      className="reference-chat-timeline flex-1 overflow-y-auto px-4 pt-5"
+      className="reference-chat-timeline flex-1 overflow-x-hidden overflow-y-auto px-4 pt-5"
     >
       <div className={CHAT_COLUMN_CLASSES}>
         {timelineItems.map(item => (
@@ -374,7 +374,10 @@ function ComposerSection(props: ComposerSectionProps) {
     handleStop,
   } = props.session;
   return (
-    <div ref={props.composerRef} className="reference-chat-composer px-4 pb-8">
+    <div
+      ref={props.composerRef}
+      className="reference-chat-composer px-4 pb-8 max-[700px]:pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+    >
       <div className={CHAT_COLUMN_CLASSES}>
         <Composer
           input={input}
