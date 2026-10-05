@@ -9,7 +9,7 @@ import {
 import type {ShellPanel} from './layout';
 import {NAV_ICON_CLASSES, ShellPopover} from './layout_primitives';
 import {tooltipClassNames} from './classes';
-import type {ChatSummary} from '@/api/runs';
+import type {ChatSummary, Run} from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
 import {TruncatedLabel} from './components/truncated_label';
 import {useFittingRows, useOverflowing} from './hooks/dom';
@@ -338,9 +338,37 @@ function isActiveChat(chat: ChatSummary, rail: ChatRailData): boolean {
   return Boolean(chat.run_id) && chat.run_id === rail.activeRunId;
 }
 
+const EXAMPLE_ENTRY_PREFIX = 'example:';
+
+// Curated examples sit in Chats for every visitor, which also makes them
+// reachable on phones. Opening one creates the visitor's private copy, which
+// then lists as an ordinary chat and replaces the entry.
+export function withExampleEntries(
+  chats: ChatSummary[],
+  history: Run[],
+): ChatSummary[] {
+  const opened = new Set(
+    history.map(run => run.config.example_source_id).filter(Boolean),
+  );
+  const entries = history
+    .filter(run => run.is_demo && !opened.has(run.id))
+    .map(run => ({
+      id: `${EXAMPLE_ENTRY_PREFIX}${run.id}`,
+      title: run.title ?? null,
+      challenge: run.research_goal,
+      status: 'completed' as const,
+      run_id: null,
+      created_at: run.created_at,
+      updated_at: run.updated_at,
+    }));
+  return [...chats, ...entries];
+}
+
 // Started sessions default to their run; explicit last-viewed side takes
 // precedence so history reopens where the reader left off.
 function chatPath(chat: ChatSummary): string {
+  if (chat.id.startsWith(EXAMPLE_ENTRY_PREFIX))
+    return `/examples/${chat.id.slice(EXAMPLE_ENTRY_PREFIX.length)}`;
   if (!chat.run_id) return `/chats/${chat.id}`;
   return preferredSessionSide(chat.run_id) === 'chat'
     ? `/chats/${chat.id}`

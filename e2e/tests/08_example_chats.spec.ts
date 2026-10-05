@@ -11,7 +11,12 @@ for (const theme of ['light', 'dark']) {
       theme,
     );
     const demos = await api.listDemoRuns();
-    await page.goto(`/examples/${demos[0].id}`);
+    // Phones have no Recents; the sidebar's Chats list carries the examples.
+    await page.goto('/');
+    await page.getByRole('button', {name: 'Open navigation'}).click();
+    const sidebarExample = page.locator(`a[href="/examples/${demos[0].id}"]`);
+    await expect(sidebarExample).toBeVisible();
+    await sidebarExample.click();
     await expect(page).toHaveURL(/\/chats\//);
     const chatUrl = page.url();
     await expect(page.getByLabel('Inferred run setup')).toBeAttached();
