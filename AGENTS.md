@@ -15,9 +15,8 @@ This is a research/reference workspace organized around replicating Google's AI 
 - `docs/` — live project docs; `docs/README.md` indexes them (`ARCHITECTURE.md`, `CI.md`, `DEPLOYMENT.md`, `OPERATIONS.md`, `RUNNING-LOCALLY.md`, `LAUNCH.md`); retired guides, audits and screenshots remain in immutable Git history
 - `.github/` — GitHub Actions. `ci.yml` runs as presubmit (on `pull_request`, with `dorny/paths-filter` job-level path filters, superseded runs cancelled) and as postsubmit (on push to `main`: every job, never cancelled); `nightly.yml` re-runs the whole pipeline on cron via `workflow_call`. Every CI command is hermetic — no network, no API keys, no retries — so a test needing a provider key must be skipped or offline. Rationale in `docs/CI.md`.
 - `.remember/` — session handoff notes (`remember.md` is the live handoff file; also `now.md`, `recent.md`, daily logs, `logs/`, `tmp/`)
-- `PLAN.md` — the active lean campaign: what stays, what goes, documentation policy, phases and rules; use `docs/LAUNCH.md` for launch work.
+- `PLAN.md` — the active test campaign: what stays tested, what goes, the coverage guard, phases and rules; use `docs/LAUNCH.md` for launch work.
 - `Makefile` — root-level build orchestration (`setup`, `start`, `dev-api`, `dev-ui`, `dev-mcp`, `test`, `test-app`, `test-engine`, `test-mcp`, `test-all`, `test-frontend`, `check`, `docker-build`, `e2e`, `test-evaluations`, `eval-smoke`, `lint`, `typecheck`, `build`, `clean`, `stop`, `reset-db`)
-- `CLAUDE.md` — symlink to this file (same pairing in `app/` and `engine/`)
 - `README.md` — project overview, features, installation, and usage
 
 **Root Makefile targets**: `setup`, `start`, `stop`, `dev-api`, `dev-ui`, `dev-mcp`, `dev-all`, `test`, `test-app`, `test-engine`, `test-mcp`, `test-all`, `test-frontend`, `check`, `docker-build`, `e2e`, `test-evaluations`, `eval-smoke`, `lint`, `typecheck`, `build`, `clean`, `reset-db`. **`make start` is the single entry point** — installs missing deps, frees ports 8008/5173/8888, runs MCP + API + UI together, opens the browser. There is no `make dev`. Note the asymmetries: `make test-all` is engine + app + mcp_server pytest, frontend Vitest **plus the evaluation harness tests**; `make lint` also covers `evaluations/`; `make typecheck` covers `app/`, the engine, and `evaluations/` (the mcp_server's strict mypy runs inside `make test-mcp` instead, from the dedicated 3.12 venv at `.venv-mcp`).
@@ -68,6 +67,13 @@ Read the relevant entries before editing their implementation. In particular:
 - The `engine/` and `app/` directories are vendored as plain directories (not submodules). `co-scientist-engine` is not published to PyPI; it's installed editable from the local checkout (`pip install -e ../engine`, which `make setup` and the Dockerfiles do). Where the app is installed with `--no-deps` (make setup, CI, the compose dev image), its runtime deps come from the single-source list `app/requirements-app.txt` — keep it in sync with `app/pyproject.toml`.
 - Both the app (`app/`) and the engine (`engine/`) have committed pytest suites under `tests/`. `mypy .` is strict-clean for each, tests included (both exclude their `dev/` scripts; the engine also excludes the separate `mcp_server` package). `mcp_server/` is its own project with its own `tests/` — run `pytest` *and* `mypy .` from `engine/mcp_server/`. `evaluations/` likewise has its own suite, reached via `make test-evaluations`.
 - When invoked from this workspace, `.remember/remember.md` is the session-handoff file — read/update it per the `remember` skill instructions.
+
+## Documentation policy
+
+- **Hidden reasons only.** A comment or docstring survives only for a reason the code can't show: why something is the way it is, an invariant, or an outside fact. Keep it to about two lines.
+- **Delete what restates code:** Args/Returns/Raises blocks, narration, `Attributes:` lists repeating fields, and dated finding or ADR references. Long incident histories belong in `docs/OPERATIONS.md`, compressed to their lesson.
+- **Test names carry the behavior.** Test docstrings and comments go unless they explain a non-obvious reason.
+- **Runtime content is not documentation:** MCP tool docstrings become the model's tool descriptions, and schema field descriptions are sent to the model. Both stay.
 
 ## Required environment
 

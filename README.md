@@ -120,7 +120,7 @@ remain explicit opt-in operations.
 | `docs/` | [Documentation index](docs/README.md), architecture, operations, and launch guidance |
 | `.github/` | CI, nightly checks, dependency updates, and review template |
 | `vendor/` | Unmodified third-party science skills; provenance in [NOTICE](NOTICE) |
-| `PLAN.md` | Active lean campaign plan |
+| `PLAN.md` | Active test campaign plan |
 
 Start with [architecture](docs/ARCHITECTURE.md),
 [launch readiness](docs/LAUNCH.md), and [contributor guidance](AGENTS.md).
