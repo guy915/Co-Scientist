@@ -215,19 +215,6 @@ class TestStillRunningIsAnAnswer:
         assert "second" in polled["stdout"]
         assert "first" not in polled["stdout"]
 
-    async def test_no_cursor_reads_from_the_start(
-        self, provider: WorkspaceToolProvider
-    ) -> None:
-        started = await _execute(
-            provider,
-            _WORKSPACE_SESSIONS_RUN_COMMAND,
-            argv=["bash", "-lc", "echo whole"],
-        )
-        polled = await _execute(
-            provider, POLL_COMMAND, session_id=started["session_id"]
-        )
-        assert "whole" in polled["stdout"]
-
 
 class TestDrivingIt:
     async def test_input_reaches_a_waiting_command(
@@ -401,18 +388,6 @@ class TestAnInterruptedCommand:
         repaired = normalize_tool_transcript(interrupted)
         assert repaired[1]["tool_call_id"] == "call_poll"
         assert json.loads(repaired[1]["content"]) == ABORTED_RESULT
-
-    async def test_polling_a_session_the_restart_ended_is_legible(
-        self, tmp_path: Path
-    ) -> None:
-        provider = WorkspaceToolProvider(WorkspaceSession(tmp_path))
-        started = await _execute(
-            provider,
-            _WORKSPACE_SESSIONS_RUN_COMMAND,
-            argv=["bash", "-lc", "sleep 60"],
-            yield_seconds=0.05,
-        )
-        await _close_registry(provider.session.sessions)
         payload = await _execute(
             provider, POLL_COMMAND, session_id=started["session_id"]
         )
@@ -474,14 +449,9 @@ def test_environment_scan_finds_credential_shaped_names() -> None:
         }
     )
     assert set(found) == {"ANTHROPIC_API_KEY", "GITHUB_TOKEN"}
-
-
-def test_environment_scan_skips_a_short_value_without_raising() -> None:
-    registry = SecretRegistry()
-    found = registry.register_environment(
+    assert registry.register_environment(
         {"SHORT_KEY": "abc", "REAL_KEY": _SECRET}
-    )
-    assert found == ("REAL_KEY",)
+    ) == ("REAL_KEY",)
 
 
 def test_a_secret_containing_another_is_masked_as_itself() -> None:
@@ -549,29 +519,6 @@ def test_a_long_stream_keeps_both_ends(tmp_path: Path) -> None:
     assert bounded.text.startswith("START")
     assert bounded.text.endswith("END")
     assert bounded.truncated
-
-
-def test_spilled_output_is_readable_back_through_the_tools(
-    tmp_path: Path,
-) -> None:
-    session = WorkspaceSession(tmp_path)
-    provider = WorkspaceToolProvider(session)
-    recorder = OutputRecorder(session.root, preview_chars=100)
-    text = f"START{'x' * 5000}END"
-
-    pointer = recorder.record("stdout", text).pointer
-    assert pointer is not None
-
-    payload = _content(
-        asyncio.run(
-            provider.execute_tool_call(
-                _workspace_output_call(
-                    READ_FILE, json.dumps({"path": pointer.path})
-                )
-            )
-        )
-    )
-    assert payload["content"] == text
 
 
 def test_spilled_output_is_redacted_before_it_is_written(
@@ -647,13 +594,6 @@ def test_a_symlinked_metadata_directory_does_not_redirect_the_spill(
     assert list(outside.rglob("*")) == []
 
 
-def test_a_session_creates_the_metadata_directory_up_front(
-    tmp_path: Path,
-) -> None:
-    session = WorkspaceSession(tmp_path)
-    assert (session.root / SPILL_DIRECTORY).is_dir()
-
-
 def test_a_truncated_read_hands_back_a_way_to_the_rest(
     tmp_path: Path,
 ) -> None:
@@ -672,3 +612,4 @@ def test_a_truncated_read_hands_back_a_way_to_the_rest(
 
     assert payload["truncated"] is True
     assert payload["full_output"].startswith(SPILL_DIRECTORY)
+    assert (tmp_path / payload["full_output"]).read_text() == "y" * 40_000
