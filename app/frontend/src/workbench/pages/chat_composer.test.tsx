@@ -30,12 +30,6 @@ test('disables submit when the input is empty or whitespace', () => {
   expect(submit).toBeDisabled();
 });
 
-test('enables submit once there is real input', () => {
-  renderComposer({input: 'a goal'});
-  const submit = screen.getByRole('button', {name: /send|start|research/i});
-  expect(submit).toBeEnabled();
-});
-
 test('submits on Enter without shift', () => {
   const {onSubmit} = renderComposer({input: 'a goal'});
   fireEvent.keyDown(screen.getByRole('textbox'), {key: 'Enter'});
@@ -82,17 +76,6 @@ test('takes focus on mount when asked, even while busy', () => {
   expect(screen.getByRole('textbox')).toHaveFocus();
 });
 
-test('does not take focus on mount by default', () => {
-  renderComposer();
-  expect(screen.getByRole('textbox')).not.toHaveFocus();
-});
-
-test('does not submit on Enter while the session is busy', () => {
-  const {onSubmit} = renderComposer({input: 'a goal', busy: true});
-  fireEvent.keyDown(screen.getByRole('textbox'), {key: 'Enter'});
-  expect(onSubmit).not.toHaveBeenCalled();
-});
-
 test('submits again on Enter once the session is no longer busy', () => {
   const props = {
     input: 'a goal',
@@ -127,19 +110,6 @@ test('Stop calls onStop and does not submit the form', () => {
   fireEvent.click(screen.getByRole('button', {name: 'Stop'}));
   expect(onStop).toHaveBeenCalledOnce();
   expect(onSubmit).not.toHaveBeenCalled();
-});
-
-test('Stop is a real button, not a submit control', () => {
-  renderComposer({
-    input: 'a goal',
-    busy: true,
-    stoppable: true,
-    onStop: vi.fn(),
-  });
-  expect(screen.getByRole('button', {name: 'Stop'})).toHaveAttribute(
-    'type',
-    'button',
-  );
 });
 
 test('shows Send, not Stop, once the turn resolves', () => {

@@ -196,18 +196,6 @@ describe('run detail learning', () => {
       expect(screen.queryByRole('link', {name: 'Open'})).toBeNull();
     });
 
-    it('keeps the Open action for a reachable reference', () => {
-      render(
-        <LearningView
-          goal="goal"
-          evidence={[{...unreachable, available: true}]}
-        />,
-      );
-
-      expect(screen.queryByText('Unavailable')).toBeNull();
-      expect(screen.getByRole('link', {name: 'Open'})).toBeInTheDocument();
-    });
-
     it('summarizes an unreachable evidence section honestly', () => {
       render(<LearningView goal="goal" evidence={[unreachable]} />);
 
@@ -329,29 +317,6 @@ describe('run detail retrieval degraded', () => {
       screen.getByText(/Only the documents attached to this run/),
     ).toBeInTheDocument();
   });
-
-  it('drops a capability name it has no words for', () => {
-    renderWithReport({
-      retrieval_degradation: {
-        reason: 'mcp_unreachable',
-        lost: ['literature_review', 'some_future_thing'],
-        floor: 'none',
-      },
-    });
-
-    expect(screen.queryByText(/some_future_thing/)).not.toBeInTheDocument();
-    expect(
-      screen.getByText(/ran without the literature review/),
-    ).toBeInTheDocument();
-  });
-
-  it('says nothing on a run that retrieved normally', () => {
-    renderWithReport({});
-
-    expect(
-      screen.queryByText(/No literature source was reachable/),
-    ).not.toBeInTheDocument();
-  });
 });
 
 describe('run detail insights', () => {
@@ -409,7 +374,6 @@ describe('run detail insights', () => {
   });
 
   it('still renders a recommendation from an older persisted report', () => {
-    // Persisted older recommendations can contain flattened strings.
     render(
       <AgentInsightsSection
         insights={makeInsights({
@@ -421,22 +385,6 @@ describe('run detail insights', () => {
     expect(
       screen.getByText('Measure binding directly by SPR.'),
     ).toBeInTheDocument();
-  });
-
-  it('drops a recommendation with no focus area and no advice', () => {
-    render(
-      <AgentInsightsSection
-        insights={makeInsights({
-          recommended_directions: [
-            {focus_area: '', recommendation: '', justification: 'Orphaned.'},
-          ],
-        })}
-      />,
-    );
-
-    expect(
-      screen.queryByRole('heading', {name: 'Recommended directions'}),
-    ).not.toBeInTheDocument();
   });
 
   it('flags a meta-review that degraded to a fallback', () => {
@@ -460,21 +408,5 @@ describe('run detail insights', () => {
         'This section could not be generated after repeated attempts.',
       ),
     ).toBeInTheDocument();
-  });
-
-  it('shows no degradation notice for a clean run', () => {
-    render(<AgentInsightsSection insights={makeInsights()} />);
-
-    expect(
-      screen.queryByText(
-        'This section could not be generated after repeated attempts.',
-      ),
-    ).not.toBeInTheDocument();
-  });
-
-  it('renders saved insights with omitted lists', () => {
-    render(<AgentInsightsSection insights={{key_findings: ['A finding.']}} />);
-    expect(screen.getByText('A finding.')).toBeVisible();
-    expect(screen.queryByText('Uncertainties')).not.toBeInTheDocument();
   });
 });

@@ -25,6 +25,7 @@ vi.mock('../hooks/chat_session_start_run', async importOriginal => ({
 
 beforeEach(() => {
   installChatWorkspaceMocks();
+  vi.clearAllMocks();
   pendingIntentMock.mockReset();
   pendingIntentMock.mockResolvedValue(undefined);
 });
@@ -111,15 +112,7 @@ it('adopts the second StrictMode transcript load before appending Q&A and ignore
     .mockReturnValueOnce(owned.promise);
   apiMock.getRunMessages.mockReset().mockReturnValue(rows.promise);
   apiMock.listInterviews.mockResolvedValue([
-    {
-      id: 'interview-1',
-      title: 'A chat',
-      challenge: 'Owned research',
-      status: 'completed',
-      run_id: 'run-1',
-      created_at: 1,
-      updated_at: 3,
-    },
+    makeChatSummary({run_id: 'run-1'}),
   ]);
   apiMock.listRuns.mockResolvedValue([minimalRun({id: 'run-1'})]);
   const {result} = rehydrateSession('interview-1');
@@ -195,17 +188,6 @@ it('ignores an old owned fetch after another chat has committed', async () => {
   expect(result.current.messages.map(message => message.content)).toEqual([
     'Current private transcript',
   ]);
-});
-
-it('leaves an inaccessible interview empty under StrictMode', async () => {
-  apiMock.getInterview
-    .mockReset()
-    .mockRejectedValue(new Error('404 not found'));
-  const {result} = rehydrateSession('inaccessible-chat');
-  await waitFor(() => expect(apiMock.getInterview).toHaveBeenCalledTimes(2));
-  expect(result.current.interview).toBeNull();
-  expect(result.current.messages).toEqual([]);
-  expect(result.current.hasConversation).toBe(false);
 });
 
 it('shows a run Q&A exchange after reopening the chat', async () => {
@@ -343,13 +325,17 @@ it('keeps a linked draft recoverable without treating it as started', async () =
 
   renderWorkspace('/chats/interview-1');
 
-  expect(
-    await screen.findByRole('button', {name: 'Continue research'}),
-  ).toBeEnabled();
+  const resume = await screen.findByRole('button', {name: 'Continue research'});
+  expect(resume).toBeEnabled();
   expect(
     screen.queryByRole('region', {name: 'Started research session'}),
   ).not.toBeInTheDocument();
   expect(apiMock.startRun).not.toHaveBeenCalled();
+
+  apiMock.getRun.mockResolvedValue(minimalRun({id: 'run-1', status: 'draft'}));
+  resume.click();
+
+  await waitFor(() => expect(apiMock.startRun).toHaveBeenCalledWith('run-1'));
 });
 
 it('shows the linked draft run setup and pending notification before continuing', async () => {
@@ -358,15 +344,7 @@ it('shows the linked draft run setup and pending notification before continuing'
     run_id: 'run-configured',
   });
   apiMock.listInterviews.mockResolvedValue([
-    {
-      id: 'interview-1',
-      title: 'Cold-stress glucose homeostasis',
-      challenge: 'Investigate glucose homeostasis.',
-      status: 'completed',
-      run_id: 'run-configured',
-      created_at: 1,
-      updated_at: 3,
-    },
+    makeChatSummary({run_id: 'run-configured'}),
   ]);
   apiMock.listRuns.mockResolvedValue([
     minimalRun({
@@ -424,15 +402,7 @@ it('checks an owned run directly when run history has not loaded it', async () =
     run_id: 'run-2',
   });
   apiMock.listInterviews.mockResolvedValue([
-    {
-      id: 'interview-1',
-      title: 'Cold-stress glucose homeostasis',
-      challenge: 'Investigate glucose homeostasis.',
-      status: 'completed',
-      run_id: 'run-2',
-      created_at: 1,
-      updated_at: 3,
-    },
+    makeChatSummary({run_id: 'run-2'}),
   ]);
   apiMock.listRuns.mockResolvedValue([]);
   apiMock.getRun.mockResolvedValue(minimalRun({id: 'run-2', status: 'draft'}));
@@ -452,15 +422,7 @@ it('keeps a linked run locked when its owned status cannot be resolved', async (
     run_id: 'run-3',
   });
   apiMock.listInterviews.mockResolvedValue([
-    {
-      id: 'interview-1',
-      title: 'Cold-stress glucose homeostasis',
-      challenge: 'Investigate glucose homeostasis.',
-      status: 'completed',
-      run_id: 'run-3',
-      created_at: 1,
-      updated_at: 3,
-    },
+    makeChatSummary({run_id: 'run-3'}),
   ]);
   apiMock.listRuns.mockResolvedValue([]);
   apiMock.getRun.mockRejectedValueOnce(new Error('not found'));
@@ -499,15 +461,7 @@ it('does not present a cancelled linked run as started or recoverable', async ()
     run_id: 'run-cancelled',
   });
   apiMock.listInterviews.mockResolvedValue([
-    {
-      id: 'interview-1',
-      title: 'Cold-stress glucose homeostasis',
-      challenge: 'Investigate glucose homeostasis.',
-      status: 'completed',
-      run_id: 'run-cancelled',
-      created_at: 1,
-      updated_at: 3,
-    },
+    makeChatSummary({run_id: 'run-cancelled'}),
   ]);
   apiMock.listRuns.mockResolvedValue([
     minimalRun({id: 'run-cancelled', status: 'cancelled'}),

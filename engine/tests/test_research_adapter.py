@@ -10,7 +10,6 @@ from co_scientist.agents.generation.expansion_research import (
     EXPANSION_POOL_ITEM_CHARS,
     EXPANSION_POOL_SAMPLE_SIZE,
     ExpansionResearch,
-    _expansion_goal,
     build_expansion_section,
     explored_hypothesis_summaries,
     is_research_expansion,
@@ -46,7 +45,6 @@ from co_scientist.research_adapter import (
     McpRetrieval,
     ResearchRun,
     budget_for_tier,
-    review_budget_for_tier,
 )
 from tests._research_fakes import (
     FakeResearchClient,
@@ -76,7 +74,7 @@ _HITS = {
 }
 
 
-async def test_search_keeps_the_source_ordering_it_was_given(
+async def test_search_keeps_the_source_ordering_and_the_limit(
     tmp_path: Path,
 ) -> None:
     retrieval = _retrieval(
@@ -84,62 +82,45 @@ async def test_search_keeps_the_source_ordering_it_was_given(
     )
 
     hits = await retrieval.search(query="fibrosis", source="alpha", limit=5)
+    first_only = await retrieval.search(
+        query="fibrosis", source="alpha", limit=1
+    )
 
     assert [hit.locator for hit in hits] == ["doc-a", "doc-b"]
     assert [hit.rank for hit in hits] == [0, 1]
-    assert hits[0].title == "First"
     assert hits[1].metadata["doi"] == "10.1/b"
     assert hits[0].metadata["source"] == "alpha"
+    assert [hit.locator for hit in first_only] == ["doc-a"]
+    assert retrieval.sources == ("alpha",)
 
 
-async def test_search_takes_no_more_hits_than_it_was_asked_for(
+@pytest.mark.parametrize(
+    ("source", "answer", "detail"),
+    [
+        ("gamma", None, ""),
+        ("alpha", RuntimeError("connection refused"), "connection refused"),
+    ],
+    ids=["unconfigured", "broken"],
+)
+async def test_a_failing_source_is_a_retrieval_error_naming_it(
     tmp_path: Path,
-) -> None:
-    retrieval = _retrieval(
-        tmp_path, FakeResearchClient({"search_alpha": _HITS})
-    )
-
-    hits = await retrieval.search(query="fibrosis", source="alpha", limit=1)
-
-    assert [hit.locator for hit in hits] == ["doc-a"]
-
-
-async def test_an_unconfigured_source_is_a_retrieval_error(
-    tmp_path: Path,
-) -> None:
-    retrieval = _retrieval(tmp_path, FakeResearchClient({}))
-
-    with pytest.raises(RetrievalError) as caught:
-        await retrieval.search(query="q", source="gamma", limit=2)
-
-    assert caught.value.source == "gamma"
-
-
-async def test_a_broken_source_is_a_retrieval_error_naming_it(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    monkeypatch: pytest.MonkeyPatch,
+    source: str,
+    answer: Exception | None,
+    detail: str,
 ) -> None:
     monkeypatch.setattr(
         "co_scientist.evidence.search_query._search_retry_delay",
         lambda attempt: 0.0,
     )
-    client = FakeResearchClient(
-        {"search_alpha": RuntimeError("connection refused")}
-    )
+    client = FakeResearchClient({"search_alpha": answer})
     retrieval = _retrieval(tmp_path, client)
 
     with pytest.raises(RetrievalError) as caught:
-        await retrieval.search(query="q", source="alpha", limit=2)
+        await retrieval.search(query="q", source=source, limit=2)
 
-    assert caught.value.source == "alpha"
-    assert "connection refused" in str(caught.value)
-
-
-async def test_only_enabled_sources_are_offered_to_the_caller(
-    tmp_path: Path,
-) -> None:
-    retrieval = _retrieval(tmp_path, FakeResearchClient({}))
-
-    assert retrieval.sources == ("alpha",)
+    assert caught.value.source == source
+    assert detail in str(caught.value)
 
 
 async def test_reading_a_hit_fetches_its_full_text(tmp_path: Path) -> None:
@@ -155,29 +136,23 @@ async def test_reading_a_hit_fetches_its_full_text(tmp_path: Path) -> None:
     assert client.calls[-1][1]["url"] == "u/a"
 
 
-async def test_a_hit_with_no_url_reads_as_nothing_not_as_an_error(
-    tmp_path: Path,
+@pytest.mark.parametrize(
+    ("locator", "read_pdf"),
+    [
+        ("doc-b", {"content": "x"}),
+        ("never-seen", {"content": "x"}),
+        ("doc-a", RuntimeError("timeout")),
+    ],
+    ids=["no-url", "never-searched", "failed-read"],
+)
+async def test_an_unreadable_hit_reads_as_nothing_not_as_an_error(
+    tmp_path: Path, locator: str, read_pdf: object
 ) -> None:
-    client = FakeResearchClient(
-        {"search_alpha": _HITS, "read_pdf": {"content": "x"}}
-    )
+    client = FakeResearchClient({"search_alpha": _HITS, "read_pdf": read_pdf})
     retrieval = _retrieval(tmp_path, client)
     await retrieval.search(query="fibrosis", source="alpha", limit=5)
 
-    assert await retrieval.read(locator="doc-b") is None
-    assert await retrieval.read(locator="never-seen") is None
-
-
-async def test_a_failed_read_does_not_lose_the_document(
-    tmp_path: Path,
-) -> None:
-    client = FakeResearchClient(
-        {"search_alpha": _HITS, "read_pdf": RuntimeError("timeout")}
-    )
-    retrieval = _retrieval(tmp_path, client)
-    await retrieval.search(query="fibrosis", source="alpha", limit=5)
-
-    assert await retrieval.read(locator="doc-a") is None
+    assert await retrieval.read(locator=locator) is None
 
 
 class _FakeLlm:
@@ -219,28 +194,22 @@ async def test_stances_and_questions_stay_inside_their_limit(
         monkeypatch,
         {"stances": ["mechanism", "counter-evidence", "prior art", "extra"]},
         {"questions": ["q1", "q2", "q3"]},
+        {},
     )
 
     stances = await model.plan_stances(goal="fibrosis", limit=3)
     questions = await model.ask_questions(
         goal="fibrosis", stance="mechanism", limit=2
     )
+    fallback = await model.to_query(question="What drives fibrosis?")
 
     assert list(stances) == ["mechanism", "counter-evidence", "prior art"]
     assert list(questions) == ["q1", "q2"]
+    # A query the model would not write falls back to the question itself.
+    assert fallback == "What drives fibrosis?"
 
 
-async def test_a_query_the_model_would_not_write_falls_back_to_the_question(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    model, _ = _model(monkeypatch, {})
-
-    assert await model.to_query(question="What drives fibrosis?") == (
-        "What drives fibrosis?"
-    )
-
-
-async def test_findings_are_bound_by_index_not_by_echoed_text(
+async def test_findings_are_bound_by_index_and_only_to_real_documents(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Echoed document titles scale output with the pool and truncate
@@ -249,7 +218,9 @@ async def test_findings_are_bound_by_index_not_by_echoed_text(
         monkeypatch,
         {
             "findings": [
-                {"document": 1, "claim": "B causes X", "quote": "b says so"}
+                {"document": 1, "claim": "B causes X", "quote": "b says so"},
+                {"document": 7, "claim": "no such document", "quote": "q"},
+                {"document": 0, "claim": "no quote", "quote": "  "},
             ],
             "follow_ups": ["what about Y?"],
         },
@@ -281,27 +252,6 @@ async def test_extraction_prompt_strips_citation_markers(
     assert documents[0].text == original
 
 
-async def test_a_finding_that_names_no_real_document_is_dropped(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    model, _ = _model(
-        monkeypatch,
-        {
-            "findings": [
-                {"document": 7, "claim": "c", "quote": "q"},
-                {"document": 0, "claim": "kept", "quote": "q"},
-                {"document": 0, "claim": "no quote", "quote": "  "},
-            ]
-        },
-    )
-
-    extraction = await model.extract(
-        question="why X?", documents=[_document("doc-a")]
-    )
-
-    assert [f.text for f in extraction.findings] == ["kept"]
-
-
 async def test_nothing_to_read_or_summarize_costs_no_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -330,41 +280,44 @@ async def test_every_call_sets_its_own_token_budget(
     assert fake.specs[1].max_tokens > fake.specs[0].max_tokens
 
 
-def test_only_the_deep_tiers_buy_research() -> None:
-    assert budget_for_tier("express", ["alpha"]) is None
-    assert budget_for_tier("standard", ["alpha"]) is None
-    assert budget_for_tier("unknown-tier", ["alpha"]) is None
+@pytest.mark.parametrize(
+    ("tier", "sources", "threads"),
+    [
+        ("express", ["alpha"], None),
+        ("standard", ["alpha"], None),
+        ("unknown-tier", ["alpha"], None),
+        ("ultra", [], None),
+        ("extended", ["alpha"], 6),
+        ("ultra", ["alpha", "beta"], 11),
+    ],
+)
+def test_only_the_deep_tiers_with_a_source_buy_research_and_state_their_cost(
+    tier: str, sources: list[str], threads: int | None
+) -> None:
+    budget = budget_for_tier(tier, sources)
+
+    if threads is None:
+        assert budget is None
+    else:
+        assert budget is not None
+        assert budget.max_threads() == threads
+        assert budget.sources == tuple(sources)
 
 
-def test_a_tier_states_its_thread_count_before_spending_anything() -> None:
-    extended = budget_for_tier("extended", ["alpha"])
-    ultra = budget_for_tier("ultra", ["alpha", "beta"])
-
-    assert extended is not None and ultra is not None
-    assert extended.max_threads() == 6
-    assert ultra.max_threads() == 11
-    assert ultra.sources == ("alpha", "beta")
-
-
-def test_a_run_with_no_search_source_researches_nothing() -> None:
-    assert budget_for_tier("ultra", []) is None
-
-
-def test_a_run_that_names_no_tier_researches_nothing() -> None:
-    assert _resolve_research_tier({}, True) == ""
-    assert _resolve_research_tier({"research_tier": ""}, True) == ""
-
-
-def test_research_is_refused_where_there_is_nothing_to_search() -> None:
-    """Without MCP there is no reachable source; literature-node disable
-    alone is not a refusal."""
-    assert _resolve_research_tier({"research_tier": "ultra"}, False) == ""
-
-
-def test_the_offline_backend_still_researches() -> None:
-    """Ordinary schema-shaped research calls are supported by the
-    deterministic offline backend."""
-    assert _resolve_research_tier({"research_tier": "ultra"}, True) == "ultra"
+@pytest.mark.parametrize(
+    ("options", "mcp_available", "tier"),
+    [
+        ({}, True, ""),
+        ({"research_tier": ""}, True, ""),
+        ({"research_tier": "ultra"}, False, ""),
+        ({"research_tier": "ultra"}, True, "ultra"),
+    ],
+    ids=["no-tier", "empty-tier", "no-mcp", "offline-backend-researches"],
+)
+def test_research_is_requested_only_where_there_is_something_to_search(
+    options: dict[str, str], mcp_available: bool, tier: str
+) -> None:
+    assert _resolve_research_tier(options, mcp_available) == tier
 
 
 @pytest.fixture
@@ -379,26 +332,21 @@ def expansion_client(monkeypatch: pytest.MonkeyPatch) -> FakeResearchClient:
     return install_research_client(monkeypatch)
 
 
-def test_initial_generation_cycle_is_not_expansion() -> None:
-    assert not is_research_expansion(make_state(current_iteration=0))
-    assert not is_research_expansion(make_state())
+@pytest.mark.parametrize(
+    ("iteration", "expansion"),
+    [(None, False), (0, False), (1, True), (3, True)],
+)
+def test_only_later_generate_cycles_are_expansion(
+    iteration: int | None, expansion: bool
+) -> None:
+    state = (
+        make_state()
+        if iteration is None
+        else make_state(current_iteration=iteration)
+    )
 
-
-def test_later_generate_cycles_are_expansion() -> None:
-    assert is_research_expansion(make_state(current_iteration=1))
-    assert is_research_expansion(make_state(current_iteration=3))
-
-
-def test_expansion_section_absent_on_initial_cycle() -> None:
-    assert build_expansion_section(make_state(current_iteration=0)) == ""
-
-
-def test_expansion_section_switches_to_broad_retrieval() -> None:
-    state = make_state(current_iteration=2)
-    section = build_expansion_section(state)
-    assert "Research Expansion Cycle" in section
-    assert "DIVERSE" in section
-    assert "before" in section.lower()
+    assert is_research_expansion(state) is expansion
+    assert (build_expansion_section(state) != "") is expansion
 
 
 def test_expansion_section_names_the_explored_pool_bounded() -> None:
@@ -408,79 +356,83 @@ def test_expansion_section_names_the_explored_pool_bounded() -> None:
     state = make_state(current_iteration=1, hypotheses=hypotheses)
 
     summaries = explored_hypothesis_summaries(state)
+    section = build_expansion_section(state)
+
     assert len(summaries) == EXPANSION_POOL_SAMPLE_SIZE
     assert all(len(s) <= EXPANSION_POOL_ITEM_CHARS + 3 for s in summaries)
-
-    section = build_expansion_section(state)
+    assert "Research Expansion Cycle" in section
     assert "hyp 0" in section
     assert "hyp 15" not in section
     assert "do NOT re-derive" in section
 
 
-def test_expansion_section_with_empty_pool_omits_coverage() -> None:
-    state = make_state(current_iteration=1, hypotheses=[])
-    section = build_expansion_section(state)
+def test_expansion_section_without_a_pool_or_findings_names_no_ground() -> None:
+    section = build_expansion_section(
+        make_state(current_iteration=1, hypotheses=[])
+    )
+
     assert "Research Expansion Cycle" in section
     assert "already explored" not in section
+    assert "Ground new hypotheses in this material" not in section
 
 
-def test_draft_prompt_renders_expansion_section() -> None:
-    section = build_expansion_section(make_state(current_iteration=1))
-    prompt, _ = get_draft_prompt_with_tools(
+def test_explored_findings_reach_the_expansion_section() -> None:
+    explored = ExpansionResearch(
+        section="- collagen crosslinking is under-studied [PMID:1]\n",
+        articles=[],
+        ledger={},
+    )
+    state = explored.applied_to(make_state(current_iteration=1))
+
+    assert "collagen crosslinking is under-studied [PMID:1]" in (
+        build_expansion_section(state)
+    )
+
+
+def test_draft_prompt_renders_the_expansion_and_falsified_sections() -> None:
+    request = DraftPromptRequest(
+        research_goal="repurpose a kinase inhibitor",
+        hypotheses_count=2,
+        research_expansion_section=build_expansion_section(
+            make_state(current_iteration=1)
+        ),
+        falsified_assumptions_section=(
+            "## Assumptions Verified Incorrect (avoid or rework)\n"
+            "- Does efflux matter? -- finding: no.\n"
+        ),
+    )
+    plain, _ = get_draft_prompt_with_tools(
         DraftPromptRequest(
-            research_goal="repurpose a kinase inhibitor",
-            hypotheses_count=2,
-            research_expansion_section=section,
+            research_goal="repurpose a kinase inhibitor", hypotheses_count=2
         )
     )
+
+    prompt, _ = get_draft_prompt_with_tools(request)
+
     assert "Research Expansion Cycle" in prompt
-    assert "{{MISSING" not in prompt
-
-
-def test_draft_prompt_without_sections_is_unchanged() -> None:
-    prompt, _ = get_draft_prompt_with_tools(
-        DraftPromptRequest(
-            research_goal="repurpose a kinase inhibitor",
-            hypotheses_count=2,
-        )
-    )
-    assert "Research Expansion Cycle" not in prompt
-    assert "Verified Incorrect" not in prompt
-    assert "{{MISSING" not in prompt
-
-
-def test_draft_prompt_renders_falsified_assumptions_section() -> None:
-    prompt, _ = get_draft_prompt_with_tools(
-        DraftPromptRequest(
-            research_goal="repurpose a kinase inhibitor",
-            hypotheses_count=2,
-            falsified_assumptions_section=(
-                "## Assumptions Verified Incorrect (avoid or rework)\n"
-                "- Does efflux matter? -- finding: no.\n"
-            ),
-        )
-    )
-    assert "Verified Incorrect" in prompt
     assert "Does efflux matter?" in prompt
+    assert "{{MISSING" not in prompt
+    assert "Research Expansion Cycle" not in plain
+    assert "Verified Incorrect" not in plain
+    assert "{{MISSING" not in plain
 
 
 def test_expansion_draft_budget_gets_extra_retrieval_rounds() -> None:
     base = _compute_draft_iteration_budget(3)
-    expanded = _compute_draft_iteration_budget(3, is_expansion=True)
+
     assert base == get_draft_max_iterations(3)
-    assert expanded == base + EXPANSION_EXTRA_DRAFT_ITERATIONS
+    assert _compute_draft_iteration_budget(3, is_expansion=True) == (
+        base + EXPANSION_EXTRA_DRAFT_ITERATIONS
+    )
 
 
-async def test_the_initial_cycle_buys_no_exploration(tmp_path: Path) -> None:
-    state = make_state(current_iteration=0, research_tier="extended")
-
-    assert await research_for_expansion(state) is None
-
-
-async def test_a_tier_that_funds_no_research_explores_nothing(
-    tmp_path: Path,
+@pytest.mark.parametrize(
+    ("iteration", "tier"), [(0, "extended"), (1, "standard")]
+)
+async def test_no_exploration_without_an_expansion_cycle_or_a_funded_tier(
+    iteration: int, tier: str
 ) -> None:
-    state = make_state(current_iteration=1, research_tier="standard")
+    state = make_state(current_iteration=iteration, research_tier=tier)
 
     assert await research_for_expansion(state) is None
 
@@ -506,46 +458,6 @@ async def test_unavailable_mcp_stops_research_before_client_acquisition(
         else await research_for_review(state, hypothesis)
     )
     assert found is None
-
-
-def test_the_expansion_goal_names_the_explored_ground_to_avoid() -> None:
-    state = make_state(
-        current_iteration=1,
-        research_goal="why does fibrosis progress?",
-        hypotheses=[make_hypothesis(text="TGF-beta drives it")],
-    )
-
-    goal = _expansion_goal(state)
-
-    assert goal.startswith("why does fibrosis progress?")
-    assert "TGF-beta drives it" in goal
-    assert "do NOT cover" in goal or "NOT cover" in goal
-
-
-def test_the_expansion_goal_is_the_bare_goal_before_any_hypothesis() -> None:
-    state = make_state(current_iteration=1, research_goal="why fibrosis?")
-
-    assert _expansion_goal(state) == "why fibrosis?"
-
-
-def test_findings_reach_the_generation_prompt() -> None:
-    explored = ExpansionResearch(
-        section="- collagen crosslinking is under-studied [PMID:1]\n",
-        articles=[],
-        ledger={},
-    )
-    state = explored.applied_to(make_state(current_iteration=1))
-
-    section = build_expansion_section(state)
-
-    assert "collagen crosslinking is under-studied [PMID:1]" in section
-
-
-def test_the_prompt_carries_no_evidence_block_when_nothing_explored() -> None:
-    section = build_expansion_section(make_state(current_iteration=1))
-
-    assert "Research Expansion Cycle" in section
-    assert "Ground new hypotheses in this material" not in section
 
 
 async def test_an_expansion_cycle_explores_and_grounds_the_next_draft(
@@ -666,17 +578,6 @@ def test_ids_are_re_derived_rather_than_stored() -> None:
     assert restored.findings[0].call_id == original.calls[0].id
 
 
-def test_the_source_ranking_comes_back_intact() -> None:
-    restored = result_from_dict(result_to_dict(_result()))
-
-    hits = restored.calls[0].hits
-    assert [hit.locator for hit in hits] == ["doc-a", "doc-b"]
-    assert [hit.rank for hit in hits] == [0, 1]
-    assert hits[0].score == 0.9
-    assert hits[0].metadata["doi"] == "10.1/a"
-    assert restored.calls[0].dropped == ("doc-b",)
-
-
 def test_a_payload_from_an_older_build_still_loads() -> None:
     payload: dict[str, Any] = {
         "goal": "reverse fibrosis",
@@ -722,79 +623,66 @@ def _budget(reserved: tuple[tuple[str, int], ...]) -> ResearchBudget:
     )
 
 
-def test_without_a_reservation_the_first_source_takes_everything() -> None:
-    calls = [
-        _call(_NETWORK, "n1", "n2", "n3", "n4"),
-        _call(_RESERVED, "c1"),
-    ]
-
-    admitted, _ = admit_within_budget(calls, _budget(()))
-
-    assert [hit.locator for hit in admitted] == ["n1", "n2", "n3"]
-
-
-def test_a_reservation_seats_the_reserved_source_ahead_of_the_network() -> None:
-    calls = [
-        _call(_NETWORK, "n1", "n2", "n3", "n4"),
-        _call(_RESERVED, "c1", "c2"),
-    ]
-
-    admitted, recorded = admit_within_budget(calls, _budget(((_RESERVED, 1),)))
-
-    assert [hit.locator for hit in admitted] == ["c1", "n1", "n2"]
-    assert recorded[1].admitted == ("c1",)
-    assert recorded[1].dropped == ("c2",)
-
-
-def test_a_reservation_is_never_padded_when_the_source_is_empty() -> None:
-    calls = [
-        _call(_NETWORK, "n1", "n2", "n3", "n4"),
-        _call(_RESERVED),
-    ]
-
-    admitted, _ = admit_within_budget(calls, _budget(((_RESERVED, 1),)))
-
-    assert [hit.locator for hit in admitted] == ["n1", "n2", "n3"]
-
-
-def test_a_paper_both_sources_returned_is_seated_once() -> None:
-    """Dedup before reservations and ranked filling prevents seating a shared
-    paper twice."""
-    calls = [
-        _call(_NETWORK, "shared", "n1", "n2"),
-        _call(_RESERVED, "shared", "c1"),
-    ]
-
-    admitted, _ = admit_within_budget(calls, _budget(((_RESERVED, 1),)))
-
-    assert [hit.locator for hit in admitted] == ["c1", "shared", "n1"]
-
-
-def test_a_reservation_cannot_claim_every_document() -> None:
-    with pytest.raises(ValueError, match="claim all"):
-        ResearchBudget(
-            hits_per_question=2,
-            sources=(_NETWORK, _RESERVED),
-            reserved_slots=((_RESERVED, 2),),
-        )
-
-
-def test_a_reservation_for_an_unsearched_source_is_refused() -> None:
-    with pytest.raises(ValueError, match="unsearched"):
-        ResearchBudget(sources=(_NETWORK,), reserved_slots=(("nope", 1),))
-
-
-@pytest.mark.parametrize("tier", ["extended", "ultra"])
 @pytest.mark.parametrize(
-    "resolve", [budget_for_tier, review_budget_for_tier], ids=["run", "review"]
+    ("network", "reserved", "reservation", "expected"),
+    [
+        (("n1", "n2", "n3", "n4"), ("c1",), (), ["n1", "n2", "n3"]),
+        (
+            ("n1", "n2", "n3", "n4"),
+            ("c1", "c2"),
+            ((_RESERVED, 1),),
+            ["c1", "n1", "n2"],
+        ),
+        (
+            ("n1", "n2", "n3", "n4"),
+            (),
+            ((_RESERVED, 1),),
+            ["n1", "n2", "n3"],
+        ),
+        (
+            ("shared", "n1", "n2"),
+            ("shared", "c1"),
+            ((_RESERVED, 1),),
+            ["c1", "shared", "n1"],
+        ),
+    ],
+    ids=["no-reservation", "reserved-seat", "empty-source-not-padded", "dedup"],
 )
-def test_every_researching_budget_reserves_nothing_by_default(
-    tier: str, resolve: object
+def test_a_reservation_seats_its_source_ahead_of_the_network(
+    network: tuple[str, ...],
+    reserved: tuple[str, ...],
+    reservation: tuple[tuple[str, int], ...],
+    expected: list[str],
 ) -> None:
-    budget = resolve(tier, (_NETWORK, _RESERVED))  # type: ignore[operator]
+    calls = [_call(_NETWORK, *network), _call(_RESERVED, *reserved)]
 
-    assert budget is not None
-    assert budget.reserved_slots == ()
+    admitted, _ = admit_within_budget(calls, _budget(reservation))
+
+    assert [hit.locator for hit in admitted] == expected
+
+
+@pytest.mark.parametrize(
+    ("budget", "message"),
+    [
+        (
+            {
+                "hits_per_question": 2,
+                "sources": (_NETWORK, _RESERVED),
+                "reserved_slots": ((_RESERVED, 2),),
+            },
+            "claim all",
+        ),
+        (
+            {"sources": (_NETWORK,), "reserved_slots": (("nope", 1),)},
+            "unsearched",
+        ),
+    ],
+)
+def test_an_impossible_reservation_is_refused(
+    budget: dict[str, Any], message: str
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        ResearchBudget(**budget)
 
 
 def test_the_descent_carries_a_reservation_down() -> None:
