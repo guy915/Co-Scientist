@@ -245,11 +245,11 @@ export function ModelSection({
   const modelFields = useModelFields(provider, savedProviders);
   return (
     <div className="ucs-settings-cards">
-      <section className="ucs-settings-card" aria-labelledby="cosci-keys-title">
-        <h3 id="cosci-keys-title" className="ucs-settings-card-title">
-          API keys
+      <section className="ucs-settings-card" aria-labelledby={LABEL_ID}>
+        {/* The heading also names the provider menu. */}
+        <h3 id={LABEL_ID} className="ucs-settings-card-title">
+          Provider
         </h3>
-        <ProviderSelectLabel />
         <ProviderSelect
           provider={provider}
           savedProviders={savedProviders}
@@ -281,7 +281,7 @@ export function ModelSection({
         aria-labelledby="cosci-models-title"
       >
         <h3 id="cosci-models-title" className="ucs-settings-card-title">
-          Models
+          Model
         </h3>
         <ModelSelectors
           hasKey={savedProviders.length > 0}
@@ -775,17 +775,5 @@ export function ProviderSelect({
       labelId={LABEL_ID}
       onChange={onChange}
     />
-  );
-}
-
-export function ProviderSelectLabel() {
-  return (
-    <label
-      id={LABEL_ID}
-      className="ucs-settings-field-label"
-      htmlFor={TRIGGER_ID}
-    >
-      Provider
-    </label>
   );
 }
