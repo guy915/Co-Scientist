@@ -322,6 +322,17 @@ def test_sample_context_hypotheses_large_pool_caps_at_max_context() -> None:
     )
 
     assert len(result) == 15
+    # Fewer others than the top slice leaves nothing to sample at random.
+    assert (
+        len(
+            sample_context_hypotheses(
+                [exclude, *others[:4]],
+                exclude_hypothesis=exclude,
+                max_context=3,
+            )
+        )
+        == 4
+    )
     top_five_texts = {h.text for h in others[:5]}
     assert top_five_texts.issubset({h.text for h in result})
     assert all(h.text != exclude.text for h in result)
@@ -347,6 +358,7 @@ def test_token_coverage_is_not_dominated_by_peer_length() -> None:
     assert token_coverage(short, long_peer) == 1.0
     assert token_coverage(long_peer, short) < 0.5
     assert token_coverage("alpha beta gamma", "alpha beta delta") == 2 / 3
+    assert token_coverage("", "alpha beta") == 0.0
 
 
 def test_find_nearest_peer_falls_back_to_token_coverage() -> None:
@@ -370,7 +382,13 @@ def test_find_nearest_peer_prefers_the_proximity_graph_weight() -> None:
                 "source": "parent-id",
                 "target": graph_peer.id,
                 "similarity": 1.0,
-            }
+            },
+            # Edges read in both orientations.
+            {
+                "source": lexical_peer.id,
+                "target": "parent-id",
+                "similarity": 0.5,
+            },
         ]
     }
     similarity, nearest = find_nearest_peer(

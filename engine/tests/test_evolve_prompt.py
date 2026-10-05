@@ -109,6 +109,13 @@ def test_supervisor_guidance_formats_each_phase_field(
     assert result.index("## Supervisor Guidance") < result.index(expected)
 
 
+@pytest.mark.parametrize("guidance", [None, {}, {"workflow_plan": {}}])
+def test_supervisor_guidance_without_an_evolution_phase_adds_nothing(
+    guidance: dict[str, Any] | None,
+) -> None:
+    assert _build_supervisor_guidance_text(guidance) == ""
+
+
 def _evolution_context(**state_overrides: Any) -> EvolutionContext:
     return EvolutionContext(
         model_name="test-model",
