@@ -244,36 +244,51 @@ export function ModelSection({
 }) {
   const modelFields = useModelFields(provider, savedProviders);
   return (
-    <section className="ucs-settings-card">
-      <h3 className="ucs-settings-card-title">Model</h3>
-      <ProviderSelectLabel />
-      <ProviderSelect
-        provider={provider}
-        savedProviders={savedProviders}
-        onChange={onProviderChange}
-      />
-      <label
-        className="ucs-settings-field-label ucs-settings-field-label--spaced"
-        htmlFor="cosci-settings-api-key"
+    <div className="ucs-settings-cards">
+      <section className="ucs-settings-card" aria-labelledby="cosci-keys-title">
+        <h3 id="cosci-keys-title" className="ucs-settings-card-title">
+          API keys
+        </h3>
+        <ProviderSelectLabel />
+        <ProviderSelect
+          provider={provider}
+          savedProviders={savedProviders}
+          onChange={onProviderChange}
+        />
+        <label
+          className="ucs-settings-field-label ucs-settings-field-label--spaced"
+          htmlFor="cosci-settings-api-key"
+        >
+          {PROVIDER_LABELS[provider]} API key
+        </label>
+        <input
+          id="cosci-settings-api-key"
+          className="ucs-settings-field-input"
+          type="password"
+          autoComplete="off"
+          placeholder={`Paste your ${PROVIDER_LABELS[provider]} API key`}
+          value={apiKey}
+          onChange={event => onApiKeyChange(event.target.value)}
+          onBlur={onSave}
+          onKeyDown={event => {
+            if (event.key === 'Enter') onSave();
+          }}
+        />
+        <ApiKeyHint provider={provider} />
+      </section>
+      <section
+        className="ucs-settings-card"
+        aria-labelledby="cosci-models-title"
       >
-        {PROVIDER_LABELS[provider]} API key
-      </label>
-      <input
-        id="cosci-settings-api-key"
-        className="ucs-settings-field-input"
-        type="password"
-        autoComplete="off"
-        placeholder={`Paste your ${PROVIDER_LABELS[provider]} API key`}
-        value={apiKey}
-        onChange={event => onApiKeyChange(event.target.value)}
-        onBlur={onSave}
-        onKeyDown={event => {
-          if (event.key === 'Enter') onSave();
-        }}
-      />
-      <ApiKeyHint provider={provider} />
-      <ModelSelectors hasKey={savedProviders.length > 0} fields={modelFields} />
-    </section>
+        <h3 id="cosci-models-title" className="ucs-settings-card-title">
+          Models
+        </h3>
+        <ModelSelectors
+          hasKey={savedProviders.length > 0}
+          fields={modelFields}
+        />
+      </section>
+    </div>
   );
 }
 
@@ -696,6 +711,7 @@ export function SettingsSelect<T extends string>({
           {groupOptions(options, groupOf).map(section => (
             <div
               key={section.label ?? ''}
+              className="ucs-provider-group"
               role={section.label ? 'group' : undefined}
               aria-label={section.label ?? undefined}
             >

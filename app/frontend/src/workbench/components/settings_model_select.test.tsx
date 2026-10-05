@@ -242,3 +242,14 @@ it.each(['Provider', 'Supervisor model', 'Worker model'])(
     expect(onClose).not.toHaveBeenCalled();
   },
 );
+
+it('keeps API keys and model choices in separate boxes', async () => {
+  renderSection('sk-key', 'deepseek');
+  const keys = screen.getByRole('region', {name: 'API keys'});
+  const models = screen.getByRole('region', {name: 'Models'});
+  expect(within(keys).getByRole('button', {name: /Provider/})).toBeTruthy();
+  expect(within(keys).queryByRole('button', {name: /Worker model/})).toBeNull();
+  expect(
+    await within(models).findByRole('button', {name: /Worker model/}),
+  ).toBeTruthy();
+});
