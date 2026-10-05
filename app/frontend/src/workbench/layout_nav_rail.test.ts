@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import type {ChatSummary} from '@/api/runs';
 import {makeRun} from '../test_fixtures';
-import {withExampleEntries} from './layout_nav_rail';
+import {withExamples} from './layout_nav_rail';
 
 const ownChat: ChatSummary = {
   id: 'chat-1',
@@ -16,7 +16,7 @@ const ownChat: ChatSummary = {
 describe('sidebar example entries', () => {
   it('lists unopened examples after the visitor’s own chats', () => {
     const demo = makeRun({id: 'demo-1', is_demo: true, title: 'Example: A'});
-    const chats = withExampleEntries([ownChat], [demo, makeRun({id: 'r2'})]);
+    const chats = withExamples([ownChat], [demo, makeRun({id: 'r2'})]);
     expect(chats.map(chat => chat.id)).toEqual(['chat-1', 'example:demo-1']);
     expect(chats[1].title).toBe('Example: A');
   });
@@ -27,6 +27,6 @@ describe('sidebar example entries', () => {
       id: 'copy-1',
       config: {...demo.config, example_source_id: 'demo-1'},
     });
-    expect(withExampleEntries([ownChat], [demo, copy])).toEqual([ownChat]);
+    expect(withExamples([ownChat], [demo, copy])).toEqual([ownChat]);
   });
 });

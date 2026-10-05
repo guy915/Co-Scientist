@@ -340,10 +340,9 @@ function isActiveChat(chat: ChatSummary, rail: ChatRailData): boolean {
 
 const EXAMPLE_ENTRY_PREFIX = 'example:';
 
-// Curated examples sit in Chats for every visitor, which also makes them
-// reachable on phones. Opening one creates the visitor's private copy, which
-// then lists as an ordinary chat and replaces the entry.
-export function withExampleEntries(
+// Examples list in Chats for every visitor, so phones reach them too; an
+// opened example lists as its private copy instead.
+export function withExamples(
   chats: ChatSummary[],
   history: Run[],
 ): ChatSummary[] {
