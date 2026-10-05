@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from collections.abc import Callable
 from typing import Any
 
@@ -29,7 +30,7 @@ from app.store import runs as store
 from app.store import runs_views as views
 from app.store import tasks as store_tasks
 from app.store.messages import NewMessage
-from app.store.models import DEMO_CLIENT_ID, RunStatus
+from app.store.models import DEMO_CLIENT_ID, RunRow, RunStatus
 from tests._client import (
     DEFAULT_TEST_CLIENT_ID,
 )
@@ -639,3 +640,20 @@ def test_seed_demo_runs_replaces_legacy_demo_content(isolated_db: str) -> None:
     assert report is not None
     assert report["payload"]["demo_seed_version"] == DEMO_SEED_VERSION
     assert "Curated demonstration only" in report["markdown_text"]
+
+
+def test_failed_demo_seed_is_logged_and_never_aborts_startup(
+    isolated_db: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    async def _boom(goal: str, run: RunRow | None, db_path: str | None) -> None:
+        raise RuntimeError("seed failure")
+
+    monkeypatch.setattr(seed, "_seed_demo_run", _boom)
+
+    with caplog.at_level(logging.ERROR, logger="app.seed"):
+        _seed(isolated_db)
+
+    assert "Failed to seed demo run" in caplog.text
+    assert views.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db) == []

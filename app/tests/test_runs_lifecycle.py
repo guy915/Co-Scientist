@@ -17,6 +17,7 @@ from app import engine_tasks, task_worker
 from app.config import settings
 from app.engine_tasks import node as engine_tasks_node
 from app.engine_tasks.support import TaskCommit
+from app.runs import events as runs_events
 from app.store import checkpoints, runs
 from app.store import events as store_events
 from app.store import tasks as store
@@ -24,6 +25,7 @@ from app.store import tasks_lifecycle as lifecycle
 from app.store.models import RunRow, RunStatus, ScientificTask
 from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
 from tests._client import create_run as _create_run
+from tests._client import drain as _drain
 from tests._client import make_client as _client
 from tests._client import start_and_complete as _start_and_complete
 from tests._engine_tasks_helpers import _seed_checkpoint, _task_state
@@ -463,6 +465,9 @@ def test_event_stream_tails_a_live_run_until_it_ends(
 
     def finish() -> None:
         # Without a terminal status event the stream must notice the run row.
+        store_events.append_event(
+            run.id, "status", {"status": "running"}, db_path=isolated_db
+        )
         if terminal_event:
             store_events.append_event(
                 run.id, "status", {"status": "completed"}, db_path=isolated_db
@@ -475,12 +480,23 @@ def test_event_stream_tails_a_live_run_until_it_ends(
     timer.join()
 
     frames = [json.loads(line[6:]) for line in body.splitlines() if line]
-    assert [frame["type"] for frame in frames] == (
-        ["log", "status", "_terminal"]
-        if terminal_event
-        else ["log", "_terminal"]
-    )
+    assert [frame["type"] for frame in frames] == [
+        "log",
+        "status",
+        *(["status"] if terminal_event else []),
+        "_terminal",
+    ]
     assert frames[-1]["payload"]["status"] == "completed"
+
+
+def test_live_tail_stops_when_the_client_disconnects(isolated_db: str) -> None:
+    class _Gone:
+        async def is_disconnected(self) -> bool:
+            return True
+
+    run = seed_run("Abandoned stream", db_path=isolated_db)
+
+    assert _drain(runs_events._stream_live_tail(run.id, _Gone(), 0)) == []  # type: ignore[arg-type]
 
 
 def test_events_endpoint_serves_json_snapshot_when_stream_false(

@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Any
 
-from app import task_worker
-from app.async_bridge import run_in_scoped_loop
 from app.demo_seed_data import DEMO_SCENARIOS, DEMO_SEED_VERSION
 from app.run_modes import resolved_run_config, setup_config
 from app.seed.scenario import (
@@ -22,10 +19,6 @@ from app.store.runs import RunCreateOptions
 
 logger = logging.getLogger(__name__)
 
-# Only ad-hoc offline-engine seeds consume this small fallback budget; curated
-# examples are fixed content.
-_DEMO_TIER = "express"
-
 _DEMO_GOALS = list(DEMO_SCENARIOS)
 
 
@@ -33,7 +26,7 @@ def _build_demo_run_config(goal: str) -> dict[str, Any]:
     """Version the entire curated artifact bundle so older demos are
     replaced once per content revision.
     """
-    scenario = DEMO_SCENARIOS.get(goal)
+    scenario = DEMO_SCENARIOS[goal]
     config = resolved_run_config(
         {
             "setup": setup_config(
@@ -58,32 +51,18 @@ def _ensure_demo_run_row(
 ) -> RunRow:
     if run is not None:
         return run
-    scenario = DEMO_SCENARIOS.get(goal)
+    scenario = DEMO_SCENARIOS[goal]
     return runs.create_run(
         goal,
-        str(config["tier"]) if scenario else _DEMO_TIER,
+        str(config["tier"]),
         "engine",
         config,
         RunCreateOptions(
             client_id=DEMO_CLIENT_ID,
-            title=f"Example: {scenario.title}" if scenario else None,
+            title=f"Example: {scenario.title}",
             llm_backend="offline",
             db_path=db_path,
         ),
-    )
-
-
-def _drive_demo_run(run_id: str, db_path: str | None) -> None:
-    """Await the bounded durable worker chain on its own loop so callers
-    receive a completed demo and persisted report.
-    """
-    policy = task_worker.WorkerPolicy(db_path=db_path)
-    run_in_scoped_loop(
-        task_worker.run_run_worker_pool(
-            run_id,
-            f"demo-seed:{run_id[:8]}",
-            policy=policy,
-        )
     )
 
 
@@ -112,29 +91,21 @@ async def _seed_demo_run(
     run: RunRow | None,
     db_path: str | None,
 ) -> None:
-    """Default goals use curated examples; ad-hoc goals retain the durable
-    offline-engine path without making startup depend on model work.
-    """
     config = _build_demo_run_config(goal)
     run = _ensure_demo_run_row(goal, run, config, db_path)
-    scenario = DEMO_SCENARIOS.get(goal)
-    if scenario is not None:
-        # Reconstructed legacy demo rows need the same setup fields as newly
-        # created ones.
-        if run.config.get("interview_id"):
-            config["interview_id"] = run.config["interview_id"]
-        runs.set_run_config(run.id, config, db_path=db_path)
-        run.profile = str(config["tier"])
-        with db.connect(db_path) as conn:
-            conn.execute(
-                "UPDATE runs SET profile=? WHERE id=?", (run.profile, run.id)
-            )
-        await _seed_curated_scenario(run, scenario, db_path)
-        logger.info("Seeded curated demo run %s (%.60s…)", run.id[:8], goal)
-        return
-    task_worker.enqueue_run_workflow(run.id, db_path=db_path)
-    await asyncio.to_thread(_drive_demo_run, run.id, db_path)
-    logger.info("Seeded offline engine demo run %s (%.60s…)", run.id[:8], goal)
+    scenario = DEMO_SCENARIOS[goal]
+    # Reconstructed legacy demo rows need the same setup fields as newly
+    # created ones.
+    if run.config.get("interview_id"):
+        config["interview_id"] = run.config["interview_id"]
+    runs.set_run_config(run.id, config, db_path=db_path)
+    run.profile = str(config["tier"])
+    with db.connect(db_path) as conn:
+        conn.execute(
+            "UPDATE runs SET profile=? WHERE id=?", (run.profile, run.id)
+        )
+    await _seed_curated_scenario(run, scenario, db_path)
+    logger.info("Seeded curated demo run %s (%.60s…)", run.id[:8], goal)
 
 
 async def _seed_or_reseed_demo_run(
@@ -146,13 +117,7 @@ async def _seed_or_reseed_demo_run(
     examples from being tried.
     """
     if run is not None:
-        scenario = DEMO_SCENARIOS.get(goal)
-        current = (
-            _scenario_report_is_current(run, db_path)
-            if scenario is not None
-            else store.read_report_markdown(run.id, db_path=db_path) is not None
-        )
-        if current:
+        if _scenario_report_is_current(run, db_path):
             logger.info(
                 "demo run %s already has a report, skipping", run.id[:8]
             )

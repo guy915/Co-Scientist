@@ -38,7 +38,12 @@ from tests._engine_tasks_helpers import (
 )
 from tests._llm_fake_backend import install_completion_backend
 from tests._process_mode_helpers import FakeProcessMode
-from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
+from tests._store_helpers import (
+    enqueue_task,
+    event_seqs,
+    seed_checkpoint,
+    seed_run,
+)
 
 
 def _new_run(client: Any, headers: dict[str, str] | None = None) -> str:
@@ -389,6 +394,32 @@ def test_resume_preserves_scientist_contributions(isolated_db: str) -> None:
     assert len(reviews) == 1 and reviews[0]["reviewer_agent"] == "scientist"
     evidence = store.list_evidence(run.id)
     assert [e["source"] for e in evidence] == ["attachment"]
+
+
+def test_resuming_a_pre_engine_checkpoint_restarts_from_a_fresh_bootstrap(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
+    client = _client()
+    run_id = _new_run(client)
+    _seed_agent_artifacts(run_id)
+    manual_id = _seed_scientist_artifacts(run_id)
+    seed_checkpoint(
+        run_id,
+        {"provider": "mock", "legacy": True},
+        stage="iteration_1",
+        last_event_seq=store_events.latest_event_seq(run_id),
+    )
+    runs.update_run_status(run_id, StoreRunStatus.PAUSED)
+
+    resumed = client.post(f"/api/runs/{run_id}/resume")
+
+    assert resumed.status_code == 200, resumed.text
+    assert [h["id"] for h in hypotheses.list_hypotheses(run_id)] == [manual_id]
+    assert checkpoints.get_latest_checkpoint(run_id) is None
+    assert event_seqs(run_id, "lifecycle", event="legacy_resume_cleanup")
+    [task] = store_tasks.list_tasks(run_id)
+    assert (task.task_type, task.status) == ("engine.bootstrap", "queued")
 
 
 def test_resume_reassigns_event_seqs_above_last_checkpoint(
