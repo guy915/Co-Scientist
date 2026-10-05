@@ -14,6 +14,7 @@ if TYPE_CHECKING:
         scoped_llm_call_budget,
     )
     from co_scientist.llm.admission.free_policy import (
+        api_key_for_model,
         campaign_free_mode,
         current_api_key,
         enforce_free_request,
@@ -59,6 +60,7 @@ __all__ = [
     "ModelCallStats",
     "ModelProfile",
     "ToolLoop",
+    "api_key_for_model",
     "call_llm",
     "call_llm_json",
     "call_llm_with_tools",
@@ -98,6 +100,7 @@ _EXPORTS: dict[str, str] = {
     "ModelCallStats": "co_scientist.llm.telemetry",
     "ModelProfile": "co_scientist.llm.profile",
     "ToolLoop": "co_scientist.llm.tools.loop",
+    "api_key_for_model": "co_scientist.llm.admission.free_policy",
     "call_llm": "co_scientist.llm.call",
     "call_llm_json": "co_scientist.llm.call",
     "call_llm_with_tools": "co_scientist.llm.tools.loop",

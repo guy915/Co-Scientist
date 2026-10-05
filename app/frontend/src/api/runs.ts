@@ -2,9 +2,7 @@ import {
   clearAccessToken,
   getAccessToken,
   getClientId,
-  getStoredApiKey,
-  getStoredApiProvider,
-  getStoredModel,
+  resolveByokRoutes,
 } from '@/lib/client_id';
 import type {RunFocus, RunStatus, RunTier} from './wire_common';
 import type {ChatSummary, Interview} from './wire_interviews';
@@ -508,18 +506,24 @@ export function clientHeaders(): Record<string, string> {
     : {'X-Client-ID': getClientId()};
 }
 
-// BYOK credentials and model choices travel only in request headers.
+// BYOK credentials and model choices travel only in request headers. The
+// supervisor's provider and key are sent only when it is not the worker's.
 export function byokHeaders(): Record<string, string> {
-  const apiKey = getStoredApiKey();
-  if (!apiKey) return {};
-  const worker = getStoredModel('worker');
-  const supervisor = getStoredModel('supervisor');
+  const routes = resolveByokRoutes();
+  if (!routes) return {};
+  const {worker, supervisor} = routes;
   return {
-    'X-LLM-API-Key': apiKey,
-    'X-LLM-Provider': getStoredApiProvider(),
+    'X-LLM-API-Key': worker.apiKey,
+    'X-LLM-Provider': worker.provider,
     // An omitted model selects the provider default on the backend.
-    ...(worker ? {'X-LLM-Model': worker} : {}),
-    ...(supervisor ? {'X-LLM-Supervisor-Model': supervisor} : {}),
+    ...(worker.model ? {'X-LLM-Model': worker.model} : {}),
+    ...(supervisor.model ? {'X-LLM-Supervisor-Model': supervisor.model} : {}),
+    ...(supervisor.provider !== worker.provider
+      ? {
+          'X-LLM-Supervisor-Provider': supervisor.provider,
+          'X-LLM-Supervisor-API-Key': supervisor.apiKey,
+        }
+      : {}),
   };
 }
 

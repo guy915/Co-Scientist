@@ -224,7 +224,9 @@ describe('layout settings', () => {
     const input = screen.getByLabelText('DeepSeek API key');
     fireEvent.change(input, {target: {value: 'sk-test-123'}});
     fireEvent.keyDown(input, {key: 'Enter'});
-    expect(window.localStorage.getItem('cosci-api-key')).toBe('sk-test-123');
+    expect(window.localStorage.getItem('cosci-api-keys')).toBe(
+      JSON.stringify({deepseek: 'sk-test-123'}),
+    );
     expect(screen.queryByText('Settings saved')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', {name: 'Close settings'}));

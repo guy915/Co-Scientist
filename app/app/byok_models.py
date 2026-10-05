@@ -9,21 +9,20 @@ SUPERVISOR_MODEL_HEADER = "X-LLM-Supervisor-Model"
 
 _EXTRA_PROVIDER_MODELS: dict[str, tuple[str, ...]] = {
     "anthropic": (
-        "anthropic/claude-opus-4-5",
+        "anthropic/claude-opus-5-5",
+        "anthropic/claude-fable-5-1",
         "anthropic/claude-haiku-4-5",
     ),
     "azure": (),
     "deepseek": ("deepseek/deepseek-v4-pro",),
     "gemini": (
-        "gemini/gemini-2.5-pro",
-        "gemini/gemini-2.5-flash-lite",
+        "gemini/gemini-3.1-pro-preview",
+        "gemini/gemini-3.1-flash-lite",
     ),
-    "openai": ("openai/gpt-4o-mini",),
+    "openai": ("openai/gpt-6-astra", "openai/gpt-6-luna"),
     "openrouter": (
         "openrouter/deepseek/deepseek-v4-flash",
         "openrouter/deepseek/deepseek-v4-pro",
-        "openrouter/anthropic/claude-sonnet-4.5",
-        "openrouter/openai/gpt-4o",
     ),
 }
 

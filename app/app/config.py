@@ -238,15 +238,13 @@ def any_provider_credential() -> bool:
 
 
 BYOK_PROVIDER_DEFAULT_MODELS: dict[str, str] = {
-    "anthropic": "anthropic/claude-sonnet-4-5",
+    "anthropic": "anthropic/claude-sonnet-5-5",
     # Azure also needs deployment routing not carried by BYOK headers;
     # credentials alone are insufficient.
     "azure": "azure/gpt-4o",
-    "deepseek": "deepseek/deepseek-v4-flash",
-    "gemini": "gemini/gemini-2.5-flash",
-    # This default avoids reasoning-token spend that downstream caller budgets
-    # did not fund.
-    "openai": "openai/gpt-4o",
+    "deepseek": "deepseek/deepseek-flash",
+    "gemini": "gemini/gemini-3.8-flash",
+    "openai": "openai/gpt-6.1-sol",
     "openrouter": "openrouter/z-ai/glm-5.3-flash",
 }
 # A local default per provider avoids guessing which other models a key covers.

@@ -750,6 +750,7 @@ CAPABILITIES: list[tuple[tuple[str, ...], dict[str, Any]]] = [
     (
         (
             "deepseek/deepseek-v4-flash",
+            "deepseek/deepseek-flash",
             "deepseek/deepseek-v4-pro",
             "deepseek/deepseek-chat",
             "deepseek/deepseek-reasoner",
@@ -784,6 +785,13 @@ CAPABILITIES: list[tuple[tuple[str, ...], dict[str, Any]]] = [
             "azure/gpt-4o",
             "openai/gpt-4o-mini",
             "anthropic/claude-sonnet-4-5",
+            "anthropic/claude-sonnet-5-5",
+            "anthropic/claude-opus-5-5",
+            "anthropic/claude-fable-5-1",
+            "anthropic/claude-haiku-4-5",
+            "openai/gpt-6.1-sol",
+            "openai/gpt-6-astra",
+            "openai/gpt-6-luna",
             "gpt-4o",
             "ollama/llama3",
             "openrouter/x/y",
@@ -808,6 +816,8 @@ CAPABILITIES: list[tuple[tuple[str, ...], dict[str, Any]]] = [
     (
         (
             "gemini/gemini-3.1-flash-lite",
+            "gemini/gemini-3.8-flash",
+            "gemini/gemini-3.1-pro-preview",
             "gemini/gemini-3-x",
             "gemini/gemini-3.5-flash",
             "openrouter/google/gemini-3-x",
@@ -936,6 +946,12 @@ CAPABILITIES: list[tuple[tuple[str, ...], dict[str, Any]]] = [
     ),
 ]
 
+
+def _direct_money(prompt: float, completion: float) -> list[Any]:
+    cap = {"prompt": prompt * 1.05, "completion": completion * 1.05}
+    return [[prompt, completion, 0.0], prompt + completion, {"max_price": cap}]
+
+
 MONEY: dict[str, Any] = {
     "openrouter/nex-agi/nex-n2.5-pro:free": _FREE,
     "openrouter/nex-agi/nex-n2.5-mini:free": _FREE,
@@ -963,9 +979,9 @@ MONEY: dict[str, Any] = {
         _STEALTH_PIN,
     ],
     "openrouter/z-ai/glm-5.3-flash": [
-        [0.075, 0.25, 0.015],
-        0.295,
-        {"max_price": {"prompt": 0.07875, "completion": 0.2625}},
+        [0.15, 0.5, 0.015],
+        0.5825,
+        {"max_price": {"prompt": 0.1575, "completion": 0.525}},
     ],
     "deepseek/deepseek-v4-flash": [[0.44, 1.32, 0.0], 1.76, _CAP_1],
     "deepseek/deepseek-v4-pro": [[1.32, 3.96, 0.0], 5.28, _CAP_2],
@@ -1024,6 +1040,21 @@ MONEY: dict[str, Any] = {
         18.0,
         {"max_price": {"prompt": 3.1500000000000004, "completion": 15.75}},
     ],
+    **{
+        name: _direct_money(prompt, completion)
+        for name, (prompt, completion) in {
+            "anthropic/claude-sonnet-5-5": (2.0, 10.0),
+            "anthropic/claude-opus-5-5": (4.0, 20.0),
+            "anthropic/claude-fable-5-1": (10.0, 50.0),
+            "anthropic/claude-haiku-4-5": (1.0, 5.0),
+            "gemini/gemini-3.8-flash": (0.75, 3.75),
+            "gemini/gemini-3.1-pro-preview": (2.0, 12.0),
+            "openai/gpt-6.1-sol": (2.0, 10.0),
+            "openai/gpt-6-astra": (10.0, 50.0),
+            "openai/gpt-6-luna": (0.1, 0.5),
+            "deepseek/deepseek-flash": (0.3, 1.2),
+        }.items()
+    },
     "openrouter/google/gemma-4-26b-a4b-it:free": _UNPRICED,
     "stealth/space-bunny-alpha": _UNPRICED,
     "gpt-4o": _UNPRICED,

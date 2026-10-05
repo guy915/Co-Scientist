@@ -11,6 +11,7 @@ from collections.abc import Generator
 from pathlib import Path
 from typing import Any
 
+from app.store.schema import ADDED_COLUMNS as _ADDED_COLUMNS
 from app.store.schema import SCHEMA as _SCHEMA
 
 logger = logging.getLogger(__name__)
@@ -110,8 +111,26 @@ def _use_conn(
             yield fresh
 
 
+def _add_missing_columns(conn: sqlite3.Connection) -> None:
+    for table, column, declaration in _ADDED_COLUMNS:
+        present = {
+            row["name"] for row in conn.execute(f"PRAGMA table_info({table})")
+        }
+        if column in present:
+            continue
+        try:
+            conn.execute(
+                f"ALTER TABLE {table} ADD COLUMN {column} {declaration}"
+            )
+        except sqlite3.OperationalError as exc:
+            # Another process starting on the same file may have won the race.
+            if "duplicate column" not in str(exc):
+                raise
+
+
 def _init_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(_SCHEMA)
+    _add_missing_columns(conn)
     conn.execute("PRAGMA journal_mode=WAL")  # Readers do not block writers.
 
 
