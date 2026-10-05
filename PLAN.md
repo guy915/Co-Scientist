@@ -24,8 +24,9 @@ not targets. Counts include shared helpers and both browser suites; tests are
 collected cases, including four platform-dependent engine skips. The ratchet
 formerly counted 706 lines of frontend test helpers as production; the opening
 PR corrects that classification. The actual production baseline is 114,507
-lines. The instruments and deterministic fixture fixes add 345 test lines, three files and eight collected
-cases, making the opening totals 132,043 lines, 293 files and 6,863 cases.
+lines. The instruments and deterministic fixture fixes add 345 test lines,
+three files and eight collected cases, making the opening totals 132,043 lines,
+293 files and 6,863 cases.
 
 | Suite | Test lines | Files | Tests | Test lines per production line | Expected test lines |
 |---|---:|---:|---:|---:|---:|
