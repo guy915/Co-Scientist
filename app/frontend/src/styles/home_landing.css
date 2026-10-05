@@ -398,73 +398,45 @@ html:has(.ucs-landing) body {
   min-height: 66px;
 }
 
-.ucs-header-landing-tabs {
-  display: none;
-  min-width: 0;
-  flex: 1 1 0;
-  justify-content: center;
+.ucs-landing-rail-anchor.is-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 5;
 }
 
-.ucs-header-landing-tabs:not(:empty) {
-  display: flex;
+/* An overlay over the header box: it never takes part in the header's own
+   layout, so the lockup and actions stay put while the tabs slide in. */
+.ucs-header-landing-tabs {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
 
 .ucs-landing-header-tabs {
-  min-width: 0;
-  width: 100%;
-  max-width: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: transparent;
+  /* Parked above the clip until the first scroll measurement places it. */
+  transform: translateY(-200%);
+  will-change: transform;
+}
+
+.ucs-landing-header-tabs:not([inert]) .ucs-landing-rail nav {
+  pointer-events: auto;
 }
 
 .ucs-landing-header-tabs .ucs-landing-rail {
-  min-width: 0;
-  width: 100%;
-  padding: 0;
-  border: 0;
+  border-color: transparent;
   background: transparent;
-}
-
-.ucs-header-action-bar:has(.ucs-landing-header-tabs) .ucs-header-actions {
-  position: relative;
-  top: auto;
-  right: auto;
-  flex: none;
-  transform: none;
-}
-
-.ucs-header-action-bar:has(.ucs-landing-header-tabs) .ucs-product-lockup {
-  flex: none;
-}
-
-.ucs-header-action-bar:has(.ucs-landing-header-tabs) {
-  min-width: 0;
-}
-
-@media (max-width: 1000px) {
-  .ucs-header-action-bar:has(.ucs-landing-header-tabs) {
-    gap: 8px;
-  }
-
-  .ucs-header-action-bar:has(.ucs-landing-header-tabs) .ucs-product-lockup span,
-  .ucs-header-action-bar:has(.ucs-landing-header-tabs) .ucs-system-status {
-    display: none;
-  }
-
-  .ucs-header-action-bar:has(.ucs-landing-header-tabs) .ucs-product-lockup svg {
-    display: block;
-  }
-
-  .ucs-header-action-bar:has(.ucs-landing-header-tabs)
-    .ucs-header-actions
-    > button {
-    display: inline-flex;
-  }
 }
 
 .ucs-landing-rail nav {
   position: relative;
   display: flex;
   min-width: 0;
-  max-width: 100%;
+  max-width: min(100%, var(--rail-room, 100%));
   gap: 4px;
   overflow-x: auto;
   padding: 4px;

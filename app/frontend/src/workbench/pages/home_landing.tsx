@@ -214,37 +214,96 @@ function useRailScroll(
   return more;
 }
 
+// Width the header leaves free around its centre, so centred tabs never
+// cover the lockup or the actions. The title slot is empty on the landing.
+function headerRoom(header: HTMLElement, slot: HTMLElement): number {
+  const box = header.getBoundingClientRect();
+  const centre = box.left + box.width / 2;
+  let left = box.left;
+  let right = box.right;
+  for (const child of Array.from(header.children)) {
+    if (child === slot || child.classList.contains('ucs-header-title'))
+      continue;
+    const r = child.getBoundingClientRect();
+    if (!r.width) continue;
+    if (r.left + r.width / 2 < centre) left = Math.max(left, r.right);
+    else right = Math.min(right, r.left);
+  }
+  return 2 * Math.min(centre - left, right - centre) - 24;
+}
+
+// Below this the centred tabs would show barely one label; the page copy then
+// sticks under the header instead.
+const MIN_HEADER_ROOM = 320;
+
+// The page copy scrolls natively; the header copy sits at the same spot and
+// is clipped to the header, so the tabs slide continuously out of the pane
+// into the header row instead of being re-parented mid-scroll.
 function LandingRail({reduceMotion}: {reduceMotion: boolean}) {
   const anchorRef = useRef<HTMLDivElement | null>(null);
-  const [header, setHeader] = useState<HTMLElement | null>(null);
+  const copyRef = useRef<HTMLDivElement | null>(null);
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
   const [joined, setJoined] = useState(false);
+  const [sticky, setSticky] = useState(false);
   useEffect(() => {
     const anchor = anchorRef.current;
     const pane = anchor?.closest('.ucs-page--home');
-    const slot = document.getElementById('header-landing-tabs');
-    if (!anchor || !pane || !slot) return;
-    setHeader(slot);
-    const update = () =>
-      setJoined(
-        anchor.getBoundingClientRect().top <= pane.getBoundingClientRect().top,
-      );
+    const target = document.getElementById('header-landing-tabs');
+    const header = target?.parentElement;
+    if (!anchor || !pane || !target || !header) return;
+    const update = () => {
+      const fit = headerRoom(header, target);
+      const narrow = fit < MIN_HEADER_ROOM;
+      setSticky(narrow);
+      setSlot(narrow ? null : target);
+      if (narrow) {
+        anchor.style.removeProperty('--rail-room');
+        return;
+      }
+      const a = anchor.getBoundingClientRect();
+      const h = header.getBoundingClientRect();
+      anchor.style.setProperty('--rail-room', `${fit}px`);
+      target.style.setProperty('--rail-room', `${fit}px`);
+      const copy = copyRef.current;
+      if (copy) {
+        const rest = (h.height - copy.offsetHeight) / 2;
+        copy.style.left = `${a.left - h.left}px`;
+        copy.style.width = `${a.width}px`;
+        copy.style.transform = `translateY(${Math.max(rest, a.top - h.top)}px)`;
+      }
+      setJoined(a.top < pane.getBoundingClientRect().top);
+    };
     update();
+    const frame = requestAnimationFrame(update);
     pane.addEventListener('scroll', update, {passive: true});
     window.addEventListener('resize', update);
     return () => {
+      cancelAnimationFrame(frame);
       pane.removeEventListener('scroll', update);
       window.removeEventListener('resize', update);
     };
   }, []);
-  const rail = <LandingTabs reduceMotion={reduceMotion} />;
+  const inHeader = joined && slot !== null;
   return (
-    <div ref={anchorRef} className="ucs-landing-rail-anchor">
-      {joined && header
-        ? createPortal(
-            <div className="ucs-landing ucs-landing-header-tabs">{rail}</div>,
-            header,
-          )
-        : rail}
+    <div
+      ref={anchorRef}
+      className={joinClasses('ucs-landing-rail-anchor', sticky && 'is-sticky')}
+    >
+      <div inert={inHeader} aria-hidden={inHeader || undefined}>
+        <LandingTabs reduceMotion={reduceMotion} />
+      </div>
+      {slot &&
+        createPortal(
+          <div
+            ref={copyRef}
+            className="ucs-landing ucs-landing-header-tabs"
+            inert={!inHeader}
+            aria-hidden={!inHeader || undefined}
+          >
+            <LandingTabs reduceMotion={reduceMotion} />
+          </div>,
+          slot,
+        )}
     </div>
   );
 }
