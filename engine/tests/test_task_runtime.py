@@ -399,48 +399,39 @@ def _sources(registry: ToolRegistry) -> list[ToolConfig]:
     return [config for config in configs if config is not None]
 
 
-def test_literature_search_sources_accept_their_query_params(
+def test_configured_search_and_enrichment_tools_accept_their_params(
     registry: ToolRegistry, accepted: dict[str, set[str]]
 ) -> None:
-    configs = _sources(registry)
-    assert configs, "the default config must configure search sources"
-    for tool_config in configs:
+    sources = _sources(registry)
+    assert sources, "the default config must configure search sources"
+    for tool_config in sources:
         params = _build_query_tool_params(
             "resistance reversal", "research_1", "run-1", 3, tool_config
         )
         _assert_callable(tool_config, params, accepted)
 
-
-def test_validation_search_tools_accept_their_query_params(
-    registry: ToolRegistry, accepted: dict[str, set[str]]
-) -> None:
-    tool_ids = registry.get_tools_for_workflow("validation")
-    assert tool_ids, "the default config must configure validation tools"
-    for tool_id in tool_ids:
+    canonical = _build_search_canonical_params(
+        "resistance reversal", 3, "research_1", "run-1"
+    )
+    validation = registry.get_tools_for_workflow("validation")
+    assert validation, "the default config must configure validation tools"
+    for tool_id in validation:
         tool_config = registry.get_tool(tool_id)
         assert tool_config is not None
-        if tool_config.category not in ("search", "search_with_content"):
-            continue
-        canonical = _build_search_canonical_params(
-            "resistance reversal", 3, "research_1", "run-1"
-        )
-        _assert_callable(
-            tool_config, tool_config.map_parameters(canonical), accepted
-        )
+        if tool_config.category in ("search", "search_with_content"):
+            _assert_callable(
+                tool_config, tool_config.map_parameters(canonical), accepted
+            )
 
-
-def test_context_enrichment_tools_accept_their_entity_params(
-    registry: ToolRegistry, accepted: dict[str, set[str]]
-) -> None:
     workflow = registry.get_workflow("literature_review")
     assert workflow is not None
     assert workflow.context_enrichment_tools
     for tool_id in workflow.context_enrichment_tools:
         tool_config = registry.get_tool(tool_id)
         assert tool_config is not None
-        canonical = _build_enrichment_canonical_params("MCR-1")
+        entity = _build_enrichment_canonical_params("MCR-1")
         _assert_callable(
-            tool_config, tool_config.map_parameters(canonical), accepted
+            tool_config, tool_config.map_parameters(entity), accepted
         )
 
 

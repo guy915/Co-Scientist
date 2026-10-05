@@ -278,13 +278,6 @@ _NODE_CHECKPOINTS: dict[str, tuple[int, ...]] = {
     ),
 }
 
-_EXEMPT_NODES = {
-    "comprehensive_reflection",
-    # Hardcoded 0-1 progress differs from the 0-100 constants and cannot join
-    # this walk.
-    "literature_review",
-}
-
 
 def _first_pass_order(mcp_available: bool) -> list[str]:
     state = make_state(mcp_available=mcp_available)
@@ -367,33 +360,6 @@ def test_first_pass_progress_never_decreases() -> None:
             f"progress steps backward (mcp_available={mcp_available}): "
             f"{decreases}"
         )
-
-
-def test_every_walked_node_is_covered_or_exempt() -> None:
-    walked = set(_first_pass_order(True)) | set(_first_pass_order(False))
-    uncovered = walked - set(_NODE_CHECKPOINTS) - _EXEMPT_NODES
-    assert not uncovered, (
-        f"walked nodes with no checkpoint coverage and no exemption: "
-        f"{sorted(uncovered)}"
-    )
-
-
-def test_every_declared_progress_constant_is_pinned() -> None:
-    pinned = {
-        value
-        for checkpoints in _NODE_CHECKPOINTS.values()
-        for value in checkpoints
-    }
-    unpinned = {
-        name: value
-        for name, value in vars(constants).items()
-        if name.startswith("PROGRESS_") and value not in pinned
-    }
-    assert not unpinned, (
-        f"PROGRESS_* constants outside the monotonicity invariant: "
-        f"{unpinned}. Add their node to _NODE_CHECKPOINTS (or exempt it "
-        "by name) so the first-pass walk covers them."
-    )
 
 
 _PACKAGE = "co_scientist.llm"

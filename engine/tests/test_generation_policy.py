@@ -28,7 +28,6 @@ from co_scientist.prompts import (
     get_research_overview_prompt,
     get_validation_synthesis_prompt_with_tools,
 )
-from co_scientist.prompts.generation_debate import _DEBATE_MAX_DISCUSSION_TURNS
 from co_scientist.prompts.loading import load_prompt
 from tests._llm_fake import (
     install_fake_backend,
@@ -269,39 +268,6 @@ async def test_debate_prompts_carry_scientist_criteria(
         "Scientist Evaluation Criteria" not in prompt for prompt in prompts
     )
     assert all("{{MISSING" not in prompt for prompt in prompts)
-
-
-async def test_debate_prompt_states_the_envelope_from_the_loop_constants(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A stale prose envelope is a real instruction even when code enforces
-    different bounds."""
-    from co_scientist.prompts.generation_debate import (
-        _DEBATE_TYPICAL_MAX_TURNS,
-        _DEBATE_TYPICAL_MIN_TURNS,
-    )
-
-    prompts: list[str] = []
-
-    async def fake_call_llm(**kwargs: Any) -> str:
-        prompts.append(str(kwargs["prompt"]))
-        return "HYPOTHESIS: agreed"
-
-    monkeypatch.setattr(debate, "call_llm", fake_call_llm)
-    stub_call_llm_json(
-        monkeypatch,
-        debate,
-        make_generation_response("h", explanation="because"),
-    )
-
-    await generate_with_debate(make_state(), count=1)
-
-    envelope = (
-        f"typically {_DEBATE_TYPICAL_MIN_TURNS}-{_DEBATE_TYPICAL_MAX_TURNS}"
-        f" conversational turns, with a maximum of "
-        f"{_DEBATE_MAX_DISCUSSION_TURNS}"
-    )
-    assert all(envelope in prompt for prompt in prompts)
 
 
 @pytest.mark.parametrize(

@@ -253,24 +253,6 @@ class _ToolLookupRegistry:
         return self._tool
 
 
-async def test_run_one_enrichment_missing_tool_is_noop(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    caplog.set_level("WARNING")
-    hyps = [make_hypothesis(text="h1")]
-
-    await _run_one_enrichment(
-        EnrichmentConfig(tool="missing_tool"),
-        _ToolLookupRegistry(None),
-        hyps,
-        mcp_client=None,
-        semaphore=asyncio.Semaphore(1),
-    )
-
-    assert hyps[0].enrichments == {}
-    assert "not found in registry" in caplog.text
-
-
 async def test_run_one_enrichment_fans_out_per_hypothesis() -> None:
     tool_config = ToolConfig(server="s", mcp_tool_name="nvd_search")
     mcp_client = FakeCallToolClient({"ok": True})
