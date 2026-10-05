@@ -15,13 +15,11 @@ from app.store import hypotheses, runs
 from app.store import retrieval_calls as retrieval
 from app.store.hypotheses import HypothesisStateChanges
 from app.store.retrieval_calls import NewRetrievalCall
-from app.store.runs import RunCreateOptions
 from tests._drain_helpers import _build_report
-from tests._store_helpers import _add
+from tests._store_helpers import _add, seed_run
 
 
 def test_empty_leaderboard_reason_names_review_rejection_alone() -> None:
-    # Empty reports must name the exclusion causes that actually ran.
     tally = {
         "review_rejected": 15,
         "duplicate": 0,
@@ -540,9 +538,7 @@ def test_synthesized_topics_map_only_to_persisted_evidence() -> None:
 async def test_report_body_opens_with_the_same_idea_as_the_standings(
     isolated_db: str,
 ) -> None:
-    # Markdown and leaderboard must apply the same demotion for fundamentally
-    # undermined ideas.
-    run = runs.create_run("ordering goal", "standard", "engine", {})
+    run = seed_run("ordering goal")
     doubted = _add(run.id, "Doubted idea", "A doubted proposal.", isolated_db)
     sound = _add(run.id, "Sound idea", "A sound proposal.", isolated_db)
     hypotheses.update_hypothesis_state(
@@ -784,7 +780,7 @@ def test_survives_alongside_the_skills_used_notice() -> None:
 async def test_a_built_report_pulls_its_own_runs_retrieval_calls(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("cardiac goal", "standard", "engine", {})
+    run = seed_run("cardiac goal")
     retrieval.add_retrieval_calls(
         [
             NewRetrievalCall(
@@ -958,12 +954,8 @@ def test_restatement_absent_leaves_the_section_unchanged() -> None:
 def test_set_run_goal_restatement_persists_and_reads_back(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run(
-        "Map the feedback loop.",
-        "standard",
-        "engine",
-        {},
-        RunCreateOptions(client_id="c1", db_path=isolated_db),
+    run = seed_run(
+        "Map the feedback loop.", client_id="c1", db_path=isolated_db
     )
     assert run.goal_restatement is None
 
@@ -986,12 +978,8 @@ def test_set_run_goal_restatement_missing_run_is_noop(
 def test_redact_run_goal_clears_the_restatement(isolated_db: str) -> None:
     # Redaction must clear the pre-screen restatement too, or it republishes the
     # goal in different words.
-    run = runs.create_run(
-        "Synthesize a controlled pathogen.",
-        "standard",
-        "engine",
-        {},
-        RunCreateOptions(client_id="c1", db_path=isolated_db),
+    run = seed_run(
+        "Synthesize a controlled pathogen.", client_id="c1", db_path=isolated_db
     )
     runs.set_run_goal_restatement(
         run.id, "A paraphrase of the goal.", db_path=isolated_db

@@ -32,9 +32,8 @@ from app.engine_adapter.drain.matches import _persist_engine_matches
 from app.execution_policy import scoped_execution_policy
 from app.hypothesis import screen_hypotheses
 from app.report import markdown as report_markdown
-from app.store import db, hypotheses, records, runs
+from app.store import db, hypotheses, records
 from app.store.models import RunRow
-from app.store.runs import RunCreateOptions
 from tests._drain_helpers import (
     _engine_hypothesis,
     _final_state_with_features,
@@ -42,7 +41,9 @@ from tests._drain_helpers import (
     _persist,
     _persist_and_finalize,
 )
+from tests._llm_fake_backend import semantic_response as _fake_semantic_response
 from tests._process_mode_helpers import FakeProcessMode
+from tests._store_helpers import seed_run
 
 from ._llm_fake_backend import install_completion_backend
 
@@ -70,19 +71,7 @@ def _escalation_state(held_text: str = _HELD_TEXT) -> dict[str, Any]:
 
 
 def _real_run(goal: str) -> RunRow:
-    return runs.create_run(goal, "standard", "engine", {})
-
-
-def _fake_semantic_response(category: str) -> SimpleNamespace:
-    return SimpleNamespace(
-        choices=[
-            SimpleNamespace(
-                message=SimpleNamespace(
-                    content=f'{{"category":"{category}","reason":"model"}}'
-                )
-            )
-        ]
-    )
+    return seed_run(goal)
 
 
 def _stub_eligible(
@@ -233,12 +222,8 @@ def test_drain_skips_escalation_cleanly_when_offline(
         )
 
     install_completion_backend(monkeypatch, fail_if_called)
-    run = runs.create_run(
-        "drain escalation offline",
-        "standard",
-        "engine",
-        {},
-        RunCreateOptions(llm_backend="offline", db_path=isolated_db),
+    run = seed_run(
+        "drain escalation offline", llm_backend="offline", db_path=isolated_db
     )
 
     drained = _persist(
@@ -285,9 +270,7 @@ def test_escalation_does_not_hold_the_write_lock(
     try:
         assert call_started.wait(timeout=5), "escalation call never started"
         start = time.monotonic()
-        runs.create_run(
-            "concurrent write during escalation", "standard", "engine", {}
-        )
+        seed_run("concurrent write during escalation")
         elapsed = time.monotonic() - start
         assert elapsed < 2.0, (
             "a concurrent write blocked for "
@@ -346,7 +329,7 @@ def _final_state_with_article(article: dict[str, Any]) -> dict[str, Any]:
 def test_drain_persists_doi_pmid_passage_and_retrieval_timestamp(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("identity goal", "standard", "engine", {})
+    run = seed_run("identity goal")
     article = {
         "title": "A PubMed paper",
         "source": "pubmed",
@@ -371,7 +354,7 @@ def test_drain_persists_doi_pmid_passage_and_retrieval_timestamp(
 def test_drain_derives_pmid_from_pubmed_url_without_source_id(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("identity goal", "standard", "engine", {})
+    run = seed_run("identity goal")
     article = {
         "title": "Untagged source article",
         "source": "web",
@@ -388,7 +371,7 @@ def test_drain_derives_pmid_from_pubmed_url_without_source_id(
 def test_offline_resolver_available_matches_metadata_heuristic(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("identity goal", "standard", "engine", {})
+    run = seed_run("identity goal")
     final_state = {
         "hypotheses": [],
         "articles": [
@@ -450,7 +433,7 @@ def test_live_resolver_dereferences_rather_than_inspecting_the_string(
         fake_resolve_many,
     )
 
-    run = runs.create_run("identity goal", "standard", "engine", {})
+    run = seed_run("identity goal")
     final_state = {
         "hypotheses": [],
         "articles": [
@@ -505,7 +488,7 @@ def test_live_resolver_persists_retraction_from_either_source(
         fake_resolve_many,
     )
 
-    run = runs.create_run("identity goal", "standard", "engine", {})
+    run = seed_run("identity goal")
     final_state = {
         "hypotheses": [],
         "articles": [
@@ -544,7 +527,7 @@ def test_old_evidence_row_with_no_retracted_column_renders_unretracted(
 ) -> None:
     # Added nullable retraction columns cannot establish facts about legacy
     # evidence.
-    run = runs.create_run("identity goal", "standard", "engine", {})
+    run = seed_run("identity goal")
     article = {
         "title": "Pre-migration paper",
         "source": "pubmed",
@@ -568,7 +551,7 @@ def test_old_evidence_row_with_no_retracted_column_renders_unretracted(
 def test_drain_persists_hybrid_retrieval_score_provenance(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("identity goal", "standard", "engine", {})
+    run = seed_run("identity goal")
     article = {
         "title": "Scored paper",
         "source": "pubmed",
@@ -594,7 +577,7 @@ def test_evidence_passages_uses_stored_passage_text(
     # reconstruction.
     from app.claims.grounding import evidence_passages
 
-    run = runs.create_run("identity goal", "standard", "engine", {})
+    run = seed_run("identity goal")
     article = {
         "title": "Passage paper",
         "source": "pubmed",
@@ -624,7 +607,7 @@ def test_live_path_routes_every_verdict_through_the_resolvability_seam(
         citation_metadata, "assess_resolvability", recording_assess
     )
 
-    run = runs.create_run("identity goal", "standard", "engine", {})
+    run = seed_run("identity goal")
     article = {
         "title": "Seam paper",
         "source": "pubmed",
@@ -657,7 +640,7 @@ def test_offline_path_routes_through_the_same_seam(
         citation_metadata, "assess_resolvability", recording_assess
     )
 
-    run = runs.create_run("identity goal", "standard", "engine", {})
+    run = seed_run("identity goal")
     article = {
         "title": "Offline seam paper",
         "source": "pubmed",
@@ -674,7 +657,7 @@ def test_drain_persists_the_classified_source_type(
 ) -> None:
     # Publication type is lost after draining, so classify once while engine
     # metadata is available.
-    run = runs.create_run("identity goal", "standard", "engine", {})
+    run = seed_run("identity goal")
     final_state = {
         "hypotheses": [],
         "articles": [
@@ -719,7 +702,7 @@ def test_persist_writes_safety_and_toxicity_onto_the_hypothesis_row(
 ) -> None:
     # Proposer safety prose is not reviewer assessment and must never control
     # the safety gate.
-    run = runs.create_run("CSC goal", "standard", "engine", {})
+    run = seed_run("CSC goal")
     final_state = {
         "hypotheses": [
             _engine_hypothesis(
@@ -793,7 +776,7 @@ def test_authored_title_is_clipped_past_the_display_cap() -> None:
 def test_persist_writes_the_authored_title_onto_the_hypothesis_row(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("CSC goal", "standard", "engine", {})
+    run = seed_run("CSC goal")
     final_state = {
         "hypotheses": [
             _engine_hypothesis(
@@ -819,7 +802,7 @@ def test_persist_derives_the_title_for_an_evolved_child_without_one(
 ) -> None:
     # A child's mechanism can diverge; missing titles derive from its own text
     # rather than its parent.
-    run = runs.create_run("CSC goal", "standard", "engine", {})
+    run = seed_run("CSC goal")
     final_state = {
         "hypotheses": [
             _engine_hypothesis(
@@ -895,7 +878,7 @@ def _screening_state() -> dict[str, Any]:
 
 
 def test_drain_screens_hypotheses_before_finalize(isolated_db: str) -> None:
-    run = runs.create_run("safety goal", "standard", "engine", {})
+    run = seed_run("safety goal")
     state = _screening_state()
 
     _persist(run_id=run.id, final_state=state, db_path=isolated_db)
@@ -918,7 +901,7 @@ def test_drain_persists_held_hypotheses_as_reviewable_decisions(
 ) -> None:
     # Held ideas leave the engine pool, so drain must preserve adjudicable
     # decisions before they disappear.
-    run = runs.create_run("held hypotheses goal", "standard", "engine", {})
+    run = seed_run("held hypotheses goal")
 
     _persist(
         run_id=run.id,
@@ -949,7 +932,7 @@ def test_drain_records_a_hold_without_an_engine_audit_entry(
 ) -> None:
     # Missing audit joins must not discard held hypotheses; retain a hold with
     # fallback rationale.
-    run = runs.create_run("orphan hold goal", "standard", "engine", {})
+    run = seed_run("orphan hold goal")
     state = _held_final_state()
     state["safety_decisions"] = []
 
@@ -1001,7 +984,7 @@ def _multi_parent_state() -> dict[str, Any]:
 
 
 def test_drain_persists_multi_parent_lineage(isolated_db: str) -> None:
-    run = runs.create_run("combine goal", "standard", "engine", {})
+    run = seed_run("combine goal")
     _persist(
         run_id=run.id,
         final_state=_multi_parent_state(),
@@ -1025,7 +1008,7 @@ def test_drain_drops_pruned_co_parent_from_lineage(isolated_db: str) -> None:
     state["hypotheses"] = [
         h for h in state["hypotheses"] if h["id"] != "parent-2"
     ]
-    run = runs.create_run("combine goal", "standard", "engine", {})
+    run = seed_run("combine goal")
     _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
     hyps = {
@@ -1040,7 +1023,7 @@ def test_drain_drops_pruned_co_parent_from_lineage(isolated_db: str) -> None:
 def test_drain_persists_creation_iteration(isolated_db: str) -> None:
     # Unknown creation cycles remain NULL so scaling falls back to generation
     # rather than inventing cycle zero.
-    run = runs.create_run("kinase goal", "standard", "engine", {})
+    run = seed_run("kinase goal")
     _persist(
         run_id=run.id,
         final_state={
@@ -1074,7 +1057,7 @@ def test_persist_match_records_the_iteration_it_was_judged_in(
 ) -> None:
     state = _final_state_with_features()
     state["tournament_matchups"][0]["iteration"] = 2
-    run = runs.create_run("CSC goal", "standard", "engine", {})
+    run = seed_run("CSC goal")
 
     _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
@@ -1087,7 +1070,7 @@ def test_persist_match_without_an_iteration_falls_back_to_zero(
 ) -> None:
     state = _final_state_with_features()
     state["tournament_matchups"][0].pop("iteration", None)
-    run = runs.create_run("CSC goal", "standard", "engine", {})
+    run = seed_run("CSC goal")
 
     _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
@@ -1136,7 +1119,7 @@ def _judged_matchup() -> dict[str, Any]:
 def test_a_judged_debate_reaches_the_report(isolated_db: str) -> None:
     # Each debate turn may swap presentation numbers; persist one canonical
     # match verdict.
-    run = runs.create_run("cardiac fibrosis goal", "express", "engine", {})
+    run = seed_run("cardiac fibrosis goal", profile="express")
     with db.transaction(isolated_db) as conn:
         _persist_engine_matches(
             run.id,
@@ -1207,7 +1190,7 @@ def _state(reviews: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def _persisted_novelty(state: dict[str, Any], db_path: str) -> Any:
-    run = runs.create_run("novelty goal", "standard", "engine", {})
+    run = seed_run("novelty goal")
     _persist(run_id=run.id, final_state=state, db_path=db_path)
     rows = hypotheses.list_hypotheses(run.id, db_path=db_path)
     return rows[0]["novelty_score"]

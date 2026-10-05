@@ -38,8 +38,17 @@ from co_scientist.schemas.generation import (
     GENERATION_SCHEMA,
     HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA,
 )
-from tests._llm_fake import install_fake_backend, install_fake_llm
-from tests._state import make_hypothesis, make_review, make_state
+from tests._llm_fake import (
+    install_fake_backend,
+    install_fake_llm,
+    stub_call_llm_json,
+)
+from tests._state import (
+    make_generation_response,
+    make_hypothesis,
+    make_review,
+    make_state,
+)
 
 
 async def _fresh_call_llm(*_a: Any, **_k: Any) -> str:
@@ -113,16 +122,9 @@ def _make_fake_debate_call_llm_json(counter: dict[str, int]) -> Any:
         else:
             counter["n"] += 1
             text = f"FRESH-{counter['n']}"
-        return {
-            "hypotheses": [
-                {
-                    "hypothesis": text,
-                    "explanation": "",
-                    "experiment": "",
-                    "literature_grounding": "",
-                }
-            ]
-        }
+        return make_generation_response(
+            text, explanation="", experiment="", literature_grounding=""
+        )
 
     return fake_call_llm_json
 
@@ -302,16 +304,9 @@ async def test_debate_prompts_carry_scientist_criteria(
 
     async def fake_call_llm_json(**kwargs: Any) -> dict[str, Any]:
         prompts.append(str(kwargs["prompt"]))
-        return {
-            "hypotheses": [
-                {
-                    "hypothesis": "the criteria-guided hypothesis",
-                    "explanation": "because",
-                    "literature_grounding": None,
-                    "experiment": "run the assay",
-                }
-            ]
-        }
+        return make_generation_response(
+            "the criteria-guided hypothesis", explanation="because"
+        )
 
     monkeypatch.setattr(debate, "call_llm", fake_call_llm)
     monkeypatch.setattr(debate, "call_llm_json", fake_call_llm_json)
@@ -351,20 +346,12 @@ async def test_debate_prompt_states_the_envelope_from_the_loop_constants(
         prompts.append(str(kwargs["prompt"]))
         return "HYPOTHESIS: agreed"
 
-    async def fake_call_llm_json(**kwargs: Any) -> dict[str, Any]:
-        return {
-            "hypotheses": [
-                {
-                    "hypothesis": "h",
-                    "explanation": "because",
-                    "literature_grounding": None,
-                    "experiment": "run the assay",
-                }
-            ]
-        }
-
     monkeypatch.setattr(debate, "call_llm", fake_call_llm)
-    monkeypatch.setattr(debate, "call_llm_json", fake_call_llm_json)
+    stub_call_llm_json(
+        monkeypatch,
+        debate,
+        make_generation_response("h", explanation="because"),
+    )
 
     await generate_with_debate(make_state(), count=1)
 
@@ -469,8 +456,6 @@ def test_research_direction_prompt_asks_for_sub_topics() -> None:
 
 
 def test_research_direction_prompt_asks_for_recent_findings() -> None:
-    """Six developed directions cannot fit one call's clock; draft names them
-    first."""
     prompt = _direction_prompt()
     assert "recent_findings" in prompt
     assert "already established" in prompt

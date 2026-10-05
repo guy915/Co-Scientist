@@ -66,3 +66,7 @@ def fake_completion(
         return completion_response(content)
 
     return completion
+
+
+def semantic_response(category: str) -> types.SimpleNamespace:
+    return completion_response(f'{{"category":"{category}","reason":"model"}}')

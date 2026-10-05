@@ -19,7 +19,13 @@ from co_scientist.agents.ranking.ranking_lifecycle import (
 from co_scientist.constants import INITIAL_ELO_RATING
 from co_scientist.llm import scoped_telemetry
 from co_scientist.models import Hypothesis
-from tests._state import make_hypothesis, make_review, make_state
+from tests._llm_fake import stub_call_llm_json
+from tests._state import (
+    make_hypothesis,
+    make_ranking_response,
+    make_review,
+    make_state,
+)
 
 
 def _stub_winner_by_text(
@@ -34,11 +40,7 @@ def _stub_winner_by_text(
         winner = (
             "a" if winner_pos < _other_text_pos(prompt, winner_text) else "b"
         )
-        return {
-            "winner": winner,
-            "decision_summary": "stub decision",
-            "confidence_level": "High",
-        }
+        return make_ranking_response(winner)
 
     monkeypatch.setattr(ranking_debate, "call_llm_json", fake)
 
@@ -169,10 +171,7 @@ async def test_malformed_judge_response_uses_position_balanced_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
 
-    async def fake(**_: Any) -> dict[str, Any]:
-        return {}
-
-    monkeypatch.setattr(ranking_debate, "call_llm_json", fake)
+    stub_call_llm_json(monkeypatch, ranking_debate, {}, copy_response=True)
 
     # Fixed ids split hashed fallback slots; random ids make this a coin flip.
     # Several distinct comparisons are needed to observe slot balance.
@@ -212,14 +211,12 @@ async def test_ranking_honors_tournament_pairs(
         make_hypothesis(text="third tournament TXT"),
     ]
 
-    async def fake(**_: Any) -> dict[str, Any]:
-        return {
-            "winner": "a",
-            "decision_summary": "stub decision",
-            "confidence_level": "High",
-        }
-
-    monkeypatch.setattr(ranking_debate, "call_llm_json", fake)
+    stub_call_llm_json(
+        monkeypatch,
+        ranking_debate,
+        make_ranking_response("a"),
+        copy_response=True,
+    )
 
     state = make_state(hypotheses=hypotheses, tournament_pairs=5)
     result = await ranking_node(state)
@@ -276,11 +273,7 @@ def _record_matchup_prompts(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
     async def fake(*, prompt: str, **_: Any) -> dict[str, Any]:
         seen_prompts.append(prompt)
-        return {
-            "winner": "a",
-            "decision_summary": "A wins.",
-            "confidence_level": "High",
-        }
+        return make_ranking_response("a", decision_summary="A wins.")
 
     monkeypatch.setattr(ranking_debate, "call_llm_json", fake)
     return seen_prompts
@@ -493,14 +486,12 @@ async def test_budget_is_charged_for_matches_judged_not_rounds_offered(
 
     hypotheses = [_hyp(text=f"pool {i} TXT") for i in range(3)]
 
-    async def fake(**_: Any) -> dict[str, Any]:
-        return {
-            "winner": "a",
-            "decision_summary": "stub decision",
-            "confidence_level": "High",
-        }
-
-    monkeypatch.setattr(ranking_debate, "call_llm_json", fake)
+    stub_call_llm_json(
+        monkeypatch,
+        ranking_debate,
+        make_ranking_response("a"),
+        copy_response=True,
+    )
 
     state = make_state(hypotheses=hypotheses, tournament_pairs=20)
     result = await ranking_node(state)

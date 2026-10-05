@@ -1,3 +1,4 @@
+import {jsonResponse, errorResponse, fetchMock} from '@/http_test_support';
 import {
   clearAccessToken,
   getAccessToken,
@@ -25,29 +26,6 @@ import type {Run} from './wire_runs';
 describe('runs', () => {
   // VITE_API_BASE_URL is captured at import; unset values produce relative
   // URLs.
-
-  function jsonResponse(body: unknown): Response {
-    return {
-      ok: true,
-      status: 200,
-      json: async () => body,
-      text: async () => JSON.stringify(body),
-    } as unknown as Response;
-  }
-
-  function errorResponse(status: number, text = 'boom'): Response {
-    return {
-      ok: false,
-      status,
-      statusText: 'Error',
-      json: async () => ({}),
-      text: async () => text,
-    } as unknown as Response;
-  }
-
-  function fetchMock() {
-    return globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
-  }
 
   function firstCall(): [string, RequestInit | undefined] {
     return fetchMock().mock.calls[0] as [string, RequestInit | undefined];
@@ -410,29 +388,6 @@ describe('runs', () => {
 describe('runs byok', () => {
   // BYOK credentials travel in headers, never query parameters.
 
-  function jsonResponse(body: unknown): Response {
-    return {
-      ok: true,
-      status: 200,
-      json: async () => body,
-      text: async () => JSON.stringify(body),
-    } as unknown as Response;
-  }
-
-  function errorResponse(status: number, text = 'boom'): Response {
-    return {
-      ok: false,
-      status,
-      statusText: 'Error',
-      json: async () => ({}),
-      text: async () => text,
-    } as unknown as Response;
-  }
-
-  function fetchMock() {
-    return globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
-  }
-
   function firstCall(): [string, RequestInit | undefined] {
     return fetchMock().mock.calls[0] as [string, RequestInit | undefined];
   }
@@ -545,10 +500,6 @@ describe('runs byok', () => {
 
 describe('runs http session', () => {
   const fetchMock = vi.fn<typeof fetch>();
-
-  function errorResponse(status: number, message: string): Response {
-    return new Response(message, {status});
-  }
 
   beforeEach(() => {
     clearAccessToken();

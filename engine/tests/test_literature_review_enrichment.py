@@ -356,7 +356,7 @@ _PAPERS = {
 
 def _config(tmp_path: Path) -> SearchConfig:
     registry = research_registry(tmp_path)
-    return SearchConfig(
+    return make_search_config(
         tool_registry=registry,
         workflow=research_workflow(registry),
         is_multi_source=True,
@@ -364,23 +364,18 @@ def _config(tmp_path: Path) -> SearchConfig:
         search_tool_config=registry.get_tool("alpha"),
         source_name="alpha",
         papers_to_read_count=4,
-        is_dev_mode=False,
         research_goal="reverse fibrosis",
         model_name="offline/test",
     )
 
 
 class _ScriptedModel:
-    """Answers each of the five research prompts by what it was asked."""
-
     def __init__(self) -> None:
-        """Start with nothing asked."""
         self.prompts: list[str] = []
 
     async def __call__(
         self, prompt: str, spec: Any, *args: Any, **kwargs: Any
     ) -> dict[str, Any]:
-        """Answer one prompt, recording it."""
         self.prompts.append(prompt)
         if "perspectives to research" in prompt:
             return {"stances": ["mechanism"]}

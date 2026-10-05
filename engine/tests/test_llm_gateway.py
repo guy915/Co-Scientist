@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any
 
@@ -408,14 +407,6 @@ def test_the_price_cap_admits_the_headline_rate() -> None:
 _MODEL = "openrouter/google/gemma-4-26b-a4b-it:free"
 
 
-@pytest.fixture
-def _clear_capability_cache() -> Iterator[None]:
-    """Clear process-cached capabilities to isolate provider fixtures."""
-    _supports_json_schema_response_format.cache_clear()
-    yield
-    _supports_json_schema_response_format.cache_clear()
-
-
 def _patch_registry(monkeypatch: pytest.MonkeyPatch, supported: bool) -> None:
 
     def fake_supports(model: str) -> bool:
@@ -435,7 +426,7 @@ def _capture_acompletion(
     return captured
 
 
-@pytest.mark.usefixtures("_clear_capability_cache", "_isolated_catalog")
+@pytest.mark.usefixtures("clear_capability_cache", "_isolated_catalog")
 class TestLlmGemmaRoute:
     async def test_exact_route_injects_schema_at_request_boundary(
         self,

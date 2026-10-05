@@ -34,8 +34,7 @@ from app.store.hypotheses import NewHypothesis
 from app.store.models import RunRow
 from app.store.models import RunStatus as StoreRunStatus
 from app.store.records import NewReview, NewSafetyDecision
-from app.store.runs import RunCreateOptions
-from app.store.tasks import NewTask
+from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _add_fixture_review,
@@ -49,6 +48,7 @@ from tests._engine_tasks_helpers import (
     _task_events,
     _task_state,
 )
+from tests._store_helpers import enqueue_task, seed_run
 
 
 class _PauseDuringPrepare:
@@ -65,9 +65,7 @@ class _PauseDuringPrepare:
 
 def _start_bootstrap(db_path: str) -> tuple[Any, str, Any]:
     client = make_client()
-    created = client.post(
-        "/api/runs", json={"research_goal": "Pause during bootstrap prepare"}
-    )
+    created = _create_run(client, "Pause during bootstrap prepare")
     run_id = str(created.json()["id"])
     assert client.post(f"/api/runs/{run_id}/start", json={}).status_code == 200
     task = store.claim_task("bootstrap-worker", run_id=run_id, db_path=db_path)
@@ -107,14 +105,12 @@ def _enqueue_bootstrap_successor(
     successor_type: str,
     conn: Any,
 ) -> Any:
-    return store.enqueue_task(
-        NewTask(
-            run_id=task.run_id,
-            task_type=successor_type,
-            inputs={"checkpoint_seq": 1},
-            idempotency_key=f"{successor_type}:after:{task.id}",
-            dependencies=(task.id,),
-        ),
+    return enqueue_task(
+        task.run_id,
+        successor_type,
+        f"{successor_type}:after:{task.id}",
+        inputs={"checkpoint_seq": 1},
+        dependencies=(task.id,),
         conn=conn,
     )
 
@@ -286,7 +282,7 @@ async def _advance_to_supervisor(
 def test_scientist_inputs_merge_into_engine_state_once(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("Scientist loop", "standard", "engine", {})
+    run = seed_run("Scientist loop")
     hypothesis_id = store_hypotheses.add_hypothesis(
         NewHypothesis(
             run_id=run.id,
@@ -321,7 +317,7 @@ def test_scientist_inputs_merge_into_engine_state_once(
 
 
 def test_scientist_input_reopens_completed_engine_run(isolated_db: str) -> None:
-    run = runs.create_run("Continuation", "standard", "engine", {})
+    run = seed_run("Continuation")
     checkpoint_seq = _seed_checkpoint(
         run.id,
         _task_state(run.id),
@@ -348,7 +344,7 @@ def test_scientist_input_reopens_completed_engine_run(isolated_db: str) -> None:
 async def test_bootstrap_commits_state_and_enqueues_supervisor(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = runs.create_run("Task-level science", "standard", "engine", {})
+    run = seed_run("Task-level science")
     bootstrap = engine_tasks.enqueue_bootstrap(run.id, db_path=isolated_db)
     leased = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
     assert leased is not None and leased.id == bootstrap.id
@@ -381,12 +377,8 @@ async def test_bootstrap_never_escalates_an_offline_backed_run(
 ) -> None:
     # Offline bootstrap must not ask a contextual model whose uncertain verdict
     # could pause deterministic runs.
-    run = runs.create_run(
-        "Task-level science",
-        "standard",
-        "engine",
-        {},
-        RunCreateOptions(llm_backend="offline", db_path=isolated_db),
+    run = seed_run(
+        "Task-level science", llm_backend="offline", db_path=isolated_db
     )
     engine_tasks.enqueue_bootstrap(run.id, db_path=isolated_db)
     leased = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
@@ -406,7 +398,7 @@ async def test_bootstrap_never_escalates_an_offline_backed_run(
 async def test_node_task_commits_once_and_schedules_successor(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = runs.create_run("Task-level science", "standard", "engine", {})
+    run = seed_run("Task-level science")
     supervisor = await _advance_to_supervisor(run.id, monkeypatch, isolated_db)
 
     async def execute(
@@ -462,13 +454,11 @@ def _seed_ranking_state(run_id: str, db_path: str) -> tuple[Any, _Generator]:
         }
     )
     checkpoint_seq = _seed_checkpoint(run_id, state)
-    node = store.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type=f"{engine_tasks.NODE_TASK_PREFIX}ranking",
-            inputs={"checkpoint_seq": checkpoint_seq},
-            idempotency_key="ranking-node",
-        ),
+    node = enqueue_task(
+        run_id,
+        f"{engine_tasks.NODE_TASK_PREFIX}ranking",
+        "ranking-node",
+        inputs={"checkpoint_seq": checkpoint_seq},
         db_path=db_path,
     )
     return node, _Generator(state)
@@ -551,7 +541,7 @@ async def _finalize_and_assert_ranking(
 async def test_ranking_matches_are_separate_sequential_checkpointed_tasks(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = runs.create_run("Task-level science", "standard", "engine", {})
+    run = seed_run("Task-level science")
     node, generator = _seed_ranking_state(run.id, isolated_db)
     _patch_ranking_judge(monkeypatch, generator)
     leased = store.claim_task("ranking", run_id=run.id, db_path=isolated_db)
@@ -581,7 +571,7 @@ async def test_inflight_pause_checkpoints_exact_successor(
 ) -> None:
     # Bootstrap already planned a successor; pause must not add another, and
     # resume reuses that row.
-    run = runs.create_run("Task-level science", "standard", "engine", {})
+    run = seed_run("Task-level science")
     supervisor = await _advance_to_supervisor(run.id, monkeypatch, isolated_db)
     before_pause = store.list_tasks(run.id, db_path=isolated_db)
 
@@ -641,9 +631,7 @@ async def test_cancel_after_bootstrap_read_cannot_be_overwritten(
 
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client = make_client()
-    created = client.post(
-        "/api/runs", json={"research_goal": "Cancel before bootstrap starts"}
-    )
+    created = _create_run(client, "Cancel before bootstrap starts")
     run_id = created.json()["id"]
     assert client.post(f"/api/runs/{run_id}/start", json={}).status_code == 200
     task = store.claim_task("bootstrap-worker", run_id=run_id)
@@ -709,9 +697,7 @@ async def test_cancel_during_bootstrap_safety_gate_keeps_cancelled_status(
 
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client = make_client()
-    created = client.post(
-        "/api/runs", json={"research_goal": "Cancel during safety screening"}
-    )
+    created = _create_run(client, "Cancel during safety screening")
     run_id = created.json()["id"]
     assert client.post(f"/api/runs/{run_id}/start", json={}).status_code == 200
     task = store.claim_task("gate-worker", run_id=run_id)
@@ -777,9 +763,7 @@ async def test_stale_bootstrap_lease_cannot_apply_intake_stop(
 
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client = make_client()
-    created = client.post(
-        "/api/runs", json={"research_goal": "Replace intake lease"}
-    )
+    created = _create_run(client, "Replace intake lease")
     run_id = created.json()["id"]
     assert client.post(f"/api/runs/{run_id}/start", json={}).status_code == 200
     original = store.claim_task("old-bootstrap", run_id=run_id)
@@ -841,9 +825,7 @@ async def test_replaced_bootstrap_lease_cannot_prepare_paused_run(
 
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client = make_client()
-    created = client.post(
-        "/api/runs", json={"research_goal": "Pause after lease replacement"}
-    )
+    created = _create_run(client, "Pause after lease replacement")
     run_id = created.json()["id"]
     assert client.post(f"/api/runs/{run_id}/start", json={}).status_code == 200
     original = store.claim_task("old-paused-worker", run_id=run_id)
@@ -905,13 +887,11 @@ _OWNER = {"X-Client-ID": "cancel-commit-owner"}
 
 def _owned_running_run(db_path: str) -> tuple[Any, str]:
     client = make_client()
-    created = client.post(
-        "/api/runs",
+    created = _create_run(
+        client,
+        "Study a durable cancellation boundary",
         headers=_OWNER,
-        json={
-            "research_goal": "Study a durable cancellation boundary",
-            "tier": "express",
-        },
+        tier="express",
     )
     assert created.status_code == 200, created.text
     run_id = str(created.json()["id"])
@@ -925,13 +905,11 @@ def _leased_task(
     checkpoint_seq = _seed_checkpoint(
         run_id, _task_state(run_id), db_path=db_path
     )
-    queued = store.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type=task_type,
-            inputs={"checkpoint_seq": checkpoint_seq},
-            idempotency_key=key,
-        ),
+    queued = enqueue_task(
+        run_id,
+        task_type,
+        key,
+        inputs={"checkpoint_seq": checkpoint_seq},
         db_path=db_path,
     )
     task = store.claim_task(

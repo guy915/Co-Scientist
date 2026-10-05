@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import types
-from collections.abc import Iterator
 from typing import Any
 
 import pytest
@@ -14,20 +13,12 @@ from app.config import settings
 
 from ._llm_fake_backend import install_completion_backend
 
+pytestmark = pytest.mark.usefixtures("claim_llm_cache_disabled")
+
 _MODEL = "openrouter/test-safety-model"
 _OTHER_PROVIDER_KEY = "ANTHROPIC_API_KEY"
 _MODEL_PROVIDER_KEY = "OPENROUTER_API_KEY"
 _HELD_TEXT = "A benign research goal."
-
-
-@pytest.fixture(autouse=True)
-def _disable_llm_response_cache() -> Iterator[None]:
-    # Repeated prompts use different fake replies; cache isolation prevents
-    # replaying an earlier verdict.
-    from co_scientist.cache import scoped_cache_override
-
-    with scoped_cache_override(False):
-        yield
 
 
 @pytest.fixture(autouse=True)

@@ -1,7 +1,7 @@
 import type {Hypothesis, RunWithSummary} from '@/api/runs';
 import * as runsApi from '@/api/runs';
 import type {StreamEvent} from '@/hooks/use_run_stream';
-import {makeHypothesis, makeRun} from '@/test_fixtures';
+import {makeHypothesis, makeRunWithSummary} from '@/test_fixtures';
 import {act, renderHook} from '@testing-library/react';
 import {afterEach, beforeEach, expect, it, vi} from 'vitest';
 import {useRunDetailData} from './run_detail_data';
@@ -39,10 +39,7 @@ function deferred<T>() {
 }
 
 function run(id = 'run-1', status: RunWithSummary['status'] = 'running') {
-  return {
-    ...makeRun({id, status}),
-    summary: {hypotheses: 0, evidence: 0, matches: 0, reviews: 0, events: 0},
-  } satisfies RunWithSummary;
+  return makeRunWithSummary({id, status});
 }
 
 async function load() {

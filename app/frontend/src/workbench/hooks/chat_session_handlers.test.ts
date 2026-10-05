@@ -1,3 +1,4 @@
+import {makeRunMessage} from '@/test_fixtures';
 import {expect, test, vi, beforeEach, describe} from 'vitest';
 import {buildChatHandlers} from './chat_session_handlers';
 import {
@@ -317,8 +318,6 @@ describe('chat session handlers messages', () => {
   });
 
   test('revisions are closed once a run has started', () => {
-    // Handlers must not rewind the completed interview that a started run was
-    // created from.
     const deps = makeDeps({
       interview: makeInterview(),
       startedSession: {id: 'run-1', title: 'Started', at: 1},
@@ -672,26 +671,13 @@ test('revises post-start Q&A and adopts durable replacement IDs', async () => {
     startedSession: {id: 'run-1', title: 'Research', at: 1},
   });
   vi.mocked(getRunMessages).mockResolvedValue([
-    {
-      id: 9,
-      run_id: 'run-1',
-      sender: 'user',
-      kind: 'qa',
-      content: 'Revised',
-      created_at: 2,
-      applied: false,
-      meta: null,
-    },
-    {
+    makeRunMessage({id: 9, content: 'Revised', created_at: 2}),
+    makeRunMessage({
       id: 10,
-      run_id: 'run-1',
       sender: 'system',
-      kind: 'qa',
       content: 'Answer',
       created_at: 3,
-      applied: false,
-      meta: null,
-    },
+    }),
   ]);
   buildChatHandlers(deps).handleEditMessage(
     makeMessage({messageId: 7}),

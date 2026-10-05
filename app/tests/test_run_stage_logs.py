@@ -8,7 +8,7 @@ from app.store import events as store
 from app.store import runs
 from app.store import runs_views as views
 from app.store.models import RunStatus
-from app.store.runs import RunCreateOptions
+from tests._store_helpers import seed_run
 
 
 def _stage_records(
@@ -19,13 +19,7 @@ def _stage_records(
 
 @pytest.fixture
 def run_id(isolated_db: str) -> str:
-    run = runs.create_run(
-        "stage logging",
-        "standard",
-        "mock",
-        {},
-        RunCreateOptions(db_path=isolated_db),
-    )
+    run = seed_run("stage logging", provider="mock", db_path=isolated_db)
     return str(run.id)
 
 

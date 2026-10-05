@@ -29,18 +29,12 @@ from mcp_server.pubmed_storage import (
     link_metadata_to_run,
     write_metadata_cache_file,
 )
+from mcp_server.tests._entrez import CannedEntrezHandle as _CannedEntrezHandle
+from mcp_server.tests._entrez import install_entrez
 from mcp_server.text_extraction import clean_markup, extract_text_from_pmc_html
 from mcp_server.tools.lit_review import search_pubmed as pubmed_parsing
 from mcp_server.tools.lit_review import search_pubmed as tool
 from mcp_server.tools.lit_review.search_pubmed import check_pubmed_available
-
-
-class _CannedEntrezHandle:
-    def __init__(self, response: Any) -> None:
-        self.response = response
-
-    def close(self) -> None:
-        pass
 
 
 def test_extract_publication_types_reads_the_list() -> None:
@@ -215,20 +209,12 @@ def test_pubmed_tool_returns_article_without_author_list(
         "mcp_server.pubmed_client.entrez_call",
         lambda request, **kwargs: request(**kwargs),
     )
-    monkeypatch.setattr(
-        Entrez,
-        "esearch",
-        lambda **_kwargs: _CannedEntrezHandle({"IdList": ["123"]}),
+    install_entrez(
+        monkeypatch,
+        esearch=lambda **_kwargs: _CannedEntrezHandle({"IdList": ["123"]}),
+        efetch=lambda **_kwargs: _CannedEntrezHandle(paper),
+        elink=lambda **_kwargs: _CannedEntrezHandle([{"LinkSetDb": []}]),
     )
-    monkeypatch.setattr(
-        Entrez, "efetch", lambda **_kwargs: _CannedEntrezHandle(paper)
-    )
-    monkeypatch.setattr(
-        Entrez,
-        "elink",
-        lambda **_kwargs: _CannedEntrezHandle([{"LinkSetDb": []}]),
-    )
-    monkeypatch.setattr(Entrez, "read", lambda handle: handle.response)
 
     results = asyncio.run(
         tool.pubmed_search_with_fulltext(

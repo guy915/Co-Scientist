@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import pytest
 
@@ -49,10 +49,10 @@ from co_scientist.research_adapter import (
     review_budget_for_tier,
 )
 from tests._research_fakes import (
-    _PAPERS,
     FakeResearchClient,
     _hits,
     _ScriptedModel,
+    install_research_client,
     research_registry,
     research_workflow,
 )
@@ -376,21 +376,7 @@ def expansion_model(monkeypatch: pytest.MonkeyPatch) -> _ScriptedModel:
 
 @pytest.fixture
 def expansion_client(monkeypatch: pytest.MonkeyPatch) -> FakeResearchClient:
-    fake = FakeResearchClient(
-        {
-            "search_alpha": _PAPERS,
-            "read_pdf": {
-                "content": "TGF-beta blockade reduced fibrosis in a"
-                " human cohort."
-            },
-        }
-    )
-
-    async def get_client(**_: Any) -> MCPToolClient:
-        return cast(MCPToolClient, fake)
-
-    monkeypatch.setattr("co_scientist.mcp_client.get_mcp_client", get_client)
-    return fake
+    return install_research_client(monkeypatch)
 
 
 def test_initial_generation_cycle_is_not_expansion() -> None:

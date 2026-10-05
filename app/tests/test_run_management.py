@@ -41,12 +41,13 @@ from app.store import receipts as store_receipts
 from app.store.models import DEMO_CLIENT_ID, RunStatus, ScientificTask
 from app.store.runs import RunCreateOptions
 from app.store.schema import SCHEMA
-from app.store.tasks import NewTask
 from tests._client import append_log_row, wait_for
+from tests._client import create_run as _create_run
 from tests._client import make_client as _deletion_make_client
 from tests._client import make_client as _idempotency_make_client
 from tests._client import make_client as _migration_make_client
 from tests._client import make_client as _rollback_make_client
+from tests._store_helpers import enqueue_task, seed_run
 
 from ._client import make_client as _rename_make_client
 from ._llm_fake_backend import install_completion_backend
@@ -83,12 +84,9 @@ async def test_durable_auxiliary_admission_with_stored_credential(
             }
         )
     )
-    run = runs.create_run(
+    run = seed_run(
         "public research",
-        "standard",
-        "engine",
-        {},
-        RunCreateOptions(
+        options=RunCreateOptions(
             execution_policy=("standard" if mode == "user_byok" else "campaign")
         ),
     )
@@ -102,14 +100,8 @@ async def test_durable_auxiliary_admission_with_stored_credential(
     credentials.store_run_credential(
         run.id, "test-owner", credential, isolated_db
     )
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type="engine.node.generate",
-            inputs={},
-            idempotency_key="campaign-check",
-        ),
-        db_path=isolated_db,
+    task = enqueue_task(
+        run.id, "engine.node.generate", "campaign-check", db_path=isolated_db
     )
     if recovered:
         claimed = tasks.claim_task(
@@ -897,11 +889,7 @@ def _wait_owned_status(
 
 
 def _run_to_completion(client: TestClient, goal: str) -> str:
-    created = client.post(
-        "/api/runs",
-        headers=_DELETION_OWNER,
-        json={"research_goal": goal, "tier": "express"},
-    )
+    created = _create_run(client, goal, headers=_DELETION_OWNER, tier="express")
     assert created.status_code == 200, created.text
     run_id: str = created.json()["id"]
     started = client.post(
@@ -916,11 +904,7 @@ def test_delete_requires_a_terminal_run() -> None:
     # Set RUNNING directly so a fast offline completion cannot race the delete
     # guard.
     client = _deletion_make_client()
-    created = client.post(
-        "/api/runs",
-        headers=_DELETION_OWNER,
-        json={"research_goal": "Active run goal"},
-    )
+    created = _create_run(client, "Active run goal", headers=_DELETION_OWNER)
     run_id = created.json()["id"]
     runs.update_run_status(run_id, RunStatus.RUNNING)
 
@@ -940,11 +924,7 @@ def test_delete_unknown_run_404s() -> None:
 
 def test_another_client_cannot_delete_the_run() -> None:
     client = _deletion_make_client()
-    created = client.post(
-        "/api/runs",
-        headers=_DELETION_OWNER,
-        json={"research_goal": "Owned goal"},
-    )
+    created = _create_run(client, "Owned goal", headers=_DELETION_OWNER)
     run_id = created.json()["id"]
 
     response = client.delete(f"/api/runs/{run_id}", headers=_DELETION_OTHER)
@@ -955,13 +935,7 @@ def test_another_client_cannot_delete_the_run() -> None:
 
 def test_demo_run_cannot_be_deleted() -> None:
     client = _deletion_make_client()
-    demo = runs.create_run(
-        "Demo goal",
-        "standard",
-        "engine",
-        {},
-        RunCreateOptions(client_id=DEMO_CLIENT_ID),
-    )
+    demo = seed_run("Demo goal", client_id=DEMO_CLIENT_ID)
     runs.update_run_status(demo.id, RunStatus.COMPLETED)
 
     response = client.delete(f"/api/runs/{demo.id}", headers=_DELETION_OWNER)
@@ -1001,10 +975,8 @@ def test_delete_removes_the_runs_persisted_log_rows(
     # Logs have no run foreign key; explicit deletion must scrub research goals
     # beyond cascading tables.
     client = _deletion_make_client()
-    created = client.post(
-        "/api/runs",
-        headers=_DELETION_OWNER,
-        json={"research_goal": "deletion cascade probe"},
+    created = _create_run(
+        client, "deletion cascade probe", headers=_DELETION_OWNER
     )
     run_id = created.json()["id"]
 
@@ -1018,10 +990,8 @@ def test_delete_removes_the_runs_persisted_log_rows(
         "report research_goal=deletion cascade probe run_mode=standard",
         run_id=run_id,
     )
-    other_run = client.post(
-        "/api/runs",
-        headers=_DELETION_OTHER,
-        json={"research_goal": "a different tenant's goal"},
+    other_run = _create_run(
+        client, "a different tenant's goal", headers=_DELETION_OTHER
     ).json()["id"]
     other_row_id = append_log_row(
         isolated_db, "other tenant's line", run_id=other_run
@@ -1059,13 +1029,11 @@ def test_delete_clears_but_does_not_remove_a_carried_document(
         data={"consent": "true"},
     )
     document_id = staged.json()["id"]
-    created = client.post(
-        "/api/runs",
+    created = _create_run(
+        client,
+        "Carries a document",
         headers=_DELETION_OWNER,
-        json={
-            "research_goal": "Carries a document",
-            "document_ids": [document_id],
-        },
+        document_ids=[document_id],
     )
     run_id = created.json()["id"]
     client.post(f"/api/runs/{run_id}/cancel", headers=_DELETION_OWNER)
@@ -1316,11 +1284,7 @@ _TITLE = "Sequential Senolytic Conditioning for Cryogenic Biostasis"
 def _draft_run(
     client: TestClient, goal: str = "Extend healthy lifespan"
 ) -> str:
-    created = client.post(
-        "/api/runs",
-        headers=_RENAME_OWNER,
-        json={"research_goal": goal, "tier": "express"},
-    )
+    created = _create_run(client, goal, headers=_RENAME_OWNER, tier="express")
     assert created.status_code == 200, created.text
     return str(created.json()["id"])
 

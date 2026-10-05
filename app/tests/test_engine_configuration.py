@@ -37,7 +37,8 @@ from app.run_modes import (
     setup_config,
 )
 from app.store import messages as store
-from app.store import runs
+from tests._engine_tasks_helpers import small_run_config as _cfg
+from tests._store_helpers import seed_run
 
 
 @pytest.mark.parametrize(
@@ -283,7 +284,7 @@ def test_engine_adapter_emits_canonical_event_types(isolated_db: str) -> None:
 def test_engine_adapter_generates_canonical_milestones(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("Milestone goal", "standard", "engine", {})
+    run = seed_run("Milestone goal")
     for node_type, payload in _payloads_by_type().items():
         append_node_milestone(run.id, node_type, payload, db_path=isolated_db)
 
@@ -425,20 +426,6 @@ _INDRA_CONFIG = str(
     / "examples"
     / "indra_cancer.yaml"
 )
-
-
-def _cfg() -> dict[str, Any]:
-    return {
-        "max_iterations": 1,
-        "initial_hypotheses_count": 4,
-        "evolution_max_count": 4,
-        "tournament_pairs": 6,
-        "evidence_count": 4,
-        "k_factor": 36,
-        "max_llm_calls": 100,
-        "max_ideas": 12,
-        "max_matches_per_idea": 4,
-    }
 
 
 class _FakeGenerator:

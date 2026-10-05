@@ -2,6 +2,7 @@ from typing import Any
 
 from app.report import markdown as report_markdown
 from app.report.markdown.overview import render_research_overview_markdown
+from tests._report_helpers import meta_review_markdown as _meta_review_markdown
 
 
 def _criteria_markdown(
@@ -240,22 +241,6 @@ def test_no_bare_heading_when_the_field_is_blank() -> None:
     )
 
     assert "Main Research Directions" not in markdown
-
-
-def _meta_review_markdown(meta_review: dict[str, object]) -> str:
-    hypothesis: dict[str, object] = {
-        "id": "h1",
-        "title": "NHE1 coupling",
-        "statement": "NHE1 couples to the RSK axis in HFpEF.",
-    }
-    return report_markdown.render_report_markdown(
-        report_markdown.ReportMarkdownInputs(
-            research_goal="Explain the cardiac benefit.",
-            provider="engine",
-            top_hypotheses=[hypothesis],
-            meta_review=meta_review,
-        )
-    )
 
 
 def test_a_structured_theme_renders_its_description_and_frequency() -> None:

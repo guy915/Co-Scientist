@@ -15,8 +15,8 @@ from co_scientist.scheduling import (
     TaskType,
 )
 from co_scientist.state import WorkflowState
-from tests._llm_fake import stub_call_llm_json
-from tests._state import make_state
+from tests._llm_fake import mock_call_llm_json, stub_call_llm_json
+from tests._state import make_allocation_response, make_state
 
 
 async def test_guidance_carries_response_subobjects(
@@ -124,17 +124,32 @@ def _supervisor_decision_state() -> WorkflowState:
     )
 
 
+def _stub_allocation(
+    monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]
+) -> None:
+    stub_call_llm_json(monkeypatch, supervisor_decision, response)
+
+
+def _forbid_allocation(monkeypatch: pytest.MonkeyPatch) -> None:
+    mock_call_llm_json(
+        monkeypatch,
+        supervisor_decision,
+        side_effect=AssertionError("model must not be called"),
+    )
+
+
 @pytest.mark.asyncio
 async def test_model_selects_productive_task(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
 
-    async def _allocation(**_kwargs: Any) -> dict[str, Any]:
-        return {
-            "next_task": "evolve",
-            "reason": "Improve mature leaders.",
-            "priority": "73",
-            "queue_actions": [
+    _stub_allocation(
+        monkeypatch,
+        make_allocation_response(
+            "evolve",
+            "Improve mature leaders.",
+            priority="73",
+            queue_actions=[
                 {
                     "action": "reprioritize",
                     "task_id": "task-1",
@@ -142,9 +157,8 @@ async def test_model_selects_productive_task(
                     "reason": "Evidence gap is urgent.",
                 }
             ],
-        }
-
-    monkeypatch.setattr(supervisor_decision, "call_llm_json", _allocation)
+        ),
+    )
     stats = SchedulerStats(pool_size=4, reviewed_count=4, iteration=1)
     (
         decision,
@@ -164,10 +178,7 @@ async def test_hard_budget_stop_bypasses_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
 
-    async def _unexpected(**_kwargs: Any) -> dict[str, str]:
-        raise AssertionError("model must not be called")
-
-    monkeypatch.setattr(supervisor_decision, "call_llm_json", _unexpected)
+    _forbid_allocation(monkeypatch)
     stats = SchedulerStats(
         pool_size=4, reviewed_count=4, iteration=1, llm_calls=10
     )
@@ -189,13 +200,10 @@ async def test_iteration_budget_blocks_model_directed_pool_growth(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
 
-    async def _allocation(**_kwargs: Any) -> dict[str, str]:
-        return {
-            "next_task": "evolve",
-            "reason": "Keep expanding the pool.",
-        }
-
-    monkeypatch.setattr(supervisor_decision, "call_llm_json", _allocation)
+    _stub_allocation(
+        monkeypatch,
+        make_allocation_response("evolve", "Keep expanding the pool."),
+    )
     stats = SchedulerStats(
         pool_size=8,
         reviewed_count=7,
@@ -220,10 +228,11 @@ async def test_provider_failure_records_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
 
-    async def _failed(**_kwargs: Any) -> dict[str, str]:
-        raise RuntimeError("provider unavailable")
-
-    monkeypatch.setattr(supervisor_decision, "call_llm_json", _failed)
+    mock_call_llm_json(
+        monkeypatch,
+        supervisor_decision,
+        side_effect=RuntimeError("provider unavailable"),
+    )
     stats = SchedulerStats(pool_size=4, reviewed_count=4, iteration=1)
     (
         decision,
@@ -241,10 +250,7 @@ async def test_scientist_steering_reprioritizes_generation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
 
-    async def _unexpected(**_kwargs: Any) -> dict[str, str]:
-        raise AssertionError("model must not be called")
-
-    monkeypatch.setattr(supervisor_decision, "call_llm_json", _unexpected)
+    _forbid_allocation(monkeypatch)
     state = _supervisor_decision_state()
     state["pending_steering"] = True
     (
@@ -272,10 +278,7 @@ async def test_review_backlog_skips_the_planning_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
 
-    async def _unexpected(**_kwargs: Any) -> dict[str, str]:
-        raise AssertionError("model must not be called")
-
-    monkeypatch.setattr(supervisor_decision, "call_llm_json", _unexpected)
+    _forbid_allocation(monkeypatch)
     stats = SchedulerStats(
         pool_size=8, reviewed_count=5, unreviewed_count=3, iteration=1
     )
@@ -297,10 +300,7 @@ async def test_small_pool_skips_the_planning_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
 
-    async def _unexpected(**_kwargs: Any) -> dict[str, str]:
-        raise AssertionError("model must not be called")
-
-    monkeypatch.setattr(supervisor_decision, "call_llm_json", _unexpected)
+    _forbid_allocation(monkeypatch)
     stats = SchedulerStats(pool_size=1, reviewed_count=1, iteration=0)
 
     (
@@ -320,10 +320,7 @@ async def test_proximity_refresh_skips_the_planning_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
 
-    async def _unexpected(**_kwargs: Any) -> dict[str, str]:
-        raise AssertionError("model must not be called")
-
-    monkeypatch.setattr(supervisor_decision, "call_llm_json", _unexpected)
+    _forbid_allocation(monkeypatch)
     stats = SchedulerStats(
         pool_size=6,
         reviewed_count=6,
@@ -356,17 +353,17 @@ async def test_failed_durable_task_still_consults_the_model(
 
     async def _allocation(**_kwargs: Any) -> dict[str, Any]:
         calls.append("planning")
-        return {
-            "next_task": "reflect",
-            "reason": "Review the backlog and retry the failed task.",
-            "queue_actions": [
+        return make_allocation_response(
+            "reflect",
+            "Review the backlog and retry the failed task.",
+            queue_actions=[
                 {
                     "action": "retry",
                     "task_id": "task-9",
                     "reason": "Transient provider failure.",
                 }
             ],
-        }
+        )
 
     monkeypatch.setattr(supervisor_decision, "call_llm_json", _allocation)
     state = _supervisor_decision_state()
@@ -404,14 +401,14 @@ async def test_corrected_allocation_still_delivers_the_queue_action(
     revival path."""
     retry = {"action": "retry", "task_id": "task-9", "reason": "Transient."}
 
-    async def _allocation(**_kwargs: Any) -> dict[str, Any]:
-        return {
-            "next_task": "rank",
-            "reason": "Rank once the failed match is revived.",
-            "queue_actions": [retry],
-        }
-
-    monkeypatch.setattr(supervisor_decision, "call_llm_json", _allocation)
+    _stub_allocation(
+        monkeypatch,
+        make_allocation_response(
+            "rank",
+            "Rank once the failed match is revived.",
+            queue_actions=[retry],
+        ),
+    )
     state = _supervisor_decision_state()
     state["durable_task_queue"] = [
         {"task_id": "task-9", "status": "failed", "error": "unavailable"}
@@ -437,7 +434,7 @@ async def test_allocation_runs_on_the_worker_model_with_thinking(
 
     async def _allocation(**kwargs: Any) -> dict[str, str]:
         seen.update(kwargs)
-        return {"next_task": "evolve", "reason": "Improve leaders."}
+        return make_allocation_response("evolve", "Improve leaders.")
 
     monkeypatch.setattr(supervisor_decision, "call_llm_json", _allocation)
     state = _supervisor_decision_state()
@@ -461,13 +458,12 @@ async def test_repeated_maintenance_cannot_stall_iteration_budget(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
 
-    async def _allocation(**_kwargs: Any) -> dict[str, str]:
-        return {
-            "next_task": "reflect",
-            "reason": "Run reflection again without new work.",
-        }
-
-    monkeypatch.setattr(supervisor_decision, "call_llm_json", _allocation)
+    _stub_allocation(
+        monkeypatch,
+        make_allocation_response(
+            "reflect", "Run reflection again without new work."
+        ),
+    )
     state = _supervisor_decision_state()
     state["task_history"] = [
         {
@@ -530,11 +526,11 @@ def _supervisor_decision_guards_state() -> WorkflowState:
 def _allocating(task: str) -> Any:
 
     async def _allocation(**_kwargs: Any) -> dict[str, Any]:
-        return {
-            "next_task": task,
-            "reason": "Revive the failed row and keep working.",
-            "queue_actions": [dict(_RETRY)],
-        }
+        return make_allocation_response(
+            task,
+            "Revive the failed row and keep working.",
+            queue_actions=[dict(_RETRY)],
+        )
 
     return _allocation
 
@@ -608,10 +604,9 @@ async def test_guard_without_queue_actions_returns_the_baseline_itself(
         supervisor_decision, "call_llm_json", _allocating("generate")
     )
 
-    async def _no_actions(**_kwargs: Any) -> dict[str, Any]:
-        return {"next_task": "generate", "reason": "Grow the pool."}
-
-    monkeypatch.setattr(supervisor_decision, "call_llm_json", _no_actions)
+    _stub_allocation(
+        monkeypatch, make_allocation_response("generate", "Grow the pool.")
+    )
     stats = SchedulerStats(
         pool_size=8,
         reviewed_count=6,
@@ -794,10 +789,10 @@ _JSON_OBJECT_MODEL = "deepseek/deepseek-v4-flash"
 
 def _allocation_text(**queue_action: Any) -> str:
     return json.dumps(
-        {
-            "next_task": "evolve",
-            "reason": "Improve mature leaders.",
-            "queue_actions": [
+        make_allocation_response(
+            "evolve",
+            "Improve mature leaders.",
+            queue_actions=[
                 {
                     "action": "reprioritize",
                     "task_id": "task-1",
@@ -805,7 +800,7 @@ def _allocation_text(**queue_action: Any) -> str:
                     **queue_action,
                 }
             ],
-        }
+        )
     )
 
 
@@ -887,8 +882,6 @@ async def test_non_integer_queue_action_priority_is_rejected(
 async def test_null_queue_action_priority_is_accepted(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Null means no priority override; numeric bounds cannot remove that
-    union member."""
     decision, provenance, prompts = await _allocate(
         monkeypatch, _allocation_text(priority=None)
     )
@@ -902,8 +895,7 @@ async def test_null_queue_action_priority_is_accepted(
 async def test_integral_float_priority_is_normalized_to_an_int(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """JSON Schema admits integral floats; downstream priority must still be
-    a Python int."""
+    """JSON Schema's integer type admits integral floats."""
     body = json.loads(_allocation_text(priority=88))
     body["priority"] = 55.0
     decision, provenance, _ = await _allocate(monkeypatch, json.dumps(body))
@@ -935,11 +927,11 @@ async def test_queue_action_required_fields_are_not_backfilled(
 ) -> None:
     """Backfill stops at non-dicts and cannot fill required fields inside
     queue-action arrays."""
-    body = {
-        "next_task": "evolve",
-        "reason": "Improve mature leaders.",
-        "queue_actions": [{"action": "cancel", "reason": "Superseded."}],
-    }
+    body = make_allocation_response(
+        "evolve",
+        "Improve mature leaders.",
+        queue_actions=[{"action": "cancel", "reason": "Superseded."}],
+    )
     decision, provenance, _ = await _allocate(monkeypatch, json.dumps(body))
 
     assert provenance == "reconstructed-fallback"

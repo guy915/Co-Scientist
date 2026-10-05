@@ -1,3 +1,4 @@
+import {makeQuestion} from '@/test_fixtures';
 import {fireEvent, render, screen} from '@testing-library/react';
 import {describe, expect, test, vi} from 'vitest';
 import {type InterviewQuestion, type InterviewTurn} from '@/api/runs';
@@ -10,15 +11,7 @@ import {
   toggleOption,
 } from './chat_questions';
 
-const MODEL_SYSTEM: InterviewQuestion = {
-  header: 'Model system',
-  question: 'Which model system should the ideas be built around?',
-  multi_select: false,
-  options: [
-    {label: 'Primary human cells', description: 'Closest to patient biology'},
-    {label: 'iPSC-derived line', description: 'Renewable and editable'},
-  ],
-};
+const MODEL_SYSTEM: InterviewQuestion = makeQuestion();
 
 const EXCLUSIONS: InterviewQuestion = {
   header: 'Exclusions',
@@ -167,15 +160,7 @@ test('several questions are stacked, and the send control answers them together'
 });
 
 describe('answer state and pending questions', () => {
-  const MODEL_SYSTEM: InterviewQuestion = {
-    header: 'Model system',
-    question: 'Which model system should the ideas be built around?',
-    multi_select: false,
-    options: [
-      {label: 'Primary human cells', description: 'Closest to patient biology'},
-      {label: 'iPSC-derived line', description: 'Renewable and editable'},
-    ],
-  };
+  const MODEL_SYSTEM: InterviewQuestion = makeQuestion();
 
   const EXCLUSIONS: InterviewQuestion = {
     header: '',

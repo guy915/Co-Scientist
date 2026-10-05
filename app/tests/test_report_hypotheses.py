@@ -13,6 +13,7 @@ from app.report.markdown.hypothesis import (
     _reviews_by_hypothesis,
 )
 from app.report.markdown.overview import render_research_overview_markdown
+from tests._report_helpers import meta_review_markdown as _meta_review_markdown
 
 # Contact examples can reference the full synthesis pool, beyond the five-item
 # report slice.
@@ -46,22 +47,6 @@ def test_skips_a_hypothesis_missing_an_id_or_title() -> None:
 
 def test_an_empty_pool_maps_to_nothing() -> None:
     assert _hypothesis_title_by_id([]) == {}
-
-
-def _meta_review_markdown(meta_review: dict[str, object]) -> str:
-    hypothesis: dict[str, object] = {
-        "id": "h1",
-        "title": "NHE1 coupling",
-        "statement": "NHE1 couples to the RSK axis in HFpEF.",
-    }
-    return report_markdown.render_report_markdown(
-        report_markdown.ReportMarkdownInputs(
-            research_goal="Explain the cardiac benefit.",
-            provider="engine",
-            top_hypotheses=[hypothesis],
-            meta_review=meta_review,
-        )
-    )
 
 
 def test_comparison_a_populated_comparison_renders_domain_aware_axes() -> None:

@@ -1,10 +1,10 @@
-import {render, screen} from '@testing-library/react';
+import {screen} from '@testing-library/react';
 import {expect, it, describe} from 'vitest';
 import type {Hypothesis} from '@/api/runs';
 import {makeHypothesis, makeMatch} from '@/test_fixtures';
-import {ResearchOverviewView} from './run_detail_overview';
 import {
   makeRun,
+  renderOverview,
   makeReport,
   renderFullReport,
 } from './run_detail_overview_test_support';
@@ -14,14 +14,7 @@ describe('run detail overview', () => {
     const hypotheses: Hypothesis[] = [
       makeHypothesis({id: 'h1', title: 'Top idea', elo_rating: 1700}),
     ];
-    render(
-      <ResearchOverviewView
-        run={makeRun()}
-        report={null}
-        hypotheses={hypotheses}
-        matches={[makeMatch(1)]}
-      />,
-    );
+    renderOverview({hypotheses, matches: [makeMatch(1)]});
 
     expect(
       screen.getByText(
@@ -36,14 +29,7 @@ describe('run detail overview', () => {
   });
 
   it('shows the pre-synthesis placeholders when there is no data', () => {
-    render(
-      <ResearchOverviewView
-        run={makeRun()}
-        report={null}
-        hypotheses={[]}
-        matches={[]}
-      />,
-    );
+    renderOverview();
     expect(
       screen.getByText('Tournament matches appear here once ranking begins.'),
     ).toBeInTheDocument();
@@ -53,20 +39,16 @@ describe('run detail overview', () => {
   });
 
   it('renders an old saved report without a leaderboard', () => {
-    render(
-      <ResearchOverviewView
-        run={makeRun()}
-        report={{
-          id: 'old-report',
-          run_id: 'run-1',
-          markdown_path: '',
-          created_at: 1,
-          payload: {},
-        }}
-        hypotheses={[makeHypothesis({id: 'h1', title: 'Saved idea'})]}
-        matches={[]}
-      />,
-    );
+    renderOverview({
+      report: {
+        id: 'old-report',
+        run_id: 'run-1',
+        markdown_path: '',
+        created_at: 1,
+        payload: {},
+      },
+      hypotheses: [makeHypothesis({id: 'h1', title: 'Saved idea'})],
+    });
     expect(screen.getByText('Saved idea')).toBeVisible();
   });
 });
@@ -77,14 +59,7 @@ describe('run detail overview degraded', () => {
   function renderWithReport(
     payloadOverrides: Parameters<typeof makeReport>[0],
   ) {
-    render(
-      <ResearchOverviewView
-        run={makeRun()}
-        report={makeReport(payloadOverrides)}
-        hypotheses={[]}
-        matches={[]}
-      />,
-    );
+    renderOverview({report: makeReport(payloadOverrides)});
   }
 
   it('labels a degraded research overview instead of the in-flight promise', () => {
@@ -143,14 +118,7 @@ describe('run detail overview stat line', () => {
         },
       },
     });
-    render(
-      <ResearchOverviewView
-        run={makeRun()}
-        report={report}
-        hypotheses={[]}
-        matches={[]}
-      />,
-    );
+    renderOverview({report});
     expect(
       screen.getByText('Aim without surrounding copy'),
     ).toBeInTheDocument();
@@ -161,41 +129,27 @@ describe('run detail overview stat line', () => {
       idea_count: 1,
       leaderboard: [{id: 'h1', title: 'Only idea', elo: 1500}],
     });
-    render(
-      <ResearchOverviewView
-        run={makeRun({created_at: 1000, completed_at: 1000})}
-        report={report}
-        hypotheses={[]}
-        matches={[]}
-      />,
-    );
+    renderOverview({
+      run: makeRun({created_at: 1000, completed_at: 1000}),
+      report,
+    });
     const stat = screen.getByText(/A total of 1 idea was explored/);
     expect(stat.textContent).not.toContain('over');
   });
 
   it('omits the duration and Elo clauses when no data is present', () => {
     const report = makeReport({idea_count: 1, leaderboard: []});
-    render(
-      <ResearchOverviewView
-        run={null}
-        report={report}
-        hypotheses={[]}
-        matches={[]}
-      />,
-    );
+    renderOverview({run: null, report});
     const stat = screen.getByText(/A total of 1 idea was explored/);
     expect(stat.textContent).toBe('A total of 1 idea was explored.');
   });
 
   it('keeps missing persisted counts independent of live rows', () => {
-    render(
-      <ResearchOverviewView
-        run={makeRun()}
-        report={makeReport()}
-        hypotheses={[makeHypothesis({id: 'h1'})]}
-        matches={[makeMatch(1)]}
-      />,
-    );
+    renderOverview({
+      report: makeReport(),
+      hypotheses: [makeHypothesis({id: 'h1'})],
+      matches: [makeMatch(1)],
+    });
     expect(screen.queryByText(/A total of/)).not.toBeInTheDocument();
   });
 
@@ -205,14 +159,7 @@ describe('run detail overview stat line', () => {
       hypothesis_count: 2,
       leaderboard: [],
     });
-    render(
-      <ResearchOverviewView
-        run={null}
-        report={report}
-        hypotheses={[]}
-        matches={[]}
-      />,
-    );
+    renderOverview({run: null, report});
     expect(
       screen.getByText('A total of 22 ideas were explored.'),
     ).toBeInTheDocument();
@@ -229,14 +176,7 @@ describe('run detail overview stat line', () => {
         non_viable: [],
       },
     });
-    render(
-      <ResearchOverviewView
-        run={null}
-        report={report}
-        hypotheses={[]}
-        matches={[]}
-      />,
-    );
+    renderOverview({run: null, report});
     const tile = screen.getByText('Verified ideas').closest('div');
     expect(tile?.textContent).toBe('Verified ideas0');
     expect(screen.getByText('High Potential').closest('div')?.textContent).toBe(
@@ -279,7 +219,7 @@ describe('run detail overview sections', () => {
     ).toBeGreaterThan(0);
   });
 
-  it('renders a recent-findings line and the nested sub-topics (MO-12, MO-1)', () => {
+  it('renders recent findings and nested sub-topics', () => {
     renderFullReport();
 
     expect(screen.getByText('Recent findings:')).toBeInTheDocument();
@@ -313,22 +253,14 @@ describe('run detail overview sections', () => {
               title: 'An old direction',
               importance: 'It still matters.',
               suggested_experiments: ['Experiment A'],
-              // No recent_findings/sub_topics keys at all -- the shape a
-              // report persisted before MO-1/MO-12 landed still carries.
+              // Older persisted reports omit findings and sub-topics.
             },
           ],
         },
       },
     } as unknown as Parameters<typeof makeReport>[0]);
 
-    render(
-      <ResearchOverviewView
-        run={makeRun()}
-        report={report}
-        hypotheses={[]}
-        matches={[]}
-      />,
-    );
+    renderOverview({report});
 
     expect(screen.getByText('An old direction')).toBeInTheDocument();
     expect(screen.getByText('It still matters.')).toBeInTheDocument();
@@ -353,14 +285,7 @@ describe('run detail overview sections', () => {
       },
     } as unknown as Parameters<typeof makeReport>[0]);
 
-    render(
-      <ResearchOverviewView
-        run={makeRun()}
-        report={report}
-        hypotheses={[]}
-        matches={[]}
-      />,
-    );
+    renderOverview({report});
 
     expect(screen.getByText('Named direction')).toBeInTheDocument();
     expect(screen.getByText('Untitled but has content.')).toBeInTheDocument();
@@ -381,14 +306,7 @@ describe('run detail overview sections', () => {
       },
     } as unknown as Parameters<typeof makeReport>[0]);
 
-    render(
-      <ResearchOverviewView
-        run={makeRun()}
-        report={report}
-        hypotheses={[]}
-        matches={[]}
-      />,
-    );
+    renderOverview({report});
 
     expect(
       screen.getByText('We will be focusing on these research directions:'),
@@ -419,14 +337,7 @@ describe('run detail overview sections', () => {
       },
     } as unknown as Parameters<typeof makeReport>[0]);
 
-    render(
-      <ResearchOverviewView
-        run={makeRun()}
-        report={report}
-        hypotheses={[]}
-        matches={[]}
-      />,
-    );
+    renderOverview({report});
 
     expect(
       screen.getByText('Targeting the stringent response'),
@@ -473,14 +384,7 @@ describe('run detail overview sections', () => {
       },
     } as unknown as Parameters<typeof makeReport>[0]);
 
-    render(
-      <ResearchOverviewView
-        run={makeRun()}
-        report={report}
-        hypotheses={[]}
-        matches={[]}
-      />,
-    );
+    renderOverview({report});
 
     expect(
       screen.getByText('Targets tolerance - in vitro'),
@@ -541,21 +445,13 @@ describe('run detail overview sections', () => {
             source_title: 'A fibrosis study',
             source_url: 'https://pubmed.ncbi.nlm.nih.gov/123/',
             source: 'pubmed',
-            // No research_direction key at all -- the shape a report
-            // persisted before MO-7 landed still carries.
+            // Older persisted contacts omit their research direction.
           },
         ],
       },
     } as unknown as Parameters<typeof makeReport>[0]);
 
-    render(
-      <ResearchOverviewView
-        run={makeRun()}
-        report={report}
-        hypotheses={[]}
-        matches={[]}
-      />,
-    );
+    renderOverview({report});
 
     expect(screen.getByText('Ada Researcher')).toBeInTheDocument();
     expect(screen.queryByText('Research direction:')).not.toBeInTheDocument();
@@ -579,14 +475,7 @@ describe('run detail overview sections', () => {
       },
     } as unknown as Parameters<typeof makeReport>[0]);
 
-    render(
-      <ResearchOverviewView
-        run={makeRun()}
-        report={report}
-        hypotheses={[]}
-        matches={[]}
-      />,
-    );
+    renderOverview({report});
 
     expect(screen.getByText('Ada Researcher')).toBeInTheDocument();
     expect(screen.queryByText('Research direction:')).not.toBeInTheDocument();

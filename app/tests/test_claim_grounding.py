@@ -48,12 +48,12 @@ from app.claims.grounding import (
     assess_hypothesis_claims as _grounding_assess_hypothesis_claims,
 )
 from app.claims.verifier import make_llm_assessor
-from app.store import hypotheses, runs
+from app.store import hypotheses
 from app.store import records as store
 from app.store.hypotheses import NewHypothesis
 from app.store.records import NewClaimEvidence, NewEvidence
 from tests._drain_helpers import _build_report
-from tests._store_helpers import _add
+from tests._store_helpers import _add, seed_run
 
 from ._llm_fake_backend import install_completion_backend
 
@@ -367,7 +367,7 @@ def _assessment(claim: str, label: EntailmentLabel) -> ClaimAssessment:
 def test_partly_supported_failure_is_not_logged_as_unverified(
     isolated_db: str, caplog: pytest.LogCaptureFixture
 ) -> None:
-    run = runs.create_run("gate wording", "standard", "engine", {})
+    run = seed_run("gate wording")
     partly = _add(run.id, "Partly supported", "A causes B.", isolated_db)
     bare = _add(run.id, "Unsupported", "C causes D.", isolated_db)
     caplog.set_level(logging.INFO, logger="app.claims.grounding")
@@ -455,7 +455,7 @@ def _assert_contradicted_graph(
 def test_ground_persists_graph_and_blocks_contradicted(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("grounding goal", "standard", "mock", {})
+    run = seed_run("grounding goal", provider="mock")
     bad_id = _add_categorical(
         run.id, "Contradicted", _CONTRADICTED, isolated_db
     )
@@ -485,7 +485,7 @@ def test_ground_persists_graph_and_blocks_contradicted(
 def test_unsupported_categorical_rationale_is_quarantined(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("grounding goal", "standard", "engine", {})
+    run = seed_run("grounding goal")
     hypothesis_id = hypotheses.add_hypothesis(
         NewHypothesis(
             run_id=run.id,
@@ -519,7 +519,7 @@ def _seed_contradiction_report_run(
 ) -> tuple[Any, str, str]:
     # A contradicted established fact withholds the idea; a contradicted
     # proposal remains publishable.
-    run = runs.create_run("grounding goal", "standard", "engine", {})
+    run = seed_run("grounding goal")
     bad_id = (
         _add_categorical(run.id, "Contradicted", _CONTRADICTED, db_path)
         if bad_claim_is_categorical
@@ -588,7 +588,7 @@ async def test_a_contradicted_proposal_still_reaches_the_report(
 
 
 def _seed_speculative_run(db_path: str) -> tuple[Any, str]:
-    run = runs.create_run("novel proposal", "standard", "engine", {})
+    run = seed_run("novel proposal")
     hypothesis_id = hypotheses.add_hypothesis(
         NewHypothesis(
             run_id=run.id,
@@ -653,7 +653,7 @@ async def test_speculative_insufficient_hypothesis_remains_visible(
 
 def test_ground_records_claim_evidence_round_trip(isolated_db: str) -> None:
     # Old stored support passages are bare strings and must keep decoding.
-    run = runs.create_run("grounding goal", "standard", "mock", {})
+    run = seed_run("grounding goal", provider="mock")
     hyp_id = _add(run.id, "Supported", _GROUNDING_SUPPORTED, isolated_db)
     store.add_claim_evidence(
         NewClaimEvidence(
@@ -681,7 +681,7 @@ def test_ground_records_claim_evidence_round_trip(isolated_db: str) -> None:
 def test_evidence_passages_excludes_unavailable_sources(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("grounding goal", "standard", "engine", {})
+    run = seed_run("grounding goal")
     current_id = store.add_evidence(
         NewEvidence(
             run_id=run.id,
@@ -762,7 +762,7 @@ def _ev_completion(ev_id: str) -> Any:
 
 
 def _seed_llm_assessor(db_path: str) -> tuple[Any, str, str]:
-    run = runs.create_run("grounding goal", "standard", "engine", {})
+    run = seed_run("grounding goal")
     hyp_id = _add(
         run.id,
         "Supported",
@@ -815,7 +815,7 @@ def test_ground_with_llm_assessor_persists_provenance(
 
 
 def test_ground_records_provenance_spans_round_trip(isolated_db: str) -> None:
-    run = runs.create_run("grounding goal", "standard", "mock", {})
+    run = seed_run("grounding goal", provider="mock")
     hyp_id = _add(run.id, "Supported", _ASSESSOR_SUPPORTED, isolated_db)
     span = {
         "evidence_id": "ev-9",

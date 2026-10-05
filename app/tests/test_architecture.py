@@ -20,9 +20,8 @@ from app.api_contracts.generate import (
 )
 from app.main import app
 from app.store import reports as store
-from app.store import runs
 from app.store.events import ACTIVITY_VALUES
-from app.store.runs import RunCreateOptions
+from tests._store_helpers import seed_run
 
 _APP_DIR = Path(__file__).resolve().parents[1] / "app"
 _INTERVIEW_MODULES = {
@@ -197,12 +196,12 @@ def test_requirements_app_matches_pyproject() -> None:
 
 
 def _legacy_run(isolated_db: str) -> str:
-    run = runs.create_run(
+    run = seed_run(
         "Study feedback",
-        "standard",
-        "mock",
-        {"old_knob": [1, None]},
-        RunCreateOptions(client_id="contract-owner", db_path=isolated_db),
+        provider="mock",
+        config={"old_knob": [1, None]},
+        client_id="contract-owner",
+        db_path=isolated_db,
     )
     store.save_report(
         run.id,

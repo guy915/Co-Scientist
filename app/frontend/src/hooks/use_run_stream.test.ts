@@ -1,58 +1,12 @@
+import {
+  fetchMock,
+  FakeSseBody,
+  streamingResponse,
+  errorResponse,
+} from '@/http_test_support';
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 import {renderHook, act} from '@testing-library/react';
-import {
-  useRunStream,
-  RECONNECT_DELAY_MS,
-  type StreamEvent,
-} from './use_run_stream';
-
-function fetchMock() {
-  return globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
-}
-
-class FakeSseBody {
-  private controller: ReadableStreamDefaultController<Uint8Array> | null = null;
-  readonly stream = new ReadableStream<Uint8Array>({
-    start: c => {
-      this.controller = c;
-    },
-  });
-  private readonly encoder = new TextEncoder();
-
-  push(ev: Partial<StreamEvent>): void {
-    this.controller?.enqueue(
-      this.encoder.encode(`data: ${JSON.stringify(ev)}\n\n`),
-    );
-  }
-
-  pushRaw(data: string): void {
-    this.controller?.enqueue(this.encoder.encode(`data: ${data}\n\n`));
-  }
-
-  end(): void {
-    this.controller?.close();
-  }
-}
-
-function streamingResponse(body: FakeSseBody): Response {
-  return {
-    ok: true,
-    status: 200,
-    statusText: 'OK',
-    body: body.stream,
-    text: async () => '',
-  } as unknown as Response;
-}
-
-function errorResponse(status: number): Response {
-  return {
-    ok: false,
-    status,
-    statusText: 'Error',
-    body: null,
-    text: async () => 'boom',
-  } as unknown as Response;
-}
+import {useRunStream, RECONNECT_DELAY_MS} from './use_run_stream';
 
 // An exhausted response queue hangs to model a connection still in flight.
 function queueFetch(...responses: Response[]): void {

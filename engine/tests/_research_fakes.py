@@ -405,6 +405,27 @@ _PAPERS = {
 }
 
 
+def install_research_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> FakeResearchClient:
+    fake = FakeResearchClient(
+        {
+            "search_alpha": _PAPERS,
+            "read_pdf": {
+                "content": (
+                    "TGF-beta blockade reduced fibrosis in a human cohort."
+                )
+            },
+        }
+    )
+
+    async def get_client(**_: Any) -> MCPToolClient:
+        return cast(MCPToolClient, fake)
+
+    monkeypatch.setattr("co_scientist.mcp_client.get_mcp_client", get_client)
+    return fake
+
+
 class _ScriptedModel:
     def __init__(self) -> None:
         self.prompts: list[str] = []

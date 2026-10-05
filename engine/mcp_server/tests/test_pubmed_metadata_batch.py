@@ -12,6 +12,12 @@ from mcp_server import pubmed_metadata_batch as batch
 from mcp_server.literature_review import PubmedSource
 from mcp_server.pubmed_client import _EntrezClient
 from mcp_server.pubmed_storage import metadata_no_link_sidecar
+from mcp_server.tests._entrez import (
+    CannedEntrezHandle,
+    configure_trace,
+    install_entrez,
+)
+from mcp_server.tests._entrez import pubmed_article as _pubmed_article
 from mcp_server.tests._httpx import validate_batch_trace
 from mcp_server.tools.lit_review import search_pubmed as tool
 
@@ -27,13 +33,10 @@ _PUBLIC_METADATA_FIELDS = {
 }
 
 
-class _Handle:
+class _Handle(CannedEntrezHandle):
     def __init__(self, payload: Any = None, body: bytes = b"") -> None:
-        self.payload = payload
+        super().__init__(payload)
         self.body = body
-
-    def close(self) -> None:
-        pass
 
     def read(self) -> bytes:
         return self.body
@@ -43,10 +46,6 @@ class _Handle:
 
 
 def _article(paper_id: str) -> dict[str, Any]:
-    from mcp_server.tests.test_pubmed_pilot_trace import (
-        _pubmed_article,
-    )
-
     article = _pubmed_article(paper_id)["PubmedArticle"][0]
     article["MedlineCitation"]["PMID"] = paper_id
     return cast(dict[str, Any], article)
@@ -57,12 +56,9 @@ def _install_batch_entrez(
     efetch: Any,
     elink: Any,
 ) -> None:
-    monkeypatch.setattr(entrez_rate_limit, "_await_slot", lambda: None)
+    install_entrez(monkeypatch, efetch=efetch, elink=elink)
     monkeypatch.setattr(Entrez, "max_tries", 1)
     monkeypatch.setattr(Entrez, "sleep_between_tries", 0)
-    monkeypatch.setattr(Entrez, "efetch", efetch)
-    monkeypatch.setattr(Entrez, "elink", elink)
-    monkeypatch.setattr(Entrez, "read", lambda handle: handle.payload)
 
 
 @pytest.fixture
@@ -133,15 +129,10 @@ class TestPubmedMetadataBatch:
         }
         (shared_dir / "102.metadata.json").write_text(json.dumps(cached))
 
-        for key, value in {
-            "COSCIENTIST_REQUIRE_FREE_MODELS": "1",
-            "COSCIENTIST_PUBMED_METADATA_BATCH": "1",
-            "COSCIENTIST_PUBMED_PILOT_TRACE": "1",
-            "COSCIENTIST_PUBMED_PILOT_BUILD_ID": "batch-offline-build",
-            "COSCIENTIST_LIT_REVIEW_DIR": str(cache_root),
-        }.items():
-            monkeypatch.setenv(key, value)
-        monkeypatch.setattr(entrez_rate_limit, "_await_slot", lambda: None)
+        configure_trace(
+            monkeypatch, cache_root, "batch-offline-build", free_models=True
+        )
+        monkeypatch.setenv("COSCIENTIST_PUBMED_METADATA_BATCH", "1")
 
         pubmed_ids: list[Any] = []
         metadata_requests: list[dict[str, Any]] = []
@@ -190,10 +181,7 @@ class TestPubmedMetadataBatch:
                 list(reversed([groups[paper_id] for paper_id in ids]))
             )
 
-        monkeypatch.setattr(Entrez, "esearch", esearch)
-        monkeypatch.setattr(Entrez, "efetch", efetch)
-        monkeypatch.setattr(Entrez, "elink", elink)
-        monkeypatch.setattr(Entrez, "read", lambda handle: handle.payload)
+        install_entrez(monkeypatch, esearch=esearch, efetch=efetch, elink=elink)
 
         results = asyncio.run(
             tool.pubmed_search_with_fulltext(
@@ -321,14 +309,8 @@ class TestPubmedMetadataBatch:
         cache_root = tmp_path / "metadata-only-cache"
         default_run_id = "metadata-default-run"
         build_id = "metadata-only-build"
-        for key, value in {
-            "COSCIENTIST_REQUIRE_FREE_MODELS": "1",
-            "COSCIENTIST_PUBMED_METADATA_BATCH": "1",
-            "COSCIENTIST_PUBMED_PILOT_TRACE": "1",
-            "COSCIENTIST_PUBMED_PILOT_BUILD_ID": build_id,
-            "COSCIENTIST_LIT_REVIEW_DIR": str(cache_root),
-        }.items():
-            monkeypatch.setenv(key, value)
+        configure_trace(monkeypatch, cache_root, build_id, free_models=True)
+        monkeypatch.setenv("COSCIENTIST_PUBMED_METADATA_BATCH", "1")
         monkeypatch.setattr(entrez_rate_limit, "_await_slot", lambda: None)
 
         ids = ["101", "102", "103", "104", "105", "106"]
@@ -903,14 +885,10 @@ def test_public_search_returns_metadata_on_elink_error_and_recovers_next_run(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     cache_root = tmp_path / "cache"
-    for key, value in {
-        "COSCIENTIST_REQUIRE_FREE_MODELS": "1",
-        "COSCIENTIST_PUBMED_METADATA_BATCH": "1",
-        "COSCIENTIST_PUBMED_PILOT_TRACE": "1",
-        "COSCIENTIST_PUBMED_PILOT_BUILD_ID": "batch-offline-build",
-        "COSCIENTIST_LIT_REVIEW_DIR": str(cache_root),
-    }.items():
-        monkeypatch.setenv(key, value)
+    configure_trace(
+        monkeypatch, cache_root, "batch-offline-build", free_models=True
+    )
+    monkeypatch.setenv("COSCIENTIST_PUBMED_METADATA_BATCH", "1")
     monkeypatch.setattr(entrez_rate_limit, "_await_slot", lambda: None)
 
     paper_ids = ["701", "702", "703"]

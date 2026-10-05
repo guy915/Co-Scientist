@@ -1,5 +1,5 @@
+import {makeLogRecord as logRecord} from '@/test_fixtures';
 import {beforeEach, expect, it, vi} from 'vitest';
-import type {AppLogRecord} from '@/api/logs';
 import {sessionDiagnosticExport} from './layout_diagnostics';
 import {EXPORT_LOGS_MARKER} from './layout_diagnostics_data';
 import {resetSessionBaselineForTest} from './layout_diagnostics';
@@ -10,22 +10,6 @@ vi.mock('@/api/logs', async importOriginal => ({
   ...logsApiMock,
 }));
 
-function logRecord(
-  id: number,
-  overrides: Partial<AppLogRecord> = {},
-): AppLogRecord {
-  return {
-    id,
-    created_at: 1_700_000_000 + id,
-    level: 'INFO',
-    levelno: 20,
-    logger: 'app.main',
-    message: `record ${id}`,
-    run_id: null,
-    exc_text: null,
-    ...overrides,
-  };
-}
 beforeEach(() => resetSessionBaselineForTest());
 
 it('shares the existing session anchor and exports operational records with the complete preamble', async () => {

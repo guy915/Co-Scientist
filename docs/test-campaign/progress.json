@@ -1,0 +1,164 @@
+{
+  "phases": {
+    "1": {
+      "status": "complete",
+      "start": {
+        "engine": {
+          "test_lines": 49714,
+          "files": 78,
+          "tests": 3211
+        },
+        "app": {
+          "test_lines": 51617,
+          "files": 91,
+          "tests": 2201
+        },
+        "mcp": {
+          "test_lines": 8232,
+          "files": 11,
+          "tests": 386
+        },
+        "frontend": {
+          "test_lines": 17536,
+          "files": 85,
+          "tests": 822
+        },
+        "evaluations": {
+          "test_lines": 3079,
+          "files": 14,
+          "tests": 200
+        },
+        "browser": {
+          "test_lines": 1520,
+          "files": 11,
+          "tests": 35
+        }
+      },
+      "after_instruments": {
+        "engine": {
+          "test_lines": 49719,
+          "files": 78,
+          "tests": 3211
+        },
+        "app": {
+          "test_lines": 51636,
+          "files": 91,
+          "tests": 2201
+        },
+        "mcp": {
+          "test_lines": 8232,
+          "files": 11,
+          "tests": 386
+        },
+        "frontend": {
+          "test_lines": 17560,
+          "files": 86,
+          "tests": 822
+        },
+        "evaluations": {
+          "test_lines": 3376,
+          "files": 16,
+          "tests": 208
+        },
+        "browser": {
+          "test_lines": 1520,
+          "files": 11,
+          "tests": 35
+        }
+      },
+      "end": {
+        "engine": {
+          "test_lines": 49434,
+          "files": 78,
+          "tests": 3211
+        },
+        "app": {
+          "test_lines": 50369,
+          "files": 92,
+          "tests": 2201
+        },
+        "mcp": {
+          "test_lines": 7963,
+          "files": 12,
+          "tests": 386
+        },
+        "frontend": {
+          "test_lines": 16997,
+          "files": 89,
+          "tests": 822
+        },
+        "evaluations": {
+          "test_lines": 3364,
+          "files": 16,
+          "tests": 208
+        },
+        "browser": {
+          "test_lines": 1520,
+          "files": 11,
+          "tests": 35
+        }
+      },
+      "production_lines_start": 114507,
+      "production_lines_end": 114507,
+      "production_lines_deleted": 0,
+      "pull_requests": [
+        185,
+        187
+      ],
+      "inventory": "docs/test-campaign/phase1-inventory.json",
+      "coverage_baseline": "docs/test-campaign/coverage-baseline.json",
+      "validation": {
+        "make_check_exit_status": 0,
+        "make_e2e_production_exit_status": 0,
+        "make_coverage_exit_status": 0,
+        "protected_modules": 275,
+        "coverage_guard": "passed",
+        "pull_request": "https://github.com/guy915/Co-Scientist/pull/187"
+      },
+      "coverage_end": {
+        "app": {
+          "covered": 13110,
+          "total": 13582,
+          "percent": 96.52481225150935
+        },
+        "engine": {
+          "covered": 13922,
+          "total": 14482,
+          "percent": 96.13313078304101
+        },
+        "frontend": {
+          "covered": 3921,
+          "total": 4210,
+          "percent": 93.1353919239905
+        },
+        "mcp": {
+          "covered": 2349,
+          "total": 2536,
+          "percent": 92.62618296529969
+        }
+      }
+    }
+  },
+  "load_bearing_distinctions": [
+    "Caller-owned SQLite transactions and lease/receipt boundaries",
+    "Finite versus repeating LLM queues and copied mutable responses",
+    "Stage-specific HTTP failures and mutable query snapshots",
+    "MCP pacing, byte-reading Entrez handles and both study traces",
+    "Frontend real adapter defaults, malformed wire inputs, authentication and timers",
+    "Scientific evaluation schemas and credential-environment matrices"
+  ],
+  "flakes": [
+    {
+      "pr": 185,
+      "cause": "Concurrent idempotency retries could reach the receipt lookup sequentially; synchronize after both unlocked lookups."
+    },
+    {
+      "pr": 185,
+      "cause": "A relevance fixture inherited disk caching, skipping the offline batch path; scope cache off in the fixture."
+    },
+    {
+      "pr": 187,
+      "cause": "Nested Bubblewrap child sessions survived the outer process and retained pipes after the test event loop closed; reap owned descendant groups and drain pipes before teardown."
+    }
+  ]
+}

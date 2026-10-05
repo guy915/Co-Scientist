@@ -3,19 +3,24 @@ two module names."""
 
 import email.utils
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, NoReturn, cast
 
 import httpx
 import pytest
 
+_REAL_ASYNC_CLIENT = httpx.AsyncClient
+
 
 class StubResponse:
-    def __init__(self, payload: Any) -> None:
+    def __init__(self, payload: Any, error: Exception | None = None) -> None:
         self._payload = payload
+        self._error = error
 
     def raise_for_status(self) -> None:
-        """Represent a 2xx response: never raises."""
+        if self._error is not None:
+            raise self._error
 
     def json(self) -> Any:
         return self._payload
@@ -43,19 +48,31 @@ class StubClient:
     async def __aexit__(self, *_: Any) -> bool:
         return False
 
-    async def get(self, url: str, **kwargs: Any) -> StubResponse:
+    async def get(
+        self, url: str, **kwargs: Any
+    ) -> StubResponse | httpx.Response:
         return self._serve(url, kwargs.get("params"))
 
-    async def post(self, url: str, json: Any = None, **_: Any) -> StubResponse:
+    async def post(
+        self, url: str, json: Any = None, **_: Any
+    ) -> StubResponse | httpx.Response:
         return self._serve(url, json)
 
-    def _serve(self, url: str, payload: Any) -> StubResponse:
-        self.calls.append((url, payload))
+    def _serve(self, url: str, payload: Any) -> StubResponse | httpx.Response:
+        # Pagination mutates its parameter dict between calls.
+        self.calls.append(
+            (url, dict(payload) if isinstance(payload, dict) else payload)
+        )
         if self._error is not None:
             raise self._error
         if not self._responses:
             raise AssertionError(f"stub has no response queued for {url}")
-        return StubResponse(self._responses.pop(0))
+        response = self._responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        if isinstance(response, (StubResponse, httpx.Response)):
+            return response
+        return StubResponse(response)
 
 
 def _install(monkeypatch: pytest.MonkeyPatch, client: StubClient) -> StubClient:
@@ -82,6 +99,43 @@ def stub_unreachable(
     """A leaked request must raise rather than silently satisfy a branch that
     should reject before I/O."""
     return stub_failure(monkeypatch, RuntimeError(message))
+
+
+def asgi_client_factory(app: Any) -> Callable[..., httpx.AsyncClient]:
+    def factory(**kwargs: Any) -> httpx.AsyncClient:
+        kwargs.pop("follow_redirects", None)
+        return _REAL_ASYNC_CLIENT(
+            **kwargs,
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://test",
+        )
+
+    return factory
+
+
+def transport_responses(
+    monkeypatch: pytest.MonkeyPatch, *responses: Any
+) -> list[httpx.Request]:
+    queued = list(responses)
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        response = queued.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        if isinstance(response, httpx.Response):
+            return response
+        return httpx.Response(200, json=response)
+
+    monkeypatch.setattr(
+        httpx,
+        "AsyncClient",
+        lambda **kwargs: _REAL_ASYNC_CLIENT(
+            transport=httpx.MockTransport(handler), **kwargs
+        ),
+    )
+    return requests
 
 
 _ROOT = Path(__file__).resolve().parents[3]

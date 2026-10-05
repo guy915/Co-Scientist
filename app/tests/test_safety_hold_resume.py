@@ -14,10 +14,9 @@ from app.safety import POLICY_VERSION, SafetyDecision, ScreenSubject
 from app.store import records, reports, runs, tasks
 from app.store import tasks_lifecycle as lifecycle
 from app.store.models import RunStatus
-from app.store.runs import RunCreateOptions
-from app.store.tasks import NewTask
 from tests._client import make_client
 from tests._engine_tasks_helpers import _install_runtime
+from tests._store_helpers import enqueue_task, seed_run
 
 CLIENT_ID = "hold-e2e"
 HEADERS = {"X-Client-ID": CLIENT_ID}
@@ -57,14 +56,13 @@ def hold_until_approved(stage: str) -> Any:
 
 
 def start_offline_run(db_path: str) -> Any:
-    run = runs.create_run(
+    run = seed_run(
         "Explain how protein X folds under crowding.",
-        "express",
-        "engine",
-        {"tier": "express", "enable_literature_review": False},
-        RunCreateOptions(
-            client_id=CLIENT_ID, llm_backend="offline", db_path=db_path
-        ),
+        profile="express",
+        config={"tier": "express", "enable_literature_review": False},
+        client_id=CLIENT_ID,
+        llm_backend="offline",
+        db_path=db_path,
     )
     task_worker.enqueue_run_workflow(run.id, db_path=db_path)
     return run
@@ -169,21 +167,9 @@ def test_parked_task_is_released_with_a_fresh_budget(
 ) -> None:
     # Waiting for a reviewer must preserve claimable work without spending its
     # retry budget.
-    run = runs.create_run(
-        "goal",
-        "express",
-        "engine",
-        {},
-        RunCreateOptions(db_path=isolated_db),
-    )
-    tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type="engine.finalize",
-            inputs={},
-            idempotency_key="engine.finalize:1",
-        ),
-        db_path=isolated_db,
+    run = seed_run("goal", profile="express", db_path=isolated_db)
+    enqueue_task(
+        run.id, "engine.finalize", "engine.finalize:1", db_path=isolated_db
     )
     leased = tasks.claim_task("w1", run_id=run.id, db_path=isolated_db)
     assert leased is not None and leased.attempt == 1

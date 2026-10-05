@@ -1,3 +1,4 @@
+import {makeLogRecord as logRecord} from '@/test_fixtures';
 import {fireEvent, screen, waitFor} from '@testing-library/react';
 import {beforeEach, expect, it, describe} from 'vitest';
 import {
@@ -6,7 +7,6 @@ import {
   logsApiMock,
   renderLayout,
 } from './layout_test_support';
-import {logRecord} from './layout_diagnostics_test_support';
 
 describe('layout diagnostics panel', () => {
   beforeEach(() => installLayoutMocks());
@@ -30,16 +30,7 @@ describe('layout diagnostics panel', () => {
   it('shows the same app-wide log on a run route as on home', async () => {
     logsApiMock.getAppLogs.mockResolvedValue({
       logs: [
-        {
-          id: 41,
-          created_at: 1_700_000_000,
-          level: 'INFO',
-          levelno: 20,
-          logger: 'app.main',
-          message: 'server started',
-          run_id: null,
-          exc_text: null,
-        },
+        logRecord(41, {created_at: 1_700_000_000, message: 'server started'}),
       ],
       last_id: 41,
       total: 1,
@@ -88,7 +79,6 @@ describe('layout diagnostics panel', () => {
     expect(screen.getByText(/workflow exploded/)).toBeInTheDocument();
     expect(screen.getAllByText('Server')).toHaveLength(2);
     expect(screen.getByText('Run run-1234')).toBeInTheDocument();
-    // Warnings must not be presented as failures.
     expect(screen.getByText('Errors 1')).toBeInTheDocument();
     expect(screen.getByText('Warnings 1')).toBeInTheDocument();
     expect(screen.getByText('Info 1')).toBeInTheDocument();
@@ -164,16 +154,7 @@ describe('layout diagnostics numbering', () => {
     // Global store ids include filtered noise; contiguous display numbers avoid
     // apparent missing rows.
     logsApiMock.getAppLogs.mockResolvedValue({
-      logs: [12, 13, 30, 31].map(id => ({
-        id,
-        created_at: 1_700_000_000 + id,
-        level: 'INFO',
-        levelno: 20,
-        logger: 'app.main',
-        message: `record ${id}`,
-        run_id: null,
-        exc_text: null,
-      })),
+      logs: [12, 13, 30, 31].map(id => logRecord(id)),
       last_id: 33,
       total: 4,
       session_total: 4,
@@ -192,16 +173,12 @@ describe('layout diagnostics numbering', () => {
   });
 
   it('numbers a capped window by position in the stream', async () => {
-    const logs = Array.from({length: 100}, (_, index) => ({
-      id: 1000 + index * 3,
-      created_at: 1_700_000_000 + index,
-      level: 'INFO',
-      levelno: 20,
-      logger: 'app.main',
-      message: `record ${index}`,
-      run_id: null,
-      exc_text: null,
-    }));
+    const logs = Array.from({length: 100}, (_, index) =>
+      logRecord(1000 + index * 3, {
+        created_at: 1_700_000_000 + index,
+        message: `record ${index}`,
+      }),
+    );
     logsApiMock.getAppLogs.mockResolvedValue({
       logs,
       last_id: 5000,
@@ -250,16 +227,9 @@ describe('layout diagnostics numbering', () => {
   });
 
   it('never shows more than the 100 newest records', async () => {
-    const many = Array.from({length: 120}, (_, index) => ({
-      id: index + 1,
-      created_at: 1_700_000_000 + index,
-      level: 'INFO',
-      levelno: 20,
-      logger: 'app.main',
-      message: `record ${index + 1}`,
-      run_id: null,
-      exc_text: null,
-    }));
+    const many = Array.from({length: 120}, (_, index) =>
+      logRecord(index + 1, {created_at: 1_700_000_000 + index}),
+    );
     logsApiMock.getAppLogs.mockResolvedValue({
       logs: many,
       last_id: 120,

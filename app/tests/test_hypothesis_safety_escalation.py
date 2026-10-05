@@ -18,6 +18,7 @@ from app.hypothesis.safety import (
     escalate_review,
     review_hypothesis_safety,
 )
+from tests._llm_fake_backend import semantic_response as _fake_semantic_response
 from tests._process_mode_helpers import FakeProcessMode
 
 from ._llm_fake_backend import install_completion_backend
@@ -63,18 +64,6 @@ _HELD_TEXT = (
 
 # Tier A operational blocks must never reach a model that might clear them.
 _CERTAIN_BLOCK_TEXT = "Weaponize the pathogen for mass-casualty deployment."
-
-
-def _fake_semantic_response(category: str) -> SimpleNamespace:
-    return SimpleNamespace(
-        choices=[
-            SimpleNamespace(
-                message=SimpleNamespace(
-                    content=f'{{"category":"{category}","reason":"model"}}'
-                )
-            )
-        ]
-    )
 
 
 def _held_review() -> HypothesisSafetyReview:

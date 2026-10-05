@@ -14,8 +14,9 @@ from app.operator_access import is_operator
 from app.store import runs
 from app.store import runs_views as views
 from app.store.models import RunStatus
-from app.store.runs import RunCreateOptions
+from tests._client import create_run as _create_run
 from tests._client import make_client, wait_for
+from tests._store_helpers import seed_run
 
 _OWNER = {"X-Client-ID": "export-owner"}
 _OTHER = {"X-Client-ID": "someone-else"}
@@ -24,7 +25,6 @@ _OTHER = {"X-Client-ID": "someone-else"}
 def _wait_owned_status(
     client: TestClient, run_id: str, status: str, *, timeout: float = 30.0
 ) -> bool:
-    # Poll with the explicit owner identity.
 
     def _reached() -> bool:
         response = client.get(f"/api/runs/{run_id}", headers=_OWNER)
@@ -47,11 +47,7 @@ def test_export_includes_a_run_its_report_and_a_document(
         },
         data={"consent": "true"},
     )
-    created = client.post(
-        "/api/runs",
-        headers=_OWNER,
-        json={"research_goal": "Export goal", "tier": "express"},
-    )
+    created = _create_run(client, "Export goal", headers=_OWNER, tier="express")
     run_id = created.json()["id"]
     client.post(f"/api/runs/{run_id}/start", headers=_OWNER, json={})
     assert _wait_owned_status(client, run_id, "completed")
@@ -74,9 +70,7 @@ def test_export_includes_a_run_its_report_and_a_document(
 
 def test_export_is_scoped_to_the_caller() -> None:
     client = make_client()
-    client.post(
-        "/api/runs", headers=_OWNER, json={"research_goal": "Private goal"}
-    )
+    _create_run(client, "Private goal", headers=_OWNER)
 
     other_export = client.get("/api/account/export", headers=_OTHER)
 
@@ -126,11 +120,7 @@ def test_required_auth_exchanges_invite_and_isolates_runs(
     assert session_a.status_code == 200
     headers_a = {"Authorization": f"Bearer {session_a.json()['access_token']}"}
     headers_b = {"Authorization": f"Bearer {session_b.json()['access_token']}"}
-    created = client.post(
-        "/api/runs",
-        headers=headers_a,
-        json={"research_goal": "Private researcher goal"},
-    )
+    created = _create_run(client, "Private researcher goal", headers=headers_a)
     assert created.status_code == 200
     run_id = created.json()["id"]
 
@@ -234,10 +224,8 @@ def test_allowed_origin_can_read_ownership_denial(
     monkeypatch.setattr(settings, "auth_mode", "compatibility")
     app = _configure_allowlisted_cors(monkeypatch)
     client = TestClient(app, raise_server_exceptions=False)
-    created = client.post(
-        "/api/runs",
-        headers={"X-Client-ID": "run-owner"},
-        json={"research_goal": "Private run"},
+    created = _create_run(
+        client, "Private run", headers={"X-Client-ID": "run-owner"}
     )
 
     run_path = f"/api/runs/{created.json()['id']}"
@@ -275,10 +263,10 @@ def test_run_ownership_allows_cors_preflight(
 ) -> None:
     app = _configure_allowlisted_cors(monkeypatch)
     client = TestClient(app, headers={"X-Client-ID": "pytest-default-client"})
-    created = client.post(
-        "/api/runs",
+    created = _create_run(
+        client,
+        "Cross-origin research goal",
         headers={"X-Client-ID": "browser-owner"},
-        json={"research_goal": "Cross-origin research goal"},
     )
     assert created.status_code == 200
 
@@ -366,9 +354,7 @@ def _headerless_client() -> TestClient:
 
 
 def test_headerless_caller_cannot_create_a_run(isolated_db: str) -> None:
-    response = _headerless_client().post(
-        "/api/runs", json={"research_goal": "Anonymous goal"}
-    )
+    response = _create_run(_headerless_client(), "Anonymous goal")
     assert response.status_code == 400
     assert "X-Client-ID" in response.json()["detail"]
     assert views.list_runs(client_id="") == []
@@ -376,12 +362,11 @@ def test_headerless_caller_cannot_create_a_run(isolated_db: str) -> None:
 
 def test_headerless_callers_no_longer_share_a_run(isolated_db: str) -> None:
     # Legacy empty-string identities must remain unreachable to every caller.
-    legacy = runs.create_run(
+    legacy = seed_run(
         "Pre-fix headerless goal",
-        "express",
-        "engine",
-        {},
-        RunCreateOptions(client_id="", db_path=isolated_db),
+        profile="express",
+        client_id="",
+        db_path=isolated_db,
     )
     client = _headerless_client()
 
@@ -479,10 +464,8 @@ def test_host_cannot_hide_another_researchers_run(
         "Authorization": f"Bearer {auth.create_session_token('stranger')}",
         "Host": host,
     }
-    created = client.post(
-        "/api/runs",
-        json={"research_goal": "Explore mitochondrial dynamics in neurons"},
-        headers=owner,
+    created = _create_run(
+        client, "Explore mitochondrial dynamics in neurons", headers=owner
     )
     assert created.status_code == 200
     response = client.get(f"/api/runs/{created.json()['id']}", headers=stranger)

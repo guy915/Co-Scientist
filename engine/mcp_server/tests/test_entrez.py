@@ -46,11 +46,7 @@ def test_entrez_rejects_insecure_tls_setting(
     assert entrez._entrez_initialized is False
 
 
-def test_campaign_request_omits_shared_entrez_key(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(Entrez, "api_key", "service-held-key")
-    monkeypatch.setattr(entrez_rate_limit, "_await_slot", lambda: None)
+def _capture_request(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     captured: dict[str, Any] = {}
 
     def open_request(request: Any) -> object:
@@ -59,6 +55,15 @@ def test_campaign_request_omits_shared_entrez_key(
         return object()
 
     monkeypatch.setattr(Entrez, "_open", open_request)
+    return captured
+
+
+def test_campaign_request_omits_shared_entrez_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(Entrez, "api_key", "service-held-key")
+    monkeypatch.setattr(entrez_rate_limit, "_await_slot", lambda: None)
+    captured = _capture_request(monkeypatch)
     with scoped_campaign_request(True):
         entrez_rate_limit.entrez_call(
             Entrez.esearch,
@@ -81,14 +86,7 @@ def test_standard_request_keeps_its_entrez_key(
 ) -> None:
     monkeypatch.setattr(Entrez, "api_key", "service-held-key")
     monkeypatch.setattr(entrez_rate_limit, "_await_slot", lambda: None)
-    captured: dict[str, Any] = {}
-
-    def open_request(request: Any) -> object:
-        captured["url"] = request.full_url
-        captured["body"] = request.data
-        return object()
-
-    monkeypatch.setattr(Entrez, "_open", open_request)
+    captured = _capture_request(monkeypatch)
     with scoped_campaign_request(False):
         entrez_rate_limit.entrez_call(
             Entrez.esearch, db="pubmed", term="EGFR resistance"
@@ -221,8 +219,7 @@ _STUDY_ID_ENV = "COSCIENTIST_PUBMED_STUDY_ID"
 
 @pytest.fixture
 def isolate_process_budget(monkeypatch: pytest.MonkeyPatch) -> Any:
-    """The process-wide pacing budget must start unused for each independent
-    case."""
+    """Retry budgets are process-wide; each case needs a fresh allowance."""
     max_tries = Entrez.max_tries
     sleep_between_tries = Entrez.sleep_between_tries
     monkeypatch.setattr(

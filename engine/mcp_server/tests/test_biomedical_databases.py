@@ -9,47 +9,16 @@ import mcp_server.tools.biomedical_databases as systems_biology
 import pytest
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
-from httpx import ASGITransport, AsyncClient
 from mcp_server.campaign import PUBLIC_TOOLS
 from mcp_server.server import _MCP_TOOLS, mcp
-from mcp_server.tests._httpx import stub_failure, stub_responses
+from mcp_server.tests._httpx import (
+    asgi_client_factory,
+    stub_failure,
+    stub_responses,
+    transport_responses,
+)
 from mcp_server.tools import biomedical_databases
 from starlette.applications import Starlette
-
-_BIOMEDICAL_DATABASES_REAL_ASYNC_CLIENT = httpx.AsyncClient
-_BIOMEDICAL_DATABASES_MOCK_TRANSPORT = httpx.MockTransport
-
-
-class _ErrorStatusClient:
-    """A real non-2xx httpx response exercises status failure; the shared
-    stub always succeeds."""
-
-    def __init__(self, status_code: int) -> None:
-        self._status_code = status_code
-
-    async def __aenter__(self) -> "_ErrorStatusClient":
-        return self
-
-    async def __aexit__(self, *_: Any) -> None:
-        return None
-
-    async def get(self, *_: Any, **__: Any) -> httpx.Response:
-        return httpx.Response(
-            self._status_code,
-            request=httpx.Request("GET", "https://example.test"),
-        )
-
-
-def _mcp_client_factory(app: Any):  # type: ignore[no-untyped-def]
-    def factory(**kwargs: Any) -> AsyncClient:
-        kwargs.pop("follow_redirects", None)
-        return _BIOMEDICAL_DATABASES_REAL_ASYNC_CLIENT(
-            **kwargs,
-            transport=ASGITransport(app=app),
-            base_url="http://test",
-        )
-
-    return factory
 
 
 @pytest.mark.parametrize(
@@ -100,27 +69,12 @@ async def test_registered_biomedical_tools_report_outcome_at_mcp_boundary(
         httpx.Response(200, json={}),
         httpx.ReadTimeout("upstream timeout"),
     ]
-    requests: list[httpx.Request] = []
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        requests.append(request)
-        response = responses.pop(0)
-        if isinstance(response, Exception):
-            raise response
-        return response
-
-    monkeypatch.setattr(
-        httpx,
-        "AsyncClient",
-        lambda **kwargs: _BIOMEDICAL_DATABASES_REAL_ASYNC_CLIENT(
-            transport=_BIOMEDICAL_DATABASES_MOCK_TRANSPORT(handler), **kwargs
-        ),
-    )
+    requests = transport_responses(monkeypatch, *responses)
     mcp_app = mcp.http_app()
     app = Starlette(lifespan=mcp_app.lifespan)
     app.mount("/", mcp_app)
     transport = StreamableHttpTransport(
-        "http://test/mcp", httpx_client_factory=_mcp_client_factory(app)
+        "http://test/mcp", httpx_client_factory=asgi_client_factory(app)
     )
 
     async with app.router.lifespan_context(app), Client(transport) as client:
@@ -258,8 +212,11 @@ async def test_search_uniprot_degrades_on_transport_failure(
 async def test_search_chembl_degrades_on_http_status_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        httpx, "AsyncClient", lambda **_: _ErrorStatusClient(503)
+    stub_responses(
+        monkeypatch,
+        httpx.Response(
+            503, request=httpx.Request("GET", "https://example.test")
+        ),
     )
     result = await biomedical_databases.search_chembl("aspirin")
     assert result == {
@@ -273,8 +230,11 @@ async def test_search_chembl_degrades_on_http_status_error(
 async def test_search_uniprot_degrades_on_http_status_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        httpx, "AsyncClient", lambda **_: _ErrorStatusClient(503)
+    stub_responses(
+        monkeypatch,
+        httpx.Response(
+            503, request=httpx.Request("GET", "https://example.test")
+        ),
     )
     result = await biomedical_databases.search_uniprot("EGFR")
     assert result == {
@@ -590,8 +550,6 @@ class TestSystemsBiology:
         assert result == {"source": source, "query": "WEE1", "records": []}
 
 
-_GWAS_CATALOG_REAL_ASYNC_CLIENT = httpx.AsyncClient
-_GWAS_CATALOG_MOCK_TRANSPORT = httpx.MockTransport
 _RS_ID = "rs334"
 _ASSOCIATION_URL = (
     "https://www.ebi.ac.uk/gwas/rest/api/v2/associations/226290633"
@@ -640,34 +598,10 @@ def _payload() -> dict[str, Any]:
     }
 
 
-def _install_responses(
-    monkeypatch: pytest.MonkeyPatch, responses: list[Any]
-) -> list[httpx.Request]:
-    requests: list[httpx.Request] = []
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        requests.append(request)
-        response = responses.pop(0)
-        if isinstance(response, Exception):
-            raise response
-        if isinstance(response, httpx.Response):
-            return response
-        return httpx.Response(200, json=response)
-
-    monkeypatch.setattr(
-        httpx,
-        "AsyncClient",
-        lambda **kwargs: _GWAS_CATALOG_REAL_ASYNC_CLIENT(
-            transport=_GWAS_CATALOG_MOCK_TRANSPORT(handler), **kwargs
-        ),
-    )
-    return requests
-
-
 async def test_association_lookup_preserves_source_and_effect_context(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    requests = _install_responses(monkeypatch, [_payload()])
+    requests = transport_responses(monkeypatch, _payload())
 
     result = await gwas_catalog.search_gwas_catalog_associations(_RS_ID)
 
@@ -700,7 +634,7 @@ async def test_association_lookup_preserves_source_and_effect_context(
 async def test_invalid_rs_id_is_rejected_without_a_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    requests = _install_responses(monkeypatch, [])
+    requests = transport_responses(monkeypatch)
 
     result = await gwas_catalog.search_gwas_catalog_associations("rs334 OR 1=1")
 
@@ -712,7 +646,7 @@ async def test_invalid_rs_id_is_rejected_without_a_request(
 async def test_lookup_clamps_page_and_size_to_the_bounded_api_range(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    requests = _install_responses(monkeypatch, [_payload()])
+    requests = transport_responses(monkeypatch, _payload())
 
     result = await gwas_catalog.search_gwas_catalog_associations(
         _RS_ID, size=10_000, page=10_000
@@ -730,12 +664,10 @@ async def test_lookup_clamps_page_and_size_to_the_bounded_api_range(
 async def test_http_failure_is_distinct_from_a_valid_empty_lookup(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    requests = _install_responses(
+    requests = transport_responses(
         monkeypatch,
-        [
-            httpx.ConnectError("offline"),
-            {"page": {}, "_embedded": {"associations": []}},
-        ],
+        httpx.ConnectError("offline"),
+        {"page": {}, "_embedded": {"associations": []}},
     )
 
     failed = await gwas_catalog.search_gwas_catalog_associations(_RS_ID)
@@ -751,26 +683,24 @@ async def test_http_failure_is_distinct_from_a_valid_empty_lookup(
 async def test_zero_total_without_embedded_associations_is_valid_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    requests = _install_responses(
+    requests = transport_responses(
         monkeypatch,
-        [
-            {
-                "page": {
-                    "size": 1,
-                    "totalElements": 0,
-                    "totalPages": 0,
-                    "number": 0,
-                },
-                "_links": {
-                    "self": {
-                        "href": (
-                            "https://www.ebi.ac.uk/gwas/rest/api/v2/associations"
-                            "?rs_id=rs9999999999999&page=0&size=1"
-                        )
-                    }
-                },
-            }
-        ],
+        {
+            "page": {
+                "size": 1,
+                "totalElements": 0,
+                "totalPages": 0,
+                "number": 0,
+            },
+            "_links": {
+                "self": {
+                    "href": (
+                        "https://www.ebi.ac.uk/gwas/rest/api/v2/associations"
+                        "?rs_id=rs9999999999999&page=0&size=1"
+                    )
+                }
+            },
+        },
     )
 
     result = await gwas_catalog.search_gwas_catalog_associations(
@@ -788,14 +718,12 @@ async def test_missing_embedded_list_without_integer_zero_total_is_malformed(
     monkeypatch: pytest.MonkeyPatch,
     total_elements: Any,
 ) -> None:
-    _install_responses(
+    transport_responses(
         monkeypatch,
-        [
-            {
-                "page": {"totalElements": total_elements},
-                "_links": {"self": {"href": "x"}},
-            }
-        ],
+        {
+            "page": {"totalElements": total_elements},
+            "_links": {"self": {"href": "x"}},
+        },
     )
 
     result = await gwas_catalog.search_gwas_catalog_associations(_RS_ID)
@@ -812,9 +740,9 @@ async def test_http_error_body_and_secret_are_not_returned_or_logged(
 ) -> None:
     secret = "synthetic-user-secret-should-not-escape"
     caplog.set_level(logging.WARNING, logger=gwas_catalog.__name__)
-    _install_responses(
+    transport_responses(
         monkeypatch,
-        [httpx.Response(status_code, json={"message": secret})],
+        httpx.Response(status_code, json={"message": secret}),
     )
 
     result = await gwas_catalog.search_gwas_catalog_associations(_RS_ID)
@@ -828,7 +756,7 @@ async def test_http_error_body_and_secret_are_not_returned_or_logged(
 async def test_timeout_is_reported_instead_of_looking_like_no_associations(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    requests = _install_responses(monkeypatch, [httpx.ReadTimeout("slow")])
+    requests = transport_responses(monkeypatch, httpx.ReadTimeout("slow"))
 
     result = await gwas_catalog.search_gwas_catalog_associations(_RS_ID)
 
@@ -842,7 +770,7 @@ async def test_record_without_a_study_accession_is_rejected(
 ) -> None:
     payload = _payload()
     del payload["_embedded"]["associations"][0]["accession_id"]
-    _install_responses(monkeypatch, [payload])
+    transport_responses(monkeypatch, payload)
 
     result = await gwas_catalog.search_gwas_catalog_associations(_RS_ID)
 
@@ -853,25 +781,14 @@ async def test_record_without_a_study_accession_is_rejected(
 async def test_catalog_lookup_is_on_the_mcp_campaign_surface(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    requests = _install_responses(monkeypatch, [_payload()])
+    requests = transport_responses(monkeypatch, _payload())
     monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
-
-    def factory(app: Any):  # type: ignore[no-untyped-def]
-        def client_factory(**kwargs: Any) -> AsyncClient:
-            kwargs.pop("follow_redirects", None)
-            return AsyncClient(
-                **kwargs,
-                transport=ASGITransport(app=app),
-                base_url="http://test",
-            )
-
-        return client_factory
 
     mcp_app = mcp.http_app()
     app = Starlette(lifespan=mcp_app.lifespan)
     app.mount("/", mcp_app)
     transport = StreamableHttpTransport(
-        "http://test/mcp", httpx_client_factory=factory(app)
+        "http://test/mcp", httpx_client_factory=asgi_client_factory(app)
     )
 
     async with app.router.lifespan_context(app), Client(transport) as client:

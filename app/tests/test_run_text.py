@@ -16,9 +16,9 @@ from app.goal_text import (
     generate_run_title,
 )
 from app.store import runs
-from app.store.runs import RunCreateOptions
 from app.text_utils import readable_experiment_summary
 from tests._llm_fake_backend import install_completion_backend
+from tests._store_helpers import seed_run
 
 
 def test_initial_elo_is_1200() -> None:
@@ -26,7 +26,6 @@ def test_initial_elo_is_1200() -> None:
 
 
 def test_leaderboard_ranks_played_ideas_above_unplayed_ones() -> None:
-    # An unplayed initial Elo must not outrank a played loser.
     from app.elo import live_leaderboard
 
     rows = live_leaderboard(
@@ -91,7 +90,6 @@ async def test_generation_failure_returns_none(
 async def test_reasoned_with_no_answer_retries_without_thinking(
     monkeypatch: pytest.MonkeyPatch, reachable_provider: None
 ) -> None:
-    # A reasoning-only reply needs a retry with thinking disabled.
     calls: list[dict[str, Any]] = []
 
     def _thinking_only() -> Any:
@@ -215,12 +213,12 @@ def test_clean_title_rejects_empty_or_overlong(raw: str) -> None:
 
 
 def test_set_run_title_persists_and_serializes(isolated_db: str) -> None:
-    run = runs.create_run(
+    run = seed_run(
         "Map senescence escape mechanisms",
-        "default",
-        "mock",
-        {},
-        RunCreateOptions(client_id="c1", db_path=isolated_db),
+        profile="default",
+        provider="mock",
+        client_id="c1",
+        db_path=isolated_db,
     )
     assert run.title is None
     assert run.to_dict()["title"] is None
@@ -297,7 +295,6 @@ async def test_title_call_timeout_is_lifted_for_a_thinking_model(
 async def test_title_call_reasoned_with_no_answer_retries_without_thinking(
     monkeypatch: pytest.MonkeyPatch, reachable_provider: None
 ) -> None:
-    # Retry empty reasoned titles rather than treating them as valid output.
     calls: list[dict[str, Any]] = []
 
     def _thinking_only_response() -> Any:

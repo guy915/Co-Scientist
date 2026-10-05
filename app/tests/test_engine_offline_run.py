@@ -11,7 +11,7 @@ from app import task_worker
 from app.store import events as store_events
 from app.store import hypotheses, reports, runs
 from app.store.models import RunStatus
-from app.store.runs import RunCreateOptions
+from tests._store_helpers import seed_run
 
 from ._llm_fake_backend import load_engine_fake
 
@@ -45,14 +45,14 @@ def _persist_offline_run(isolated_db: str) -> tuple[Any, dict[str, Any]]:
         "tier": "express",
         "enable_literature_review": False,
     }
-    run = runs.create_run(
+    run = seed_run(
         "Explain how protein X folds under crowding.",
-        "express",
-        "mock",
-        config,
-        RunCreateOptions(
-            client_id="offline-e2e", llm_backend="offline", db_path=isolated_db
-        ),
+        profile="express",
+        provider="mock",
+        config=config,
+        client_id="offline-e2e",
+        llm_backend="offline",
+        db_path=isolated_db,
     )
     return run, config
 

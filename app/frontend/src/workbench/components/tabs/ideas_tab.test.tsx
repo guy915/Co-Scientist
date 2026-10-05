@@ -1,3 +1,4 @@
+import {stubViewport} from '@/browser_test_support';
 import type {ReactElement} from 'react';
 import {afterEach, it, expect, vi} from 'vitest';
 import {render, screen, within} from '@testing-library/react';
@@ -8,19 +9,6 @@ import {makeHypothesis} from '@/test_fixtures';
 
 function renderIdeas(ui: ReactElement, path = '/runs/run-1/ideas') {
   return render(<MemoryRouter initialEntries={[path]}>{ui}</MemoryRouter>);
-}
-
-// jsdom lacks matchMedia; an unstubbed viewport silently exercises desktop
-// behavior.
-function stubViewport(mobile: boolean) {
-  vi.stubGlobal(
-    'matchMedia',
-    vi.fn(() => ({
-      matches: mobile,
-      addEventListener: () => {},
-      removeEventListener: () => {},
-    })),
-  );
 }
 
 afterEach(() => {

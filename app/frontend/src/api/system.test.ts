@@ -1,3 +1,4 @@
+import {jsonResponse} from '@/http_test_support';
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 import {getSystemStatus, type SystemStatus} from './system';
 
@@ -22,15 +23,6 @@ const STATUS: SystemStatus = {
     {id: 'web_search', display: 'Web search'},
   ],
 };
-
-function jsonResponse(body: unknown): Response {
-  return {
-    ok: true,
-    status: 200,
-    json: async () => body,
-    text: async () => JSON.stringify(body),
-  } as unknown as Response;
-}
 
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn());

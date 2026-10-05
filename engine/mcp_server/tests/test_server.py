@@ -15,6 +15,7 @@ from mcp_server.auth_middleware import (
     resolve_shared_secret,
 )
 from mcp_server.campaign import campaign_free_mode
+from mcp_server.tests._httpx import asgi_client_factory
 from mcp_server.tool_logging import with_call_logging
 from mcp_server.tools import web_providers as providers
 from mcp_server.tools.lit_review.openalex_search import search_openalex
@@ -158,18 +159,6 @@ def test_resolve_shared_secret_reads_env_var(
     assert resolve_shared_secret() is None
 
 
-def _client_factory(app: Any):  # type: ignore[no-untyped-def]
-    def factory(**kwargs: Any) -> httpx.AsyncClient:
-        kwargs.pop("follow_redirects", None)
-        return httpx.AsyncClient(
-            **kwargs,
-            transport=httpx.ASGITransport(app=app),
-            base_url="http://test",
-        )
-
-    return factory
-
-
 async def test_concurrent_fastmcp_sessions_receive_request_policy() -> None:
     both_entered = asyncio.Event()
     entered = 0
@@ -193,7 +182,7 @@ async def test_concurrent_fastmcp_sessions_receive_request_policy() -> None:
     app = Starlette(lifespan=mcp_app.lifespan)
     app.mount("/", mcp_app)
     app.add_middleware(SharedSecretAuthMiddleware, secret="secret")
-    factory = _client_factory(app)
+    factory = asgi_client_factory(app)
 
     async def invoke(label: str, campaign: bool) -> Any:
         headers = {MCP_AUTH_HEADER: "secret"}

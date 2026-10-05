@@ -17,12 +17,13 @@ from app.interviews import model as interviews_model
 from app.interviews.model import CLOSE_MARKER, OPEN_MARKER, _normalized_fields
 from app.interviews.questions import normalized_questions
 from app.main import app
-from app.store import documents, runs
+from app.store import documents
 from app.store import interviews as store
 from app.store.documents import NewStagedDocument
 from app.store.interviews import NewInterviewTurn
-from app.store.runs import RunCreateOptions
+from tests._client import create_run as _create_run
 from tests._llm_fake_backend import install_completion_backend
+from tests._store_helpers import seed_run
 
 from ._client import make_client
 from ._interviews_helpers import (
@@ -423,10 +424,8 @@ def test_question_repair_shares_the_interview_turn_budget(
 def _create_run_from_interview(
     client: TestClient, headers: dict[str, str], interview_id: str
 ) -> dict[str, Any]:
-    response = client.post(
-        "/api/runs",
-        headers=headers,
-        json={"research_goal": "placeholder", "interview_id": interview_id},
+    response = _create_run(
+        client, "placeholder", headers=headers, interview_id=interview_id
     )
     assert response.status_code == 200
     return dict(response.json())
@@ -534,14 +533,12 @@ def test_completed_interview_authoritatively_seeds_run_creation(
         )
         fields = _interview_payload(final)["fields"]
 
-        run = client.post(
-            "/api/runs",
+        run = _create_run(
+            client,
+            "client placeholder is not authoritative",
             headers=headers,
-            json={
-                "research_goal": "client placeholder is not authoritative",
-                "interview_id": interview_id,
-                "tier": "ultra",
-            },
+            interview_id=interview_id,
+            tier="ultra",
         )
     assert run.status_code == 200
     run_payload = run.json()
@@ -561,13 +558,8 @@ def test_chat_list_is_owner_scoped_and_links_its_run(
         )
         assert created.status_code == 200
         before = client.get("/api/interviews", headers=headers).json()
-        run = client.post(
-            "/api/runs",
-            headers=headers,
-            json={
-                "research_goal": "placeholder",
-                "interview_id": interview_id,
-            },
+        run = _create_run(
+            client, "placeholder", headers=headers, interview_id=interview_id
         )
         after = client.get("/api/interviews", headers=headers).json()
         other = client.get(
@@ -604,13 +596,11 @@ def test_interview_is_owner_scoped_and_requires_completion(
             f"/api/interviews/{interview_id}",
             headers={"X-Client-ID": "other"},
         )
-        premature = client.post(
-            "/api/runs",
+        premature = _create_run(
+            client,
+            "Study resistance",
             headers={"X-Client-ID": "owner"},
-            json={
-                "research_goal": "Study resistance",
-                "interview_id": interview_id,
-            },
+            interview_id=interview_id,
         )
     assert denied.status_code == 404
     assert premature.status_code == 409
@@ -702,7 +692,6 @@ def test_persisted_reasoning_returns_to_the_model_next_turn(
     monkeypatch: pytest.MonkeyPatch,
     reachable_provider: None,
 ) -> None:
-    # Subsequent chat prompts retain reasoning the scientist can already see.
     _patch_streaming_litellm(
         monkeypatch,
         _response("Which mechanism should we prioritize?"),
@@ -1180,12 +1169,8 @@ def test_field_edits_without_lab_constraints_record_none(
 
 
 def _run_from_interview(interview_id: str, isolated_db: str) -> Any:
-    return runs.create_run(
-        "a goal",
-        "standard",
-        "engine",
-        {"interview_id": interview_id},
-        RunCreateOptions(db_path=isolated_db),
+    return seed_run(
+        "a goal", config={"interview_id": interview_id}, db_path=isolated_db
     )
 
 
@@ -1222,13 +1207,7 @@ def test_engine_opts_omit_lab_constraints_when_none_declared(
 def test_engine_opts_without_interview_carry_no_lab_constraints(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run(
-        "a goal",
-        "standard",
-        "engine",
-        {},
-        RunCreateOptions(db_path=isolated_db),
-    )
+    run = seed_run("a goal", db_path=isolated_db)
     opts = build_engine_opts(run.config, run.id, isolated_db)
     assert "lab_constraints" not in opts
 
@@ -1236,12 +1215,10 @@ def test_engine_opts_without_interview_carry_no_lab_constraints(
 def test_engine_opts_survive_a_missing_interview_row(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run(
+    run = seed_run(
         "a goal",
-        "standard",
-        "engine",
-        {"interview_id": "no-such-interview"},
-        RunCreateOptions(db_path=isolated_db),
+        config={"interview_id": "no-such-interview"},
+        db_path=isolated_db,
     )
     opts = build_engine_opts(run.config, run.id, isolated_db)
     assert "lab_constraints" not in opts
@@ -1323,8 +1300,6 @@ async def test_interview_keeps_fields_when_a_turn_omits_its_block(
 async def test_thinking_only_turn_retries_once_with_thinking_off(
     monkeypatch: pytest.MonkeyPatch, reachable_provider: None
 ) -> None:
-    # Thinking-only streams need one thinking-off retry before surfacing an
-    # empty-answer failure.
     from app.config import CONVERSATIONAL_REASONING_EFFORT
 
     calls: list[dict[str, Any]] = []

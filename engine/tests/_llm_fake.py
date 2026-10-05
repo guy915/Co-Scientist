@@ -11,6 +11,7 @@ from collections.abc import Awaitable, Callable, Iterator
 from dataclasses import dataclass, replace
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
@@ -102,6 +103,28 @@ def install_fake_backend(
     return fake
 
 
+def scripted_backend(
+    monkeypatch: pytest.MonkeyPatch,
+    responses: list[Any],
+    *,
+    repeat_last: bool = False,
+) -> FakeBackend:
+    queue = iter(responses)
+
+    async def respond(**_kwargs: Any) -> Any:
+        item = (
+            responses[min(len(fake.requests) - 1, len(responses) - 1)]
+            if repeat_last
+            else next(queue)
+        )
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+    fake = install_fake_backend(monkeypatch, respond)
+    return fake
+
+
 def disable_llm_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     """A disabled cache prevents replay from bypassing a scripted provider."""
     monkeypatch.setattr(precall, "get_cache", lambda: LLMCache(enabled=False))
@@ -111,17 +134,35 @@ def stub_call_llm_json(
     monkeypatch: pytest.MonkeyPatch,
     module: types.ModuleType,
     response: dict[str, Any],
+    *,
+    copy_response: bool = False,
 ) -> list[dict[str, Any]]:
     """Patch the consumer namespace because nodes import their collaborators
     by name."""
     calls: list[dict[str, Any]] = []
 
-    async def fake(**kwargs: Any) -> dict[str, Any]:
+    async def fake(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        if args:
+            kwargs = {"prompt": args[0], **kwargs}
         calls.append(kwargs)
-        return response
+        return copy.deepcopy(response) if copy_response else response
 
     monkeypatch.setattr(module, "call_llm_json", fake)
     return calls
+
+
+def mock_call_llm_json(
+    monkeypatch: pytest.MonkeyPatch,
+    module: types.ModuleType,
+    response: dict[str, Any] | None = None,
+    *,
+    side_effect: Exception
+    | Callable[..., Awaitable[dict[str, Any]]]
+    | None = None,
+) -> AsyncMock:
+    fake = AsyncMock(return_value=response, side_effect=side_effect)
+    monkeypatch.setattr(module, "call_llm_json", fake)
+    return fake
 
 
 def make_test_generator() -> HypothesisGenerator:
@@ -228,7 +269,7 @@ def make_completion(
     return SimpleNamespace(choices=[choice], usage=usage)
 
 
-def make_tool_call(call_id: str, name: str, arguments: str) -> SimpleNamespace:
+def make_tool_call(call_id: str, name: str, arguments: Any) -> SimpleNamespace:
     return SimpleNamespace(
         id=call_id, function=SimpleNamespace(name=name, arguments=arguments)
     )
@@ -346,7 +387,6 @@ class Run:
 
     @property
     def logged(self) -> list[Line]:
-        """Failure/escalation sequence; retry announcements are separate."""
         return [
             line
             for line in self.lines

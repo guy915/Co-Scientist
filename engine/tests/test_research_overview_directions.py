@@ -524,23 +524,6 @@ def test_the_capped_selection_is_deterministic() -> None:
     ]
 
 
-async def _research_overview_unexpected_directions_run_overview_node(
-    monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]
-) -> dict[str, Any]:
-    fake = AsyncMock(return_value=response)
-    monkeypatch.setattr(ro, "call_llm_json", fake)
-    h = make_hypothesis(
-        text="HDAC inhibition reverses fibrosis", elo_rating=1700
-    )
-    state = make_state(
-        hypotheses=[h],
-        research_goal="g",
-        supervisor_model_name="test/model",
-        meta_review={},
-    )
-    return await ro.research_overview_node(state)
-
-
 async def test_unexpected_research_directions_pass_through(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -556,7 +539,7 @@ async def test_unexpected_research_directions_pass_through(
             }
         ],
     }
-    out = await _research_overview_unexpected_directions_run_overview_node(
+    out = await _research_overview_directions_run_overview_node(
         monkeypatch, response
     )
 
@@ -576,7 +559,7 @@ async def test_absent_unexpected_research_directions_defaults_to_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     response = {"overview": {"summary": "S", "research_directions": []}}
-    out = await _research_overview_unexpected_directions_run_overview_node(
+    out = await _research_overview_directions_run_overview_node(
         monkeypatch, response
     )
 

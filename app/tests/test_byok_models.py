@@ -9,7 +9,7 @@ from app import byok_models, credentials
 from app.config import BYOK_PROVIDER_DEFAULT_MODELS, settings
 from app.engine_adapter.opts import build_generator
 from app.run_modes import resolved_run_config
-from app.store import runs
+from tests._store_helpers import seed_run
 
 _KEY = "sk-model-choice-123456"
 
@@ -64,7 +64,7 @@ def test_a_model_from_another_provider_is_refused() -> None:
 def test_supervisor_model_round_trips_through_storage(
     byok_secret: None,
 ) -> None:
-    run = runs.create_run("goal", "express", "engine", {})
+    run = seed_run("goal", profile="express")
     cred = credentials.ByokCredential(
         provider="deepseek",
         api_key=_KEY,

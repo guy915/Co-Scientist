@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import types
 from collections.abc import Sequence
 from typing import Any
 
@@ -50,8 +49,10 @@ from app.report.content import derive_knowledge_facts
 from app.report.markdown.hypothesis import _render_claim_evidence
 from app.store import hypotheses, runs
 from app.store.records import NewClaimEvidence
+from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._drain_helpers import _build_report
+from tests._llm_fake_backend import completion_response
 from tests._store_helpers import _add
 
 from ._llm_fake_backend import install_completion_backend
@@ -299,9 +300,7 @@ async def test_grounding_retains_method_across_api_reopen(
     isolated_db: str,
 ) -> None:
     client = make_client()
-    run_id = client.post(
-        "/api/runs", json={"research_goal": "Study tissue repair"}
-    ).json()["id"]
+    run_id = _create_run(client, "Study tissue repair").json()["id"]
     claim = "A dietary change improves cardiovascular outcomes in adults."
     _add(run_id, "Diet study", claim, isolated_db)
 
@@ -385,13 +384,7 @@ def install_replies(
         reply = replies.pop(0)
         if isinstance(reply, Exception):
             raise reply
-        return types.SimpleNamespace(
-            choices=[
-                types.SimpleNamespace(
-                    message=types.SimpleNamespace(content=json.dumps(reply))
-                )
-            ]
-        )
+        return completion_response(json.dumps(reply))
 
     install_completion_backend(monkeypatch, completion)
     return requests

@@ -2,8 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import shutil
+import signal
+import subprocess
 import time
+from collections.abc import AsyncIterator
+from contextlib import suppress
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -36,21 +41,55 @@ from co_scientist.workspace.tool_schemas import POLL_COMMAND
 from co_scientist.workspace.tool_schemas import (
     RUN_COMMAND as _WORKSPACE_SESSIONS_RUN_COMMAND,
 )
+from tests._llm_fake import make_tool_call
 
 
 def _workspace_sessions_call(name: str, arguments: Any) -> SimpleNamespace:
-    return SimpleNamespace(
-        id=f"call_{name}",
-        function=SimpleNamespace(name=name, arguments=json.dumps(arguments)),
+    return make_tool_call(f"call_{name}", name, json.dumps(arguments))
+
+
+def _owned_process_groups(registry: SessionRegistry) -> set[int]:
+    roots = {
+        session._proc.pid
+        for session in registry._sessions.values()
+        if session._proc is not None and session._proc.returncode is None
+    }
+    if not roots:
+        return set()
+    rows = subprocess.check_output(
+        ["ps", "-axo", "pid=,ppid=,pgid="], text=True
     )
+    processes = [tuple(map(int, row.split())) for row in rows.splitlines()]
+    descendants = set(roots)
+    while True:
+        found = {pid for pid, parent, _ in processes if parent in descendants}
+        if found <= descendants:
+            break
+        descendants.update(found)
+    return {group for pid, _, group in processes if pid in descendants}
+
+
+def _reap_process_groups(groups: set[int]) -> None:
+    # Bubblewrap's inner namespace has its own session and inherits the pipes.
+    for group in groups:
+        with suppress(ProcessLookupError):
+            os.killpg(group, signal.SIGKILL)
 
 
 async def _execute(
     provider: WorkspaceToolProvider, name: str, **arguments: Any
 ) -> dict[str, Any]:
-    message = await provider.execute_tool_call(
-        _workspace_sessions_call(name, arguments)
+    groups = (
+        _owned_process_groups(provider.session.sessions)
+        if arguments.get("kill")
+        else set()
     )
+    try:
+        message = await provider.execute_tool_call(
+            _workspace_sessions_call(name, arguments)
+        )
+    finally:
+        _reap_process_groups(groups)
     parsed: dict[str, Any] = json.loads(message["content"])
     return parsed
 
@@ -80,9 +119,28 @@ async def _wait_for_output(
     return payload
 
 
+async def _close_registry(registry: SessionRegistry) -> None:
+    processes = [
+        session._proc
+        for session in registry._sessions.values()
+        if session._proc is not None
+    ]
+    groups = _owned_process_groups(registry)
+    try:
+        await registry.close()
+    finally:
+        _reap_process_groups(groups)
+        for process in processes:
+            await process.communicate()
+
+
 @pytest.fixture
-def provider(tmp_path: Path) -> WorkspaceToolProvider:
-    return WorkspaceToolProvider(WorkspaceSession(tmp_path))
+async def provider(tmp_path: Path) -> AsyncIterator[WorkspaceToolProvider]:
+    value = WorkspaceToolProvider(WorkspaceSession(tmp_path))
+    try:
+        yield value
+    finally:
+        await _close_registry(value.session.sessions)
 
 
 class TestStillRunningIsAnAnswer:
@@ -99,9 +157,7 @@ class TestStillRunningIsAnAnswer:
         assert payload["session_id"]
         payload = await _wait_for_output(provider, payload, "early")
         assert "early" in payload["stdout"]
-        # End the deliberately surviving command rather than leaking it past the
-        # test.
-        await provider.session.sessions.close()
+        await _close_registry(provider.session.sessions)
 
     async def test_a_fast_command_finishes_in_one_call(
         self, provider: WorkspaceToolProvider
@@ -264,7 +320,7 @@ class TestBounds:
         read = session.read()
         assert read.truncated["stdout"] is True
         assert len(read.stdout) <= MAX_SESSION_OUTPUT_BYTES
-        await registry.close()
+        await _close_registry(registry)
 
     async def test_closing_the_registry_ends_a_live_command(
         self, tmp_path: Path
@@ -277,7 +333,7 @@ class TestBounds:
             cwd=session_ws.root,
         )
         assert session.running
-        await registry.close()
+        await _close_registry(registry)
         await asyncio.sleep(0.05)
         assert not session.running
 
@@ -298,7 +354,7 @@ class TestBounds:
                 policy=session_ws.policy,
                 cwd=session_ws.root,
             )
-        await registry.close()
+        await _close_registry(registry)
 
 
 class TestAnInterruptedCommand:
@@ -340,7 +396,7 @@ class TestAnInterruptedCommand:
                 ],
             }
         ]
-        await provider.session.sessions.close()
+        await _close_registry(provider.session.sessions)
 
         repaired = normalize_tool_transcript(interrupted)
         assert repaired[1]["tool_call_id"] == "call_poll"
@@ -356,7 +412,7 @@ class TestAnInterruptedCommand:
             argv=["bash", "-lc", "sleep 60"],
             yield_seconds=0.05,
         )
-        await provider.session.sessions.close()
+        await _close_registry(provider.session.sessions)
         payload = await _execute(
             provider, POLL_COMMAND, session_id=started["session_id"]
         )
@@ -371,10 +427,7 @@ _SECRET = "sk-live-9f3c2b71aa4d8e60"
 
 
 def _workspace_output_call(name: str, arguments: Any = "{}") -> SimpleNamespace:
-    return SimpleNamespace(
-        id=f"call_{name}",
-        function=SimpleNamespace(name=name, arguments=arguments),
-    )
+    return make_tool_call(f"call_{name}", name, arguments)
 
 
 def _registry(**secrets: str) -> SecretRegistry:
@@ -390,15 +443,20 @@ def _content(message: dict[str, Any]) -> dict[str, Any]:
 
 
 def _run(provider: WorkspaceToolProvider, argv: list[str]) -> dict[str, Any]:
-    return _content(
-        asyncio.run(
-            provider.execute_tool_call(
-                _workspace_output_call(
-                    _WORKSPACE_OUTPUT_RUN_COMMAND, json.dumps({"argv": argv})
+    async def run() -> dict[str, Any]:
+        try:
+            return _content(
+                await provider.execute_tool_call(
+                    _workspace_output_call(
+                        _WORKSPACE_OUTPUT_RUN_COMMAND,
+                        json.dumps({"argv": argv}),
+                    )
                 )
             )
-        )
-    )
+        finally:
+            await _close_registry(provider.session.sessions)
+
+    return asyncio.run(run())
 
 
 def test_a_short_value_is_refused_rather_than_masked() -> None:
@@ -472,8 +530,6 @@ def test_reading_a_file_does_not_route_around_redaction(
 def test_output_is_dropped_whole_when_a_value_survives(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Fault injection proves the fail-closed guard still works if redaction
-    fails."""
     monkeypatch.setattr(SecretRegistry, "redact", lambda self, text: text)
     recorder = OutputRecorder(tmp_path, _registry(API_KEY=_SECRET))
 

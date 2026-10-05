@@ -12,6 +12,18 @@ if str(_SRC) not in sys.path:
 
 
 @pytest.fixture
+def clear_capability_cache() -> Iterator[None]:
+    """Memoized per-model answers must not leak between patched providers."""
+    from co_scientist.llm.request.completion import (
+        _supports_json_schema_response_format,
+    )
+
+    _supports_json_schema_response_format.cache_clear()
+    yield
+    _supports_json_schema_response_format.cache_clear()
+
+
+@pytest.fixture
 def _patch_mcp_seam(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Iterator[type[Any]]:

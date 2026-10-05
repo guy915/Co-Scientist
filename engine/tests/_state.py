@@ -42,6 +42,50 @@ def make_review(**overrides: Any) -> HypothesisReview:
     return HypothesisReview(**fields)
 
 
+def make_generation_response(text: str, **overrides: Any) -> dict[str, Any]:
+    entry = {
+        "hypothesis": text,
+        "explanation": "because the mechanism fits",
+        "literature_grounding": None,
+        "experiment": "run the assay",
+        **overrides,
+    }
+    return {"hypotheses": [entry]}
+
+
+def make_verification_response(**overrides: Any) -> dict[str, Any]:
+    return {
+        "probes": [
+            {
+                "question": "q",
+                "answer": "a",
+                "reasoning": "r",
+                "assumption_is_fundamental": False,
+            }
+        ],
+        "verdict": "holds",
+        "overall_assessment": "ok",
+        **overrides,
+    }
+
+
+def make_ranking_response(
+    winner: str = "a", **overrides: Any
+) -> dict[str, Any]:
+    return {
+        "winner": winner,
+        "decision_summary": "stub decision",
+        "confidence_level": "High",
+        **overrides,
+    }
+
+
+def make_allocation_response(
+    task: str, reason: str, **overrides: Any
+) -> dict[str, Any]:
+    return {"next_task": task, "reason": reason, **overrides}
+
+
 def _run_and_pool_defaults() -> dict[str, Any]:
     return {
         "research_goal": "test research goal",

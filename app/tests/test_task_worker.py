@@ -19,20 +19,18 @@ import app.main as main_lifespan
 from app import engine_tasks, task_worker
 from app.config import Settings, settings
 from app.runs import lifecycle as runs_lifecycle
-from app.store import checkpoints, runs, tasks
 from app.store import db as _store_db
 from app.store import db as store_db
 from app.store import events as store_events
+from app.store import runs, tasks
 from app.store import tasks_lifecycle as lifecycle
-from app.store.checkpoints import NewCheckpoint
 from app.store.models import RunRow, RunStatus, ScientificTask
-from app.store.tasks import NewTask
 from app.task_worker import outcomes as task_worker_outcomes
+from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._engine_tasks_helpers import _enqueue, make_cancellable_executor
-
-# All launch sites must share worker-mode semantics for nonliteral boolean
-# environment values.
+from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
+from tests._store_helpers import mark_task_leased as _mark_leased
 
 
 @pytest.mark.parametrize(
@@ -94,8 +92,6 @@ def test_start_launches_an_embedded_worker_only_when_enabled(
 async def test_recovery_launches_no_embedded_workers_when_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Start, resume, and recovery must agree on which process owns worker
-    # execution.
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     monkeypatch.setattr(
         tasks, "list_active_engine_task_run_ids", lambda: ["run-1"]
@@ -108,7 +104,7 @@ async def test_recovery_launches_no_embedded_workers_when_disabled(
 
 
 def test_enqueue_workflow_is_idempotent(isolated_db: str) -> None:
-    run = runs.create_run("worker goal", "standard", "engine", {})
+    run = seed_run("worker goal")
     first = task_worker.enqueue_run_workflow(run.id, db_path=isolated_db)
     duplicate = task_worker.enqueue_run_workflow(run.id, db_path=isolated_db)
     assert duplicate.id == first.id
@@ -120,9 +116,7 @@ def test_engine_start_queues_durable_work(
 ) -> None:
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     with make_client() as client:
-        created = client.post(
-            "/api/runs", json={"research_goal": "Durable engine goal"}
-        )
+        created = _create_run(client, "Durable engine goal")
         run_id = created.json()["id"]
         started = client.post(f"/api/runs/{run_id}/start", json={})
     assert started.status_code == 200
@@ -136,15 +130,9 @@ def test_engine_start_queues_durable_work(
 async def test_worker_executes_and_commits_once(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = runs.create_run("worker goal", "standard", "engine", {})
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type="engine.test.commit",
-            inputs={},
-            idempotency_key="commit-once",
-        ),
-        db_path=isolated_db,
+    run = seed_run("worker goal")
+    task = enqueue_task(
+        run.id, "engine.test.commit", "commit-once", db_path=isolated_db
     )
 
     async def _execute(
@@ -166,15 +154,12 @@ async def test_worker_executes_and_commits_once(
 async def test_worker_completes_superseded_engine_task(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = runs.create_run("superseded goal", "standard", "engine", {})
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type="engine.test.superseded",
-            inputs={},
-            idempotency_key="superseded",
-            max_attempts=3,
-        ),
+    run = seed_run("superseded goal")
+    task = enqueue_task(
+        run.id,
+        "engine.test.superseded",
+        "superseded",
+        max_attempts=3,
         db_path=isolated_db,
     )
 
@@ -200,15 +185,9 @@ async def test_worker_completes_superseded_engine_task(
 async def test_worker_shutdown_cancels_task_payload(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = runs.create_run("worker shutdown", "standard", "engine", {})
-    tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type="engine.test.shutdown",
-            inputs={},
-            idempotency_key="shutdown",
-        ),
-        db_path=isolated_db,
+    run = seed_run("worker shutdown")
+    enqueue_task(
+        run.id, "engine.test.shutdown", "shutdown", db_path=isolated_db
     )
     started = asyncio.Event()
     interrupted = asyncio.Event()
@@ -247,19 +226,17 @@ def test_sync_worker_pool_runs_on_its_own_event_loop(
 async def test_worker_delivers_opted_in_completion_email(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = runs.create_run("notification goal", "standard", "engine", {})
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type="notification.email",
-            inputs={
-                "run_id": run.id,
-                "email": "scientist@example.org",
-                "title": "Result",
-            },
-            idempotency_key="email:1",
-            max_attempts=3,
-        ),
+    run = seed_run("notification goal")
+    task = enqueue_task(
+        run.id,
+        "notification.email",
+        "email:1",
+        inputs={
+            "run_id": run.id,
+            "email": "scientist@example.org",
+            "title": "Result",
+        },
+        max_attempts=3,
         db_path=isolated_db,
     )
 
@@ -294,14 +271,12 @@ def _run_with_lease(
     spend_budget: bool,
     goal: str = "stranded goal",
 ) -> tuple[str, str]:
-    run = runs.create_run(goal, "standard", "engine", {})
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type=_TASK_TYPE,
-            inputs={"checkpoint_seq": 1},
-            idempotency_key=f"{_TASK_TYPE}:1",
-        ),
+    run = seed_run(goal)
+    task = enqueue_task(
+        run.id,
+        _TASK_TYPE,
+        f"{_TASK_TYPE}:1",
+        inputs={"checkpoint_seq": 1},
         db_path=db,
     )
     extra = ", attempt=max_attempts" if spend_budget else ""
@@ -428,14 +403,8 @@ def _enqueue_test_tasks(
     run_id: str, count: int, prefix: str, db_path: str
 ) -> None:
     for index in range(count):
-        tasks.enqueue_task(
-            NewTask(
-                run_id=run_id,
-                task_type=f"engine.test.{index}",
-                inputs={},
-                idempotency_key=f"{prefix}:{index}",
-            ),
-            db_path=db_path,
+        enqueue_task(
+            run_id, f"engine.test.{index}", f"{prefix}:{index}", db_path=db_path
         )
 
 
@@ -479,15 +448,9 @@ class _ConcurrencyProbe:
 async def test_worker_heartbeats_long_workflow_lease(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = runs.create_run("long worker goal", "standard", "engine", {})
-    tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type="engine.test.long",
-            inputs={},
-            idempotency_key="long-engine-task",
-        ),
-        db_path=isolated_db,
+    run = seed_run("long worker goal")
+    enqueue_task(
+        run.id, "engine.test.long", "long-engine-task", db_path=isolated_db
     )
     release = asyncio.Event()
 
@@ -514,15 +477,9 @@ async def test_worker_heartbeats_long_workflow_lease(
 async def test_worker_cancels_execution_after_lease_revocation(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = runs.create_run("cancel active work", "standard", "engine", {})
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type="engine.test.cancellable",
-            inputs={},
-            idempotency_key="cancellable",
-        ),
-        db_path=isolated_db,
+    run = seed_run("cancel active work")
+    task = enqueue_task(
+        run.id, "engine.test.cancellable", "cancellable", db_path=isolated_db
     )
     started = asyncio.Event()
     interrupted = asyncio.Event()
@@ -550,7 +507,7 @@ async def test_worker_cancels_execution_after_lease_revocation(
 async def test_embedded_worker_pool_executes_fanout_concurrently(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = runs.create_run("parallel goal", "standard", "engine", {})
+    run = seed_run("parallel goal")
     _enqueue_test_tasks(run.id, 4, "parallel", isolated_db)
     probe = _ConcurrencyProbe(0.03)
     monkeypatch.setattr(engine_tasks, "execute_engine_task", probe.execute)
@@ -568,15 +525,9 @@ async def test_embedded_worker_pool_executes_fanout_concurrently(
 
 @pytest.mark.asyncio
 async def test_worker_isolates_unknown_task_failure(isolated_db: str) -> None:
-    run = runs.create_run("worker goal", "standard", "engine", {})
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type="unknown.task",
-            inputs={},
-            idempotency_key="unknown:0",
-        ),
-        db_path=isolated_db,
+    run = seed_run("worker goal")
+    task = enqueue_task(
+        run.id, "unknown.task", "unknown:0", db_path=isolated_db
     )
     assert await task_worker.run_once("worker-a", db_path=isolated_db)
     saved = tasks.get_task(task.id, db_path=isolated_db)
@@ -591,15 +542,9 @@ async def test_transient_provider_failure_keeps_its_retry_budget(
 ) -> None:
     # Empty provider responses are transient; classifying every ValueError as
     # permanent strands runs.
-    run = runs.create_run("Transient failure", "standard", "engine", {})
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type="engine.node.ranking",
-            inputs={},
-            idempotency_key="transient-1",
-        ),
-        db_path=isolated_db,
+    run = seed_run("Transient failure")
+    task = enqueue_task(
+        run.id, "engine.node.ranking", "transient-1", db_path=isolated_db
     )
 
     async def empty_response(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
@@ -618,15 +563,9 @@ async def test_transient_provider_failure_keeps_its_retry_budget(
 async def test_unsupported_task_type_is_still_permanent(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = runs.create_run("Bad task type", "standard", "engine", {})
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type="engine.node.ranking",
-            inputs={},
-            idempotency_key="unsupported-1",
-        ),
-        db_path=isolated_db,
+    run = seed_run("Bad task type")
+    task = enqueue_task(
+        run.id, "engine.node.ranking", "unsupported-1", db_path=isolated_db
     )
 
     async def unsupported(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
@@ -644,7 +583,7 @@ async def test_unsupported_task_type_is_still_permanent(
 async def test_default_worker_cohort_overlaps_more_than_four_leases(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = runs.create_run("wide fanout", "standard", "engine", {})
+    run = seed_run("wide fanout")
     _enqueue_test_tasks(run.id, 12, "wide", isolated_db)
     probe = _ConcurrencyProbe(0.05)
     monkeypatch.setattr(engine_tasks, "execute_engine_task", probe.execute)
@@ -665,7 +604,7 @@ async def test_heartbeat_writes_on_the_lease_schedule_not_the_poll_schedule(
 ) -> None:
     # Cancellation polls are memory-only; writing lease renewal every tick
     # starves the single SQLite writer.
-    run = runs.create_run("heartbeat cost", "standard", "engine", {})
+    run = seed_run("heartbeat cost")
     task = _enqueue(run.id, "engine.test.heartbeat", "heartbeat:0", isolated_db)
     renewals = _count_lease_renewals(monkeypatch)
 
@@ -713,16 +652,10 @@ def test_idle_wait_does_not_decode_every_task(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Polling one boolean must not decode every historical task row.
-    run = runs.create_run("idle wait cost", "standard", "engine", {})
+    run = seed_run("idle wait cost")
     for index in range(30):
-        tasks.enqueue_task(
-            NewTask(
-                run_id=run.id,
-                task_type=f"engine.test.{index}",
-                inputs={},
-                idempotency_key=f"idle:{index}",
-            ),
-            db_path=isolated_db,
+        enqueue_task(
+            run.id, f"engine.test.{index}", f"idle:{index}", db_path=isolated_db
         )
     calls = 0
     real_list = tasks.list_tasks
@@ -747,18 +680,13 @@ def test_idle_wait_does_not_decode_every_task(
 def test_ceiling_exceeded_fails_permanently_and_settles_the_run(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("LLM budget ceiling", "standard", "engine", {})
+    run = seed_run("LLM budget ceiling")
     runs.update_run_status(run.id, RunStatus.RUNNING, db_path=isolated_db)
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type="engine.node.generate",
-            inputs={},
-            idempotency_key="generate:seed",
-            # A generous budget distinguishes permanent failure from accidental
-            # retry classification.
-            max_attempts=5,
-        ),
+    task = enqueue_task(
+        run.id,
+        "engine.node.generate",
+        "generate:seed",
+        max_attempts=5,
         db_path=isolated_db,
     )
     leased = tasks.claim_task("worker", run_id=run.id, db_path=isolated_db)
@@ -792,16 +720,10 @@ def test_ceiling_exceeded_fails_permanently_and_settles_the_run(
 def test_ceiling_exceeded_releases_the_runs_counter(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("LLM budget release", "standard", "engine", {})
+    run = seed_run("LLM budget release")
     runs.update_run_status(run.id, RunStatus.RUNNING, db_path=isolated_db)
-    tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type="engine.node.generate",
-            inputs={},
-            idempotency_key="generate:seed",
-        ),
-        db_path=isolated_db,
+    enqueue_task(
+        run.id, "engine.node.generate", "generate:seed", db_path=isolated_db
     )
     leased = tasks.claim_task("worker", run_id=run.id, db_path=isolated_db)
     assert leased is not None
@@ -834,16 +756,13 @@ def _advance_clock(monkeypatch: pytest.MonkeyPatch, seconds: float) -> None:
 def test_rate_limit_park_requeues_without_spending_an_attempt(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("Rate limit park", "standard", "engine", {})
+    run = seed_run("Rate limit park")
     runs.update_run_status(run.id, RunStatus.RUNNING, db_path=isolated_db)
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type="engine.node.generate",
-            inputs={},
-            idempotency_key="generate:seed",
-            max_attempts=3,
-        ),
+    task = enqueue_task(
+        run.id,
+        "engine.node.generate",
+        "generate:seed",
+        max_attempts=3,
         db_path=isolated_db,
     )
     leased = tasks.claim_task("worker", run_id=run.id, db_path=isolated_db)
@@ -882,15 +801,9 @@ def test_rate_limit_park_requeues_without_spending_an_attempt(
 def test_rate_limit_park_becomes_claimable_once_due(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = runs.create_run("Rate limit park due", "standard", "engine", {})
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type="engine.node.generate",
-            inputs={},
-            idempotency_key="generate:seed",
-        ),
-        db_path=isolated_db,
+    run = seed_run("Rate limit park due")
+    task = enqueue_task(
+        run.id, "engine.node.generate", "generate:seed", db_path=isolated_db
     )
     leased = tasks.claim_task("worker", run_id=run.id, db_path=isolated_db)
     assert leased is not None
@@ -915,15 +828,9 @@ async def test_cohort_keeps_polling_over_a_parked_task_instead_of_exiting(
 ) -> None:
     # Future-due parked rows keep the cohort alive even though they are neither
     # claimable nor leased.
-    run = runs.create_run("Rate limit park cohort", "standard", "engine", {})
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type="engine.node.generate",
-            inputs={},
-            idempotency_key="generate:seed",
-        ),
-        db_path=isolated_db,
+    run = seed_run("Rate limit park cohort")
+    task = enqueue_task(
+        run.id, "engine.node.generate", "generate:seed", db_path=isolated_db
     )
     leased = tasks.claim_task("worker", run_id=run.id, db_path=isolated_db)
     assert leased is not None
@@ -967,33 +874,13 @@ def _save_resume_checkpoint(
     state: dict[str, Any] = {"resume_successor": successor}
     if shape.provider is not None:
         state["provider"] = shape.provider
-    checkpoints.save_checkpoint(
+    seed_checkpoint(
         run_id,
-        NewCheckpoint(
-            stage=shape.stage,
-            schema_version=1,
-            last_event_seq=shape.last_event_seq,
-            state=state,
-        ),
+        state,
+        stage=shape.stage,
+        last_event_seq=shape.last_event_seq,
         db_path=db,
     )
-
-
-def _mark_leased(
-    task_id: str,
-    db: str,
-    *,
-    owner: str,
-    expires_at: float,
-    spend_budget: bool,
-) -> None:
-    extra = ", attempt=max_attempts" if spend_budget else ""
-    with _store_db.connect(db) as conn:
-        conn.execute(
-            "UPDATE scientific_tasks SET status='leased', lease_owner=?, "
-            f"lease_expires_at=?{extra} WHERE id=?",
-            (owner, expires_at, task_id),
-        )
 
 
 def test_resume_uses_recorded_successor_not_orchestrator_default(
@@ -1002,14 +889,12 @@ def test_resume_uses_recorded_successor_not_orchestrator_default(
     # Bootstrap checkpoints precede supervisor guidance; their successor must be
     # supervisor, with the original idempotency key.
     supervisor_type = f"{engine_tasks.NODE_TASK_PREFIX}supervisor"
-    run = runs.create_run("worker goal", "standard", "engine", {})
-    enqueued = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type=supervisor_type,
-            inputs={"checkpoint_seq": 1},
-            idempotency_key=f"{supervisor_type}:1",
-        ),
+    run = seed_run("worker goal")
+    enqueued = enqueue_task(
+        run.id,
+        supervisor_type,
+        f"{supervisor_type}:1",
+        inputs={"checkpoint_seq": 1},
         db_path=isolated_db,
     )
     _save_resume_checkpoint(
@@ -1036,15 +921,11 @@ def test_resume_defaults_to_orchestrator_when_successor_unrecorded(
 ) -> None:
     # Legacy and fan-out planning checkpoints already have supervisor guidance,
     # so orchestrator re-entry remains valid.
-    run = runs.create_run("worker goal", "standard", "engine", {})
-    checkpoints.save_checkpoint(
+    run = seed_run("worker goal")
+    seed_checkpoint(
         run.id,
-        NewCheckpoint(
-            stage="engine_task:orchestrator",
-            schema_version=1,
-            last_event_seq=0,
-            state={"provider": "engine"},
-        ),
+        {"provider": "engine"},
+        stage="engine_task:orchestrator",
         db_path=isolated_db,
     )
 
@@ -1058,14 +939,12 @@ def test_resume_defaults_to_orchestrator_when_successor_unrecorded(
 def test_resume_reuses_post_pause_fanout_rows_for_latest_checkpoint(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("paused fanout", "standard", "engine", {})
-    parent = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type=f"{engine_tasks.NODE_TASK_PREFIX}generate",
-            inputs={"checkpoint_seq": 0},
-            idempotency_key="pause:generate-parent",
-        ),
+    run = seed_run("paused fanout")
+    parent = enqueue_task(
+        run.id,
+        f"{engine_tasks.NODE_TASK_PREFIX}generate",
+        "pause:generate-parent",
+        inputs={"checkpoint_seq": 0},
         db_path=isolated_db,
     )
     leased = tasks.claim_task(
@@ -1076,36 +955,29 @@ def test_resume_reuses_post_pause_fanout_rows_for_latest_checkpoint(
         parent.id, "parent-worker", {}, db_path=isolated_db
     )
     runs.update_run_status(run.id, RunStatus.PAUSED, db_path=isolated_db)
-    checkpoints.save_checkpoint(
+    seed_checkpoint(
         run.id,
-        NewCheckpoint(
-            stage=f"engine_task:{parent.id}",
-            schema_version=1,
-            last_event_seq=1,
-            state={"provider": "engine"},
-        ),
+        {"provider": "engine"},
+        stage=f"engine_task:{parent.id}",
+        last_event_seq=1,
         db_path=isolated_db,
     )
 
-    stale = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type=f"{engine_tasks.NODE_TASK_PREFIX}review",
-            inputs={"checkpoint_seq": 0},
-            idempotency_key="pause:stale-lookahead",
-            provenance={"scheduled_by": "engine.node.old"},
-        ),
+    stale = enqueue_task(
+        run.id,
+        f"{engine_tasks.NODE_TASK_PREFIX}review",
+        "pause:stale-lookahead",
+        inputs={"checkpoint_seq": 0},
+        provenance={"scheduled_by": "engine.node.old"},
         db_path=isolated_db,
     )
-    fanout = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type="engine.fanout.generation.strategy",
-            inputs={"checkpoint_seq": 1},
-            idempotency_key="generation:debate_only:1:0:1",
-            dependencies=(parent.id,),
-            provenance={"scheduled_by": parent.task_type},
-        ),
+    fanout = enqueue_task(
+        run.id,
+        "engine.fanout.generation.strategy",
+        "generation:debate_only:1:0:1",
+        inputs={"checkpoint_seq": 1},
+        dependencies=(parent.id,),
+        provenance={"scheduled_by": parent.task_type},
         db_path=isolated_db,
     )
     runs.update_run_status(run.id, RunStatus.QUEUED, db_path=isolated_db)
@@ -1126,13 +998,11 @@ def test_resume_reuses_post_pause_fanout_rows_for_latest_checkpoint(
 def _wedge_task_at(
     run_id: str, task_type: str, checkpoint_seq: int, status: str, db: str
 ) -> str:
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type=task_type,
-            inputs={"checkpoint_seq": checkpoint_seq},
-            idempotency_key=f"{task_type}:{checkpoint_seq}",
-        ),
+    task = enqueue_task(
+        run_id,
+        task_type,
+        f"{task_type}:{checkpoint_seq}",
+        inputs={"checkpoint_seq": checkpoint_seq},
         db_path=db,
     )
     with _store_db.connect(db) as conn:
@@ -1156,16 +1026,13 @@ def test_resume_revives_a_boundary_whose_task_died(
 ) -> None:
     # An unchanged checkpoint collides with a terminal boundary key; explicit
     # resume must revive failed work.
-    run = runs.create_run("wedged goal", "standard", "engine", {})
+    run = seed_run("wedged goal")
     task_type = f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
-    checkpoints.save_checkpoint(
+    seed_checkpoint(
         run.id,
-        NewCheckpoint(
-            stage="post_generation",
-            schema_version=1,
-            last_event_seq=1,
-            state={"resume_successor": task_type},
-        ),
+        {"resume_successor": task_type},
+        stage="post_generation",
+        last_event_seq=1,
         db_path=isolated_db,
     )
     task_id = _wedge_task_at(run.id, task_type, 1, dead_status, isolated_db)
@@ -1182,16 +1049,13 @@ def test_resume_revives_a_boundary_whose_task_died(
 
 def test_resume_does_not_rerun_completed_work(isolated_db: str) -> None:
     # Reviving succeeded boundaries repeats already committed and paid-for work.
-    run = runs.create_run("done goal", "standard", "engine", {})
+    run = seed_run("done goal")
     task_type = f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
-    checkpoints.save_checkpoint(
+    seed_checkpoint(
         run.id,
-        NewCheckpoint(
-            stage="post_generation",
-            schema_version=1,
-            last_event_seq=1,
-            state={"resume_successor": task_type},
-        ),
+        {"resume_successor": task_type},
+        stage="post_generation",
+        last_event_seq=1,
         db_path=isolated_db,
     )
     _wedge_task_at(run.id, task_type, 1, "succeeded", isolated_db)
@@ -1206,16 +1070,14 @@ def test_resume_revives_a_lease_stranded_by_a_dead_worker(
 ) -> None:
     # Expired exhausted leases need explicit recovery; ordinary claim rescue
     # intentionally skips spent retries.
-    run = runs.create_run("stranded goal", "standard", "engine", {})
+    run = seed_run("stranded goal")
     task_type = f"{engine_tasks.NODE_TASK_PREFIX}ranking"
     _save_resume_checkpoint(run.id, task_type, isolated_db)
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type=task_type,
-            inputs={"checkpoint_seq": 1},
-            idempotency_key=f"{task_type}:1",
-        ),
+    task = enqueue_task(
+        run.id,
+        task_type,
+        f"{task_type}:1",
+        inputs={"checkpoint_seq": 1},
         db_path=isolated_db,
     )
     _mark_leased(
@@ -1238,25 +1100,20 @@ def test_resume_revives_a_lease_stranded_by_a_dead_worker(
 def test_resume_leaves_a_live_lease_alone(isolated_db: str) -> None:
     # Only expired leases imply abandonment; reviving a live lease executes the
     # boundary concurrently.
-    run = runs.create_run("busy goal", "standard", "engine", {})
+    run = seed_run("busy goal")
     task_type = f"{engine_tasks.NODE_TASK_PREFIX}ranking"
-    checkpoints.save_checkpoint(
+    seed_checkpoint(
         run.id,
-        NewCheckpoint(
-            stage="post_generation",
-            schema_version=1,
-            last_event_seq=1,
-            state={"resume_successor": task_type},
-        ),
+        {"resume_successor": task_type},
+        stage="post_generation",
+        last_event_seq=1,
         db_path=isolated_db,
     )
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type=task_type,
-            inputs={"checkpoint_seq": 1},
-            idempotency_key=f"{task_type}:1",
-        ),
+    task = enqueue_task(
+        run.id,
+        task_type,
+        f"{task_type}:1",
+        inputs={"checkpoint_seq": 1},
         db_path=isolated_db,
     )
     with _store_db.connect(isolated_db) as conn:

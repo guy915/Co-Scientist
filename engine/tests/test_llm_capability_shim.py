@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any
 
@@ -17,16 +16,7 @@ from co_scientist.llm.structured.validate import reshape_json_output
 from co_scientist.schemas.review import FULL_REVIEW_SCHEMA
 from tests._llm_fake import NESTED_SCHEMA as _NESTED_SCHEMA
 from tests._llm_fake import disable_llm_cache as _disable_cache
-from tests._llm_fake import install_fake_backend
-
-
-@pytest.fixture
-def _clear_capability_cache() -> Iterator[None]:
-    """Memoized per-model answers must not leak between patched provider
-    fixtures."""
-    _supports_json_schema_response_format.cache_clear()
-    yield
-    _supports_json_schema_response_format.cache_clear()
+from tests._llm_fake import scripted_backend
 
 
 def _completion(content: str) -> SimpleNamespace:
@@ -54,19 +44,9 @@ def _patch_registry(
 def _capture_acompletion(
     monkeypatch: pytest.MonkeyPatch, responses: list[SimpleNamespace]
 ) -> list[dict[str, Any]]:
-    captured: list[dict[str, Any]] = []
-    queue = iter(responses)
-
-    async def fake_acompletion(**kwargs: Any) -> SimpleNamespace:
-        captured.append(kwargs)
-        return next(queue)
-
-    install_fake_backend(monkeypatch, fake_acompletion)
-    return captured
+    return scripted_backend(monkeypatch, responses).requests
 
 
-# The answer instruction must precede the schema; order affects completion
-# rates.
 _ANSWER_DISCIPLINE = (
     "\n\n## Answer Discipline\n\n"
     "Your reasoning is not your answer. When you have finished reasoning, "
@@ -103,7 +83,7 @@ _LLM_CAPABILITY_SHIM_CLOSED_SCHEMA: dict[str, Any] = {
 }
 
 
-@pytest.mark.usefixtures("_clear_capability_cache")
+@pytest.mark.usefixtures("clear_capability_cache")
 class TestLlmCapabilityShim:
     def test_deepseek_family_overrides_registry(
         self,

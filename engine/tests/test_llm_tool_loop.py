@@ -17,12 +17,12 @@ from co_scientist.llm.tools.transcript import (
 )
 from tests._llm_fake import SEARCH_TOOL as _SEARCH_TOOL
 from tests._llm_fake import disable_llm_cache as _disable_cache
-from tests._llm_fake import install_fake_backend
 from tests._llm_fake import make_completion as _completion
 from tests._llm_fake import make_message as _message
 from tests._llm_fake import make_tool_call as _tool_call
 from tests._llm_fake import make_usage as _usage
 from tests._llm_fake import patch_acompletion as _patch_acompletion
+from tests._llm_fake import scripted_backend
 
 # A thinking model makes the last recovery rung observable.
 _MODEL = "deepseek/deepseek-v4-flash"
@@ -31,15 +31,7 @@ _MODEL = "deepseek/deepseek-v4-flash"
 def _record(
     monkeypatch: pytest.MonkeyPatch, responses: list[SimpleNamespace]
 ) -> list[dict[str, Any]]:
-    calls: list[dict[str, Any]] = []
-    queue = iter(responses)
-
-    async def fake(*_args: Any, **kwargs: Any) -> SimpleNamespace:
-        calls.append(kwargs)
-        return next(queue)
-
-    install_fake_backend(monkeypatch, fake)
-    return calls
+    return scripted_backend(monkeypatch, responses).requests
 
 
 def _budget_exhausted() -> SimpleNamespace:

@@ -7,8 +7,9 @@ from starlette.datastructures import Headers
 
 from app import credentials
 from app.config import settings
-from app.store import db, runs
+from app.store import db
 from app.store.models import RunRow
+from tests._store_helpers import seed_run
 
 _SECRET = "unit-test-byok-secret"
 _KEY = "sk-test-1234567890"
@@ -21,7 +22,7 @@ def byok_secret(monkeypatch: pytest.MonkeyPatch) -> str:
 
 
 def _make_run(goal: str = "goal") -> RunRow:
-    return runs.create_run(goal, "express", "engine", {})
+    return seed_run(goal, profile="express")
 
 
 def test_encrypt_decrypt_round_trip(byok_secret: str) -> None:

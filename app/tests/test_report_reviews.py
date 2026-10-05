@@ -18,7 +18,7 @@ from app.report.markdown.hypothesis import (
     _render_hypothesis_reviews,
     _render_reviews_summary,
 )
-from app.store import records, reports, runs
+from app.store import records, reports
 from tests._drain_helpers import (
     _build_report,
     _final_state_with_features,
@@ -26,6 +26,7 @@ from tests._drain_helpers import (
     _persist,
     _persist_and_finalize,
 )
+from tests._store_helpers import seed_run
 
 
 def _row(agent: str, detail: dict[str, Any], **extra: Any) -> dict[str, Any]:
@@ -574,7 +575,7 @@ def _final_state_with_mature_enrichments() -> dict[str, Any]:
 def test_report_payload_carries_every_persisted_review(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("review goal", "standard", "engine", {})
+    run = seed_run("review goal")
 
     _persist_and_finalize(
         run, _final_state_with_mature_enrichments(), isolated_db
@@ -591,7 +592,7 @@ def test_report_payload_carries_every_persisted_review(
 
 
 def test_report_payload_reviews_default_empty(isolated_db: str) -> None:
-    run = runs.create_run("no review goal", "standard", "engine", {})
+    run = seed_run("no review goal")
 
     _persist_and_finalize(run, _final_state_with_lineage(), isolated_db)
 
@@ -601,7 +602,7 @@ def test_report_payload_reviews_default_empty(isolated_db: str) -> None:
 
 
 def test_mature_review_rows_are_distinctly_labeled(isolated_db: str) -> None:
-    run = runs.create_run("labeled goal", "standard", "engine", {})
+    run = seed_run("labeled goal")
 
     _persist(
         run_id=run.id,
@@ -1037,7 +1038,7 @@ def test_drain_persists_detail_json_on_the_review_row(
             "decisive_step": "Step 4.",
         },
     }
-    run = runs.create_run("detail-json goal", "standard", "engine", {})
+    run = seed_run("detail-json goal")
     _persist_and_finalize(run, state, isolated_db)
 
     rows = records.list_reviews(run.id, db_path=isolated_db)
@@ -1063,9 +1064,8 @@ def test_drain_persists_detail_json_on_the_review_row(
         "fundamental",
     }
 
-    # This drives drain/store/render end to end; helper-only tests miss
-    # mismatched reviewer keys.
-    # Keep it synchronous because persistence uses asyncio.run internally.
+    # Drain/store/render catches reviewer-key mismatches isolated helpers miss.
+    # Persistence uses asyncio.run internally, so this check stays synchronous.
     _payload, markdown = asyncio.run(_build_report(run, isolated_db))
     assert "#### Simulation review" in markdown
     assert "**Verdict:** Go" in markdown

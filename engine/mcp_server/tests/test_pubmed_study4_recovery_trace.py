@@ -1,5 +1,3 @@
-"""Offline contracts for pubmed study4 recovery trace."""
-
 from __future__ import annotations
 
 import asyncio
@@ -14,6 +12,9 @@ from urllib.error import HTTPError
 import mcp_server.entrez as entrez_rate_limit
 import pytest
 from Bio import Entrez
+from mcp_server.tests._entrez import CannedEntrezHandle as _CannedEntrezHandle
+from mcp_server.tests._entrez import configure_trace, install_entrez
+from mcp_server.tests._entrez import pubmed_article as _pubmed_article
 from mcp_server.tests._httpx import _validate_study4_recovery_trace
 from mcp_server.tests.test_entrez import (
     _STUDY_ID,
@@ -24,14 +25,9 @@ from mcp_server.tests.test_entrez import (
 from mcp_server.tools.lit_review import search_pubmed as pubmed_tool
 
 __all__ = ["isolate_process_budget"]
-from mcp_server.tests.test_pubmed_pilot_trace import (
-    _CannedEntrezHandle,
-    _pubmed_article,
-)
 
 
 def _study4_trace_validator() -> Any:
-    """Return the retained pure trace contract."""
     return _validate_study4_recovery_trace
 
 
@@ -53,20 +49,16 @@ class TestPubmedStudy4RecoveryTrace:
         canonical_retry_after: str,
         expected_wait: float,
     ) -> None:
-        """The public tool's trace reconciles with the prospective consumer."""
         run_id = "study4-producer-consumer"
         build_id = "study4-offline-build"
         cache_root = tmp_path / "cache"
-        for key, value in {
-            "COSCIENTIST_REQUIRE_FREE_MODELS": "1",
-            "COSCIENTIST_PUBMED_PILOT_TRACE": "1",
-            "COSCIENTIST_PUBMED_PILOT_BUILD_ID": build_id,
-            "COSCIENTIST_PUBMED_STUDY4_RECOVERY": "1",
-            "COSCIENTIST_PUBMED_STUDY_ID": _STUDY_ID,
-            "COSCIENTIST_LIT_REVIEW_DIR": str(cache_root),
-        }.items():
-            monkeypatch.setenv(key, value)
-        monkeypatch.setattr(entrez_rate_limit, "_await_slot", lambda: None)
+        configure_trace(
+            monkeypatch,
+            cache_root,
+            build_id,
+            free_models=True,
+            study_id=_STUDY_ID,
+        )
         monkeypatch.setattr(entrez_rate_limit, "_sleep", lambda _seconds: None)
         search_calls: list[dict[str, Any]] = []
 
@@ -76,20 +68,14 @@ class TestPubmedStudy4RecoveryTrace:
                 raise _http_error(429, retry_after)
             return _CannedEntrezHandle({"IdList": ["991"]})
 
-        monkeypatch.setattr(Entrez, "esearch", esearch)
-        monkeypatch.setattr(
-            Entrez,
-            "efetch",
-            lambda **kwargs: _CannedEntrezHandle(
+        install_entrez(
+            monkeypatch,
+            esearch=esearch,
+            efetch=lambda **kwargs: _CannedEntrezHandle(
                 _pubmed_article(str(kwargs["id"]))
             ),
+            elink=lambda **_kwargs: _CannedEntrezHandle([{"LinkSetDb": []}]),
         )
-        monkeypatch.setattr(
-            Entrez,
-            "elink",
-            lambda **_kwargs: _CannedEntrezHandle([{"LinkSetDb": []}]),
-        )
-        monkeypatch.setattr(Entrez, "read", lambda handle: handle.payload)
 
         result = asyncio.run(
             pubmed_tool.pubmed_search_with_fulltext(
@@ -139,16 +125,13 @@ class TestPubmedStudy4RecoveryTrace:
     ) -> None:
         run_id = "study4-terminal-fetch"
         cache_root = tmp_path / "cache"
-        for key, value in {
-            "COSCIENTIST_REQUIRE_FREE_MODELS": "1",
-            "COSCIENTIST_PUBMED_PILOT_TRACE": "1",
-            "COSCIENTIST_PUBMED_PILOT_BUILD_ID": "study4-failure-build",
-            "COSCIENTIST_PUBMED_STUDY4_RECOVERY": "1",
-            "COSCIENTIST_PUBMED_STUDY_ID": _STUDY_ID,
-            "COSCIENTIST_LIT_REVIEW_DIR": str(cache_root),
-        }.items():
-            monkeypatch.setenv(key, value)
-        monkeypatch.setattr(entrez_rate_limit, "_await_slot", lambda: None)
+        configure_trace(
+            monkeypatch,
+            cache_root,
+            "study4-failure-build",
+            free_models=True,
+            study_id=_STUDY_ID,
+        )
         monkeypatch.setattr(entrez_rate_limit, "_sleep", lambda _seconds: None)
         monkeypatch.setattr(
             Entrez,
@@ -162,8 +145,7 @@ class TestPubmedStudy4RecoveryTrace:
             fetch_calls += 1
             raise _http_error(429 if fetch_calls == 1 else 500, "0")
 
-        monkeypatch.setattr(Entrez, "efetch", failed_fetch)
-        monkeypatch.setattr(Entrez, "read", lambda handle: handle.payload)
+        install_entrez(monkeypatch, efetch=failed_fetch)
 
         result = asyncio.run(
             pubmed_tool.pubmed_search_with_fulltext(

@@ -2,24 +2,19 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
 from co_scientist.llm.tools.loop import _execute_logged_tool
+from tests._llm_fake import make_tool_call
 
 
 @pytest.mark.parametrize("outcome", ["returned", "failed", "cancelled"])
 async def test_tool_diagnostics_preserve_outcome_without_arguments_or_output(
     caplog: pytest.LogCaptureFixture, outcome: str
 ) -> None:
-    call = SimpleNamespace(
-        function=SimpleNamespace(
-            name="search_literature", arguments="private request"
-        ),
-        id="call-id",
-    )
+    call = make_tool_call("call-id", "search_literature", "private request")
     calls: list[Any] = []
 
     async def execute(value: Any) -> dict[str, Any]:

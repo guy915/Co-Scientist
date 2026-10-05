@@ -18,6 +18,7 @@ from tests._mcp import (
     make_tool_lookup_registry,
 )
 from tests._research_fakes import (
+    make_search_config,
     make_search_run_ctx,
     make_tool_config,
     make_two_source_workflow,
@@ -117,8 +118,6 @@ def test_retracted_candidates_never_fill_a_reserved_slot() -> None:
 
 
 def test_retracted_candidates_never_fill_an_underfilled_budget() -> None:
-    """A low score sorts a retracted source last but does not exclude it from
-    an underfilled pool."""
     ranked = _ranked_retracted(("pm1", "pm2"), retracted={"pm2"})
     source_map = {"pm1": "pubmed", "pm2": "pubmed"}
     sources = [SearchSourceConfig(tool="pubmed")]
@@ -361,15 +360,13 @@ def _multi_source_config(
     papers_to_read_count: int,
     search_tool_name: str = "unused",
 ) -> SearchConfig:
-    return SearchConfig(
+    return make_search_config(
         tool_registry=cast(ToolRegistry, registry),
         workflow=workflow,
         is_multi_source=True,
         search_tool_name=search_tool_name,
-        search_tool_config=None,
         source_name=source_name,
         papers_to_read_count=papers_to_read_count,
-        is_dev_mode=False,
     )
 
 
@@ -605,15 +602,13 @@ class TestLiteratureReviewSearchMultiSource:
         tool_a = make_tool_config(mcp_tool_name="search_a")
         tool_b = make_tool_config(mcp_tool_name="search_b")
         registry = make_tool_lookup_registry({"src_a": tool_a, "src_b": tool_b})
-        config = SearchConfig(
+        config = make_search_config(
             tool_registry=cast(ToolRegistry, registry),
             workflow=make_two_source_workflow(4),
             is_multi_source=True,
             search_tool_name="unused",
-            search_tool_config=None,
             source_name="academic",
             papers_to_read_count=2,
-            is_dev_mode=False,
             research_goal="a research goal",
             model_name=offline_llm.DEFAULT_OFFLINE_MODEL,
         )

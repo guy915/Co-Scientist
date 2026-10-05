@@ -4,6 +4,7 @@ import asyncio
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -18,11 +19,10 @@ from app.engine_tasks import ranking as engine_tasks_ranking
 from app.engine_tasks import runtime as engine_tasks_runtime
 from app.engine_tasks import support as engine_tasks_support
 from app.engine_tasks.runtime import ProductionEngineTaskRuntime
-from app.store import checkpoints, events, messages, runs, tasks
+from app.store import events, messages, tasks
 from app.store import tasks_lifecycle as lifecycle
-from app.store.checkpoints import NewCheckpoint
 from app.store.models import ScientificTask
-from app.store.tasks import NewTask
+from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
 
 from ._llm_fake_backend import load_engine_fake
 
@@ -56,14 +56,11 @@ def _seed_checkpoint(
     )
 
     envelope = serialize_workflow_state(state, last_event_seq=0)
-    return checkpoints.save_checkpoint(
+    return seed_checkpoint(
         run_id,
-        NewCheckpoint(
-            stage=stage,
-            schema_version=CHECKPOINT_VERSION,
-            last_event_seq=0,
-            state={"provider": "engine", **envelope},
-        ),
+        {"provider": "engine", **envelope},
+        stage=stage,
+        schema_version=CHECKPOINT_VERSION,
         db_path=db_path,
     )
 
@@ -219,13 +216,11 @@ def _seed_ranking_node(
         }
     )
     checkpoint_seq = _seed_checkpoint(run_id, state)
-    tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type=f"{engine_tasks.NODE_TASK_PREFIX}ranking",
-            inputs={"checkpoint_seq": checkpoint_seq},
-            idempotency_key=seed.idempotency_key,
-        ),
+    enqueue_task(
+        run_id,
+        f"{engine_tasks.NODE_TASK_PREFIX}ranking",
+        seed.idempotency_key,
+        inputs={"checkpoint_seq": checkpoint_seq},
         db_path=db_path,
     )
     _patch_generator(monkeypatch, _Generator(state), restore=True)
@@ -309,22 +304,13 @@ def _running_ranking_events(run_id: str, db_path: str) -> list[dict[str, Any]]:
 
 
 def _run() -> str:
-    return runs.create_run("queue goal", "standard", "engine", {}).id
+    return seed_run("queue goal").id
 
 
 def _enqueue(
     run_id: str, task_type: str, key: str, db: str, **kwargs: Any
 ) -> Any:
-    return tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type=task_type,
-            inputs={},
-            idempotency_key=key,
-            **kwargs,
-        ),
-        db_path=db,
-    )
+    return enqueue_task(run_id, task_type, key, **kwargs, db_path=db)
 
 
 def _three_control_tasks(run_id: str, db: str) -> tuple[str, str, str]:
@@ -378,3 +364,28 @@ def _install_fake_engine_llm(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.config import settings
 
     monkeypatch.setattr(settings, "semantic_safety_enabled", False)
+
+
+def small_run_config() -> dict[str, Any]:
+    return {
+        "max_iterations": 1,
+        "initial_hypotheses_count": 4,
+        "evolution_max_count": 4,
+        "tournament_pairs": 6,
+        "evidence_count": 4,
+        "k_factor": 36,
+        "max_llm_calls": 100,
+        "max_ideas": 12,
+        "max_matches_per_idea": 4,
+    }
+
+
+async def fake_final_drain(
+    *_: Any, **__: Any
+) -> tuple[Any, float, dict[str, Any]]:
+    drained = SimpleNamespace(
+        safety_counts={},
+        grounding_counts={},
+        report_inputs={"citation_summary": {}},
+    )
+    return drained, 1.0, {}

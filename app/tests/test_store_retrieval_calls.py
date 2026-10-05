@@ -20,6 +20,7 @@ from co_scientist.research import (
 from app.store import records, runs
 from app.store import retrieval_calls as store
 from app.store.records import NewEvidence
+from tests._store_helpers import seed_run
 
 
 @pytest.fixture
@@ -76,7 +77,7 @@ def _result(
 
 
 def test_a_search_round_trips_with_its_question_and_ranking(db: str) -> None:
-    run = runs.create_run("provenance", "standard", "engine", {})
+    run = seed_run("provenance")
     result = _result()
 
     store.add_retrieval_calls(store.retrieval_call_rows(run.id, result))
@@ -97,8 +98,7 @@ def test_a_search_round_trips_with_its_question_and_ranking(db: str) -> None:
 
 
 def test_the_same_search_persisted_twice_is_one_row(db: str) -> None:
-    # Stable search identity makes ledger replay idempotent.
-    run = runs.create_run("resume", "standard", "engine", {})
+    run = seed_run("resume")
     rows = store.retrieval_call_rows(run.id, _result())
 
     assert store.add_retrieval_calls(rows) == 1
@@ -110,8 +110,8 @@ def test_the_same_search_persisted_twice_is_one_row(db: str) -> None:
 def test_two_runs_asking_the_same_thing_keep_separate_rows(db: str) -> None:
     # Identical retrieval calls in different runs must not share or delete
     # provenance.
-    first = runs.create_run("goal", "standard", "engine", {})
-    second = runs.create_run("goal", "standard", "engine", {})
+    first = seed_run("goal")
+    second = seed_run("goal")
     result = _result()
 
     store.add_retrieval_calls(store.retrieval_call_rows(first.id, result))
@@ -129,7 +129,7 @@ def test_two_runs_asking_the_same_thing_keep_separate_rows(db: str) -> None:
 
 
 def test_a_failed_search_is_recorded_not_dropped(db: str) -> None:
-    run = runs.create_run("degraded", "standard", "engine", {})
+    run = seed_run("degraded")
     result = _result(
         calls=[
             SearchCall(
@@ -163,7 +163,7 @@ def test_a_failed_search_is_recorded_not_dropped(db: str) -> None:
 
 
 def test_a_deeper_search_records_the_level_it_ran_at(db: str) -> None:
-    run = runs.create_run("descent", "standard", "engine", {})
+    run = seed_run("descent")
 
     store.add_retrieval_calls(
         store.retrieval_call_rows(run.id, _result(depth=3))
@@ -173,7 +173,7 @@ def test_a_deeper_search_records_the_level_it_ran_at(db: str) -> None:
 
 
 def test_evidence_can_name_the_search_that_found_it(db: str) -> None:
-    run = runs.create_run("link", "standard", "engine", {})
+    run = seed_run("link")
     result = _result()
     rows = store.retrieval_call_rows(run.id, result)
     store.add_retrieval_calls(rows)
@@ -192,7 +192,7 @@ def test_evidence_can_name_the_search_that_found_it(db: str) -> None:
 
 
 def test_evidence_without_a_search_behind_it_stays_null(db: str) -> None:
-    run = runs.create_run("upload", "standard", "engine", {})
+    run = seed_run("upload")
 
     ev_id = records.add_evidence(
         NewEvidence(run_id=run.id, title="Attached report")
@@ -203,7 +203,7 @@ def test_evidence_without_a_search_behind_it_stays_null(db: str) -> None:
 
 
 def test_a_result_with_no_searches_writes_nothing(db: str) -> None:
-    run = runs.create_run("empty", "standard", "engine", {})
+    run = seed_run("empty")
 
     assert store.add_retrieval_calls([]) == 0
     assert store.list_retrieval_calls(run.id) == []

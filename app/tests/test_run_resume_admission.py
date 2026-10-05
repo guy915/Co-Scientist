@@ -25,38 +25,32 @@ from app.store import db as store_db
 from app.store import events as store_events
 from app.store import tasks as store
 from app.store import tasks_lifecycle as lifecycle
-from app.store.checkpoints import NewCheckpoint
 from app.store.hypotheses import HypothesisStateChanges, NewHypothesis
 from app.store.models import RunStatus, ScientificTask
 from app.store.records import NewReview, NewSafetyDecision
-from app.store.runs import RunCreateOptions
-from app.store.tasks import NewTask
 from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
+from tests._client import create_run as _create_run
 from tests._client import make_client as _client
 from tests._engine_tasks_helpers import (
     _Generator,
     _seed_checkpoint,
     _task_state,
 )
+from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
 
 
 def _checkpointed_run(db: str, client: Any) -> tuple[str, str]:
-    response = client.post(
-        "/api/runs",
-        json={"research_goal": "Resume/cancel ordering", "tier": "express"},
-    )
+    response = _create_run(client, "Resume/cancel ordering", tier="express")
     assert response.status_code == 200, response.text
     run_id = str(response.json()["id"])
     runs.update_run_status(run_id, RunStatus.RUNNING, db_path=db)
 
     writer_type = f"{engine_tasks.NODE_TASK_PREFIX}generate"
-    writer = store.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type=writer_type,
-            inputs={"checkpoint_seq": 0},
-            idempotency_key="resume-cancel:writer",
-        ),
+    writer = enqueue_task(
+        run_id,
+        writer_type,
+        "resume-cancel:writer",
+        inputs={"checkpoint_seq": 0},
         db_path=db,
     )
     claimed = store.claim_task("checkpoint-writer", run_id=run_id, db_path=db)
@@ -66,25 +60,19 @@ def _checkpointed_run(db: str, client: Any) -> tuple[str, str]:
     )
 
     successor_type = f"{engine_tasks.NODE_TASK_PREFIX}ranking"
-    checkpoint_seq = checkpoints.save_checkpoint(
+    checkpoint_seq = seed_checkpoint(
         run_id,
-        NewCheckpoint(
-            stage=f"engine_task:{writer.id}",
-            schema_version=1,
-            last_event_seq=0,
-            state={"provider": "engine", "resume_successor": successor_type},
-        ),
+        {"provider": "engine", "resume_successor": successor_type},
+        stage=f"engine_task:{writer.id}",
         db_path=db,
     )
-    successor = store.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type=successor_type,
-            inputs={"checkpoint_seq": checkpoint_seq},
-            idempotency_key=f"{successor_type}:after:{writer.id}",
-            dependencies=(writer.id,),
-            provenance={"scheduled_by": writer_type},
-        ),
+    successor = enqueue_task(
+        run_id,
+        successor_type,
+        f"{successor_type}:after:{writer.id}",
+        inputs={"checkpoint_seq": checkpoint_seq},
+        dependencies=(writer.id,),
+        provenance={"scheduled_by": writer_type},
         db_path=db,
     )
     return run_id, successor.id
@@ -326,31 +314,18 @@ def test_legacy_cleanup_waits_until_resume_status_guard(
 ) -> None:
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     owner = make_client()
-    created = owner.post(
-        "/api/runs",
-        json={"research_goal": "Legacy resume cancellation", "tier": "express"},
-    )
+    created = _create_run(owner, "Legacy resume cancellation", tier="express")
     assert created.status_code == 200
     run_id = str(created.json()["id"])
     runs.update_run_status(run_id, RunStatus.RUNNING, db_path=isolated_db)
-    task = store.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type=f"{engine_tasks.NODE_TASK_PREFIX}orchestrator",
-            inputs={},
-            idempotency_key="legacy-resume:orchestrator",
-        ),
+    task = enqueue_task(
+        run_id,
+        f"{engine_tasks.NODE_TASK_PREFIX}orchestrator",
+        "legacy-resume:orchestrator",
         db_path=isolated_db,
     )
-    checkpoint_seq = checkpoints.save_checkpoint(
-        run_id,
-        NewCheckpoint(
-            stage="legacy-envelope",
-            schema_version=1,
-            last_event_seq=0,
-            state={"legacy": True},
-        ),
-        db_path=isolated_db,
+    checkpoint_seq = seed_checkpoint(
+        run_id, {"legacy": True}, stage="legacy-envelope", db_path=isolated_db
     )
     store_events.append_event(
         run_id, "fixture.marker", {"keep": True}, db_path=isolated_db
@@ -458,12 +433,8 @@ def test_adjudication_rejection_does_not_overwrite_cancel(
 ) -> None:
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     owner = make_client()
-    created = owner.post(
-        "/api/runs",
-        json={
-            "research_goal": "Safety rejection cancellation",
-            "tier": "express",
-        },
+    created = _create_run(
+        owner, "Safety rejection cancellation", tier="express"
     )
     assert created.status_code == 200
     run_id = str(created.json()["id"])
@@ -514,28 +485,19 @@ def test_adjudication_rejection_does_not_overwrite_cancel(
 
 
 def _paused_legacy_run(db_path: str) -> tuple[str, int]:
-    run = runs.create_run(
+    run = seed_run(
         "Legacy resume lifecycle race",
-        "express",
-        "engine",
-        {},
-        options=RunCreateOptions(
-            client_id=DEFAULT_TEST_CLIENT_ID,
-            db_path=db_path,
-        ),
+        profile="express",
+        client_id=DEFAULT_TEST_CLIENT_ID,
+        db_path=db_path,
     )
     run_id = run.id
     runs.update_run_status(run_id, RunStatus.RUNNING, db_path=db_path)
-    checkpoints.save_checkpoint(
+    seed_checkpoint(
         run_id,
-        NewCheckpoint(
-            stage="legacy-envelope",
-            schema_version=1,
-            last_event_seq=store_events.latest_event_seq(
-                run_id, db_path=db_path
-            ),
-            state={"provider": "mock", "legacy": True},
-        ),
+        {"provider": "mock", "legacy": True},
+        stage="legacy-envelope",
+        last_event_seq=store_events.latest_event_seq(run_id, db_path=db_path),
         db_path=db_path,
     )
     status_seq = store_events.append_event(
@@ -637,9 +599,7 @@ def test_legacy_cleanup_preserves_lifecycle_revision_for_stale_resume(
 def _started_bootstrap(
     client: TestClient, goal: str, db: str
 ) -> tuple[str, str]:
-    run = client.post(
-        "/api/runs", json={"research_goal": goal, "tier": "express"}
-    )
+    run = _create_run(client, goal, tier="express")
     run_id = str(run.json()["id"])
     assert client.post(f"/api/runs/{run_id}/start", json={}).status_code == 200
     [bootstrap] = store.list_tasks(run_id, db_path=db)
@@ -898,14 +858,12 @@ def test_paused_permanent_bootstrap_failure_is_not_resumable(
 
 
 def _node_task(run_id: str, node: str, seq: int, db_path: str) -> Any:
-    store.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type=f"{NODE_TASK_PREFIX}{node}",
-            inputs={"checkpoint_seq": seq},
-            idempotency_key=f"engine:{node}:{seq}",
-            priority=90,
-        ),
+    enqueue_task(
+        run_id,
+        f"{NODE_TASK_PREFIX}{node}",
+        f"engine:{node}:{seq}",
+        inputs={"checkpoint_seq": seq},
+        priority=90,
         db_path=db_path,
     )
     task = store.claim_task("worker", run_id=run_id, db_path=db_path)
@@ -963,7 +921,7 @@ def _seed_review(
 def test_admission_happens_at_the_orchestrator_boundary(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("Admission", "express", "engine", {})
+    run = seed_run("Admission", profile="express")
     hypothesis_id = _seed_hypothesis(run.id, isolated_db)
 
     state = _restored_at(run.id, "orchestrator", isolated_db)
@@ -973,7 +931,7 @@ def test_admission_happens_at_the_orchestrator_boundary(
 
 
 def test_a_ranking_wave_cannot_gain_a_competitor(isolated_db: str) -> None:
-    run = runs.create_run("Mid-tournament", "express", "engine", {})
+    run = seed_run("Mid-tournament", profile="express")
     _seed_hypothesis(run.id, isolated_db)
 
     state = _restored_at(run.id, "ranking", isolated_db)
@@ -986,7 +944,7 @@ def test_an_admitted_idea_still_owes_the_run_a_peer_review(
 ) -> None:
     from co_scientist.models import has_peer_review
 
-    run = runs.create_run("Owes review", "express", "engine", {})
+    run = seed_run("Owes review", profile="express")
     hypothesis_id = _seed_hypothesis(run.id, isolated_db)
     _seed_review(run.id, hypothesis_id, "support", isolated_db)
 
@@ -1000,7 +958,7 @@ def test_an_admitted_idea_still_owes_the_run_a_peer_review(
 def test_the_admitted_idea_enters_the_durable_review_fanout(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("Review fanout", "express", "engine", {})
+    run = seed_run("Review fanout", profile="express")
     hypothesis_id = _seed_hypothesis(run.id, isolated_db)
     _seed_review(run.id, hypothesis_id, "support", isolated_db)
     state = _restored_at(run.id, "orchestrator", isolated_db)
@@ -1027,7 +985,7 @@ def test_the_admitted_idea_enters_the_durable_review_fanout(
 def test_an_opposing_verdict_withholds_the_idea_from_the_tournament(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("Oppose", "express", "engine", {})
+    run = seed_run("Oppose", profile="express")
     hypothesis_id = _seed_hypothesis(run.id, isolated_db)
     _seed_review(run.id, hypothesis_id, "oppose", isolated_db)
 
@@ -1046,7 +1004,7 @@ def test_authorship_and_screen_survive_a_checkpoint_round_trip(
         serialize_workflow_state,
     )
 
-    run = runs.create_run("Provenance", "express", "engine", {})
+    run = seed_run("Provenance", profile="express")
     _seed_hypothesis(run.id, isolated_db)
     state = {**_task_state(run.id)}
     engine_tasks_inputs._merge_scientist_inputs(state, run.id, isolated_db)
@@ -1073,7 +1031,7 @@ def test_an_unscreened_row_does_not_suppress_the_engine_safety_screen(
         _screen_one_hypothesis,
     )
 
-    run = runs.create_run("Unscreened", "express", "engine", {})
+    run = seed_run("Unscreened", profile="express")
     hypotheses.add_hypothesis(
         NewHypothesis(
             run_id=run.id,
@@ -1101,7 +1059,7 @@ def test_the_admitted_idea_reaches_the_tournament_and_the_gene_pool(
     )
     from co_scientist.models import Hypothesis
 
-    run = runs.create_run("Gene pool", "express", "engine", {})
+    run = seed_run("Gene pool", profile="express")
     hypothesis_id = _seed_hypothesis(run.id, isolated_db)
     _seed_review(run.id, hypothesis_id, "support", isolated_db)
     state = _restored_at(run.id, "orchestrator", isolated_db)
@@ -1121,13 +1079,13 @@ def test_the_drain_reattributes_an_idea_whose_row_is_gone(
 ) -> None:
     from tests._drain_helpers import _persist
 
-    run = runs.create_run("Reattribute", "express", "engine", {})
+    run = seed_run("Reattribute", profile="express")
     _seed_hypothesis(run.id, isolated_db)
     state: dict[str, Any] = {"hypotheses": []}
     engine_tasks_inputs._merge_scientist_inputs(state, run.id, isolated_db)
     payload = [h.to_dict() for h in state["hypotheses"]]
     payload[0]["id"] = "unseen-engine-id"
-    other = runs.create_run("Fresh store", "express", "engine", {})
+    other = seed_run("Fresh store", profile="express")
 
     _persist(
         run_id=other.id,
@@ -1150,7 +1108,7 @@ def test_the_drain_reattributes_an_idea_whose_row_is_gone(
 def test_admitting_the_same_idea_twice_creates_one_pool_member(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("Idempotent", "express", "engine", {})
+    run = seed_run("Idempotent", profile="express")
     hypothesis_id = _seed_hypothesis(run.id, isolated_db)
     _seed_review(run.id, hypothesis_id, "revise", isolated_db)
     state = {**_task_state(run.id)}
@@ -1185,10 +1143,7 @@ async def test_late_contribution_reopens_the_run_once_it_completes(
     # once finalization settles.
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
     client = _client()
-    created = client.post(
-        "/api/runs",
-        json={"research_goal": "Late contribution reopen", "tier": "express"},
-    )
+    created = _create_run(client, "Late contribution reopen", tier="express")
     run_id = created.json()["id"]
     started = client.post(f"/api/runs/{run_id}/start", json={})
     assert started.status_code == 200

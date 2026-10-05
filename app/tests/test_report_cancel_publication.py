@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections import Counter
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -18,7 +17,7 @@ from app.store import runs_views as views
 from app.store import tasks as store
 from app.store.hypotheses import NewHypothesis
 from app.store.models import RunStatus
-from app.store.tasks import NewTask
+from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _Generator,
@@ -26,7 +25,9 @@ from tests._engine_tasks_helpers import (
     _patch_restore_generator,
     _seed_checkpoint,
     _task_state,
+    fake_final_drain,
 )
+from tests._store_helpers import enqueue_task
 
 _OWNER = {"X-Client-ID": "report-cancel-owner"}
 _EMAIL = "scientist@example.org"
@@ -61,15 +62,13 @@ def _seed_owned_finalize(
     monkeypatch.setattr(settings, "smtp_from_email", "noreply@example.org")
 
     owner = make_client()
-    created = owner.post(
-        "/api/runs",
+    created = _create_run(
+        owner,
+        "Study cancellation at report publication",
         headers=_OWNER,
-        json={
-            "research_goal": "Study cancellation at report publication",
-            "tier": "express",
-            "notify_on_completion": True,
-            "completion_email": _EMAIL,
-        },
+        tier="express",
+        notify_on_completion=True,
+        completion_email=_EMAIL,
     )
     assert created.status_code == 200, created.text
     run_id = str(created.json()["id"])
@@ -84,13 +83,11 @@ def _seed_owned_finalize(
     )
     state = _task_state(run_id)
     checkpoint_seq = _seed_checkpoint(run_id, state, db_path=isolated_db)
-    queued = store.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type=engine_tasks_support.FINALIZE_TASK,
-            inputs={"checkpoint_seq": checkpoint_seq},
-            idempotency_key="cancel-finalize-publication",
-        ),
+    queued = enqueue_task(
+        run_id,
+        engine_tasks_support.FINALIZE_TASK,
+        "cancel-finalize-publication",
+        inputs={"checkpoint_seq": checkpoint_seq},
         db_path=isolated_db,
     )
     task = (
@@ -105,17 +102,7 @@ def _seed_owned_finalize(
     assert task.status == ("leased" if claim else "queued")
     _patch_restore_generator(monkeypatch, _Generator(state))
 
-    async def fake_drain(
-        *_: Any, **__: Any
-    ) -> tuple[Any, float, dict[str, Any]]:
-        drained = SimpleNamespace(
-            safety_counts={},
-            grounding_counts={},
-            report_inputs={"citation_summary": {}},
-        )
-        return drained, 1.25, {}
-
-    _install_runtime(monkeypatch).drain_final_state = fake_drain
+    _install_runtime(monkeypatch).drain_final_state = fake_final_drain
     return owner, run_id, task, hypothesis_id
 
 

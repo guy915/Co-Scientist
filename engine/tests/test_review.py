@@ -40,17 +40,7 @@ from tests._state import make_hypothesis, make_review, make_state
 def test_initial_review_gate_classifies_accuracy_and_novelty_failures() -> None:
     hypotheses = [make_hypothesis(text=f"idea {index}") for index in range(4)]
     scores = [(2, 8), (8, 2), (2, 2), (8, 8)]
-    reviews = [
-        HypothesisReview(
-            review_summary="summary",
-            scores={"scientific_soundness": soundness, "novelty": novelty},
-            safety_ethical_concerns="none",
-            detailed_feedback={},
-            constructive_feedback="feedback",
-            overall_score=5,
-        )
-        for soundness, novelty in scores
-    ]
+    reviews = [_review(soundness, novelty) for soundness, novelty in scores]
 
     review._apply_initial_review_gate(hypotheses, reviews)
 
@@ -68,7 +58,7 @@ def _review(soundness: int | None, novelty: int | None) -> HypothesisReview:
         scores["scientific_soundness"] = soundness
     if novelty is not None:
         scores["novelty"] = novelty
-    return HypothesisReview(
+    return make_review(
         review_summary="summary",
         scores=scores,
         safety_ethical_concerns="none",
@@ -254,7 +244,6 @@ async def test_parallel_individual_attaches_reviews(
 async def test_individual_missing_scores_defaults_to_overall_score(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Missing JSON fields are parsing defects, not worst-case review scores."""
     count = COMPARATIVE_BATCH_THRESHOLD + 1
     hyps = [make_hypothesis(text=f"h{i}") for i in range(count)]
     stub_call_llm_json(
@@ -558,18 +547,17 @@ async def test_batch_review_degrades_to_zero_reviews_without_raising(
 
 
 def _blocked(index: int) -> Hypothesis:
-    hypothesis = make_hypothesis(
+    return make_hypothesis(
         text=f"blocked idea {index}",
         reviews=[make_review(scores={"scientific_soundness": 2, "novelty": 8})],
+        review_disposition="inaccurate",
     )
-    hypothesis.review_disposition = "inaccurate"
-    return hypothesis
 
 
 def _viable(index: int) -> Hypothesis:
-    hypothesis = make_hypothesis(text=f"viable idea {index}")
-    hypothesis.review_disposition = "viable"
-    return hypothesis
+    return make_hypothesis(
+        text=f"viable idea {index}", review_disposition="viable"
+    )
 
 
 def _incident_pool() -> list[Hypothesis]:
@@ -815,7 +803,6 @@ def test_only_the_not_viable_band_blocks(
 
 
 def test_a_deeper_review_reverses_the_initial_screen() -> None:
-    """Deep correctness checks supersede the shallow admission screen."""
     hypothesis = make_hypothesis(text="idea", review_disposition="inaccurate")
 
     _store(hypothesis, ReviewType.FULL, _full_review("sound"))
@@ -973,8 +960,6 @@ def test_go_no_go_recommendation_cannot_gate_the_disposition() -> None:
 
 
 def test_summary_excludes_go_no_go_fields() -> None:
-    """All summary consumers need the same projection of display-only
-    recommendations."""
     summary = mature_review_summary(
         {
             "full": _full_review(

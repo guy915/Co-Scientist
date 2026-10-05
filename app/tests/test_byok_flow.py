@@ -11,8 +11,12 @@ from app import credentials, engine_tasks
 from app.config import settings
 from app.main import app
 from app.store import checkpoints, runs
-from app.store.models import ScientificTask
-from tests._llm_fake_backend import install_completion_backend
+from tests._client import create_run as _create_run
+from tests._llm_fake_backend import (
+    completion_response,
+    install_completion_backend,
+)
+from tests._store_helpers import leased_node_task as _node_task
 
 _SECRET = "byok-flow-secret"
 _KEY = "sk-flow-abcdef123456"
@@ -41,31 +45,6 @@ def _no_background_title_network(
     monkeypatch.setattr("app.runs.crud.generate_run_title", _no_title)
 
 
-def _node_task(run_id: str) -> ScientificTask:
-    return ScientificTask(
-        id="task-1",
-        run_id=run_id,
-        task_type="engine.node.generate",
-        status="leased",
-        priority=90,
-        inputs={},
-        dependencies=(),
-        provenance={},
-        idempotency_key="engine.node.generate:0",
-        budget={},
-        attempt=1,
-        max_attempts=3,
-        lease_owner="test",
-        lease_expires_at=None,
-        result=None,
-        error=None,
-        created_at=0.0,
-        updated_at=0.0,
-        started_at=None,
-        completed_at=None,
-    )
-
-
 def _fake_validation(
     monkeypatch: pytest.MonkeyPatch, *, fail_auth: bool = False
 ) -> dict[str, Any]:
@@ -82,20 +61,14 @@ def _fake_validation(
                 llm_provider="deepseek",
                 model=str(kwargs.get("model")),
             )
-        return SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))]
-        )
+        return completion_response("ok")
 
     monkeypatch.setattr(credentials, "_acompletion", fake_acompletion)
     return captured
 
 
 def _create_byok_run(client: TestClient) -> dict[str, Any]:
-    response = client.post(
-        "/api/runs",
-        json={"research_goal": "BYOK goal"},
-        headers=_HEADERS,
-    )
+    response = _create_run(client, "BYOK goal", headers=_HEADERS)
     assert response.status_code == 200, response.text
     created: dict[str, Any] = response.json()
     return created
@@ -106,11 +79,7 @@ def test_rejected_key_fails_creation_before_any_run(
 ) -> None:
     _fake_validation(monkeypatch, fail_auth=True)
     with TestClient(app) as client:
-        response = client.post(
-            "/api/runs",
-            json={"research_goal": "doomed goal"},
-            headers=_HEADERS,
-        )
+        response = _create_run(client, "doomed goal", headers=_HEADERS)
         assert response.status_code == 400
         assert "rejected" in response.json()["detail"]
         assert _KEY not in response.text
@@ -122,11 +91,7 @@ def test_key_without_provider_is_a_400(
 ) -> None:
     _fake_validation(monkeypatch)
     with TestClient(app) as client:
-        response = client.post(
-            "/api/runs",
-            json={"research_goal": "goal"},
-            headers={"X-LLM-API-Key": _KEY},
-        )
+        response = _create_run(client, "goal", headers={"X-LLM-API-Key": _KEY})
         assert response.status_code == 400
 
 
@@ -136,11 +101,7 @@ def test_byok_disabled_deployment_refuses_keys(
     monkeypatch.setattr(settings, "byok_encryption_key", "")
     _fake_validation(monkeypatch)
     with TestClient(app) as client:
-        response = client.post(
-            "/api/runs",
-            json={"research_goal": "goal"},
-            headers=_HEADERS,
-        )
+        response = _create_run(client, "goal", headers=_HEADERS)
         assert response.status_code == 503
 
 

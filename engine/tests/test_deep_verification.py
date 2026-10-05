@@ -24,24 +24,13 @@ from co_scientist.agents.reflection.review_evidence import (
 )
 from co_scientist.models import Article, Hypothesis
 from co_scientist.state import WorkflowState
-from tests._state import make_article, make_hypothesis, make_state
-
-
-def _deep_verification_probe_response_mock() -> AsyncMock:
-    return AsyncMock(
-        return_value={
-            "probes": [
-                {
-                    "question": "q",
-                    "answer": "a",
-                    "reasoning": "r",
-                    "assumption_is_fundamental": False,
-                }
-            ],
-            "verdict": "holds",
-            "overall_assessment": "ok",
-        }
-    )
+from tests._llm_fake import mock_call_llm_json
+from tests._state import (
+    make_article,
+    make_hypothesis,
+    make_state,
+    make_verification_response,
+)
 
 
 async def test_deep_verification_prompt_includes_meta_review(
@@ -218,14 +207,7 @@ def test_probe_queries_fall_back_to_the_question() -> None:
 
 def _verification_response(**overrides: object) -> dict[str, object]:
     response: dict[str, object] = {
-        "probes": [
-            {
-                "question": "q",
-                "answer": "a",
-                "reasoning": "r",
-                "assumption_is_fundamental": False,
-            }
-        ],
+        **make_verification_response(),
         "sub_assumptions": [
             {
                 "assumption": "the target is druggable",
@@ -251,10 +233,9 @@ async def test_failed_verification_records_explicit_unverified(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
 
-    async def _boom(*_args: object, **_kwargs: object) -> dict[str, object]:
-        raise RuntimeError("verifier unavailable")
-
-    monkeypatch.setattr(leaf, "call_llm_json", _boom)
+    mock_call_llm_json(
+        monkeypatch, leaf, side_effect=RuntimeError("verifier unavailable")
+    )
 
     h = make_hypothesis(text="leader", elo_rating=2000)
     state = make_state(hypotheses=[h])
@@ -285,10 +266,9 @@ async def test_the_failure_state_is_the_idea_s_final_verdict(
     """Mark issuance once per idea; retries belong below this seam, not in
     later work cycles."""
 
-    async def _boom(*_args: object, **_kwargs: object) -> dict[str, object]:
-        raise RuntimeError("verifier unavailable")
-
-    monkeypatch.setattr(leaf, "call_llm_json", _boom)
+    mock_call_llm_json(
+        monkeypatch, leaf, side_effect=RuntimeError("verifier unavailable")
+    )
     h = make_hypothesis(text="leader", elo_rating=2000)
     state = make_state(hypotheses=[h])
     await dv.deep_verification_node(state)
@@ -306,10 +286,9 @@ async def test_stale_verification_is_cleared_by_a_failed_reverification(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
 
-    async def _boom(*_args: object, **_kwargs: object) -> dict[str, object]:
-        raise RuntimeError("verifier unavailable")
-
-    monkeypatch.setattr(leaf, "call_llm_json", _boom)
+    mock_call_llm_json(
+        monkeypatch, leaf, side_effect=RuntimeError("verifier unavailable")
+    )
 
     h = make_hypothesis(text="leader", elo_rating=2000)
     h.deep_verification_probes = [{"question": "old"}]
@@ -655,23 +634,6 @@ async def test_a_paper_found_twice_is_carried_once() -> None:
     assert [article.source_id for article in merged] == ["a", "c"]
 
 
-def _deep_verification_selection_probe_response_mock() -> AsyncMock:
-    return AsyncMock(
-        return_value={
-            "probes": [
-                {
-                    "question": "q",
-                    "answer": "a",
-                    "reasoning": "r",
-                    "assumption_is_fundamental": False,
-                }
-            ],
-            "verdict": "holds",
-            "overall_assessment": "ok",
-        }
-    )
-
-
 async def test_verifies_every_unverified_hypothesis(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -714,8 +676,7 @@ async def test_a_verified_hypothesis_is_never_verified_twice(
 ) -> None:
     """Probe citations change freshness on the verification pass itself;
     issuance must win."""
-    fake = _deep_verification_selection_probe_response_mock()
-    monkeypatch.setattr(leaf, "call_llm_json", fake)
+    fake = mock_call_llm_json(monkeypatch, leaf, make_verification_response())
 
     h = make_hypothesis(text="verified once")
     state = make_state(hypotheses=[h])
@@ -734,8 +695,7 @@ async def test_a_resumed_run_does_not_re_verify(
 ) -> None:
     """A memory-only marker would rebuy whole-pool verification after every
     restart."""
-    fake = _deep_verification_selection_probe_response_mock()
-    monkeypatch.setattr(leaf, "call_llm_json", fake)
+    fake = mock_call_llm_json(monkeypatch, leaf, make_verification_response())
 
     h = make_hypothesis(text="verified before the restart")
     await dv.deep_verification_node(make_state(hypotheses=[h]))
@@ -750,8 +710,7 @@ async def test_a_resumed_run_does_not_re_verify(
 async def test_evolution_children_are_verified(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    fake = _deep_verification_selection_probe_response_mock()
-    monkeypatch.setattr(leaf, "call_llm_json", fake)
+    fake = mock_call_llm_json(monkeypatch, leaf, make_verification_response())
 
     parent = make_hypothesis(text="parent")
     state = make_state(hypotheses=[parent])
@@ -769,8 +728,7 @@ async def test_evolution_children_are_verified(
 async def test_blocked_ideas_are_not_verified(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    fake = _deep_verification_selection_probe_response_mock()
-    monkeypatch.setattr(leaf, "call_llm_json", fake)
+    fake = mock_call_llm_json(monkeypatch, leaf, make_verification_response())
 
     blocked = make_hypothesis(text="blocked", review_disposition="inaccurate")
     state = make_state(hypotheses=[blocked])
@@ -781,21 +739,7 @@ async def test_blocked_ideas_are_not_verified(
 
 
 async def test_skips_already_verified(monkeypatch: pytest.MonkeyPatch) -> None:
-    fake = AsyncMock(
-        return_value={
-            "probes": [
-                {
-                    "question": "q",
-                    "answer": "a",
-                    "reasoning": "r",
-                    "assumption_is_fundamental": False,
-                }
-            ],
-            "verdict": "holds",
-            "overall_assessment": "ok",
-        }
-    )
-    monkeypatch.setattr(leaf, "call_llm_json", fake)
+    fake = mock_call_llm_json(monkeypatch, leaf, make_verification_response())
 
     h = make_hypothesis(text="already", elo_rating=2000)
     h.deep_verification_probes = [
@@ -817,8 +761,7 @@ async def test_skips_already_verified(monkeypatch: pytest.MonkeyPatch) -> None:
 async def test_reverifies_when_hypothesis_text_changes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    fake = _deep_verification_selection_probe_response_mock()
-    monkeypatch.setattr(leaf, "call_llm_json", fake)
+    fake = mock_call_llm_json(monkeypatch, leaf, make_verification_response())
 
     h = make_hypothesis(text="original", elo_rating=2000)
     state = make_state(hypotheses=[h])
@@ -835,8 +778,7 @@ async def test_reverifies_when_hypothesis_text_changes(
 async def test_reverifies_when_the_verifier_model_changes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    fake = _deep_verification_selection_probe_response_mock()
-    monkeypatch.setattr(leaf, "call_llm_json", fake)
+    fake = mock_call_llm_json(monkeypatch, leaf, make_verification_response())
 
     h = make_hypothesis(text="stable", elo_rating=2000)
     h.deep_verification_fingerprint = dv.verification_fingerprint(
@@ -854,8 +796,7 @@ async def test_unrelated_evidence_does_not_invalidate_verification(
 ) -> None:
     """Hashing the whole corpus would invalidate every idea when any article
     arrives."""
-    fake = _deep_verification_selection_probe_response_mock()
-    monkeypatch.setattr(leaf, "call_llm_json", fake)
+    fake = mock_call_llm_json(monkeypatch, leaf, make_verification_response())
 
     h = make_hypothesis(text="stable", elo_rating=2000)
     h.citation_map = {"C1": {"source_id": "cited-1", "title": "Cited"}}
@@ -875,8 +816,7 @@ async def test_unrelated_evidence_does_not_invalidate_verification(
 async def test_reverifies_when_cited_evidence_changes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    fake = _deep_verification_selection_probe_response_mock()
-    monkeypatch.setattr(leaf, "call_llm_json", fake)
+    fake = mock_call_llm_json(monkeypatch, leaf, make_verification_response())
 
     h = make_hypothesis(text="stable", elo_rating=2000)
     h.citation_map = {"C1": {"source_id": "cited-1"}}
@@ -894,8 +834,7 @@ async def test_reverifies_when_cited_evidence_changes(
 async def test_a_hypothesis_with_no_stored_verification_is_verified(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    fake = _deep_verification_selection_probe_response_mock()
-    monkeypatch.setattr(leaf, "call_llm_json", fake)
+    fake = mock_call_llm_json(monkeypatch, leaf, make_verification_response())
 
     verified = make_hypothesis(text="incumbent", elo_rating=2000)
     promoted = make_hypothesis(text="newcomer", elo_rating=1900)
@@ -913,8 +852,7 @@ async def test_a_hypothesis_with_no_stored_verification_is_verified(
 async def test_verification_is_run_once_across_repeated_cycles(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    fake = _deep_verification_selection_probe_response_mock()
-    monkeypatch.setattr(leaf, "call_llm_json", fake)
+    fake = mock_call_llm_json(monkeypatch, leaf, make_verification_response())
 
     h = make_hypothesis(text="stable leader", elo_rating=2000)
     state = make_state(hypotheses=[h])

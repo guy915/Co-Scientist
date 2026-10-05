@@ -30,7 +30,7 @@ from app.store import retrieval_calls as retrieval
 from app.store import tasks as store
 from app.store import tasks_lifecycle as lifecycle
 from app.store.models import RunStatus, ScientificTask
-from app.store.tasks import NewTask
+from tests._client import create_run as _create_run
 from tests._client import make_client
 from tests._engine_tasks_helpers import (
     _drain_ranking_matches,
@@ -45,6 +45,7 @@ from tests._engine_tasks_helpers import (
     _task_events,
     _task_state,
 )
+from tests._store_helpers import enqueue_task, seed_run
 
 
 async def _fake_review(**kwargs: Any) -> HypothesisReview:
@@ -126,7 +127,7 @@ async def _run_review_children_and_aggregate(run_id: str, db_path: str) -> None:
 async def test_review_fanout_uses_independent_leases_and_one_aggregate_commit(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = runs.create_run("Task-level science", "standard", "engine", {})
+    run = seed_run("Task-level science")
     state = _task_state(run.id)
     state["hypotheses"] = [Hypothesis(text="alpha"), Hypothesis(text="beta")]
     await _advance_to_review_parent(
@@ -157,9 +158,7 @@ async def test_review_fanout_created_during_pause_waits_for_resume(
     original_dispatch = engine_tasks_node._dispatch_node_fanout
 
     with make_client() as client:
-        created = client.post(
-            "/api/runs", json={"research_goal": "Paused review fan-out"}
-        )
+        created = _create_run(client, "Paused review fan-out")
         assert created.status_code == 200, created.text
         run_id = str(created.json()["id"])
         runs.update_run_status(run_id, RunStatus.RUNNING, db_path=isolated_db)
@@ -229,26 +228,20 @@ async def test_review_fanout_created_during_pause_waits_for_resume(
 async def test_review_aggregate_is_ready_after_isolated_child_failure(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("Task-level science", "standard", "engine", {})
-    failed = store.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type=engine_tasks_support.REVIEW_ITEM_TASK,
-            inputs={},
-            idempotency_key="failed-child",
-            max_attempts=1,
-        ),
+    run = seed_run("Task-level science")
+    failed = enqueue_task(
+        run.id,
+        engine_tasks_support.REVIEW_ITEM_TASK,
+        "failed-child",
+        max_attempts=1,
         db_path=isolated_db,
     )
-    aggregate = store.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type=engine_tasks_support.REVIEW_AGGREGATE_TASK,
-            inputs={},
-            idempotency_key="aggregate",
-            dependencies=(failed.id,),
-            provenance={"allow_failed_dependencies": True},
-        ),
+    aggregate = enqueue_task(
+        run.id,
+        engine_tasks_support.REVIEW_AGGREGATE_TASK,
+        "aggregate",
+        dependencies=(failed.id,),
+        provenance={"allow_failed_dependencies": True},
         db_path=isolated_db,
     )
     leased = store.claim_task("child", run_id=run.id, db_path=isolated_db)
@@ -281,17 +274,15 @@ def _seed_mature_review_item(
     hypothesis.review_disposition = "viable"
     state["hypotheses"] = [hypothesis]
     checkpoint_seq = _seed_checkpoint(run_id, state, db_path=db_path)
-    store.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type=MATURE_REFLECTION_ITEM_TASK,
-            inputs={
-                "checkpoint_seq": checkpoint_seq,
-                "hypothesis_id": hypothesis.id,
-                "review_mode": "full",
-            },
-            idempotency_key="control-flow-item",
-        ),
+    enqueue_task(
+        run_id,
+        MATURE_REFLECTION_ITEM_TASK,
+        "control-flow-item",
+        inputs={
+            "checkpoint_seq": checkpoint_seq,
+            "hypothesis_id": hypothesis.id,
+            "review_mode": "full",
+        },
         db_path=db_path,
     )
     _patch_generator(monkeypatch, _Generator(state), restore=True)
@@ -328,7 +319,7 @@ async def test_a_control_flow_error_leaves_the_item_unchanged(
 ) -> None:
     # Workers dispatch by exception type; wrapping parks or budget errors as
     # RuntimeError changes retry outcomes.
-    run = runs.create_run("Task-level science", "extended", "engine", {})
+    run = seed_run("Task-level science", profile="extended")
     leased = _seed_mature_review_item(run.id, monkeypatch, isolated_db)
     _install_failing_review(monkeypatch, error)
 
@@ -341,7 +332,7 @@ async def test_a_control_flow_error_leaves_the_item_unchanged(
 async def test_an_ordinary_provider_failure_is_still_a_retryable_failure(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = runs.create_run("Task-level science", "extended", "engine", {})
+    run = seed_run("Task-level science", profile="extended")
     leased = _seed_mature_review_item(run.id, monkeypatch, isolated_db)
     _install_failing_review(monkeypatch, ValueError("unparseable answer"))
 
@@ -485,7 +476,7 @@ def _install_judge_failing_once(
 async def test_one_failed_matchup_leaves_its_wave_siblings_committed(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = runs.create_run("Task-level science", "standard", "engine", {})
+    run = seed_run("Task-level science")
     _seed_ranking_node(
         run.id,
         monkeypatch,
@@ -615,22 +606,20 @@ async def test_observation_rejects_missing_literature_before_call(
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    run = runs.create_run("Observation grounding", "extended", "engine", {})
+    run = seed_run("Observation grounding", profile="extended")
     state = _task_state(run.id)
     idea = Hypothesis(id="observation-idea", text="Scientific claim")
     state.update(hypotheses=[idea], articles_with_reasoning="")
     seq = _seed_checkpoint(run.id, state, db_path=isolated_db)
-    task = store.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type=MATURE_REFLECTION_ITEM_TASK,
-            inputs={
-                "hypothesis_id": idea.id,
-                "review_mode": "observation",
-                "checkpoint_seq": seq,
-            },
-            idempotency_key="observation-without-literature",
-        ),
+    task = enqueue_task(
+        run.id,
+        MATURE_REFLECTION_ITEM_TASK,
+        "observation-without-literature",
+        inputs={
+            "hypothesis_id": idea.id,
+            "review_mode": "observation",
+            "checkpoint_seq": seq,
+        },
         db_path=isolated_db,
     )
     _patch_generator(monkeypatch, _Generator(state), restore=True)
@@ -708,19 +697,10 @@ def _patch_item(
     )
 
 
-def _recheck_blocking_review() -> HypothesisReview:
-    return HypothesisReview(
-        review_summary="unsound",
-        scores={"scientific_soundness": 2, "novelty": 8},
-        safety_ethical_concerns="none",
-        detailed_feedback={},
-        constructive_feedback="rework",
-        overall_score=3.0,
-    )
-
-
 def _recheck_blocked_hypothesis(text: str = "alpha") -> Hypothesis:
-    hypothesis = Hypothesis(text=text, reviews=[_recheck_blocking_review()])
+    hypothesis = Hypothesis(
+        text=text, reviews=[_dispositions_blocking_review()]
+    )
     hypothesis.review_disposition = "inaccurate"
     return hypothesis
 
@@ -795,13 +775,11 @@ def test_the_cascade_still_owns_the_viable_ideas() -> None:
 
 
 def _lease_verification_parent(run_id: str, db_path: str) -> Any:
-    parent = store.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type=f"{engine_tasks.NODE_TASK_PREFIX}deep_verification",
-            inputs={"checkpoint_seq": 4},
-            idempotency_key="verification-parent",
-        ),
+    parent = enqueue_task(
+        run_id,
+        f"{engine_tasks.NODE_TASK_PREFIX}deep_verification",
+        "verification-parent",
+        inputs={"checkpoint_seq": 4},
         db_path=db_path,
     )
     leased = store.claim_task("parent", run_id=run_id, db_path=db_path)
@@ -813,7 +791,7 @@ def _lease_verification_parent(run_id: str, db_path: str) -> Any:
 async def test_verification_fanout_materializes_one_task_per_unverified_idea(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("Task-level science", "standard", "engine", {})
+    run = seed_run("Task-level science")
     leased = _lease_verification_parent(run.id, isolated_db)
     state = _task_state(run.id)
     state["hypotheses"] = [
@@ -844,7 +822,7 @@ async def test_a_resumed_run_fans_out_only_the_ideas_still_owed_one(
 ) -> None:
     # Once-ever verification markers must survive checkpoints or restarts
     # re-fund the whole pool.
-    run = runs.create_run("Task-level science", "standard", "engine", {})
+    run = seed_run("Task-level science")
     leased = _lease_verification_parent(run.id, isolated_db)
     state = _task_state(run.id)
     verified = Hypothesis(text="already verified")
@@ -874,20 +852,18 @@ async def test_a_pool_with_nothing_left_to_verify_advances_into_ranking(
 ) -> None:
     # Empty fan-outs still need an immediately claimable aggregate that commits
     # and advances the run.
-    run = runs.create_run("Task-level science", "standard", "engine", {})
+    run = seed_run("Task-level science")
     state = _task_state(run.id)
     hypotheses = [Hypothesis(text=f"verified-{index}") for index in range(3)]
     for hypothesis in hypotheses:
         hypothesis.enrichments["deep_verification_issued"] = True
     state["hypotheses"] = hypotheses
     checkpoint_seq = _seed_checkpoint(run.id, state)
-    node = store.enqueue_task(
-        NewTask(
-            run_id=run.id,
-            task_type=f"{engine_tasks.NODE_TASK_PREFIX}deep_verification",
-            inputs={"checkpoint_seq": checkpoint_seq},
-            idempotency_key="verification-node",
-        ),
+    node = enqueue_task(
+        run.id,
+        f"{engine_tasks.NODE_TASK_PREFIX}deep_verification",
+        "verification-node",
+        inputs={"checkpoint_seq": checkpoint_seq},
         db_path=isolated_db,
     )
     _patch_generator(monkeypatch, _Generator(state), restore=True)
@@ -947,13 +923,11 @@ async def _advance_verification_node(
         for index in range(3)
     ]
     checkpoint_seq = _seed_checkpoint(run_id, state)
-    node = store.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type=f"{engine_tasks.NODE_TASK_PREFIX}deep_verification",
-            inputs={"checkpoint_seq": checkpoint_seq},
-            idempotency_key="verification-node",
-        ),
+    node = enqueue_task(
+        run_id,
+        f"{engine_tasks.NODE_TASK_PREFIX}deep_verification",
+        "verification-node",
+        inputs={"checkpoint_seq": checkpoint_seq},
         db_path=db_path,
     )
     _patch_generator(monkeypatch, _Generator(state), restore=True)
@@ -1062,7 +1036,7 @@ def _assert_fingerprints_survive_the_checkpoint(
 async def test_verification_children_commit_through_single_aggregator(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    run = runs.create_run("Task-level science", "standard", "engine", {})
+    run = seed_run("Task-level science")
     await _advance_verification_node(run.id, monkeypatch, isolated_db)
 
     import co_scientist.agents.reflection as reflection
@@ -1082,9 +1056,7 @@ async def test_verification_aggregate_pauses_and_resumes_to_ranking(
     monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
 
     with make_client() as client:
-        created = client.post(
-            "/api/runs", json={"research_goal": "Paused verification aggregate"}
-        )
+        created = _create_run(client, "Paused verification aggregate")
         assert created.status_code == 200, created.text
         run_id = str(created.json()["id"])
         runs.update_run_status(run_id, RunStatus.RUNNING, db_path=isolated_db)
@@ -1160,7 +1132,7 @@ async def test_failed_verification_items_record_explicit_unverified(
 ) -> None:
     # Failed verification is explicitly unverified with stale fingerprints;
     # spend its once-ever marker anyway.
-    run = runs.create_run("Task-level science", "standard", "engine", {})
+    run = seed_run("Task-level science")
     await _advance_verification_node(run.id, monkeypatch, isolated_db)
 
     for index in range(3):

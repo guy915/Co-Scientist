@@ -150,24 +150,6 @@ def test_extract_truncates() -> None:
     assert len(text) < 400
 
 
-def _client_returning(response: httpx.Response) -> Any:
-
-    class _Client:
-        def __init__(self, *args: Any, **kwargs: Any) -> None:
-            pass
-
-        async def __aenter__(self) -> "_Client":
-            return self
-
-        async def __aexit__(self, *args: Any) -> None:
-            return None
-
-        async def get(self, url: str, **kwargs: Any) -> httpx.Response:
-            return response
-
-    return _Client
-
-
 async def test_read_url_blocks_internal_address(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -189,7 +171,7 @@ async def test_read_url_extracts_html(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "mcp_server.tools.web_fetch.check_fetchable", lambda url: None
     )
-    monkeypatch.setattr(httpx, "AsyncClient", _client_returning(response))
+    stub_responses(monkeypatch, response)
     text = await read_url("https://example.com/a")
     assert "# Phase 2 results" in text
 
@@ -205,7 +187,7 @@ async def test_read_url_reports_http_error(
     monkeypatch.setattr(
         "mcp_server.tools.web_fetch.check_fetchable", lambda url: None
     )
-    monkeypatch.setattr(httpx, "AsyncClient", _client_returning(response))
+    stub_responses(monkeypatch, response)
     result = await read_url("https://example.com/missing")
     assert result.startswith("[error: HTTP 404")
 
@@ -222,7 +204,7 @@ async def test_read_url_notes_unsupported_content_type(
     monkeypatch.setattr(
         "mcp_server.tools.web_fetch.check_fetchable", lambda url: None
     )
-    monkeypatch.setattr(httpx, "AsyncClient", _client_returning(response))
+    stub_responses(monkeypatch, response)
     result = await read_url("https://example.com/i.png")
     assert result.startswith("[note: unsupported content type image/png")
 
@@ -480,7 +462,7 @@ def _status_error(status: int) -> httpx.HTTPStatusError:
 
 @pytest.fixture
 def _clear_credential_state() -> Any:
-    """Reset the module-level provider failure record to isolate tests."""
+    """Provider refusal records are process-wide."""
     _clear_credential_error()
     yield
     _clear_credential_error()

@@ -1,27 +1,8 @@
+import {resetRunDetailMocks, setTerminal} from './run_detail_api_test_support';
 import * as runsApi from '@/api/runs';
 import {screen} from '@testing-library/react';
 import {beforeEach, expect, it, vi} from 'vitest';
 import {makeRun, renderAt} from './run_detail_test_support';
-
-const streamMock = vi.hoisted(() => ({terminal: false}));
-vi.mock('@/hooks/use_run_stream', () => ({
-  useRunStream: () => ({events: [], terminal: streamMock.terminal}),
-}));
-
-vi.mock('@/api/runs', async importActual => {
-  const actual = await importActual<typeof import('@/api/runs')>();
-  return {
-    ...actual,
-    getRun: vi.fn(),
-    getHypotheses: vi.fn().mockResolvedValue([]),
-    getEvidence: vi.fn().mockResolvedValue([]),
-    getMatches: vi.fn().mockResolvedValue([]),
-    getReviews: vi.fn().mockResolvedValue([]),
-    getClaimEvidence: vi.fn().mockResolvedValue([]),
-    getSafety: vi.fn().mockResolvedValue([]),
-    getReport: vi.fn().mockResolvedValue(null),
-  };
-});
 
 function failedRun(failureKind?: string) {
   return {
@@ -113,7 +94,7 @@ it.each(['blocked', 'cancelled'] as const)(
 );
 
 it('refreshes failure guidance and keeps its terminal toast aligned', async () => {
-  streamMock.terminal = true;
+  setTerminal(true);
   vi.mocked(runsApi.getRun)
     .mockResolvedValueOnce(failedRun())
     .mockResolvedValue(failedRun('llm_call_budget_exceeded'));
@@ -133,7 +114,5 @@ it('refreshes failure guidance and keeps its terminal toast aligned', async () =
 });
 
 beforeEach(() => {
-  vi.clearAllMocks();
-  streamMock.terminal = false;
-  vi.mocked(runsApi.getRun).mockResolvedValue(makeRun('Study pathway X'));
+  resetRunDetailMocks();
 });

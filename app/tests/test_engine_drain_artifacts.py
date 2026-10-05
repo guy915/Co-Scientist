@@ -14,7 +14,7 @@ from app.engine_adapter.drain.reviews import (
 )
 from app.report import build as report_build
 from app.report import finalize as report_finalize
-from app.store import db, records, reports, runs
+from app.store import db, records, reports
 from app.store import hypotheses as store_hypotheses
 from app.store.hypotheses import NewHypothesis
 from app.store.records import NewClaimEvidence
@@ -28,10 +28,11 @@ from tests._drain_helpers import (
     _persist_and_finalize,
     emit_event,
 )
+from tests._store_helpers import seed_run
 
 
 def test_drain_result_carries_critical_criteria(isolated_db: str) -> None:
-    run = runs.create_run("criteria goal", "standard", "engine", {})
+    run = seed_run("criteria goal")
     state = _final_state_with_features()
     state["supervisor_guidance"] = {
         "workflow_plan": {
@@ -57,7 +58,7 @@ def test_drain_result_defaults_to_no_guidance(
     isolated_db: str,
     key: str,
 ) -> None:
-    run = runs.create_run("no guidance goal", "standard", "engine", {})
+    run = seed_run("no guidance goal")
 
     drained = _persist(
         run_id=run.id,
@@ -73,7 +74,7 @@ def test_drain_result_carries_structured_critical_criteria(
 ) -> None:
     # Structured criterion objects are valid guidance; string-only filtering
     # silently discards them.
-    run = runs.create_run("structured criteria goal", "standard", "engine", {})
+    run = seed_run("structured criteria goal")
     state = _final_state_with_features()
     state["supervisor_guidance"] = {
         "workflow_plan": {
@@ -111,7 +112,7 @@ def test_drain_result_carries_structured_critical_criteria(
 def test_drain_result_drops_non_str_non_dict_criteria_entries(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("mixed criteria goal", "standard", "engine", {})
+    run = seed_run("mixed criteria goal")
     state = _final_state_with_features()
     state["supervisor_guidance"] = {
         "workflow_plan": {
@@ -136,7 +137,7 @@ def test_drain_result_drops_non_str_non_dict_criteria_entries(
 
 
 def test_drain_result_ignores_malformed_review_phase(isolated_db: str) -> None:
-    run = runs.create_run("malformed goal", "standard", "engine", {})
+    run = seed_run("malformed goal")
     state = _final_state_with_features()
     state["supervisor_guidance"] = {
         "workflow_plan": {"review_phase": "not a dict"}
@@ -339,7 +340,6 @@ def test_deep_verification_detail_is_empty_without_probes() -> None:
 
 def test_persisted_rows_carry_the_detail_json(isolated_db: str) -> None:
     from app.store import records as store
-    from app.store import runs as store_runs
     from tests._drain_helpers import _engine_hypothesis, _persist
 
     hypothesis = _engine_hypothesis(
@@ -363,7 +363,7 @@ def test_persisted_rows_carry_the_detail_json(isolated_db: str) -> None:
             "reviews_summary": {"conclusion": "Worth testing."},
         }
     }
-    run = store_runs.create_run("detail goal", "standard", "engine", {})
+    run = seed_run("detail goal")
     _persist(
         run_id=run.id,
         final_state={
@@ -404,7 +404,7 @@ def test_review_axes_match_the_engine_score_criteria() -> None:
 def test_drain_result_carries_stratification_attributes(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("attributes goal", "standard", "engine", {})
+    run = seed_run("attributes goal")
     state = _final_state_with_features()
     state["supervisor_guidance"] = {
         "config_synthesis": {
@@ -437,7 +437,7 @@ def test_drain_result_carries_stratification_attributes(
 def test_drain_result_ignores_malformed_config_synthesis(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("malformed goal", "standard", "engine", {})
+    run = seed_run("malformed goal")
     state = _final_state_with_features()
     state["supervisor_guidance"] = {"config_synthesis": "not a dict"}
 
@@ -583,7 +583,7 @@ def _archived_parent_state() -> dict[str, Any]:
 
 
 def test_persist_writes_research_overview_into_report(isolated_db: str) -> None:
-    run = runs.create_run("CSC goal", "standard", "engine", {})
+    run = seed_run("CSC goal")
     _persist_and_finalize(run, _final_state_with_features(), isolated_db)
 
     report = reports.get_latest_report(run.id, db_path=isolated_db)
@@ -614,7 +614,7 @@ def test_persist_writes_research_overview_into_report(isolated_db: str) -> None:
 def test_drain_persists_explicit_lineage(isolated_db: str) -> None:
     # Lineage is explicit and append-only; do not infer it from evolution
     # history.
-    run = runs.create_run("kinase goal", "standard", "engine", {})
+    run = seed_run("kinase goal")
     _persist(
         run_id=run.id,
         final_state=_final_state_with_lineage(),
@@ -642,7 +642,7 @@ def test_drain_drops_orphaned_parent_reference(isolated_db: str) -> None:
     state["hypotheses"] = [
         h for h in state["hypotheses"] if h["id"] != "parent-1"
     ]
-    run = runs.create_run("kinase goal", "standard", "engine", {})
+    run = seed_run("kinase goal")
     _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
     hyps = store_hypotheses.list_hypotheses(run.id, db_path=isolated_db)
@@ -658,7 +658,7 @@ def test_drain_preserves_proximity_pruned_parent_as_a_duplicate(
     # Duplicates were folded into peers without judgment; rejection would
     # misrepresent their science.
     state = _archived_parent_state()
-    run = runs.create_run("kinase archive goal", "standard", "engine", {})
+    run = seed_run("kinase archive goal")
 
     _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
@@ -680,7 +680,7 @@ def test_drain_persists_evidence_quarantine_as_rejected(
 ) -> None:
     state = _final_state_with_lineage()
     state["hypotheses"][0]["review_disposition"] = "evidence_blocked"
-    run = runs.create_run("grounded archive goal", "standard", "engine", {})
+    run = seed_run("grounded archive goal")
 
     _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
@@ -701,7 +701,7 @@ def test_drain_publishes_an_undermined_idea_but_records_the_verdict(
     # them from sound ideas.
     state = _final_state_with_lineage()
     state["hypotheses"][0]["deep_verification_verdict"] = "undermined"
-    run = runs.create_run("undermined archive goal", "standard", "engine", {})
+    run = seed_run("undermined archive goal")
 
     _persist(run_id=run.id, final_state=state, db_path=isolated_db)
 
@@ -720,7 +720,7 @@ def test_drain_publishes_an_undermined_idea_but_records_the_verdict(
 async def test_unsafe_hypothesis_excluded_from_synthesis(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("safety goal", "standard", "engine", {})
+    run = seed_run("safety goal")
     safe_id, _unsafe_id = _seed_safe_and_unsafe(run, isolated_db)
 
     payload, markdown = await _build_report(run, isolated_db)
@@ -738,7 +738,7 @@ async def test_unsafe_hypothesis_excluded_from_synthesis(
 
 
 def test_resumed_finalize_does_not_double_publish(isolated_db: str) -> None:
-    run = runs.create_run("CSC goal", "standard", "engine", {})
+    run = seed_run("CSC goal")
     drained = _persist(
         run_id=run.id,
         final_state=_final_state_with_features(),
@@ -775,7 +775,7 @@ def test_resumed_finalize_does_not_double_publish(isolated_db: str) -> None:
 
 
 def test_persist_passes_engine_ids_through_to_store(isolated_db: str) -> None:
-    run = runs.create_run("CSC goal", "standard", "engine", {})
+    run = seed_run("CSC goal")
     _persist(
         run_id=run.id,
         final_state=_final_state_with_features(),
@@ -790,7 +790,7 @@ def test_persist_passes_engine_ids_through_to_store(isolated_db: str) -> None:
 def test_persist_writes_scene_setting_onto_the_hypothesis_row(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("CSC goal", "standard", "engine", {})
+    run = seed_run("CSC goal")
     final_state = {
         "hypotheses": [
             _engine_hypothesis(
@@ -831,7 +831,7 @@ def test_persist_matches_resolve_by_engine_id(isolated_db: str) -> None:
     state = _final_state_with_features()
     state["tournament_matchups"][0]["hypothesis_a"] = "drifted text A"
     state["tournament_matchups"][0]["hypothesis_b"] = "drifted text B"
-    run = runs.create_run("CSC goal", "standard", "engine", {})
+    run = seed_run("CSC goal")
     _persist(
         run_id=run.id,
         final_state=state,
@@ -858,7 +858,7 @@ def test_persist_skips_matchup_with_unresolved_id(isolated_db: str) -> None:
     state = _final_state_with_features()
     state["tournament_matchups"][0]["hypothesis_b_id"] = "eng-hyp-gone"
     state["tournament_matchups"][0]["winner_id"] = "eng-hyp-gone"
-    run = runs.create_run("CSC goal", "standard", "engine", {})
+    run = seed_run("CSC goal")
     _persist(
         run_id=run.id,
         final_state=state,
@@ -871,7 +871,7 @@ def test_persist_skips_matchup_with_unresolved_id(isolated_db: str) -> None:
 def test_persist_handles_missing_research_overview(isolated_db: str) -> None:
     state = _final_state_with_features()
     del state["research_overview"]
-    run = runs.create_run("No overview", "standard", "engine", {})
+    run = seed_run("No overview")
     _persist_and_finalize(run, state, isolated_db)
 
     report = reports.get_latest_report(run.id, db_path=isolated_db)
@@ -884,7 +884,7 @@ def test_persist_handles_missing_research_overview(isolated_db: str) -> None:
 def test_persist_handles_empty_research_overview(isolated_db: str) -> None:
     state = _final_state_with_features()
     state["research_overview"] = {"overview": {}, "nih_specific_aims": {}}
-    run = runs.create_run("Empty overview", "standard", "engine", {})
+    run = seed_run("Empty overview")
     _persist_and_finalize(run, state, isolated_db)
 
     report = reports.get_latest_report(run.id, db_path=isolated_db)
@@ -894,7 +894,7 @@ def test_persist_handles_empty_research_overview(isolated_db: str) -> None:
 
 
 def test_persist_writes_deep_verification_reviews(isolated_db: str) -> None:
-    run = runs.create_run("CSC goal", "standard", "engine", {})
+    run = seed_run("CSC goal")
     _persist(
         run_id=run.id,
         final_state=_final_state_with_features(),
@@ -947,7 +947,7 @@ def _final_state_with_novelty_review() -> dict[str, Any]:
 def test_persist_writes_novelty_review_lists_into_critique(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("CSC goal", "standard", "engine", {})
+    run = seed_run("CSC goal")
     _persist(
         run_id=run.id,
         final_state=_final_state_with_novelty_review(),
@@ -1011,7 +1011,7 @@ def _final_state_with_mature_reviews() -> dict[str, Any]:
 
 
 def test_persist_writes_distinct_mature_review_rows(isolated_db: str) -> None:
-    run = runs.create_run("CSC goal", "standard", "engine", {})
+    run = seed_run("CSC goal")
     _persist(
         run_id=run.id,
         final_state=_final_state_with_mature_reviews(),
@@ -1097,7 +1097,7 @@ def _final_state_with_citations() -> dict[str, Any]:
 def test_persist_classifies_citations_via_shared_classifier(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("CSC goal", "standard", "engine", {})
+    run = seed_run("CSC goal")
     _persist(
         run_id=run.id,
         final_state=_final_state_with_citations(),
@@ -1118,7 +1118,7 @@ def test_a_knowledge_graph_citations_evidence_row_keeps_its_display_text(
 ) -> None:
     # Non-paper citations use display rather than title; falling back to the
     # citation key loses source identity.
-    run = runs.create_run("CSC goal", "standard", "engine", {})
+    run = seed_run("CSC goal")
     _persist(
         run_id=run.id,
         final_state=_final_state_with_citations(),
@@ -1133,7 +1133,7 @@ def test_a_knowledge_graph_citations_evidence_row_keeps_its_display_text(
 async def test_the_rendered_report_resolves_the_grounding_text_citation_keys(
     isolated_db: str,
 ) -> None:
-    run = runs.create_run("CSC goal", "standard", "engine", {})
+    run = seed_run("CSC goal")
     await drain_final_state.persist_final_state(
         run_id=run.id,
         final_state=_final_state_with_citations(),
@@ -1207,7 +1207,7 @@ def test_each_citation_is_scored_against_the_sentence_that_cites_it(
 ) -> None:
     # Classify each cited sentence; unrelated source vocabulary can make the
     # support threshold unreachable.
-    run = runs.create_run("CSC goal", "standard", "engine", {})
+    run = seed_run("CSC goal")
     _persist(
         run_id=run.id,
         final_state=_final_state_with_multi_source_grounding(),

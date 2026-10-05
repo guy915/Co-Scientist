@@ -38,37 +38,26 @@ from co_scientist.agents.reflection.reflection_helpers import (
 )
 from co_scientist.agents.reflection.review_evidence import _ReviewEvidence
 from co_scientist.config import ToolRegistry
-from co_scientist.config.schema import ToolConfig
 from co_scientist.exceptions import (
     LLMCallBudgetExceededError,
     LLMRateLimitParkError,
 )
+from tests._llm_fake import mock_call_llm_json
+from tests._mcp import WorkflowToolRegistry
 from tests._state import make_article, make_hypothesis, make_review, make_state
 
 
-class _FakeRegistry:
+def _fake_registry() -> ToolRegistry:
     """Knowledge-graph source typing is required because literature tools
     reject INDRA arguments."""
-
-    def get_tools_for_workflow(self, workflow_name: str) -> list[str]:
-        del workflow_name
-        return ["indra_relations"]
-
-    def get_tool(self, tool_id: str) -> ToolConfig:
-        del tool_id
-        return ToolConfig(
-            server="default_pubmed",
-            mcp_tool_name="get_relations",
-            source_type="knowledge_graph",
-        )
-
-    def get_mcp_tool_names(self, tool_ids: list[str]) -> list[str]:
-        del tool_ids
-        return ["get_relations"]
-
-
-def _fake_registry() -> ToolRegistry:
-    return cast(ToolRegistry, _FakeRegistry())
+    return cast(
+        ToolRegistry,
+        WorkflowToolRegistry(
+            ["indra_relations"],
+            ["get_relations"],
+            tool_mcp_names={"indra_relations": "get_relations"},
+        ),
+    )
 
 
 class _FakeMcpClient:
@@ -498,7 +487,7 @@ async def test_failures_degrade_but_task_control_propagates(
     owner: Any,
     error: Exception,
 ) -> None:
-    monkeypatch.setattr(owner, "call_llm_json", AsyncMock(side_effect=error))
+    mock_call_llm_json(monkeypatch, owner, side_effect=error)
     state = make_state(articles_with_reasoning="Retrieved literature")
     args = (
         (state, make_hypothesis(), ReviewType.FULL)
@@ -520,8 +509,9 @@ async def test_failures_degrade_but_task_control_propagates(
 async def test_observation_indices_default_to_one_and_support_graph_indices(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls = AsyncMock(return_value={"classification": "supports"})
-    monkeypatch.setattr(observation, "call_llm_json", calls)
+    calls = mock_call_llm_json(
+        monkeypatch, observation, {"classification": "supports"}
+    )
     state = make_state(articles_with_reasoning="Literature")
     default = await observe_hypothesis(state, make_hypothesis())
     indexed = await observe_hypothesis(
@@ -546,18 +536,14 @@ async def test_mature_review_keeps_ledger_separate_even_on_failure(
         "_review_evidence_for",
         AsyncMock(return_value=_ReviewEvidence([], [], [], ledger)),
     )
-    monkeypatch.setattr(
-        cr, "call_llm_json", AsyncMock(return_value={"verdict": "sound"})
-    )
+    mock_call_llm_json(monkeypatch, cr, {"verdict": "sound"})
     run = await review_hypothesis(
         make_state(), make_hypothesis(), ReviewType.FULL
     )
     assert isinstance(run, ReviewRun)
     assert tuple(run) == (ReviewType.FULL, run.result, ledger)
     assert run.result is not None and "research_ledger" not in run.result
-    monkeypatch.setattr(
-        cr, "call_llm_json", AsyncMock(side_effect=RuntimeError("bad"))
-    )
+    mock_call_llm_json(monkeypatch, cr, side_effect=RuntimeError("bad"))
     failed = await review_hypothesis(
         make_state(), make_hypothesis(), ReviewType.FULL
     )
@@ -622,8 +608,7 @@ async def test_public_verification_reuses_funded_review_evidence(
     review_evidence._review_evidence_flights.setdefault(loop, {})[
         review_evidence._evidence_key(state, idea)
     ] = completed
-    calls = AsyncMock(return_value={"verdict": "holds"})
-    monkeypatch.setattr(leaf, "call_llm_json", calls)
+    calls = mock_call_llm_json(monkeypatch, leaf, {"verdict": "holds"})
     monkeypatch.setattr(
         leaf, "_retrieve_probe_evidence", AsyncMock(return_value=([], []))
     )

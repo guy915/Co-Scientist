@@ -1,5 +1,3 @@
-# Metric scrapes must not write to the database.
-
 from __future__ import annotations
 
 from typing import Any
@@ -8,13 +6,12 @@ import pytest
 from prometheus_client.parser import text_string_to_metric_families
 
 from app import ops_metrics
-from app.store import runs, tasks
+from app.store import runs
 from app.store.db import connect
 from app.store.models import RunStatus
-from app.store.runs import RunCreateOptions
-from app.store.tasks import NewTask
 from tests._client import make_client as _client
 from tests._client import make_operator_client as _operator_client
+from tests._store_helpers import enqueue_task, seed_run
 
 pytestmark = pytest.mark.usefixtures("isolated_db")
 
@@ -39,13 +36,7 @@ def _sample_value(family: Any, **labels: str) -> float | None:
 
 
 def _make_run(db_path: str, status: RunStatus = RunStatus.COMPLETED) -> str:
-    run = runs.create_run(
-        "metrics goal",
-        "standard",
-        "engine",
-        {},
-        options=RunCreateOptions(db_path=db_path),
-    )
+    run = seed_run("metrics goal", db_path=db_path)
     runs.update_run_status(run.id, status, db_path=db_path)
     return run.id
 
@@ -53,15 +44,7 @@ def _make_run(db_path: str, status: RunStatus = RunStatus.COMPLETED) -> str:
 def _enqueue(
     run_id: str, key: str, db_path: str, task_type: str = "engine.node.x"
 ) -> str:
-    task = tasks.enqueue_task(
-        NewTask(
-            run_id=run_id,
-            task_type=task_type,
-            inputs={},
-            idempotency_key=key,
-        ),
-        db_path=db_path,
-    )
+    task = enqueue_task(run_id, task_type, key, db_path=db_path)
     return task.id
 
 

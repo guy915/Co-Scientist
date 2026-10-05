@@ -22,6 +22,7 @@ from app.logging_setup import (
 from app.store import logs
 from app.store.logs import LogFilters
 from tests._client import append_log_row, make_client, make_operator_client
+from tests._client import create_run as _create_run
 from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
 
@@ -186,12 +187,8 @@ def test_workflow_records_carry_the_run_id(isolated_db: str) -> None:
     logging.getLogger().addHandler(capture)
     try:
         client = _client()
-        created = client.post(
-            "/api/runs",
-            json={
-                "research_goal": "Correlate logs with events",
-                "tier": "express",
-            },
+        created = _create_run(
+            client, "Correlate logs with events", tier="express"
         )
         run_id = created.json()["id"]
         started = client.post(f"/api/runs/{run_id}/start", json={})
@@ -416,9 +413,7 @@ def test_logs_endpoint_rejects_unknown_level(isolated_db: str) -> None:
 
 def test_run_logs_endpoint_scopes_to_run(isolated_db: str) -> None:
     client = make_operator_client()
-    created = client.post(
-        "/api/runs", json={"research_goal": "logs endpoint test"}
-    )
+    created = _create_run(client, "logs endpoint test")
     run_id = created.json()["id"]
     _logs_endpoint_seed(isolated_db, "global line")
     _logs_endpoint_seed(isolated_db, "run line", run_id=run_id)
@@ -511,10 +506,8 @@ def _security_seed(
 
 def test_records_are_scoped_to_the_owning_client(isolated_db: str) -> None:
     client = make_client()
-    created = client.post(
-        "/api/runs",
-        json={"research_goal": "alice private goal"},
-        headers={"X-Client-ID": "alice"},
+    created = _create_run(
+        client, "alice private goal", headers={"X-Client-ID": "alice"}
     )
     alice_run = created.json()["id"]
     _security_seed(isolated_db, "alice run record", run_id=alice_run)
@@ -690,9 +683,7 @@ def test_metrics_unknown_run_404s() -> None:
 
 def test_metrics_null_before_finalize(isolated_db: str) -> None:
     client = _client()
-    created = client.post(
-        "/api/runs", json={"research_goal": "Draft metrics goal"}
-    )
+    created = _create_run(client, "Draft metrics goal")
     run_id = created.json()["id"]
 
     res = client.get(f"/api/runs/{run_id}/metrics")
@@ -702,9 +693,7 @@ def test_metrics_null_before_finalize(isolated_db: str) -> None:
 
 
 def _run_to_completion(client: TestClient, goal: str) -> dict[str, Any]:
-    created = client.post(
-        "/api/runs", json={"research_goal": goal, "tier": "express"}
-    )
+    created = _create_run(client, goal, tier="express")
     run_id = created.json()["id"]
     started = client.post(f"/api/runs/{run_id}/start", json={})
     assert started.status_code == 200

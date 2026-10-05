@@ -25,6 +25,29 @@ from evaluations.specific_aims_review import (
 )
 
 
+def _quality_rating(
+    rater_id: str = "expert-1",
+    item_id: str = "item-a",
+    **scores: int,
+) -> dict[str, Any]:
+    return {
+        "rater_id": rater_id,
+        "item_id": item_id,
+        "alignment": 4,
+        "novelty": 4,
+        "plausibility": 4,
+        "testability": 4,
+        "safety": 4,
+        "impact": 4,
+        "preference_rank": 1,
+        **scores,
+    }
+
+
+def _quality_payload(*rows: dict[str, Any]) -> dict[str, Any]:
+    return {"schema_version": SCHEMA_VERSION, "ratings": list(rows)}
+
+
 def test_export_is_blinded() -> None:
     export = build_blinded_export(
         "run-123",
@@ -48,22 +71,15 @@ def test_stable_item_ids() -> None:
 
 def test_parse_valid_ratings() -> None:
     ratings = parse_ratings(
-        {
-            "schema_version": SCHEMA_VERSION,
-            "ratings": [
-                {
-                    "rater_id": "expert-1",
-                    "item_id": "item-abc",
-                    "alignment": 5,
-                    "novelty": 4,
-                    "plausibility": 3,
-                    "testability": 4,
-                    "safety": 5,
-                    "impact": 5,
-                    "preference_rank": 1,
-                }
-            ],
-        }
+        _quality_payload(
+            _quality_rating(
+                item_id="item-abc",
+                alignment=5,
+                plausibility=3,
+                safety=5,
+                impact=5,
+            )
+        )
     )
     assert len(ratings) == 1
     assert ratings[0].rater_id == "expert-1"
@@ -77,22 +93,17 @@ def test_parse_valid_ratings() -> None:
 def test_out_of_range_axis_fails_closed() -> None:
     with pytest.raises(ExpertReviewValidationError):
         parse_ratings(
-            {
-                "schema_version": SCHEMA_VERSION,
-                "ratings": [
-                    {
-                        "rater_id": "expert-1",
-                        "item_id": "x",
-                        "alignment": 3,
-                        "novelty": 9,
-                        "plausibility": 3,
-                        "testability": 3,
-                        "safety": 3,
-                        "impact": 3,
-                        "preference_rank": 1,
-                    }
-                ],
-            }
+            _quality_payload(
+                _quality_rating(
+                    item_id="x",
+                    alignment=3,
+                    novelty=9,
+                    plausibility=3,
+                    testability=3,
+                    safety=3,
+                    impact=3,
+                )
+            )
         )
 
 
@@ -120,33 +131,10 @@ def test_wrong_schema_version_fails_closed() -> None:
         parse_ratings({"schema_version": 999, "ratings": []})
 
 
-_TWO_EXPERT_PANEL = {
-    "schema_version": SCHEMA_VERSION,
-    "ratings": [
-        {
-            "rater_id": "expert-1",
-            "item_id": "item-a",
-            "alignment": 5,
-            "plausibility": 4,
-            "novelty": 3,
-            "testability": 5,
-            "safety": 5,
-            "impact": 4,
-            "preference_rank": 1,
-        },
-        {
-            "rater_id": "expert-2",
-            "item_id": "item-a",
-            "alignment": 4,
-            "plausibility": 4,
-            "novelty": 3,
-            "testability": 4,
-            "safety": 5,
-            "impact": 3,
-            "preference_rank": 1,
-        },
-    ],
-}
+_TWO_EXPERT_PANEL = _quality_payload(
+    _quality_rating(alignment=5, novelty=3, testability=5, safety=5),
+    _quality_rating(rater_id="expert-2", novelty=3, safety=5, impact=3),
+)
 
 
 def test_panel_summary_reports_confidence_and_agreement() -> None:
@@ -167,21 +155,9 @@ def test_panel_summary_reports_confidence_and_agreement() -> None:
 
 
 def test_duplicate_rater_item_fails_closed() -> None:
-    row = {
-        "rater_id": "expert-1",
-        "item_id": "item-a",
-        "alignment": 4,
-        "plausibility": 4,
-        "novelty": 4,
-        "testability": 4,
-        "safety": 4,
-        "impact": 4,
-        "preference_rank": 1,
-    }
+    row = _quality_rating()
     with pytest.raises(ExpertReviewValidationError, match="duplicate rating"):
-        parse_ratings(
-            {"schema_version": SCHEMA_VERSION, "ratings": [row, dict(row)]}
-        )
+        parse_ratings(_quality_payload(row, dict(row)))
 
 
 _DATASET_PATH = (

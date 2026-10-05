@@ -23,7 +23,6 @@ from app.store import events as store_events
 from app.store import runs as store
 from app.store import runs_views as views
 from app.store import tasks as store_tasks
-from app.store.checkpoints import NewCheckpoint
 from app.store.events import (
     ACTIVITY_OTHER,
     ACTIVITY_VALUES,
@@ -33,14 +32,14 @@ from app.store.logs import LogFilters, NewLogRecord
 from app.store.messages import NewMessage
 from app.store.models import RunStatus
 from app.store.records import NewClaimEvidence, NewEvidence
-from app.store.runs import RunCreateOptions
 from dev.backup_db import backup_database
+from tests._client import create_run as _create_run
 from tests._client import drain as _drain
 from tests._client import make_client, wait_for_status
 from tests._client import make_client as _client
 from tests._drain_helpers import emit_event
 from tests._engine_tasks_helpers import _seed_checkpoint, _task_state
-from tests._store_helpers import _add
+from tests._store_helpers import _add, seed_checkpoint, seed_run
 
 
 @pytest.mark.parametrize("timeout", [0, -1, float("inf"), float("nan")])
@@ -224,13 +223,7 @@ def test_mixed_edges_only_keep_settled_ones() -> None:
 
 
 def test_append_and_list_messages(isolated_db: str) -> None:
-    store.create_run(
-        "rg",
-        "standard",
-        "mock",
-        {},
-        RunCreateOptions(client_id="c1", db_path=isolated_db),
-    )
+    seed_run("rg", provider="mock", client_id="c1", db_path=isolated_db)
     runs = views.list_runs(client_id="c1", db_path=isolated_db)
     run_id = runs[0].id
 
@@ -262,13 +255,7 @@ def test_append_and_list_messages(isolated_db: str) -> None:
 
 
 def test_get_pending_steering(isolated_db: str) -> None:
-    store.create_run(
-        "rg",
-        "standard",
-        "mock",
-        {},
-        RunCreateOptions(client_id="c1", db_path=isolated_db),
-    )
+    seed_run("rg", provider="mock", client_id="c1", db_path=isolated_db)
     run_id = views.list_runs(client_id="c1", db_path=isolated_db)[0].id
 
     messages.append_message(
@@ -300,13 +287,7 @@ def test_get_pending_steering(isolated_db: str) -> None:
 
 
 def test_mark_steering_applied(isolated_db: str) -> None:
-    store.create_run(
-        "rg",
-        "standard",
-        "mock",
-        {},
-        RunCreateOptions(client_id="c1", db_path=isolated_db),
-    )
+    seed_run("rg", provider="mock", client_id="c1", db_path=isolated_db)
     run_id = views.list_runs(client_id="c1", db_path=isolated_db)[0].id
 
     messages.append_message(
@@ -340,13 +321,7 @@ def test_queued_steering_flags_engine_pending_steering(
     # orchestrator prioritizes that flag.
     from app.engine_adapter.opts import build_engine_opts
 
-    run = store.create_run(
-        "rg",
-        "standard",
-        "engine",
-        {},
-        RunCreateOptions(db_path=isolated_db),
-    )
+    run = seed_run("rg", db_path=isolated_db)
     messages.append_message(
         NewMessage(
             run_id=run.id,
@@ -365,13 +340,7 @@ def test_queued_steering_flags_engine_pending_steering(
 def test_no_steering_leaves_pending_flag_unset(isolated_db: str) -> None:
     from app.engine_adapter.opts import build_engine_opts
 
-    run = store.create_run(
-        "rg",
-        "standard",
-        "engine",
-        {},
-        RunCreateOptions(db_path=isolated_db),
-    )
+    run = seed_run("rg", db_path=isolated_db)
     opts = build_engine_opts(run.config, run.id, isolated_db)
     assert "pending_steering" not in opts
 
@@ -379,13 +348,7 @@ def test_no_steering_leaves_pending_flag_unset(isolated_db: str) -> None:
 def test_engine_opts_bind_private_attachment_context(isolated_db: str) -> None:
     from app.engine_adapter.opts import build_engine_opts
 
-    run = store.create_run(
-        "kinase AML",
-        "standard",
-        "engine",
-        {},
-        RunCreateOptions(db_path=isolated_db),
-    )
+    run = seed_run("kinase AML", db_path=isolated_db)
     records.add_evidence(
         NewEvidence(
             run_id=run.id,
@@ -405,13 +368,7 @@ def test_engine_opts_bind_private_attachment_context(isolated_db: str) -> None:
 
 
 def test_message_to_dict(isolated_db: str) -> None:
-    store.create_run(
-        "rg",
-        "standard",
-        "mock",
-        {},
-        RunCreateOptions(client_id="c1", db_path=isolated_db),
-    )
+    seed_run("rg", provider="mock", client_id="c1", db_path=isolated_db)
     run_id = views.list_runs(client_id="c1", db_path=isolated_db)[0].id
 
     msg = messages.append_message(
@@ -431,10 +388,7 @@ def test_message_to_dict(isolated_db: str) -> None:
 
 def _make_run(client: TestClient, goal: str = "test goal") -> str:
     client.headers.update({"X-Client-ID": "test-client"})
-    res = client.post(
-        "/api/runs",
-        json={"research_goal": goal, "tier": "express"},
-    )
+    res = _create_run(client, goal, tier="express")
     assert res.status_code == 200
     return cast(str, res.json()["id"])
 
@@ -457,12 +411,8 @@ def test_send_message_endpoint(isolated_db: str) -> None:
 def test_steering_reopens_completed_engine_run(isolated_db: str) -> None:
     client = _client()
     client.headers.update({"X-Client-ID": "test-client"})
-    run = store.create_run(
-        "Completed research",
-        "standard",
-        "engine",
-        {},
-        RunCreateOptions(client_id="test-client", db_path=isolated_db),
+    run = seed_run(
+        "Completed research", client_id="test-client", db_path=isolated_db
     )
     state = {
         **_task_state(run.id),
@@ -550,16 +500,13 @@ def test_milestone_messages_generated_by_durable_run(
 
     from app import task_worker
 
-    run = store.create_run(
+    run = seed_run(
         "test milestone generation",
-        "express",
-        "engine",
-        {"tier": "express"},
-        RunCreateOptions(
-            client_id="test-client",
-            llm_backend="offline",
-            db_path=isolated_db,
-        ),
+        profile="express",
+        config={"tier": "express"},
+        client_id="test-client",
+        llm_backend="offline",
+        db_path=isolated_db,
     )
     task_worker.enqueue_run_workflow(run.id, db_path=isolated_db)
     asyncio.run(
@@ -606,10 +553,10 @@ def test_zero_disables_the_run_sweep(
 ) -> None:
     monkeypatch.setenv("COSCIENTIST_RUN_RETENTION_DAYS", "0")
     client = make_client()
-    created = client.post(
-        "/api/runs",
+    created = _create_run(
+        client,
+        "Old completed goal",
         headers={"X-Client-ID": "retention-tester"},
-        json={"research_goal": "Old completed goal"},
     )
     run_id = created.json()["id"]
     store.update_run_status(run_id, RunStatus.COMPLETED)
@@ -624,26 +571,24 @@ def test_sweep_deletes_only_terminal_runs_past_the_window(
     isolated_db: str,
 ) -> None:
     client = make_client()
-    old_completed = client.post(
-        "/api/runs",
+    old_completed = _create_run(
+        client,
+        "Old completed goal",
         headers={"X-Client-ID": "retention-tester"},
-        json={"research_goal": "Old completed goal"},
     ).json()["id"]
     store.update_run_status(old_completed, RunStatus.COMPLETED)
     _backdate_completion(isolated_db, old_completed, 120 * 86_400)
 
-    old_running = client.post(
-        "/api/runs",
+    old_running = _create_run(
+        client,
+        "Old but still running",
         headers={"X-Client-ID": "retention-tester"},
-        json={"research_goal": "Old but still running"},
     ).json()["id"]
     store.update_run_status(old_running, RunStatus.RUNNING)
     _backdate_completion(isolated_db, old_running, 120 * 86_400)
 
-    recent_completed = client.post(
-        "/api/runs",
-        headers={"X-Client-ID": "retention-tester"},
-        json={"research_goal": "Just completed"},
+    recent_completed = _create_run(
+        client, "Just completed", headers={"X-Client-ID": "retention-tester"}
     ).json()["id"]
     store.update_run_status(recent_completed, RunStatus.COMPLETED)
 
@@ -677,9 +622,7 @@ def test_sweep_expired_documents_deletes_only_past_the_window(
 
 
 def _run(db: str) -> str:
-    return store.create_run(
-        "goal", "standard", "mock", {}, RunCreateOptions(db_path=db)
-    ).id
+    return seed_run("goal", provider="mock", db_path=db).id
 
 
 def test_save_and_get_latest_checkpoint(isolated_db: str) -> None:
@@ -690,24 +633,18 @@ def test_save_and_get_latest_checkpoint(isolated_db: str) -> None:
     )
     assert not store_checkpoints.has_checkpoint(run_id, db_path=isolated_db)
 
-    seq1 = store_checkpoints.save_checkpoint(
+    seq1 = seed_checkpoint(
         run_id,
-        NewCheckpoint(
-            stage="post_generation",
-            schema_version=1,
-            last_event_seq=5,
-            state={"hyp_ids": ["a", "b"]},
-        ),
+        {"hyp_ids": ["a", "b"]},
+        stage="post_generation",
+        last_event_seq=5,
         db_path=isolated_db,
     )
-    seq2 = store_checkpoints.save_checkpoint(
+    seq2 = seed_checkpoint(
         run_id,
-        NewCheckpoint(
-            stage="post_ranking",
-            schema_version=1,
-            last_event_seq=12,
-            state={"hyp_ids": ["a", "b"], "round": 1},
-        ),
+        {"hyp_ids": ["a", "b"], "round": 1},
+        stage="post_ranking",
+        last_event_seq=12,
         db_path=isolated_db,
     )
     assert (seq1, seq2) == (1, 2)
@@ -726,12 +663,8 @@ def test_save_and_get_latest_checkpoint(isolated_db: str) -> None:
 def test_checkpoints_are_run_scoped(isolated_db: str) -> None:
     run_a = _run(isolated_db)
     run_b = _run(isolated_db)
-    store_checkpoints.save_checkpoint(
-        run_a,
-        NewCheckpoint(
-            stage="s", schema_version=1, last_event_seq=1, state={"x": 1}
-        ),
-        db_path=isolated_db,
+    seed_checkpoint(
+        run_a, {"x": 1}, stage="s", last_event_seq=1, db_path=isolated_db
     )
     assert store_checkpoints.has_checkpoint(run_a, db_path=isolated_db)
     assert not store_checkpoints.has_checkpoint(run_b, db_path=isolated_db)
@@ -760,14 +693,11 @@ def test_saving_prunes_the_checkpoints_it_supersedes(isolated_db: str) -> None:
     # fill the volume.
     run_id = _run(isolated_db)
     for i in range(5):
-        store_checkpoints.save_checkpoint(
+        seed_checkpoint(
             run_id,
-            NewCheckpoint(
-                stage=f"stage_{i}",
-                schema_version=1,
-                last_event_seq=i,
-                state={"round": i},
-            ),
+            {"round": i},
+            stage=f"stage_{i}",
+            last_event_seq=i,
             db_path=isolated_db,
         )
 
@@ -786,14 +716,11 @@ def test_pruning_is_per_run(isolated_db: str) -> None:
     first, second = _run(isolated_db), _run(isolated_db)
     for run_id in (first, second):
         for i in range(3):
-            store_checkpoints.save_checkpoint(
+            seed_checkpoint(
                 run_id,
-                NewCheckpoint(
-                    stage=f"s{i}",
-                    schema_version=1,
-                    last_event_seq=i,
-                    state={"run": run_id, "round": i},
-                ),
+                {"run": run_id, "round": i},
+                stage=f"s{i}",
+                last_event_seq=i,
                 db_path=isolated_db,
             )
 
@@ -831,12 +758,8 @@ def test_prune_superseded_reclaims_pre_existing_history(
 
 def test_prune_superseded_is_idempotent(isolated_db: str) -> None:
     run_id = _run(isolated_db)
-    store_checkpoints.save_checkpoint(
-        run_id,
-        NewCheckpoint(
-            stage="only", schema_version=1, last_event_seq=1, state={}
-        ),
-        db_path=isolated_db,
+    seed_checkpoint(
+        run_id, {}, stage="only", last_event_seq=1, db_path=isolated_db
     )
 
     assert (
@@ -924,7 +847,7 @@ def test_every_node_in_node_to_agent_has_an_activity() -> None:
 def test_append_event_persists_activity_inside_payload(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("activity test", "standard", "mock", {})
+    run = seed_run("activity test", provider="mock")
     store_events.append_event(run.id, "ranking", {"iteration": 1})
     events = store_events.list_events(run.id)
     assert events[-1]["payload"]["activity"] == "tournament"
@@ -933,7 +856,7 @@ def test_append_event_persists_activity_inside_payload(
 def test_list_events_reads_row_persisted_without_activity_key(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("legacy row test", "standard", "mock", {})
+    run = seed_run("legacy row test", provider="mock")
     old_payload = {"status": "completed"}
     with sqlite3.connect(isolated_db) as conn:
         conn.execute(
@@ -967,7 +890,7 @@ def _finalize(run: Any, db_path: str) -> None:
 
 
 def test_replace_and_list_round_trip(isolated_db: str) -> None:
-    run = store.create_run("kf goal", "standard", "mock", {})
+    run = seed_run("kf goal", provider="mock")
     hyp_id = _add(run.id, "H", _SUPPORTED, isolated_db)
     facts = [
         {
@@ -991,7 +914,7 @@ def test_replace_and_list_round_trip(isolated_db: str) -> None:
 
 
 def test_replace_clears_prior_rows(isolated_db: str) -> None:
-    run = store.create_run("kf goal", "standard", "mock", {})
+    run = seed_run("kf goal", provider="mock")
     hyp_id = _add(run.id, "H", _SUPPORTED, isolated_db)
     first = [
         {
@@ -1021,7 +944,7 @@ def test_replace_clears_prior_rows(isolated_db: str) -> None:
 
 
 def test_list_filters_by_kind(isolated_db: str) -> None:
-    run = store.create_run("kf goal", "standard", "mock", {})
+    run = seed_run("kf goal", provider="mock")
     hyp_id = _add(run.id, "H", _SUPPORTED, isolated_db)
     reports.replace_knowledge_facts(
         run.id,
@@ -1051,7 +974,7 @@ def test_list_filters_by_kind(isolated_db: str) -> None:
 
 
 def test_list_filters_by_entity_case_insensitively(isolated_db: str) -> None:
-    run = store.create_run("kf goal", "standard", "mock", {})
+    run = seed_run("kf goal", provider="mock")
     hyp_id = _add(run.id, "H", _SUPPORTED, isolated_db)
     reports.replace_knowledge_facts(
         run.id,
@@ -1081,8 +1004,8 @@ def test_list_filters_by_entity_case_insensitively(isolated_db: str) -> None:
 
 
 def test_facts_are_scoped_per_run(isolated_db: str) -> None:
-    run_a = store.create_run("goal a", "standard", "mock", {})
-    run_b = store.create_run("goal b", "standard", "mock", {})
+    run_a = seed_run("goal a", provider="mock")
+    run_b = seed_run("goal b", provider="mock")
     hyp_a = _add(run_a.id, "H", _SUPPORTED, isolated_db)
     reports.replace_knowledge_facts(
         run_a.id,
@@ -1103,7 +1026,7 @@ def test_facts_are_scoped_per_run(isolated_db: str) -> None:
 
 
 def test_run_deletion_cascades_to_knowledge_facts(isolated_db: str) -> None:
-    run = store.create_run("kf goal", "standard", "mock", {})
+    run = seed_run("kf goal", provider="mock")
     hyp_id = _add(run.id, "H", _SUPPORTED, isolated_db)
     reports.replace_knowledge_facts(
         run.id,
@@ -1130,7 +1053,7 @@ def test_run_deletion_cascades_to_knowledge_facts(isolated_db: str) -> None:
 def test_finalize_report_persists_knowledge_facts(isolated_db: str) -> None:
     # Use separate hypotheses: the contradicted one is excluded, while the
     # supported one keeps publication viable.
-    run = store.create_run("kf e2e goal", "standard", "mock", {})
+    run = seed_run("kf e2e goal", provider="mock")
     hyp_id = _add(run.id, "Supported", _SUPPORTED, isolated_db)
     contradicted_id = _add(run.id, "Contradicted", _SUPPORTED, isolated_db)
     records.add_claim_evidence(
@@ -1177,7 +1100,7 @@ def test_finalize_report_persists_knowledge_facts(isolated_db: str) -> None:
 def test_finalize_report_replaces_facts_on_re_finalize(
     isolated_db: str,
 ) -> None:
-    run = store.create_run("kf goal", "standard", "mock", {})
+    run = seed_run("kf goal", provider="mock")
     hyp_id = _add(run.id, "Supported", _SUPPORTED, isolated_db)
     records.add_claim_evidence(
         NewClaimEvidence(
@@ -1210,7 +1133,7 @@ async def test_knowledge_facts_endpoint_returns_persisted_rows(
 ) -> None:
     from app.runs.collections import get_knowledge_facts
 
-    run = store.create_run("kf goal", "standard", "mock", {})
+    run = seed_run("kf goal", provider="mock")
     hyp_id = _add(run.id, "H", _SUPPORTED, isolated_db)
     reports.replace_knowledge_facts(
         run.id,
