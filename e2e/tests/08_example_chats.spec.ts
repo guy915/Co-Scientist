@@ -11,7 +11,15 @@ for (const theme of ['light', 'dark']) {
       theme,
     );
     const demos = await api.listDemoRuns();
-    await page.goto(`/examples/${demos[0].id}`);
+    // Phones have no Recents; the sidebar's Chats list carries the examples.
+    // Each theme opens its own example: both share one visitor, and an opened
+    // example lists as its private copy instead.
+    const example = demos[theme === 'light' ? 0 : 1];
+    await page.goto('/');
+    await page.getByRole('button', {name: 'Open navigation'}).click();
+    const sidebarExample = page.locator(`a[href="/examples/${example.id}"]`);
+    await expect(sidebarExample).toBeVisible();
+    await sidebarExample.click();
     await expect(page).toHaveURL(/\/chats\//);
     const chatUrl = page.url();
     await expect(page.getByLabel('Inferred run setup')).toBeAttached();
@@ -39,7 +47,7 @@ for (const theme of ['light', 'dark']) {
     await page.reload();
     await expect(page.getByText(question, {exact: true})).toBeAttached();
     await expect(composer).toBeInViewport();
-    await page.goto(`/examples/${demos[0].id}`);
+    await page.goto(`/examples/${example.id}`);
     await expect(page).toHaveURL(chatUrl);
     await expect(page.getByText(question, {exact: true})).toBeAttached();
     await captureViewport(page, {

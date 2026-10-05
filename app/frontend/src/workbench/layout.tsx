@@ -19,7 +19,7 @@ import {
 import {NEW_CHAT_EVENT, HEADER_TITLE_EVENT} from './dom_events';
 import {closeDrawerIfMobile, useEscapeKey} from './hooks/dom';
 import {ShellHeader} from './layout_header';
-import {NavRail, type ChatRailData} from './layout_nav_rail';
+import {NavRail, withExamples, type ChatRailData} from './layout_nav_rail';
 import {
   sessionSwitchData,
   type SessionSwitchData,
@@ -217,7 +217,7 @@ function useLayoutState() {
     chrome,
     startNewChat,
     rail: {
-      chats,
+      chats: withExamples(chats, history),
       activeChatId,
       activeRunId,
       showAllChats,
