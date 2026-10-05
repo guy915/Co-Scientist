@@ -230,6 +230,11 @@ def apply_provider_constraints(
         completion_args["max_completion_tokens"] = completion_args.pop(
             "max_tokens"
         )
+    if profile.responses_api and "/responses/" not in completion_args["model"]:
+        # LiteLLM's Responses bridge keeps the chat-completion shape callers
+        # parse, including tool calls.
+        provider, _, name = str(completion_args["model"]).partition("/")
+        completion_args["model"] = f"{provider}/responses/{name}"
 
 
 _CONTEXT_ATTR: Final = "_co_scientist_failure_context"
