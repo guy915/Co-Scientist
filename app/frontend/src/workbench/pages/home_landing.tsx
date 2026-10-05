@@ -29,14 +29,13 @@ import {
 import {
   scrollParent,
   useReducedMotion,
-  useSlidingIndicator,
-  SlidingPill,
   shapePath,
   type MotionProps,
   type ShapeName,
   useShapeMorph,
 } from './home_landing_hooks';
 import {Icon, type IconName} from '@/components/icon';
+import {SlidingPill, useSlidingIndicator} from '../hooks/sliding_indicator';
 import moleculeArt from '../../assets/landing/molecule.webp';
 import podiumArt from '../../assets/landing/podium.webp';
 import flaskArt from '../../assets/landing/flask.webp';
@@ -324,7 +323,7 @@ function LandingTabs({reduceMotion}: {reduceMotion: boolean}) {
         aria-label="Landing sections"
         className={joinClasses(more && 'has-more')}
       >
-        <SlidingPill box={pill} />
+        <SlidingPill box={pill} className="ucs-landing-slider" />
         {LANDING_SECTIONS.map(({id, label}) => (
           <a
             key={id}
@@ -858,7 +857,7 @@ export function LandingTiers({reduceMotion}: MotionProps) {
         role="group"
         aria-label="Run tier"
       >
-        <SlidingPill box={pill} />
+        <SlidingPill box={pill} className="ucs-landing-slider" />
         {LANDING_TIERS.map(t => (
           <button
             key={t.name}

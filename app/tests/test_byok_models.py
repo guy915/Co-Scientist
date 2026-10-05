@@ -192,3 +192,9 @@ def test_every_offered_model_thinks() -> None:
 
     offered = [m for p in byok_models.model_catalog().values() for m in p]
     assert [m for m in offered if not model_reasons(m)] == []
+
+
+def test_openrouter_keys_can_choose_the_free_default_route() -> None:
+    from app.config import DEFAULT_MODEL
+
+    assert DEFAULT_MODEL in byok_models.provider_models("openrouter")
