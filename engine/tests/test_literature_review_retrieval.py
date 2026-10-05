@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 import ast
-import json
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
 
 import co_scientist.evidence as evidence
+from co_scientist.agents.generation.literature_review import (
+    literature_review_node,
+)
+from co_scientist.agents.generation.literature_review import node as lr
 from co_scientist.agents.reflection import deep_verification_evidence as probes
+from co_scientist.config import ToolRegistry
 from co_scientist.config.schema import SearchSourceConfig, WorkflowConfig
 from co_scientist.evidence import retrieval_support as rs
 from co_scientist.generator.initial_state import (
@@ -24,435 +28,166 @@ from co_scientist.retrieval_degradation import (
     MCP_UNREACHABLE,
     resolve_retrieval_degradation,
 )
-from tests._mcp import make_tool_lookup_registry as _registry
-from tests._research_fakes import make_tool_config as _tool
+from tests._llm_fake import install_fake_llm
+from tests._mcp import make_tool_results_client
+from tests._research_fakes import _stub_node, make_tool_config
 from tests._state import make_state
 
 
-def test_resolve_content_tool_source_override_wins() -> None:
-    source = SearchSourceConfig(
-        tool="arxiv_search",
-        content_tool="src_content",
-        content_url_field="src_field",
-    )
+@pytest.mark.parametrize("mode", ["single", "multi", "override"])
+async def test_review_routes_discovery_and_content_by_source(
+    monkeypatch: pytest.MonkeyPatch,
+    mode: str,
+) -> None:
+    _stub_node(monkeypatch, server_available=True, queries=["query"])
+    registry = ToolRegistry(skip_user_config=True)
     workflow = WorkflowConfig(
-        content_tool="wf_content", content_url_field="wf_field"
-    )
-    registry = _registry({"src_content": _tool("mcp_src_content")})
-
-    result = rs._resolve_content_tool(source, workflow, registry)
-
-    assert result is not None
-    assert result.mcp_tool_name == "mcp_src_content"
-    assert result.url_field == "src_field"
-
-
-def test_resolve_content_tool_merges_params_source_wins() -> None:
-    source = SearchSourceConfig(
-        tool="arxiv_search",
-        content_tool="src_content",
-        content_params={"b": "source-b", "c": "source-c"},
-    )
-    workflow = WorkflowConfig(
-        content_tool="wf_content",
-        content_params={"a": "wf-a", "b": "wf-b"},
-    )
-    registry = _registry({"src_content": _tool("mcp_src_content")})
-
-    result = rs._resolve_content_tool(source, workflow, registry)
-
-    assert result is not None
-    assert result.content_params == {
-        "a": "wf-a",
-        "b": "source-b",
-        "c": "source-c",
-    }
-
-
-def test_resolve_content_tool_falls_back_to_workflow() -> None:
-    source = SearchSourceConfig(tool="arxiv_search")
-    workflow = WorkflowConfig(
-        content_tool="wf_content", content_url_field="wf_field"
-    )
-    registry = _registry({"wf_content": _tool("mcp_wf_content")})
-
-    result = rs._resolve_content_tool(source, workflow, registry)
-
-    assert result is not None
-    assert result.mcp_tool_name == "mcp_wf_content"
-    assert result.url_field == "wf_field"
-
-
-def test_resolve_content_tool_none_configured_returns_none() -> None:
-    source = SearchSourceConfig(tool="arxiv_search")
-    workflow = WorkflowConfig()
-    assert rs._resolve_content_tool(source, workflow, _registry({})) is None
-
-
-def test_resolve_content_tool_dangling_reference_returns_none() -> None:
-    source = SearchSourceConfig(tool="arxiv_search", content_tool="ghost")
-    workflow = WorkflowConfig()
-    assert rs._resolve_content_tool(source, workflow, _registry({})) is None
-
-
-def test_build_multi_source_content_config_keys_by_source_tool() -> None:
-    workflow = WorkflowConfig(
-        search_sources=[
-            SearchSourceConfig(
-                tool="arxiv", content_tool="arxiv_content", enabled=True
-            ),
-            SearchSourceConfig(tool="pubmed"),
-        ]
-    )
-    registry = _registry({"arxiv_content": _tool("mcp_arxiv_content")})
-
-    config = rs.build_content_config(workflow, registry, True)
-
-    assert set(config) == {"arxiv"}
-    assert config["arxiv"].mcp_tool_name == "mcp_arxiv_content"
-
-
-def test_build_default_content_config_success() -> None:
-    workflow = WorkflowConfig(
-        content_tool="wf_content",
+        primary_search="search",
+        pdf_discovery_tool="discover",
+        pdf_discovery_url_field="landing",
+        content_tool="read",
         content_url_field="pdf_url",
-        content_params={"depth": "full"},
-    )
-    registry = _registry({"wf_content": _tool("mcp_wf_content")})
-
-    config = rs.build_content_config(workflow, registry, False)
-
-    assert set(config) == {"_default"}
-    assert config["_default"].mcp_tool_name == "mcp_wf_content"
-    assert config["_default"].url_field == "pdf_url"
-    assert config["_default"].content_params == {"depth": "full"}
-
-
-def test_build_default_content_config_no_tool_configured() -> None:
-    assert rs.build_content_config(WorkflowConfig(), _registry({}), False) == {}
-
-
-def test_build_default_content_config_dangling_reference() -> None:
-    workflow = WorkflowConfig(content_tool="ghost")
-    assert rs.build_content_config(workflow, _registry({}), False) == {}
-
-
-def test_build_content_config_no_workflow_returns_empty() -> None:
-    assert rs.build_content_config(None, _registry({}), False) == {}
-
-
-def test_build_content_config_no_registry_returns_empty() -> None:
-    workflow = WorkflowConfig(content_tool="wf_content")
-    assert rs.build_content_config(workflow, None, False) == {}
-
-
-def test_build_content_config_multi_source_dispatch() -> None:
-    workflow = WorkflowConfig(
-        search_sources=[
-            SearchSourceConfig(tool="arxiv", content_tool="arxiv_content")
-        ]
-    )
-    registry = _registry({"arxiv_content": _tool("mcp_arxiv_content")})
-
-    config = rs.build_content_config(workflow, registry, True)
-
-    assert set(config) == {"arxiv"}
-
-
-def test_build_content_config_single_source_dispatch() -> None:
-    workflow = WorkflowConfig(content_tool="wf_content")
-    registry = _registry({"wf_content": _tool("mcp_wf_content")})
-
-    config = rs.build_content_config(workflow, registry, False)
-
-    assert set(config) == {"_default"}
-
-
-def test_lookup_content_config_by_source() -> None:
-    cfg = rs.ContentToolConfig(
-        mcp_tool_name="mcp_arxiv", url_field="pdf_url", content_params={}
-    )
-    default_cfg = rs.ContentToolConfig(
-        mcp_tool_name="mcp_def", url_field="pdf_url", content_params={}
-    )
-    config = {"arxiv": cfg, "_default": default_cfg}
-
-    result = rs._lookup_source_config("p1", {"p1": "arxiv"}, config)
-
-    assert result is cfg
-
-
-def test_lookup_content_config_falls_back_to_default() -> None:
-    default_cfg = rs.ContentToolConfig(
-        mcp_tool_name="mcp_def", url_field="pdf_url", content_params={}
-    )
-    result = rs._lookup_source_config("p1", {}, {"_default": default_cfg})
-    assert result is default_cfg
-
-
-def test_lookup_content_config_none_available() -> None:
-    assert rs._lookup_source_config("p1", {}, {}) is None
-
-
-def _content_config() -> dict[str, rs.ContentToolConfig]:
-    return {
-        "_default": rs.ContentToolConfig(
-            mcp_tool_name="mcp_content", url_field="pdf_url", content_params={}
-        )
-    }
-
-
-def test_resolve_content_entry_non_dict_metadata_returns_none() -> None:
-    bad_meta = cast(dict[str, Any], "not-a-dict")
-    assert (
-        rs._resolve_content_entry("p1", bad_meta, {}, _content_config()) is None
-    )
-
-
-def test_resolve_content_entry_already_has_fulltext_returns_none() -> None:
-    meta = {"fulltext": "already have it", "pdf_url": "http://x.pdf"}
-    assert rs._resolve_content_entry("p1", meta, {}, _content_config()) is None
-
-
-def test_resolve_content_entry_no_config_returns_none() -> None:
-    meta = {"pdf_url": "http://x.pdf"}
-    assert rs._resolve_content_entry("p1", meta, {}, {}) is None
-
-
-def test_resolve_content_entry_no_content_url_returns_none() -> None:
-    meta = {"title": "no pdf_url field"}
-    assert rs._resolve_content_entry("p1", meta, {}, _content_config()) is None
-
-
-def test_resolve_content_entry_success() -> None:
-    meta = {"pdf_url": "http://x.pdf"}
-    result = rs._resolve_content_entry("p1", meta, {}, _content_config())
-    assert result is not None
-    pid, resolved_meta, cfg = result
-    assert pid == "p1"
-    assert resolved_meta is meta
-    assert cfg.mcp_tool_name == "mcp_content"
-
-
-def test_get_papers_needing_content_filters_eligible() -> None:
-    all_metadata = {
-        "eligible": {"pdf_url": "http://x.pdf"},
-        "already_has_fulltext": {
-            "pdf_url": "http://y.pdf",
-            "fulltext": "already have it",
+        content_params={
+            "goal": "{research_goal}",
+            "depth": "workflow",
+            "focus": "{focus_areas}",
         },
-        "no_pdf_url": {"title": "nothing to fetch"},
-    }
-    result = rs.get_papers_needing_content(all_metadata, {}, _content_config())
-    assert [pid for pid, *_ in result] == ["eligible"]
-
-
-def test_get_papers_needing_content_empty_metadata() -> None:
-    assert rs.get_papers_needing_content({}, {}, _content_config()) == []
-
-
-def test_resolve_pdf_discovery_tool_source_override_wins() -> None:
-    source = SearchSourceConfig(
-        tool="arxiv_search",
-        pdf_discovery_tool="src_discovery",
-        pdf_discovery_url_field="src_url",
     )
-    workflow = WorkflowConfig(
-        pdf_discovery_tool="wf_discovery", pdf_discovery_url_field="wf_url"
-    )
-    registry = _registry({"src_discovery": _tool("mcp_src_discovery")})
-
-    result = rs._resolve_pdf_discovery_tool(source, workflow, registry)
-
-    assert result == ("mcp_src_discovery", "src_url")
-
-
-def test_resolve_pdf_discovery_tool_falls_back_to_workflow() -> None:
-    source = SearchSourceConfig(tool="arxiv_search")
-    workflow = WorkflowConfig(
-        pdf_discovery_tool="wf_discovery", pdf_discovery_url_field="wf_url"
-    )
-    registry = _registry({"wf_discovery": _tool("mcp_wf_discovery")})
-
-    result = rs._resolve_pdf_discovery_tool(source, workflow, registry)
-
-    assert result == ("mcp_wf_discovery", "wf_url")
-
-
-def test_resolve_pdf_discovery_tool_none_configured_returns_none() -> None:
-    source = SearchSourceConfig(tool="arxiv_search")
-    workflow = WorkflowConfig()
-    registry = _registry({})
-
-    assert rs._resolve_pdf_discovery_tool(source, workflow, registry) is None
-
-
-def test_resolve_pdf_discovery_tool_dangling_reference_returns_none() -> None:
-    source = SearchSourceConfig(tool="arxiv_search", pdf_discovery_tool="ghost")
-    workflow = WorkflowConfig()
-    registry = _registry({})
-
-    assert rs._resolve_pdf_discovery_tool(source, workflow, registry) is None
-
-
-def test_build_multi_source_pdf_config_keys_by_source_tool() -> None:
-    workflow = WorkflowConfig(
-        search_sources=[
-            SearchSourceConfig(
-                tool="scholar",
-                pdf_discovery_tool="scholar_discovery",
-                pdf_discovery_url_field="url",
-            ),
-            SearchSourceConfig(tool="pubmed"),
-        ]
-    )
-    registry = _registry({"scholar_discovery": _tool("mcp_scholar_discovery")})
-
-    config = rs.build_pdf_discovery_config(workflow, registry, True)
-
-    assert config == {"scholar": ("mcp_scholar_discovery", "url")}
-
-
-def test_build_default_pdf_config_success() -> None:
-    workflow = WorkflowConfig(
-        pdf_discovery_tool="wf_discovery", pdf_discovery_url_field="landing_url"
-    )
-    registry = _registry({"wf_discovery": _tool("mcp_wf_discovery")})
-
-    config = rs.build_pdf_discovery_config(workflow, registry, False)
-
-    assert config == {"_default": ("mcp_wf_discovery", "landing_url")}
-
-
-def test_build_default_pdf_config_no_tool_configured() -> None:
-    workflow = WorkflowConfig()
-    assert rs.build_pdf_discovery_config(workflow, _registry({}), False) == {}
-
-
-def test_build_default_pdf_config_dangling_reference() -> None:
-    workflow = WorkflowConfig(pdf_discovery_tool="ghost")
-    assert rs.build_pdf_discovery_config(workflow, _registry({}), False) == {}
-
-
-def test_build_pdf_discovery_config_no_workflow_returns_empty() -> None:
-    registry = _registry({})
-    assert rs.build_pdf_discovery_config(None, registry, False) == {}
-
-
-def test_build_pdf_discovery_config_no_registry_returns_empty() -> None:
-    workflow = WorkflowConfig(pdf_discovery_tool="wf_discovery")
-    assert rs.build_pdf_discovery_config(workflow, None, False) == {}
-
-
-def test_build_pdf_discovery_config_multi_source_dispatch() -> None:
-    workflow = WorkflowConfig(
-        search_sources=[
-            SearchSourceConfig(
-                tool="scholar",
-                pdf_discovery_tool="scholar_discovery",
-                pdf_discovery_url_field="url",
+    if mode != "single":
+        source = SearchSourceConfig(tool="search")
+        if mode == "override":
+            source.pdf_discovery_tool = "source_discover"
+            source.pdf_discovery_url_field = "source_landing"
+            source.content_tool = "source_read"
+            source.content_params = {"depth": "source", "extra": "source-only"}
+        workflow.search_sources = [source]
+    registry.config.workflows = {"literature_review": workflow}
+    registry.config.tools = {
+        "tools": {
+            name: make_tool_config(name)
+            for name in (
+                "search",
+                "discover",
+                "read",
+                "source_discover",
+                "source_read",
             )
-        ]
-    )
-    registry = _registry({"scholar_discovery": _tool("mcp_scholar_discovery")})
-
-    config = rs.build_pdf_discovery_config(workflow, registry, True)
-
-    assert config == {"scholar": ("mcp_scholar_discovery", "url")}
-
-
-def test_build_pdf_discovery_config_single_source_dispatch() -> None:
-    workflow = WorkflowConfig(
-        pdf_discovery_tool="wf_discovery", pdf_discovery_url_field="url"
-    )
-    registry = _registry({"wf_discovery": _tool("mcp_wf_discovery")})
-
-    config = rs.build_pdf_discovery_config(workflow, registry, False)
-
-    assert config == {"_default": ("mcp_wf_discovery", "url")}
-
-
-def test_lookup_pdf_discovery_config_by_source() -> None:
-    config = {"pubmed": ("mcp_pubmed", "url"), "_default": ("mcp_def", "url2")}
-    result = rs._lookup_source_config("p1", {"p1": "pubmed"}, config)
-    assert result == ("mcp_pubmed", "url")
-
-
-def test_lookup_pdf_discovery_config_falls_back_to_default() -> None:
-    config = {"_default": ("mcp_def", "url2")}
-    result = rs._lookup_source_config("p1", {}, config)
-    assert result == ("mcp_def", "url2")
-
-
-def test_lookup_pdf_discovery_config_none_available() -> None:
-    assert rs._lookup_source_config("p1", {}, {}) is None
-
-
-def _pdf_config() -> dict[str, tuple[str, str]]:
-    return {"_default": ("mcp_discovery", "url")}
-
-
-def test_resolve_pdf_discovery_entry_non_dict_metadata_returns_none() -> None:
-    bad_meta = cast(dict[str, Any], "not-a-dict")
-    assert (
-        rs._resolve_pdf_discovery_entry("p1", bad_meta, {}, _pdf_config())
-        is None
-    )
-
-
-def test_resolve_pdf_discovery_entry_already_has_pdf_url_returns_none() -> None:
-    meta = {"pdf_url": "http://already.pdf", "url": "http://landing"}
-    assert (
-        rs._resolve_pdf_discovery_entry("p1", meta, {}, _pdf_config()) is None
-    )
-
-
-def test_resolve_pdf_discovery_entry_no_config_returns_none() -> None:
-    meta = {"url": "http://landing"}
-    assert rs._resolve_pdf_discovery_entry("p1", meta, {}, {}) is None
-
-
-def test_resolve_pdf_discovery_entry_no_landing_url_returns_none() -> None:
-    meta = {"title": "no url field"}
-    assert (
-        rs._resolve_pdf_discovery_entry("p1", meta, {}, _pdf_config()) is None
-    )
-
-
-def test_resolve_pdf_discovery_entry_success() -> None:
-    meta = {"url": "http://landing"}
-    result = rs._resolve_pdf_discovery_entry("p1", meta, {}, _pdf_config())
-    assert result == ("p1", meta, "mcp_discovery", "url")
-
-
-def test_get_papers_needing_pdf_discovery_filters_eligible() -> None:
-    all_metadata = {
-        "eligible": {"url": "http://landing"},
-        "already_has_pdf": {"pdf_url": "http://x.pdf", "url": "http://landing"},
-        "no_url": {"title": "nothing to discover from"},
+        }
     }
-    result = rs.get_papers_needing_pdf_discovery(
-        all_metadata, {}, _pdf_config()
+    papers = {
+        "fetch": {
+            "title": "Fetch",
+            "landing": "http://landing",
+            "source_landing": "http://override",
+        },
+        "existing": {
+            "title": "Existing",
+            "pdf_url": "http://existing.pdf",
+            "fulltext": "Already retrieved",
+        },
+        "abstract": {"title": "Abstract", "abstract": "Abstract evidence"},
+    }
+    client = make_tool_results_client(
+        {
+            "search": papers,
+            "discover": '["http://discovered.pdf"]',
+            "source_discover": '["http://discovered.pdf"]',
+            "read": {"content": "Retrieved evidence"},
+            "source_read": {"content": "Retrieved evidence"},
+        }
     )
-    assert [pid for pid, *_ in result] == ["eligible"]
+
+    async def get_client(**_: Any) -> Any:
+        return client
+
+    monkeypatch.setattr(lr, "get_mcp_client", get_client)
+    result = await literature_review_node(
+        make_state(
+            research_goal="understand signaling",
+            tool_registry=registry,
+        )
+    )
+
+    articles = {article.source_id: article for article in result["articles"]}
+    assert articles["fetch"].content == "Retrieved evidence"
+    assert articles["existing"].content == "Already retrieved"
+    assert articles["abstract"].used_in_analysis
+    discovery = "source_discover" if mode == "override" else "discover"
+    reader = "source_read" if mode == "override" else "read"
+    assert (
+        discovery,
+        {"url": "http://override" if mode == "override" else "http://landing"},
+    ) in client.calls
+    params: dict[str, Any] = {
+        "url": "http://discovered.pdf",
+        "goal": "understand signaling",
+        "depth": "source" if mode == "override" else "workflow",
+        "focus": [],
+    }
+    if mode == "override":
+        params["extra"] = "source-only"
+    assert (reader, params) in client.calls
+    assert not any(
+        args.get("url") == "http://existing.pdf" for _, args in client.calls
+    )
 
 
-def test_get_papers_needing_pdf_discovery_empty_metadata() -> None:
-    assert rs.get_papers_needing_pdf_discovery({}, {}, _pdf_config()) == []
+@pytest.mark.parametrize(
+    "missing", ["workflow", "registry", "unconfigured", "dangling"]
+)
+def test_unavailable_retrieval_configuration_preserves_abstract_fallback(
+    missing: str,
+) -> None:
+    registry = ToolRegistry(skip_user_config=True)
+    registry.config.tools = {}
+    workflow = WorkflowConfig()
+    if missing == "dangling":
+        workflow.content_tool = workflow.pdf_discovery_tool = "ghost"
+    resolved_workflow = None if missing == "workflow" else workflow
+    resolved_registry = None if missing == "registry" else registry
+    assert (
+        rs.build_content_config(resolved_workflow, resolved_registry, False)
+        == {}
+    )
+    assert (
+        rs.build_pdf_discovery_config(
+            resolved_workflow, resolved_registry, False
+        )
+        == {}
+    )
 
 
-def test_parse_pdf_discovery_result_empty_json_list_returns_none() -> None:
-    assert rs.parse_pdf_discovery_result(json.dumps([])) is None
-
-
-def test_parse_pdf_discovery_result_dict_without_link_fields_returns_none() -> (
+def test_retrieval_eligibility_ignores_malformed_and_unroutable_records() -> (
     None
 ):
-    assert rs.parse_pdf_discovery_result(json.dumps({"other": "value"})) is None
-
-
-def test_parse_pdf_discovery_result_scalar_json_returns_none() -> None:
-    assert rs.parse_pdf_discovery_result(json.dumps(42)) is None
+    # Providers may return non-record entries; search normalization normally
+    # filters them before the node sees them.
+    metadata: dict[str, Any] = {
+        "malformed": "not a record",
+        "missing": {},
+        "complete": {"pdf_url": "http://complete.pdf", "fulltext": "body"},
+        "eligible": {"url": "http://landing", "pdf_url": "http://paper.pdf"},
+        "unrouted": {"url": "http://unknown", "pdf_url": "http://unknown.pdf"},
+    }
+    source_map = {"unrouted": "missing"}
+    content = {"_default": rs.ContentToolConfig("read", "pdf_url", {})}
+    assert [
+        pid
+        for pid, *_ in rs.get_papers_needing_content(
+            metadata, source_map, content
+        )
+    ] == ["eligible", "unrouted"]
+    assert rs.get_papers_needing_content(metadata, source_map, {}) == []
+    assert rs.get_papers_needing_pdf_discovery(metadata, source_map, {}) == []
+    metadata["eligible"].pop("pdf_url")
+    assert [
+        pid
+        for pid, *_ in rs.get_papers_needing_pdf_discovery(
+            metadata, source_map, {"_default": ("discover", "url")}
+        )
+    ] == ["eligible"]
+    assert rs.get_papers_needing_content({}, {}, content) == []
+    assert rs.get_papers_needing_pdf_discovery({}, {}, {}) == []
 
 
 async def test_probe_search_preserves_sources_and_excludes_retractions(
@@ -564,3 +299,193 @@ def test_the_fact_is_plain_data() -> None:
     )
 
     assert json.loads(json.dumps(degradation)) == degradation
+
+
+@pytest.mark.parametrize(
+    ("discovered", "expected"),
+    [
+        ('["http://paper.pdf", "http://ignored.pdf"]', "http://paper.pdf"),
+        ('{"pdf_links": ["http://paper.pdf"]}', "http://paper.pdf"),
+        ('{"links": [{"url": "http://paper.pdf"}]}', "http://paper.pdf"),
+        ("http://paper.pdf", "http://paper.pdf"),
+        (["http://paper.pdf"], "http://paper.pdf"),
+        ([{"url": "http://paper.pdf"}], "http://paper.pdf"),
+        ("not a URL", None),
+        ("[]", None),
+        ('{"other": "value"}', None),
+        ("42", None),
+        ([], None),
+        (None, None),
+    ],
+)
+async def test_review_discovers_pdf_urls_without_losing_abstract_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+    discovered: Any,
+    expected: str | None,
+) -> None:
+    _stub_node(monkeypatch, server_available=True)
+    registry = ToolRegistry(skip_user_config=True)
+    registry.config.workflows = {
+        "literature_review": WorkflowConfig(
+            primary_search="search",
+            pdf_discovery_tool="discover",
+            pdf_discovery_url_field="url",
+            content_tool="read",
+        )
+    }
+    registry.config.tools = {
+        "tools": {
+            name: make_tool_config(name)
+            for name in ("search", "discover", "read")
+        }
+    }
+    client = make_tool_results_client(
+        {
+            "search": {
+                "paper": {
+                    "title": "A",
+                    "url": "http://landing",
+                    "abstract": "Abstract evidence",
+                }
+            },
+            "discover": discovered,
+            "read": "Retrieved fulltext",
+        }
+    )
+
+    async def get_client(**_: Any) -> Any:
+        return client
+
+    monkeypatch.setattr(lr, "get_mcp_client", get_client)
+    result = await literature_review_node(make_state(tool_registry=registry))
+    article = result["articles"][0]
+    assert article.used_in_analysis
+    assert article.content == ("Retrieved fulltext" if expected else None)
+    assert [args["url"] for name, args in client.calls if name == "read"] == (
+        [expected] if expected else []
+    )
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected"),
+    [
+        ('{"content": "body", "text": "ignored"}', "body"),
+        ('{"text": "body"}', "body"),
+        ("plain text", "plain text"),
+        ('{"other": "x"}', '{"other": "x"}'),
+        ({"content": "body"}, "body"),
+        ({"other": "x"}, "{'other': 'x'}"),
+        (123, "123"),
+        (None, None),
+        (0, None),
+    ],
+)
+async def test_review_publishes_content_responses_and_retains_abstract_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    payload: Any,
+    expected: str | None,
+) -> None:
+    _stub_node(monkeypatch, server_available=True)
+    registry = ToolRegistry(skip_user_config=True)
+    registry.config.workflows = {
+        "literature_review": WorkflowConfig(
+            primary_search="search", content_tool="read"
+        )
+    }
+    registry.config.tools = {
+        "tools": {name: make_tool_config(name) for name in ("search", "read")}
+    }
+    client = make_tool_results_client(
+        {
+            "search": {
+                "paper": {
+                    "title": "A",
+                    "pdf_url": "http://paper.pdf",
+                    "abstract": "Abstract evidence",
+                }
+            },
+            "read": payload,
+        }
+    )
+
+    async def get_client(**_: Any) -> Any:
+        return client
+
+    monkeypatch.setattr(lr, "get_mcp_client", get_client)
+    result = await literature_review_node(make_state(tool_registry=registry))
+    assert result["articles"][0].content == expected
+    assert result["articles"][0].used_in_analysis
+
+
+@pytest.mark.parametrize("failed_tool", ["discover", "read"])
+async def test_review_retrieval_failure_preserves_successful_siblings(
+    monkeypatch: pytest.MonkeyPatch,
+    failed_tool: str,
+) -> None:
+    _stub_node(monkeypatch, server_available=True)
+    registry = ToolRegistry(skip_user_config=True)
+    registry.config.workflows = {
+        "literature_review": WorkflowConfig(
+            search_sources=[
+                SearchSourceConfig(tool="good"),
+                SearchSourceConfig(
+                    tool="bad",
+                    pdf_discovery_tool="bad_discover",
+                    content_tool="bad_read",
+                ),
+            ],
+            pdf_discovery_tool="discover",
+            content_tool="read",
+        )
+    }
+    registry.config.tools = {
+        "tools": {
+            name: make_tool_config(name)
+            for name in (
+                "good",
+                "bad",
+                "discover",
+                "read",
+                "bad_discover",
+                "bad_read",
+            )
+        }
+    }
+    client = make_tool_results_client(
+        {
+            "good": {
+                "good": {
+                    "title": "Good",
+                    "url": "http://good",
+                    "abstract": "Good abstract",
+                }
+            },
+            "bad": {
+                "bad": {
+                    "title": "Bad",
+                    "url": "http://bad",
+                    "abstract": "Bad abstract",
+                }
+            },
+            "discover": '["http://good.pdf"]',
+            "bad_discover": '["http://bad.pdf"]',
+            "read": "Good body",
+            "bad_read": "Bad body",
+        },
+        error_tools={"bad_" + failed_tool},
+    )
+
+    async def get_client(**_: Any) -> Any:
+        return client
+
+    monkeypatch.setattr(lr, "get_mcp_client", get_client)
+    result = await literature_review_node(make_state(tool_registry=registry))
+    articles = {article.source_id: article for article in result["articles"]}
+    assert articles["good"].content == "Good body"
+    assert articles["bad"].content is None
+    assert all(article.used_in_analysis for article in articles.values())
+
+
+@pytest.fixture(autouse=True)
+def _hermetic_node_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    install_fake_llm(monkeypatch)
