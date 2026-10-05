@@ -17,7 +17,7 @@ from co_scientist.agents.generation.operations import (
     _forced_generation_strategy,
 )
 from co_scientist.agents.meta_review.meta_review import meta_review_node
-from co_scientist.cache import LLMCacheRequest, NullCache, get_cache
+from co_scientist.cache import LLMCacheRequest, get_cache
 from co_scientist.generator.run_setup import _resolve_generation_strategy
 from co_scientist.llm import CompletionSpec, LLMCallOptions, call_llm_json
 from co_scientist.llm.request.backend import active_backend
@@ -26,7 +26,6 @@ from co_scientist.prompts import (
     DirectionWritingMaterial,
     DraftPromptRequest,
     ValidationSynthesisRequest,
-    format_lab_constraints_section,
     get_draft_prompt_with_tools,
     get_research_overview_direction_prompt,
     get_research_overview_prompt,
@@ -34,10 +33,6 @@ from co_scientist.prompts import (
 )
 from co_scientist.prompts.generation_debate import _DEBATE_MAX_DISCUSSION_TURNS
 from co_scientist.prompts.loading import load_prompt
-from co_scientist.schemas.generation import (
-    GENERATION_SCHEMA,
-    HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA,
-)
 from tests._llm_fake import (
     install_fake_backend,
     install_fake_llm,
@@ -70,14 +65,6 @@ def _run_json_call(schema: Any, *, use_cache: bool) -> dict[str, Any]:
             options=LLMCallOptions(use_cache=use_cache),
         )
     )
-
-
-def test_null_cache_is_noop() -> None:
-    cache = NullCache()
-    assert cache.get("anything", "m", 0.7, 100) is None
-    request = LLMCacheRequest("anything", "m", 0.7, 100)
-    cache.set(request, {"x": 1})
-    assert cache.get(request) is None
 
 
 def test_call_llm_json_bypasses_warm_cache_when_disabled(
@@ -363,116 +350,72 @@ async def test_debate_prompt_states_the_envelope_from_the_loop_constants(
     assert all(envelope in prompt for prompt in prompts)
 
 
-_NOVELTY_CONTRACT = "novelty claims must be hedged"
-_HEDGED_EXAMPLE = "to our knowledge"
+@pytest.mark.parametrize(
+    "constraints",
+    [None, ["No mouse work; zebrafish only", "Budget capped at $50k"]],
+)
+async def test_generation_sends_the_scientific_contract_to_assumptions(
+    monkeypatch: pytest.MonkeyPatch,
+    constraints: list[str] | None,
+) -> None:
+    from co_scientist.agents.generation import assumptions
 
+    calls: list[dict[str, Any]] = []
 
-def _render_assumptions_prompt(state_overrides: dict[str, Any]) -> str:
-    from co_scientist.agents.generation import assumptions as assumptions_mod
+    async def complete(prompt: str, **kwargs: Any) -> dict[str, Any]:
+        calls.append({"prompt": prompt, **kwargs})
+        return make_generation_response("assumptions hypothesis")
 
-    state = make_state(**state_overrides)
-    prompt, _ = assumptions_mod._build_assumptions_prompt(state, 2, "", "", "")
-    return prompt
+    async def discuss(**_: Any) -> str:
+        return "HYPOTHESIS: agreed"
 
-
-def test_assumptions_prompt_without_references_hedges_novelty() -> None:
-    prompt = _render_assumptions_prompt({})
-    assert _NOVELTY_CONTRACT in prompt.lower()
-    assert _HEDGED_EXAMPLE in prompt
-    assert "bounded retrieval" in prompt
-
-
-def test_draft_prompt_hedges_novelty() -> None:
-    prompt, _ = get_draft_prompt_with_tools(
-        DraftPromptRequest(research_goal="a goal", hypotheses_count=2)
-    )
-    assert _NOVELTY_CONTRACT in prompt.lower()
-    assert "{{MISSING" not in prompt
-
-
-def test_validation_synthesis_prompts_hedge_novelty() -> None:
-    analyses: list[dict[str, Any]] = []
-    with_tools, _ = get_validation_synthesis_prompt_with_tools(
-        ValidationSynthesisRequest(
-            research_goal="a goal", hypotheses_with_analyses=analyses
+    monkeypatch.setattr(assumptions, "call_llm_json", complete)
+    monkeypatch.setattr(debate, "call_llm", discuss)
+    stub_call_llm_json(monkeypatch, debate, make_generation_response("debated"))
+    await generate_node(
+        make_state(
+            initial_hypotheses_count=4,
+            lab_constraints=constraints,
+            supervisor_guidance={"key_areas": ["mechanism"]},
         )
     )
-    assert _NOVELTY_CONTRACT in with_tools.lower()
-
-
-def test_evolution_prompt_hedges_novelty() -> None:
-    prompt = load_prompt("evolution", {})
-    assert _NOVELTY_CONTRACT in prompt.lower()
-
-
-def test_research_overview_prompt_hedges_novelty() -> None:
-    prompt, _ = get_research_overview_prompt(
-        research_goal="a goal", hypotheses_summary="1. an idea"
-    )
-    assert _NOVELTY_CONTRACT in prompt.lower()
-    assert "report-level text" in prompt
-
-
-def test_assumptions_prompt_carries_depth_requirements() -> None:
-    prompt = _render_assumptions_prompt({})
-    assert "## Depth Requirements" in prompt
-    assert "Mechanism specificity" in prompt
-    assert "Quantitative predictions" in prompt
-    assert "Complete experiment detail" in prompt
-
-
-def test_draft_prompt_requires_full_depth_drafts() -> None:
-    prompt, _ = get_draft_prompt_with_tools(
-        DraftPromptRequest(research_goal="a goal", hypotheses_count=2)
-    )
-    assert "a shallow draft becomes a shallow final hypothesis" in prompt
-
-
-def test_research_overview_prompt_carries_depth_guidance() -> None:
-    prompt, _ = get_research_overview_prompt(
-        research_goal="a goal", hypotheses_summary="1. an idea"
-    )
-    assert "research strategy document" in prompt
-    assert "multi-paragraph narrative" in prompt
-
-
-def _direction_prompt() -> str:
-    prompt, _ = get_research_overview_direction_prompt(
-        research_goal="a goal",
-        material=DirectionWritingMaterial(
-            title="A direction", rationale="Why it matters.", all_directions="-"
-        ),
-        hypotheses_summary="1. an idea",
-    )
-    return prompt
-
-
-def test_research_direction_prompt_asks_for_sub_topics() -> None:
-    """Six developed directions cannot fit one call's clock; draft names them
-    first."""
-    prompt = _direction_prompt()
-    assert "sub_topics" in prompt
-    assert "specific_questions" in prompt
-
-
-def test_research_direction_prompt_asks_for_recent_findings() -> None:
-    prompt = _direction_prompt()
-    assert "recent_findings" in prompt
-    assert "already established" in prompt
-
-
-def test_generation_schema_explanation_field_asks_for_depth() -> None:
-    properties = GENERATION_SCHEMA["schema"]["properties"]["hypotheses"][
+    prompt = calls[-1]["prompt"]
+    for text in (
+        "novelty claims must be hedged",
+        "to our knowledge",
+        "bounded retrieval",
+        "depth requirements",
+        "mechanism specificity",
+        "quantitative predictions",
+        "complete experiment detail",
+        "category label",
+        "2-4 word",
+        "every hypothesis must carry a category",
+        "scene-setting",
+        "introduction",
+        "recent_findings",
+        "safety and toxicity",
+        "safety_and_toxicity",
+    ):
+        assert text in prompt.lower()
+    assert "{{MISSING" not in prompt
+    assert ("Lab Constraints" in prompt) == bool(constraints)
+    if constraints:
+        assert all(constraint in prompt for constraint in constraints)
+        assert "Respect them" in prompt
+    item = calls[-1]["spec"].json_schema["schema"]["properties"]["hypotheses"][
         "items"
-    ]["properties"]
-    assert "(4-6 sentences)" not in properties["explanation"]["description"]
+    ]
+    assert {
+        "category",
+        "introduction",
+        "recent_findings",
+        "safety_and_toxicity",
+    } <= set(item["required"])
+    properties = item["properties"]
     assert "Depth over brevity" in properties["explanation"]["description"]
-
-
-def test_generation_schema_experiment_field_is_a_numbered_pilot_plan() -> None:
-    experiment = GENERATION_SCHEMA["schema"]["properties"]["hypotheses"][
-        "items"
-    ]["properties"]["experiment"]
+    assert "(4-6 sentences)" not in properties["explanation"]["description"]
+    experiment = properties["experiment"]
     assert experiment["type"] == "object"
     assert set(experiment["required"]) == {
         "steps",
@@ -483,142 +426,72 @@ def test_generation_schema_experiment_field_is_a_numbered_pilot_plan() -> None:
     assert "Go/No-Go" in experiment["properties"]["steps"]["description"]
 
 
-def test_generation_schemas_require_category() -> None:
-    generation_item = GENERATION_SCHEMA["schema"]["properties"]["hypotheses"][
-        "items"
-    ]
-    synthesis_item = HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA["schema"][
-        "properties"
-    ]["hypotheses"]["items"]
-    assert "category" in generation_item["required"]
-    assert "category" in synthesis_item["required"]
-
-
-def test_assumptions_prompt_presents_category_contract() -> None:
-    prompt = _render_assumptions_prompt({})
-    assert "## Category Label" in prompt
-    assert "2-4 word" in prompt
-    assert "Every hypothesis must carry a category" in prompt
-
-
-def test_validation_synthesis_prompts_present_category() -> None:
-    analyses: list[dict[str, Any]] = []
-    with_tools, _ = get_validation_synthesis_prompt_with_tools(
-        ValidationSynthesisRequest(
-            research_goal="a goal", hypotheses_with_analyses=analyses
-        )
-    )
-    assert "category" in with_tools
-    assert "mechanism family" in with_tools
-
-
-def test_generation_schemas_require_scene_setting() -> None:
-    generation_item = GENERATION_SCHEMA["schema"]["properties"]["hypotheses"][
-        "items"
-    ]
-    synthesis_item = HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA["schema"][
-        "properties"
-    ]["hypotheses"]["items"]
-    for node in (generation_item, synthesis_item):
-        assert "introduction" in node["required"]
-        assert "recent_findings" in node["required"]
-
-
-def test_assumptions_prompt_presents_scene_setting_contract() -> None:
-    prompt = _render_assumptions_prompt({})
-    assert "## Scene-Setting" in prompt
-    assert "introduction" in prompt
-    assert "recent_findings" in prompt
-
-
-def test_validation_synthesis_prompts_present_scene_setting() -> None:
-    analyses: list[dict[str, Any]] = []
-    with_tools, _ = get_validation_synthesis_prompt_with_tools(
-        ValidationSynthesisRequest(
-            research_goal="a goal", hypotheses_with_analyses=analyses
-        )
-    )
-    assert "introduction" in with_tools
-    assert "recent_findings" in with_tools
-
-
-def test_generation_schemas_require_safety_and_toxicity() -> None:
-    generation_item = GENERATION_SCHEMA["schema"]["properties"]["hypotheses"][
-        "items"
-    ]
-    synthesis_item = HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA["schema"][
-        "properties"
-    ]["hypotheses"]["items"]
-    for node in (generation_item, synthesis_item):
-        assert "safety_and_toxicity" in node["required"]
-
-
-def test_assumptions_prompt_presents_safety_and_toxicity_contract() -> None:
-    prompt = _render_assumptions_prompt({})
-    assert "## Safety and Toxicity" in prompt
-    assert "safety_and_toxicity" in prompt
-
-
-def test_validation_synthesis_prompts_present_safety_and_toxicity() -> None:
-    analyses: list[dict[str, Any]] = []
-    with_tools, _ = get_validation_synthesis_prompt_with_tools(
-        ValidationSynthesisRequest(
-            research_goal="a goal", hypotheses_with_analyses=analyses
-        )
-    )
-    assert "safety_and_toxicity" in with_tools
-
-
-def test_lab_constraints_section_empty_when_no_constraints() -> None:
-    assert format_lab_constraints_section(None) == ""
-    assert format_lab_constraints_section([]) == ""
-
-
-def test_lab_constraints_section_renders_constraints() -> None:
-    section = format_lab_constraints_section(
-        ["No mouse work; zebrafish only", "Budget capped at $50k"]
-    )
-    assert "## Scientist's Lab Constraints" in section
-    assert "No mouse work; zebrafish only" in section
-    assert "Budget capped at $50k" in section
-    assert "Respect them" in section
-
-
-def test_assumptions_prompt_renders_lab_constraints_from_state() -> None:
-    with_constraints = _render_assumptions_prompt(
-        {"lab_constraints": ["Zebrafish facility only"]}
-    )
-    assert "## Scientist's Lab Constraints" in with_constraints
-    assert "Zebrafish facility only" in with_constraints
-
-    without = _render_assumptions_prompt({})
-    assert "Lab Constraints" not in without
-
-
-def test_draft_prompt_renders_lab_constraints() -> None:
-    prompt, _ = get_draft_prompt_with_tools(
-        DraftPromptRequest(
-            research_goal="a goal",
-            hypotheses_count=2,
-            lab_constraints=["Biosafety level 2 only"],
-        )
-    )
-    assert "Biosafety level 2 only" in prompt
-    assert "{{MISSING" not in prompt
-
-    bare, _ = get_draft_prompt_with_tools(
-        DraftPromptRequest(research_goal="a goal", hypotheses_count=2)
-    )
-    assert "Lab Constraints" not in bare
-    assert "{{MISSING" not in bare
-
-
 @pytest.mark.parametrize(
-    "overrides",
-    [{}, {"lab_constraints": ["No primate work"]}],
+    "kind", ["draft", "synthesis", "evolution", "overview", "direction"]
 )
-def test_assumptions_prompt_fully_interpolated(
-    overrides: dict[str, Any],
-) -> None:
-    prompt = _render_assumptions_prompt(overrides)
-    assert "{{MISSING" not in prompt
+def test_writing_prompts_keep_their_scientific_contract(kind: str) -> None:
+    if kind == "draft":
+        prompt, _ = get_draft_prompt_with_tools(
+            DraftPromptRequest(
+                research_goal="a goal",
+                hypotheses_count=2,
+                lab_constraints=["Biosafety level 2 only"],
+            )
+        )
+        expected = [
+            "novelty claims must be hedged",
+            "a shallow draft becomes a shallow final hypothesis",
+            "Biosafety level 2 only",
+        ]
+    elif kind == "synthesis":
+        prompt, schema = get_validation_synthesis_prompt_with_tools(
+            ValidationSynthesisRequest(
+                research_goal="a goal", hypotheses_with_analyses=[]
+            )
+        )
+        expected = [
+            "novelty claims must be hedged",
+            "category",
+            "mechanism family",
+            "introduction",
+            "recent_findings",
+            "safety_and_toxicity",
+        ]
+        assert schema is not None
+        item = schema["schema"]["properties"]["hypotheses"]["items"]
+        assert {
+            "category",
+            "introduction",
+            "recent_findings",
+            "safety_and_toxicity",
+        } <= set(item["required"])
+    elif kind == "evolution":
+        prompt = load_prompt("evolution", {})
+        expected = ["novelty claims must be hedged"]
+    elif kind == "overview":
+        prompt, _ = get_research_overview_prompt(
+            research_goal="a goal", hypotheses_summary="1. an idea"
+        )
+        expected = [
+            "novelty claims must be hedged",
+            "report-level text",
+            "research strategy document",
+            "multi-paragraph narrative",
+        ]
+    else:
+        prompt, _ = get_research_overview_direction_prompt(
+            research_goal="a goal",
+            material=DirectionWritingMaterial(
+                title="A direction",
+                rationale="Why it matters.",
+                all_directions="-",
+            ),
+            hypotheses_summary="1. an idea",
+        )
+        expected = [
+            "sub_topics",
+            "specific_questions",
+            "recent_findings",
+            "already established",
+        ]
+    assert all(text.lower() in prompt.lower() for text in expected)

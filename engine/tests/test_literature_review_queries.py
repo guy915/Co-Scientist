@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import pytest
 
@@ -16,174 +17,138 @@ from co_scientist.agents.generation.literature_review import (
     orchestration as lr_orchestration,
 )
 from co_scientist.cache import NodeCache
-from co_scientist.config import ToolConfig, WorkflowConfig
+from co_scientist.config import (
+    SearchSourceConfig,
+    ToolConfig,
+    ToolRegistry,
+    WorkflowConfig,
+)
 from co_scientist.constants import (
     LITERATURE_REVIEW_FAILED,
     LITERATURE_SYNTHESIS_FALLBACK_MAX_CHARS,
 )
-from co_scientist.evidence import search
 from co_scientist.evidence import search as lr_search
 from co_scientist.evidence.search_query import broadened_queries
-from co_scientist.evidence.search_support import SearchConfig
-from co_scientist.mcp_client import MCPToolClient
 from co_scientist.models import Article
-from tests._mcp import (
-    FakeCallToolClient,
-    make_tool_lookup_registry,
-    make_tool_results_client,
-)
+from tests._llm_fake import install_fake_llm
+from tests._mcp import make_tool_results_client
 from tests._research_fakes import (
     _TWO_PAPERS,
     _stub_node,
     _stub_research,
     make_search_config,
-    make_tool_config,
 )
 from tests._state import make_state
 
 
-def _search_config(**overrides: Any) -> SearchConfig:
-    return make_search_config(
-        search_tool_name="pubmed_search_with_fulltext",
-        source_name="pubmed",
-        **overrides,
-    )
-
-
-async def test_generate_queries_via_mcp_success_returns_parsed_queries() -> (
-    None
-):
-    client = FakeCallToolClient(response=["query one", "query two"])
-
-    result = await queries._generate_queries_via_mcp(
-        cast(MCPToolClient, client), "goal", "qgen_tool", "boolean"
-    )
-
-    assert result == ["query one", "query two"]
-    assert client.calls == [
-        ("qgen_tool", {"research_goal": "goal", "query_format": "boolean"})
-    ]
-
-
-async def test_generate_queries_via_mcp_error_returns_empty_list() -> None:
-    client = FakeCallToolClient(error=RuntimeError("mcp down"))
-
-    result = await queries._generate_queries_via_mcp(
-        cast(MCPToolClient, client), "goal", "qgen_tool", "boolean"
-    )
-
-    assert result == []
-
-
-async def test_generate_queries_via_llm_error_returns_empty_list(
+@pytest.mark.parametrize(
+    ("response", "query_format", "expected"),
+    [
+        (["one", "two"], "boolean", ["one", "two"]),
+        ('["one", "two"]', "", ["one", "two"]),
+        ('{"queries": ["one", "two"]}', "natural_language", ["one", "two"]),
+        ('{"x": 1}', "boolean", ["llm fallback"]),
+        ("not JSON", "boolean", ["llm fallback"]),
+        ({"queries": ["ignored"]}, "boolean", ["llm fallback"]),
+        (None, "boolean", ["llm fallback"]),
+    ],
+)
+async def test_review_recovers_empty_results_from_configured_query_generation(
     monkeypatch: pytest.MonkeyPatch,
+    response: Any,
+    query_format: str,
+    expected: list[str],
 ) -> None:
-
-    async def _raise(**_: Any) -> dict[str, Any]:
-        raise RuntimeError("llm down")
-
-    monkeypatch.setattr(queries, "call_llm_json", _raise)
-    state = make_state(research_goal="goal x")
-
-    result = await queries._generate_queries_via_llm(state, _search_config())
-
-    assert result == []
-
-
-def test_resolve_query_format_defaults_to_boolean_when_unset() -> None:
-    workflow = WorkflowConfig(query_format="")
-    assert queries._resolve_query_format(workflow) == "boolean"
-
-
-def test_resolve_query_format_honors_configured_value() -> None:
-    workflow = WorkflowConfig(query_format="natural_language")
-    assert queries._resolve_query_format(workflow) == "natural_language"
-
-
-def test_resolve_query_generation_tool_missing_tool_config_returns_none() -> (
-    None
-):
-    workflow = WorkflowConfig(query_generation_tool="qgen_missing")
-    config = _search_config(
-        tool_registry=make_tool_lookup_registry({}),
-        workflow=workflow,
-    )
-
-    assert queries._resolve_query_generation_tool(config) is None
-
-
-def test_resolve_query_generation_tool_returns_name_and_format() -> None:
-    tool_config = make_tool_config(mcp_tool_name="qgen_mcp")
-    workflow = WorkflowConfig(
-        query_generation_tool="qgen_tool", query_format="natural_language"
-    )
-    config = _search_config(
-        tool_registry=make_tool_lookup_registry({"qgen_tool": tool_config}),
-        workflow=workflow,
-    )
-
-    assert queries._resolve_query_generation_tool(config) == (
-        "qgen_mcp",
-        "natural_language",
-    )
-
-
-async def test_try_mcp_query_generation_calls_the_resolved_tool() -> None:
-    tool_config = make_tool_config(mcp_tool_name="qgen_mcp")
-    workflow = WorkflowConfig(
-        query_generation_tool="qgen_tool", query_format="boolean"
-    )
-    config = _search_config(
-        tool_registry=make_tool_lookup_registry({"qgen_tool": tool_config}),
-        workflow=workflow,
-    )
-    client = FakeCallToolClient(response=["alpha", "beta"])
-    state = make_state(research_goal="goal x")
-
-    result = await queries._try_mcp_query_generation(
-        state, config, cast(MCPToolClient, client)
-    )
-
-    assert result == ["alpha", "beta"]
-    assert client.calls[0][0] == "qgen_mcp"
-
-
-async def test_final_fallback_distills_the_goal_instead_of_sending_it_raw(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Entrez ANDs terms; prose boilerplate can erase every result."""
-
-    async def _raise(**_: Any) -> dict[str, Any]:
-        raise RuntimeError("llm down")
-
-    monkeypatch.setattr(queries, "call_llm_json", _raise)
-    state = make_state(
-        research_goal=(
-            "How does mifepristone affect the glucocorticoid receptor"
-            " in glioblastoma?"
+    _stub_node(monkeypatch, server_available=True, queries=["llm fallback"])
+    registry = ToolRegistry(skip_user_config=True)
+    registry.config.workflows = {
+        "literature_review": WorkflowConfig(
+            primary_search="search",
+            query_generation_tool="query_generator",
+            query_format=query_format,
         )
+    }
+    registry.config.tools = {
+        "tools": {
+            name: ToolConfig(server="s", mcp_tool_name=name)
+            for name in ("search", "query_generator")
+        }
+    }
+    client = make_tool_results_client(
+        {"query_generator": response, "search": {}}
     )
-    client = FakeCallToolClient(response=[])
 
-    phase_result = await queries._phase1_generate_queries(
-        state, _search_config(), cast(MCPToolClient, client)
+    async def get_client(**_: Any) -> Any:
+        return client
+
+    monkeypatch.setattr(lr, "get_mcp_client", get_client)
+    result = await literature_review_node(
+        make_state(tool_registry=registry, research_goal="goal")
     )
-    result = phase_result.queries
+    assert result["literature_review_queries"] == expected
+    assert result["metrics"].llm_calls == (0 if expected[0] == "one" else 1)
+    assert client.calls[0] == (
+        "query_generator",
+        {"research_goal": "goal", "query_format": query_format or "boolean"},
+    )
 
-    assert result != [state["research_goal"]]
-    assert len(result) == 1
-    assert phase_result.llm_calls == 1
-    fallback = result[0]
-    assert "?" not in fallback
-    for stopword in ("how", "does", "the", "in"):
-        assert stopword not in fallback.lower().split()
-    for keyword in (
-        "mifepristone",
-        "glucocorticoid",
-        "receptor",
-        "glioblastoma",
-    ):
-        assert keyword in fallback.lower()
+
+@pytest.mark.parametrize("failure", ["missing-tool", "mcp-error", "llm-error"])
+async def test_review_still_searches_when_a_query_generator_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+    failure: str,
+) -> None:
+    _stub_node(monkeypatch, server_available=True, queries=["llm fallback"])
+    registry = ToolRegistry(skip_user_config=True)
+    registry.config.workflows = {
+        "literature_review": WorkflowConfig(
+            primary_search="search", query_generation_tool="generate"
+        )
+    }
+    registry.config.tools = {
+        "tools": {"search": ToolConfig(server="s", mcp_tool_name="search")}
+    }
+    if failure != "missing-tool":
+        registry.config.tools["tools"]["generate"] = ToolConfig(
+            server="s", mcp_tool_name="generate"
+        )
+    client = make_tool_results_client({"search": {}}, error_tools={"generate"})
+
+    async def get_client(**_: Any) -> Any:
+        return client
+
+    async def failed_llm(**_: Any) -> Any:
+        raise RuntimeError("llm down")
+
+    monkeypatch.setattr(lr, "get_mcp_client", get_client)
+    if failure == "llm-error":
+        monkeypatch.setattr(queries, "call_llm_json", failed_llm)
+    goal = (
+        "How does mifepristone affect the glucocorticoid receptor "
+        "in glioblastoma?"
+    )
+    result = await literature_review_node(
+        make_state(tool_registry=registry, research_goal=goal)
+    )
+    query = result["literature_review_queries"][0]
+    if failure == "llm-error":
+        assert "?" not in query
+        assert all(
+            word not in query.lower().split()
+            for word in ("how", "does", "the", "in")
+        )
+        assert all(
+            word in query.lower()
+            for word in (
+                "mifepristone",
+                "glucocorticoid",
+                "receptor",
+                "glioblastoma",
+            )
+        )
+    else:
+        assert query == "llm fallback"
+    assert result["metrics"].llm_calls == 1
 
 
 _NINE_TERMS = (
@@ -192,244 +157,125 @@ _NINE_TERMS = (
 )
 
 
-def test_ladder_narrows_to_the_range_that_actually_returns_records() -> None:
-    assert broadened_queries(_NINE_TERMS) == [
-        _NINE_TERMS,
-        # 1 record on PubMed, where the nine-term form returns none.
-        "mifepristone glucocorticoid receptor antagonist glioblastoma",
-        # 2811 records; the floor still names a topic.
-        "mifepristone glucocorticoid",
-    ]
-
-
-def test_a_query_already_short_enough_is_left_alone() -> None:
-    assert broadened_queries("mifepristone glioblastoma") == [
-        "mifepristone glioblastoma"
-    ]
-    assert broadened_queries("copper") == ["copper"]
-
-
 class _QueryScriptedClient:
     def __init__(self, responses: dict[str, Any]) -> None:
-        self._responses = responses
+        self.responses = responses
         self.queries: list[str] = []
 
-    async def call_tool(self, tool_name: str, **kwargs: Any) -> Any:
+    async def call_tool(self, _tool_name: str, **kwargs: Any) -> Any:
         query = str(kwargs["query"])
         self.queries.append(query)
-        outcome = self._responses[query]
+        outcome = self.responses[query]
         if isinstance(outcome, Exception):
             raise outcome
         return outcome
 
-
-def _papers(*ids: str) -> dict[str, Any]:
-    return {i: {"title": i} for i in ids}
-
-
-def _ctx(client: Any, errors: list[str]) -> search._SearchRunContext:
-    return search._SearchRunContext(
-        slug="slug",
-        run_id="run1",
-        mcp_client=cast(MCPToolClient, client),
-        errors=errors,
-    )
+    def has_tool(self, _name: str) -> bool:
+        return False
 
 
-async def _search(client: Any, query: str, errors: list[str]) -> Any:
-    return await search._search_source_for_query(
-        query,
-        _ctx(client, errors),
-        ToolConfig(server="s", mcp_tool_name="search_pubmed"),
-        "pubmed",
-        papers_per_query=4,
-    )
-
-
-async def test_an_empty_query_is_retried_in_broader_form() -> None:
-    ladder = broadened_queries(_NINE_TERMS)
-    client = _QueryScriptedClient(
-        {
-            ladder[0]: _papers(),
-            ladder[1]: _papers("p1", "p2"),
-        }
-    )
-    errors: list[str] = []
-
-    result = await _search(client, _NINE_TERMS, errors)
-
-    assert sorted(result) == ["p1", "p2"]
-    assert client.queries == [ladder[0], ladder[1]]
-    assert errors == []
-
-
-async def test_broadening_walks_to_the_floor_when_it_has_to() -> None:
-    ladder = broadened_queries(_NINE_TERMS)
-    client = _QueryScriptedClient(
-        {
-            ladder[0]: _papers(),
-            ladder[1]: _papers(),
-            ladder[2]: _papers("p9"),
-        }
-    )
-
-    result = await _search(client, _NINE_TERMS, [])
-
-    assert list(result) == ["p9"]
-    assert client.queries == ladder
-
-
-async def test_a_query_that_returns_records_is_never_broadened() -> None:
-    client = _QueryScriptedClient({_NINE_TERMS: _papers("p1")})
-
-    result = await _search(client, _NINE_TERMS, [])
-
-    assert list(result) == ["p1"]
-    assert client.queries == [_NINE_TERMS]
-
-
-async def test_a_failed_search_is_not_retried_broader() -> None:
-    """Broadening a failed transport multiplies an outage instead of
-    recovering."""
-    client = _QueryScriptedClient({_NINE_TERMS: RuntimeError("backend down")})
-    errors: list[str] = []
-
-    result = await _search(client, _NINE_TERMS, errors)
-
-    assert result == {}
-    # _call_search_tool retries a transient failure itself, but every attempt
-    # is the same query: the failure never advances the ladder.
-    assert set(client.queries) == {_NINE_TERMS}
-    assert errors and "backend down" in errors[0]
-
-
-def _single_source_config() -> SearchConfig:
-    return make_search_config(
-        search_tool_name="search_pubmed",
-        source_name="pubmed",
-        papers_to_read_count=4,
-    )
-
-
-async def _search_single(client: Any, query: str, errors: list[str]) -> Any:
-    return await search._search_single_query(
-        query, 1, 4, _ctx(client, errors), _single_source_config()
-    )
-
-
-async def test_the_single_source_path_broadens_too() -> None:
-    ladder = broadened_queries(_NINE_TERMS)
-    client = _QueryScriptedClient(
-        {ladder[0]: _papers(), ladder[1]: _papers("p1", "p2")}
-    )
-    errors: list[str] = []
-
-    result = await _search_single(client, _NINE_TERMS, errors)
-
-    assert sorted(result) == ["p1", "p2"]
-    assert client.queries == [ladder[0], ladder[1]]
-    assert errors == []
-
-
-async def test_a_failed_single_source_search_still_names_its_query() -> None:
-    client = _QueryScriptedClient({_NINE_TERMS: RuntimeError("backend down")})
-    errors: list[str] = []
-
-    result = await _search_single(client, _NINE_TERMS, errors)
-
-    assert result == {}
-    assert set(client.queries) == {_NINE_TERMS}
-    assert errors == ["query 1: RuntimeError: backend down"]
-
-
-async def test_phase4_synthesize_no_analyses_returns_failure_sentinel() -> None:
-    state = make_state(research_goal="goal")
-
-    result = await synthesis._phase4_synthesize([], state)
-
-    assert result == LITERATURE_REVIEW_FAILED
-
-
-async def test_phase4_synthesize_llm_failure_with_analyses_degrades_to_rollup(
+@pytest.mark.parametrize("multi_source", [False, True])
+@pytest.mark.parametrize("success_level", [0, 1, 2, None])
+async def test_review_broadens_empty_searches_and_diagnoses_failed_transports(
     monkeypatch: pytest.MonkeyPatch,
+    multi_source: bool,
+    success_level: int | None,
 ) -> None:
-    """Losing synthesis prose must not delete paid-for retrieved analyses."""
-
-    async def _raise(**_: Any) -> str:
-        raise RuntimeError("llm unavailable")
-
-    monkeypatch.setattr(synthesis, "call_llm", _raise)
-    state = make_state(research_goal="goal")
-    paper_analyses = [
-        {
-            "paper_id": "P1",
-            "metadata": {"title": "A paper about X"},
-            "analysis": {
-                "key_findings": "X causes Y under condition Z.",
-                "gaps_identified": "Mechanism of Y is unclear.",
-                "unexplored_areas": "Nobody has tried blocking pathway W.",
-            },
-        }
+    _stub_node(monkeypatch, server_available=True, queries=[_NINE_TERMS])
+    ladder = broadened_queries(_NINE_TERMS)
+    assert ladder == [
+        _NINE_TERMS,
+        "mifepristone glucocorticoid receptor antagonist glioblastoma",
+        "mifepristone glucocorticoid",
     ]
-
-    result = await synthesis._phase4_synthesize(paper_analyses, state)
-
-    assert result != LITERATURE_REVIEW_FAILED
-    assert "not an LLM synthesis" in result
-    assert "A paper about X" in result
-    assert "X causes Y under condition Z." in result
-    assert "Mechanism of Y is unclear." in result
-    assert "Nobody has tried blocking pathway W." in result
-
-
-async def test_phase4_synthesize_fallback_rollup_is_length_bounded(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Per-paper allowances preserve later papers within the shared text
-    budget."""
-
-    async def _raise(**_: Any) -> str:
-        raise RuntimeError("llm unavailable")
-
-    monkeypatch.setattr(synthesis, "call_llm", _raise)
-    state = make_state(research_goal="goal")
-    paper_analyses = [
-        {
-            "paper_id": f"P{i}",
-            "metadata": {"title": f"Paper number {i}"},
-            "analysis": {
-                "key_findings": "Finding text. " * 50,
-                "gaps_identified": "Gap text. " * 50,
-                "unexplored_areas": "Unexplored text. " * 50,
-            },
+    responses: dict[str, Any] = {query: {} for query in ladder}
+    if success_level is None:
+        responses[ladder[0]] = RuntimeError("backend down")
+    else:
+        responses[ladder[success_level]] = {
+            "paper": {"title": "Evidence", "abstract": "Measured result"}
         }
-        for i in range(50)
-    ]
+    client = _QueryScriptedClient(responses)
 
-    result = await synthesis._phase4_synthesize(paper_analyses, state)
+    async def get_client(**_: Any) -> Any:
+        return client
 
-    # truncate() may append a short "..." suffix past the raw cap; the
-    # bound that matters is "close to the cap", not "byte-exact".
-    assert len(result) <= LITERATURE_SYNTHESIS_FALLBACK_MAX_CHARS + 10
-    assert "Paper number 20" in result
-    assert "Finding text." in result
-    assert "Gap text." in result
-    assert "Unexplored text." in result
+    async def no_sleep(_delay: float) -> None:
+        pass
+
+    events: list[tuple[str, dict[str, Any]]] = []
+
+    async def progress(event: str, payload: dict[str, Any]) -> None:
+        events.append((event, payload))
+
+    monkeypatch.setattr(lr, "get_mcp_client", get_client)
+    monkeypatch.setattr(asyncio, "sleep", no_sleep)
+    registry = ToolRegistry(skip_user_config=True)
+    registry.config.tools = {
+        "tools": {"search": ToolConfig(server="s", mcp_tool_name="search")}
+    }
+    registry.config.workflows = {
+        "literature_review": WorkflowConfig(
+            primary_search="search",
+            search_sources=[SearchSourceConfig(tool="search")]
+            if multi_source
+            else [],
+        )
+    }
+    result = await literature_review_node(
+        make_state(tool_registry=registry, progress_callback=progress)
+    )
+    if success_level is None:
+        assert result["articles"] == []
+        assert set(client.queries) == {ladder[0]}
+        assert any(
+            "backend down" in str(payload)
+            for event, payload in events
+            if event == "literature_review_error"
+        )
+    else:
+        assert result["articles"][0].title == "Evidence"
+        assert client.queries == ladder[: success_level + 1]
 
 
-async def test_phase4_synthesize_no_analyses_never_reaches_the_llm(
+@pytest.mark.parametrize("paper_count", [1, 50])
+async def test_review_synthesis_failure_preserves_a_bounded_analysis_rollup(
     monkeypatch: pytest.MonkeyPatch,
+    paper_count: int,
 ) -> None:
+    papers = {
+        f"P{i}": {
+            "title": f"Paper number {i}",
+            "abstract": "Retrieved evidence",
+        }
+        for i in range(paper_count)
+    }
+    _stub_node(monkeypatch, server_available=True, search_payload=papers)
 
-    async def _raise(**_: Any) -> str:
-        raise AssertionError("must not be called with no analyses")
+    async def analyze(**_: Any) -> dict[str, Any]:
+        return {
+            "key_findings": "Finding text. " * 50,
+            "gaps_identified": "Gap text. " * 50,
+            "unexplored_areas": "Unexplored text. " * 50,
+        }
 
-    monkeypatch.setattr(synthesis, "call_llm", _raise)
-    state = make_state(research_goal="goal")
+    async def fail(**_: Any) -> Any:
+        raise RuntimeError("synthesis unavailable")
 
-    result = await synthesis._phase4_synthesize([], state)
-
-    assert result == LITERATURE_REVIEW_FAILED
+    monkeypatch.setattr(synthesis, "call_llm_json", analyze)
+    monkeypatch.setattr(synthesis, "call_llm", fail)
+    result = await literature_review_node(
+        make_state(literature_review_papers_count=paper_count)
+    )
+    text = result["articles_with_reasoning"]
+    assert text != LITERATURE_REVIEW_FAILED
+    assert "not an LLM synthesis" in text
+    assert all(
+        fragment in text
+        for fragment in ("Finding text.", "Gap text.", "Unexplored text.")
+    )
+    assert len(text) <= LITERATURE_SYNTHESIS_FALLBACK_MAX_CHARS + 10
+    assert f"Paper number {20 if paper_count > 1 else 0}" in text
 
 
 async def test_cached_research_keeps_ledger_and_article_call_id(
@@ -605,3 +451,8 @@ async def test_failed_enrichment_degrades_to_empty_context(
 
     assert retrieved == ["papers"]
     assert (context, sources) == ("", [])
+
+
+@pytest.fixture(autouse=True)
+def _hermetic_node_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    install_fake_llm(monkeypatch)

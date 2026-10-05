@@ -8,6 +8,9 @@ from typing import Any, cast
 import pytest
 from langchain_core.tools import ToolException
 
+from co_scientist.agents.generation.literature_review import (
+    literature_review_node,
+)
 from co_scientist.cache import scoped_cache_override
 from co_scientist.evidence import relevance, search, search_query
 from co_scientist.evidence.relevance import _HYBRID_VERSION
@@ -16,7 +19,8 @@ from co_scientist.offline import llm as offline_llm
 from co_scientist.tools.response_parser import parse_mcp_result
 from tests._llm_fake import mock_call_llm_json, stub_call_llm_json
 from tests._mcp import isolate_offline_router
-from tests._research_fakes import make_search_config
+from tests._research_fakes import _stub_node, make_search_config
+from tests._state import make_state
 
 
 @pytest.fixture
@@ -56,293 +60,201 @@ def _pool(n: int) -> dict[str, dict[str, object]]:
     }
 
 
+async def _ranked_review(
+    monkeypatch: pytest.MonkeyPatch,
+    pool: dict[str, Any],
+    *,
+    goal: str = "goal",
+    count: int | None = None,
+) -> dict[str, Any]:
+    _stub_node(monkeypatch, server_available=True, search_payload=pool)
+    monkeypatch.setattr(
+        search, "merge_search_results", lambda *args, **kwargs: (pool, {})
+    )
+    result = await literature_review_node(
+        make_state(
+            research_goal=goal,
+            model_name=offline_llm.DEFAULT_OFFLINE_MODEL,
+            literature_review_papers_count=len(pool)
+            if count is None
+            else count,
+        )
+    )
+    return {article.source_id: article for article in result["articles"]}
+
+
 @pytest.mark.usefixtures("_literature_review_relevance_isolate_offline_router")
-class TestLiteratureReviewRelevance:
-    def test_normalize_lexical_clamps_to_documented_range(self) -> None:
-        assert relevance.normalize_lexical(0.0) == 0.0
-        assert relevance.normalize_lexical(1.0) == 1.0
-        assert relevance.normalize_lexical(0.5) == 0.5
-        assert relevance.normalize_lexical(-0.2) == 0.0
-        assert relevance.normalize_lexical(1.5) == 1.0
-
-    def test_combine_hybrid_score_without_semantic_is_lexical_only(
-        self,
-    ) -> None:
-        assert relevance.combine_hybrid_score(0.5, None) == 0.5
-
-    def test_combine_hybrid_score_averages_lexical_and_semantic(self) -> None:
-        assert relevance.combine_hybrid_score(0.5, 1.0) == 0.75
-        assert relevance.combine_hybrid_score(0.0, 0.0) == 0.0
-
-    def test_combine_hybrid_score_clamps_out_of_range_semantic(self) -> None:
-        assert relevance.combine_hybrid_score(
-            0.5, 4.0
-        ) == relevance.combine_hybrid_score(0.5, 1.0)
-        assert relevance.combine_hybrid_score(
-            0.5, -2.0
-        ) == relevance.combine_hybrid_score(0.5, 0.0)
-
-    def test_semantic_pool_size_is_bounded(self) -> None:
-        assert relevance._semantic_pool_size(1000, budget=50) == (
-            relevance._SEMANTIC_POOL_CAP
+@pytest.mark.parametrize("goal", ["goal", ""])
+async def test_review_preserves_lexical_differences_and_retrieval_method(
+    monkeypatch: pytest.MonkeyPatch,
+    goal: str,
+) -> None:
+    first = await _ranked_review(
+        monkeypatch,
+        {"best": _candidate("Best", 1.0), "worst": _candidate("Worst", 0.0)},
+        goal=goal,
+    )
+    second = await _ranked_review(
+        monkeypatch,
+        {"best": _candidate("Best", 1.0), "worst": _candidate("Worst", 0.0)},
+        goal=goal,
+    )
+    assert list(first) == list(second)
+    assert first["best"].retrieval_score == 1.0
+    assert first["worst"].retrieval_score == (0.5 if goal else 0.0)
+    for paper_id, article in first.items():
+        assert article.retriever_version == (
+            relevance._HYBRID_VERSION
+            if goal
+            else relevance._LEXICAL_ONLY_VERSION
         )
-        assert relevance._semantic_pool_size(2, budget=50) == 2
-        assert relevance._semantic_pool_size(1000, budget=0) == 0
-
-    async def test_apply_semantic_relevance_stamps_every_candidate(
-        self,
-    ) -> None:
-        ranked = {
-            "p1": _candidate("Paper One", 1.0),
-            "p2": _candidate("Paper Two", 0.0),
-        }
-        result = await relevance.apply_semantic_relevance(
-            ranked,
-            research_goal="a research goal",
-            model_name=offline_llm.DEFAULT_OFFLINE_MODEL,
-            budget=5,
-        )
-        for metadata in result.values():
-            assert 0.0 <= metadata["retrieval_score"] <= 1.0
-            assert metadata["retriever_version"] == relevance._HYBRID_VERSION
-            assert isinstance(metadata["retrieval_rationale"], str)
-
-    async def test_apply_semantic_relevance_skips_pool_without_goal(
-        self,
-    ) -> None:
-        ranked = {"p1": _candidate("Paper One", 1.0)}
-        result = await relevance.apply_semantic_relevance(
-            ranked,
-            research_goal="",
-            model_name=offline_llm.DEFAULT_OFFLINE_MODEL,
-            budget=5,
-        )
-        assert result["p1"]["retrieval_score"] == 1.0
+        assert article.retrieval_score == second[paper_id].retrieval_score
         assert (
-            result["p1"]["retriever_version"] == relevance._LEXICAL_ONLY_VERSION
+            article.retrieval_rationale == second[paper_id].retrieval_rationale
         )
 
-    async def test_apply_semantic_relevance_preserves_lexical_differentiation(
-        self,
-    ) -> None:
-        """Scoring a combined baseline twice erases lexical differences."""
-        ranked = {
-            "best": _candidate("Best lexical", 1.0),
-            "worst": _candidate("Worst lexical", 0.0),
-        }
-        result = await relevance.apply_semantic_relevance(
-            ranked,
-            research_goal="a research goal",
-            model_name=offline_llm.DEFAULT_OFFLINE_MODEL,
-            budget=5,
-        )
-        assert (
-            result["best"]["retrieval_score"]
-            > result["worst"]["retrieval_score"]
-        )
-        # Offline relevance clamps to the same 1.0 for both candidates;
-        # final-score differences must come from the lexical term.
-        assert result["best"][
-            "retrieval_score"
-        ] == relevance.combine_hybrid_score(1.0, 1.0)
-        assert result["worst"][
-            "retrieval_score"
-        ] == relevance.combine_hybrid_score(0.0, 1.0)
 
-    async def test_apply_semantic_relevance_bounds_pool_by_budget(self) -> None:
-        ranked = {
-            "best": _candidate("Best", 1.0),
-            "worst": _candidate("Worst", 0.0),
-        }
-        result = await relevance.apply_semantic_relevance(
-            ranked,
-            research_goal="a research goal",
-            model_name=offline_llm.DEFAULT_OFFLINE_MODEL,
-            budget=0,
-        )
-        assert result["best"]["retriever_version"] == (
-            relevance._LEXICAL_ONLY_VERSION
-        )
-        assert result["worst"]["retriever_version"] == (
-            relevance._LEXICAL_ONLY_VERSION
-        )
+@pytest.mark.parametrize(
+    ("judgments", "expected"),
+    [
+        (
+            [
+                {"index": 3, "relevance": 0.3, "rationale": "third"},
+                {"index": 1, "relevance": 0.9, "rationale": "first"},
+                {"index": 2, "relevance": 0.1, "rationale": "second"},
+            ],
+            ["first", "second", "third"],
+        ),
+        (
+            [
+                {"relevance": 0.5, "rationale": "no index"},
+                {"index": 1, "relevance": 0.9, "rationale": "explicit"},
+            ],
+            ["explicit", "no index", "semantic relevance scoring failed"],
+        ),
+        (
+            [
+                {"index": 1, "relevance": 0.9, "rationale": "first claim"},
+                {"index": 1, "relevance": 0.1, "rationale": "duplicate claim"},
+            ],
+            [
+                "first claim",
+                "duplicate claim",
+                "semantic relevance scoring failed",
+            ],
+        ),
+        (
+            [
+                {"index": 1, "relevance": "n/a"},
+                {"index": 2, "relevance": 0.8, "rationale": "fine"},
+            ],
+            [
+                "semantic relevance scoring failed",
+                "fine",
+                "semantic relevance scoring failed",
+            ],
+        ),
+        (
+            [{"index": 1, "relevance": 0.7, "rationale": "ok"}],
+            [
+                "ok",
+                "semantic relevance scoring failed",
+                "semantic relevance scoring failed",
+            ],
+        ),
+    ],
+    ids=[
+        "reordered",
+        "missing-index",
+        "duplicate-index",
+        "bad-type",
+        "short-array",
+    ],
+)
+async def test_review_assigns_malformed_judgments_to_the_right_papers(
+    monkeypatch: pytest.MonkeyPatch,
+    judgments: list[Any],
+    expected: list[str],
+) -> None:
+    stub_call_llm_json(monkeypatch, relevance, {"judgments": judgments})
+    papers = await _ranked_review(monkeypatch, _pool(3))
+    assert [
+        papers[f"p{i}"].retrieval_rationale for i in range(1, 4)
+    ] == expected
+    assert all(
+        article.retriever_version == relevance._HYBRID_VERSION
+        for article in papers.values()
+    )
 
-    async def test_apply_semantic_relevance_is_deterministic(self) -> None:
-        ranked = {
-            "p1": _candidate("Paper One", 0.8),
-            "p2": _candidate("Paper Two", 0.4),
-        }
-        first = await relevance.apply_semantic_relevance(
-            {k: dict(v) for k, v in ranked.items()},
-            research_goal="a fixed research goal",
-            model_name=offline_llm.DEFAULT_OFFLINE_MODEL,
-            budget=5,
-        )
-        second = await relevance.apply_semantic_relevance(
-            {k: dict(v) for k, v in ranked.items()},
-            research_goal="a fixed research goal",
-            model_name=offline_llm.DEFAULT_OFFLINE_MODEL,
-            budget=5,
-        )
-        assert list(first.keys()) == list(second.keys())
-        for key in first:
-            assert (
-                first[key]["retrieval_score"] == second[key]["retrieval_score"]
-            )
-            assert (
-                first[key]["retrieval_rationale"]
-                == second[key]["retrieval_rationale"]
-            )
 
-    async def test_apply_semantic_relevance_batches_calls_by_batch_size(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        monkeypatch.setattr(relevance, "_RELEVANCE_BATCH_SIZE", 10)
-        calls: list[int] = []
+@pytest.mark.parametrize("semantic", [-2.0, 4.0])
+async def test_review_clamps_provider_relevance_to_the_scoring_range(
+    monkeypatch: pytest.MonkeyPatch,
+    semantic: float,
+) -> None:
+    stub_call_llm_json(
+        monkeypatch,
+        relevance,
+        {"judgments": [{"index": 1, "relevance": semantic}]},
+    )
+    papers = await _ranked_review(monkeypatch, {"p": _candidate("Paper", 0.5)})
+    assert papers["p"].retrieval_score == (0.25 if semantic < 0 else 0.75)
 
-        async def fake_call_llm_json(
-            *, prompt: str, spec: Any
-        ) -> dict[str, Any]:
-            candidate_count = prompt.count("**Candidate ")
-            calls.append(candidate_count)
-            return {"judgments": _stub_judgments(count=candidate_count)}
 
-        monkeypatch.setattr(relevance, "call_llm_json", fake_call_llm_json)
+async def test_review_bounds_semantic_cost_and_preserves_unscored_papers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    candidates: list[int] = []
 
-        ranked = _pool(25)
-        result = await relevance.apply_semantic_relevance(
-            ranked, research_goal="a goal", model_name="stub/model", budget=10
-        )
+    async def judge(*, prompt: str, **_: Any) -> dict[str, Any]:
+        count = prompt.count("**Candidate ")
+        candidates.append(count)
+        return {"judgments": _stub_judgments(count=count)}
 
-        assert len(calls) == 3
-        assert sorted(calls) == [4, 10, 10]
-        assert (
-            result["p25"]["retriever_version"]
-            == relevance._LEXICAL_ONLY_VERSION
-        )
+    monkeypatch.setattr(relevance, "call_llm_json", judge)
+    papers = await _ranked_review(monkeypatch, _pool(25))
+    assert len(papers) == 25
+    assert sum(candidates) == 24
+    assert max(candidates) <= 10
+    assert papers["p25"].retriever_version == relevance._LEXICAL_ONLY_VERSION
 
-    async def test_apply_semantic_relevance_maps_verdicts_back_by_index(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
 
-        # Reversal distinguishes candidate indices from list positions.
-        stub_call_llm_json(
-            monkeypatch,
-            relevance,
-            {
-                "judgments": [
-                    {"index": 3, "relevance": 0.3, "rationale": "third"},
-                    {"index": 1, "relevance": 0.9, "rationale": "first"},
-                    {"index": 2, "relevance": 0.1, "rationale": "second"},
-                ]
-            },
-        )
+async def test_review_semantic_failure_preserves_lexical_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mock_call_llm_json(
+        monkeypatch, relevance, side_effect=RuntimeError("provider exploded")
+    )
+    papers = await _ranked_review(monkeypatch, _pool(2))
+    assert len(papers) == 2
+    assert all(
+        article.retrieval_rationale == relevance._FAILED_JUDGMENT_RATIONALE
+        for article in papers.values()
+    )
 
-        ranked = _pool(3)
-        result = await relevance.apply_semantic_relevance(
-            ranked, research_goal="a goal", model_name="stub/model", budget=5
-        )
 
-        assert result["p1"]["retrieval_rationale"] == "first"
-        assert result["p2"]["retrieval_rationale"] == "second"
-        assert result["p3"]["retrieval_rationale"] == "third"
+async def test_review_with_negative_budget_keeps_only_lexical_scores(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def unexpected_judgment(**_: Any) -> Any:
+        pytest.fail("A nonpositive budget must not purchase semantic judgments")
 
-    async def test_apply_semantic_relevance_batch_failure_degrades_like_single(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-
-        mock_call_llm_json(
-            monkeypatch,
-            relevance,
-            side_effect=RuntimeError("provider exploded"),
-        )
-
-        ranked = _pool(2)
-        result = await relevance.apply_semantic_relevance(
-            ranked, research_goal="a goal", model_name="stub/model", budget=5
-        )
-
-        for metadata in result.values():
-            assert metadata["retrieval_rationale"] == (
-                relevance._FAILED_JUDGMENT_RATIONALE
-            )
-            assert metadata["retriever_version"] == relevance._HYBRID_VERSION
-
-    async def test_apply_semantic_relevance_bad_relevance_type_degrades_only_it(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """One malformed field must not abort sibling batches through gather."""
-
-        stub_call_llm_json(
-            monkeypatch,
-            relevance,
-            {
-                "judgments": [
-                    {"index": 1, "relevance": "n/a", "rationale": "bad type"},
-                    {"index": 2, "relevance": 0.8, "rationale": "fine"},
-                ]
-            },
-        )
-
-        ranked = _pool(2)
-        result = await relevance.apply_semantic_relevance(
-            ranked, research_goal="a goal", model_name="stub/model", budget=5
-        )
-
-        assert result["p1"]["retrieval_rationale"] == (
-            relevance._FAILED_JUDGMENT_RATIONALE
-        )
-        assert result["p2"]["retrieval_rationale"] == "fine"
-
-    async def test_apply_semantic_relevance_handles_short_response_array(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-
-        stub_call_llm_json(
-            monkeypatch,
-            relevance,
-            {"judgments": [{"index": 1, "relevance": 0.7, "rationale": "ok"}]},
-        )
-
-        ranked = _pool(3)
-        result = await relevance.apply_semantic_relevance(
-            ranked, research_goal="a goal", model_name="stub/model", budget=5
-        )
-
-        assert result["p1"]["retrieval_rationale"] == "ok"
-        assert result["p2"]["retrieval_rationale"] == (
-            relevance._FAILED_JUDGMENT_RATIONALE
-        )
-        assert result["p3"]["retrieval_rationale"] == (
-            relevance._FAILED_JUDGMENT_RATIONALE
-        )
-
-    def test_match_batch_judgments_missing_index_falls_back_to_list_order(
-        self,
-    ) -> None:
-        judgments: list[Any] = [
-            {"relevance": 0.5, "rationale": "no index"},
-            {"index": 1, "relevance": 0.9, "rationale": "explicit"},
-        ]
-        matched = relevance._match_batch_judgments(judgments, ["p1", "p2"])
-        assert matched[0]["rationale"] == "explicit"
-        assert matched[1]["rationale"] == "no index"
-
-    def test_match_batch_judgments_duplicate_index_falls_back_for_the_second(
-        self,
-    ) -> None:
-        judgments: list[Any] = [
-            {"index": 1, "relevance": 0.9, "rationale": "first claim"},
-            {"index": 1, "relevance": 0.1, "rationale": "duplicate claim"},
-        ]
-        matched = relevance._match_batch_judgments(judgments, ["p1", "p2"])
-        assert matched[0]["rationale"] == "first claim"
-        assert matched[1]["rationale"] == "duplicate claim"
+    monkeypatch.setattr(relevance, "call_llm_json", unexpected_judgment)
+    result = await _ranked_review(
+        monkeypatch,
+        {
+            "low": _candidate("Low", -0.2),
+            "high": _candidate("High", 1.5),
+            "spare": _candidate("Spare", 0.5),
+        },
+        count=-1,
+    )
+    assert result["low"].retrieval_score == 0.0
+    assert result["high"].retrieval_score == 1.0
+    assert all(
+        article.retriever_version == relevance._LEXICAL_ONLY_VERSION
+        for article in result.values()
+    )
 
 
 @pytest.fixture
