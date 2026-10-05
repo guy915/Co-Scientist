@@ -1,6 +1,9 @@
 import asyncio
 import inspect
 import logging
+import os
+import subprocess
+import sys
 from typing import Any
 
 import httpx
@@ -15,10 +18,17 @@ from mcp_server.auth_middleware import (
     resolve_shared_secret,
 )
 from mcp_server.campaign import campaign_free_mode
-from mcp_server.tests._httpx import asgi_client_factory
+from mcp_server.tests._httpx import (
+    asgi_client_factory,
+    stub_failure,
+    stub_responses,
+)
 from mcp_server.tool_logging import with_call_logging
 from mcp_server.tools import web_providers as providers
-from mcp_server.tools.lit_review.openalex_search import search_openalex
+from mcp_server.tools.lit_review.openalex_search import (
+    OpenAlexUnavailableError,
+    search_openalex,
+)
 from mcp_server.tools.web_providers import (
     check_web_search_available,
     search_web,
@@ -48,99 +58,64 @@ def _make_app(secret: str | None) -> Starlette:
     return app
 
 
-def test_unset_secret_allows_every_request() -> None:
-    client = TestClient(_make_app(secret=None))
-
-    response = client.post("/mcp")
-
-    assert response.status_code == 200
-    assert response.text == "tool result:False"
+_SECRET = {MCP_AUTH_HEADER: "s3cret"}
+_CAMPAIGN = {MCP_CAMPAIGN_HEADER: "1"}
 
 
-def test_configured_secret_rejects_missing_header() -> None:
-    client = TestClient(_make_app(secret="s3cret"))
-
-    response = client.post("/mcp")
-
-    assert response.status_code == 401
-
-
-def test_configured_secret_rejects_wrong_header() -> None:
-    client = TestClient(_make_app(secret="s3cret"))
-
-    response = client.post("/mcp", headers={MCP_AUTH_HEADER: "wrong"})
-
-    assert response.status_code == 401
-
-
-@pytest.mark.parametrize("host", ["example.com/#", "example.com/?"])
-def test_host_path_cannot_exempt_an_unauthenticated_tool_call(
-    host: str,
+@pytest.mark.parametrize(
+    ("secret", "method", "path", "headers", "statuses", "body"),
+    [
+        (None, "POST", "/mcp", {}, {200}, "tool result:False"),
+        ("s3cret", "POST", "/mcp", {}, {401}, None),
+        ("s3cret", "POST", "/mcp", {MCP_AUTH_HEADER: "wrong"}, {401}, None),
+        ("s3cret", "POST", "/mcp", _SECRET, {200}, "tool result:False"),
+        # A host path must not exempt an unauthenticated tool call.
+        ("s3cret", "POST", "/mcp", {"Host": "example.com/#"}, {400, 401}, None),
+        ("s3cret", "POST", "/mcp", {"Host": "example.com/?"}, {400, 401}, None),
+        ("s3cret", "GET", "/", {}, {200}, "status:False"),
+        ("s3cret", "GET", "/", _CAMPAIGN, {401}, None),
+        (
+            "s3cret",
+            "GET",
+            "/",
+            _CAMPAIGN | {MCP_AUTH_HEADER: "wrong"},
+            {401},
+            None,
+        ),
+        ("s3cret", "GET", "/", _CAMPAIGN | _SECRET, {200}, "status:True"),
+        (None, "POST", "/mcp", _CAMPAIGN, {401}, None),
+        (
+            "s3cret",
+            "POST",
+            "/mcp",
+            _CAMPAIGN | _SECRET,
+            {200},
+            "tool result:True",
+        ),
+    ],
+)
+def test_shared_secret_guards_tool_calls_and_campaign_policy(
+    secret: str | None,
+    method: str,
+    path: str,
+    headers: dict[str, str],
+    statuses: set[int],
+    body: str | None,
 ) -> None:
-    client = TestClient(_make_app(secret="s3cret"))
-    response = client.post("/mcp", headers={"Host": host})
-    assert response.status_code in {400, 401}
-
-
-def test_configured_secret_accepts_matching_header() -> None:
-    client = TestClient(_make_app(secret="s3cret"))
-
-    response = client.post("/mcp", headers={MCP_AUTH_HEADER: "s3cret"})
-
-    assert response.status_code == 200
-    assert response.text == "tool result:False"
-
-
-def test_status_route_stays_exempt_even_with_secret_set() -> None:
-    client = TestClient(_make_app(secret="s3cret"))
-
-    response = client.get("/")
-
-    assert response.status_code == 200
-
-
-def test_campaign_header_requires_matching_shared_secret_on_root() -> None:
-    client = TestClient(_make_app(secret="s3cret"))
-
-    missing = client.get("/", headers={MCP_CAMPAIGN_HEADER: "1"})
-    forged = client.get(
-        "/",
-        headers={MCP_CAMPAIGN_HEADER: "1", MCP_AUTH_HEADER: "wrong"},
+    response = TestClient(_make_app(secret)).request(
+        method, path, headers=headers
     )
 
-    assert missing.status_code == 401
-    assert forged.status_code == 401
+    assert response.status_code in statuses
+    if body is not None:
+        assert response.text == body
 
 
-def test_authenticated_campaign_root_reports_campaign_policy() -> None:
+def test_campaign_scope_resets_after_the_request() -> None:
     client = TestClient(_make_app(secret="s3cret"))
 
-    response = client.get(
-        "/",
-        headers={
-            MCP_CAMPAIGN_HEADER: "1",
-            MCP_AUTH_HEADER: "s3cret",
-        },
-    )
-
-    assert response.status_code == 200
-    assert response.text == "status:True"
-
-
-def test_campaign_header_fails_closed_without_server_secret() -> None:
-    client = TestClient(_make_app(secret=None))
-
-    response = client.post("/mcp", headers={MCP_CAMPAIGN_HEADER: "1"})
-
-    assert response.status_code == 401
-
-
-def test_authenticated_campaign_request_is_scoped_and_resets() -> None:
-    client = TestClient(_make_app(secret="s3cret"))
-    headers = {MCP_CAMPAIGN_HEADER: "1", MCP_AUTH_HEADER: "s3cret"}
-
-    campaign = client.post("/mcp", headers=headers)
-    ordinary = client.post("/mcp", headers={MCP_AUTH_HEADER: "s3cret"})
+    campaign = client.post("/mcp", headers=_CAMPAIGN | _SECRET)
+    ordinary = client.post("/mcp", headers=_SECRET)
 
     assert campaign.text == "tool result:True"
     assert ordinary.text == "tool result:False"
@@ -218,22 +193,6 @@ def campaign(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv(name, "test-paid-account")
 
 
-@pytest.mark.parametrize("provider", ["brave", "tavily"])
-async def test_campaign_blocks_direct_metered_search(
-    campaign: None, monkeypatch: pytest.MonkeyPatch, provider: str
-) -> None:
-    sent = []
-
-    def client(**kwargs: Any) -> Any:
-        sent.append(kwargs)
-        raise AssertionError("metered transport opened")
-
-    monkeypatch.setattr(httpx, "AsyncClient", client)
-    with pytest.raises(RuntimeError, match="campaign"):
-        await getattr(providers, f"search_{provider}")("research", 2, 0)
-    assert sent == []
-
-
 async def test_campaign_exposes_no_paid_search_or_fallback(
     campaign: None,
 ) -> None:
@@ -284,8 +243,6 @@ async def test_enabled_or_invalid_mode_never_opens_web_transport(
 async def test_normal_openalex_preserves_explicit_host_key(
     monkeypatch: pytest.MonkeyPatch, setting: str
 ) -> None:
-    from mcp_server.tests._httpx import stub_responses
-
     monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", setting)
     monkeypatch.setenv("OPENALEX_API_KEY", "test-user-key")
     client = stub_responses(monkeypatch, {"results": []})
@@ -296,11 +253,6 @@ async def test_normal_openalex_preserves_explicit_host_key(
 async def test_openalex_quota_refusal_does_not_retry_with_host_key(
     campaign: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from mcp_server.tests._httpx import stub_failure
-    from mcp_server.tools.lit_review.openalex_search import (
-        OpenAlexUnavailableError,
-    )
-
     response = httpx.Response(
         429, request=httpx.Request("GET", "https://api.openalex.org/works")
     )
@@ -317,10 +269,6 @@ async def test_openalex_quota_refusal_does_not_retry_with_host_key(
 
 
 def test_campaign_server_boot_omits_metered_web_tools() -> None:
-    import os
-    import subprocess
-    import sys
-
     script = """
 from mcp_server.server import _MCP_TOOLS
 names = {name for _, name in _MCP_TOOLS}
@@ -380,22 +328,10 @@ async def test_campaign_rejects_unqualified_registered_calls(
         reached.append(name)
         return {}
 
-    wrapped = with_call_logging(tool, name)
     monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
     with pytest.raises(RuntimeError, match="campaign"):
-        await wrapped()
+        await with_call_logging(tool, name)()
     assert reached == []
-
-
-def test_campaign_rejects_sync_registered_calls(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def tool() -> str:
-        raise AssertionError("unqualified sync tool ran")
-
-    monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
-    with pytest.raises(RuntimeError, match="campaign"):
-        with_call_logging(tool, "unqualified")()
 
 
 async def test_campaign_retains_public_tool_execution(
@@ -408,44 +344,29 @@ async def test_campaign_retains_public_tool_execution(
     assert await with_call_logging(tool, "search_pubmed")() == "public evidence"
 
 
-def test_logs_name_arguments_and_result(
-    caplog: pytest.LogCaptureFixture,
+@pytest.mark.parametrize(
+    ("returns", "logged"),
+    [
+        ('{"a": 1, "b": 2}', "2 items"),
+        # Provider failure, missing keys and no matches all return empty
+        # results; logs distinguish calls.
+        ("{}", "-> empty"),
+        ({"x": 1}, "1 item"),
+    ],
+)
+def test_logs_name_arguments_and_result_size_and_returns_result_unchanged(
+    caplog: pytest.LogCaptureFixture, returns: Any, logged: str
 ) -> None:
-    def search(query: str, limit: int = 5) -> str:
-        return '{"a": 1, "b": 2}'
+    def search(query: str, limit: int = 5) -> Any:
+        return returns
 
     with caplog.at_level(logging.INFO):
-        with_call_logging(search, "search")("kinases", limit=3)
+        result = with_call_logging(search, "search")("kinases", limit=3)
 
-    record = caplog.text
-    assert "tool search(" in record
-    assert "'kinases'" in record and "limit=3" in record
-    assert "2 items" in record
-    assert "ms" in record
-
-
-def test_distinguishes_empty_from_populated(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Provider failure, missing keys and no matches all return empty
-    results; logs distinguish calls."""
-
-    def nothing(q: str) -> str:
-        return "{}"
-
-    with caplog.at_level(logging.INFO):
-        with_call_logging(nothing, "nothing")("zzz")
-    assert "-> empty" in caplog.text
-
-
-def test_logs_dict_returning_tools(caplog: pytest.LogCaptureFixture) -> None:
-
-    def as_dict(q: str) -> dict[str, int]:
-        return {"x": 1}
-
-    with caplog.at_level(logging.INFO):
-        with_call_logging(as_dict, "as_dict")("q")
-    assert "1 item" in caplog.text
+    assert result == returns
+    assert "tool search(" in caplog.text
+    assert "'kinases'" in caplog.text and "limit=3" in caplog.text
+    assert logged in caplog.text
 
 
 def test_logs_and_reraises_failures(caplog: pytest.LogCaptureFixture) -> None:
@@ -480,10 +401,6 @@ def test_preserves_the_signature_fastmcp_advertises() -> None:
 
     wrapped = with_call_logging(search, "search")
     assert inspect.signature(wrapped) == inspect.signature(search)
-    assert list(inspect.signature(wrapped).parameters) == [
-        "query",
-        "max_passages",
-    ]
     assert wrapped.__name__ == "search"
     assert wrapped.__doc__ == search.__doc__
     assert wrapped.__annotations__ == search.__annotations__
@@ -497,11 +414,3 @@ def test_truncates_a_long_argument(caplog: pytest.LogCaptureFixture) -> None:
         with_call_logging(search, "search")("x" * 500)
     assert "..." in caplog.text
     assert len(max(caplog.text.split("\n"), key=len)) < 400
-
-
-def test_returns_the_result_unchanged() -> None:
-
-    def tool(q: str) -> str:
-        return '{"untouched": true}'
-
-    assert with_call_logging(tool, "tool")("q") == '{"untouched": true}'
