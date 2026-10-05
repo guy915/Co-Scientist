@@ -272,25 +272,17 @@ async def test_screen_keeps_dual_use_and_redact_ideas_with_masked_fields(
     assert kept.experiment == REDACTED_PLACEHOLDER
 
 
-@pytest.mark.parametrize(
-    ("update", "survivors"),
-    [
-        (ReplaceHypotheses([]), []),
-        (ReplaceHypotheses(["new"]), ["h2"]),
-        ([], ["h1"]),
-    ],
-    ids=["empty_replace_clears", "replace_sets_pool", "bare_empty_list_keeps"],
-)
-def test_replace_hypotheses_reducer_distinguishes_clearing_from_no_update(
-    update: Any, survivors: list[str]
-) -> None:
-    if isinstance(update, ReplaceHypotheses) and update.items:
-        update = ReplaceHypotheses([make_hypothesis("new", id="h2")])
+def test_replace_hypotheses_reducer_distinguishes_clearing_from_no_update() -> (
+    None
+):
     existing = [make_hypothesis("existing", id="h1")]
+    replacement = make_hypothesis("new", id="h2")
 
-    result = deduplicate_hypotheses(existing, update)
-
-    assert [h.id for h in result] == survivors
+    assert deduplicate_hypotheses(existing, ReplaceHypotheses([])) == []
+    assert deduplicate_hypotheses(
+        existing, ReplaceHypotheses([replacement])
+    ) == [replacement]
+    assert deduplicate_hypotheses(existing, []) == existing
 
 
 def test_a_ranking_task_is_screened_before_it_runs() -> None:

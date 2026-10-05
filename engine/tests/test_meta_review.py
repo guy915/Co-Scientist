@@ -467,7 +467,9 @@ def test_every_prompt_carries_the_meta_review_critique_when_present(
                 "potential_connections": [
                     {
                         "connection_type": "complementary_mechanism",
-                        "synthesis_opportunity": "combine autophagy and proteasome",
+                        "synthesis_opportunity": (
+                            "combine autophagy and proteasome"
+                        ),
                     },
                     {"synthesis_opportunity": "only an opportunity, no type"},
                     "a bare string connection",

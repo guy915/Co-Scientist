@@ -461,13 +461,15 @@ async def test_non_progress_guard_still_delivers_the_queue_action(
     assert decision.queue_actions == (_RETRY,)
 
 
-_OWED = {
-    "pool_size": 6,
-    "rankable_count": 6,
-    "unmatched_rankable_count": 2,
-    "owed_coverage_rounds": 2,
-    "llm_calls": 99,
-}
+def _owed(**overrides: Any) -> SchedulerStats:
+    return SchedulerStats(
+        pool_size=6,
+        rankable_count=6,
+        unmatched_rankable_count=2,
+        owed_coverage_rounds=2,
+        llm_calls=99,
+        **overrides,
+    )
 
 
 @pytest.mark.parametrize(
@@ -476,26 +478,26 @@ _OWED = {
         # Owed coverage defers the budget stop, safety does not.
         (
             Budget(max_iterations=5, max_llm_calls=10),
-            SchedulerStats(**_OWED),
+            _owed(),
             TaskType.RANK,
             None,
         ),
         (
             Budget(max_iterations=5, max_llm_calls=10),
-            SchedulerStats(**_OWED, safety_blocked=True),
+            _owed(safety_blocked=True),
             TaskType.RANK,
             TerminationReason.SAFETY,
         ),
         # The allowance, not the baseline task, bounds the deferral.
         (
             Budget(max_iterations=5, max_llm_calls=10),
-            SchedulerStats(**_OWED),
+            _owed(),
             TaskType.REFLECT,
             None,
         ),
         (
             Budget(max_iterations=5, max_llm_calls=10),
-            SchedulerStats(**_OWED, settlement_allowance=0),
+            _owed(settlement_allowance=0),
             TaskType.RANK,
             TerminationReason.BUDGET,
         ),
