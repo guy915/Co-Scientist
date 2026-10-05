@@ -628,6 +628,9 @@
 .ucs-provider-select {
   position: relative;
   display: grid;
+  /* An auto track grows to the label's unwrapped width, so a long model id
+     pushed the trigger past the panel instead of ellipsizing. */
+  grid-template-columns: minmax(0, 1fr);
   width: 100%;
 }
 

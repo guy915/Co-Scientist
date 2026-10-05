@@ -129,7 +129,7 @@ export function summarizeDiagnosticEntries(
 // A pasted array lacks provenance/filter/ID context; keep the export preamble
 // alongside its sliceable JSON marker.
 
-export const EXPORT_LOGS_MARKER = '=== LOGS (JSON) ===';
+export const EXPORT_LOGS_MARKER = '## Logs (JSON)';
 
 export interface DiagnosticExportContext {
   currentUrl?: string;
@@ -146,39 +146,30 @@ export interface DiagnosticExport {
 
 const UNAVAILABLE = 'Unavailable';
 
+// Prose stays one line per paragraph: the export is pasted into issues, chats
+// and models that reflow it, where hard wraps leave ragged half-lines.
 function aboutSection(): string[] {
   return [
-    '=== ABOUT THESE DIAGNOSTIC LOGS ===',
-    'Co-Scientist workbench diagnostic export. The Logs panel renders one',
-    'durable, app-wide log: backend records from the API, the durable task',
-    'workers and the co_scientist engine, one compact stage record per run',
-    'event, and frontend records this browser posted. It is scoped to this',
-    'browsing session (records that predate it are excluded; a tab reload',
-    'keeps the session, closing the tab ends it) and to what this caller',
-    'may see. Share the whole export when reporting a',
-    'problem — the preamble below is the context a reader would otherwise',
-    'have to guess at.',
+    '# Co-Scientist diagnostic export',
+    '',
+    '## About these logs',
+    '',
+    'Co-Scientist workbench diagnostic export. The Logs panel renders one durable, app-wide log: backend records from the API, the durable task workers and the `co_scientist` engine, one compact stage record per run event, and frontend records this browser posted. It is scoped to this browsing session (records that predate it are excluded; a tab reload keeps the session, closing the tab ends it) and to what this caller may see. Share the whole export when reporting a problem — the preamble is the context a reader would otherwise have to guess at.',
     '',
   ];
 }
 
 function tracksSection(): string[] {
   return [
-    '=== WHAT THIS TRACKS ===',
-    'Run stages:',
-    '- lifecycle, safety.intake, supervisor.plan, literature_review,',
-    '  generate, reflection, proximity, ranking, evolve, meta_review,',
-    '  deep_verification, citation_audit, research_overview, report, status',
-    'Backend:',
-    '- app, worker and store records, plus engine records at INFO and above',
-    'Frontend (ui.*):',
-    '- page loads and route changes, uncaught errors, unhandled rejections,',
-    '  React render errors, and control interactions',
-    'Deliberately absent:',
-    '- per-call HTTP/LLM chatter below WARNING, which is never persisted',
-    '- access, interaction and navigation noise, hidden from the default',
-    '  view but available from GET /api/logs?verbose=1',
-    '- verbatim repeats of a record within a 10-minute window',
+    '## What this tracks',
+    '',
+    '- **Run stages:** `lifecycle`, `safety.intake`, `supervisor.plan`, `literature_review`, `generate`, `reflection`, `proximity`, `ranking`, `evolve`, `meta_review`, `deep_verification`, `citation_audit`, `research_overview`, `report`, `status`',
+    '- **Backend:** app, worker and store records, plus engine records at INFO and above',
+    '- **Frontend (`ui.*`):** page loads and route changes, uncaught errors, unhandled rejections, React render errors, and control interactions',
+    '- **Deliberately absent:**',
+    '  - per-call HTTP/LLM chatter below WARNING, which is never persisted',
+    '  - access, interaction and navigation noise, hidden from the default view but available from `GET /api/logs?verbose=1`',
+    '  - verbatim repeats of a record within a 10-minute window',
     '',
   ];
 }
@@ -200,41 +191,42 @@ function sessionSection(
   const first = oldest ? `#${oldest.number} at ${oldest.time}` : 'none';
   const {exportedAt, currentUrl, userAgent} = resolveContext(context);
   return [
-    '=== SESSION DETAILS ===',
-    `Exported: ${exportedAt}`,
-    `Current URL: ${currentUrl}`,
-    `Browser: ${userAgent}`,
-    `Records this session: ${total}`,
-    `Panel window: newest ${entries.length} of ${PANEL_LIMIT} fetched`,
-    `In this export: ${exported.length} (newest ${COPY_LIMIT})`,
-    `Oldest exported record: ${first}`,
+    '## Session details',
+    '',
+    `- **Exported:** ${exportedAt}`,
+    `- **Current URL:** ${currentUrl}`,
+    `- **Browser:** ${userAgent}`,
+    `- **Records this session:** ${total}`,
+    `- **Panel window:** newest ${entries.length} of ${PANEL_LIMIT} fetched`,
+    `- **In this export:** ${exported.length} (newest ${COPY_LIMIT})`,
+    `- **Oldest exported record:** ${first}`,
     '',
   ];
 }
 
 function statisticsSection(counts: DiagnosticCounts): string[] {
   return [
-    '=== STATISTICS (loaded window) ===',
-    `Errors: ${counts.errorCount}`,
-    `Warnings: ${counts.warningCount}`,
-    `Info: ${counts.infoCount}`,
-    `Distinct runs: ${counts.runCount}`,
+    '## Statistics (loaded window)',
+    '',
+    '| Errors | Warnings | Info | Distinct runs |',
+    '| --- | --- | --- | --- |',
+    `| ${counts.errorCount} | ${counts.warningCount} | ${counts.infoCount} | ${counts.runCount} |`,
     '',
   ];
 }
 
 function legendSection(): string[] {
   return [
-    '=== FIELD LEGEND ===',
-    'id      - persisted store row id used by API after_id cursors.',
-    '          Gapped wherever hidden noise consumed ids.',
-    'number  - position in the filtered stream, shown as "#N" in the panel.',
-    'level   - error is ERROR/CRITICAL (40+), warning is WARNING (30),',
-    '          info is everything below. levelName carries the exact name.',
-    'run     - "Run <first 8 chars>", or "Server" when no run owns it.',
-    '          The Runs statistic counts only distinct run-owned records.',
-    'stage   - the emitting logger (app.run_stage, ui.error, uvicorn, ...).',
-    'excText - formatted traceback, when the record carried one.',
+    '## Field legend',
+    '',
+    '| Field | Meaning |',
+    '| --- | --- |',
+    '| `id` | Persisted store row id used by API `after_id` cursors; gapped wherever hidden noise consumed ids. |',
+    '| `number` | Position in the filtered stream, shown as "#N" in the panel. |',
+    '| `level` | `error` is ERROR/CRITICAL (40+), `warning` is WARNING (30), `info` is everything below; `levelName` carries the exact name. |',
+    '| `run` | "Run <first 8 chars>", or "Server" when no run owns it; Distinct runs counts only run-owned records. |',
+    '| `stage` | The emitting logger (`app.run_stage`, `ui.error`, `uvicorn`, ...). |',
+    '| `excText` | Formatted traceback, when the record carried one. |',
     '',
   ];
 }
@@ -249,7 +241,10 @@ export function formatDiagnosticExport(input: DiagnosticExport): string {
     ...statisticsSection(input.counts),
     ...legendSection(),
     EXPORT_LOGS_MARKER,
+    '',
+    '```json',
     JSON.stringify(exported, null, 2),
+    '```',
   ].join('\n');
 }
 
