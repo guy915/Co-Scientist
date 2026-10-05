@@ -28,64 +28,50 @@ PAID_MODEL = "openrouter/campaign/paid"
 OPTIONS = LLMCallOptions(use_cache=False)
 
 
-def test_campaign_scope_enables_free_mode_without_global_flag(
+def test_campaign_scope_enables_free_mode_and_cannot_be_relaxed_or_leaked(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
+    delayed = scoped_campaign_mode(False)
 
     assert not campaign_free_mode()
     with scoped_campaign_mode(True):
         assert campaign_free_mode()
-    assert not campaign_free_mode()
-
-
-def test_nested_false_cannot_relax_campaign_scope(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
-
-    with scoped_campaign_mode(True):
         with scoped_campaign_mode(False):
             assert campaign_free_mode()
         assert campaign_free_mode()
     assert not campaign_free_mode()
-
-
-def test_global_flag_remains_authoritative_inside_false_scope(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "1")
-
-    with scoped_campaign_mode(False):
-        assert campaign_free_mode()
-
-
-def test_invalid_global_flag_fails_closed_even_inside_scope(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", "sometimes")
-
-    with pytest.raises(FreeModelEligibilityError, match="setting is invalid"):
-        campaign_free_mode()
-    with (
-        scoped_campaign_mode(True),
-        pytest.raises(FreeModelEligibilityError, match="setting is invalid"),
-    ):
-        campaign_free_mode()
-
-
-def test_campaign_scope_resets_after_exception(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
-
     with pytest.raises(RuntimeError, match="boom"), scoped_campaign_mode(True):
-        assert campaign_free_mode()
         raise RuntimeError("boom")
     assert not campaign_free_mode()
+    with scoped_campaign_mode(True), delayed:
+        assert campaign_free_mode()
 
 
-async def test_campaign_scope_isolated_between_concurrent_tasks(
+@pytest.mark.parametrize(
+    ("flag", "scope", "expected"),
+    [("1", False, True), ("sometimes", False, None), ("sometimes", True, None)],
+    ids=["global-flag-beats-false-scope", "invalid-flag", "invalid-in-scope"],
+)
+def test_the_global_flag_stays_authoritative_and_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+    flag: str,
+    scope: bool,
+    expected: bool | None,
+) -> None:
+    monkeypatch.setenv("COSCIENTIST_REQUIRE_FREE_MODELS", flag)
+
+    with scoped_campaign_mode(scope):
+        if expected is None:
+            with pytest.raises(
+                FreeModelEligibilityError, match="setting is invalid"
+            ):
+                campaign_free_mode()
+        else:
+            assert campaign_free_mode() is expected
+
+
+async def test_campaign_scope_is_isolated_between_tasks_and_follows_copies(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
@@ -106,13 +92,6 @@ async def test_campaign_scope_isolated_between_concurrent_tasks(
     assert campaign_result is True
     assert ordinary_result is False
     assert not campaign_free_mode()
-
-
-async def test_campaign_scope_survives_copied_context_bridge(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delenv("COSCIENTIST_REQUIRE_FREE_MODELS", raising=False)
-
     with scoped_campaign_mode(True):
         copied = contextvars.copy_context()
         assert await asyncio.to_thread(copied.run, campaign_free_mode)
@@ -554,9 +533,3 @@ async def test_recognized_skill_receives_no_campaign_host_credentials(
         assert "unavailable in campaign" in stale_read["content"]
     finally:
         catalog.available_skills.cache_clear()
-
-
-def test_delayed_campaign_scope_reads_policy_at_entry() -> None:
-    delayed = scoped_campaign_mode(False)
-    with scoped_campaign_mode(True), delayed:
-        assert campaign_free_mode()

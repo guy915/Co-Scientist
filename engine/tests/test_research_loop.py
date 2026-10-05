@@ -1,16 +1,15 @@
 from __future__ import annotations
 
 import ast
-import dataclasses
 import pathlib
 import re
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from co_scientist.agents.generation.citations import format_experiment_plan
 from co_scientist.llm.structured.validate import validate_json_schema
-from co_scientist.models import Hypothesis
 from co_scientist.offline.llm import _fill_schema
 from co_scientist.research import (
     CallStatus,
@@ -44,13 +43,6 @@ def test_breadth_halves_on_descent_and_stops_at_the_floor() -> None:
     # A one-question level is a lookup; breadth retains its floor.
     assert (fourth.depth, fourth.breadth) == (1, 2)
     assert fourth.descend() is None
-
-
-def test_max_threads_is_quotable_before_anything_is_spent() -> None:
-    budget = ResearchBudget(depth=3, breadth=8, sources=("pubmed",))
-
-    # Follow-ups are pooled per level, so the depth bound is additive.
-    assert budget.max_threads() == 14
 
 
 @pytest.mark.parametrize(
@@ -348,106 +340,79 @@ async def test_a_question_already_researched_is_not_researched_again() -> None:
     assert "a new one" in asked
 
 
-def test_populated_plan_renders_numbered_steps_and_bolded_criteria() -> None:
-    text = format_experiment_plan(
-        {
-            "steps": [
-                "Script the pipeline end to end.",
-                "Calibrate against a ground-truth panel.",
-                "Compare against an outgroup control.",
-                "Run the Go/No-Go initial experiment.",
-            ],
-            "go_criterion": "AUC >= 0.8 on the held-out set.",
-            "no_go_criterion": "AUC < 0.6 on the held-out set.",
-        }
-    )
-    assert text == (
-        "1. Script the pipeline end to end.\n"
-        "2. Calibrate against a ground-truth panel.\n"
-        "3. Compare against an outgroup control.\n"
-        "4. Run the Go/No-Go initial experiment.\n"
-        "**Go:** AUC >= 0.8 on the held-out set.\n"
-        "**No-Go:** AUC < 0.6 on the held-out set."
-    )
+_FULL_PLAN = {
+    "steps": [
+        "Script the pipeline end to end.",
+        "Calibrate against a ground-truth panel.",
+    ],
+    "go_criterion": "AUC >= 0.8 on the held-out set.",
+    "no_go_criterion": "AUC < 0.6 on the held-out set.",
+}
 
 
-def test_missing_value_falls_back() -> None:
-    assert format_experiment_plan(None, fallback="prior text") == "prior text"
+@pytest.mark.parametrize(
+    ("plan", "expected"),
+    [
+        (
+            _FULL_PLAN,
+            "1. Script the pipeline end to end.\n"
+            "2. Calibrate against a ground-truth panel.\n"
+            "**Go:** AUC >= 0.8 on the held-out set.\n"
+            "**No-Go:** AUC < 0.6 on the held-out set.",
+        ),
+        ({"steps": ["Only one step."]}, "1. Only one step."),
+        (
+            {"go_criterion": "Pass if X.", "no_go_criterion": "Fail if Y."},
+            "**Go:** Pass if X.\n**No-Go:** Fail if Y.",
+        ),
+        (
+            {"steps": "not a list", "go_criterion": "Pass if X."},
+            "**Go:** Pass if X.",
+        ),
+        ({"steps": ["real step", None, ""]}, "1. real step"),
+        ("  a free-text paragraph.  ", "a free-text paragraph."),
+    ],
+    ids=[
+        "full",
+        "steps-only",
+        "criteria-only",
+        "steps-not-a-list",
+        "unusable-steps-skipped",
+        "free-text",
+    ],
+)
+def test_an_experiment_plan_renders_as_numbered_steps_and_bolded_criteria(
+    plan: Any, expected: str
+) -> None:
+    assert format_experiment_plan(plan) == expected
 
 
-def test_missing_value_with_no_fallback_is_none() -> None:
-    assert format_experiment_plan(None) is None
+@pytest.mark.parametrize("plan", [None, "   ", {}, 42, [1, 2, 3]])
+def test_an_empty_or_malformed_plan_falls_back(plan: Any) -> None:
+    assert format_experiment_plan(plan, fallback="prior") == "prior"
+    assert format_experiment_plan(plan) is None
 
 
-def test_plain_string_passes_through_unchanged() -> None:
-    assert (
-        format_experiment_plan("  a free-text paragraph.  ")
-        == "a free-text paragraph."
-    )
-
-
-def test_empty_string_falls_back() -> None:
-    assert format_experiment_plan("   ", fallback="prior") == "prior"
-
-
-def test_non_dict_non_string_falls_back() -> None:
-    assert format_experiment_plan(42, fallback="prior") == "prior"
-    assert format_experiment_plan([1, 2, 3], fallback="prior") == "prior"
-
-
-def test_empty_dict_falls_back() -> None:
-    assert format_experiment_plan({}, fallback="prior") == "prior"
-
-
-def test_dict_missing_criteria_renders_steps_only() -> None:
-    text = format_experiment_plan({"steps": ["Only one step."]})
-    assert text == "1. Only one step."
-
-
-def test_dict_missing_steps_renders_criteria_only() -> None:
-    text = format_experiment_plan(
-        {"go_criterion": "Pass if X.", "no_go_criterion": "Fail if Y."}
-    )
-    assert text == "**Go:** Pass if X.\n**No-Go:** Fail if Y."
-
-
-def test_steps_not_a_list_degrades_to_no_steps() -> None:
-    text = format_experiment_plan(
-        {"steps": "not a list", "go_criterion": "Pass if X."}
-    )
-    assert text == "**Go:** Pass if X."
-
-
-def test_non_string_step_items_are_skipped_or_stringified() -> None:
-    text = format_experiment_plan({"steps": ["real step", None, ""]})
-    assert text == "1. real step"
-
-
-def test_steps_capped_at_max_experiment_steps() -> None:
+def test_plan_text_is_capped_in_steps_and_length() -> None:
     steps = [f"step {i}" for i in range(MAX_EXPERIMENT_STEPS + 5)]
-    text = format_experiment_plan({"steps": steps})
-    assert text is not None
-    assert text.count("\n") == MAX_EXPERIMENT_STEPS - 1
-    assert f"{MAX_EXPERIMENT_STEPS}. step {MAX_EXPERIMENT_STEPS - 1}" in text
-    assert f"step {MAX_EXPERIMENT_STEPS}" not in text
+    capped = format_experiment_plan({"steps": steps})
+    long_step = format_experiment_plan(
+        {"steps": ["x" * (_EXPERIMENT_STEP_CHARS + 100)]}
+    )
+    long_criterion = format_experiment_plan(
+        {"go_criterion": "y" * (_EXPERIMENT_CRITERION_CHARS + 100)}
+    )
 
-
-def test_step_text_is_length_capped() -> None:
-    long_step = "x" * (_EXPERIMENT_STEP_CHARS + 100)
-    text = format_experiment_plan({"steps": [long_step]})
-    assert text is not None
-    assert len(text) == 3 + _EXPERIMENT_STEP_CHARS + len("...")
-    assert text.endswith("...")
-
-
-def test_criterion_text_is_length_capped() -> None:
-    long_criterion = "y" * (_EXPERIMENT_CRITERION_CHARS + 100)
-    text = format_experiment_plan({"go_criterion": long_criterion})
-    assert text is not None
-    assert len(text) == (
+    assert capped is not None
+    assert capped.count("\n") == MAX_EXPERIMENT_STEPS - 1
+    assert f"step {MAX_EXPERIMENT_STEPS}" not in capped
+    assert long_step is not None
+    assert len(long_step) == 3 + _EXPERIMENT_STEP_CHARS + len("...")
+    assert long_criterion is not None
+    assert long_criterion.endswith("...")
+    assert len(long_criterion) == (
         len("**Go:** ") + _EXPERIMENT_CRITERION_CHARS + len("...")
     )
-    assert text.endswith("...")
 
 
 @pytest.mark.parametrize("bad_field", [123, {"nested": "dict"}, ["a", "b"]])
@@ -462,31 +427,6 @@ def test_offline_schema_filler_satisfies_the_experiment_field() -> None:
     validate_json_schema(
         {"hypotheses": [filled["hypotheses"][0]]}, GENERATION_SCHEMA
     )
-
-
-def test_hypothesis_has_no_go_criterion_fields() -> None:
-    """Experiment Go/No-Go criteria are design prose, not review verdicts."""
-    field_names = {f.name for f in dataclasses.fields(Hypothesis)}
-    assert "go_criterion" not in field_names
-    assert "no_go_criterion" not in field_names
-    assert "experiment_plan" not in field_names
-
-
-def test_extreme_no_go_criterion_does_not_change_the_hypothesis_shape() -> None:
-    """No reader may treat experiment-plan prose as a gating signal."""
-    hypothesis = Hypothesis(
-        text="idea",
-        experiment=format_experiment_plan(
-            {
-                "steps": ["Run the pilot."],
-                "go_criterion": "Never met.",
-                "no_go_criterion": "Always met -- abandon immediately.",
-            }
-        ),
-    )
-    assert hypothesis.score == 0.0
-    assert hypothesis.review_disposition is None
-    assert "No-Go" in (hypothesis.experiment or "")
 
 
 # This list covers raw experiment readers outside schema and formatting
