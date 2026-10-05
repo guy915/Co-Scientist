@@ -2,7 +2,7 @@ import {captureViewport, CLIENT_ID, expect, test} from '../support/fixtures';
 import {API_URL, E2E_LOGS_ADMIN_TOKEN} from '../support/paths';
 
 for (const theme of ['light', 'dark']) {
-  for (const width of [1440, 375]) {
+  for (const width of [1440, 768]) {
     test(`feedback silently attaches session diagnostics at ${width}px in ${theme}`, async ({
       page,
       api,

@@ -11,17 +11,7 @@ for (const theme of ['light', 'dark']) {
       theme,
     );
     const demos = await api.listDemoRuns();
-    await page.goto('/');
-    const examples = page.getByRole('navigation', {name: 'Example chats'});
-    await expect(examples).toBeInViewport();
-    await expect(examples.getByRole('link')).toHaveCount(3);
-    await expect(page.getByRole('textbox')).toBeInViewport();
-    await captureViewport(page, {
-      width: 375,
-      height: 812,
-      name: `examples-home-${theme}.png`,
-    });
-    await examples.locator(`a[href="/examples/${demos[0].id}"]`).click();
+    await page.goto(`/examples/${demos[0].id}`);
     await expect(page).toHaveURL(/\/chats\//);
     const chatUrl = page.url();
     await expect(page.getByLabel('Inferred run setup')).toBeAttached();

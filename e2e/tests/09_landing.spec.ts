@@ -1,7 +1,7 @@
 import {captureViewport, expect, test} from '../support/fixtures';
 
 for (const theme of ['light', 'dark']) {
-  for (const width of [1440, 768, 375]) {
+  for (const width of [1440, 768]) {
     test(`landing trailer, joined header and panels at ${width}px in ${theme}`, async ({
       page,
     }) => {
@@ -38,19 +38,23 @@ for (const theme of ['light', 'dark']) {
           node.getBoundingClientRect().top - pane.getBoundingClientRect().top;
       });
       const header = page.locator('.ucs-header-action-bar');
-      const tabs = header.getByRole('navigation', {name: 'Landing sections'});
+      const tabs = page.getByRole('navigation', {name: 'Landing sections'});
+      await expect(tabs).toHaveCount(1);
       await expect(tabs).toBeVisible();
-      await expect(
-        page.getByRole('navigation', {name: 'Landing sections'}),
-      ).toHaveCount(1);
       const tabBox = await tabs.boundingBox();
       const headerBox = await header.boundingBox();
+      const headerBottom = headerBox!.y + headerBox!.height;
       expect(headerBox!.y).toBeGreaterThanOrEqual(0);
       expect(headerBox!.x + headerBox!.width).toBeLessThanOrEqual(width);
-      expect(tabBox!.y).toBeGreaterThanOrEqual(headerBox!.y);
-      expect(tabBox!.y + tabBox!.height).toBeLessThanOrEqual(
-        headerBox!.y + headerBox!.height + 1,
-      );
+      if (width > 1000) {
+        // Wide headers take the tabs into their own row.
+        expect(tabBox!.y).toBeGreaterThanOrEqual(headerBox!.y);
+        expect(tabBox!.y + tabBox!.height).toBeLessThanOrEqual(headerBottom + 1);
+      } else {
+        // Narrow headers have no room, so the tabs stick right below them.
+        expect(tabBox!.y).toBeGreaterThanOrEqual(headerBottom - 1);
+        expect(tabBox!.y).toBeLessThan(headerBottom + 24);
+      }
       await expect(header.getByRole('button', {name: /^Logs/})).toBeVisible();
       await expect(
         header.getByRole('button', {name: /^Logs/}),
@@ -77,9 +81,7 @@ for (const theme of ['light', 'dark']) {
       });
       await tabs.getByRole('link', {name: 'FAQ'}).click();
       await expect(page.locator('#faq')).toBeInViewport();
-      await expect(
-        header.getByRole('navigation', {name: 'Landing sections'}),
-      ).toBeVisible();
+      await expect(tabs).toBeInViewport();
       await page.locator('.ucs-page--home').evaluate(node => {
         node.scrollTop = 0;
       });
@@ -90,3 +92,24 @@ for (const theme of ['light', 'dark']) {
     });
   }
 }
+
+test('phones get the composer alone, without landing or header actions', async ({
+  page,
+}) => {
+  await page.setViewportSize({width: 375, height: 812});
+  await page.goto('/');
+  await expect(page.getByRole('textbox')).toBeInViewport();
+  await expect(page.locator('.ucs-landing')).toHaveCount(0);
+  await expect(
+    page.getByRole('button', {name: 'Scroll to see how Co-Scientist works'}),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole('navigation', {name: 'Example chats'}),
+  ).toHaveCount(0);
+  const header = page.locator('.ucs-header-action-bar');
+  await expect(
+    header.getByRole('button', {name: 'Feedback', exact: true}),
+  ).toBeHidden();
+  await expect(header.getByRole('button', {name: /^Logs/})).toBeHidden();
+  await expect(header.getByText('Co-Scientist', {exact: true})).toBeVisible();
+});

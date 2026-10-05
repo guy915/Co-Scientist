@@ -86,8 +86,7 @@ export function HomeStage(props: HomeStageProps) {
           connectors={props.connectors}
           onSubmit={props.onSubmit}
         />
-        {isMobile && <MobileExamples runs={props.runs} />}
-        <HomeScrollHint />
+        {!isMobile && <HomeScrollHint />}
       </div>
       {!isMobile && (
         <HomeRecentsPanel
@@ -724,21 +723,4 @@ function humanizeTask(value: string): string {
     .replaceAll('.', ' ')
     .replaceAll('_', ' ')
     .replace(/\b\w/g, letter => letter.toUpperCase());
-}
-
-function MobileExamples({runs}: {runs: Run[]}) {
-  const examples = runs.filter(run => run.is_demo);
-  if (!examples.length) return null;
-  return (
-    <nav className="reference-mobile-examples" aria-label="Example chats">
-      <h2>Explore an example</h2>
-      <div className="reference-example-links">
-        {examples.map(run => (
-          <Link key={run.id} to={`/examples/${run.id}`}>
-            {run.title || run.research_goal}
-          </Link>
-        ))}
-      </div>
-    </nav>
-  );
 }
