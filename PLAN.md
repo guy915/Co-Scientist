@@ -1,249 +1,195 @@
-# Lean campaign
+# Test campaign
 
-Trim Co-Scientist to a lean product without losing what it does. Every decision
-below was settled with the owner on 3 October 2026, so the campaign runs
-unattended: the agent decides by these rules and reports at the end.
+Cut the test suites to the size a product like Co-Scientist needs while
+keeping every behavior they protect. Every decision below was settled with the
+owner on 4 October 2026, so the campaign runs unattended: the agent decides by
+these rules and reports at the end.
 
-**Status:** Complete. Phases 1–3 and all five removals are complete.
-Production was quiesced, privately exported and independently verified on
-4 October 2026: 101 runs, 36 tables and 36,617 rows; counts, run IDs, per-run
-counts, integrity, foreign keys, schema/content hashes and transferred
-checksums match. All 48 legacy file references were already missing.
-The once-only reset produced an independently verified empty 31-table current
-schema. Archive and original database files remain private outside Git.
-Normal API startup/configuration is restored; one replica, UID 0 and volume
-are preserved. Reset-dependent compatibility and historical migrations retire
-in PRs #165–168, preserving full DB Markdown, current demo shapes, ownership,
-free-use accounting and durable execution. The last two themed PRs remove
-190 and 4 production lines, each under 500. The ratchet equals the final count.
-Baseline `33ec8984`; phase-boundary counts and verification evidence are
-recorded in the final PR body.
+**Status:** Not started.
 
 ## Destination
 
-A researcher states a goal in the web app, the co-scientist loop runs grounded
-in literature through the MCP server, and the researcher reads ranked,
-evidence-backed hypotheses. Same product, far less code, far fewer tokens per
-file an agent reads.
+Each suite tests behavior through the interface its users reach: the HTTP API
+for the app, node and task entry points for the engine, tool calls for the MCP
+server, rendered UI for the frontend and the browser for end-to-end. A test
+file reads as a list of behaviors, and a reader can tell from a failing test's
+name what broke.
 
 ## Baseline and expected outcome
 
-Measured at `33ec8984`. Outcomes are audit estimates, not targets.
+Measured at `07fdfb0c`. The improvements campaign changes these numbers, so the
+opening PR re-measures them and records the real baseline. Outcomes are
+estimates, not targets.
 
-| | Today | Expected |
-|---|---:|---:|
-| Production lines (`.py/.ts/.tsx/.css`, excluding `vendor/`, `references/`, tests) | 161,285 in 443 files | ~110k |
-| Test lines | ~158k in 287 files | ~120k |
-| Markdown doc lines (excluding prompt templates) | ~16k | ~8k |
-| Comments and docstrings in production | 29% of lines, 42% of characters (~600k tokens) | hidden reasons only |
+| Suite | Test lines | Files | Tests | Test lines per production line | Expected test lines |
+|---|---:|---:|---:|---:|---:|
+| `app/tests` | 52,799 | 93 | 1,829 | 1.36 | ~20k |
+| `engine/tests` | 49,759 | 77 | 2,728 | 1.25 | ~20k |
+| `app/frontend` | 18,209 | 77 | 808 | 0.65 | ~9k |
+| `engine/mcp_server/tests` | 8,232 | 11 | 286 | 1.42 | ~3.5k |
+| `evaluations/tests` | 3,079 | 14 | 162 | | ~1.5k |
+| `e2e` | 1,610 | 8 | 22 | | unchanged |
+| **Total** | **133,688** | **280** | **5,835** | **1.14** | **45–65k, 120–160 files, 2,000–3,000 tests** |
 
-## What stays
+## What stays tested
 
-Everything not listed under "What goes", including:
+The suite shrinks; protection does not. These behaviors keep their best tests,
+and the files named here are where they live today:
 
-- **The whole engine:** every agent, review and ranking depth, generation
-  strategies, the adaptive orchestrator, research overview, research descent,
-  the execution harness, the LLM cache and campaign mode.
-- **The MCP server and all its sources,** including web search, the extra
-  literature sources and the study-trace instrumentation.
-- **All product extras:** run chat and steering, attachments, own-key model
-  choice, shares, email, outcomes and refinement.
-- **Logs, metrics and dev or experiment tooling.**
-- **Named by the owner:** the landing page, demo runs, the goal interview, the
-  run tiers and the offline backend.
+- leases, idempotency and retries: `test_task_worker.py`, `test_task_recovery.py`
+- evidence gates: `engine/tests/test_review_gate.py`, `test_claim_grounding.py`
+- lineage and provenance: `test_checkpoint.py`, `test_evolve_guard.py`,
+  `test_engine_drain_provenance.py`
+- spend caps: `test_llm_budget_escalation.py`, `test_llm_attempt_loop.py`
+- auth and ownership: `test_authentication.py`, `test_auth_exchange.py`,
+  `e2e/production/launch.spec.ts`
+- URL guards: `engine/mcp_server/tests/test_web.py`
+- sandbox confinement: `test_sandbox.py`, `test_workspace.py`
+- SQLite invariants: `test_engine_drain_hypotheses.py`,
+  `test_persistence_records.py`
+- the MCP study traces: `test_pubmed_pilot_trace.py`,
+  `test_pubmed_study4_recovery_trace.py`
+- the repository gates in `evaluations/tests`, including the size ratchet
+- both browser suites (`make e2e`, `make e2e-production`)
+- every behavior the improvements campaign added tests for
+
+## Coverage guard
+
+Line coverage proves the cuts keep protection.
+
+- The opening PR adds `make coverage`: it runs the app, engine and MCP suites
+  under `pytest-cov` and the frontend under `@vitest/coverage-v8`, offline and
+  serialized, and prints production line coverage per suite and per module.
+  Add `pytest-cov` to the MCP server's dev dependencies.
+- Record the baseline per suite and per module in the opening PR.
+- Every PR keeps each suite's coverage within 0.5 points of its baseline, and
+  keeps every module behind a "What stays tested" behavior at or above its
+  baseline. Put the before and after numbers in the PR body.
+- Coverage that drops because production code was deleted is fine; say so in
+  the PR.
 
 ## What goes
 
-1. **The `cosci` CLI,** entirely.
-2. **The engine's standalone library surface:** public library entry points,
-   `examples/`, and the in-process streaming graph path, which production leaves unused.
-   The engine becomes an internal package of the app.
-3. **The paper-fidelity apparatus:**
-   - `docs/PARITY.md` and `evaluations/parity_check.py`
-   - `docs/CORPUS-EXTRACTION.md` and `docs/PARITY-SOURCES.md`
-   - `docs/FIDELITY.md`, `docs/UI-FIDELITY.md` and `docs/fidelity-audit/`
-   - the tests that read them, such as `test_published_prompt_fidelity.py`,
-     `_published_corpus.py` and `evaluations/tests/test_parity.py`
-   - the `make parity` gate and its CI wiring
-4. **Prompt saving** (`COSCIENTIST_SAVE_PROMPTS`).
-5. **Report files written to disk** (`COSCIENTIST_REPORTS_DIR`). Reports stay in
-   the database.
+1. **Tests of private helpers** when a behavior test reaches the same path.
+   Test through the public entry point instead.
+2. **The same behavior asserted through several entry points.** Keep the one
+   closest to the user and delete the rest.
+3. **Near-identical tests,** collapsed into `pytest.mark.parametrize` or
+   `it.each` tables.
+4. **Hand-written arrange blocks,** replaced by builders and factories in each
+   suite's `conftest.py` or a shared test helper module.
+5. **Copy-pasted fakes and fixtures,** merged into one shared version per suite.
+6. **Mock-choreography tests** that assert which internal collaborator was
+   called how often. Assert the observable outcome instead.
+7. **Trivial tests** of constants, dataclass defaults, enum members, re-exports,
+   type shapes and framework behavior.
+8. **Tests of retired paths:** old data shapes, historical migrations and
+   compatibility code the production reset made unreachable.
+9. **Production code that only tests reach.** When a test goes and nothing in
+   production calls the code it covered, delete that code too and lower the
+   production ceiling.
 
-## Documentation policy (code and tests)
+## Documentation policy
 
-- **Hidden reasons only.** A comment or docstring survives only for a reason the
-  code can't show: why something is the way it is, an invariant, or an outside
-  fact. Keep it to about two lines.
-- **Delete everything that restates code:** Args/Returns/Raises blocks,
-  narration, `Attributes:` lists repeating fields, and dated finding or ADR
-  references.
-- **Long incident histories move to `docs/OPERATIONS.md`,** compressed to their
-  lesson.
-- **Test names carry the behavior.** Test docstrings and comments go unless they
-  explain a non-obvious reason.
-- **Not documentation:** MCP tool docstrings become the model's tool
-  descriptions, and schema field descriptions are sent to the model. Both are
-  runtime content and stay.
-
-## Lint changes
-
-The current rules force much of the bloat, so they change first:
-
-- **Drop ruff `D`** (pydocstyle) in `app/` and `engine/`, so docstrings become
-  optional.
-- **Raise `PLR0913`** (maximum arguments) from 5 to 8.
-- **Raise mccabe `max-complexity`** from 5 to 10.
+The hidden-reasons policy now lives in AGENTS.md and applies to every test the
+campaign touches. Test names carry the behavior.
 
 ## Phases
 
 Finish each phase's exit test before starting the next.
 
-### Phase 1: tests and docs
+### Phase 1: instruments and shared scaffolding
 
 - **Opening PR:**
-  - Extend `evaluations/tests/test_code_size_ratchet.py` to also report test
-    lines and Markdown doc lines. Production lines keep the ceiling.
-  - Make the lint changes.
-- **Fidelity apparatus:** remove it (What goes, item 3), and update the Makefile,
-  CI, `README.md`, `docs/README.md` and the AGENTS.md files to match.
-- **Docs:** keep the AGENTS.md/CLAUDE.md files, READMEs,
-  `docs/ARCHITECTURE.md`, `engine/docs/ARCHITECTURE.md`, `docs/DEPLOYMENT.md`,
-  `docs/OPERATIONS.md`, `docs/RUNNING-LOCALLY.md`, `docs/CI.md`, `docs/LAUNCH.md`
-  and this file. Delete every other doc unless code or the build reads it.
-  Prompt templates under `engine/src` are product, not docs.
-- **Tests:** remove the audited waste only:
-  - docstrings and comments under the documentation policy
-  - redundant tests: the same behavior asserted through several entry points
-  - tests of private helpers where a behavior test covers the same path
-  - exact-string, prose and route-table snapshots
-  - copy-pasted fixtures and fakes, merged into shared conftest helpers
-  - hand-written arrange blocks, turned into builders or parametrization
+  - Re-measure the baseline table.
+  - Add a test-line ceiling to `evaluations/tests/test_code_size_ratchet.py`
+    beside the production ceiling. Both move one way: down.
+  - Add `make coverage` and record the coverage baseline.
+- **Shared builders and fixtures** (What goes 4 and 5), suite by suite, so
+  Phase 2's cuts land on short tests.
+- **Exit:** the ratchet carries both ceilings, the coverage baseline is
+  recorded, and every suite has one shared set of builders and fakes.
 
-  Keep the MCP study-trace tests. Behavior that must stay tested, and where it
-  is tested best today:
-  - leases, idempotency and retries: `test_task_worker.py`, `test_task_recovery.py`
-  - evidence gates: `test_review_gate.py`, `test_claim_grounding.py`
-  - lineage and provenance: `test_checkpoint.py`, `test_evolve_guard.py`,
-    `test_engine_drain_provenance.py`
-  - spend caps: `test_llm_budget_escalation.py`, `test_llm_attempt_loop.py`
-  - auth and ownership: `test_authentication.py`, `test_auth_exchange.py`,
-    `e2e/production/launch.spec.ts`
-  - URL guards: `engine/mcp_server/tests/test_web.py`
-  - sandbox confinement: `test_sandbox.py`, `test_workspace.py`
-  - SQLite invariants: `test_engine_drain_hypotheses.py`, `test_persistence_records.py`
-- **Bar:** CI green and healthy deploys.
-- **Exit:** the fidelity apparatus is gone, docs match the keep list, and every
-  audited waste category is done.
+### Phase 2: cut by behavior
 
-### Phase 2: the four remaining removals
+- Work suite by suite in this order: engine, app, MCP server, frontend,
+  evaluations. Apply What goes 1–3 and 6–9.
+- Per file, list the behaviors it protects, keep the best test for each, and
+  delete the rest.
+- **Exit:** every suite has been through every category.
 
-- Remove What goes items 1, 2, 4 and 5, one PR each.
-- Each PR also takes the feature's tests, docs, routes, config, environment
-  variables and Makefile targets.
-- **Bar:** Phase 1's bar plus `make e2e`.
-- **Exit:** all five removals are done, nothing references them, and no orphaned
-  configuration remains.
+### Phase 3: organize and finish
 
-### Phase 3: redundancy
-
-1. **Production reset, authorized by the owner on 3 October 2026:**
-   - Export every production run to a file outside the repo; run outputs stay
-     out of git.
-   - Verify the export's row counts against production.
-   - Then reset the production store. Old runs are free to stop loading
-     afterwards.
-2. **Apply the documentation policy** to all production code.
-3. **Remove over-splitting:** inline single-caller helpers where that reads
-   better (1,738 today), collapse wrapper chains, and delete re-export facades
-   such as `store/__init__.py`'s 177-name `__all__`.
-4. **Collapse duplication.** The audit found:
-   - one truncation rule written seven ways across `qa/`, `report/`, `store/`
-     and `drain/`
-   - eight near-identical lookup blocks in `biomedical_databases.py`
-   - ten copies of the `scoped_*` ContextVar pattern
-   - seven data structures re-carrying the `PromptRunContext` fields
-   - three tool-provider layers
-   - three near-identical fan-out executors in `engine_tasks/fanout.py`
-   - `errorMessage` defined three times in the frontend
-   - run-status sets and tier vocabulary duplicated between backend and frontend
-5. **Simplify state and idioms:**
-   - replace the chat session's 25-field handler bundle with a reducer
-   - derive `to_dict` methods from dataclass fields
-   - filter in SQL instead of in Python
-   - simplify the store schema now that old data shapes are free to go
-- **Bar:** full rigor, including light and dark visual comparison for CSS
-  changes.
-- **Exit:** the last two themed PRs each removed under 500 production lines.
+- Organize test files by behavior. Merge files that test one behavior from
+  several angles, and split files over 800 lines by behavior.
+- A final sweep over each suite against What goes.
+- **Exit:** the last two themed PRs each removed under 1,000 test lines.
 
 ## Rules
 
-- **Shrink genuinely:** delete and rewrite. Keep formatting as the formatters
-  produce it.
-- **Count honestly:** code, prompts and data stay in counted files, in git, where
-  they live today. A file counts as a test only when no production code imports
-  it.
-- **The ratchet moves one way:** lower the production ceiling in every PR that
-  shrinks the count.
-- **One theme per PR, sized for throughput:** 2–5k lines for removals and for
-  doc and test batches, at least 500 for refactors. A smaller PR is right when
-  it finishes a theme. Run targeted tests while iterating, and the phase's full
-  bar before each merge.
+- **Shrink genuinely:** delete and rewrite tests. Keep formatting as the
+  formatters produce it, and keep tests in counted files where the ratchet
+  sees them.
+- **Production behavior stays identical.** Production code changes only to
+  delete code that only tests reach (What goes 9).
+- **The ratchet moves one way:** lower the test ceiling, and the production
+  ceiling when it moves, in every PR that shrinks the count.
+- **Flaky tests get fixed,** with the cause named in the PR, rather than deleted
+  or retried.
+- **CI stays hermetic:** no network, no API keys, no retries.
+- **One theme per PR, sized for throughput:** 2–5k test lines. A smaller PR is
+  right when it finishes a theme. Run targeted tests while iterating, and
+  `make check`, `make e2e-production` and `make coverage` before each merge.
 - **Merging:** merge each PR once CI is green, with
   `gh pr merge --squash --delete-branch --admin`. The owner authorized bypassing
   `main`'s review requirement for this campaign; this overrides the
   branch-protection rule in AGENTS.md.
-- **Invariants:** keep the operational invariants in AGENTS.md and
-  `docs/OPERATIONS.md`. An invariant that exists only for a removed feature
-  retires with it; say so in that PR.
-- **Deploys:** every merge to `main` deploys production (api and mcp on Railway,
-  the frontend on Vercel). After each merge, confirm both are healthy: the
-  GitHub deployment statuses for the merge commit (`gh api`), the api's
-  `/health` at `https://api.ai-co-scientist.com/health`, and the frontend at
-  `https://ai-co-scientist.com/`. When one is unhealthy, ship a revert PR first
-  and resume once production is healthy again.
+- **Deploys:** every merge to `main` deploys production. After each merge,
+  confirm the GitHub deployment statuses for the merge commit (`gh api`), the
+  api's `/health` at `https://api.ai-co-scientist.com/health`, and the frontend
+  at `https://ai-co-scientist.com/`. When one is unhealthy, ship a revert PR
+  first and resume once production is healthy again.
 - **Git:** follow AGENTS.md. Keep every commit additive: make follow-up fixes in
   new commits on the branch. Run the app and engine pytest suites one after the
   other. Capture each gate's exit status on its own line.
-- **Delegation:** run independent subtrees in parallel with subagents when it
+- **Delegation:** run independent suites in parallel with subagents when it
   saves time: `gpt-6-luna` for exploration, `gpt-6.1-sol` for implementation,
-  each on its own subtree and branch. Give each the git rules and the ratchet,
-  and have it confirm its files are on disk before reporting.
-- **Hosting configuration stays with the owner:** collect every Railway and
-  Vercel change the campaign needs (`DEEPSEEK_API_KEY`, variables of removed
-  features) for the final report.
-- **Progress:** keep each PR body current with phase, theme, lines removed and
-  the new production, test and doc totals. After any context compaction,
-  re-read this file and the merged PR history to resume.
+  each on its own suite and branch. Give each these rules, the ratchet and the
+  coverage guard, and have it confirm its files are on disk before reporting.
+- **Progress:** keep each PR body current with phase, suite, theme, test lines
+  removed, tests and files removed, coverage before and after, and the new
+  totals. After any context compaction, re-read this file and the merged PR
+  history to resume.
 
 ## Done
 
 The campaign is complete when Phase 3's exit test passes. Mark this file's
 status complete in the final PR, then report:
 
-- production, test and doc lines at the start and end of each phase
-- every removal and the reason for it
-- anything that looked removable but proved load-bearing, and why
-- the Railway and Vercel changes for the owner to apply
+- test lines, tests and files per suite at the start and end of each phase
+- coverage per suite at the start and the end
+- production lines deleted under What goes 9
+- anything that looked redundant but proved load-bearing, and why
+- flaky tests found and their causes
 
-When a step depends on something outside the repository that is missing (for
-example production access for the export and reset), finish all other work
-first, then report that step's concrete blocker.
+When a step depends on something outside the repository that is missing,
+finish all other work first, then report that step's concrete blocker.
 
 ## Execution environment (owner, before launch)
 
 The campaign runs in a Codex cloud environment on `main`. It needs:
 
-- **Internet access:** unrestricted, or at least GitHub, Railway, Vercel, the
-  production domains and the package registries.
-- **GitHub:** a token with admin rights on `guy915/Co-Scientist`, so `gh` can
-  push, open PRs and merge with `--admin`.
-- **Railway:** a token for project `co-scientist`, so the Railway CLI can read
-  status and logs and perform the Phase 3 export and reset.
+- **Internet access:** GitHub, the production domains and the package
+  registries.
+- **GitHub:** a token with admin rights on `guy915/Co-Scientist` and the `repo`
+  and `workflow` scopes, so `gh` can push, open PRs and merge with `--admin`.
 - **Toolchain:** Python 3.12, Node.js 22.13+ and Bun 1.3.14, then `make setup`.
-- **Quiet repository:** stop any other agent trimming this repository.
+- **Quiet repository:** no other agent is editing tests.
 
-## Previous campaign
+## Previous campaigns
 
-The completed external-reference campaign (closed 1 October 2026), with its
-source decisions, final observations and immutable evidence links, is preserved
-at [`PLAN.md` @ 33ec8984](https://github.com/guy915/Co-Scientist/blob/33ec8984c6f9292a6653cc6a661d32210f55c688/PLAN.md).
+- The lean campaign (closed 4 October 2026), with its phase counts and
+  verification evidence, is preserved at
+  [`PLAN.md` @ 07fdfb0c](https://github.com/guy915/Co-Scientist/blob/07fdfb0c2e1acd77aa634ab8625e9337aedb6889/PLAN.md).
+- The external-reference campaign (closed 1 October 2026) is preserved at
+  [`PLAN.md` @ 33ec8984](https://github.com/guy915/Co-Scientist/blob/33ec8984c6f9292a6653cc6a661d32210f55c688/PLAN.md).

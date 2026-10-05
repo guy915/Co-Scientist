@@ -429,7 +429,7 @@ Use [`../docs/RUNNING-LOCALLY.md`](../docs/RUNNING-LOCALLY.md) for setup and
 
 **Style conventions:**
 - Ruff formats and lints Python at 80 columns; config is in `pyproject.toml`.
-- Apply `PLAN.md`'s hidden-reasons documentation policy; docstrings are optional.
+- Apply the hidden-reasons documentation policy in [`../AGENTS.md`](../AGENTS.md); docstrings are optional.
 - `logger.debug()` lowercase; `info`/`warning`/`error` capitalized.
 - No emojis or unicode decoration in code or logs.
 - Keep terminal presentation libraries outside runtime engine code.

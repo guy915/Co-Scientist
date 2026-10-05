@@ -11,7 +11,7 @@
 | [Launch](LAUNCH.md) | Release validation, backups and security settings |
 | [Dependencies](../requirements/README.md) | Hash-pinned runtime locks and audits |
 | [Contributor guidance](../AGENTS.md) | Repository rules and operating invariants |
-| [Lean campaign](../PLAN.md) | Active phases and progress rules |
+| [Test campaign](../PLAN.md) | Active phases and progress rules |
 
 Retired audits, guides, incident records and screenshots remain in
 [immutable history at 33ec8984](https://github.com/guy915/Co-Scientist/tree/33ec8984c6f9292a6653cc6a661d32210f55c688/docs).
