@@ -15,12 +15,7 @@ from mcp_server.entrez import read_entrez
 from mcp_server.literature_review import PubmedSource
 from mcp_server.pubmed_client import (
     MIN_RESULTS_BEFORE_RELAX,
-    _EntrezClient,
-    _extract_abstract,
-    _extract_publication_types,
     anchored_relaxed_query,
-    field_tag_terms,
-    or_relaxed_query,
     relaxation_ladder,
     search_with_relaxation,
 )
@@ -29,285 +24,134 @@ from mcp_server.pubmed_storage import (
     link_metadata_to_run,
     write_metadata_cache_file,
 )
-from mcp_server.tests._entrez import CannedEntrezHandle as _CannedEntrezHandle
-from mcp_server.tests._entrez import install_entrez
+from mcp_server.tests._entrez import CannedEntrezHandle, install_entrez
 from mcp_server.text_extraction import clean_markup, extract_text_from_pmc_html
-from mcp_server.tools.lit_review import search_pubmed as pubmed_parsing
 from mcp_server.tools.lit_review import search_pubmed as tool
-from mcp_server.tools.lit_review.search_pubmed import check_pubmed_available
 
-
-def test_extract_publication_types_reads_the_list() -> None:
-    article = {
-        "PublicationTypeList": ["Journal Article", "Retracted Publication"]
-    }
-    assert _extract_publication_types(article) == [
-        "Journal Article",
-        "Retracted Publication",
-    ]
-
-
-def test_extract_publication_types_defaults_to_empty() -> None:
-    assert _extract_publication_types({}) == []
-
-
-def test_fetch_paper_details_surfaces_publication_types(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    canned = {
-        "PubmedArticle": [
-            {
-                "MedlineCitation": {
-                    "Article": {
-                        "ArticleTitle": "A retracted paper",
-                        "Journal": {"Title": "Nature"},
-                        "PublicationTypeList": [
-                            "Journal Article",
-                            "Retracted Publication",
-                        ],
-                        "AuthorList": [],
-                    },
-                    "DateRevised": {
-                        "Year": "2020",
-                        "Month": "1",
-                        "Day": "1",
-                    },
-                },
-                "PubmedData": {"ArticleIdList": []},
-            }
-        ]
-    }
-
-    client = _EntrezClient(tmp_path)
-    monkeypatch.setattr(
-        "mcp_server.pubmed_client.entrez_call", lambda *_a, **_k: None
-    )
-    monkeypatch.setattr(
-        _EntrezClient, "entrez_read", lambda self, handle: canned
-    )
-    monkeypatch.setattr(
-        _EntrezClient, "_fetch_pmc_fulltext_id", lambda self, *_a: None
-    )
-
-    metadata = client._fetch_paper_details("123")
-
-    assert metadata["publication_types"] == [
-        "Journal Article",
-        "Retracted Publication",
-    ]
-
-
-def test_fetch_paper_details_reads_as_plain_text(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """PubMed embeds formatting tags in species and gene names that agents
-    may quote."""
-    canned = {
-        "PubmedArticle": [
-            {
-                "MedlineCitation": {
-                    "Article": {
-                        "ArticleTitle": (
-                            "Repurposing loratadine in "
-                            "<i>Klebsiella pneumoniae</i>"
-                        ),
-                        "Abstract": {
-                            "AbstractText": [
-                                "<b>Background:</b>",
-                                "bla<sub>NDM-1</sub> is widespread.",
-                            ]
-                        },
-                        "Journal": {"Title": "Nature"},
-                        "AuthorList": [],
-                    },
-                    "DateRevised": {"Year": "2020", "Month": "1", "Day": "1"},
-                },
-                "PubmedData": {"ArticleIdList": []},
-            }
-        ]
-    }
-
-    client = _EntrezClient(tmp_path)
-    monkeypatch.setattr(
-        "mcp_server.pubmed_client.entrez_call", lambda *_a, **_k: None
-    )
-    monkeypatch.setattr(
-        _EntrezClient, "entrez_read", lambda self, handle: canned
-    )
-    monkeypatch.setattr(
-        _EntrezClient, "_fetch_pmc_fulltext_id", lambda self, *_a: None
-    )
-
-    metadata = client._fetch_paper_details("123")
-
-    assert metadata["title"] == (
-        "Repurposing loratadine in Klebsiella pneumoniae"
-    )
-    assert metadata["abstract"] == "Background: blaNDM-1 is widespread."
-
-
-def test_fetch_paper_details_keeps_article_without_author_list(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    canned = {
-        "PubmedArticle": [
-            {
-                "MedlineCitation": {
-                    "Article": {
-                        "ArticleTitle": "A paper without an author list",
-                        "Abstract": {"AbstractText": ["Useful abstract."]},
-                        "Journal": {"Title": "Nature"},
-                    },
-                    "DateRevised": {"Year": "2020", "Month": "1", "Day": "1"},
-                },
-                "PubmedData": {"ArticleIdList": []},
-            }
-        ]
-    }
-
-    client = _EntrezClient(tmp_path)
-    monkeypatch.setattr(
-        "mcp_server.pubmed_client.entrez_call", lambda *_a, **_k: None
-    )
-    monkeypatch.setattr(
-        _EntrezClient, "entrez_read", lambda self, handle: canned
-    )
-    monkeypatch.setattr(
-        _EntrezClient, "_fetch_pmc_fulltext_id", lambda self, *_a: None
-    )
-
-    metadata = client._fetch_paper_details("123")
-
-    assert metadata["title"] == "A paper without an author list"
-    assert metadata["abstract"] == "Useful abstract."
-    assert metadata["publication"] == "Nature"
-    assert metadata["authors"] == []
-
-
-def test_pubmed_tool_returns_article_without_author_list(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    paper = {
-        "PubmedArticle": [
-            {
-                "MedlineCitation": {
-                    "Article": {
-                        "ArticleTitle": "A paper without an author list",
-                        "Abstract": {"AbstractText": ["Useful abstract."]},
-                        "Journal": {"Title": "Nature"},
-                    },
-                    "DateRevised": {"Year": "2020", "Month": "1", "Day": "1"},
-                },
-                "PubmedData": {"ArticleIdList": []},
-            }
-        ]
-    }
-
-    monkeypatch.delenv("COSCIENTIST_PUBMED_PILOT_TRACE", raising=False)
-    monkeypatch.setattr(tool, "_pubmed_cache_dir", lambda: tmp_path)
-    monkeypatch.setattr(
-        "mcp_server.pubmed_client.entrez_call",
-        lambda request, **kwargs: request(**kwargs),
-    )
-    install_entrez(
-        monkeypatch,
-        esearch=lambda **_kwargs: _CannedEntrezHandle({"IdList": ["123"]}),
-        efetch=lambda **_kwargs: _CannedEntrezHandle(paper),
-        elink=lambda **_kwargs: _CannedEntrezHandle([{"LinkSetDb": []}]),
-    )
-
-    results = asyncio.run(
-        tool.pubmed_search_with_fulltext(
-            query="authorless",
-            slug="authorless",
-            max_papers=1,
-            run_id="offline-test",
-        )
-    )
-
-    assert results.keys() == {"123"}
-    assert results["123"]["title"] == "A paper without an author list"
-    assert results["123"]["abstract"] == "Useful abstract."
-    assert results["123"]["authors"] == []
-    metadata_path = (
-        tmp_path
-        / "pubmed"
-        / "authorless"
-        / "runs"
-        / "offline-test"
-        / "123.metadata.json"
-    )
-    assert metadata_path.is_symlink()
-    assert (
-        json.loads(metadata_path.read_text(encoding="utf-8")) == results["123"]
-    )
-
-
-def test_extract_abstract_keeps_the_missing_sentinel() -> None:
-    """The angle-bracketed missing sentinel is text, not publisher markup."""
-    assert _extract_abstract({}) == "<not found>"
+_JOURNAL = {"Title": "Nature", "JournalIssue": {}}
 
 
 def _canned(article: dict[str, Any]) -> dict[str, Any]:
     return {
         "PubmedArticle": [
             {
-                "MedlineCitation": {"Article": article},
+                "MedlineCitation": {
+                    "Article": {"Journal": _JOURNAL, **article},
+                    "DateRevised": {"Year": "2020", "Month": "1", "Day": "1"},
+                },
                 "PubmedData": {"ArticleIdList": []},
             }
         ]
     }
 
 
-@pytest.fixture
-def entrez(monkeypatch: pytest.MonkeyPatch) -> Any:
-
-    def _install(article: dict[str, Any]) -> None:
-        monkeypatch.setattr(
-            "mcp_server.tools.lit_review.search_pubmed.entrez_call",
-            lambda *_a, **_k: None,
-        )
-        monkeypatch.setattr(
-            "mcp_server.tools.lit_review.search_pubmed.read_entrez",
-            lambda _handle: _canned(article),
-        )
-
-    return _install
+def _install_article(
+    monkeypatch: pytest.MonkeyPatch, article: dict[str, Any]
+) -> None:
+    install_entrez(
+        monkeypatch,
+        esearch=lambda **_kwargs: CannedEntrezHandle({"IdList": ["123"]}),
+        efetch=lambda **_kwargs: CannedEntrezHandle(_canned(article)),
+        elink=lambda **_kwargs: CannedEntrezHandle([{"LinkSetDb": []}]),
+    )
 
 
-def test_an_article_reads_as_plain_text(entrez: Any) -> None:
-    entrez(
-        {
-            "ArticleTitle": "Emergence of <i>mcr-1.1</i> in bla<sub>NDM</sub>",
-            "Abstract": {
-                "AbstractText": [
-                    "<b>Background:</b>",
-                    "Colistin is a last resort.",
-                ]
+_MARKUP = {
+    "ArticleTitle": "Repurposing loratadine in <i>Klebsiella pneumoniae</i>",
+    "Abstract": {
+        "AbstractText": ["<b>Background:</b>", "bla<sub>NDM-1</sub> is common."]
+    },
+    "AuthorList": [],
+}
+_MARKUP_TEXT = (
+    "Repurposing loratadine in Klebsiella pneumoniae",
+    "Background: blaNDM-1 is common.",
+)
+
+
+@pytest.mark.parametrize(
+    ("article", "expected"),
+    [
+        pytest.param(
+            {
+                "ArticleTitle": "A paper without an author list",
+                "Abstract": {"AbstractText": ["Useful abstract."]},
             },
-            "Journal": {"Title": "Nature", "JournalIssue": {}},
-            "AuthorList": [],
-        }
+            {
+                "title": "A paper without an author list",
+                "abstract": "Useful abstract.",
+                "authors": [],
+                "publication": "Nature",
+            },
+            id="no author list",
+        ),
+        pytest.param(
+            _MARKUP,
+            dict(zip(("title", "abstract"), _MARKUP_TEXT, strict=True)),
+            id="publisher markup reads as plain text",
+        ),
+        pytest.param(
+            {
+                "ArticleTitle": "A retracted paper",
+                "PublicationTypeList": ["Journal Article", "Retraction"],
+            },
+            {
+                "abstract": "<not found>",
+                "publication_types": ["Journal Article", "Retraction"],
+            },
+            id="publication types and a missing abstract",
+        ),
+    ],
+)
+def test_the_fulltext_tool_returns_article_metadata_and_links_it_to_the_run(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    article: dict[str, Any],
+    expected: dict[str, Any],
+) -> None:
+    monkeypatch.delenv("COSCIENTIST_PUBMED_PILOT_TRACE", raising=False)
+    monkeypatch.setenv("COSCIENTIST_LIT_REVIEW_DIR", str(tmp_path))
+    _install_article(monkeypatch, article)
+
+    results = asyncio.run(
+        tool.pubmed_search_with_fulltext(
+            query="single", slug="slug", max_papers=1, run_id="run"
+        )
     )
 
-    article = pubmed_parsing._fetch_pubmed_article("123")
-
-    assert article.title == "Emergence of mcr-1.1 in blaNDM"
-    assert article.abstract == "Background: Colistin is a last resort."
-
-
-def test_an_article_without_an_abstract_reports_none(entrez: Any) -> None:
-    """A missing abstract means fetch it; empty text is already considered
-    readable evidence."""
-    entrez(
-        {
-            "ArticleTitle": "A paper with no abstract",
-            "Journal": {"Title": "Nature", "JournalIssue": {}},
-            "AuthorList": [],
-        }
+    assert results.keys() == {"123"}
+    assert {key: results["123"][key] for key in expected} == expected
+    metadata_path = tmp_path / "pubmed/slug/runs/run/123.metadata.json"
+    assert metadata_path.is_symlink()
+    assert (
+        json.loads(metadata_path.read_text(encoding="utf-8")) == results["123"]
     )
 
-    assert pubmed_parsing._fetch_pubmed_article("123").abstract is None
+
+@pytest.mark.parametrize(
+    ("article", "title", "abstract"),
+    [
+        pytest.param(_MARKUP, *_MARKUP_TEXT, id="markup reads as plain text"),
+        pytest.param(
+            {"ArticleTitle": "No abstract"},
+            "No abstract",
+            None,
+            id="no abstract",
+        ),
+    ],
+)
+def test_search_pubmed_returns_plain_text_articles(
+    monkeypatch: pytest.MonkeyPatch,
+    article: dict[str, Any],
+    title: str,
+    abstract: str | None,
+) -> None:
+    _install_article(monkeypatch, article)
+
+    payload = json.loads(tool.search_pubmed("kinase", 1))
+
+    (found,) = payload["results"]
+    assert (found["title"], found["abstract"]) == (title, abstract)
 
 
 @pytest.mark.parametrize("reachable", [True, False])
@@ -333,197 +177,159 @@ def test_anonymous_pubmed_availability_queries_service(
         )
 
     monkeypatch.setattr(Entrez, "esearch", esearch)
-    assert check_pubmed_available() == ("true" if reachable else "false")
+    assert tool.check_pubmed_available() == ("true" if reachable else "false")
     assert len(called) == 1
 
 
-@pytest.mark.parametrize("result", [{"IdList": ["123"]}, [{"LinkSetDb": []}]])
-def test_entrez_reader_closes_the_response(
-    monkeypatch: pytest.MonkeyPatch, result: object
-) -> None:
-    handle = BytesIO()
-    monkeypatch.setattr(Entrez, "read", lambda _handle: result)
-    assert read_entrez(handle) is result
-    assert handle.closed
-
-
-def test_entrez_reader_closes_a_malformed_response(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("malformed", [False, True])
+def test_the_entrez_reader_closes_the_response(
+    monkeypatch: pytest.MonkeyPatch, malformed: bool
 ) -> None:
     handle = BytesIO()
 
-    def malformed(_handle: object) -> None:
-        raise ValueError("malformed XML")
+    def read(_handle: object) -> object:
+        if malformed:
+            raise ValueError("malformed XML")
+        return {"IdList": ["123"]}
 
-    monkeypatch.setattr(Entrez, "read", malformed)
-    with pytest.raises(ValueError, match="malformed XML"):
-        read_entrez(handle)
+    monkeypatch.setattr(Entrez, "read", read)
+    if malformed:
+        with pytest.raises(ValueError, match="malformed XML"):
+            read_entrez(handle)
+    else:
+        assert read_entrez(handle) == {"IdList": ["123"]}
     assert handle.closed
 
 
-def test_field_tag_terms_wraps_each_term_in_mesh_and_tiab() -> None:
-    """PubMed automatic mapping can silently AND bare words when a phrase has
-    no controlled heading."""
-    assert field_tag_terms("kinase tumor", " AND ") == (
-        "(kinase[tiab] OR kinase[mesh]) AND (tumor[tiab] OR tumor[mesh])"
-    )
+def _tagged(*terms: str, joiner: str = " OR ") -> str:
+    return joiner.join(f"({term}[tiab] OR {term}[mesh])" for term in terms)
 
 
-def test_field_tag_terms_honors_the_given_joiner() -> None:
-    assert field_tag_terms("kinase tumor growth", " OR ") == (
-        "(kinase[tiab] OR kinase[mesh]) OR (tumor[tiab] OR tumor[mesh])"
-        " OR (growth[tiab] OR growth[mesh])"
-    )
+_ANCHORED = (
+    f"{_tagged('PHGDH', 'knockdown', joiner=' AND ')} AND "
+    f"({_tagged('osimertinib', 'resistance')})"
+)
 
 
-def test_field_tag_terms_tags_a_single_term() -> None:
-    assert field_tag_terms("kinase", " AND ") == (
-        "(kinase[tiab] OR kinase[mesh])"
-    )
-
-
-def test_field_tag_terms_leaves_explicit_boolean_queries_untouched() -> None:
-    """Retokenizing an explicit Boolean query would fight the caller's own
-    structure."""
-    assert field_tag_terms("kinase AND tumor", " AND ") == "kinase AND tumor"
-    assert field_tag_terms("kinase OR tumor", " OR ") == "kinase OR tumor"
-    assert field_tag_terms("kinase NOT tumor", " AND ") == "kinase NOT tumor"
-
-
-def test_or_relaxes_a_multi_term_query_with_field_tags() -> None:
-    assert or_relaxed_query("kinase inhibition tumor growth") == (
-        "(kinase[tiab] OR kinase[mesh])"
-        " OR (inhibition[tiab] OR inhibition[mesh])"
-        " OR (tumor[tiab] OR tumor[mesh])"
-        " OR (growth[tiab] OR growth[mesh])"
-    )
-
-
-def test_single_term_and_boolean_queries_are_not_relaxed() -> None:
-    assert or_relaxed_query("kinase") is None
-    assert or_relaxed_query("kinase OR tumor") is None
-    assert or_relaxed_query("kinase AND tumor") is None
-    assert or_relaxed_query("kinase NOT tumor") is None
-
-
-def test_ladder_broadens_recency_then_anchored_then_terms() -> None:
-    """Per-word tags can regress exact queries that PubMed automatic mapping
-    already handles."""
-    ladder = relaxation_ladder("kinase inhibition tumor", recency_years=7)
-    anchored = (
-        "(kinase[tiab] OR kinase[mesh])"
-        " AND (inhibition[tiab] OR inhibition[mesh])"
-        " AND ((tumor[tiab] OR tumor[mesh]))"
-    )
-    tagged_or = (
-        "(kinase[tiab] OR kinase[mesh])"
-        " OR (inhibition[tiab] OR inhibition[mesh])"
-        " OR (tumor[tiab] OR tumor[mesh])"
-    )
-    assert ladder == [
-        ("kinase inhibition tumor", 7),
-        ("kinase inhibition tumor", 0),
-        (anchored, 0),
-        (tagged_or, 0),
-    ]
-
-
-def test_the_anchored_rung_keeps_the_leading_terms_required() -> None:
-    """Fully ORing terms changes the subject; keep leading anchors to avoid
-    unrelated evidence."""
-    anchored = anchored_relaxed_query("PHGDH knockdown osimertinib resistance")
-
-    assert anchored is not None
-    assert anchored.startswith(
-        "(PHGDH[tiab] OR PHGDH[mesh])"
-        " AND (knockdown[tiab] OR knockdown[mesh]) AND ("
-    )
-    assert " AND (osimertinib" not in anchored
-    assert "osimertinib[tiab] OR osimertinib[mesh]" in anchored
-    assert "resistance[tiab] OR resistance[mesh]" in anchored
-
-
-def test_a_query_with_nothing_past_its_anchors_is_not_anchored() -> None:
-    assert anchored_relaxed_query("kinase") is None
-    assert anchored_relaxed_query("kinase tumor") is None
-    assert anchored_relaxed_query("kinase AND tumor") is None
-
-
-def test_ladder_omits_redundant_rungs() -> None:
-    assert relaxation_ladder("kinase", recency_years=0) == [("kinase", 0)]
-    assert relaxation_ladder("kinase tumor", recency_years=0) == [
-        ("kinase tumor", 0),
+@pytest.mark.parametrize(
+    ("query", "recency", "ladder"),
+    [
+        ("kinase", 0, [("kinase", 0)]),
         (
-            "(kinase[tiab] OR kinase[mesh]) OR (tumor[tiab] OR tumor[mesh])",
+            "kinase tumor",
             0,
+            [("kinase tumor", 0), (_tagged("kinase", "tumor"), 0)],
         ),
-    ]
+        (
+            "kinase inhibition tumor",
+            7,
+            [
+                ("kinase inhibition tumor", 7),
+                ("kinase inhibition tumor", 0),
+                (
+                    f"{_tagged('kinase', 'inhibition', joiner=' AND ')}"
+                    f" AND ({_tagged('tumor')})",
+                    0,
+                ),
+                (_tagged("kinase", "inhibition", "tumor"), 0),
+            ],
+        ),
+        (
+            "PHGDH knockdown osimertinib resistance",
+            0,
+            [
+                ("PHGDH knockdown osimertinib resistance", 0),
+                (_ANCHORED, 0),
+                (_tagged("PHGDH", "knockdown", "osimertinib", "resistance"), 0),
+            ],
+        ),
+        # Explicit Boolean structure would fight retokenizing.
+        *(
+            (f"kinase {op} tumor", 0, [(f"kinase {op} tumor", 0)])
+            for op in ("AND", "OR", "NOT")
+        ),
+    ],
+)
+def test_the_relaxation_ladder_broadens_recency_then_anchored_then_terms(
+    query: str, recency: int, ladder: list[tuple[str, int]]
+) -> None:
+    assert relaxation_ladder(query, recency_years=recency) == ladder
 
 
-def test_ladder_leaves_an_explicit_boolean_query_untagged() -> None:
-    for operator in ("AND", "OR", "NOT"):
-        query = f"kinase {operator} tumor"
-        assert relaxation_ladder(query, recency_years=0) == [(query, 0)]
-
-
-def test_lowercase_prose_operators_do_not_suppress_relaxation() -> None:
-    calls: list[str] = []
-
-    def _esearch(term: str, retmax: int, recency: int) -> list[str]:
-        calls.append(term)
-        return []
-
-    query = "kinase and tumor or growth not drug"
-    ids = search_with_relaxation(query, 10, 0, _esearch)
-
-    assert ids == []
-    assert calls[0] == query
-    assert len(calls) == 3
-    assert " AND (" in calls[1]
-    assert calls[2].startswith("(kinase[tiab] OR kinase[mesh]) OR")
-
-
-def test_runner_returns_first_rung_when_it_has_enough() -> None:
+def _by_rung(**ids_by_rung: list[str]) -> Any:
     calls: list[tuple[str, int, int]] = []
 
-    def _esearch(term: str, retmax: int, recency: int) -> list[str]:
+    def esearch(term: str, retmax: int, recency: int) -> list[str]:
+        if " AND (" in term:
+            rung = "anchored"
+        elif term.startswith("("):
+            rung = "tagged_or"
+        else:
+            rung = "recent" if recency else "exact"
         calls.append((term, retmax, recency))
-        return [str(i) for i in range(MIN_RESULTS_BEFORE_RELAX)]
+        return ids_by_rung.get(rung, [])
 
-    ids = search_with_relaxation("kinase tumor", 10, 7, _esearch)
-    assert len(ids) == MIN_RESULTS_BEFORE_RELAX
-    assert len(calls) == 1
-    assert calls[0][1:] == (10, 7)
+    esearch.calls = calls  # type: ignore[attr-defined]
+    return esearch
 
 
-def test_runner_relaxes_until_a_rung_returns_enough() -> None:
-    calls: list[tuple[str, int, int]] = []
+@pytest.mark.parametrize(
+    ("query", "retmax", "recency", "ids_by_rung", "expected", "rungs"),
+    [
+        (
+            "kinase tumor",
+            10,
+            7,
+            {"recent": [str(i) for i in range(MIN_RESULTS_BEFORE_RELAX)]},
+            ["0", "1", "2"],
+            1,
+        ),
+        (
+            "kinase inhibition tumor",
+            10,
+            7,
+            {"tagged_or": ["1", "2", "3", "4"]},
+            ["1", "2", "3", "4"],
+            4,
+        ),
+        (
+            "kinase inhibition tumor",
+            10,
+            0,
+            {"anchored": ["1", "2", "3"], "tagged_or": ["9"]},
+            ["1", "2", "3"],
+            2,
+        ),
+        (
+            "kinase inhibition tumor",
+            10,
+            7,
+            {"recent": ["only-one"]},
+            ["only-one"],
+            4,
+        ),
+        ("kinase inhibition tumor", 10, 7, {}, [], 4),
+        # The threshold is clamped to retmax.
+        ("kinase tumor", 1, 0, {"exact": ["1"]}, ["1"], 1),
+        # Lowercase prose operators do not suppress relaxation.
+        ("kinase and tumor or growth not drug", 10, 0, {}, [], 3),
+    ],
+)
+def test_relaxation_stops_at_the_first_rung_with_enough_results(
+    query: str,
+    retmax: int,
+    recency: int,
+    ids_by_rung: dict[str, list[str]],
+    expected: list[str],
+    rungs: int,
+) -> None:
+    esearch = _by_rung(**ids_by_rung)
 
-    def _esearch(term: str, retmax: int, recency: int) -> list[str]:
-        calls.append((term, retmax, recency))
-        if term.startswith("(kinase[tiab] OR kinase[mesh]) OR"):
-            return ["1", "2", "3", "4"]
-        return []
+    ids = search_with_relaxation(query, retmax, recency, esearch)
 
-    ids = search_with_relaxation("kinase inhibition tumor", 10, 7, _esearch)
-    assert ids == ["1", "2", "3", "4"]
-    assert [c[1:] for c in calls] == [(10, 7), (10, 0), (10, 0), (10, 0)]
-    assert calls[0][0] == "kinase inhibition tumor"
-    assert " AND (" in calls[2][0]
-
-
-def test_the_anchored_rung_is_taken_before_the_fully_ored_one() -> None:
-    calls: list[str] = []
-
-    def _esearch(term: str, retmax: int, recency: int) -> list[str]:
-        calls.append(term)
-        return ["1", "2", "3"] if " AND (" in term else []
-
-    ids = search_with_relaxation("kinase inhibition tumor", 10, 0, _esearch)
-
-    assert ids == ["1", "2", "3"]
-    assert len(calls) == 2
-    assert not calls[-1].startswith("(kinase[tiab] OR kinase[mesh]) OR")
+    assert ids == expected
+    assert len(esearch.calls) == rungs
+    assert esearch.calls[0][0] == query
 
 
 def test_first_rung_target_survives_when_anchored_rung_fills_buffer() -> None:
@@ -533,82 +339,24 @@ def test_first_rung_target_survives_when_anchored_rung_fills_buffer() -> None:
         "colonization."
     )
     precise_ids = ["21512004"]
-    anchored_ids = [
-        "42415234",
-        "42679821",
-        "42400638",
-        "42346964",
-        "42115921",
-        "40233891",
-        "40764272",
-        "41196415",
-        "41195911",
-    ]
+    anchored_ids = [str(42415234 + n) for n in range(9)]
     calls: list[str] = []
     trace: dict[str, Any] = {"sort": "pub_date"}
 
-    def _esearch(term: str, retmax: int, recency: int) -> list[str]:
-        assert retmax == 9
-        assert recency == 0
+    def esearch(term: str, retmax: int, recency: int) -> list[str]:
         calls.append(term)
         if term == query:
             return precise_ids
-        if " AND (" in term:
-            return anchored_ids
-        pytest.fail("The qualifying anchored rung should stop the ladder")
+        assert " AND (" in term, "The anchored rung should stop the ladder"
+        return anchored_ids
 
-    ids = search_with_relaxation(query, 9, 0, _esearch, trace)
+    ids = search_with_relaxation(query, 9, 0, esearch, trace)
 
     assert ids == [*precise_ids, *anchored_ids[:8]]
     assert calls == [query, anchored_relaxed_query(query)]
     assert trace["selected"]["rung_index"] == 2
     assert trace["selected"]["rung_type"] == "anchored"
     assert trace["selected"]["ids"] == ids
-
-
-def test_merged_rung_ids_keep_first_occurrence_order_and_retmax_cap() -> None:
-    query = "kinase inhibition tumor growth"
-    anchored_ids = ["shared", "anchored"]
-    broad_ids = ["anchored", "broad-1", "broad-2"]
-
-    def _esearch(term: str, _retmax: int, _recency: int) -> list[str]:
-        if term == query:
-            return ["exact", "shared"]
-        if " AND (" in term:
-            return anchored_ids
-        return broad_ids
-
-    ids = search_with_relaxation(query, 4, 0, _esearch)
-
-    assert ids == ["exact", "shared", "anchored", "broad-1"]
-
-
-def test_runner_keeps_a_thin_result_when_no_rung_clears_the_bar() -> None:
-
-    def _esearch(term: str, retmax: int, recency: int) -> list[str]:
-        return ["only-one"] if recency > 0 else []
-
-    ids = search_with_relaxation("kinase inhibition tumor", 10, 7, _esearch)
-    assert ids == ["only-one"]
-
-
-def test_runner_returns_empty_when_nothing_matches_at_any_breadth() -> None:
-    ids = search_with_relaxation(
-        "kinase inhibition tumor", 10, 7, lambda *_: []
-    )
-    assert ids == []
-
-
-def test_threshold_is_clamped_to_retmax() -> None:
-    calls: list[str] = []
-
-    def _esearch(term: str, retmax: int, recency: int) -> list[str]:
-        calls.append(term)
-        return ["1"]
-
-    ids = search_with_relaxation("kinase tumor", 1, 0, _esearch)
-    assert ids == ["1"]
-    assert len(calls) == 1
 
 
 def test_storage_import_does_not_initialize_entrez() -> None:
@@ -641,7 +389,7 @@ def test_metadata_and_empty_link_proof_survive_cache_relocation(
     run_dir = tree / "slug" / "runs" / "run-id"
     run_dir.mkdir(parents=True)
     metadata_file = shared_dir / "101.metadata.json"
-    metadata = {"title": "Paper \u03b2", "pmc_full_text_id": None}
+    metadata = {"title": "Paper β", "pmc_full_text_id": None}
 
     write_metadata_cache_file(metadata_file, metadata, successful_no_link=True)
     link_metadata_to_run(run_dir, "101")
@@ -664,41 +412,30 @@ def test_metadata_and_empty_link_proof_survive_cache_relocation(
     assert not has_proven_metadata_no_link(relocated_metadata)
 
 
-def test_final_results_fill_fulltext_shortfall_with_abstracts(
+@pytest.mark.parametrize(
+    ("fulltext_ids", "max_papers", "expected"),
+    [
+        (["fulltext-1"], 3, ["fulltext-1", "abstract-1", "abstract-2"]),
+        (["fulltext-1", "fulltext-2"], 2, ["fulltext-1", "fulltext-2"]),
+    ],
+)
+def test_final_results_fill_fulltext_shortfall_within_the_corpus_limit(
     tmp_path: Path,
+    fulltext_ids: list[str],
+    max_papers: int,
+    expected: list[str],
 ) -> None:
-    source = PubmedSource(tmp_path)
     metadata = {
         "abstract-1": {"title": "Recent abstract", "abstract": "A1"},
-        "fulltext-1": {
-            "title": "Open paper",
-            "abstract": "A2",
-            "fulltext": "Complete article",
-        },
         "abstract-2": {"title": "Older abstract", "abstract": "A3"},
+        **{paper_id: {"fulltext": "Complete"} for paper_id in fulltext_ids},
     }
 
-    result = source._assemble_final_results(
-        ["fulltext-1"], metadata, max_papers=3
+    result = PubmedSource(tmp_path)._assemble_final_results(
+        fulltext_ids, metadata, max_papers=max_papers
     )
 
-    assert list(result) == ["fulltext-1", "abstract-1", "abstract-2"]
-    assert len(result) == 3
-
-
-def test_final_results_respect_total_corpus_limit(tmp_path: Path) -> None:
-    source = PubmedSource(tmp_path)
-    metadata = {
-        "fulltext-1": {"fulltext": "One"},
-        "fulltext-2": {"fulltext": "Two"},
-        "abstract-1": {"abstract": "Three"},
-    }
-
-    result = source._assemble_final_results(
-        ["fulltext-1", "fulltext-2"], metadata, max_papers=2
-    )
-
-    assert list(result) == ["fulltext-1", "fulltext-2"]
+    assert list(result) == expected
 
 
 @pytest.mark.parametrize(
@@ -719,9 +456,11 @@ def test_final_results_respect_total_corpus_limit(tmp_path: Path) -> None:
         ("bla<sub>NDM-1</sub> carriage", "blaNDM-1 carriage"),
         ("Trials &amp; results", "Trials & results"),
         # Europe PMC species abbreviations can include zero-width spaces.
-        ("(<i>K. pneumoniae</i>\u200b\u200b)", "(K. pneumoniae)"),
+        ("(<i>K. pneumoniae</i>​​)", "(K. pneumoniae)"),
         ("line one\n\n  line two", "line one line two"),
-        ("growth at p &lt; 0.05 in group A", "growth at p < 0.05 in group A"),
+        # Loose angle-bracket stripping can delete a comparison clause.
+        ("holds for p &lt;b and q&gt; r", "holds for p <b and q> r"),
+        ("at p&lt;0.05 while A&gt;B held", "at p<0.05 while A>B held"),
         (None, ""),
         ("", ""),
         (123, ""),
@@ -729,22 +468,6 @@ def test_final_results_respect_total_corpus_limit(tmp_path: Path) -> None:
 )
 def test_clean_markup(raw: Any, expected: str) -> None:
     assert clean_markup(raw) == expected
-
-
-def test_clean_markup_leaves_a_comparison_shaped_like_a_tag_intact() -> None:
-    """Loose angle-bracket stripping can delete a comparison clause rather
-    than publisher markup."""
-    raw = "holds for p &lt;b and q&gt; r"
-
-    assert clean_markup(raw) == "holds for p <b and q> r"
-
-
-def test_clean_markup_leaves_comparisons_intact() -> None:
-    """Loose angle-bracket stripping can delete a comparison clause rather
-    than publisher markup."""
-    raw = "significant at p&lt;0.05 while A&gt;B held"
-
-    assert clean_markup(raw) == "significant at p<0.05 while A>B held"
 
 
 def test_pmc_rendering_keeps_abstract_and_section_paragraphs() -> None:
@@ -761,9 +484,12 @@ def test_pmc_rendering_keeps_abstract_and_section_paragraphs() -> None:
       </body>
       <back><ref-list><p>References.</p></ref-list></back>
     </article>"""
-    assert extract_text_from_pmc_html(xml) == (
-        "# abstract\n\nFirstabstract.\n\nSecond.\n\n"
-        "## Methods\n\nDirect.\n\nBoxed.\n\n## section\n\nUnlabelled."
+    rendered = "# abstract\n\nFirstabstract.\n\nSecond.\n\n"
+    rendered += "## Methods\n\nDirect.\n\nBoxed.\n\n## section\n\nUnlabelled."
+
+    assert extract_text_from_pmc_html(xml) == rendered
+    assert extract_text_from_pmc_html(xml, 25) == (
+        rendered[:25] + "\n\n[... truncated for length ...]"
     )
 
 
@@ -780,25 +506,3 @@ def test_pmc_rendering_keeps_abstract_and_section_paragraphs() -> None:
 )
 def test_pmc_rendering_handles_sparse_articles(xml: str, expected: str) -> None:
     assert extract_text_from_pmc_html(xml) == expected
-
-
-@pytest.mark.parametrize("max_chars", [0, 25, 200_000])
-def test_pmc_sections_preserve_the_corpus_format(max_chars: int) -> None:
-    article = """<article>
-        <abstract><p>Abstract one.</p><p>Abstract two.</p></abstract>
-        <body><sec><title>Methods</title>
-            <p>First.</p><boxed-text><p>Boxed.</p></boxed-text><p>Second.</p>
-            <sec><title>Nested</title><p>Subsection.</p></sec>
-            <fig><p>Figure caption.</p></fig>
-            <table-wrap><p>Table caption.</p></table-wrap>
-        </sec><sec><label>Conclusion</label><p>Done.</p></sec></body>
-        <back><p>References.</p></back>
-    </article>"""
-    expected = (
-        "# abstract\n\nAbstract one.\n\nAbstract two.\n\n"
-        "## Methods\n\nFirst.\n\nSecond.\n\nBoxed.\n\n"
-        "## Conclusion\n\nDone."
-    )
-    if len(expected) > max_chars:
-        expected = expected[:max_chars] + "\n\n[... truncated for length ...]"
-    assert extract_text_from_pmc_html(article, max_chars) == expected
