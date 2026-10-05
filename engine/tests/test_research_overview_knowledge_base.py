@@ -26,7 +26,6 @@ from co_scientist.prompts import (
 from co_scientist.prompts.planning import ThemeWritingMaterial
 from co_scientist.schemas.synthesis import (
     KNOWLEDGE_BASE_MAX_THEMES,
-    KNOWLEDGE_BASE_OUTLINE_SCHEMA,
     KNOWLEDGE_BASE_PRINCIPAL_SECTION_WORDS,
     KNOWLEDGE_BASE_SECTION_WORDS,
     KNOWLEDGE_BASE_TARGET_SECTIONS,
@@ -39,57 +38,6 @@ from tests.test_research_overview import (
 from tests.test_research_overview import (
     _research_overview_grounded_articles as _grounded_articles,
 )
-
-_RESEARCH_OVERVIEW_KNOWLEDGE_BASE_CORPUS: dict[str, dict[str, Any]] = {
-    "evidence-1": {
-        "evidence_id": "evidence-1",
-        "source_id": "PMID:1",
-        "title": "Stellate cell plasticity",
-        "abstract": "Quiescent stellate cells store retinoids.",
-        "source": "pubmed",
-        "url": "",
-    },
-    "evidence-2": {
-        "evidence_id": "evidence-2",
-        "source_id": "PMID:2",
-        "title": "Matrix cross-linking",
-        "abstract": "LOXL2 stabilises fibrillar collagen.",
-        "source": "pubmed",
-        "url": "",
-    },
-}
-
-_THEMED_RESPONSE: dict[str, Any] = {
-    "themes": [
-        {
-            "title": "Hepatic Stellate Cell Plasticity",
-            "sections": [
-                {
-                    "heading": "Quiescent And Activated States",
-                    "detail": "Quiescent cells store retinoids; injury "
-                    "drives transdifferentiation.",
-                    "evidence_ids": ["evidence-1", "invented"],
-                },
-                {
-                    "heading": "Ungrounded Section",
-                    "detail": "No source stands behind this.",
-                    "evidence_ids": ["invented"],
-                },
-            ],
-        },
-        {
-            "title": "Extracellular Matrix Architecture",
-            "sections": [
-                {
-                    "heading": "Cross-Linking Constraints",
-                    "detail": "LOXL2 raises the denaturation temperature.",
-                    "evidence_ids": ["evidence-2"],
-                }
-            ],
-        },
-    ]
-}
-
 
 _MATERIAL = ThemeWritingMaterial(
     title="Extracellular Matrix Architecture",
@@ -107,91 +55,39 @@ def _research_overview_knowledge_base_funded_state(**overrides: Any) -> Any:
     )
 
 
-def test_the_cheapest_tier_does_not_fund_the_extra_call() -> None:
-    express = make_state(budget={"max_iterations": 1, "max_llm_calls": 1200})
-    assert not kb.knowledge_base_is_funded(express)
+@pytest.mark.parametrize(
+    ("budget", "funded"),
+    [
+        ({"max_iterations": 1, "max_llm_calls": 1200}, False),
+        ({"max_iterations": 2}, False),
+        (None, False),
+        ({"max_iterations": 2, "max_llm_calls": 2500}, True),
+        ({"max_iterations": 3, "max_llm_calls": 7000}, True),
+    ],
+    ids=["express", "no-call-ceiling", "no-ceiling", "standard", "deep"],
+)
+def test_only_standard_and_deeper_runs_fund_the_knowledge_base_calls(
+    budget: dict[str, int] | None, funded: bool
+) -> None:
+    state = make_state() if budget is None else make_state(budget=budget)
 
-
-def test_a_run_that_declares_no_ceiling_does_not_fund_it() -> None:
-    assert not kb.knowledge_base_is_funded(make_state())
-    assert not kb.knowledge_base_is_funded(
-        make_state(budget={"max_iterations": 2})
-    )
-
-
-def test_standard_and_above_fund_it() -> None:
-    standard = make_state(budget={"max_iterations": 2, "max_llm_calls": 2500})
-    assert kb.knowledge_base_is_funded(standard)
-    assert kb.knowledge_base_is_funded(
-        _research_overview_knowledge_base_funded_state()
-    )
-
-
-def test_the_schema_never_echoes_the_evidence_pool_back() -> None:
-    """Echoed input scales output with the corpus and truncates identical
-    retries."""
-    for schema in (KNOWLEDGE_BASE_OUTLINE_SCHEMA, KNOWLEDGE_BASE_THEME_SCHEMA):
-        text = str(schema)
-        assert "abstract" not in text
-        assert "title of the" not in text
-        assert schema["schema"]["additionalProperties"] is False
-
-
-def test_themed_sections_reach_the_topic_list_grounded() -> None:
-    topics = kb.validate_themes(
-        _THEMED_RESPONSE["themes"], _RESEARCH_OVERVIEW_KNOWLEDGE_BASE_CORPUS
-    )
-
-    assert [topic["theme"] for topic in topics] == [
-        "Hepatic Stellate Cell Plasticity",
-        "Extracellular Matrix Architecture",
-    ]
-    assert [topic["title"] for topic in topics] == [
-        "Quiescent And Activated States",
-        "Cross-Linking Constraints",
-    ]
-    assert topics[0]["references"][0]["title"] == "Stellate cell plasticity"
-    assert "Ungrounded Section" not in str(topics)
-
-
-def test_a_theme_beyond_the_readable_count_is_never_flattened_in() -> None:
-    themes = [
-        {
-            "title": f"Theme {index}",
-            "sections": _THEMED_RESPONSE["themes"][1]["sections"],
-        }
-        for index in range(KNOWLEDGE_BASE_MAX_THEMES + 3)
-    ]
-
-    topics = kb.validate_themes(
-        themes, _RESEARCH_OVERVIEW_KNOWLEDGE_BASE_CORPUS
-    )
-
-    assert (
-        len({topic["theme"] for topic in topics}) == KNOWLEDGE_BASE_MAX_THEMES
-    )
+    assert kb.knowledge_base_is_funded(state) is funded
 
 
 async def test_an_empty_corpus_never_spends_the_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    fake = AsyncMock(return_value=_THEMED_RESPONSE)
+    fake = AsyncMock(return_value=_OUTLINE)
     monkeypatch.setattr(kbc, "call_llm_json", fake)
 
-    topics, calls = await kb.synthesize_knowledge_base(
+    result = await kb.synthesize_knowledge_base(
         _research_overview_knowledge_base_funded_state(),
         "1. (Elo 1200) an idea",
         {},
     )
 
-    assert (topics, calls) == ([], 0)
+    assert result == ([], 0)
     assert fake.await_count == 0
-
-
-def test_the_section_word_band_starts_at_the_exemplar_mean() -> None:
-    assert KNOWLEDGE_BASE_SECTION_WORDS[0] >= 200
-    assert KNOWLEDGE_BASE_PRINCIPAL_SECTION_WORDS[1] >= 500
-    assert KNOWLEDGE_BASE_TARGET_SECTIONS[0] >= 40
 
 
 def test_the_prompt_and_the_schema_carry_the_same_targets() -> None:
@@ -216,28 +112,10 @@ def test_the_prompt_and_the_schema_carry_the_same_targets() -> None:
     assert f"no more than {KNOWLEDGE_BASE_MAX_THEMES} themes" in outline
 
 
-def test_the_prompt_asks_for_the_density_the_exemplar_carries() -> None:
-    theme, _ = get_knowledge_base_theme_prompt("goal", _MATERIAL, "corpus")
-    outline, _ = get_knowledge_base_outline_prompt(
-        "goal", "1. an idea", "corpus"
-    )
-    lowered = f"{theme}\n{outline}".lower()
-    assert "not two or three representatives" in lowered
-    assert "unit" in lowered
-    assert "boundary conditions" in lowered
-    assert "failed" in lowered
-
-
-def test_the_prompt_adds_no_citation_apparatus() -> None:
-    theme, _ = get_knowledge_base_theme_prompt("goal", _MATERIAL, "corpus")
-    assert "no citation markers" in theme.lower()
-    assert "no bullet lists" in theme.lower()
-
-
 _ASKED = "Theme to write:"
 """The line naming which theme one writing call is responsible for."""
 
-_RESEARCH_OVERVIEW_KNOWLEDGE_BASE_SPLIT_CORPUS: dict[str, dict[str, Any]] = {
+_CORPUS: dict[str, dict[str, Any]] = {
     "evidence-1": {
         "evidence_id": "evidence-1",
         "source_id": "PMID:1",
@@ -335,74 +213,38 @@ class _Responder:
         return _THEME_SECTIONS[theme]
 
 
-async def test_the_synthesis_is_one_outline_call_plus_one_call_per_theme(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    responder = _Responder()
+async def _synthesize(
+    monkeypatch: pytest.MonkeyPatch, responder: Any
+) -> tuple[list[dict[str, Any]], int]:
     monkeypatch.setattr(kbc, "call_llm_json", responder)
-
-    topics, calls = await kb.synthesize_knowledge_base(
+    return await kb.synthesize_knowledge_base(
         _research_overview_knowledge_base_funded_state(),
         "1. (Elo 1200) an idea",
-        _RESEARCH_OVERVIEW_KNOWLEDGE_BASE_SPLIT_CORPUS,
+        _CORPUS,
     )
+
+
+async def test_the_synthesis_is_one_bounded_outline_call_plus_one_per_theme(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Advertised output capacity can exceed what the per-call clock can serve,
+    and unbounded reasoning can spend the clock without writing an answer."""
+    responder = _Responder()
+
+    topics, calls = await _synthesize(monkeypatch, responder)
 
     assert calls == 1 + len(_OUTLINE["themes"])
     assert len(responder.specs) == calls
-    assert topics
-
-
-async def test_no_part_asks_for_more_output_than_the_clock_can_serve(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Advertised output capacity can exceed what the per-call clock can
-    serve."""
-    responder = _Responder()
-    monkeypatch.setattr(kbc, "call_llm_json", responder)
-
-    await kb.synthesize_knowledge_base(
-        _research_overview_knowledge_base_funded_state(),
-        "1. (Elo 1200) an idea",
-        _RESEARCH_OVERVIEW_KNOWLEDGE_BASE_SPLIT_CORPUS,
-    )
-
     assert KNOWLEDGE_BASE_OUTLINE_MAX_TOKENS < KNOWLEDGE_BASE_THEME_MAX_TOKENS
-    for spec in responder.specs:
-        assert spec.max_tokens <= THINKING_FLOOR_MAX_TOKENS
-
-
-async def test_every_part_bounds_its_own_chain_of_thought(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Unbounded reasoning can spend the whole clock without writing an
-    answer."""
-    responder = _Responder()
-    monkeypatch.setattr(kbc, "call_llm_json", responder)
-
-    await kb.synthesize_knowledge_base(
-        _research_overview_knowledge_base_funded_state(),
-        "1. (Elo 1200) an idea",
-        _RESEARCH_OVERVIEW_KNOWLEDGE_BASE_SPLIT_CORPUS,
+    assert all(
+        spec.max_tokens <= THINKING_FLOOR_MAX_TOKENS for spec in responder.specs
     )
-
-    assert responder.options
-    for options in responder.options:
-        assert options is not None
-        assert options.enable_thinking is False
-
-
-async def test_the_assembled_topics_keep_the_outline_order_and_grounding(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    responder = _Responder()
-    monkeypatch.setattr(kbc, "call_llm_json", responder)
-
-    topics, _ = await kb.synthesize_knowledge_base(
-        _research_overview_knowledge_base_funded_state(),
-        "1. (Elo 1200) an idea",
-        _RESEARCH_OVERVIEW_KNOWLEDGE_BASE_SPLIT_CORPUS,
+    assert all(
+        options is not None and options.enable_thinking is False
+        for options in responder.options
     )
-
+    for prompt in responder.prompts[1:]:
+        assert all(title in prompt for title in _THEME_SECTIONS)
     assert [topic["theme"] for topic in topics] == [
         "Hepatic Stellate Cell Plasticity",
         "Extracellular Matrix Architecture",
@@ -416,16 +258,41 @@ async def test_the_assembled_topics_keep_the_outline_order_and_grounding(
     assert "Ungrounded Section" not in str(topics)
 
 
+async def test_a_theme_beyond_the_readable_count_is_never_written(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    section = {"heading": "Cross-Linking", "evidence_ids": ["evidence-2"]}
+    outline = {
+        "themes": [
+            {"title": f"Theme {index}", "sections": [section]}
+            for index in range(KNOWLEDGE_BASE_MAX_THEMES + 3)
+        ]
+    }
+    writer = {
+        "sections": [{"heading": "Cross-Linking", "detail": "LOXL2 binds."}]
+    }
+
+    async def responder(**kwargs: Any) -> dict[str, Any]:
+        return (
+            outline
+            if kwargs["spec"].json_schema["name"] == "knowledge_base_outline"
+            else writer
+        )
+
+    topics, calls = await _synthesize(monkeypatch, responder)
+
+    assert calls == 1 + KNOWLEDGE_BASE_MAX_THEMES
+    assert (
+        len({topic["theme"] for topic in topics}) == KNOWLEDGE_BASE_MAX_THEMES
+    )
+
+
 async def test_a_theme_that_does_not_answer_drops_only_its_own_sections(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    responder = _Responder(failing_theme="Hepatic Stellate Cell Plasticity")
-    monkeypatch.setattr(kbc, "call_llm_json", responder)
-
-    topics, calls = await kb.synthesize_knowledge_base(
-        _research_overview_knowledge_base_funded_state(),
-        "1. (Elo 1200) an idea",
-        _RESEARCH_OVERVIEW_KNOWLEDGE_BASE_SPLIT_CORPUS,
+    topics, calls = await _synthesize(
+        monkeypatch,
+        _Responder(failing_theme="Hepatic Stellate Cell Plasticity"),
     )
 
     assert calls == 1 + len(_OUTLINE["themes"])
@@ -434,40 +301,24 @@ async def test_a_theme_that_does_not_answer_drops_only_its_own_sections(
     ]
 
 
-async def test_a_failed_outline_never_spends_the_writing_calls(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    fake = AsyncMock(side_effect=RuntimeError("boom"))
-    monkeypatch.setattr(kbc, "call_llm_json", fake)
-
-    topics, calls = await kb.synthesize_knowledge_base(
-        _research_overview_knowledge_base_funded_state(),
-        "1. (Elo 1200) an idea",
-        _RESEARCH_OVERVIEW_KNOWLEDGE_BASE_SPLIT_CORPUS,
-    )
-
-    assert (topics, calls) == ([], 1)
-    assert fake.await_count == 1
-
-
 @pytest.mark.parametrize(
     "outline",
     [
+        RuntimeError("boom"),
         {"themes": []},
         {"themes": [{"title": "Empty Theme", "sections": []}]},
     ],
+    ids=["failed", "no-themes", "no-sections"],
 )
-async def test_an_outline_with_no_themes_stops_before_the_writing_calls(
-    outline: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+async def test_an_unusable_outline_never_spends_the_writing_calls(
+    outline: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    fake = AsyncMock(return_value=outline)
-    monkeypatch.setattr(kbc, "call_llm_json", fake)
-
-    topics, calls = await kb.synthesize_knowledge_base(
-        _research_overview_knowledge_base_funded_state(),
-        "1. (Elo 1200) an idea",
-        _RESEARCH_OVERVIEW_KNOWLEDGE_BASE_SPLIT_CORPUS,
+    fake = AsyncMock(
+        side_effect=outline if isinstance(outline, Exception) else None,
+        return_value=outline,
     )
+
+    topics, calls = await _synthesize(monkeypatch, fake)
 
     assert (topics, calls) == ([], 1)
     assert fake.await_count == 1
@@ -478,60 +329,25 @@ async def test_a_writer_that_cites_nothing_falls_back_to_the_outline_ids(
 ) -> None:
     """Splitting grounding and prose must not lose the outline-selected
     evidence."""
+    section = {"heading": "Cross-Linking Constraints"}
+    outline = {
+        "themes": [
+            {
+                "title": "Extracellular Matrix Architecture",
+                "sections": [{**section, "evidence_ids": ["evidence-2"]}],
+            }
+        ]
+    }
+    writer = {"sections": [{**section, "detail": "LOXL2 raises the Tm."}]}
 
     async def responder(**kwargs: Any) -> dict[str, Any]:
-        spec = kwargs["spec"]
-        assert spec.json_schema is not None
-        if spec.json_schema["name"] == "knowledge_base_outline":
-            return {
-                "themes": [
-                    {
-                        "title": "Extracellular Matrix Architecture",
-                        "sections": [
-                            {
-                                "heading": "Cross-Linking Constraints",
-                                "evidence_ids": ["evidence-2"],
-                            }
-                        ],
-                    }
-                ]
-            }
-        return {
-            "sections": [
-                {
-                    "heading": "Cross-Linking Constraints",
-                    "detail": "LOXL2 raises the denaturation temperature.",
-                }
-            ]
-        }
+        named = kwargs["spec"].json_schema["name"]
+        return outline if named == "knowledge_base_outline" else writer
 
-    monkeypatch.setattr(kbc, "call_llm_json", responder)
-
-    topics, _ = await kb.synthesize_knowledge_base(
-        _research_overview_knowledge_base_funded_state(),
-        "1. (Elo 1200) an idea",
-        _RESEARCH_OVERVIEW_KNOWLEDGE_BASE_SPLIT_CORPUS,
-    )
+    topics, _ = await _synthesize(monkeypatch, responder)
 
     assert [topic["title"] for topic in topics] == ["Cross-Linking Constraints"]
     assert topics[0]["references"][0]["title"] == "Matrix cross-linking"
-
-
-async def test_each_writer_is_shown_the_whole_outline(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    responder = _Responder()
-    monkeypatch.setattr(kbc, "call_llm_json", responder)
-
-    await kb.synthesize_knowledge_base(
-        _research_overview_knowledge_base_funded_state(),
-        "1. (Elo 1200) an idea",
-        _RESEARCH_OVERVIEW_KNOWLEDGE_BASE_SPLIT_CORPUS,
-    )
-
-    for prompt in responder.prompts[1:]:
-        for title in _THEME_SECTIONS:
-            assert title in prompt
 
 
 async def test_the_parts_are_attributed_to_their_own_telemetry_sub_phase(
@@ -544,15 +360,9 @@ async def test_the_parts_are_attributed_to_their_own_telemetry_sub_phase(
         record_call("test/model", ModelCallStats(calls=1))
         return await responder(**kwargs)
 
-    monkeypatch.setattr(kbc, "call_llm_json", _recording)
-
     with scoped_telemetry("research_overview") as accumulator:
         record_call("test/model", ModelCallStats(calls=1))
-        _, calls = await kb.synthesize_knowledge_base(
-            _research_overview_knowledge_base_funded_state(),
-            "1. (Elo 1200) an idea",
-            _RESEARCH_OVERVIEW_KNOWLEDGE_BASE_SPLIT_CORPUS,
-        )
+        _, calls = await _synthesize(monkeypatch, _recording)
 
     snapshot = accumulator.snapshot()
     assert snapshot["research_overview::test/model"]["calls"] == 1

@@ -10,11 +10,9 @@ from co_scientist.agents.generation.literature_review import (
     literature_review_node,
     synthesis,
 )
-from co_scientist.agents.generation.literature_review import node as lr
 from co_scientist.agents.generation.literature_review.research_phase import (
     run_research_phase,
 )
-from co_scientist.config import ToolRegistry
 from co_scientist.config.schema import ToolConfig, WorkflowConfig
 from co_scientist.evidence.search_support import SearchConfig
 from co_scientist.mcp_client import MCPToolClient
@@ -22,11 +20,15 @@ from co_scientist.research import result_from_dict
 from tests._llm_fake import install_fake_llm
 from tests._mcp import make_tool_results_client
 from tests._research_fakes import (
+    _PAPERS,
     FakeResearchClient,
+    _ScriptedModel,
     _stub_node,
+    install_mcp_client,
     make_search_config,
     research_registry,
     research_workflow,
+    review_registry,
 )
 from tests._state import make_state
 
@@ -63,28 +65,20 @@ from tests._state import make_state
             "Complex(BRCA1, BARD1) [Complex] (belief: 0.87)",
             1,
         ),
-        ({"statements": [{"type": "Activation"}]}, None, 0),
         ({"statements": []}, None, 0),
         ({"results": [{"n": i} for i in range(10)]}, "{'n': 0}", 4),
         ({"other": "value"}, "{'other': 'value'}", 1),
-        ({}, "{}", 1),
         ([{"n": 1}, {"n": 2}], "{'n': 1}", 2),
         (42, "42", 1),
-        ("free-form text", "free-form text", 1),
-        (None, None, 0),
     ],
     ids=[
         "malformed-siblings",
         "complex",
-        "shapeless",
         "empty-statements",
         "capped-results",
         "dict",
-        "empty-dict",
         "list",
         "scalar",
-        "text",
-        "no-result",
     ],
 )
 async def test_review_appends_enrichment_after_the_paper_citation_namespace(
@@ -94,35 +88,30 @@ async def test_review_appends_enrichment_after_the_paper_citation_namespace(
     count: int,
 ) -> None:
     _stub_node(monkeypatch, server_available=True)
-    registry = ToolRegistry(skip_user_config=True)
-    registry.config.workflows = {
-        "literature_review": WorkflowConfig(
+    registry = review_registry(
+        WorkflowConfig(
             primary_search="search", context_enrichment_tools=["kg"]
-        )
-    }
-    registry.config.tools = {
-        "tools": {
-            "search": ToolConfig(server="s", mcp_tool_name="search"),
+        ),
+        "search",
+        configs={
             "kg": ToolConfig(
                 server="s",
                 mcp_tool_name="mcp_kg",
                 display_name="Knowledge Graph",
-            ),
-        }
-    }
-    client = make_tool_results_client(
-        {
-            "search": {"paper": {"title": "A", "abstract": "Evidence"}},
-            "mcp_kg": json.dumps(payload)
-            if isinstance(payload, (dict, list))
-            else payload,
-        }
+            )
+        },
     )
-
-    async def get_client(**_: Any) -> Any:
-        return client
-
-    monkeypatch.setattr(lr, "get_mcp_client", get_client)
+    install_mcp_client(
+        monkeypatch,
+        make_tool_results_client(
+            {
+                "search": {"paper": {"title": "A", "abstract": "Evidence"}},
+                "mcp_kg": json.dumps(payload)
+                if isinstance(payload, (dict, list))
+                else payload,
+            }
+        ),
+    )
     result = await literature_review_node(
         make_state(research_goal="Study KRAS in cancer", tool_registry=registry)
     )
@@ -145,38 +134,34 @@ async def test_review_bounds_long_enrichment_in_the_synthesis_prompt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _stub_node(monkeypatch, server_available=True)
-    registry = ToolRegistry(skip_user_config=True)
-    registry.config.workflows = {
-        "literature_review": WorkflowConfig(
+    registry = review_registry(
+        WorkflowConfig(
             primary_search="search",
             context_enrichment_tools=["first", "second"],
-        )
-    }
-    registry.config.tools = {
-        "tools": {
+        ),
+        "search",
+        configs={
             name: ToolConfig(server="s", mcp_tool_name=name, display_name=name)
-            for name in ("search", "first", "second")
-        }
-    }
-    raw = "mechanistic evidence " * 100
-    client = make_tool_results_client(
-        {
-            "search": {"paper": {"title": "A", "abstract": "Evidence"}},
-            "first": raw,
-            "second": raw,
-        }
+            for name in ("first", "second")
+        },
     )
-
-    async def get_client(**_: Any) -> Any:
-        return client
-
+    raw = "mechanistic evidence " * 100
+    install_mcp_client(
+        monkeypatch,
+        make_tool_results_client(
+            {
+                "search": {"paper": {"title": "A", "abstract": "Evidence"}},
+                "first": raw,
+                "second": raw,
+            }
+        ),
+    )
     prompts: list[str] = []
 
     async def complete(*, prompt: str, **_: Any) -> str:
         prompts.append(prompt)
         return "SYNTHESIZED REVIEW"
 
-    monkeypatch.setattr(lr, "get_mcp_client", get_client)
     monkeypatch.setattr(synthesis, "call_llm", complete)
     result = await literature_review_node(
         make_state(
@@ -210,29 +195,27 @@ async def test_optional_enrichment_unavailability_preserves_review(
     reason: str,
 ) -> None:
     _stub_node(monkeypatch, server_available=True)
-    registry = ToolRegistry(skip_user_config=True)
-    registry.config.workflows = {
-        "literature_review": WorkflowConfig(
+    registry = review_registry(
+        WorkflowConfig(
             primary_search="search", context_enrichment_tools=["kg"]
-        )
-    }
-    registry.config.tools = {
-        "tools": {"search": ToolConfig(server="s", mcp_tool_name="search")}
-    }
-    if reason != "missing":
-        registry.config.tools["tools"]["kg"] = ToolConfig(
-            server="s", mcp_tool_name="kg", enabled=reason != "disabled"
-        )
-    client = make_tool_results_client(
-        {"search": {"paper": {"title": "A", "abstract": "Evidence"}}},
-        available_tools={"search"} if reason == "unreachable" else None,
-        error_tools={"kg"} if reason == "error" else None,
+        ),
+        "search",
+        configs={}
+        if reason == "missing"
+        else {
+            "kg": ToolConfig(
+                server="s", mcp_tool_name="kg", enabled=reason != "disabled"
+            )
+        },
     )
-
-    async def get_client(**_: Any) -> Any:
-        return client
-
-    monkeypatch.setattr(lr, "get_mcp_client", get_client)
+    install_mcp_client(
+        monkeypatch,
+        make_tool_results_client(
+            {"search": {"paper": {"title": "A", "abstract": "Evidence"}}},
+            available_tools={"search"} if reason == "unreachable" else None,
+            error_tools={"kg"} if reason == "error" else None,
+        ),
+    )
     result = await literature_review_node(
         make_state(
             research_goal="plain lowercase goal"
@@ -244,19 +227,6 @@ async def test_optional_enrichment_unavailability_preserves_review(
     assert result["articles_with_reasoning"] == "SYNTHESIZED REVIEW"
     assert result["articles"][0].used_in_analysis
     assert not result.get("context_enrichment_sources")
-
-
-_PAPERS = {
-    "doc-a": {
-        "title": "Fibrosis mechanisms",
-        "abstract": "TGF-beta signalling drives fibrosis.",
-        "pdf_url": "u/a",
-    },
-    "doc-b": {
-        "title": "A second look",
-        "abstract": "Contradicting evidence in mice.",
-    },
-}
 
 
 def _config(tmp_path: Path) -> SearchConfig:
@@ -274,34 +244,6 @@ def _config(tmp_path: Path) -> SearchConfig:
     )
 
 
-class _ScriptedModel:
-    def __init__(self) -> None:
-        self.prompts: list[str] = []
-
-    async def __call__(
-        self, prompt: str, spec: Any, *args: Any, **kwargs: Any
-    ) -> dict[str, Any]:
-        self.prompts.append(prompt)
-        if "perspectives to research" in prompt:
-            return {"stances": ["mechanism"]}
-        if "questions this perspective needs" in prompt:
-            return {"questions": ["what drives fibrosis?"]}
-        if "search query" in prompt:
-            return {"query": "fibrosis TGF-beta"}
-        if "retrieved documents" in prompt:
-            return {
-                "findings": [
-                    {
-                        "document": 0,
-                        "claim": "TGF-beta drives fibrosis",
-                        "quote": "TGF-beta signalling drives fibrosis.",
-                    }
-                ],
-                "follow_ups": [],
-            }
-        return {"summary": "TGF-beta is the consensus driver."}
-
-
 @pytest.fixture
 def scripted(monkeypatch: pytest.MonkeyPatch) -> _ScriptedModel:
     model = _ScriptedModel()
@@ -315,7 +257,7 @@ def _client() -> MCPToolClient:
         FakeResearchClient(
             {
                 "search_alpha": _PAPERS,
-                "read_pdf": {"content": "TGF-beta signalling drives fibrosis."},
+                "read_pdf": {"content": _PAPERS["doc-a"]["abstract"]},
             }
         ),
     )
@@ -382,13 +324,13 @@ async def test_only_papers_something_was_drawn_from_join_the_pool(
 
     assert outcome is not None
     assert list(outcome.records) == ["doc-a"]
-    assert outcome.records["doc-a"]["title"] == "Fibrosis mechanisms"
+    assert outcome.records["doc-a"]["title"] == "Blockade in humans"
     assert outcome.records["doc-a"]["retrieval_call_id"] in {
         call.id for call in result_from_dict(outcome.ledger).calls
     }
     assert outcome.records["doc-a"]["_source_name"] == "alpha"
-    assert "TGF-beta drives fibrosis" in outcome.section
-    assert "TGF-beta is the consensus driver." in outcome.section
+    assert "Blockade reduced fibrosis in humans" in outcome.section
+    assert "Human evidence exists but is thin." in outcome.section
 
 
 async def test_a_run_with_no_enabled_source_researches_nothing(

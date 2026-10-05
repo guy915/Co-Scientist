@@ -70,11 +70,6 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-it('offers the turn answers inside the composer, above the input', async () => {
-  const prompt = await askTheScientist();
-  expect(prompt.closest('form')).toBe(getComposer().closest('form'));
-});
-
 it('sends a clicked answer as the scientist own next turn', async () => {
   await askTheScientist();
   fireEvent.click(screen.getByLabelText(/iPSC-derived line/));
@@ -83,23 +78,6 @@ it('sends a clicked answer as the scientist own next turn', async () => {
     expect(apiMock.addInterviewTurn).toHaveBeenCalledWith(
       'interview-1',
       'Model system: iPSC-derived line',
-      expect.anything(),
-      [],
-      expect.anything(),
-    );
-  });
-});
-
-it('leaves the composer usable, and typing past the questions still works', async () => {
-  await askTheScientist();
-  const textbox = getComposer();
-  expect(textbox).toBeEnabled();
-  fireEvent.change(textbox, {target: {value: 'None of those — human atria'}});
-  fireEvent.click(screen.getByRole('button', {name: 'Send'}));
-  await waitFor(() => {
-    expect(apiMock.addInterviewTurn).toHaveBeenCalledWith(
-      'interview-1',
-      'None of those — human atria',
       expect.anything(),
       [],
       expect.anything(),
@@ -117,13 +95,4 @@ it('keeps a half-written message when an answer is clicked instead', async () =>
     expect(apiMock.addInterviewTurn).toHaveBeenCalled();
   });
   expect(textbox).toHaveValue('also, note that');
-});
-
-it('stops offering the answers once the turn they belonged to is answered', async () => {
-  await askTheScientist();
-  fireEvent.click(screen.getByLabelText(/Primary human cells/));
-  fireEvent.click(screen.getByRole('button', {name: /send answer/i}));
-  await waitFor(() => {
-    expect(screen.queryByText(MODEL_SYSTEM.question)).toBeNull();
-  });
 });

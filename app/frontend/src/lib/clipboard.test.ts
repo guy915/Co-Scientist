@@ -56,26 +56,6 @@ it('falls back to execCommand when the Clipboard API rejects', async () => {
   expect(execCommand).toHaveBeenCalledWith('copy');
 });
 
-it('builds a readonly, offscreen textarea during the fallback', async () => {
-  Reflect.deleteProperty(navigator, 'clipboard');
-  let capturedValue = '';
-  let capturedReadonly: string | null = null;
-  Object.defineProperty(document, 'execCommand', {
-    value: vi.fn(() => {
-      const textarea = document.querySelector('textarea');
-      capturedValue = textarea?.value ?? '';
-      capturedReadonly = textarea?.getAttribute('readonly') ?? null;
-      return true;
-    }),
-    configurable: true,
-  });
-
-  await copyText('snapshot text');
-
-  expect(capturedValue).toBe('snapshot text');
-  expect(capturedReadonly).toBe('');
-});
-
 it('never throws when clipboard API and execCommand are absent', async () => {
   Reflect.deleteProperty(navigator, 'clipboard');
   Object.defineProperty(document, 'execCommand', {

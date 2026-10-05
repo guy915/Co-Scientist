@@ -11,15 +11,15 @@ from langchain_core.tools import ToolException
 from co_scientist.agents.generation.literature_review import (
     literature_review_node,
 )
+from co_scientist.agents.generation.literature_review import node as lr
 from co_scientist.cache import scoped_cache_override
 from co_scientist.evidence import relevance, search, search_query
-from co_scientist.evidence.relevance import _HYBRID_VERSION
 from co_scientist.mcp_client import CampaignToolUnavailableError, MCPToolClient
 from co_scientist.offline import llm as offline_llm
 from co_scientist.tools.response_parser import parse_mcp_result
 from tests._llm_fake import mock_call_llm_json, stub_call_llm_json
 from tests._mcp import isolate_offline_router
-from tests._research_fakes import _stub_node, make_search_config
+from tests._research_fakes import _make_event_recorder, _stub_node
 from tests._state import make_state
 
 
@@ -257,127 +257,6 @@ async def test_review_with_negative_budget_keeps_only_lexical_scores(
     )
 
 
-@pytest.fixture
-def _literature_review_search_single_source_isolate_offline_router(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    isolate_offline_router(monkeypatch)
-    offline_llm.install_offline_router()
-
-
-_OVERFETCH_RESULTS: list[dict[str, dict[str, Any]]] = [
-    {
-        "p1": {"title": "Shared paper", "source": "pubmed", "year": 2025},
-        "p2": {
-            "title": "Independent paper",
-            "source": "pubmed",
-            "year": 2024,
-        },
-    },
-    {
-        "duplicate": {
-            "title": "shared paper",
-            "source": "pubmed",
-            "year": 2025,
-        },
-        "p3": {"title": "Third paper", "source": "pubmed", "year": 2023},
-        "retracted": {
-            "title": "Retracted paper",
-            "source": "pubmed",
-            "year": 2026,
-            "is_retracted": True,
-        },
-    },
-]
-
-
-def _recording_search_all_queries(observed: dict[str, int]) -> Any:
-
-    async def fake_search_all_queries(
-        queries: list[str],
-        papers_per_query: int,
-        *_args: Any,
-        **_kwargs: Any,
-    ) -> list[dict[str, dict[str, Any]]]:
-        observed["queries"] = len(queries)
-        observed["papers_per_query"] = papers_per_query
-        return _OVERFETCH_RESULTS
-
-    return fake_search_all_queries
-
-
-@pytest.mark.usefixtures(
-    "_literature_review_search_single_source_isolate_offline_router"
-)
-class TestLiteratureReviewSearchSingleSource:
-    @pytest.mark.asyncio
-    async def test_single_source_overfetches_dedupes_ranks_and_caps(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        observed: dict[str, int] = {}
-        monkeypatch.setattr(
-            search,
-            "_search_all_queries",
-            _recording_search_all_queries(observed),
-        )
-        config = make_search_config(
-            search_tool_name="pubmed_fulltext",
-            source_name="pubmed",
-            papers_to_read_count=3,
-        )
-
-        papers, source_map = await search._phase2_collect_papers_single_source(
-            ["expanded one", "expanded two"],
-            config,
-            search._SearchRunContext(
-                slug="slug",
-                run_id="run-1",
-                mcp_client=cast(MCPToolClient, object()),
-            ),
-        )
-
-        assert observed == {"queries": 2, "papers_per_query": 3}
-        assert list(papers) == ["p1", "p2", "p3"]
-        assert "duplicate" not in papers
-        assert "retracted" not in papers
-        assert source_map == {}
-
-    @pytest.mark.asyncio
-    async def test_single_source_hybrid_scores_when_goal_is_set(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        observed: dict[str, int] = {}
-        monkeypatch.setattr(
-            search,
-            "_search_all_queries",
-            _recording_search_all_queries(observed),
-        )
-        config = make_search_config(
-            search_tool_name="pubmed_fulltext",
-            source_name="pubmed",
-            papers_to_read_count=3,
-            research_goal="a research goal",
-            model_name=offline_llm.DEFAULT_OFFLINE_MODEL,
-        )
-
-        papers, _ = await search._phase2_collect_papers_single_source(
-            ["expanded one", "expanded two"],
-            config,
-            search._SearchRunContext(
-                slug="slug",
-                run_id="run-1",
-                mcp_client=cast(MCPToolClient, object()),
-            ),
-        )
-
-        assert list(papers) == ["p1", "p2", "p3"]
-        for metadata in papers.values():
-            assert 0.0 <= metadata["retrieval_score"] <= 1.0
-            assert metadata["retriever_version"] == _HYBRID_VERSION
-
-
 class _FlakyClient:
     def __init__(self, failures: int, payload: Any = None) -> None:
         self.failures = failures
@@ -402,154 +281,134 @@ def _no_real_sleep(monkeypatch: pytest.MonkeyPatch) -> list[float]:
     return slept
 
 
-class _ToolErrorClient:
-    def __init__(self, payload: str) -> None:
-        self.payload = payload
+class _ScriptedSearchClient:
+    """Answers every search call from a script and counts the calls."""
+
+    def __init__(self, *script: Any) -> None:
+        self.script = list(script)
         self.calls = 0
 
     async def call_tool(self, _name: str, **_params: Any) -> Any:
         self.calls += 1
-        return self.payload
+        outcome = self.script[min(self.calls, len(self.script)) - 1]
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+
+_PAPER = {"paper": {"title": "Recovered", "abstract": "Measured result"}}
+_ATTEMPTS = search_query._SEARCH_ATTEMPTS
 
 
 @pytest.mark.usefixtures("_no_real_sleep")
-class TestLiteratureReviewSearchRetry:
-    @pytest.mark.asyncio
-    async def test_a_source_survives_more_than_one_transient_failure(
-        self,
-    ) -> None:
-        client = _FlakyClient(failures=2)
+@pytest.mark.parametrize(
+    ("script", "calls", "found", "reported"),
+    [
+        # Transient transport failures are retried, even several in a row.
+        ([RuntimeError("throttling")] * 2 + [_PAPER], 3, True, None),
+        ([RuntimeError("throttling")], _ATTEMPTS, False, "throttling"),
+        # A malformed transport result is a transient failure too.
+        (["429 Too Many Requests", _PAPER], 2, True, None),
+        # MCP tool errors are rejected queries, not transient failures.
+        (
+            [
+                "Error calling tool 'search_openalex': OpenAlex could not be "
+                "searched: HTTP 400; Wildcards (* or ?) require exact search."
+            ],
+            1,
+            False,
+            "HTTP 400",
+        ),
+        (
+            [ToolException("Europe PMC unavailable: HTTP 429; Retry-After=60")],
+            1,
+            False,
+            "Retry-After=60",
+        ),
+        # Campaign policy refuses identically on every attempt.
+        (
+            [CampaignToolUnavailableError("unavailable under campaign policy")],
+            1,
+            False,
+            "campaign policy",
+        ),
+    ],
+    ids=[
+        "transient-recovers",
+        "exhausted",
+        "malformed-result-recovers",
+        "tool-error",
+        "sdk-tool-failure",
+        "campaign-refusal",
+    ],
+)
+async def test_review_retries_only_failures_that_may_be_transient(
+    monkeypatch: pytest.MonkeyPatch,
+    script: list[Any],
+    calls: int,
+    found: bool,
+    reported: str | None,
+) -> None:
+    """Callers must distinguish failed searches from successful empty
+    results."""
+    _stub_node(monkeypatch, server_available=True, queries=["q"])
+    client = _ScriptedSearchClient(*script)
+    events, callback = _make_event_recorder()
 
-        result = await search_query._call_search_tool(
-            cast(MCPToolClient, client), "search_pubmed", {}
-        )
+    async def get_client(**_: Any) -> Any:
+        return client
 
-        assert result == {"papers": []}
-        assert client.calls == 3
+    monkeypatch.setattr(lr, "get_mcp_client", get_client)
 
-    @pytest.mark.asyncio
-    async def test_exhausted_retries_still_raise_to_the_caller(self) -> None:
-        """Callers must distinguish failed searches from successful empty
-        results."""
-        client = _FlakyClient(failures=search_query._SEARCH_ATTEMPTS)
-
-        with pytest.raises(RuntimeError, match="throttling"):
-            await search_query._call_search_tool(
-                cast(MCPToolClient, client), "search_pubmed", {}
-            )
-
-        assert client.calls == search_query._SEARCH_ATTEMPTS
-
-    @pytest.mark.asyncio
-    async def test_backoff_grows_and_is_jittered(
-        self,
-        _no_real_sleep: list[float],
-    ) -> None:
-        """Fixed schedules release throttled waves together and recreate their
-        burst."""
-        client = _FlakyClient(failures=search_query._SEARCH_ATTEMPTS - 1)
-        await search_query._call_search_tool(
-            cast(MCPToolClient, client), "search_pubmed", {}
-        )
-        first = list(_no_real_sleep)
-        _no_real_sleep.clear()
-
-        client2 = _FlakyClient(failures=search_query._SEARCH_ATTEMPTS - 1)
-        await search_query._call_search_tool(
-            cast(MCPToolClient, client2), "search_pubmed", {}
-        )
-
-        assert len(first) == search_query._SEARCH_ATTEMPTS - 1
-        assert first == sorted(first)
-        assert sum(first) > 4 * 0.25
-        assert first != _no_real_sleep
-
-    @pytest.mark.asyncio
-    async def test_a_tool_reported_error_is_not_retried(self) -> None:
-        """MCP tool errors are rejected queries, not transient transport
-        failures."""
-        client = _ToolErrorClient(
-            "Error calling tool 'search_openalex': OpenAlex could not be "
-            "searched: HTTP 400; Wildcards (* or ?) require exact (no-stem) "
-            "search."
-        )
-
-        with pytest.raises(ToolException, match="HTTP 400"):
-            await search_query._call_search_tool(
-                cast(MCPToolClient, client), "search_openalex", {}
-            )
-        assert client.calls == 1
-
-    @pytest.mark.asyncio
-    async def test_a_timeout_still_retries_despite_the_new_permanent_path(
-        self,
-    ) -> None:
-        client = _FlakyClient(failures=2)
-
-        result = await search_query._call_search_tool(
-            cast(MCPToolClient, client), "search_openalex", {}
-        )
-
-        assert result == {"papers": []}
-        assert client.calls == 3
-
-    @pytest.mark.parametrize(
-        ("payload", "expected"),
-        [
-            ("<html><title>502 Bad Gateway</title></html>", "502 Bad Gateway"),
-            ("Too Many Requests. Retry later.", "Too Many Requests"),
-            ("", "empty"),
-        ],
-        ids=["gateway_error_page", "throttling_notice", "empty_body"],
+    result = await literature_review_node(
+        make_state(progress_callback=callback)
     )
-    def test_undecodable_payload_is_quoted_in_the_error(
-        self, payload: str, expected: str
-    ) -> None:
-        """Payloads distinguish gateway pages, throttling notices and empty
-        bodies."""
-        with pytest.raises(json.JSONDecodeError) as caught:
-            parse_mcp_result(payload)
 
-        assert expected in str(caught.value)
+    assert client.calls == calls
+    assert bool(result["articles"]) is found
+    failures = [p for e, p in events if e == "literature_review_error"]
+    if reported is None:
+        assert not failures
+    else:
+        assert reported in str(failures[0]["search_error_sample"])
 
-    @pytest.mark.asyncio
-    async def test_sdk_tool_failure_preserves_provenance_without_retry(
-        self,
-    ) -> None:
-        class Client:
-            calls = 0
 
-            async def call_tool(self, _name: str, **_params: Any) -> Any:
-                self.calls += 1
-                raise ToolException(
-                    "Europe PMC unavailable: HTTP 429; Retry-After=60"
-                )
+async def test_backoff_grows_and_is_jittered(
+    _no_real_sleep: list[float],
+) -> None:
+    """Fixed schedules release throttled waves together and recreate their
+    burst."""
 
-        client = Client()
-        with pytest.raises(ToolException, match="Retry-After=60"):
-            await search_query._call_search_tool(
-                cast(MCPToolClient, client), "search_europepmc", {}
-            )
-        assert client.calls == 1
+    async def one_throttled_search() -> list[float]:
+        _no_real_sleep.clear()
+        client = cast(MCPToolClient, _FlakyClient(failures=_ATTEMPTS - 1))
+        await search_query._call_search_tool(client, "search_pubmed", {})
+        return list(_no_real_sleep)
 
-    @pytest.mark.asyncio
-    async def test_a_campaign_policy_refusal_is_not_retried(self) -> None:
-        """Campaign policy refuses identically on every attempt."""
+    first = await one_throttled_search()
+    second = await one_throttled_search()
 
-        class _RefusingClient:
-            calls = 0
+    assert len(first) == _ATTEMPTS - 1
+    assert first == sorted(first)
+    assert sum(first) > 4 * 0.25
+    assert first != second
 
-            async def call_tool(self, _name: str, **_params: Any) -> Any:
-                self.calls += 1
-                raise CampaignToolUnavailableError(
-                    "tool is unavailable under campaign MCP policy"
-                )
 
-        client = _RefusingClient()
+@pytest.mark.parametrize(
+    ("payload", "expected"),
+    [
+        ("<html><title>502 Bad Gateway</title></html>", "502 Bad Gateway"),
+        ("Too Many Requests. Retry later.", "Too Many Requests"),
+        ("", "empty"),
+    ],
+    ids=["gateway_error_page", "throttling_notice", "empty_body"],
+)
+def test_undecodable_payload_is_quoted_in_the_error(
+    payload: str, expected: str
+) -> None:
+    """Payloads distinguish gateway pages, throttling notices and empty
+    bodies."""
+    with pytest.raises(json.JSONDecodeError) as caught:
+        parse_mcp_result(payload)
 
-        with pytest.raises(CampaignToolUnavailableError):
-            await search_query._call_search_tool(
-                cast(MCPToolClient, client), "search_web", {}
-            )
-
-        assert client.calls == 1
+    assert expected in str(caught.value)

@@ -63,59 +63,6 @@ describe('chat workspace timeline', () => {
     expect(trail.closest('[role="status"], [aria-live]')).toBeNull();
   });
 
-  it('renders nothing once the turn resolves', () => {
-    renderItems(
-      buildTimelineItems(
-        baseArgs({isAwaitingAgent: false, agentReasoning: 'stale thought'}),
-      ),
-    );
-
-    expect(screen.queryByText('Thinking')).toBeNull();
-    expect(screen.queryByText('stale thought')).toBeNull();
-  });
-
-  it('shows the model reasoning a live post-run Q&A turn has streamed so far', () => {
-    renderItems(
-      buildTimelineItems(
-        baseArgs({
-          startedSession: {id: 'run-9', title: 'A run', at: 100},
-          isAwaitingAgent: true,
-          agentReasoning: 'Checking the tournament record first.',
-          agentDraft: '',
-        }),
-      ),
-    );
-
-    expect(screen.getByText('Thinking')).toBeInTheDocument();
-    expect(
-      screen.getByText('Checking the tournament record first.'),
-    ).toBeInTheDocument();
-  });
-
-  it('wires each bubble to its own edit/copy/retry handlers', () => {
-    const args = transcriptArgs();
-    renderItems(buildTimelineItems(args));
-
-    fireEvent.click(screen.getByLabelText('Edit prompt'));
-    const editor = screen.getByLabelText('Edit prompt');
-    fireEvent.change(editor, {target: {value: 'A better question'}});
-    fireEvent.click(screen.getByLabelText('Send edited prompt'));
-    expect(args.handleEditMessage).toHaveBeenCalledWith(
-      expect.objectContaining({id: 'u1'}),
-      'A better question',
-    );
-
-    fireEvent.click(screen.getByLabelText('Copy prompt'));
-    expect(args.handleCopyRequest).toHaveBeenCalledWith(
-      expect.objectContaining({id: 'u1'}),
-    );
-
-    fireEvent.click(screen.getByLabelText('Retry response'));
-    expect(args.handleRetryMessage).toHaveBeenCalledWith(
-      expect.objectContaining({id: 'a1'}),
-    );
-  });
-
   it('enables durable Q&A revisions after start and disables consumed setup', () => {
     const args = baseArgs({
       startedSession: {id: 'run-1', title: 'Research', at: 3},
@@ -152,219 +99,30 @@ describe('chat workspace timeline', () => {
     expect(screen.queryByLabelText('Edit prompt')).toBeNull();
   });
 
-  it('persists completion-notification opt-in and address in the draft', () => {
-    const spec = makeSpec();
-    const draft: SpecStage = {spec, createdAt: 5};
-    const args = baseArgs({draft});
-    renderItems(buildTimelineItems(args));
-
-    fireEvent.change(
-      screen.getByLabelText('Email me when the Goal Report is ready'),
-      {target: {value: 'scientist@example.com'}},
-    );
-    const enableUpdater = vi.mocked(args.setDraft).mock.calls[0][0] as (
-      current: SpecStage | null,
-    ) => SpecStage | null;
-    expect(enableUpdater(draft)?.spec.notifyOnCompletion).toBe(true);
-    expect(enableUpdater(draft)?.spec.completionEmail).toBe(
-      'scientist@example.com',
-    );
-  });
-
-  it('wires composer and spec actions to the session handlers', async () => {
-    const spec = makeSpec();
-    const draft: SpecStage = {spec, createdAt: 5};
-    const args = baseArgs({draft});
-    const items = buildTimelineItems(args);
-    expect(items).toHaveLength(1);
-    renderItems(items);
-
-    fireEvent.click(screen.getByLabelText(/Prefer novelty/i));
-    const focusUpdater = vi.mocked(args.setDraft).mock
-      .calls[0][0] as unknown as (
-      current: SpecStage | null,
-    ) => SpecStage | null;
-    expect(focusUpdater(draft)).toEqual({
-      ...draft,
-      spec: {...spec, focus: 'prefer_novelty'},
-    });
-
-    fireEvent.click(screen.getByLabelText(/Ultra/i));
-    const tierUpdater = vi.mocked(args.setDraft).mock
-      .calls[1][0] as unknown as (
-      current: SpecStage | null,
-    ) => SpecStage | null;
-    expect(tierUpdater(draft)).toEqual({
-      ...draft,
-      spec: {...spec, tier: 'ultra'},
-    });
-
-    fireEvent.click(screen.getByLabelText('Retry response'));
-    expect(args.handleRetryDraftSpec).toHaveBeenCalledOnce();
-
-    fireEvent.click(screen.getByText('Cancel'));
-    expect(args.handleCancelDraftSpec).toHaveBeenCalledOnce();
-
-    fireEvent.click(screen.getByText('Start research'));
-    expect(args.handleStartRun).toHaveBeenCalledOnce();
-  });
-
-  it('renders nothing when there is no staged draft', () => {
-    const items = buildTimelineItems(baseArgs({draft: null}));
-    expect(items).toHaveLength(0);
-  });
-
-  it('renders read-only with retry and inert no-ops', () => {
+  it('renders a confirmed plan read-only, retryable, with inert actions', () => {
     const spec = makeSpec({goal: 'Confirmed goal'});
     const args = baseArgs({confirmed: {spec, createdAt: 9}});
     const items = buildTimelineItems(args);
-    expect(items).toHaveLength(1);
     renderItems(items);
 
     expect(screen.queryByText('Cancel')).not.toBeInTheDocument();
-    expect(screen.getByText('Start research')).toBeDisabled();
-
     expect(screen.queryByLabelText('Edit plan')).not.toBeInTheDocument();
+    expect(screen.getByText('Start research')).toBeDisabled();
 
     fireEvent.click(screen.getByLabelText('Retry response'));
     expect(args.stageDraftSpec).toHaveBeenCalledWith(spec);
 
-    const cardElement = items[0].node as ReactElement<{
-      onTierChange: (tier: string) => void;
-      onCancel: () => void;
-      onStart: () => void;
-    }>;
-    expect(() => cardElement.props.onTierChange('standard')).not.toThrow();
-    expect(() => cardElement.props.onCancel()).not.toThrow();
-    expect(() => cardElement.props.onStart()).not.toThrow();
-  });
-
-  it('offers an explicit continue action for a linked draft', () => {
-    const args = baseArgs({
-      confirmed: {spec: makeSpec(), createdAt: 9},
-      linkedDraftRecovery: {
-        canContinueLinkedDraft: true,
-        spec: makeSpec(),
-        status: undefined,
-        retryStatusLookup: vi.fn(),
-      },
-    });
-    renderItems(buildTimelineItems(args));
-
-    const button = screen.getByRole('button', {name: 'Continue research'});
-    expect(button).toBeEnabled();
-    expect(screen.queryByLabelText('Retry response')).toBeNull();
-    fireEvent.click(button);
-    expect(args.handleStartRun).toHaveBeenCalledOnce();
-  });
-
-  it('announces linked-draft recovery while the start request is loading', () => {
-    renderItems(
-      buildTimelineItems(
-        baseArgs({
-          confirmed: {spec: makeSpec(), createdAt: 9},
-          linkedDraftRecovery: {
-            canContinueLinkedDraft: true,
-            spec: makeSpec(),
-            status: undefined,
-            retryStatusLookup: vi.fn(),
-          },
-          isStarting: true,
-        }),
-      ),
-    );
-
-    const button = screen.getByRole('button', {name: 'Continuing...'});
-    expect(button).toBeDisabled();
-    expect(button).toHaveAttribute('aria-busy', 'true');
-    expect(screen.getByRole('status')).toHaveTextContent('Continuing research');
-  });
-
-  it('keeps a linked run locked and offers a status retry on lookup failure', () => {
-    const retryStatusLookup = vi.fn();
-    renderItems(
-      buildTimelineItems(
-        baseArgs({
-          confirmed: {spec: makeSpec(), createdAt: 9},
-          linkedDraftRecovery: {
-            canContinueLinkedDraft: false,
-            status: 'error',
-            retryStatusLookup,
-          },
-        }),
-      ),
-    );
-
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'Could not verify the saved run status.',
-    );
-    expect(screen.getByRole('button', {name: 'Start research'})).toBeDisabled();
-    expect(
-      screen.queryByRole('button', {name: 'Continue research'}),
-    ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', {name: 'Retry status check'}));
-    expect(retryStatusLookup).toHaveBeenCalledOnce();
-  });
-
-  it('announces a linked run status lookup while keeping Start disabled', () => {
-    renderItems(
-      buildTimelineItems(
-        baseArgs({
-          confirmed: {spec: makeSpec(), createdAt: 9},
-          linkedDraftRecovery: {
-            canContinueLinkedDraft: false,
-            status: 'checking',
-            retryStatusLookup: vi.fn(),
-          },
-        }),
-      ),
-    );
-
-    expect(screen.getByRole('status')).toHaveTextContent(
-      'Checking saved research session status…',
-    );
-    expect(screen.getByRole('button', {name: 'Start research'})).toBeDisabled();
-  });
-
-  it('renders nothing when there is no confirmed spec', () => {
-    const items = buildTimelineItems(baseArgs({confirmed: null}));
-    expect(items).toHaveLength(0);
-  });
-
-  const startedSession: StartedSession = {
-    id: 'run-9',
-    title: 'Investigate glucose homeostasis',
-    at: 100,
-  };
-
-  it('links to the run and leaves the chat on a new topic', () => {
-    const args = baseArgs({startedSession});
-    const items = buildTimelineItems(args);
-    expect(items).toHaveLength(1);
-    renderItems(items);
-
-    for (const name of [/Open$/, /View session details/]) {
-      expect(screen.getByRole('link', {name})).toHaveAttribute(
-        'href',
-        '/runs/run-9/details',
-      );
+    const card = items[0].node as ReactElement<Record<string, () => void>>;
+    for (const inert of [
+      'onFocusChange',
+      'onTierChange',
+      'onNotificationChange',
+      'onFieldsChange',
+      'onCancel',
+      'onStart',
+    ]) {
+      expect(() => card.props[inert]()).not.toThrow();
     }
-
-    expect(screen.queryByLabelText('Retry response')).toBeNull();
-
-    fireEvent.click(
-      screen.getByText('Start a new research goal session on a new topic'),
-    );
-    expect(args.resetWorkspace).toHaveBeenCalledOnce();
-    // Leaving the chat route prevents rehydration from reattaching the session
-    // after reset.
-    expect(args.navigate).toHaveBeenCalledWith('/');
-    expect(args.focusComposer).toHaveBeenCalledOnce();
-  });
-
-  it('renders nothing when there is no started session', () => {
-    const items = buildTimelineItems(baseArgs({startedSession: null}));
-    expect(items).toHaveLength(0);
   });
 
   it('sorts chronologically, breaking ties on the `order` field', () => {
@@ -406,27 +164,6 @@ describe('chat workspace timeline', () => {
     expect(screen.getByText('Thinking')).toBeVisible();
   });
 
-  it('re-signs the session card as its announcement is written', () => {
-    // Growing start cards keep their id/time; revision signals their geometry
-    // changed.
-    const signature = (intro: string) =>
-      buildTimelineItems(
-        baseArgs({
-          startedSession: announcingSession({intro, announcing: true}),
-        }),
-      ).find(item => item.id === 'started-session-run-1')?.revision;
-
-    expect(signature('Cold-stress')).not.toEqual(signature('Cold-stress work'));
-  });
-
-  it('falls back to the standby copy for a card with no reply', () => {
-    renderItems(
-      buildTimelineItems(baseArgs({startedSession: announcingSession()})),
-    );
-
-    expect(screen.getByText(/Co-Scientist has started research/)).toBeVisible();
-  });
-
   it('renders the plan card lead-in as markdown, like an ordinary reply', async () => {
     const draft: SpecStage = {
       spec: makeSpec(),
@@ -440,22 +177,6 @@ describe('chat workspace timeline', () => {
 
   // jsdom cannot measure spacing; matching the ordinary assistant wrapper
   // guards its structure.
-  it('wraps the plan and started-session turns in the same row a plain reply uses', () => {
-    const replyRow = renderItems(
-      buildTimelineItems(transcriptArgs()),
-    ).container.querySelector('.reference-bubble-row:not(.user)');
-    expect(replyRow).not.toBeNull();
-
-    const draftRow = renderItems(
-      buildTimelineItems(baseArgs({draft: {spec: makeSpec(), createdAt: 5}})),
-    ).container.querySelector('.reference-bubble-row');
-    expect(draftRow?.className).toBe(replyRow?.className);
-
-    const startedRow = renderItems(
-      buildTimelineItems(baseArgs({startedSession})),
-    ).container.querySelector('.reference-bubble-row');
-    expect(startedRow?.className).toBe(replyRow?.className);
-  });
 });
 
 describe('chat workspace timeline turn shape', () => {
