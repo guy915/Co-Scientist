@@ -642,6 +642,26 @@ def test_seed_demo_runs_replaces_legacy_demo_content(isolated_db: str) -> None:
     assert "Curated demonstration only" in report["markdown_text"]
 
 
+def test_stale_demo_report_is_replaced_and_keeps_its_example_chat(
+    isolated_db: str,
+) -> None:
+    _seed(isolated_db)
+    run = views.list_runs(client_id=DEMO_CLIENT_ID, db_path=isolated_db)[0]
+    interview_id = run.config["interview_id"]
+    reports.save_report(
+        run.id, {"demo_seed_version": "stale"}, "# Stale", db_path=isolated_db
+    )
+
+    _seed(isolated_db)
+
+    reseeded = store.get_run(run.id, db_path=isolated_db)
+    assert reseeded is not None
+    assert reseeded.config["interview_id"] == interview_id
+    report = reports.get_latest_report(run.id, db_path=isolated_db)
+    assert report is not None
+    assert report["payload"]["demo_seed_version"] == DEMO_SEED_VERSION
+
+
 def test_failed_demo_seed_is_logged_and_never_aborts_startup(
     isolated_db: str,
     monkeypatch: pytest.MonkeyPatch,
