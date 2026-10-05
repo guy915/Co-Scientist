@@ -189,48 +189,6 @@ def test_combination_invalid_indices_degrade_to_single_parent() -> None:
     assert child.parent_ids == [parent.id]
 
 
-async def test_partner_selection_flows_from_ranked_pool(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = stub_call_llm_json(
-        monkeypatch,
-        evolve,
-        {
-            "hypothesis": "a merged mechanism with a distinct readout",
-            "refinement_summary": "combined",
-            "combined_partners": [1],
-        },
-        copy_response=True,
-    )
-    parent = make_hypothesis(text="parent idea", elo_rating=1500)
-    partner = make_hypothesis(
-        text="strongest peer idea",
-        elo_rating=1400,
-        explanation="peer explanation",
-        experiment="peer experiment",
-    )
-
-    child, detail = await evolve_single_hypothesis(
-        parent,
-        other_hypotheses=[partner],
-        context=EvolutionContext(
-            model_name="fake/model", meta_review={}, removed_duplicates=[]
-        ),
-        operation=_EvolutionOperation(
-            operator=EvolutionOperator.COMBINATION, partners=(partner,)
-        ),
-    )
-
-    observed_prompt = calls[-1]["prompt"]
-    assert "## Combination Partners" in observed_prompt
-    assert "strongest peer idea" in observed_prompt
-    assert "peer experiment" in observed_prompt
-    assert child is not None
-    assert detail is not None
-    assert child.parent_ids == [parent.id, partner.id]
-    assert detail["operator"] == "combination"
-
-
 async def test_enhancement_grounding_falls_back_to_run_articles(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

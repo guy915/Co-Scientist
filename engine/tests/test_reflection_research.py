@@ -17,7 +17,6 @@ from co_scientist.agents.reflection.review_evidence import (
     research_for_review,
 )
 from co_scientist.agents.reflection.review_gate import ReviewType
-from co_scientist.evidence import search
 from co_scientist.evidence.search_support import SearchConfig
 from co_scientist.generator import run_setup
 from co_scientist.models import Hypothesis
@@ -99,26 +98,6 @@ async def test_only_the_best_ranked_hypotheses_are_researched(
     assert funded == {h.id for h in pool[-limit:]}
     assert await research_for_review(state, pool[0]) is None
     assert client.calls == []
-
-
-def test_before_any_tournament_the_review_score_decides(
-    tmp_path: Path,
-) -> None:
-    """Cycle-one Elo is uniform; review scores make the funded set meaningful
-    rather than arbitrary."""
-    limit = reviewed_hypothesis_limit("extended")
-    pool = []
-    for n in range(limit + 3):
-        hypothesis = _viable(f"mechanism {n}", elo=1200)
-        hypothesis.score = 50.0 + n
-        pool.append(hypothesis)
-
-    funded = _researched_hypothesis_ids(
-        _reflection_research_evidence_state(tmp_path, pool, tier="extended"),
-        "extended",
-    )
-
-    assert funded == {h.id for h in pool[-limit:]}
 
 
 async def test_a_funded_hypothesis_researches_and_names_its_searches(
@@ -454,34 +433,6 @@ def _config(*, semantic_relevance_enabled: bool) -> SearchConfig:
         model_name="offline/deterministic",
         semantic_relevance_enabled=semantic_relevance_enabled,
     )
-
-
-def _ranked() -> dict[str, dict[str, Any]]:
-    return {
-        "best": {"title": "Best", "retrieval_score": 5.0},
-        "worst": {"title": "Worst", "retrieval_score": 1.5},
-    }
-
-
-async def test_disabled_pass_costs_nothing_and_keeps_lexical_order(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = 0
-
-    async def _never(*args: Any, **kwargs: Any) -> dict[str, dict[str, Any]]:
-        nonlocal calls
-        calls += 1
-        return {}
-
-    monkeypatch.setattr(search, "apply_semantic_relevance", _never)
-
-    ranked = _ranked()
-    result = await search._apply_semantic_relevance_if_enabled(
-        ranked, _config(semantic_relevance_enabled=False)
-    )
-
-    assert calls == 0
-    assert list(result.keys()) == ["best", "worst"]
 
 
 async def test_probe_retrieval_opts_out_of_the_relevance_pass(

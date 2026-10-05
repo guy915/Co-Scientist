@@ -167,29 +167,6 @@ def _operator_child_payload(operator: EvolutionOperator) -> dict[str, Any]:
     }
 
 
-def _appended_operators() -> list[EvolutionOperator]:
-    return [
-        operator
-        for operator in EvolutionOperator
-        if operator_template(operator) == "evolution"
-    ]
-
-
-def _operator_prompt(operator: EvolutionOperator) -> str:
-    prompt, _ = _build_evolution_prompt(
-        hypothesis=make_hypothesis("Parent mechanism."),
-        other_hypotheses_texts=["Complementary peer mechanism."],
-        context=EvolutionContext(
-            model_name="fake/model", meta_review={}, removed_duplicates=[]
-        ),
-        operation=_EvolutionOperation(
-            operator=operator,
-            partners=(make_hypothesis("A top-ranked peer approach."),),
-        ),
-    )
-    return prompt
-
-
 def test_selection_covers_every_operator_across_rounds() -> None:
     """Small parent sets must not leave operators structurally unreachable
     across rounds."""

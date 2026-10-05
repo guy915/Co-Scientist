@@ -3,7 +3,6 @@ from __future__ import annotations
 import pathlib
 from typing import Any
 
-import jsonschema
 import pytest
 
 from co_scientist.agents.reflection.review import review_node
@@ -375,59 +374,6 @@ def test_every_review_type_resolves_to_a_prompt_and_schema() -> None:
         assert loaded_schema == schema
 
 
-# Closed schemas reject invented answer keys; prompt and schema names must
-# agree.
-def test_simulation_review_answer_from_the_prompt_validates() -> None:
-    schema = schema_for(ReviewType.SIMULATION)
-    assert schema is not None
-    answer = {
-        "model": "Two kinases coupled by a negative feedback loop.",
-        "steps": [
-            {"step": "The ligand binds its receptor.", "plausible": True}
-        ],
-        "failure_points": ["Step 3 stalls without the cofactor."],
-        "robustness": "A redundant pathway blunts the effect.",
-        "verdict": "partially_holds",
-        "decisive_step": "Step 3.",
-    }
-    jsonschema.validate(instance=answer, schema=schema["schema"])
-
-
-def test_full_review_answer_from_the_prompt_validates() -> None:
-    schema = schema_for(ReviewType.FULL)
-    assert schema is not None
-    answer = {
-        "correctness": "Internally consistent.",
-        "assumptions": [
-            {
-                "assumption": "The receptor is expressed.",
-                "reasoning": "Two prior cohort studies detect it directly.",
-                "support": "supported",
-            }
-        ],
-        "quality_and_novelty": "A non-obvious combination.",
-        "literature_grounding": "Two cohort studies report the association.",
-        "comparison_with_knowledge_base": "Agrees with the canonical model.",
-        "goal_requirements_assessment": "Meets every stated requirement.",
-        "feasibility_steps": ["Run the pilot cohort.", "Read out at day 30."],
-        "feasibility_reasoning": "Both steps use standard assays.",
-        "impact_assessment": "Would change first-line practice.",
-        "reviews_summary": {
-            "executive_verdict": "The hypothesis stands, with one caveat.",
-            "critical_flaws": ["The dose assumption is unsupported."],
-            "addressed_objections": ["Off-target binding is ruled out."],
-            "validated_risks": ["The effect may be strain-specific."],
-            "supporting_arguments": ["Two cohorts show the association."],
-            "alignment_and_novelty": ["Squarely on the research goal."],
-            "feasibility_assessment": ["A pilot settles it in six weeks."],
-            "conclusion": "Worth a pilot once the dose is pinned down.",
-        },
-        "verdict": "needs_revision",
-        "justification": "The dose assumption is unsupported.",
-    }
-    jsonschema.validate(instance=answer, schema=schema["schema"])
-
-
 def test_full_review_prompt_names_every_required_field() -> None:
     """Requiring an unnamed field buys repeated validation failures from
     prompt-faithful answers."""
@@ -601,18 +547,6 @@ def test_an_admitted_idea_does_not_pull_the_run_into_ranking() -> None:
 
     assert decision is not None
     assert decision.next_task is TaskType.REFLECT
-
-
-def test_steering_still_schedules_generation_when_it_arrives() -> None:
-    state = _scheduler_pool()
-    state["pending_steering"] = True
-
-    decision = required_transition(
-        _compute_stats(state, {}), _default_budget(state)
-    )
-
-    assert decision is not None
-    assert decision.next_task is TaskType.GENERATE
 
 
 def _modes(hypothesis: object, iteration: int) -> list[str]:

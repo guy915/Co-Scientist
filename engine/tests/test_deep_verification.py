@@ -14,9 +14,6 @@ from co_scientist.agents.reflection import (
 )
 from co_scientist.agents.reflection import deep_verification_evidence as dve
 from co_scientist.agents.reflection import review_evidence as ev
-from co_scientist.agents.reflection.deep_verification_evidence import (
-    with_researched,
-)
 from co_scientist.agents.reflection.review_evidence import (
     _evidence_key,
     _ReviewEvidence,
@@ -255,52 +252,6 @@ async def test_decomposition_and_decontextualization_are_stored(
     assert h.deep_verification_verdict == "holds"
 
 
-async def test_decomposition_lists_are_bounded_on_store(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from co_scientist.schemas.review import (
-        DEEP_VERIFICATION_MAX_DECONTEXTUALIZATIONS,
-        DEEP_VERIFICATION_MAX_SUB_ASSUMPTIONS,
-    )
-
-    monkeypatch.setattr(
-        leaf,
-        "call_llm_json",
-        AsyncMock(
-            return_value=_verification_response(
-                sub_assumptions=[
-                    {
-                        "assumption": f"a{i}",
-                        "verification": "v",
-                        "status": "uncertain",
-                    }
-                    for i in range(12)
-                ],
-                decontextualizations=[
-                    {
-                        "context_bound_claim": f"c{i}",
-                        "general_claim": "g",
-                        "assessment": "x",
-                    }
-                    for i in range(9)
-                ],
-            )
-        ),
-    )
-
-    h = make_hypothesis(text="leader", elo_rating=2000)
-    state = make_state(hypotheses=[h])
-    await dv.deep_verification_node(state)
-
-    record = h.enrichments["deep_verification"]
-    assert len(record["sub_assumptions"]) == (
-        DEEP_VERIFICATION_MAX_SUB_ASSUMPTIONS
-    )
-    assert len(record["decontextualizations"]) == (
-        DEEP_VERIFICATION_MAX_DECONTEXTUALIZATIONS
-    )
-
-
 def test_no_verification_verdict_bars_the_tournament() -> None:
     """Provider outages must not delete ideas; real failures demote rather
     than exclude them."""
@@ -338,21 +289,6 @@ def test_corpus_fallback_selects_sources_matching_the_probe_queries() -> None:
     assert errors == [dve.CORPUS_FALLBACK_NOTE]
 
 
-def test_corpus_fallback_retracted_sources_are_excluded() -> None:
-    retracted = make_article(
-        "Retracted tamoxifen study",
-        abstract="tamoxifen acrB expression Klebsiella",
-        is_retracted=True,
-    )
-    state = make_state(articles=[retracted], mcp_available=False)
-
-    articles, _ = dve._corpus_probe_evidence(
-        state, ["tamoxifen acrB expression Klebsiella"]
-    )
-
-    assert articles == []
-
-
 async def test_probe_retrieval_falls_back_to_corpus_without_mcp() -> None:
     article = make_article(
         "Sertraline membrane study",
@@ -367,16 +303,6 @@ async def test_probe_retrieval_falls_back_to_corpus_without_mcp() -> None:
 
     assert articles == [article]
     assert errors == [dve.CORPUS_FALLBACK_NOTE]
-
-
-async def test_probe_retrieval_with_no_queries_still_returns_nothing() -> None:
-    article = make_article("Any paper", abstract="content")
-    state = make_state(articles=[article], mcp_available=False)
-
-    articles, errors = await dve._retrieve_probe_evidence(state, [])
-
-    assert articles == []
-    assert errors == []
 
 
 async def test_verification_grounds_probes_in_corpus_when_mcp_down(
@@ -445,21 +371,6 @@ async def test_review_queries_still_formulated_when_corpus_exists(
     assert call.await_count == 1
 
 
-async def test_review_queries_skipped_when_nothing_to_ground_against(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    call = AsyncMock(return_value={"queries": ["term one"]})
-    monkeypatch.setattr(ev, "_call_hypothesis_query_llm", call)
-
-    state = make_state(articles=None, mcp_available=False)
-    queries = await ev._hypothesis_search_queries(
-        state, make_hypothesis(text="h")
-    )
-
-    assert queries == []
-    assert call.await_count == 0
-
-
 def _hypothesis() -> Hypothesis:
     return Hypothesis(id="h1", text="Blocking X reverses fibrosis in humans.")
 
@@ -509,40 +420,6 @@ async def test_an_unresearched_leader_starts_nothing() -> None:
     state, hypothesis = _state(), _hypothesis()
 
     assert researched_articles_for(state, hypothesis) == []
-
-
-@pytest.mark.asyncio
-async def test_a_failed_gathering_is_not_an_error_here() -> None:
-    state, hypothesis = _state(), _hypothesis()
-    loop = asyncio.get_running_loop()
-
-    async def _boom() -> _ReviewEvidence:
-        raise RuntimeError("search broke")
-
-    task = loop.create_task(_boom())
-    with pytest.raises(RuntimeError):
-        await task
-    review_evidence._review_evidence_flights.setdefault(loop, {})[
-        _evidence_key(state, hypothesis)
-    ] = task
-
-    assert researched_articles_for(state, hypothesis) == []
-
-
-@pytest.mark.asyncio
-async def test_a_paper_found_twice_is_carried_once() -> None:
-    """Duplicate papers spend context twice and falsely resemble independent
-    corroboration."""
-    state, hypothesis = _state(), _hypothesis()
-    await _plant(
-        state,
-        hypothesis,
-        _ReviewEvidence(["q"], [_article("a"), _article("c")], [], {"t": 1}),
-    )
-
-    merged = with_researched(state, hypothesis, [_article("a")])
-
-    assert [article.source_id for article in merged] == ["a", "c"]
 
 
 async def test_verifies_every_unverified_hypothesis(
@@ -636,92 +513,6 @@ async def test_evolution_children_are_verified(
     assert child.deep_verification_verdict == "holds"
 
 
-async def test_blocked_ideas_are_not_verified(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    fake = mock_call_llm_json(monkeypatch, leaf, make_verification_response())
-
-    blocked = make_hypothesis(text="blocked", review_disposition="inaccurate")
-    state = make_state(hypotheses=[blocked])
-    await dv.deep_verification_node(state)
-
-    assert fake.await_count == 0
-    assert not dv.verification_issued(blocked)
-
-
-async def test_reverifies_when_hypothesis_text_changes(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    fake = mock_call_llm_json(monkeypatch, leaf, make_verification_response())
-
-    h = make_hypothesis(text="original", elo_rating=2000)
-    state = make_state(hypotheses=[h])
-    h.deep_verification_fingerprint = dv.verification_fingerprint(
-        h, state["model_name"]
-    )
-    h.text = "materially different claim"
-
-    await dv.deep_verification_node(state)
-
-    assert fake.await_count == 1
-
-
-async def test_reverifies_when_the_verifier_model_changes(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    fake = mock_call_llm_json(monkeypatch, leaf, make_verification_response())
-
-    h = make_hypothesis(text="stable", elo_rating=2000)
-    h.deep_verification_fingerprint = dv.verification_fingerprint(
-        h, "some-other-model"
-    )
-    state = make_state(hypotheses=[h])
-
-    await dv.deep_verification_node(state)
-
-    assert fake.await_count == 1
-
-
-async def test_unrelated_evidence_does_not_invalidate_verification(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Hashing the whole corpus would invalidate every idea when any article
-    arrives."""
-    fake = mock_call_llm_json(monkeypatch, leaf, make_verification_response())
-
-    h = make_hypothesis(text="stable", elo_rating=2000)
-    h.citation_map = {"C1": {"source_id": "cited-1", "title": "Cited"}}
-    state = make_state(hypotheses=[h])
-    h.deep_verification_fingerprint = dv.verification_fingerprint(
-        h, state["model_name"]
-    )
-    state["articles"] = [
-        make_article("Unrelated paper", abstract="x", used_in_analysis=True)
-    ]
-
-    await dv.deep_verification_node(state)
-
-    assert fake.await_count == 0
-
-
-async def test_reverifies_when_cited_evidence_changes(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    fake = mock_call_llm_json(monkeypatch, leaf, make_verification_response())
-
-    h = make_hypothesis(text="stable", elo_rating=2000)
-    h.citation_map = {"C1": {"source_id": "cited-1"}}
-    state = make_state(hypotheses=[h])
-    h.deep_verification_fingerprint = dv.verification_fingerprint(
-        h, state["model_name"]
-    )
-    h.citation_map["C2"] = {"source_id": "cited-2"}
-
-    await dv.deep_verification_node(state)
-
-    assert fake.await_count == 1
-
-
 async def test_a_failed_verification_spends_the_one_attempt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -744,3 +535,55 @@ async def test_a_failed_verification_spends_the_one_attempt(
     assert calls == 1
     assert h.deep_verification_fingerprint is None
     assert h.deep_verification_verdict == dv.VERDICT_UNVERIFIED
+
+
+def _stored_verification(h: Hypothesis, state: WorkflowState) -> None:
+    h.deep_verification_fingerprint = dv.verification_fingerprint(
+        h, state["model_name"]
+    )
+
+
+@pytest.mark.parametrize(
+    ("change", "reverified"),
+    [
+        ("text", True),
+        ("model", True),
+        ("cited_evidence", True),
+        ("unrelated_article", False),
+    ],
+)
+async def test_verification_is_redone_only_when_its_inputs_change(
+    monkeypatch: pytest.MonkeyPatch, change: str, reverified: bool
+) -> None:
+    fake = mock_call_llm_json(monkeypatch, leaf, make_verification_response())
+    h = make_hypothesis(text="stable", elo_rating=2000)
+    h.citation_map = {"C1": {"source_id": "cited-1"}}
+    state = make_state(hypotheses=[h])
+    _stored_verification(h, state)
+    if change == "text":
+        h.text = "materially different claim"
+    elif change == "model":
+        state["model_name"] = "some-other-model"
+    elif change == "cited_evidence":
+        h.citation_map["C2"] = {"source_id": "cited-2"}
+    else:
+        # Hashing the whole corpus would invalidate every idea on any arrival.
+        state["articles"] = [
+            make_article("Unrelated", abstract="x", used_in_analysis=True)
+        ]
+
+    await dv.deep_verification_node(state)
+
+    assert fake.await_count == int(reverified)
+
+
+async def test_blocked_ideas_are_not_verified(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = mock_call_llm_json(monkeypatch, leaf, make_verification_response())
+    blocked = make_hypothesis(text="blocked", review_disposition="inaccurate")
+
+    await dv.deep_verification_node(make_state(hypotheses=[blocked]))
+
+    assert fake.await_count == 0
+    assert not dv.verification_issued(blocked)

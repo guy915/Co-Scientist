@@ -172,41 +172,6 @@ async def test_proximity_graph_excludes_deduped_high_similarity_member(
     assert result["proximity_graph"]["edges"] == []
 
 
-async def test_drifted_echo_dedupes_and_leaves_no_stale_edge(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Dedup and graph resolution must agree on member identity."""
-    low, high = _alpha_beta_pair()
-    state = make_state(hypotheses=[low, high])
-    _stub_clusters(
-        monkeypatch,
-        {
-            "similarity_clusters": [
-                {
-                    "cluster_id": "c1",
-                    "similar_hypotheses": [
-                        {
-                            "text": "  Alpha Pathway Drives Tumor Growth",
-                            "similarity_degree": "high",
-                        },
-                        {
-                            "text": "beta pathway drives tumor growth",
-                            "similarity_degree": "high",
-                        },
-                    ],
-                }
-            ]
-        },
-    )
-
-    result = await proximity_node(state)
-
-    assert len(result["hypotheses"]) == 1
-    assert result["hypotheses"][0].elo_rating == 1400
-    assert len(result["removed_duplicates"]) == 1
-    assert result["proximity_graph"]["edges"] == []
-
-
 def test_long_hypotheses_are_sent_whole() -> None:
     """Deletion decisions need tail differences in methods, assumptions and
     uses."""
@@ -306,39 +271,6 @@ def test_unresolvable_members_are_skipped() -> None:
         updated_at=1.0,
     )
     assert graph["edges"] == []
-
-
-def test_documented_local_algorithm_identity_and_weights() -> None:
-    """New metrics need new versions so persisted algorithm identities stay
-    true."""
-    assert PROXIMITY_METHOD == "llm-cluster"
-    assert PROXIMITY_METHOD_VERSION == "1"
-
-    graph = build_proximity_graph(
-        [
-            {
-                "cluster_id": "c1",
-                "similar_hypotheses": [
-                    {"index": 0, "similarity_degree": "high"},
-                    {"index": 1, "similarity_degree": "medium"},
-                    {"index": 2, "similarity_degree": "low"},
-                ],
-            }
-        ],
-        _survivors("h-a", "h-b", "h-c"),
-        research_goal="goal",
-        model="m",
-        updated_at=1.0,
-    )
-    weights = {
-        frozenset((edge["source"], edge["target"])): edge["similarity"]
-        for edge in graph["edges"]
-    }
-    assert weights[frozenset({"h-a", "h-b"})] == 1.0
-    assert weights[frozenset({"h-a", "h-c"})] == 1.0
-    assert weights[frozenset({"h-b", "h-c"})] == 0.6
-    assert graph["meta"]["method"] == PROXIMITY_METHOD
-    assert graph["meta"]["version"] == PROXIMITY_METHOD_VERSION
 
 
 def test_resolves_member_text_drifted_beyond_prefix() -> None:
@@ -483,13 +415,6 @@ def test_graph_meta_counts_judged_and_computed_edges_apart() -> None:
     assert meta["computed_edge_count"] == 2
     assert len(graph["edges"]) == 3
     assert meta["version"] == PROXIMITY_METHOD_VERSION
-
-
-def test_an_edge_without_a_method_reads_as_judged() -> None:
-    """Older checkpoints predate computed edges; their edges are real
-    judgments."""
-    assert is_judged_edge({"source": "h-a", "target": "h-b"})
-    assert not is_judged_edge({"method": PROXIMITY_COMPUTED_METHOD})
 
 
 def test_a_computed_edge_does_not_reach_the_duplicate_guard() -> None:

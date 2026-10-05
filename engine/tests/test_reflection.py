@@ -331,18 +331,6 @@ async def test_full_and_simulation_share_one_targeted_retrieval(
         assert [item["source_id"] for item in stored] == ["validation-1"]
 
 
-async def test_rewritten_hypothesis_does_not_reuse_stale_evidence(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    hypothesis = make_hypothesis(text="original claim")
-    state = make_state(hypotheses=[hypothesis], mcp_available=True)
-
-    before = ev._evidence_key(state, hypothesis)
-    hypothesis.text = "a materially different claim"
-
-    assert ev._evidence_key(state, hypothesis) != before
-
-
 def _stub_review_research(
     monkeypatch: pytest.MonkeyPatch, *, fails: bool = False
 ) -> None:

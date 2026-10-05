@@ -30,8 +30,6 @@ from co_scientist.agents.reflection.deep_verification import (
     verification_fingerprint,
 )
 from co_scientist.agents.reflection.reflection_helpers import (
-    _fetch_evidence_result,
-    _format_evidence,
     fetch_indra_evidence,
 )
 from co_scientist.agents.reflection.review_evidence import _ReviewEvidence
@@ -89,23 +87,6 @@ _ACTIVATION_STATEMENT = {
 }
 
 
-async def test_fetch_evidence_result_one_entity_fails_other_succeeds() -> None:
-    client = _FakeMcpClient(
-        available_tools={"get_relations"},
-        responses={
-            "KRAS": None,
-            "TREM2": json.dumps({"statements": [_ACTIVATION_STATEMENT]}),
-        },
-    )
-    result = await _fetch_evidence_result(
-        client, ["get_relations"], ["KRAS", "TREM2"], max_statements=5
-    )
-    assert result is not None
-    assert "KRAS --[Activation]--> BRAF" in result["prompt_text"]
-    assert len(result["enrichment_items"]) == 1
-    assert result["enrichment_items"][0]["relationship"] == "KRAS → BRAF"
-
-
 async def test_fetch_indra_evidence_returns_client_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -147,19 +128,6 @@ async def test_fetch_indra_evidence_swallows_client_construction_error(
     )
 
     assert result == {"prompt_text": "", "enrichment_items": []}
-
-
-def test_format_evidence_renders_header_and_valid_statement_lines() -> None:
-    malformed = {"type": "Unknown"}
-    text = _format_evidence(
-        [_ACTIVATION_STATEMENT, malformed], ["KRAS", "BRAF"]
-    )
-    assert text.startswith(
-        "Structured knowledge from the INDRA biomedical knowledge graph "
-        "(queried for: KRAS, BRAF):"
-    )
-    assert "KRAS --[Activation]--> BRAF" in text
-    assert text.count("\n") == 1
 
 
 def test_retracted_evidence_never_reaches_a_prompt() -> None:

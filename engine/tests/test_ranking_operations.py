@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import pathlib
 from typing import Any
 
 import pytest
@@ -189,15 +188,6 @@ def test_matchup_prompt_surfaces_fatal_mature_review_findings() -> None:
     assert "ligand binding never occurs" in prompt
     assert "Hypothesis 2 Mature Review Findings" not in prompt
     assert "never shown to a judge" not in prompt
-
-
-_TEMPLATES = (
-    pathlib.Path(__file__).resolve().parents[1]
-    / "src"
-    / "co_scientist"
-    / "prompts"
-    / "templates"
-)
 
 
 def test_matchup_prompt_keeps_reflection_and_verification() -> None:

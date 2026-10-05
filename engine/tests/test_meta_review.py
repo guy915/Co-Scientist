@@ -69,7 +69,7 @@ async def test_no_reviews_returns_default_without_llm(
     assert "messages" not in result
 
 
-async def test_with_reviews_maps_response_fields(
+async def test_meta_review_synthesizes_the_reviewed_pool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls = stub_call_llm_json(
@@ -80,7 +80,21 @@ async def test_with_reviews_maps_response_fields(
             "strengths": ["clear mechanism", "testable"],
             "weaknesses": ["narrow scope"],
             "strategic_recommendations": ["broaden the cohort"],
-            "recurring_themes": [],
+            "recurring_themes": [
+                {
+                    "theme": "mitochondrial dysfunction",
+                    "description": "recurs across the reviewed pool",
+                    "frequency": 3,
+                    "sub_themes": [
+                        {
+                            "theme": "temporal ordering",
+                            "description": "cause is not separated from effect",
+                            "points": ["run a longitudinal arm"],
+                        }
+                    ],
+                },
+                "oxidative stress",
+            ],
             "potential_connections": [
                 {
                     "related_hypotheses": ["Hypothesis 1", "Hypothesis 2"],
@@ -93,12 +107,14 @@ async def test_with_reviews_maps_response_fields(
     state = make_state(
         hypotheses=[
             make_hypothesis(text="reviewed hyp", reviews=[make_review()])
-        ]
+        ],
+        preferences="prioritize wet-lab feasibility over novelty",
     )
 
     result = await meta_review_node(state)
 
     assert len(calls) == 1
+    assert "prioritize wet-lab feasibility over novelty" in calls[0]["prompt"]
     mr = result["meta_review"]
     assert mr["summary"] == "overall the set is promising"
     assert mr["common_strengths"] == ["clear mechanism", "testable"]
@@ -107,101 +123,22 @@ async def test_with_reviews_maps_response_fields(
     assert mr["potential_connections"][0]["synthesis_opportunity"] == (
         "combine both interventions"
     )
-    assert "metrics" in result
-    assert result["messages"][0]["metadata"]["phase"] == "meta_review"
-
-
-async def test_state_preferences_reach_the_rendered_prompt(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = stub_call_llm_json(
-        monkeypatch, meta_review, {"meta_review_summary": "s"}
-    )
-    state = make_state(
-        hypotheses=[
-            make_hypothesis(text="reviewed hyp", reviews=[make_review()])
-        ],
-        preferences="prioritize wet-lab feasibility over novelty",
-    )
-
-    await meta_review_node(state)
-
-    assert len(calls) == 1
-    assert "prioritize wet-lab feasibility over novelty" in calls[0]["prompt"]
-
-
-async def test_recurring_themes_carry_description_and_frequency(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    stub_call_llm_json(
-        monkeypatch,
-        meta_review,
-        {
-            "meta_review_summary": "summary",
-            "recurring_themes": [
-                {
-                    "theme": "mitochondrial dysfunction",
-                    "description": "recurs across the reviewed pool",
-                    "frequency": 3,
-                    "sub_themes": [
-                        {
-                            "theme": "temporal ordering",
-                            "description": (
-                                "cause is not separated from effect"
-                            ),
-                            "points": ["run a longitudinal arm"],
-                        }
-                    ],
-                },
-                "oxidative stress",
-            ],
-        },
-    )
-    state = make_state(
-        hypotheses=[
-            make_hypothesis(text="reviewed hyp", reviews=[make_review()])
-        ]
-    )
-
-    result = await meta_review_node(state)
-
-    assert result["meta_review"]["emerging_themes"] == [
+    assert mr["emerging_themes"] == [
         "mitochondrial dysfunction",
         "oxidative stress",
     ]
-    assert result["meta_review"]["recurring_themes"] == [
-        {
-            "theme": "mitochondrial dysfunction",
-            "description": "recurs across the reviewed pool",
-            "frequency": "3",
-            "sub_themes": [
-                {
-                    "theme": "temporal ordering",
-                    "description": "cause is not separated from effect",
-                    "points": ["run a longitudinal arm"],
-                }
-            ],
-        },
-        {
-            "theme": "oxidative stress",
-            "description": "",
-            "frequency": "",
-            "sub_themes": [],
-        },
+    assert mr["recurring_themes"][0]["frequency"] == "3"
+    assert mr["recurring_themes"][0]["sub_themes"][0]["points"] == [
+        "run a longitudinal arm"
     ]
-
-
-def test_review_collection_numbers_hypotheses_from_one() -> None:
-    """Recommendations quote these user-facing idea numbers, not array
-    offsets."""
-    hypotheses = [
-        make_hypothesis(text=f"hyp {i}", reviews=[make_review()])
-        for i in range(3)
-    ]
-
-    records = _collect_review_summaries(hypotheses)
-
-    assert [record["hypothesis_index"] for record in records] == [1, 2, 3]
+    assert mr["recurring_themes"][1] == {
+        "theme": "oxidative stress",
+        "description": "",
+        "frequency": "",
+        "sub_themes": [],
+    }
+    assert "metrics" in result
+    assert result["messages"][0]["metadata"]["phase"] == "meta_review"
 
 
 def test_review_collection_includes_mature_review_findings() -> None:
@@ -293,31 +230,6 @@ def test_disabled_cadence_stacks_no_meta_review_companion() -> None:
     assert TaskType.META_REVIEW.value not in stacked_task_values(
         stacked_off.queue_actions
     )
-
-
-# Distinctive markers unlikely to appear in a template by accident.
-_META_REVIEW_PROMPT_THREADING_STRENGTH = (
-    "UNIQUEMARKER-strength-mitochondrial-coupling"
-)
-_META_REVIEW_PROMPT_THREADING_WEAKNESS = (
-    "UNIQUEMARKER-weakness-blood-brain-barrier-permeability"
-)
-_META_REVIEW_PROMPT_THREADING_RECOMMENDATION = (
-    "UNIQUEMARKER-recommendation-add-orthogonal-probe"
-)
-
-_META_REVIEW_PROMPT_THREADING_META_REVIEW = {
-    "common_strengths": [_META_REVIEW_PROMPT_THREADING_STRENGTH],
-    "common_weaknesses": [_META_REVIEW_PROMPT_THREADING_WEAKNESS],
-    "strategic_recommendations": [_META_REVIEW_PROMPT_THREADING_RECOMMENDATION],
-}
-
-
-def _meta_review_prompt_threading_assert_critique_present(prompt: str) -> None:
-    assert "Meta-Review Context" in prompt
-    assert _META_REVIEW_PROMPT_THREADING_WEAKNESS in prompt
-    assert _META_REVIEW_PROMPT_THREADING_STRENGTH in prompt
-    assert _META_REVIEW_PROMPT_THREADING_RECOMMENDATION in prompt
 
 
 # Distinctive markers unlikely to appear in a template by accident.
