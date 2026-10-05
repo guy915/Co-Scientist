@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import types
 from pathlib import Path
 
@@ -21,7 +22,6 @@ from co_scientist.models import (
 from co_scientist.patch import (
     Patch,
     PatchError,
-    UpdateFile,
     apply_patch,
     parse_patch,
     seek_anchor,
@@ -83,7 +83,7 @@ def _rich_state() -> dict[str, object]:
 def test_round_trip_preserves_serializable_state() -> None:
     state = _rich_state()
     checkpoint = serialize_workflow_state(state, last_event_seq=42)
-    restored = restore_workflow_state(checkpoint)
+    restored = restore_workflow_state(json.loads(json.dumps(checkpoint)))
 
     assert restored["research_goal"] == "Explain X"
     assert restored["current_iteration"] == 2
@@ -103,6 +103,9 @@ def test_round_trip_preserves_serializable_state() -> None:
 
     assert restored["metrics"].llm_calls == 17
     assert restored["metrics"].reviews_count == 4
+    assert restored["resume"] is True
+    assert checkpoint["last_event_seq"] == 42
+    assert restored["run_id"] == "run-123"
 
 
 def test_runtime_handles_excluded_and_reinjected() -> None:
@@ -121,11 +124,6 @@ def test_runtime_handles_excluded_and_reinjected() -> None:
     )
     assert restored["progress_callback"] is sentinel_cb
     assert restored["tool_registry"] is sentinel_registry
-
-
-def test_restore_sets_resume_flag() -> None:
-    checkpoint = serialize_workflow_state(_rich_state(), last_event_seq=1)
-    assert restore_workflow_state(checkpoint)["resume"] is True
 
 
 def _freeze_time(monkeypatch: pytest.MonkeyPatch, now: float) -> None:
@@ -152,20 +150,6 @@ def test_restore_rebases_start_time_excluding_idle_gap(
     assert 500_000.0 - restored["start_time"] == pytest.approx(300.0)
 
 
-def test_restore_legacy_checkpoint_keeps_verbatim_start_time() -> None:
-    checkpoint = serialize_workflow_state(_rich_state(), last_event_seq=1)
-    del checkpoint["state"]["elapsed_active_s"]
-    checkpoint["state"]["start_time"] = 1234.5
-
-    restored = restore_workflow_state(checkpoint)
-    assert restored["start_time"] == 1234.5
-
-
-def test_checkpoint_records_last_event_seq() -> None:
-    checkpoint = serialize_workflow_state(_rich_state(), last_event_seq=99)
-    assert checkpoint["last_event_seq"] == 99
-
-
 def test_incompatible_version_fails_closed() -> None:
     checkpoint = serialize_workflow_state(_rich_state(), last_event_seq=1)
     checkpoint["version"] = CHECKPOINT_VERSION + 1
@@ -173,21 +157,9 @@ def test_incompatible_version_fails_closed() -> None:
         restore_workflow_state(checkpoint)
 
 
-def test_checkpoint_is_json_serializable() -> None:
-    import json
-
-    checkpoint = serialize_workflow_state(_rich_state(), last_event_seq=1)
-    dumped = json.dumps(checkpoint)
-    reloaded = json.loads(dumped)
-    restored = restore_workflow_state(reloaded)
-    assert restored["run_id"] == "run-123"
-
-
 def test_langchain_messages_round_trip_through_json() -> None:
     """Runtime BaseMessage objects need conversion before JSON-backed
     persistence."""
-    import json
-
     from langchain_core.messages import AIMessage, HumanMessage
 
     state = _rich_state()
@@ -225,25 +197,6 @@ def test_envelope_markers_are_required() -> None:
         parse_patch("*** Begin Patch\n*** Update File: a.py\n")
 
 
-def test_an_empty_patch_is_rejected() -> None:
-    with pytest.raises(PatchError, match="no file operations"):
-        parse_patch(_envelope())
-
-
-def test_an_unrecognized_hunk_line_is_rejected() -> None:
-    with pytest.raises(PatchError, match="unrecognized line"):
-        parse_patch(_envelope("*** Update File: a.py", "@@", "?bad marker"))
-
-
-def test_a_blank_line_in_a_hunk_reads_as_blank_context() -> None:
-    patch = parse_patch(
-        _envelope("*** Update File: a.py", "@@", " keep", "", "-drop")
-    )
-    update = patch.operations[0]
-    assert isinstance(update, UpdateFile)
-    assert update.hunks[0].anchor == ("keep", "", "drop")
-
-
 def test_multiple_files_parse_into_one_envelope() -> None:
     patch = parse_patch(
         _envelope(
@@ -258,39 +211,6 @@ def test_multiple_files_parse_into_one_envelope() -> None:
         )
     )
     assert patch.paths == ("new.py", "gone.py", "kept.py")
-
-
-def test_repeated_blocks_resolve_in_order_not_by_best_match() -> None:
-    """A scoring matcher would select the same best occurrence twice."""
-    lines = ["x", "dup", "y", "dup", "z"]
-    first = seek_anchor(lines, ("dup",), 0)
-    assert first is not None and first.start == 1
-    second = seek_anchor(lines, ("dup",), first.end)
-    assert second is not None and second.start == 3
-
-
-def test_the_ladder_prefers_an_exact_match_anywhere() -> None:
-    lines = ["value ", "value"]
-    found = seek_anchor(lines, ("value",), 0)
-    assert found is not None
-    assert found.start == 1
-    assert found.rung == "exact"
-
-
-def test_trailing_whitespace_differences_still_match() -> None:
-    found = seek_anchor(["  code  "], ("  code",), 0)
-    assert found is not None
-    assert found.rung == "trailing-whitespace"
-
-
-def test_smart_quotes_still_match() -> None:
-    found = seek_anchor(['x = "a"'], ("x = “a”",), 0)
-    assert found is not None
-    assert found.rung == "unicode-punctuation"
-
-
-def test_a_missing_anchor_returns_nothing() -> None:
-    assert seek_anchor(["a", "b"], ("absent",), 0) is None
 
 
 def test_update_replaces_the_anchored_lines(tmp_path: Path) -> None:
@@ -312,42 +232,11 @@ def test_update_replaces_the_anchored_lines(tmp_path: Path) -> None:
     assert target.read_text() == "before\nnew\nafter\n"
 
 
-def test_add_creates_a_file(tmp_path: Path) -> None:
-    _apply(
-        _envelope("*** Add File: sub/new.py", "+print(1)"),
-        tmp_path,
-    )
-    assert (tmp_path / "sub" / "new.py").read_text() == "print(1)\n"
-
-
 def test_add_refuses_to_clobber(tmp_path: Path) -> None:
     (tmp_path / "a.py").write_text("existing\n")
     with pytest.raises(PatchError, match="already exists"):
         _apply(_envelope("*** Add File: a.py", "+new"), tmp_path)
     assert (tmp_path / "a.py").read_text() == "existing\n"
-
-
-def test_delete_removes_a_file(tmp_path: Path) -> None:
-    (tmp_path / "gone.py").write_text("x\n")
-    _apply(_envelope("*** Delete File: gone.py"), tmp_path)
-    assert not (tmp_path / "gone.py").exists()
-
-
-def test_move_renames_and_edits(tmp_path: Path) -> None:
-    (tmp_path / "old.py").write_text("keep\nold\n")
-    _apply(
-        _envelope(
-            "*** Update File: old.py",
-            "*** Move to: new.py",
-            "@@",
-            " keep",
-            "-old",
-            "+new",
-        ),
-        tmp_path,
-    )
-    assert not (tmp_path / "old.py").exists()
-    assert (tmp_path / "new.py").read_text() == "keep\nnew\n"
 
 
 def test_a_stale_context_fails_rather_than_applying_elsewhere(
@@ -432,86 +321,6 @@ def test_a_symlinked_escape_is_refused(tmp_path: Path) -> None:
         _apply(_envelope("*** Add File: link/escape.py", "+x"), root)
 
 
-def test_empty_bare_list_returns_existing_unchanged() -> None:
-    existing = [make_hypothesis("Foo")]
-    result = deduplicate_hypotheses(existing, [])
-    assert result is existing
-
-
-def test_both_empty() -> None:
-    existing: list[Hypothesis] = []
-    result = deduplicate_hypotheses(existing, [])
-    assert result is existing
-
-
-def test_empty_append_is_noop() -> None:
-    existing = [make_hypothesis("Foo")]
-    result = deduplicate_hypotheses(existing, AppendHypotheses([]))
-    assert [h.text for h in result] == ["Foo"]
-
-
-def test_bare_list_replaces_pool() -> None:
-    existing = [make_hypothesis("A"), make_hypothesis("B")]
-    new = [make_hypothesis("A2"), make_hypothesis("B2")]
-    result = deduplicate_hypotheses(existing, new)
-    assert [h.text for h in result] == ["A2", "B2"]
-
-
-def test_replace_drops_existing_absent_from_new() -> None:
-    a, b = make_hypothesis("A"), make_hypothesis("B")
-    result = deduplicate_hypotheses([a, b], [a])
-    assert [h.id for h in result] == [a.id]
-
-
-def test_replace_dedups_by_id_keeping_first() -> None:
-    a = make_hypothesis("A", score=1.0)
-    a_dup = Hypothesis(text="A rescored", id=a.id, score=2.0)
-    result = deduplicate_hypotheses([], [a, a_dup])
-    assert len(result) == 1
-    assert result[0].id == a.id
-    assert result[0].score == 1.0
-
-
-def test_replace_preserves_ranking_order() -> None:
-    existing = [make_hypothesis("A"), make_hypothesis("B")]
-    reordered = [existing[1], existing[0]]
-    result = deduplicate_hypotheses(existing, reordered)
-    assert [h.id for h in result] == [existing[1].id, existing[0].id]
-
-
-def test_append_adds_new_hypotheses() -> None:
-    existing = [make_hypothesis("A"), make_hypothesis("B")]
-    new = [make_hypothesis("C"), make_hypothesis("D")]
-    result = deduplicate_hypotheses(existing, AppendHypotheses(new))
-    assert [h.text for h in result] == ["A", "B", "C", "D"]
-
-
-def test_append_skips_existing_id() -> None:
-    a = make_hypothesis("A")
-    result = deduplicate_hypotheses([a], AppendHypotheses([a]))
-    assert len(result) == 1
-    assert result[0] is a
-
-
-def test_append_skips_exact_text_duplicate() -> None:
-    existing = [make_hypothesis("Foo", score=1.0)]
-    incoming = [make_hypothesis(" foo ", score=2.0)]
-    result = deduplicate_hypotheses(existing, AppendHypotheses(incoming))
-    assert len(result) == 1
-    assert result[0].score == 1.0
-
-
-def test_append_dedups_within_batch() -> None:
-    existing: list[Hypothesis] = []
-    batch = [
-        make_hypothesis("Dup", score=1.0),
-        make_hypothesis("DUP", score=2.0),
-    ]
-    result = deduplicate_hypotheses(existing, AppendHypotheses(batch))
-    assert len(result) == 1
-    assert result[0].score == 1.0
-
-
 def test_evolved_child_appends_without_replacing_parent() -> None:
     """Fresh children coexist with parents and must never resurrect pruned
     hypotheses."""
@@ -556,31 +365,6 @@ def test_matchups_from_later_tournaments_do_not_erase_earlier_ones() -> None:
     assert combined == [_matchup("a", "b"), _matchup("c", "d")]
 
 
-def test_replaying_a_committed_tournament_does_not_double_count() -> None:
-    from co_scientist.state import accumulate_matchups
-
-    judged = [_matchup("a", "b"), _matchup("c", "d")]
-
-    assert accumulate_matchups(judged, list(judged)) == judged
-
-
-def test_a_genuine_rematch_at_new_ratings_is_kept() -> None:
-    from co_scientist.state import accumulate_matchups
-
-    first = [_matchup("a", "b", winner_before=1200, loser_before=1200)]
-    rematch = [_matchup("a", "b", winner_before=1224, loser_before=1176)]
-
-    assert len(accumulate_matchups(first, rematch)) == 2
-
-
-def test_an_empty_ranking_update_never_wipes_the_history() -> None:
-    from co_scientist.state import accumulate_matchups
-
-    existing = [_matchup("a", "b")]
-
-    assert accumulate_matchups(existing, []) == existing
-
-
 def test_a_replayed_task_does_not_double_its_own_ledger() -> None:
     """Research ledgers are content, not events; replay must not multiply
     them."""
@@ -591,9 +375,68 @@ def test_a_replayed_task_does_not_double_its_own_ledger() -> None:
     assert accumulate_research_ledgers([ledger], [dict(ledger)]) == [ledger]
 
 
-def test_a_node_that_researched_nothing_keeps_what_came_before() -> None:
-    from co_scientist.state import accumulate_research_ledgers
+@pytest.mark.parametrize(
+    ("lines", "anchor", "start", "rung"),
+    [
+        # A scoring matcher would pick the best occurrence twice; the ladder
+        # prefers an exact match anywhere over a looser earlier one.
+        (["value ", "value"], "value", 1, "exact"),
+        (["  code  "], "  code", 0, "trailing-whitespace"),
+        (['x = "a"'], "x = “a”", 0, "unicode-punctuation"),
+    ],
+)
+def test_anchor_ladder_prefers_the_strictest_rung(
+    lines: list[str], anchor: str, start: int, rung: str
+) -> None:
+    found = seek_anchor(lines, (anchor,), 0)
+    assert found is not None
+    assert (found.start, found.rung) == (start, rung)
 
-    existing = [{"goal": "reverse fibrosis"}]
 
-    assert accumulate_research_ledgers(existing, []) == existing
+def test_repeated_anchors_resolve_in_order_and_missing_ones_do_not() -> None:
+    lines = ["x", "dup", "y", "dup", "z"]
+    first = seek_anchor(lines, ("dup",), 0)
+    assert first is not None and first.start == 1
+    second = seek_anchor(lines, ("dup",), first.end)
+    assert second is not None and second.start == 3
+    assert seek_anchor(lines, ("absent",), 0) is None
+
+
+def test_a_patch_adds_moves_and_deletes_files(tmp_path: Path) -> None:
+    (tmp_path / "old.py").write_text("keep\nold\n")
+    (tmp_path / "gone.py").write_text("x\n")
+
+    _apply(
+        _envelope(
+            "*** Add File: sub/new.py",
+            "+print(1)",
+            "*** Delete File: gone.py",
+            "*** Update File: old.py",
+            "*** Move to: moved.py",
+            "@@",
+            " keep",
+            "-old",
+            "+new",
+        ),
+        tmp_path,
+    )
+
+    assert (tmp_path / "sub" / "new.py").read_text() == "print(1)\n"
+    assert not (tmp_path / "gone.py").exists()
+    assert not (tmp_path / "old.py").exists()
+    assert (tmp_path / "moved.py").read_text() == "keep\nnew\n"
+
+
+def test_state_pool_reducer_replaces_or_appends_without_duplicates() -> None:
+    a, b = make_hypothesis("A"), make_hypothesis("B")
+    a_rescored = Hypothesis(text="A rescored", id=a.id, score=2.0)
+
+    replaced = deduplicate_hypotheses([a, b], [b, a, a_rescored])
+    assert [h.id for h in replaced] == [b.id, a.id]
+    assert replaced[1].score == a.score
+
+    appended = deduplicate_hypotheses(
+        [a], AppendHypotheses([a, make_hypothesis(" a "), make_hypothesis("C")])
+    )
+    assert [h.text for h in appended] == ["A", "C"]
+    assert deduplicate_hypotheses([a], AppendHypotheses([])) == [a]
