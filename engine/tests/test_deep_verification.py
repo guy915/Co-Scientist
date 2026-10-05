@@ -266,45 +266,6 @@ def test_no_verification_verdict_bars_the_tournament() -> None:
     assert h.is_undermined()
 
 
-def test_corpus_fallback_selects_sources_matching_the_probe_queries() -> None:
-    matching = make_article(
-        "Tamoxifen efflux pump study",
-        abstract="tamoxifen acrB expression Klebsiella pneumoniae",
-        used_in_analysis=True,
-    )
-    unrelated = make_article(
-        "Unrelated ecology survey",
-        abstract="soil microbiome diversity survey",
-        used_in_analysis=True,
-    )
-    state = make_state(articles=[unrelated, matching], mcp_available=False)
-
-    articles, errors = dve._corpus_probe_evidence(
-        state, ["tamoxifen acrB expression Klebsiella"]
-    )
-
-    assert [article.title for article in articles] == [
-        "Tamoxifen efflux pump study"
-    ]
-    assert errors == [dve.CORPUS_FALLBACK_NOTE]
-
-
-async def test_probe_retrieval_falls_back_to_corpus_without_mcp() -> None:
-    article = make_article(
-        "Sertraline membrane study",
-        abstract="sertraline proton motive force bacterial membrane",
-        used_in_analysis=True,
-    )
-    state = make_state(articles=[article], mcp_available=False)
-
-    articles, errors = await dve._retrieve_probe_evidence(
-        state, ["sertraline proton motive force"]
-    )
-
-    assert articles == [article]
-    assert errors == [dve.CORPUS_FALLBACK_NOTE]
-
-
 async def test_verification_grounds_probes_in_corpus_when_mcp_down(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -332,7 +293,17 @@ async def test_verification_grounds_probes_in_corpus_when_mcp_down(
                 "Sertraline membrane study",
                 abstract="sertraline proton motive force bacterial membrane",
                 used_in_analysis=True,
-            )
+            ),
+            make_article(
+                "Unrelated ecology survey",
+                abstract="soil microbiome diversity survey",
+                used_in_analysis=True,
+            ),
+            make_article(
+                "Retracted sertraline study",
+                abstract="sertraline proton motive force bacterial membrane",
+                is_retracted=True,
+            ),
         ],
         research_goal="goal",
         model_name="test/model",
@@ -345,7 +316,10 @@ async def test_verification_grounds_probes_in_corpus_when_mcp_down(
     assert call.await_count == 2
     second_prompt = call.await_args_list[1].kwargs["prompt"]
     assert "Targeted probe evidence" in second_prompt
-    assert "Sertraline membrane study" in second_prompt
+    probe_evidence = second_prompt.split("Targeted probe evidence", 1)[1]
+    assert "Sertraline membrane study" in probe_evidence
+    assert "Unrelated ecology survey" not in probe_evidence
+    assert "Retracted sertraline study" not in second_prompt
     result_errors = output["hypotheses"][0].enrichments["deep_verification"][
         "retrieval_errors"
     ]

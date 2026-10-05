@@ -113,40 +113,22 @@ def test_only_a_serious_safety_score_blocks_the_idea(
     assert hypothesis.is_rankable() == (disposition == "viable")
 
 
-def test_a_fatal_criterion_axis_blocks_where_the_default_gate_would_not() -> (
-    None
-):
+@pytest.mark.parametrize(
+    ("criteria", "disposition"),
+    [(["Discriminating experimental design"], "inaccurate"), (None, "viable")],
+)
+def test_a_fatal_criterion_axis_blocks_where_the_default_gate_would_not(
+    criteria: list[str] | None, disposition: str
+) -> None:
     hypothesis = make_hypothesis(text="idea")
     review = _review_with_scores(
-        {
-            "scientific_soundness": 8,
-            "novelty": 8,
-            "testability": 1,
-        }
+        {"scientific_soundness": 8, "novelty": 8, "testability": 1}
     )
 
-    _apply_initial_review_gate(
-        [hypothesis], [review], criteria=["Discriminating experimental design"]
-    )
+    _apply_initial_review_gate([hypothesis], [review], criteria=criteria)
 
-    assert hypothesis.review_disposition == "inaccurate"
-    assert not hypothesis.is_rankable()
-
-
-def test_the_same_scores_stay_viable_without_criteria() -> None:
-    hypothesis = make_hypothesis(text="idea")
-    review = _review_with_scores(
-        {
-            "scientific_soundness": 8,
-            "novelty": 8,
-            "testability": 1,
-        }
-    )
-
-    _apply_initial_review_gate([hypothesis], [review], criteria=None)
-
-    assert hypothesis.review_disposition == "viable"
-    assert hypothesis.is_rankable()
+    assert hypothesis.review_disposition == disposition
+    assert hypothesis.is_rankable() == (disposition == "viable")
 
 
 @pytest.mark.parametrize(

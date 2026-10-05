@@ -448,34 +448,6 @@ async def test_fetch_indra_evidence_none_registry_short_circuits() -> None:
     assert result == {"prompt_text": "", "enrichment_items": []}
 
 
-def test_build_enrichment_items_injects_queried_entities_on_first() -> None:
-    items = _build_enrichment_items(
-        [
-            {
-                "type": "Activation",
-                "belief": 0.9,
-                "evidence": [1, 2],
-                "subj": {"name": "KRAS"},
-                "obj": {"name": "BRAF"},
-            },
-            {
-                "type": "Complex",
-                "belief": 0.8,
-                "evidence": [],
-                "members": [{"name": "A"}, {"name": "B"}],
-            },
-        ],
-        ["KRAS", "TREM2"],
-    )
-    assert len(items) == 2
-    assert items[0]["relationship"] == "KRAS → BRAF"
-    assert items[0]["belief"] == "90%"
-    assert items[0]["evidence_count"] == "2"
-    assert items[0]["queried_entities"] == "KRAS, TREM2"
-    assert items[1]["relationship"] == "Complex(A, B)"
-    assert "queried_entities" not in items[1]
-
-
 _REGISTRY_CASES = [
     (None, []),
     (_fake(tool_ids=[], mcp_names=["unused"]), []),

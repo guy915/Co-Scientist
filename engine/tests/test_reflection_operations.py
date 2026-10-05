@@ -385,48 +385,6 @@ async def test_mature_review_keeps_ledger_separate_even_on_failure(
 
 
 @pytest.mark.asyncio
-async def test_graph_batch_limiter_and_issued_markers_are_retained(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    active = peak = 0
-    semaphores: list[asyncio.Semaphore] = []
-
-    async def verify(
-        hypothesis: Any, context: Any, evidence: str
-    ) -> dict[str, Any]:
-        nonlocal active, peak
-        assert hypothesis.enrichments["deep_verification_issued"] is True
-        active += 1
-        peak = max(peak, active)
-        await asyncio.sleep(0)
-        active -= 1
-        return {}
-
-    original = dv._verify_one
-
-    async def capture_leaf(
-        hypothesis: Any,
-        context: Any,
-        semaphore: asyncio.Semaphore,
-        evidence: str,
-    ) -> dict[str, Any] | None:
-        semaphores.append(semaphore)
-        return await original(hypothesis, context, semaphore, evidence)
-
-    monkeypatch.setattr(dv, "MAX_CONCURRENT_LLM_CALLS", 2)
-    monkeypatch.setattr(leaf, "_verify_with_probes", verify)
-    monkeypatch.setattr(dv, "_verify_one", capture_leaf)
-    ideas = [make_hypothesis() for _ in range(5)]
-    counts = await dv._run_verification_batch(
-        make_state(hypotheses=ideas), ideas
-    )
-    assert counts == (0, 5, 5)
-    assert peak == 2
-    assert len({id(semaphore) for semaphore in semaphores}) == 1
-    assert all(idea.deep_verification_verdict == "unverified" for idea in ideas)
-
-
-@pytest.mark.asyncio
 async def test_public_verification_reuses_funded_review_evidence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

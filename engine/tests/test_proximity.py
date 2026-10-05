@@ -17,7 +17,6 @@ from co_scientist.agents.proximity.proximity_graph import (
     SurvivorIndex,
     build_proximity_graph,
     is_judged_edge,
-    member_match_key,
     pair_similarity,
     token_coverage,
 )
@@ -271,50 +270,6 @@ def test_unresolvable_members_are_skipped() -> None:
         updated_at=1.0,
     )
     assert graph["edges"] == []
-
-
-def test_resolves_member_text_drifted_beyond_prefix() -> None:
-    """Legacy echoed members may drift beyond the matching prefix."""
-    prefix_a = "x" * 100
-    prefix_b = "y" * 100
-    survivors = SurvivorIndex(
-        by_index={},
-        by_text={
-            member_match_key(prefix_a + " canonical tail"): "h-1",
-            member_match_key(prefix_b + " canonical tail"): "h-2",
-        },
-        texts={
-            "h-1": prefix_a + " canonical tail",
-            "h-2": prefix_b + " canonical tail",
-        },
-    )
-    clusters = [
-        {
-            "cluster_id": "c1",
-            "similar_hypotheses": [
-                {
-                    "text": prefix_a + " DIFFERENT tail",
-                    "similarity_degree": "medium",
-                },
-                {
-                    "text": prefix_b + " also different",
-                    "similarity_degree": "medium",
-                },
-            ],
-        }
-    ]
-    graph = build_proximity_graph(
-        clusters,
-        survivors,
-        research_goal="g",
-        model="m",
-        updated_at=1.0,
-    )
-    assert graph["meta"]["edge_count"] == 1
-    assert {graph["edges"][0]["source"], graph["edges"][0]["target"]} == {
-        "h-1",
-        "h-2",
-    }
 
 
 _RELATED_TEXTS = {

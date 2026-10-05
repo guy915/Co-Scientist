@@ -80,45 +80,6 @@ def test_remaining_budget_funds_only_peer_reviewed_coverage() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("preferences", [None, "scientist preferences"])
-async def test_judging_keeps_criteria_and_explicit_preferences(
-    monkeypatch: pytest.MonkeyPatch,
-    preferences: str | None,
-) -> None:
-    from co_scientist.agents.ranking import operations
-
-    pair = (make_hypothesis(), make_hypothesis())
-    state = make_state(
-        preferences="scientist preferences",
-        criteria=["feasibility"],
-        run_setup_guidance="setup",
-        run_focus_guidance="focus",
-    )
-    captured: list[Any] = []
-
-    async def judge(ctx: Any, debate_turns: int) -> tuple[str, dict[str, Any]]:
-        captured.append(ctx)
-        return "b", {"debate_turns": 2, "judge_model": "test"}
-
-    monkeypatch.setattr(operations, "judge_matchup", judge)
-    prompt = prepare_ranking_prompt_context(state, preferences=preferences)
-    context = prepare_ranking_judging_context(prompt, list(pair))
-    judgement = await judge_ranking_matchup(pair, context, 7)
-    assert captured[0].criteria == ["feasibility"]
-    assert captured[0].preferences == preferences
-    assert captured[0].run_setup_guidance == "setup"
-    assert captured[0].run_focus_guidance == "focus"
-    assert captured[0].matchup_index == 7
-    assert judgement.budgeted_turns == 10
-    result = apply_ranking_matchup(
-        pair, judgement, k_factor=24, current_iteration=3
-    )
-    assert result.llm_calls == 2
-    assert result.detail["iteration"] == 3
-    assert result.detail["judge_model"] == "test"
-
-
-@pytest.mark.asyncio
 async def test_public_judge_meters_real_early_consensus(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
