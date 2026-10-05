@@ -99,4 +99,11 @@ describe('api keys', () => {
     setStoredApiProvider('not-a-provider' as never);
     expect(localStorage.getItem(PROVIDER_KEY)).toBe(DEFAULT_BYOK_PROVIDER);
   });
+
+  it('treats corrupt stored keys and models as empty', () => {
+    localStorage.setItem('cosci-api-keys', '{not json');
+    localStorage.setItem('cosci-api-model', '{not json');
+    expect(keyedProviders()).toEqual([]);
+    expect(getStoredModel('worker')).toBeNull();
+  });
 });

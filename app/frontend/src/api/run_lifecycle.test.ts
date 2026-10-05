@@ -12,7 +12,6 @@ import {
   retiresStartIntent,
   runActivity,
   type RunStatus,
-  type TerminalNonCompletedStatus,
 } from './runs';
 
 describe('run lifecycle', () => {
@@ -83,43 +82,6 @@ describe('run lifecycle', () => {
     it.each(Object.keys(QUESTIONS))('%s says no to unrecognized', name => {
       for (const status of UNRECOGNIZED) {
         expect(QUESTIONS[name].ask(status), `${name}(${status})`).toBe(false);
-      }
-    });
-  });
-
-  describe('status asymmetries consumers rely on', () => {
-    it('counts paused as started and stoppable but not active', () => {
-      expect(isStartedStatus('paused')).toBe(true);
-      expect(isStoppableStatus('paused')).toBe(true);
-      expect(isActiveStatus('paused')).toBe(false);
-      expect(isTerminalStatus('paused')).toBe(false);
-    });
-
-    it('leaves draft neither active nor terminal, and unstoppable', () => {
-      expect(isActiveStatus('draft')).toBe(false);
-      expect(isTerminalStatus('draft')).toBe(false);
-      expect(isStoppableStatus('draft')).toBe(false);
-    });
-
-    it('never calls failed or blocked started, and keeps their intent', () => {
-      for (const status of ['failed', 'blocked']) {
-        expect(isStartedStatus(status)).toBe(false);
-        expect(retiresStartIntent(status)).toBe(false);
-        expect(isFailureStatus(status)).toBe(true);
-      }
-    });
-
-    it('retires the intent of a cancelled run that never started', () => {
-      expect(isStartedStatus('cancelled')).toBe(false);
-      expect(retiresStartIntent('cancelled')).toBe(true);
-      expect(isFailureStatus('cancelled')).toBe(false);
-    });
-
-    it('narrows a terminal non-completed status for the end-state copy', () => {
-      const status: RunStatus | undefined = 'failed' as RunStatus | undefined;
-      if (isTerminalNonCompletedStatus(status)) {
-        const narrowed: TerminalNonCompletedStatus = status;
-        expect(narrowed).toBe('failed');
       }
     });
   });

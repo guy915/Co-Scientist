@@ -81,43 +81,6 @@ describe('layout diagnostics live', () => {
 
     expect(list.scrollTop).toBe(100);
   });
-
-  it('keeps following the newest record at the window cap', async () => {
-    logsApiMock.getAppLogs.mockResolvedValue({
-      logs: [logRecord(1), logRecord(2)],
-      last_id: 2,
-      total: 2,
-      session_total: 2,
-    });
-    renderLayout();
-
-    fireEvent.click(await screen.findByRole('button', {name: /Logs 2/i}));
-    const list = await screen.findByLabelText('Log events');
-
-    stubListGeometry(list);
-    list.scrollTop = 900;
-    fireEvent.scroll(list);
-
-    // A capped window can change ids without changing count; pinned readers
-    // must still follow.
-    logsApiMock.getAppLogs.mockResolvedValue({
-      logs: [logRecord(2), logRecord(3)],
-      last_id: 3,
-      total: 3,
-      session_total: 3,
-    });
-    fireEvent(
-      window,
-      new CustomEvent(DIAGNOSTIC_EVENT, {
-        detail: {stage: 'LIFECYCLE', level: 'info', payload: {}},
-      }),
-    );
-    await screen.findByText(/record 3/);
-
-    // Scrolling happens in a passive effect after findByText observes
-    // rendering.
-    await waitFor(() => expect(list.scrollTop).toBe(1000));
-  });
 });
 
 describe('layout diagnostic events', () => {

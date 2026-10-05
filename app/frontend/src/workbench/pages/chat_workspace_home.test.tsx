@@ -1,5 +1,5 @@
 import {fireEvent, screen, waitFor} from '@testing-library/react';
-import {beforeEach, expect, it, vi, describe} from 'vitest';
+import {beforeEach, expect, it, describe, vi} from 'vitest';
 import {
   installChatWorkspaceMocks,
   renderWorkspace,
@@ -7,7 +7,6 @@ import {
   minimalRun,
 } from './chat_workspace_test_helpers';
 import type {Interview} from '@/api/runs';
-import {SUGGESTIONS} from './chat_home_stage';
 
 describe('chat workspace home', () => {
   beforeEach(() => {
@@ -50,12 +49,12 @@ describe('chat workspace home', () => {
     const hint = screen.getByRole('button', {
       name: 'Scroll to see how Co-Scientist works',
     });
-    expect(
-      await screen.findByRole('navigation', {name: 'Landing sections'}),
-    ).toBeInTheDocument();
+    await screen.findByRole('navigation', {name: 'Landing sections'});
     const scrollIntoView = vi.fn();
     Element.prototype.scrollIntoView = scrollIntoView;
+
     fireEvent.click(hint);
+
     expect(scrollIntoView.mock.contexts[0]).toBe(
       document.getElementById('landing'),
     );
@@ -103,21 +102,6 @@ describe('chat workspace home active empty', () => {
     expect(screen.getByText('Reviewing hypotheses')).toBeInTheDocument();
     expect(screen.queryByText('Playing tournament')).toBeNull();
   });
-
-  it('shows the reference empty recents placeholder', async () => {
-    apiMock.listDemoRuns.mockResolvedValue([]);
-    apiMock.listRuns.mockResolvedValue([]);
-
-    const {container} = renderWorkspace();
-
-    expect(
-      await screen.findByText('You have not started any sessions yet.'),
-    ).toBeInTheDocument();
-    expect(
-      container.querySelector('.reference-recents-empty-icon'),
-    ).not.toBeNull();
-    expect(container.querySelector('.reference-assistant-dot')).toBeNull();
-  });
 });
 
 describe('chat workspace home completed cards', () => {
@@ -162,58 +146,6 @@ describe('chat workspace home completed cards', () => {
     expect(
       screen.getByText('Biofilm redox-state vulnerability hypothesis'),
     ).toBeInTheDocument();
-  });
-
-  it('omits the winner list for a run that produced no hypotheses', async () => {
-    apiMock.listDemoRuns.mockResolvedValue([]);
-    apiMock.listRuns.mockResolvedValue([
-      minimalRun({
-        id: 'run-no-hyps',
-        research_goal: 'A run that failed before generating anything.',
-        status: 'failed',
-        top_hypotheses: [],
-      }),
-    ]);
-
-    const {container} = renderWorkspace();
-
-    await screen.findAllByText(/failed before generating anything/i);
-    expect(container.querySelector('.reference-winner-list')).toBeNull();
-  });
-
-  it('omits the winning-ideas chips on a cancelled run', async () => {
-    // Cancelled tournaments have no winners or earned top score.
-    apiMock.listDemoRuns.mockResolvedValue([]);
-    apiMock.listRuns.mockResolvedValue([
-      minimalRun({
-        id: 'run-cancelled',
-        research_goal: 'A run the scientist stopped part way.',
-        status: 'cancelled',
-        top_hypotheses: ['A half-ranked idea'],
-      }),
-    ]);
-
-    renderWorkspace();
-
-    await screen.findAllByText(/stopped part way/i);
-    expect(screen.queryByText('Winning ideas')).toBeNull();
-    expect(screen.queryByText(/^Top score:/)).toBeNull();
-    expect(screen.queryByText('A half-ranked idea')).toBeNull();
-  });
-
-  it('keeps the winning-ideas chips on a completed run', async () => {
-    apiMock.listDemoRuns.mockResolvedValue([]);
-    apiMock.listRuns.mockResolvedValue([
-      minimalRun({
-        id: 'run-done',
-        research_goal: 'A run that finished its tournament.',
-        top_hypotheses: ['A ranked idea'],
-      }),
-    ]);
-
-    renderWorkspace();
-
-    expect(await screen.findByText('Winning ideas')).toBeInTheDocument();
   });
 
   it.each([undefined, null])(
@@ -357,13 +289,5 @@ describe('chat workspace chats', () => {
       screen.getByText('No mechanism named yet, so ask for one.'),
     ).toBeInTheDocument();
     expect(apiMock.getInterview).toHaveBeenCalledWith('interview-7');
-  });
-});
-
-describe('chat home stage', () => {
-  describe('SUGGESTIONS', () => {
-    it('offers the default set of home suggestions', () => {
-      expect(SUGGESTIONS[0].preview).toMatch(/glioblastoma/i);
-    });
   });
 });

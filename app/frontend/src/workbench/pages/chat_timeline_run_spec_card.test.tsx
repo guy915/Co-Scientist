@@ -29,43 +29,15 @@ test('the email field is present with no checkbox to reveal it', () => {
   ).toBeTruthy();
 });
 
-test('a valid address turns notification on', () => {
-  const onChange = vi.fn();
-  render(
-    <CompletionNotification
-      spec={makeSpec()}
-      disabled={false}
-      onChange={onChange}
-    />,
-  );
-  fireEvent.change(
-    screen.getByRole('textbox', {name: /goal report is ready/i}),
-    {
-      target: {value: 'scientist@example.com'},
-    },
-  );
-  expect(onChange).toHaveBeenCalledWith(true, 'scientist@example.com');
-});
-
-test('an invalid address stays not-yet-valid rather than off', () => {
-  const onChange = vi.fn();
-  render(
-    <CompletionNotification
-      spec={makeSpec()}
-      disabled={false}
-      onChange={onChange}
-    />,
-  );
-  fireEvent.change(
-    screen.getByRole('textbox', {name: /goal report is ready/i}),
-    {
-      target: {value: 'not-an-address'},
-    },
-  );
-  expect(onChange).toHaveBeenCalledWith(false, 'not-an-address');
-});
-
-test('a blank field is a silent no-email, not an error', () => {
+test.each([
+  ['a valid address turns notification on', 'scientist@example.com', true],
+  [
+    'an invalid address stays not-yet-valid rather than off',
+    'not-an-address',
+    false,
+  ],
+  ['a blank field is a silent no-email, not an error', '', false],
+])('%s', (_name, typed, enabled) => {
   const onChange = vi.fn();
   render(
     <CompletionNotification
@@ -74,13 +46,13 @@ test('a blank field is a silent no-email, not an error', () => {
       onChange={onChange}
     />,
   );
+
   fireEvent.change(
     screen.getByRole('textbox', {name: /goal report is ready/i}),
-    {
-      target: {value: ''},
-    },
+    {target: {value: typed}},
   );
-  expect(onChange).toHaveBeenCalledWith(false, '');
+
+  expect(onChange).toHaveBeenCalledWith(enabled, typed);
   expect(screen.queryByText(/not configured/i)).toBeNull();
 });
 

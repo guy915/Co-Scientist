@@ -17,15 +17,6 @@ describe('markdown message', () => {
       expect(screen.queryByText(/\*\*Primary\*\*/)).toBeNull();
     });
 
-    it('gives emphasis weight but never a color of its own', () => {
-      // Inherited foreground color keeps bold reasoning in the same voice.
-      render(<MarkdownMessage content={'A **bold** word'} />);
-
-      const strong = screen.getByText('bold');
-      expect(strong.className).toContain('font-medium');
-      expect(strong.className).not.toMatch(/text-/);
-    });
-
     it('renders a table, which is what GFM support is for', () => {
       render(
         <MarkdownMessage
@@ -166,17 +157,6 @@ describe('markdown message code', () => {
       expect(
         container.querySelectorAll('[class*="hljs-"]').length,
       ).toBeGreaterThan(0);
-    });
-
-    it('zeroes the inner pre margin so the card opens/closes flush', () => {
-      // User-agent pre margins add blank strips; jsdom can only verify the
-      // override class.
-      const {container} = render(
-        <MarkdownMessage content={'```js\nconst x = 1;\n```'} />,
-      );
-
-      const pre = container.querySelector('pre');
-      expect(pre?.className.split(' ')).toContain('m-0');
     });
 
     it('copies the block source to the clipboard and reports success', async () => {

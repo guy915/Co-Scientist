@@ -109,7 +109,9 @@ it('opens the idea named by the ?idea= param', () => {
   );
 });
 
-it('flags an evidence-less idea with the "Unverified" chip', () => {
+it('flags an evidence-less idea Unverified and a probe-falsified one Undermined, showing only the stronger caution when both', () => {
+  // Contradictory evidence and absent support are different findings; two
+  // chips would wrap the row, so the stronger caution wins.
   const {container} = renderIdeas(
     <IdeasTab
       hypotheses={[
@@ -117,7 +119,6 @@ it('flags an evidence-less idea with the "Unverified" chip', () => {
           id: 'grounded',
           title: 'Grounded idea',
           elo_rating: 1300,
-          unverified: false,
         }),
         makeHypothesis({
           id: 'latent',
@@ -125,50 +126,12 @@ it('flags an evidence-less idea with the "Unverified" chip', () => {
           elo_rating: 1250,
           unverified: true,
         }),
-      ]}
-      reviews={[]}
-    />,
-  );
-  expect(screen.getAllByText('Grounded idea').length).toBeGreaterThan(0);
-  expect(screen.getAllByText('Latent idea').length).toBeGreaterThan(0);
-  const chips = container.querySelectorAll('.idea-unverified-chip');
-  expect(chips).toHaveLength(1);
-  expect(chips[0]).toHaveTextContent('Unverified');
-});
-
-it('flags a probe-falsified idea "Undermined", apart from "Unverified"', () => {
-  // Contradictory evidence and absent support communicate different scientific
-  // findings.
-  const {container} = renderIdeas(
-    <IdeasTab
-      hypotheses={[
-        makeHypothesis({
-          id: 'sound',
-          title: 'Sound idea',
-          elo_rating: 1300,
-          verification_verdict: 'holds',
-        }),
         makeHypothesis({
           id: 'doubted',
           title: 'Doubted idea',
           elo_rating: 1400,
           verification_verdict: 'undermined',
         }),
-      ]}
-      reviews={[]}
-    />,
-  );
-  expect(screen.getAllByText('Doubted idea').length).toBeGreaterThan(0);
-  const chips = container.querySelectorAll('.idea-undermined-chip');
-  expect(chips).toHaveLength(1);
-  expect(chips[0]).toHaveTextContent('Undermined');
-});
-
-it('shows only the stronger caution when an idea is both', () => {
-  // Two caution chips wrap the row, so the stronger caution takes precedence.
-  const {container} = renderIdeas(
-    <IdeasTab
-      hypotheses={[
         makeHypothesis({
           id: 'both',
           title: 'Doubly flagged idea',
@@ -180,9 +143,21 @@ it('shows only the stronger caution when an idea is both', () => {
       reviews={[]}
     />,
   );
-  const head = container.querySelector('.idea-rank-head')!;
-  expect(head.querySelector('.idea-undermined-chip')).not.toBeNull();
-  expect(head.querySelector('.idea-unverified-chip')).toBeNull();
+
+  const chips = (selector: string) =>
+    [...container.querySelectorAll(selector)].map(
+      chip => chip.closest('a')?.textContent,
+    );
+  expect(chips('.idea-unverified-chip')).toEqual([
+    expect.stringContaining('Latent idea'),
+  ]);
+  expect(chips('.idea-undermined-chip')).toEqual([
+    expect.stringContaining('Doubted idea'),
+    expect.stringContaining('Doubly flagged idea'),
+  ]);
+  expect(
+    container.querySelectorAll('.idea-rank-head .idea-unverified-chip'),
+  ).toHaveLength(1);
 });
 
 it('renders reference detail sections without the legacy detail link', () => {
