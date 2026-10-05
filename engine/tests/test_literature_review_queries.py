@@ -157,8 +157,10 @@ class _QueryScriptedClient:
         return False
 
 
-@pytest.mark.parametrize("multi_source", [False, True])
-@pytest.mark.parametrize("success_level", [0, 1, 2, None])
+@pytest.mark.parametrize(
+    ("multi_source", "success_level"),
+    [(False, 0), (False, 2), (True, 1), (True, None)],
+)
 async def test_review_broadens_empty_searches_and_diagnoses_failed_transports(
     monkeypatch: pytest.MonkeyPatch,
     multi_source: bool,

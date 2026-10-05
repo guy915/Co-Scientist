@@ -141,69 +141,65 @@ class TestSkillsCatalog:
         monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path))
         assert catalog.available_skills() == ()
 
-    def test_a_skill_with_nothing_to_run_is_withheld(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+    @pytest.mark.parametrize(
+        ("skills", "interpreter", "expected"),
+        [
+            # Command-only instructions without a script leave the model at a
+            # dead end.
+            (
+                [("pymol", None), ("string", '#   "polite-http",\n')],
+                "venv",
+                ["string"],
+            ),
+            # Unusable instructions spend turns before failing at invocation.
+            (
+                [
+                    ("alphagenome", '#   "alphagenome",\n#   "jax",\n'),
+                    ("string", '#   "polite-http",\n'),
+                ],
+                "venv",
+                ["string"],
+            ),
+            # Unknown installation state differs from a known missing
+            # dependency.
+            (
+                [("alphagenome", '#   "alphagenome",\n')],
+                "python3",
+                ["alphagenome"],
+            ),
+        ],
+        ids=[
+            "nothing-to-run",
+            "dependency-missing",
+            "unrecognised-interpreter",
+        ],
+    )
+    def test_a_skill_that_cannot_be_used_is_withheld(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: pathlib.Path,
+        skills: list[tuple[str, str | None]],
+        interpreter: str,
+        expected: list[str],
     ) -> None:
-        """Command-only instructions without a script leave the model at a
-        dead end."""
-        skills = tmp_path / "skills"
-        _write_skill(
-            skills,
-            "pymol",
-            "name: pymol\ndescription: Renders.",
-            runnable=False,
-        )
-        _write_skill(
-            skills, "string", "name: string-database\ndescription: Nets."
-        )
-        _write_script(skills / "string", '#   "polite-http",\n')
-        monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(skills))
+        for name, dependencies in skills:
+            _write_skill(
+                tmp_path / "skills",
+                name,
+                f"name: {name}\ndescription: Queries things.",
+                runnable=dependencies is not None,
+            )
+            if dependencies is not None:
+                _write_script(tmp_path / "skills" / name, dependencies)
+        monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(tmp_path / "skills"))
         monkeypatch.setenv(
-            catalog.SKILLS_PYTHON_ENV, _venv(tmp_path / "venv", "polite_http")
+            catalog.SKILLS_PYTHON_ENV,
+            _venv(tmp_path / "venv", "polite_http")
+            if interpreter == "venv"
+            else interpreter,
         )
 
-        assert [s.name for s in catalog.available_skills()] == [
-            "string-database"
-        ]
-
-    def test_a_skill_its_interpreter_cannot_run_is_withheld(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
-    ) -> None:
-        """Unusable instructions spend turns before failing at invocation."""
-        skills = tmp_path / "skills"
-        _write_skill(
-            skills, "alphagenome", "name: alphagenome\ndescription: Variants."
-        )
-        _write_script(
-            skills / "alphagenome", '#   "alphagenome",\n#   "jax",\n'
-        )
-        _write_skill(
-            skills, "string", "name: string-database\ndescription: Networks."
-        )
-        _write_script(skills / "string", '#   "polite-http",\n')
-        monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(skills))
-        monkeypatch.setenv(
-            catalog.SKILLS_PYTHON_ENV, _venv(tmp_path / "venv", "polite_http")
-        )
-
-        assert [s.name for s in catalog.available_skills()] == [
-            "string-database"
-        ]
-
-    def test_an_unrecognised_interpreter_withholds_nothing(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
-    ) -> None:
-        """Unknown installation state differs from a known missing
-        dependency."""
-        skills = tmp_path / "skills"
-        _write_skill(
-            skills, "alphagenome", "name: alphagenome\ndescription: Variants."
-        )
-        _write_script(skills / "alphagenome", '#   "alphagenome",\n')
-        monkeypatch.setenv(catalog.SKILLS_DIR_ENV, str(skills))
-        monkeypatch.setenv(catalog.SKILLS_PYTHON_ENV, "python3")
-
-        assert [s.name for s in catalog.available_skills()] == ["alphagenome"]
+        assert [s.name for s in catalog.available_skills()] == expected
 
     def test_the_document_carries_the_invocation_and_the_output_rule(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path

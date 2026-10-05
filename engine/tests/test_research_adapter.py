@@ -94,34 +94,33 @@ async def test_search_keeps_the_source_ordering_and_the_limit(
     assert retrieval.sources == ("alpha",)
 
 
-async def test_an_unconfigured_source_is_a_retrieval_error(
+@pytest.mark.parametrize(
+    ("source", "answer", "detail"),
+    [
+        ("gamma", None, ""),
+        ("alpha", RuntimeError("connection refused"), "connection refused"),
+    ],
+    ids=["unconfigured", "broken"],
+)
+async def test_a_failing_source_is_a_retrieval_error_naming_it(
     tmp_path: Path,
-) -> None:
-    retrieval = _retrieval(tmp_path, FakeResearchClient({}))
-
-    with pytest.raises(RetrievalError) as caught:
-        await retrieval.search(query="q", source="gamma", limit=2)
-
-    assert caught.value.source == "gamma"
-
-
-async def test_a_broken_source_is_a_retrieval_error_naming_it(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    monkeypatch: pytest.MonkeyPatch,
+    source: str,
+    answer: Exception | None,
+    detail: str,
 ) -> None:
     monkeypatch.setattr(
         "co_scientist.evidence.search_query._search_retry_delay",
         lambda attempt: 0.0,
     )
-    client = FakeResearchClient(
-        {"search_alpha": RuntimeError("connection refused")}
-    )
+    client = FakeResearchClient({"search_alpha": answer})
     retrieval = _retrieval(tmp_path, client)
 
     with pytest.raises(RetrievalError) as caught:
-        await retrieval.search(query="q", source="alpha", limit=2)
+        await retrieval.search(query="q", source=source, limit=2)
 
-    assert caught.value.source == "alpha"
-    assert "connection refused" in str(caught.value)
+    assert caught.value.source == source
+    assert detail in str(caught.value)
 
 
 async def test_reading_a_hit_fetches_its_full_text(tmp_path: Path) -> None:
@@ -195,28 +194,22 @@ async def test_stances_and_questions_stay_inside_their_limit(
         monkeypatch,
         {"stances": ["mechanism", "counter-evidence", "prior art", "extra"]},
         {"questions": ["q1", "q2", "q3"]},
+        {},
     )
 
     stances = await model.plan_stances(goal="fibrosis", limit=3)
     questions = await model.ask_questions(
         goal="fibrosis", stance="mechanism", limit=2
     )
+    fallback = await model.to_query(question="What drives fibrosis?")
 
     assert list(stances) == ["mechanism", "counter-evidence", "prior art"]
     assert list(questions) == ["q1", "q2"]
+    # A query the model would not write falls back to the question itself.
+    assert fallback == "What drives fibrosis?"
 
 
-async def test_a_query_the_model_would_not_write_falls_back_to_the_question(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    model, _ = _model(monkeypatch, {})
-
-    assert await model.to_query(question="What drives fibrosis?") == (
-        "What drives fibrosis?"
-    )
-
-
-async def test_findings_are_bound_by_index_not_by_echoed_text(
+async def test_findings_are_bound_by_index_and_only_to_real_documents(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Echoed document titles scale output with the pool and truncate
@@ -225,7 +218,9 @@ async def test_findings_are_bound_by_index_not_by_echoed_text(
         monkeypatch,
         {
             "findings": [
-                {"document": 1, "claim": "B causes X", "quote": "b says so"}
+                {"document": 1, "claim": "B causes X", "quote": "b says so"},
+                {"document": 7, "claim": "no such document", "quote": "q"},
+                {"document": 0, "claim": "no quote", "quote": "  "},
             ],
             "follow_ups": ["what about Y?"],
         },
@@ -255,27 +250,6 @@ async def test_extraction_prompt_strips_citation_markers(
     assert "(Smith et al. 2019)" not in fake.prompts[0]
     assert "[12]" not in fake.prompts[0]
     assert documents[0].text == original
-
-
-async def test_a_finding_that_names_no_real_document_is_dropped(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    model, _ = _model(
-        monkeypatch,
-        {
-            "findings": [
-                {"document": 7, "claim": "c", "quote": "q"},
-                {"document": 0, "claim": "kept", "quote": "q"},
-                {"document": 0, "claim": "no quote", "quote": "  "},
-            ]
-        },
-    )
-
-    extraction = await model.extract(
-        question="why X?", documents=[_document("doc-a")]
-    )
-
-    assert [f.text for f in extraction.findings] == ["kept"]
 
 
 async def test_nothing_to_read_or_summarize_costs_no_call(

@@ -63,6 +63,8 @@ def test_a_budget_that_funds_nothing_is_refused(
 
 
 async def test_first_level_is_planned_one_question_per_stance() -> None:
+    """A locator alone cannot identify evidence: its research question is part
+    of its identity."""
     model = FakeModel(stances=("mechanism", "prior art", "contradictions"))
     retrieval = FakeRetrieval({"pubmed": _hits("doc-a")})
 
@@ -70,32 +72,16 @@ async def test_first_level_is_planned_one_question_per_stance() -> None:
         goal="reverse liver fibrosis",
         model=model,
         retrieval=retrieval,
-        budget=_budget(depth=1, breadth=3),
+        budget=_budget(depth=1, breadth=3, hits_per_question=1),
     )
 
     assert result.stances == ("mechanism", "prior art", "contradictions")
-    stances_researched = {t.question.stance for t in result.threads}
-    assert stances_researched == set(result.stances)
-
-
-async def test_a_finding_is_identified_by_the_question_that_found_it() -> None:
-    """A locator alone cannot identify evidence: its research question is
-    part of its identity."""
-    model = FakeModel(stances=("mechanism", "prior art"))
-    retrieval = FakeRetrieval({"pubmed": _hits("doc-a")})
-
-    result = await conduct_research(
-        goal="reverse liver fibrosis",
-        model=model,
-        retrieval=retrieval,
-        budget=_budget(depth=1, breadth=2, hits_per_question=1),
-    )
-
+    assert {t.question.stance for t in result.threads} == set(result.stances)
     findings = result.findings
-    assert len(findings) == 2
+    assert len(findings) == 3
     assert {f.locator for f in findings} == {"doc-a"}
     assert {f.span for f in findings} == {"span from doc-a"}
-    assert findings[0].id != findings[1].id
+    assert len({f.id for f in findings}) == 3
 
 
 async def test_follow_ups_become_the_next_level() -> None:

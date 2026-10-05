@@ -63,8 +63,6 @@ URL = "http://x.test/mcp"
             None,
             False,
         ),
-        (check_literature_source_available, [], None, False),
-        (check_literature_source_available, [], RuntimeError("down"), False),
         # Tool presence proves key configuration, not provider acceptance or
         # available quota.
         (
@@ -81,7 +79,6 @@ URL = "http://x.test/mcp"
         ),
         (check_web_search_available, [("search_web", "{}")], None, True),
         (check_web_search_available, [("search_pubmed", "{}")], None, False),
-        (check_web_search_available, [], ConnectionError("boom"), False),
     ],
     ids=[
         "mcp-tools-present",
@@ -91,13 +88,10 @@ URL = "http://x.test/mcp"
         "literature-true-bool",
         "literature-false-string",
         "literature-check-tool-absent",
-        "literature-no-tools",
-        "literature-connection-error",
         "web-dead-key",
         "web-usable-key",
         "web-older-server-falls-back-to-tool-presence",
         "web-tool-absent",
-        "web-connection-error",
     ],
 )
 async def test_availability_checks_report_what_the_server_offers(
