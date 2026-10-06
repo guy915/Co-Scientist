@@ -179,9 +179,9 @@
           "tests": 2084
         },
         "app": {
-          "test_lines": 46301,
-          "files": 92,
-          "tests": 2046
+          "test_lines": 33573,
+          "files": 85,
+          "tests": 1309
         },
         "mcp": {
           "test_lines": 5668,
@@ -189,12 +189,12 @@
           "tests": 317
         },
         "frontend": {
-          "test_lines": 13416,
-          "files": 83,
-          "tests": 625
+          "test_lines": 8116,
+          "files": 81,
+          "tests": 293
         },
         "evaluations": {
-          "test_lines": 3370,
+          "test_lines": 3364,
           "files": 16,
           "tests": 208
         },
@@ -347,6 +347,82 @@
           "inventory": "pull request body",
           "validation_location": "pull request body",
           "pull_request": 204
+        },
+        {
+          "suite": "evaluations",
+          "theme": "coverage-floor-low-modules",
+          "test_lines_removed": 0,
+          "tests_removed": 0,
+          "files_removed": 0,
+          "scope_status": "protected modules that started below 80% are held at their baseline",
+          "inventory": "pull request body",
+          "validation_location": "pull request body",
+          "pull_request": 211
+        },
+        {
+          "suite": "app",
+          "theme": "claim-verification-and-safety-gates",
+          "test_lines_removed": 2280,
+          "files_removed": 0,
+          "scope_status": "complete",
+          "inventory": "pull request body",
+          "validation_location": "pull request body",
+          "pull_request": 212
+        },
+        {
+          "suite": "app",
+          "theme": "engine-drain-ranking-generation-portfolio",
+          "test_lines_removed": 2494,
+          "tests_removed": 80,
+          "files_removed": 0,
+          "scope_status": "complete",
+          "inventory": "pull request body",
+          "validation_location": "pull request body",
+          "pull_request": 213
+        },
+        {
+          "suite": "app",
+          "theme": "configuration-persistence-auth-byok",
+          "test_lines_removed": 2094,
+          "tests_removed": 115,
+          "files_removed": 0,
+          "scope_status": "complete",
+          "inventory": "pull request body",
+          "validation_location": "pull request body",
+          "pull_request": 214
+        },
+        {
+          "suite": "app",
+          "theme": "reports-and-citations",
+          "test_lines_removed": 2676,
+          "tests_removed": 159,
+          "files_removed": 0,
+          "scope_status": "complete",
+          "inventory": "pull request body",
+          "validation_location": "pull request body",
+          "pull_request": 215
+        },
+        {
+          "suite": "app",
+          "theme": "interviews-qa-documents-diagnostics",
+          "test_lines_removed": 3184,
+          "tests_removed": 201,
+          "files_removed": 1,
+          "scope_status": "complete; finishes the app suite",
+          "inventory": "pull request body",
+          "validation_location": "pull request body",
+          "pull_request": 216
+        },
+        {
+          "suite": "frontend",
+          "theme": "coverage-band-through-rendered-ui",
+          "test_lines_removed": 5300,
+          "tests_removed": 332,
+          "files_removed": 2,
+          "scope_status": "complete; finishes the frontend suite",
+          "inventory": "pull request body",
+          "validation_location": "pull request body",
+          "pull_request": 217
         }
       ],
       "pull_requests": [
@@ -359,13 +435,25 @@
         202,
         207,
         208,
-        204
+        204,
+        211,
+        212,
+        213,
+        214,
+        215,
+        216,
+        217
       ],
       "coverage_rule": {
         "from": "2026-10-06",
         "floor_percent": 80.0,
         "applies_to": "each suite and each protected module",
-        "replaces": "suite within 0.5 points of baseline; protected modules at or above baseline"
+        "replaces": "suite within 0.5 points of baseline; protected modules at or above baseline",
+        "band_percent": [
+          80.0,
+          85.0
+        ],
+        "protected_below_floor": "held at their fixed baseline"
       }
     }
   },
@@ -393,6 +481,18 @@
     {
       "pr": 201,
       "cause": "Under a root user chmod 0o500 does not block writes, so the unwritable-workspace licence test failed; the test now places a file where the workspace directory belongs."
+    },
+    {
+      "pr": 217,
+      "cause": "A linked-draft rehydrate test left getRun rejecting, so the lookup could fail before run history loaded; mock getRun and listRuns up front and query the button fresh."
+    },
+    {
+      "pr": 217,
+      "cause": "The diagnostics log badge counts records after the mount-time baseline, and the next load had no explicit trigger; dispatch APP_LOGS_CHANGED_EVENT after the mount loads."
+    },
+    {
+      "pr": 217,
+      "cause": "findByText returned the pending plain-text reasoning node that the lazy Markdown renderer then replaced; assert inside waitFor with fresh queries."
     }
   ]
 }
