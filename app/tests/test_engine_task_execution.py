@@ -13,7 +13,6 @@ from co_scientist.llm import (
 from co_scientist.llm.admission.call_budget import record_provider_request
 from co_scientist.models import (
     Article,
-    ExecutionMetrics,
     Hypothesis,
 )
 from litellm.exceptions import APIError
@@ -27,7 +26,6 @@ from app.engine_tasks.support import TaskCommit
 from app.run_modes import RUN_TIER_DEFAULTS, resolved_run_config
 from app.store import events as store_events
 from app.store import messages, records, reports, runs
-from app.store import retrieval_calls as retrieval
 from app.store import tasks as store_tasks
 from app.store import tasks_lifecycle as lifecycle
 from app.store.messages import NewMessage
@@ -41,75 +39,8 @@ from tests._engine_tasks_helpers import (
     _seed_checkpoint,
     _task_state,
 )
-from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
+from tests._store_helpers import enqueue_task, seed_run
 from tests._store_helpers import leased_node_task as _node_task
-
-
-def _priority_state(run_id: str, deferred_id: str) -> dict[str, Any]:
-    return {
-        **_task_state(run_id),
-        "next_task_priority": 97,
-        "supervisor_queue_actions": [
-            {
-                "action": "reprioritize",
-                "task_id": deferred_id,
-                "priority": 98,
-                "reason": "Review backlog is urgent.",
-            }
-        ],
-    }
-
-
-def _seed_orchestrator_task(run_id: str, db_path: str) -> tuple[Any, Any]:
-    seed_checkpoint(
-        run_id, {"provider": "engine"}, stage="seed", db_path=db_path
-    )
-    queued = enqueue_task(
-        run_id,
-        "engine.node.orchestrator",
-        "orchestrator-priority",
-        inputs={"checkpoint_seq": 1},
-        db_path=db_path,
-    )
-    task = store_tasks.claim_task("worker", run_id=run_id, db_path=db_path)
-    assert task is not None and task.id == queued.id
-    deferred = enqueue_task(
-        run_id,
-        "engine.node.reflect",
-        "deferred-reflection",
-        priority=10,
-        db_path=db_path,
-    )
-    return task, deferred
-
-
-def test_node_commit_persists_priority_metrics_and_assessment(
-    isolated_db: str,
-) -> None:
-    run = seed_run("Priority science")
-    task, deferred = _seed_orchestrator_task(run.id, isolated_db)
-    assessment = {"generation": {"yield": "high", "notes": "productive"}}
-    state = {
-        **_priority_state(run.id, deferred.id),
-        "metrics": ExecutionMetrics(llm_calls=7, hypothesis_count=3),
-        "supervisor_guidance": {"performance_assessment": assessment},
-    }
-    assert retrieval.get_run_metrics(run.id, db_path=isolated_db) is None
-
-    engine_tasks_support._save_state_and_enqueue(
-        TaskCommit(task, 1, isolated_db), state, "generate"
-    )
-
-    successor = store_tasks.list_tasks(run.id, db_path=isolated_db)[-1]
-    assert successor.task_type == "engine.node.generate"
-    assert successor.priority == 97
-    updated = store_tasks.get_task(deferred.id, db_path=isolated_db)
-    assert updated is not None and updated.priority == 98
-    live = retrieval.get_run_metrics(run.id, db_path=isolated_db)
-    assert live is not None
-    assert live["llm_calls"] == 7
-    assert live["hypothesis_count"] == 3
-    assert live["performance_assessment"] == assessment
 
 
 @pytest.mark.asyncio

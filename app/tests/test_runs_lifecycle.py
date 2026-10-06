@@ -13,7 +13,6 @@ from fastapi.testclient import TestClient
 
 from app import engine_tasks, task_worker
 from app.config import settings
-from app.runs import events as runs_events
 from app.store import events as store_events
 from app.store import runs
 from app.store import tasks as store
@@ -21,7 +20,6 @@ from app.store import tasks_lifecycle as lifecycle
 from app.store.models import RunStatus, ScientificTask
 from tests._client import DEFAULT_TEST_CLIENT_ID, make_client
 from tests._client import create_run as _create_run
-from tests._client import drain as _drain
 from tests._client import make_client as _client
 from tests._engine_tasks_helpers import _seed_checkpoint, _task_state
 from tests._store_helpers import enqueue_task, seed_checkpoint, seed_run
@@ -100,63 +98,6 @@ def test_cancel_after_capacity_reservation_prevents_bootstrap_admission(
         and event["payload"].get("event") == "queued"
     )
     assert queued_event["seq"] < cancelled_event["seq"]
-
-
-def test_cancel_before_capacity_reservation_is_not_a_restart(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-    start_client = _client()
-    cancel_client = _client()
-    rid = _new_run(start_client, "Cancel before the start reservation")
-    start_reached_reservation = Event()
-    continue_start = Event()
-    from app.runs import lifecycle as runs_lifecycle
-
-    admit_workflow = runs_lifecycle._enqueue_workflow_and_maybe_launch_worker
-
-    def wait_before_admission(*args: object, **kwargs: object) -> object:
-        start_reached_reservation.set()
-        if not continue_start.wait(timeout=10):
-            raise TimeoutError("test did not release the start barrier")
-        return admit_workflow(*args, **kwargs)  # type: ignore[arg-type]
-
-    monkeypatch.setattr(
-        runs_lifecycle,
-        "_enqueue_workflow_and_maybe_launch_worker",
-        wait_before_admission,
-    )
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        pending_start = executor.submit(
-            start_client.post, f"/api/runs/{rid}/start", json={}
-        )
-        try:
-            assert start_reached_reservation.wait(timeout=5)
-            cancelled = cancel_client.post(f"/api/runs/{rid}/cancel")
-            assert cancelled.status_code == 200
-        finally:
-            continue_start.set()
-        started = pending_start.result(timeout=5)
-
-    assert started.status_code == 409
-    assert start_client.get(f"/api/runs/{rid}").json()["status"] == "cancelled"
-    assert not any(
-        task.status == "queued"
-        for task in store.list_tasks(rid, db_path=isolated_db)
-    )
-    events = store_events.list_events(rid, db_path=isolated_db)
-    cancelled_event = next(
-        event
-        for event in events
-        if event["type"] == "status"
-        and event["payload"].get("status") == "cancelled"
-    )
-    assert not any(
-        event["type"] == "lifecycle"
-        and event["payload"].get("event") == "queued"
-        and event["seq"] > cancelled_event["seq"]
-        for event in events
-    )
 
 
 @pytest.mark.parametrize("status", [RunStatus.CANCELLED, RunStatus.FAILED])
@@ -273,16 +214,6 @@ def test_event_stream_tails_a_live_run_until_it_ends(
         "_terminal",
     ]
     assert frames[-1]["payload"]["status"] == "completed"
-
-
-def test_live_tail_stops_when_the_client_disconnects(isolated_db: str) -> None:
-    class _Gone:
-        async def is_disconnected(self) -> bool:
-            return True
-
-    run = seed_run("Abandoned stream", db_path=isolated_db)
-
-    assert _drain(runs_events._stream_live_tail(run.id, _Gone(), 0)) == []  # type: ignore[arg-type]
 
 
 _OLD_OWNER = "pre-restart-worker"

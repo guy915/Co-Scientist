@@ -117,23 +117,6 @@ def _replace_expired_bootstrap_lease(
     return replacement
 
 
-@pytest.mark.asyncio
-async def test_bootstrap_pause_without_resume_commits_paused_checkpoint(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    _, run_id, task = _pause_during_bootstrap_prepare(monkeypatch, isolated_db)
-
-    result = await engine_tasks.execute_bootstrap(task, db_path=isolated_db)
-
-    assert result["status"] == "paused"
-    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
-    assert checkpoint is not None
-    assert checkpoint["stage"] == f"engine_task_paused:{task.id}"
-    run = runs.get_run(run_id, db_path=isolated_db)
-    assert run is not None and run.status == "paused"
-    assert len(store.list_tasks(run_id, db_path=isolated_db)) == 1
-
-
 def _forbid_contextual_escalation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -364,3 +347,20 @@ async def test_replaced_bootstrap_lease_cannot_prepare_paused_run(
         )
         == StoreRunStatus.PAUSED.value
     )
+
+
+@pytest.mark.asyncio
+async def test_bootstrap_pause_without_resume_commits_paused_checkpoint(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, run_id, task = _pause_during_bootstrap_prepare(monkeypatch, isolated_db)
+
+    result = await engine_tasks.execute_bootstrap(task, db_path=isolated_db)
+
+    assert result["status"] == "paused"
+    checkpoint = checkpoints.get_latest_checkpoint(run_id, db_path=isolated_db)
+    assert checkpoint is not None
+    assert checkpoint["stage"] == f"engine_task_paused:{task.id}"
+    run = runs.get_run(run_id, db_path=isolated_db)
+    assert run is not None and run.status == "paused"
+    assert len(store.list_tasks(run_id, db_path=isolated_db)) == 1

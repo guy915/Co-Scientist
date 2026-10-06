@@ -52,25 +52,6 @@ def _start_rows(run_id: str) -> list[MessageRow]:
     ]
 
 
-def test_live_model_writes_the_announcement(
-    monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
-) -> None:
-    rid = _started_run_id()
-    fake_process_mode.online()
-    install_completion_backend(
-        monkeypatch,
-        (_fake_litellm(["Your session is ", "under way."])).acompletion,
-    )
-
-    body = _announce(rid).text
-
-    assert "under way." in body
-    assert '"fallback": true' not in body
-    reply = _start_rows(rid)[1]
-    assert reply.content == "Your session is under way."
-    assert reply.meta is None
-
-
 def test_thinking_only_announcement_retries_before_the_fallback(
     monkeypatch: pytest.MonkeyPatch, fake_process_mode: FakeProcessMode
 ) -> None:

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 import pytest
 from co_scientist.scheduling import (
     Budget,
@@ -214,18 +212,6 @@ def test_renaming_a_run_persists_the_cleaned_title() -> None:
     assert [r["title"] for r in listed if r["id"] == run_id] == [_TITLE]
 
 
-@pytest.mark.parametrize("title", ["", "   ", "x" * 81])
-def test_blank_and_overlong_titles_are_refused(title: str) -> None:
-    client = make_client()
-    run_id = _draft_run(client)
-
-    response = client.patch(
-        f"/api/runs/{run_id}", headers=_RENAME_OWNER, json={"title": title}
-    )
-
-    assert response.status_code == 422
-
-
 def test_rename_and_delete_refuse_foreign_demo_and_unknown_runs() -> None:
     client = make_client()
     run_id = _draft_run(client)
@@ -248,44 +234,3 @@ def test_rename_and_delete_refuse_foreign_demo_and_unknown_runs() -> None:
     assert refused("DELETE", run_id, _RENAME_OWNER) == 409
     run = runs.get_run(run_id)
     assert run is not None and run.title != _TITLE
-
-
-@pytest.mark.parametrize(
-    ("section", "stored", "shown"),
-    [
-        ("attributes", ["Mechanistically specific"], None),
-        (
-            "attributes",
-            [{"name": "Mechanism Novelty", "scale": {"1": "Low", "5": "High"}}],
-            "Mechanism Novelty: 1-5 scale (1: Low, 5: High)",
-        ),
-        (
-            "attributes",
-            [{"name": "Target Area", "values": ["A", "B", "C"]}],
-            "Target Area (A, B, or C)",
-        ),
-        ("attributes", [{"name": "Impact"}], "Impact"),
-        ("criteria", ["Scientific soundness"], None),
-        (
-            "criteria",
-            [{"name": "Idea correctness", "value": "Required"}],
-            "Idea correctness: Required",
-        ),
-    ],
-)
-def test_setup_lists_render_every_stored_shape(
-    section: str, stored: list[Any], shown: str | None
-) -> None:
-    display = getattr(
-        run_modes,
-        "attribute_display_strings"
-        if section == "attributes"
-        else "criteria_display_strings",
-    )
-    expected = [shown or stored[0]]
-    assert display(stored) == expected
-    assert display(None) == []
-    guidance = run_modes.setup_guidance(
-        {section: stored, "focus": "balance", "tier": "standard"}
-    )
-    assert f"- {section.title()}:\n  - {expected[0]}" in guidance

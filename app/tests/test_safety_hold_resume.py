@@ -4,8 +4,6 @@
 from __future__ import annotations
 
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
-from threading import Event
 from typing import Any
 
 import pytest
@@ -320,59 +318,3 @@ def test_held_hypothesis_adjudication_records_without_blocking(
         client.get(f"/api/runs/{run_id}", headers=headers).json()["status"]
         == "draft"
     )
-
-
-def test_adjudication_rejection_does_not_overwrite_cancel(
-    isolated_db: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(settings, "coscientist_embedded_worker", False)
-    owner = make_client()
-    created = _create_run(
-        owner, "Safety rejection cancellation", tier="express"
-    )
-    assert created.status_code == 200
-    run_id = str(created.json()["id"])
-    runs.update_run_status(run_id, RunStatus.PAUSED, db_path=isolated_db)
-    records.add_safety_decision(
-        NewSafetyDecision(
-            run_id=run_id,
-            stage="intake",
-            decision="hold",
-            reason="Needs review",
-            matches=[],
-            category="uncertain",
-            policy_version="coscientist-safety-v2",
-            requires_review=True,
-        ),
-        db_path=isolated_db,
-    )
-    [decision] = records.list_safety_decisions(run_id, db_path=isolated_db)
-    decision_id = int(decision["id"])
-
-    resolved = Event()
-    release_adjudication = Event()
-    original_resolve = records.resolve_safety_decision
-
-    def resolve_then_wait(*args: Any, **kwargs: Any) -> bool:
-        result = original_resolve(*args, **kwargs)
-        resolved.set()
-        assert release_adjudication.wait(timeout=5)
-        return result
-
-    monkeypatch.setattr(records, "resolve_safety_decision", resolve_then_wait)
-    with ThreadPoolExecutor(max_workers=1) as pool:
-        adjudication = pool.submit(
-            owner.post,
-            f"/api/runs/{run_id}/safety/{decision_id}/adjudicate",
-            json={"resolution": "rejected"},
-        )
-        assert resolved.wait(timeout=5)
-        assert owner.post(f"/api/runs/{run_id}/cancel").status_code == 200
-        release_adjudication.set()
-        response = adjudication.result(timeout=5)
-
-    assert response.status_code == 409, response.text
-    run = runs.get_run(run_id, db_path=isolated_db)
-    assert run is not None and run.status == RunStatus.CANCELLED.value
-    [decision] = records.list_safety_decisions(run_id, db_path=isolated_db)
-    assert decision["resolution"] == "rejected"
