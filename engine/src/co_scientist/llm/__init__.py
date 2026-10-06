@@ -20,6 +20,7 @@ if TYPE_CHECKING:
         enforce_free_request,
         scoped_api_key,
         scoped_campaign_mode,
+        scoped_zero_cost_admission,
     )
     from co_scientist.llm.attempts.retry import (
         provider_outage_backoff_seconds,
@@ -88,6 +89,7 @@ __all__ = [
     "scoped_llm_call_budget",
     "scoped_telemetry",
     "scoped_telemetry_phase",
+    "scoped_zero_cost_admission",
 ]
 
 _EXPORTS: dict[str, str] = {
@@ -125,6 +127,7 @@ _EXPORTS: dict[str, str] = {
     "scoped_llm_call_budget": "co_scientist.llm.admission.call_budget",
     "scoped_telemetry": "co_scientist.llm.telemetry",
     "scoped_telemetry_phase": "co_scientist.llm.telemetry",
+    "scoped_zero_cost_admission": "co_scientist.llm.admission.free_policy",
 }
 
 

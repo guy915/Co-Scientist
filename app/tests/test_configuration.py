@@ -786,11 +786,11 @@ def test_one_adapter_answers_every_offline_reader(
     assert offline_guard.remote_chat_allowed() is False
 
 
-def test_the_free_default_route_keeps_its_highest_effort_in_chat() -> None:
+def test_the_free_default_route_reasons_at_medium_effort_in_chat() -> None:
     from app.config import CONVERSATIONAL_REASONING_EFFORT, DEFAULT_MODEL
 
     kwargs = deepseek_thinking_kwargs(
         DEFAULT_MODEL, effort=CONVERSATIONAL_REASONING_EFFORT
     )
 
-    assert kwargs["extra_body"]["reasoning"]["effort"] == "high"
+    assert kwargs["extra_body"]["reasoning"]["effort"] == "medium"

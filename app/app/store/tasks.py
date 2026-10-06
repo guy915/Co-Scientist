@@ -233,7 +233,7 @@ def _rescue_expired_leases(conn: sqlite3.Connection, now: float) -> None:
     _fail_ambiguous_expired_leases(conn, now)
 
     # Without durable request-time admission receipts, expired engine leases
-    # fail closed; persisted free-campaign policy is the exception.
+    # fail closed; persisted zero-price admission is the exception.
     conn.execute(
         "UPDATE scientific_tasks SET status='queued', lease_owner=NULL, "
         "lease_expires_at=NULL, updated_at=? "

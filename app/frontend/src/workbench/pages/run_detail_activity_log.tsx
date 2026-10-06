@@ -2,7 +2,6 @@ import type {RunEventActivity} from '@/api/wire_common';
 import {Icon, type IconName} from '@/components/icon';
 import type {StreamConnectionState, StreamEvent} from '@/hooks/use_run_stream';
 import {capitalizeTerm} from '@/lib/text';
-import {useState} from 'react';
 import {joinClasses} from '../classes';
 
 const IDLE_NOTE_CLASSES =
@@ -142,77 +141,8 @@ function ActivityItem({
   );
 }
 
-function GroupSummaryRow({
-  group,
-  isLatest,
-  now,
-  expanded,
-  onToggle,
-}: {
-  group: ActivityGroup;
-  isLatest: boolean;
-  now: number;
-  expanded: boolean;
-  onToggle: () => void;
-}) {
-  const count = group.events.length;
-  const latest = group.events[group.events.length - 1];
-  // The newest accumulating group is ongoing rather than a stale relative age.
-  const timeLabel = isLatest
-    ? 'In progress'
-    : relativeTime(latest.created_at, now);
-  return (
-    <>
-      <div className={TIMELINE_ROW_CLASSES}>
-        <p className="my-0 truncate font-medium text-cosci-fg">
-          {group.meta.title}
-        </p>
-        <span className="shrink-0 text-xs text-cosci-muted">{timeLabel}</span>
-      </div>
-      {/* The visible label stays put across a toggle -- aria-expanded is
-          what communicates open/closed, so the accessible name doesn't
-          swap out from under anyone relying on it. */}
-      <button
-        type="button"
-        aria-expanded={expanded}
-        aria-label={`${count} steps for ${group.meta.title}`}
-        onClick={onToggle}
-        className={joinClasses(
-          'mt-1 flex items-center gap-1 rounded text-xs font-medium',
-          'text-cosci-muted hover:text-cosci-fg',
-          'focus-visible:outline focus-visible:outline-2',
-          'focus-visible:outline-offset-2 focus-visible:outline-th-primary',
-        )}
-      >
-        <span aria-hidden="true">{expanded ? 'Hide' : 'Show'} steps</span>
-        <Icon name={expanded ? 'expand_less' : 'expand_more'} />
-      </button>
-    </>
-  );
-}
-
-function GroupEventList({group, now}: {group: ActivityGroup; now: number}) {
-  return (
-    <ol className="mt-2 flex flex-col gap-1.5 border-s border-cosci-border ps-4">
-      {group.events.map(event => (
-        <li
-          key={event.seq}
-          className="flex items-baseline justify-between gap-3"
-        >
-          <span className="truncate text-xs text-cosci-muted">
-            {activityDetail(event) || group.meta.title}
-          </span>
-          <span className="shrink-0 text-xs text-cosci-muted">
-            {relativeTime(event.created_at, now)}
-          </span>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-// Key expansion by the first event sequence so appended live steps cannot
-// reset it.
+// A group collapses to its newest step; the newest accumulating group is
+// ongoing rather than a stale relative age.
 function ActivityGroupCard({
   group,
   isLatest,
@@ -224,11 +154,11 @@ function ActivityGroupCard({
   isLast: boolean;
   now: number;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const latest = group.events[group.events.length - 1];
   if (group.events.length === 1) {
     return (
       <ActivityItem
-        event={group.events[0]}
+        event={latest}
         meta={group.meta}
         isLatest={isLatest}
         isLast={isLast}
@@ -236,6 +166,7 @@ function ActivityGroupCard({
       />
     );
   }
+  const detail = activityDetail(latest);
   return (
     <li className="relative flex gap-4 pb-6 last:pb-0">
       {!isLast && <span aria-hidden="true" className={TIMELINE_RAIL_CLASSES} />}
@@ -245,14 +176,19 @@ function ActivityGroupCard({
         isLatest={isLatest}
       />
       <div className="min-w-0 flex-1">
-        <GroupSummaryRow
-          group={group}
-          isLatest={isLatest}
-          now={now}
-          expanded={expanded}
-          onToggle={() => setExpanded(value => !value)}
-        />
-        {expanded ? <GroupEventList group={group} now={now} /> : null}
+        <div className={TIMELINE_ROW_CLASSES}>
+          <p className="my-0 truncate font-medium text-cosci-fg">
+            {group.meta.title}
+          </p>
+          <span className="shrink-0 text-xs text-cosci-muted">
+            {isLatest ? 'In progress' : relativeTime(latest.created_at, now)}
+          </span>
+        </div>
+        {detail ? (
+          <p className="mb-0 mt-0.5 line-clamp-2 text-sm text-cosci-muted">
+            {detail}
+          </p>
+        ) : null}
       </div>
     </li>
   );

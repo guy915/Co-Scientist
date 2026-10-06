@@ -192,3 +192,37 @@ def test_an_overwritten_file_is_dropped_but_its_call_stays_answerable() -> None:
     assert "superseded" in arguments
     assert json.loads(arguments)["path"] == "model.py"
     assert "second" in messages[1]["tool_calls"][0]["function"]["arguments"]
+
+
+async def test_a_truncated_tool_call_is_answered_with_an_error_not_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    disable_llm_cache(monkeypatch)
+    truncated = make_completion(
+        make_message(
+            None,
+            tool_calls=[make_tool_call("call-1", "search", '{"q": "unfinish')],
+        )
+    )
+    requests: list[dict[str, Any]] = []
+    patch_acompletion(
+        monkeypatch,
+        [truncated, make_completion(make_message("final"))],
+        requests,
+    )
+    seen: list[Any] = []
+
+    async def executor(tc: Any) -> dict[str, Any]:
+        seen.append(tc)
+        return {"role": "tool", "tool_call_id": tc.id, "content": "result"}
+
+    text, _ = await call_llm_with_tools(
+        "a prompt", _SPEC, ToolLoop(tools=SEARCH_TOOL, executor=executor)
+    )
+
+    assert text == "final"
+    assert seen == []
+    resent = requests[1]["messages"]
+    assert resent[1]["tool_calls"][0]["function"]["arguments"] == "{}"
+    assert resent[2]["tool_call_id"] == "call-1"
+    assert "Re-issue the call" in resent[2]["content"]

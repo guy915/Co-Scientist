@@ -1,7 +1,7 @@
 import {Link} from 'react-router-dom';
 import type {ChatSummary} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
-import {joinClasses} from './classes';
+import {joinClasses, tooltipClassNames} from './classes';
 import {
   HEADER_CONTROL_ICON_CLASSES,
   HEADER_PILL_SHAPE_CLASSES,
@@ -43,9 +43,20 @@ const SWITCH_SIDES: {
   side: 'chat' | 'results';
   icon: IconName;
   label: string;
+  tooltip: string;
 }[] = [
-  {side: 'chat', icon: 'forum', label: 'Chat'},
-  {side: 'results', icon: 'lab_profile', label: 'Results'},
+  {
+    side: 'chat',
+    icon: 'forum',
+    label: 'Chat',
+    tooltip: 'Ask questions about this session',
+  },
+  {
+    side: 'results',
+    icon: 'lab_profile',
+    label: 'Results',
+    tooltip: 'View research progress and results',
+  },
 ];
 
 // Quiet raised track colors remain visible in both themes; accent belongs to
@@ -92,15 +103,19 @@ export function SessionSwitch({session}: {session: SessionSwitchData | null}) {
     >
       {/* A single highlight can travel between sides; independent backgrounds can only reappear. */}
       <span className="ucs-session-switch-thumb" aria-hidden="true" />
-      {SWITCH_SIDES.map(({side, icon, label}) => {
+      {SWITCH_SIDES.map(({side, icon, label, tooltip}) => {
         const active = side === session.active;
         return (
           <Link
             key={side}
             to={sessionSideHref(session, side)}
-            className={
-              active ? SWITCH_SIDE_ACTIVE_CLASSES : SWITCH_SIDE_CLASSES
-            }
+            className={tooltipClassNames({
+              className: active
+                ? SWITCH_SIDE_ACTIVE_CLASSES
+                : SWITCH_SIDE_CLASSES,
+              placement: 'bottom',
+            })}
+            data-tooltip={tooltip}
             aria-current={active ? 'page' : undefined}
             aria-label={label}
           >

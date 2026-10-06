@@ -1,5 +1,5 @@
 import type {StreamConnectionState, StreamEvent} from '@/hooks/use_run_stream';
-import {fireEvent, render, screen} from '@testing-library/react';
+import {render, screen} from '@testing-library/react';
 import {describe, expect, it} from 'vitest';
 import {ActiveRunView} from './run_detail_active';
 import {ActivityLog, windowedActivityGroups} from './run_detail_activity_log';
@@ -71,16 +71,14 @@ describe('run detail activity log', () => {
     expect(screen.queryByText('Comparing ideas')).toBeNull();
   });
 
-  it('expands a group to show its individual events', () => {
+  it('collapses a group to its newest step without a toggle', () => {
     renderLog([
       event(1, {task: 'ranking', activity: 'tournament', message: 'Match 1'}),
       event(2, {task: 'ranking', activity: 'tournament', message: 'Match 2'}),
     ]);
-    expect(screen.queryByText('Match 1')).toBeNull();
-    fireEvent.click(
-      screen.getByRole('button', {name: '2 steps for Comparing ideas'}),
-    );
-    expect(screen.getByText('Match 1')).toBeInTheDocument();
+    expect(screen.getByText('Comparing ideas')).toBeInTheDocument();
     expect(screen.getByText('Match 2')).toBeInTheDocument();
+    expect(screen.queryByText('Match 1')).toBeNull();
+    expect(screen.queryByRole('button')).toBeNull();
   });
 });
