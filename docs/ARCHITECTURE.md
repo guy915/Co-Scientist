@@ -190,7 +190,7 @@ client id and (when a researcher session is active) its bearer token
 the light/dark theme (`workbench/theme_context.tsx` —
 `cosci-theme`), a scientist's own BYOK provider key when set
 (`lib/api_key.ts` — `cosci-api-key`, `cosci-api-provider`), and the Logs
-popover's per-session baseline row id (`workbench/layout_diagnostics_state.ts`
+button's per-session baseline row id (`workbench/layout_diagnostics.tsx`
 — `cosci-logs-session-baseline`). These are identity, preference, and UI
 bookkeeping, not a cache of server content, which is why point 1-4 above
 still holds: nothing here lets a view render without hitting the API.

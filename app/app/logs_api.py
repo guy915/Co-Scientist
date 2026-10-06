@@ -12,21 +12,13 @@ from pydantic import BaseModel, Field
 from app.auth import client_id
 from app.config import settings
 from app.logging_setup import level_to_number
-from app.notifications import deliver_email, email_notifications_configured
 from app.operator_access import is_operator
 from app.store import db, logs
 from app.store.logs import LogFilters, NewLogRecord
 
-logger = logging.getLogger(__name__)
-
-# Ingest and email need separate budgets; process-local limits assume one API
-# replica and need shared storage when replicated.
+# Process-local limit; assumes one API replica and needs shared storage when
+# replicated.
 _ingest_hits: dict[str, list[float]] = {}
-_report_hits: dict[str, list[float]] = {}
-
-# A deliberate report click needs a far smaller ceiling than background log
-# ingestion.
-REPORTS_PER_MINUTE = 5
 
 
 def _rate_limit_keys(request: Request) -> tuple[str, str]:
@@ -81,17 +73,10 @@ def _check_ingest_rate(request: Request) -> None:
     )
 
 
-def _check_report_rate(request: Request) -> None:
-    _check_both_rates(_report_hits, request, REPORTS_PER_MINUTE, "report rate exceeded")
-
-
 router = APIRouter(tags=["logs"])
 
 MAX_CLIENT_BATCH = 50
 MAX_CLIENT_MESSAGE_CHARS = 2000
-
-# Bound emailed diagnostics so an open report endpoint cannot relay bulk text.
-MAX_REPORT_CHARS = 100_000
 
 
 def _scope_for(request: Request) -> str | None:
@@ -110,20 +95,6 @@ def _sanitize(text: str) -> str:
     return "".join(ch if ch.isprintable() else " " for ch in text).strip()
 
 
-# Verbose reads reveal hidden records; capture-time dropping is a different
-# boundary.
-NOISE_LOGGERS: tuple[str, ...] = (
-    "uvicorn.access",
-    "ui.interaction",
-    "ui.navigation",
-    "httpx",
-    "httpcore",
-    "urllib3",
-    "litellm",
-    "co_scientist",
-)
-
-
 def _min_levelno(min_level: str | None) -> int:
     if min_level is None:
         return 0
@@ -134,47 +105,13 @@ def _min_levelno(min_level: str | None) -> int:
 
 
 class LogQuery(BaseModel):
-    """The query parameters ``GET /api/logs`` accepts.
-
-    A Pydantic query-parameter model: FastAPI expands its fields back into
-    the same query-string names, defaults, and validation the handler used
-    to declare one by one, so the HTTP contract and the generated OpenAPI
-    schema are unchanged. The caller's visibility scope is deliberately
-    absent -- it is derived from the request, never accepted from it.
-
-    Attributes:
-        after_id: Only rows with an id strictly greater than this.
-        limit: Maximum rows returned (the newest matches, oldest-first).
-        min_level: Minimum level name, case-insensitive; None for all.
-        run_id: Only rows bound to this run; None for app-wide.
-        q: Case-insensitive message substring filter.
-        verbose: Include high-volume noise records (HTTP access, UI
-            clicks/navigation, dependency chatter) below WARNING.
+    """Query parameters of ``GET /api/logs``; the caller's scope is derived
+    from the request, never accepted from it.
     """
 
     after_id: int = Field(0, ge=0)
     limit: int = Field(200, ge=1, le=1000)
     min_level: str | None = None
-    run_id: str | None = None
-    q: str | None = None
-    verbose: bool = False
-
-
-class RunLogQuery(BaseModel):
-    """The query parameters the run-scoped logs endpoint accepts.
-
-    :class:`LogQuery` minus ``run_id``, which that endpoint reads from the
-    path instead of the query string.
-    """
-
-    after_id: int = Field(0, ge=0)
-    limit: int = Field(200, ge=1, le=1000)
-    min_level: str | None = None
-    q: str | None = None
-    verbose: bool = False
-
-    def for_run(self, run_id: str) -> LogQuery:
-        return LogQuery(run_id=run_id, **self.model_dump())
 
 
 def _query_logs_payload(
@@ -202,12 +139,8 @@ def logs_payload(query: LogQuery, *, scope_client_id: str | None = None) -> dict
     filters = LogFilters(
         after_id=query.after_id,
         min_levelno=_min_levelno(query.min_level),
-        run_id=query.run_id,
-        contains=query.q,
-        noise_loggers=None if query.verbose else NOISE_LOGGERS,
         scope_client_id=scope_client_id,
     )
-    # Share one connection across the continuously polled response's queries.
     with db.connect() as conn:
         return _query_logs_payload(conn, filters, query.limit)
 
@@ -260,75 +193,6 @@ async def post_logs(batch: ClientLogBatch, request: Request) -> dict[str, Any]:
     return {"added": len(batch.records), "last_id": last_id}
 
 
-class LogReportRequest(BaseModel):
-    """One diagnostic export a scientist chose to send to the operator."""
-
-    report: str = Field(min_length=1, max_length=MAX_REPORT_CHARS)
-
-
-def _report_subject(request: Request) -> str:
-    """Request text reaches the body only; subject and recipient stay
-    server-controlled to prevent header injection.
-    """
-    return f"Co-Scientist diagnostic report ({client_id(request) or 'unidentified client'})"
-
-
-@router.post("/api/logs/report", status_code=202)
-async def report_logs(req: LogReportRequest, request: Request) -> dict[str, Any]:
-    """Email one diagnostic export to the configured operator address.
-
-    The Logs panel's Copy button already produces a self-describing export
-    (context preamble, tallies, field legend, newest entries); this sends
-    that same document rather than a link, so a report arrives complete
-    even from a browser the operator can never reach.
-
-    The export is submitted rather than rebuilt from the caller's scoped
-    logs on purpose: the panel's view is anchored to the browsing session
-    and renumbered for display, so re-deriving it server-side would report
-    something subtly different from what the scientist was looking at when
-    they decided to report it.
-
-    Open to any caller, like log ingestion, because a browser in trouble
-    has to be able to say so. The blast radius is bounded on every side:
-    the recipient is fixed in configuration, the body is capped, and each
-    client gets its own small per-minute budget.
-
-    Raises:
-        HTTPException: 503 when no SMTP transport (or no recipient) is
-            configured, so an undeliverable report fails visibly at the
-            button instead of vanishing; 502 when the send itself fails.
-    """
-    owner = client_id(request) or "anonymous"
-    _check_report_rate(request)
-    recipient = settings.log_report_email
-    if not (recipient and email_notifications_configured()):
-        raise HTTPException(status_code=503, detail="email delivery is not configured")
-    try:
-        await deliver_email(recipient, _report_subject(request), req.report)
-    except Exception as exc:
-        logger.warning("Diagnostic report could not be sent: %s", exc)
-        raise HTTPException(status_code=502, detail="the report could not be sent") from exc
-    # Do not echo the emailed body into logs: it already contains a copy of
-    # them.
-    logger.info(
-        "Diagnostic report sent to the operator (%s chars) from %s",
-        len(req.report),
-        owner,
-    )
-    return {"status": "sent", "chars": len(req.report)}
-
-
-@router.delete("/api/logs")
-async def delete_logs(request: Request) -> dict[str, Any]:
-    """Delete persisted log records and report the count.
-
-    Operators clear the whole log, restarting ids so it reads as new.
-    Remote callers may only clear their own records, which leaves the
-    shared id sequence alone.
-    """
-    return {"deleted": logs.clear_logs(scope_client_id=_scope_for(request))}
-
-
 @router.get("/api/logs")
 async def get_logs(
     request: Request,
@@ -339,11 +203,9 @@ async def get_logs(
     Operators (loopback callers, or holders of ``LOGS_ADMIN_TOKEN`` via
     the ``X-Logs-Token`` header) get the app-wide view. Every other
     caller sees only their own records: those they submitted and those
-    belonging to runs they own. The default view also hides high-volume
-    noise (HTTP access records, UI clicks/navigation, dependency
-    chatter) below WARNING; ``verbose=1`` returns everything visible.
+    belonging to runs they own.
     """
     return logs_payload(query, scope_client_id=_scope_for(request))
 
 
-__all__ = ["_check_ingest_rate", "_check_report_rate"]
+__all__ = ["_check_ingest_rate"]

@@ -1,53 +1,11 @@
-import {act, fireEvent, screen} from '@testing-library/react';
-import {beforeEach, expect, it, vi, describe} from 'vitest';
+import {fireEvent, screen} from '@testing-library/react';
+import {beforeEach, expect, it, describe} from 'vitest';
 import {
   installLayoutMocks,
-  logsApiMock,
   renderLayout,
   apiMock,
   chatFixture,
 } from './layout_test_support';
-
-describe('layout logs', () => {
-  beforeEach(() => {
-    installLayoutMocks();
-  });
-
-  it('keeps the badge fresh while the popover is closed', async () => {
-    vi.useFakeTimers();
-    try {
-      renderLayout();
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(0);
-      });
-      expect(screen.getByRole('button', {name: /Logs 0/i})).toBeInTheDocument();
-
-      logsApiMock.getAppLogs.mockResolvedValue({
-        logs: [
-          {
-            id: 9,
-            created_at: 1_700_000_009,
-            level: 'INFO',
-            levelno: 20,
-            logger: 'app.main',
-            message: 'run finished',
-            run_id: null,
-            exc_text: null,
-          },
-        ],
-        last_id: 9,
-        total: 9,
-        session_total: 9,
-      });
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(5_000);
-      });
-      expect(screen.getByRole('button', {name: /Logs 9/i})).toBeInTheDocument();
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-});
 
 describe('layout sidebar', () => {
   beforeEach(() => {

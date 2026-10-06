@@ -122,9 +122,6 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from_email: str = ""
     public_app_url: str = "http://localhost:5173"
-    # The diagnostic-report recipient is fixed server-side, never chosen by the
-    # requester.
-    log_report_email: str = "guybarel2006@gmail.com"
 
     auth_mode: Literal["compatibility", "required"] = "compatibility"
     auth_secret: str = ""
